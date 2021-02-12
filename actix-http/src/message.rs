@@ -13,8 +13,10 @@ use crate::http::{header, Method, StatusCode, Uri, Version};
 pub enum ConnectionType {
     /// Close connection after response
     Close,
+
     /// Keep connection alive after response
     KeepAlive,
+
     /// Connection is upgraded to different type
     Upgrade,
 }

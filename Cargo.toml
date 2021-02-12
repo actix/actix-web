@@ -116,6 +116,9 @@ brotli2 = "0.3.2"
 flate2 = "1.0.13"
 criterion = "0.3"
 
+[profile.dev]
+debug = false
+
 [profile.release]
 lto = true
 opt-level = 3
