@@ -42,24 +42,25 @@ fn bench_async_burst(c: &mut Criterion) {
 
     c.bench_function("get_body_async_burst", move |b| {
         b.iter_custom(|iters| {
-            let client =
-                rt.block_on(async { Client::new().get(url.clone()).freeze().unwrap() });
+            rt.block_on(async {
+                let client = Client::new().get(url.clone()).freeze().unwrap();
 
-            let start = std::time::Instant::now();
-            // benchmark body
-            let resps = rt.block_on(async move {
+                let start = std::time::Instant::now();
+                // benchmark body
+
                 let burst = (0..iters).map(|_| client.send());
-                join_all(burst).await
-            });
-            let elapsed = start.elapsed();
+                let resps = join_all(burst).await;
 
-            // if there are failed requests that might be an issue
-            let failed = resps.iter().filter(|r| r.is_err()).count();
-            if failed > 0 {
-                eprintln!("failed {} requests (might be bench timeout)", failed);
-            };
+                let elapsed = start.elapsed();
 
-            elapsed
+                // if there are failed requests that might be an issue
+                let failed = resps.iter().filter(|r| r.is_err()).count();
+                if failed > 0 {
+                    eprintln!("failed {} requests (might be bench timeout)", failed);
+                };
+
+                elapsed
+            })
         })
     });
 }
