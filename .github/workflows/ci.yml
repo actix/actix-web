@@ -17,7 +17,8 @@ jobs:
           - { name: Windows, os: windows-latest, triple: x86_64-pc-windows-msvc }
         version:
           - 1.46.0 # MSRV
-          - stable
+          # - stable
+          - 1.50.0
           - nightly
 
     name: ${{ matrix.target.name }} / ${{ matrix.version }}
