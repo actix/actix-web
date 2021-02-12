@@ -243,7 +243,7 @@ impl TestServer {
         response.body().limit(10_485_760).await
     }
 
-    /// Connect to websocket server at a given path
+    /// Connect to WebSocket server at a given path.
     pub async fn ws_at(
         &mut self,
         path: &str,
@@ -253,7 +253,7 @@ impl TestServer {
         connect.await.map(|(_, framed)| framed)
     }
 
-    /// Connect to a websocket server
+    /// Connect to a WebSocket server.
     pub async fn ws(
         &mut self,
     ) -> Result<Framed<impl AsyncRead + AsyncWrite, ws::Codec>, awc::error::WsClientError> {

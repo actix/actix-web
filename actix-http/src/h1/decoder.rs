@@ -224,7 +224,7 @@ impl MessageType for Request {
         let decoder = match length {
             PayloadLength::Payload(pl) => pl,
             PayloadLength::UpgradeWebSocket => {
-                // upgrade(websocket)
+                // upgrade (WebSocket)
                 PayloadType::Stream(PayloadDecoder::eof())
             }
             PayloadLength::None => {

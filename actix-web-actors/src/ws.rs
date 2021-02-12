@@ -48,7 +48,7 @@ where
 ///
 /// If successful, returns a pair where the first item is an address for the
 /// created actor and the second item is the response that should be returned
-/// from the websocket request.
+/// from the WebSocket request.
 pub fn start_with_addr<A, T>(
     actor: A,
     req: &HttpRequest,
@@ -63,7 +63,7 @@ where
     Ok((addr, res.streaming(out_stream)))
 }
 
-/// Do websocket handshake and start ws actor.
+/// Do WebSocket handshake and start ws actor.
 ///
 /// `protocols` is a sequence of known protocols.
 pub fn start_with_protocols<A, T>(
@@ -80,7 +80,7 @@ where
     Ok(res.streaming(WebsocketContext::create(actor, stream)))
 }
 
-/// Prepare `WebSocket` handshake response.
+/// Prepare WebSocket handshake response.
 ///
 /// This function returns handshake `HttpResponse`, ready to send to peer.
 /// It does not perform any IO.
@@ -88,7 +88,7 @@ pub fn handshake(req: &HttpRequest) -> Result<HttpResponseBuilder, HandshakeErro
     handshake_with_protocols(req, &[])
 }
 
-/// Prepare `WebSocket` handshake response.
+/// Prepare WebSocket handshake response.
 ///
 /// This function returns handshake `HttpResponse`, ready to send to peer.
 /// It does not perform any IO.
@@ -105,7 +105,7 @@ pub fn handshake_with_protocols(
         return Err(HandshakeError::GetMethodRequired);
     }
 
-    // Check for "UPGRADE" to websocket header
+    // check for "UPGRADE" to WebSocket header
     let has_hdr = if let Some(hdr) = req.headers().get(&header::UPGRADE) {
         if let Ok(s) = hdr.to_str() {
             s.to_ascii_lowercase().contains("websocket")

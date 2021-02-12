@@ -7,7 +7,7 @@ use crate::ws::mask::apply_mask;
 use crate::ws::proto::{CloseCode, CloseReason, OpCode};
 use crate::ws::ProtocolError;
 
-/// A struct representing a `WebSocket` frame.
+/// A struct representing a WebSocket frame.
 #[derive(Debug)]
 pub struct Parser;
 

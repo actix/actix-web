@@ -54,7 +54,7 @@ pub enum Frame {
     Close(Option<CloseReason>),
 }
 
-/// A `WebSocket` continuation item.
+/// A WebSocket continuation item.
 #[derive(Debug, PartialEq)]
 pub enum Item {
     FirstText(Bytes),
@@ -79,7 +79,7 @@ bitflags! {
 }
 
 impl Codec {
-    /// Create new websocket frames decoder.
+    /// Create new WebSocket frames decoder.
     pub fn new() -> Codec {
         Codec {
             max_size: 65_536,

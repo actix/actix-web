@@ -31,7 +31,7 @@ async fn test_simple() {
                         .send(h1::Message::Item((res.drop_body(), BodySize::None)))
                         .await?;
 
-                    // start websocket service
+                    // start WebSocket service
                     let framed = framed.replace_codec(ws::Codec::new());
                     ws::Dispatcher::with(framed, ws_service).await
                 }

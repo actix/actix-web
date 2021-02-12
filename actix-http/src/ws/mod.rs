@@ -1,6 +1,6 @@
-//! WebSocket protocol support.
+//! WebSocket protocol.
 //!
-//! To setup a WebSocket, first do web socket handshake then on success convert `Payload` into a
+//! To setup a WebSocket, first perform the WebSocket handshake then on success convert `Payload` into a
 //! `WsStream` stream and then use `WsWriter` to communicate with the peer.
 
 use std::io;
@@ -76,7 +76,7 @@ pub enum HandshakeError {
     #[display(fmt = "Method not allowed.")]
     GetMethodRequired,
 
-    /// Upgrade header if not set to websocket.
+    /// Upgrade header if not set to WebSocket.
     #[display(fmt = "WebSocket upgrade is expected.")]
     NoWebsocketUpgrade,
 
@@ -88,7 +88,7 @@ pub enum HandshakeError {
     #[display(fmt = "WebSocket version header is required.")]
     NoVersionHeader,
 
-    /// Unsupported websocket version.
+    /// Unsupported WebSocket version.
     #[display(fmt = "Unsupported version.")]
     UnsupportedVersion,
 
@@ -127,20 +127,20 @@ impl ResponseError for HandshakeError {
     }
 }
 
-/// Verify `WebSocket` handshake request and create handshake response.
+/// Verify WebSocket handshake request and create handshake response.
 pub fn handshake(req: &RequestHead) -> Result<ResponseBuilder, HandshakeError> {
     verify_handshake(req)?;
     Ok(handshake_response(req))
 }
 
-/// Verify `WebSocket` handshake request.
+/// Verify WebSocket handshake request.
 pub fn verify_handshake(req: &RequestHead) -> Result<(), HandshakeError> {
     // WebSocket accepts only GET
     if req.method != Method::GET {
         return Err(HandshakeError::GetMethodRequired);
     }
 
-    // Check for "UPGRADE" to websocket header
+    // Check for "UPGRADE" to WebSocket header
     let has_hdr = if let Some(hdr) = req.headers().get(header::UPGRADE) {
         if let Ok(s) = hdr.to_str() {
             s.to_ascii_lowercase().contains("websocket")
@@ -181,7 +181,7 @@ pub fn verify_handshake(req: &RequestHead) -> Result<(), HandshakeError> {
     Ok(())
 }
 
-/// Create websocket handshake response
+/// Create WebSocket handshake response.
 ///
 /// This function returns handshake `Response`, ready to send to peer.
 pub fn handshake_response(req: &RequestHead) -> ResponseBuilder {
