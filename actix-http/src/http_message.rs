@@ -5,12 +5,14 @@ use encoding_rs::{Encoding, UTF_8};
 use http::header;
 use mime::Mime;
 
-use crate::cookie::Cookie;
-use crate::error::{ContentTypeError, CookieParseError, ParseError};
+use crate::error::{ContentTypeError, ParseError};
 use crate::extensions::Extensions;
 use crate::header::{Header, HeaderMap};
 use crate::payload::Payload;
+#[cfg(feature = "cookies")]
+use crate::{cookie::Cookie, error::CookieParseError};
 
+#[cfg(feature = "cookies")]
 struct Cookies(Vec<Cookie<'static>>);
 
 /// Trait that implements general purpose operations on HTTP messages.
@@ -104,6 +106,7 @@ pub trait HttpMessage: Sized {
     }
 
     /// Load request cookies.
+    #[cfg(feature = "cookies")]
     #[inline]
     fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
         if self.extensions().get::<Cookies>().is_none() {
@@ -125,6 +128,7 @@ pub trait HttpMessage: Sized {
     }
 
     /// Return request cookie.
+    #[cfg(feature = "cookies")]
     fn cookie(&self, name: &str) -> Option<Cookie<'static>> {
         if let Ok(cookies) = self.cookies() {
             for cookie in cookies.iter() {

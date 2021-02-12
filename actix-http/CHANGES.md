@@ -1,7 +1,8 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
-
+### Changed
+* Feature `cookies` is now optional and disabled by default.
 
 ## 3.0.0-beta.3 - 2021-02-10
 * No notable changes.

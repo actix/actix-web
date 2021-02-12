@@ -1,7 +1,8 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
-
+### Changed
+* Feature `cookies` is now optional and enabled by default.
 
 ## 4.0.0-beta.3 - 2021-02-10
 * Update `actix-web-codegen` to `0.5.0-beta.1`.

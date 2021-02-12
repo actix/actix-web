@@ -19,9 +19,11 @@ use serde_json::error::Error as JsonError;
 use serde_urlencoded::ser::Error as FormError;
 
 use crate::body::Body;
-pub use crate::cookie::ParseError as CookieParseError;
 use crate::helpers::Writer;
 use crate::response::{Response, ResponseBuilder};
+
+#[cfg(feature = "cookies")]
+pub use crate::cookie::ParseError as CookieParseError;
 
 /// A specialized [`std::result::Result`]
 /// for actix web operations
@@ -397,6 +399,7 @@ impl ResponseError for PayloadError {
 }
 
 /// Return `BadRequest` for `cookie::ParseError`
+#[cfg(feature = "cookies")]
 impl ResponseError for crate::cookie::ParseError {
     fn status_code(&self) -> StatusCode {
         StatusCode::BAD_REQUEST

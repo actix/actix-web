@@ -8,10 +8,11 @@ use std::task::{Context, Poll};
 use bytes::{Bytes, BytesMut};
 use futures_core::{ready, Stream};
 
-use actix_http::cookie::Cookie;
-use actix_http::error::{CookieParseError, PayloadError};
-use actix_http::http::header::{CONTENT_LENGTH, SET_COOKIE};
+use actix_http::error::PayloadError;
+use actix_http::http::header;
 use actix_http::http::{HeaderMap, StatusCode, Version};
+#[cfg(feature = "cookies")]
+use actix_http::{cookie::Cookie, error::CookieParseError};
 use actix_http::{Extensions, HttpMessage, Payload, PayloadStream, ResponseHead};
 use serde::de::DeserializeOwned;
 
@@ -43,13 +44,14 @@ impl<S> HttpMessage for ClientResponse<S> {
     }
 
     /// Load request cookies.
+    #[cfg(feature = "cookies")]
     #[inline]
     fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
         struct Cookies(Vec<Cookie<'static>>);
 
         if self.extensions().get::<Cookies>().is_none() {
             let mut cookies = Vec::new();
-            for hdr in self.headers().get_all(&SET_COOKIE) {
+            for hdr in self.headers().get_all(&header::SET_COOKIE) {
                 let s = std::str::from_utf8(hdr.as_bytes()).map_err(CookieParseError::from)?;
                 cookies.push(Cookie::parse_encoded(s)?.into_owned());
             }
@@ -161,7 +163,7 @@ where
     /// Create `MessageBody` for request.
     pub fn new(res: &mut ClientResponse<S>) -> MessageBody<S> {
         let mut len = None;
-        if let Some(l) = res.headers().get(&CONTENT_LENGTH) {
+        if let Some(l) = res.headers().get(&header::CONTENT_LENGTH) {
             if let Ok(s) = l.to_str() {
                 if let Ok(l) = s.parse::<usize>() {
                     len = Some(l)
@@ -256,7 +258,7 @@ where
         }
 
         let mut len = None;
-        if let Some(l) = req.headers().get(&CONTENT_LENGTH) {
+        if let Some(l) = req.headers().get(&header::CONTENT_LENGTH) {
             if let Ok(s) = l.to_str() {
                 if let Ok(l) = s.parse::<usize>() {
                     len = Some(l)

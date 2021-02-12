@@ -34,12 +34,14 @@ mod response;
 mod service;
 mod time_parser;
 
-pub use cookie;
 pub mod error;
 pub mod h1;
 pub mod h2;
 pub mod test;
 pub mod ws;
+
+#[cfg(feature = "cookies")]
+pub use cookie;
 
 pub use self::builder::HttpServiceBuilder;
 pub use self::config::{KeepAlive, ServiceConfig};
@@ -61,6 +63,7 @@ pub mod http {
     pub use http::{uri, Error, Uri};
     pub use http::{Method, StatusCode, Version};
 
+    #[cfg(feature = "cookies")]
     pub use crate::cookie::{Cookie, CookieBuilder};
     pub use crate::header::HeaderMap;
 
