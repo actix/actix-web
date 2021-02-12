@@ -23,33 +23,33 @@ jobs:
     name: ${{ matrix.target.name }} / ${{ matrix.version }}
     runs-on: ${{ matrix.target.os }}
 
-    env:
-      VCPKG_ROOT: 'C:\vcpkg'
+    # env:
+    #   VCPKG_ROOT: 'C:\vcpkg'
 
     steps:
-      - name: Cache vcpkg installed
-        uses: actions/cache@v1.0.3
-        if: matrix.target.os == 'windows-latest'
-        with:
-          path: $VCPKG_ROOT/installed
-          key: ${{ runner.os }}-vcpkg-cache
-      - name: Cache vcpkg downloads
-        uses: actions/cache@v1.0.3
-        if: matrix.target.os == 'windows-latest'
-        with:
-          path: $VCPKG_ROOT/downloads
-          key: ${{ runner.os }}-vcpkg-cache
+      # - name: Cache vcpkg installed
+      #   uses: actions/cache@v1.0.3
+      #   if: matrix.target.os == 'windows-latest'
+      #   with:
+      #     path: $VCPKG_ROOT/installed
+      #     key: ${{ runner.os }}-vcpkg-cache
+      # - name: Cache vcpkg downloads
+      #   uses: actions/cache@v1.0.3
+      #   if: matrix.target.os == 'windows-latest'
+      #   with:
+      #     path: $VCPKG_ROOT/downloads
+      #     key: ${{ runner.os }}-vcpkg-cache
 
-      - name: Install OpenSSL
-        if: matrix.target.os == 'windows-latest'
+      - name: Install Native Dependencies (Windows)
+        if: matrix.os.name == 'Windows'
         run: |
+          curl -fsS -o vcpkg.7z https://rocket.rs/static/vcpkg-2019-07-05.7z
+          7z x vcpkg.7z -y -bb0
+          xcopy .\vcpkg $env:VCPKG_INSTALLATION_ROOT /s /e /h /y /q
           vcpkg integrate install
-          vcpkg update
-          vcpkg install openssl:x64-windows
-          Copy-Item C:\vcpkg\installed\x64-windows\bin\libcrypto-1_1-x64.dll C:\vcpkg\installed\x64-windows\bin\libcrypto.dll
-          Copy-Item C:\vcpkg\installed\x64-windows\bin\libssl-1_1-x64.dll C:\vcpkg\installed\x64-windows\bin\libssl.dll
-          Get-ChildItem C:\vcpkg\installed\x64-windows\bin
-          Get-ChildItem C:\vcpkg\installed\x64-windows\lib
+          echo "VCPKGRS_DYNAMIC=1" >> "$env:GITHUB_ENV"
+          echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" >> "$env:GITHUB_ENV"
+          echo "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib" >> "$env:GITHUB_PATH"
 
       - uses: actions/checkout@v2
 
@@ -67,13 +67,13 @@ jobs:
       - name: Cache Dependencies
         uses: Swatinem/rust-cache@v1.0.1
 
-      - name: check check minimal
+      - name: check minimal
         uses: actions-rs/cargo@v1
         with:
           command: check
           args: --workspace --no-default-features --tests
 
-      - name: check check workspace
+      - name: check full
         uses: actions-rs/cargo@v1
         with:
           command: check
