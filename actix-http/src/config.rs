@@ -323,13 +323,14 @@ mod tests {
         settings.set_date(&mut buf1);
         let now1 = settings.now();
 
-        sleep_until(Instant::now() + Duration::from_secs(1)).await;
+        sleep_until(Instant::now() + Duration::from_secs(2)).await;
+        yield_now().await;
 
         let now2 = settings.now();
         let mut buf2 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
         settings.set_date(&mut buf2);
 
-        assert!(now2 - now1 > Duration::from_millis(500));
+        assert_ne!(now1, now2);
 
         assert_ne!(buf1, buf2);
 
