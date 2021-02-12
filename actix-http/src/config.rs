@@ -249,7 +249,7 @@ impl DateService {
     fn new() -> Self {
         // shared date and timer for DateService and update async task.
         let current = Rc::new(Cell::new((Date::new(), Instant::now())));
-        let current_clone = current.clone();
+        let current_clone = Rc::clone(&current);
         // spawn an async task sleep for 500 milli and update current date/timer in a loop.
         // handle is used to stop the task on DateService drop.
         let handle = actix_rt::spawn(async move {
@@ -258,11 +258,8 @@ impl DateService {
 
             let mut interval = interval(Duration::from_millis(500));
             loop {
-                // TODO: consider use the Instant returned by interval stream
-                // (If it's accurate enough)
-                let _now = interval.tick().await;
+                let now = interval.tick().await;
                 let date = Date::new();
-                let now = Instant::now();
                 current_clone.set((date, now));
             }
         });
