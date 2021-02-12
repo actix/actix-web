@@ -1,0 +1,119 @@
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [master]
+
+jobs:
+  build_and_test:
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - { name: Linux, os: ubuntu-latest, triple: x86_64-unknown-linux-gnu }
+          - { name: macOS, os: macos-latest, triple: x86_64-apple-darwin }
+          - { name: Windows, os: windows-latest, triple: x86_64-pc-windows-msvc }
+        version:
+          - 1.46.0 # MSRV
+          - stable
+          - nightly
+
+    name: ${{ matrix.target.name }} / ${{ matrix.version }}
+    runs-on: ${{ matrix.target.os }}
+
+    env:
+      VCPKG_ROOT: 'C:\vcpkg'
+
+    steps:
+      - name: Cache vcpkg installed
+        uses: actions/cache@v1.0.3
+        if: matrix.target.os == 'windows-latest'
+        with:
+          path: $VCPKG_ROOT/installed
+          key: ${{ runner.os }}-vcpkg-cache
+      - name: Cache vcpkg downloads
+        uses: actions/cache@v1.0.3
+        if: matrix.target.os == 'windows-latest'
+        with:
+          path: $VCPKG_ROOT/downloads
+          key: ${{ runner.os }}-vcpkg-cache
+
+      - name: Install OpenSSL
+        if: matrix.target.os == 'windows-latest'
+        run: |
+          vcpkg integrate install
+          vcpkg install openssl:x64-windows
+
+      - uses: actions/checkout@v2
+
+      - name: Install ${{ matrix.version }}
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.version }}-${{ matrix.target.triple }}
+          profile: minimal
+          override: true
+
+      - name: Generate Cargo.lock
+        uses: actions-rs/cargo@v1
+        with:
+          command: generate-lockfile
+      - name: Cache Dependencies
+        uses: Swatinem/rust-cache@v1.0.1
+
+      - name: check check minimal
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: --workspace --no-default-features --tests
+
+      - name: check check workspace
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: --workspace --bins --examples --tests
+
+      - name: tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --workspace --all-features --no-fail-fast -- --nocapture
+            --skip=test_h2_content_length
+            --skip=test_reading_deflate_encoding_large_random_rustls
+
+      - name: tests (actix-http)
+        uses: actions-rs/cargo@v1
+        timeout-minutes: 40
+        with:
+          command: test
+          args: --package=actix-http --no-default-features --features=rustls -- --nocapture
+
+      - name: tests (awc)
+        uses: actions-rs/cargo@v1
+        timeout-minutes: 40
+        with:
+          command: test
+          args: --package=awc --no-default-features --features=rustls -- --nocapture
+
+      - name: Generate coverage file
+        if: >
+          matrix.target.os == 'ubuntu-latest'
+          && matrix.version == 'stable'
+          && github.ref == 'refs/heads/master'
+        run: |
+          cargo install cargo-tarpaulin --vers "^0.13"
+          cargo tarpaulin --out Xml
+      - name: Upload to Codecov
+        if: >
+          matrix.target.os == 'ubuntu-latest'
+          && matrix.version == 'stable'
+          && github.ref == 'refs/heads/master'
+        uses: codecov/codecov-action@v1
+        with:
+          file: cobertura.xml
+
+      - name: Clear the cargo caches
+        run: |
+          cargo install cargo-cache --no-default-features --features ci-autoclean
+          cargo-cache
