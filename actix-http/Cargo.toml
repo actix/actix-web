@@ -98,7 +98,6 @@ tls-rustls = { version = "0.19", package = "rustls" }
 version = "0.10.9"
 package = "openssl"
 features = ["vendored"]
-optional = true
 
 [[bench]]
 name = "write-camel-case"
