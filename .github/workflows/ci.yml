@@ -29,16 +29,16 @@ jobs:
     runs-on: ${{ matrix.target.os }}
 
     steps:
-      - name: Install Native Dependencies (Windows)
-        if: matrix.target.os == 'windows-latest'
-        run: |
-          curl -fsS -o vcpkg.7z https://rocket.rs/static/vcpkg-2019-07-05.7z
-          7z x vcpkg.7z -y -bb0
-          xcopy .\vcpkg $env:VCPKG_INSTALLATION_ROOT /s /e /h /y /q
-          vcpkg integrate install
-          echo "VCPKGRS_DYNAMIC=1" >> "$env:GITHUB_ENV"
-          echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" >> "$env:GITHUB_ENV"
-          echo "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib" >> "$env:GITHUB_PATH"
+      # - name: Install Native Dependencies (Windows)
+      #   if: matrix.target.os == 'windows-latest'
+      #   run: |
+      #     curl -fsS -o vcpkg.7z https://rocket.rs/static/vcpkg-2019-07-05.7z
+      #     7z x vcpkg.7z -y -bb0
+      #     xcopy .\vcpkg $env:VCPKG_INSTALLATION_ROOT /s /e /h /y /q
+      #     vcpkg integrate install
+      #     echo "VCPKGRS_DYNAMIC=1" >> "$env:GITHUB_ENV"
+      #     echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" >> "$env:GITHUB_ENV"
+      #     echo "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib" >> "$env:GITHUB_PATH"
 
       - uses: actions/checkout@v2
 
