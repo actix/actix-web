@@ -17,8 +17,10 @@ jobs:
           - { name: Windows, os: windows-latest, triple: x86_64-pc-windows-msvc }
         version:
           - 1.46.0 # MSRV
-          # - stable
+          - 1.47.0
+          - 1.48.0
           - 1.49.0
+          - 1.50.0
           - stable
           - beta
           - nightly
