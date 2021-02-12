@@ -529,8 +529,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_camel_case() {
+    #[actix_rt::test]
+    async fn test_camel_case() {
         let mut bytes = BytesMut::with_capacity(2048);
         let mut head = RequestHead::default();
         head.set_camel_case_headers(true);
@@ -593,8 +593,8 @@ mod tests {
         assert!(data.contains("date: date\r\n"));
     }
 
-    #[test]
-    fn test_extra_headers() {
+    #[actix_rt::test]
+    async fn test_extra_headers() {
         let mut bytes = BytesMut::with_capacity(2048);
 
         let mut head = RequestHead::default();
@@ -627,8 +627,8 @@ mod tests {
         assert!(data.contains("date: date\r\n"));
     }
 
-    #[test]
-    fn test_no_content_length() {
+    #[actix_rt::test]
+    async fn test_no_content_length() {
         let mut bytes = BytesMut::with_capacity(2048);
 
         let mut res: Response<()> =
