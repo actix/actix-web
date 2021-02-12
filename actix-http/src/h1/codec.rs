@@ -201,8 +201,8 @@ mod tests {
     use super::*;
     use crate::HttpMessage;
 
-    #[test]
-    fn test_http_request_chunked_payload_and_next_message() {
+    #[actix_rt::test]
+    async fn test_http_request_chunked_payload_and_next_message() {
         let mut codec = Codec::default();
 
         let mut buf = BytesMut::from(
