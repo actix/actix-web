@@ -1,4 +1,4 @@
-use std::cell::{Ref, RefMut};
+use std::{cell::{Ref, RefMut}, mem};
 use std::fmt;
 use std::future::Future;
 use std::marker::PhantomData;
@@ -11,10 +11,11 @@ use futures_core::{ready, Stream};
 use actix_http::error::PayloadError;
 use actix_http::http::header;
 use actix_http::http::{HeaderMap, StatusCode, Version};
-#[cfg(feature = "cookies")]
-use actix_http::{cookie::Cookie, error::CookieParseError};
 use actix_http::{Extensions, HttpMessage, Payload, PayloadStream, ResponseHead};
 use serde::de::DeserializeOwned;
+
+#[cfg(feature = "cookies")]
+use actix_http::{cookie::Cookie, error::CookieParseError};
 
 use crate::error::JsonPayloadError;
 
@@ -40,16 +41,18 @@ impl<S> HttpMessage for ClientResponse<S> {
     }
 
     fn take_payload(&mut self) -> Payload<S> {
-        std::mem::replace(&mut self.payload, Payload::None)
+        mem::replace(&mut self.payload, Payload::None)
     }
 
     /// Load request cookies.
     #[cfg(feature = "cookies")]
-    #[inline]
     fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
+        eprintln!("awc fn cookies");
+
         struct Cookies(Vec<Cookie<'static>>);
 
         if self.extensions().get::<Cookies>().is_none() {
+            eprintln!("no cookies, inserting");
             let mut cookies = Vec::new();
             for hdr in self.headers().get_all(&header::SET_COOKIE) {
                 let s = std::str::from_utf8(hdr.as_bytes()).map_err(CookieParseError::from)?;

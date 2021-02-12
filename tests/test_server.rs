@@ -806,15 +806,18 @@ async fn test_server_cookies() {
         }))
     });
 
+    let req = srv.get("/");
+    let res = req.send().await.unwrap();
+    assert!(res.status().is_success());
+
+    eprintln!("{:?}", &res);
+
     let first_cookie = http::CookieBuilder::new("first", "first_value")
         .http_only(true)
         .finish();
     let second_cookie = http::Cookie::new("second", "second_value");
 
-    let req = srv.get("/");
-    let res = req.send().await.unwrap();
-    assert!(res.status().is_success());
-
+    eprintln!("gimme cookie");
     let cookies = res.cookies().expect("To have cookies");
     assert_eq!(cookies.len(), 2);
     if cookies[0] == first_cookie {

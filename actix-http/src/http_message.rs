@@ -107,8 +107,9 @@ pub trait HttpMessage: Sized {
 
     /// Load request cookies.
     #[cfg(feature = "cookies")]
-    #[inline]
     fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
+        eprintln!("default impl cookies?");
+
         if self.extensions().get::<Cookies>().is_none() {
             let mut cookies = Vec::new();
             for hdr in self.headers().get_all(header::COOKIE) {
@@ -122,6 +123,7 @@ pub trait HttpMessage: Sized {
             }
             self.extensions_mut().insert(Cookies(cookies));
         }
+
         Ok(Ref::map(self.extensions(), |ext| {
             &ext.get::<Cookies>().unwrap().0
         }))
