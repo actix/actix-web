@@ -160,62 +160,35 @@ where
 {
     /// Create HTTP/1 dispatcher.
     pub(crate) fn new(
-        stream: T,
-        config: ServiceConfig,
-        services: Rc<HttpFlow<S, X, U>>,
-        on_connect_data: OnConnectData,
-        peer_addr: Option<net::SocketAddr>,
-    ) -> Self {
-        Dispatcher::with_timeout(
-            stream,
-            Codec::new(config.clone()),
-            config,
-            BytesMut::with_capacity(HW_BUFFER_SIZE),
-            None,
-            services,
-            on_connect_data,
-            peer_addr,
-        )
-    }
-
-    /// Create HTTP/1 dispatcher with slow request timeout.
-    pub(crate) fn with_timeout(
         io: T,
-        codec: Codec,
         config: ServiceConfig,
-        read_buf: BytesMut,
-        timeout: Option<Sleep>,
-        services: Rc<HttpFlow<S, X, U>>,
+        flow: Rc<HttpFlow<S, X, U>>,
         on_connect_data: OnConnectData,
         peer_addr: Option<net::SocketAddr>,
     ) -> Self {
-        let keepalive = config.keep_alive_enabled();
-        let flags = if keepalive {
+        let flags = if config.keep_alive_enabled() {
             Flags::KEEPALIVE
         } else {
             Flags::empty()
         };
 
         // keep-alive timer
-        let (ka_expire, ka_timer) = if let Some(delay) = timeout {
-            (delay.deadline(), Some(delay))
-        } else if let Some(delay) = config.keep_alive_timer() {
-            (delay.deadline(), Some(delay))
-        } else {
-            (config.now(), None)
+        let (ka_expire, ka_timer) = match config.keep_alive_timer() {
+            Some(delay) => (delay.deadline(), Some(delay)),
+            None => (config.now(), None),
         };
 
         Dispatcher {
             inner: DispatcherState::Normal(InnerDispatcher {
+                read_buf: BytesMut::with_capacity(HW_BUFFER_SIZE),
                 write_buf: BytesMut::with_capacity(HW_BUFFER_SIZE),
                 payload: None,
                 state: State::None,
                 error: None,
                 messages: VecDeque::new(),
                 io: Some(io),
-                codec,
-                read_buf,
-                flow: services,
+                codec: Codec::new(config),
+                flow,
                 on_connect_data,
                 flags,
                 peer_addr,
@@ -772,7 +745,12 @@ where
                             // at this point it's not known io is still scheduled to
                             // be waked up. so force wake up dispatcher just in case.
                             // TODO: figure out the overhead.
-                            cx.waker().wake_by_ref();
+                            if this.payload.is_none() {
+                                // When dispatcher has a payload. The responsibility of
+                                // wake up stream would be shift to PayloadSender.
+                                // Therefore no self wake up is needed.
+                                cx.waker().wake_by_ref();
+                            }
                             return Ok(false);
                         }
 
