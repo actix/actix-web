@@ -1,4 +1,21 @@
 //! HTTP primitives for the Actix ecosystem.
+//!
+//! # Crate Features
+//! | Feature          | Functionality                                         |
+//! | ---------------- | ----------------------------------------------------- |
+//! | `openssl`        | TLS support via [OpenSSL](openssl).                   |
+//! | `rustls`         | TLS support via [rustls](rustls).                     |
+//! | `compress`       | Payload compression support. (Deflate, Gzip & Brotli) |
+//! | `cookies`        | Support for cookies backed by the [cookie] crate.     |
+//! | `secure-cookies` | Adds for secure cookies. Enables `cookies` feature.   |
+//! | `trust-dns`      | Uses [`trust-dns`] as the client DNS resolver.        |
+//! 
+//! [openssl]: https://crates.io/crates/openssl
+//! [rustls]: https://crates.io/crates/rustls
+//! [cookie]: https://crates.io/crates/cookie
+//! [trust-dns]: https://crates.io/crates/trust-dns
+//! [trust-dns]: https://crates.io/crates/trust-dns
+
 
 #![deny(rust_2018_idioms, nonstandard_style)]
 #![allow(

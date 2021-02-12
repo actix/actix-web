@@ -31,14 +31,14 @@ openssl = ["actix-tls/openssl"]
 # rustls support
 rustls = ["actix-tls/rustls"]
 
-# enable compressison support
+# enable compression support
 compress = ["flate2", "brotli2"]
 
 # support for cookies
 cookies = ["cookie"]
 
 # support for secure cookies
-secure-cookies = ["cookie", "cookie/secure"]
+secure-cookies = ["cookies", "cookie/secure"]
 
 # trust-dns as client dns resolver
 trust-dns = ["trust-dns-resolver"]

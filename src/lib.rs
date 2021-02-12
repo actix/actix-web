@@ -61,6 +61,7 @@
 //! ## Crate Features
 //!
 //! * `compress` - content encoding compression support (enabled by default)
+//! * `cookies` - cookies support (enabled by default)
 //! * `openssl` - HTTPS support via `openssl` crate, supports `HTTP/2`
 //! * `rustls` - HTTPS support via `rustls` crate, supports `HTTP/2`
 //! * `secure-cookies` - secure cookies support
