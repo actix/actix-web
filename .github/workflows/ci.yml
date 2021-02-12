@@ -18,7 +18,9 @@ jobs:
         version:
           - 1.46.0 # MSRV
           # - stable
-          - 1.50.0
+          - 1.49.0
+          - stable
+          - beta
           - nightly
 
     name: ${{ matrix.target.name }} / ${{ matrix.version }}
