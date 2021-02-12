@@ -276,30 +276,58 @@ impl DateService {
     }
 }
 
-// test drop behavior of DateService. only enabled in tests.
 // TODO: move to a util module for testing all spawn handle drop style tasks.
 #[cfg(test)]
+/// Test Module for checking the drop state of certain async tasks that are spawned
+/// with `actix_rt::spawn`
+///
+/// The target task must explicitly generate `NotifyOnDrop` when spawn the task
 mod notify_on_drop {
-    use std::sync::atomic::{AtomicBool, Ordering::SeqCst};
+    use std::cell::RefCell;
 
-    static NOTIFY_DROPPED: AtomicBool = AtomicBool::new(false);
+    thread_local! {
+        static NOTIFY_DROPPED: RefCell<Option<bool>> = RefCell::new(None);
+    }
 
+    /// Check if the spawned task is dropped.
+    ///
+    /// # Panic:
+    ///
+    /// When there was no `NotifyOnDrop` instance on current thread
     pub(crate) fn is_dropped() -> bool {
-        NOTIFY_DROPPED.load(SeqCst)
+        NOTIFY_DROPPED.with(|bool| {
+            bool.borrow()
+                .expect("No NotifyOnDrop existed on current thread")
+        })
     }
 
     pub(crate) struct NotifyOnDrop;
 
     impl NotifyOnDrop {
+        /// # Panic:
+        ///
+        /// When construct multiple instances on any given thread.
         pub(crate) fn new() -> Self {
-            NOTIFY_DROPPED.store(false, SeqCst);
+            NOTIFY_DROPPED.with(|bool| {
+                let mut bool = bool.borrow_mut();
+                if bool.is_some() {
+                    panic!("NotifyOnDrop existed on current thread");
+                } else {
+                    *bool = Some(false);
+                }
+            });
+
             NotifyOnDrop
         }
     }
 
     impl Drop for NotifyOnDrop {
         fn drop(&mut self) {
-            NOTIFY_DROPPED.store(true, SeqCst);
+            NOTIFY_DROPPED.with(|bool| {
+                if let Some(b) = bool.borrow_mut().as_mut() {
+                    *b = true;
+                }
+            });
         }
     }
 }
