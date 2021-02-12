@@ -50,6 +50,12 @@ serde_urlencoded = "0.7"
 time = { version = "0.2.23", default-features = false, features = ["std"] }
 tls-openssl = { version = "0.10.9", package = "openssl", optional = true }
 
+[target.'cfg(windows)'.dependencies.tls-openssl]
+version = "0.10.9"
+package = "openssl"
+features = ["vendored"]
+optional = true
+
 [dev-dependencies]
 actix-web = "4.0.0-beta.3"
 actix-http = "3.0.0-beta.3"

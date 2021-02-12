@@ -17,29 +17,13 @@ jobs:
           - { name: Windows, os: windows-latest, triple: x86_64-pc-windows-msvc }
         version:
           - 1.46.0 # MSRV
-          - 1.47.0
-          - 1.48.0
-          - 1.49.0
-          - 1.50.0
           - stable
-          - beta
           - nightly
 
     name: ${{ matrix.target.name }} / ${{ matrix.version }}
     runs-on: ${{ matrix.target.os }}
 
     steps:
-      - name: Install Native Dependencies (Windows)
-        if: matrix.target.os == 'windows-latest'
-        run: |
-          curl -fsS -o vcpkg.7z https://rocket.rs/static/vcpkg-2019-07-05.7z
-          7z x vcpkg.7z -y -bb0
-          xcopy .\vcpkg $env:VCPKG_INSTALLATION_ROOT /s /e /h /y /q
-          vcpkg integrate install
-          echo "VCPKGRS_DYNAMIC=1" >> "$env:GITHUB_ENV"
-          echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" >> "$env:GITHUB_ENV"
-          echo "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib" >> "$env:GITHUB_PATH"
-
       - uses: actions/checkout@v2
 
       - name: Install ${{ matrix.version }}

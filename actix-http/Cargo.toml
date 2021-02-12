@@ -94,6 +94,12 @@ serde_derive = "1.0"
 tls-openssl = { version = "0.10", package = "openssl" }
 tls-rustls = { version = "0.19", package = "rustls" }
 
+[target.'cfg(windows)'.dev-dependencies.tls-openssl]
+version = "0.10.9"
+package = "openssl"
+features = ["vendored"]
+optional = true
+
 [[bench]]
 name = "write-camel-case"
 harness = false
