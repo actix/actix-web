@@ -745,7 +745,12 @@ where
                             // at this point it's not known io is still scheduled to
                             // be waked up. so force wake up dispatcher just in case.
                             // TODO: figure out the overhead.
-                            cx.waker().wake_by_ref();
+                            if this.payload.is_none() {
+                                // When dispatcher has a payload. The responsibility of
+                                // wake up stream would be shift to PayloadSender.
+                                // Therefore no self wake up is needed.
+                                cx.waker().wake_by_ref();
+                            }
                             return Ok(false);
                         }
 
