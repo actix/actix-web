@@ -41,7 +41,7 @@ jobs:
       #     key: ${{ runner.os }}-vcpkg-cache
 
       - name: Install Native Dependencies (Windows)
-        if: matrix.os.name == 'Windows'
+        if: matrix.target.os == 'windows-latest'
         run: |
           curl -fsS -o vcpkg.7z https://rocket.rs/static/vcpkg-2019-07-05.7z
           7z x vcpkg.7z -y -bb0
