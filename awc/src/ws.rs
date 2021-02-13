@@ -32,6 +32,7 @@ use std::rc::Rc;
 use std::{fmt, str};
 
 use actix_codec::Framed;
+#[cfg(feature = "cookies")]
 use actix_http::cookie::{Cookie, CookieJar};
 use actix_http::{ws, Payload, RequestHead};
 use actix_rt::time::timeout;
@@ -54,8 +55,10 @@ pub struct WebsocketsRequest {
     addr: Option<SocketAddr>,
     max_size: usize,
     server_mode: bool,
-    cookies: Option<CookieJar>,
     config: Rc<ClientConfig>,
+
+    #[cfg(feature = "cookies")]
+    cookies: Option<CookieJar>,
 }
 
 impl WebsocketsRequest {
@@ -89,6 +92,7 @@ impl WebsocketsRequest {
             protocols: None,
             max_size: 65_536,
             server_mode: false,
+            #[cfg(feature = "cookies")]
             cookies: None,
         }
     }
@@ -117,6 +121,7 @@ impl WebsocketsRequest {
     }
 
     /// Set a cookie
+    #[cfg(feature = "cookies")]
     pub fn cookie(mut self, cookie: Cookie<'_>) -> Self {
         if self.cookies.is_none() {
             let mut jar = CookieJar::new();
@@ -270,6 +275,7 @@ impl WebsocketsRequest {
         }
 
         // set cookies
+        #[cfg(feature = "cookies")]
         if let Some(ref mut jar) = self.cookies {
             let cookie: String = jar
                 .delta()

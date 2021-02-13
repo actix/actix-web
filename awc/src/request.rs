@@ -8,6 +8,7 @@ use futures_core::Stream;
 use serde::Serialize;
 
 use actix_http::body::Body;
+#[cfg(feature = "cookies")]
 use actix_http::cookie::{Cookie, CookieJar};
 use actix_http::http::header::{self, IntoHeaderPair};
 use actix_http::http::{
@@ -54,10 +55,12 @@ pub struct ClientRequest {
     pub(crate) head: RequestHead,
     err: Option<HttpError>,
     addr: Option<net::SocketAddr>,
-    cookies: Option<CookieJar>,
     response_decompress: bool,
     timeout: Option<Duration>,
     config: Rc<ClientConfig>,
+
+    #[cfg(feature = "cookies")]
+    cookies: Option<CookieJar>,
 }
 
 impl ClientRequest {
@@ -72,6 +75,7 @@ impl ClientRequest {
             head: RequestHead::default(),
             err: None,
             addr: None,
+            #[cfg(feature = "cookies")]
             cookies: None,
             timeout: None,
             response_decompress: true,
@@ -290,6 +294,7 @@ impl ClientRequest {
     ///     println!("Response: {:?}", resp);
     /// }
     /// ```
+    #[cfg(feature = "cookies")]
     pub fn cookie(mut self, cookie: Cookie<'_>) -> Self {
         if self.cookies.is_none() {
             let mut jar = CookieJar::new();
@@ -472,7 +477,8 @@ impl ClientRequest {
         )
     }
 
-    fn prep_for_sending(mut self) -> Result<Self, PrepForSendingError> {
+    // allow unused mut when cookies feature is disabled
+    fn prep_for_sending(#[allow(unused_mut)] mut self) -> Result<Self, PrepForSendingError> {
         if let Some(e) = self.err {
             return Err(e.into());
         }
@@ -493,6 +499,7 @@ impl ClientRequest {
         }
 
         // set cookies
+        #[cfg(feature = "cookies")]
         if let Some(ref mut jar) = self.cookies {
             let cookie: String = jar
                 .delta()

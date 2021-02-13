@@ -1,9 +1,13 @@
 //! Test helpers for actix http client to use during testing.
 use std::convert::TryFrom;
 
-use actix_http::cookie::{Cookie, CookieJar};
-use actix_http::http::header::{self, Header, HeaderValue, IntoHeaderValue};
+use actix_http::http::header::{Header, IntoHeaderValue};
 use actix_http::http::{Error as HttpError, HeaderName, StatusCode, Version};
+#[cfg(feature = "cookies")]
+use actix_http::{
+    cookie::{Cookie, CookieJar},
+    http::header::{self, HeaderValue},
+};
 use actix_http::{h1, Payload, ResponseHead};
 use bytes::Bytes;
 
@@ -12,6 +16,7 @@ use crate::ClientResponse;
 /// Test `ClientResponse` builder
 pub struct TestResponse {
     head: ResponseHead,
+    #[cfg(feature = "cookies")]
     cookies: CookieJar,
     payload: Option<Payload>,
 }
@@ -20,6 +25,7 @@ impl Default for TestResponse {
     fn default() -> TestResponse {
         TestResponse {
             head: ResponseHead::new(StatusCode::OK),
+            #[cfg(feature = "cookies")]
             cookies: CookieJar::new(),
             payload: None,
         }
@@ -69,6 +75,7 @@ impl TestResponse {
     }
 
     /// Set cookie for this response
+    #[cfg(feature = "cookies")]
     pub fn cookie(mut self, cookie: Cookie<'_>) -> Self {
         self.cookies.add(cookie.into_owned());
         self
@@ -84,8 +91,11 @@ impl TestResponse {
 
     /// Complete response creation and generate `ClientResponse` instance
     pub fn finish(self) -> ClientResponse {
+        // allow unused mut when cookies feature is disabled
+        #[allow(unused_mut)]
         let mut head = self.head;
 
+        #[cfg(feature = "cookies")]
         for cookie in self.cookies.delta() {
             head.headers.insert(
                 header::SET_COOKIE,

@@ -549,7 +549,6 @@ mod tests {
         );
         let data =
             String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
-        eprintln!("{}", &data);
 
         assert!(data.contains("Content-Length: 0\r\n"));
         assert!(data.contains("Connection: close\r\n"));

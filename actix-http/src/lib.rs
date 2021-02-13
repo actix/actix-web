@@ -1,4 +1,19 @@
 //! HTTP primitives for the Actix ecosystem.
+//!
+//! ## Crate Features
+//! | Feature          | Functionality                                         |
+//! | ---------------- | ----------------------------------------------------- |
+//! | `openssl`        | TLS support via [OpenSSL].                            |
+//! | `rustls`         | TLS support via [rustls].                             |
+//! | `compress`       | Payload compression support. (Deflate, Gzip & Brotli) |
+//! | `cookies`        | Support for cookies backed by the [cookie] crate.     |
+//! | `secure-cookies` | Adds for secure cookies. Enables `cookies` feature.   |
+//! | `trust-dns`      | Use [trust-dns] as the client DNS resolver.           |
+//!
+//! [OpenSSL]: https://crates.io/crates/openssl
+//! [rustls]: https://crates.io/crates/rustls
+//! [cookie]: https://crates.io/crates/cookie
+//! [trust-dns]: https://crates.io/crates/trust-dns
 
 #![deny(rust_2018_idioms, nonstandard_style)]
 #![allow(
@@ -34,12 +49,14 @@ mod response;
 mod service;
 mod time_parser;
 
-pub use cookie;
 pub mod error;
 pub mod h1;
 pub mod h2;
 pub mod test;
 pub mod ws;
+
+#[cfg(feature = "cookies")]
+pub use cookie;
 
 pub use self::builder::HttpServiceBuilder;
 pub use self::config::{KeepAlive, ServiceConfig};
@@ -61,6 +78,7 @@ pub mod http {
     pub use http::{uri, Error, Uri};
     pub use http::{Method, StatusCode, Version};
 
+    #[cfg(feature = "cookies")]
     pub use crate::cookie::{Cookie, CookieBuilder};
     pub use crate::header::HeaderMap;
 
