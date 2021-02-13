@@ -40,11 +40,17 @@ jobs:
       - name: Cache Dependencies
         uses: Swatinem/rust-cache@v1.0.1
 
+      - name: Install cargo-hack
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-hack
+
       - name: check minimal
         uses: actions-rs/cargo@v1
         with:
-          command: check
-          args: --workspace --no-default-features --tests
+          command: hack
+          args: --clean-per-run check --workspace --no-default-features --tests
 
       - name: check full
         uses: actions-rs/cargo@v1
