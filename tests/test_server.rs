@@ -21,7 +21,11 @@ use flate2::{
     Compression,
 };
 use futures_util::ready;
-use openssl::{pkey::PKey, ssl::SslAcceptor, x509::X509};
+use openssl::{
+    pkey::PKey,
+    ssl::{SslAcceptor, SslMethod},
+    x509::X509,
+};
 use rand::{distributions::Alphanumeric, Rng};
 
 use actix_web::dev::BodyEncoding;
@@ -754,20 +758,22 @@ async fn test_brotli_encoding_large_openssl() {
 }
 
 #[cfg(all(feature = "rustls", feature = "openssl"))]
-mod rustls {
-    use super::*;
+mod plus_rustls {
+    use std::io::BufReader;
 
     use rustls::{
         internal::pemfile::{certs, pkcs8_private_keys},
         NoClientAuth, ServerConfig as RustlsServerConfig,
     };
 
+    use super::*;
+
     fn rustls_config() -> RustlsServerConfig {
         let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()]).unwrap();
         let cert_file = cert.serialize_pem().unwrap();
         let key_file = cert.serialize_private_key_pem();
 
-        let mut config = ServerConfig::new(NoClientAuth::new());
+        let mut config = RustlsServerConfig::new(NoClientAuth::new());
         let cert_file = &mut BufReader::new(cert_file.as_bytes());
         let key_file = &mut BufReader::new(key_file.as_bytes());
 
