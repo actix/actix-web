@@ -47,12 +47,10 @@ impl<S> HttpMessage for ClientResponse<S> {
     /// Load request cookies.
     #[cfg(feature = "cookies")]
     fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
-        eprintln!("awc fn cookies");
 
         struct Cookies(Vec<Cookie<'static>>);
 
         if self.extensions().get::<Cookies>().is_none() {
-            eprintln!("no cookies, inserting");
             let mut cookies = Vec::new();
             for hdr in self.headers().get_all(&header::SET_COOKIE) {
                 let s = std::str::from_utf8(hdr.as_bytes()).map_err(CookieParseError::from)?;

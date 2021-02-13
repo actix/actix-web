@@ -44,8 +44,8 @@ default = ["compress", "cookies"]
 # content-encoding support
 compress = ["actix-http/compress", "awc/compress"]
 
-# cookies feature
-cookies = ["actix-http/cookies"]
+# support for cookies
+cookies = ["actix-http/cookies", "awc/cookies"]
 
 # secure cookies feature
 secure-cookies = ["actix-http/secure-cookies"]
