@@ -95,6 +95,7 @@ actix-http-test = { version = "3.0.0-beta.2", features = ["openssl"] }
 actix-tls = { version = "3.0.0-beta.2", features = ["openssl"] }
 criterion = "0.3"
 env_logger = "0.8"
+rcgen = "0.8"
 serde_derive = "1.0"
 tls-openssl = { version = "0.10", package = "openssl" }
 tls-rustls = { version = "0.19", package = "rustls" }

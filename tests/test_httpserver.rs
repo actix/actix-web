@@ -73,15 +73,22 @@ async fn test_start() {
 
 #[cfg(feature = "openssl")]
 fn ssl_acceptor() -> std::io::Result<SslAcceptorBuilder> {
-    use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
-    // load ssl keys
+    use openssl::{
+        pkey::PKey,
+        ssl::{SslAcceptor, SslMethod},
+        x509::X509,
+    };
+
+    let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()]).unwrap();
+    let cert_file = cert.serialize_pem().unwrap();
+    let key_file = cert.serialize_private_key_pem();
+    let cert = X509::from_pem(cert_file.as_bytes()).unwrap();
+    let key = PKey::private_key_from_pem(key_file.as_bytes()).unwrap();
+
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
-    builder
-        .set_private_key_file("tests/key.pem", SslFiletype::PEM)
-        .unwrap();
-    builder
-        .set_certificate_chain_file("tests/cert.pem")
-        .unwrap();
+    builder.set_certificate(&cert).unwrap();
+    builder.set_private_key(&key).unwrap();
+
     Ok(builder)
 }
 

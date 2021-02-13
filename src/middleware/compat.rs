@@ -123,18 +123,24 @@ impl<B: MessageBody + Unpin + 'static> MapServiceResponseBody for ServiceRespons
 
 #[cfg(test)]
 mod tests {
+    // easier to code when cookies feature is disabled
+    #![allow(unused_imports)]
+
     use super::*;
 
     use actix_service::IntoService;
 
     use crate::dev::ServiceRequest;
     use crate::http::StatusCode;
-    use crate::middleware::{Compress, Condition, Logger};
+    use crate::middleware::{self, Condition, Logger};
     use crate::test::{call_service, init_service, TestRequest};
     use crate::{web, App, HttpResponse};
 
     #[actix_rt::test]
+    #[cfg(feature = "cookies")]
     async fn test_scope_middleware() {
+        use crate::middleware::Compress;
+
         let logger = Logger::default();
         let compress = Compress::default();
 
@@ -154,7 +160,10 @@ mod tests {
     }
 
     #[actix_rt::test]
+    #[cfg(feature = "cookies")]
     async fn test_resource_scope_middleware() {
+        use crate::middleware::Compress;
+
         let logger = Logger::default();
         let compress = Compress::default();
 
