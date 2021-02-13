@@ -5,8 +5,7 @@ use std::{fmt, net};
 use actix_http::body::{Body, MessageBody, ResponseBody};
 use actix_http::http::{HeaderMap, Method, StatusCode, Uri, Version};
 use actix_http::{
-    Error, Extensions, HttpMessage, Payload, PayloadStream, RequestHead, Response,
-    ResponseHead,
+    Error, Extensions, HttpMessage, Payload, PayloadStream, RequestHead, Response, ResponseHead,
 };
 use actix_router::{IntoPattern, Path, Resource, ResourceDef, Url};
 use actix_service::{IntoServiceFactory, ServiceFactory};
@@ -164,12 +163,14 @@ impl ServiceRequest {
         }
     }
 
-    /// Peer socket address
+    /// Peer socket address.
     ///
-    /// Peer address is actual socket address, if proxy is used in front of
-    /// actix http server, then peer address would be address of this proxy.
+    /// Peer address is the directly connected peer's socket address. If a proxy is used in front of
+    /// the Actix Web server, then it would be address of this proxy.
     ///
     /// To get client connection information `ConnectionInfo` should be used.
+    ///
+    /// Will only return None when called in unit tests.
     #[inline]
     pub fn peer_addr(&self) -> Option<net::SocketAddr> {
         self.head().peer_addr
@@ -633,20 +634,18 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_service_data() {
-        let srv = init_service(
-            App::new()
-                .data(42u32)
-                .service(web::service("/test").name("test").finish(
-                    |req: ServiceRequest| {
-                        assert_eq!(
-                            req.app_data::<web::Data<u32>>().unwrap().as_ref(),
-                            &42
-                        );
-                        ok(req.into_response(HttpResponse::Ok().finish()))
-                    },
-                )),
-        )
-        .await;
+        let srv =
+            init_service(
+                App::new()
+                    .data(42u32)
+                    .service(web::service("/test").name("test").finish(
+                        |req: ServiceRequest| {
+                            assert_eq!(req.app_data::<web::Data<u32>>().unwrap().as_ref(), &42);
+                            ok(req.into_response(HttpResponse::Ok().finish()))
+                        },
+                    )),
+            )
+            .await;
         let req = TestRequest::with_uri("/test").to_request();
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), http::StatusCode::OK);

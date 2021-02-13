@@ -7,7 +7,7 @@ use std::io;
 use actix_http::error::{ErrorBadRequest, PayloadError};
 use actix_http::http::header::{self, HeaderName, HeaderValue};
 use actix_http::http::{Method, StatusCode, Version};
-use actix_http::httpmessage::HttpMessage;
+use actix_http::HttpMessage;
 use actix_http::{body, Error, HttpService, Request, Response};
 use actix_http_test::test_server;
 use actix_service::{fn_service, ServiceFactoryExt};

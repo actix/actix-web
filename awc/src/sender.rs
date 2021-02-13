@@ -78,8 +78,7 @@ impl SendClientRequest {
 
 #[cfg(feature = "compress")]
 impl Future for SendClientRequest {
-    type Output =
-        Result<ClientResponse<Decoder<Payload<PayloadStream>>>, SendRequestError>;
+    type Output = Result<ClientResponse<Decoder<Payload<PayloadStream>>>, SendRequestError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
@@ -95,15 +94,9 @@ impl Future for SendClientRequest {
                 let res = ready!(send.as_mut().poll(cx)).map(|res| {
                     res._timeout(delay.take()).map_body(|head, payload| {
                         if *response_decompress {
-                            Payload::Stream(Decoder::from_headers(
-                                payload,
-                                &head.headers,
-                            ))
+                            Payload::Stream(Decoder::from_headers(payload, &head.headers))
                         } else {
-                            Payload::Stream(Decoder::new(
-                                payload,
-                                ContentEncoding::Identity,
-                            ))
+                            Payload::Stream(Decoder::new(payload, ContentEncoding::Identity))
                         }
                     })
                 });
@@ -187,11 +180,11 @@ impl RequestSender {
         B: Into<Body>,
     {
         let fut = match self {
-            RequestSender::Owned(head) => config.connector.send_request(
-                RequestHeadType::Owned(head),
-                body.into(),
-                addr,
-            ),
+            RequestSender::Owned(head) => {
+                config
+                    .connector
+                    .send_request(RequestHeadType::Owned(head), body.into(), addr)
+            }
             RequestSender::Rc(head, extra_headers) => config.connector.send_request(
                 RequestHeadType::Rc(head, extra_headers),
                 body.into(),
@@ -215,8 +208,7 @@ impl RequestSender {
             Err(e) => return Error::from(e).into(),
         };
 
-        if let Err(e) = self.set_header_if_none(header::CONTENT_TYPE, "application/json")
-        {
+        if let Err(e) = self.set_header_if_none(header::CONTENT_TYPE, "application/json") {
             return e.into();
         }
 
@@ -243,10 +235,9 @@ impl RequestSender {
         };
 
         // set content-type
-        if let Err(e) = self.set_header_if_none(
-            header::CONTENT_TYPE,
-            "application/x-www-form-urlencoded",
-        ) {
+        if let Err(e) =
+            self.set_header_if_none(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+        {
             return e.into();
         }
 
@@ -290,11 +281,7 @@ impl RequestSender {
         self.send_body(addr, response_decompress, timeout, config, Body::Empty)
     }
 
-    fn set_header_if_none<V>(
-        &mut self,
-        key: HeaderName,
-        value: V,
-    ) -> Result<(), HttpError>
+    fn set_header_if_none<V>(&mut self, key: HeaderName, value: V) -> Result<(), HttpError>
     where
         V: IntoHeaderValue,
     {
@@ -302,7 +289,9 @@ impl RequestSender {
             RequestSender::Owned(head) => {
                 if !head.headers.contains_key(&key) {
                     match value.try_into_value() {
-                        Ok(value) => head.headers.insert(key, value),
+                        Ok(value) => {
+                            head.headers.insert(key, value);
+                        }
                         Err(e) => return Err(e.into()),
                     }
                 }

@@ -32,13 +32,13 @@ pub struct Response<B = Body> {
 }
 
 impl Response<Body> {
-    /// Create http response builder with specific status.
+    /// Create HTTP response builder with specific status.
     #[inline]
     pub fn build(status: StatusCode) -> ResponseBuilder {
         ResponseBuilder::new(status)
     }
 
-    /// Create http response builder
+    /// Create HTTP response builder
     #[inline]
     pub fn build_from<T: Into<ResponseBuilder>>(source: T) -> ResponseBuilder {
         source.into()
@@ -97,7 +97,7 @@ impl<B> Response<B> {
     }
 
     #[inline]
-    /// Mutable reference to a http message part of the response
+    /// Mutable reference to a HTTP message part of the response
     pub fn head_mut(&mut self) -> &mut ResponseHead {
         &mut *self.head
     }
@@ -363,7 +363,9 @@ impl ResponseBuilder {
     {
         if let Some(parts) = parts(&mut self.head, &self.err) {
             match header.try_into_header_pair() {
-                Ok((key, value)) => parts.headers.insert(key, value),
+                Ok((key, value)) => {
+                    parts.headers.insert(key, value);
+                }
                 Err(e) => self.err = Some(e.into()),
             };
         }
@@ -752,9 +754,11 @@ impl<'a> From<&'a ResponseHead> for ResponseBuilder {
         let mut msg = BoxedResponseHead::new(head.status);
         msg.version = head.version;
         msg.reason = head.reason;
-        for (k, v) in &head.headers {
+
+        for (k, v) in head.headers.iter() {
             msg.headers.append(k.clone(), v.clone());
         }
+
         msg.no_chunking(!head.chunked());
 
         ResponseBuilder {
@@ -863,6 +867,7 @@ mod tests {
     use super::*;
     use crate::body::Body;
     use crate::http::header::{HeaderValue, CONTENT_TYPE, COOKIE, SET_COOKIE};
+    use crate::HttpMessage;
 
     #[test]
     fn test_debug() {
@@ -876,8 +881,6 @@ mod tests {
 
     #[test]
     fn test_response_cookies() {
-        use crate::httpmessage::HttpMessage;
-
         let req = crate::test::TestRequest::default()
             .append_header((COOKIE, "cookie1=value1"))
             .append_header((COOKIE, "cookie2=value2"))
@@ -893,16 +896,20 @@ mod tests {
                     .max_age(time::Duration::days(1))
                     .finish(),
             )
-            .del_cookie(&cookies[1])
+            .del_cookie(&cookies[0])
             .finish();
 
-        let mut val: Vec<_> = resp
+        let mut val = resp
             .headers()
             .get_all(SET_COOKIE)
             .map(|v| v.to_str().unwrap().to_owned())
-            .collect();
+            .collect::<Vec<_>>();
         val.sort();
+
+        // the .del_cookie call
         assert!(val[0].starts_with("cookie1=; Max-Age=0;"));
+
+        // the .cookie call
         assert_eq!(
             val[1],
             "name=value; HttpOnly; Path=/test; Domain=www.rust-lang.org; Max-Age=86400"
@@ -927,9 +934,9 @@ mod tests {
 
         let mut iter = r.cookies();
         let v = iter.next().unwrap();
-        assert_eq!((v.name(), v.value()), ("cookie3", "val300"));
-        let v = iter.next().unwrap();
         assert_eq!((v.name(), v.value()), ("original", "val100"));
+        let v = iter.next().unwrap();
+        assert_eq!((v.name(), v.value()), ("cookie3", "val300"));
     }
 
     #[test]

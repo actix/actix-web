@@ -62,7 +62,7 @@ impl HttpRequest {
     }
 
     /// This method returns mutable reference to the request head.
-    /// panics if multiple references of http request exists.
+    /// panics if multiple references of HTTP request exists.
     #[inline]
     pub(crate) fn head_mut(&mut self) -> &mut RequestHead {
         &mut Rc::get_mut(&mut self.inner).unwrap().head
@@ -175,11 +175,7 @@ impl HttpRequest {
     ///         );
     /// }
     /// ```
-    pub fn url_for<U, I>(
-        &self,
-        name: &str,
-        elements: U,
-    ) -> Result<url::Url, UrlGenerationError>
+    pub fn url_for<U, I>(&self, name: &str, elements: U) -> Result<url::Url, UrlGenerationError>
     where
         U: IntoIterator<Item = I>,
         I: AsRef<str>,
@@ -202,12 +198,14 @@ impl HttpRequest {
         &self.app_state().rmap()
     }
 
-    /// Peer socket address
+    /// Peer socket address.
     ///
-    /// Peer address is actual socket address, if proxy is used in front of
-    /// actix http server, then peer address would be address of this proxy.
+    /// Peer address is the directly connected peer's socket address. If a proxy is used in front of
+    /// the Actix Web server, then it would be address of this proxy.
     ///
     /// To get client connection information `.connection_info()` should be used.
+    ///
+    /// Will only return None when called in unit tests.
     #[inline]
     pub fn peer_addr(&self) -> Option<net::SocketAddr> {
         self.head().peer_addr
@@ -445,10 +443,10 @@ mod tests {
         {
             let cookies = req.cookies().unwrap();
             assert_eq!(cookies.len(), 2);
-            assert_eq!(cookies[0].name(), "cookie2");
-            assert_eq!(cookies[0].value(), "value2");
-            assert_eq!(cookies[1].name(), "cookie1");
-            assert_eq!(cookies[1].value(), "value1");
+            assert_eq!(cookies[0].name(), "cookie1");
+            assert_eq!(cookies[0].value(), "value1");
+            assert_eq!(cookies[1].name(), "cookie2");
+            assert_eq!(cookies[1].value(), "value2");
         }
 
         let cookie = req.cookie("cookie1");
@@ -575,30 +573,30 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_data() {
-        let srv = init_service(App::new().app_data(10usize).service(
-            web::resource("/").to(|req: HttpRequest| {
+        let srv = init_service(App::new().app_data(10usize).service(web::resource("/").to(
+            |req: HttpRequest| {
                 if req.app_data::<usize>().is_some() {
                     HttpResponse::Ok()
                 } else {
                     HttpResponse::BadRequest()
                 }
-            }),
-        ))
+            },
+        )))
         .await;
 
         let req = TestRequest::default().to_request();
         let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let srv = init_service(App::new().app_data(10u32).service(
-            web::resource("/").to(|req: HttpRequest| {
+        let srv = init_service(App::new().app_data(10u32).service(web::resource("/").to(
+            |req: HttpRequest| {
                 if req.app_data::<usize>().is_some() {
                     HttpResponse::Ok()
                 } else {
                     HttpResponse::BadRequest()
                 }
-            }),
-        ))
+            },
+        )))
         .await;
 
         let req = TestRequest::default().to_request();
@@ -685,14 +683,14 @@ mod tests {
         let tracker = Rc::new(RefCell::new(Tracker { dropped: false }));
         {
             let tracker2 = Rc::clone(&tracker);
-            let srv = init_service(App::new().data(10u32).service(
-                web::resource("/").to(move |req: HttpRequest| {
+            let srv = init_service(App::new().data(10u32).service(web::resource("/").to(
+                move |req: HttpRequest| {
                     req.extensions_mut().insert(Foo {
                         tracker: Rc::clone(&tracker2),
                     });
                     HttpResponse::Ok()
-                }),
-            ))
+                },
+            )))
             .await;
 
             let req = TestRequest::default().to_request();

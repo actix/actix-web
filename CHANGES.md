@@ -1,26 +1,33 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 4.0.0-beta.3 - 2021-02-10
+* Update `actix-web-codegen` to `0.5.0-beta.1`.
+
+
+## 4.0.0-beta.2 - 2021-02-10
 ### Added
 * The method `Either<web::Json<T>, web::Form<T>>::into_inner()` which returns the inner type for
   whichever variant was created. Also works for `Either<web::Form<T>, web::Json<T>>`. [#1894]
 * Add `services!` macro for helping register multiple services to `App`. [#1933]
-* Enable registering vector of same type of `HttpServiceFactory` to `App` [#1933]
+* Enable registering a vec of services of the same type to `App` [#1933]
 
 ### Changed
 * Rework `Responder` trait to be sync and returns `Response`/`HttpResponse` directly.
-  Making it more simple and performant. [#1891]
-* `ServiceRequest::into_parts` and `ServiceRequest::from_parts` would not fail.
-  `ServiceRequest::from_request` would not fail and no payload would be generated [#1893]
+  Making it simpler and more performant. [#1891]
+* `ServiceRequest::into_parts` and `ServiceRequest::from_parts` can no longer fail. [#1893]
+* `ServiceRequest::from_request` can no longer fail. [#1893]
 * Our `Either` type now uses `Left`/`Right` variants (instead of `A`/`B`) [#1894]
-* `test::{call_service, read_response, read_response_json, send_request}` take `&Service` 
+* `test::{call_service, read_response, read_response_json, send_request}` take `&Service`
   in argument [#1905]
-* `App::wrap_fn`, `Resource::wrap_fn` and `Scope::wrap_fn` would give `&Service` in closure
-  argument [#1905]
-* `web::block` accept any closure that has an output bound to `Send` and `'static`. [#1957]
-  
+* `App::wrap_fn`, `Resource::wrap_fn` and `Scope::wrap_fn` provide `&Service` in closure
+  argument. [#1905]
+* `web::block` no longer requires the output is a Result. [#1957]
+
 ### Fixed
-* Multiple calls `App::data` with the same type now keeps the latest call's data. [#1906]
+* Multiple calls to `App::data` with the same type now keeps the latest call's data. [#1906]
 
 ### Removed
 * Public field of `web::Path` has been made private. [#1894]

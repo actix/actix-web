@@ -11,8 +11,7 @@ use actix_http::body::Body;
 use actix_http::cookie::{Cookie, CookieJar};
 use actix_http::http::header::{self, IntoHeaderPair};
 use actix_http::http::{
-    uri, ConnectionType, Error as HttpError, HeaderMap, HeaderValue, Method, Uri,
-    Version,
+    uri, ConnectionType, Error as HttpError, HeaderMap, HeaderValue, Method, Uri, Version,
 };
 use actix_http::{Error, RequestHead};
 
@@ -42,10 +41,10 @@ cfg_if::cfg_if! {
 ///    let response = awc::Client::new()
 ///         .get("http://www.rust-lang.org") // <- Create request builder
 ///         .insert_header(("User-Agent", "Actix-web"))
-///         .send()                          // <- Send http request
+///         .send()                          // <- Send HTTP request
 ///         .await;
 ///
-///    response.and_then(|response| {   // <- server http response
+///    response.and_then(|response| {   // <- server HTTP response
 ///         println!("Response: {:?}", response);
 ///         Ok(())
 ///    });
@@ -159,7 +158,9 @@ impl ClientRequest {
         H: IntoHeaderPair,
     {
         match header.try_into_header_pair() {
-            Ok((key, value)) => self.head.headers.insert(key, value),
+            Ok((key, value)) => {
+                self.head.headers.insert(key, value);
+            }
             Err(e) => self.err = Some(e.into()),
         };
 
@@ -217,7 +218,7 @@ impl ClientRequest {
     }
 
     /// Force close connection instead of returning it back to connections pool.
-    /// This setting affect only http/1 connections.
+    /// This setting affect only HTTP/1 connections.
     #[inline]
     pub fn force_close(mut self) -> Self {
         self.head.set_connection_type(ConnectionType::Close);
@@ -232,7 +233,9 @@ impl ClientRequest {
         <HeaderValue as TryFrom<V>>::Error: Into<HttpError>,
     {
         match HeaderValue::try_from(value) {
-            Ok(value) => self.head.headers.insert(header::CONTENT_TYPE, value),
+            Ok(value) => {
+                self.head.headers.insert(header::CONTENT_TYPE, value);
+            }
             Err(e) => self.err = Some(e.into()),
         }
         self
@@ -516,15 +519,11 @@ impl ClientRequest {
                 .unwrap_or(true);
 
             if https {
-                slf =
-                    slf.insert_header_if_none((header::ACCEPT_ENCODING, HTTPS_ENCODING))
+                slf = slf.insert_header_if_none((header::ACCEPT_ENCODING, HTTPS_ENCODING))
             } else {
                 #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
                 {
-                    slf = slf.insert_header_if_none((
-                        header::ACCEPT_ENCODING,
-                        "gzip, deflate",
-                    ))
+                    slf = slf.insert_header_if_none((header::ACCEPT_ENCODING, "gzip, deflate"))
                 }
             };
         }

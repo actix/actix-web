@@ -13,7 +13,7 @@ use crate::{dev::Payload, error::PathError, FromRequest, HttpRequest};
 ///
 /// Use [`PathConfig`] to configure extraction process.
 ///
-/// # Usage
+/// # Examples
 /// ```
 /// use actix_web::{get, web};
 ///
@@ -235,11 +235,9 @@ mod tests {
         assert_eq!(res.1, "user1");
 
         let (Path(a), Path(b)) =
-            <(Path<(String, String)>, Path<(String, String)>)>::from_request(
-                &req, &mut pl,
-            )
-            .await
-            .unwrap();
+            <(Path<(String, String)>, Path<(String, String)>)>::from_request(&req, &mut pl)
+                .await
+                .unwrap();
         assert_eq!(a.0, "name");
         assert_eq!(a.1, "user1");
         assert_eq!(b.0, "name");
@@ -300,11 +298,8 @@ mod tests {
     async fn test_custom_err_handler() {
         let (req, mut pl) = TestRequest::with_uri("/name/user1/")
             .app_data(PathConfig::default().error_handler(|err, _| {
-                error::InternalError::from_response(
-                    err,
-                    HttpResponse::Conflict().finish(),
-                )
-                .into()
+                error::InternalError::from_response(err, HttpResponse::Conflict().finish())
+                    .into()
             }))
             .to_http_parts();
 

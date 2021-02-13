@@ -7,7 +7,7 @@ use crate::ws::mask::apply_mask;
 use crate::ws::proto::{CloseCode, CloseReason, OpCode};
 use crate::ws::ProtocolError;
 
-/// A struct representing a `WebSocket` frame.
+/// A struct representing a WebSocket frame.
 #[derive(Debug)]
 pub struct Parser;
 
@@ -16,7 +16,8 @@ impl Parser {
         src: &[u8],
         server: bool,
         max_size: usize,
-    ) -> Result<Option<(usize, bool, OpCode, usize, Option<u32>)>, ProtocolError> {
+    ) -> Result<Option<(usize, bool, OpCode, usize, Option<[u8; 4]>)>, ProtocolError>
+    {
         let chunk_len = src.len();
 
         let mut idx = 2;
@@ -77,9 +78,10 @@ impl Parser {
                 return Ok(None);
             }
 
-            let mask =
-                u32::from_le_bytes(TryFrom::try_from(&src[idx..idx + 4]).unwrap());
+            let mask = TryFrom::try_from(&src[idx..idx + 4]).unwrap();
+
             idx += 4;
+
             Some(mask)
         } else {
             None
@@ -187,8 +189,8 @@ impl Parser {
         };
 
         if mask {
-            let mask = rand::random::<u32>();
-            dst.put_u32_le(mask);
+            let mask = rand::random::<[u8; 4]>();
+            dst.put_slice(mask.as_ref());
             dst.put_slice(payload.as_ref());
             let pos = dst.len() - payload_len;
             apply_mask(&mut dst[pos..], mask);

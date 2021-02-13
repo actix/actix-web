@@ -92,9 +92,7 @@ impl std::error::Error for JsonPayloadError {}
 impl ResponseError for JsonPayloadError {
     fn error_response(&self) -> HttpResponse {
         match *self {
-            JsonPayloadError::Overflow => {
-                HttpResponse::new(StatusCode::PAYLOAD_TOO_LARGE)
-            }
+            JsonPayloadError::Overflow => HttpResponse::new(StatusCode::PAYLOAD_TOO_LARGE),
             _ => HttpResponse::new(StatusCode::BAD_REQUEST),
         }
     }

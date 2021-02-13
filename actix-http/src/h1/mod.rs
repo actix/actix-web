@@ -1,4 +1,4 @@
-//! HTTP/1 implementation
+//! HTTP/1 protocol implementation.
 use bytes::{Bytes, BytesMut};
 
 mod client;

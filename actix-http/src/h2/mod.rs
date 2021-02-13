@@ -1,4 +1,4 @@
-//! HTTP/2 implementation.
+//! HTTP/2 protocol.
 
 use std::{
     pin::Pin,

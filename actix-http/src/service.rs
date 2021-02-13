@@ -432,7 +432,7 @@ where
     }
 }
 
-/// `Service` implementation for http transport
+/// `Service` implementation for HTTP transport
 pub struct HttpServiceHandler<T, S, B, X, U>
 where
     S: Service<Request>,

@@ -27,7 +27,7 @@ pub(crate) type FnDataFactory =
 ///
 /// Application data can be accessed by using `Data<T>` extractor where `T` is data type.
 ///
-/// **Note**: http server accepts an application factory rather than an application instance. HTTP
+/// **Note**: HTTP server accepts an application factory rather than an application instance. HTTP
 /// server constructs an application instance for each thread, thus application data must be
 /// constructed multiple times. If you want to share data between different threads, a shareable
 /// object should be used, e.g. `Send + Sync`. Application data does not need to be `Send`
@@ -156,11 +156,12 @@ mod tests {
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let srv =
-            init_service(App::new().data(10u32).service(
-                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
-            ))
-            .await;
+        let srv = init_service(
+            App::new()
+                .data(10u32)
+                .service(web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok())),
+        )
+        .await;
         let req = TestRequest::default().to_request();
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
@@ -186,21 +187,23 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_app_data_extractor() {
-        let srv =
-            init_service(App::new().app_data(Data::new(10usize)).service(
-                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
-            ))
-            .await;
+        let srv = init_service(
+            App::new()
+                .app_data(Data::new(10usize))
+                .service(web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok())),
+        )
+        .await;
 
         let req = TestRequest::default().to_request();
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let srv =
-            init_service(App::new().app_data(Data::new(10u32)).service(
-                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
-            ))
-            .await;
+        let srv = init_service(
+            App::new()
+                .app_data(Data::new(10u32))
+                .service(web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok())),
+        )
+        .await;
         let req = TestRequest::default().to_request();
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
@@ -237,15 +240,16 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_override_data() {
-        let srv = init_service(App::new().data(1usize).service(
-            web::resource("/").data(10usize).route(web::get().to(
-                |data: web::Data<usize>| {
-                    assert_eq!(**data, 10);
-                    HttpResponse::Ok()
-                },
-            )),
-        ))
-        .await;
+        let srv =
+            init_service(App::new().data(1usize).service(
+                web::resource("/").data(10usize).route(web::get().to(
+                    |data: web::Data<usize>| {
+                        assert_eq!(**data, 10);
+                        HttpResponse::Ok()
+                    },
+                )),
+            ))
+            .await;
 
         let req = TestRequest::default().to_request();
         let resp = srv.call(req).await.unwrap();

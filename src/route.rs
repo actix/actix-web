@@ -238,12 +238,7 @@ where
 
 impl<T> RouteNewService<T>
 where
-    T: ServiceFactory<
-        ServiceRequest,
-        Config = (),
-        Response = ServiceResponse,
-        Error = Error,
-    >,
+    T: ServiceFactory<ServiceRequest, Config = (), Response = ServiceResponse, Error = Error>,
     T::Future: 'static,
     T::Service: 'static,
     <T::Service as Service<ServiceRequest>>::Future: 'static,
@@ -255,12 +250,7 @@ where
 
 impl<T> ServiceFactory<ServiceRequest> for RouteNewService<T>
 where
-    T: ServiceFactory<
-        ServiceRequest,
-        Config = (),
-        Response = ServiceResponse,
-        Error = Error,
-    >,
+    T: ServiceFactory<ServiceRequest, Config = (), Response = ServiceResponse, Error = Error>,
     T::Future: 'static,
     T::Service: 'static,
     <T::Service as Service<ServiceRequest>>::Future: 'static,

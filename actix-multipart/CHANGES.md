@@ -3,6 +3,10 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 0.4.0-beta.2 - 2021-02-10
+* No notable changes.
+
+
 ## 0.4.0-beta.1 - 2021-01-07
 * Fix multipart consuming payload before header checks. [#1513]
 * Update `bytes` to `1.0`. [#1813]

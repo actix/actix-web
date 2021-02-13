@@ -17,8 +17,7 @@ use crate::service::{
 };
 
 type Guards = Vec<Box<dyn Guard>>;
-type HttpNewService =
-    boxed::BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
+type HttpNewService = boxed::BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
 
 /// Application configuration
 pub struct AppService {
@@ -99,12 +98,8 @@ impl AppService {
                 InitError = (),
             > + 'static,
     {
-        self.services.push((
-            rdef,
-            boxed::factory(factory.into_factory()),
-            guards,
-            nested,
-        ));
+        self.services
+            .push((rdef, boxed::factory(factory.into_factory()), guards, nested));
     }
 }
 
@@ -263,12 +258,12 @@ mod tests {
             cfg.app_data(15u8);
         };
 
-        let srv = init_service(App::new().configure(cfg).service(
-            web::resource("/").to(|_: web::Data<usize>, req: HttpRequest| {
+        let srv = init_service(App::new().configure(cfg).service(web::resource("/").to(
+            |_: web::Data<usize>, req: HttpRequest| {
                 assert_eq!(*req.app_data::<u8>().unwrap(), 15u8);
                 HttpResponse::Ok()
-            }),
-        ))
+            },
+        )))
         .await;
         let req = TestRequest::default().to_request();
         let resp = srv.call(req).await.unwrap();
@@ -312,17 +307,13 @@ mod tests {
         let srv = init_service(
             App::new()
                 .configure(|cfg| {
-                    cfg.external_resource(
-                        "youtube",
-                        "https://youtube.com/watch/{video_id}",
-                    );
+                    cfg.external_resource("youtube", "https://youtube.com/watch/{video_id}");
                 })
                 .route(
                     "/test",
                     web::get().to(|req: HttpRequest| {
-                        HttpResponse::Ok().body(
-                            req.url_for("youtube", &["12345"]).unwrap().to_string(),
-                        )
+                        HttpResponse::Ok()
+                            .body(req.url_for("youtube", &["12345"]).unwrap().to_string())
                     }),
                 ),
         )
@@ -337,10 +328,8 @@ mod tests {
     #[actix_rt::test]
     async fn test_service() {
         let srv = init_service(App::new().configure(|cfg| {
-            cfg.service(
-                web::resource("/test").route(web::get().to(HttpResponse::Created)),
-            )
-            .route("/index.html", web::get().to(HttpResponse::Ok));
+            cfg.service(web::resource("/test").route(web::get().to(HttpResponse::Created)))
+                .route("/index.html", web::get().to(HttpResponse::Ok));
         }))
         .await;
 

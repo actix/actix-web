@@ -23,8 +23,7 @@ async fn test_start() {
         sys.block_on(async {
             let srv = HttpServer::new(|| {
                 App::new().service(
-                    web::resource("/")
-                        .route(web::to(|| HttpResponse::Ok().body("test"))),
+                    web::resource("/").route(web::to(|| HttpResponse::Ok().body("test"))),
                 )
             })
             .workers(1)

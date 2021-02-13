@@ -33,7 +33,7 @@ type ErrorHandler<B> = dyn Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse
 /// Register handlers with the `ErrorHandlers::handler()` method to register a custom error handler
 /// for a given status code. Handlers can modify existing responses or create completely new ones.
 ///
-/// # Usage
+/// # Examples
 /// ```rust
 /// use actix_web::middleware::{ErrorHandlers, ErrorHandlerResponse};
 /// use actix_web::{web, http, dev, App, HttpRequest, HttpResponse, Result};
@@ -201,8 +201,7 @@ mod tests {
             .await
             .unwrap();
 
-        let resp =
-            test::call_service(&mw, TestRequest::default().to_srv_request()).await;
+        let resp = test::call_service(&mw, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
     }
 
@@ -227,8 +226,7 @@ mod tests {
             .await
             .unwrap();
 
-        let resp =
-            test::call_service(&mw, TestRequest::default().to_srv_request()).await;
+        let resp = test::call_service(&mw, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
     }
 }

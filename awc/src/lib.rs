@@ -134,7 +134,7 @@ use self::connect::{Connect, ConnectorWrapper};
 ///
 ///     let res = client.get("http://www.rust-lang.org") // <- Create request builder
 ///         .insert_header(("User-Agent", "Actix-web"))
-///         .send()                             // <- Send http request
+///         .send()                             // <- Send HTTP request
 ///         .await;                             // <- send request and wait for response
 ///
 ///      println!("Response: {:?}", res);

@@ -6,7 +6,7 @@ use actix_codec::{AsyncRead, AsyncWrite};
 use actix_rt::net::TcpStream;
 use actix_service::{apply_fn, Service, ServiceExt};
 use actix_tls::connect::{
-    default_connector, Connect as TcpConnect, Connection as TcpConnection,
+    new_connector, Connect as TcpConnect, Connection as TcpConnection, Resolver,
 };
 use actix_utils::timeout::{TimeoutError, TimeoutService};
 use http::Uri;
@@ -19,7 +19,6 @@ use super::Connect;
 
 #[cfg(feature = "openssl")]
 use actix_tls::connect::ssl::openssl::SslConnector as OpensslConnector;
-
 #[cfg(feature = "rustls")]
 use actix_tls::connect::ssl::rustls::ClientConfig;
 #[cfg(feature = "rustls")]
@@ -35,7 +34,8 @@ enum SslConnector {
 #[cfg(not(any(feature = "openssl", feature = "rustls")))]
 type SslConnector = ();
 
-/// Manages http client network connectivity
+/// Manages HTTP client network connectivity.
+///
 /// The `Connector` type uses a builder-like combinator pattern for service
 /// construction that finishes by calling the `.finish()` method.
 ///
@@ -70,7 +70,7 @@ impl Connector<(), ()> {
     > {
         Connector {
             ssl: Self::build_ssl(vec![b"h2".to_vec(), b"http/1.1".to_vec()]),
-            connector: default_connector(),
+            connector: new_connector(resolver::resolver()),
             config: ConnectorConfig::default(),
             _phantom: PhantomData,
         }
@@ -161,8 +161,9 @@ where
         self
     }
 
-    /// Maximum supported http major version
-    /// Supported versions http/1.1, http/2
+    /// Maximum supported HTTP major version.
+    ///
+    /// Supported versions are HTTP/1.1 and HTTP/2.
     pub fn max_http_version(mut self, val: http::Version) -> Self {
         let versions = match val {
             http::Version::HTTP_11 => vec![b"http/1.1".to_vec()],
@@ -530,5 +531,84 @@ mod connect_impl {
                     .map(EitherConnection::B),
             )
         }
+    }
+}
+
+#[cfg(not(feature = "trust-dns"))]
+mod resolver {
+    use super::*;
+
+    pub(super) fn resolver() -> Resolver {
+        Resolver::Default
+    }
+}
+
+#[cfg(feature = "trust-dns")]
+mod resolver {
+    use std::{cell::RefCell, net::SocketAddr};
+
+    use actix_tls::connect::Resolve;
+    use futures_core::future::LocalBoxFuture;
+    use trust_dns_resolver::{
+        config::{ResolverConfig, ResolverOpts},
+        system_conf::read_system_conf,
+        TokioAsyncResolver,
+    };
+
+    use super::*;
+
+    pub(super) fn resolver() -> Resolver {
+        // new type for impl Resolve trait for TokioAsyncResolver.
+        struct TrustDnsResolver(TokioAsyncResolver);
+
+        impl Resolve for TrustDnsResolver {
+            fn lookup<'a>(
+                &'a self,
+                host: &'a str,
+                port: u16,
+            ) -> LocalBoxFuture<'a, Result<Vec<SocketAddr>, Box<dyn std::error::Error>>>
+            {
+                Box::pin(async move {
+                    let res = self
+                        .0
+                        .lookup_ip(host)
+                        .await?
+                        .iter()
+                        .map(|ip| SocketAddr::new(ip, port))
+                        .collect();
+                    Ok(res)
+                })
+            }
+        }
+
+        // dns struct is cached in thread local.
+        // so new client constructor can reuse the existing dns resolver.
+        thread_local! {
+            static TRUST_DNS_RESOLVER: RefCell<Option<Resolver>> = RefCell::new(None);
+        }
+
+        // get from thread local or construct a new trust-dns resolver.
+        TRUST_DNS_RESOLVER.with(|local| {
+            let resolver = local.borrow().as_ref().map(Clone::clone);
+            match resolver {
+                Some(resolver) => resolver,
+                None => {
+                    let (cfg, opts) = match read_system_conf() {
+                        Ok((cfg, opts)) => (cfg, opts),
+                        Err(e) => {
+                            log::error!("TRust-DNS can not load system config: {}", e);
+                            (ResolverConfig::default(), ResolverOpts::default())
+                        }
+                    };
+
+                    let resolver = TokioAsyncResolver::tokio(cfg, opts).unwrap();
+
+                    // box trust dns resolver and put it in thread local.
+                    let resolver = Resolver::new_custom(TrustDnsResolver(resolver));
+                    *local.borrow_mut() = Some(resolver.clone());
+                    resolver
+                }
+            }
+        })
     }
 }

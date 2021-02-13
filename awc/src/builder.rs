@@ -82,8 +82,9 @@ impl ClientBuilder {
         self
     }
 
-    /// Maximum supported http major version
-    /// Supported versions http/1.1, http/2
+    /// Maximum supported HTTP major version.
+    ///
+    /// Supported versions are HTTP/1.1 and HTTP/2.
     pub fn max_http_version(mut self, val: http::Version) -> Self {
         self.max_http_version = Some(val);
         self

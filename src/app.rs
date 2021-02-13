@@ -8,8 +8,7 @@ use actix_http::body::{Body, MessageBody};
 use actix_http::{Extensions, Request};
 use actix_service::boxed::{self, BoxServiceFactory};
 use actix_service::{
-    apply, apply_fn_factory, IntoServiceFactory, ServiceFactory, ServiceFactoryExt,
-    Transform,
+    apply, apply_fn_factory, IntoServiceFactory, ServiceFactory, ServiceFactoryExt, Transform,
 };
 use futures_util::future::FutureExt;
 
@@ -72,7 +71,7 @@ where
     /// Set application data. Application data could be accessed
     /// by using `Data<T>` extractor where `T` is data type.
     ///
-    /// **Note**: http server accepts an application factory rather than
+    /// **Note**: HTTP server accepts an application factory rather than
     /// an application instance. Http server constructs an application
     /// instance for each thread, thus application data must be constructed
     /// multiple times. If you want to share data between different
@@ -207,11 +206,11 @@ where
         )
     }
 
-    /// Register http service.
+    /// Register HTTP service.
     ///
     /// Http service is any type that implements `HttpServiceFactory` trait.
     ///
-    /// Actix web provides several services implementations:
+    /// Actix Web provides several services implementations:
     ///
     /// * *Resource* is an entry in resource table which corresponds to requested URL.
     /// * *Scope* is a set of resources with common root path.
@@ -473,17 +472,13 @@ mod tests {
     use crate::http::{header, HeaderValue, Method, StatusCode};
     use crate::middleware::DefaultHeaders;
     use crate::service::ServiceRequest;
-    use crate::test::{
-        call_service, init_service, read_body, try_init_service, TestRequest,
-    };
+    use crate::test::{call_service, init_service, read_body, try_init_service, TestRequest};
     use crate::{web, HttpRequest, HttpResponse};
 
     #[actix_rt::test]
     async fn test_default_resource() {
-        let srv = init_service(
-            App::new().service(web::resource("/test").to(HttpResponse::Ok)),
-        )
-        .await;
+        let srv =
+            init_service(App::new().service(web::resource("/test").to(HttpResponse::Ok))).await;
         let req = TestRequest::with_uri("/test").to_request();
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
@@ -525,20 +520,22 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_data_factory() {
-        let srv =
-            init_service(App::new().data_factory(|| ok::<_, ()>(10usize)).service(
-                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
-            ))
-            .await;
+        let srv = init_service(
+            App::new()
+                .data_factory(|| ok::<_, ()>(10usize))
+                .service(web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok())),
+        )
+        .await;
         let req = TestRequest::default().to_request();
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let srv =
-            init_service(App::new().data_factory(|| ok::<_, ()>(10u32)).service(
-                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
-            ))
-            .await;
+        let srv = init_service(
+            App::new()
+                .data_factory(|| ok::<_, ()>(10u32))
+                .service(web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok())),
+        )
+        .await;
         let req = TestRequest::default().to_request();
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
@@ -546,23 +543,24 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_data_factory_errors() {
-        let srv =
-            try_init_service(App::new().data_factory(|| err::<u32, _>(())).service(
-                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
-            ))
-            .await;
+        let srv = try_init_service(
+            App::new()
+                .data_factory(|| err::<u32, _>(()))
+                .service(web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok())),
+        )
+        .await;
 
         assert!(srv.is_err());
     }
 
     #[actix_rt::test]
     async fn test_extension() {
-        let srv = init_service(App::new().app_data(10usize).service(
-            web::resource("/").to(|req: HttpRequest| {
+        let srv = init_service(App::new().app_data(10usize).service(web::resource("/").to(
+            |req: HttpRequest| {
                 assert_eq!(*req.app_data::<usize>().unwrap(), 10);
                 HttpResponse::Ok()
-            }),
-        ))
+            },
+        )))
         .await;
         let req = TestRequest::default().to_request();
         let resp = srv.call(req).await.unwrap();
@@ -617,10 +615,8 @@ mod tests {
                     let fut = srv.call(req);
                     async move {
                         let mut res = fut.await?;
-                        res.headers_mut().insert(
-                            header::CONTENT_TYPE,
-                            HeaderValue::from_static("0001"),
-                        );
+                        res.headers_mut()
+                            .insert(header::CONTENT_TYPE, HeaderValue::from_static("0001"));
                         Ok(res)
                     }
                 })
@@ -645,10 +641,8 @@ mod tests {
                     let fut = srv.call(req);
                     async {
                         let mut res = fut.await?;
-                        res.headers_mut().insert(
-                            header::CONTENT_TYPE,
-                            HeaderValue::from_static("0001"),
-                        );
+                        res.headers_mut()
+                            .insert(header::CONTENT_TYPE, HeaderValue::from_static("0001"));
                         Ok(res)
                     }
                 }),
@@ -671,9 +665,8 @@ mod tests {
                 .route(
                     "/test",
                     web::get().to(|req: HttpRequest| {
-                        HttpResponse::Ok().body(
-                            req.url_for("youtube", &["12345"]).unwrap().to_string(),
-                        )
+                        HttpResponse::Ok()
+                            .body(req.url_for("youtube", &["12345"]).unwrap().to_string())
                     }),
                 ),
         )

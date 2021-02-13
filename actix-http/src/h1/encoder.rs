@@ -144,104 +144,54 @@ pub(crate) trait MessageType: Sized {
             let k = key.as_str().as_bytes();
             let k_len = k.len();
 
-            match value {
-                Value::One(ref val) => {
-                    let v = val.as_ref();
-                    let v_len = v.len();
+            // TODO: drain?
+            for val in value.iter() {
+                let v = val.as_ref();
+                let v_len = v.len();
 
-                    // key length + value length + colon + space + \r\n
-                    let len = k_len + v_len + 4;
+                // key length + value length + colon + space + \r\n
+                let len = k_len + v_len + 4;
 
-                    if len > remaining {
-                        // not enough room in buffer for this header; reserve more space
-
-                        // SAFETY: all the bytes written up to position "pos" are initialized
-                        // the written byte count and pointer advancement are kept in sync
-                        unsafe {
-                            dst.advance_mut(pos);
-                        }
-
-                        pos = 0;
-                        dst.reserve(len * 2);
-                        remaining = dst.capacity() - dst.len();
-
-                        // re-assign buf raw pointer since it's possible that the buffer was
-                        // reallocated and/or resized
-                        buf = dst.chunk_mut().as_mut_ptr();
-                    }
-
-                    // SAFETY: on each write, it is enough to ensure that the advancement of the
-                    // cursor matches the number of bytes written
+                if len > remaining {
+                    // SAFETY: all the bytes written up to position "pos" are initialized
+                    // the written byte count and pointer advancement are kept in sync
                     unsafe {
-                        // use upper Camel-Case
-                        if camel_case {
-                            write_camel_case(k, from_raw_parts_mut(buf, k_len))
-                        } else {
-                            write_data(k, buf, k_len)
-                        }
-
-                        buf = buf.add(k_len);
-
-                        write_data(b": ", buf, 2);
-                        buf = buf.add(2);
-
-                        write_data(v, buf, v_len);
-                        buf = buf.add(v_len);
-
-                        write_data(b"\r\n", buf, 2);
-                        buf = buf.add(2);
+                        dst.advance_mut(pos);
                     }
 
-                    pos += len;
-                    remaining -= len;
+                    pos = 0;
+                    dst.reserve(len * 2);
+                    remaining = dst.capacity() - dst.len();
+
+                    // re-assign buf raw pointer since it's possible that the buffer was
+                    // reallocated and/or resized
+                    buf = dst.chunk_mut().as_mut_ptr();
                 }
 
-                Value::Multi(ref vec) => {
-                    for val in vec {
-                        let v = val.as_ref();
-                        let v_len = v.len();
-                        let len = k_len + v_len + 4;
-
-                        if len > remaining {
-                            // SAFETY: all the bytes written up to position "pos" are initialized
-                            // the written byte count and pointer advancement are kept in sync
-                            unsafe {
-                                dst.advance_mut(pos);
-                            }
-                            pos = 0;
-                            dst.reserve(len * 2);
-                            remaining = dst.capacity() - dst.len();
-
-                            // re-assign buf raw pointer since it's possible that the buffer was
-                            // reallocated and/or resized
-                            buf = dst.chunk_mut().as_mut_ptr();
-                        }
-
-                        // SAFETY: on each write, it is enough to ensure that the advancement of
-                        // the cursor matches the number of bytes written
-                        unsafe {
-                            if camel_case {
-                                write_camel_case(k, from_raw_parts_mut(buf, k_len));
-                            } else {
-                                write_data(k, buf, k_len);
-                            }
-
-                            buf = buf.add(k_len);
-
-                            write_data(b": ", buf, 2);
-                            buf = buf.add(2);
-
-                            write_data(v, buf, v_len);
-                            buf = buf.add(v_len);
-
-                            write_data(b"\r\n", buf, 2);
-                            buf = buf.add(2);
-                        };
-
-                        pos += len;
-                        remaining -= len;
+                // SAFETY: on each write, it is enough to ensure that the advancement of
+                // the cursor matches the number of bytes written
+                unsafe {
+                    if camel_case {
+                        // use Camel-Case headers
+                        write_camel_case(k, from_raw_parts_mut(buf, k_len));
+                    } else {
+                        write_data(k, buf, k_len);
                     }
-                }
+
+                    buf = buf.add(k_len);
+
+                    write_data(b": ", buf, 2);
+                    buf = buf.add(2);
+
+                    write_data(v, buf, v_len);
+                    buf = buf.add(v_len);
+
+                    write_data(b"\r\n", buf, 2);
+                    buf = buf.add(2);
+                };
+
+                pos += len;
+                remaining -= len;
             }
         });
 
@@ -579,8 +529,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_camel_case() {
+    #[actix_rt::test]
+    async fn test_camel_case() {
         let mut bytes = BytesMut::with_capacity(2048);
         let mut head = RequestHead::default();
         head.set_camel_case_headers(true);
@@ -643,8 +593,8 @@ mod tests {
         assert!(data.contains("date: date\r\n"));
     }
 
-    #[test]
-    fn test_extra_headers() {
+    #[actix_rt::test]
+    async fn test_extra_headers() {
         let mut bytes = BytesMut::with_capacity(2048);
 
         let mut head = RequestHead::default();
@@ -677,8 +627,8 @@ mod tests {
         assert!(data.contains("date: date\r\n"));
     }
 
-    #[test]
-    fn test_no_content_length() {
+    #[actix_rt::test]
+    async fn test_no_content_length() {
         let mut bytes = BytesMut::with_capacity(2048);
 
         let mut res: Response<()> =

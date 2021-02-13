@@ -85,8 +85,7 @@ impl<S> HttpMessage for ClientResponse<S> {
         if self.extensions().get::<Cookies>().is_none() {
             let mut cookies = Vec::new();
             for hdr in self.headers().get_all(&SET_COOKIE) {
-                let s = std::str::from_utf8(hdr.as_bytes())
-                    .map_err(CookieParseError::from)?;
+                let s = std::str::from_utf8(hdr.as_bytes()).map_err(CookieParseError::from)?;
                 cookies.push(Cookie::parse_encoded(s)?.into_owned());
             }
             self.extensions_mut().insert(Cookies(cookies));
@@ -185,7 +184,7 @@ impl<S> ClientResponse<S>
 where
     S: Stream<Item = Result<Bytes, PayloadError>>,
 {
-    /// Loads http response's body.
+    /// Loads HTTP response's body.
     pub fn body(&mut self) -> MessageBody<S> {
         MessageBody::new(self)
     }
@@ -230,7 +229,7 @@ impl<S> fmt::Debug for ClientResponse<S> {
     }
 }
 
-/// Future that resolves to a complete http message body.
+/// Future that resolves to a complete HTTP message body.
 pub struct MessageBody<S> {
     length: Option<usize>,
     err: Option<PayloadError>,
@@ -393,9 +392,7 @@ where
 
         if let Some(len) = self.length.take() {
             if len > self.fut.as_ref().unwrap().limit {
-                return Poll::Ready(Err(JsonPayloadError::Payload(
-                    PayloadError::Overflow,
-                )));
+                return Poll::Ready(Err(JsonPayloadError::Payload(PayloadError::Overflow)));
             }
         }
 
@@ -465,8 +462,7 @@ mod tests {
             _ => unreachable!("error"),
         }
 
-        let mut req =
-            TestResponse::with_header(header::CONTENT_LENGTH, "1000000").finish();
+        let mut req = TestResponse::with_header(header::CONTENT_LENGTH, "1000000").finish();
         match req.body().await.err().unwrap() {
             PayloadError::Overflow => {}
             _ => unreachable!("error"),

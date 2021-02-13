@@ -11,8 +11,8 @@ use actix_web::{
 use futures_util::future::{ok, Either, LocalBoxFuture, Ready};
 
 use crate::{
-    named, Directory, DirectoryRenderer, FilesError, HttpService, MimeOverride,
-    NamedFile, PathBufWrap,
+    named, Directory, DirectoryRenderer, FilesError, HttpService, MimeOverride, NamedFile,
+    PathBufWrap,
 };
 
 /// Assembled file serving service.
@@ -138,8 +138,7 @@ impl Service<ServiceRequest> for FilesService {
             match NamedFile::open(path) {
                 Ok(mut named_file) => {
                     if let Some(ref mime_override) = self.mime_override {
-                        let new_disposition =
-                            mime_override(&named_file.content_type.type_());
+                        let new_disposition = mime_override(&named_file.content_type.type_());
                         named_file.content_disposition.disposition = new_disposition;
                     }
                     named_file.flags = self.file_flags;

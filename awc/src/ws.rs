@@ -40,16 +40,12 @@ pub use actix_http::ws::{CloseCode, CloseReason, Codec, Frame, Message};
 
 use crate::connect::BoxedSocket;
 use crate::error::{InvalidUrl, SendRequestError, WsClientError};
-use crate::http::header::{
-    self, HeaderName, HeaderValue, IntoHeaderValue, AUTHORIZATION,
-};
-use crate::http::{
-    ConnectionType, Error as HttpError, Method, StatusCode, Uri, Version,
-};
+use crate::http::header::{self, HeaderName, HeaderValue, IntoHeaderValue, AUTHORIZATION};
+use crate::http::{ConnectionType, Error as HttpError, Method, StatusCode, Uri, Version};
 use crate::response::ClientResponse;
 use crate::ClientConfig;
 
-/// `WebSocket` connection
+/// WebSocket connection.
 pub struct WebsocketsRequest {
     pub(crate) head: RequestHead,
     err: Option<HttpError>,
@@ -63,7 +59,7 @@ pub struct WebsocketsRequest {
 }
 
 impl WebsocketsRequest {
-    /// Create new websocket connection
+    /// Create new WebSocket connection
     pub(crate) fn new<U>(uri: U, config: Rc<ClientConfig>) -> Self
     where
         Uri: TryFrom<U>,
@@ -106,7 +102,7 @@ impl WebsocketsRequest {
         self
     }
 
-    /// Set supported websocket protocols
+    /// Set supported WebSocket protocols
     pub fn protocols<U, V>(mut self, protos: U) -> Self
     where
         U: IntoIterator<Item = V>,
@@ -243,7 +239,7 @@ impl WebsocketsRequest {
         self.header(AUTHORIZATION, format!("Bearer {}", token))
     }
 
-    /// Complete request construction and connect to a websockets server.
+    /// Complete request construction and connect to a WebSocket server.
     pub async fn connect(
         mut self,
     ) -> Result<(ClientResponse, Framed<BoxedSocket, Codec>), WsClientError> {
@@ -342,7 +338,7 @@ impl WebsocketsRequest {
             return Err(WsClientError::InvalidResponseStatus(head.status));
         }
 
-        // Check for "UPGRADE" to websocket header
+        // check for "UPGRADE" to WebSocket header
         let has_hdr = if let Some(hdr) = head.headers.get(&header::UPGRADE) {
             if let Ok(s) = hdr.to_str() {
                 s.to_ascii_lowercase().contains("websocket")

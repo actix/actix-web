@@ -67,6 +67,14 @@ impl Response {
     static_resp!(ExpectationFailed, StatusCode::EXPECTATION_FAILED);
     static_resp!(UnprocessableEntity, StatusCode::UNPROCESSABLE_ENTITY);
     static_resp!(TooManyRequests, StatusCode::TOO_MANY_REQUESTS);
+    static_resp!(
+        RequestHeaderFieldsTooLarge,
+        StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE
+    );
+    static_resp!(
+        UnavailableForLegalReasons,
+        StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS
+    );
 
     static_resp!(InternalServerError, StatusCode::INTERNAL_SERVER_ERROR);
     static_resp!(NotImplemented, StatusCode::NOT_IMPLEMENTED);

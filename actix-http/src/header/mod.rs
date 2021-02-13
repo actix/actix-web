@@ -1,4 +1,4 @@
-//! Typed HTTP headers, pre-defined `HeaderName`s, traits for parsing/conversion and other
+//! Typed HTTP headers, pre-defined `HeaderName`s, traits for parsing and conversion, and other
 //! header utility methods.
 
 use std::fmt;
@@ -9,8 +9,9 @@ use percent_encoding::{AsciiSet, CONTROLS};
 pub use http::header::*;
 
 use crate::error::ParseError;
-use crate::httpmessage::HttpMessage;
+use crate::HttpMessage;
 
+mod as_name;
 mod into_pair;
 mod into_value;
 mod utils;
@@ -23,6 +24,7 @@ pub use self::common::*;
 #[doc(hidden)]
 pub use self::shared::*;
 
+pub use self::as_name::AsHeaderName;
 pub use self::into_pair::IntoHeaderPair;
 pub use self::into_value::IntoHeaderValue;
 #[doc(hidden)]
@@ -39,16 +41,14 @@ pub trait Header: IntoHeaderValue {
     fn parse<T: HttpMessage>(msg: &T) -> Result<Self, ParseError>;
 }
 
-#[doc(hidden)]
+#[derive(Debug, Default)]
 pub(crate) struct Writer {
     buf: BytesMut,
 }
 
 impl Writer {
     fn new() -> Writer {
-        Writer {
-            buf: BytesMut::new(),
-        }
+        Writer::default()
     }
 
     fn take(&mut self) -> Bytes {
@@ -71,12 +71,8 @@ impl fmt::Write for Writer {
 
 /// Convert `http::HeaderMap` to our `HeaderMap`.
 impl From<http::HeaderMap> for HeaderMap {
-    fn from(map: http::HeaderMap) -> HeaderMap {
-        let mut new_map = HeaderMap::with_capacity(map.capacity());
-        for (h, v) in map.iter() {
-            new_map.append(h.clone(), v.clone());
-        }
-        new_map
+    fn from(mut map: http::HeaderMap) -> HeaderMap {
+        HeaderMap::from_drain(map.drain())
     }
 }
 

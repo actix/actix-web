@@ -74,8 +74,7 @@ impl From<u8> for OpCode {
     }
 }
 
-/// Status code used to indicate why an endpoint is closing the `WebSocket`
-/// connection.
+/// Status code used to indicate why an endpoint is closing the WebSocket connection.
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum CloseCode {
     /// Indicates a normal closure, meaning that the purpose for

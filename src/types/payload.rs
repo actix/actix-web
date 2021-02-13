@@ -23,7 +23,7 @@ use crate::{dev, http::header, web, Error, FromRequest, HttpMessage, HttpRequest
 ///
 /// See [`PayloadConfig`] for important notes when using this advanced extractor.
 ///
-/// # Usage
+/// # Examples
 /// ```
 /// use std::future::Future;
 /// use futures_util::stream::{Stream, StreamExt};
@@ -55,10 +55,7 @@ impl Stream for Payload {
     type Item = Result<Bytes, PayloadError>;
 
     #[inline]
-    fn poll_next(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Pin::new(&mut self.0).poll_next(cx)
     }
 }
@@ -81,7 +78,7 @@ impl FromRequest for Payload {
 ///
 /// Use [`PayloadConfig`] to configure extraction process.
 ///
-/// # Usage
+/// # Examples
 /// ```
 /// use actix_web::{post, web};
 ///
@@ -118,7 +115,7 @@ impl FromRequest for Bytes {
 /// [**PayloadConfig**](PayloadConfig) allows to configure
 /// extraction process.
 ///
-/// # Usage
+/// # Examples
 /// ```
 /// use actix_web::{post, web, FromRequest};
 ///
@@ -396,9 +393,7 @@ mod tests {
             App::new()
                 .service(
                     web::resource("/bytes-app-data")
-                        .app_data(
-                            PayloadConfig::default().mimetype(mime::APPLICATION_JSON),
-                        )
+                        .app_data(PayloadConfig::default().mimetype(mime::APPLICATION_JSON))
                         .route(web::get().to(bytes_handler)),
                 )
                 .service(
@@ -408,9 +403,7 @@ mod tests {
                 )
                 .service(
                     web::resource("/string-app-data")
-                        .app_data(
-                            PayloadConfig::default().mimetype(mime::APPLICATION_JSON),
-                        )
+                        .app_data(PayloadConfig::default().mimetype(mime::APPLICATION_JSON))
                         .route(web::get().to(string_handler)),
                 )
                 .service(

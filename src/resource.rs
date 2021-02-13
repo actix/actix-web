@@ -358,9 +358,10 @@ where
         U::InitError: fmt::Debug,
     {
         // create and configure default resource
-        self.default = boxed::factory(f.into_factory().map_init_err(|e| {
-            log::error!("Can not construct default service: {:?}", e)
-        }));
+        self.default = boxed::factory(
+            f.into_factory()
+                .map_init_err(|e| log::error!("Can not construct default service: {:?}", e)),
+        );
 
         self
     }
@@ -437,8 +438,7 @@ impl ServiceFactory<ServiceRequest> for ResourceFactory {
         let default_fut = self.default.new_service(());
 
         // construct route service factory futures
-        let factory_fut =
-            join_all(self.routes.iter().map(|route| route.new_service(())));
+        let factory_fut = join_all(self.routes.iter().map(|route| route.new_service(())));
 
         let app_data = self.app_data.clone();
 
@@ -530,19 +530,18 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_middleware() {
-        let srv =
-            init_service(
-                App::new().service(
-                    web::resource("/test")
-                        .name("test")
-                        .wrap(DefaultHeaders::new().header(
-                            header::CONTENT_TYPE,
-                            HeaderValue::from_static("0001"),
-                        ))
-                        .route(web::get().to(HttpResponse::Ok)),
-                ),
-            )
-            .await;
+        let srv = init_service(
+            App::new().service(
+                web::resource("/test")
+                    .name("test")
+                    .wrap(
+                        DefaultHeaders::new()
+                            .header(header::CONTENT_TYPE, HeaderValue::from_static("0001")),
+                    )
+                    .route(web::get().to(HttpResponse::Ok)),
+            ),
+        )
+        .await;
         let req = TestRequest::with_uri("/test").to_request();
         let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
@@ -584,12 +583,11 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_to() {
-        let srv =
-            init_service(App::new().service(web::resource("/test").to(|| async {
-                sleep(Duration::from_millis(100)).await;
-                Ok::<_, Error>(HttpResponse::Ok())
-            })))
-            .await;
+        let srv = init_service(App::new().service(web::resource("/test").to(|| async {
+            sleep(Duration::from_millis(100)).await;
+            Ok::<_, Error>(HttpResponse::Ok())
+        })))
+        .await;
         let req = TestRequest::with_uri("/test").to_request();
         let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);

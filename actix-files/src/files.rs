@@ -2,9 +2,7 @@ use std::{cell::RefCell, fmt, io, path::PathBuf, rc::Rc};
 
 use actix_service::{boxed, IntoServiceFactory, ServiceFactory, ServiceFactoryExt};
 use actix_web::{
-    dev::{
-        AppService, HttpServiceFactory, ResourceDef, ServiceRequest, ServiceResponse,
-    },
+    dev::{AppService, HttpServiceFactory, ResourceDef, ServiceRequest, ServiceResponse},
     error::Error,
     guard::Guard,
     http::header::DispositionType,
@@ -13,8 +11,8 @@ use actix_web::{
 use futures_util::future::{ok, FutureExt, LocalBoxFuture};
 
 use crate::{
-    directory_listing, named, Directory, DirectoryRenderer, FilesService,
-    HttpNewService, MimeOverride,
+    directory_listing, named, Directory, DirectoryRenderer, FilesService, HttpNewService,
+    MimeOverride,
 };
 
 /// Static files handling service.
@@ -129,8 +127,8 @@ impl Files {
     /// Set custom directory renderer
     pub fn files_listing_renderer<F>(mut self, f: F) -> Self
     where
-        for<'r, 's> F: Fn(&'r Directory, &'s HttpRequest) -> Result<ServiceResponse, io::Error>
-            + 'static,
+        for<'r, 's> F:
+            Fn(&'r Directory, &'s HttpRequest) -> Result<ServiceResponse, io::Error> + 'static,
     {
         self.renderer = Rc::new(f);
         self

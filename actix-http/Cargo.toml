@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "3.0.0-beta.1"
+version = "3.0.0-beta.3"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "HTTP primitives for the Actix ecosystem"
 readme = "README.md"
@@ -15,7 +15,7 @@ license = "MIT OR Apache-2.0"
 edition = "2018"
 
 [package.metadata.docs.rs]
-features = ["openssl", "rustls", "compress", "secure-cookies", "actors"]
+features = ["openssl", "rustls", "compress", "secure-cookies"]
 
 [lib]
 name = "actix_http"
@@ -36,8 +36,8 @@ compress = ["flate2", "brotli2"]
 # support for secure cookies
 secure-cookies = ["cookie/secure"]
 
-# support for actix Actor messages
-actors = ["actix"]
+# trust-dns as client dns resolver
+trust-dns = ["trust-dns-resolver"]
 
 [dependencies]
 actix-service = "2.0.0-beta.4"
@@ -45,7 +45,6 @@ actix-codec = "0.4.0-beta.1"
 actix-utils = "3.0.0-beta.2"
 actix-rt = "2"
 actix-tls = "3.0.0-beta.2"
-actix = { version = "0.11.0-beta.2", default-features = false, optional = true }
 
 base64 = "0.13"
 bitflags = "1.2"
@@ -53,7 +52,6 @@ bytes = "1"
 bytestring = "1"
 cookie = { version = "0.14.1", features = ["percent-encode"] }
 derive_more = "0.99.5"
-either = "1.5.3"
 encoding_rs = "0.8"
 futures-channel = { version = "0.3.7", default-features = false, features = ["alloc"] }
 futures-core = { version = "0.3.7", default-features = false, features = ["alloc"] }
@@ -84,15 +82,22 @@ time = { version = "0.2.23", default-features = false, features = ["std"] }
 brotli2 = { version="0.3.2", optional = true }
 flate2 = { version = "1.0.13", optional = true }
 
+trust-dns-resolver = { version = "0.20.0", optional = true }
+
 [dev-dependencies]
 actix-server = "2.0.0-beta.3"
-actix-http-test = { version = "3.0.0-beta.1", features = ["openssl"] }
+actix-http-test = { version = "3.0.0-beta.2", features = ["openssl"] }
 actix-tls = { version = "3.0.0-beta.2", features = ["openssl"] }
 criterion = "0.3"
 env_logger = "0.8"
 serde_derive = "1.0"
 tls-openssl = { version = "0.10", package = "openssl" }
 tls-rustls = { version = "0.19", package = "rustls" }
+
+[target.'cfg(windows)'.dev-dependencies.tls-openssl]
+version = "0.10.9"
+package = "openssl"
+features = ["vendored"]
 
 [[bench]]
 name = "write-camel-case"

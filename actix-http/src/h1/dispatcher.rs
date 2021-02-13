@@ -37,15 +37,14 @@ bitflags! {
     pub struct Flags: u8 {
         const STARTED            = 0b0000_0001;
         const KEEPALIVE          = 0b0000_0010;
-        const POLLED             = 0b0000_0100;
-        const SHUTDOWN           = 0b0000_1000;
-        const READ_DISCONNECT    = 0b0001_0000;
-        const WRITE_DISCONNECT   = 0b0010_0000;
-        const UPGRADE            = 0b0100_0000;
+        const SHUTDOWN           = 0b0000_0100;
+        const READ_DISCONNECT    = 0b0000_1000;
+        const WRITE_DISCONNECT   = 0b0001_0000;
+        const UPGRADE            = 0b0010_0000;
     }
 }
 
-#[pin_project::pin_project]
+#[pin_project]
 /// Dispatcher for HTTP/1.1 protocol
 pub struct Dispatcher<T, S, B, X, U>
 where
@@ -139,25 +138,12 @@ where
     fn is_empty(&self) -> bool {
         matches!(self, State::None)
     }
-
-    fn is_call(&self) -> bool {
-        matches!(self, State::ServiceCall(_))
-    }
 }
+
 enum PollResponse {
     Upgrade(Request),
     DoNothing,
     DrainWriteBuf,
-}
-
-impl PartialEq for PollResponse {
-    fn eq(&self, other: &PollResponse) -> bool {
-        match self {
-            PollResponse::DrainWriteBuf => matches!(other, PollResponse::DrainWriteBuf),
-            PollResponse::DoNothing => matches!(other, PollResponse::DoNothing),
-            _ => false,
-        }
-    }
 }
 
 impl<T, S, B, X, U> Dispatcher<T, S, B, X, U>
@@ -174,62 +160,35 @@ where
 {
     /// Create HTTP/1 dispatcher.
     pub(crate) fn new(
-        stream: T,
-        config: ServiceConfig,
-        services: Rc<HttpFlow<S, X, U>>,
-        on_connect_data: OnConnectData,
-        peer_addr: Option<net::SocketAddr>,
-    ) -> Self {
-        Dispatcher::with_timeout(
-            stream,
-            Codec::new(config.clone()),
-            config,
-            BytesMut::with_capacity(HW_BUFFER_SIZE),
-            None,
-            services,
-            on_connect_data,
-            peer_addr,
-        )
-    }
-
-    /// Create http/1 dispatcher with slow request timeout.
-    pub(crate) fn with_timeout(
         io: T,
-        codec: Codec,
         config: ServiceConfig,
-        read_buf: BytesMut,
-        timeout: Option<Sleep>,
-        services: Rc<HttpFlow<S, X, U>>,
+        flow: Rc<HttpFlow<S, X, U>>,
         on_connect_data: OnConnectData,
         peer_addr: Option<net::SocketAddr>,
     ) -> Self {
-        let keepalive = config.keep_alive_enabled();
-        let flags = if keepalive {
+        let flags = if config.keep_alive_enabled() {
             Flags::KEEPALIVE
         } else {
             Flags::empty()
         };
 
         // keep-alive timer
-        let (ka_expire, ka_timer) = if let Some(delay) = timeout {
-            (delay.deadline(), Some(delay))
-        } else if let Some(delay) = config.keep_alive_timer() {
-            (delay.deadline(), Some(delay))
-        } else {
-            (config.now(), None)
+        let (ka_expire, ka_timer) = match config.keep_alive_timer() {
+            Some(delay) => (delay.deadline(), Some(delay)),
+            None => (config.now(), None),
         };
 
         Dispatcher {
             inner: DispatcherState::Normal(InnerDispatcher {
+                read_buf: BytesMut::with_capacity(HW_BUFFER_SIZE),
                 write_buf: BytesMut::with_capacity(HW_BUFFER_SIZE),
                 payload: None,
                 state: State::None,
                 error: None,
                 messages: VecDeque::new(),
                 io: Some(io),
-                codec,
-                read_buf,
-                flow: services,
+                codec: Codec::new(config),
+                flow,
                 on_connect_data,
                 flags,
                 peer_addr,
@@ -286,15 +245,12 @@ where
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Result<bool, DispatchError> {
-        let len = self.write_buf.len();
-        if len == 0 {
-            return Ok(false);
-        }
-
         let InnerDispatcherProj { io, write_buf, .. } = self.project();
         let mut io = Pin::new(io.as_mut().unwrap());
 
+        let len = write_buf.len();
         let mut written = 0;
+
         while written < len {
             match io.as_mut().poll_write(cx, &write_buf[written..]) {
                 Poll::Ready(Ok(0)) => {
@@ -312,11 +268,13 @@ where
             }
         }
 
-        // SAFETY: setting length to 0 is safe
-        // skips one length check vs truncate
-        unsafe { write_buf.set_len(0) }
+        // everything has written to io. clear buffer.
+        write_buf.clear();
 
-        Ok(false)
+        // flush the io and check if get blocked.
+        let blocked = io.poll_flush(cx)?.is_pending();
+
+        Ok(blocked)
     }
 
     fn send_response(
@@ -324,9 +282,10 @@ where
         message: Response<()>,
         body: ResponseBody<B>,
     ) -> Result<(), DispatchError> {
+        let size = body.size();
         let mut this = self.project();
         this.codec
-            .encode(Message::Item((message, body.size())), &mut this.write_buf)
+            .encode(Message::Item((message, size)), &mut this.write_buf)
             .map_err(|err| {
                 if let Some(mut payload) = this.payload.take() {
                     payload.set_error(PayloadError::Incomplete(None));
@@ -335,7 +294,7 @@ where
             })?;
 
         this.flags.set(Flags::KEEPALIVE, this.codec.keepalive());
-        match body.size() {
+        match size {
             BodySize::None | BodySize::Empty => this.state.set(State::None),
             _ => this.state.set(State::SendPayload(body)),
         };
@@ -352,109 +311,121 @@ where
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Result<PollResponse, DispatchError> {
-        loop {
+        'res: loop {
             let mut this = self.as_mut().project();
-            // state is not changed on Poll::Pending.
-            // other variant and conditions always trigger a state change(or an error).
-            let state_change = match this.state.project() {
+            match this.state.as_mut().project() {
+                // no future is in InnerDispatcher state. pop next message.
                 StateProj::None => match this.messages.pop_front() {
+                    // handle request message.
                     Some(DispatcherMessage::Item(req)) => {
-                        self.as_mut().handle_request(req, cx)?;
-                        true
+                        // Handle `EXPECT: 100-Continue` header
+                        if req.head().expect() {
+                            // set InnerDispatcher state and continue loop to poll it.
+                            let task = this.flow.expect.call(req);
+                            this.state.set(State::ExpectCall(task));
+                        } else {
+                            // the same as expect call.
+                            let task = this.flow.service.call(req);
+                            this.state.set(State::ServiceCall(task));
+                        };
                     }
+
+                    // handle error message.
                     Some(DispatcherMessage::Error(res)) => {
+                        // send_response would update InnerDispatcher state to SendPayload or
+                        // None(If response body is empty).
+                        // continue loop to poll it.
                         self.as_mut()
                             .send_response(res, ResponseBody::Other(Body::Empty))?;
-                        true
                     }
+
+                    // return with upgrade request and poll it exclusively.
                     Some(DispatcherMessage::Upgrade(req)) => {
                         return Ok(PollResponse::Upgrade(req));
                     }
-                    None => false,
-                },
-                StateProj::ExpectCall(fut) => match fut.poll(cx) {
-                    Poll::Ready(Ok(req)) => {
-                        self.as_mut().send_continue();
-                        this = self.as_mut().project();
-                        let fut = this.flow.service.call(req);
-                        this.state.set(State::ServiceCall(fut));
-                        continue;
-                    }
-                    Poll::Ready(Err(e)) => {
-                        let res: Response = e.into().into();
-                        let (res, body) = res.replace_body(());
-                        self.as_mut().send_response(res, body.into_body())?;
-                        true
-                    }
-                    Poll::Pending => false,
+
+                    // all messages are dealt with.
+                    None => return Ok(PollResponse::DoNothing),
                 },
                 StateProj::ServiceCall(fut) => match fut.poll(cx) {
+                    // service call resolved. send response.
                     Poll::Ready(Ok(res)) => {
                         let (res, body) = res.into().replace_body(());
                         self.as_mut().send_response(res, body)?;
-                        continue;
                     }
-                    Poll::Ready(Err(e)) => {
-                        let res: Response = e.into().into();
+
+                    // send service call error as response
+                    Poll::Ready(Err(err)) => {
+                        let res: Response = err.into().into();
                         let (res, body) = res.replace_body(());
                         self.as_mut().send_response(res, body.into_body())?;
-                        true
                     }
-                    Poll::Pending => false,
-                },
-                StateProj::SendPayload(mut stream) => {
-                    loop {
-                        if this.write_buf.len() < super::payload::MAX_BUFFER_SIZE {
-                            match stream.as_mut().poll_next(cx) {
-                                Poll::Ready(Some(Ok(item))) => {
-                                    this.codec.encode(
-                                        Message::Chunk(Some(item)),
-                                        &mut this.write_buf,
-                                    )?;
-                                    continue;
-                                }
-                                Poll::Ready(None) => {
-                                    this.codec.encode(
-                                        Message::Chunk(None),
-                                        &mut this.write_buf,
-                                    )?;
-                                    this = self.as_mut().project();
-                                    this.state.set(State::None);
-                                }
-                                Poll::Ready(Some(Err(_))) => {
-                                    return Err(DispatchError::Unknown)
-                                }
-                                Poll::Pending => return Ok(PollResponse::DoNothing),
-                            }
-                        } else {
-                            return Ok(PollResponse::DrainWriteBuf);
+
+                    // service call pending and could be waiting for more chunk messages.
+                    // (pipeline message limit and/or payload can_read limit)
+                    Poll::Pending => {
+                        // no new message is decoded and no new payload is feed.
+                        // nothing to do except waiting for new incoming data from client.
+                        if !self.as_mut().poll_request(cx)? {
+                            return Ok(PollResponse::DoNothing);
                         }
-                        break;
+                        // otherwise keep loop.
                     }
-                    continue;
-                }
-            };
+                },
 
-            // state is changed and continue when the state is not Empty
-            if state_change {
-                if !self.state.is_empty() {
-                    continue;
-                }
-            } else {
-                // if read-backpressure is enabled and we consumed some data.
-                // we may read more data and retry
-                if self.state.is_call() {
-                    if self.as_mut().poll_request(cx)? {
-                        continue;
+                StateProj::SendPayload(mut stream) => {
+                    // keep populate writer buffer until buffer size limit hit,
+                    // get blocked or finished.
+                    while this.write_buf.len() < super::payload::MAX_BUFFER_SIZE {
+                        match stream.as_mut().poll_next(cx) {
+                            Poll::Ready(Some(Ok(item))) => {
+                                this.codec.encode(
+                                    Message::Chunk(Some(item)),
+                                    &mut this.write_buf,
+                                )?;
+                            }
+
+                            Poll::Ready(None) => {
+                                this.codec
+                                    .encode(Message::Chunk(None), &mut this.write_buf)?;
+                                // payload stream finished.
+                                // set state to None and handle next message
+                                this.state.set(State::None);
+                                continue 'res;
+                            }
+
+                            Poll::Ready(Some(Err(err))) => {
+                                return Err(DispatchError::Service(err))
+                            }
+
+                            Poll::Pending => return Ok(PollResponse::DoNothing),
+                        }
                     }
-                } else if !self.messages.is_empty() {
-                    continue;
+                    // buffer is beyond max size.
+                    // return and try to write the whole buffer to io stream.
+                    return Ok(PollResponse::DrainWriteBuf);
                 }
+
+                StateProj::ExpectCall(fut) => match fut.poll(cx) {
+                    // expect resolved. write continue to buffer and set InnerDispatcher state
+                    // to service call.
+                    Poll::Ready(Ok(req)) => {
+                        this.write_buf
+                            .extend_from_slice(b"HTTP/1.1 100 Continue\r\n\r\n");
+                        let fut = this.flow.service.call(req);
+                        this.state.set(State::ServiceCall(fut));
+                    }
+                    // send expect error as response
+                    Poll::Ready(Err(err)) => {
+                        let res: Response = err.into().into();
+                        let (res, body) = res.replace_body(());
+                        self.as_mut().send_response(res, body.into_body())?;
+                    }
+                    // expect must be solved before progress can be made.
+                    Poll::Pending => return Ok(PollResponse::DoNothing),
+                },
             }
-            break;
         }
-
-        Ok(PollResponse::DoNothing)
     }
 
     fn handle_request(
@@ -494,9 +465,9 @@ where
                         // future is error. send response and return a result. On success
                         // to notify the dispatcher a new state is set and the outer loop
                         // should be continue.
-                        Poll::Ready(Err(e)) => {
-                            let e = e.into();
-                            let res: Response = e.into();
+                        Poll::Ready(Err(err)) => {
+                            let err = err.into();
+                            let res: Response = err.into();
                             let (res, body) = res.replace_body(());
                             return self.send_response(res, body.into_body());
                         }
@@ -514,9 +485,9 @@ where
                         }
                         // see the comment on ExpectCall state branch's Pending.
                         Poll::Pending => Ok(()),
-                        // see the comment on ExpectCall state branch's Ready(Err(e)).
-                        Poll::Ready(Err(e)) => {
-                            let res: Response = e.into().into();
+                        // see the comment on ExpectCall state branch's Ready(Err(err)).
+                        Poll::Ready(Err(err)) => {
+                            let res: Response = err.into().into();
                             let (res, body) = res.replace_body(());
                             self.send_response(res, body.into_body())
                         }
@@ -608,25 +579,25 @@ where
                 // decode is partial and buffer is not full yet.
                 // break and wait for more read.
                 Ok(None) => break,
-                Err(ParseError::Io(e)) => {
+                Err(ParseError::Io(err)) => {
                     self.as_mut().client_disconnected();
                     this = self.as_mut().project();
-                    *this.error = Some(DispatchError::Io(e));
+                    *this.error = Some(DispatchError::Io(err));
                     break;
                 }
                 Err(ParseError::TooLarge) => {
                     if let Some(mut payload) = this.payload.take() {
                         payload.set_error(PayloadError::Overflow);
                     }
-                    // Requests overflow buffer size should be responded with 413
+                    // Requests overflow buffer size should be responded with 431
                     this.messages.push_back(DispatcherMessage::Error(
-                        Response::PayloadTooLarge().finish().drop_body(),
+                        Response::RequestHeaderFieldsTooLarge().finish().drop_body(),
                     ));
                     this.flags.insert(Flags::READ_DISCONNECT);
                     *this.error = Some(ParseError::TooLarge.into());
                     break;
                 }
-                Err(e) => {
+                Err(err) => {
                     if let Some(mut payload) = this.payload.take() {
                         payload.set_error(PayloadError::EncodingCorrupted);
                     }
@@ -636,7 +607,7 @@ where
                         Response::BadRequest().finish().drop_body(),
                     ));
                     this.flags.insert(Flags::READ_DISCONNECT);
-                    *this.error = Some(e.into());
+                    *this.error = Some(err.into());
                     break;
                 }
             }
@@ -774,7 +745,12 @@ where
                             // at this point it's not known io is still scheduled to
                             // be waked up. so force wake up dispatcher just in case.
                             // TODO: figure out the overhead.
-                            cx.waker().wake_by_ref();
+                            if this.payload.is_none() {
+                                // When dispatcher has a payload. The responsibility of
+                                // wake up stream would be shift to PayloadSender.
+                                // Therefore no self wake up is needed.
+                                cx.waker().wake_by_ref();
+                            }
                             return Ok(false);
                         }
 
@@ -839,9 +815,8 @@ where
                     if inner.flags.contains(Flags::WRITE_DISCONNECT) {
                         Poll::Ready(Ok(()))
                     } else {
-                        // flush buffer
-                        inner.as_mut().poll_flush(cx)?;
-                        if !inner.write_buf.is_empty() {
+                        // flush buffer and wait on block.
+                        if inner.as_mut().poll_flush(cx)? {
                             Poll::Pending
                         } else {
                             Pin::new(inner.project().io.as_mut().unwrap())

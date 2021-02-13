@@ -120,8 +120,7 @@ pub async fn test_server_with_addr<F: ServiceFactory<TcpStream>>(
 /// Get first available unused address
 pub fn unused_addr() -> net::SocketAddr {
     let addr: net::SocketAddr = "127.0.0.1:0".parse().unwrap();
-    let socket =
-        Socket::new(Domain::ipv4(), Type::stream(), Some(Protocol::tcp())).unwrap();
+    let socket = Socket::new(Domain::ipv4(), Type::stream(), Some(Protocol::tcp())).unwrap();
     socket.bind(&addr.into()).unwrap();
     socket.set_reuse_address(true).unwrap();
     let tcp = socket.into_tcp_listener();
@@ -150,7 +149,7 @@ impl TestServer {
         }
     }
 
-    /// Construct test https server url
+    /// Construct test HTTPS server URL.
     pub fn surl(&self, uri: &str) -> String {
         if uri.starts_with('/') {
             format!("https://localhost:{}{}", self.addr.port(), uri)
@@ -164,7 +163,7 @@ impl TestServer {
         self.client.get(self.url(path.as_ref()).as_str())
     }
 
-    /// Create https `GET` request
+    /// Create HTTPS `GET` request
     pub fn sget<S: AsRef<str>>(&self, path: S) -> ClientRequest {
         self.client.get(self.surl(path.as_ref()).as_str())
     }
@@ -174,7 +173,7 @@ impl TestServer {
         self.client.post(self.url(path.as_ref()).as_str())
     }
 
-    /// Create https `POST` request
+    /// Create HTTPS `POST` request
     pub fn spost<S: AsRef<str>>(&self, path: S) -> ClientRequest {
         self.client.post(self.surl(path.as_ref()).as_str())
     }
@@ -184,7 +183,7 @@ impl TestServer {
         self.client.head(self.url(path.as_ref()).as_str())
     }
 
-    /// Create https `HEAD` request
+    /// Create HTTPS `HEAD` request
     pub fn shead<S: AsRef<str>>(&self, path: S) -> ClientRequest {
         self.client.head(self.surl(path.as_ref()).as_str())
     }
@@ -194,7 +193,7 @@ impl TestServer {
         self.client.put(self.url(path.as_ref()).as_str())
     }
 
-    /// Create https `PUT` request
+    /// Create HTTPS `PUT` request
     pub fn sput<S: AsRef<str>>(&self, path: S) -> ClientRequest {
         self.client.put(self.surl(path.as_ref()).as_str())
     }
@@ -204,7 +203,7 @@ impl TestServer {
         self.client.patch(self.url(path.as_ref()).as_str())
     }
 
-    /// Create https `PATCH` request
+    /// Create HTTPS `PATCH` request
     pub fn spatch<S: AsRef<str>>(&self, path: S) -> ClientRequest {
         self.client.patch(self.surl(path.as_ref()).as_str())
     }
@@ -214,7 +213,7 @@ impl TestServer {
         self.client.delete(self.url(path.as_ref()).as_str())
     }
 
-    /// Create https `DELETE` request
+    /// Create HTTPS `DELETE` request
     pub fn sdelete<S: AsRef<str>>(&self, path: S) -> ClientRequest {
         self.client.delete(self.surl(path.as_ref()).as_str())
     }
@@ -224,12 +223,12 @@ impl TestServer {
         self.client.options(self.url(path.as_ref()).as_str())
     }
 
-    /// Create https `OPTIONS` request
+    /// Create HTTPS `OPTIONS` request
     pub fn soptions<S: AsRef<str>>(&self, path: S) -> ClientRequest {
         self.client.options(self.surl(path.as_ref()).as_str())
     }
 
-    /// Connect to test http server
+    /// Connect to test HTTP server
     pub fn request<S: AsRef<str>>(&self, method: Method, path: S) -> ClientRequest {
         self.client.request(method, path.as_ref())
     }
@@ -244,26 +243,24 @@ impl TestServer {
         response.body().limit(10_485_760).await
     }
 
-    /// Connect to websocket server at a given path
+    /// Connect to WebSocket server at a given path.
     pub async fn ws_at(
         &mut self,
         path: &str,
-    ) -> Result<Framed<impl AsyncRead + AsyncWrite, ws::Codec>, awc::error::WsClientError>
-    {
+    ) -> Result<Framed<impl AsyncRead + AsyncWrite, ws::Codec>, awc::error::WsClientError> {
         let url = self.url(path);
         let connect = self.client.ws(url).connect();
         connect.await.map(|(_, framed)| framed)
     }
 
-    /// Connect to a websocket server
+    /// Connect to a WebSocket server.
     pub async fn ws(
         &mut self,
-    ) -> Result<Framed<impl AsyncRead + AsyncWrite, ws::Codec>, awc::error::WsClientError>
-    {
+    ) -> Result<Framed<impl AsyncRead + AsyncWrite, ws::Codec>, awc::error::WsClientError> {
         self.ws_at("/").await
     }
 
-    /// Stop http server
+    /// Stop HTTP server
     fn stop(&mut self) {
         self.system.stop();
     }

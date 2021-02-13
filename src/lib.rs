@@ -30,7 +30,7 @@
 //!
 //! To get started navigating the API docs, you may consider looking at the following pages first:
 //!
-//! * [App]: This struct represents an Actix web application and is used to
+//! * [App]: This struct represents an Actix Web application and is used to
 //!   configure routes and other common application settings.
 //!
 //! * [HttpServer]: This struct represents an HTTP server instance and is
@@ -56,7 +56,6 @@
 //! * SSL support using OpenSSL or Rustls
 //! * Middlewares ([Logger, Session, CORS, etc](https://actix.rs/docs/middleware/))
 //! * Includes an async [HTTP client](https://actix.rs/actix-web/actix_web/client/index.html)
-//! * Supports [Actix actor framework](https://github.com/actix/actix)
 //! * Runs on stable Rust 1.46+
 //!
 //! ## Crate Features
@@ -131,9 +130,7 @@ pub mod dev {
     pub use crate::handler::Handler;
     pub use crate::info::ConnectionInfo;
     pub use crate::rmap::ResourceMap;
-    pub use crate::service::{
-        HttpServiceFactory, ServiceRequest, ServiceResponse, WebService,
-    };
+    pub use crate::service::{HttpServiceFactory, ServiceRequest, ServiceResponse, WebService};
 
     pub use crate::types::form::UrlEncoded;
     pub use crate::types::json::JsonBody;
@@ -143,9 +140,7 @@ pub mod dev {
     #[cfg(feature = "compress")]
     pub use actix_http::encoding::Decoder as Decompress;
     pub use actix_http::ResponseBuilder as HttpResponseBuilder;
-    pub use actix_http::{
-        Extensions, Payload, PayloadStream, RequestHead, ResponseHead,
-    };
+    pub use actix_http::{Extensions, Payload, PayloadStream, RequestHead, ResponseHead};
     pub use actix_router::{Path, ResourceDef, ResourcePath, Url};
     pub use actix_server::Server;
     pub use actix_service::{Service, Transform};
@@ -202,30 +197,4 @@ pub mod dev {
             self
         }
     }
-}
-
-pub mod client {
-    //! Actix web async HTTP client.
-    //!
-    //! ```rust
-    //! use actix_web::client::Client;
-    //!
-    //! #[actix_web::main]
-    //! async fn main() {
-    //!    let mut client = Client::default();
-    //!
-    //!    // Create request builder and send request
-    //!    let response = client.get("http://www.rust-lang.org")
-    //!       .insert_header(("User-Agent", "actix-web/3.0"))
-    //!       .send()     // <- Send request
-    //!       .await;     // <- Wait for response
-    //!
-    //!    println!("Response: {:?}", response);
-    //! }
-    //! ```
-
-    pub use awc::error::*;
-    pub use awc::{
-        test, Client, ClientBuilder, ClientRequest, ClientResponse, Connector,
-    };
 }

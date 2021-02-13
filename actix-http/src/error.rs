@@ -38,7 +38,7 @@ pub type Result<T, E = Error> = result::Result<T, E>;
 /// converting errors with `into()`.
 ///
 /// Whenever it is created from an external object a response error is created
-/// for it that can be used to create an http response from it this means that
+/// for it that can be used to create an HTTP response from it this means that
 /// if you have access to an actix `Error` you can always get a
 /// `ResponseError` reference from it.
 pub struct Error {
@@ -404,7 +404,7 @@ impl ResponseError for crate::cookie::ParseError {
 }
 
 #[derive(Debug, Display, From)]
-/// A set of errors that can occur during dispatching http requests
+/// A set of errors that can occur during dispatching HTTP requests
 pub enum DispatchError {
     /// Service error
     Service(Error),
@@ -967,12 +967,6 @@ where
 {
     InternalError::new(err, StatusCode::NETWORK_AUTHENTICATION_REQUIRED).into()
 }
-
-#[cfg(feature = "actors")]
-/// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`actix::MailboxError`].
-///
-/// This is only supported when the feature `actors` is enabled.
-impl ResponseError for actix::MailboxError {}
 
 #[cfg(test)]
 mod tests {
