@@ -1,9 +1,12 @@
-use std::{cell::{Ref, RefMut}, mem};
 use std::fmt;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use std::{
+    cell::{Ref, RefMut},
+    mem,
+};
 
 use bytes::{Bytes, BytesMut};
 use futures_core::{ready, Stream};
@@ -47,7 +50,6 @@ impl<S> HttpMessage for ClientResponse<S> {
     /// Load request cookies.
     #[cfg(feature = "cookies")]
     fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
-
         struct Cookies(Vec<Cookie<'static>>);
 
         if self.extensions().get::<Cookies>().is_none() {
