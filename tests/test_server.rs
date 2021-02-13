@@ -755,6 +755,8 @@ async fn test_brotli_encoding_large_openssl() {
 
 #[cfg(all(feature = "rustls", feature = "openssl"))]
 mod rustls {
+    use super::*;
+
     use rustls::{
         internal::pemfile::{certs, pkcs8_private_keys},
         NoClientAuth, ServerConfig as RustlsServerConfig,
