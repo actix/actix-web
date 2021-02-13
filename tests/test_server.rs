@@ -21,6 +21,11 @@ use flate2::{
     Compression,
 };
 use futures_util::ready;
+use openssl::{
+    pkey::PKey,
+    ssl::{SslAcceptor, SslMethod},
+    x509::X509,
+};
 use rand::{distributions::Alphanumeric, Rng};
 
 use actix_web::dev::BodyEncoding;
@@ -48,6 +53,30 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World";
+
+fn openssl_config() -> SslAcceptor {
+    let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()]).unwrap();
+    let cert_file = cert.serialize_pem().unwrap();
+    let key_file = cert.serialize_private_key_pem();
+    let cert = X509::from_pem(cert_file.as_bytes()).unwrap();
+    let key = PKey::private_key_from_pem(key_file.as_bytes()).unwrap();
+
+    let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
+    builder.set_certificate(&cert).unwrap();
+    builder.set_private_key(&key).unwrap();
+
+    builder.set_alpn_select_callback(|_, protos| {
+        const H2: &[u8] = b"\x02h2";
+        if protos.windows(3).any(|window| window == H2) {
+            Ok(b"h2")
+        } else {
+            Err(openssl::ssl::AlpnError::NOACK)
+        }
+    });
+    builder.set_alpn_protos(b"\x02h2").unwrap();
+
+    builder.build()
+}
 
 struct TestBody {
     data: Bytes,
@@ -700,18 +729,8 @@ async fn test_brotli_encoding_large() {
 #[cfg(feature = "openssl")]
 #[actix_rt::test]
 async fn test_brotli_encoding_large_openssl() {
-    // load ssl keys
-    use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
-    let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
-    builder
-        .set_private_key_file("tests/key.pem", SslFiletype::PEM)
-        .unwrap();
-    builder
-        .set_certificate_chain_file("tests/cert.pem")
-        .unwrap();
-
     let data = STR.repeat(10);
-    let srv = test::start_with(test::config().openssl(builder.build()), move || {
+    let srv = test::start_with(test::config().openssl(openssl_config()), move || {
         App::new().service(web::resource("/").route(web::to(|bytes: Bytes| {
             HttpResponse::Ok()
                 .encoding(actix_web::http::ContentEncoding::Identity)
@@ -739,53 +758,72 @@ async fn test_brotli_encoding_large_openssl() {
 }
 
 #[cfg(all(feature = "rustls", feature = "openssl"))]
-#[actix_rt::test]
-async fn test_reading_deflate_encoding_large_random_rustls() {
-    use rustls::internal::pemfile::{certs, pkcs8_private_keys};
-    use rustls::{NoClientAuth, ServerConfig};
-    use std::fs::File;
+mod plus_rustls {
     use std::io::BufReader;
 
-    let data = rand::thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(160_000)
-        .map(char::from)
-        .collect::<String>();
+    use rustls::{
+        internal::pemfile::{certs, pkcs8_private_keys},
+        NoClientAuth, ServerConfig as RustlsServerConfig,
+    };
 
-    // load ssl keys
-    let mut config = ServerConfig::new(NoClientAuth::new());
-    let cert_file = &mut BufReader::new(File::open("tests/cert.pem").unwrap());
-    let key_file = &mut BufReader::new(File::open("tests/key.pem").unwrap());
-    let cert_chain = certs(cert_file).unwrap();
-    let mut keys = pkcs8_private_keys(key_file).unwrap();
-    config.set_single_cert(cert_chain, keys.remove(0)).unwrap();
+    use super::*;
 
-    let srv = test::start_with(test::config().rustls(config), || {
-        App::new().service(web::resource("/").route(web::to(|bytes: Bytes| {
-            HttpResponse::Ok()
-                .encoding(actix_web::http::ContentEncoding::Identity)
-                .body(bytes)
-        })))
-    });
+    fn rustls_config() -> RustlsServerConfig {
+        let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()]).unwrap();
+        let cert_file = cert.serialize_pem().unwrap();
+        let key_file = cert.serialize_private_key_pem();
 
-    // encode data
-    let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
-    e.write_all(data.as_ref()).unwrap();
-    let enc = e.finish().unwrap();
+        let mut config = RustlsServerConfig::new(NoClientAuth::new());
+        let cert_file = &mut BufReader::new(cert_file.as_bytes());
+        let key_file = &mut BufReader::new(key_file.as_bytes());
 
-    // client request
-    let req = srv
-        .post("/")
-        .insert_header((actix_web::http::header::CONTENT_ENCODING, "deflate"))
-        .send_stream(TestBody::new(Bytes::from(enc), 1024));
+        let cert_chain = certs(cert_file).unwrap();
+        let mut keys = pkcs8_private_keys(key_file).unwrap();
+        config.set_single_cert(cert_chain, keys.remove(0)).unwrap();
 
-    let mut response = req.await.unwrap();
-    assert!(response.status().is_success());
+        config
+    }
 
-    // read response
-    let bytes = response.body().await.unwrap();
-    assert_eq!(bytes.len(), data.len());
-    assert_eq!(bytes, Bytes::from(data));
+    #[actix_rt::test]
+    async fn test_reading_deflate_encoding_large_random_rustls() {
+        use rustls::internal::pemfile::{certs, pkcs8_private_keys};
+        use rustls::{NoClientAuth, ServerConfig};
+        use std::fs::File;
+        use std::io::BufReader;
+
+        let data = rand::thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(160_000)
+            .map(char::from)
+            .collect::<String>();
+
+        let srv = test::start_with(test::config().rustls(rustls_config()), || {
+            App::new().service(web::resource("/").route(web::to(|bytes: Bytes| {
+                HttpResponse::Ok()
+                    .encoding(actix_web::http::ContentEncoding::Identity)
+                    .body(bytes)
+            })))
+        });
+
+        // encode data
+        let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
+        e.write_all(data.as_ref()).unwrap();
+        let enc = e.finish().unwrap();
+
+        // client request
+        let req = srv
+            .post("/")
+            .insert_header((actix_web::http::header::CONTENT_ENCODING, "deflate"))
+            .send_stream(TestBody::new(Bytes::from(enc), 1024));
+
+        let mut response = req.await.unwrap();
+        assert!(response.status().is_success());
+
+        // read response
+        let bytes = response.body().await.unwrap();
+        assert_eq!(bytes.len(), data.len());
+        assert_eq!(bytes, Bytes::from(data));
+    }
 }
 
 #[actix_rt::test]

@@ -31,14 +31,19 @@ where
     Ok(body)
 }
 
-fn ssl_acceptor() -> RustlsServerConfig {
-    // load ssl keys
+fn tls_config() -> RustlsServerConfig {
+    let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()]).unwrap();
+    let cert_file = cert.serialize_pem().unwrap();
+    let key_file = cert.serialize_private_key_pem();
+
     let mut config = RustlsServerConfig::new(NoClientAuth::new());
-    let cert_file = &mut BufReader::new(File::open("../tests/cert.pem").unwrap());
-    let key_file = &mut BufReader::new(File::open("../tests/key.pem").unwrap());
+    let cert_file = &mut BufReader::new(cert_file.as_bytes());
+    let key_file = &mut BufReader::new(key_file.as_bytes());
+
     let cert_chain = certs(cert_file).unwrap();
     let mut keys = pkcs8_private_keys(key_file).unwrap();
     config.set_single_cert(cert_chain, keys.remove(0)).unwrap();
+
     config
 }
 
@@ -47,7 +52,7 @@ async fn test_h1() -> io::Result<()> {
     let srv = test_server(move || {
         HttpService::build()
             .h1(|_| future::ok::<_, Error>(Response::Ok().finish()))
-            .rustls(ssl_acceptor())
+            .rustls(tls_config())
     })
     .await;
 
@@ -61,7 +66,7 @@ async fn test_h2() -> io::Result<()> {
     let srv = test_server(move || {
         HttpService::build()
             .h2(|_| future::ok::<_, Error>(Response::Ok().finish()))
-            .rustls(ssl_acceptor())
+            .rustls(tls_config())
     })
     .await;
 
@@ -79,7 +84,7 @@ async fn test_h1_1() -> io::Result<()> {
                 assert_eq!(req.version(), Version::HTTP_11);
                 future::ok::<_, Error>(Response::Ok().finish())
             })
-            .rustls(ssl_acceptor())
+            .rustls(tls_config())
     })
     .await;
 
@@ -97,7 +102,7 @@ async fn test_h2_1() -> io::Result<()> {
                 assert_eq!(req.version(), Version::HTTP_2);
                 future::ok::<_, Error>(Response::Ok().finish())
             })
-            .rustls(ssl_acceptor())
+            .rustls(tls_config())
     })
     .await;
 
@@ -115,7 +120,7 @@ async fn test_h2_body1() -> io::Result<()> {
                 let body = load_body(req.take_payload()).await?;
                 Ok::<_, Error>(Response::Ok().body(body))
             })
-            .rustls(ssl_acceptor())
+            .rustls(tls_config())
     })
     .await;
 
@@ -143,7 +148,7 @@ async fn test_h2_content_length() {
                 ];
                 future::ok::<_, ()>(Response::new(statuses[indx]))
             })
-            .rustls(ssl_acceptor())
+            .rustls(tls_config())
     })
     .await;
 
@@ -203,7 +208,7 @@ async fn test_h2_headers() {
             }
             future::ok::<_, ()>(config.body(data.clone()))
         })
-            .rustls(ssl_acceptor())
+            .rustls(tls_config())
     }).await;
 
     let response = srv.sget("/").send().await.unwrap();
@@ -241,7 +246,7 @@ async fn test_h2_body2() {
     let mut srv = test_server(move || {
         HttpService::build()
             .h2(|_| future::ok::<_, ()>(Response::Ok().body(STR)))
-            .rustls(ssl_acceptor())
+            .rustls(tls_config())
     })
     .await;
 
@@ -258,7 +263,7 @@ async fn test_h2_head_empty() {
     let mut srv = test_server(move || {
         HttpService::build()
             .finish(|_| ok::<_, ()>(Response::Ok().body(STR)))
-            .rustls(ssl_acceptor())
+            .rustls(tls_config())
     })
     .await;
 
@@ -284,7 +289,7 @@ async fn test_h2_head_binary() {
     let mut srv = test_server(move || {
         HttpService::build()
             .h2(|_| ok::<_, ()>(Response::Ok().body(STR)))
-            .rustls(ssl_acceptor())
+            .rustls(tls_config())
     })
     .await;
 
@@ -309,7 +314,7 @@ async fn test_h2_head_binary2() {
     let srv = test_server(move || {
         HttpService::build()
             .h2(|_| ok::<_, ()>(Response::Ok().body(STR)))
-            .rustls(ssl_acceptor())
+            .rustls(tls_config())
     })
     .await;
 
@@ -335,7 +340,7 @@ async fn test_h2_body_length() {
                     Response::Ok().body(body::SizedStream::new(STR.len() as u64, body)),
                 )
             })
-            .rustls(ssl_acceptor())
+            .rustls(tls_config())
     })
     .await;
 
@@ -359,7 +364,7 @@ async fn test_h2_body_chunked_explicit() {
                         .streaming(body),
                 )
             })
-            .rustls(ssl_acceptor())
+            .rustls(tls_config())
     })
     .await;
 
@@ -388,7 +393,7 @@ async fn test_h2_response_http_error_handling() {
                     )
                 }))
             }))
-            .rustls(ssl_acceptor())
+            .rustls(tls_config())
     })
     .await;
 
@@ -405,7 +410,7 @@ async fn test_h2_service_error() {
     let mut srv = test_server(move || {
         HttpService::build()
             .h2(|_| err::<Response, Error>(error::ErrorBadRequest("error")))
-            .rustls(ssl_acceptor())
+            .rustls(tls_config())
     })
     .await;
 
@@ -422,7 +427,7 @@ async fn test_h1_service_error() {
     let mut srv = test_server(move || {
         HttpService::build()
             .h1(|_| err::<Response, Error>(error::ErrorBadRequest("error")))
-            .rustls(ssl_acceptor())
+            .rustls(tls_config())
     })
     .await;
 
