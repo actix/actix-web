@@ -40,7 +40,6 @@ bitflags! {
         const SHUTDOWN           = 0b0000_0100;
         const READ_DISCONNECT    = 0b0000_1000;
         const WRITE_DISCONNECT   = 0b0001_0000;
-        const UPGRADE            = 0b0010_0000;
     }
 }
 
@@ -215,10 +214,7 @@ where
     U::Error: fmt::Display,
 {
     fn can_read(&self, cx: &mut Context<'_>) -> bool {
-        if self
-            .flags
-            .intersects(Flags::READ_DISCONNECT | Flags::UPGRADE)
-        {
+        if self.flags.contains(Flags::READ_DISCONNECT) {
             false
         } else if let Some(ref info) = self.payload {
             info.need_read(cx) == PayloadStatus::Read
@@ -501,7 +497,7 @@ where
     }
 
     /// Process one incoming request.
-    pub(self) fn poll_request(
+    fn poll_request(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Result<bool, DispatchError> {
