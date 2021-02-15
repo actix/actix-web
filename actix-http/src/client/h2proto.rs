@@ -36,6 +36,7 @@ where
     B: MessageBody,
 {
     trace!("Sending client request: {:?} {:?}", head, body.size());
+
     let head_req = head.as_ref().method == Method::HEAD;
     let length = body.size();
     let eof = matches!(
