@@ -141,6 +141,11 @@ impl<T: AsyncRead + AsyncWrite + Unpin> IoConnection<T> {
     pub(crate) fn into_inner(self) -> (ConnectionType<T>, time::Instant) {
         (self.io.unwrap(), self.created)
     }
+
+    #[cfg(test)]
+    pub(crate) fn into_parts(self) -> (ConnectionType<T>, time::Instant, Acquired<T>) {
+        (self.io.unwrap(), self.created, self.pool.unwrap())
+    }
 }
 
 impl<T> Connection for IoConnection<T>
