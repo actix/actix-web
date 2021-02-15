@@ -529,7 +529,14 @@ mod test {
         actix_rt::task::yield_now().await;
 
         let conn = pool.call(req).await.unwrap();
+        // Note: spawned recycle connection is not ran yet.
+        // This is tokio current thread runtime specific behavior.
         assert_eq!(2, generated_clone.get());
+
+        // yield task so the old connection is properly dropped.
+        actix_rt::task::yield_now().await;
+        assert_eq!(1, generated_clone.get());
+
         release(conn);
     }
 
@@ -564,7 +571,14 @@ mod test {
         actix_rt::task::yield_now().await;
 
         let conn = pool.call(req).await.unwrap();
+        // Note: spawned recycle connection is not ran yet.
+        // This is tokio current thread runtime specific behavior.
         assert_eq!(2, generated_clone.get());
+
+        // yield task so the old connection is properly dropped.
+        actix_rt::task::yield_now().await;
+        assert_eq!(1, generated_clone.get());
+
         release(conn);
     }
 
