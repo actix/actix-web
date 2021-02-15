@@ -87,7 +87,7 @@ jobs:
           && github.ref == 'refs/heads/master'
         run: |
           cargo install cargo-tarpaulin --vers "^0.13"
-          cargo tarpaulin --out Xml
+          cargo tarpaulin --out Xml --verbose
       - name: Upload to Codecov
         if: >
           matrix.target.os == 'ubuntu-latest'
