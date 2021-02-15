@@ -389,7 +389,13 @@ mod test {
 
     // A stream type always return pending on async read.
     // mock a usable tcp stream that ready to be used as client
-    struct TestStream;
+    struct TestStream(Rc<Cell<usize>>);
+
+    impl Drop for TestStream {
+        fn drop(&mut self) {
+            self.0.set(self.0.get() - 1);
+        }
+    }
 
     impl AsyncRead for TestStream {
         fn poll_read(
@@ -421,7 +427,7 @@ mod test {
             self: Pin<&mut Self>,
             _: &mut Context<'_>,
         ) -> Poll<io::Result<()>> {
-            unimplemented!()
+            Poll::Ready(Ok(()))
         }
     }
 
@@ -440,7 +446,8 @@ mod test {
 
         fn call(&self, _: Connect) -> Self::Future {
             self.generated.set(self.generated.get() + 1);
-            Box::pin(async { Ok((TestStream, Protocol::Http1)) })
+            let generated = self.generated.clone();
+            Box::pin(async { Ok((TestStream(generated), Protocol::Http1)) })
         }
     }
 
@@ -596,5 +603,55 @@ mod test {
         let conn = pool.call(req).await.unwrap();
         assert_eq!(2, generated_clone.get());
         release(conn);
+    }
+
+    #[actix_rt::test]
+    async fn test_pool_drop() {
+        let generated = Rc::new(Cell::new(0));
+        let generated_clone = generated.clone();
+
+        let connector = TestPoolConnector { generated };
+
+        let config = ConnectorConfig::default();
+
+        let pool = Rc::new(super::ConnectionPool::new(connector, config));
+
+        let req = Connect {
+            uri: Uri::from_static("https://crates.io"),
+            addr: None,
+        };
+
+        let conn = pool.call(req.clone()).await.unwrap();
+        assert_eq!(1, generated_clone.get());
+        release(conn);
+
+        let req = Connect {
+            uri: Uri::from_static("https://google.com"),
+            addr: None,
+        };
+        let conn = pool.call(req.clone()).await.unwrap();
+        assert_eq!(2, generated_clone.get());
+        release(conn);
+
+        let clone1 = pool.clone();
+        let clone2 = clone1.clone();
+
+        drop(clone2);
+        for _ in 0..2 {
+            actix_rt::task::yield_now().await;
+        }
+        assert_eq!(2, generated_clone.get());
+
+        drop(clone1);
+        for _ in 0..2 {
+            actix_rt::task::yield_now().await;
+        }
+        assert_eq!(2, generated_clone.get());
+
+        drop(pool);
+        for _ in 0..2 {
+            actix_rt::task::yield_now().await;
+        }
+        assert_eq!(0, generated_clone.get());
     }
 }
