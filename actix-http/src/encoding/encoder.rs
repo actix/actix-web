@@ -78,6 +78,7 @@ impl<B: MessageBody> Encoder<B> {
                 });
             }
         }
+
         ResponseBody::Body(Encoder {
             body,
             eof: false,
