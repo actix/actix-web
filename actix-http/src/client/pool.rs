@@ -232,16 +232,14 @@ where
 
             // match the connection and spawn new one if did not get anything.
             match conn {
-                Some(conn) => {
-                    Ok(IoConnection::new(conn.conn, conn.created.into(), acquired))
-                }
+                Some(conn) => Ok(IoConnection::new(conn.conn, conn.created, acquired)),
                 None => {
                     let (io, proto) = connector.call(req).await?;
 
                     if proto == Protocol::Http1 {
                         Ok(IoConnection::new(
                             ConnectionType::H1(io),
-                            Instant::now().into(),
+                            Instant::now(),
                             acquired,
                         ))
                     } else {
@@ -249,7 +247,7 @@ where
                         let (sender, connection) = handshake(io, config).await?;
                         Ok(IoConnection::new(
                             ConnectionType::H2(H2Connection::new(sender, connection)),
-                            Instant::now().into(),
+                            Instant::now(),
                             acquired,
                         ))
                     }
@@ -452,8 +450,10 @@ mod test {
             generated: Rc::new(Cell::new(0)),
         };
 
-        let mut config = ConnectorConfig::default();
-        config.limit = 1;
+        let config = ConnectorConfig {
+            limit: 1,
+            ..Default::default()
+        };
 
         let pool = super::ConnectionPool::new(connector, config);
 
@@ -490,8 +490,10 @@ mod test {
 
         let connector = TestPoolConnector { generated };
 
-        let mut config = ConnectorConfig::default();
-        config.conn_keep_alive = Duration::from_secs(1);
+        let config = ConnectorConfig {
+            conn_keep_alive: Duration::from_secs(1),
+            ..Default::default()
+        };
 
         let pool = super::ConnectionPool::new(connector, config);
 
@@ -529,8 +531,10 @@ mod test {
 
         let connector = TestPoolConnector { generated };
 
-        let mut config = ConnectorConfig::default();
-        config.conn_lifetime = Duration::from_secs(1);
+        let config = ConnectorConfig {
+            conn_lifetime: Duration::from_secs(1),
+            ..Default::default()
+        };
 
         let pool = super::ConnectionPool::new(connector, config);
 
