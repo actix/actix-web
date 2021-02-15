@@ -444,6 +444,14 @@ mod test {
         }
     }
 
+    fn release<T>(conn: IoConnection<T>)
+    where
+        T: AsyncRead + AsyncWrite + Unpin + 'static,
+    {
+        let (conn, created, mut acquired) = conn.into_parts();
+        acquired.release(IoConnection::new(conn, created, None));
+    }
+
     #[actix_rt::test]
     async fn test_pool_limit() {
         let connector = TestPoolConnector {
@@ -476,9 +484,9 @@ mod test {
         assert!(waiting.get());
 
         let now = Instant::now();
-        let conn = pool.call(req.clone()).await.unwrap();
+        let conn = pool.call(req).await.unwrap();
 
-        drop(conn);
+        release(conn);
         assert!(!waiting.get());
         assert!(now.elapsed() >= Duration::from_millis(100));
     }
@@ -504,24 +512,18 @@ mod test {
 
         let conn = pool.call(req.clone()).await.unwrap();
         assert_eq!(1, generated_clone.get());
-        {
-            let (conn, created, mut acquired) = conn.into_parts();
-            acquired.release(IoConnection::new(conn, created, None));
-        }
+        release(conn);
 
         let conn = pool.call(req.clone()).await.unwrap();
         assert_eq!(1, generated_clone.get());
-        {
-            let (conn, created, mut acquired) = conn.into_parts();
-            acquired.release(IoConnection::new(conn, created, None));
-        }
+        release(conn);
 
         actix_rt::time::sleep(Duration::from_millis(1500)).await;
         actix_rt::task::yield_now().await;
 
-        let conn = pool.call(req.clone()).await.unwrap();
+        let conn = pool.call(req).await.unwrap();
         assert_eq!(2, generated_clone.get());
-        drop(conn);
+        release(conn);
     }
 
     #[actix_rt::test]
@@ -545,23 +547,54 @@ mod test {
 
         let conn = pool.call(req.clone()).await.unwrap();
         assert_eq!(1, generated_clone.get());
-        {
-            let (conn, created, mut acquired) = conn.into_parts();
-            acquired.release(IoConnection::new(conn, created, None));
-        }
+        release(conn);
 
         let conn = pool.call(req.clone()).await.unwrap();
         assert_eq!(1, generated_clone.get());
-        {
-            let (conn, created, mut acquired) = conn.into_parts();
-            acquired.release(IoConnection::new(conn, created, None));
-        }
+        release(conn);
 
         actix_rt::time::sleep(Duration::from_millis(1500)).await;
         actix_rt::task::yield_now().await;
 
+        let conn = pool.call(req).await.unwrap();
+        assert_eq!(2, generated_clone.get());
+        release(conn);
+    }
+
+    #[actix_rt::test]
+    async fn test_pool_authority_key() {
+        let generated = Rc::new(Cell::new(0));
+        let generated_clone = generated.clone();
+
+        let connector = TestPoolConnector { generated };
+
+        let config = ConnectorConfig::default();
+
+        let pool = super::ConnectionPool::new(connector, config);
+
+        let req = Connect {
+            uri: Uri::from_static("https://crates.io"),
+            addr: None,
+        };
+
+        let conn = pool.call(req.clone()).await.unwrap();
+        assert_eq!(1, generated_clone.get());
+        release(conn);
+
+        let conn = pool.call(req).await.unwrap();
+        assert_eq!(1, generated_clone.get());
+        release(conn);
+
+        let req = Connect {
+            uri: Uri::from_static("https://google.com"),
+            addr: None,
+        };
+
         let conn = pool.call(req.clone()).await.unwrap();
         assert_eq!(2, generated_clone.get());
-        drop(conn);
+        release(conn);
+        let conn = pool.call(req).await.unwrap();
+        assert_eq!(2, generated_clone.get());
+        release(conn);
     }
 }
