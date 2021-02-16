@@ -5,7 +5,6 @@ use std::time;
 use actix_codec::{AsyncRead, AsyncWrite};
 use bytes::Bytes;
 use futures_util::future::poll_fn;
-use futures_util::pin_mut;
 use h2::{
     client::{Builder, Connection, SendRequest},
     SendStream,
@@ -131,7 +130,7 @@ async fn send_body<B: MessageBody>(
     mut send: SendStream<Bytes>,
 ) -> Result<(), SendRequestError> {
     let mut buf = None;
-    pin_mut!(body);
+    actix_rt::pin!(body);
     loop {
         if buf.is_none() {
             match poll_fn(|cx| body.as_mut().poll_next(cx)).await {

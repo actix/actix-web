@@ -52,7 +52,6 @@ impl ClientBuilder {
     where
         T: Service<HttpConnect, Error = ConnectError> + 'static,
         T::Response: Connection,
-        <T::Response as Connection>::Future: 'static,
         T::Future: 'static,
     {
         self.connector = Some(Box::new(ConnectorWrapper(connector)));

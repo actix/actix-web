@@ -1,4 +1,3 @@
-use std::future::Future;
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -8,7 +7,6 @@ use actix_codec::{AsyncRead, AsyncWrite, Framed, ReadBuf};
 use actix_rt::task::JoinHandle;
 use bytes::Bytes;
 use futures_core::future::LocalBoxFuture;
-use futures_util::future::{err, Either, FutureExt, Ready};
 use h2::client::SendRequest;
 use pin_project::pin_project;
 
@@ -74,7 +72,6 @@ impl DerefMut for H2Connection {
 
 pub trait Connection {
     type Io: AsyncRead + AsyncWrite + Unpin;
-    type Future: Future<Output = Result<(ResponseHead, Payload), SendRequestError>>;
 
     fn protocol(&self) -> Protocol;
 
@@ -83,14 +80,16 @@ pub trait Connection {
         self,
         head: H,
         body: B,
-    ) -> Self::Future;
-
-    type TunnelFuture: Future<
-        Output = Result<(ResponseHead, Framed<Self::Io, ClientCodec>), SendRequestError>,
-    >;
+    ) -> LocalBoxFuture<'static, Result<(ResponseHead, Payload), SendRequestError>>;
 
     /// Send request, returns Response and Framed
-    fn open_tunnel<H: Into<RequestHeadType>>(self, head: H) -> Self::TunnelFuture;
+    fn open_tunnel<H: Into<RequestHeadType> + 'static>(
+        self,
+        head: H,
+    ) -> LocalBoxFuture<
+        'static,
+        Result<(ResponseHead, Framed<Self::Io, ClientCodec>), SendRequestError>,
+    >;
 }
 
 pub(crate) trait ConnectionLifetime: AsyncRead + AsyncWrite + 'static {
@@ -145,8 +144,6 @@ where
     T: AsyncRead + AsyncWrite + Unpin + 'static,
 {
     type Io = T;
-    type Future =
-        LocalBoxFuture<'static, Result<(ResponseHead, Payload), SendRequestError>>;
 
     fn protocol(&self) -> Protocol {
         match self.io {
@@ -160,33 +157,35 @@ where
         mut self,
         head: H,
         body: B,
-    ) -> Self::Future {
+    ) -> LocalBoxFuture<'static, Result<(ResponseHead, Payload), SendRequestError>> {
         match self.io.take().unwrap() {
-            ConnectionType::H1(io) => {
-                h1proto::send_request(io, head.into(), body, self.created, self.pool)
-                    .boxed_local()
-            }
-            ConnectionType::H2(io) => {
-                h2proto::send_request(io, head.into(), body, self.created, self.pool)
-                    .boxed_local()
-            }
+            ConnectionType::H1(io) => Box::pin(h1proto::send_request(
+                io,
+                head.into(),
+                body,
+                self.created,
+                self.pool,
+            )),
+            ConnectionType::H2(io) => Box::pin(h2proto::send_request(
+                io,
+                head.into(),
+                body,
+                self.created,
+                self.pool,
+            )),
         }
     }
 
-    type TunnelFuture = Either<
-        LocalBoxFuture<
-            'static,
-            Result<(ResponseHead, Framed<Self::Io, ClientCodec>), SendRequestError>,
-        >,
-        Ready<Result<(ResponseHead, Framed<Self::Io, ClientCodec>), SendRequestError>>,
-    >;
-
     /// Send request, returns Response and Framed
-    fn open_tunnel<H: Into<RequestHeadType>>(mut self, head: H) -> Self::TunnelFuture {
+    fn open_tunnel<H: Into<RequestHeadType>>(
+        mut self,
+        head: H,
+    ) -> LocalBoxFuture<
+        'static,
+        Result<(ResponseHead, Framed<Self::Io, ClientCodec>), SendRequestError>,
+    > {
         match self.io.take().unwrap() {
-            ConnectionType::H1(io) => {
-                Either::Left(h1proto::open_tunnel(io, head.into()).boxed_local())
-            }
+            ConnectionType::H1(io) => Box::pin(h1proto::open_tunnel(io, head.into())),
             ConnectionType::H2(io) => {
                 if let Some(mut pool) = self.pool.take() {
                     pool.release(IoConnection::new(
@@ -195,7 +194,7 @@ where
                         None,
                     ));
                 }
-                Either::Right(err(SendRequestError::TunnelNotSupported))
+                Box::pin(async { Err(SendRequestError::TunnelNotSupported) })
             }
         }
     }
@@ -213,8 +212,6 @@ where
     B: AsyncRead + AsyncWrite + Unpin + 'static,
 {
     type Io = EitherIo<A, B>;
-    type Future =
-        LocalBoxFuture<'static, Result<(ResponseHead, Payload), SendRequestError>>;
 
     fn protocol(&self) -> Protocol {
         match self {
@@ -227,33 +224,30 @@ where
         self,
         head: H,
         body: RB,
-    ) -> Self::Future {
+    ) -> LocalBoxFuture<'static, Result<(ResponseHead, Payload), SendRequestError>> {
         match self {
             EitherConnection::A(con) => con.send_request(head, body),
             EitherConnection::B(con) => con.send_request(head, body),
         }
     }
 
-    type TunnelFuture = LocalBoxFuture<
+    /// Send request, returns Response and Framed
+    fn open_tunnel<H: Into<RequestHeadType> + 'static>(
+        self,
+        head: H,
+    ) -> LocalBoxFuture<
         'static,
         Result<(ResponseHead, Framed<Self::Io, ClientCodec>), SendRequestError>,
-    >;
-
-    /// Send request, returns Response and Framed
-    fn open_tunnel<H: Into<RequestHeadType>>(self, head: H) -> Self::TunnelFuture {
+    > {
         match self {
-            EitherConnection::A(con) => con
-                .open_tunnel(head)
-                .map(|res| {
-                    res.map(|(head, framed)| (head, framed.into_map_io(EitherIo::A)))
-                })
-                .boxed_local(),
-            EitherConnection::B(con) => con
-                .open_tunnel(head)
-                .map(|res| {
-                    res.map(|(head, framed)| (head, framed.into_map_io(EitherIo::B)))
-                })
-                .boxed_local(),
+            EitherConnection::A(con) => Box::pin(async {
+                let (head, framed) = con.open_tunnel(head).await?;
+                Ok((head, framed.into_map_io(EitherIo::A)))
+            }),
+            EitherConnection::B(con) => Box::pin(async {
+                let (head, framed) = con.open_tunnel(head).await?;
+                Ok((head, framed.into_map_io(EitherIo::B)))
+            }),
         }
     }
 }
