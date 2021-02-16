@@ -26,9 +26,10 @@ pub(crate) enum ConnectionType<Io> {
     H2(H2Connection),
 }
 
-// h2 connection has two parts: SendRequest and Connection.
-// Connection is spawned as async task on runtime and H2Connection would hold a handle for
-// this task. So it can wake up and quit the task when SendRequest is dropped.
+/// `H2Connection` has two parts: `SendRequest` and `Connection`.
+///
+/// `Connection` is spawned as an async task on runtime and `H2Connection` holds a handle for
+/// this task. Therefore, it can wake up and quit the task when SendRequest is dropped.
 pub(crate) struct H2Connection {
     handle: JoinHandle<()>,
     sender: SendRequest<Bytes>,
