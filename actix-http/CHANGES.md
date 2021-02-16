@@ -4,7 +4,12 @@
 ### Changed
 * Feature `cookies` is now optional and disabled by default. [#1981]
 
+### Removed
+* re-export of `futures_channel::oneshot::Canceled` is removed from `error` mod. [#1994]
+* `ResponseError` impl for `futures_channel::oneshot::Canceled` is removed. [#1994]
+
 [#1981]: https://github.com/actix/actix-web/pull/1981
+[#1994]: https://github.com/actix/actix-web/pull/1994
 
 
 ## 3.0.0-beta.3 - 2021-02-10

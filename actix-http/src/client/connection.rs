@@ -103,7 +103,10 @@ pub(crate) trait ConnectionLifetime: AsyncRead + AsyncWrite + 'static {
 
 #[doc(hidden)]
 /// HTTP client connection
-pub struct IoConnection<T> {
+pub struct IoConnection<T>
+where
+    T: AsyncWrite + Unpin + 'static,
+{
     io: Option<ConnectionType<T>>,
     created: time::Instant,
     pool: Option<Acquired<T>>,
@@ -111,7 +114,7 @@ pub struct IoConnection<T> {
 
 impl<T> fmt::Debug for IoConnection<T>
 where
-    T: fmt::Debug,
+    T: AsyncWrite + Unpin + fmt::Debug + 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.io {
@@ -137,6 +140,11 @@ impl<T: AsyncRead + AsyncWrite + Unpin> IoConnection<T> {
 
     pub(crate) fn into_inner(self) -> (ConnectionType<T>, time::Instant) {
         (self.io.unwrap(), self.created)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn into_parts(self) -> (ConnectionType<T>, time::Instant, Acquired<T>) {
+        (self.io.unwrap(), self.created, self.pool.unwrap())
     }
 }
 
@@ -202,7 +210,11 @@ where
 }
 
 #[allow(dead_code)]
-pub(crate) enum EitherConnection<A, B> {
+pub(crate) enum EitherConnection<A, B>
+where
+    A: AsyncRead + AsyncWrite + Unpin + 'static,
+    B: AsyncRead + AsyncWrite + Unpin + 'static,
+{
     A(IoConnection<A>),
     B(IoConnection<B>),
 }
