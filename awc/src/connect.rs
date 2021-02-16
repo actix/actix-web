@@ -41,8 +41,6 @@ where
     T: Service<ClientConnect, Error = ConnectError>,
     T::Response: Connection,
     <T::Response as Connection>::Io: 'static,
-    <T::Response as Connection>::Future: 'static,
-    <T::Response as Connection>::TunnelFuture: 'static,
     T::Future: 'static,
 {
     fn send_request(
