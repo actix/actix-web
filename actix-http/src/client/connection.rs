@@ -24,9 +24,10 @@ pub(crate) enum ConnectionType<Io> {
     H2(H2Connection),
 }
 
-// h2 connection has two parts: SendRequest and Connection.
-// Connection is spawned as async task on runtime and H2Connection would hold a handle for
-// this task. So it can wake up and quit the task when SendRequest is dropped.
+/// `H2Connection` has two parts: `SendRequest` and `Connection`.
+///
+/// `Connection` is spawned as an async task on runtime and `H2Connection` holds a handle for
+/// this task. Therefore, it can wake up and quit the task when SendRequest is dropped.
 pub(crate) struct H2Connection {
     handle: JoinHandle<()>,
     sender: SendRequest<Bytes>,
@@ -102,7 +103,10 @@ pub(crate) trait ConnectionLifetime: AsyncRead + AsyncWrite + 'static {
 
 #[doc(hidden)]
 /// HTTP client connection
-pub struct IoConnection<T> {
+pub struct IoConnection<T>
+where
+    T: AsyncWrite + Unpin + 'static,
+{
     io: Option<ConnectionType<T>>,
     created: time::Instant,
     pool: Option<Acquired<T>>,
@@ -110,7 +114,7 @@ pub struct IoConnection<T> {
 
 impl<T> fmt::Debug for IoConnection<T>
 where
-    T: fmt::Debug,
+    T: AsyncWrite + Unpin + fmt::Debug + 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.io {
@@ -136,6 +140,11 @@ impl<T: AsyncRead + AsyncWrite + Unpin> IoConnection<T> {
 
     pub(crate) fn into_inner(self) -> (ConnectionType<T>, time::Instant) {
         (self.io.unwrap(), self.created)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn into_parts(self) -> (ConnectionType<T>, time::Instant, Acquired<T>) {
+        (self.io.unwrap(), self.created, self.pool.unwrap())
     }
 }
 
@@ -201,7 +210,11 @@ where
 }
 
 #[allow(dead_code)]
-pub(crate) enum EitherConnection<A, B> {
+pub(crate) enum EitherConnection<A, B>
+where
+    A: AsyncRead + AsyncWrite + Unpin + 'static,
+    B: AsyncRead + AsyncWrite + Unpin + 'static,
+{
     A(IoConnection<A>),
     B(IoConnection<B>),
 }

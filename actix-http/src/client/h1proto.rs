@@ -165,7 +165,10 @@ where
 
 #[doc(hidden)]
 /// HTTP client connection
-pub struct H1Connection<T> {
+pub struct H1Connection<T>
+where
+    T: AsyncWrite + Unpin + 'static,
+{
     /// T should be `Unpin`
     io: Option<T>,
     created: time::Instant,

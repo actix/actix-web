@@ -11,7 +11,6 @@ use actix_utils::dispatcher::DispatcherError as FramedDispatcherError;
 use actix_utils::timeout::TimeoutError;
 use bytes::BytesMut;
 use derive_more::{Display, From};
-pub use futures_channel::oneshot::Canceled;
 use http::uri::InvalidUri;
 use http::{header, Error as HttpError, StatusCode};
 use serde::de::value::Error as DeError;
@@ -185,9 +184,6 @@ impl ResponseError for DeError {
         StatusCode::BAD_REQUEST
     }
 }
-
-/// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`Canceled`].
-impl ResponseError for Canceled {}
 
 /// Returns [`StatusCode::BAD_REQUEST`] for [`Utf8Error`].
 impl ResponseError for Utf8Error {
