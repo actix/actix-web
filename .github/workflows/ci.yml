@@ -38,7 +38,7 @@ jobs:
         with:
           command: generate-lockfile
       - name: Cache Dependencies
-        uses: Swatinem/rust-cache@v1.0.1
+        uses: Swatinem/rust-cache@v1.2.0
 
       - name: Install cargo-hack
         uses: actions-rs/cargo@v1
