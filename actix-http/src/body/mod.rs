@@ -1,5 +1,6 @@
 //! Traits and structures to aid consuming and writing HTTP payloads.
 
+#[allow(clippy::module_inception)]
 mod body;
 mod body_stream;
 mod message_body;
