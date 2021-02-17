@@ -11,7 +11,6 @@ use actix_utils::dispatcher::DispatcherError as FramedDispatcherError;
 use actix_utils::timeout::TimeoutError;
 use bytes::BytesMut;
 use derive_more::{Display, From};
-pub use futures_channel::oneshot::Canceled;
 use http::uri::InvalidUri;
 use http::{header, Error as HttpError, StatusCode};
 use serde::de::value::Error as DeError;
@@ -19,9 +18,11 @@ use serde_json::error::Error as JsonError;
 use serde_urlencoded::ser::Error as FormError;
 
 use crate::body::Body;
-pub use crate::cookie::ParseError as CookieParseError;
 use crate::helpers::Writer;
 use crate::response::{Response, ResponseBuilder};
+
+#[cfg(feature = "cookies")]
+pub use crate::cookie::ParseError as CookieParseError;
 
 /// A specialized [`std::result::Result`]
 /// for actix web operations
@@ -183,9 +184,6 @@ impl ResponseError for DeError {
         StatusCode::BAD_REQUEST
     }
 }
-
-/// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`Canceled`].
-impl ResponseError for Canceled {}
 
 /// Returns [`StatusCode::BAD_REQUEST`] for [`Utf8Error`].
 impl ResponseError for Utf8Error {
@@ -397,6 +395,7 @@ impl ResponseError for PayloadError {
 }
 
 /// Return `BadRequest` for `cookie::ParseError`
+#[cfg(feature = "cookies")]
 impl ResponseError for crate::cookie::ParseError {
     fn status_code(&self) -> StatusCode {
         StatusCode::BAD_REQUEST

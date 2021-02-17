@@ -61,6 +61,7 @@
 //! ## Crate Features
 //!
 //! * `compress` - content encoding compression support (enabled by default)
+//! * `cookies` - cookies support (enabled by default)
 //! * `openssl` - HTTPS support via `openssl` crate, supports `HTTP/2`
 //! * `rustls` - HTTPS support via `rustls` crate, supports `HTTP/2`
 //! * `secure-cookies` - secure cookies support
@@ -98,8 +99,10 @@ pub mod test;
 pub(crate) mod types;
 pub mod web;
 
+#[cfg(feature = "cookies")]
+pub use actix_http::cookie;
 pub use actix_http::Response as HttpResponse;
-pub use actix_http::{body, cookie, http, Error, HttpMessage, ResponseError, Result};
+pub use actix_http::{body, http, Error, HttpMessage, ResponseError, Result};
 pub use actix_rt as rt;
 pub use actix_web_codegen::*;
 

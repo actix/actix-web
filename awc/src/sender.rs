@@ -22,9 +22,7 @@ use futures_core::{ready, Stream};
 use serde::Serialize;
 
 #[cfg(feature = "compress")]
-use actix_http::{
-    encoding::Decoder, http::header::ContentEncoding, Payload, PayloadStream,
-};
+use actix_http::{encoding::Decoder, http::header::ContentEncoding, Payload, PayloadStream};
 
 use crate::error::{FreezeRequestError, InvalidUrl, SendRequestError};
 use crate::response::ClientResponse;

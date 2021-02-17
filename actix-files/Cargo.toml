@@ -25,6 +25,7 @@ bitflags = "1"
 bytes = "1"
 futures-core = { version = "0.3.7", default-features = false }
 futures-util = { version = "0.3.7", default-features = false }
+http-range = "0.1.4"
 derive_more = "0.99.5"
 log = "0.4"
 mime = "0.3"

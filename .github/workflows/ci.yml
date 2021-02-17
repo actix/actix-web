@@ -38,13 +38,19 @@ jobs:
         with:
           command: generate-lockfile
       - name: Cache Dependencies
-        uses: Swatinem/rust-cache@v1.0.1
+        uses: Swatinem/rust-cache@v1.2.0
+
+      - name: Install cargo-hack
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-hack
 
       - name: check minimal
         uses: actions-rs/cargo@v1
         with:
-          command: check
-          args: --workspace --no-default-features --tests
+          command: hack
+          args: --clean-per-run check --workspace --no-default-features --tests
 
       - name: check full
         uses: actions-rs/cargo@v1
@@ -81,7 +87,7 @@ jobs:
           && github.ref == 'refs/heads/master'
         run: |
           cargo install cargo-tarpaulin --vers "^0.13"
-          cargo tarpaulin --out Xml
+          cargo tarpaulin --out Xml --verbose
       - name: Upload to Codecov
         if: >
           matrix.target.os == 'ubuntu-latest'

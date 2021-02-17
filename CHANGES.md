@@ -1,6 +1,10 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Changed
+* Feature `cookies` is now optional and enabled by default. [#1981]
+
+[#1981]: https://github.com/actix/actix-web/pull/1981
 
 
 ## 4.0.0-beta.3 - 2021-02-10

@@ -22,10 +22,11 @@ name = "awc"
 path = "src/lib.rs"
 
 [package.metadata.docs.rs]
-features = ["openssl", "rustls", "compress"]
+# features that docs.rs will build with
+features = ["openssl", "rustls", "compress", "cookies"]
 
 [features]
-default = ["compress"]
+default = ["compress", "cookies"]
 
 # openssl
 openssl = ["tls-openssl", "actix-http/openssl"]
@@ -35,6 +36,9 @@ rustls = ["tls-rustls", "actix-http/rustls"]
 
 # content-encoding support
 compress = ["actix-http/compress"]
+
+# cookie parsing and cookie jar
+cookies = ["actix-http/cookies"]
 
 # trust-dns as dns resolver
 trust-dns = ["actix-http/trust-dns"]

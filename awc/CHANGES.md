@@ -1,6 +1,14 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+* `ClientResponse::timeout` for set the timeout of collecting response body. [#1931]
+
+### Changed
+* Feature `cookies` is now optional and enabled by default. [#1981]
+
+[#1931]: https://github.com/actix/actix-web/pull/1931
+[#1981]: https://github.com/actix/actix-web/pull/1981
 
 
 ## 3.0.0-beta.2 - 2021-02-10

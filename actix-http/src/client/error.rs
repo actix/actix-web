@@ -25,7 +25,7 @@ pub enum ConnectError {
     Resolver(Box<dyn std::error::Error>),
 
     /// No dns records
-    #[display(fmt = "No dns records found for the input")]
+    #[display(fmt = "No DNS records found for the input")]
     NoRecords,
 
     /// Http2 error

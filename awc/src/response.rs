@@ -1,22 +1,26 @@
-use std::cell::{Ref, RefMut};
-use std::fmt;
-use std::future::Future;
-use std::io;
-use std::marker::PhantomData;
-use std::pin::Pin;
-use std::task::{Context, Poll};
-use std::time::{Duration, Instant};
+use std::{
+    cell::{Ref, RefMut},
+    fmt,
+    future::Future,
+    io,
+    marker::PhantomData,
+    pin::Pin,
+    task::{Context, Poll},
+    time::{Duration, Instant},
+};
 
+use actix_http::{
+    error::PayloadError,
+    http::{header, HeaderMap, StatusCode, Version},
+    Extensions, HttpMessage, Payload, PayloadStream, ResponseHead,
+};
+use actix_rt::time::{sleep, Sleep};
 use bytes::{Bytes, BytesMut};
 use futures_core::{ready, Stream};
-
-use actix_http::cookie::Cookie;
-use actix_http::error::{CookieParseError, PayloadError};
-use actix_http::http::header::{CONTENT_LENGTH, SET_COOKIE};
-use actix_http::http::{HeaderMap, StatusCode, Version};
-use actix_http::{Extensions, HttpMessage, Payload, PayloadStream, ResponseHead};
-use actix_rt::time::{sleep, Sleep};
 use serde::de::DeserializeOwned;
+
+#[cfg(feature = "cookies")]
+use actix_http::{cookie::Cookie, error::CookieParseError};
 
 use crate::error::JsonPayloadError;
 
@@ -78,13 +82,13 @@ impl<S> HttpMessage for ClientResponse<S> {
     }
 
     /// Load request cookies.
-    #[inline]
+    #[cfg(feature = "cookies")]
     fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
         struct Cookies(Vec<Cookie<'static>>);
 
         if self.extensions().get::<Cookies>().is_none() {
             let mut cookies = Vec::new();
-            for hdr in self.headers().get_all(&SET_COOKIE) {
+            for hdr in self.headers().get_all(&header::SET_COOKIE) {
                 let s = std::str::from_utf8(hdr.as_bytes()).map_err(CookieParseError::from)?;
                 cookies.push(Cookie::parse_encoded(s)?.into_owned());
             }
@@ -152,15 +156,13 @@ impl<S> ClientResponse<S> {
     pub fn timeout(self, dur: Duration) -> Self {
         let timeout = match self.timeout {
             ResponseTimeout::Disabled(Some(mut timeout))
-            | ResponseTimeout::Enabled(mut timeout) => {
-                match Instant::now().checked_add(dur) {
-                    Some(deadline) => {
-                        timeout.as_mut().reset(deadline.into());
-                        ResponseTimeout::Enabled(timeout)
-                    }
-                    None => ResponseTimeout::Enabled(Box::pin(sleep(dur))),
+            | ResponseTimeout::Enabled(mut timeout) => match Instant::now().checked_add(dur) {
+                Some(deadline) => {
+                    timeout.as_mut().reset(deadline.into());
+                    ResponseTimeout::Enabled(timeout)
                 }
-            }
+                None => ResponseTimeout::Enabled(Box::pin(sleep(dur))),
+            },
             _ => ResponseTimeout::Enabled(Box::pin(sleep(dur))),
         };
 
@@ -207,10 +209,7 @@ where
 {
     type Item = Result<Bytes, PayloadError>;
 
-    fn poll_next(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
         this.timeout.poll_timeout(cx)?;
 
@@ -244,7 +243,7 @@ where
     /// Create `MessageBody` for request.
     pub fn new(res: &mut ClientResponse<S>) -> MessageBody<S> {
         let mut len = None;
-        if let Some(l) = res.headers().get(&CONTENT_LENGTH) {
+        if let Some(l) = res.headers().get(&header::CONTENT_LENGTH) {
             if let Ok(s) = l.to_str() {
                 if let Ok(l) = s.parse::<usize>() {
                     len = Some(l)
@@ -345,7 +344,8 @@ where
         }
 
         let mut len = None;
-        if let Some(l) = res.headers().get(&CONTENT_LENGTH) {
+
+        if let Some(l) = res.headers().get(&header::CONTENT_LENGTH) {
             if let Ok(s) = l.to_str() {
                 if let Ok(l) = s.parse::<usize>() {
                     len = Some(l)
