@@ -28,6 +28,7 @@ use actix_http::http::header::ContentEncoding;
 #[cfg(feature = "compress")]
 use actix_http::{Payload, PayloadStream};
 
+use crate::connect::{ConnectRequest, ConnectResponse};
 use crate::error::{FreezeRequestError, InvalidUrl, SendRequestError};
 use crate::response::ClientResponse;
 use crate::ClientConfig;
@@ -60,7 +61,7 @@ impl From<PrepForSendingError> for SendRequestError {
 #[must_use = "futures do nothing unless polled"]
 pub enum SendClientRequest {
     Fut(
-        Pin<Box<dyn Future<Output = Result<ClientResponse, SendRequestError>>>>,
+        Pin<Box<dyn Future<Output = Result<ConnectResponse, SendRequestError>>>>,
         // FIXME: use a pinned Sleep instead of box.
         Option<Pin<Box<Sleep>>>,
         bool,
@@ -70,7 +71,7 @@ pub enum SendClientRequest {
 
 impl SendClientRequest {
     pub(crate) fn new(
-        send: Pin<Box<dyn Future<Output = Result<ClientResponse, SendRequestError>>>>,
+        send: Pin<Box<dyn Future<Output = Result<ConnectResponse, SendRequestError>>>>,
         response_decompress: bool,
         timeout: Option<Duration>,
     ) -> SendClientRequest {
@@ -96,7 +97,7 @@ impl Future for SendClientRequest {
                 }
 
                 let res = futures_core::ready!(Pin::new(send).poll(cx)).map(|res| {
-                    res.map_body(|head, payload| {
+                    res.into_client_response().map_body(|head, payload| {
                         if *response_decompress {
                             Payload::Stream(Decoder::from_headers(payload, &head.headers))
                         } else {
@@ -181,18 +182,18 @@ impl RequestSender {
     where
         B: Into<Body>,
     {
-        let fut = match self {
+        let req = match self {
             RequestSender::Owned(head) => {
-                config
-                    .connector
-                    .send_request(RequestHeadType::Owned(head), body.into(), addr)
+                ConnectRequest::Client(RequestHeadType::Owned(head), body.into(), addr)
             }
-            RequestSender::Rc(head, extra_headers) => config.connector.send_request(
+            RequestSender::Rc(head, extra_headers) => ConnectRequest::Client(
                 RequestHeadType::Rc(head, extra_headers),
                 body.into(),
                 addr,
             ),
         };
+
+        let fut = config.connector.call(req);
 
         SendClientRequest::new(fut, response_decompress, timeout.or(config.timeout))
     }

@@ -16,74 +16,102 @@ use futures_core::future::LocalBoxFuture;
 
 use crate::response::ClientResponse;
 
-pub(crate) struct ConnectorWrapper<T>(pub T);
-
-type TunnelResponse = (ResponseHead, Framed<BoxedSocket, ClientCodec>);
-
-pub(crate) trait Connect {
-    fn send_request(
-        &self,
-        head: RequestHeadType,
-        body: Body,
-        addr: Option<net::SocketAddr>,
-    ) -> LocalBoxFuture<'static, Result<ClientResponse, SendRequestError>>;
-
-    /// Send request, returns Response and Framed
-    fn open_tunnel(
-        &self,
-        head: RequestHead,
-        addr: Option<net::SocketAddr>,
-    ) -> LocalBoxFuture<'static, Result<TunnelResponse, SendRequestError>>;
+pub(crate) struct ConnectorWrapper<T> {
+    connector: T,
 }
 
-impl<T> Connect for ConnectorWrapper<T>
+impl<T> ConnectorWrapper<T> {
+    pub(crate) fn new(connector: T) -> Self {
+        Self { connector }
+    }
+}
+
+pub type ConnectService = Box<
+    dyn Service<
+        ConnectRequest,
+        Response = ConnectResponse,
+        Error = SendRequestError,
+        Future = LocalBoxFuture<'static, Result<ConnectResponse, SendRequestError>>,
+    >,
+>;
+
+pub enum ConnectRequest {
+    Client(RequestHeadType, Body, Option<net::SocketAddr>),
+    Tunnel(RequestHead, Option<net::SocketAddr>),
+}
+
+pub enum ConnectResponse {
+    ClientResponse(ClientResponse),
+    TunnelResponse(ResponseHead, Framed<BoxedSocket, ClientCodec>),
+}
+
+impl ConnectResponse {
+    pub fn into_client_response(self) -> ClientResponse {
+        match self {
+            ConnectResponse::ClientResponse(res) => res,
+            _ => panic!(
+                "ClientResponse only reachable with ConnectResponse::ClientResponse variant"
+            ),
+        }
+    }
+
+    pub fn into_tunnel_response(self) -> (ResponseHead, Framed<BoxedSocket, ClientCodec>) {
+        match self {
+            ConnectResponse::TunnelResponse(head, framed) => (head, framed),
+            _ => panic!(
+                "TunnelResponse only reachable with ConnectResponse::TunnelResponse variant"
+            ),
+        }
+    }
+}
+
+impl<T> Service<ConnectRequest> for ConnectorWrapper<T>
 where
     T: Service<ClientConnect, Error = ConnectError>,
     T::Response: Connection,
     <T::Response as Connection>::Io: 'static,
     T::Future: 'static,
 {
-    fn send_request(
-        &self,
-        head: RequestHeadType,
-        body: Body,
-        addr: Option<net::SocketAddr>,
-    ) -> LocalBoxFuture<'static, Result<ClientResponse, SendRequestError>> {
+    type Response = ConnectResponse;
+    type Error = SendRequestError;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
+
+    actix_service::forward_ready!(connector);
+
+    fn call(&self, req: ConnectRequest) -> Self::Future {
         // connect to the host
-        let fut = self.0.call(ClientConnect {
-            uri: head.as_ref().uri.clone(),
-            addr,
-        });
+        let fut = match req {
+            ConnectRequest::Client(ref head, .., addr) => self.connector.call(ClientConnect {
+                uri: head.as_ref().uri.clone(),
+                addr,
+            }),
+            ConnectRequest::Tunnel(ref head, addr) => self.connector.call(ClientConnect {
+                uri: head.uri.clone(),
+                addr,
+            }),
+        };
 
         Box::pin(async move {
             let connection = fut.await?;
 
-            // send request
-            let (head, payload) = connection.send_request(head, body).await?;
+            match req {
+                ConnectRequest::Client(head, body, ..) => {
+                    // send request
+                    let (head, payload) = connection.send_request(head, body).await?;
 
-            Ok(ClientResponse::new(head, payload))
-        })
-    }
+                    Ok(ConnectResponse::ClientResponse(ClientResponse::new(
+                        head, payload,
+                    )))
+                }
+                ConnectRequest::Tunnel(head, ..) => {
+                    // send request
+                    let (head, framed) =
+                        connection.open_tunnel(RequestHeadType::from(head)).await?;
 
-    fn open_tunnel(
-        &self,
-        head: RequestHead,
-        addr: Option<net::SocketAddr>,
-    ) -> LocalBoxFuture<'static, Result<TunnelResponse, SendRequestError>> {
-        // connect to the host
-        let fut = self.0.call(ClientConnect {
-            uri: head.uri.clone(),
-            addr,
-        });
-
-        Box::pin(async move {
-            let connection = fut.await?;
-
-            // send request
-            let (head, framed) = connection.open_tunnel(RequestHeadType::from(head)).await?;
-
-            let framed = framed.into_map_io(|io| BoxedSocket(Box::new(Socket(io))));
-            Ok((head, framed))
+                    let framed = framed.into_map_io(|io| BoxedSocket(Box::new(Socket(io))));
+                    Ok(ConnectResponse::TunnelResponse(head, framed))
+                }
+            }
         })
     }
 }
