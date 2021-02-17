@@ -41,14 +41,14 @@ pub enum ConnectRequest {
 }
 
 pub enum ConnectResponse {
-    ClientResponse(ClientResponse),
-    TunnelResponse(ResponseHead, Framed<BoxedSocket, ClientCodec>),
+    Client(ClientResponse),
+    Tunnel(ResponseHead, Framed<BoxedSocket, ClientCodec>),
 }
 
 impl ConnectResponse {
     pub fn into_client_response(self) -> ClientResponse {
         match self {
-            ConnectResponse::ClientResponse(res) => res,
+            ConnectResponse::Client(res) => res,
             _ => panic!(
                 "ClientResponse only reachable with ConnectResponse::ClientResponse variant"
             ),
@@ -57,7 +57,7 @@ impl ConnectResponse {
 
     pub fn into_tunnel_response(self) -> (ResponseHead, Framed<BoxedSocket, ClientCodec>) {
         match self {
-            ConnectResponse::TunnelResponse(head, framed) => (head, framed),
+            ConnectResponse::Tunnel(head, framed) => (head, framed),
             _ => panic!(
                 "TunnelResponse only reachable with ConnectResponse::TunnelResponse variant"
             ),
@@ -99,9 +99,7 @@ where
                     // send request
                     let (head, payload) = connection.send_request(head, body).await?;
 
-                    Ok(ConnectResponse::ClientResponse(ClientResponse::new(
-                        head, payload,
-                    )))
+                    Ok(ConnectResponse::Client(ClientResponse::new(head, payload)))
                 }
                 ConnectRequest::Tunnel(head, ..) => {
                     // send request
@@ -109,7 +107,7 @@ where
                         connection.open_tunnel(RequestHeadType::from(head)).await?;
 
                     let framed = framed.into_map_io(|io| BoxedSocket(Box::new(Socket(io))));
-                    Ok(ConnectResponse::TunnelResponse(head, framed))
+                    Ok(ConnectResponse::Tunnel(head, framed))
                 }
             }
         })

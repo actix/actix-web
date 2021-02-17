@@ -22,11 +22,7 @@ use futures_core::Stream;
 use serde::Serialize;
 
 #[cfg(feature = "compress")]
-use actix_http::encoding::Decoder;
-#[cfg(feature = "compress")]
-use actix_http::http::header::ContentEncoding;
-#[cfg(feature = "compress")]
-use actix_http::{Payload, PayloadStream};
+use actix_http::{encoding::Decoder, http::header::ContentEncoding, Payload, PayloadStream};
 
 use crate::connect::{ConnectRequest, ConnectResponse};
 use crate::error::{FreezeRequestError, InvalidUrl, SendRequestError};
@@ -89,21 +85,25 @@ impl Future for SendClientRequest {
 
         match this {
             SendClientRequest::Fut(send, delay, response_decompress) => {
-                if delay.is_some() {
-                    match Pin::new(delay.as_mut().unwrap()).poll(cx) {
-                        Poll::Pending => {}
-                        _ => return Poll::Ready(Err(SendRequestError::Timeout)),
+                if let Some(delay) = delay {
+                    if delay.as_mut().poll(cx).is_ready() {
+                        return Poll::Ready(Err(SendRequestError::Timeout));
                     }
                 }
 
-                let res = futures_core::ready!(Pin::new(send).poll(cx)).map(|res| {
-                    res.into_client_response().map_body(|head, payload| {
-                        if *response_decompress {
-                            Payload::Stream(Decoder::from_headers(payload, &head.headers))
-                        } else {
-                            Payload::Stream(Decoder::new(payload, ContentEncoding::Identity))
-                        }
-                    })
+                let res = futures_core::ready!(send.as_mut().poll(cx)).map(|res| {
+                    res.into_client_response()._timeout(delay.take()).map_body(
+                        |head, payload| {
+                            if *response_decompress {
+                                Payload::Stream(Decoder::from_headers(payload, &head.headers))
+                            } else {
+                                Payload::Stream(Decoder::new(
+                                    payload,
+                                    ContentEncoding::Identity,
+                                ))
+                            }
+                        },
+                    )
                 });
 
                 Poll::Ready(res)
@@ -124,15 +124,14 @@ impl Future for SendClientRequest {
         let this = self.get_mut();
         match this {
             SendClientRequest::Fut(send, delay, _) => {
-                if delay.is_some() {
-                    match Pin::new(delay.as_mut().unwrap()).poll(cx) {
-                        Poll::Pending => {}
-                        _ => return Poll::Ready(Err(SendRequestError::Timeout)),
+                if let Some(delay) = delay {
+                    if delay.as_mut().poll(cx).is_ready() {
+                        return Poll::Ready(Err(SendRequestError::Timeout));
                     }
                 }
-                Pin::new(send)
+                send.as_mut()
                     .poll(cx)
-                    .map_ok(|res| res.into_client_response())
+                    .map_ok(|res| res.into_client_response()._timeout(delay.take()))
             }
             SendClientRequest::Err(ref mut e) => match e.take() {
                 Some(e) => Poll::Ready(Err(e)),
