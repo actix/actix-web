@@ -13,6 +13,7 @@ use actix_rt::time::{sleep_until, Instant, Sleep};
 use actix_service::Service;
 use bitflags::bitflags;
 use bytes::{Buf, BytesMut};
+use futures_core::ready;
 use log::{error, trace};
 use pin_project::pin_project;
 
@@ -233,14 +234,10 @@ where
         }
     }
 
-    /// Flush stream
-    ///
-    /// true - got WouldBlock
-    /// false - didn't get WouldBlock
     fn poll_flush(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-    ) -> Result<bool, DispatchError> {
+    ) -> Poll<Result<(), io::Error>> {
         let InnerDispatcherProj { io, write_buf, .. } = self.project();
         let mut io = Pin::new(io.as_mut().unwrap());
 
@@ -248,19 +245,18 @@ where
         let mut written = 0;
 
         while written < len {
-            match io.as_mut().poll_write(cx, &write_buf[written..]) {
-                Poll::Ready(Ok(0)) => {
-                    return Err(DispatchError::Io(io::Error::new(
+            match io.as_mut().poll_write(cx, &write_buf[written..])? {
+                Poll::Ready(0) => {
+                    return Poll::Ready(Err(io::Error::new(
                         io::ErrorKind::WriteZero,
                         "",
                     )))
                 }
-                Poll::Ready(Ok(n)) => written += n,
+                Poll::Ready(n) => written += n,
                 Poll::Pending => {
                     write_buf.advance(written);
-                    return Ok(true);
+                    return Poll::Pending;
                 }
-                Poll::Ready(Err(err)) => return Err(DispatchError::Io(err)),
             }
         }
 
@@ -268,9 +264,7 @@ where
         write_buf.clear();
 
         // flush the io and check if get blocked.
-        let blocked = io.poll_flush(cx)?.is_pending();
-
-        Ok(blocked)
+        io.poll_flush(cx)
     }
 
     fn send_response(
@@ -841,14 +835,11 @@ where
                     if inner.flags.contains(Flags::WRITE_DISCONNECT) {
                         Poll::Ready(Ok(()))
                     } else {
-                        // flush buffer and wait on block.
-                        if inner.as_mut().poll_flush(cx)? {
-                            Poll::Pending
-                        } else {
-                            Pin::new(inner.project().io.as_mut().unwrap())
-                                .poll_shutdown(cx)
-                                .map_err(DispatchError::from)
-                        }
+                        // flush buffer and wait on blocked.
+                        ready!(inner.as_mut().poll_flush(cx))?;
+                        Pin::new(inner.project().io.as_mut().unwrap())
+                            .poll_shutdown(cx)
+                            .map_err(DispatchError::from)
                     }
                 } else {
                     // read from io stream and fill read buffer.
@@ -888,7 +879,7 @@ where
                         //
                         // TODO: what? is WouldBlock good or bad?
                         // want to find a reference for this macOS behavior
-                        if inner.as_mut().poll_flush(cx)? || !drain {
+                        if inner.as_mut().poll_flush(cx)?.is_pending() || !drain {
                             break;
                         }
                     }
