@@ -130,7 +130,9 @@ impl Future for SendClientRequest {
                         _ => return Poll::Ready(Err(SendRequestError::Timeout)),
                     }
                 }
-                Pin::new(send).poll(cx)
+                Pin::new(send)
+                    .poll(cx)
+                    .map_ok(|res| res.into_client_response())
             }
             SendClientRequest::Err(ref mut e) => match e.take() {
                 Some(e) => Poll::Ready(Err(e)),
