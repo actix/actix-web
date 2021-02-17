@@ -24,7 +24,7 @@ use actix_web::{
     middleware::Compress,
     test, web, App, Error, HttpMessage, HttpRequest, HttpResponse,
 };
-use awc::error::SendRequestError;
+use awc::error::{JsonPayloadError, PayloadError, SendRequestError};
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \
@@ -154,6 +154,79 @@ async fn test_timeout_override() {
     match request.await {
         Err(SendRequestError::Timeout) => {}
         _ => panic!(),
+    }
+}
+
+#[actix_rt::test]
+async fn test_response_timeout() {
+    use futures_util::stream::{once, StreamExt};
+
+    let srv = test::start(|| {
+        App::new().service(web::resource("/").route(web::to(|| async {
+            Ok::<_, Error>(
+                HttpResponse::Ok()
+                    .content_type("application/json")
+                    .streaming(Box::pin(once(async {
+                        actix_rt::time::sleep(Duration::from_millis(200)).await;
+                        Ok::<_, Error>(Bytes::from(STR))
+                    }))),
+            )
+        })))
+    });
+
+    let client = awc::Client::new();
+
+    let res = client
+        .get(srv.url("/"))
+        .send()
+        .await
+        .unwrap()
+        .timeout(Duration::from_millis(500))
+        .body()
+        .await
+        .unwrap();
+    assert_eq!(std::str::from_utf8(res.as_ref()).unwrap(), STR);
+
+    let res = client
+        .get(srv.url("/"))
+        .send()
+        .await
+        .unwrap()
+        .timeout(Duration::from_millis(100))
+        .next()
+        .await
+        .unwrap();
+    match res {
+        Err(PayloadError::Io(e)) => assert_eq!(e.kind(), std::io::ErrorKind::TimedOut),
+        _ => panic!("Response error type is not matched"),
+    }
+
+    let res = client
+        .get(srv.url("/"))
+        .send()
+        .await
+        .unwrap()
+        .timeout(Duration::from_millis(100))
+        .body()
+        .await;
+    match res {
+        Err(PayloadError::Io(e)) => assert_eq!(e.kind(), std::io::ErrorKind::TimedOut),
+        _ => panic!("Response error type is not matched"),
+    }
+
+    let res = client
+        .get(srv.url("/"))
+        .send()
+        .await
+        .unwrap()
+        .timeout(Duration::from_millis(100))
+        .json::<HashMap<String, String>>()
+        .await;
+    match res {
+        Err(JsonPayloadError::Payload(PayloadError::Io(e))) => {
+            assert_eq!(e.kind(), std::io::ErrorKind::TimedOut)
+        }
+        _ => panic!("Response error type is not matched"),
     }
 }
 
