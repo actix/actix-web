@@ -36,10 +36,11 @@ use actix_codec::Framed;
 use actix_http::cookie::{Cookie, CookieJar};
 use actix_http::{ws, Payload, RequestHead};
 use actix_rt::time::timeout;
+use actix_service::Service;
 
 pub use actix_http::ws::{CloseCode, CloseReason, Codec, Frame, Message};
 
-use crate::connect::BoxedSocket;
+use crate::connect::{BoxedSocket, ConnectRequest};
 use crate::error::{InvalidUrl, SendRequestError, WsClientError};
 use crate::http::header::{self, HeaderName, HeaderValue, IntoHeaderValue, AUTHORIZATION};
 use crate::http::{ConnectionType, Error as HttpError, Method, StatusCode, Uri, Version};
@@ -327,17 +328,20 @@ impl WebsocketsRequest {
         let max_size = self.max_size;
         let server_mode = self.server_mode;
 
-        let fut = self.config.connector.open_tunnel(head, self.addr);
+        let req = ConnectRequest::Tunnel(head, self.addr);
+
+        let fut = self.config.connector.call(req);
 
         // set request timeout
-        let (head, framed) = if let Some(to) = self.config.timeout {
+        let res = if let Some(to) = self.config.timeout {
             timeout(to, fut)
                 .await
-                .map_err(|_| SendRequestError::Timeout)
-                .and_then(|res| res)?
+                .map_err(|_| SendRequestError::Timeout)??
         } else {
             fut.await?
         };
+
+        let (head, framed) = res.into_tunnel_response();
 
         // verify response
         if head.status != StatusCode::SWITCHING_PROTOCOLS {

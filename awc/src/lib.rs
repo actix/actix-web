@@ -115,13 +115,13 @@ pub mod test;
 pub mod ws;
 
 pub use self::builder::ClientBuilder;
-pub use self::connect::BoxedSocket;
+pub use self::connect::{BoxedSocket, ConnectRequest, ConnectResponse, ConnectService};
 pub use self::frozen::{FrozenClientRequest, FrozenSendBuilder};
 pub use self::request::ClientRequest;
 pub use self::response::{ClientResponse, JsonBody, MessageBody};
 pub use self::sender::SendClientRequest;
 
-use self::connect::{Connect, ConnectorWrapper};
+use self::connect::ConnectorWrapper;
 
 /// An asynchronous HTTP and WebSocket client.
 ///
@@ -146,7 +146,7 @@ use self::connect::{Connect, ConnectorWrapper};
 pub struct Client(Rc<ClientConfig>);
 
 pub(crate) struct ClientConfig {
-    pub(crate) connector: Box<dyn Connect>,
+    pub(crate) connector: ConnectService,
     pub(crate) headers: HeaderMap,
     pub(crate) timeout: Option<Duration>,
 }
@@ -154,7 +154,7 @@ pub(crate) struct ClientConfig {
 impl Default for Client {
     fn default() -> Self {
         Client(Rc::new(ClientConfig {
-            connector: Box::new(ConnectorWrapper(Connector::new().finish())),
+            connector: Box::new(ConnectorWrapper::new(Connector::new().finish())),
             headers: HeaderMap::new(),
             timeout: Some(Duration::from_secs(5)),
         }))

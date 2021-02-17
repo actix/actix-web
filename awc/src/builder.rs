@@ -7,7 +7,7 @@ use actix_http::client::{Connect as HttpConnect, ConnectError, Connection, Conne
 use actix_http::http::{self, header, Error as HttpError, HeaderMap, HeaderName};
 use actix_service::Service;
 
-use crate::connect::{Connect, ConnectorWrapper};
+use crate::connect::{ConnectService, ConnectorWrapper};
 use crate::{Client, ClientConfig};
 
 /// An HTTP Client builder
@@ -23,7 +23,7 @@ pub struct ClientBuilder {
     conn_window_size: Option<u32>,
     headers: HeaderMap,
     timeout: Option<Duration>,
-    connector: Option<Box<dyn Connect>>,
+    connector: Option<ConnectService>,
 }
 
 impl Default for ClientBuilder {
@@ -54,7 +54,7 @@ impl ClientBuilder {
         T::Response: Connection,
         T::Future: 'static,
     {
-        self.connector = Some(Box::new(ConnectorWrapper(connector)));
+        self.connector = Some(Box::new(ConnectorWrapper::new(connector)));
         self
     }
 
@@ -181,7 +181,7 @@ impl ClientBuilder {
             if let Some(val) = self.stream_window_size {
                 connector = connector.initial_window_size(val)
             };
-            Box::new(ConnectorWrapper(connector.finish())) as _
+            Box::new(ConnectorWrapper::new(connector.finish())) as _
         };
         let config = ClientConfig {
             headers: self.headers,

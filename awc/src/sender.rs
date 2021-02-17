@@ -18,12 +18,13 @@ use actix_http::{
 use actix_rt::time::{sleep, Sleep};
 use bytes::Bytes;
 use derive_more::From;
-use futures_core::{ready, Stream};
+use futures_core::Stream;
 use serde::Serialize;
 
 #[cfg(feature = "compress")]
 use actix_http::{encoding::Decoder, http::header::ContentEncoding, Payload, PayloadStream};
 
+use crate::connect::{ConnectRequest, ConnectResponse};
 use crate::error::{FreezeRequestError, InvalidUrl, SendRequestError};
 use crate::response::ClientResponse;
 use crate::ClientConfig;
@@ -56,7 +57,8 @@ impl From<PrepForSendingError> for SendRequestError {
 #[must_use = "futures do nothing unless polled"]
 pub enum SendClientRequest {
     Fut(
-        Pin<Box<dyn Future<Output = Result<ClientResponse, SendRequestError>>>>,
+        Pin<Box<dyn Future<Output = Result<ConnectResponse, SendRequestError>>>>,
+        // FIXME: use a pinned Sleep instead of box.
         Option<Pin<Box<Sleep>>>,
         bool,
     ),
@@ -65,7 +67,7 @@ pub enum SendClientRequest {
 
 impl SendClientRequest {
     pub(crate) fn new(
-        send: Pin<Box<dyn Future<Output = Result<ClientResponse, SendRequestError>>>>,
+        send: Pin<Box<dyn Future<Output = Result<ConnectResponse, SendRequestError>>>>,
         response_decompress: bool,
         timeout: Option<Duration>,
     ) -> SendClientRequest {
@@ -89,14 +91,19 @@ impl Future for SendClientRequest {
                     }
                 }
 
-                let res = ready!(send.as_mut().poll(cx)).map(|res| {
-                    res._timeout(delay.take()).map_body(|head, payload| {
-                        if *response_decompress {
-                            Payload::Stream(Decoder::from_headers(payload, &head.headers))
-                        } else {
-                            Payload::Stream(Decoder::new(payload, ContentEncoding::Identity))
-                        }
-                    })
+                let res = futures_core::ready!(send.as_mut().poll(cx)).map(|res| {
+                    res.into_client_response()._timeout(delay.take()).map_body(
+                        |head, payload| {
+                            if *response_decompress {
+                                Payload::Stream(Decoder::from_headers(payload, &head.headers))
+                            } else {
+                                Payload::Stream(Decoder::new(
+                                    payload,
+                                    ContentEncoding::Identity,
+                                ))
+                            }
+                        },
+                    )
                 });
 
                 Poll::Ready(res)
@@ -122,10 +129,9 @@ impl Future for SendClientRequest {
                         return Poll::Ready(Err(SendRequestError::Timeout));
                     }
                 }
-
                 send.as_mut()
                     .poll(cx)
-                    .map_ok(|res| res._timeout(delay.take()))
+                    .map_ok(|res| res.into_client_response()._timeout(delay.take()))
             }
             SendClientRequest::Err(ref mut e) => match e.take() {
                 Some(e) => Poll::Ready(Err(e)),
@@ -177,18 +183,18 @@ impl RequestSender {
     where
         B: Into<Body>,
     {
-        let fut = match self {
+        let req = match self {
             RequestSender::Owned(head) => {
-                config
-                    .connector
-                    .send_request(RequestHeadType::Owned(head), body.into(), addr)
+                ConnectRequest::Client(RequestHeadType::Owned(head), body.into(), addr)
             }
-            RequestSender::Rc(head, extra_headers) => config.connector.send_request(
+            RequestSender::Rc(head, extra_headers) => ConnectRequest::Client(
                 RequestHeadType::Rc(head, extra_headers),
                 body.into(),
                 addr,
             ),
         };
+
+        let fut = config.connector.call(req);
 
         SendClientRequest::new(fut, response_decompress, timeout.or(config.timeout))
     }
