@@ -356,7 +356,7 @@ where
 mod connect_impl {
     use std::task::{Context, Poll};
 
-    use futures_util::future::{err, Either, Ready};
+    use futures_core::future::LocalBoxFuture;
 
     use super::*;
     use crate::client::connection::IoConnection;
@@ -388,10 +388,7 @@ mod connect_impl {
     {
         type Response = IoConnection<Io>;
         type Error = ConnectError;
-        type Future = Either<
-            <ConnectionPool<T, Io> as Service<Connect>>::Future,
-            Ready<Result<IoConnection<Io>, ConnectError>>,
-        >;
+        type Future = LocalBoxFuture<'static, Result<IoConnection<Io>, ConnectError>>;
 
         fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
             self.tcp_pool.poll_ready(cx)
@@ -400,9 +397,9 @@ mod connect_impl {
         fn call(&self, req: Connect) -> Self::Future {
             match req.uri.scheme_str() {
                 Some("https") | Some("wss") => {
-                    Either::Right(err(ConnectError::SslIsNotSupported))
+                    Box::pin(async { Err(ConnectError::SslIsNotSupported) })
                 }
-                _ => Either::Left(self.tcp_pool.call(req)),
+                _ => self.tcp_pool.call(req),
             }
         }
     }
@@ -411,33 +408,29 @@ mod connect_impl {
 #[cfg(any(feature = "openssl", feature = "rustls"))]
 mod connect_impl {
     use std::future::Future;
-    use std::marker::PhantomData;
     use std::pin::Pin;
     use std::task::{Context, Poll};
 
-    use futures_core::ready;
-    use futures_util::future::Either;
-
     use super::*;
-    use crate::client::connection::EitherConnection;
+    use crate::client::connection::EitherIoConnection;
 
-    pub(crate) struct InnerConnector<T1, T2, Io1, Io2>
+    pub(crate) struct InnerConnector<S1, S2, Io1, Io2>
     where
+        S1: Service<Connect, Response = (Io1, Protocol), Error = ConnectError> + 'static,
+        S2: Service<Connect, Response = (Io2, Protocol), Error = ConnectError> + 'static,
         Io1: AsyncRead + AsyncWrite + Unpin + 'static,
         Io2: AsyncRead + AsyncWrite + Unpin + 'static,
-        T1: Service<Connect, Response = (Io1, Protocol), Error = ConnectError>,
-        T2: Service<Connect, Response = (Io2, Protocol), Error = ConnectError>,
     {
-        pub(crate) tcp_pool: ConnectionPool<T1, Io1>,
-        pub(crate) ssl_pool: ConnectionPool<T2, Io2>,
+        pub(crate) tcp_pool: ConnectionPool<S1, Io1>,
+        pub(crate) ssl_pool: ConnectionPool<S2, Io2>,
     }
 
-    impl<T1, T2, Io1, Io2> Clone for InnerConnector<T1, T2, Io1, Io2>
+    impl<S1, S2, Io1, Io2> Clone for InnerConnector<S1, S2, Io1, Io2>
     where
+        S1: Service<Connect, Response = (Io1, Protocol), Error = ConnectError> + 'static,
+        S2: Service<Connect, Response = (Io2, Protocol), Error = ConnectError> + 'static,
         Io1: AsyncRead + AsyncWrite + Unpin + 'static,
         Io2: AsyncRead + AsyncWrite + Unpin + 'static,
-        T1: Service<Connect, Response = (Io1, Protocol), Error = ConnectError> + 'static,
-        T2: Service<Connect, Response = (Io2, Protocol), Error = ConnectError> + 'static,
     {
         fn clone(&self) -> Self {
             InnerConnector {
@@ -447,19 +440,16 @@ mod connect_impl {
         }
     }
 
-    impl<T1, T2, Io1, Io2> Service<Connect> for InnerConnector<T1, T2, Io1, Io2>
+    impl<S1, S2, Io1, Io2> Service<Connect> for InnerConnector<S1, S2, Io1, Io2>
     where
+        S1: Service<Connect, Response = (Io1, Protocol), Error = ConnectError> + 'static,
+        S2: Service<Connect, Response = (Io2, Protocol), Error = ConnectError> + 'static,
         Io1: AsyncRead + AsyncWrite + Unpin + 'static,
         Io2: AsyncRead + AsyncWrite + Unpin + 'static,
-        T1: Service<Connect, Response = (Io1, Protocol), Error = ConnectError> + 'static,
-        T2: Service<Connect, Response = (Io2, Protocol), Error = ConnectError> + 'static,
     {
-        type Response = EitherConnection<Io1, Io2>;
+        type Response = EitherIoConnection<Io1, Io2>;
         type Error = ConnectError;
-        type Future = Either<
-            InnerConnectorResponseA<T1, Io1, Io2>,
-            InnerConnectorResponseB<T2, Io1, Io2>,
-        >;
+        type Future = InnerConnectorResponse<S1, S2, Io1, Io2>;
 
         fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
             self.tcp_pool.poll_ready(cx)
@@ -467,69 +457,44 @@ mod connect_impl {
 
         fn call(&self, req: Connect) -> Self::Future {
             match req.uri.scheme_str() {
-                Some("https") | Some("wss") => Either::Right(InnerConnectorResponseB {
-                    fut: self.ssl_pool.call(req),
-                    _phantom: PhantomData,
-                }),
-                _ => Either::Left(InnerConnectorResponseA {
-                    fut: self.tcp_pool.call(req),
-                    _phantom: PhantomData,
-                }),
+                Some("https") | Some("wss") => {
+                    InnerConnectorResponse::Io2(self.ssl_pool.call(req))
+                }
+                _ => InnerConnectorResponse::Io1(self.tcp_pool.call(req)),
             }
         }
     }
 
-    #[pin_project::pin_project]
-    pub(crate) struct InnerConnectorResponseA<T, Io1, Io2>
+    #[pin_project::pin_project(project = InnerConnectorProj)]
+    pub(crate) enum InnerConnectorResponse<S1, S2, Io1, Io2>
     where
-        Io1: AsyncRead + AsyncWrite + Unpin + 'static,
-        T: Service<Connect, Response = (Io1, Protocol), Error = ConnectError> + 'static,
-    {
-        #[pin]
-        fut: <ConnectionPool<T, Io1> as Service<Connect>>::Future,
-        _phantom: PhantomData<Io2>,
-    }
-
-    impl<T, Io1, Io2> Future for InnerConnectorResponseA<T, Io1, Io2>
-    where
-        T: Service<Connect, Response = (Io1, Protocol), Error = ConnectError> + 'static,
+        S1: Service<Connect, Response = (Io1, Protocol), Error = ConnectError> + 'static,
+        S2: Service<Connect, Response = (Io2, Protocol), Error = ConnectError> + 'static,
         Io1: AsyncRead + AsyncWrite + Unpin + 'static,
         Io2: AsyncRead + AsyncWrite + Unpin + 'static,
     {
-        type Output = Result<EitherConnection<Io1, Io2>, ConnectError>;
+        Io1(#[pin] <ConnectionPool<S1, Io1> as Service<Connect>>::Future),
+        Io2(#[pin] <ConnectionPool<S2, Io2> as Service<Connect>>::Future),
+    }
+
+    impl<S1, S2, Io1, Io2> Future for InnerConnectorResponse<S1, S2, Io1, Io2>
+    where
+        S1: Service<Connect, Response = (Io1, Protocol), Error = ConnectError> + 'static,
+        S2: Service<Connect, Response = (Io2, Protocol), Error = ConnectError> + 'static,
+        Io1: AsyncRead + AsyncWrite + Unpin + 'static,
+        Io2: AsyncRead + AsyncWrite + Unpin + 'static,
+    {
+        type Output = Result<EitherIoConnection<Io1, Io2>, ConnectError>;
 
         fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-            Poll::Ready(
-                ready!(Pin::new(&mut self.get_mut().fut).poll(cx))
-                    .map(EitherConnection::A),
-            )
-        }
-    }
-
-    #[pin_project::pin_project]
-    pub(crate) struct InnerConnectorResponseB<T, Io1, Io2>
-    where
-        Io2: AsyncRead + AsyncWrite + Unpin + 'static,
-        T: Service<Connect, Response = (Io2, Protocol), Error = ConnectError> + 'static,
-    {
-        #[pin]
-        fut: <ConnectionPool<T, Io2> as Service<Connect>>::Future,
-        _phantom: PhantomData<Io1>,
-    }
-
-    impl<T, Io1, Io2> Future for InnerConnectorResponseB<T, Io1, Io2>
-    where
-        T: Service<Connect, Response = (Io2, Protocol), Error = ConnectError> + 'static,
-        Io1: AsyncRead + AsyncWrite + Unpin + 'static,
-        Io2: AsyncRead + AsyncWrite + Unpin + 'static,
-    {
-        type Output = Result<EitherConnection<Io1, Io2>, ConnectError>;
-
-        fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-            Poll::Ready(
-                ready!(Pin::new(&mut self.get_mut().fut).poll(cx))
-                    .map(EitherConnection::B),
-            )
+            match self.project() {
+                InnerConnectorProj::Io1(fut) => {
+                    fut.poll(cx).map_ok(EitherIoConnection::A)
+                }
+                InnerConnectorProj::Io2(fut) => {
+                    fut.poll(cx).map_ok(EitherIoConnection::B)
+                }
+            }
         }
     }
 }

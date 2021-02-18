@@ -16,7 +16,7 @@ use crate::message::{RequestHeadType, ResponseHead};
 use crate::payload::Payload;
 
 use super::error::SendRequestError;
-use super::pool::{Acquired, Protocol};
+use super::pool::Acquired;
 use super::{h1proto, h2proto};
 
 pub(crate) enum ConnectionType<Io> {
@@ -49,7 +49,7 @@ impl H2Connection {
     }
 }
 
-// wake up waker when drop
+// cancel spawned connection task on drop.
 impl Drop for H2Connection {
     fn drop(&mut self) {
         self.handle.abort();
@@ -73,8 +73,6 @@ impl DerefMut for H2Connection {
 
 pub trait Connection {
     type Io: AsyncRead + AsyncWrite + Unpin;
-
-    fn protocol(&self) -> Protocol;
 
     /// Send request and body
     fn send_request<B: MessageBody + 'static, H: Into<RequestHeadType>>(
@@ -154,14 +152,6 @@ where
 {
     type Io = T;
 
-    fn protocol(&self) -> Protocol {
-        match self.io {
-            Some(ConnectionType::H1(_)) => Protocol::Http1,
-            Some(ConnectionType::H2(_)) => Protocol::Http2,
-            None => Protocol::Http1,
-        }
-    }
-
     fn send_request<B: MessageBody + 'static, H: Into<RequestHeadType>>(
         mut self,
         head: H,
@@ -210,7 +200,7 @@ where
 }
 
 #[allow(dead_code)]
-pub(crate) enum EitherConnection<A, B>
+pub(crate) enum EitherIoConnection<A, B>
 where
     A: AsyncRead + AsyncWrite + Unpin + 'static,
     B: AsyncRead + AsyncWrite + Unpin + 'static,
@@ -219,19 +209,12 @@ where
     B(IoConnection<B>),
 }
 
-impl<A, B> Connection for EitherConnection<A, B>
+impl<A, B> Connection for EitherIoConnection<A, B>
 where
     A: AsyncRead + AsyncWrite + Unpin + 'static,
     B: AsyncRead + AsyncWrite + Unpin + 'static,
 {
     type Io = EitherIo<A, B>;
-
-    fn protocol(&self) -> Protocol {
-        match self {
-            EitherConnection::A(con) => con.protocol(),
-            EitherConnection::B(con) => con.protocol(),
-        }
-    }
 
     fn send_request<RB: MessageBody + 'static, H: Into<RequestHeadType>>(
         self,
@@ -239,8 +222,8 @@ where
         body: RB,
     ) -> LocalBoxFuture<'static, Result<(ResponseHead, Payload), SendRequestError>> {
         match self {
-            EitherConnection::A(con) => con.send_request(head, body),
-            EitherConnection::B(con) => con.send_request(head, body),
+            EitherIoConnection::A(con) => con.send_request(head, body),
+            EitherIoConnection::B(con) => con.send_request(head, body),
         }
     }
 
@@ -253,11 +236,11 @@ where
         Result<(ResponseHead, Framed<Self::Io, ClientCodec>), SendRequestError>,
     > {
         match self {
-            EitherConnection::A(con) => Box::pin(async {
+            EitherIoConnection::A(con) => Box::pin(async {
                 let (head, framed) = con.open_tunnel(head).await?;
                 Ok((head, framed.into_map_io(EitherIo::A)))
             }),
-            EitherConnection::B(con) => Box::pin(async {
+            EitherIoConnection::B(con) => Box::pin(async {
                 let (head, framed) = con.open_tunnel(head).await?;
                 Ok((head, framed.into_map_io(EitherIo::B)))
             }),
