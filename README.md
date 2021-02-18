@@ -31,7 +31,7 @@
 * Static assets
 * SSL support using OpenSSL or Rustls
 * Middlewares ([Logger, Session, CORS, etc](https://actix.rs/docs/middleware/))
-* Includes an async [HTTP client](https://actix.rs/actix-web/actix_web/client/index.html)
+* Includes an async [HTTP client](https://docs.rs/actix-web/latest/actix_web/client/index.html)
 * Runs on stable Rust 1.46+
 
 ## Documentation
