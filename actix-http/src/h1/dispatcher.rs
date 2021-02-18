@@ -510,25 +510,43 @@ where
 
                     match msg {
                         Message::Item(mut req) => {
-                            let pl = this.codec.message_type();
                             req.head_mut().peer_addr = *this.peer_addr;
 
                             // merge on_connect_ext data into request extensions
                             this.on_connect_data.merge_into(&mut req);
 
-                            if pl == MessageType::Stream && this.flow.upgrade.is_some() {
-                                this.messages.push_back(DispatcherMessage::Upgrade(req));
-                                break;
-                            }
-                            if pl == MessageType::Payload || pl == MessageType::Stream {
-                                let (ps, pl) = Payload::create(false);
-                                let (req1, _) =
-                                    req.replace_payload(crate::Payload::H1(pl));
-                                req = req1;
-                                *this.payload = Some(ps);
+                            match this.codec.message_type() {
+                                // Request is upgradable. add upgrade message and break.
+                                // everything remain in read buffer would be handed to
+                                // upgraded Request.
+                                MessageType::Stream if this.flow.upgrade.is_some() => {
+                                    this.messages
+                                        .push_back(DispatcherMessage::Upgrade(req));
+                                    break;
+                                }
+
+                                // Request is not upgradable.
+                                MessageType::Payload | MessageType::Stream => {
+                                    /*
+                                    PayloadSender and Payload are smart pointers share the
+                                    same state.
+                                    PayloadSender is attached to dispatcher and used to sink
+                                    new chunked request data to state.
+                                    Payload is attached to Request and passed to Service::call
+                                    where the state can be collected and consumed.
+                                    */
+                                    let (ps, pl) = Payload::create(false);
+                                    let (req1, _) =
+                                        req.replace_payload(crate::Payload::H1(pl));
+                                    req = req1;
+                                    *this.payload = Some(ps);
+                                }
+
+                                // Request has no payload.
+                                MessageType::None => {}
                             }
 
-                            // handle request early
+                            // handle request early when no future in InnerDispatcher state.
                             if this.state.is_empty() {
                                 self.as_mut().handle_request(req, cx)?;
                                 this = self.as_mut().project();
