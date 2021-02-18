@@ -3,59 +3,80 @@ use std::fmt;
 use std::rc::Rc;
 use std::time::Duration;
 
-use actix_http::client::{Connect as HttpConnect, ConnectError, Connection, Connector};
-use actix_http::http::{self, header, Error as HttpError, HeaderMap, HeaderName};
+use actix_codec::{AsyncRead, AsyncWrite};
+use actix_http::{
+    client::{Connector, TcpConnect, TcpConnectError, TcpConnection},
+    http::{self, header, Error as HttpError, HeaderMap, HeaderName, Uri},
+};
+use actix_rt::net::TcpStream;
 use actix_service::Service;
 
-use crate::connect::{ConnectService, ConnectorWrapper};
+use crate::connect::ConnectorWrapper;
 use crate::{Client, ClientConfig};
 
 /// An HTTP Client builder
 ///
 /// This type can be used to construct an instance of `Client` through a
 /// builder-like pattern.
-pub struct ClientBuilder {
+pub struct ClientBuilder<T = (), U = ()> {
     default_headers: bool,
-    allow_redirects: bool,
-    max_redirects: usize,
     max_http_version: Option<http::Version>,
     stream_window_size: Option<u32>,
     conn_window_size: Option<u32>,
     headers: HeaderMap,
     timeout: Option<Duration>,
-    connector: Option<ConnectService>,
-}
-
-impl Default for ClientBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
+    connector: Connector<T, U>,
 }
 
 impl ClientBuilder {
-    pub fn new() -> Self {
+    #[allow(clippy::new_ret_no_self)]
+    pub fn new() -> ClientBuilder<
+        impl Service<
+                TcpConnect<Uri>,
+                Response = TcpConnection<Uri, TcpStream>,
+                Error = TcpConnectError,
+            > + Clone,
+        TcpStream,
+    > {
         ClientBuilder {
             default_headers: true,
-            allow_redirects: true,
-            max_redirects: 10,
             headers: HeaderMap::new(),
             timeout: Some(Duration::from_secs(5)),
-            connector: None,
+            connector: Connector::new(),
             max_http_version: None,
             stream_window_size: None,
             conn_window_size: None,
         }
     }
+}
 
+impl<S, Io> ClientBuilder<S, Io>
+where
+    S: Service<TcpConnect<Uri>, Response = TcpConnection<Uri, Io>, Error = TcpConnectError>
+        + Clone
+        + 'static,
+    Io: AsyncRead + AsyncWrite + Unpin + fmt::Debug + 'static,
+{
     /// Use custom connector service.
-    pub fn connector<T>(mut self, connector: T) -> Self
+    pub fn connector<S1, Io1>(self, connector: Connector<S1, Io1>) -> ClientBuilder<S1, Io1>
     where
-        T: Service<HttpConnect, Error = ConnectError> + 'static,
-        T::Response: Connection,
-        T::Future: 'static,
+        S1: Service<
+                TcpConnect<Uri>,
+                Response = TcpConnection<Uri, Io1>,
+                Error = TcpConnectError,
+            > + Clone
+            + 'static,
+        Io1: AsyncRead + AsyncWrite + Unpin + fmt::Debug + 'static,
     {
-        self.connector = Some(Box::new(ConnectorWrapper::new(connector)));
-        self
+        ClientBuilder {
+            default_headers: self.default_headers,
+            headers: self.headers,
+            timeout: self.timeout,
+            connector,
+            max_http_version: self.max_http_version,
+            stream_window_size: self.stream_window_size,
+            conn_window_size: self.conn_window_size,
+        }
     }
 
     /// Set request timeout
@@ -70,14 +91,6 @@ impl ClientBuilder {
     /// Disable request timeout.
     pub fn disable_timeout(mut self) -> Self {
         self.timeout = None;
-        self
-    }
-
-    /// Do not follow redirects.
-    ///
-    /// Redirects are allowed by default.
-    pub fn disable_redirects(mut self) -> Self {
-        self.allow_redirects = false;
         self
     }
 
@@ -104,14 +117,6 @@ impl ClientBuilder {
     /// The default value is 65,535 and is good for APIs, but not for big objects.
     pub fn initial_connection_window_size(mut self, size: u32) -> Self {
         self.conn_window_size = Some(size);
-        self
-    }
-
-    /// Set max number of redirects.
-    ///
-    /// Max redirects is set to 10 by default.
-    pub fn max_redirects(mut self, num: usize) -> Self {
-        self.max_redirects = num;
         self
     }
 
@@ -144,9 +149,9 @@ impl ClientBuilder {
     }
 
     /// Set client wide HTTP basic authorization header
-    pub fn basic_auth<U>(self, username: U, password: Option<&str>) -> Self
+    pub fn basic_auth<N>(self, username: N, password: Option<&str>) -> Self
     where
-        U: fmt::Display,
+        N: fmt::Display,
     {
         let auth = match password {
             Some(password) => format!("{}:{}", username, password),
@@ -168,26 +173,24 @@ impl ClientBuilder {
 
     /// Finish build process and create `Client` instance.
     pub fn finish(self) -> Client {
-        let connector = if let Some(connector) = self.connector {
-            connector
-        } else {
-            let mut connector = Connector::new();
-            if let Some(val) = self.max_http_version {
-                connector = connector.max_http_version(val)
-            };
-            if let Some(val) = self.conn_window_size {
-                connector = connector.initial_connection_window_size(val)
-            };
-            if let Some(val) = self.stream_window_size {
-                connector = connector.initial_window_size(val)
-            };
-            Box::new(ConnectorWrapper::new(connector.finish())) as _
+        let mut connector = self.connector;
+
+        if let Some(val) = self.max_http_version {
+            connector = connector.max_http_version(val);
         };
+        if let Some(val) = self.conn_window_size {
+            connector = connector.initial_connection_window_size(val)
+        };
+        if let Some(val) = self.stream_window_size {
+            connector = connector.initial_window_size(val)
+        };
+
         let config = ClientConfig {
             headers: self.headers,
             timeout: self.timeout,
-            connector,
+            connector: Box::new(ConnectorWrapper::new(connector.finish())) as _,
         };
+
         Client(Rc::new(config))
     }
 }

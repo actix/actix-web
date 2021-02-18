@@ -137,8 +137,7 @@ async fn test_start_ssl() {
         .connector(
             awc::Connector::new()
                 .ssl(builder.build())
-                .timeout(Duration::from_millis(100))
-                .finish(),
+                .timeout(Duration::from_millis(100)),
         )
         .finish();
 

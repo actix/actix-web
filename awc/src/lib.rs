@@ -101,8 +101,13 @@ use std::time::Duration;
 pub use actix_http::cookie;
 pub use actix_http::{client::Connector, http};
 
-use actix_http::http::{Error as HttpError, HeaderMap, Method, Uri};
-use actix_http::RequestHead;
+use actix_http::{
+    client::{TcpConnect, TcpConnectError, TcpConnection},
+    http::{Error as HttpError, HeaderMap, Method, Uri},
+    RequestHead,
+};
+use actix_rt::net::TcpStream;
+use actix_service::Service;
 
 mod builder;
 mod connect;
@@ -169,7 +174,14 @@ impl Client {
 
     /// Create `Client` builder.
     /// This function is equivalent of `ClientBuilder::new()`.
-    pub fn builder() -> ClientBuilder {
+    pub fn builder() -> ClientBuilder<
+        impl Service<
+                TcpConnect<Uri>,
+                Response = TcpConnection<Uri, TcpStream>,
+                Error = TcpConnectError,
+            > + Clone,
+        TcpStream,
+    > {
         ClientBuilder::new()
     }
 

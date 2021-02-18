@@ -82,7 +82,7 @@ async fn test_connection_reuse_h2() {
         .set_certificate_verifier(Arc::new(danger::NoCertificateVerification));
 
     let client = awc::Client::builder()
-        .connector(awc::Connector::new().rustls(Arc::new(config)).finish())
+        .connector(awc::Connector::new().rustls(Arc::new(config)))
         .finish();
 
     // req 1
