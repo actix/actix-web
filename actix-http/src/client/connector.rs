@@ -361,13 +361,24 @@ mod connect_impl {
     use super::*;
     use crate::client::connection::IoConnection;
 
-    #[derive(Clone)]
     pub(crate) struct InnerConnector<T, Io>
     where
         Io: AsyncRead + AsyncWrite + Unpin + 'static,
         T: Service<Connect, Response = (Io, Protocol), Error = ConnectError> + 'static,
     {
         pub(crate) tcp_pool: ConnectionPool<T, Io>,
+    }
+
+    impl<T, Io> Clone for InnerConnector<T, Io>
+    where
+        Io: AsyncRead + AsyncWrite + Unpin + 'static,
+        T: Service<Connect, Response = (Io, Protocol), Error = ConnectError> + 'static,
+    {
+        fn clone(&self) -> Self {
+            InnerConnector {
+                tcp_pool: self.tcp_pool.clone(),
+            }
+        }
     }
 
     impl<T, Io> Service<Connect> for InnerConnector<T, Io>
