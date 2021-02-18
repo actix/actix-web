@@ -10,6 +10,7 @@
 
 ### Removed
 * `ClientBuilder::default` function [#2008]
+* `ClientBuilder::disable_redirects` and `ClientBuilder::max_redirects` method [#2008]
 
 [#1931]: https://github.com/actix/actix-web/pull/1931
 [#1981]: https://github.com/actix/actix-web/pull/1981
