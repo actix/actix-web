@@ -6,10 +6,14 @@
 
 ### Changed
 * Feature `cookies` is now optional and enabled by default. [#1981]
+* `ClientBuilder::connector` method would take `actix_http::client::Connector<T, U>` type. [#2008]
+
+### Removed
+* `ClientBuilder::default` function [#2008]
 
 [#1931]: https://github.com/actix/actix-web/pull/1931
 [#1981]: https://github.com/actix/actix-web/pull/1981
-
+[#2008]: https://github.com/actix/actix-web/pull/2008
 
 ## 3.0.0-beta.2 - 2021-02-10
 ### Added
