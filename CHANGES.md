@@ -3,8 +3,11 @@
 ## Unreleased - 2021-xx-xx
 ### Changed
 * Feature `cookies` is now optional and enabled by default. [#1981]
+* `JsonBody::new` returns a default limit of 32kB to be consistent with `JsonConfig` and the
+  default behaviour of the `web::Json<T>` extractor. [#2010] 
 
 [#1981]: https://github.com/actix/actix-web/pull/1981
+[#2010]: https://github.com/actix/actix-web/pull/2010
 
 
 ## 4.0.0-beta.3 - 2021-02-10

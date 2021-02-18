@@ -345,7 +345,7 @@ where
         let payload = payload.take();
 
         JsonBody::Body {
-            limit: 262_144,
+            limit: 32_768,
             length,
             payload,
             buf: BytesMut::with_capacity(8192),
@@ -353,7 +353,7 @@ where
         }
     }
 
-    /// Set maximum accepted payload size. The default limit is 256kB.
+    /// Set maximum accepted payload size. The default limit is 32kB.
     pub fn limit(self, limit: usize) -> Self {
         match self {
             JsonBody::Body {
