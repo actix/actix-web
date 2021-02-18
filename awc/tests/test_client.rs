@@ -120,8 +120,7 @@ async fn test_timeout() {
 
     let connector = awc::Connector::new()
         .connector(actix_tls::connect::default_connector())
-        .timeout(Duration::from_secs(15))
-        .finish();
+        .timeout(Duration::from_secs(15));
 
     let client = awc::Client::builder()
         .connector(connector)
@@ -368,7 +367,7 @@ async fn test_connection_wait_queue() {
     .await;
 
     let client = awc::Client::builder()
-        .connector(awc::Connector::new().limit(1).finish())
+        .connector(awc::Connector::new().limit(1))
         .finish();
 
     // req 1
@@ -417,7 +416,7 @@ async fn test_connection_wait_queue_force_close() {
     .await;
 
     let client = awc::Client::builder()
-        .connector(awc::Connector::new().limit(1).finish())
+        .connector(awc::Connector::new().limit(1))
         .finish();
 
     // req 1
