@@ -29,6 +29,7 @@ pub struct ClientBuilder<T = (), U = ()> {
 }
 
 impl ClientBuilder {
+    #[allow(clippy::new_ret_no_self)]
     pub fn new() -> ClientBuilder<
         impl Service<
                 TcpConnect<Uri>,
