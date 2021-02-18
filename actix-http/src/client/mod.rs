@@ -10,6 +10,10 @@ mod h1proto;
 mod h2proto;
 mod pool;
 
+pub use actix_tls::connect::{
+    Connect as TcpConnect, ConnectError as TcpConnectError, Connection as TcpConnection,
+};
+
 pub use self::connection::Connection;
 pub use self::connector::Connector;
 pub use self::error::{ConnectError, FreezeRequestError, InvalidUrl, SendRequestError};

@@ -96,14 +96,12 @@ pub async fn test_server_with_addr<F: ServiceFactory<TcpStream>>(
                     .conn_lifetime(time::Duration::from_secs(0))
                     .timeout(time::Duration::from_millis(30000))
                     .ssl(builder.build())
-                    .finish()
             }
             #[cfg(not(feature = "openssl"))]
             {
                 Connector::new()
                     .conn_lifetime(time::Duration::from_secs(0))
                     .timeout(time::Duration::from_millis(30000))
-                    .finish()
             }
         };
 
