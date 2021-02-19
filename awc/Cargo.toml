@@ -47,7 +47,7 @@ trust-dns = ["actix-http/trust-dns"]
 actix-codec = "0.4.0-beta.1"
 actix-service = "2.0.0-beta.4"
 actix-http = "3.0.0-beta.3"
-actix-rt = "2"
+actix-rt = { version = "2", default-features = false }
 
 base64 = "0.13"
 bytes = "1"
@@ -57,6 +57,7 @@ futures-core = { version = "0.3.7", default-features = false }
 log =" 0.4"
 mime = "0.3"
 percent-encoding = "2.1"
+pin-project-lite = "0.2"
 rand = "0.8"
 serde = "1.0"
 serde_json = "1.0"
