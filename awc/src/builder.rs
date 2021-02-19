@@ -18,7 +18,6 @@ use crate::{Client, ClientConfig, ConnectRequest, ConnectResponse, ConnectorServ
 /// This type can be used to construct an instance of `Client` through a
 /// builder-like pattern.
 pub struct ClientBuilder<S = (), Io = (), M = ()> {
-    middleware: M,
     default_headers: bool,
     max_http_version: Option<http::Version>,
     stream_window_size: Option<u32>,
@@ -26,6 +25,7 @@ pub struct ClientBuilder<S = (), Io = (), M = ()> {
     headers: HeaderMap,
     timeout: Option<Duration>,
     connector: Connector<S, Io>,
+    middleware: M,
 }
 
 impl ClientBuilder {
