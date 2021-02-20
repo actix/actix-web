@@ -1,3 +1,4 @@
+use std::any::type_name;
 use std::ops::Deref;
 use std::sync::Arc;
 
@@ -9,8 +10,9 @@ use crate::dev::Payload;
 use crate::extract::FromRequest;
 use crate::request::HttpRequest;
 
-/// Application data factory
+/// Data factory.
 pub(crate) trait DataFactory {
+    /// Return true if modifications were made to extensions map.
     fn create(&self, extensions: &mut Extensions) -> bool;
 }
 
@@ -19,25 +21,20 @@ pub(crate) type FnDataFactory =
 
 /// Application data.
 ///
-/// Application data is an arbitrary data attached to the app.
-/// Application data is available to all routes and could be added
-/// during application configuration process
-/// with `App::data()` method.
+/// Application level data is a piece of arbitrary data attached to the app, scope, or resource.
+/// Application data is available to all routes and can be added during the application
+/// configuration process via `App::data()`.
 ///
-/// Application data could be accessed by using `Data<T>`
-/// extractor where `T` is data type.
+/// Application data can be accessed by using `Data<T>` extractor where `T` is data type.
 ///
-/// **Note**: http server accepts an application factory rather than
-/// an application instance. Http server constructs an application
-/// instance for each thread, thus application data must be constructed
-/// multiple times. If you want to share data between different
-/// threads, a shareable object should be used, e.g. `Send + Sync`. Application
-/// data does not need to be `Send` or `Sync`. Internally `Data` type
-/// uses `Arc`. if your data implements `Send` + `Sync` traits you can
-/// use `web::Data::new()` and avoid double `Arc`.
+/// **Note**: HTTP server accepts an application factory rather than an application instance. HTTP
+/// server constructs an application instance for each thread, thus application data must be
+/// constructed multiple times. If you want to share data between different threads, a shareable
+/// object should be used, e.g. `Send + Sync`. Application data does not need to be `Send`
+/// or `Sync`. Internally `Data` uses `Arc`.
 ///
-/// If route data is not set for a handler, using `Data<T>` extractor would
-/// cause *Internal Server Error* response.
+/// If route data is not set for a handler, using `Data<T>` extractor would cause *Internal
+/// Server Error* response.
 ///
 /// ```rust
 /// use std::sync::Mutex;
@@ -47,7 +44,7 @@ pub(crate) type FnDataFactory =
 ///     counter: usize,
 /// }
 ///
-/// /// Use `Data<T>` extractor to access data in handler.
+/// /// Use the `Data<T>` extractor to access data in a handler.
 /// async fn index(data: web::Data<Mutex<MyData>>) -> impl Responder {
 ///     let mut data = data.lock().unwrap();
 ///     data.counter += 1;
@@ -70,10 +67,6 @@ pub struct Data<T: ?Sized>(Arc<T>);
 
 impl<T> Data<T> {
     /// Create new `Data` instance.
-    ///
-    /// Internally `Data` type uses `Arc`. if your data implements
-    /// `Send` + `Sync` traits you can use `web::Data::new()` and
-    /// avoid double `Arc`.
     pub fn new(state: T) -> Data<T> {
         Data(Arc::new(state))
     }
@@ -121,8 +114,9 @@ impl<T: ?Sized + 'static> FromRequest for Data<T> {
         } else {
             log::debug!(
                 "Failed to construct App-level Data extractor. \
-                 Request path: {:?}",
-                req.path()
+                 Request path: {:?} (type: {})",
+                req.path(),
+                type_name::<T>(),
             );
             err(ErrorInternalServerError(
                 "App data is not configured, to configure use App::data()",
@@ -133,12 +127,8 @@ impl<T: ?Sized + 'static> FromRequest for Data<T> {
 
 impl<T: ?Sized + 'static> DataFactory for Data<T> {
     fn create(&self, extensions: &mut Extensions) -> bool {
-        if !extensions.contains::<Data<T>>() {
-            extensions.insert(Data(self.0.clone()));
-            true
-        } else {
-            false
-        }
+        extensions.insert(Data(self.0.clone()));
+        true
     }
 }
 
@@ -154,7 +144,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_data_extractor() {
-        let mut srv = init_service(App::new().data("TEST".to_string()).service(
+        let srv = init_service(App::new().data("TEST".to_string()).service(
             web::resource("/").to(|data: web::Data<String>| {
                 assert_eq!(data.to_lowercase(), "test");
                 HttpResponse::Ok()
@@ -166,33 +156,54 @@ mod tests {
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let mut srv =
-            init_service(App::new().data(10u32).service(
-                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
-            ))
-            .await;
+        let srv = init_service(
+            App::new()
+                .data(10u32)
+                .service(web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok())),
+        )
+        .await;
         let req = TestRequest::default().to_request();
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+
+        let srv = init_service(
+            App::new()
+                .data(10u32)
+                .data(13u32)
+                .app_data(12u64)
+                .app_data(15u64)
+                .default_service(web::to(|n: web::Data<u32>, req: HttpRequest| {
+                    // in each case, the latter insertion should be preserved
+                    assert_eq!(*req.app_data::<u64>().unwrap(), 15);
+                    assert_eq!(*n.into_inner(), 13);
+                    HttpResponse::Ok()
+                })),
+        )
+        .await;
+        let req = TestRequest::default().to_request();
+        let resp = srv.call(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
     }
 
     #[actix_rt::test]
     async fn test_app_data_extractor() {
-        let mut srv =
-            init_service(App::new().app_data(Data::new(10usize)).service(
-                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
-            ))
-            .await;
+        let srv = init_service(
+            App::new()
+                .app_data(Data::new(10usize))
+                .service(web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok())),
+        )
+        .await;
 
         let req = TestRequest::default().to_request();
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let mut srv =
-            init_service(App::new().app_data(Data::new(10u32)).service(
-                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
-            ))
-            .await;
+        let srv = init_service(
+            App::new()
+                .app_data(Data::new(10u32))
+                .service(web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok())),
+        )
+        .await;
         let req = TestRequest::default().to_request();
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
@@ -200,7 +211,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_route_data_extractor() {
-        let mut srv = init_service(
+        let srv = init_service(
             App::new().service(
                 web::resource("/")
                     .data(10usize)
@@ -214,7 +225,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
 
         // different type
-        let mut srv = init_service(
+        let srv = init_service(
             App::new().service(
                 web::resource("/")
                     .data(10u32)
@@ -229,15 +240,16 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_override_data() {
-        let mut srv = init_service(App::new().data(1usize).service(
-            web::resource("/").data(10usize).route(web::get().to(
-                |data: web::Data<usize>| {
-                    assert_eq!(**data, 10);
-                    HttpResponse::Ok()
-                },
-            )),
-        ))
-        .await;
+        let srv =
+            init_service(App::new().data(1usize).service(
+                web::resource("/").data(10usize).route(web::get().to(
+                    |data: web::Data<usize>| {
+                        assert_eq!(**data, 10);
+                        HttpResponse::Ok()
+                    },
+                )),
+            ))
+            .await;
 
         let req = TestRequest::default().to_request();
         let resp = srv.call(req).await.unwrap();

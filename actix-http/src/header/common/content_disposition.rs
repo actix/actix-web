@@ -1,10 +1,10 @@
-// # References
-//
-// "The Content-Disposition Header Field" https://www.ietf.org/rfc/rfc2183.txt
-// "The Content-Disposition Header Field in the Hypertext Transfer Protocol (HTTP)" https://www.ietf.org/rfc/rfc6266.txt
-// "Returning Values from Forms: multipart/form-data" https://www.ietf.org/rfc/rfc7578.txt
-// Browser conformance tests at: http://greenbytes.de/tech/tc2231/
-// IANA assignment: http://www.iana.org/assignments/cont-disp/cont-disp.xhtml
+//! # References
+//!
+//! "The Content-Disposition Header Field" https://www.ietf.org/rfc/rfc2183.txt
+//! "The Content-Disposition Header Field in the Hypertext Transfer Protocol (HTTP)" https://www.ietf.org/rfc/rfc6266.txt
+//! "Returning Values from Forms: multipart/form-data" https://www.ietf.org/rfc/rfc7578.txt
+//! Browser conformance tests at: http://greenbytes.de/tech/tc2231/
+//! IANA assignment: http://www.iana.org/assignments/cont-disp/cont-disp.xhtml
 
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -318,9 +318,8 @@ impl ContentDisposition {
                 return Err(crate::error::ParseError::Header);
             }
             left = new_left;
-            if param_name.ends_with('*') {
+            if let Some(param_name) = param_name.strip_suffix('*') {
                 // extended parameters
-                let param_name = &param_name[..param_name.len() - 1]; // trim asterisk
                 let (ext_value, new_left) = split_once_and_trim(left, ';');
                 left = new_left;
                 let ext_value = header::parse_extended_value(ext_value)?;
@@ -455,7 +454,7 @@ impl ContentDisposition {
 impl IntoHeaderValue for ContentDisposition {
     type Error = header::InvalidHeaderValue;
 
-    fn try_into(self) -> Result<header::HeaderValue, Self::Error> {
+    fn try_into_value(self) -> Result<header::HeaderValue, Self::Error> {
         let mut writer = Writer::new();
         let _ = write!(&mut writer, "{}", self);
         header::HeaderValue::from_maybe_shared(writer.take())
@@ -550,8 +549,7 @@ impl fmt::Display for ContentDisposition {
         write!(f, "{}", self.disposition)?;
         self.parameters
             .iter()
-            .map(|param| write!(f, "; {}", param))
-            .collect()
+            .try_for_each(|param| write!(f, "; {}", param))
     }
 }
 

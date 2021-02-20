@@ -1,19 +1,16 @@
 use std::cell::RefCell;
-use std::future::Future;
-use std::marker::PhantomData;
-use std::pin::Pin;
 use std::rc::Rc;
-use std::task::{Context, Poll};
+use std::task::Poll;
 
 use actix_http::{Extensions, Request, Response};
-use actix_router::{Path, ResourceDef, ResourceInfo, Router, Url};
+use actix_router::{Path, ResourceDef, Router, Url};
 use actix_service::boxed::{self, BoxService, BoxServiceFactory};
 use actix_service::{fn_service, Service, ServiceFactory};
-use futures_util::future::{join_all, ok, FutureExt, LocalBoxFuture};
-use tinyvec::tiny_vec;
+use futures_core::future::LocalBoxFuture;
+use futures_util::future::join_all;
 
 use crate::config::{AppConfig, AppService};
-use crate::data::{DataFactory, FnDataFactory};
+use crate::data::FnDataFactory;
 use crate::error::Error;
 use crate::guard::Guard;
 use crate::request::{HttpRequest, HttpRequestPool};
@@ -23,15 +20,14 @@ use crate::service::{AppServiceFactory, ServiceRequest, ServiceResponse};
 type Guards = Vec<Box<dyn Guard>>;
 type HttpService = BoxService<ServiceRequest, ServiceResponse, Error>;
 type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
-type BoxResponse = LocalBoxFuture<'static, Result<ServiceResponse, Error>>;
 
 /// Service factory to convert `Request` to a `ServiceRequest<S>`.
 /// It also executes data factories.
 pub struct AppInit<T, B>
 where
     T: ServiceFactory<
+        ServiceRequest,
         Config = (),
-        Request = ServiceRequest,
         Response = ServiceResponse<B>,
         Error = Error,
         InitError = (),
@@ -39,42 +35,42 @@ where
 {
     pub(crate) endpoint: T,
     pub(crate) extensions: RefCell<Option<Extensions>>,
-    pub(crate) data: Rc<Vec<Box<dyn DataFactory>>>,
-    pub(crate) data_factories: Rc<Vec<FnDataFactory>>,
+    pub(crate) async_data_factories: Rc<[FnDataFactory]>,
     pub(crate) services: Rc<RefCell<Vec<Box<dyn AppServiceFactory>>>>,
     pub(crate) default: Option<Rc<HttpNewService>>,
     pub(crate) factory_ref: Rc<RefCell<Option<AppRoutingFactory>>>,
     pub(crate) external: RefCell<Vec<ResourceDef>>,
 }
 
-impl<T, B> ServiceFactory for AppInit<T, B>
+impl<T, B> ServiceFactory<Request> for AppInit<T, B>
 where
     T: ServiceFactory<
+        ServiceRequest,
         Config = (),
-        Request = ServiceRequest,
         Response = ServiceResponse<B>,
         Error = Error,
         InitError = (),
     >,
+    T::Future: 'static,
 {
-    type Config = AppConfig;
-    type Request = Request;
     type Response = ServiceResponse<B>;
     type Error = T::Error;
-    type InitError = T::InitError;
+    type Config = AppConfig;
     type Service = AppInitService<T::Service, B>;
-    type Future = AppInitResult<T, B>;
+    type InitError = T::InitError;
+    type Future = LocalBoxFuture<'static, Result<Self::Service, Self::InitError>>;
 
     fn new_service(&self, config: AppConfig) -> Self::Future {
-        // update resource default service
+        // set AppService's default service to 404 NotFound
+        // if no user defined default service exists.
         let default = self.default.clone().unwrap_or_else(|| {
-            Rc::new(boxed::factory(fn_service(|req: ServiceRequest| {
-                ok(req.into_response(Response::NotFound().finish()))
+            Rc::new(boxed::factory(fn_service(|req: ServiceRequest| async {
+                Ok(req.into_response(Response::NotFound().finish()))
             })))
         });
 
         // App config
-        let mut config = AppService::new(config, default.clone(), self.data.clone());
+        let mut config = AppService::new(config, default.clone());
 
         // register services
         std::mem::take(&mut *self.services.borrow_mut())
@@ -85,18 +81,18 @@ where
 
         let (config, services) = config.into_services();
 
-        // complete pipeline creation
+        // complete pipeline creation.
         *self.factory_ref.borrow_mut() = Some(AppRoutingFactory {
             default,
-            services: Rc::new(
-                services
-                    .into_iter()
-                    .map(|(mut rdef, srv, guards, nested)| {
-                        rmap.add(&mut rdef, nested);
-                        (rdef, srv, RefCell::new(guards))
-                    })
-                    .collect(),
-            ),
+            services: services
+                .into_iter()
+                .map(|(mut rdef, srv, guards, nested)| {
+                    rmap.add(&mut rdef, nested);
+                    (rdef, srv, RefCell::new(guards))
+                })
+                .collect::<Vec<_>>()
+                .into_boxed_slice()
+                .into(),
         });
 
         // external resources
@@ -108,302 +104,190 @@ where
         let rmap = Rc::new(rmap);
         rmap.finish(rmap.clone());
 
-        // start all data factory futures
-        let factory_futs = join_all(self.data_factories.iter().map(|f| f()));
+        // construct all async data factory futures
+        let factory_futs = join_all(self.async_data_factories.iter().map(|f| f()));
 
-        AppInitResult {
-            endpoint: None,
-            endpoint_fut: self.endpoint.new_service(()),
-            data: self.data.clone(),
-            data_factories: None,
-            data_factories_fut: factory_futs.boxed_local(),
-            extensions: Some(
-                self.extensions
-                    .borrow_mut()
-                    .take()
-                    .unwrap_or_else(Extensions::new),
-            ),
-            config,
-            rmap,
-            _t: PhantomData,
-        }
+        // construct app service and middleware service factory future.
+        let endpoint_fut = self.endpoint.new_service(());
+
+        // take extensions or create new one as app data container.
+        let mut app_data = self
+            .extensions
+            .borrow_mut()
+            .take()
+            .unwrap_or_else(Extensions::new);
+
+        Box::pin(async move {
+            // async data factories
+            let async_data_factories = factory_futs
+                .await
+                .into_iter()
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|_| ())?;
+
+            // app service and middleware
+            let service = endpoint_fut.await?;
+
+            // populate app data container from (async) data factories.
+            async_data_factories.iter().for_each(|factory| {
+                factory.create(&mut app_data);
+            });
+
+            Ok(AppInitService {
+                service,
+                app_data: Rc::new(app_data),
+                app_state: AppInitServiceState::new(rmap, config),
+            })
+        })
     }
 }
 
-#[pin_project::pin_project]
-pub struct AppInitResult<T, B>
-where
-    T: ServiceFactory,
-{
-    #[pin]
-    endpoint_fut: T::Future,
-    // a Some signals completion of endpoint creation
-    endpoint: Option<T::Service>,
-
-    #[pin]
-    data_factories_fut: LocalBoxFuture<'static, Vec<Result<Box<dyn DataFactory>, ()>>>,
-    // a Some signals completion of factory futures
-    data_factories: Option<Vec<Box<dyn DataFactory>>>,
-
-    rmap: Rc<ResourceMap>,
-    config: AppConfig,
-    data: Rc<Vec<Box<dyn DataFactory>>>,
-    extensions: Option<Extensions>,
-
-    _t: PhantomData<B>,
-}
-
-impl<T, B> Future for AppInitResult<T, B>
-where
-    T: ServiceFactory<
-        Config = (),
-        Request = ServiceRequest,
-        Response = ServiceResponse<B>,
-        Error = Error,
-        InitError = (),
-    >,
-{
-    type Output = Result<AppInitService<T::Service, B>, ()>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.project();
-
-        // async data factories
-        if let Poll::Ready(factories) = this.data_factories_fut.poll(cx) {
-            let factories: Result<Vec<_>, ()> = factories.into_iter().collect();
-
-            if let Ok(factories) = factories {
-                this.data_factories.replace(factories);
-            } else {
-                return Poll::Ready(Err(()));
-            }
-        }
-
-        // app service and middleware
-        if this.endpoint.is_none() {
-            if let Poll::Ready(srv) = this.endpoint_fut.poll(cx)? {
-                *this.endpoint = Some(srv);
-            }
-        }
-
-        // not using if let so condition only needs shared ref
-        if this.endpoint.is_some() && this.data_factories.is_some() {
-            // create app data container
-            let mut data = this.extensions.take().unwrap();
-
-            for f in this.data.iter() {
-                f.create(&mut data);
-            }
-
-            for f in this.data_factories.take().unwrap().iter() {
-                f.create(&mut data);
-            }
-
-            return Poll::Ready(Ok(AppInitService {
-                service: this.endpoint.take().unwrap(),
-                rmap: this.rmap.clone(),
-                config: this.config.clone(),
-                data: Rc::new(data),
-                pool: HttpRequestPool::create(),
-            }));
-        }
-
-        Poll::Pending
-    }
-}
-
-/// Service to convert `Request` to a `ServiceRequest<S>`
+/// Service that takes a [`Request`] and delegates to a service that take a [`ServiceRequest`].
 pub struct AppInitService<T, B>
 where
-    T: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    T: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
     service: T,
-    rmap: Rc<ResourceMap>,
-    config: AppConfig,
-    data: Rc<Extensions>,
-    pool: &'static HttpRequestPool,
+    app_data: Rc<Extensions>,
+    app_state: Rc<AppInitServiceState>,
 }
 
-impl<T, B> Service for AppInitService<T, B>
+/// A collection of [`AppInitService`] state that shared across `HttpRequest`s.
+pub(crate) struct AppInitServiceState {
+    rmap: Rc<ResourceMap>,
+    config: AppConfig,
+    pool: HttpRequestPool,
+}
+
+impl AppInitServiceState {
+    pub(crate) fn new(rmap: Rc<ResourceMap>, config: AppConfig) -> Rc<Self> {
+        Rc::new(AppInitServiceState {
+            rmap,
+            config,
+            // TODO: AppConfig can be used to pass user defined HttpRequestPool
+            // capacity.
+            pool: HttpRequestPool::default(),
+        })
+    }
+
+    #[inline]
+    pub(crate) fn rmap(&self) -> &ResourceMap {
+        &*self.rmap
+    }
+
+    #[inline]
+    pub(crate) fn config(&self) -> &AppConfig {
+        &self.config
+    }
+
+    #[inline]
+    pub(crate) fn pool(&self) -> &HttpRequestPool {
+        &self.pool
+    }
+}
+
+impl<T, B> Service<Request> for AppInitService<T, B>
 where
-    T: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    T: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
-    type Request = Request;
     type Response = ServiceResponse<B>;
     type Error = T::Error;
     type Future = T::Future;
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.service.poll_ready(cx)
-    }
+    actix_service::forward_ready!(service);
 
-    fn call(&mut self, req: Request) -> Self::Future {
+    fn call(&self, req: Request) -> Self::Future {
         let (head, payload) = req.into_parts();
 
-        let req = if let Some(mut req) = self.pool.get_request() {
-            let inner = Rc::get_mut(&mut req.0).unwrap();
+        let req = if let Some(mut req) = self.app_state.pool().pop() {
+            let inner = Rc::get_mut(&mut req.inner).unwrap();
             inner.path.get_mut().update(&head.uri);
             inner.path.reset();
             inner.head = head;
-            inner.payload = payload;
-            inner.app_data = tiny_vec![self.data.clone()];
             req
         } else {
             HttpRequest::new(
                 Path::new(Url::new(head.uri.clone())),
                 head,
-                payload,
-                self.rmap.clone(),
-                self.config.clone(),
-                self.data.clone(),
-                self.pool,
+                self.app_state.clone(),
+                self.app_data.clone(),
             )
         };
-        self.service.call(ServiceRequest::new(req))
+        self.service.call(ServiceRequest::new(req, payload))
     }
 }
 
 impl<T, B> Drop for AppInitService<T, B>
 where
-    T: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    T: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
     fn drop(&mut self) {
-        self.pool.clear();
+        self.app_state.pool().clear();
     }
 }
 
 pub struct AppRoutingFactory {
-    services: Rc<Vec<(ResourceDef, HttpNewService, RefCell<Option<Guards>>)>>,
+    services: Rc<[(ResourceDef, HttpNewService, RefCell<Option<Guards>>)]>,
     default: Rc<HttpNewService>,
 }
 
-impl ServiceFactory for AppRoutingFactory {
-    type Config = ();
-    type Request = ServiceRequest;
+impl ServiceFactory<ServiceRequest> for AppRoutingFactory {
     type Response = ServiceResponse;
     type Error = Error;
-    type InitError = ();
+    type Config = ();
     type Service = AppRouting;
-    type Future = AppRoutingFactoryResponse;
+    type InitError = ();
+    type Future = LocalBoxFuture<'static, Result<Self::Service, Self::InitError>>;
 
     fn new_service(&self, _: ()) -> Self::Future {
-        AppRoutingFactoryResponse {
-            fut: self
-                .services
-                .iter()
-                .map(|(path, service, guards)| {
-                    CreateAppRoutingItem::Future(
-                        Some(path.clone()),
-                        guards.borrow_mut().take(),
-                        service.new_service(()).boxed_local(),
-                    )
-                })
-                .collect(),
-            default: None,
-            default_fut: Some(self.default.new_service(())),
-        }
-    }
-}
-
-type HttpServiceFut = LocalBoxFuture<'static, Result<HttpService, ()>>;
-
-/// Create app service
-#[doc(hidden)]
-pub struct AppRoutingFactoryResponse {
-    fut: Vec<CreateAppRoutingItem>,
-    default: Option<HttpService>,
-    default_fut: Option<LocalBoxFuture<'static, Result<HttpService, ()>>>,
-}
-
-enum CreateAppRoutingItem {
-    Future(Option<ResourceDef>, Option<Guards>, HttpServiceFut),
-    Service(ResourceDef, Option<Guards>, HttpService),
-}
-
-impl Future for AppRoutingFactoryResponse {
-    type Output = Result<AppRouting, ()>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut done = true;
-
-        if let Some(ref mut fut) = self.default_fut {
-            match Pin::new(fut).poll(cx)? {
-                Poll::Ready(default) => self.default = Some(default),
-                Poll::Pending => done = false,
+        // construct all services factory future with it's resource def and guards.
+        let factory_fut = join_all(self.services.iter().map(|(path, factory, guards)| {
+            let path = path.clone();
+            let guards = guards.borrow_mut().take();
+            let factory_fut = factory.new_service(());
+            async move {
+                let service = factory_fut.await?;
+                Ok((path, guards, service))
             }
-        }
+        }));
 
-        // poll http services
-        for item in &mut self.fut {
-            let res = match item {
-                CreateAppRoutingItem::Future(
-                    ref mut path,
-                    ref mut guards,
-                    ref mut fut,
-                ) => match Pin::new(fut).poll(cx) {
-                    Poll::Ready(Ok(service)) => {
-                        Some((path.take().unwrap(), guards.take(), service))
-                    }
-                    Poll::Ready(Err(_)) => return Poll::Ready(Err(())),
-                    Poll::Pending => {
-                        done = false;
-                        None
-                    }
-                },
-                CreateAppRoutingItem::Service(_, _, _) => continue,
-            };
+        // construct default service factory future
+        let default_fut = self.default.new_service(());
 
-            if let Some((path, guards, service)) = res {
-                *item = CreateAppRoutingItem::Service(path, guards, service);
-            }
-        }
+        Box::pin(async move {
+            let default = default_fut.await?;
 
-        if done {
-            let router = self
-                .fut
+            // build router from the factory future result.
+            let router = factory_fut
+                .await
+                .into_iter()
+                .collect::<Result<Vec<_>, _>>()?
                 .drain(..)
-                .fold(Router::build(), |mut router, item| {
-                    match item {
-                        CreateAppRoutingItem::Service(path, guards, service) => {
-                            router.rdef(path, service).2 = guards;
-                        }
-                        CreateAppRoutingItem::Future(_, _, _) => unreachable!(),
-                    }
+                .fold(Router::build(), |mut router, (path, guards, service)| {
+                    router.rdef(path, service).2 = guards;
                     router
-                });
-            Poll::Ready(Ok(AppRouting {
-                ready: None,
-                router: router.finish(),
-                default: self.default.take(),
-            }))
-        } else {
-            Poll::Pending
-        }
+                })
+                .finish();
+
+            Ok(AppRouting { router, default })
+        })
     }
 }
 
 pub struct AppRouting {
     router: Router<HttpService, Guards>,
-    ready: Option<(ServiceRequest, ResourceInfo)>,
-    default: Option<HttpService>,
+    default: HttpService,
 }
 
-impl Service for AppRouting {
-    type Request = ServiceRequest;
+impl Service<ServiceRequest> for AppRouting {
     type Response = ServiceResponse;
     type Error = Error;
-    type Future = BoxResponse;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
-    fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        if self.ready.is_none() {
-            Poll::Ready(Ok(()))
-        } else {
-            Poll::Pending
-        }
-    }
+    actix_service::always_ready!();
 
-    fn call(&mut self, mut req: ServiceRequest) -> Self::Future {
-        let res = self.router.recognize_mut_checked(&mut req, |req, guards| {
+    fn call(&self, mut req: ServiceRequest) -> Self::Future {
+        let res = self.router.recognize_checked(&mut req, |req, guards| {
             if let Some(ref guards) = guards {
                 for f in guards {
                     if !f.check(req.head()) {
@@ -416,11 +300,8 @@ impl Service for AppRouting {
 
         if let Some((srv, _info)) = res {
             srv.call(req)
-        } else if let Some(ref mut default) = self.default {
-            default.call(req)
         } else {
-            let req = req.into_parts().0;
-            ok(ServiceResponse::new(req, Response::NotFound().finish())).boxed_local()
+            self.default.call(req)
         }
     }
 }
@@ -436,14 +317,13 @@ impl AppEntry {
     }
 }
 
-impl ServiceFactory for AppEntry {
-    type Config = ();
-    type Request = ServiceRequest;
+impl ServiceFactory<ServiceRequest> for AppEntry {
     type Response = ServiceResponse;
     type Error = Error;
-    type InitError = ();
+    type Config = ();
     type Service = AppRouting;
-    type Future = AppRoutingFactoryResponse;
+    type InitError = ();
+    type Future = LocalBoxFuture<'static, Result<Self::Service, Self::InitError>>;
 
     fn new_service(&self, _: ()) -> Self::Future {
         self.factory.borrow_mut().as_mut().unwrap().new_service(())
@@ -455,9 +335,10 @@ mod tests {
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
 
+    use actix_service::Service;
+
     use crate::test::{init_service, TestRequest};
     use crate::{web, App, HttpResponse};
-    use actix_service::Service;
 
     struct DropData(Arc<AtomicBool>);
 
@@ -472,7 +353,7 @@ mod tests {
         let data = Arc::new(AtomicBool::new(false));
 
         {
-            let mut app = init_service(
+            let app = init_service(
                 App::new()
                     .data(DropData(data.clone()))
                     .service(web::resource("/test").to(HttpResponse::Ok)),

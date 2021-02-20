@@ -1,6 +1,7 @@
 digraph {
     subgraph cluster_web {
         label="actix/actix-web"
+
         "awc"
         "actix-web"
         "actix-files"
@@ -8,23 +9,27 @@ digraph {
         "actix-multipart"
         "actix-web-actors"
         "actix-web-codegen"
+        "actix-http-test"
     }
 
-    "actix-web" -> { "actix-codec" "actix-service" "actix-utils" "actix-router" "actix-rt" "actix-server" "actix-testing" "actix-macros" "actix-threadpool" "actix-tls" "actix-web-codegen" "actix-http" "awc" }
+    "actix-web" -> { "actix-codec" "actix-service" "actix-utils" "actix-router" "actix-rt" "actix-server" "macros" "threadpool" "actix-tls" "actix-web-codegen" "actix-http" "awc" }
     "awc" -> { "actix-codec" "actix-service" "actix-http" "actix-rt" }
     "actix-web-actors" -> { "actix" "actix-web" "actix-http" "actix-codec" }
     "actix-multipart" -> { "actix-web" "actix-service" "actix-utils" }
-    "actix-http" -> { "actix-service" "actix-codec" "actix-connect" "actix-utils" "actix-rt" "actix-threadpool" }
-    "actix-http" -> { "actix" "actix-tls" }[color=blue] // optional
-    "actix-files" -> { "actix-web" "actix-http" }
+    "actix-http" -> { "actix-service" "actix-codec" "actix-tls" "actix-utils" "actix-rt" "threadpool" }
+    "actix-http" -> { "actix-tls" }[color=blue] // optional
+    "actix-files" -> { "actix-web" }
+    "actix-http-test" -> { "actix-service" "actix-codec" "actix-tls" "actix-utils" "actix-rt" "actix-server" "awc" }
 
     // net
 
     "actix-utils" -> { "actix-service" "actix-rt" "actix-codec" }
     "actix-tracing" -> { "actix-service" }
     "actix-tls" -> { "actix-service" "actix-codec" "actix-utils" }
-    "actix-testing" -> { "actix-rt" "actix-macros" "actix-server" "actix-service" }
     "actix-server" -> { "actix-service" "actix-rt" "actix-codec" "actix-utils" }
-    "actix-rt" -> { "actix-macros" "actix-threadpool" }
-    "actix-connect" -> { "actix-service" "actix-codec" "actix-utils" "actix-rt" }
+    "actix-rt" -> { "macros" "threadpool" }
+
+    // actix
+
+    "actix" -> { "actix-rt" }
 }

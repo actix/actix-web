@@ -19,13 +19,15 @@ header! {
     ///
     /// # Example
     ///
-    /// ```rust
+    /// ```
+    /// use std::time::SystemTime;
     /// use actix_http::Response;
     /// use actix_http::http::header::Date;
-    /// use std::time::SystemTime;
     ///
     /// let mut builder = Response::Ok();
-    /// builder.set(Date(SystemTime::now().into()));
+    /// builder.insert_header(
+    ///     Date(SystemTime::now().into())
+    /// );
     /// ```
     (Date, DATE) => [HttpDate]
 

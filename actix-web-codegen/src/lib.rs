@@ -1,6 +1,6 @@
-//! Macros for reducing boilerplate code in Actix Web applications.
+//! Routing and runtime macros for Actix Web.
 //!
-//! ## Actix Web Re-exports
+//! # Actix Web Re-exports
 //! Actix Web re-exports a version of this crate in it's entirety so you usually don't have to
 //! specify a dependency on this crate explicitly. Sometimes, however, updates are made to this
 //! crate before the actix-web dependency is updated. Therefore, code examples here will show
@@ -8,9 +8,9 @@
 //! are re-exported.
 //!
 //! # Runtime Setup
-//! Used for setting up the actix async runtime. See [main] macro docs.
+//! Used for setting up the actix async runtime. See [macro@main] macro docs.
 //!
-//! ```rust
+//! ```
 //! #[actix_web_codegen::main] // or `#[actix_web::main]` in Actix Web apps
 //! async fn main() {
 //!     async { println!("Hello world"); }.await
@@ -23,7 +23,7 @@
 //!
 //! See docs for: [GET], [POST], [PATCH], [PUT], [DELETE], [HEAD], [CONNECT], [OPTIONS], [TRACE]
 //!
-//! ```rust
+//! ```
 //! # use actix_web::HttpResponse;
 //! # use actix_web_codegen::get;
 //! #[get("/test")]
@@ -34,9 +34,9 @@
 //!
 //! # Multiple Method Handlers
 //! Similar to the single method handler macro but takes one or more arguments for the HTTP methods
-//! it should respond to. See [route] macro docs.
+//! it should respond to. See [macro@route] macro docs.
 //!
-//! ```rust
+//! ```
 //! # use actix_web::HttpResponse;
 //! # use actix_web_codegen::route;
 //! #[route("/test", method="GET", method="HEAD")]
@@ -46,17 +46,15 @@
 //! ```
 //!
 //! [actix-web attributes docs]: https://docs.rs/actix-web/*/actix_web/#attributes
-//! [main]: attr.main.html
-//! [route]: attr.route.html
-//! [GET]: attr.get.html
-//! [POST]: attr.post.html
-//! [PUT]: attr.put.html
-//! [DELETE]: attr.delete.html
-//! [HEAD]: attr.head.html
-//! [CONNECT]: attr.connect.html
-//! [OPTIONS]: attr.options.html
-//! [TRACE]: attr.trace.html
-//! [PATCH]: attr.patch.html
+//! [GET]: macro@get
+//! [POST]: macro@post
+//! [PUT]: macro@put
+//! [HEAD]: macro@head
+//! [CONNECT]: macro@macro@connect
+//! [OPTIONS]: macro@options
+//! [TRACE]: macro@trace
+//! [PATCH]: macro@patch
+//! [DELETE]: macro@delete
 
 #![recursion_limit = "512"]
 
@@ -161,7 +159,7 @@ method_macro! {
 /// # Actix Web Re-export
 /// This macro can be applied with `#[actix_web::main]` when used in Actix Web applications.
 ///
-/// # Usage
+/// # Examples
 /// ```rust
 /// #[actix_web_codegen::main]
 /// async fn main() {
@@ -177,7 +175,6 @@ pub fn main(_: TokenStream, item: TokenStream) -> TokenStream {
     let vis = &input.vis;
     let sig = &mut input.sig;
     let body = &input.block;
-    let name = &sig.ident;
 
     if sig.asyncness.is_none() {
         return syn::Error::new_spanned(sig.fn_token, "only async fn is supported")
@@ -190,7 +187,7 @@ pub fn main(_: TokenStream, item: TokenStream) -> TokenStream {
     (quote! {
         #(#attrs)*
         #vis #sig {
-            actix_web::rt::System::new(stringify!(#name))
+            actix_web::rt::System::new()
                 .block_on(async move { #body })
         }
     })

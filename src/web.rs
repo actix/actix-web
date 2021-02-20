@@ -1,15 +1,15 @@
 //! Essentials helper functions and types for application registration.
+
 use actix_http::http::Method;
 use actix_router::IntoPattern;
 use std::future::Future;
 
 pub use actix_http::Response as HttpResponse;
-pub use bytes::{Bytes, BytesMut};
-pub use futures_channel::oneshot::Canceled;
+pub use bytes::{Buf, BufMut, Bytes, BytesMut};
 
 use crate::error::BlockingError;
 use crate::extract::FromRequest;
-use crate::handler::Factory;
+use crate::handler::Handler;
 use crate::resource::Resource;
 use crate::responder::Responder;
 use crate::route::Route;
@@ -19,6 +19,7 @@ use crate::service::WebService;
 pub use crate::config::ServiceConfig;
 pub use crate::data::Data;
 pub use crate::request::HttpRequest;
+pub use crate::request_data::ReqData;
 pub use crate::types::*;
 
 /// Create resource for a specific path.
@@ -243,12 +244,12 @@ pub fn method(method: Method) -> Route {
 ///         web::to(index))
 /// );
 /// ```
-pub fn to<F, I, R, U>(handler: F) -> Route
+pub fn to<F, I, R>(handler: F) -> Route
 where
-    F: Factory<I, R, U>,
+    F: Handler<I, R>,
     I: FromRequest + 'static,
-    R: Future<Output = U> + 'static,
-    U: Responder + 'static,
+    R: Future + 'static,
+    R::Output: Responder + 'static,
 {
     Route::new().to(handler)
 }
@@ -274,11 +275,11 @@ pub fn service<T: IntoPattern>(path: T) -> WebService {
 
 /// Execute blocking function on a thread pool, returns future that resolves
 /// to result of the function execution.
-pub async fn block<F, I, E>(f: F) -> Result<I, BlockingError<E>>
+pub fn block<F, R>(f: F) -> impl Future<Output = Result<R, BlockingError>>
 where
-    F: FnOnce() -> Result<I, E> + Send + 'static,
-    I: Send + 'static,
-    E: Send + std::fmt::Debug + 'static,
+    F: FnOnce() -> R + Send + 'static,
+    R: Send + 'static,
 {
-    actix_threadpool::run(f).await
+    let fut = actix_rt::task::spawn_blocking(f);
+    async { fut.await.map_err(|_| BlockingError) }
 }

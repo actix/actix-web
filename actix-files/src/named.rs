@@ -11,31 +11,30 @@ use actix_web::{
     dev::{BodyEncoding, SizedStream},
     http::{
         header::{
-            self, Charset, ContentDisposition, DispositionParam, DispositionType,
-            ExtendedValue,
+            self, Charset, ContentDisposition, DispositionParam, DispositionType, ExtendedValue,
         },
         ContentEncoding, StatusCode,
     },
-    Error, HttpMessage, HttpRequest, HttpResponse, Responder,
+    HttpMessage, HttpRequest, HttpResponse, Responder,
 };
 use bitflags::bitflags;
-use futures_util::future::{ready, Ready};
 use mime_guess::from_path;
 
-use crate::range::HttpRange;
 use crate::ChunkedReadFile;
+use crate::{encoding::equiv_utf8_text, range::HttpRange};
 
 bitflags! {
     pub(crate) struct Flags: u8 {
-        const ETAG = 0b0000_0001;
-        const LAST_MD = 0b0000_0010;
+        const ETAG =                0b0000_0001;
+        const LAST_MD =             0b0000_0010;
         const CONTENT_DISPOSITION = 0b0000_0100;
+        const PREFER_UTF8 =         0b0000_1000;
     }
 }
 
 impl Default for Flags {
     fn default() -> Self {
-        Flags::all()
+        Flags::from_bits_truncate(0b0000_0111)
     }
 }
 
@@ -92,6 +91,7 @@ impl NamedFile {
             };
 
             let ct = from_path(&path).first_or_octet_stream();
+
             let disposition = match ct.type_() {
                 mime::IMAGE | mime::TEXT | mime::VIDEO => DispositionType::Inline,
                 _ => DispositionType::Attachment,
@@ -191,7 +191,7 @@ impl NamedFile {
     /// image, and video content types, and `attachment` otherwise, and
     /// the filename is taken from the path provided in the `open` method
     /// after converting it to UTF-8 using.
-    /// [to_string_lossy](https://doc.rust-lang.org/std/ffi/struct.OsStr.html#method.to_string_lossy).
+    /// [`std::ffi::OsStr::to_string_lossy`]
     #[inline]
     pub fn set_content_disposition(mut self, cd: header::ContentDisposition) -> Self {
         self.content_disposition = cd;
@@ -215,21 +215,30 @@ impl NamedFile {
         self
     }
 
-    #[inline]
-    ///Specifies whether to use ETag or not.
+    /// Specifies whether to use ETag or not.
     ///
-    ///Default is true.
+    /// Default is true.
+    #[inline]
     pub fn use_etag(mut self, value: bool) -> Self {
         self.flags.set(Flags::ETAG, value);
         self
     }
 
-    #[inline]
-    ///Specifies whether to use Last-Modified or not.
+    /// Specifies whether to use Last-Modified or not.
     ///
-    ///Default is true.
+    /// Default is true.
+    #[inline]
     pub fn use_last_modified(mut self, value: bool) -> Self {
         self.flags.set(Flags::LAST_MD, value);
+        self
+    }
+
+    /// Specifies whether text responses should signal a UTF-8 encoding.
+    ///
+    /// Default is false (but will default to true in a future version).
+    #[inline]
+    pub fn prefer_utf8(mut self, value: bool) -> Self {
+        self.flags.set(Flags::PREFER_UTF8, value);
         self
     }
 
@@ -266,31 +275,31 @@ impl NamedFile {
     }
 
     /// Creates an `HttpResponse` with file as a streaming body.
-    pub fn into_response(self, req: &HttpRequest) -> Result<HttpResponse, Error> {
+    pub fn into_response(self, req: &HttpRequest) -> HttpResponse {
         if self.status_code != StatusCode::OK {
-            let mut resp = HttpResponse::build(self.status_code);
+            let mut res = HttpResponse::build(self.status_code);
 
-            resp.set(header::ContentType(self.content_type.clone()))
-                .if_true(self.flags.contains(Flags::CONTENT_DISPOSITION), |res| {
-                    res.header(
-                        header::CONTENT_DISPOSITION,
-                        self.content_disposition.to_string(),
-                    );
-                });
-
-            if let Some(current_encoding) = self.encoding {
-                resp.encoding(current_encoding);
+            if self.flags.contains(Flags::PREFER_UTF8) {
+                let ct = equiv_utf8_text(self.content_type.clone());
+                res.insert_header((header::CONTENT_TYPE, ct.to_string()));
+            } else {
+                res.insert_header((header::CONTENT_TYPE, self.content_type.to_string()));
             }
 
-            let reader = ChunkedReadFile {
-                size: self.md.len(),
-                offset: 0,
-                file: Some(self.file),
-                fut: None,
-                counter: 0,
-            };
+            if self.flags.contains(Flags::CONTENT_DISPOSITION) {
+                res.insert_header((
+                    header::CONTENT_DISPOSITION,
+                    self.content_disposition.to_string(),
+                ));
+            }
 
-            return Ok(resp.streaming(reader));
+            if let Some(current_encoding) = self.encoding {
+                res.encoding(current_encoding);
+            }
+
+            let reader = ChunkedReadFile::new(self.md.len(), 0, self.file);
+
+            return res.streaming(reader);
         }
 
         let etag = if self.flags.contains(Flags::ETAG) {
@@ -315,7 +324,7 @@ impl NamedFile {
             let t2: SystemTime = since.clone().into();
 
             match (t1.duration_since(UNIX_EPOCH), t2.duration_since(UNIX_EPOCH)) {
-                (Ok(t1), Ok(t2)) => t1 > t2,
+                (Ok(t1), Ok(t2)) => t1.as_secs() > t2.as_secs(),
                 _ => false,
             }
         } else {
@@ -334,7 +343,7 @@ impl NamedFile {
             let t2: SystemTime = since.clone().into();
 
             match (t1.duration_since(UNIX_EPOCH), t2.duration_since(UNIX_EPOCH)) {
-                (Ok(t1), Ok(t2)) => t1 <= t2,
+                (Ok(t1), Ok(t2)) => t1.as_secs() <= t2.as_secs(),
                 _ => false,
             }
         } else {
@@ -342,27 +351,35 @@ impl NamedFile {
         };
 
         let mut resp = HttpResponse::build(self.status_code);
-        resp.set(header::ContentType(self.content_type.clone()))
-            .if_true(self.flags.contains(Flags::CONTENT_DISPOSITION), |res| {
-                res.header(
-                    header::CONTENT_DISPOSITION,
-                    self.content_disposition.to_string(),
-                );
-            });
+
+        if self.flags.contains(Flags::PREFER_UTF8) {
+            let ct = equiv_utf8_text(self.content_type.clone());
+            resp.insert_header((header::CONTENT_TYPE, ct.to_string()));
+        } else {
+            resp.insert_header((header::CONTENT_TYPE, self.content_type.to_string()));
+        }
+
+        if self.flags.contains(Flags::CONTENT_DISPOSITION) {
+            resp.insert_header((
+                header::CONTENT_DISPOSITION,
+                self.content_disposition.to_string(),
+            ));
+        }
 
         // default compressing
         if let Some(current_encoding) = self.encoding {
             resp.encoding(current_encoding);
         }
 
-        resp.if_some(last_modified, |lm, resp| {
-            resp.set(header::LastModified(lm));
-        })
-        .if_some(etag, |etag, resp| {
-            resp.set(header::ETag(etag));
-        });
+        if let Some(lm) = last_modified {
+            resp.insert_header((header::LAST_MODIFIED, lm.to_string()));
+        }
 
-        resp.header(header::ACCEPT_RANGES, "bytes");
+        if let Some(etag) = etag {
+            resp.insert_header((header::ETAG, etag.to_string()));
+        }
+
+        resp.insert_header((header::ACCEPT_RANGES, "bytes"));
 
         let mut length = self.md.len();
         let mut offset = 0;
@@ -375,43 +392,32 @@ impl NamedFile {
                     offset = ranges[0].start;
 
                     resp.encoding(ContentEncoding::Identity);
-                    resp.header(
+                    resp.insert_header((
                         header::CONTENT_RANGE,
-                        format!(
-                            "bytes {}-{}/{}",
-                            offset,
-                            offset + length - 1,
-                            self.md.len()
-                        ),
-                    );
+                        format!("bytes {}-{}/{}", offset, offset + length - 1, self.md.len()),
+                    ));
                 } else {
-                    resp.header(header::CONTENT_RANGE, format!("bytes */{}", length));
-                    return Ok(resp.status(StatusCode::RANGE_NOT_SATISFIABLE).finish());
+                    resp.insert_header((header::CONTENT_RANGE, format!("bytes */{}", length)));
+                    return resp.status(StatusCode::RANGE_NOT_SATISFIABLE).finish();
                 };
             } else {
-                return Ok(resp.status(StatusCode::BAD_REQUEST).finish());
+                return resp.status(StatusCode::BAD_REQUEST).finish();
             };
         };
 
         if precondition_failed {
-            return Ok(resp.status(StatusCode::PRECONDITION_FAILED).finish());
+            return resp.status(StatusCode::PRECONDITION_FAILED).finish();
         } else if not_modified {
-            return Ok(resp.status(StatusCode::NOT_MODIFIED).finish());
+            return resp.status(StatusCode::NOT_MODIFIED).finish();
         }
 
-        let reader = ChunkedReadFile {
-            offset,
-            size: length,
-            file: Some(self.file),
-            fut: None,
-            counter: 0,
-        };
+        let reader = ChunkedReadFile::new(length, offset, self.file);
 
         if offset != 0 || length != self.md.len() {
             resp.status(StatusCode::PARTIAL_CONTENT);
         }
 
-        Ok(resp.body(SizedStream::new(length, reader)))
+        resp.body(SizedStream::new(length, reader))
     }
 }
 
@@ -470,10 +476,7 @@ fn none_match(etag: Option<&header::EntityTag>, req: &HttpRequest) -> bool {
 }
 
 impl Responder for NamedFile {
-    type Error = Error;
-    type Future = Ready<Result<HttpResponse, Error>>;
-
-    fn respond_to(self, req: &HttpRequest) -> Self::Future {
-        ready(self.into_response(req))
+    fn respond_to(self, req: &HttpRequest) -> HttpResponse {
+        self.into_response(req)
     }
 }

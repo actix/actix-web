@@ -1,9 +1,8 @@
-use actix_service::ServiceFactory;
-use bytes::Bytes;
-use futures_util::future::{self, ok};
-
 use actix_http::{http, HttpService, Request, Response};
 use actix_http_test::test_server;
+use actix_service::ServiceFactoryExt;
+use bytes::Bytes;
+use futures_util::future::{self, ok};
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \
@@ -39,7 +38,7 @@ async fn test_h1_v2() {
     let response = srv.get("/").send().await.unwrap();
     assert!(response.status().is_success());
 
-    let request = srv.get("/").header("x-test", "111").send();
+    let request = srv.get("/").insert_header(("x-test", "111")).send();
     let mut response = request.await.unwrap();
     assert!(response.status().is_success());
 

@@ -3,7 +3,7 @@
 //! ## Mime
 //!
 //! Several header fields use MIME values for their contents. Keeping with the
-//! strongly-typed theme, the [mime](https://docs.rs/mime) crate
+//! strongly-typed theme, the [mime] crate
 //! is used, such as `ContentType(pub Mime)`.
 #![cfg_attr(rustfmt, rustfmt_skip)]
 
@@ -18,6 +18,7 @@ pub use self::content_disposition::{
 };
 pub use self::content_language::ContentLanguage;
 pub use self::content_range::{ContentRange, ContentRangeSpec};
+pub use self::content_encoding::{ContentEncoding};
 pub use self::content_type::ContentType;
 pub use self::date::Date;
 pub use self::etag::ETag;
@@ -83,7 +84,7 @@ macro_rules! test_header {
             let a: Vec<Vec<u8>> = raw.iter().map(|x| x.to_vec()).collect();
             let mut req = test::TestRequest::default();
             for item in a {
-                req = req.header(HeaderField::name(), item).take();
+                req = req.insert_header((HeaderField::name(), item)).take();
             }
             let req = req.finish();
             let value = HeaderField::parse(&req);
@@ -110,7 +111,7 @@ macro_rules! test_header {
             let a: Vec<Vec<u8>> = $raw.iter().map(|x| x.to_vec()).collect();
             let mut req = test::TestRequest::default();
             for item in a {
-                req.header(HeaderField::name(), item);
+                req.insert_header((HeaderField::name(), item));
             }
             let req = req.finish();
             let val = HeaderField::parse(&req);
@@ -168,7 +169,7 @@ macro_rules! header {
         impl $crate::http::header::IntoHeaderValue for $id {
             type Error = $crate::http::header::InvalidHeaderValue;
 
-            fn try_into(self) -> Result<$crate::http::header::HeaderValue, Self::Error> {
+            fn try_into_value(self) -> Result<$crate::http::header::HeaderValue, Self::Error> {
                 use std::fmt::Write;
                 let mut writer = $crate::http::header::Writer::new();
                 let _ = write!(&mut writer, "{}", self);
@@ -204,7 +205,7 @@ macro_rules! header {
         impl $crate::http::header::IntoHeaderValue for $id {
             type Error = $crate::http::header::InvalidHeaderValue;
 
-            fn try_into(self) -> Result<$crate::http::header::HeaderValue, Self::Error> {
+            fn try_into_value(self) -> Result<$crate::http::header::HeaderValue, Self::Error> {
                 use std::fmt::Write;
                 let mut writer = $crate::http::header::Writer::new();
                 let _ = write!(&mut writer, "{}", self);
@@ -240,8 +241,8 @@ macro_rules! header {
         impl $crate::http::header::IntoHeaderValue for $id {
             type Error = $crate::http::header::InvalidHeaderValue;
 
-            fn try_into(self) -> Result<$crate::http::header::HeaderValue, Self::Error> {
-                self.0.try_into()
+            fn try_into_value(self) -> Result<$crate::http::header::HeaderValue, Self::Error> {
+                self.0.try_into_value()
             }
         }
     };
@@ -289,7 +290,7 @@ macro_rules! header {
         impl $crate::http::header::IntoHeaderValue for $id {
             type Error = $crate::http::header::InvalidHeaderValue;
 
-            fn try_into(self) -> Result<$crate::http::header::HeaderValue, Self::Error> {
+            fn try_into_value(self) -> Result<$crate::http::header::HeaderValue, Self::Error> {
                 use std::fmt::Write;
                 let mut writer = $crate::http::header::Writer::new();
                 let _ = write!(&mut writer, "{}", self);
@@ -333,13 +334,14 @@ macro_rules! header {
 }
 
 mod accept_charset;
-//mod accept_encoding;
+// mod accept_encoding;
 mod accept;
 mod accept_language;
 mod allow;
 mod cache_control;
 mod content_disposition;
 mod content_language;
+mod content_encoding;
 mod content_range;
 mod content_type;
 mod date;

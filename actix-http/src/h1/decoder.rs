@@ -14,7 +14,7 @@ use crate::header::HeaderMap;
 use crate::message::{ConnectionType, ResponseHead};
 use crate::request::Request;
 
-const MAX_BUFFER_SIZE: usize = 131_072;
+pub(crate) const MAX_BUFFER_SIZE: usize = 131_072;
 const MAX_HEADERS: usize = 96;
 
 /// Incoming message decoder
@@ -137,7 +137,7 @@ pub(crate) trait MessageType: Sized {
                             expect = true;
                         }
                     }
-                    _ => (),
+                    _ => {}
                 }
 
                 headers.append(name, value);
@@ -203,7 +203,15 @@ impl MessageType for Request {
 
                     (len, method, uri, version, req.headers.len())
                 }
-                httparse::Status::Partial => return Ok(None),
+                httparse::Status::Partial => {
+                    return if src.len() >= MAX_BUFFER_SIZE {
+                        trace!("MAX_BUFFER_SIZE unprocessed data reached, closing");
+                        Err(ParseError::TooLarge)
+                    } else {
+                        // Return None to notify more read are needed for parsing request
+                        Ok(None)
+                    };
+                }
             }
         };
 
@@ -216,15 +224,12 @@ impl MessageType for Request {
         let decoder = match length {
             PayloadLength::Payload(pl) => pl,
             PayloadLength::UpgradeWebSocket => {
-                // upgrade(websocket)
+                // upgrade (WebSocket)
                 PayloadType::Stream(PayloadDecoder::eof())
             }
             PayloadLength::None => {
                 if method == Method::CONNECT {
                     PayloadType::Stream(PayloadDecoder::eof())
-                } else if src.len() >= MAX_BUFFER_SIZE {
-                    trace!("MAX_BUFFER_SIZE unprocessed data reached, closing");
-                    return Err(ParseError::TooLarge);
                 } else {
                     PayloadType::None
                 }
@@ -273,7 +278,14 @@ impl MessageType for ResponseHead {
 
                     (len, version, status, res.headers.len())
                 }
-                httparse::Status::Partial => return Ok(None),
+                httparse::Status::Partial => {
+                    return if src.len() >= MAX_BUFFER_SIZE {
+                        error!("MAX_BUFFER_SIZE unprocessed data reached, closing");
+                        Err(ParseError::TooLarge)
+                    } else {
+                        Ok(None)
+                    }
+                }
             }
         };
 
@@ -289,9 +301,6 @@ impl MessageType for ResponseHead {
         } else if status == StatusCode::SWITCHING_PROTOCOLS {
             // switching protocol or connect
             PayloadType::Stream(PayloadDecoder::eof())
-        } else if src.len() >= MAX_BUFFER_SIZE {
-            error!("MAX_BUFFER_SIZE unprocessed data reached, closing");
-            return Err(ParseError::TooLarge);
         } else {
             // for HTTP/1.0 read to eof and close connection
             if msg.version == Version::HTTP_10 {
@@ -643,7 +652,7 @@ mod tests {
     use super::*;
     use crate::error::ParseError;
     use crate::http::header::{HeaderName, SET_COOKIE};
-    use crate::httpmessage::HttpMessage;
+    use crate::HttpMessage;
 
     impl PayloadType {
         fn unwrap(self) -> PayloadDecoder {
@@ -685,7 +694,7 @@ mod tests {
             match MessageDecoder::<Request>::default().decode($e) {
                 Err(err) => match err {
                     ParseError::Io(_) => unreachable!("Parse error expected"),
-                    _ => (),
+                    _ => {}
                 },
                 _ => unreachable!("Error expected"),
             }
@@ -821,8 +830,8 @@ mod tests {
             .get_all(SET_COOKIE)
             .map(|v| v.to_str().unwrap().to_owned())
             .collect();
-        assert_eq!(val[1], "c1=cookie1");
-        assert_eq!(val[0], "c2=cookie2");
+        assert_eq!(val[0], "c1=cookie1");
+        assert_eq!(val[1], "c2=cookie2");
     }
 
     #[test]

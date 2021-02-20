@@ -3,19 +3,17 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use actix::dev::{
-    AsyncContextParts, ContextFut, ContextParts, Envelope, Mailbox, ToEnvelope,
-};
+use actix::dev::{AsyncContextParts, ContextFut, ContextParts, Envelope, Mailbox, ToEnvelope};
 use actix::fut::ActorFuture;
 use actix::{
     Actor, ActorContext, ActorState, Addr, AsyncContext, Handler, Message, SpawnHandle,
 };
 use actix_web::error::Error;
 use bytes::Bytes;
-use futures_channel::oneshot::Sender;
 use futures_core::Stream;
+use tokio::sync::oneshot::Sender;
 
-/// Execution context for http actors
+/// Execution context for HTTP actors
 pub struct HttpContext<A>
 where
     A: Actor<Context = HttpContext<A>>,
@@ -165,10 +163,7 @@ where
 {
     type Item = Result<Bytes, Error>;
 
-    fn poll_next(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if self.fut.alive() {
             let _ = Pin::new(&mut self.fut).poll(cx);
         }
@@ -233,14 +228,14 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_default_resource() {
-        let mut srv =
+        let srv =
             init_service(App::new().service(web::resource("/test").to(|| {
                 HttpResponse::Ok().streaming(HttpContext::create(MyActor { count: 0 }))
             })))
             .await;
 
         let req = TestRequest::with_uri("/test").to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
 
         let body = read_body(resp).await;

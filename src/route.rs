@@ -1,3 +1,5 @@
+#![allow(clippy::rc_buffer)] // inner value is mutated before being shared (`Rc::get_mut`)
+
 use std::future::Future;
 use std::pin::Pin;
 use std::rc::Rc;
@@ -9,29 +11,29 @@ use futures_util::future::{ready, FutureExt, LocalBoxFuture};
 
 use crate::extract::FromRequest;
 use crate::guard::{self, Guard};
-use crate::handler::{Extract, Factory, Handler};
+use crate::handler::{Handler, HandlerService};
 use crate::responder::Responder;
 use crate::service::{ServiceRequest, ServiceResponse};
 use crate::HttpResponse;
 
-type BoxedRouteService<Req, Res> = Box<
+type BoxedRouteService = Box<
     dyn Service<
-        Request = Req,
-        Response = Res,
+        ServiceRequest,
+        Response = ServiceResponse,
         Error = Error,
-        Future = LocalBoxFuture<'static, Result<Res, Error>>,
+        Future = LocalBoxFuture<'static, Result<ServiceResponse, Error>>,
     >,
 >;
 
-type BoxedRouteNewService<Req, Res> = Box<
+type BoxedRouteNewService = Box<
     dyn ServiceFactory<
+        ServiceRequest,
         Config = (),
-        Request = Req,
-        Response = Res,
+        Response = ServiceResponse,
         Error = Error,
         InitError = (),
-        Service = BoxedRouteService<Req, Res>,
-        Future = LocalBoxFuture<'static, Result<BoxedRouteService<Req, Res>, ()>>,
+        Service = BoxedRouteService,
+        Future = LocalBoxFuture<'static, Result<BoxedRouteService, ()>>,
     >,
 >;
 
@@ -40,7 +42,7 @@ type BoxedRouteNewService<Req, Res> = Box<
 /// Route uses builder-like pattern for configuration.
 /// If handler is not explicitly set, default *404 Not Found* handler is used.
 pub struct Route {
-    service: BoxedRouteNewService<ServiceRequest, ServiceResponse>,
+    service: BoxedRouteNewService,
     guards: Rc<Vec<Box<dyn Guard>>>,
 }
 
@@ -49,9 +51,9 @@ impl Route {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Route {
         Route {
-            service: Box::new(RouteNewService::new(Extract::new(Handler::new(|| {
+            service: Box::new(RouteNewService::new(HandlerService::new(|| {
                 ready(HttpResponse::NotFound())
-            })))),
+            }))),
             guards: Rc::new(Vec::new()),
         }
     }
@@ -61,9 +63,8 @@ impl Route {
     }
 }
 
-impl ServiceFactory for Route {
+impl ServiceFactory<ServiceRequest> for Route {
     type Config = ();
-    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
     type InitError = ();
@@ -78,15 +79,8 @@ impl ServiceFactory for Route {
     }
 }
 
-type RouteFuture = LocalBoxFuture<
-    'static,
-    Result<BoxedRouteService<ServiceRequest, ServiceResponse>, ()>,
->;
-
-#[pin_project::pin_project]
 pub struct CreateRouteService {
-    #[pin]
-    fut: RouteFuture,
+    fut: LocalBoxFuture<'static, Result<BoxedRouteService, ()>>,
     guards: Rc<Vec<Box<dyn Guard>>>,
 }
 
@@ -94,9 +88,9 @@ impl Future for CreateRouteService {
     type Output = Result<RouteService, ()>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.project();
+        let this = self.get_mut();
 
-        match this.fut.poll(cx)? {
+        match this.fut.as_mut().poll(cx)? {
             Poll::Ready(service) => Poll::Ready(Ok(RouteService {
                 service,
                 guards: this.guards.clone(),
@@ -107,7 +101,7 @@ impl Future for CreateRouteService {
 }
 
 pub struct RouteService {
-    service: BoxedRouteService<ServiceRequest, ServiceResponse>,
+    service: BoxedRouteService,
     guards: Rc<Vec<Box<dyn Guard>>>,
 }
 
@@ -122,18 +116,17 @@ impl RouteService {
     }
 }
 
-impl Service for RouteService {
-    type Request = ServiceRequest;
+impl Service<ServiceRequest> for RouteService {
     type Response = ServiceResponse;
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.service.poll_ready(cx)
     }
 
-    fn call(&mut self, req: ServiceRequest) -> Self::Future {
-        self.service.call(req).boxed_local()
+    fn call(&self, req: ServiceRequest) -> Self::Future {
+        self.service.call(req)
     }
 }
 
@@ -224,61 +217,49 @@ impl Route {
     ///     );
     /// }
     /// ```
-    pub fn to<F, T, R, U>(mut self, handler: F) -> Self
+    pub fn to<F, T, R>(mut self, handler: F) -> Self
     where
-        F: Factory<T, R, U>,
+        F: Handler<T, R>,
         T: FromRequest + 'static,
-        R: Future<Output = U> + 'static,
-        U: Responder + 'static,
+        R: Future + 'static,
+        R::Output: Responder + 'static,
     {
-        self.service =
-            Box::new(RouteNewService::new(Extract::new(Handler::new(handler))));
+        self.service = Box::new(RouteNewService::new(HandlerService::new(handler)));
         self
     }
 }
 
 struct RouteNewService<T>
 where
-    T: ServiceFactory<Request = ServiceRequest, Error = (Error, ServiceRequest)>,
+    T: ServiceFactory<ServiceRequest, Error = Error>,
 {
     service: T,
 }
 
 impl<T> RouteNewService<T>
 where
-    T: ServiceFactory<
-        Config = (),
-        Request = ServiceRequest,
-        Response = ServiceResponse,
-        Error = (Error, ServiceRequest),
-    >,
+    T: ServiceFactory<ServiceRequest, Config = (), Response = ServiceResponse, Error = Error>,
     T::Future: 'static,
     T::Service: 'static,
-    <T::Service as Service>::Future: 'static,
+    <T::Service as Service<ServiceRequest>>::Future: 'static,
 {
     pub fn new(service: T) -> Self {
         RouteNewService { service }
     }
 }
 
-impl<T> ServiceFactory for RouteNewService<T>
+impl<T> ServiceFactory<ServiceRequest> for RouteNewService<T>
 where
-    T: ServiceFactory<
-        Config = (),
-        Request = ServiceRequest,
-        Response = ServiceResponse,
-        Error = (Error, ServiceRequest),
-    >,
+    T: ServiceFactory<ServiceRequest, Config = (), Response = ServiceResponse, Error = Error>,
     T::Future: 'static,
     T::Service: 'static,
-    <T::Service as Service>::Future: 'static,
+    <T::Service as Service<ServiceRequest>>::Future: 'static,
 {
-    type Config = ();
-    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
+    type Config = ();
+    type Service = BoxedRouteService;
     type InitError = ();
-    type Service = BoxedRouteService<ServiceRequest, Self::Response>;
     type Future = LocalBoxFuture<'static, Result<Self::Service, Self::InitError>>;
 
     fn new_service(&self, _: ()) -> Self::Future {
@@ -286,8 +267,7 @@ where
             .new_service(())
             .map(|result| match result {
                 Ok(service) => {
-                    let service: BoxedRouteService<_, _> =
-                        Box::new(RouteServiceWrapper { service });
+                    let service = Box::new(RouteServiceWrapper { service }) as _;
                     Ok(service)
                 }
                 Err(_) => Err(()),
@@ -296,46 +276,25 @@ where
     }
 }
 
-struct RouteServiceWrapper<T: Service> {
+struct RouteServiceWrapper<T: Service<ServiceRequest>> {
     service: T,
 }
 
-impl<T> Service for RouteServiceWrapper<T>
+impl<T> Service<ServiceRequest> for RouteServiceWrapper<T>
 where
     T::Future: 'static,
-    T: Service<
-        Request = ServiceRequest,
-        Response = ServiceResponse,
-        Error = (Error, ServiceRequest),
-    >,
+    T: Service<ServiceRequest, Response = ServiceResponse, Error = Error>,
 {
-    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.service.poll_ready(cx).map_err(|(e, _)| e)
+    fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.service.poll_ready(cx)
     }
 
-    fn call(&mut self, req: ServiceRequest) -> Self::Future {
-        // let mut fut = self.service.call(req);
-        self.service
-            .call(req)
-            .map(|res| match res {
-                Ok(res) => Ok(res),
-                Err((err, req)) => Ok(req.error_response(err)),
-            })
-            .boxed_local()
-
-        // match fut.poll() {
-        //     Poll::Ready(Ok(res)) => Either::Left(ok(res)),
-        //     Poll::Ready(Err((e, req))) => Either::Left(ok(req.error_response(e))),
-        //     Poll::Pending => Either::Right(Box::new(fut.then(|res| match res {
-        //         Ok(res) => Ok(res),
-        //         Err((err, req)) => Ok(req.error_response(err)),
-        //     }))),
-        // }
+    fn call(&self, req: ServiceRequest) -> Self::Future {
+        Box::pin(self.service.call(req))
     }
 }
 
@@ -343,7 +302,7 @@ where
 mod tests {
     use std::time::Duration;
 
-    use actix_rt::time::delay_for;
+    use actix_rt::time::sleep;
     use bytes::Bytes;
     use serde_derive::Serialize;
 
@@ -358,7 +317,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_route() {
-        let mut srv = init_service(
+        let srv = init_service(
             App::new()
                 .service(
                     web::resource("/test")
@@ -367,16 +326,16 @@ mod tests {
                             Err::<HttpResponse, _>(error::ErrorBadRequest("err"))
                         }))
                         .route(web::post().to(|| async {
-                            delay_for(Duration::from_millis(100)).await;
+                            sleep(Duration::from_millis(100)).await;
                             Ok::<_, ()>(HttpResponse::Created())
                         }))
                         .route(web::delete().to(|| async {
-                            delay_for(Duration::from_millis(100)).await;
+                            sleep(Duration::from_millis(100)).await;
                             Err::<HttpResponse, _>(error::ErrorBadRequest("err"))
                         })),
                 )
                 .service(web::resource("/json").route(web::get().to(|| async {
-                    delay_for(Duration::from_millis(25)).await;
+                    sleep(Duration::from_millis(25)).await;
                     web::Json(MyObject {
                         name: "test".to_string(),
                     })
@@ -387,35 +346,35 @@ mod tests {
         let req = TestRequest::with_uri("/test")
             .method(Method::GET)
             .to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
 
         let req = TestRequest::with_uri("/test")
             .method(Method::POST)
             .to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::CREATED);
 
         let req = TestRequest::with_uri("/test")
             .method(Method::PUT)
             .to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
         let req = TestRequest::with_uri("/test")
             .method(Method::DELETE)
             .to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
         let req = TestRequest::with_uri("/test")
             .method(Method::HEAD)
             .to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
 
         let req = TestRequest::with_uri("/json").to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
 
         let body = read_body(resp).await;

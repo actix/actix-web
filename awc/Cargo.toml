@@ -1,8 +1,8 @@
 [package]
 name = "awc"
-version = "2.0.0"
+version = "3.0.0-beta.2"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
-description = "Async HTTP client library that uses the Actix runtime."
+description = "Async HTTP and WebSocket client library built on the Actix ecosystem"
 readme = "README.md"
 keywords = ["actix", "http", "framework", "async", "web"]
 homepage = "https://actix.rs"
@@ -22,50 +22,65 @@ name = "awc"
 path = "src/lib.rs"
 
 [package.metadata.docs.rs]
-features = ["openssl", "rustls", "compress"]
+# features that docs.rs will build with
+features = ["openssl", "rustls", "compress", "cookies"]
 
 [features]
-default = ["compress"]
+default = ["compress", "cookies"]
 
 # openssl
-openssl = ["open-ssl", "actix-http/openssl"]
+openssl = ["tls-openssl", "actix-http/openssl"]
 
 # rustls
-rustls = ["rust-tls", "actix-http/rustls"]
+rustls = ["tls-rustls", "actix-http/rustls"]
 
 # content-encoding support
 compress = ["actix-http/compress"]
 
-[dependencies]
-actix-codec = "0.3.0"
-actix-service = "1.0.6"
-actix-http = "2.0.0"
-actix-rt = "1.0.0"
+# cookie parsing and cookie jar
+cookies = ["actix-http/cookies"]
 
-base64 = "0.12"
-bytes = "0.5.3"
-derive_more = "0.99.2"
-futures-core = { version = "0.3.5", default-features = false }
+# trust-dns as dns resolver
+trust-dns = ["actix-http/trust-dns"]
+
+[dependencies]
+actix-codec = "0.4.0-beta.1"
+actix-service = "2.0.0-beta.4"
+actix-http = "3.0.0-beta.3"
+actix-rt = "2"
+
+base64 = "0.13"
+bytes = "1"
+cfg-if = "1.0"
+derive_more = "0.99.5"
+futures-core = { version = "0.3.7", default-features = false }
 log =" 0.4"
 mime = "0.3"
 percent-encoding = "2.1"
-rand = "0.7"
+rand = "0.8"
 serde = "1.0"
 serde_json = "1.0"
-serde_urlencoded = "0.6.1"
-open-ssl = { version = "0.10", package = "openssl", optional = true }
-rust-tls = { version = "0.18.0", package = "rustls", optional = true, features = ["dangerous_configuration"] }
+serde_urlencoded = "0.7"
+tls-openssl = { version = "0.10.9", package = "openssl", optional = true }
+tls-rustls = { version = "0.19.0", package = "rustls", optional = true, features = ["dangerous_configuration"] }
+
+[target.'cfg(windows)'.dependencies.tls-openssl]
+version = "0.10.9"
+package = "openssl"
+features = ["vendored"]
+optional = true
 
 [dev-dependencies]
-actix-connect = { version = "2.0.0", features = ["openssl"] }
-actix-web = { version = "3.0.0", features = ["openssl"] }
-actix-http = { version = "2.0.0", features = ["openssl"] }
-actix-http-test = { version = "2.0.0", features = ["openssl"] }
-actix-utils = "2.0.0"
-actix-server = "1.0.0"
-actix-tls = { version = "2.0.0", features = ["openssl", "rustls"] }
+actix-web = { version = "4.0.0-beta.3", features = ["openssl"] }
+actix-http = { version = "3.0.0-beta.3", features = ["openssl"] }
+actix-http-test = { version = "3.0.0-beta.2", features = ["openssl"] }
+actix-utils = "3.0.0-beta.1"
+actix-server = "2.0.0-beta.3"
+actix-tls = { version = "3.0.0-beta.3", features = ["openssl", "rustls"] }
+
 brotli2 = "0.3.2"
 flate2 = "1.0.13"
-futures-util = { version = "0.3.5", default-features = false }
-env_logger = "0.7"
+futures-util = { version = "0.3.7", default-features = false }
+env_logger = "0.8"
+rcgen = "0.8"
 webpki = "0.21"

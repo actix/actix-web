@@ -1,29 +1,39 @@
 #![cfg(feature = "openssl")]
+
+extern crate tls_openssl as openssl;
+
 use actix_http::HttpService;
 use actix_http_test::test_server;
-use actix_service::{map_config, ServiceFactory};
+use actix_service::{map_config, ServiceFactoryExt};
 use actix_web::http::Version;
 use actix_web::{dev::AppConfig, web, App, HttpResponse};
-use open_ssl::ssl::{SslAcceptor, SslConnector, SslFiletype, SslMethod, SslVerifyMode};
+use openssl::{
+    pkey::PKey,
+    ssl::{SslAcceptor, SslConnector, SslMethod, SslVerifyMode},
+    x509::X509,
+};
 
-fn ssl_acceptor() -> SslAcceptor {
-    // load ssl keys
+fn tls_config() -> SslAcceptor {
+    let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()]).unwrap();
+    let cert_file = cert.serialize_pem().unwrap();
+    let key_file = cert.serialize_private_key_pem();
+    let cert = X509::from_pem(cert_file.as_bytes()).unwrap();
+    let key = PKey::private_key_from_pem(key_file.as_bytes()).unwrap();
+
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
-    builder
-        .set_private_key_file("../tests/key.pem", SslFiletype::PEM)
-        .unwrap();
-    builder
-        .set_certificate_chain_file("../tests/cert.pem")
-        .unwrap();
+    builder.set_certificate(&cert).unwrap();
+    builder.set_private_key(&key).unwrap();
+
     builder.set_alpn_select_callback(|_, protos| {
         const H2: &[u8] = b"\x02h2";
         if protos.windows(3).any(|window| window == H2) {
             Ok(b"h2")
         } else {
-            Err(open_ssl::ssl::AlpnError::NOACK)
+            Err(openssl::ssl::AlpnError::NOACK)
         }
     });
     builder.set_alpn_protos(b"\x02h2").unwrap();
+
     builder.build()
 }
 
@@ -35,7 +45,7 @@ async fn test_connection_window_size() {
                 App::new().service(web::resource("/").route(web::to(HttpResponse::Ok))),
                 |_| AppConfig::default(),
             ))
-            .openssl(ssl_acceptor())
+            .openssl(tls_config())
             .map_err(|_| ())
     })
     .await;
@@ -48,7 +58,7 @@ async fn test_connection_window_size() {
         .map_err(|e| log::error!("Can not set alpn protocol: {:?}", e));
 
     let client = awc::Client::builder()
-        .connector(awc::Connector::new().ssl(builder.build()).finish())
+        .connector(awc::Connector::new().ssl(builder.build()))
         .initial_window_size(100)
         .initial_connection_window_size(100)
         .finish();

@@ -22,14 +22,16 @@ header! {
     ///
     /// # Example
     ///
-    /// ```rust
+    /// ```
+    /// use std::time::{SystemTime, Duration};
     /// use actix_http::Response;
     /// use actix_http::http::header::IfUnmodifiedSince;
-    /// use std::time::{SystemTime, Duration};
     ///
     /// let mut builder = Response::Ok();
     /// let modified = SystemTime::now() - Duration::from_secs(60 * 60 * 24);
-    /// builder.set(IfUnmodifiedSince(modified.into()));
+    /// builder.insert_header(
+    ///     IfUnmodifiedSince(modified.into())
+    /// );
     /// ```
     (IfUnmodifiedSince, IF_UNMODIFIED_SINCE) => [HttpDate]
 

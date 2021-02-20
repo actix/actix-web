@@ -1,0 +1,61 @@
+[package]
+name = "actix-http-test"
+version = "3.0.0-beta.2"
+authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
+description = "Various helpers for Actix applications to use during testing"
+readme = "README.md"
+keywords = ["http", "web", "framework", "async", "futures"]
+homepage = "https://actix.rs"
+repository = "https://github.com/actix/actix-web.git"
+documentation = "https://docs.rs/actix-http-test/"
+categories = ["network-programming", "asynchronous",
+              "web-programming::http-server",
+              "web-programming::websocket"]
+license = "MIT OR Apache-2.0"
+exclude = [".gitignore", ".cargo/config"]
+edition = "2018"
+
+[package.metadata.docs.rs]
+features = []
+
+[lib]
+name = "actix_http_test"
+path = "src/lib.rs"
+
+[features]
+default = []
+
+# openssl
+openssl = ["tls-openssl", "awc/openssl"]
+
+[dependencies]
+actix-service = "2.0.0-beta.4"
+actix-codec = "0.4.0-beta.1"
+actix-tls = "3.0.0-beta.3"
+actix-utils = "3.0.0-beta.2"
+actix-rt = "2"
+actix-server = "2.0.0-beta.3"
+awc = "3.0.0-beta.2"
+
+base64 = "0.13"
+bytes = "1"
+futures-core = { version = "0.3.7", default-features = false }
+http = "0.2.2"
+log = "0.4"
+socket2 = "0.3"
+serde = "1.0"
+serde_json = "1.0"
+slab = "0.4"
+serde_urlencoded = "0.7"
+time = { version = "0.2.23", default-features = false, features = ["std"] }
+tls-openssl = { version = "0.10.9", package = "openssl", optional = true }
+
+[target.'cfg(windows)'.dependencies.tls-openssl]
+version = "0.10.9"
+package = "openssl"
+features = ["vendored"]
+optional = true
+
+[dev-dependencies]
+actix-web = "4.0.0-beta.3"
+actix-http = "3.0.0-beta.3"

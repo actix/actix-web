@@ -1,35 +1,41 @@
-//! Custom handlers service for responses.
-use std::rc::Rc;
-use std::task::{Context, Poll};
+//! For middleware documentation, see [`ErrorHandlers`].
+
+use std::{
+    future::Future,
+    pin::Pin,
+    rc::Rc,
+    task::{Context, Poll},
+};
 
 use actix_service::{Service, Transform};
-use futures_util::future::{ok, FutureExt, LocalBoxFuture, Ready};
-use fxhash::FxHashMap;
+use ahash::AHashMap;
+use futures_core::{future::LocalBoxFuture, ready};
 
-use crate::dev::{ServiceRequest, ServiceResponse};
-use crate::error::{Error, Result};
-use crate::http::StatusCode;
+use crate::{
+    dev::{ServiceRequest, ServiceResponse},
+    error::{Error, Result},
+    http::StatusCode,
+};
 
-/// Error handler response
+/// Return type for [`ErrorHandlers`] custom handlers.
 pub enum ErrorHandlerResponse<B> {
-    /// New http response got generated
+    /// Immediate HTTP response.
     Response(ServiceResponse<B>),
-    /// Result is a future that resolves to a new http response
+
+    /// A future that resolves to an HTTP response.
     Future(LocalBoxFuture<'static, Result<ServiceResponse<B>, Error>>),
 }
 
 type ErrorHandler<B> = dyn Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>>;
 
-/// `Middleware` for allowing custom handlers for responses.
+/// Middleware for registering custom status code based error handlers.
 ///
-/// You can use `ErrorHandlers::handler()` method  to register a custom error
-/// handler for specific status code. You can modify existing response or
-/// create completely new one.
+/// Register handlers with the `ErrorHandlers::handler()` method to register a custom error handler
+/// for a given status code. Handlers can modify existing responses or create completely new ones.
 ///
-/// ## Example
-///
+/// # Examples
 /// ```rust
-/// use actix_web::middleware::errhandlers::{ErrorHandlers, ErrorHandlerResponse};
+/// use actix_web::middleware::{ErrorHandlers, ErrorHandlerResponse};
 /// use actix_web::{web, http, dev, App, HttpRequest, HttpResponse, Result};
 ///
 /// fn render_500<B>(mut res: dev::ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
@@ -39,7 +45,6 @@ type ErrorHandler<B> = dyn Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse
 ///     Ok(ErrorHandlerResponse::Response(res))
 /// }
 ///
-/// # fn main() {
 /// let app = App::new()
 ///     .wrap(
 ///         ErrorHandlers::new()
@@ -49,27 +54,28 @@ type ErrorHandler<B> = dyn Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse
 ///         .route(web::get().to(|| HttpResponse::Ok()))
 ///         .route(web::head().to(|| HttpResponse::MethodNotAllowed())
 ///     ));
-/// # }
 /// ```
 pub struct ErrorHandlers<B> {
-    handlers: Rc<FxHashMap<StatusCode, Box<ErrorHandler<B>>>>,
+    handlers: Handlers<B>,
 }
+
+type Handlers<B> = Rc<AHashMap<StatusCode, Box<ErrorHandler<B>>>>;
 
 impl<B> Default for ErrorHandlers<B> {
     fn default() -> Self {
         ErrorHandlers {
-            handlers: Rc::new(FxHashMap::default()),
+            handlers: Rc::new(AHashMap::default()),
         }
     }
 }
 
 impl<B> ErrorHandlers<B> {
-    /// Construct new `ErrorHandlers` instance
+    /// Construct new `ErrorHandlers` instance.
     pub fn new() -> Self {
         ErrorHandlers::default()
     }
 
-    /// Register error handler for specified status code
+    /// Register error handler for specified status code.
     pub fn handler<F>(mut self, status: StatusCode, handler: F) -> Self
     where
         F: Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> + 'static,
@@ -81,73 +87,95 @@ impl<B> ErrorHandlers<B> {
     }
 }
 
-impl<S, B> Transform<S> for ErrorHandlers<B>
+impl<S, B> Transform<S, ServiceRequest> for ErrorHandlers<B>
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
     S::Future: 'static,
     B: 'static,
 {
-    type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
-    type InitError = ();
     type Transform = ErrorHandlersMiddleware<S, B>;
-    type Future = Ready<Result<Self::Transform, Self::InitError>>;
+    type InitError = ();
+    type Future = LocalBoxFuture<'static, Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        ok(ErrorHandlersMiddleware {
-            service,
-            handlers: self.handlers.clone(),
-        })
+        let handlers = self.handlers.clone();
+        Box::pin(async move { Ok(ErrorHandlersMiddleware { service, handlers }) })
     }
 }
 
 #[doc(hidden)]
 pub struct ErrorHandlersMiddleware<S, B> {
     service: S,
-    handlers: Rc<FxHashMap<StatusCode, Box<ErrorHandler<B>>>>,
+    handlers: Handlers<B>,
 }
 
-impl<S, B> Service for ErrorHandlersMiddleware<S, B>
+impl<S, B> Service<ServiceRequest> for ErrorHandlersMiddleware<S, B>
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
     B: 'static,
 {
-    type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
+    type Future = ErrorHandlersFuture<S::Future, B>;
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.service.poll_ready(cx)
-    }
+    actix_service::forward_ready!(service);
 
-    fn call(&mut self, req: ServiceRequest) -> Self::Future {
+    fn call(&self, req: ServiceRequest) -> Self::Future {
         let handlers = self.handlers.clone();
         let fut = self.service.call(req);
+        ErrorHandlersFuture::ServiceFuture { fut, handlers }
+    }
+}
 
-        async move {
-            let res = fut.await?;
+#[pin_project::pin_project(project = ErrorHandlersProj)]
+pub enum ErrorHandlersFuture<Fut, B>
+where
+    Fut: Future,
+{
+    ServiceFuture {
+        #[pin]
+        fut: Fut,
+        handlers: Handlers<B>,
+    },
+    HandlerFuture {
+        fut: LocalBoxFuture<'static, Fut::Output>,
+    },
+}
 
-            if let Some(handler) = handlers.get(&res.status()) {
-                match handler(res) {
-                    Ok(ErrorHandlerResponse::Response(res)) => Ok(res),
-                    Ok(ErrorHandlerResponse::Future(fut)) => fut.await,
-                    Err(e) => Err(e),
+impl<Fut, B> Future for ErrorHandlersFuture<Fut, B>
+where
+    Fut: Future<Output = Result<ServiceResponse<B>, Error>>,
+{
+    type Output = Fut::Output;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        match self.as_mut().project() {
+            ErrorHandlersProj::ServiceFuture { fut, handlers } => {
+                let res = ready!(fut.poll(cx))?;
+                match handlers.get(&res.status()) {
+                    Some(handler) => match handler(res)? {
+                        ErrorHandlerResponse::Response(res) => Poll::Ready(Ok(res)),
+                        ErrorHandlerResponse::Future(fut) => {
+                            self.as_mut()
+                                .set(ErrorHandlersFuture::HandlerFuture { fut });
+                            self.poll(cx)
+                        }
+                    },
+                    None => Poll::Ready(Ok(res)),
                 }
-            } else {
-                Ok(res)
             }
+            ErrorHandlersProj::HandlerFuture { fut } => fut.as_mut().poll(cx),
         }
-        .boxed_local()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use actix_service::IntoService;
-    use futures_util::future::ok;
+    use futures_util::future::{ok, FutureExt};
 
     use super::*;
     use crate::http::{header::CONTENT_TYPE, HeaderValue, StatusCode};
@@ -167,14 +195,13 @@ mod tests {
             ok(req.into_response(HttpResponse::InternalServerError().finish()))
         };
 
-        let mut mw = ErrorHandlers::new()
+        let mw = ErrorHandlers::new()
             .handler(StatusCode::INTERNAL_SERVER_ERROR, render_500)
             .new_transform(srv.into_service())
             .await
             .unwrap();
 
-        let resp =
-            test::call_service(&mut mw, TestRequest::default().to_srv_request()).await;
+        let resp = test::call_service(&mw, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
     }
 
@@ -193,14 +220,13 @@ mod tests {
             ok(req.into_response(HttpResponse::InternalServerError().finish()))
         };
 
-        let mut mw = ErrorHandlers::new()
+        let mw = ErrorHandlers::new()
             .handler(StatusCode::INTERNAL_SERVER_ERROR, render_500_async)
             .new_transform(srv.into_service())
             .await
             .unwrap();
 
-        let resp =
-            test::call_service(&mut mw, TestRequest::default().to_srv_request()).await;
+        let resp = test::call_service(&mw, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
     }
 }

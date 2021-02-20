@@ -58,6 +58,7 @@ impl Codec {
         } else {
             Flags::empty()
         };
+
         Codec {
             config,
             flags,
@@ -69,26 +70,26 @@ impl Codec {
         }
     }
 
+    /// Check if request is upgrade.
     #[inline]
-    /// Check if request is upgrade
     pub fn upgrade(&self) -> bool {
         self.ctype == ConnectionType::Upgrade
     }
 
+    /// Check if last response is keep-alive.
     #[inline]
-    /// Check if last response is keep-alive
     pub fn keepalive(&self) -> bool {
         self.ctype == ConnectionType::KeepAlive
     }
 
+    /// Check if keep-alive enabled on server level.
     #[inline]
-    /// Check if keep-alive enabled on server level
     pub fn keepalive_enabled(&self) -> bool {
         self.flags.contains(Flags::KEEPALIVE_ENABLED)
     }
 
+    /// Check last request's message type.
     #[inline]
-    /// Check last request's message type
     pub fn message_type(&self) -> MessageType {
         if self.flags.contains(Flags::STREAM) {
             MessageType::Stream
@@ -110,8 +111,8 @@ impl Decoder for Codec {
     type Error = ParseError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        if self.payload.is_some() {
-            Ok(match self.payload.as_mut().unwrap().decode(src)? {
+        if let Some(ref mut payload) = self.payload {
+            Ok(match payload.decode(src)? {
                 Some(PayloadItem::Chunk(chunk)) => Some(Message::Chunk(Some(chunk))),
                 Some(PayloadItem::Eof) => {
                     self.payload.take();
@@ -198,10 +199,10 @@ mod tests {
     use http::Method;
 
     use super::*;
-    use crate::httpmessage::HttpMessage;
+    use crate::HttpMessage;
 
-    #[test]
-    fn test_http_request_chunked_payload_and_next_message() {
+    #[actix_rt::test]
+    async fn test_http_request_chunked_payload_and_next_message() {
         let mut codec = Codec::default();
 
         let mut buf = BytesMut::from(

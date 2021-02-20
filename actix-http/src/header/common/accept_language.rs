@@ -22,41 +22,35 @@ header! {
     ///
     /// # Examples
     ///
-    /// ```rust
-    /// # extern crate actix_http;
-    /// # extern crate language_tags;
+    /// ```
+    /// use language_tags::langtag;
     /// use actix_http::Response;
     /// use actix_http::http::header::{AcceptLanguage, LanguageTag, qitem};
     ///
-    /// # fn main() {
     /// let mut builder = Response::Ok();
     /// let mut langtag: LanguageTag = Default::default();
     /// langtag.language = Some("en".to_owned());
     /// langtag.region = Some("US".to_owned());
-    /// builder.set(
+    /// builder.insert_header(
     ///     AcceptLanguage(vec![
     ///         qitem(langtag),
     ///     ])
     /// );
-    /// # }
     /// ```
     ///
-    /// ```rust
-    /// # extern crate actix_http;
-    /// # #[macro_use] extern crate language_tags;
+    /// ```
+    /// use language_tags::langtag;
     /// use actix_http::Response;
     /// use actix_http::http::header::{AcceptLanguage, QualityItem, q, qitem};
-    /// #
-    /// # fn main() {
+    ///
     /// let mut builder = Response::Ok();
-    /// builder.set(
+    /// builder.insert_header(
     ///     AcceptLanguage(vec![
     ///         qitem(langtag!(da)),
     ///         QualityItem::new(langtag!(en;;;GB), q(800)),
     ///         QualityItem::new(langtag!(en), q(700)),
     ///     ])
     /// );
-    /// # }
     /// ```
     (AcceptLanguage, ACCEPT_LANGUAGE) => (QualityItem<LanguageTag>)+
 

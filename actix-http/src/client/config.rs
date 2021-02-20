@@ -1,8 +1,7 @@
 use std::time::Duration;
 
-// These values are taken from hyper/src/proto/h2/client.rs
-const DEFAULT_H2_CONN_WINDOW: u32 = 1024 * 1024 * 2; // 2mb
-const DEFAULT_H2_STREAM_WINDOW: u32 = 1024 * 1024; // 1mb
+const DEFAULT_H2_CONN_WINDOW: u32 = 1024 * 1024 * 2; // 2MB
+const DEFAULT_H2_STREAM_WINDOW: u32 = 1024 * 1024; // 1MB
 
 /// Connector configuration
 #[derive(Clone)]
@@ -19,7 +18,7 @@ pub(crate) struct ConnectorConfig {
 impl Default for ConnectorConfig {
     fn default() -> Self {
         Self {
-            timeout: Duration::from_secs(1),
+            timeout: Duration::from_secs(5),
             conn_lifetime: Duration::from_secs(75),
             conn_keep_alive: Duration::from_secs(15),
             disconnect_timeout: Some(Duration::from_millis(3000)),

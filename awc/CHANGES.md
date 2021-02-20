@@ -1,6 +1,74 @@
 # Changes
 
-## Unreleased - 2020-xx-xx
+## Unreleased - 2021-xx-xx
+### Added
+* `ClientResponse::timeout` for set the timeout of collecting response body. [#1931]
+
+### Changed
+* Feature `cookies` is now optional and enabled by default. [#1981]
+* `ClientBuilder::connector` method would take `actix_http::client::Connector<T, U>` type. [#2008]
+
+### Removed
+* `ClientBuilder::default` function [#2008]
+* `ClientBuilder::disable_redirects` and `ClientBuilder::max_redirects` method [#2008]
+
+[#1931]: https://github.com/actix/actix-web/pull/1931
+[#1981]: https://github.com/actix/actix-web/pull/1981
+[#2008]: https://github.com/actix/actix-web/pull/2008
+
+## 3.0.0-beta.2 - 2021-02-10
+### Added
+* `ClientRequest::insert_header` method which allows using typed headers. [#1869]
+* `ClientRequest::append_header` method which allows using typed headers. [#1869]
+* `trust-dns` optional feature to enable `trust-dns-resolver` as client dns resolver. [#1969]
+
+### Changed
+* Relax default timeout for `Connector` to 5 seconds(original 1 second). [#1905]
+
+### Removed
+* `ClientRequest::set`; use `ClientRequest::insert_header`. [#1869]
+* `ClientRequest::set_header`; use `ClientRequest::insert_header`. [#1869]
+* `ClientRequest::set_header_if_none`; use `ClientRequest::insert_header_if_none`. [#1869]
+* `ClientRequest::header`; use `ClientRequest::append_header`. [#1869]
+
+[#1869]: https://github.com/actix/actix-web/pull/1869
+[#1905]: https://github.com/actix/actix-web/pull/1905
+[#1969]: https://github.com/actix/actix-web/pull/1969
+
+
+## 3.0.0-beta.1 - 2021-01-07
+### Changed
+* Update `rand` to `0.8`
+* Update `bytes` to `1.0`. [#1813]
+* Update `rust-tls` to `0.19`. [#1813]
+
+[#1813]: https://github.com/actix/actix-web/pull/1813
+
+
+## 2.0.3 - 2020-11-29
+### Fixed
+* Ensure `actix-http` dependency uses same `serde_urlencoded`.
+
+
+## 2.0.2 - 2020-11-25
+### Changed
+* Upgrade `serde_urlencoded` to `0.7`. [#1773]
+
+[#1773]: https://github.com/actix/actix-web/pull/1773
+
+
+## 2.0.1 - 2020-10-30
+### Changed
+* Upgrade `base64` to `0.13`. [#1744]
+* Deprecate `ClientRequest::{if_some, if_true}`. [#1760]
+
+### Fixed
+* Use `Accept-Encoding: identity` instead of `Accept-Encoding: br` when no compression feature
+  is enabled [#1737]
+
+[#1737]: https://github.com/actix/actix-web/pull/1737
+[#1760]: https://github.com/actix/actix-web/pull/1760
+[#1744]: https://github.com/actix/actix-web/pull/1744
 
 
 ## 2.0.0 - 2020-09-11

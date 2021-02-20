@@ -5,15 +5,17 @@ use encoding_rs::{Encoding, UTF_8};
 use http::header;
 use mime::Mime;
 
-use crate::cookie::Cookie;
-use crate::error::{ContentTypeError, CookieParseError, ParseError};
+use crate::error::{ContentTypeError, ParseError};
 use crate::extensions::Extensions;
 use crate::header::{Header, HeaderMap};
 use crate::payload::Payload;
+#[cfg(feature = "cookies")]
+use crate::{cookie::Cookie, error::CookieParseError};
 
+#[cfg(feature = "cookies")]
 struct Cookies(Vec<Cookie<'static>>);
 
-/// Trait that implements general purpose operations on http messages
+/// Trait that implements general purpose operations on HTTP messages.
 pub trait HttpMessage: Sized {
     /// Type of message payload stream
     type Stream;
@@ -30,8 +32,8 @@ pub trait HttpMessage: Sized {
     /// Mutable reference to a the request's extensions container
     fn extensions_mut(&self) -> RefMut<'_, Extensions>;
 
+    /// Get a header.
     #[doc(hidden)]
-    /// Get a header
     fn get_header<H: Header>(&self) -> Option<H>
     where
         Self: Sized,
@@ -43,8 +45,8 @@ pub trait HttpMessage: Sized {
         }
     }
 
-    /// Read the request content type. If request does not contain
-    /// *Content-Type* header, empty str get returned.
+    /// Read the request content type. If request did not contain a *Content-Type* header, an empty
+    /// string is returned.
     fn content_type(&self) -> &str {
         if let Some(content_type) = self.headers().get(header::CONTENT_TYPE) {
             if let Ok(content_type) = content_type.to_str() {
@@ -90,7 +92,7 @@ pub trait HttpMessage: Sized {
         Ok(None)
     }
 
-    /// Check if request has chunked transfer encoding
+    /// Check if request has chunked transfer encoding.
     fn chunked(&self) -> Result<bool, ParseError> {
         if let Some(encodings) = self.headers().get(header::TRANSFER_ENCODING) {
             if let Ok(s) = encodings.to_str() {
@@ -104,7 +106,7 @@ pub trait HttpMessage: Sized {
     }
 
     /// Load request cookies.
-    #[inline]
+    #[cfg(feature = "cookies")]
     fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
         if self.extensions().get::<Cookies>().is_none() {
             let mut cookies = Vec::new();
@@ -119,12 +121,14 @@ pub trait HttpMessage: Sized {
             }
             self.extensions_mut().insert(Cookies(cookies));
         }
+
         Ok(Ref::map(self.extensions(), |ext| {
             &ext.get::<Cookies>().unwrap().0
         }))
     }
 
     /// Return request cookie.
+    #[cfg(feature = "cookies")]
     fn cookie(&self, name: &str) -> Option<Cookie<'static>> {
         if let Ok(cookies) = self.cookies() {
             for cookie in cookies.iter() {
@@ -173,11 +177,13 @@ mod tests {
 
     #[test]
     fn test_content_type() {
-        let req = TestRequest::with_header("content-type", "text/plain").finish();
+        let req = TestRequest::default()
+            .insert_header(("content-type", "text/plain"))
+            .finish();
         assert_eq!(req.content_type(), "text/plain");
-        let req =
-            TestRequest::with_header("content-type", "application/json; charset=utf=8")
-                .finish();
+        let req = TestRequest::default()
+            .insert_header(("content-type", "application/json; charset=utf=8"))
+            .finish();
         assert_eq!(req.content_type(), "application/json");
         let req = TestRequest::default().finish();
         assert_eq!(req.content_type(), "");
@@ -185,13 +191,15 @@ mod tests {
 
     #[test]
     fn test_mime_type() {
-        let req = TestRequest::with_header("content-type", "application/json").finish();
+        let req = TestRequest::default()
+            .insert_header(("content-type", "application/json"))
+            .finish();
         assert_eq!(req.mime_type().unwrap(), Some(mime::APPLICATION_JSON));
         let req = TestRequest::default().finish();
         assert_eq!(req.mime_type().unwrap(), None);
-        let req =
-            TestRequest::with_header("content-type", "application/json; charset=utf-8")
-                .finish();
+        let req = TestRequest::default()
+            .insert_header(("content-type", "application/json; charset=utf-8"))
+            .finish();
         let mt = req.mime_type().unwrap().unwrap();
         assert_eq!(mt.get_param(mime::CHARSET), Some(mime::UTF_8));
         assert_eq!(mt.type_(), mime::APPLICATION);
@@ -200,11 +208,9 @@ mod tests {
 
     #[test]
     fn test_mime_type_error() {
-        let req = TestRequest::with_header(
-            "content-type",
-            "applicationadfadsfasdflknadsfklnadsfjson",
-        )
-        .finish();
+        let req = TestRequest::default()
+            .insert_header(("content-type", "applicationadfadsfasdflknadsfklnadsfjson"))
+            .finish();
         assert_eq!(Err(ContentTypeError::ParseError), req.mime_type());
     }
 
@@ -213,27 +219,27 @@ mod tests {
         let req = TestRequest::default().finish();
         assert_eq!(UTF_8.name(), req.encoding().unwrap().name());
 
-        let req = TestRequest::with_header("content-type", "application/json").finish();
+        let req = TestRequest::default()
+            .insert_header(("content-type", "application/json"))
+            .finish();
         assert_eq!(UTF_8.name(), req.encoding().unwrap().name());
 
-        let req = TestRequest::with_header(
-            "content-type",
-            "application/json; charset=ISO-8859-2",
-        )
-        .finish();
+        let req = TestRequest::default()
+            .insert_header(("content-type", "application/json; charset=ISO-8859-2"))
+            .finish();
         assert_eq!(ISO_8859_2, req.encoding().unwrap());
     }
 
     #[test]
     fn test_encoding_error() {
-        let req = TestRequest::with_header("content-type", "applicatjson").finish();
+        let req = TestRequest::default()
+            .insert_header(("content-type", "applicatjson"))
+            .finish();
         assert_eq!(Some(ContentTypeError::ParseError), req.encoding().err());
 
-        let req = TestRequest::with_header(
-            "content-type",
-            "application/json; charset=kkkttktk",
-        )
-        .finish();
+        let req = TestRequest::default()
+            .insert_header(("content-type", "application/json; charset=kkkttktk"))
+            .finish();
         assert_eq!(
             Some(ContentTypeError::UnknownEncoding),
             req.encoding().err()
@@ -245,15 +251,16 @@ mod tests {
         let req = TestRequest::default().finish();
         assert!(!req.chunked().unwrap());
 
-        let req =
-            TestRequest::with_header(header::TRANSFER_ENCODING, "chunked").finish();
+        let req = TestRequest::default()
+            .insert_header((header::TRANSFER_ENCODING, "chunked"))
+            .finish();
         assert!(req.chunked().unwrap());
 
         let req = TestRequest::default()
-            .header(
+            .insert_header((
                 header::TRANSFER_ENCODING,
                 Bytes::from_static(b"some va\xadscc\xacas0xsdasdlue"),
-            )
+            ))
             .finish();
         assert!(req.chunked().is_err());
     }

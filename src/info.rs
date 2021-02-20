@@ -55,7 +55,7 @@ impl ConnectionInfo {
                                             host = Some(val.trim());
                                         }
                                     }
-                                    _ => (),
+                                    _ => {}
                                 }
                             }
                         }
@@ -174,7 +174,7 @@ impl ConnectionInfo {
     /// Do not use this function for security purposes, unless you can ensure the Forwarded and
     /// X-Forwarded-For headers cannot be spoofed by the client. If you want the client's socket
     /// address explicitly, use
-    /// [`HttpRequest::peer_addr()`](../web/struct.HttpRequest.html#method.peer_addr) instead.
+    /// [`HttpRequest::peer_addr()`](super::web::HttpRequest::peer_addr()) instead.
     #[inline]
     pub fn realip_remote_addr(&self) -> Option<&str> {
         if let Some(ref r) = self.realip_remote_addr {
@@ -200,10 +200,10 @@ mod tests {
         assert_eq!(info.host(), "localhost:8080");
 
         let req = TestRequest::default()
-            .header(
+            .insert_header((
                 header::FORWARDED,
                 "for=192.0.2.60; proto=https; by=203.0.113.43; host=rust-lang.org",
-            )
+            ))
             .to_http_request();
 
         let info = req.connection_info();
@@ -212,7 +212,7 @@ mod tests {
         assert_eq!(info.realip_remote_addr(), Some("192.0.2.60"));
 
         let req = TestRequest::default()
-            .header(header::HOST, "rust-lang.org")
+            .insert_header((header::HOST, "rust-lang.org"))
             .to_http_request();
 
         let info = req.connection_info();
@@ -221,20 +221,20 @@ mod tests {
         assert_eq!(info.realip_remote_addr(), None);
 
         let req = TestRequest::default()
-            .header(X_FORWARDED_FOR, "192.0.2.60")
+            .insert_header((X_FORWARDED_FOR, "192.0.2.60"))
             .to_http_request();
         let info = req.connection_info();
         assert_eq!(info.realip_remote_addr(), Some("192.0.2.60"));
 
         let req = TestRequest::default()
-            .header(X_FORWARDED_HOST, "192.0.2.60")
+            .insert_header((X_FORWARDED_HOST, "192.0.2.60"))
             .to_http_request();
         let info = req.connection_info();
         assert_eq!(info.host(), "192.0.2.60");
         assert_eq!(info.realip_remote_addr(), None);
 
         let req = TestRequest::default()
-            .header(X_FORWARDED_PROTO, "https")
+            .insert_header((X_FORWARDED_PROTO, "https"))
             .to_http_request();
         let info = req.connection_info();
         assert_eq!(info.scheme(), "https");

@@ -1,45 +1,48 @@
-//! `Middleware` for compressing response body.
-use std::cmp;
-use std::future::Future;
-use std::marker::PhantomData;
-use std::pin::Pin;
-use std::str::FromStr;
-use std::task::{Context, Poll};
+//! For middleware documentation, see [`Compress`].
 
-use actix_http::body::MessageBody;
-use actix_http::encoding::Encoder;
-use actix_http::http::header::{ContentEncoding, ACCEPT_ENCODING};
-use actix_http::Error;
+use std::{
+    cmp,
+    future::Future,
+    marker::PhantomData,
+    pin::Pin,
+    str::FromStr,
+    task::{Context, Poll},
+};
+
+use actix_http::{
+    body::MessageBody,
+    encoding::Encoder,
+    http::header::{ContentEncoding, ACCEPT_ENCODING},
+    Error,
+};
 use actix_service::{Service, Transform};
+use futures_core::ready;
 use futures_util::future::{ok, Ready};
 use pin_project::pin_project;
 
-use crate::dev::BodyEncoding;
-use crate::service::{ServiceRequest, ServiceResponse};
+use crate::{
+    dev::BodyEncoding,
+    service::{ServiceRequest, ServiceResponse},
+};
 
-#[derive(Debug, Clone)]
-/// `Middleware` for compressing response body.
+/// Middleware for compressing response payloads.
 ///
-/// Use `BodyEncoding` trait for overriding response compression.
-/// To disable compression set encoding to `ContentEncoding::Identity` value.
+/// Use `BodyEncoding` trait for overriding response compression. To disable compression set
+/// encoding to `ContentEncoding::Identity`.
 ///
+/// # Examples
 /// ```rust
 /// use actix_web::{web, middleware, App, HttpResponse};
 ///
-/// fn main() {
-///     let app = App::new()
-///         .wrap(middleware::Compress::default())
-///         .service(
-///             web::resource("/test")
-///                 .route(web::get().to(|| HttpResponse::Ok()))
-///                 .route(web::head().to(|| HttpResponse::MethodNotAllowed()))
-///         );
-/// }
+/// let app = App::new()
+///     .wrap(middleware::Compress::default())
+///     .default_service(web::to(|| HttpResponse::NotFound()));
 /// ```
+#[derive(Debug, Clone)]
 pub struct Compress(ContentEncoding);
 
 impl Compress {
-    /// Create new `Compress` middleware with default encoding.
+    /// Create new `Compress` middleware with the specified encoding.
     pub fn new(encoding: ContentEncoding) -> Self {
         Compress(encoding)
     }
@@ -51,16 +54,15 @@ impl Default for Compress {
     }
 }
 
-impl<S, B> Transform<S> for Compress
+impl<S, B> Transform<S, ServiceRequest> for Compress
 where
     B: MessageBody,
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
-    type Request = ServiceRequest;
     type Response = ServiceResponse<Encoder<B>>;
     type Error = Error;
-    type InitError = ();
     type Transform = CompressMiddleware<S>;
+    type InitError = ();
     type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
@@ -76,22 +78,19 @@ pub struct CompressMiddleware<S> {
     encoding: ContentEncoding,
 }
 
-impl<S, B> Service for CompressMiddleware<S>
+impl<S, B> Service<ServiceRequest> for CompressMiddleware<S>
 where
     B: MessageBody,
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
-    type Request = ServiceRequest;
     type Response = ServiceResponse<Encoder<B>>;
     type Error = Error;
     type Future = CompressResponse<S, B>;
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.service.poll_ready(cx)
-    }
+    actix_service::forward_ready!(service);
 
     #[allow(clippy::borrow_interior_mutable_const)]
-    fn call(&mut self, req: ServiceRequest) -> Self::Future {
+    fn call(&self, req: ServiceRequest) -> Self::Future {
         // negotiate content-encoding
         let encoding = if let Some(val) = req.headers().get(&ACCEPT_ENCODING) {
             if let Ok(enc) = val.to_str() {
@@ -106,35 +105,34 @@ where
         CompressResponse {
             encoding,
             fut: self.service.call(req),
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }
 
-#[doc(hidden)]
 #[pin_project]
 pub struct CompressResponse<S, B>
 where
-    S: Service,
+    S: Service<ServiceRequest>,
     B: MessageBody,
 {
     #[pin]
     fut: S::Future,
     encoding: ContentEncoding,
-    _t: PhantomData<B>,
+    _phantom: PhantomData<B>,
 }
 
 impl<S, B> Future for CompressResponse<S, B>
 where
     B: MessageBody,
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
     type Output = Result<ServiceResponse<Encoder<B>>, Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
 
-        match futures_util::ready!(this.fut.poll(cx)) {
+        match ready!(this.fut.poll(cx)) {
             Ok(resp) => {
                 let enc = if let Some(enc) = resp.response().get_encoding() {
                     enc
@@ -192,10 +190,7 @@ impl AcceptEncoding {
         };
         let quality = match parts.len() {
             1 => encoding.quality(),
-            _ => match f64::from_str(parts[1]) {
-                Ok(q) => q,
-                Err(_) => 0.0,
-            },
+            _ => f64::from_str(parts[1]).unwrap_or(0.0),
         };
         Some(AcceptEncoding { encoding, quality })
     }

@@ -16,7 +16,7 @@ jobs:
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable-x86_64-unknown-linux-gnu
+          toolchain: nightly-x86_64-unknown-linux-gnu
           profile: minimal
           override: true
 
@@ -24,13 +24,13 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: doc
-          args: --no-deps --workspace --all-features
+          args: --workspace --all-features --no-deps
 
       - name: Tweak HTML
         run: echo "<meta http-equiv=refresh content=0;url=os_balloon/index.html>" > target/doc/index.html
 
       - name: Deploy to GitHub Pages
-        uses: JamesIves/github-pages-deploy-action@3.5.8
+        uses: JamesIves/github-pages-deploy-action@3.7.1
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: gh-pages

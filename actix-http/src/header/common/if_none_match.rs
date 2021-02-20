@@ -31,20 +31,20 @@ header! {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use actix_http::Response;
     /// use actix_http::http::header::IfNoneMatch;
     ///
     /// let mut builder = Response::Ok();
-    /// builder.set(IfNoneMatch::Any);
+    /// builder.insert_header(IfNoneMatch::Any);
     /// ```
     ///
-    /// ```rust
+    /// ```
     /// use actix_http::Response;
     /// use actix_http::http::header::{IfNoneMatch, EntityTag};
     ///
     /// let mut builder = Response::Ok();
-    /// builder.set(
+    /// builder.insert_header(
     ///     IfNoneMatch::Items(vec![
     ///         EntityTag::new(false, "xyzzy".to_owned()),
     ///         EntityTag::new(false, "foobar".to_owned()),
@@ -73,13 +73,15 @@ mod tests {
     fn test_if_none_match() {
         let mut if_none_match: Result<IfNoneMatch, _>;
 
-        let req = TestRequest::with_header(IF_NONE_MATCH, "*").finish();
+        let req = TestRequest::default()
+            .insert_header((IF_NONE_MATCH, "*"))
+            .finish();
         if_none_match = Header::parse(&req);
         assert_eq!(if_none_match.ok(), Some(IfNoneMatch::Any));
 
-        let req =
-            TestRequest::with_header(IF_NONE_MATCH, &b"\"foobar\", W/\"weak-etag\""[..])
-                .finish();
+        let req = TestRequest::default()
+            .insert_header((IF_NONE_MATCH, &b"\"foobar\", W/\"weak-etag\""[..]))
+            .finish();
 
         if_none_match = Header::parse(&req);
         let mut entities: Vec<EntityTag> = Vec::new();

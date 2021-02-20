@@ -3,7 +3,8 @@ use std::io::Write;
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use bytes::{buf::BufMutExt, BytesMut};
+use bytes::buf::BufMut;
+use bytes::BytesMut;
 use http::header::{HeaderValue, InvalidHeaderValue};
 use time::{offset, OffsetDateTime, PrimitiveDateTime};
 
@@ -47,7 +48,7 @@ impl From<SystemTime> for HttpDate {
 impl IntoHeaderValue for HttpDate {
     type Error = InvalidHeaderValue;
 
-    fn try_into(self) -> Result<HeaderValue, Self::Error> {
+    fn try_into_value(self) -> Result<HeaderValue, Self::Error> {
         let mut wrt = BytesMut::with_capacity(29).writer();
         write!(
             wrt,
