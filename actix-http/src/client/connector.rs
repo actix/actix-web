@@ -244,26 +244,27 @@ where
         self,
     ) -> impl Service<Connect, Response = impl Connection, Error = ConnectError> + Clone
     {
+        let tcp_service = TimeoutService::new(
+            self.config.timeout,
+            apply_fn(self.connector.clone(), |msg: Connect, srv| {
+                srv.call(TcpConnect::new(msg.uri).set_addr(msg.addr))
+            })
+            .map_err(ConnectError::from)
+            .map(|stream| (stream.into_parts().0, Protocol::Http1)),
+        )
+        .map_err(|e| match e {
+            TimeoutError::Service(e) => e,
+            TimeoutError::Timeout => ConnectError::Timeout,
+        });
+
         #[cfg(not(any(feature = "openssl", feature = "rustls")))]
         {
-            let connector = TimeoutService::new(
-                self.config.timeout,
-                apply_fn(self.connector, |msg: Connect, srv| {
-                    srv.call(TcpConnect::new(msg.uri).set_addr(msg.addr))
-                })
-                .map_err(ConnectError::from)
-                .map(|stream| (stream.into_parts().0, Protocol::Http1)),
-            )
-            .map_err(|e| match e {
-                TimeoutError::Service(e) => e,
-                TimeoutError::Timeout => ConnectError::Timeout,
-            });
-
             connect_impl::InnerConnector {
                 tcp_pool: ConnectionPool::new(
                     connector,
                     self.config.no_disconnect_timeout(),
                 ),
+                tls_pool: connect_impl::TlsPool::None,
             }
         }
         #[cfg(any(feature = "openssl", feature = "rustls"))]
@@ -328,84 +329,17 @@ where
                 TimeoutError::Timeout => ConnectError::Timeout,
             });
 
-            let tcp_service = TimeoutService::new(
-                self.config.timeout,
-                apply_fn(self.connector, |msg: Connect, srv| {
-                    srv.call(TcpConnect::new(msg.uri).set_addr(msg.addr))
-                })
-                .map_err(ConnectError::from)
-                .map(|stream| (stream.into_parts().0, Protocol::Http1)),
-            )
-            .map_err(|e| match e {
-                TimeoutError::Service(e) => e,
-                TimeoutError::Timeout => ConnectError::Timeout,
-            });
-
             connect_impl::InnerConnector {
                 tcp_pool: ConnectionPool::new(
                     tcp_service,
                     self.config.no_disconnect_timeout(),
                 ),
-                ssl_pool: ConnectionPool::new(ssl_service, self.config),
+                tls_pool: Some(ConnectionPool::new(ssl_service, self.config)),
             }
         }
     }
 }
 
-#[cfg(not(any(feature = "openssl", feature = "rustls")))]
-mod connect_impl {
-    use std::task::{Context, Poll};
-
-    use futures_core::future::LocalBoxFuture;
-
-    use super::*;
-    use crate::client::connection::IoConnection;
-
-    pub(crate) struct InnerConnector<T, Io>
-    where
-        Io: AsyncRead + AsyncWrite + Unpin + 'static,
-        T: Service<Connect, Response = (Io, Protocol), Error = ConnectError> + 'static,
-    {
-        pub(crate) tcp_pool: ConnectionPool<T, Io>,
-    }
-
-    impl<T, Io> Clone for InnerConnector<T, Io>
-    where
-        Io: AsyncRead + AsyncWrite + Unpin + 'static,
-        T: Service<Connect, Response = (Io, Protocol), Error = ConnectError> + 'static,
-    {
-        fn clone(&self) -> Self {
-            InnerConnector {
-                tcp_pool: self.tcp_pool.clone(),
-            }
-        }
-    }
-
-    impl<T, Io> Service<Connect> for InnerConnector<T, Io>
-    where
-        Io: AsyncRead + AsyncWrite + Unpin + 'static,
-        T: Service<Connect, Response = (Io, Protocol), Error = ConnectError> + 'static,
-    {
-        type Response = IoConnection<Io>;
-        type Error = ConnectError;
-        type Future = LocalBoxFuture<'static, Result<IoConnection<Io>, ConnectError>>;
-
-        fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-            self.tcp_pool.poll_ready(cx)
-        }
-
-        fn call(&self, req: Connect) -> Self::Future {
-            match req.uri.scheme_str() {
-                Some("https") | Some("wss") => {
-                    Box::pin(async { Err(ConnectError::SslIsNotSupported) })
-                }
-                _ => self.tcp_pool.call(req),
-            }
-        }
-    }
-}
-
-#[cfg(any(feature = "openssl", feature = "rustls"))]
 mod connect_impl {
     use std::future::Future;
     use std::pin::Pin;
@@ -422,7 +356,7 @@ mod connect_impl {
         Io2: AsyncRead + AsyncWrite + Unpin + 'static,
     {
         pub(crate) tcp_pool: ConnectionPool<S1, Io1>,
-        pub(crate) ssl_pool: ConnectionPool<S2, Io2>,
+        pub(crate) tls_pool: Option<ConnectionPool<S2, Io2>>,
     }
 
     impl<S1, S2, Io1, Io2> Clone for InnerConnector<S1, S2, Io1, Io2>
@@ -435,7 +369,7 @@ mod connect_impl {
         fn clone(&self) -> Self {
             InnerConnector {
                 tcp_pool: self.tcp_pool.clone(),
-                ssl_pool: self.ssl_pool.clone(),
+                tls_pool: self.tls_pool.as_ref().cloned(),
             }
         }
     }
@@ -457,9 +391,10 @@ mod connect_impl {
 
         fn call(&self, req: Connect) -> Self::Future {
             match req.uri.scheme_str() {
-                Some("https") | Some("wss") => {
-                    InnerConnectorResponse::Io2(self.ssl_pool.call(req))
-                }
+                Some("https") | Some("wss") => match self.tls_pool {
+                    None => InnerConnectorResponse::SslIsNotSupported,
+                    Some(ref pool) => InnerConnectorResponse::Io2(pool.call(req)),
+                },
                 _ => InnerConnectorResponse::Io1(self.tcp_pool.call(req)),
             }
         }
@@ -475,6 +410,7 @@ mod connect_impl {
     {
         Io1(#[pin] <ConnectionPool<S1, Io1> as Service<Connect>>::Future),
         Io2(#[pin] <ConnectionPool<S2, Io2> as Service<Connect>>::Future),
+        SslIsNotSupported,
     }
 
     impl<S1, S2, Io1, Io2> Future for InnerConnectorResponse<S1, S2, Io1, Io2>
@@ -493,6 +429,9 @@ mod connect_impl {
                 }
                 InnerConnectorProj::Io2(fut) => {
                     fut.poll(cx).map_ok(EitherIoConnection::B)
+                }
+                InnerConnectorProj::SslIsNotSupported => {
+                    Poll::Ready(Err(ConnectError::SslIsNotSupported))
                 }
             }
         }
