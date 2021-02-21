@@ -35,7 +35,7 @@ actix-tls = "3.0.0-beta.3"
 actix-utils = "3.0.0-beta.2"
 actix-rt = "2"
 actix-server = "2.0.0-beta.3"
-awc = "3.0.0-beta.2"
+awc = { version = "3.0.0-beta.2", default-features = false }
 
 base64 = "0.13"
 bytes = "1"
@@ -57,5 +57,5 @@ features = ["vendored"]
 optional = true
 
 [dev-dependencies]
-actix-web = "4.0.0-beta.3"
+actix-web = { version = "4.0.0-beta.3", default-features = false, features = ["cookies"] }
 actix-http = "3.0.0-beta.3"
