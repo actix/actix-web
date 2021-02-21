@@ -187,7 +187,7 @@ impl<T: AsyncRead + AsyncWrite + Unpin> IoConnection<T> {
 }
 
 #[allow(dead_code)]
-pub(crate) enum EitherIoConnection<A, B>
+pub enum EitherIoConnection<A, B>
 where
     A: AsyncRead + AsyncWrite + Unpin + 'static,
     B: AsyncRead + AsyncWrite + Unpin + 'static,
