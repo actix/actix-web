@@ -983,6 +983,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
+    #[cfg(feature = "cookies")]
     #[test]
     fn test_cookie_parse() {
         let resp: Response = CookieParseError::EmptyName.error_response();

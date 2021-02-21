@@ -896,8 +896,9 @@ mod tests {
 
     use super::*;
     use crate::body::Body;
-    use crate::http::header::{HeaderValue, CONTENT_TYPE, COOKIE, SET_COOKIE};
-    use crate::HttpMessage;
+    use crate::http::header::{HeaderValue, CONTENT_TYPE, COOKIE};
+    #[cfg(feature = "cookies")]
+    use crate::{http::header::SET_COOKIE, HttpMessage};
 
     #[test]
     fn test_debug() {
@@ -909,6 +910,7 @@ mod tests {
         assert!(dbg.contains("Response"));
     }
 
+    #[cfg(feature = "cookies")]
     #[test]
     fn test_response_cookies() {
         let req = crate::test::TestRequest::default()
@@ -946,6 +948,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "cookies")]
     #[test]
     fn test_update_response_cookies() {
         let mut r = Response::Ok()
@@ -1097,6 +1100,7 @@ mod tests {
         assert_eq!(resp.body().get_ref(), b"test");
     }
 
+    #[cfg(feature = "cookies")]
     #[test]
     fn test_into_builder() {
         let mut resp: Response = "test".into();
