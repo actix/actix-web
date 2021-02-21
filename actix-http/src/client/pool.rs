@@ -45,7 +45,7 @@ impl From<Authority> for Key {
 }
 
 /// Connections pool for reuse Io type for certain [`http::uri::Authority`] as key.
-pub struct ConnectionPool<S, Io>
+pub(crate) struct ConnectionPool<S, Io>
 where
     Io: AsyncWrite + Unpin + 'static,
 {

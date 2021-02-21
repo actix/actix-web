@@ -15,7 +15,7 @@ use actix_utils::timeout::{TimeoutError, TimeoutService};
 use http::Uri;
 
 use super::config::ConnectorConfig;
-use super::connection::EitherIoConnection;
+use super::connection::{Connection, EitherIoConnection};
 use super::error::ConnectError;
 use super::pool::{ConnectionPool, Protocol};
 use super::Connect;
@@ -245,12 +245,8 @@ where
     /// its combinator chain.
     pub fn finish(
         self,
-    ) -> InnerConnector<
-        impl Service<Connect, Response = (U, Protocol), Error = ConnectError>,
-        impl Service<Connect, Response = (Box<dyn Io>, Protocol), Error = ConnectError>,
-        U,
-        Box<dyn Io>,
-    > {
+    ) -> impl Service<Connect, Response = impl Connection, Error = ConnectError> + Clone
+    {
         let tcp_service = TimeoutService::new(
             self.config.timeout,
             apply_fn(self.connector.clone(), |msg: Connect, srv| {
@@ -266,7 +262,20 @@ where
 
         #[cfg(not(any(feature = "openssl", feature = "rustls")))]
         {
-            InnerConnector {
+            // A dummy service for annotate tls pool's type signature.
+            pub type DummyService = Box<
+                dyn Service<
+                    Connect,
+                    Response = (Box<dyn Io>, Protocol),
+                    Error = ConnectError,
+                    Future = futures_core::future::LocalBoxFuture<
+                        'static,
+                        Result<(Box<dyn Io>, Protocol), ConnectError>,
+                    >,
+                >,
+            >;
+
+            InnerConnector::<_, DummyService, _, Box<dyn Io>> {
                 tcp_pool: ConnectionPool::new(
                     tcp_service,
                     self.config.no_disconnect_timeout(),
@@ -348,7 +357,7 @@ where
     }
 }
 
-pub struct InnerConnector<S1, S2, Io1, Io2>
+struct InnerConnector<S1, S2, Io1, Io2>
 where
     S1: Service<Connect, Response = (Io1, Protocol), Error = ConnectError> + 'static,
     S2: Service<Connect, Response = (Io2, Protocol), Error = ConnectError> + 'static,
@@ -401,7 +410,7 @@ where
 }
 
 #[pin_project::pin_project(project = InnerConnectorProj)]
-pub enum InnerConnectorResponse<S1, S2, Io1, Io2>
+enum InnerConnectorResponse<S1, S2, Io1, Io2>
 where
     S1: Service<Connect, Response = (Io1, Protocol), Error = ConnectError> + 'static,
     S2: Service<Connect, Response = (Io2, Protocol), Error = ConnectError> + 'static,
