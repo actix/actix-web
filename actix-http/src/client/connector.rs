@@ -259,12 +259,27 @@ where
 
         #[cfg(not(any(feature = "openssl", feature = "rustls")))]
         {
-            connect_impl::InnerConnector {
+            use futures_core::future::LocalBoxFuture;
+
+            // A dummy service for annotate tls pool's type signature.
+            type DummyService = Box<
+                dyn Service<
+                    Connect,
+                    Response = (Box<dyn Io>, Protocol),
+                    Error = ConnectError,
+                    Future = LocalBoxFuture<
+                        'static,
+                        Result<(Box<dyn Io>, Protocol), ConnectError>,
+                    >,
+                >,
+            >;
+
+            connect_impl::InnerConnector::<_, DummyService, _, Box<dyn Io>> {
                 tcp_pool: ConnectionPool::new(
-                    connector,
+                    tcp_service,
                     self.config.no_disconnect_timeout(),
                 ),
-                tls_pool: connect_impl::TlsPool::None,
+                tls_pool: None,
             }
         }
         #[cfg(any(feature = "openssl", feature = "rustls"))]
