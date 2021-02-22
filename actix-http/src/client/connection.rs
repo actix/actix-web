@@ -75,11 +75,14 @@ pub trait Connection {
     type Io: AsyncRead + AsyncWrite + Unpin;
 
     /// Send request and body
-    fn send_request<B: MessageBody + 'static, H: Into<RequestHeadType>>(
+    fn send_request<B, H>(
         self,
         head: H,
         body: B,
-    ) -> LocalBoxFuture<'static, Result<(ResponseHead, Payload), SendRequestError>>;
+    ) -> LocalBoxFuture<'static, Result<(ResponseHead, Payload), SendRequestError>>
+    where
+        B: MessageBody + 'static,
+        H: Into<RequestHeadType> + 'static;
 
     /// Send request, returns Response and Framed
     fn open_tunnel<H: Into<RequestHeadType> + 'static>(
@@ -144,47 +147,31 @@ impl<T: AsyncRead + AsyncWrite + Unpin> IoConnection<T> {
     pub(crate) fn into_parts(self) -> (ConnectionType<T>, time::Instant, Acquired<T>) {
         (self.io.unwrap(), self.created, self.pool.unwrap())
     }
-}
 
-impl<T> Connection for IoConnection<T>
-where
-    T: AsyncRead + AsyncWrite + Unpin + 'static,
-{
-    type Io = T;
-
-    fn send_request<B: MessageBody + 'static, H: Into<RequestHeadType>>(
+    async fn send_request<B: MessageBody + 'static, H: Into<RequestHeadType>>(
         mut self,
         head: H,
         body: B,
-    ) -> LocalBoxFuture<'static, Result<(ResponseHead, Payload), SendRequestError>> {
+    ) -> Result<(ResponseHead, Payload), SendRequestError> {
         match self.io.take().unwrap() {
-            ConnectionType::H1(io) => Box::pin(h1proto::send_request(
-                io,
-                head.into(),
-                body,
-                self.created,
-                self.pool,
-            )),
-            ConnectionType::H2(io) => Box::pin(h2proto::send_request(
-                io,
-                head.into(),
-                body,
-                self.created,
-                self.pool,
-            )),
+            ConnectionType::H1(io) => {
+                h1proto::send_request(io, head.into(), body, self.created, self.pool)
+                    .await
+            }
+            ConnectionType::H2(io) => {
+                h2proto::send_request(io, head.into(), body, self.created, self.pool)
+                    .await
+            }
         }
     }
 
     /// Send request, returns Response and Framed
-    fn open_tunnel<H: Into<RequestHeadType>>(
+    async fn open_tunnel<H: Into<RequestHeadType>>(
         mut self,
         head: H,
-    ) -> LocalBoxFuture<
-        'static,
-        Result<(ResponseHead, Framed<Self::Io, ClientCodec>), SendRequestError>,
-    > {
+    ) -> Result<(ResponseHead, Framed<T, ClientCodec>), SendRequestError> {
         match self.io.take().unwrap() {
-            ConnectionType::H1(io) => Box::pin(h1proto::open_tunnel(io, head.into())),
+            ConnectionType::H1(io) => h1proto::open_tunnel(io, head.into()).await,
             ConnectionType::H2(io) => {
                 if let Some(mut pool) = self.pool.take() {
                     pool.release(IoConnection::new(
@@ -193,7 +180,7 @@ where
                         None,
                     ));
                 }
-                Box::pin(async { Err(SendRequestError::TunnelNotSupported) })
+                Err(SendRequestError::TunnelNotSupported)
             }
         }
     }
@@ -216,14 +203,18 @@ where
 {
     type Io = EitherIo<A, B>;
 
-    fn send_request<RB: MessageBody + 'static, H: Into<RequestHeadType>>(
+    fn send_request<RB, H>(
         self,
         head: H,
         body: RB,
-    ) -> LocalBoxFuture<'static, Result<(ResponseHead, Payload), SendRequestError>> {
+    ) -> LocalBoxFuture<'static, Result<(ResponseHead, Payload), SendRequestError>>
+    where
+        RB: MessageBody + 'static,
+        H: Into<RequestHeadType> + 'static,
+    {
         match self {
-            EitherIoConnection::A(con) => con.send_request(head, body),
-            EitherIoConnection::B(con) => con.send_request(head, body),
+            EitherIoConnection::A(con) => Box::pin(con.send_request(head, body)),
+            EitherIoConnection::B(con) => Box::pin(con.send_request(head, body)),
         }
     }
 
