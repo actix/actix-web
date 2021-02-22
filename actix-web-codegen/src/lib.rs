@@ -57,7 +57,6 @@
 //! [DELETE]: macro@delete
 
 #![recursion_limit = "512"]
-#![clippy::msrv = "1.46"]
 
 use proc_macro::TokenStream;
 

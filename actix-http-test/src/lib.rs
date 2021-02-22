@@ -3,7 +3,6 @@
 #![deny(rust_2018_idioms)]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
-#![clippy::msrv = "1.46"]
 
 #[cfg(feature = "openssl")]
 extern crate tls_openssl as openssl;
