@@ -7,23 +7,22 @@ use std::string::FromUtf8Error;
 use std::{fmt, io, result};
 
 use actix_codec::{Decoder, Encoder};
-pub use actix_threadpool::BlockingError;
 use actix_utils::dispatcher::DispatcherError as FramedDispatcherError;
 use actix_utils::timeout::TimeoutError;
 use bytes::BytesMut;
 use derive_more::{Display, From};
-pub use futures_channel::oneshot::Canceled;
 use http::uri::InvalidUri;
 use http::{header, Error as HttpError, StatusCode};
 use serde::de::value::Error as DeError;
 use serde_json::error::Error as JsonError;
 use serde_urlencoded::ser::Error as FormError;
 
-// re-export for convenience
 use crate::body::Body;
-pub use crate::cookie::ParseError as CookieParseError;
 use crate::helpers::Writer;
 use crate::response::{Response, ResponseBuilder};
+
+#[cfg(feature = "cookies")]
+pub use crate::cookie::ParseError as CookieParseError;
 
 /// A specialized [`std::result::Result`]
 /// for actix web operations
@@ -40,7 +39,7 @@ pub type Result<T, E = Error> = result::Result<T, E>;
 /// converting errors with `into()`.
 ///
 /// Whenever it is created from an external object a response error is created
-/// for it that can be used to create an http response from it this means that
+/// for it that can be used to create an HTTP response from it this means that
 /// if you have access to an actix `Error` you can always get a
 /// `ResponseError` reference from it.
 pub struct Error {
@@ -100,10 +99,6 @@ impl fmt::Debug for Error {
 }
 
 impl std::error::Error for Error {
-    fn cause(&self) -> Option<&dyn std::error::Error> {
-        None
-    }
-
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         None
     }
@@ -153,7 +148,10 @@ impl From<ResponseBuilder> for Error {
     }
 }
 
-/// Return `GATEWAY_TIMEOUT` for `TimeoutError`
+/// Inspects the underlying enum and returns an appropriate status code.
+///
+/// If the variant is [`TimeoutError::Service`], the error code of the service is returned.
+/// Otherwise, [`StatusCode::GATEWAY_TIMEOUT`] is returned.
 impl<E: ResponseError> ResponseError for TimeoutError<E> {
     fn status_code(&self) -> StatusCode {
         match self {
@@ -167,48 +165,41 @@ impl<E: ResponseError> ResponseError for TimeoutError<E> {
 #[display(fmt = "UnknownError")]
 struct UnitError;
 
-/// `InternalServerError` for `UnitError`
+/// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`UnitError`].
 impl ResponseError for UnitError {}
 
-/// `InternalServerError` for `JsonError`
+/// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`JsonError`].
 impl ResponseError for JsonError {}
 
-/// `InternalServerError` for `FormError`
+/// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`FormError`].
 impl ResponseError for FormError {}
 
 #[cfg(feature = "openssl")]
-/// `InternalServerError` for `openssl::ssl::Error`
-impl ResponseError for actix_connect::ssl::openssl::SslError {}
+/// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`actix_tls::accept::openssl::SslError`].
+impl ResponseError for actix_tls::accept::openssl::SslError {}
 
-#[cfg(feature = "openssl")]
-/// `InternalServerError` for `openssl::ssl::HandshakeError`
-impl<T: std::fmt::Debug> ResponseError for actix_tls::openssl::HandshakeError<T> {}
-
-/// Return `BAD_REQUEST` for `de::value::Error`
+/// Returns [`StatusCode::BAD_REQUEST`] for [`DeError`].
 impl ResponseError for DeError {
     fn status_code(&self) -> StatusCode {
         StatusCode::BAD_REQUEST
     }
 }
 
-/// `InternalServerError` for `Canceled`
-impl ResponseError for Canceled {}
-
-/// `InternalServerError` for `BlockingError`
-impl<E: fmt::Debug> ResponseError for BlockingError<E> {}
-
-/// Return `BAD_REQUEST` for `Utf8Error`
+/// Returns [`StatusCode::BAD_REQUEST`] for [`Utf8Error`].
 impl ResponseError for Utf8Error {
     fn status_code(&self) -> StatusCode {
         StatusCode::BAD_REQUEST
     }
 }
 
-/// Return `InternalServerError` for `HttpError`,
-/// Response generation can return `HttpError`, so it is internal error
+/// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`HttpError`].
 impl ResponseError for HttpError {}
 
-/// Return `InternalServerError` for `io::Error`
+/// Inspects the underlying [`io::ErrorKind`] and returns an appropriate status code.
+///
+/// If the error is [`io::ErrorKind::NotFound`], [`StatusCode::NOT_FOUND`] is returned. If the
+/// error is [`io::ErrorKind::PermissionDenied`], [`StatusCode::FORBIDDEN`] is returned. Otherwise,
+/// [`StatusCode::INTERNAL_SERVER_ERROR`] is returned.
 impl ResponseError for io::Error {
     fn status_code(&self) -> StatusCode {
         match self.kind() {
@@ -219,7 +210,7 @@ impl ResponseError for io::Error {
     }
 }
 
-/// `BadRequest` for `InvalidHeaderValue`
+/// Returns [`StatusCode::BAD_REQUEST`] for [`header::InvalidHeaderValue`].
 impl ResponseError for header::InvalidHeaderValue {
     fn status_code(&self) -> StatusCode {
         StatusCode::BAD_REQUEST
@@ -308,33 +299,60 @@ impl From<httparse::Error> for ParseError {
     }
 }
 
+/// A set of errors that can occur running blocking tasks in thread pool.
+#[derive(Debug, Display)]
+#[display(fmt = "Blocking thread pool is gone")]
+pub struct BlockingError;
+
+impl std::error::Error for BlockingError {}
+
+/// `InternalServerError` for `BlockingError`
+impl ResponseError for BlockingError {}
+
 #[derive(Display, Debug)]
 /// A set of errors that can occur during payload parsing
 pub enum PayloadError {
     /// A payload reached EOF, but is not complete.
     #[display(
-        fmt = "A payload reached EOF, but is not complete. With error: {:?}",
+        fmt = "A payload reached EOF, but is not complete. Inner error: {:?}",
         _0
     )]
     Incomplete(Option<io::Error>),
-    /// Content encoding stream corruption
+
+    /// Content encoding stream corruption.
     #[display(fmt = "Can not decode content-encoding.")]
     EncodingCorrupted,
-    /// A payload reached size limit.
-    #[display(fmt = "A payload reached size limit.")]
+
+    /// Payload reached size limit.
+    #[display(fmt = "Payload reached size limit.")]
     Overflow,
-    /// A payload length is unknown.
-    #[display(fmt = "A payload length is unknown.")]
+
+    /// Payload length is unknown.
+    #[display(fmt = "Payload length is unknown.")]
     UnknownLength,
-    /// Http2 payload error
+
+    /// HTTP/2 payload error.
     #[display(fmt = "{}", _0)]
     Http2Payload(h2::Error),
-    /// Io error
+
+    /// Generic I/O error.
     #[display(fmt = "{}", _0)]
     Io(io::Error),
 }
 
-impl std::error::Error for PayloadError {}
+impl std::error::Error for PayloadError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            PayloadError::Incomplete(None) => None,
+            PayloadError::Incomplete(Some(err)) => Some(err as &dyn std::error::Error),
+            PayloadError::EncodingCorrupted => None,
+            PayloadError::Overflow => None,
+            PayloadError::UnknownLength => None,
+            PayloadError::Http2Payload(err) => Some(err as &dyn std::error::Error),
+            PayloadError::Io(err) => Some(err as &dyn std::error::Error),
+        }
+    }
+}
 
 impl From<h2::Error> for PayloadError {
     fn from(err: h2::Error) -> Self {
@@ -354,15 +372,12 @@ impl From<io::Error> for PayloadError {
     }
 }
 
-impl From<BlockingError<io::Error>> for PayloadError {
-    fn from(err: BlockingError<io::Error>) -> Self {
-        match err {
-            BlockingError::Error(e) => PayloadError::Io(e),
-            BlockingError::Canceled => PayloadError::Io(io::Error::new(
-                io::ErrorKind::Other,
-                "Operation is canceled",
-            )),
-        }
+impl From<BlockingError> for PayloadError {
+    fn from(_: BlockingError) -> Self {
+        PayloadError::Io(io::Error::new(
+            io::ErrorKind::Other,
+            "Operation is canceled",
+        ))
     }
 }
 
@@ -380,6 +395,7 @@ impl ResponseError for PayloadError {
 }
 
 /// Return `BadRequest` for `cookie::ParseError`
+#[cfg(feature = "cookies")]
 impl ResponseError for crate::cookie::ParseError {
     fn status_code(&self) -> StatusCode {
         StatusCode::BAD_REQUEST
@@ -387,7 +403,7 @@ impl ResponseError for crate::cookie::ParseError {
 }
 
 #[derive(Debug, Display, From)]
-/// A set of errors that can occur during dispatching http requests
+/// A set of errors that can occur during dispatching HTTP requests
 pub enum DispatchError {
     /// Service error
     Service(Error),
@@ -951,16 +967,6 @@ where
     InternalError::new(err, StatusCode::NETWORK_AUTHENTICATION_REQUIRED).into()
 }
 
-#[cfg(feature = "actors")]
-/// `InternalServerError` for `actix::MailboxError`
-/// This is supported on feature=`actors` only
-impl ResponseError for actix::MailboxError {}
-
-#[cfg(feature = "actors")]
-/// `InternalServerError` for `actix::ResolverError`
-/// This is supported on feature=`actors` only
-impl ResponseError for actix::actors::resolver::ResolverError {}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -977,6 +983,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
+    #[cfg(feature = "cookies")]
     #[test]
     fn test_cookie_parse() {
         let resp: Response = CookieParseError::EmptyName.error_response();
@@ -1018,22 +1025,22 @@ mod tests {
     fn test_payload_error() {
         let err: PayloadError =
             io::Error::new(io::ErrorKind::Other, "ParseError").into();
-        assert!(format!("{}", err).contains("ParseError"));
+        assert!(err.to_string().contains("ParseError"));
 
         let err = PayloadError::Incomplete(None);
         assert_eq!(
-            format!("{}", err),
-            "A payload reached EOF, but is not complete. With error: None"
+            err.to_string(),
+            "A payload reached EOF, but is not complete. Inner error: None"
         );
     }
 
     macro_rules! from {
         ($from:expr => $error:pat) => {
             match ParseError::from($from) {
-                e @ $error => {
-                    assert!(format!("{}", e).len() >= 5);
+                err @ $error => {
+                    assert!(err.to_string().len() >= 5);
                 }
-                e => unreachable!("{:?}", e),
+                err => unreachable!("{:?}", err),
             }
         };
     }
@@ -1076,7 +1083,7 @@ mod tests {
         let err = PayloadError::Overflow;
         let resp_err: &dyn ResponseError = &err;
         let err = resp_err.downcast_ref::<PayloadError>().unwrap();
-        assert_eq!(err.to_string(), "A payload reached size limit.");
+        assert_eq!(err.to_string(), "Payload reached size limit.");
         let not_err = resp_err.downcast_ref::<ContentTypeError>();
         assert!(not_err.is_none());
     }

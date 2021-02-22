@@ -1,28 +1,34 @@
 use std::convert::{From, Into};
 use std::fmt;
 
-use self::OpCode::*;
-/// Operation codes as part of rfc6455.
+/// Operation codes as part of RFC6455.
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum OpCode {
     /// Indicates a continuation frame of a fragmented message.
     Continue,
+
     /// Indicates a text data frame.
     Text,
+
     /// Indicates a binary data frame.
     Binary,
+
     /// Indicates a close control frame.
     Close,
+
     /// Indicates a ping control frame.
     Ping,
+
     /// Indicates a pong control frame.
     Pong,
+
     /// Indicates an invalid opcode was received.
     Bad,
 }
 
 impl fmt::Display for OpCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use self::OpCode::*;
         match *self {
             Continue => write!(f, "CONTINUE"),
             Text => write!(f, "TEXT"),
@@ -35,9 +41,10 @@ impl fmt::Display for OpCode {
     }
 }
 
-impl Into<u8> for OpCode {
-    fn into(self) -> u8 {
-        match self {
+impl From<OpCode> for u8 {
+    fn from(op: OpCode) -> u8 {
+        use self::OpCode::*;
+        match op {
             Continue => 0,
             Text => 1,
             Binary => 2,
@@ -54,6 +61,7 @@ impl Into<u8> for OpCode {
 
 impl From<u8> for OpCode {
     fn from(byte: u8) -> OpCode {
+        use self::OpCode::*;
         match byte {
             0 => Continue,
             1 => Text,
@@ -66,9 +74,7 @@ impl From<u8> for OpCode {
     }
 }
 
-use self::CloseCode::*;
-/// Status code used to indicate why an endpoint is closing the `WebSocket`
-/// connection.
+/// Status code used to indicate why an endpoint is closing the WebSocket connection.
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum CloseCode {
     /// Indicates a normal closure, meaning that the purpose for
@@ -132,9 +138,10 @@ pub enum CloseCode {
     Other(u16),
 }
 
-impl Into<u16> for CloseCode {
-    fn into(self) -> u16 {
-        match self {
+impl From<CloseCode> for u16 {
+    fn from(code: CloseCode) -> u16 {
+        use self::CloseCode::*;
+        match code {
             Normal => 1000,
             Away => 1001,
             Protocol => 1002,
@@ -155,6 +162,7 @@ impl Into<u16> for CloseCode {
 
 impl From<u16> for CloseCode {
     fn from(code: u16) -> CloseCode {
+        use self::CloseCode::*;
         match code {
             1000 => Normal,
             1001 => Away,
@@ -179,6 +187,7 @@ impl From<u16> for CloseCode {
 pub struct CloseReason {
     /// Exit code
     pub code: CloseCode,
+
     /// Optional description of the exit code
     pub description: Option<String>,
 }
@@ -222,7 +231,7 @@ mod test {
     macro_rules! opcode_into {
         ($from:expr => $opcode:pat) => {
             match OpCode::from($from) {
-                e @ $opcode => (),
+                e @ $opcode => {}
                 e => unreachable!("{:?}", e),
             }
         };
@@ -232,7 +241,7 @@ mod test {
         ($from:expr => $opcode:pat) => {
             let res: u8 = $from.into();
             match res {
-                e @ $opcode => (),
+                e @ $opcode => {}
                 e => unreachable!("{:?}", e),
             }
         };

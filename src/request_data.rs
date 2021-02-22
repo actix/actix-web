@@ -102,7 +102,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn req_data_extractor() {
-        let mut srv = init_service(
+        let srv = init_service(
             App::new()
                 .wrap_fn(|req, srv| {
                     if req.method() == Method::POST {
@@ -142,7 +142,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn req_data_internal_mutability() {
-        let mut srv = init_service(
+        let srv = init_service(
             App::new()
                 .wrap_fn(|req, srv| {
                     let data_before = Rc::new(RefCell::new(42u32));

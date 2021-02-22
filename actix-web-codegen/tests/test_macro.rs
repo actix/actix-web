@@ -1,14 +1,11 @@
 use std::future::Future;
-use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use actix_web::dev::{Service, ServiceRequest, ServiceResponse, Transform};
 use actix_web::http::header::{HeaderName, HeaderValue};
 use actix_web::{http, test, web::Path, App, Error, HttpResponse, Responder};
-use actix_web_codegen::{
-    connect, delete, get, head, options, patch, post, put, route, trace,
-};
-use futures_util::future;
+use actix_web_codegen::{connect, delete, get, head, options, patch, post, put, route, trace};
+use futures_util::future::{self, LocalBoxFuture};
 
 // Make sure that we can name function as 'config'
 #[get("/config")]
@@ -88,17 +85,16 @@ async fn route_test() -> impl Responder {
 
 pub struct ChangeStatusCode;
 
-impl<S, B> Transform<S> for ChangeStatusCode
+impl<S, B> Transform<S, ServiceRequest> for ChangeStatusCode
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
     B: 'static,
 {
-    type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
-    type InitError = ();
     type Transform = ChangeStatusCodeMiddleware<S>;
+    type InitError = ();
     type Future = future::Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
@@ -110,23 +106,21 @@ pub struct ChangeStatusCodeMiddleware<S> {
     service: S,
 }
 
-impl<S, B> Service for ChangeStatusCodeMiddleware<S>
+impl<S, B> Service<ServiceRequest> for ChangeStatusCodeMiddleware<S>
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
     B: 'static,
 {
-    type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
-    #[allow(clippy::type_complexity)]
-    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.service.poll_ready(cx)
     }
 
-    fn call(&mut self, req: ServiceRequest) -> Self::Future {
+    fn call(&self, req: ServiceRequest) -> Self::Future {
         let fut = self.service.call(req);
 
         Box::pin(async move {

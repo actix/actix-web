@@ -8,7 +8,7 @@ use bytes::{BufMut, BytesMut};
 
 use crate::body::BodySize;
 use crate::config::ServiceConfig;
-use crate::header::map;
+use crate::header::{map::Value, HeaderName};
 use crate::helpers;
 use crate::http::header::{CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
 use crate::http::{HeaderMap, StatusCode, Version};
@@ -21,7 +21,7 @@ const AVERAGE_HEADER_SIZE: usize = 30;
 pub(crate) struct MessageEncoder<T: MessageType> {
     pub length: BodySize,
     pub te: TransferEncoding,
-    _t: PhantomData<T>,
+    _phantom: PhantomData<T>,
 }
 
 impl<T: MessageType> Default for MessageEncoder<T> {
@@ -29,7 +29,7 @@ impl<T: MessageType> Default for MessageEncoder<T> {
         MessageEncoder {
             length: BodySize::None,
             te: TransferEncoding::empty(),
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }
@@ -118,24 +118,14 @@ pub(crate) trait MessageType: Sized {
                     dst.put_slice(b"connection: close\r\n")
                 }
             }
-            _ => (),
+            _ => {}
         }
-
-        // merging headers from head and extra headers. HeaderMap::new() does not allocate.
-        let empty_headers = HeaderMap::new();
-        let extra_headers = self.extra_headers().unwrap_or(&empty_headers);
-        let headers = self
-            .headers()
-            .inner
-            .iter()
-            .filter(|(name, _)| !extra_headers.contains_key(*name))
-            .chain(extra_headers.inner.iter());
 
         // write headers
 
         let mut has_date = false;
 
-        let mut buf = dst.bytes_mut().as_mut_ptr() as *mut u8;
+        let mut buf = dst.chunk_mut().as_mut_ptr();
         let mut remaining = dst.capacity() - dst.len();
 
         // tracks bytes written since last buffer resize
@@ -143,117 +133,67 @@ pub(crate) trait MessageType: Sized {
         // container's knowledge, this is used to sync the containers cursor after data is written
         let mut pos = 0;
 
-        for (key, value) in headers {
+        self.write_headers(|key, value| {
             match *key {
-                CONNECTION => continue,
-                TRANSFER_ENCODING | CONTENT_LENGTH if skip_len => continue,
+                CONNECTION => return,
+                TRANSFER_ENCODING | CONTENT_LENGTH if skip_len => return,
                 DATE => has_date = true,
-                _ => (),
+                _ => {}
             }
 
             let k = key.as_str().as_bytes();
             let k_len = k.len();
 
-            match value {
-                map::Value::One(ref val) => {
-                    let v = val.as_ref();
-                    let v_len = v.len();
+            // TODO: drain?
+            for val in value.iter() {
+                let v = val.as_ref();
+                let v_len = v.len();
 
-                    // key length + value length + colon + space + \r\n
-                    let len = k_len + v_len + 4;
+                // key length + value length + colon + space + \r\n
+                let len = k_len + v_len + 4;
 
-                    if len > remaining {
-                        // not enough room in buffer for this header; reserve more space
-
-                        // SAFETY: all the bytes written up to position "pos" are initialized
-                        // the written byte count and pointer advancement are kept in sync
-                        unsafe {
-                            dst.advance_mut(pos);
-                        }
-
-                        pos = 0;
-                        dst.reserve(len * 2);
-                        remaining = dst.capacity() - dst.len();
-
-                        // re-assign buf raw pointer since it's possible that the buffer was
-                        // reallocated and/or resized
-                        buf = dst.bytes_mut().as_mut_ptr() as *mut u8;
-                    }
-
-                    // SAFETY: on each write, it is enough to ensure that the advancement of the
-                    // cursor matches the number of bytes written
+                if len > remaining {
+                    // SAFETY: all the bytes written up to position "pos" are initialized
+                    // the written byte count and pointer advancement are kept in sync
                     unsafe {
-                        // use upper Camel-Case
-                        if camel_case {
-                            write_camel_case(k, from_raw_parts_mut(buf, k_len))
-                        } else {
-                            write_data(k, buf, k_len)
-                        }
-
-                        buf = buf.add(k_len);
-
-                        write_data(b": ", buf, 2);
-                        buf = buf.add(2);
-
-                        write_data(v, buf, v_len);
-                        buf = buf.add(v_len);
-
-                        write_data(b"\r\n", buf, 2);
-                        buf = buf.add(2);
+                        dst.advance_mut(pos);
                     }
 
-                    pos += len;
-                    remaining -= len;
+                    pos = 0;
+                    dst.reserve(len * 2);
+                    remaining = dst.capacity() - dst.len();
+
+                    // re-assign buf raw pointer since it's possible that the buffer was
+                    // reallocated and/or resized
+                    buf = dst.chunk_mut().as_mut_ptr();
                 }
 
-                map::Value::Multi(ref vec) => {
-                    for val in vec {
-                        let v = val.as_ref();
-                        let v_len = v.len();
-                        let len = k_len + v_len + 4;
-
-                        if len > remaining {
-                            // SAFETY: all the bytes written up to position "pos" are initialized
-                            // the written byte count and pointer advancement are kept in sync
-                            unsafe {
-                                dst.advance_mut(pos);
-                            }
-                            pos = 0;
-                            dst.reserve(len * 2);
-                            remaining = dst.capacity() - dst.len();
-
-                            // re-assign buf raw pointer since it's possible that the buffer was
-                            // reallocated and/or resized
-                            buf = dst.bytes_mut().as_mut_ptr() as *mut u8;
-                        }
-
-                        // SAFETY: on each write, it is enough to ensure that the advancement of
-                        // the cursor matches the number of bytes written
-                        unsafe {
-                            if camel_case {
-                                write_camel_case(k, from_raw_parts_mut(buf, k_len));
-                            } else {
-                                write_data(k, buf, k_len);
-                            }
-
-                            buf = buf.add(k_len);
-
-                            write_data(b": ", buf, 2);
-                            buf = buf.add(2);
-
-                            write_data(v, buf, v_len);
-                            buf = buf.add(v_len);
-
-                            write_data(b"\r\n", buf, 2);
-                            buf = buf.add(2);
-                        };
-
-                        pos += len;
-                        remaining -= len;
+                // SAFETY: on each write, it is enough to ensure that the advancement of
+                // the cursor matches the number of bytes written
+                unsafe {
+                    if camel_case {
+                        // use Camel-Case headers
+                        write_camel_case(k, from_raw_parts_mut(buf, k_len));
+                    } else {
+                        write_data(k, buf, k_len);
                     }
-                }
+
+                    buf = buf.add(k_len);
+
+                    write_data(b": ", buf, 2);
+                    buf = buf.add(2);
+
+                    write_data(v, buf, v_len);
+                    buf = buf.add(v_len);
+
+                    write_data(b"\r\n", buf, 2);
+                    buf = buf.add(2);
+                };
+
+                pos += len;
+                remaining -= len;
             }
-        }
+        });
 
         // final cursor synchronization with the bytes container
         //
@@ -272,6 +212,24 @@ pub(crate) trait MessageType: Sized {
         }
 
         Ok(())
+    }
+
+    fn write_headers<F>(&mut self, mut f: F)
+    where
+        F: FnMut(&HeaderName, &Value),
+    {
+        match self.extra_headers() {
+            Some(headers) => {
+                // merging headers from head and extra headers.
+                self.headers()
+                    .inner
+                    .iter()
+                    .filter(|(name, _)| !headers.contains_key(*name))
+                    .chain(headers.inner.iter())
+                    .for_each(|(k, v)| f(k, v))
+            }
+            None => self.headers().inner.iter().for_each(|(k, v)| f(k, v)),
+        }
     }
 }
 
@@ -329,7 +287,7 @@ impl MessageType for RequestHeadType {
         let head = self.as_ref();
         dst.reserve(256 + head.headers.len() * AVERAGE_HEADER_SIZE);
         write!(
-            Writer(dst),
+            helpers::Writer(dst),
             "{} {} {}",
             head.method,
             head.uri.path_and_query().map(|u| u.as_str()).unwrap_or("/"),
@@ -462,7 +420,7 @@ impl TransferEncoding {
                     *eof = true;
                     buf.extend_from_slice(b"0\r\n\r\n");
                 } else {
-                    writeln!(Writer(buf), "{:X}\r", msg.len())
+                    writeln!(helpers::Writer(buf), "{:X}\r", msg.len())
                         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
                     buf.reserve(msg.len() + 2);
@@ -512,18 +470,6 @@ impl TransferEncoding {
     }
 }
 
-struct Writer<'a>(pub &'a mut BytesMut);
-
-impl<'a> io::Write for Writer<'a> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.0.extend_from_slice(buf);
-        Ok(buf.len())
-    }
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}
-
 /// # Safety
 /// Callers must ensure that the given length matches given value length.
 unsafe fn write_data(value: &[u8], buf: *mut u8, len: usize) {
@@ -532,30 +478,29 @@ unsafe fn write_data(value: &[u8], buf: *mut u8, len: usize) {
 }
 
 fn write_camel_case(value: &[u8], buffer: &mut [u8]) {
-    let mut index = 0;
-    let key = value;
-    let mut key_iter = key.iter();
+    // first copy entire (potentially wrong) slice to output
+    buffer[..value.len()].copy_from_slice(value);
 
-    if let Some(c) = key_iter.next() {
-        if *c >= b'a' && *c <= b'z' {
-            buffer[index] = *c ^ b' ';
-            index += 1;
-        }
-    } else {
-        return;
+    let mut iter = value.iter();
+
+    // first character should be uppercase
+    if let Some(c @ b'a'..=b'z') = iter.next() {
+        buffer[0] = c & 0b1101_1111;
     }
 
-    while let Some(c) = key_iter.next() {
-        buffer[index] = *c;
-        index += 1;
-        if *c == b'-' {
-            if let Some(c) = key_iter.next() {
-                if *c >= b'a' && *c <= b'z' {
-                    buffer[index] = *c ^ b' ';
-                    index += 1;
-                }
+    // track 1 ahead of the current position since that's the location being assigned to
+    let mut index = 2;
+
+    // remaining characters after hyphens should also be uppercase
+    while let Some(&c) = iter.next() {
+        if c == b'-' {
+            // advance iter by one and uppercase if needed
+            if let Some(c @ b'a'..=b'z') = iter.next() {
+                buffer[index] = c & 0b1101_1111;
             }
         }
+
+        index += 1;
     }
 }
 
@@ -584,8 +529,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_camel_case() {
+    #[actix_rt::test]
+    async fn test_camel_case() {
         let mut bytes = BytesMut::with_capacity(2048);
         let mut head = RequestHead::default();
         head.set_camel_case_headers(true);
@@ -604,6 +549,7 @@ mod tests {
         );
         let data =
             String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
+
         assert!(data.contains("Content-Length: 0\r\n"));
         assert!(data.contains("Connection: close\r\n"));
         assert!(data.contains("Content-Type: plain/text\r\n"));
@@ -646,8 +592,8 @@ mod tests {
         assert!(data.contains("date: date\r\n"));
     }
 
-    #[test]
-    fn test_extra_headers() {
+    #[actix_rt::test]
+    async fn test_extra_headers() {
         let mut bytes = BytesMut::with_capacity(2048);
 
         let mut head = RequestHead::default();
@@ -680,8 +626,8 @@ mod tests {
         assert!(data.contains("date: date\r\n"));
     }
 
-    #[test]
-    fn test_no_content_length() {
+    #[actix_rt::test]
+    async fn test_no_content_length() {
         let mut bytes = BytesMut::with_capacity(2048);
 
         let mut res: Response<()> =

@@ -1,13 +1,17 @@
-use std::cell::{Ref, RefMut};
-use std::{fmt, net};
+//! HTTP requests.
+
+use std::{
+    cell::{Ref, RefMut},
+    fmt, net,
+};
 
 use http::{header, Method, Uri, Version};
 
 use crate::extensions::Extensions;
 use crate::header::HeaderMap;
-use crate::httpmessage::HttpMessage;
 use crate::message::{Message, RequestHead};
 use crate::payload::{Payload, PayloadStream};
+use crate::HttpMessage;
 
 /// Request
 pub struct Request<P = PayloadStream> {
@@ -23,6 +27,10 @@ impl<P> HttpMessage for Request<P> {
         &self.head().headers
     }
 
+    fn take_payload(&mut self) -> Payload<P> {
+        std::mem::replace(&mut self.payload, Payload::None)
+    }
+
     /// Request extensions
     #[inline]
     fn extensions(&self) -> Ref<'_, Extensions> {
@@ -33,10 +41,6 @@ impl<P> HttpMessage for Request<P> {
     #[inline]
     fn extensions_mut(&self) -> RefMut<'_, Extensions> {
         self.head.extensions_mut()
-    }
-
-    fn take_payload(&mut self) -> Payload<P> {
-        std::mem::replace(&mut self.payload, Payload::None)
     }
 }
 
@@ -103,7 +107,7 @@ impl<P> Request<P> {
 
     #[inline]
     #[doc(hidden)]
-    /// Mutable reference to a http message part of the request
+    /// Mutable reference to a HTTP message part of the request
     pub fn head_mut(&mut self) -> &mut RequestHead {
         &mut *self.head
     }
@@ -154,10 +158,12 @@ impl<P> Request<P> {
         self.head().method == Method::CONNECT
     }
 
-    /// Peer socket address
+    /// Peer socket address.
     ///
-    /// Peer address is actual socket address, if proxy is used in front of
-    /// actix http server, then peer address would be address of this proxy.
+    /// Peer address is the directly connected peer's socket address. If a proxy is used in front of
+    /// the Actix Web server, then it would be address of this proxy.
+    ///
+    /// Will only return None when called in unit tests.
     #[inline]
     pub fn peer_addr(&self) -> Option<net::SocketAddr> {
         self.head().peer_addr
@@ -173,13 +179,17 @@ impl<P> fmt::Debug for Request<P> {
             self.method(),
             self.path()
         )?;
+
         if let Some(q) = self.uri().query().as_ref() {
             writeln!(f, "  query: ?{:?}", q)?;
         }
+
         writeln!(f, "  headers:")?;
-        for (key, val) in self.headers() {
+
+        for (key, val) in self.headers().iter() {
             writeln!(f, "    {:?}: {:?}", key, val)?;
         }
+
         Ok(())
     }
 }

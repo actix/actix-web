@@ -1,10 +1,8 @@
 use std::{cell::RefCell, fmt, io, path::PathBuf, rc::Rc};
 
-use actix_service::{boxed, IntoServiceFactory, ServiceFactory};
+use actix_service::{boxed, IntoServiceFactory, ServiceFactory, ServiceFactoryExt};
 use actix_web::{
-    dev::{
-        AppService, HttpServiceFactory, ResourceDef, ServiceRequest, ServiceResponse,
-    },
+    dev::{AppService, HttpServiceFactory, ResourceDef, ServiceRequest, ServiceResponse},
     error::Error,
     guard::Guard,
     http::header::DispositionType,
@@ -13,8 +11,8 @@ use actix_web::{
 use futures_util::future::{ok, FutureExt, LocalBoxFuture};
 
 use crate::{
-    directory_listing, named, Directory, DirectoryRenderer, FilesService,
-    HttpNewService, MimeOverride,
+    directory_listing, named, Directory, DirectoryRenderer, FilesService, HttpNewService,
+    MimeOverride,
 };
 
 /// Static files handling service.
@@ -82,8 +80,9 @@ impl Files {
     /// be inaccessible. Register more specific handlers and services first.
     ///
     /// `Files` uses a threadpool for blocking filesystem operations. By default, the pool uses a
-    /// number of threads equal to 5x the number of available logical CPUs. Pool size can be changed
-    /// by setting ACTIX_THREADPOOL environment variable.
+    /// max number of threads equal to `512 * HttpServer::worker`. Real time thread count are
+    /// adjusted with work load. More threads would spawn when need and threads goes idle for a
+    /// period of time would be de-spawned.
     pub fn new<T: Into<PathBuf>>(mount_path: &str, serve_from: T) -> Files {
         let orig_dir = serve_from.into();
         let dir = match orig_dir.canonicalize() {
@@ -128,8 +127,8 @@ impl Files {
     /// Set custom directory renderer
     pub fn files_listing_renderer<F>(mut self, f: F) -> Self
     where
-        for<'r, 's> F: Fn(&'r Directory, &'s HttpRequest) -> Result<ServiceResponse, io::Error>
-            + 'static,
+        for<'r, 's> F:
+            Fn(&'r Directory, &'s HttpRequest) -> Result<ServiceResponse, io::Error> + 'static,
     {
         self.renderer = Rc::new(f);
         self
@@ -201,10 +200,10 @@ impl Files {
     /// Sets default handler which is used when no matched file could be found.
     pub fn default_handler<F, U>(mut self, f: F) -> Self
     where
-        F: IntoServiceFactory<U>,
+        F: IntoServiceFactory<U, ServiceRequest>,
         U: ServiceFactory<
+                ServiceRequest,
                 Config = (),
-                Request = ServiceRequest,
                 Response = ServiceResponse,
                 Error = Error,
             > + 'static,
@@ -241,8 +240,7 @@ impl HttpServiceFactory for Files {
     }
 }
 
-impl ServiceFactory for Files {
-    type Request = ServiceRequest;
+impl ServiceFactory<ServiceRequest> for Files {
     type Response = ServiceResponse;
     type Error = Error;
     type Config = ();

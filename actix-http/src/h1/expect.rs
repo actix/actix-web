@@ -1,4 +1,4 @@
-use std::task::{Context, Poll};
+use std::task::Poll;
 
 use actix_service::{Service, ServiceFactory};
 use futures_util::future::{ready, Ready};
@@ -8,11 +8,10 @@ use crate::request::Request;
 
 pub struct ExpectHandler;
 
-impl ServiceFactory for ExpectHandler {
-    type Config = ();
-    type Request = Request;
+impl ServiceFactory<Request> for ExpectHandler {
     type Response = Request;
     type Error = Error;
+    type Config = ();
     type Service = ExpectHandler;
     type InitError = Error;
     type Future = Ready<Result<Self::Service, Self::InitError>>;
@@ -22,17 +21,14 @@ impl ServiceFactory for ExpectHandler {
     }
 }
 
-impl Service for ExpectHandler {
-    type Request = Request;
+impl Service<Request> for ExpectHandler {
     type Response = Request;
     type Error = Error;
     type Future = Ready<Result<Self::Response, Self::Error>>;
 
-    fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
+    actix_service::always_ready!();
 
-    fn call(&mut self, req: Request) -> Self::Future {
+    fn call(&self, req: Request) -> Self::Future {
         ready(Ok(req))
         // TODO: add some way to trigger error
         // Err(error::ErrorExpectationFailed("test"))

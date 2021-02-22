@@ -5,7 +5,6 @@ use std::time;
 use actix_codec::{AsyncRead, AsyncWrite};
 use bytes::Bytes;
 use futures_util::future::poll_fn;
-use futures_util::pin_mut;
 use h2::{
     client::{Builder, Connection, SendRequest},
     SendStream,
@@ -22,9 +21,10 @@ use super::config::ConnectorConfig;
 use super::connection::{ConnectionType, IoConnection};
 use super::error::SendRequestError;
 use super::pool::Acquired;
+use crate::client::connection::H2Connection;
 
 pub(crate) async fn send_request<T, B>(
-    mut io: SendRequest<Bytes>,
+    mut io: H2Connection,
     head: RequestHeadType,
     body: B,
     created: time::Instant,
@@ -35,6 +35,7 @@ where
     B: MessageBody,
 {
     trace!("Sending client request: {:?} {:?}", head, body.size());
+
     let head_req = head.as_ref().method == Method::HEAD;
     let length = body.size();
     let eof = matches!(
@@ -89,7 +90,7 @@ where
             CONNECTION | TRANSFER_ENCODING => continue, // http2 specific
             CONTENT_LENGTH if skip_len => continue,
             // DATE => has_date = true,
-            _ => (),
+            _ => {}
         }
         req.headers_mut().append(key, value.clone());
     }
@@ -129,7 +130,7 @@ async fn send_body<B: MessageBody>(
     mut send: SendStream<Bytes>,
 ) -> Result<(), SendRequestError> {
     let mut buf = None;
-    pin_mut!(body);
+    actix_rt::pin!(body);
     loop {
         if buf.is_none() {
             match poll_fn(|cx| body.as_mut().poll_next(cx)).await {
@@ -171,9 +172,9 @@ async fn send_body<B: MessageBody>(
     }
 }
 
-// release SendRequest object
+/// release SendRequest object
 fn release<T: AsyncRead + AsyncWrite + Unpin + 'static>(
-    io: SendRequest<Bytes>,
+    io: H2Connection,
     pool: Option<Acquired<T>>,
     created: time::Instant,
     close: bool,

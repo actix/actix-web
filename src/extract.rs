@@ -1,34 +1,37 @@
 //! Request extractors
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 
-use actix_http::error::Error;
-use futures_util::future::{ready, Ready};
-use futures_util::ready;
+use std::{
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
-use crate::dev::Payload;
-use crate::request::HttpRequest;
+use futures_util::{
+    future::{ready, Ready},
+    ready,
+};
+
+use crate::{dev::Payload, Error, HttpRequest};
 
 /// Trait implemented by types that can be extracted from request.
 ///
 /// Types that implement this trait can be used with `Route` handlers.
 pub trait FromRequest: Sized {
+    /// Configuration for this extractor.
+    type Config: Default + 'static;
+
     /// The associated error which can be returned.
     type Error: Into<Error>;
 
-    /// Future that resolves to a Self
+    /// Future that resolves to a Self.
     type Future: Future<Output = Result<Self, Self::Error>>;
 
-    /// Configuration for this extractor
-    type Config: Default + 'static;
-
-    /// Convert request to a Self
+    /// Create a Self from request parts asynchronously.
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future;
 
-    /// Convert request to a Self
+    /// Create a Self from request head asynchronously.
     ///
-    /// This method uses `Payload::None` as payload stream.
+    /// This method is short for `T::from_request(req, &mut Payload::None)`.
     fn extract(req: &HttpRequest) -> Self::Future {
         Self::from_request(req, &mut Payload::None)
     }
@@ -344,25 +347,21 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_option() {
-        let (req, mut pl) = TestRequest::with_header(
-            header::CONTENT_TYPE,
-            "application/x-www-form-urlencoded",
-        )
-        .data(FormConfig::default().limit(4096))
-        .to_http_parts();
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((header::CONTENT_TYPE, "application/x-www-form-urlencoded"))
+            .data(FormConfig::default().limit(4096))
+            .to_http_parts();
 
         let r = Option::<Form<Info>>::from_request(&req, &mut pl)
             .await
             .unwrap();
         assert_eq!(r, None);
 
-        let (req, mut pl) = TestRequest::with_header(
-            header::CONTENT_TYPE,
-            "application/x-www-form-urlencoded",
-        )
-        .header(header::CONTENT_LENGTH, "9")
-        .set_payload(Bytes::from_static(b"hello=world"))
-        .to_http_parts();
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((header::CONTENT_TYPE, "application/x-www-form-urlencoded"))
+            .insert_header((header::CONTENT_LENGTH, "9"))
+            .set_payload(Bytes::from_static(b"hello=world"))
+            .to_http_parts();
 
         let r = Option::<Form<Info>>::from_request(&req, &mut pl)
             .await
@@ -374,13 +373,11 @@ mod tests {
             }))
         );
 
-        let (req, mut pl) = TestRequest::with_header(
-            header::CONTENT_TYPE,
-            "application/x-www-form-urlencoded",
-        )
-        .header(header::CONTENT_LENGTH, "9")
-        .set_payload(Bytes::from_static(b"bye=world"))
-        .to_http_parts();
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((header::CONTENT_TYPE, "application/x-www-form-urlencoded"))
+            .insert_header((header::CONTENT_LENGTH, "9"))
+            .set_payload(Bytes::from_static(b"bye=world"))
+            .to_http_parts();
 
         let r = Option::<Form<Info>>::from_request(&req, &mut pl)
             .await
@@ -390,13 +387,11 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_result() {
-        let (req, mut pl) = TestRequest::with_header(
-            header::CONTENT_TYPE,
-            "application/x-www-form-urlencoded",
-        )
-        .header(header::CONTENT_LENGTH, "11")
-        .set_payload(Bytes::from_static(b"hello=world"))
-        .to_http_parts();
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((header::CONTENT_TYPE, "application/x-www-form-urlencoded"))
+            .insert_header((header::CONTENT_LENGTH, "11"))
+            .set_payload(Bytes::from_static(b"hello=world"))
+            .to_http_parts();
 
         let r = Result::<Form<Info>, Error>::from_request(&req, &mut pl)
             .await
@@ -409,13 +404,11 @@ mod tests {
             })
         );
 
-        let (req, mut pl) = TestRequest::with_header(
-            header::CONTENT_TYPE,
-            "application/x-www-form-urlencoded",
-        )
-        .header(header::CONTENT_LENGTH, "9")
-        .set_payload(Bytes::from_static(b"bye=world"))
-        .to_http_parts();
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((header::CONTENT_TYPE, "application/x-www-form-urlencoded"))
+            .insert_header((header::CONTENT_LENGTH, 9))
+            .set_payload(Bytes::from_static(b"bye=world"))
+            .to_http_parts();
 
         let r = Result::<Form<Info>, Error>::from_request(&req, &mut pl)
             .await

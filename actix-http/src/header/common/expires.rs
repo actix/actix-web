@@ -21,14 +21,16 @@ header! {
     ///
     /// # Example
     ///
-    /// ```rust
+    /// ```
+    /// use std::time::{SystemTime, Duration};
     /// use actix_http::Response;
     /// use actix_http::http::header::Expires;
-    /// use std::time::{SystemTime, Duration};
     ///
     /// let mut builder = Response::Ok();
     /// let expiration = SystemTime::now() + Duration::from_secs(60 * 60 * 24);
-    /// builder.set(Expires(expiration.into()));
+    /// builder.insert_header(
+    ///     Expires(expiration.into())
+    /// );
     /// ```
     (Expires, EXPIRES) => [HttpDate]
 

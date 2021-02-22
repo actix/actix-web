@@ -1,17 +1,23 @@
-use std::borrow::Cow;
-use std::pin::Pin;
-use std::str;
-use std::task::{Context, Poll};
+//! For request line reader documentation, see [`Readlines`].
+
+use std::{
+    borrow::Cow,
+    pin::Pin,
+    str,
+    task::{Context, Poll},
+};
 
 use bytes::{Bytes, BytesMut};
 use encoding_rs::{Encoding, UTF_8};
-use futures_util::stream::Stream;
+use futures_core::{ready, stream::Stream};
 
-use crate::dev::Payload;
-use crate::error::{PayloadError, ReadlinesError};
-use crate::HttpMessage;
+use crate::{
+    dev::Payload,
+    error::{PayloadError, ReadlinesError},
+    HttpMessage,
+};
 
-/// Stream to read request line by line.
+/// Stream that reads request line by line.
 pub struct Readlines<T: HttpMessage> {
     stream: Payload<T::Stream>,
     buff: BytesMut,
@@ -43,7 +49,7 @@ where
         }
     }
 
-    /// Change max line size. By default max size is 256Kb
+    /// Set maximum accepted payload size. The default limit is 256kB.
     pub fn limit(mut self, limit: usize) -> Self {
         self.limit = limit;
         self
@@ -68,10 +74,7 @@ where
 {
     type Item = Result<String, ReadlinesError>;
 
-    fn poll_next(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
 
         if let Some(err) = this.err.take() {
@@ -108,9 +111,10 @@ where
             }
             this.checked_buff = true;
         }
+
         // poll req for more bytes
-        match Pin::new(&mut this.stream).poll_next(cx) {
-            Poll::Ready(Some(Ok(mut bytes))) => {
+        match ready!(Pin::new(&mut this.stream).poll_next(cx)) {
+            Some(Ok(mut bytes)) => {
                 // check if there is a newline in bytes
                 let mut found: Option<usize> = None;
                 for (ind, b) in bytes.iter().enumerate() {
@@ -144,8 +148,8 @@ where
                 this.buff.extend_from_slice(&bytes);
                 Poll::Pending
             }
-            Poll::Pending => Poll::Pending,
-            Poll::Ready(None) => {
+
+            None => {
                 if this.buff.is_empty() {
                     return Poll::Ready(None);
                 }
@@ -165,7 +169,8 @@ where
                 this.buff.clear();
                 Poll::Ready(Some(Ok(line)))
             }
-            Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(ReadlinesError::from(e)))),
+
+            Some(Err(err)) => Poll::Ready(Some(Err(ReadlinesError::from(err)))),
         }
     }
 }

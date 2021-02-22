@@ -1,14 +1,14 @@
 use std::io::Write;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::{io, mem, time};
+use std::{io, time};
 
-use actix_codec::{AsyncRead, AsyncWrite, Framed};
-use bytes::buf::BufMutExt;
+use actix_codec::{AsyncRead, AsyncWrite, Framed, ReadBuf};
+use bytes::buf::BufMut;
 use bytes::{Bytes, BytesMut};
 use futures_core::Stream;
 use futures_util::future::poll_fn;
-use futures_util::{pin_mut, SinkExt, StreamExt};
+use futures_util::{SinkExt, StreamExt};
 
 use crate::error::PayloadError;
 use crate::h1;
@@ -45,14 +45,14 @@ where
                 Some(port) => write!(wrt, "{}:{}", host, port),
             };
 
-            match wrt.get_mut().split().freeze().try_into() {
+            match wrt.get_mut().split().freeze().try_into_value() {
                 Ok(value) => match head {
                     RequestHeadType::Owned(ref mut head) => {
-                        head.headers.insert(HOST, value)
+                        head.headers.insert(HOST, value);
                     }
                     RequestHeadType::Rc(_, ref mut extra_headers) => {
                         let headers = extra_headers.get_or_insert(HeaderMap::new());
-                        headers.insert(HOST, value)
+                        headers.insert(HOST, value);
                     }
                 },
                 Err(e) => log::error!("Can not set HOST header {}", e),
@@ -72,7 +72,7 @@ where
 
     // send request body
     match body.size() {
-        BodySize::None | BodySize::Empty | BodySize::Sized(0) => (),
+        BodySize::None | BodySize::Empty | BodySize::Sized(0) => {}
         _ => send_body(body, Pin::new(&mut framed_inner)).await?,
     };
 
@@ -127,7 +127,7 @@ where
     T: ConnectionLifetime + Unpin,
     B: MessageBody,
 {
-    pin_mut!(body);
+    actix_rt::pin!(body);
 
     let mut eof = false;
     while !eof {
@@ -165,7 +165,10 @@ where
 
 #[doc(hidden)]
 /// HTTP client connection
-pub struct H1Connection<T> {
+pub struct H1Connection<T>
+where
+    T: AsyncWrite + Unpin + 'static,
+{
     /// T should be `Unpin`
     io: Option<T>,
     created: time::Instant,
@@ -204,18 +207,11 @@ where
 }
 
 impl<T: AsyncRead + AsyncWrite + Unpin + 'static> AsyncRead for H1Connection<T> {
-    unsafe fn prepare_uninitialized_buffer(
-        &self,
-        buf: &mut [mem::MaybeUninit<u8>],
-    ) -> bool {
-        self.io.as_ref().unwrap().prepare_uninitialized_buffer(buf)
-    }
-
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
         Pin::new(&mut self.io.as_mut().unwrap()).poll_read(cx, buf)
     }
 }

@@ -5,10 +5,10 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 
 use actix_http::body::{Body, MessageBody};
-use actix_http::Extensions;
+use actix_http::{Extensions, Request};
 use actix_service::boxed::{self, BoxServiceFactory};
 use actix_service::{
-    apply, apply_fn_factory, IntoServiceFactory, ServiceFactory, Transform,
+    apply, apply_fn_factory, IntoServiceFactory, ServiceFactory, ServiceFactoryExt, Transform,
 };
 use futures_util::future::FutureExt;
 
@@ -33,11 +33,10 @@ pub struct App<T, B> {
     services: Vec<Box<dyn AppServiceFactory>>,
     default: Option<Rc<HttpNewService>>,
     factory_ref: Rc<RefCell<Option<AppRoutingFactory>>>,
-    data: Vec<Box<dyn DataFactory>>,
     data_factories: Vec<FnDataFactory>,
     external: Vec<ResourceDef>,
     extensions: Extensions,
-    _t: PhantomData<B>,
+    _phantom: PhantomData<B>,
 }
 
 impl App<AppEntry, Body> {
@@ -47,14 +46,13 @@ impl App<AppEntry, Body> {
         let fref = Rc::new(RefCell::new(None));
         App {
             endpoint: AppEntry::new(fref.clone()),
-            data: Vec::new(),
             data_factories: Vec::new(),
             services: Vec::new(),
             default: None,
             factory_ref: fref,
             external: Vec::new(),
             extensions: Extensions::new(),
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }
@@ -63,8 +61,8 @@ impl<T, B> App<T, B>
 where
     B: MessageBody,
     T: ServiceFactory<
+        ServiceRequest,
         Config = (),
-        Request = ServiceRequest,
         Response = ServiceResponse<B>,
         Error = Error,
         InitError = (),
@@ -73,7 +71,7 @@ where
     /// Set application data. Application data could be accessed
     /// by using `Data<T>` extractor where `T` is data type.
     ///
-    /// **Note**: http server accepts an application factory rather than
+    /// **Note**: HTTP server accepts an application factory rather than
     /// an application instance. Http server constructs an application
     /// instance for each thread, thus application data must be constructed
     /// multiple times. If you want to share data between different
@@ -100,9 +98,8 @@ where
     ///         web::resource("/index.html").route(
     ///             web::get().to(index)));
     /// ```
-    pub fn data<U: 'static>(mut self, data: U) -> Self {
-        self.data.push(Box::new(Data::new(data)));
-        self
+    pub fn data<U: 'static>(self, data: U) -> Self {
+        self.app_data(Data::new(data))
     }
 
     /// Set application data factory. This function is
@@ -156,8 +153,7 @@ where
     /// some of the resource's configuration could be moved to different module.
     ///
     /// ```rust
-    /// # extern crate actix_web;
-    /// use actix_web::{web, middleware, App, HttpResponse};
+    /// use actix_web::{web, App, HttpResponse};
     ///
     /// // this function could be located in different module
     /// fn config(cfg: &mut web::ServiceConfig) {
@@ -167,12 +163,9 @@ where
     ///     );
     /// }
     ///
-    /// fn main() {
-    ///     let app = App::new()
-    ///         .wrap(middleware::Logger::default())
-    ///         .configure(config)  // <- register resources
-    ///         .route("/index.html", web::get().to(|| HttpResponse::Ok()));
-    /// }
+    /// App::new()
+    ///     .configure(config)  // <- register resources
+    ///     .route("/index.html", web::get().to(|| HttpResponse::Ok()));
     /// ```
     pub fn configure<F>(mut self, f: F) -> Self
     where
@@ -180,10 +173,9 @@ where
     {
         let mut cfg = ServiceConfig::new();
         f(&mut cfg);
-        self.data.extend(cfg.data);
         self.services.extend(cfg.services);
         self.external.extend(cfg.external);
-        self.extensions.extend(cfg.extensions);
+        self.extensions.extend(cfg.app_data);
         self
     }
 
@@ -214,11 +206,11 @@ where
         )
     }
 
-    /// Register http service.
+    /// Register HTTP service.
     ///
     /// Http service is any type that implements `HttpServiceFactory` trait.
     ///
-    /// Actix web provides several services implementations:
+    /// Actix Web provides several services implementations:
     ///
     /// * *Resource* is an entry in resource table which corresponds to requested URL.
     /// * *Scope* is a set of resources with common root path.
@@ -268,10 +260,10 @@ where
     /// ```
     pub fn default_service<F, U>(mut self, f: F) -> Self
     where
-        F: IntoServiceFactory<U>,
+        F: IntoServiceFactory<U, ServiceRequest>,
         U: ServiceFactory<
+                ServiceRequest,
                 Config = (),
-                Request = ServiceRequest,
                 Response = ServiceResponse,
                 Error = Error,
             > + 'static,
@@ -353,8 +345,8 @@ where
         mw: M,
     ) -> App<
         impl ServiceFactory<
+            ServiceRequest,
             Config = (),
-            Request = ServiceRequest,
             Response = ServiceResponse<B1>,
             Error = Error,
             InitError = (),
@@ -364,7 +356,7 @@ where
     where
         M: Transform<
             T::Service,
-            Request = ServiceRequest,
+            ServiceRequest,
             Response = ServiceResponse<B1>,
             Error = Error,
             InitError = (),
@@ -373,14 +365,13 @@ where
     {
         App {
             endpoint: apply(mw, self.endpoint),
-            data: self.data,
             data_factories: self.data_factories,
             services: self.services,
             default: self.default,
             factory_ref: self.factory_ref,
             external: self.external,
             extensions: self.extensions,
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 
@@ -420,8 +411,8 @@ where
         mw: F,
     ) -> App<
         impl ServiceFactory<
+            ServiceRequest,
             Config = (),
-            Request = ServiceRequest,
             Response = ServiceResponse<B1>,
             Error = Error,
             InitError = (),
@@ -430,38 +421,37 @@ where
     >
     where
         B1: MessageBody,
-        F: FnMut(ServiceRequest, &mut T::Service) -> R + Clone,
+        F: Fn(ServiceRequest, &T::Service) -> R + Clone,
         R: Future<Output = Result<ServiceResponse<B1>, Error>>,
     {
         App {
             endpoint: apply_fn_factory(self.endpoint, mw),
-            data: self.data,
             data_factories: self.data_factories,
             services: self.services,
             default: self.default,
             factory_ref: self.factory_ref,
             external: self.external,
             extensions: self.extensions,
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }
 
-impl<T, B> IntoServiceFactory<AppInit<T, B>> for App<T, B>
+impl<T, B> IntoServiceFactory<AppInit<T, B>, Request> for App<T, B>
 where
     B: MessageBody,
     T: ServiceFactory<
+        ServiceRequest,
         Config = (),
-        Request = ServiceRequest,
         Response = ServiceResponse<B>,
         Error = Error,
         InitError = (),
     >,
+    T::Future: 'static,
 {
     fn into_factory(self) -> AppInit<T, B> {
         AppInit {
-            data: self.data.into_boxed_slice().into(),
-            data_factories: self.data_factories.into_boxed_slice().into(),
+            async_data_factories: self.data_factories.into_boxed_slice().into(),
             endpoint: self.endpoint,
             services: Rc::new(RefCell::new(self.services)),
             external: RefCell::new(self.external),
@@ -482,17 +472,13 @@ mod tests {
     use crate::http::{header, HeaderValue, Method, StatusCode};
     use crate::middleware::DefaultHeaders;
     use crate::service::ServiceRequest;
-    use crate::test::{
-        call_service, init_service, read_body, try_init_service, TestRequest,
-    };
+    use crate::test::{call_service, init_service, read_body, try_init_service, TestRequest};
     use crate::{web, HttpRequest, HttpResponse};
 
     #[actix_rt::test]
     async fn test_default_resource() {
-        let mut srv = init_service(
-            App::new().service(web::resource("/test").to(HttpResponse::Ok)),
-        )
-        .await;
+        let srv =
+            init_service(App::new().service(web::resource("/test").to(HttpResponse::Ok))).await;
         let req = TestRequest::with_uri("/test").to_request();
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
@@ -501,7 +487,7 @@ mod tests {
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
-        let mut srv = init_service(
+        let srv = init_service(
             App::new()
                 .service(web::resource("/test").to(HttpResponse::Ok))
                 .service(
@@ -534,20 +520,22 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_data_factory() {
-        let mut srv =
-            init_service(App::new().data_factory(|| ok::<_, ()>(10usize)).service(
-                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
-            ))
-            .await;
+        let srv = init_service(
+            App::new()
+                .data_factory(|| ok::<_, ()>(10usize))
+                .service(web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok())),
+        )
+        .await;
         let req = TestRequest::default().to_request();
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let mut srv =
-            init_service(App::new().data_factory(|| ok::<_, ()>(10u32)).service(
-                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
-            ))
-            .await;
+        let srv = init_service(
+            App::new()
+                .data_factory(|| ok::<_, ()>(10u32))
+                .service(web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok())),
+        )
+        .await;
         let req = TestRequest::default().to_request();
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
@@ -555,23 +543,24 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_data_factory_errors() {
-        let srv =
-            try_init_service(App::new().data_factory(|| err::<u32, _>(())).service(
-                web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
-            ))
-            .await;
+        let srv = try_init_service(
+            App::new()
+                .data_factory(|| err::<u32, _>(()))
+                .service(web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok())),
+        )
+        .await;
 
         assert!(srv.is_err());
     }
 
     #[actix_rt::test]
     async fn test_extension() {
-        let mut srv = init_service(App::new().app_data(10usize).service(
-            web::resource("/").to(|req: HttpRequest| {
+        let srv = init_service(App::new().app_data(10usize).service(web::resource("/").to(
+            |req: HttpRequest| {
                 assert_eq!(*req.app_data::<usize>().unwrap(), 10);
                 HttpResponse::Ok()
-            }),
-        ))
+            },
+        )))
         .await;
         let req = TestRequest::default().to_request();
         let resp = srv.call(req).await.unwrap();
@@ -580,7 +569,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_wrap() {
-        let mut srv = init_service(
+        let srv = init_service(
             App::new()
                 .wrap(
                     DefaultHeaders::new()
@@ -590,7 +579,7 @@ mod tests {
         )
         .await;
         let req = TestRequest::with_uri("/test").to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
@@ -600,7 +589,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_router_wrap() {
-        let mut srv = init_service(
+        let srv = init_service(
             App::new()
                 .route("/test", web::get().to(HttpResponse::Ok))
                 .wrap(
@@ -610,7 +599,7 @@ mod tests {
         )
         .await;
         let req = TestRequest::with_uri("/test").to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
@@ -620,16 +609,14 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_wrap_fn() {
-        let mut srv = init_service(
+        let srv = init_service(
             App::new()
                 .wrap_fn(|req, srv| {
                     let fut = srv.call(req);
                     async move {
                         let mut res = fut.await?;
-                        res.headers_mut().insert(
-                            header::CONTENT_TYPE,
-                            HeaderValue::from_static("0001"),
-                        );
+                        res.headers_mut()
+                            .insert(header::CONTENT_TYPE, HeaderValue::from_static("0001"));
                         Ok(res)
                     }
                 })
@@ -637,7 +624,7 @@ mod tests {
         )
         .await;
         let req = TestRequest::with_uri("/test").to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
@@ -647,24 +634,22 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_router_wrap_fn() {
-        let mut srv = init_service(
+        let srv = init_service(
             App::new()
                 .route("/test", web::get().to(HttpResponse::Ok))
                 .wrap_fn(|req, srv| {
                     let fut = srv.call(req);
                     async {
                         let mut res = fut.await?;
-                        res.headers_mut().insert(
-                            header::CONTENT_TYPE,
-                            HeaderValue::from_static("0001"),
-                        );
+                        res.headers_mut()
+                            .insert(header::CONTENT_TYPE, HeaderValue::from_static("0001"));
                         Ok(res)
                     }
                 }),
         )
         .await;
         let req = TestRequest::with_uri("/test").to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
@@ -674,21 +659,20 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_external_resource() {
-        let mut srv = init_service(
+        let srv = init_service(
             App::new()
                 .external_resource("youtube", "https://youtube.com/watch/{video_id}")
                 .route(
                     "/test",
                     web::get().to(|req: HttpRequest| {
-                        HttpResponse::Ok().body(
-                            req.url_for("youtube", &["12345"]).unwrap().to_string(),
-                        )
+                        HttpResponse::Ok()
+                            .body(req.url_for("youtube", &["12345"]).unwrap().to_string())
                     }),
                 ),
         )
         .await;
         let req = TestRequest::with_uri("/test").to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
         let body = read_body(resp).await;
         assert_eq!(body, Bytes::from_static(b"https://youtube.com/watch/12345"));

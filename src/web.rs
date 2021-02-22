@@ -1,11 +1,11 @@
 //! Essentials helper functions and types for application registration.
+
 use actix_http::http::Method;
 use actix_router::IntoPattern;
 use std::future::Future;
 
 pub use actix_http::Response as HttpResponse;
 pub use bytes::{Buf, BufMut, Bytes, BytesMut};
-pub use futures_channel::oneshot::Canceled;
 
 use crate::error::BlockingError;
 use crate::extract::FromRequest;
@@ -275,11 +275,11 @@ pub fn service<T: IntoPattern>(path: T) -> WebService {
 
 /// Execute blocking function on a thread pool, returns future that resolves
 /// to result of the function execution.
-pub async fn block<F, I, E>(f: F) -> Result<I, BlockingError<E>>
+pub fn block<F, R>(f: F) -> impl Future<Output = Result<R, BlockingError>>
 where
-    F: FnOnce() -> Result<I, E> + Send + 'static,
-    I: Send + 'static,
-    E: Send + std::fmt::Debug + 'static,
+    F: FnOnce() -> R + Send + 'static,
+    R: Send + 'static,
 {
-    actix_threadpool::run(f).await
+    let fut = actix_rt::task::spawn_blocking(f);
+    async { fut.await.map_err(|_| BlockingError) }
 }

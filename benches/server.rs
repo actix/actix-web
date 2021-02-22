@@ -29,34 +29,38 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 fn bench_async_burst(c: &mut Criterion) {
     // We are using System here, since Runtime requires preinitialized tokio
     // Maybe add to actix_rt docs
-    let mut rt = actix_rt::System::new("test");
+    let rt = actix_rt::System::new();
 
-    let srv = test::start(|| {
-        App::new()
-            .service(web::resource("/").route(web::to(|| HttpResponse::Ok().body(STR))))
+    let srv = rt.block_on(async {
+        test::start(|| {
+            App::new()
+                .service(web::resource("/").route(web::to(|| HttpResponse::Ok().body(STR))))
+        })
     });
 
     let url = srv.url("/");
 
     c.bench_function("get_body_async_burst", move |b| {
         b.iter_custom(|iters| {
-            let client = Client::new().get(url.clone()).freeze().unwrap();
+            rt.block_on(async {
+                let client = Client::new().get(url.clone()).freeze().unwrap();
 
-            let start = std::time::Instant::now();
-            // benchmark body
-            let resps = rt.block_on(async move {
+                let start = std::time::Instant::now();
+                // benchmark body
+
                 let burst = (0..iters).map(|_| client.send());
-                join_all(burst).await
-            });
-            let elapsed = start.elapsed();
+                let resps = join_all(burst).await;
 
-            // if there are failed requests that might be an issue
-            let failed = resps.iter().filter(|r| r.is_err()).count();
-            if failed > 0 {
-                eprintln!("failed {} requests (might be bench timeout)", failed);
-            };
+                let elapsed = start.elapsed();
 
-            elapsed
+                // if there are failed requests that might be an issue
+                let failed = resps.iter().filter(|r| r.is_err()).count();
+                if failed > 0 {
+                    eprintln!("failed {} requests (might be bench timeout)", failed);
+                };
+
+                elapsed
+            })
         })
     });
 }

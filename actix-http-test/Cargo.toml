@@ -1,6 +1,6 @@
 [package]
 name = "actix-http-test"
-version = "2.1.0"
+version = "3.0.0-beta.2"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Various helpers for Actix applications to use during testing"
 readme = "README.md"
@@ -26,31 +26,36 @@ path = "src/lib.rs"
 default = []
 
 # openssl
-openssl = ["open-ssl", "awc/openssl"]
+openssl = ["tls-openssl", "awc/openssl"]
 
 [dependencies]
-actix-service = "1.0.6"
-actix-codec = "0.3.0"
-actix-connect = "2.0.0"
-actix-utils = "2.0.0"
-actix-rt = "1.1.1"
-actix-server = "1.0.0"
-actix-testing = "1.0.0"
-awc = "2.0.0"
+actix-service = "2.0.0-beta.4"
+actix-codec = "0.4.0-beta.1"
+actix-tls = "3.0.0-beta.3"
+actix-utils = "3.0.0-beta.2"
+actix-rt = "2"
+actix-server = "2.0.0-beta.3"
+awc = { version = "3.0.0-beta.2", default-features = false }
 
 base64 = "0.13"
-bytes = "0.5.3"
-futures-core = { version = "0.3.5", default-features = false }
-http = "0.2.0"
+bytes = "1"
+futures-core = { version = "0.3.7", default-features = false }
+http = "0.2.2"
 log = "0.4"
 socket2 = "0.3"
 serde = "1.0"
 serde_json = "1.0"
 slab = "0.4"
 serde_urlencoded = "0.7"
-time = { version = "0.2.7", default-features = false, features = ["std"] }
-open-ssl = { version = "0.10", package = "openssl", optional = true }
+time = { version = "0.2.23", default-features = false, features = ["std"] }
+tls-openssl = { version = "0.10.9", package = "openssl", optional = true }
+
+[target.'cfg(windows)'.dependencies.tls-openssl]
+version = "0.10.9"
+package = "openssl"
+features = ["vendored"]
+optional = true
 
 [dev-dependencies]
-actix-web = "3.0.0"
-actix-http = "2.0.0"
+actix-web = { version = "4.0.0-beta.3", default-features = false, features = ["cookies"] }
+actix-http = "3.0.0-beta.3"

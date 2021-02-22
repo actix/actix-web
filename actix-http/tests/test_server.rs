@@ -3,14 +3,14 @@ use std::time::Duration;
 use std::{net, thread};
 
 use actix_http_test::test_server;
-use actix_rt::time::delay_for;
+use actix_rt::time::sleep;
 use actix_service::fn_service;
 use bytes::Bytes;
 use futures_util::future::{self, err, ok, ready, FutureExt};
 use futures_util::stream::{once, StreamExt};
 use regex::Regex;
 
-use actix_http::httpmessage::HttpMessage;
+use actix_http::HttpMessage;
 use actix_http::{
     body, error, http, http::header, Error, HttpService, KeepAlive, Request, Response,
 };
@@ -88,7 +88,7 @@ async fn test_expect_continue_h1() {
     let srv = test_server(|| {
         HttpService::build()
             .expect(fn_service(|req: Request| {
-                delay_for(Duration::from_millis(20)).then(move |_| {
+                sleep(Duration::from_millis(20)).then(move |_| {
                     if req.head().uri.query() == Some("yes=") {
                         ok(req)
                     } else {
@@ -392,7 +392,7 @@ async fn test_h1_headers() {
         HttpService::build().h1(move |_| {
             let mut builder = Response::Ok();
             for idx in 0..90 {
-                builder.header(
+                builder.insert_header((
                     format!("X-TEST-{}", idx).as_str(),
                     "TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
@@ -407,7 +407,7 @@ async fn test_h1_headers() {
                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST ",
-                );
+                ));
             }
             future::ok::<_, ()>(builder.body(data.clone()))
         }).tcp()
@@ -561,7 +561,7 @@ async fn test_h1_body_chunked_explicit() {
                 let body = once(ok::<_, Error>(Bytes::from_static(STR.as_ref())));
                 ok::<_, ()>(
                     Response::Ok()
-                        .header(header::TRANSFER_ENCODING, "chunked")
+                        .insert_header((header::TRANSFER_ENCODING, "chunked"))
                         .streaming(body),
                 )
             })
@@ -625,7 +625,7 @@ async fn test_h1_response_http_error_handling() {
                 let broken_header = Bytes::from_static(b"\0\0\0");
                 ok::<_, ()>(
                     Response::Ok()
-                        .header(http::header::CONTENT_TYPE, broken_header)
+                        .insert_header((http::header::CONTENT_TYPE, broken_header))
                         .body(STR),
                 )
             }))
@@ -662,7 +662,9 @@ async fn test_h1_service_error() {
 async fn test_h1_on_connect() {
     let srv = test_server(|| {
         HttpService::build()
-            .on_connect_ext(|_, data| data.insert(20isize))
+            .on_connect_ext(|_, data| {
+                data.insert(20isize);
+            })
             .h1(|req: Request| {
                 assert!(req.extensions().contains::<isize>());
                 future::ok::<_, ()>(Response::Ok().finish())

@@ -1,20 +1,19 @@
 <div align="center">
-  <h1>Actix web</h1>
+  <h1>Actix Web</h1>
   <p>
     <strong>Actix Web is a powerful, pragmatic, and extremely fast web framework for Rust</strong>
   </p>
   <p>
 
 [![crates.io](https://img.shields.io/crates/v/actix-web?label=latest)](https://crates.io/crates/actix-web)
-[![Documentation](https://docs.rs/actix-web/badge.svg?version=3.3.2)](https://docs.rs/actix-web/3.3.2)
+[![Documentation](https://docs.rs/actix-web/badge.svg?version=4.0.0-beta.2)](https://docs.rs/actix-web/4.0.0-beta.2)
 [![Version](https://img.shields.io/badge/rustc-1.46+-ab6000.svg)](https://blog.rust-lang.org/2020/03/12/Rust-1.46.html)
-![License](https://img.shields.io/crates/l/actix-web.svg)
-[![Dependency Status](https://deps.rs/crate/actix-web/3.3.2/status.svg)](https://deps.rs/crate/actix-web/3.3.2)
+![MIT or Apache 2.0 licensed](https://img.shields.io/crates/l/actix-web.svg)
+[![Dependency Status](https://deps.rs/crate/actix-web/4.0.0-beta.2/status.svg)](https://deps.rs/crate/actix-web/4.0.0-beta.2)
 <br />
-[![Build Status](https://travis-ci.org/actix/actix-web.svg?branch=master)](https://travis-ci.org/actix/actix-web) 
+[![build status](https://github.com/actix/actix-web/workflows/CI%20%28Linux%29/badge.svg?branch=master&event=push)](https://github.com/actix/actix-web/actions)
 [![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web) 
-[![Download](https://img.shields.io/crates/d/actix-web.svg)](https://crates.io/crates/actix-web)
-[![Join the chat at https://gitter.im/actix/actix](https://badges.gitter.im/actix/actix.svg)](https://gitter.im/actix/actix?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+![downloads](https://img.shields.io/crates/d/actix-web.svg)
 [![Chat on Discord](https://img.shields.io/discord/771444961383153695?label=chat&logo=discord)](https://discord.gg/NWpN5mmg3x)
 
   </p>
@@ -32,8 +31,7 @@
 * Static assets
 * SSL support using OpenSSL or Rustls
 * Middlewares ([Logger, Session, CORS, etc](https://actix.rs/docs/middleware/))
-* Includes an async [HTTP client](https://actix.rs/actix-web/actix_web/client/index.html)
-* Supports [Actix actor framework](https://github.com/actix/actix)
+* Includes an async [HTTP client](https://docs.rs/actix-web/latest/actix_web/client/index.html)
 * Runs on stable Rust 1.46+
 
 ## Documentation
@@ -99,13 +97,13 @@ One of the fastest web frameworks available according to the
 This project is licensed under either of
 
 * Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
-  [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0))
+  [http://www.apache.org/licenses/LICENSE-2.0])
 * MIT license ([LICENSE-MIT](LICENSE-MIT) or
-  [http://opensource.org/licenses/MIT](http://opensource.org/licenses/MIT))
+  [http://opensource.org/licenses/MIT])
 
 at your option.
 
 ## Code of Conduct
 
-Contribution to the actix-web crate is organized under the terms of the Contributor Covenant, the
-maintainers of Actix web, promises to intervene to uphold that code of conduct.
+Contribution to the actix-web repo is organized under the terms of the Contributor Covenant.
+The Actix team promises to intervene to uphold that code of conduct.

@@ -1,6 +1,6 @@
-//! Macros for reducing boilerplate code in Actix Web applications.
+//! Routing and runtime macros for Actix Web.
 //!
-//! ## Actix Web Re-exports
+//! # Actix Web Re-exports
 //! Actix Web re-exports a version of this crate in it's entirety so you usually don't have to
 //! specify a dependency on this crate explicitly. Sometimes, however, updates are made to this
 //! crate before the actix-web dependency is updated. Therefore, code examples here will show
@@ -10,7 +10,7 @@
 //! # Runtime Setup
 //! Used for setting up the actix async runtime. See [macro@main] macro docs.
 //!
-//! ```rust
+//! ```
 //! #[actix_web_codegen::main] // or `#[actix_web::main]` in Actix Web apps
 //! async fn main() {
 //!     async { println!("Hello world"); }.await
@@ -23,7 +23,7 @@
 //!
 //! See docs for: [GET], [POST], [PATCH], [PUT], [DELETE], [HEAD], [CONNECT], [OPTIONS], [TRACE]
 //!
-//! ```rust
+//! ```
 //! # use actix_web::HttpResponse;
 //! # use actix_web_codegen::get;
 //! #[get("/test")]
@@ -36,7 +36,7 @@
 //! Similar to the single method handler macro but takes one or more arguments for the HTTP methods
 //! it should respond to. See [macro@route] macro docs.
 //!
-//! ```rust
+//! ```
 //! # use actix_web::HttpResponse;
 //! # use actix_web_codegen::route;
 //! #[route("/test", method="GET", method="HEAD")]
@@ -160,7 +160,7 @@ method_macro! {
 /// # Actix Web Re-export
 /// This macro can be applied with `#[actix_web::main]` when used in Actix Web applications.
 ///
-/// # Usage
+/// # Examples
 /// ```rust
 /// #[actix_web_codegen::main]
 /// async fn main() {
@@ -176,7 +176,6 @@ pub fn main(_: TokenStream, item: TokenStream) -> TokenStream {
     let vis = &input.vis;
     let sig = &mut input.sig;
     let body = &input.block;
-    let name = &sig.ident;
 
     if sig.asyncness.is_none() {
         return syn::Error::new_spanned(sig.fn_token, "only async fn is supported")
@@ -189,7 +188,7 @@ pub fn main(_: TokenStream, item: TokenStream) -> TokenStream {
     (quote! {
         #(#attrs)*
         #vis #sig {
-            actix_web::rt::System::new(stringify!(#name))
+            actix_web::rt::System::new()
                 .block_on(async move { #body })
         }
     })

@@ -1,30 +1,30 @@
-// Regression test for #/1321
+//! Regression test for https://github.com/actix/actix-web/issues/1321
 
-/*
-use futures::task::{noop_waker, Context};
-use futures::stream::once;
-use actix_http::body::{MessageBody, BodyStream};
-use bytes::Bytes;
+// use actix_http::body::{BodyStream, MessageBody};
+// use bytes::Bytes;
+// use futures_channel::oneshot;
+// use futures_util::{
+//     stream::once,
+//     task::{noop_waker, Context},
+// };
 
-Disable weird poll until actix-web is based on actix-http 2.0.0
+// #[test]
+// fn weird_poll() {
+//     let (sender, receiver) = oneshot::channel();
+//     let mut body_stream = Ok(BodyStream::new(once(async {
+//         let x = Box::new(0);
+//         let y = &x;
+//         receiver.await.unwrap();
+//         let _z = **y;
+//         Ok::<_, ()>(Bytes::new())
+//     })));
 
-#[test]
-fn weird_poll() {
-    let (sender, receiver) = futures::channel::oneshot::channel();
-    let mut body_stream = Ok(BodyStream::new(once(async {
-        let x = Box::new(0);
-        let y = &x;
-        receiver.await.unwrap();
-        let _z = **y;
-        Ok::<_, ()>(Bytes::new())
-    })));
+//     let waker = noop_waker();
+//     let mut cx = Context::from_waker(&waker);
 
-    let waker = noop_waker();
-    let mut context = Context::from_waker(&waker);
-
-    let _ = body_stream.as_mut().unwrap().poll_next(&mut context);
-    sender.send(()).unwrap();
-    let _ = std::mem::replace(&mut body_stream, Err([0; 32])).unwrap().poll_next(&mut context);
-}
-
-*/
+//     let _ = body_stream.as_mut().unwrap().poll_next(&mut cx);
+//     sender.send(()).unwrap();
+//     let _ = std::mem::replace(&mut body_stream, Err([0; 32]))
+//         .unwrap()
+//         .poll_next(&mut cx);
+// }

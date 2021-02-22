@@ -23,10 +23,9 @@ use actix_web::test::{init_service, ok_service, TestRequest};
 /// async_service_direct    time:   [1.0908 us 1.1656 us 1.2613 us]
 pub fn bench_async_service<S>(c: &mut Criterion, srv: S, name: &str)
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse, Error = Error>
-        + 'static,
+    S: Service<ServiceRequest, Response = ServiceResponse, Error = Error> + 'static,
 {
-    let mut rt = actix_rt::System::new("test");
+    let rt = actix_rt::System::new();
     let srv = Rc::new(RefCell::new(srv));
 
     let req = TestRequest::default().to_srv_request();
@@ -41,14 +40,15 @@ where
         b.iter_custom(|iters| {
             let srv = srv.clone();
             // exclude request generation, it appears it takes significant time vs call (3us vs 1us)
-            let reqs: Vec<_> = (0..iters)
+            let futs = (0..iters)
                 .map(|_| TestRequest::default().to_srv_request())
-                .collect();
+                .map(|req| srv.borrow_mut().call(req));
+
             let start = std::time::Instant::now();
             // benchmark body
             rt.block_on(async move {
-                for req in reqs {
-                    srv.borrow_mut().call(req).await.unwrap();
+                for fut in futs {
+                    fut.await.unwrap();
                 }
             });
             let elapsed = start.elapsed();
@@ -67,7 +67,7 @@ async fn index(req: ServiceRequest) -> Result<ServiceResponse, Error> {
 // Sample results on MacBook Pro '14
 // time:   [2.0724 us 2.1345 us 2.2074 us]
 fn async_web_service(c: &mut Criterion) {
-    let mut rt = actix_rt::System::new("test");
+    let rt = actix_rt::System::new();
     let srv = Rc::new(RefCell::new(rt.block_on(init_service(
         App::new().service(web::service("/").finish(index)),
     ))));
@@ -83,13 +83,14 @@ fn async_web_service(c: &mut Criterion) {
     c.bench_function("async_web_service_direct", move |b| {
         b.iter_custom(|iters| {
             let srv = srv.clone();
-            let reqs = (0..iters).map(|_| TestRequest::get().uri("/").to_request());
-
+            let futs = (0..iters)
+                .map(|_| TestRequest::get().uri("/").to_request())
+                .map(|req| srv.borrow_mut().call(req));
             let start = std::time::Instant::now();
             // benchmark body
             rt.block_on(async move {
-                for req in reqs {
-                    srv.borrow_mut().call(req).await.unwrap();
+                for fut in futs {
+                    fut.await.unwrap();
                 }
             });
             let elapsed = start.elapsed();

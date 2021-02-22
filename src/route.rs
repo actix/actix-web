@@ -18,7 +18,7 @@ use crate::HttpResponse;
 
 type BoxedRouteService = Box<
     dyn Service<
-        Request = ServiceRequest,
+        ServiceRequest,
         Response = ServiceResponse,
         Error = Error,
         Future = LocalBoxFuture<'static, Result<ServiceResponse, Error>>,
@@ -27,8 +27,8 @@ type BoxedRouteService = Box<
 
 type BoxedRouteNewService = Box<
     dyn ServiceFactory<
+        ServiceRequest,
         Config = (),
-        Request = ServiceRequest,
         Response = ServiceResponse,
         Error = Error,
         InitError = (),
@@ -63,9 +63,8 @@ impl Route {
     }
 }
 
-impl ServiceFactory for Route {
+impl ServiceFactory<ServiceRequest> for Route {
     type Config = ();
-    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
     type InitError = ();
@@ -117,17 +116,16 @@ impl RouteService {
     }
 }
 
-impl Service for RouteService {
-    type Request = ServiceRequest;
+impl Service<ServiceRequest> for RouteService {
     type Response = ServiceResponse;
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.service.poll_ready(cx)
     }
 
-    fn call(&mut self, req: ServiceRequest) -> Self::Future {
+    fn call(&self, req: ServiceRequest) -> Self::Future {
         self.service.call(req)
     }
 }
@@ -233,41 +231,30 @@ impl Route {
 
 struct RouteNewService<T>
 where
-    T: ServiceFactory<Request = ServiceRequest, Error = Error>,
+    T: ServiceFactory<ServiceRequest, Error = Error>,
 {
     service: T,
 }
 
 impl<T> RouteNewService<T>
 where
-    T: ServiceFactory<
-        Config = (),
-        Request = ServiceRequest,
-        Response = ServiceResponse,
-        Error = Error,
-    >,
+    T: ServiceFactory<ServiceRequest, Config = (), Response = ServiceResponse, Error = Error>,
     T::Future: 'static,
     T::Service: 'static,
-    <T::Service as Service>::Future: 'static,
+    <T::Service as Service<ServiceRequest>>::Future: 'static,
 {
     pub fn new(service: T) -> Self {
         RouteNewService { service }
     }
 }
 
-impl<T> ServiceFactory for RouteNewService<T>
+impl<T> ServiceFactory<ServiceRequest> for RouteNewService<T>
 where
-    T: ServiceFactory<
-        Config = (),
-        Request = ServiceRequest,
-        Response = ServiceResponse,
-        Error = Error,
-    >,
+    T: ServiceFactory<ServiceRequest, Config = (), Response = ServiceResponse, Error = Error>,
     T::Future: 'static,
     T::Service: 'static,
-    <T::Service as Service>::Future: 'static,
+    <T::Service as Service<ServiceRequest>>::Future: 'static,
 {
-    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
     type Config = ();
@@ -289,25 +276,24 @@ where
     }
 }
 
-struct RouteServiceWrapper<T: Service> {
+struct RouteServiceWrapper<T: Service<ServiceRequest>> {
     service: T,
 }
 
-impl<T> Service for RouteServiceWrapper<T>
+impl<T> Service<ServiceRequest> for RouteServiceWrapper<T>
 where
     T::Future: 'static,
-    T: Service<Request = ServiceRequest, Response = ServiceResponse, Error = Error>,
+    T: Service<ServiceRequest, Response = ServiceResponse, Error = Error>,
 {
-    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.service.poll_ready(cx)
     }
 
-    fn call(&mut self, req: ServiceRequest) -> Self::Future {
+    fn call(&self, req: ServiceRequest) -> Self::Future {
         Box::pin(self.service.call(req))
     }
 }
@@ -316,7 +302,7 @@ where
 mod tests {
     use std::time::Duration;
 
-    use actix_rt::time::delay_for;
+    use actix_rt::time::sleep;
     use bytes::Bytes;
     use serde_derive::Serialize;
 
@@ -331,7 +317,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_route() {
-        let mut srv = init_service(
+        let srv = init_service(
             App::new()
                 .service(
                     web::resource("/test")
@@ -340,16 +326,16 @@ mod tests {
                             Err::<HttpResponse, _>(error::ErrorBadRequest("err"))
                         }))
                         .route(web::post().to(|| async {
-                            delay_for(Duration::from_millis(100)).await;
+                            sleep(Duration::from_millis(100)).await;
                             Ok::<_, ()>(HttpResponse::Created())
                         }))
                         .route(web::delete().to(|| async {
-                            delay_for(Duration::from_millis(100)).await;
+                            sleep(Duration::from_millis(100)).await;
                             Err::<HttpResponse, _>(error::ErrorBadRequest("err"))
                         })),
                 )
                 .service(web::resource("/json").route(web::get().to(|| async {
-                    delay_for(Duration::from_millis(25)).await;
+                    sleep(Duration::from_millis(25)).await;
                     web::Json(MyObject {
                         name: "test".to_string(),
                     })
@@ -360,35 +346,35 @@ mod tests {
         let req = TestRequest::with_uri("/test")
             .method(Method::GET)
             .to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
 
         let req = TestRequest::with_uri("/test")
             .method(Method::POST)
             .to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::CREATED);
 
         let req = TestRequest::with_uri("/test")
             .method(Method::PUT)
             .to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
         let req = TestRequest::with_uri("/test")
             .method(Method::DELETE)
             .to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
         let req = TestRequest::with_uri("/test")
             .method(Method::HEAD)
             .to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
 
         let req = TestRequest::with_uri("/json").to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
 
         let body = read_body(resp).await;

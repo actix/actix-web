@@ -49,7 +49,7 @@ where
     R::Output: Responder,
 {
     hnd: F,
-    _t: PhantomData<(T, R)>,
+    _phantom: PhantomData<(T, R)>,
 }
 
 impl<F, T, R> HandlerService<F, T, R>
@@ -62,7 +62,7 @@ where
     pub fn new(hnd: F) -> Self {
         Self {
             hnd,
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }
@@ -77,19 +77,18 @@ where
     fn clone(&self) -> Self {
         Self {
             hnd: self.hnd.clone(),
-            _t: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }
 
-impl<F, T, R> ServiceFactory for HandlerService<F, T, R>
+impl<F, T, R> ServiceFactory<ServiceRequest> for HandlerService<F, T, R>
 where
     F: Handler<T, R>,
     T: FromRequest,
     R: Future,
     R::Output: Responder,
 {
-    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
     type Config = ();
@@ -102,24 +101,23 @@ where
     }
 }
 
-// Handler is both it's ServiceHandler and Service Type.
-impl<F, T, R> Service for HandlerService<F, T, R>
+/// HandlerService is both it's ServiceFactory and Service Type.
+impl<F, T, R> Service<ServiceRequest> for HandlerService<F, T, R>
 where
     F: Handler<T, R>,
     T: FromRequest,
     R: Future,
     R::Output: Responder,
 {
-    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
     type Future = HandlerServiceFuture<F, T, R>;
 
-    fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
     }
 
-    fn call(&mut self, req: Self::Request) -> Self::Future {
+    fn call(&self, req: ServiceRequest) -> Self::Future {
         let (req, mut payload) = req.into_parts();
         let fut = T::from_request(&req, &mut payload);
         HandlerServiceFuture::Extract(fut, Some(req), self.hnd.clone())
@@ -137,7 +135,6 @@ where
 {
     Extract(#[pin] T::Future, Option<HttpRequest>, F),
     Handle(#[pin] R, Option<HttpRequest>),
-    Respond(#[pin] <R::Output as Responder>::Future, Option<HttpRequest>),
 }
 
 impl<F, T, R> Future for HandlerServiceFuture<F, T, R>
@@ -170,13 +167,8 @@ where
                 }
                 HandlerProj::Handle(fut, req) => {
                     let res = ready!(fut.poll(cx));
-                    let fut = res.respond_to(req.as_ref().unwrap());
-                    let state = HandlerServiceFuture::Respond(fut, req.take());
-                    self.as_mut().set(state);
-                }
-                HandlerProj::Respond(fut, req) => {
-                    let res = ready!(fut.poll(cx)).unwrap_or_else(|e| e.into().into());
                     let req = req.take().unwrap();
+                    let res = res.respond_to(&req);
                     return Poll::Ready(Ok(ServiceResponse::new(req, res)));
                 }
             }

@@ -1,6 +1,10 @@
 # Changes
 
-## Unreleased - 2020-xx-xx
+## Unreleased - 2021-xx-xx
+
+
+## 0.5.0-beta.1 - 2021-02-10
+* Use new call signature for `System::new`.
 
 
 ## 0.4.0 - 2020-09-20

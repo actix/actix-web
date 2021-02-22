@@ -1,10 +1,9 @@
 use std::io;
 
-use actix_connect::resolver::ResolveError;
 use derive_more::{Display, From};
 
 #[cfg(feature = "openssl")]
-use actix_connect::ssl::openssl::{HandshakeError, SslError};
+use actix_tls::accept::openssl::SslError;
 
 use crate::error::{Error, ParseError, ResponseError};
 use crate::http::{Error as HttpError, StatusCode};
@@ -21,17 +20,12 @@ pub enum ConnectError {
     #[display(fmt = "{}", _0)]
     SslError(SslError),
 
-    /// SSL Handshake error
-    #[cfg(feature = "openssl")]
-    #[display(fmt = "{}", _0)]
-    SslHandshakeError(String),
-
     /// Failed to resolve the hostname
     #[display(fmt = "Failed resolving hostname: {}", _0)]
-    Resolver(ResolveError),
+    Resolver(Box<dyn std::error::Error>),
 
     /// No dns records
-    #[display(fmt = "No dns records found for the input")]
+    #[display(fmt = "No DNS records found for the input")]
     NoRecords,
 
     /// Http2 error
@@ -57,34 +51,30 @@ pub enum ConnectError {
 
 impl std::error::Error for ConnectError {}
 
-impl From<actix_connect::ConnectError> for ConnectError {
-    fn from(err: actix_connect::ConnectError) -> ConnectError {
+impl From<actix_tls::connect::ConnectError> for ConnectError {
+    fn from(err: actix_tls::connect::ConnectError) -> ConnectError {
         match err {
-            actix_connect::ConnectError::Resolver(e) => ConnectError::Resolver(e),
-            actix_connect::ConnectError::NoRecords => ConnectError::NoRecords,
-            actix_connect::ConnectError::InvalidInput => panic!(),
-            actix_connect::ConnectError::Unresolved => ConnectError::Unresolved,
-            actix_connect::ConnectError::Io(e) => ConnectError::Io(e),
+            actix_tls::connect::ConnectError::Resolver(e) => ConnectError::Resolver(e),
+            actix_tls::connect::ConnectError::NoRecords => ConnectError::NoRecords,
+            actix_tls::connect::ConnectError::InvalidInput => panic!(),
+            actix_tls::connect::ConnectError::Unresolved => ConnectError::Unresolved,
+            actix_tls::connect::ConnectError::Io(e) => ConnectError::Io(e),
         }
-    }
-}
-
-#[cfg(feature = "openssl")]
-impl<T: std::fmt::Debug> From<HandshakeError<T>> for ConnectError {
-    fn from(err: HandshakeError<T>) -> ConnectError {
-        ConnectError::SslHandshakeError(format!("{:?}", err))
     }
 }
 
 #[derive(Debug, Display, From)]
 pub enum InvalidUrl {
-    #[display(fmt = "Missing url scheme")]
+    #[display(fmt = "Missing URL scheme")]
     MissingScheme,
-    #[display(fmt = "Unknown url scheme")]
+
+    #[display(fmt = "Unknown URL scheme")]
     UnknownScheme,
+
     #[display(fmt = "Missing host name")]
     MissingHost,
-    #[display(fmt = "Url parse error: {}", _0)]
+
+    #[display(fmt = "URL parse error: {}", _0)]
     HttpError(http::Error),
 }
 
@@ -96,25 +86,33 @@ pub enum SendRequestError {
     /// Invalid URL
     #[display(fmt = "Invalid URL: {}", _0)]
     Url(InvalidUrl),
+
     /// Failed to connect to host
     #[display(fmt = "Failed to connect to host: {}", _0)]
     Connect(ConnectError),
+
     /// Error sending request
     Send(io::Error),
+
     /// Error parsing response
     Response(ParseError),
+
     /// Http error
     #[display(fmt = "{}", _0)]
     Http(HttpError),
+
     /// Http2 error
     #[display(fmt = "{}", _0)]
     H2(h2::Error),
+
     /// Response took too long
     #[display(fmt = "Timeout while waiting for response")]
     Timeout,
-    /// Tunnels are not supported for http2 connection
+
+    /// Tunnels are not supported for HTTP/2 connection
     #[display(fmt = "Tunnels are not supported for http2 connection")]
     TunnelNotSupported,
+
     /// Error sending request body
     Body(Error),
 }
@@ -140,7 +138,8 @@ pub enum FreezeRequestError {
     /// Invalid URL
     #[display(fmt = "Invalid URL: {}", _0)]
     Url(InvalidUrl),
-    /// Http error
+
+    /// HTTP error
     #[display(fmt = "{}", _0)]
     Http(HttpError),
 }
