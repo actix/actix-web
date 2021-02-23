@@ -1,10 +1,10 @@
 use std::{
+    convert::TryFrom,
     future::Future,
     net::SocketAddr,
     pin::Pin,
     rc::Rc,
     task::{Context, Poll},
-    convert::TryFrom
 };
 
 use actix_http::{
