@@ -1,6 +1,6 @@
 mod redirect;
 
-pub use self::redirect::RedirectMiddleware;
+pub use self::redirect::Redirect;
 
 use std::marker::PhantomData;
 
