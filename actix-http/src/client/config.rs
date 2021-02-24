@@ -1,3 +1,4 @@
+use std::net::IpAddr;
 use std::time::Duration;
 
 const DEFAULT_H2_CONN_WINDOW: u32 = 1024 * 1024 * 2; // 2MB
@@ -13,6 +14,7 @@ pub(crate) struct ConnectorConfig {
     pub(crate) limit: usize,
     pub(crate) conn_window_size: u32,
     pub(crate) stream_window_size: u32,
+    pub(crate) local_address: Option<IpAddr>,
 }
 
 impl Default for ConnectorConfig {
@@ -25,6 +27,7 @@ impl Default for ConnectorConfig {
             limit: 100,
             conn_window_size: DEFAULT_H2_CONN_WINDOW,
             stream_window_size: DEFAULT_H2_STREAM_WINDOW,
+            local_address: None,
         }
     }
 }

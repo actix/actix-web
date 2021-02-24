@@ -94,10 +94,10 @@ mod openssl {
     use super::*;
 
     use actix_service::ServiceFactoryExt;
-    use actix_tls::accept::openssl::{Acceptor, SslAcceptor, SslError, SslStream};
+    use actix_tls::accept::openssl::{Acceptor, SslAcceptor, SslError, TlsStream};
     use actix_tls::accept::TlsError;
 
-    impl<S, B, X, U> H1Service<SslStream<TcpStream>, S, B, X, U>
+    impl<S, B, X, U> H1Service<TlsStream<TcpStream>, S, B, X, U>
     where
         S: ServiceFactory<Request, Config = ()>,
         S::Error: Into<Error>,
@@ -108,7 +108,7 @@ mod openssl {
         X::Error: Into<Error>,
         X::InitError: fmt::Debug,
         U: ServiceFactory<
-            (Request, Framed<SslStream<TcpStream>, Codec>),
+            (Request, Framed<TlsStream<TcpStream>, Codec>),
             Config = (),
             Response = (),
         >,
@@ -131,7 +131,7 @@ mod openssl {
                     .map_err(TlsError::Tls)
                     .map_init_err(|_| panic!()),
             )
-            .and_then(|io: SslStream<TcpStream>| {
+            .and_then(|io: TlsStream<TcpStream>| {
                 let peer_addr = io.get_ref().peer_addr().ok();
                 ready(Ok((io, peer_addr)))
             })
