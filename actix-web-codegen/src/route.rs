@@ -177,8 +177,8 @@ pub struct Route {
     ast: syn::ItemFn,
     resource_type: ResourceType,
 
-    /// The doc comment attribute to copy to generated struct, if any.
-    doc_attribute: Option<syn::Attribute>,
+    /// The doc comment attributes to copy to generated struct, if any.
+    doc_attributes: Vec<syn::Attribute>,
 }
 
 fn guess_resource_type(typ: &syn::Type) -> ResourceType {
@@ -226,11 +226,14 @@ impl Route {
 
         // Try and pull out the doc comments so that we can reapply them to the
         // generated struct.
-        let mut doc_attribute = None;
+        //
+        // Note that multi line doc comments are converted to multiple doc
+        // attributes.
+        let mut doc_attribute = Vec::new();
         for attr in &ast.attrs {
             if let Some(ident) = attr.path.get_ident() {
                 if ident == "doc" {
-                    doc_attribute = Some(attr.clone());
+                    doc_attribute.push(attr.clone());
                 }
             }
         }
@@ -262,7 +265,7 @@ impl Route {
             args,
             ast,
             resource_type,
-            doc_attribute,
+            doc_attributes: doc_attribute,
         })
     }
 }
@@ -280,7 +283,7 @@ impl ToTokens for Route {
                     methods,
                 },
             resource_type,
-            doc_attribute,
+            doc_attributes: doc_attribute,
         } = self;
         let resource_name = name.to_string();
         let method_guards = {
@@ -302,8 +305,13 @@ impl ToTokens for Route {
             }
         };
 
+        let doc_comment_token_stream: TokenStream2 = doc_attribute
+            .iter()
+            .map(ToTokens::to_token_stream)
+            .collect();
+
         let stream = quote! {
-            #doc_attribute
+            #doc_comment_token_stream
             #[allow(non_camel_case_types, missing_docs)]
             pub struct #name;
 
