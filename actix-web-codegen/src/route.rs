@@ -229,10 +229,9 @@ impl Route {
         //
         // Note that multi line doc comments are converted to multiple doc
         // attributes.
-        let mut doc_attribute = Vec::new();
+        let mut doc_attributes = Vec::new();
         for attr in &ast.attrs {
-            if let Some(ident) = attr.path.get_ident() {
-                if ident == "doc" {
+            if attr.path.get_ident().is_ident("doc") {
                     doc_attribute.push(attr.clone());
                 }
             }
@@ -283,7 +282,7 @@ impl ToTokens for Route {
                     methods,
                 },
             resource_type,
-            doc_attributes: doc_attribute,
+            doc_attributes,
         } = self;
         let resource_name = name.to_string();
         let method_guards = {
@@ -311,7 +310,7 @@ impl ToTokens for Route {
             .collect();
 
         let stream = quote! {
-            #doc_comment_token_stream
+            #(#doc_comments)*
             #[allow(non_camel_case_types, missing_docs)]
             pub struct #name;
 
