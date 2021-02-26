@@ -71,18 +71,18 @@ async fn main() -> std::io::Result<()> {
 
 ### More examples
 
-* [Basic Setup](https://github.com/actix/examples/tree/master/basics/)
-* [Application State](https://github.com/actix/examples/tree/master/state/)
-* [JSON Handling](https://github.com/actix/examples/tree/master/json/)
-* [Multipart Streams](https://github.com/actix/examples/tree/master/multipart/)
-* [Diesel Integration](https://github.com/actix/examples/tree/master/diesel/)
-* [r2d2 Integration](https://github.com/actix/examples/tree/master/r2d2/)
-* [Simple WebSocket](https://github.com/actix/examples/tree/master/websocket/)
-* [Tera Templates](https://github.com/actix/examples/tree/master/template_tera/)
-* [Askama Templates](https://github.com/actix/examples/tree/master/template_askama/)
-* [HTTPS using Rustls](https://github.com/actix/examples/tree/master/rustls/)
-* [HTTPS using OpenSSL](https://github.com/actix/examples/tree/master/openssl/)
-* [WebSocket Chat](https://github.com/actix/examples/tree/master/websocket-chat/)
+* [Basic Setup](https://github.com/actix/examples/tree/master/basics/basics/)
+* [Application State](https://github.com/actix/examples/tree/master/basics/state/)
+* [JSON Handling](https://github.com/actix/examples/tree/master/json/json/)
+* [Multipart Streams](https://github.com/actix/examples/tree/master/forms/multipart/)
+* [Diesel Integration](https://github.com/actix/examples/tree/master/database_interactions/diesel/)
+* [r2d2 Integration](https://github.com/actix/examples/tree/master/database_interactions/r2d2/)
+* [Simple WebSocket](https://github.com/actix/examples/tree/master/websockets/websocket/)
+* [Tera Templates](https://github.com/actix/examples/tree/master/template_engines/tera/)
+* [Askama Templates](https://github.com/actix/examples/tree/master/template_engines/askama/)
+* [HTTPS using Rustls](https://github.com/actix/examples/tree/master/security/rustls/)
+* [HTTPS using OpenSSL](https://github.com/actix/examples/tree/master/security/openssl/)
+* [WebSocket Chat](https://github.com/actix/examples/tree/master/websockets/chat/)
 
 You may consider checking out
 [this directory](https://github.com/actix/examples/tree/master/) for more examples.
