@@ -1,5 +1,6 @@
 use std::convert::TryFrom;
 use std::fmt;
+use std::net::IpAddr;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -25,6 +26,7 @@ pub struct ClientBuilder<T = (), U = ()> {
     conn_window_size: Option<u32>,
     headers: HeaderMap,
     timeout: Option<Duration>,
+    local_address: Option<IpAddr>,
     connector: Connector<T, U>,
 }
 
@@ -42,6 +44,7 @@ impl ClientBuilder {
             default_headers: true,
             headers: HeaderMap::new(),
             timeout: Some(Duration::from_secs(5)),
+            local_address: None,
             connector: Connector::new(),
             max_http_version: None,
             stream_window_size: None,
@@ -72,6 +75,7 @@ where
             default_headers: self.default_headers,
             headers: self.headers,
             timeout: self.timeout,
+            local_address: None,
             connector,
             max_http_version: self.max_http_version,
             stream_window_size: self.stream_window_size,
@@ -91,6 +95,12 @@ where
     /// Disable request timeout.
     pub fn disable_timeout(mut self) -> Self {
         self.timeout = None;
+        self
+    }
+
+    /// Set local IP Address the connector would use for establishing connection.
+    pub fn local_address(mut self, addr: IpAddr) -> Self {
+        self.local_address = Some(addr);
         self
     }
 
@@ -184,6 +194,9 @@ where
         if let Some(val) = self.stream_window_size {
             connector = connector.initial_window_size(val)
         };
+        if let Some(val) = self.local_address {
+            connector = connector.local_address(val);
+        }
 
         let config = ClientConfig {
             headers: self.headers,

@@ -33,5 +33,5 @@ mime_guess = "2.0.1"
 percent-encoding = "2.1"
 
 [dev-dependencies]
-actix-rt = "2"
+actix-rt = "2.1"
 actix-web = "4.0.0-beta.3"
