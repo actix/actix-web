@@ -66,7 +66,7 @@ required-features = ["compress"]
 
 [[test]]
 name = "test_server"
-required-features = ["compress"]
+required-features = ["compress", "cookies"]
 
 [[example]]
 name = "on_connect"
