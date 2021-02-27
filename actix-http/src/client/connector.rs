@@ -1,9 +1,12 @@
-use std::fmt;
-use std::future::Future;
-use std::marker::PhantomData;
-use std::pin::Pin;
-use std::task::{Context, Poll};
-use std::time::Duration;
+use std::{
+    fmt,
+    future::Future,
+    marker::PhantomData,
+    net::IpAddr,
+    pin::Pin,
+    task::{Context, Poll},
+    time::Duration,
+};
 
 use actix_codec::{AsyncRead, AsyncWrite};
 use actix_rt::net::TcpStream;
@@ -240,6 +243,12 @@ where
         self
     }
 
+    /// Set local IP Address the connector would use for establishing connection.
+    pub fn local_address(mut self, addr: IpAddr) -> Self {
+        self.config.local_address = Some(addr);
+        self
+    }
+
     /// Finish configuration process and create connector service.
     /// The Connector builder always concludes by calling `finish()` last in
     /// its combinator chain.
@@ -247,10 +256,19 @@ where
         self,
     ) -> impl Service<Connect, Response = impl Connection, Error = ConnectError> + Clone
     {
+        let local_address = self.config.local_address;
+        let timeout = self.config.timeout;
+
         let tcp_service = TimeoutService::new(
-            self.config.timeout,
-            apply_fn(self.connector.clone(), |msg: Connect, srv| {
-                srv.call(TcpConnect::new(msg.uri).set_addr(msg.addr))
+            timeout,
+            apply_fn(self.connector.clone(), move |msg: Connect, srv| {
+                let mut req = TcpConnect::new(msg.uri).set_addr(msg.addr);
+
+                if let Some(local_addr) = local_address {
+                    req = req.set_local_addr(local_addr);
+                }
+
+                srv.call(req)
             })
             .map_err(ConnectError::from)
             .map(|stream| (stream.into_parts().0, Protocol::Http1)),
@@ -294,10 +312,16 @@ where
             use actix_tls::connect::ssl::rustls::{RustlsConnector, Session};
 
             let ssl_service = TimeoutService::new(
-                self.config.timeout,
+                timeout,
                 pipeline(
-                    apply_fn(self.connector.clone(), |msg: Connect, srv| {
-                        srv.call(TcpConnect::new(msg.uri).set_addr(msg.addr))
+                    apply_fn(self.connector.clone(), move |msg: Connect, srv| {
+                        let mut req = TcpConnect::new(msg.uri).set_addr(msg.addr);
+
+                        if let Some(local_addr) = local_address {
+                            req = req.set_local_addr(local_addr);
+                        }
+
+                        srv.call(req)
                     })
                     .map_err(ConnectError::from),
                 )

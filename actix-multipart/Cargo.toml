@@ -28,7 +28,7 @@ mime = "0.3"
 twoway = "0.2"
 
 [dev-dependencies]
-actix-rt = "2"
+actix-rt = "2.1"
 actix-http = "3.0.0-beta.3"
 tokio = { version = "1", features = ["sync"] }
 tokio-stream = "0.1"

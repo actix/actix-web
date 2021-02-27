@@ -1,4 +1,8 @@
-use std::{convert::TryFrom, fmt, rc::Rc, time::Duration};
+use std::convert::TryFrom;
+use std::fmt;
+use std::net::IpAddr;
+use std::rc::Rc;
+use std::time::Duration;
 
 use actix_codec::{AsyncRead, AsyncWrite};
 use actix_http::{
@@ -26,6 +30,7 @@ pub struct ClientBuilder<S = (), Io = (), M = ()> {
     timeout: Option<Duration>,
     connector: Connector<S, Io>,
     middleware: M,
+    local_address: Option<IpAddr>,
 }
 
 impl ClientBuilder {
@@ -44,6 +49,7 @@ impl ClientBuilder {
             default_headers: true,
             headers: HeaderMap::new(),
             timeout: Some(Duration::from_secs(5)),
+            local_address: None,
             connector: Connector::new(),
             max_http_version: None,
             stream_window_size: None,
@@ -75,6 +81,7 @@ where
             default_headers: self.default_headers,
             headers: self.headers,
             timeout: self.timeout,
+            local_address: None,
             connector,
             max_http_version: self.max_http_version,
             stream_window_size: self.stream_window_size,
@@ -94,6 +101,12 @@ where
     /// Disable request timeout.
     pub fn disable_timeout(mut self) -> Self {
         self.timeout = None;
+        self
+    }
+
+    /// Set local IP Address the connector would use for establishing connection.
+    pub fn local_address(mut self, addr: IpAddr) -> Self {
+        self.local_address = Some(addr);
         self
     }
 
@@ -216,6 +229,9 @@ where
         if let Some(val) = self.stream_window_size {
             connector = connector.initial_window_size(val)
         };
+        if let Some(val) = self.local_address {
+            connector = connector.local_address(val);
+        }
 
         let connector = boxed::service(DefaultConnector::new(connector.finish()));
 
