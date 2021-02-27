@@ -21,6 +21,7 @@ use flate2::{
     Compression,
 };
 use futures_util::ready;
+#[cfg(feature = "openssl")]
 use openssl::{
     pkey::PKey,
     ssl::{SslAcceptor, SslMethod},
@@ -54,6 +55,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World";
 
+#[cfg(feature = "openssl")]
 fn openssl_config() -> SslAcceptor {
     let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()]).unwrap();
     let cert_file = cert.serialize_pem().unwrap();
