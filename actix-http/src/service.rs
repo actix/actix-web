@@ -3,8 +3,8 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::{fmt, net, rc::Rc};
 
-use actix_codec::{AsyncRead, AsyncWrite, Framed};
-use actix_rt::net::TcpStream;
+use actix_codec::Framed;
+use actix_rt::net::{ActixStream, TcpStream};
 use actix_service::{pipeline_factory, IntoServiceFactory, Service, ServiceFactory};
 use bytes::Bytes;
 use futures_core::{ready, Future};
@@ -185,10 +185,10 @@ where
 mod openssl {
     use super::*;
     use actix_service::ServiceFactoryExt;
-    use actix_tls::accept::openssl::{Acceptor, SslAcceptor, SslError, SslStream};
+    use actix_tls::accept::openssl::{Acceptor, SslAcceptor, SslError, TlsStream};
     use actix_tls::accept::TlsError;
 
-    impl<S, B, X, U> HttpService<SslStream<TcpStream>, S, B, X, U>
+    impl<S, B, X, U> HttpService<TlsStream<TcpStream>, S, B, X, U>
     where
         S: ServiceFactory<Request, Config = ()>,
         S::Error: Into<Error> + 'static,
@@ -201,13 +201,13 @@ mod openssl {
         X::InitError: fmt::Debug,
         <X::Service as Service<Request>>::Future: 'static,
         U: ServiceFactory<
-            (Request, Framed<SslStream<TcpStream>, h1::Codec>),
+            (Request, Framed<TlsStream<TcpStream>, h1::Codec>),
             Config = (),
             Response = (),
         >,
         U::Error: fmt::Display + Into<Error>,
         U::InitError: fmt::Debug,
-        <U::Service as Service<(Request, Framed<SslStream<TcpStream>, h1::Codec>)>>::Future: 'static,
+        <U::Service as Service<(Request, Framed<TlsStream<TcpStream>, h1::Codec>)>>::Future: 'static,
     {
         /// Create openssl based service
         pub fn openssl(
@@ -225,7 +225,7 @@ mod openssl {
                     .map_err(TlsError::Tls)
                     .map_init_err(|_| panic!()),
             )
-            .and_then(|io: SslStream<TcpStream>| async {
+            .and_then(|io: TlsStream<TcpStream>| async {
                 let proto = if let Some(protos) = io.ssl().selected_alpn_protocol() {
                     if protos.windows(2).any(|window| window == b"h2") {
                         Protocol::Http2
@@ -314,7 +314,7 @@ mod rustls {
 impl<T, S, B, X, U> ServiceFactory<(T, Protocol, Option<net::SocketAddr>)>
     for HttpService<T, S, B, X, U>
 where
-    T: AsyncRead + AsyncWrite + Unpin,
+    T: ActixStream,
     S: ServiceFactory<Request, Config = ()>,
     S::Error: Into<Error> + 'static,
     S::InitError: fmt::Debug,
@@ -374,7 +374,7 @@ where
 
 impl<T, S, B, X, U> Future for HttpServiceResponse<T, S, B, X, U>
 where
-    T: AsyncRead + AsyncWrite + Unpin,
+    T: ActixStream,
     S: ServiceFactory<Request>,
     S::Error: Into<Error> + 'static,
     S::InitError: fmt::Debug,
@@ -493,7 +493,7 @@ where
 impl<T, S, B, X, U> Service<(T, Protocol, Option<net::SocketAddr>)>
     for HttpServiceHandler<T, S, B, X, U>
 where
-    T: AsyncRead + AsyncWrite + Unpin,
+    T: ActixStream,
     S: Service<Request>,
     S::Error: Into<Error> + 'static,
     S::Future: 'static,
@@ -591,7 +591,7 @@ where
     S: Service<Request>,
     S::Future: 'static,
     S::Error: Into<Error>,
-    T: AsyncRead + AsyncWrite + Unpin,
+    T: ActixStream,
     B: MessageBody,
     X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
@@ -614,7 +614,7 @@ where
 #[pin_project]
 pub struct HttpServiceHandlerResponse<T, S, B, X, U>
 where
-    T: AsyncRead + AsyncWrite + Unpin,
+    T: ActixStream,
     S: Service<Request>,
     S::Error: Into<Error> + 'static,
     S::Future: 'static,
@@ -631,7 +631,7 @@ where
 
 impl<T, S, B, X, U> Future for HttpServiceHandlerResponse<T, S, B, X, U>
 where
-    T: AsyncRead + AsyncWrite + Unpin,
+    T: ActixStream,
     S: Service<Request>,
     S::Error: Into<Error> + 'static,
     S::Future: 'static,

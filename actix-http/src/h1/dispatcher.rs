@@ -6,10 +6,14 @@ use std::{
     pin::Pin,
     rc::Rc,
     task::{Context, Poll},
+    time::Duration,
 };
 
-use actix_codec::{AsyncRead, AsyncWrite, Decoder, Encoder, Framed, FramedParts};
-use actix_rt::time::{sleep_until, Instant, Sleep};
+use actix_codec::{Decoder, Encoder, Framed, FramedParts};
+use actix_rt::{
+    net::ActixStream,
+    time::{sleep_until, Instant, Sleep},
+};
 use actix_service::Service;
 use bitflags::bitflags;
 use bytes::{Buf, BytesMut};
@@ -41,6 +45,7 @@ bitflags! {
         const SHUTDOWN           = 0b0000_0100;
         const READ_DISCONNECT    = 0b0000_1000;
         const WRITE_DISCONNECT   = 0b0001_0000;
+        const PAYLOAD_PENDING    = 0b0010_0000;
     }
 }
 
@@ -148,7 +153,7 @@ enum PollResponse {
 
 impl<T, S, B, X, U> Dispatcher<T, S, B, X, U>
 where
-    T: AsyncRead + AsyncWrite + Unpin,
+    T: ActixStream,
     S: Service<Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
@@ -204,7 +209,7 @@ where
 
 impl<T, S, B, X, U> InnerDispatcher<T, S, B, X, U>
 where
-    T: AsyncRead + AsyncWrite + Unpin,
+    T: ActixStream,
     S: Service<Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
@@ -369,6 +374,9 @@ where
                     while this.write_buf.len() < super::payload::MAX_BUFFER_SIZE {
                         match stream.as_mut().poll_next(cx) {
                             Poll::Ready(Some(Ok(item))) => {
+                                // any state other than pending should
+                                // remove the PAYLOAD_PENDING flag
+                                this.flags.remove(Flags::PAYLOAD_PENDING);
                                 this.codec.encode(
                                     Message::Chunk(Some(item)),
                                     &mut this.write_buf,
@@ -376,6 +384,7 @@ where
                             }
 
                             Poll::Ready(None) => {
+                                this.flags.remove(Flags::PAYLOAD_PENDING);
                                 this.codec
                                     .encode(Message::Chunk(None), &mut this.write_buf)?;
                                 // payload stream finished.
@@ -385,10 +394,35 @@ where
                             }
 
                             Poll::Ready(Some(Err(err))) => {
-                                return Err(DispatchError::Service(err))
+                                this.flags.remove(Flags::PAYLOAD_PENDING);
+                                return Err(DispatchError::Service(err));
                             }
 
-                            Poll::Pending => return Ok(PollResponse::DoNothing),
+                            // Payload is pending. register a timer for wake up
+                            // dispatcher in interval and check connection status.
+                            Poll::Pending => {
+                                // write pending flag and configure ka_timer to the
+                                // nearest deadline
+                                if !this.flags.contains(Flags::PAYLOAD_PENDING) {
+                                    this.flags.insert(Flags::PAYLOAD_PENDING);
+
+                                    // pending check use 1 second timer interval.
+                                    let target = Instant::now() + Duration::from_secs(1);
+
+                                    // reset the ka_timer to be used as interval.
+                                    match this.ka_timer.as_mut().as_pin_mut() {
+                                        Some(timer) => timer.reset(target),
+                                        None => {
+                                            this.ka_timer.set(Some(sleep_until(target)))
+                                        }
+                                    }
+
+                                    // poll the timer to register the interval.
+                                    self.poll_keepalive(cx)?;
+                                }
+
+                                return Ok(PollResponse::DoNothing);
+                            }
                         }
                     }
                     // buffer is beyond max size.
@@ -659,8 +693,19 @@ where
             Some(mut timer) => {
                 // only operate when keep-alive timer is resolved.
                 if timer.as_mut().poll(cx).is_ready() {
+                    // payload is pending and it's time to check the ready state of io.
+                    if this.flags.contains(Flags::PAYLOAD_PENDING) {
+                        // only interest in the error type.
+                        // The io is ready or not is not important.
+                        let _ =
+                            Pin::new(this.io.as_mut().unwrap()).poll_read_ready(cx)?;
+                        // reset the interval and check again after 1 second.
+                        timer
+                            .as_mut()
+                            .reset(Instant::now() + Duration::from_secs(1));
+                        let _ = timer.poll(cx);
                     // got timeout during shutdown, drop connection
-                    if this.flags.contains(Flags::SHUTDOWN) {
+                    } else if this.flags.contains(Flags::SHUTDOWN) {
                         return Err(DispatchError::DisconnectTimeout);
                     // exceed deadline. check for any outstanding tasks
                     } else if timer.deadline() >= *this.ka_expire {
@@ -824,7 +869,7 @@ where
 
 impl<T, S, B, X, U> Future for Dispatcher<T, S, B, X, U>
 where
-    T: AsyncRead + AsyncWrite + Unpin,
+    T: ActixStream,
     S: Service<Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,

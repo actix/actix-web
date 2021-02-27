@@ -10,6 +10,7 @@ use std::{
 };
 
 use actix_codec::{AsyncRead, AsyncWrite, ReadBuf};
+use actix_rt::net::ActixStream;
 use bytes::{Bytes, BytesMut};
 use http::{Method, Uri, Version};
 
@@ -393,6 +394,26 @@ impl AsyncWrite for TestSeqBuffer {
     }
 
     fn poll_shutdown(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+}
+
+impl ActixStream for TestBuffer {
+    fn poll_read_ready(&self, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn poll_write_ready(&self, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+}
+
+impl ActixStream for TestSeqBuffer {
+    fn poll_read_ready(&self, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn poll_write_ready(&self, _: &mut Context<'_>) -> Poll<io::Result<()>> {
         Poll::Ready(Ok(()))
     }
 }
