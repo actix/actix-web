@@ -47,7 +47,7 @@ trust-dns = ["actix-http/trust-dns"]
 actix-codec = "0.4.0-beta.1"
 actix-service = "2.0.0-beta.4"
 actix-http = "3.0.0-beta.3"
-actix-rt = "2"
+actix-rt = "2.1"
 
 base64 = "0.13"
 bytes = "1"
@@ -76,7 +76,7 @@ actix-http = { version = "3.0.0-beta.3", features = ["openssl"] }
 actix-http-test = { version = "3.0.0-beta.2", features = ["openssl"] }
 actix-utils = "3.0.0-beta.1"
 actix-server = "2.0.0-beta.3"
-actix-tls = { version = "3.0.0-beta.3", features = ["openssl", "rustls"] }
+actix-tls = { version = "3.0.0-beta.4", features = ["openssl", "rustls"] }
 
 brotli2 = "0.3.2"
 flate2 = "1.0.13"
