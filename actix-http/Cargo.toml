@@ -47,7 +47,7 @@ trust-dns = ["trust-dns-resolver"]
 actix-service = "2.0.0-beta.4"
 actix-codec = "0.4.0-beta.1"
 actix-utils = "3.0.0-beta.2"
-actix-rt = "2"
+actix-rt = "2.1"
 actix-tls = "3.0.0-beta.4"
 
 ahash = "0.7"
