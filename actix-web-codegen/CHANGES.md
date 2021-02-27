@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+* Preserve doc comments when using route macros. [#2022]
+
+[#2022]: https://github.com/actix/actix-web/pull/2022
 
 
 ## 0.5.0-beta.1 - 2021-02-10
