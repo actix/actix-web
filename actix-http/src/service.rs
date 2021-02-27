@@ -185,10 +185,10 @@ where
 mod openssl {
     use super::*;
     use actix_service::ServiceFactoryExt;
-    use actix_tls::accept::openssl::{Acceptor, SslAcceptor, SslError, SslStream};
+    use actix_tls::accept::openssl::{Acceptor, SslAcceptor, SslError, TlsStream};
     use actix_tls::accept::TlsError;
 
-    impl<S, B, X, U> HttpService<SslStream<TcpStream>, S, B, X, U>
+    impl<S, B, X, U> HttpService<TlsStream<TcpStream>, S, B, X, U>
     where
         S: ServiceFactory<Request, Config = ()>,
         S::Error: Into<Error> + 'static,
@@ -201,13 +201,13 @@ mod openssl {
         X::InitError: fmt::Debug,
         <X::Service as Service<Request>>::Future: 'static,
         U: ServiceFactory<
-            (Request, Framed<SslStream<TcpStream>, h1::Codec>),
+            (Request, Framed<TlsStream<TcpStream>, h1::Codec>),
             Config = (),
             Response = (),
         >,
         U::Error: fmt::Display + Into<Error>,
         U::InitError: fmt::Debug,
-        <U::Service as Service<(Request, Framed<SslStream<TcpStream>, h1::Codec>)>>::Future: 'static,
+        <U::Service as Service<(Request, Framed<TlsStream<TcpStream>, h1::Codec>)>>::Future: 'static,
     {
         /// Create openssl based service
         pub fn openssl(
@@ -225,7 +225,7 @@ mod openssl {
                     .map_err(TlsError::Tls)
                     .map_init_err(|_| panic!()),
             )
-            .and_then(|io: SslStream<TcpStream>| async {
+            .and_then(|io: TlsStream<TcpStream>| async {
                 let proto = if let Some(protos) = io.ssl().selected_alpn_protocol() {
                     if protos.windows(2).any(|window| window == b"h2") {
                         Protocol::Http2

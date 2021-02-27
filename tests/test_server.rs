@@ -786,11 +786,6 @@ mod plus_rustls {
 
     #[actix_rt::test]
     async fn test_reading_deflate_encoding_large_random_rustls() {
-        use rustls::internal::pemfile::{certs, pkcs8_private_keys};
-        use rustls::{NoClientAuth, ServerConfig};
-        use std::fs::File;
-        use std::io::BufReader;
-
         let data = rand::thread_rng()
             .sample_iter(&Alphanumeric)
             .take(160_000)
