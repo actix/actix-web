@@ -17,7 +17,6 @@ use actix_server::Server;
 use bytes::{Bytes, BytesMut};
 use bytestring::ByteString;
 use futures_core::{ready, Stream};
-use http::StatusCode;
 
 #[actix_rt::main]
 async fn main() -> io::Result<()> {
