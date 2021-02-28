@@ -10,24 +10,27 @@ use actix_http::{
     http::{self, header, Error as HttpError, HeaderMap, HeaderName, Uri},
 };
 use actix_rt::net::TcpStream;
-use actix_service::Service;
+use actix_service::{boxed, Service};
 
-use crate::connect::ConnectorWrapper;
-use crate::{Client, ClientConfig};
+use crate::connect::DefaultConnector;
+use crate::error::SendRequestError;
+use crate::middleware::{NestTransform, Transform};
+use crate::{Client, ClientConfig, ConnectRequest, ConnectResponse, ConnectorService};
 
 /// An HTTP Client builder
 ///
 /// This type can be used to construct an instance of `Client` through a
 /// builder-like pattern.
-pub struct ClientBuilder<T = (), U = ()> {
+pub struct ClientBuilder<S = (), Io = (), M = ()> {
     default_headers: bool,
     max_http_version: Option<http::Version>,
     stream_window_size: Option<u32>,
     conn_window_size: Option<u32>,
     headers: HeaderMap,
     timeout: Option<Duration>,
+    connector: Connector<S, Io>,
+    middleware: M,
     local_address: Option<IpAddr>,
-    connector: Connector<T, U>,
 }
 
 impl ClientBuilder {
@@ -39,8 +42,10 @@ impl ClientBuilder {
                 Error = TcpConnectError,
             > + Clone,
         TcpStream,
+        (),
     > {
         ClientBuilder {
+            middleware: (),
             default_headers: true,
             headers: HeaderMap::new(),
             timeout: Some(Duration::from_secs(5)),
@@ -53,7 +58,7 @@ impl ClientBuilder {
     }
 }
 
-impl<S, Io> ClientBuilder<S, Io>
+impl<S, Io, M> ClientBuilder<S, Io, M>
 where
     S: Service<TcpConnect<Uri>, Response = TcpConnection<Uri, Io>, Error = TcpConnectError>
         + Clone
@@ -61,7 +66,7 @@ where
     Io: AsyncRead + AsyncWrite + Unpin + fmt::Debug + 'static,
 {
     /// Use custom connector service.
-    pub fn connector<S1, Io1>(self, connector: Connector<S1, Io1>) -> ClientBuilder<S1, Io1>
+    pub fn connector<S1, Io1>(self, connector: Connector<S1, Io1>) -> ClientBuilder<S1, Io1, M>
     where
         S1: Service<
                 TcpConnect<Uri>,
@@ -72,10 +77,11 @@ where
         Io1: AsyncRead + AsyncWrite + Unpin + fmt::Debug + 'static,
     {
         ClientBuilder {
+            middleware: self.middleware,
             default_headers: self.default_headers,
             headers: self.headers,
             timeout: self.timeout,
-            local_address: None,
+            local_address: self.local_address,
             connector,
             max_http_version: self.max_http_version,
             stream_window_size: self.stream_window_size,
@@ -181,8 +187,38 @@ where
         self.header(header::AUTHORIZATION, format!("Bearer {}", token))
     }
 
+    /// Registers middleware, in the form of a middleware component (type),
+    /// that runs during inbound and/or outbound processing in the request
+    /// life-cycle (request -> response), modifying request/response as
+    /// necessary, across all requests managed by the Client.
+    pub fn wrap<S1, M1>(
+        self,
+        mw: M1,
+    ) -> ClientBuilder<S, Io, NestTransform<M, M1, S1, ConnectRequest>>
+    where
+        M: Transform<S1, ConnectRequest>,
+        M1: Transform<M::Transform, ConnectRequest>,
+    {
+        ClientBuilder {
+            middleware: NestTransform::new(self.middleware, mw),
+            default_headers: self.default_headers,
+            max_http_version: self.max_http_version,
+            stream_window_size: self.stream_window_size,
+            conn_window_size: self.conn_window_size,
+            headers: self.headers,
+            timeout: self.timeout,
+            connector: self.connector,
+            local_address: self.local_address,
+        }
+    }
+
     /// Finish build process and create `Client` instance.
-    pub fn finish(self) -> Client {
+    pub fn finish(self) -> Client
+    where
+        M: Transform<ConnectorService, ConnectRequest> + 'static,
+        M::Transform:
+            Service<ConnectRequest, Response = ConnectResponse, Error = SendRequestError>,
+    {
         let mut connector = self.connector;
 
         if let Some(val) = self.max_http_version {
@@ -198,10 +234,13 @@ where
             connector = connector.local_address(val);
         }
 
+        let connector = boxed::service(DefaultConnector::new(connector.finish()));
+        let connector = boxed::service(self.middleware.new_transform(connector));
+
         let config = ClientConfig {
             headers: self.headers,
             timeout: self.timeout,
-            connector: Box::new(ConnectorWrapper::new(connector.finish())) as _,
+            connector,
         };
 
         Client(Rc::new(config))

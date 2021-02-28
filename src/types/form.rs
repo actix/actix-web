@@ -400,12 +400,8 @@ mod tests {
             UrlencodedError::Overflow { .. } => {
                 matches!(other, UrlencodedError::Overflow { .. })
             }
-            UrlencodedError::UnknownLength => {
-                matches!(other, UrlencodedError::UnknownLength)
-            }
-            UrlencodedError::ContentType => {
-                matches!(other, UrlencodedError::ContentType)
-            }
+            UrlencodedError::UnknownLength => matches!(other, UrlencodedError::UnknownLength),
+            UrlencodedError::ContentType => matches!(other, UrlencodedError::ContentType),
             _ => false,
         }
     }

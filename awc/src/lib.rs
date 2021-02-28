@@ -107,12 +107,13 @@ use actix_http::{
     RequestHead,
 };
 use actix_rt::net::TcpStream;
-use actix_service::Service;
+use actix_service::{boxed, Service};
 
 mod builder;
 mod connect;
 pub mod error;
 mod frozen;
+pub mod middleware;
 mod request;
 mod response;
 mod sender;
@@ -120,13 +121,11 @@ pub mod test;
 pub mod ws;
 
 pub use self::builder::ClientBuilder;
-pub use self::connect::{BoxedSocket, ConnectRequest, ConnectResponse, ConnectService};
+pub use self::connect::{BoxedSocket, ConnectRequest, ConnectResponse, ConnectorService};
 pub use self::frozen::{FrozenClientRequest, FrozenSendBuilder};
 pub use self::request::ClientRequest;
 pub use self::response::{ClientResponse, JsonBody, MessageBody};
 pub use self::sender::SendClientRequest;
-
-use self::connect::ConnectorWrapper;
 
 /// An asynchronous HTTP and WebSocket client.
 ///
@@ -151,7 +150,7 @@ use self::connect::ConnectorWrapper;
 pub struct Client(Rc<ClientConfig>);
 
 pub(crate) struct ClientConfig {
-    pub(crate) connector: ConnectService,
+    pub(crate) connector: ConnectorService,
     pub(crate) headers: HeaderMap,
     pub(crate) timeout: Option<Duration>,
 }
@@ -159,7 +158,9 @@ pub(crate) struct ClientConfig {
 impl Default for Client {
     fn default() -> Self {
         Client(Rc::new(ClientConfig {
-            connector: Box::new(ConnectorWrapper::new(Connector::new().finish())),
+            connector: boxed::service(self::connect::DefaultConnector::new(
+                Connector::new().finish(),
+            )),
             headers: HeaderMap::new(),
             timeout: Some(Duration::from_secs(5)),
         }))
