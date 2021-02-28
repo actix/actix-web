@@ -381,12 +381,14 @@ impl WebsocketsRequest {
 
         if let Some(hdr_key) = head.headers.get(&header::SEC_WEBSOCKET_ACCEPT) {
             let encoded = ws::hash_key(key.as_ref());
-            if hdr_key.as_bytes() != encoded.as_bytes() {
+
+            if hdr_key.as_bytes() != &encoded {
                 log::trace!(
-                    "Invalid challenge response: expected: {} received: {:?}",
-                    encoded,
+                    "Invalid challenge response: expected: {:?} received: {:?}",
+                    &encoded,
                     key
                 );
+
                 return Err(WsClientError::InvalidChallengeResponse(
                     encoded,
                     hdr_key.clone(),
