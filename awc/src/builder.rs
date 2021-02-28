@@ -81,7 +81,7 @@ where
             default_headers: self.default_headers,
             headers: self.headers,
             timeout: self.timeout,
-            local_address: None,
+            local_address: self.local_address,
             connector,
             max_http_version: self.max_http_version,
             stream_window_size: self.stream_window_size,
@@ -208,6 +208,7 @@ where
             headers: self.headers,
             timeout: self.timeout,
             connector: self.connector,
+            local_address: self.local_address,
         }
     }
 
@@ -234,7 +235,6 @@ where
         }
 
         let connector = boxed::service(DefaultConnector::new(connector.finish()));
-
         let connector = boxed::service(self.middleware.new_transform(connector));
 
         let config = ClientConfig {
