@@ -11,11 +11,12 @@
 ## Documentation & Resources
 
 - [API Documentation](https://docs.rs/awc)
-- [Example Project](https://github.com/actix/examples/tree/HEAD/awc_https)
+- [Example Project](https://github.com/actix/examples/tree/HEAD/security/awc_https)
 - [Chat on Gitter](https://gitter.im/actix/actix-web)
 - Minimum Supported Rust Version (MSRV): 1.46.0
 
 ## Example
+
 ```rust
 use actix_rt::System;
 use awc::Client;

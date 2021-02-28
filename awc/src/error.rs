@@ -18,24 +18,31 @@ pub enum WsClientError {
     /// Invalid response status
     #[display(fmt = "Invalid response status")]
     InvalidResponseStatus(StatusCode),
+
     /// Invalid upgrade header
     #[display(fmt = "Invalid upgrade header")]
     InvalidUpgradeHeader,
+
     /// Invalid connection header
     #[display(fmt = "Invalid connection header")]
     InvalidConnectionHeader(HeaderValue),
-    /// Missing CONNECTION header
-    #[display(fmt = "Missing CONNECTION header")]
+
+    /// Missing Connection header
+    #[display(fmt = "Missing Connection header")]
     MissingConnectionHeader,
-    /// Missing SEC-WEBSOCKET-ACCEPT header
-    #[display(fmt = "Missing SEC-WEBSOCKET-ACCEPT header")]
+
+    /// Missing Sec-Websocket-Accept header
+    #[display(fmt = "Missing Sec-Websocket-Accept header")]
     MissingWebSocketAcceptHeader,
+
     /// Invalid challenge response
     #[display(fmt = "Invalid challenge response")]
-    InvalidChallengeResponse(String, HeaderValue),
+    InvalidChallengeResponse([u8; 28], HeaderValue),
+
     /// Protocol error
     #[display(fmt = "{}", _0)]
     Protocol(WsProtocolError),
+
     /// Send request error
     #[display(fmt = "{}", _0)]
     SendRequest(SendRequestError),

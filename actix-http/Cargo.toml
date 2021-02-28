@@ -103,6 +103,10 @@ version = "0.10.9"
 package = "openssl"
 features = ["vendored"]
 
+[[example]]
+name = "ws"
+required-features = ["rustls"]
+
 [[bench]]
 name = "write-camel-case"
 harness = false
