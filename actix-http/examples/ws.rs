@@ -1,5 +1,5 @@
 //! Sets up a WebSocket server over TCP and TLS.
-//! Sends a heartbeat message every 4 seconds and does not respond to any incoming frames.
+//! Sends a heartbeat message every 4 seconds but does not respond to any incoming frames.
 
 extern crate tls_rustls as rustls;
 

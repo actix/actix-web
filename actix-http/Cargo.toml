@@ -104,7 +104,7 @@ package = "openssl"
 features = ["vendored"]
 
 [[example]]
-name = "h2-ws"
+name = "ws"
 required-features = ["rustls"]
 
 [[bench]]
