@@ -211,14 +211,14 @@ where
 {
     fn spawn<F>(&mut self, fut: F) -> SpawnHandle
     where
-        F: ActorFuture<Output = (), Actor = A> + 'static,
+        F: ActorFuture<A, Output = ()> + 'static,
     {
         self.inner.spawn(fut)
     }
 
     fn wait<F>(&mut self, fut: F)
     where
-        F: ActorFuture<Output = (), Actor = A> + 'static,
+        F: ActorFuture<A, Output = ()> + 'static,
     {
         self.inner.wait(fut)
     }
@@ -495,7 +495,6 @@ where
 
         if !*this.closed {
             loop {
-                this = self.as_mut().project();
                 match Pin::new(&mut this.stream).poll_next(cx) {
                     Poll::Ready(Some(Ok(chunk))) => {
                         this.buf.extend_from_slice(&chunk[..]);
