@@ -44,7 +44,7 @@ where
     #[inline]
     fn spawn<F>(&mut self, fut: F) -> SpawnHandle
     where
-        F: ActorFuture<Output = (), Actor = A> + 'static,
+        F: ActorFuture<A, Output = ()> + 'static,
     {
         self.inner.spawn(fut)
     }
@@ -52,7 +52,7 @@ where
     #[inline]
     fn wait<F>(&mut self, fut: F)
     where
-        F: ActorFuture<Output = (), Actor = A> + 'static,
+        F: ActorFuture<A, Output = ()> + 'static,
     {
         self.inner.wait(fut)
     }
