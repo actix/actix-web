@@ -83,6 +83,13 @@ async fn route_test() -> impl Responder {
     HttpResponse::Ok()
 }
 
+#[get("/custom_resource_name", name = "custom")]
+async fn custom_resource_name_test<'a>(req: actix_web::HttpRequest) -> impl Responder {
+    assert!(req.url_for_static("custom").is_ok());
+    assert!(req.url_for_static("custom_resource_name_test").is_err());
+    HttpResponse::Ok()
+}
+
 pub struct ChangeStatusCode;
 
 impl<S, B> Transform<S, ServiceRequest> for ChangeStatusCode
@@ -174,6 +181,7 @@ async fn test_body() {
             .service(patch_test)
             .service(test_handler)
             .service(route_test)
+            .service(custom_resource_name_test)
     });
     let request = srv.request(http::Method::GET, srv.url("/test"));
     let response = request.send().await.unwrap();
@@ -228,6 +236,10 @@ async fn test_body() {
     let request = srv.request(http::Method::PATCH, srv.url("/multi"));
     let response = request.send().await.unwrap();
     assert!(!response.status().is_success());
+
+    let request = srv.request(http::Method::GET, srv.url("/custom_resource_name"));
+    let response = request.send().await.unwrap();
+    assert!(response.status().is_success());
 }
 
 #[actix_rt::test]
