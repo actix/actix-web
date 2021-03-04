@@ -492,9 +492,7 @@ mod tests {
             JsonPayloadError::Payload(PayloadError::Overflow) => {
                 matches!(other, JsonPayloadError::Payload(PayloadError::Overflow))
             }
-            JsonPayloadError::ContentType => {
-                matches!(other, JsonPayloadError::ContentType)
-            }
+            JsonPayloadError::ContentType => matches!(other, JsonPayloadError::ContentType),
             _ => false,
         }
     }

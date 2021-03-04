@@ -14,6 +14,6 @@
 ## Documentation & Resources
 
 - [API Documentation](https://docs.rs/actix-files/)
-- [Example Project](https://github.com/actix/examples/tree/master/static_index)
+- [Example Project](https://github.com/actix/examples/tree/master/basics/static_index)
 - [Chat on Gitter](https://gitter.im/actix/actix-web)
 - Minimum supported Rust version: 1.46 or later

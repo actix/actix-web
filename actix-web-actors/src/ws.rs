@@ -15,9 +15,12 @@ use actix::{
     SpawnHandle,
 };
 use actix_codec::{Decoder, Encoder};
-use actix_http::ws::{hash_key, Codec};
 pub use actix_http::ws::{
     CloseCode, CloseReason, Frame, HandshakeError, Message, ProtocolError,
+};
+use actix_http::{
+    http::HeaderValue,
+    ws::{hash_key, Codec},
 };
 use actix_web::dev::HttpResponseBuilder;
 use actix_web::error::{Error, PayloadError};
@@ -162,7 +165,11 @@ pub fn handshake_with_protocols(
 
     let mut response = HttpResponse::build(StatusCode::SWITCHING_PROTOCOLS)
         .upgrade("websocket")
-        .insert_header((header::SEC_WEBSOCKET_ACCEPT, key))
+        .insert_header((
+            header::SEC_WEBSOCKET_ACCEPT,
+            // key is known to be header value safe ascii
+            HeaderValue::from_bytes(&key).unwrap(),
+        ))
         .take();
 
     if let Some(protocol) = protocol {
