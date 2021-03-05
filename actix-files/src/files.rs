@@ -172,8 +172,21 @@ impl Files {
         self
     }
 
-    /// Specifies custom guards to use for directory listings and files.
+    /// Add match guard to use on directory listings and files.
     ///
+    /// ```rust
+    /// use actix_web::{guard, App};
+    /// use actix_files::Files;
+    ///
+    ///
+    /// fn main() {
+    ///     let app = App::new()
+    ///         .service(
+    ///             Files::new("/","/my/site/files")
+    ///                 .guard(guard::Header("Host", "example.com"))
+    ///         );
+    /// }
+    /// ```
     #[inline]
     pub fn guard<G: Guard + 'static>(mut self, guard: G) -> Self {
         self.guards.push(Box::new(guard));
