@@ -37,7 +37,7 @@ pub struct Files {
     mime_override: Option<Rc<MimeOverride>>,
     file_flags: named::Flags,
     use_guards: Option<Rc<dyn Guard>>,
-    guards: Vec<Box<dyn Guard>>,
+    guards: Vec<Box<Rc<dyn Guard>>>,
     hidden_files: bool,
 }
 
@@ -47,6 +47,24 @@ impl fmt::Debug for Files {
     }
 }
 
+impl Clone for Files {
+    fn clone(&self) -> Self {
+        Self {
+            directory: self.directory.clone(),
+            index: self.index.clone(),
+            show_index: self.show_index,
+            redirect_to_slash: self.redirect_to_slash,
+            default: self.default.clone(),
+            renderer: self.renderer.clone(),
+            file_flags: self.file_flags,
+            path: self.path.clone(),
+            mime_override: self.mime_override.clone(),
+            use_guards: self.use_guards.clone(),
+            guards: self.guards.clone(),
+            hidden_files: self.hidden_files,
+        }
+    }
+}
 impl Files {
     /// Create new `Files` instance for a specified base directory.
     ///
@@ -189,7 +207,7 @@ impl Files {
     /// ```
     #[inline]
     pub fn guard<G: Guard + 'static>(mut self, guard: G) -> Self {
-        self.guards.push(Box::new(guard));
+        self.guards.push(Box::new(Rc::new(guard)));
         self
     }
 
@@ -234,7 +252,13 @@ impl HttpServiceFactory for Files {
         let guards = if self.guards.is_empty() {
             None
         } else {
-            Some(std::mem::take(&mut self.guards))
+            let guards = std::mem::take(&mut self.guards);
+            Some(
+                guards
+                    .into_iter()
+                    .map(|guard| -> Box<dyn Guard> { guard })
+                    .collect::<Vec<_>>(),
+            )
         };
 
         if self.default.borrow().is_none() {

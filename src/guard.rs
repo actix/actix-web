@@ -26,6 +26,8 @@
 //! ```
 #![allow(non_snake_case)]
 use std::convert::TryFrom;
+use std::ops::Deref;
+use std::rc::Rc;
 
 use actix_http::http::{self, header, uri::Uri};
 use actix_http::RequestHead;
@@ -38,6 +40,12 @@ use actix_http::RequestHead;
 pub trait Guard {
     /// Check if request matches predicate
     fn check(&self, request: &RequestHead) -> bool;
+}
+
+impl Guard for Rc<dyn Guard> {
+    fn check(&self, request: &RequestHead) -> bool {
+        self.deref().check(request)
+    }
 }
 
 /// Create guard object for supplied function.
