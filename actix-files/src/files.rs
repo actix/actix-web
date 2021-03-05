@@ -36,31 +36,14 @@ pub struct Files {
     renderer: Rc<DirectoryRenderer>,
     mime_override: Option<Rc<MimeOverride>>,
     file_flags: named::Flags,
-    guards: Option<Rc<dyn Guard>>,
+    use_guards: Option<Rc<dyn Guard>>,
+    guards: Vec<Box<dyn Guard>>,
     hidden_files: bool,
 }
 
 impl fmt::Debug for Files {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("Files")
-    }
-}
-
-impl Clone for Files {
-    fn clone(&self) -> Self {
-        Self {
-            directory: self.directory.clone(),
-            index: self.index.clone(),
-            show_index: self.show_index,
-            redirect_to_slash: self.redirect_to_slash,
-            default: self.default.clone(),
-            renderer: self.renderer.clone(),
-            file_flags: self.file_flags,
-            path: self.path.clone(),
-            mime_override: self.mime_override.clone(),
-            guards: self.guards.clone(),
-            hidden_files: self.hidden_files,
-        }
     }
 }
 
@@ -103,7 +86,8 @@ impl Files {
             renderer: Rc::new(directory_listing),
             mime_override: None,
             file_flags: named::Flags::default(),
-            guards: None,
+            use_guards: None,
+            guards: Vec::new(),
             hidden_files: false,
         }
     }
@@ -184,7 +168,15 @@ impl Files {
     /// Default behaviour allows GET and HEAD.
     #[inline]
     pub fn use_guards<G: Guard + 'static>(mut self, guards: G) -> Self {
-        self.guards = Some(Rc::new(guards));
+        self.use_guards = Some(Rc::new(guards));
+        self
+    }
+
+    /// Specifies custom guards to use for directory listings and files.
+    ///
+    #[inline]
+    pub fn guard<G: Guard + 'static>(mut self, guard: G) -> Self {
+        self.guards.push(Box::new(guard));
         self
     }
 
@@ -225,7 +217,13 @@ impl Files {
 }
 
 impl HttpServiceFactory for Files {
-    fn register(self, config: &mut AppService) {
+    fn register(mut self, config: &mut AppService) {
+        let guards = if self.guards.is_empty() {
+            None
+        } else {
+            Some(std::mem::take(&mut self.guards))
+        };
+
         if self.default.borrow().is_none() {
             *self.default.borrow_mut() = Some(config.default_service());
         }
@@ -236,7 +234,7 @@ impl HttpServiceFactory for Files {
             ResourceDef::prefix(&self.path)
         };
 
-        config.register_service(rdef, None, self, None)
+        config.register_service(rdef, guards, self, None)
     }
 }
 
@@ -258,7 +256,7 @@ impl ServiceFactory<ServiceRequest> for Files {
             renderer: self.renderer.clone(),
             mime_override: self.mime_override.clone(),
             file_flags: self.file_flags,
-            guards: self.guards.clone(),
+            guards: self.use_guards.clone(),
             hidden_files: self.hidden_files,
         };
 
