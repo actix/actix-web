@@ -292,7 +292,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_basic_redirect() {
         let client = ClientBuilder::new()
-            .connector(crate::Connector::new())
+            .disable_redirects()
             .wrap(Redirect::new().max_redirect_times(10))
             .finish();
 
@@ -318,6 +318,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_redirect_limit() {
         let client = ClientBuilder::new()
+            .disable_redirects()
             .wrap(Redirect::new().max_redirect_times(1))
             .connector(crate::Connector::new())
             .finish();
