@@ -5,7 +5,6 @@ use std::{
     convert::TryInto,
     fmt,
     future::Future,
-    ops,
     pin::Pin,
     str,
     task::{Context, Poll},
@@ -673,12 +672,8 @@ impl ResponseBuilder {
     /// Set a json body and generate `Response`
     ///
     /// `ResponseBuilder` can not be used after this call.
-    pub fn json<T>(&mut self, value: T) -> Response
-    where
-        T: ops::Deref,
-        T::Target: Serialize,
-    {
-        match serde_json::to_string(&*value) {
+    pub fn json(&mut self, value: impl Serialize) -> Response {
+        match serde_json::to_string(&value) {
             Ok(body) => {
                 let contains = if let Some(parts) = parts(&mut self.head, &self.err) {
                     parts.headers.contains_key(header::CONTENT_TYPE)
@@ -1007,7 +1002,12 @@ mod tests {
 
     #[test]
     fn test_json() {
-        let resp = Response::build(StatusCode::OK).json(vec!["v1", "v2", "v3"]);
+        let resp = Response::Ok().json(vec!["v1", "v2", "v3"]);
+        let ct = resp.headers().get(CONTENT_TYPE).unwrap();
+        assert_eq!(ct, HeaderValue::from_static("application/json"));
+        assert_eq!(resp.body().get_ref(), b"[\"v1\",\"v2\",\"v3\"]");
+
+        let resp = Response::Ok().json(&["v1", "v2", "v3"]);
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("application/json"));
         assert_eq!(resp.body().get_ref(), b"[\"v1\",\"v2\",\"v3\"]");
