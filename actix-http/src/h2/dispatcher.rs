@@ -1,10 +1,5 @@
-use std::future::Future;
-use std::marker::PhantomData;
-use std::net;
-use std::pin::Pin;
-use std::rc::Rc;
 use std::task::{Context, Poll};
-use std::{cmp, convert::TryFrom};
+use std::{cmp, future::Future, marker::PhantomData, net, pin::Pin, rc::Rc};
 
 use actix_codec::{AsyncRead, AsyncWrite};
 use actix_rt::time::{Instant, Sleep};
@@ -208,7 +203,7 @@ where
 
                 res.headers_mut().insert(
                     CONTENT_LENGTH,
-                    HeaderValue::from_str(buf.format(len)).unwrap(),
+                    HeaderValue::from_str(buf.format(*len)).unwrap(),
                 )
             }
         };
