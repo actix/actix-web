@@ -252,16 +252,16 @@ impl ClientRequest {
         self.insert_header((header::CONTENT_LENGTH, buf.format(len)))
     }
 
-    /// Set HTTP basic authorization header
+    /// Set HTTP basic authorization header.
+    ///
+    /// If no password is needed, just provide an empty string.
     pub fn basic_auth(
         self,
         username: impl fmt::Display,
-        password: Option<impl fmt::Display>,
+        password: impl fmt::Display,
     ) -> Self {
-        let auth = match password {
-            Some(password) => format!("{}:{}", username, password),
-            None => format!("{}:", username),
-        };
+        let auth = format!("{}:{}", username, password);
+
         self.insert_header((
             header::AUTHORIZATION,
             format!("Basic {}", base64::encode(&auth)),
@@ -269,8 +269,8 @@ impl ClientRequest {
     }
 
     /// Set HTTP bearer authentication header
-    pub fn insert_auth(self, token: impl fmt::Display) -> Self {
-        self.append_header((header::AUTHORIZATION, format!("Bearer {}", token)))
+    pub fn bearer_auth(self, token: impl fmt::Display) -> Self {
+        self.insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
     }
 
     /// Set a cookie
@@ -644,7 +644,7 @@ mod tests {
     async fn client_basic_auth() {
         let req = Client::new()
             .get("/")
-            .basic_auth("username", Some("password"));
+            .basic_auth("username", "password");
         assert_eq!(
             req.head
                 .headers
@@ -655,7 +655,7 @@ mod tests {
             "Basic dXNlcm5hbWU6cGFzc3dvcmQ="
         );
 
-        let req = Client::new().get("/").basic_auth("username", None);
+        let req = Client::new().get("/").basic_auth("username", "");
         assert_eq!(
             req.head
                 .headers
