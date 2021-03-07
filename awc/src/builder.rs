@@ -14,7 +14,7 @@ use actix_service::{boxed, Service};
 
 use crate::connect::DefaultConnector;
 use crate::error::SendRequestError;
-use crate::middleware::{NestTransform, Transform};
+use crate::middleware::{NestTransform, Redirect, Transform};
 use crate::{Client, ClientConfig, ConnectRequest, ConnectResponse, ConnectorService};
 
 /// An HTTP Client builder
@@ -31,6 +31,7 @@ pub struct ClientBuilder<S = (), Io = (), M = ()> {
     connector: Connector<S, Io>,
     middleware: M,
     local_address: Option<IpAddr>,
+    max_redirects: u8,
 }
 
 impl ClientBuilder {
@@ -54,6 +55,7 @@ impl ClientBuilder {
             max_http_version: None,
             stream_window_size: None,
             conn_window_size: None,
+            max_redirects: 10,
         }
     }
 }
@@ -86,6 +88,7 @@ where
             max_http_version: self.max_http_version,
             stream_window_size: self.stream_window_size,
             conn_window_size: self.conn_window_size,
+            max_redirects: self.max_redirects,
         }
     }
 
@@ -115,6 +118,22 @@ where
     /// Supported versions are HTTP/1.1 and HTTP/2.
     pub fn max_http_version(mut self, val: http::Version) -> Self {
         self.max_http_version = Some(val);
+        self
+    }
+
+    /// Do not follow redirects.
+    ///
+    /// Redirects are allowed by default.
+    pub fn disable_redirects(mut self) -> Self {
+        self.max_redirects = 0;
+        self
+    }
+
+    /// Set max number of redirects.
+    ///
+    /// Max redirects is set to 10 by default.
+    pub fn max_redirects(mut self, num: u8) -> Self {
+        self.max_redirects = num;
         self
     }
 
@@ -209,11 +228,28 @@ where
             timeout: self.timeout,
             connector: self.connector,
             local_address: self.local_address,
+            max_redirects: self.max_redirects,
         }
     }
 
     /// Finish build process and create `Client` instance.
     pub fn finish(self) -> Client
+    where
+        M: Transform<ConnectorService, ConnectRequest> + 'static,
+        M::Transform:
+            Service<ConnectRequest, Response = ConnectResponse, Error = SendRequestError>,
+    {
+        let redirect_time = self.max_redirects;
+
+        if redirect_time > 0 {
+            self.wrap(Redirect::new().max_redirect_times(redirect_time))
+                ._finish()
+        } else {
+            self._finish()
+        }
+    }
+
+    pub fn _finish(self) -> Client
     where
         M: Transform<ConnectorService, ConnectRequest> + 'static,
         M::Transform:

@@ -107,7 +107,7 @@ use actix_http::{
     RequestHead,
 };
 use actix_rt::net::TcpStream;
-use actix_service::{boxed, Service};
+use actix_service::Service;
 
 mod builder;
 mod connect;
@@ -157,13 +157,7 @@ pub(crate) struct ClientConfig {
 
 impl Default for Client {
     fn default() -> Self {
-        Client(Rc::new(ClientConfig {
-            connector: boxed::service(self::connect::DefaultConnector::new(
-                Connector::new().finish(),
-            )),
-            headers: HeaderMap::new(),
-            timeout: Some(Duration::from_secs(5)),
-        }))
+        ClientBuilder::new().finish()
     }
 }
 
