@@ -68,16 +68,35 @@ where
         io: Some(io),
     };
 
-    let is_expect = head.as_ref().headers.contains_key(EXPECT);
-
-    // create Framed and send request
+    // create Framed and prepare sending request
     let mut framed = Framed::new(io, h1::ClientCodec::default());
+
+    // Check EXPECT header and enable expect handle flag accordingly.
+    //
+    // RFC: https://tools.ietf.org/html/rfc7231#section-5.1.1
+    let is_expect = if head.as_ref().headers.contains_key(EXPECT) {
+        match body.size() {
+            BodySize::None | BodySize::Empty | BodySize::Sized(0) => {
+                let pin_framed = Pin::new(&mut framed);
+
+                let force_close = !pin_framed.codec_ref().keepalive();
+                release_connection(pin_framed, force_close);
+
+                // TODO: use a new variant or a new type better describing error violate
+                // `Requirements for clients` session of above RFC
+                return Err(SendRequestError::Connect(ConnectError::Disconnected));
+            }
+            _ => true,
+        }
+    } else {
+        false
+    };
+
     framed.send((head, body.size()).into()).await?;
 
-    // make Pin<&mut Framed> for polling it on stack.
     let mut pin_framed = Pin::new(&mut framed);
 
-    // special handler for EXPECT request.
+    // special handle for EXPECT request.
     let (do_send, mut res_head) = if is_expect {
         let head = poll_fn(|cx| pin_framed.as_mut().poll_next(cx))
             .await
