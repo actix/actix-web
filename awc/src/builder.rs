@@ -249,7 +249,7 @@ where
         }
     }
 
-    pub fn _finish(self) -> Client
+    fn _finish(self) -> Client
     where
         M: Transform<ConnectorService, ConnectRequest> + 'static,
         M::Transform:
