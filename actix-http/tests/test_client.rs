@@ -1,4 +1,6 @@
-use actix_http::{http, HttpService, Request, Response};
+use actix_http::{
+    error, http, http::StatusCode, HttpMessage, HttpService, Request, Response,
+};
 use actix_http_test::test_server;
 use actix_service::ServiceFactoryExt;
 use bytes::Bytes;
@@ -85,6 +87,38 @@ async fn test_with_query_parameter() {
     .await;
 
     let request = srv.request(http::Method::GET, srv.url("/?qp=5"));
+    let response = request.send().await.unwrap();
+    assert!(response.status().is_success());
+}
+
+#[actix_rt::test]
+async fn test_h1_expect() {
+    let srv = test_server(move || {
+        HttpService::build()
+            .expect(|req: Request| async {
+                if req.headers().contains_key("AUTH") {
+                    Ok(req)
+                } else {
+                    Err(error::ErrorBadRequest("bad request"))
+                }
+            })
+            .h1(|_| async { Ok::<_, ()>(Response::Ok().finish()) })
+            .tcp()
+    })
+    .await;
+
+    let request = srv
+        .request(http::Method::GET, srv.url("/"))
+        .insert_header(("Expect", "100-continue"));
+
+    let response = request.send().await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let request = srv
+        .request(http::Method::GET, srv.url("/"))
+        .insert_header(("Expect", "100-continue"))
+        .insert_header(("AUTH", "996"));
+
     let response = request.send().await.unwrap();
     assert!(response.status().is_success());
 }

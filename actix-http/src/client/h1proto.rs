@@ -114,7 +114,7 @@ where
             Ok((head, Payload::None))
         }
         _ => {
-            let pl: PayloadStream = PlStream::new(framed).boxed_local();
+            let pl: PayloadStream = Box::pin(PlStream::new(framed));
             Ok((head, pl.into()))
         }
     }
