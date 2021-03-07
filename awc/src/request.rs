@@ -255,11 +255,7 @@ impl ClientRequest {
     /// Set HTTP basic authorization header.
     ///
     /// If no password is needed, just provide an empty string.
-    pub fn basic_auth(
-        self,
-        username: impl fmt::Display,
-        password: impl fmt::Display,
-    ) -> Self {
+    pub fn basic_auth(self, username: impl fmt::Display, password: impl fmt::Display) -> Self {
         let auth = format!("{}:{}", username, password);
 
         self.insert_header((
@@ -642,9 +638,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn client_basic_auth() {
-        let req = Client::new()
-            .get("/")
-            .basic_auth("username", "password");
+        let req = Client::new().get("/").basic_auth("username", "password");
         assert_eq!(
             req.head
                 .headers

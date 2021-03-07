@@ -20,6 +20,7 @@
 [#2024]: https://github.com/actix/actix-web/pull/2024
 [#2050]: https://github.com/actix/actix-web/pull/2050
 
+
 ## 3.0.0-beta.2 - 2021-02-10
 ### Added
 * `ClientRequest::insert_header` method which allows using typed headers. [#1869]
