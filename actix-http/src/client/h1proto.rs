@@ -7,13 +7,15 @@ use actix_codec::{AsyncRead, AsyncWrite, Framed, ReadBuf};
 use bytes::buf::BufMut;
 use bytes::{Bytes, BytesMut};
 use futures_core::Stream;
-use futures_util::future::poll_fn;
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{future::poll_fn, SinkExt, StreamExt};
 
 use crate::error::PayloadError;
 use crate::h1;
 use crate::header::HeaderMap;
-use crate::http::header::{IntoHeaderValue, HOST};
+use crate::http::{
+    header::{IntoHeaderValue, EXPECT, HOST},
+    StatusCode,
+};
 use crate::message::{RequestHeadType, ResponseHead};
 use crate::payload::{Payload, PayloadStream};
 
@@ -66,33 +68,72 @@ where
         io: Some(io),
     };
 
-    // create Framed and send request
-    let mut framed_inner = Framed::new(io, h1::ClientCodec::default());
-    framed_inner.send((head, body.size()).into()).await?;
+    // create Framed and prepare sending request
+    let mut framed = Framed::new(io, h1::ClientCodec::default());
 
-    // send request body
-    match body.size() {
-        BodySize::None | BodySize::Empty | BodySize::Sized(0) => {}
-        _ => send_body(body, Pin::new(&mut framed_inner)).await?,
-    };
+    // Check EXPECT header and enable expect handle flag accordingly.
+    //
+    // RFC: https://tools.ietf.org/html/rfc7231#section-5.1.1
+    let is_expect = if head.as_ref().headers.contains_key(EXPECT) {
+        match body.size() {
+            BodySize::None | BodySize::Empty | BodySize::Sized(0) => {
+                let pin_framed = Pin::new(&mut framed);
 
-    // read response and init read body
-    let res = Pin::new(&mut framed_inner).into_future().await;
-    let (head, framed) = if let (Some(result), framed) = res {
-        let item = result.map_err(SendRequestError::from)?;
-        (item, framed)
+                let force_close = !pin_framed.codec_ref().keepalive();
+                release_connection(pin_framed, force_close);
+
+                // TODO: use a new variant or a new type better describing error violate
+                // `Requirements for clients` session of above RFC
+                return Err(SendRequestError::Connect(ConnectError::Disconnected));
+            }
+            _ => true,
+        }
     } else {
-        return Err(SendRequestError::from(ConnectError::Disconnected));
+        false
     };
 
-    match framed.codec_ref().message_type() {
+    framed.send((head, body.size()).into()).await?;
+
+    let mut pin_framed = Pin::new(&mut framed);
+
+    // special handle for EXPECT request.
+    let (do_send, mut res_head) = if is_expect {
+        let head = poll_fn(|cx| pin_framed.as_mut().poll_next(cx))
+            .await
+            .ok_or(ConnectError::Disconnected)??;
+
+        // return response head in case status code is not continue
+        // and current head would be used as final response head.
+        (head.status == StatusCode::CONTINUE, Some(head))
+    } else {
+        (true, None)
+    };
+
+    if do_send {
+        // send request body
+        match body.size() {
+            BodySize::None | BodySize::Empty | BodySize::Sized(0) => {}
+            _ => send_body(body, pin_framed.as_mut()).await?,
+        };
+
+        // read response and init read body
+        let head = poll_fn(|cx| pin_framed.as_mut().poll_next(cx))
+            .await
+            .ok_or(ConnectError::Disconnected)??;
+
+        res_head = Some(head);
+    }
+
+    let head = res_head.unwrap();
+
+    match pin_framed.codec_ref().message_type() {
         h1::MessageType::None => {
-            let force_close = !framed.codec_ref().keepalive();
-            release_connection(framed, force_close);
+            let force_close = !pin_framed.codec_ref().keepalive();
+            release_connection(pin_framed, force_close);
             Ok((head, Payload::None))
         }
         _ => {
-            let pl: PayloadStream = PlStream::new(framed_inner).boxed_local();
+            let pl: PayloadStream = Box::pin(PlStream::new(framed));
             Ok((head, pl.into()))
         }
     }
