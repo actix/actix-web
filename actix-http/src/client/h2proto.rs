@@ -1,4 +1,3 @@
-use std::convert::TryFrom;
 use std::future::Future;
 use std::time;
 
@@ -61,10 +60,14 @@ where
         BodySize::Empty => req
             .headers_mut()
             .insert(CONTENT_LENGTH, HeaderValue::from_static("0")),
-        BodySize::Sized(len) => req.headers_mut().insert(
-            CONTENT_LENGTH,
-            HeaderValue::try_from(format!("{}", len)).unwrap(),
-        ),
+        BodySize::Sized(len) => {
+            let mut buf = itoa::Buffer::new();
+
+            req.headers_mut().insert(
+                CONTENT_LENGTH,
+                HeaderValue::from_str(buf.format(len)).unwrap(),
+            )
+        }
     };
 
     // Extracting extra headers from RequestHeadType. HeaderMap::new() does not allocate.
@@ -87,7 +90,10 @@ where
     // copy headers
     for (key, value) in headers {
         match *key {
-            CONNECTION | TRANSFER_ENCODING => continue, // http2 specific
+            // TODO: consider skipping other headers according to:
+            //       https://tools.ietf.org/html/rfc7540#section-8.1.2.2
+            // omit HTTP/1.x only headers
+            CONNECTION | TRANSFER_ENCODING => continue,
             CONTENT_LENGTH if skip_len => continue,
             // DATE => has_date = true,
             _ => {}

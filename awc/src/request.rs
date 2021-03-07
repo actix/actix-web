@@ -248,30 +248,25 @@ impl ClientRequest {
     /// Set content length
     #[inline]
     pub fn content_length(self, len: u64) -> Self {
-        self.append_header((header::CONTENT_LENGTH, len))
+        let mut buf = itoa::Buffer::new();
+        self.insert_header((header::CONTENT_LENGTH, buf.format(len)))
     }
 
-    /// Set HTTP basic authorization header
-    pub fn basic_auth<U>(self, username: U, password: Option<&str>) -> Self
-    where
-        U: fmt::Display,
-    {
-        let auth = match password {
-            Some(password) => format!("{}:{}", username, password),
-            None => format!("{}:", username),
-        };
-        self.append_header((
+    /// Set HTTP basic authorization header.
+    ///
+    /// If no password is needed, just provide an empty string.
+    pub fn basic_auth(self, username: impl fmt::Display, password: impl fmt::Display) -> Self {
+        let auth = format!("{}:{}", username, password);
+
+        self.insert_header((
             header::AUTHORIZATION,
             format!("Basic {}", base64::encode(&auth)),
         ))
     }
 
     /// Set HTTP bearer authentication header
-    pub fn bearer_auth<T>(self, token: T) -> Self
-    where
-        T: fmt::Display,
-    {
-        self.append_header((header::AUTHORIZATION, format!("Bearer {}", token)))
+    pub fn bearer_auth(self, token: impl fmt::Display) -> Self {
+        self.insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
     }
 
     /// Set a cookie
@@ -643,9 +638,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn client_basic_auth() {
-        let req = Client::new()
-            .get("/")
-            .basic_auth("username", Some("password"));
+        let req = Client::new().get("/").basic_auth("username", "password");
         assert_eq!(
             req.head
                 .headers
@@ -656,7 +649,7 @@ mod tests {
             "Basic dXNlcm5hbWU6cGFzc3dvcmQ="
         );
 
-        let req = Client::new().get("/").basic_auth("username", None);
+        let req = Client::new().get("/").basic_auth("username", "");
         assert_eq!(
             req.head
                 .headers
