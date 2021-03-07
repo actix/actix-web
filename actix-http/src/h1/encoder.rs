@@ -633,9 +633,9 @@ mod tests {
         let mut res: Response<()> =
             Response::new(StatusCode::SWITCHING_PROTOCOLS).into_body::<()>();
         res.headers_mut()
-            .insert(DATE, HeaderValue::from_static(&""));
+            .insert(DATE, HeaderValue::from_static(""));
         res.headers_mut()
-            .insert(CONTENT_LENGTH, HeaderValue::from_static(&"0"));
+            .insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
 
         let _ = res.encode_headers(
             &mut bytes,

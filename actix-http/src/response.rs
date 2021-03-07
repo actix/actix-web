@@ -498,7 +498,8 @@ impl ResponseBuilder {
     /// Disable chunked transfer encoding for HTTP/1.1 streaming responses.
     #[inline]
     pub fn no_chunking(&mut self, len: u64) -> &mut Self {
-        self.insert_header((header::CONTENT_LENGTH, len));
+        let mut buf = itoa::Buffer::new();
+        self.insert_header((header::CONTENT_LENGTH, buf.format(len)));
 
         if let Some(parts) = parts(&mut self.head, &self.err) {
             parts.no_chunking(true);

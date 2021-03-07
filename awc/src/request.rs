@@ -248,29 +248,28 @@ impl ClientRequest {
     /// Set content length
     #[inline]
     pub fn content_length(self, len: u64) -> Self {
-        self.append_header((header::CONTENT_LENGTH, len))
+        let mut buf = itoa::Buffer::new();
+        self.insert_header((header::CONTENT_LENGTH, buf.format(len)))
     }
 
     /// Set HTTP basic authorization header
-    pub fn basic_auth<U>(self, username: U, password: Option<&str>) -> Self
-    where
-        U: fmt::Display,
-    {
+    pub fn basic_auth(
+        self,
+        username: impl fmt::Display,
+        password: Option<impl fmt::Display>,
+    ) -> Self {
         let auth = match password {
             Some(password) => format!("{}:{}", username, password),
             None => format!("{}:", username),
         };
-        self.append_header((
+        self.insert_header((
             header::AUTHORIZATION,
             format!("Basic {}", base64::encode(&auth)),
         ))
     }
 
     /// Set HTTP bearer authentication header
-    pub fn bearer_auth<T>(self, token: T) -> Self
-    where
-        T: fmt::Display,
-    {
+    pub fn insert_auth(self, token: impl fmt::Display) -> Self {
         self.append_header((header::AUTHORIZATION, format!("Bearer {}", token)))
     }
 

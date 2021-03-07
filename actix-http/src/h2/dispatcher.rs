@@ -125,7 +125,7 @@ where
                     let pl = Payload::<crate::payload::PayloadStream>::H2(pl);
                     let mut req = Request::with_payload(pl);
 
-                    let head = &mut req.head_mut();
+                    let head = req.head_mut();
                     head.uri = parts.uri;
                     head.method = parts.method;
                     head.version = parts.version;
@@ -203,16 +203,22 @@ where
             BodySize::Empty => res
                 .headers_mut()
                 .insert(CONTENT_LENGTH, HeaderValue::from_static("0")),
-            BodySize::Sized(len) => res.headers_mut().insert(
-                CONTENT_LENGTH,
-                HeaderValue::try_from(format!("{}", len)).unwrap(),
-            ),
+            BodySize::Sized(len) => {
+                let mut buf = itoa::Buffer::new();
+
+                res.headers_mut().insert(
+                    CONTENT_LENGTH,
+                    HeaderValue::from_str(buf.format(len)).unwrap(),
+                )
+            }
         };
 
         // copy headers
         for (key, value) in head.headers.iter() {
             match *key {
-                // omit HTTP/1 only headers
+                // TODO: consider skipping other headers according to:
+                //       https://tools.ietf.org/html/rfc7540#section-8.1.2.2
+                // omit HTTP/1.x only headers
                 CONNECTION | TRANSFER_ENCODING => continue,
                 CONTENT_LENGTH if skip_len => continue,
                 DATE => has_date = true,
