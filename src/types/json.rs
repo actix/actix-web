@@ -114,6 +114,18 @@ where
     }
 }
 
+impl<T> Serialize for Json<T>
+where
+    T: Serialize,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.0.serialize(serializer)
+    }
+}
+
 /// Creates response with OK status code, correct content type header, and serialized JSON payload.
 ///
 /// If serialization failed
