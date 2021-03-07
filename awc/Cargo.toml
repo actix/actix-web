@@ -54,6 +54,7 @@ bytes = "1"
 cfg-if = "1.0"
 derive_more = "0.99.5"
 futures-core = { version = "0.3.7", default-features = false }
+itoa = "0.4"
 log =" 0.4"
 mime = "0.3"
 percent-encoding = "2.1"
@@ -80,8 +81,8 @@ actix-server = "2.0.0-beta.3"
 actix-tls = { version = "3.0.0-beta.4", features = ["openssl", "rustls"] }
 
 brotli2 = "0.3.2"
+env_logger = "0.8"
 flate2 = "1.0.13"
 futures-util = { version = "0.3.7", default-features = false }
-env_logger = "0.8"
 rcgen = "0.8"
 webpki = "0.21"

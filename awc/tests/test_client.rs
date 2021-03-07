@@ -829,7 +829,7 @@ async fn client_basic_auth() {
                     .unwrap()
                     .to_str()
                     .unwrap()
-                    == "Basic dXNlcm5hbWU6cGFzc3dvcmQ="
+                    == format!("Basic {}", base64::encode("username:password"))
                 {
                     HttpResponse::Ok()
                 } else {
@@ -840,7 +840,7 @@ async fn client_basic_auth() {
     });
 
     // set authorization header to Basic <base64 encoded username:password>
-    let request = srv.get("/").basic_auth("username", Some("password"));
+    let request = srv.get("/").basic_auth("username", "password");
     let response = request.send().await.unwrap();
     assert!(response.status().is_success());
 }
