@@ -72,7 +72,7 @@ async fn test_start() {
 }
 
 #[cfg(feature = "openssl")]
-fn ssl_acceptor() -> std::io::Result<SslAcceptorBuilder> {
+fn ssl_acceptor() -> SslAcceptorBuilder {
     use openssl::{
         pkey::PKey,
         ssl::{SslAcceptor, SslMethod},
@@ -102,7 +102,7 @@ async fn test_start_ssl() {
 
     thread::spawn(move || {
         let sys = actix_rt::System::new();
-        let builder = ssl_acceptor().unwrap();
+        let builder = ssl_acceptor();
 
         let srv = HttpServer::new(|| {
             App::new().service(web::resource("/").route(web::to(|req: HttpRequest| {
