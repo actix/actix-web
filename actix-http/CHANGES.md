@@ -1,13 +1,16 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 3.0.0-beta.4 - 2021-03-08
 ### Changed
 * Feature `cookies` is now optional and disabled by default. [#1981]
 * `ws::hash_key` now returns array. [#2035]
 * `ResponseBuilder::json` now takes `impl Serialize`. [#2052]
 
 ### Removed
-* re-export of `futures_channel::oneshot::Canceled` is removed from `error` mod. [#1994]
+* Re-export of `futures_channel::oneshot::Canceled` is removed from `error` mod. [#1994]
 * `ResponseError` impl for `futures_channel::oneshot::Canceled` is removed. [#1994]
 
 [#1981]: https://github.com/actix/actix-web/pull/1981
