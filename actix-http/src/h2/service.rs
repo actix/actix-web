@@ -368,7 +368,6 @@ where
                         conn,
                         on_connect_data,
                         config.take().unwrap(),
-                        None,
                         *peer_addr,
                     ));
                     self.poll(cx)
