@@ -254,8 +254,12 @@ where
 {
     let body = read_body(res).await;
 
-    serde_json::from_slice(&body)
-        .unwrap_or_else(|e| panic!("read_response_json failed during deserialization of body: {:?}, {}", body, e))
+    serde_json::from_slice(&body).unwrap_or_else(|e| {
+        panic!(
+            "read_response_json failed during deserialization of body: {:?}, {}",
+            body, e
+        )
+    })
 }
 
 pub async fn load_stream<S>(mut stream: S) -> Result<Bytes, Error>
@@ -311,8 +315,12 @@ where
 {
     let body = read_response(app, req).await;
 
-    serde_json::from_slice(&body)
-        .unwrap_or_else(|_| panic!("read_response_json failed during deserialization of body: {:?}", body))
+    serde_json::from_slice(&body).unwrap_or_else(|_| {
+        panic!(
+            "read_response_json failed during deserialization of body: {:?}",
+            body
+        )
+    })
 }
 
 /// Test `Request` builder.
