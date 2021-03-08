@@ -162,7 +162,7 @@ where
     let mut resp = app
         .call(req)
         .await
-        .unwrap_or_else(|_| panic!("read_response failed at application call"));
+        .unwrap_or_else(|e| panic!("read_response failed at application call: {}", e));
 
     let mut body = resp.take_body();
     let mut bytes = BytesMut::new();
@@ -255,7 +255,7 @@ where
     let body = read_body(res).await;
 
     serde_json::from_slice(&body)
-        .unwrap_or_else(|e| panic!("read_response_json failed during deserialization: {}", e))
+        .unwrap_or_else(|e| panic!("read_response_json failed during deserialization of body: {:?}, {}", body, e))
 }
 
 pub async fn load_stream<S>(mut stream: S) -> Result<Bytes, Error>
@@ -312,7 +312,7 @@ where
     let body = read_response(app, req).await;
 
     serde_json::from_slice(&body)
-        .unwrap_or_else(|_| panic!("read_response_json failed during deserialization"))
+        .unwrap_or_else(|_| panic!("read_response_json failed during deserialization of body: {:?}", body))
 }
 
 /// Test `Request` builder.
