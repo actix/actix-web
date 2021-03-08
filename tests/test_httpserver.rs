@@ -89,7 +89,7 @@ fn ssl_acceptor() -> SslAcceptorBuilder {
     builder.set_certificate(&cert).unwrap();
     builder.set_private_key(&key).unwrap();
 
-    Ok(builder)
+    builder
 }
 
 #[actix_rt::test]
