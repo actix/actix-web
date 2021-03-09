@@ -1,8 +1,6 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
-* Fix `PathBufWrap::parse_path` to error if the `path` has `".."`. This is to
-  prevent directory traversal attacks.
 
 
 ## 0.6.0-beta.2 - 2021-02-10
