@@ -73,7 +73,7 @@ features = ["vendored"]
 optional = true
 
 [dev-dependencies]
-actix-web = { version = "4.0.0-beta.3", features = ["openssl"] }
+actix-web = { version = "4.0.0-beta.4", features = ["openssl"] }
 actix-http = { version = "3.0.0-beta.4", features = ["openssl"] }
 actix-http-test = { version = "3.0.0-beta.2", features = ["openssl"] }
 actix-utils = "3.0.0-beta.1"
