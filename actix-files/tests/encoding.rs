@@ -35,7 +35,10 @@ async fn test_utf8_file_contents() {
         res.headers().get(header::CONTENT_TYPE),
         Some(&HeaderValue::from_static("text/plain; charset=utf-8")),
     );
+}
 
+#[actix_rt::test]
+async fn test_directory_traversal_prevention() {
     // prevent directory traversal attack
     let srv = test::init_service(App::new().service(Files::new("/", "./tests"))).await;
 
