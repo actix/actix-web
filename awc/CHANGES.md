@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 3.0.0-beta.3 - 2021-03-08
 ### Added
 * `ClientResponse::timeout` for set the timeout of collecting response body. [#1931]
 * `ClientBuilder::local_address` for bind to a local ip address for this client. [#2024]

@@ -658,7 +658,6 @@ where
                             conn,
                             on_connect_data,
                             cfg,
-                            None,
                             peer_addr,
                         )));
                         self.poll(cx)
