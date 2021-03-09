@@ -1,6 +1,10 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+* Prevent directory traversal attack by checking if the request path is a
+  descendant of the `serve_from` directory. E.g., if the files are served from
+  `./test/`, and someone requests `..%5c/some-secret-file`, they will get a
+  Forbidden response.
 
 
 ## 0.6.0-beta.2 - 2021-02-10
