@@ -3,6 +3,10 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 0.6.0-beta.3 - 2021-03-09
+* No notable changes.
+
+
 ## 0.6.0-beta.2 - 2021-02-10
 * Fix If-Modified-Since and If-Unmodified-Since to not compare using sub-second timestamps. [#1887]
 * Replace `v_htmlescape` with `askama_escape`. [#1953]
