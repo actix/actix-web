@@ -142,8 +142,8 @@ where
 
 enum PollResponse {
     Upgrade(Request),
-    DoNothing,
-    DrainWriteBuf,
+    Pending,
+    Ready,
 }
 
 impl<T, S, B, X, U> Dispatcher<T, S, B, X, U>
@@ -335,7 +335,7 @@ where
                     }
 
                     // all messages are dealt with.
-                    None => return Ok(PollResponse::DoNothing),
+                    None => return Ok(PollResponse::Pending),
                 },
                 StateProj::ServiceCall(fut) => match fut.poll(cx) {
                     // service call resolved. send response.
@@ -357,7 +357,7 @@ where
                         // no new message is decoded and no new payload is feed.
                         // nothing to do except waiting for new incoming data from client.
                         if !self.as_mut().poll_request(cx)? {
-                            return Ok(PollResponse::DoNothing);
+                            return Ok(PollResponse::Pending);
                         }
                         // otherwise keep loop.
                     }
@@ -388,12 +388,12 @@ where
                                 return Err(DispatchError::Service(err))
                             }
 
-                            Poll::Pending => return Ok(PollResponse::DoNothing),
+                            Poll::Pending => return Ok(PollResponse::Pending),
                         }
                     }
                     // buffer is beyond max size.
                     // return and try to write the whole buffer to io stream.
-                    return Ok(PollResponse::DrainWriteBuf);
+                    return Ok(PollResponse::Ready);
                 }
 
                 StateProj::ExpectCall(fut) => match fut.poll(cx) {
@@ -412,7 +412,7 @@ where
                         self.as_mut().send_response(res, body.into_body())?;
                     }
                     // expect must be solved before progress can be made.
-                    Poll::Pending => return Ok(PollResponse::DoNothing),
+                    Poll::Pending => return Ok(PollResponse::Pending),
                 },
             }
         }
@@ -875,12 +875,24 @@ where
                     };
 
                     loop {
-                        // poll_response and populate write buffer.
-                        // drain indicate if write buffer should be emptied before next run.
-                        let drain = match inner.as_mut().poll_response(cx)? {
-                            PollResponse::DrainWriteBuf => true,
-                            PollResponse::DoNothing => false,
-                            // upgrade request and goes Upgrade variant of DispatcherState.
+                        // prepare response and write to io.
+                        match inner.as_mut().poll_response(cx)? {
+                            // response is ready and more can be produced.
+                            PollResponse::Ready => {
+                                // get blocked when write to io.
+                                // no point prepare more. break and wait for wakeup.
+                                if inner.as_mut().poll_flush(cx)?.is_pending() {
+                                    break;
+                                }
+                            }
+                            // response is pending and no more can be produced.
+                            PollResponse::Pending => {
+                                // write partial response.
+                                // block is non issue as it would schedule dispatcher wakeup.
+                                let _ = inner.as_mut().poll_flush(cx)?;
+                                break;
+                            }
+                            // upgrade request and go to Upgrade variant of DispatcherState.
                             PollResponse::Upgrade(req) => {
                                 let upgrade = inner.upgrade(req);
                                 self.as_mut()
@@ -890,16 +902,6 @@ where
                                 return self.poll(cx);
                             }
                         };
-
-                        // we didn't get WouldBlock from write operation,
-                        // so data get written to kernel completely (macOS)
-                        // and we have to write again otherwise response can get stuck
-                        //
-                        // TODO: what? is WouldBlock good or bad?
-                        // want to find a reference for this macOS behavior
-                        if inner.as_mut().poll_flush(cx)?.is_pending() || !drain {
-                            break;
-                        }
                     }
 
                     // client is gone
