@@ -25,13 +25,7 @@ use super::connection::{ConnectionType, H2Connection, IoConnection};
 use super::error::ConnectError;
 use super::h2proto::handshake;
 use super::Connect;
-
-#[derive(Clone, Copy, PartialEq)]
-/// Protocol version
-pub enum Protocol {
-    Http1,
-    Http2,
-}
+use super::Protocol;
 
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub(crate) struct Key {
@@ -148,18 +142,6 @@ where
     }
 }
 
-impl<S, Io> Clone for ConnectionPool<S, Io>
-where
-    Io: AsyncWrite + Unpin + 'static,
-{
-    fn clone(&self) -> Self {
-        Self {
-            connector: self.connector.clone(),
-            inner: self.inner.clone(),
-        }
-    }
-}
-
 impl<S, Io> Service<Connect> for ConnectionPool<S, Io>
 where
     S: Service<Connect, Response = (Io, Protocol), Error = ConnectError> + 'static,
@@ -242,6 +224,9 @@ where
                 Some(conn) => Ok(IoConnection::new(conn.conn, conn.created, acquired)),
                 None => {
                     let (io, proto) = connector.call(req).await?;
+
+                    // TODO: remove when http3 is added in support.
+                    assert!(proto != Protocol::Http3);
 
                     if proto == Protocol::Http1 {
                         Ok(IoConnection::new(
