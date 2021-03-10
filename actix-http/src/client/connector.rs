@@ -20,8 +20,9 @@ use http::Uri;
 use super::config::ConnectorConfig;
 use super::connection::{Connection, EitherIoConnection};
 use super::error::ConnectError;
-use super::pool::{ConnectionPool, Protocol};
+use super::pool::ConnectionPool;
 use super::Connect;
+use super::Protocol;
 
 #[cfg(feature = "openssl")]
 use actix_tls::connect::ssl::openssl::SslConnector as OpensslConnector;
@@ -148,7 +149,7 @@ where
         + 'static,
 {
     /// Connection timeout, i.e. max time to connect to remote host including dns name resolution.
-    /// Set to 1 second by default.
+    /// Set to 5 second by default.
     pub fn timeout(mut self, timeout: Duration) -> Self {
         self.config.timeout = timeout;
         self
@@ -162,6 +163,7 @@ where
     }
 
     #[cfg(feature = "rustls")]
+    /// Use custom `SslConnector` instance.
     pub fn rustls(mut self, connector: Arc<ClientConfig>) -> Self {
         self.ssl = SslConnector::Rustls(connector);
         self
@@ -254,8 +256,7 @@ where
     /// its combinator chain.
     pub fn finish(
         self,
-    ) -> impl Service<Connect, Response = impl Connection, Error = ConnectError> + Clone
-    {
+    ) -> impl Service<Connect, Response = impl Connection, Error = ConnectError> {
         let local_address = self.config.local_address;
         let timeout = self.config.timeout;
 
@@ -390,21 +391,6 @@ where
 {
     tcp_pool: ConnectionPool<S1, Io1>,
     tls_pool: Option<ConnectionPool<S2, Io2>>,
-}
-
-impl<S1, S2, Io1, Io2> Clone for InnerConnector<S1, S2, Io1, Io2>
-where
-    S1: Service<Connect, Response = (Io1, Protocol), Error = ConnectError> + 'static,
-    S2: Service<Connect, Response = (Io2, Protocol), Error = ConnectError> + 'static,
-    Io1: AsyncRead + AsyncWrite + Unpin + 'static,
-    Io2: AsyncRead + AsyncWrite + Unpin + 'static,
-{
-    fn clone(&self) -> Self {
-        InnerConnector {
-            tcp_pool: self.tcp_pool.clone(),
-            tls_pool: self.tls_pool.as_ref().cloned(),
-        }
-    }
 }
 
 impl<S1, S2, Io1, Io2> Service<Connect> for InnerConnector<S1, S2, Io1, Io2>
