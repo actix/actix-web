@@ -6,7 +6,7 @@ use actix_service::ServiceFactoryExt;
 use bytes::Bytes;
 use futures_util::{
     future::{self, ok},
-    StreamExt,
+    StreamExt as _,
 };
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \

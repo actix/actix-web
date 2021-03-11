@@ -12,7 +12,7 @@ use actix_utils::dispatcher::Dispatcher;
 use bytes::Bytes;
 use futures_util::future;
 use futures_util::task::{Context, Poll};
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{SinkExt as _, StreamExt as _};
 
 struct WsService<T>(Arc<Mutex<(PhantomData<T>, Cell<bool>)>>);
 

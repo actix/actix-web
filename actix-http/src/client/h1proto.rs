@@ -7,7 +7,7 @@ use actix_codec::{AsyncRead, AsyncWrite, Framed, ReadBuf};
 use bytes::buf::BufMut;
 use bytes::{Bytes, BytesMut};
 use futures_core::Stream;
-use futures_util::{future::poll_fn, SinkExt};
+use futures_util::{future::poll_fn, SinkExt as _};
 
 use crate::error::PayloadError;
 use crate::h1;
@@ -198,7 +198,7 @@ where
         }
     }
 
-    SinkExt::flush(framed.get_mut()).await?;
+    framed.get_mut().flush().await?;
     Ok(())
 }
 
