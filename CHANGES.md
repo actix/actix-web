@@ -1,6 +1,8 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+* The `client` mod was removed. Clients should now use `awc` directly.
+  [871ca5e4](https://github.com/actix/actix-web/commit/871ca5e4ae2bdc22d1ea02701c2992fa8d04aed7)
 
 
 ## 4.0.0-beta.4 - 2021-03-09
