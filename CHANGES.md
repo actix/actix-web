@@ -1,7 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+* Double ampersand in Logger format is escaped correctly. [#1997]
 
+[#2067]: https://github.com/actix/actix-web/pull/2067
 
 ## 4.0.0-beta.4 - 2021-03-09
 ### Changed
