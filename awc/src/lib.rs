@@ -175,7 +175,6 @@ impl Client {
                 Response = TcpConnection<Uri, TcpStream>,
                 Error = TcpConnectError,
             > + Clone,
-        TcpStream,
     > {
         ClientBuilder::new()
     }
