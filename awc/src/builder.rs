@@ -21,14 +21,14 @@ use crate::{Client, ClientConfig, ConnectRequest, ConnectResponse, ConnectorServ
 ///
 /// This type can be used to construct an instance of `Client` through a
 /// builder-like pattern.
-pub struct ClientBuilder<S = (), Io = (), M = ()> {
+pub struct ClientBuilder<S = (), M = ()> {
     default_headers: bool,
     max_http_version: Option<http::Version>,
     stream_window_size: Option<u32>,
     conn_window_size: Option<u32>,
     headers: HeaderMap,
     timeout: Option<Duration>,
-    connector: Connector<S, Io>,
+    connector: Connector<S>,
     middleware: M,
     local_address: Option<IpAddr>,
     max_redirects: u8,
@@ -42,7 +42,6 @@ impl ClientBuilder {
                 Response = TcpConnection<Uri, TcpStream>,
                 Error = TcpConnectError,
             > + Clone,
-        TcpStream,
         (),
     > {
         ClientBuilder {
@@ -60,7 +59,7 @@ impl ClientBuilder {
     }
 }
 
-impl<S, Io, M> ClientBuilder<S, Io, M>
+impl<S, Io, M> ClientBuilder<S, M>
 where
     S: Service<TcpConnect<Uri>, Response = TcpConnection<Uri, Io>, Error = TcpConnectError>
         + Clone
@@ -68,7 +67,7 @@ where
     Io: AsyncRead + AsyncWrite + Unpin + fmt::Debug + 'static,
 {
     /// Use custom connector service.
-    pub fn connector<S1, Io1>(self, connector: Connector<S1, Io1>) -> ClientBuilder<S1, Io1, M>
+    pub fn connector<S1, Io1>(self, connector: Connector<S1>) -> ClientBuilder<S1, M>
     where
         S1: Service<
                 TcpConnect<Uri>,
@@ -213,7 +212,7 @@ where
     pub fn wrap<S1, M1>(
         self,
         mw: M1,
-    ) -> ClientBuilder<S, Io, NestTransform<M, M1, S1, ConnectRequest>>
+    ) -> ClientBuilder<S, NestTransform<M, M1, S1, ConnectRequest>>
     where
         M: Transform<S1, ConnectRequest>,
         M1: Transform<M::Transform, ConnectRequest>,

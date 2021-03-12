@@ -1,7 +1,6 @@
 use std::{
     fmt,
     future::Future,
-    marker::PhantomData,
     net::IpAddr,
     pin::Pin,
     task::{Context, Poll},
@@ -15,6 +14,7 @@ use actix_tls::connect::{
     new_connector, Connect as TcpConnect, Connection as TcpConnection, Resolver,
 };
 use actix_utils::timeout::{TimeoutError, TimeoutService};
+use futures_core::ready;
 use http::Uri;
 
 use super::config::ConnectorConfig;
@@ -54,18 +54,17 @@ type SslConnector = ();
 ///      .timeout(Duration::from_secs(5))
 ///      .finish();
 /// ```
-pub struct Connector<T, U> {
+pub struct Connector<T> {
     connector: T,
     config: ConnectorConfig,
     #[allow(dead_code)]
     ssl: SslConnector,
-    _phantom: PhantomData<U>,
 }
 
 pub trait Io: AsyncRead + AsyncWrite + Unpin {}
 impl<T: AsyncRead + AsyncWrite + Unpin> Io for T {}
 
-impl Connector<(), ()> {
+impl Connector<()> {
     #[allow(clippy::new_ret_no_self, clippy::let_unit_value)]
     pub fn new() -> Connector<
         impl Service<
@@ -73,13 +72,11 @@ impl Connector<(), ()> {
                 Response = TcpConnection<Uri, TcpStream>,
                 Error = actix_tls::connect::ConnectError,
             > + Clone,
-        TcpStream,
     > {
         Connector {
             ssl: Self::build_ssl(vec![b"h2".to_vec(), b"http/1.1".to_vec()]),
             connector: new_connector(resolver::resolver()),
             config: ConnectorConfig::default(),
-            _phantom: PhantomData,
         }
     }
 
@@ -118,9 +115,9 @@ impl Connector<(), ()> {
     fn build_ssl(_: Vec<Vec<u8>>) -> SslConnector {}
 }
 
-impl<T, U> Connector<T, U> {
+impl<T> Connector<T> {
     /// Use custom connector.
-    pub fn connector<T1, U1>(self, connector: T1) -> Connector<T1, U1>
+    pub fn connector<T1, U1>(self, connector: T1) -> Connector<T1>
     where
         U1: AsyncRead + AsyncWrite + Unpin + fmt::Debug,
         T1: Service<
@@ -133,12 +130,11 @@ impl<T, U> Connector<T, U> {
             connector,
             config: self.config,
             ssl: self.ssl,
-            _phantom: PhantomData,
         }
     }
 }
 
-impl<T, U> Connector<T, U>
+impl<T, U> Connector<T>
 where
     U: AsyncRead + AsyncWrite + Unpin + fmt::Debug + 'static,
     T: Service<
@@ -405,7 +401,11 @@ where
     type Future = InnerConnectorResponse<S1, S2, Io1, Io2>;
 
     fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.tcp_pool.poll_ready(cx)
+        ready!(self.tcp_pool.poll_ready(cx))?;
+        if let Some(ref tls_pool) = self.tls_pool {
+            ready!(tls_pool.poll_ready(cx))?;
+        }
+        Poll::Ready(Ok(()))
     }
 
     fn call(&self, req: Connect) -> Self::Future {

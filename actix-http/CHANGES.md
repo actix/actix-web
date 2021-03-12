@@ -1,6 +1,10 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Chaged
+* `client::Connector` type now only have one generic type for `actix_service::Service`. [#2063]
+
+[#2063]: https://github.com/actix/actix-web/pull/2063
 
 
 ## 3.0.0-beta.4 - 2021-03-08
