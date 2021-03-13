@@ -46,7 +46,7 @@ use crate::{dev::Payload, error::PathError, FromRequest, HttpRequest};
 /// }
 /// ```
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
-pub struct Path<T>(T);
+pub struct Path<T>(pub T);
 
 impl<T> Path<T> {
     /// Unwrap into inner `T` value.
