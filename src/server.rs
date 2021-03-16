@@ -12,13 +12,6 @@ use actix_http::{
 use actix_server::{Server, ServerBuilder};
 use actix_service::{map_config, IntoServiceFactory, Service, ServiceFactory};
 
-#[cfg(unix)]
-use actix_http::Protocol;
-#[cfg(unix)]
-use actix_service::pipeline_factory;
-#[cfg(unix)]
-use futures_util::future::ok;
-
 #[cfg(feature = "openssl")]
 use actix_tls::accept::openssl::{AlpnError, SslAcceptor, SslAcceptorBuilder};
 #[cfg(feature = "rustls")]
@@ -489,7 +482,9 @@ where
     #[cfg(unix)]
     /// Start listening for unix domain (UDS) connections on existing listener.
     pub fn listen_uds(mut self, lst: std::os::unix::net::UnixListener) -> io::Result<Self> {
+        use actix_http::Protocol;
         use actix_rt::net::UnixStream;
+        use actix_service::pipeline_factory;
 
         let cfg = self.config.clone();
         let factory = self.factory.clone();
@@ -511,19 +506,22 @@ where
                 c.host.clone().unwrap_or_else(|| format!("{}", socket_addr)),
             );
 
-            pipeline_factory(|io: UnixStream| ok((io, Protocol::Http1, None))).and_then({
-                let svc = HttpService::build()
-                    .keep_alive(c.keep_alive)
-                    .client_timeout(c.client_timeout);
+            pipeline_factory(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) })
+                .and_then({
+                    let svc = HttpService::build()
+                        .keep_alive(c.keep_alive)
+                        .client_timeout(c.client_timeout);
 
-                let svc = if let Some(handler) = on_connect_fn.clone() {
-                    svc.on_connect_ext(move |io: &_, ext: _| (&*handler)(io as &dyn Any, ext))
-                } else {
-                    svc
-                };
+                    let svc = if let Some(handler) = on_connect_fn.clone() {
+                        svc.on_connect_ext(move |io: &_, ext: _| {
+                            (&*handler)(io as &dyn Any, ext)
+                        })
+                    } else {
+                        svc
+                    };
 
-                svc.finish(map_config(factory(), move |_| config.clone()))
-            })
+                    svc.finish(map_config(factory(), move |_| config.clone()))
+                })
         })?;
         Ok(self)
     }
@@ -534,7 +532,9 @@ where
     where
         A: AsRef<std::path::Path>,
     {
+        use actix_http::Protocol;
         use actix_rt::net::UnixStream;
+        use actix_service::pipeline_factory;
 
         let cfg = self.config.clone();
         let factory = self.factory.clone();
@@ -555,12 +555,13 @@ where
                     socket_addr,
                     c.host.clone().unwrap_or_else(|| format!("{}", socket_addr)),
                 );
-                pipeline_factory(|io: UnixStream| ok((io, Protocol::Http1, None))).and_then(
-                    HttpService::build()
-                        .keep_alive(c.keep_alive)
-                        .client_timeout(c.client_timeout)
-                        .finish(map_config(factory(), move |_| config.clone())),
-                )
+                pipeline_factory(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) })
+                    .and_then(
+                        HttpService::build()
+                            .keep_alive(c.keep_alive)
+                            .client_timeout(c.client_timeout)
+                            .finish(map_config(factory(), move |_| config.clone())),
+                    )
             },
         )?;
         Ok(self)

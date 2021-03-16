@@ -707,7 +707,7 @@ where
                     // got timeout during shutdown, drop connection
                     } else if this.flags.contains(Flags::SHUTDOWN) {
                         return Err(DispatchError::DisconnectTimeout);
-                    // exceed deadline. check for any outstanding tasks
+                        // exceed deadline. check for any outstanding tasks
                     } else if timer.deadline() >= *this.ka_expire {
                         // have no task at hand.
                         if this.state.is_empty() && this.write_buf.is_empty() {
@@ -740,15 +740,15 @@ where
                                 this.flags.insert(Flags::STARTED | Flags::SHUTDOWN);
                                 this.state.set(State::None);
                             }
-                        // still have unfinished task. try to reset and register keep-alive.
+                            // still have unfinished task. try to reset and register keep-alive.
                         } else if let Some(deadline) =
                             this.codec.config().keep_alive_expire()
                         {
                             timer.as_mut().reset(deadline);
                             let _ = timer.poll(cx);
                         }
-                    // timer resolved but still have not met the keep-alive expire deadline.
-                    // reset and register for later wakeup.
+                        // timer resolved but still have not met the keep-alive expire deadline.
+                        // reset and register for later wakeup.
                     } else {
                         timer.as_mut().reset(*this.ka_expire);
                         let _ = timer.poll(cx);
@@ -996,14 +996,15 @@ mod tests {
     use std::str;
 
     use actix_service::fn_service;
-    use futures_util::future::{lazy, ready};
+    use futures_util::future::{lazy, ready, Ready};
 
     use super::*;
-    use crate::test::TestBuffer;
-    use crate::{error::Error, KeepAlive};
     use crate::{
+        error::Error,
         h1::{ExpectHandler, UpgradeHandler},
-        test::TestSeqBuffer,
+        http::Method,
+        test::{TestBuffer, TestSeqBuffer},
+        HttpMessage, KeepAlive,
     };
 
     fn find_slice(haystack: &[u8], needle: &[u8], from: usize) -> Option<usize> {
@@ -1327,14 +1328,30 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_upgrade() {
+        struct TestUpgrade;
+
+        impl<T> Service<(Request, Framed<T, Codec>)> for TestUpgrade {
+            type Response = ();
+            type Error = Error;
+            type Future = Ready<Result<Self::Response, Self::Error>>;
+
+            actix_service::always_ready!();
+
+            fn call(&self, (req, _framed): (Request, Framed<T, Codec>)) -> Self::Future {
+                assert_eq!(req.method(), Method::GET);
+                assert!(req.upgrade());
+                assert_eq!(req.headers().get("upgrade").unwrap(), "websocket");
+                ready(Ok(()))
+            }
+        }
+
         lazy(|cx| {
             let mut buf = TestSeqBuffer::empty();
             let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
 
-            let services =
-                HttpFlow::new(ok_service(), ExpectHandler, Some(UpgradeHandler));
+            let services = HttpFlow::new(ok_service(), ExpectHandler, Some(TestUpgrade));
 
-            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+            let h1 = Dispatcher::<_, _, _, _, TestUpgrade>::new(
                 buf.clone(),
                 cfg,
                 services,

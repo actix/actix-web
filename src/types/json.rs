@@ -114,6 +114,18 @@ where
     }
 }
 
+impl<T> Serialize for Json<T>
+where
+    T: Serialize,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.0.serialize(serializer)
+    }
+}
+
 /// Creates response with OK status code, correct content type header, and serialized JSON payload.
 ///
 /// If serialization failed
@@ -441,9 +453,7 @@ mod tests {
     fn json_eq(err: JsonPayloadError, other: JsonPayloadError) -> bool {
         match err {
             JsonPayloadError::Overflow => matches!(other, JsonPayloadError::Overflow),
-            JsonPayloadError::ContentType => {
-                matches!(other, JsonPayloadError::ContentType)
-            }
+            JsonPayloadError::ContentType => matches!(other, JsonPayloadError::ContentType),
             _ => false,
         }
     }

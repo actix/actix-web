@@ -80,7 +80,7 @@ bitflags! {
 
 impl Codec {
     /// Create new WebSocket frames decoder.
-    pub fn new() -> Codec {
+    pub const fn new() -> Codec {
         Codec {
             max_size: 65_536,
             flags: Flags::SERVER,

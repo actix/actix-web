@@ -78,6 +78,7 @@ impl TryFrom<&syn::LitStr> for MethodType {
 
 struct Args {
     path: syn::LitStr,
+    resource_name: Option<syn::LitStr>,
     guards: Vec<Ident>,
     wrappers: Vec<syn::Type>,
     methods: HashSet<MethodType>,
@@ -86,6 +87,7 @@ struct Args {
 impl Args {
     fn new(args: AttributeArgs, method: Option<MethodType>) -> syn::Result<Self> {
         let mut path = None;
+        let mut resource_name = None;
         let mut guards = Vec::new();
         let mut wrappers = Vec::new();
         let mut methods = HashSet::new();
@@ -109,7 +111,16 @@ impl Args {
                     }
                 },
                 NestedMeta::Meta(syn::Meta::NameValue(nv)) => {
-                    if nv.path.is_ident("guard") {
+                    if nv.path.is_ident("name") {
+                        if let syn::Lit::Str(lit) = nv.lit {
+                            resource_name = Some(lit);
+                        } else {
+                            return Err(syn::Error::new_spanned(
+                                nv.lit,
+                                "Attribute name expects literal string!",
+                            ));
+                        }
+                    } else if nv.path.is_ident("guard") {
                         if let syn::Lit::Str(lit) = nv.lit {
                             guards.push(Ident::new(&lit.value(), Span::call_site()));
                         } else {
@@ -164,6 +175,7 @@ impl Args {
         }
         Ok(Args {
             path: path.unwrap(),
+            resource_name,
             guards,
             wrappers,
             methods,
@@ -276,6 +288,7 @@ impl ToTokens for Route {
             args:
                 Args {
                     path,
+                    resource_name,
                     guards,
                     wrappers,
                     methods,
@@ -283,7 +296,9 @@ impl ToTokens for Route {
             resource_type,
             doc_attributes,
         } = self;
-        let resource_name = name.to_string();
+        let resource_name = resource_name
+            .as_ref()
+            .map_or_else(|| name.to_string(), |n| n.value());
         let method_guards = {
             let mut others = methods.iter();
             // unwrapping since length is checked to be at least one

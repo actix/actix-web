@@ -126,7 +126,7 @@ async fn test_chunked_payload() {
                     .take_payload()
                     .map(|res| match res {
                         Ok(pl) => pl,
-                        Err(e) => panic!(format!("Error reading payload: {}", e)),
+                        Err(e) => panic!("Error reading payload: {}", e),
                     })
                     .fold(0usize, |acc, chunk| ready(acc + chunk.len()))
                     .map(|req_size| {
@@ -162,7 +162,7 @@ async fn test_chunked_payload() {
         let re = Regex::new(r"size=(\d+)").unwrap();
         let size: usize = match re.captures(&data) {
             Some(caps) => caps.get(1).unwrap().as_str().parse().unwrap(),
-            None => panic!(format!("Failed to find size in HTTP Response: {}", data)),
+            None => panic!("Failed to find size in HTTP Response: {}", data),
         };
         size
     };

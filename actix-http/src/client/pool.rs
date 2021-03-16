@@ -25,13 +25,7 @@ use super::connection::{ConnectionType, H2Connection, IoConnection};
 use super::error::ConnectError;
 use super::h2proto::handshake;
 use super::Connect;
-
-#[derive(Clone, Copy, PartialEq)]
-/// Protocol version
-pub enum Protocol {
-    Http1,
-    Http2,
-}
+use super::Protocol;
 
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub(crate) struct Key {
@@ -148,18 +142,6 @@ where
     }
 }
 
-impl<S, Io> Clone for ConnectionPool<S, Io>
-where
-    Io: AsyncWrite + Unpin + 'static,
-{
-    fn clone(&self) -> Self {
-        Self {
-            connector: self.connector.clone(),
-            inner: self.inner.clone(),
-        }
-    }
-}
-
 impl<S, Io> Service<Connect> for ConnectionPool<S, Io>
 where
     S: Service<Connect, Response = (Io, Protocol), Error = ConnectError> + 'static,
@@ -235,13 +217,16 @@ where
 
             // construct acquired. It's used to put Io type back to pool/ close the Io type.
             // permit is carried with the whole lifecycle of Acquired.
-            let acquired = Some(Acquired { key, inner, permit });
+            let acquired = Acquired { key, inner, permit };
 
             // match the connection and spawn new one if did not get anything.
             match conn {
                 Some(conn) => Ok(IoConnection::new(conn.conn, conn.created, acquired)),
                 None => {
                     let (io, proto) = connector.call(req).await?;
+
+                    // TODO: remove when http3 is added in support.
+                    assert!(proto != Protocol::Http3);
 
                     if proto == Protocol::Http1 {
                         Ok(IoConnection::new(
@@ -250,7 +235,7 @@ where
                             acquired,
                         ))
                     } else {
-                        let config = &acquired.as_ref().unwrap().inner.config;
+                        let config = &acquired.inner.config;
                         let (sender, connection) = handshake(io, config).await?;
                         Ok(IoConnection::new(
                             ConnectionType::H2(H2Connection::new(sender, connection)),
@@ -361,14 +346,12 @@ where
     Io: AsyncRead + AsyncWrite + Unpin + 'static,
 {
     /// Close the IO.
-    pub(crate) fn close(&mut self, conn: IoConnection<Io>) {
-        let (conn, _) = conn.into_inner();
+    pub(crate) fn close(&self, conn: ConnectionType<Io>) {
         self.inner.close(conn);
     }
 
     /// Release IO back into pool.
-    pub(crate) fn release(&mut self, conn: IoConnection<Io>) {
-        let (io, created) = conn.into_inner();
+    pub(crate) fn release(&self, conn: ConnectionType<Io>, created: Instant) {
         let Acquired { key, inner, .. } = self;
 
         inner
@@ -377,12 +360,12 @@ where
             .entry(key.clone())
             .or_insert_with(VecDeque::new)
             .push_back(PooledConnection {
-                conn: io,
+                conn,
                 created,
                 used: Instant::now(),
             });
 
-        let _ = &mut self.permit;
+        let _ = &self.permit;
     }
 }
 
@@ -462,8 +445,8 @@ mod test {
     where
         T: AsyncRead + AsyncWrite + Unpin + 'static,
     {
-        let (conn, created, mut acquired) = conn.into_parts();
-        acquired.release(IoConnection::new(conn, created, None));
+        let (conn, created, acquired) = conn.into_parts();
+        acquired.release(conn, created);
     }
 
     #[actix_rt::test]

@@ -363,7 +363,7 @@ impl Format {
     /// Returns `None` if the format string syntax is incorrect.
     pub fn new(s: &str) -> Format {
         log::trace!("Access log format: {}", s);
-        let fmt = Regex::new(r"%(\{([A-Za-z0-9\-_]+)\}([aioe]|xi)|[atPrUsbTD]?)").unwrap();
+        let fmt = Regex::new(r"%(\{([A-Za-z0-9\-_]+)\}([aioe]|xi)|[%atPrUsbTD]?)").unwrap();
 
         let mut idx = 0;
         let mut results = Vec::new();
@@ -637,6 +637,38 @@ mod tests {
             ))
             .to_srv_request();
         let _res = srv.call(req).await.unwrap();
+    }
+
+    #[actix_rt::test]
+    async fn test_escape_percent() {
+        let mut format = Format::new("%%{r}a");
+
+        let req = TestRequest::default()
+            .insert_header((
+                header::FORWARDED,
+                header::HeaderValue::from_static("for=192.0.2.60;proto=http;by=203.0.113.43"),
+            ))
+            .to_srv_request();
+
+        let now = OffsetDateTime::now_utc();
+        for unit in &mut format.0 {
+            unit.render_request(now, &req);
+        }
+
+        let resp = HttpResponse::build(StatusCode::OK).force_close().finish();
+        for unit in &mut format.0 {
+            unit.render_response(&resp);
+        }
+
+        let entry_time = OffsetDateTime::now_utc();
+        let render = |fmt: &mut fmt::Formatter<'_>| {
+            for unit in &format.0 {
+                unit.render(fmt, 1024, entry_time)?;
+            }
+            Ok(())
+        };
+        let s = format!("{}", FormatDisplay(&render));
+        assert_eq!(s, "%{r}a");
     }
 
     #[actix_rt::test]

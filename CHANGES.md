@@ -1,10 +1,21 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Fixed
+* Double ampersand in Logger format is escaped correctly. [#2067]
+
+### Removed
+* The `client` mod was removed. Clients should now use `awc` directly.
+  [871ca5e4](https://github.com/actix/actix-web/commit/871ca5e4ae2bdc22d1ea02701c2992fa8d04aed7)
+
+[#2067]: https://github.com/actix/actix-web/pull/2067
+
+
+## 4.0.0-beta.4 - 2021-03-09
 ### Changed
 * Feature `cookies` is now optional and enabled by default. [#1981]
-* `JsonBody::new` returns a default limit of 32kB to be consistent with `JsonConfig` and the
-  default behaviour of the `web::Json<T>` extractor. [#2010] 
+* `JsonBody::new` returns a default limit of 32kB to be consistent with `JsonConfig` and the default
+  behaviour of the `web::Json<T>` extractor. [#2010]
 
 [#1981]: https://github.com/actix/actix-web/pull/1981
 [#2010]: https://github.com/actix/actix-web/pull/2010
