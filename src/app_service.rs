@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::task::Poll;
 
 use actix_http::{Extensions, Request, Response};
 use actix_router::{Path, ResourceDef, Router, Url};

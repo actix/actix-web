@@ -17,7 +17,7 @@ use crate::message::{RequestHeadType, ResponseHead};
 use crate::payload::Payload;
 
 use super::config::ConnectorConfig;
-use super::connection::{ConnectionType, IoConnection};
+use super::connection::ConnectionType;
 use super::error::SendRequestError;
 use super::pool::Acquired;
 use crate::client::connection::H2Connection;
@@ -27,7 +27,7 @@ pub(crate) async fn send_request<T, B>(
     head: RequestHeadType,
     body: B,
     created: time::Instant,
-    pool: Option<Acquired<T>>,
+    acquired: Acquired<T>,
 ) -> Result<(ResponseHead, Payload), SendRequestError>
 where
     T: AsyncRead + AsyncWrite + Unpin + 'static,
@@ -103,13 +103,13 @@ where
 
     let res = poll_fn(|cx| io.poll_ready(cx)).await;
     if let Err(e) = res {
-        release(io, pool, created, e.is_io());
+        release(io, acquired, created, e.is_io());
         return Err(SendRequestError::from(e));
     }
 
     let resp = match io.send_request(req, eof) {
         Ok((fut, send)) => {
-            release(io, pool, created, false);
+            release(io, acquired, created, false);
 
             if !eof {
                 send_body(body, send).await?;
@@ -117,7 +117,7 @@ where
             fut.await.map_err(SendRequestError::from)?
         }
         Err(e) => {
-            release(io, pool, created, e.is_io());
+            release(io, acquired, created, e.is_io());
             return Err(e.into());
         }
     };
@@ -181,16 +181,14 @@ async fn send_body<B: MessageBody>(
 /// release SendRequest object
 fn release<T: AsyncRead + AsyncWrite + Unpin + 'static>(
     io: H2Connection,
-    pool: Option<Acquired<T>>,
+    acquired: Acquired<T>,
     created: time::Instant,
     close: bool,
 ) {
-    if let Some(mut pool) = pool {
-        if close {
-            pool.close(IoConnection::new(ConnectionType::H2(io), created, None));
-        } else {
-            pool.release(IoConnection::new(ConnectionType::H2(io), created, None));
-        }
+    if close {
+        acquired.close(ConnectionType::H2(io));
+    } else {
+        acquired.release(ConnectionType::H2(io), created);
     }
 }
 
