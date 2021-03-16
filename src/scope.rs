@@ -2,7 +2,6 @@ use std::cell::RefCell;
 use std::fmt;
 use std::future::Future;
 use std::rc::Rc;
-use std::task::Poll;
 
 use actix_http::Extensions;
 use actix_router::{ResourceDef, Router};
