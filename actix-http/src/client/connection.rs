@@ -98,14 +98,6 @@ pub trait Connection {
     >;
 }
 
-pub(crate) trait ConnectionLifetime: AsyncRead + AsyncWrite + 'static {
-    /// Close connection
-    fn close(self: Pin<&mut Self>);
-
-    /// Release connection to the connection pool
-    fn release(self: Pin<&mut Self>);
-}
-
 #[doc(hidden)]
 /// HTTP client connection
 pub struct IoConnection<T>
@@ -114,7 +106,7 @@ where
 {
     io: Option<ConnectionType<T>>,
     created: time::Instant,
-    pool: Option<Acquired<T>>,
+    pool: Acquired<T>,
 }
 
 impl<T> fmt::Debug for IoConnection<T>
@@ -134,7 +126,7 @@ impl<T: AsyncRead + AsyncWrite + Unpin> IoConnection<T> {
     pub(crate) fn new(
         io: ConnectionType<T>,
         created: time::Instant,
-        pool: Option<Acquired<T>>,
+        pool: Acquired<T>,
     ) -> Self {
         IoConnection {
             pool,
@@ -143,13 +135,9 @@ impl<T: AsyncRead + AsyncWrite + Unpin> IoConnection<T> {
         }
     }
 
-    pub(crate) fn into_inner(self) -> (ConnectionType<T>, time::Instant) {
-        (self.io.unwrap(), self.created)
-    }
-
     #[cfg(test)]
     pub(crate) fn into_parts(self) -> (ConnectionType<T>, time::Instant, Acquired<T>) {
-        (self.io.unwrap(), self.created, self.pool.unwrap())
+        (self.io.unwrap(), self.created, self.pool)
     }
 
     async fn send_request<B: MessageBody + 'static, H: Into<RequestHeadType>>(
@@ -177,13 +165,7 @@ impl<T: AsyncRead + AsyncWrite + Unpin> IoConnection<T> {
         match self.io.take().unwrap() {
             ConnectionType::H1(io) => h1proto::open_tunnel(io, head.into()).await,
             ConnectionType::H2(io) => {
-                if let Some(mut pool) = self.pool.take() {
-                    pool.release(IoConnection::new(
-                        ConnectionType::H2(io),
-                        self.created,
-                        None,
-                    ));
-                }
+                self.pool.release(ConnectionType::H2(io), self.created);
                 Err(SendRequestError::TunnelNotSupported)
             }
         }
