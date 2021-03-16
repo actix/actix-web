@@ -445,7 +445,7 @@ mod test {
     where
         T: AsyncRead + AsyncWrite + Unpin + 'static,
     {
-        let (conn, created, mut acquired) = conn.into_parts();
+        let (conn, created, acquired) = conn.into_parts();
         acquired.release(conn, created);
     }
 
