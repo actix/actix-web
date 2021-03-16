@@ -18,7 +18,7 @@ use futures_core::ready;
 use http::Uri;
 
 use super::config::ConnectorConfig;
-use super::connection::{Connection, EitherIoConnection};
+use super::connection::{Connection, ConnectionIo, EitherIoConnection};
 use super::error::ConnectError;
 use super::pool::ConnectionPool;
 use super::Connect;
@@ -60,9 +60,6 @@ pub struct Connector<T> {
     #[allow(dead_code)]
     ssl: SslConnector,
 }
-
-pub trait Io: AsyncRead + AsyncWrite + Unpin {}
-impl<T: AsyncRead + AsyncWrite + Unpin> Io for T {}
 
 impl Connector<()> {
     #[allow(clippy::new_ret_no_self, clippy::let_unit_value)]
@@ -281,16 +278,16 @@ where
             pub type DummyService = Box<
                 dyn Service<
                     Connect,
-                    Response = (Box<dyn Io>, Protocol),
+                    Response = (Box<dyn ConnectionIo>, Protocol),
                     Error = ConnectError,
                     Future = futures_core::future::LocalBoxFuture<
                         'static,
-                        Result<(Box<dyn Io>, Protocol), ConnectError>,
+                        Result<(Box<dyn ConnectionIo>, Protocol), ConnectError>,
                     >,
                 >,
             >;
 
-            InnerConnector::<_, DummyService, _, Box<dyn Io>> {
+            InnerConnector::<_, DummyService, _, Box<dyn ConnectionIo>> {
                 tcp_pool: ConnectionPool::new(
                     tcp_service,
                     self.config.no_disconnect_timeout(),
@@ -334,9 +331,12 @@ where
                                     .map(|protos| protos.windows(2).any(|w| w == H2))
                                     .unwrap_or(false);
                                 if h2 {
-                                    (Box::new(sock) as Box<dyn Io>, Protocol::Http2)
+                                    (
+                                        Box::new(sock) as Box<dyn ConnectionIo>,
+                                        Protocol::Http2,
+                                    )
                                 } else {
-                                    (Box::new(sock) as Box<dyn Io>, Protocol::Http1)
+                                    (Box::new(sock) as _, Protocol::Http1)
                                 }
                             })
                             .map_err(ConnectError::from),
@@ -354,9 +354,9 @@ where
                                     .map(|protos| protos.windows(2).any(|w| w == H2))
                                     .unwrap_or(false);
                                 if h2 {
-                                    (Box::new(sock) as Box<dyn Io>, Protocol::Http2)
+                                    (Box::new(sock) as _, Protocol::Http2)
                                 } else {
-                                    (Box::new(sock) as Box<dyn Io>, Protocol::Http1)
+                                    (Box::new(sock) as _, Protocol::Http1)
                                 }
                             }),
                     ),

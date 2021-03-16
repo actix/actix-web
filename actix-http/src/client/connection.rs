@@ -19,6 +19,10 @@ use super::error::SendRequestError;
 use super::pool::Acquired;
 use super::{h1proto, h2proto};
 
+pub trait ConnectionIo: AsyncRead + AsyncWrite + Unpin + 'static {}
+
+impl<T: AsyncRead + AsyncWrite + Unpin + 'static> ConnectionIo for T {}
+
 pub(crate) enum ConnectionType<Io> {
     H1(Io),
     H2(H2Connection),
