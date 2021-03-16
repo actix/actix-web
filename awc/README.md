@@ -27,7 +27,7 @@ fn main() {
 
         let res = client
             .get("http://www.rust-lang.org")    // <- Create request builder
-            .header("User-Agent", "Actix-web")
+            .insert_header(("User-Agent", "Actix-web"))
             .send()                             // <- Send http request
             .await;
 
