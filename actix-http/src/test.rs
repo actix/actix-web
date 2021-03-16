@@ -10,7 +10,7 @@ use std::{
 };
 
 use actix_codec::{AsyncRead, AsyncWrite, ReadBuf};
-use actix_rt::net::ActixStream;
+use actix_rt::net::{ActixStream, Ready};
 use bytes::{Bytes, BytesMut};
 use http::{Method, Uri, Version};
 
@@ -399,21 +399,21 @@ impl AsyncWrite for TestSeqBuffer {
 }
 
 impl ActixStream for TestBuffer {
-    fn poll_read_ready(&self, _: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Poll::Ready(Ok(()))
+    fn poll_read_ready(&self, _: &mut Context<'_>) -> Poll<io::Result<Ready>> {
+        Poll::Ready(Ok(Ready::READABLE))
     }
 
-    fn poll_write_ready(&self, _: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Poll::Ready(Ok(()))
+    fn poll_write_ready(&self, _: &mut Context<'_>) -> Poll<io::Result<Ready>> {
+        Poll::Ready(Ok(Ready::WRITABLE))
     }
 }
 
 impl ActixStream for TestSeqBuffer {
-    fn poll_read_ready(&self, _: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Poll::Ready(Ok(()))
+    fn poll_read_ready(&self, _: &mut Context<'_>) -> Poll<io::Result<Ready>> {
+        Poll::Ready(Ok(Ready::READABLE))
     }
 
-    fn poll_write_ready(&self, _: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Poll::Ready(Ok(()))
+    fn poll_write_ready(&self, _: &mut Context<'_>) -> Poll<io::Result<Ready>> {
+        Poll::Ready(Ok(Ready::WRITABLE))
     }
 }
