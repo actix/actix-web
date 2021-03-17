@@ -24,7 +24,7 @@ async fn test_guard_filter() {
     let res = test::call_service(&srv, req).await;
 
     assert_eq!(res.status(), StatusCode::OK);
-    assert_eq!(test::read_body(res).await, Bytes::from("first\n"));
+    assert_eq!(test::read_body(res).await, Bytes::from("first"));
 
     let req = TestRequest::with_uri("/index.txt")
         .append_header(("Host", "second.com"))
@@ -32,5 +32,5 @@ async fn test_guard_filter() {
     let res = test::call_service(&srv, req).await;
 
     assert_eq!(res.status(), StatusCode::OK);
-    assert_eq!(test::read_body(res).await, Bytes::from("second\n"));
+    assert_eq!(test::read_body(res).await, Bytes::from("second"));
 }
