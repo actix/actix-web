@@ -143,14 +143,14 @@ where
                         let fut = ConnectRequestFuture::Client {
                             fut: connection.send_request(head, body),
                         };
-                        self.as_mut().set(fut);
+                        self.set(fut);
                     }
                     ConnectRequest::Tunnel(head, ..) => {
                         // send request
                         let fut = ConnectRequestFuture::Tunnel {
                             fut: connection.open_tunnel(RequestHeadType::from(head)),
                         };
-                        self.as_mut().set(fut);
+                        self.set(fut);
                     }
                 }
                 self.poll(cx)
