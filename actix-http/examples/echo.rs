@@ -3,7 +3,7 @@ use std::{env, io};
 use actix_http::{Error, HttpService, Request, Response};
 use actix_server::Server;
 use bytes::BytesMut;
-use futures_util::StreamExt;
+use futures_util::StreamExt as _;
 use http::header::HeaderValue;
 use log::info;
 

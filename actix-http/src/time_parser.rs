@@ -1,7 +1,7 @@
 use time::{Date, OffsetDateTime, PrimitiveDateTime};
 
 /// Attempt to parse a `time` string as one of either RFC 1123, RFC 850, or asctime.
-pub fn parse_http_date(time: &str) -> Option<PrimitiveDateTime> {
+pub(crate) fn parse_http_date(time: &str) -> Option<PrimitiveDateTime> {
     try_parse_rfc_1123(time)
         .or_else(|| try_parse_rfc_850(time))
         .or_else(|| try_parse_asctime(time))

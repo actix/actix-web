@@ -7,7 +7,7 @@ use actix_rt::time::sleep;
 use actix_service::fn_service;
 use bytes::Bytes;
 use futures_util::future::{self, err, ok, ready, FutureExt};
-use futures_util::stream::{once, StreamExt};
+use futures_util::stream::{once, StreamExt as _};
 use regex::Regex;
 
 use actix_http::HttpMessage;
