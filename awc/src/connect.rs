@@ -2,6 +2,7 @@ use std::{
     future::Future,
     net,
     pin::Pin,
+    rc::Rc,
     task::{Context, Poll},
 };
 
@@ -19,7 +20,7 @@ use futures_core::{future::LocalBoxFuture, ready};
 
 use crate::response::ClientResponse;
 
-pub type ConnectorService = Box<
+pub type BoxConnectorService = Rc<
     dyn Service<
         ConnectRequest,
         Response = ConnectResponse,
@@ -27,6 +28,8 @@ pub type ConnectorService = Box<
         Future = LocalBoxFuture<'static, Result<ConnectResponse, SendRequestError>>,
     >,
 >;
+
+pub type BoxedSocket = Box<dyn ConnectionIo>;
 
 pub enum ConnectRequest {
     Client(RequestHeadType, Body, Option<net::SocketAddr>),
@@ -58,7 +61,7 @@ impl ConnectResponse {
     }
 }
 
-pub(crate) struct DefaultConnector<S> {
+pub struct DefaultConnector<S> {
     connector: S,
 }
 
@@ -68,15 +71,14 @@ impl<S> DefaultConnector<S> {
     }
 }
 
-impl<S> Service<ConnectRequest> for DefaultConnector<S>
+impl<S, Io> Service<ConnectRequest> for DefaultConnector<S>
 where
-    S: Service<ClientConnect, Error = ConnectError>,
-    S::Response: Connection,
-    <S::Response as Connection>::Io: 'static,
+    S: Service<ClientConnect, Error = ConnectError, Response = Connection<Io>>,
+    Io: ConnectionIo,
 {
     type Response = ConnectResponse;
     type Error = SendRequestError;
-    type Future = ConnectRequestFuture<S::Future, <S::Response as Connection>::Io>;
+    type Future = ConnectRequestFuture<S::Future, Io>;
 
     actix_service::forward_ready!(connector);
 
@@ -102,7 +104,10 @@ where
 
 pin_project_lite::pin_project! {
     #[project = ConnectRequestProj]
-    pub(crate) enum ConnectRequestFuture<Fut, Io> {
+    pub enum ConnectRequestFuture<Fut, Io>
+    where
+        Io: ConnectionIo
+    {
         Connection {
             #[pin]
             fut: Fut,
@@ -114,16 +119,15 @@ pin_project_lite::pin_project! {
         Tunnel {
             fut: LocalBoxFuture<
                 'static,
-                Result<(ResponseHead, Framed<Io, ClientCodec>), SendRequestError>,
+                Result<(ResponseHead, Framed<Connection<Io>, ClientCodec>), SendRequestError>,
             >,
         }
     }
 }
 
-impl<Fut, C, Io> Future for ConnectRequestFuture<Fut, Io>
+impl<Fut, Io> Future for ConnectRequestFuture<Fut, Io>
 where
-    Fut: Future<Output = Result<C, ConnectError>>,
-    C: Connection<Io = Io>,
+    Fut: Future<Output = Result<Connection<Io>, ConnectError>>,
     Io: ConnectionIo,
 {
     type Output = Result<ConnectResponse, SendRequestError>;
@@ -139,14 +143,14 @@ where
                         let fut = ConnectRequestFuture::Client {
                             fut: connection.send_request(head, body),
                         };
-                        self.set(fut);
+                        self.as_mut().set(fut);
                     }
                     ConnectRequest::Tunnel(head, ..) => {
                         // send request
                         let fut = ConnectRequestFuture::Tunnel {
                             fut: connection.open_tunnel(RequestHeadType::from(head)),
                         };
-                        self.set(fut);
+                        self.as_mut().set(fut);
                     }
                 }
                 self.poll(cx)
@@ -165,5 +169,3 @@ where
         }
     }
 }
-
-pub type BoxedSocket = Box<dyn ConnectionIo>;

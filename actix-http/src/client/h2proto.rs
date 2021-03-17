@@ -1,7 +1,5 @@
 use std::future::Future;
-use std::time;
 
-use actix_codec::{AsyncRead, AsyncWrite};
 use bytes::Bytes;
 use futures_util::future::poll_fn;
 use h2::{
@@ -17,20 +15,16 @@ use crate::message::{RequestHeadType, ResponseHead};
 use crate::payload::Payload;
 
 use super::config::ConnectorConfig;
-use super::connection::ConnectionType;
+use super::connection::{ConnectionIo, H2Connection};
 use super::error::SendRequestError;
-use super::pool::Acquired;
-use crate::client::connection::H2Connection;
 
-pub(crate) async fn send_request<T, B>(
-    mut io: H2Connection,
+pub(crate) async fn send_request<Io, B>(
+    mut io: H2Connection<Io>,
     head: RequestHeadType,
     body: B,
-    created: time::Instant,
-    acquired: Acquired<T>,
 ) -> Result<(ResponseHead, Payload), SendRequestError>
 where
-    T: AsyncRead + AsyncWrite + Unpin + 'static,
+    Io: ConnectionIo,
     B: MessageBody,
 {
     trace!("Sending client request: {:?} {:?}", head, body.size());
@@ -103,13 +97,13 @@ where
 
     let res = poll_fn(|cx| io.poll_ready(cx)).await;
     if let Err(e) = res {
-        release(io, acquired, created, e.is_io());
+        io.on_release(e.is_io());
         return Err(SendRequestError::from(e));
     }
 
     let resp = match io.send_request(req, eof) {
         Ok((fut, send)) => {
-            release(io, acquired, created, false);
+            io.on_release(false);
 
             if !eof {
                 send_body(body, send).await?;
@@ -117,7 +111,7 @@ where
             fut.await.map_err(SendRequestError::from)?
         }
         Err(e) => {
-            release(io, acquired, created, e.is_io());
+            io.on_release(e.is_io());
             return Err(e.into());
         }
     };
@@ -178,26 +172,10 @@ async fn send_body<B: MessageBody>(
     }
 }
 
-/// release SendRequest object
-fn release<T: AsyncRead + AsyncWrite + Unpin + 'static>(
-    io: H2Connection,
-    acquired: Acquired<T>,
-    created: time::Instant,
-    close: bool,
-) {
-    if close {
-        acquired.close(ConnectionType::H2(io));
-    } else {
-        acquired.release(ConnectionType::H2(io), created);
-    }
-}
-
-pub(crate) fn handshake<Io>(
+pub(crate) fn handshake<Io: ConnectionIo>(
     io: Io,
     config: &ConnectorConfig,
 ) -> impl Future<Output = Result<(SendRequest<Bytes>, Connection<Io, Bytes>), h2::Error>>
-where
-    Io: AsyncRead + AsyncWrite + Unpin + 'static,
 {
     let mut builder = Builder::new();
     builder
