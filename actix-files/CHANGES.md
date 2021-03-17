@@ -2,6 +2,9 @@
 
 ## Unreleased - 2021-xx-xx
 
+* Add support for `.guard` in `Files` to selectively filter `Files` services. [#2046]
+
+[#2046]: https://github.com/actix/actix-web/pull/2046
 
 ## 0.6.0-beta.3 - 2021-03-09
 * No notable changes.
