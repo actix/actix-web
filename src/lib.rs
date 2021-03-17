@@ -107,6 +107,7 @@ pub use actix_rt as rt;
 pub use actix_web_codegen::*;
 
 pub use crate::app::App;
+pub use crate::app_service::AppEntry;
 pub use crate::extract::FromRequest;
 pub use crate::request::HttpRequest;
 pub use crate::resource::Resource;
