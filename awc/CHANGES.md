@@ -1,6 +1,10 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Changed
+* `ConnectorService` type is renamed to `BoxConnectorService` [#2081]
+
+[#2081]: https://github.com/actix/actix-web/pull/2081
 
 
 ## 3.0.0-beta.3 - 2021-03-08
