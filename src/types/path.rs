@@ -20,7 +20,7 @@ use crate::{dev::Payload, error::PathError, FromRequest, HttpRequest};
 /// // extract path info from "/{name}/{count}/index.html" into tuple
 /// // {name}  - deserialize a String
 /// // {count} - deserialize a u32
-/// #[get("/")]
+/// #[get("/{name}/{count}/index.html")]
 /// async fn index(path: web::Path<(String, u32)>) -> String {
 ///     let (name, count) = path.into_inner();
 ///     format!("Welcome {}! {}", name, count)
@@ -40,7 +40,7 @@ use crate::{dev::Payload, error::PathError, FromRequest, HttpRequest};
 /// }
 ///
 /// // extract `Info` from a path using serde
-/// #[get("/")]
+/// #[get("/{name}")]
 /// async fn index(info: web::Path<Info>) -> String {
 ///     format!("Welcome {}!", info.name)
 /// }

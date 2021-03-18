@@ -217,7 +217,7 @@ where
 
             // construct acquired. It's used to put Io type back to pool/ close the Io type.
             // permit is carried with the whole lifecycle of Acquired.
-            let acquired = Some(Acquired { key, inner, permit });
+            let acquired = Acquired { key, inner, permit };
 
             // match the connection and spawn new one if did not get anything.
             match conn {
@@ -235,7 +235,7 @@ where
                             acquired,
                         ))
                     } else {
-                        let config = &acquired.as_ref().unwrap().inner.config;
+                        let config = &acquired.inner.config;
                         let (sender, connection) = handshake(io, config).await?;
                         Ok(IoConnection::new(
                             ConnectionType::H2(H2Connection::new(sender, connection)),
@@ -346,14 +346,12 @@ where
     Io: AsyncRead + AsyncWrite + Unpin + 'static,
 {
     /// Close the IO.
-    pub(crate) fn close(&mut self, conn: IoConnection<Io>) {
-        let (conn, _) = conn.into_inner();
+    pub(crate) fn close(&self, conn: ConnectionType<Io>) {
         self.inner.close(conn);
     }
 
     /// Release IO back into pool.
-    pub(crate) fn release(&mut self, conn: IoConnection<Io>) {
-        let (io, created) = conn.into_inner();
+    pub(crate) fn release(&self, conn: ConnectionType<Io>, created: Instant) {
         let Acquired { key, inner, .. } = self;
 
         inner
@@ -362,12 +360,12 @@ where
             .entry(key.clone())
             .or_insert_with(VecDeque::new)
             .push_back(PooledConnection {
-                conn: io,
+                conn,
                 created,
                 used: Instant::now(),
             });
 
-        let _ = &mut self.permit;
+        let _ = &self.permit;
     }
 }
 
@@ -447,8 +445,8 @@ mod test {
     where
         T: AsyncRead + AsyncWrite + Unpin + 'static,
     {
-        let (conn, created, mut acquired) = conn.into_parts();
-        acquired.release(IoConnection::new(conn, created, None));
+        let (conn, created, acquired) = conn.into_parts();
+        acquired.release(conn, created);
     }
 
     #[actix_rt::test]

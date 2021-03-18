@@ -10,8 +10,9 @@ use actix_http_test::test_server;
 use actix_service::{fn_factory_with_config, fn_service};
 
 use bytes::{Bytes, BytesMut};
+use futures_core::Stream;
 use futures_util::future::{self, err, ok};
-use futures_util::stream::{once, Stream, StreamExt};
+use futures_util::stream::{once, StreamExt as _};
 use rustls::{
     internal::pemfile::{certs, pkcs8_private_keys},
     NoClientAuth, ServerConfig as RustlsServerConfig,
