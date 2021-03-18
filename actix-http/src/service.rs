@@ -1,14 +1,19 @@
-use std::marker::PhantomData;
-use std::pin::Pin;
-use std::task::{Context, Poll};
-use std::{fmt, net, rc::Rc};
+use std::{
+    fmt,
+    future::Future,
+    marker::PhantomData,
+    net,
+    pin::Pin,
+    rc::Rc,
+    task::{Context, Poll},
+};
 
 use actix_codec::Framed;
 use actix_rt::net::{ActixStream, TcpStream};
 use actix_service::{pipeline_factory, IntoServiceFactory, Service, ServiceFactory};
 use bytes::Bytes;
-use futures_core::{ready, Future};
-use h2::server::{self, Handshake};
+use futures_core::ready;
+use h2::server::{handshake, Handshake};
 use pin_project::pin_project;
 
 use crate::body::MessageBody;
@@ -562,7 +567,7 @@ where
         match proto {
             Protocol::Http2 => HttpServiceHandlerResponse {
                 state: State::H2Handshake(Some((
-                    server::handshake(io),
+                    handshake(io),
                     self.cfg.clone(),
                     self.flow.clone(),
                     on_connect_data,

@@ -13,7 +13,7 @@ use actix_service::{
 use bytes::Bytes;
 use futures_core::ready;
 use futures_util::future::ok;
-use h2::server::{self, Handshake};
+use h2::server::{handshake, Handshake};
 use log::error;
 
 use crate::body::MessageBody;
@@ -307,7 +307,7 @@ where
                 Some(self.cfg.clone()),
                 addr,
                 on_connect_data,
-                server::handshake(io),
+                handshake(io),
             ),
         }
     }
