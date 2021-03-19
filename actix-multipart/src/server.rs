@@ -13,10 +13,7 @@ use futures_util::stream::{LocalBoxStream, Stream, StreamExt};
 
 use actix_utils::task::LocalWaker;
 use actix_web::error::{ParseError, PayloadError};
-use actix_web::http::header::{
-    self, ContentDisposition, DispositionParam, DispositionType, HeaderMap, HeaderName,
-    HeaderValue,
-};
+use actix_web::http::header::{self, ContentDisposition, HeaderMap, HeaderName, HeaderValue};
 
 use crate::error::MultipartError;
 
@@ -342,12 +339,12 @@ impl InnerMultipart {
                     ContentDisposition::from_raw(content_disposition).ok()
                 })
                 .filter(|content_disposition| {
-                    content_disposition.disposition == DispositionType::FormData
+                    content_disposition.disposition == header::DispositionType::FormData
                         && content_disposition
                             .parameters
                             .iter()
                             .any(|param| match param {
-                                DispositionParam::Name(_) => true,
+                                header::DispositionParam::Name(_) => true,
                                 _ => false,
                             })
                 }) {
