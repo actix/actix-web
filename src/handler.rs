@@ -190,3 +190,5 @@ factory_tuple! { A B C D E F G }
 factory_tuple! { A B C D E F G H }
 factory_tuple! { A B C D E F G H I }
 factory_tuple! { A B C D E F G H I J }
+factory_tuple! { A B C D E F G H I J K }
+factory_tuple! { A B C D E F G H I J K L }
