@@ -1,34 +1,38 @@
 //! Client connection pooling keyed on the authority part of the connection URI.
 
-use std::collections::VecDeque;
-use std::future::Future;
-use std::ops::Deref;
-use std::pin::Pin;
-use std::rc::Rc;
-use std::sync::Arc;
-use std::task::{Context, Poll};
-use std::time::{Duration, Instant};
-use std::{cell::RefCell, io};
+use std::{
+    cell::RefCell,
+    collections::VecDeque,
+    future::Future,
+    io,
+    ops::Deref,
+    pin::Pin,
+    rc::Rc,
+    sync::Arc,
+    task::{Context, Poll},
+    time::{Duration, Instant},
+};
 
-use actix_codec::{AsyncRead, AsyncWrite};
+use actix_codec::{AsyncRead, AsyncWrite, ReadBuf};
 use actix_rt::time::{sleep, Sleep};
 use actix_service::Service;
 use ahash::AHashMap;
 use futures_core::future::LocalBoxFuture;
 use http::uri::Authority;
 use pin_project::pin_project;
-use tokio::io::ReadBuf;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 use super::config::ConnectorConfig;
-use super::connection::{ConnectionType, H2Connection, IoConnection};
+use super::connection::{
+    ConnectionInnerType, ConnectionIo, ConnectionType, H2ConnectionInner,
+};
 use super::error::ConnectError;
 use super::h2proto::handshake;
 use super::Connect;
 use super::Protocol;
 
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
-pub(crate) struct Key {
+pub struct Key {
     authority: Authority,
 }
 
@@ -38,17 +42,18 @@ impl From<Authority> for Key {
     }
 }
 
+#[doc(hidden)]
 /// Connections pool for reuse Io type for certain [`http::uri::Authority`] as key.
-pub(crate) struct ConnectionPool<S, Io>
+pub struct ConnectionPool<S, Io>
 where
     Io: AsyncWrite + Unpin + 'static,
 {
-    connector: Rc<S>,
+    connector: S,
     inner: ConnectionPoolInner<Io>,
 }
 
 /// wrapper type for check the ref count of Rc.
-struct ConnectionPoolInner<Io>(Rc<ConnectionPoolInnerPriv<Io>>)
+pub struct ConnectionPoolInner<Io>(Rc<ConnectionPoolInnerPriv<Io>>)
 where
     Io: AsyncWrite + Unpin + 'static;
 
@@ -56,10 +61,21 @@ impl<Io> ConnectionPoolInner<Io>
 where
     Io: AsyncWrite + Unpin + 'static,
 {
+    fn new(config: ConnectorConfig) -> Self {
+        let permits = Arc::new(Semaphore::new(config.limit));
+        let available = RefCell::new(AHashMap::default());
+
+        Self(Rc::new(ConnectionPoolInnerPriv {
+            config,
+            available,
+            permits,
+        }))
+    }
+
     /// spawn a async for graceful shutdown h1 Io type with a timeout.
-    fn close(&self, conn: ConnectionType<Io>) {
+    fn close(&self, conn: ConnectionInnerType<Io>) {
         if let Some(timeout) = self.config.disconnect_timeout {
-            if let ConnectionType::H1(io) = conn {
+            if let ConnectionInnerType::H1(io) = conn {
                 actix_rt::spawn(CloseConnection::new(io, timeout));
             }
         }
@@ -104,7 +120,7 @@ where
     }
 }
 
-struct ConnectionPoolInnerPriv<Io>
+pub struct ConnectionPoolInnerPriv<Io>
 where
     Io: AsyncWrite + Unpin + 'static,
 {
@@ -128,15 +144,7 @@ where
     /// Any requests beyond limit would be wait in fifo order and get notified in async manner
     /// by [`tokio::sync::Semaphore`]
     pub(crate) fn new(connector: S, config: ConnectorConfig) -> Self {
-        let permits = Arc::new(Semaphore::new(config.limit));
-        let available = RefCell::new(AHashMap::default());
-        let connector = Rc::new(connector);
-
-        let inner = ConnectionPoolInner(Rc::new(ConnectionPoolInnerPriv {
-            config,
-            available,
-            permits,
-        }));
+        let inner = ConnectionPoolInner::new(config);
 
         Self { connector, inner }
     }
@@ -144,12 +152,14 @@ where
 
 impl<S, Io> Service<Connect> for ConnectionPool<S, Io>
 where
-    S: Service<Connect, Response = (Io, Protocol), Error = ConnectError> + 'static,
-    Io: AsyncRead + AsyncWrite + Unpin + 'static,
+    S: Service<Connect, Response = (Io, Protocol), Error = ConnectError>
+        + Clone
+        + 'static,
+    Io: ConnectionIo,
 {
-    type Response = IoConnection<Io>;
+    type Response = ConnectionType<Io>;
     type Error = ConnectError;
-    type Future = LocalBoxFuture<'static, Result<IoConnection<Io>, ConnectError>>;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
     actix_service::forward_ready!(connector);
 
@@ -193,7 +203,7 @@ where
                             inner.close(c.conn);
                         } else {
                             // check if the connection is still usable
-                            if let ConnectionType::H1(ref mut io) = c.conn {
+                            if let ConnectionInnerType::H1(ref mut io) = c.conn {
                                 let check = ConnectionCheckFuture { io };
                                 match check.await {
                                     ConnectionState::Tainted => {
@@ -221,7 +231,9 @@ where
 
             // match the connection and spawn new one if did not get anything.
             match conn {
-                Some(conn) => Ok(IoConnection::new(conn.conn, conn.created, acquired)),
+                Some(conn) => {
+                    Ok(ConnectionType::from_pool(conn.conn, conn.created, acquired))
+                }
                 None => {
                     let (io, proto) = connector.call(req).await?;
 
@@ -229,19 +241,12 @@ where
                     assert!(proto != Protocol::Http3);
 
                     if proto == Protocol::Http1 {
-                        Ok(IoConnection::new(
-                            ConnectionType::H1(io),
-                            Instant::now(),
-                            acquired,
-                        ))
+                        Ok(ConnectionType::from_h1(io, Instant::now(), acquired))
                     } else {
                         let config = &acquired.inner.config;
                         let (sender, connection) = handshake(io, config).await?;
-                        Ok(IoConnection::new(
-                            ConnectionType::H2(H2Connection::new(sender, connection)),
-                            Instant::now(),
-                            acquired,
-                        ))
+                        let inner = H2ConnectionInner::new(sender, connection);
+                        Ok(ConnectionType::from_h2(inner, Instant::now(), acquired))
                     }
                 }
             }
@@ -292,7 +297,7 @@ where
 }
 
 struct PooledConnection<Io> {
-    conn: ConnectionType<Io>,
+    conn: ConnectionInnerType<Io>,
     used: Instant,
     created: Instant,
 }
@@ -332,26 +337,26 @@ where
     }
 }
 
-pub(crate) struct Acquired<Io>
+pub struct Acquired<Io>
 where
     Io: AsyncWrite + Unpin + 'static,
 {
+    /// authority key for identify connection.
     key: Key,
+    /// handle to connection pool.
     inner: ConnectionPoolInner<Io>,
+    /// permit for limit concurrent in-flight connection for a Client object.
     permit: OwnedSemaphorePermit,
 }
 
-impl<Io> Acquired<Io>
-where
-    Io: AsyncRead + AsyncWrite + Unpin + 'static,
-{
+impl<Io: ConnectionIo> Acquired<Io> {
     /// Close the IO.
-    pub(crate) fn close(&self, conn: ConnectionType<Io>) {
+    pub(super) fn close(&self, conn: ConnectionInnerType<Io>) {
         self.inner.close(conn);
     }
 
     /// Release IO back into pool.
-    pub(crate) fn release(&self, conn: ConnectionType<Io>, created: Instant) {
+    pub(super) fn release(&self, conn: ConnectionInnerType<Io>, created: Instant) {
         let Acquired { key, inner, .. } = self;
 
         inner
@@ -376,7 +381,7 @@ mod test {
     use http::Uri;
 
     use super::*;
-    use crate::client::connection::IoConnection;
+    use crate::client::connection::ConnectionType;
 
     /// A stream type that always returns pending on async read.
     ///
@@ -423,6 +428,7 @@ mod test {
         }
     }
 
+    #[derive(Clone)]
     struct TestPoolConnector {
         generated: Rc<Cell<usize>>,
     }
@@ -441,12 +447,14 @@ mod test {
         }
     }
 
-    fn release<T>(conn: IoConnection<T>)
+    fn release<T>(conn: ConnectionType<T>)
     where
         T: AsyncRead + AsyncWrite + Unpin + 'static,
     {
-        let (conn, created, acquired) = conn.into_parts();
-        acquired.release(conn, created);
+        match conn {
+            ConnectionType::H1(mut conn) => conn.on_release(true),
+            ConnectionType::H2(mut conn) => conn.on_release(false),
+        }
     }
 
     #[actix_rt::test]

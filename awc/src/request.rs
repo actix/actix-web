@@ -57,7 +57,7 @@ pub struct ClientRequest {
     addr: Option<net::SocketAddr>,
     response_decompress: bool,
     timeout: Option<Duration>,
-    config: Rc<ClientConfig>,
+    config: ClientConfig,
 
     #[cfg(feature = "cookies")]
     cookies: Option<CookieJar>,
@@ -65,7 +65,7 @@ pub struct ClientRequest {
 
 impl ClientRequest {
     /// Create new client request builder.
-    pub(crate) fn new<U>(method: Method, uri: U, config: Rc<ClientConfig>) -> Self
+    pub(crate) fn new<U>(method: Method, uri: U, config: ClientConfig) -> Self
     where
         Uri: TryFrom<U>,
         <Uri as TryFrom<U>>::Error: Into<HttpError>,
@@ -398,7 +398,7 @@ impl ClientRequest {
             slf.addr,
             slf.response_decompress,
             slf.timeout,
-            slf.config.as_ref(),
+            &slf.config,
             body,
         )
     }
@@ -414,7 +414,7 @@ impl ClientRequest {
             slf.addr,
             slf.response_decompress,
             slf.timeout,
-            slf.config.as_ref(),
+            &slf.config,
             value,
         )
     }
@@ -432,7 +432,7 @@ impl ClientRequest {
             slf.addr,
             slf.response_decompress,
             slf.timeout,
-            slf.config.as_ref(),
+            &slf.config,
             value,
         )
     }
@@ -452,7 +452,7 @@ impl ClientRequest {
             slf.addr,
             slf.response_decompress,
             slf.timeout,
-            slf.config.as_ref(),
+            &slf.config,
             stream,
         )
     }
@@ -468,7 +468,7 @@ impl ClientRequest {
             slf.addr,
             slf.response_decompress,
             slf.timeout,
-            slf.config.as_ref(),
+            &slf.config,
         )
     }
 

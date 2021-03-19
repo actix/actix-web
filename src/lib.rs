@@ -173,11 +173,7 @@ pub mod dev {
 
     impl BodyEncoding for ResponseBuilder {
         fn get_encoding(&self) -> Option<ContentEncoding> {
-            if let Some(ref enc) = self.extensions().get::<Enc>() {
-                Some(enc.0)
-            } else {
-                None
-            }
+            self.extensions().get::<Enc>().map(|enc| enc.0)
         }
 
         fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
@@ -188,11 +184,7 @@ pub mod dev {
 
     impl<B> BodyEncoding for Response<B> {
         fn get_encoding(&self) -> Option<ContentEncoding> {
-            if let Some(ref enc) = self.extensions().get::<Enc>() {
-                Some(enc.0)
-            } else {
-                None
-            }
+            self.extensions().get::<Enc>().map(|enc| enc.0)
         }
 
         fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self {

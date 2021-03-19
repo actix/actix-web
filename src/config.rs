@@ -113,7 +113,7 @@ pub struct AppConfig {
 
 impl AppConfig {
     pub(crate) fn new(secure: bool, addr: SocketAddr, host: String) -> Self {
-        AppConfig { secure, addr, host }
+        AppConfig { secure, host, addr }
     }
 
     /// Server host name.
