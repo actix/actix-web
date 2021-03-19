@@ -648,11 +648,6 @@ where
                         // go into Some<Pin<&mut Sleep>> branch
                         this.ka_timer.set(Some(sleep_until(deadline)));
                         return self.poll_keepalive(cx);
-                    } else {
-                        this.flags.insert(Flags::READ_DISCONNECT);
-                        if let Some(mut payload) = this.payload.take() {
-                            payload.set_error(PayloadError::Incomplete(None));
-                        }
                     }
                 }
             }
@@ -682,18 +677,13 @@ where
                                 }
                             } else {
                                 // timeout on first request (slow request) return 408
-                                if !this.flags.contains(Flags::STARTED) {
-                                    trace!("Slow request timeout");
-                                    let _ = self.as_mut().send_response(
-                                        Response::RequestTimeout().finish().drop_body(),
-                                        ResponseBody::Other(Body::Empty),
-                                    );
-                                    this = self.project();
-                                } else {
-                                    trace!("Keep-alive connection timeout");
-                                }
+                                trace!("Slow request timeout");
+                                let _ = self.as_mut().send_response(
+                                    Response::RequestTimeout().finish().drop_body(),
+                                    ResponseBody::Other(Body::Empty),
+                                );
+                                this = self.project();
                                 this.flags.insert(Flags::STARTED | Flags::SHUTDOWN);
-                                this.state.set(State::None);
                             }
                             // still have unfinished task. try to reset and register keep-alive.
                         } else if let Some(deadline) =
