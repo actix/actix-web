@@ -28,17 +28,6 @@ where
     fn call(&self, param: T) -> R;
 }
 
-impl<F, R> Handler<(), R> for F
-where
-    F: Fn() -> R + Clone + 'static,
-    R: Future,
-    R::Output: Responder,
-{
-    fn call(&self, _: ()) -> R {
-        (self)()
-    }
-}
-
 #[doc(hidden)]
 /// Extract arguments from request, run factory function and make response.
 pub struct HandlerService<F, T, R>
@@ -177,30 +166,27 @@ where
 }
 
 /// FromRequest trait impl for tuples
-macro_rules! factory_tuple ({ $(($n:tt, $T:ident)),+} => {
-    impl<Func, $($T,)+ Res> Handler<($($T,)+), Res> for Func
-    where Func: Fn($($T,)+) -> Res + Clone + 'static,
+macro_rules! factory_tuple ({ $($param:ident)* } => {
+    impl<Func, $($param,)* Res> Handler<($($param,)*), Res> for Func
+    where Func: Fn($($param),*) -> Res + Clone + 'static,
           Res: Future,
           Res::Output: Responder,
     {
-        fn call(&self, param: ($($T,)+)) -> Res {
-            (self)($(param.$n,)+)
+        #[allow(non_snake_case)]
+        fn call(&self, ($($param,)*): ($($param,)*)) -> Res {
+            (self)($($param,)*)
         }
     }
 });
 
-#[rustfmt::skip]
-mod m {
-    use super::*;
-
-    factory_tuple!((0, A));
-    factory_tuple!((0, A), (1, B));
-    factory_tuple!((0, A), (1, B), (2, C));
-    factory_tuple!((0, A), (1, B), (2, C), (3, D));
-    factory_tuple!((0, A), (1, B), (2, C), (3, D), (4, E));
-    factory_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F));
-    factory_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G));
-    factory_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H));
-    factory_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H), (8, I));
-    factory_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H), (8, I), (9, J));
-}
+factory_tuple! {}
+factory_tuple! { A }
+factory_tuple! { A B }
+factory_tuple! { A B C }
+factory_tuple! { A B C D }
+factory_tuple! { A B C D E }
+factory_tuple! { A B C D E F }
+factory_tuple! { A B C D E F G }
+factory_tuple! { A B C D E F G H }
+factory_tuple! { A B C D E F G H I }
+factory_tuple! { A B C D E F G H I J }
