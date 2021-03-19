@@ -1,7 +1,7 @@
-use http::header;
-use http::Method;
+use actix_http::http::Method;
+use crate::http::header;
 
-header! {
+crate::header! {
     /// `Allow` header, defined in [RFC7231](http://tools.ietf.org/html/rfc7231#section-7.4.1)
     ///
     /// The `Allow` header field lists the set of methods advertised as

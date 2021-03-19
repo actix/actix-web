@@ -1,6 +1,6 @@
-use crate::header::{EntityTag, IF_NONE_MATCH};
+use super::{EntityTag, IF_NONE_MATCH};
 
-header! {
+crate::header! {
     /// `If-None-Match` header, defined in
     /// [RFC7232](https://tools.ietf.org/html/rfc7232#section-3.2)
     ///
@@ -66,8 +66,8 @@ header! {
 #[cfg(test)]
 mod tests {
     use super::IfNoneMatch;
-    use crate::header::{EntityTag, Header, IF_NONE_MATCH};
-    use crate::test::TestRequest;
+    use crate::http::header::{EntityTag, Header, IF_NONE_MATCH};
+    use actix_http::test::TestRequest;
 
     #[test]
     fn test_if_none_match() {

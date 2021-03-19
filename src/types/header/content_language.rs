@@ -1,7 +1,7 @@
-use crate::header::{QualityItem, CONTENT_LANGUAGE};
+use super::{QualityItem, CONTENT_LANGUAGE};
 use language_tags::LanguageTag;
 
-header! {
+crate::header! {
     /// `Content-Language` header, defined in
     /// [RFC7231](https://tools.ietf.org/html/rfc7231#section-3.1.3.2)
     ///

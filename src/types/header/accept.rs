@@ -2,10 +2,10 @@ use std::cmp::Ordering;
 
 use mime::Mime;
 
-use crate::header::{qitem, QualityItem};
+use super::{qitem, QualityItem};
 use crate::http::header;
 
-header! {
+crate::header! {
     /// `Accept` header, defined in [RFC7231](http://tools.ietf.org/html/rfc7231#section-5.3.2)
     ///
     /// The `Accept` header field can be used by user agents to specify
@@ -116,8 +116,8 @@ header! {
 
         #[test]
         fn test_fuzzing1() {
-            use crate::test::TestRequest;
-            let req = TestRequest::default().insert_header((crate::header::ACCEPT, "chunk#;e")).finish();
+            use actix_http::test::TestRequest;
+            let req = TestRequest::default().insert_header((crate::http::header::ACCEPT, "chunk#;e")).finish();
             let header = Accept::parse(&req);
             assert!(header.is_ok());
         }
@@ -213,7 +213,7 @@ impl Accept {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::header::q;
+    use crate::http::header::q;
 
     #[test]
     fn test_mime_precedence() {

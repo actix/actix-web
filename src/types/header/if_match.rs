@@ -1,6 +1,6 @@
-use crate::header::{EntityTag, IF_MATCH};
+use super::{EntityTag, IF_MATCH};
 
-header! {
+crate::header! {
     /// `If-Match` header, defined in
     /// [RFC7232](https://tools.ietf.org/html/rfc7232#section-3.1)
     ///

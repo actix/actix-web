@@ -1,6 +1,6 @@
-use crate::header::{HttpDate, IF_UNMODIFIED_SINCE};
+use super::{HttpDate, IF_UNMODIFIED_SINCE};
 
-header! {
+crate::header! {
     /// `If-Unmodified-Since` header, defined in
     /// [RFC7232](http://tools.ietf.org/html/rfc7232#section-3.4)
     ///

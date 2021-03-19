@@ -10,7 +10,8 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use std::fmt::{self, Write};
 
-use crate::header::{self, ExtendedValue, Header, IntoHeaderValue, Writer};
+use crate::http::header;
+use super::{ExtendedValue, Header, IntoHeaderValue, Writer};
 
 /// Split at the index of the first `needle` if it exists or at the end.
 fn split_once(haystack: &str, needle: char) -> (&str, &str) {
@@ -554,8 +555,8 @@ impl fmt::Display for ContentDisposition {
 #[cfg(test)]
 mod tests {
     use super::{ContentDisposition, DispositionParam, DispositionType};
-    use crate::header::shared::Charset;
-    use crate::header::{ExtendedValue, HeaderValue};
+    use crate::http::header::Charset;
+    use crate::http::header::{ExtendedValue, HeaderValue};
 
     #[test]
     fn test_from_raw_basic() {

@@ -1,6 +1,6 @@
-use crate::header::{Charset, QualityItem, ACCEPT_CHARSET};
+use super::{Charset, QualityItem, ACCEPT_CHARSET};
 
-header! {
+crate::header! {
     /// `Accept-Charset` header, defined in
     /// [RFC7231](http://tools.ietf.org/html/rfc7231#section-5.3.3)
     ///

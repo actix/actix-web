@@ -1,6 +1,6 @@
-use crate::header::{HttpDate, EXPIRES};
+use super::{HttpDate, EXPIRES};
 
-header! {
+crate::header! {
     /// `Expires` header, defined in [RFC7234](http://tools.ietf.org/html/rfc7234#section-5.3)
     ///
     /// The `Expires` header field gives the date/time after which the

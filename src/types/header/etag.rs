@@ -1,6 +1,6 @@
-use crate::header::{EntityTag, ETAG};
+use super::{EntityTag, ETAG};
 
-header! {
+crate::header! {
     /// `ETag` header, defined in [RFC7232](http://tools.ietf.org/html/rfc7232#section-2.3)
     ///
     /// The `ETag` header field in a response provides the current entity-tag

@@ -1,6 +1,6 @@
-use crate::header::{HttpDate, LAST_MODIFIED};
+use super::{HttpDate, LAST_MODIFIED};
 
-header! {
+crate::header! {
     /// `Last-Modified` header, defined in
     /// [RFC7232](http://tools.ietf.org/html/rfc7232#section-2.2)
     ///

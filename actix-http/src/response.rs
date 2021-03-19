@@ -682,7 +682,7 @@ impl ResponseBuilder {
                 };
 
                 if !contains {
-                    self.insert_header(header::ContentType(mime::APPLICATION_JSON));
+                    self.insert_header((header::CONTENT_TYPE, mime::APPLICATION_JSON));
                 }
 
                 self.body(Body::from(body))

@@ -102,7 +102,7 @@ pub mod web;
 #[cfg(feature = "cookies")]
 pub use actix_http::cookie;
 pub use actix_http::Response as HttpResponse;
-pub use actix_http::{body, http, Error, HttpMessage, ResponseError, Result};
+pub use actix_http::{body, Error, HttpMessage, ResponseError, Result};
 pub use actix_rt as rt;
 pub use actix_web_codegen::*;
 
@@ -116,6 +116,11 @@ pub use crate::scope::Scope;
 pub use crate::server::HttpServer;
 // TODO: is exposing the error directly really needed
 pub use crate::types::{Either, EitherExtractError};
+
+pub mod http {
+    pub use actix_http::http::*;
+    pub use crate::types::header;
+}
 
 pub mod dev {
     //! The `actix-web` prelude for library developers

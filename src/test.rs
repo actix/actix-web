@@ -8,7 +8,6 @@ use std::{fmt, net, thread, time};
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 #[cfg(feature = "cookies")]
 use actix_http::cookie::Cookie;
-use actix_http::http::header::{ContentType, IntoHeaderPair};
 use actix_http::http::{Method, StatusCode, Uri, Version};
 use actix_http::test::TestRequest as HttpTestRequest;
 use actix_http::{ws, Extensions, HttpService, Request};
@@ -34,6 +33,7 @@ use crate::dev::{Body, MessageBody, Payload, Server};
 use crate::rmap::ResourceMap;
 use crate::service::{ServiceRequest, ServiceResponse};
 use crate::{Error, HttpRequest, HttpResponse};
+use crate::http::header::{ContentType, IntoHeaderPair};
 
 /// Create service that always responds with `HttpResponse::Ok()`
 pub fn ok_service(

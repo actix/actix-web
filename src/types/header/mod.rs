@@ -7,6 +7,7 @@
 //! is used, such as `ContentType(pub Mime)`.
 #![cfg_attr(rustfmt, rustfmt_skip)]
 
+pub use actix_http::http::header::*;
 pub use self::accept_charset::AcceptCharset;
 //pub use self::accept_encoding::AcceptEncoding;
 pub use self::accept::Accept;
@@ -18,7 +19,6 @@ pub use self::content_disposition::{
 };
 pub use self::content_language::ContentLanguage;
 pub use self::content_range::{ContentRange, ContentRangeSpec};
-pub use self::content_encoding::{ContentEncoding};
 pub use self::content_type::ContentType;
 pub use self::date::Date;
 pub use self::etag::ETag;
@@ -30,6 +30,7 @@ pub use self::if_range::IfRange;
 pub use self::if_unmodified_since::IfUnmodifiedSince;
 pub use self::last_modified::LastModified;
 //pub use self::range::{Range, ByteRangeSpec};
+pub(crate) use self::utils::{fmt_comma_delimited, from_comma_delimited, from_one_raw_str};
 
 #[doc(hidden)]
 #[macro_export]
@@ -61,9 +62,9 @@ macro_rules! __hyper__tm {
         #[cfg(test)]
         mod $tm{
             use std::str;
-            use http::Method;
+            use actix_http::http::Method;
             use mime::*;
-            use $crate::header::*;
+            use $crate::http::header::*;
             use super::$id as HeaderField;
             $($tf)*
         }
@@ -77,8 +78,8 @@ macro_rules! test_header {
     ($id:ident, $raw:expr) => {
         #[test]
         fn $id() {
-            use super::*;
-            use $crate::test;
+            use actix_http::http::header::Header;
+            use actix_http::test;
 
             let raw = $raw;
             let a: Vec<Vec<u8>> = raw.iter().map(|x| x.to_vec()).collect();
@@ -106,7 +107,7 @@ macro_rules! test_header {
     ($id:ident, $raw:expr, $typed:expr) => {
         #[test]
         fn $id() {
-            use $crate::test;
+            use actix_http::test;
 
             let a: Vec<Vec<u8>> = $raw.iter().map(|x| x.to_vec()).collect();
             let mut req = test::TestRequest::default();
@@ -134,6 +135,7 @@ macro_rules! test_header {
     };
 }
 
+#[doc(hidden)]
 #[macro_export]
 macro_rules! header {
     // $a:meta: Attributes associated with the header item (usually docs)
@@ -341,7 +343,6 @@ mod allow;
 mod cache_control;
 mod content_disposition;
 mod content_language;
-mod content_encoding;
 mod content_range;
 mod content_type;
 mod date;
@@ -353,3 +354,4 @@ mod if_none_match;
 mod if_range;
 mod if_unmodified_since;
 mod last_modified;
+mod utils;

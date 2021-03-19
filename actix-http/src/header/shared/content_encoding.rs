@@ -4,7 +4,7 @@ use http::header::InvalidHeaderValue;
 
 use crate::{
     error::ParseError,
-    header::{self, from_one_raw_str, Header, HeaderName, HeaderValue, IntoHeaderValue},
+    header::{self, Header, HeaderName, HeaderValue, IntoHeaderValue},
     HttpMessage,
 };
 
@@ -101,6 +101,14 @@ impl Header for ContentEncoding {
     }
 
     fn parse<T: HttpMessage>(msg: &T) -> Result<Self, ParseError> {
-        from_one_raw_str(msg.headers().get(Self::name()))
+        let val = msg.headers().get(Self::name());
+
+        if let Some(line) = val {
+            let line = line.to_str().map_err(|_| ParseError::Header)?;
+            if !line.is_empty() {
+                return Self::from_str(line).or(Err(ParseError::Header));
+            }
+        }
+        Err(ParseError::Header)
     }
 }

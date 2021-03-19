@@ -1,8 +1,7 @@
 use std::{fmt, str::FromStr};
 
-use http::HeaderValue;
-
-use crate::{error::ParseError, header::HTTP_VALUE};
+use super::HeaderValue;
+use crate::error::ParseError;
 
 /// Reads a comma-delimited raw header into a Vec.
 #[inline]
@@ -53,11 +52,4 @@ where
         fmt::Display::fmt(part, f)?;
     }
     Ok(())
-}
-
-/// Percent encode a sequence of bytes with a character set defined in
-/// <https://tools.ietf.org/html/rfc5987#section-3.2>
-pub fn http_percent_encode(f: &mut fmt::Formatter<'_>, bytes: &[u8]) -> fmt::Result {
-    let encoded = percent_encoding::percent_encode(bytes, HTTP_VALUE);
-    fmt::Display::fmt(&encoded, f)
 }

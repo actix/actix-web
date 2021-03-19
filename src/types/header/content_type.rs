@@ -1,7 +1,7 @@
-use crate::header::CONTENT_TYPE;
+use super::CONTENT_TYPE;
 use mime::Mime;
 
-header! {
+crate::header! {
     /// `Content-Type` header, defined in
     /// [RFC7231](http://tools.ietf.org/html/rfc7231#section-3.1.1.5)
     ///

@@ -1,7 +1,7 @@
-use crate::header::{QualityItem, ACCEPT_LANGUAGE};
+use super::{QualityItem, ACCEPT_LANGUAGE};
 use language_tags::LanguageTag;
 
-header! {
+crate::header! {
     /// `Accept-Language` header, defined in
     /// [RFC7231](http://tools.ietf.org/html/rfc7231#section-5.3.5)
     ///
