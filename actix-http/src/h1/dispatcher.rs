@@ -648,6 +648,11 @@ where
                         // go into Some<Pin<&mut Sleep>> branch
                         this.ka_timer.set(Some(sleep_until(deadline)));
                         return self.poll_keepalive(cx);
+                    } else {
+                        this.flags.insert(Flags::READ_DISCONNECT);
+                        if let Some(mut payload) = this.payload.take() {
+                            payload.set_error(PayloadError::Incomplete(None));
+                        }
                     }
                 }
             }
