@@ -1,7 +1,7 @@
 #[cfg(feature = "openssl")]
 extern crate tls_openssl as openssl;
 
-#[cfg(not(windows))]
+#[cfg(any(unix, feature = "openssl"))]
 use {
     actix_web::{test, web, App, HttpResponse, HttpServer},
     std::{sync::mpsc, thread, time::Duration},
