@@ -325,7 +325,7 @@ where
     }
 }
 
-const H2_UNREACHABLE_WRITE: &'static str = "H2Connection can not impl AsyncWrite trait";
+const H2_UNREACHABLE_WRITE: &str = "H2Connection can not impl AsyncWrite trait";
 
 impl<A, B> AsyncWrite for Connection<A, B>
 where
