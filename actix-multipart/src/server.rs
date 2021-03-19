@@ -13,7 +13,10 @@ use futures_util::stream::{LocalBoxStream, Stream, StreamExt};
 
 use actix_utils::task::LocalWaker;
 use actix_web::error::{ParseError, PayloadError};
-use actix_web::http::header::{self, ContentDisposition, HeaderMap, HeaderName, HeaderValue};
+use actix_web::http::header::{
+    self, ContentDisposition, DispositionParam, DispositionType, HeaderMap, HeaderName,
+    HeaderValue,
+};
 
 use crate::error::MultipartError;
 
@@ -402,14 +405,28 @@ impl Field {
     }
 
     /// Get the content disposition of the field, if it exists
-    pub fn content_disposition(&self) -> Option<ContentDisposition> {
+    pub fn content_disposition(&self) -> Result<ContentDisposition, MultipartError> {
         // RFC 7578: 'Each part MUST contain a Content-Disposition header field
-        // where the disposition type is "form-data".'
-        if let Some(content_disposition) = self.headers.get(&header::CONTENT_DISPOSITION) {
-            ContentDisposition::from_raw(content_disposition).ok()
-        } else {
-            None
-        }
+        // where the disposition type is "form-data". The Content-Disposition
+        // header field MUST also contain an additional parameter of "name"; the
+        // value of the "name" parameter is the original field name from the
+        // form.
+        self.headers
+            .get(&header::CONTENT_DISPOSITION)
+            .and_then(|content_disposition| {
+                ContentDisposition::from_raw(content_disposition).ok()
+            })
+            .filter(|content_disposition| {
+                content_disposition.disposition == DispositionType::FormData
+                    && content_disposition
+                        .parameters
+                        .iter()
+                        .any(|param| match param {
+                            DispositionParam::Name(_) => true,
+                            _ => false,
+                        })
+            })
+            .ok_or(MultipartError::NoContentDisposition)
     }
 }
 
