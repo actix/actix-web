@@ -607,17 +607,14 @@ where
 
 fn create_tcp_listener(addr: net::SocketAddr, backlog: u32) -> io::Result<net::TcpListener> {
     use socket2::{Domain, Protocol, Socket, Type};
-    let domain = match addr {
-        net::SocketAddr::V4(_) => Domain::ipv4(),
-        net::SocketAddr::V6(_) => Domain::ipv6(),
-    };
-    let socket = Socket::new(domain, Type::stream(), Some(Protocol::tcp()))?;
+    let domain = Domain::for_address(addr);
+    let socket = Socket::new(domain, Type::STREAM, Some(Protocol::TCP))?;
     socket.set_reuse_address(true)?;
     socket.bind(&addr.into())?;
     // clamp backlog to max u32 that fits in i32 range
     let backlog = cmp::min(backlog, i32::MAX as u32) as i32;
     socket.listen(backlog)?;
-    Ok(socket.into_tcp_listener())
+    Ok(net::TcpListener::from(socket))
 }
 
 #[cfg(feature = "openssl")]
