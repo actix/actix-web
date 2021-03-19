@@ -553,6 +553,8 @@ impl fmt::Debug for ClientRequest {
 mod tests {
     use std::time::SystemTime;
 
+    use actix_http::http::header::HttpDate;
+
     use super::*;
     use crate::Client;
 
@@ -569,7 +571,7 @@ mod tests {
         let req = Client::new()
             .put("/")
             .version(Version::HTTP_2)
-            .insert_header(header::Date(SystemTime::now().into()))
+            .insert_header((header::DATE, HttpDate::from(SystemTime::now())))
             .content_type("plain/text")
             .append_header((header::SERVER, "awc"));
 

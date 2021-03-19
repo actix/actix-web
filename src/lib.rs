@@ -118,8 +118,8 @@ pub use crate::server::HttpServer;
 pub use crate::types::{Either, EitherExtractError};
 
 pub mod http {
-    pub use actix_http::http::*;
     pub use crate::types::header;
+    pub use actix_http::http::*;
 }
 
 pub mod dev {

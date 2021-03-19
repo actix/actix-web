@@ -1,7 +1,7 @@
 //! Test helpers for actix http client to use during testing.
 use std::convert::TryFrom;
 
-use actix_http::http::header::{Header, IntoHeaderValue};
+use actix_http::http::header::{Header, IntoHeaderPair, IntoHeaderValue};
 use actix_http::http::{Error as HttpError, HeaderName, StatusCode, Version};
 #[cfg(feature = "cookies")]
 use actix_http::{
@@ -53,6 +53,19 @@ impl TestResponse {
     pub fn set<H: Header>(mut self, hdr: H) -> Self {
         if let Ok(value) = hdr.try_into_value() {
             self.head.headers.append(H::name(), value);
+            return self;
+        }
+        panic!("Can not set header");
+    }
+
+    // TODO: Should `set` be removed and replaced with this instead?
+    // It looks like `TestResponse` was missed in the header rework
+    pub fn insert_header<H>(mut self, header: H) -> Self
+    where
+        H: IntoHeaderPair,
+    {
+        if let Ok((key, value)) = header.try_into_header_pair() {
+            self.head.headers.insert(key, value);
             return self;
         }
         panic!("Can not set header");
@@ -115,6 +128,8 @@ impl TestResponse {
 mod tests {
     use std::time::SystemTime;
 
+    use actix_http::http::header::HttpDate;
+
     use super::*;
     use crate::{cookie, http::header};
 
@@ -122,7 +137,7 @@ mod tests {
     fn test_basics() {
         let res = TestResponse::default()
             .version(Version::HTTP_2)
-            .set(header::Date(SystemTime::now().into()))
+            .insert_header((header::DATE, HttpDate::from(SystemTime::now())))
             .cookie(cookie::Cookie::build("name", "value").finish())
             .finish();
         assert!(res.headers().contains_key(header::SET_COOKIE));

@@ -30,10 +30,10 @@ use crate::app_service::AppInitServiceState;
 use crate::config::AppConfig;
 use crate::data::Data;
 use crate::dev::{Body, MessageBody, Payload, Server};
+use crate::http::header::{ContentType, IntoHeaderPair};
 use crate::rmap::ResourceMap;
 use crate::service::{ServiceRequest, ServiceResponse};
 use crate::{Error, HttpRequest, HttpResponse};
-use crate::http::header::{ContentType, IntoHeaderPair};
 
 /// Create service that always responds with `HttpResponse::Ok()`
 pub fn ok_service(

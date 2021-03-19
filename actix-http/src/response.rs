@@ -1133,7 +1133,7 @@ mod tests {
     #[test]
     fn response_builder_header_insert_typed() {
         let mut res = Response::Ok();
-        res.insert_header(header::ContentType(mime::APPLICATION_OCTET_STREAM));
+        res.insert_header((header::CONTENT_TYPE, mime::APPLICATION_OCTET_STREAM));
         let res = res.finish();
 
         assert_eq!(
@@ -1158,8 +1158,8 @@ mod tests {
     #[test]
     fn response_builder_header_append_typed() {
         let mut res = Response::Ok();
-        res.append_header(header::ContentType(mime::APPLICATION_OCTET_STREAM));
-        res.append_header(header::ContentType(mime::APPLICATION_JSON));
+        res.append_header((header::CONTENT_TYPE, mime::APPLICATION_OCTET_STREAM));
+        res.append_header((header::CONTENT_TYPE, mime::APPLICATION_JSON));
         let res = res.finish();
 
         let headers: Vec<_> = res.headers().get_all("Content-Type").cloned().collect();
