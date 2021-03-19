@@ -231,6 +231,45 @@ impl FromRequest for () {
     }
 }
 
+macro_rules! header_from_req {
+    ( $( $header:ident ),* ) => {
+        $(
+            impl FromRequest for crate::http::header::$header {
+                type Error = actix_http::error::ParseError;
+                type Future = Ready<Result<Self, Self::Error>>;
+                type Config = ();
+
+                #[inline]
+                fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+                    let header = crate::http::header::Header::parse(req);
+                    ready(header)
+                }
+            }
+        )*
+    };
+}
+
+header_from_req! {
+    IfMatch,
+    IfNoneMatch,
+    IfRange,
+    Accept,
+    AcceptCharset,
+    AcceptLanguage,
+    Allow,
+    CacheControl,
+    ContentDisposition,
+    ContentLanguage,
+    ContentRange,
+    ContentType,
+    Date,
+    ETag,
+    Expires,
+    IfModifiedSince,
+    IfUnmodifiedSince,
+    LastModified
+}
+
 macro_rules! tuple_from_req ({$fut_type:ident, $(($n:tt, $T:ident)),+} => {
 
     // This module is a trick to get around the inability of
