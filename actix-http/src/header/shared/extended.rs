@@ -88,9 +88,9 @@ pub fn parse_extended_value(
     };
 
     Ok(ExtendedValue {
-        value,
         charset,
         language_tag,
+        value,
     })
 }
 

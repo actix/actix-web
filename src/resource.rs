@@ -449,9 +449,9 @@ impl ServiceFactory<ServiceRequest> for ResourceFactory {
                 .collect::<Result<Vec<_>, _>>()?;
 
             Ok(ResourceService {
+                routes,
                 app_data,
                 default,
-                routes,
             })
         })
     }
