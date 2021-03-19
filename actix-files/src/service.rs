@@ -1,4 +1,4 @@
-use std::{fmt, io, path::PathBuf, rc::Rc, task::Poll};
+use std::{fmt, io, path::PathBuf, rc::Rc};
 
 use actix_service::Service;
 use actix_web::{

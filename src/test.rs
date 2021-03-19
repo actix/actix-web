@@ -774,10 +774,10 @@ where
     };
 
     TestServer {
-        ssl,
         addr,
         client,
         system,
+        ssl,
         server,
     }
 }
