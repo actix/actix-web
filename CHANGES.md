@@ -4,11 +4,16 @@
 ### Fixed
 * Double ampersand in Logger format is escaped correctly. [#2067]
 
+### Changed
+* `CustomResponder` would return error as `HttpResponse` when `CustomResponder::with_header` failed instead of skipping.
+  (Only the first error is kept when multiple error occur) [#2093]
+
 ### Removed
 * The `client` mod was removed. Clients should now use `awc` directly.
   [871ca5e4](https://github.com/actix/actix-web/commit/871ca5e4ae2bdc22d1ea02701c2992fa8d04aed7)
 
 [#2067]: https://github.com/actix/actix-web/pull/2067
+[#2093]: https://github.com/actix/actix-web/pull/2093
 
 
 ## 4.0.0-beta.4 - 2021-03-09
