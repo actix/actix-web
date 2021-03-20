@@ -197,22 +197,23 @@ impl AcceptEncoding {
 
     /// Parse a raw Accept-Encoding header value into an ordered list.
     pub fn parse(raw: &str, encoding: ContentEncoding) -> ContentEncoding {
-        let mut encodings: Vec<_> = raw
+        let mut encodings = raw
             .replace(' ', "")
             .split(',')
             .map(|l| AcceptEncoding::new(l))
-            .collect();
+            .flatten()
+            .collect::<Vec<_>>();
+
         encodings.sort();
 
         for enc in encodings {
-            if let Some(enc) = enc {
-                if encoding == ContentEncoding::Auto {
-                    return enc.encoding;
-                } else if encoding == enc.encoding {
-                    return encoding;
-                }
+            if encoding == ContentEncoding::Auto {
+                return enc.encoding;
+            } else if encoding == enc.encoding {
+                return encoding;
             }
         }
+
         ContentEncoding::Identity
     }
 }
