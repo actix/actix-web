@@ -155,8 +155,7 @@ impl Responder for BytesMut {
 pub struct CustomResponder<T> {
     responder: T,
     status: Option<StatusCode>,
-    headers: Option<HeaderMap>,
-    error: Option<HttpError>,
+    headers: Result<HeaderMap, HttpError>,
 }
 
 impl<T: Responder> CustomResponder<T> {
@@ -164,8 +163,7 @@ impl<T: Responder> CustomResponder<T> {
         CustomResponder {
             responder,
             status: None,
-            headers: None,
-            error: None,
+            headers: Ok(HeaderMap::new()),
         }
     }
 
@@ -206,14 +204,12 @@ impl<T: Responder> CustomResponder<T> {
     where
         H: IntoHeaderPair,
     {
-        if self.headers.is_none() {
-            self.headers = Some(HeaderMap::new());
+        if let Ok(ref mut headers) = self.headers {
+            match header.try_into_header_pair() {
+                Ok((key, value)) => headers.append(key, value),
+                Err(e) => self.headers = Err(e.into()),
+            };
         }
-
-        match header.try_into_header_pair() {
-            Ok((key, value)) => self.headers.as_mut().unwrap().append(key, value),
-            Err(e) => self.error = Some(e.into()),
-        };
 
         self
     }
@@ -221,17 +217,20 @@ impl<T: Responder> CustomResponder<T> {
 
 impl<T: Responder> Responder for CustomResponder<T> {
     fn respond_to(self, req: &HttpRequest) -> HttpResponse {
+        let headers = match self.headers {
+            Ok(headers) => headers,
+            Err(err) => return HttpResponse::from_error(Error::from(err)),
+        };
+
         let mut res = self.responder.respond_to(req);
 
         if let Some(status) = self.status {
             *res.status_mut() = status;
         }
 
-        if let Some(ref headers) = self.headers {
-            for (k, v) in headers {
-                // TODO: before v4, decide if this should be append instead
-                res.headers_mut().insert(k.clone(), v.clone());
-            }
+        for (k, v) in headers {
+            // TODO: before v4, decide if this should be append instead
+            res.headers_mut().insert(k, v);
         }
 
         res
