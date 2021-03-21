@@ -3,7 +3,6 @@
 // TODO: review visibility
 mod either;
 pub(crate) mod form;
-pub mod header;
 pub(crate) mod json;
 mod path;
 pub(crate) mod payload;
