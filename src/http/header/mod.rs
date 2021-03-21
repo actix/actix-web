@@ -78,7 +78,6 @@ macro_rules! test_header {
     ($id:ident, $raw:expr) => {
         #[test]
         fn $id() {
-            use actix_http::http::header::Header;
             use actix_http::test;
 
             let raw = $raw;

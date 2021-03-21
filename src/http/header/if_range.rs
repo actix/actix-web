@@ -37,10 +37,10 @@ use crate::HttpMessage;
 /// # Examples
 ///
 /// ```
-/// use actix_http::Response;
-/// use actix_http::http::header::{EntityTag, IfRange};
+/// use actix_web::HttpResponse;
+/// use actix_web::http::header::{EntityTag, IfRange};
 ///
-/// let mut builder = Response::Ok();
+/// let mut builder = HttpResponse::Ok();
 /// builder.insert_header(
 ///     IfRange::EntityTag(
 ///         EntityTag::new(false, "abc".to_owned())
@@ -50,9 +50,9 @@ use crate::HttpMessage;
 ///
 /// ```
 /// use std::time::{Duration, SystemTime};
-/// use actix_http::{http::header::IfRange, Response};
+/// use actix_web::{http::header::IfRange, HttpResponse};
 ///
-/// let mut builder = Response::Ok();
+/// let mut builder = HttpResponse::Ok();
 /// let fetched = SystemTime::now() - Duration::from_secs(60 * 60 * 24);
 /// builder.insert_header(
 ///     IfRange::Date(fetched.into())

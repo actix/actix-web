@@ -359,10 +359,10 @@ impl ResponseBuilder {
     ///
     /// ```rust
     /// # use actix_http::Response;
-    /// use actix_http::http::header::ContentType;
+    /// use actix_http::http::header;
     ///
     /// Response::Ok()
-    ///     .insert_header(ContentType(mime::APPLICATION_JSON))
+    ///     .insert_header((header::CONTENT_TYPE, mime::APPLICATION_JSON))
     ///     .insert_header(("X-TEST", "value"))
     ///     .finish();
     /// ```
@@ -386,10 +386,10 @@ impl ResponseBuilder {
     ///
     /// ```rust
     /// # use actix_http::Response;
-    /// use actix_http::http::header::ContentType;
+    /// use actix_http::http::header;
     ///
     /// Response::Ok()
-    ///     .append_header(ContentType(mime::APPLICATION_JSON))
+    ///     .append_header((header::CONTENT_TYPE, mime::APPLICATION_JSON))
     ///     .append_header(("X-TEST", "value1"))
     ///     .append_header(("X-TEST", "value2"))
     ///     .finish();

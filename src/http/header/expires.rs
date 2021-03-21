@@ -23,10 +23,10 @@ crate::header! {
     ///
     /// ```
     /// use std::time::{SystemTime, Duration};
-    /// use actix_http::Response;
-    /// use actix_http::http::header::Expires;
+    /// use actix_web::HttpResponse;
+    /// use actix_web::http::header::Expires;
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = HttpResponse::Ok();
     /// let expiration = SystemTime::now() + Duration::from_secs(60 * 60 * 24);
     /// builder.insert_header(
     ///     Expires(expiration.into())

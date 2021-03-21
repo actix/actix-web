@@ -32,18 +32,18 @@ crate::header! {
     /// # Examples
     ///
     /// ```
-    /// use actix_http::Response;
-    /// use actix_http::http::header::IfNoneMatch;
+    /// use actix_web::HttpResponse;
+    /// use actix_web::http::header::IfNoneMatch;
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(IfNoneMatch::Any);
     /// ```
     ///
     /// ```
-    /// use actix_http::Response;
-    /// use actix_http::http::header::{IfNoneMatch, EntityTag};
+    /// use actix_web::HttpResponse;
+    /// use actix_web::http::header::{IfNoneMatch, EntityTag};
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     IfNoneMatch::Items(vec![
     ///         EntityTag::new(false, "xyzzy".to_owned()),

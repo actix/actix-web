@@ -21,10 +21,10 @@ crate::header! {
     ///
     /// ```
     /// use std::time::SystemTime;
-    /// use actix_http::Response;
-    /// use actix_http::http::header::Date;
+    /// use actix_web::HttpResponse;
+    /// use actix_web::http::header::Date;
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     Date(SystemTime::now().into())
     /// );

@@ -31,20 +31,20 @@ crate::header! {
     /// # Examples
     ///
     /// ```
-    /// use actix_http::Response;
-    /// use actix_http::http::header::ContentType;
+    /// use actix_web::HttpResponse;
+    /// use actix_web::http::header::ContentType;
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     ContentType::json()
     /// );
     /// ```
     ///
     /// ```
-    /// use actix_http::Response;
-    /// use actix_http::http::header::ContentType;
+    /// use actix_web::HttpResponse;
+    /// use actix_web::http::header::ContentType;
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     ContentType(mime::TEXT_HTML)
     /// );

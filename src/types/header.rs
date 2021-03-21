@@ -5,7 +5,7 @@ use futures_util::future::{err, ok, Ready};
 use crate::dev::Payload;
 use crate::error::ParseError;
 use crate::extract::FromRequest;
-use crate::http::header;
+use crate::http::header::Header as ParseHeader;
 use crate::HttpRequest;
 
 /// Header extractor and responder.
@@ -53,7 +53,7 @@ where
 /// See [here](#extractor) for example of usage as an extractor.
 impl<T> FromRequest for Header<T>
 where
-    T: header::Header,
+    T: ParseHeader,
 {
     type Error = ParseError;
     type Future = Ready<Result<Self, Self::Error>>;
@@ -61,7 +61,7 @@ where
 
     #[inline]
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        match header::Header::parse(req) {
+        match ParseHeader::parse(req) {
             Ok(header) => ok(Header(header)),
             Err(e) => err(e),
         }

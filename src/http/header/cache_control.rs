@@ -29,18 +29,18 @@ use crate::http::header;
 ///
 /// # Examples
 /// ```
-/// use actix_http::Response;
-/// use actix_http::http::header::{CacheControl, CacheDirective};
+/// use actix_web::HttpResponse;
+/// use actix_web::http::header::{CacheControl, CacheDirective};
 ///
-/// let mut builder = Response::Ok();
+/// let mut builder = HttpResponse::Ok();
 /// builder.insert_header(CacheControl(vec![CacheDirective::MaxAge(86400u32)]));
 /// ```
 ///
 /// ```rust
-/// use actix_http::Response;
-/// use actix_http::http::header::{CacheControl, CacheDirective};
+/// use actix_web::HttpResponse;
+/// use actix_web::http::header::{CacheControl, CacheDirective};
 ///
-/// let mut builder = Response::Ok();
+/// let mut builder = HttpResponse::Ok();
 /// builder.insert_header(CacheControl(vec![
 ///     CacheDirective::NoCache,
 ///     CacheDirective::Private,

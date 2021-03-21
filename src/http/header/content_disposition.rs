@@ -64,7 +64,7 @@ impl<'a> From<&'a str> for DispositionType {
 ///
 /// # Examples
 /// ```
-/// use actix_http::http::header::DispositionParam;
+/// use actix_web::http::header::DispositionParam;
 ///
 /// let param = DispositionParam::Filename(String::from("sample.txt"));
 /// assert!(param.is_filename());
@@ -241,7 +241,7 @@ impl DispositionParam {
 /// # Example
 ///
 /// ```
-/// use actix_http::http::header::{
+/// use actix_web::http::header::{
 ///     Charset, ContentDisposition, DispositionParam, DispositionType,
 ///     ExtendedValue,
 /// };

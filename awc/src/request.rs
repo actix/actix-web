@@ -194,12 +194,12 @@ impl ClientRequest {
     /// # #[actix_rt::main]
     /// # async fn main() {
     /// # use awc::Client;
-    /// use awc::http::header::ContentType;
+    /// use awc::http::header::CONTENT_TYPE;
     ///
     /// Client::new()
     ///     .get("http://www.rust-lang.org")
     ///     .insert_header(("X-TEST", "value"))
-    ///     .insert_header(ContentType(mime::APPLICATION_JSON));
+    ///     .insert_header((CONTENT_TYPE, mime::APPLICATION_JSON));
     /// # }
     /// ```
     pub fn append_header<H>(mut self, header: H) -> Self
