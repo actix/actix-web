@@ -695,14 +695,15 @@ where
                 if timer.as_mut().poll(cx).is_ready() {
                     // payload is pending and it's time to check the ready state of io.
                     if this.flags.contains(Flags::PAYLOAD_PENDING) {
-                        match Pin::new(this.io.as_mut().unwrap()).poll_read_ready(cx)? {
+                        match Pin::new(this.io.as_mut().unwrap()).poll_write_ready(cx)? {
                             // if io is ready and already closed resolve with dispatcher error.
-                            Poll::Ready(ready) if ready.is_read_closed() => {
-                                trace!("Response payload pending check determine remote connection is dropped");
-                                return Err(DispatchError::DisconnectTimeout);
+                            Poll::Ready(ready) if ready.is_write_closed() => {
+                                trace!("Response payload pending check determine remote connection is closed");
+                                this.flags
+                                    .insert(Flags::SHUTDOWN | Flags::WRITE_DISCONNECT);
                             }
+                            // otherwise reset the interval and check again after 1 second.
                             _ => {
-                                // reset the interval and check again after 1 second.
                                 timer
                                     .as_mut()
                                     .reset(Instant::now() + Duration::from_secs(1));

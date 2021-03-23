@@ -135,8 +135,8 @@ actix-multipart = { path = "actix-multipart" }
 actix-files = { path = "actix-files" }
 awc = { path = "awc" }
 
-actix-rt = { git = "https://github.com/actix/actix-net.git", branch = "feat/net_poll_ready" }
-tokio = { git = "https://github.com/fakeshadow/tokio", branch = "feature/net_poll_ready" }
+actix-rt = { git = "https://github.com/actix/actix-net.git" }
+actix-tls = { git = "https://github.com/actix/actix-net.git" }
 
 [[bench]]
 name = "server"
