@@ -1,3 +1,5 @@
+//! For header extractor helper documentation, see [`Header`](crate::types::Header).
+
 use std::{fmt, ops};
 
 use futures_util::future::{err, ok, Ready};
@@ -8,11 +10,25 @@ use crate::extract::FromRequest;
 use crate::http::header::Header as ParseHeader;
 use crate::HttpRequest;
 
-/// Header extractor and responder.
+/// Extract typed headers from the request.
+///
+/// To extract a header, the inner type `T` must implement the
+/// [`Header`](crate::http::header::Header) trait.
+///
+/// # Examples
+/// ```
+/// use actix_web::{get, web, http::header};
+///
+/// #[get("/")]
+/// async fn index(date: web::Header<header::Date>) -> String {
+///     format!("Request was sent at {}", date.to_string())
+/// }
+/// ```
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Header<T>(pub T);
 
 impl<T> Header<T> {
-    /// Unwrap into inner `T` value.
+    /// Unwrap into the inner `T` value.
     pub fn into_inner(self) -> T {
         self.0
     }
@@ -50,7 +66,6 @@ where
     }
 }
 
-/// See [here](#extractor) for example of usage as an extractor.
 impl<T> FromRequest for Header<T>
 where
     T: ParseHeader,
