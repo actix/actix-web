@@ -573,31 +573,28 @@ macro_rules! services {
 }
 
 /// HttpServiceFactory trait impl for tuples
-macro_rules! service_tuple ({ $(($n:tt, $T:ident)),+} => {
+macro_rules! service_tuple ({ $($T:ident)+ } => {
     impl<$($T: HttpServiceFactory),+> HttpServiceFactory for ($($T,)+) {
+        #[allow(non_snake_case)]
         fn register(self, config: &mut AppService) {
-            $(self.$n.register(config);)+
+            let ($($T,)*) = self;
+            $($T.register(config);)+
         }
     }
 });
 
-#[rustfmt::skip]
-mod m {
-    use super::*;
-
-    service_tuple!((0, A));
-    service_tuple!((0, A), (1, B));
-    service_tuple!((0, A), (1, B), (2, C));
-    service_tuple!((0, A), (1, B), (2, C), (3, D));
-    service_tuple!((0, A), (1, B), (2, C), (3, D), (4, E));
-    service_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F));
-    service_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G));
-    service_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H));
-    service_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H), (8, I));
-    service_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H), (8, I), (9, J));
-    service_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H), (8, I), (9, J), (10, K));
-    service_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H), (8, I), (9, J), (10, K), (11, L));
-}
+service_tuple! { A }
+service_tuple! { A B }
+service_tuple! { A B C }
+service_tuple! { A B C D }
+service_tuple! { A B C D E }
+service_tuple! { A B C D E F }
+service_tuple! { A B C D E F G }
+service_tuple! { A B C D E F G H }
+service_tuple! { A B C D E F G H I }
+service_tuple! { A B C D E F G H I J }
+service_tuple! { A B C D E F G H I J K }
+service_tuple! { A B C D E F G H I J K L }
 
 #[cfg(test)]
 mod tests {
