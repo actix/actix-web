@@ -228,7 +228,7 @@ impl<S> fmt::Debug for ClientResponse<S> {
     }
 }
 
-const DEFAULT_BODY_LIMIT: usize = 1024 * 2 * 1024;
+const DEFAULT_BODY_LIMIT: usize = 2 * 1024 * 1024;
 
 /// Future that resolves to a complete HTTP message body.
 pub struct MessageBody<S> {
@@ -258,7 +258,7 @@ where
         MessageBody {
             length,
             timeout: std::mem::take(&mut res.timeout),
-            body: Ok(ReadBody::new(res.take_payload(), BODY_LIMIT)),
+            body: Ok(ReadBody::new(res.take_payload(), DEFAULT_BODY_LIMIT)),
         }
     }
 
