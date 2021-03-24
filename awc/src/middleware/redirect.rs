@@ -257,28 +257,31 @@ where
 }
 
 fn rebuild_uri(res: &ClientResponse, org_uri: Uri) -> Result<Uri, SendRequestError> {
-    let uri = res
-        .headers()
+    res.headers()
         .get(header::LOCATION)
-        .map(|value| {
-            // try to parse the location to a full uri
-            let uri = Uri::try_from(value.as_bytes())
-                .map_err(|e| SendRequestError::Url(InvalidUrl::HttpError(e.into())))?;
+        // TODO: this error type is wrong.
+        .ok_or(SendRequestError::Url(InvalidUrl::MissingScheme))
+        .and_then(|value| {
+            // Try to parse the location to a full uri and fall back to default when failed
+            let uri = Uri::try_from(value.as_bytes()).unwrap_or_else(|_| Uri::default());
+
+            // When scheme or authority missing treat the location value as path and query.
             if uri.scheme().is_none() || uri.authority().is_none() {
-                let uri = Uri::builder()
+                let builder = Uri::builder()
                     .scheme(org_uri.scheme().cloned().unwrap())
-                    .authority(org_uri.authority().cloned().unwrap())
-                    .path_and_query(value.as_bytes())
-                    .build()?;
-                Ok::<_, SendRequestError>(uri)
+                    .authority(org_uri.authority().cloned().unwrap());
+
+                let uri = if value.as_bytes().starts_with(&[b'/']) {
+                    builder.path_and_query(value.as_bytes()).build()?
+                } else {
+                    let path = [&[b'/'], value.as_bytes()].concat();
+                    builder.path_and_query(&path[..]).build()?
+                };
+                Ok(uri)
             } else {
                 Ok(uri)
             }
         })
-        // TODO: this error type is wrong.
-        .ok_or(SendRequestError::Url(InvalidUrl::MissingScheme))??;
-
-    Ok(uri)
 }
 
 #[cfg(test)]
