@@ -228,8 +228,7 @@ impl<S> fmt::Debug for ClientResponse<S> {
     }
 }
 
-// Default ReadBody limit.
-const BODY_LIMIT: usize = 1024 * 2 * 1024;
+const DEFAULT_BODY_LIMIT: usize = 1024 * 2 * 1024;
 
 /// Future that resolves to a complete HTTP message body.
 pub struct MessageBody<S> {
