@@ -2,10 +2,14 @@
 
 ## Unreleased - 2021-xx-xx
 ### Added
-* `Header` extractor for extracting common HTTP headers in handlers. [2094]
+* `Header` extractor for extracting common HTTP headers in handlers. [#2094]
 
 ### Fixed
 * Double ampersand in Logger format is escaped correctly. [#2067]
+
+### Changed
+* `CustomResponder` would return error as `HttpResponse` when `CustomResponder::with_header` failed instead of skipping.
+  (Only the first error is kept when multiple error occur) [#2093]
 
 ### Removed
 * The `client` mod was removed. Clients should now use `awc` directly.
@@ -13,6 +17,7 @@
 
 [#2067]: https://github.com/actix/actix-web/pull/2067
 [#2094]: https://github.com/actix/actix-web/pull/2094
+[#2093]: https://github.com/actix/actix-web/pull/2093
 
 
 ## 4.0.0-beta.4 - 2021-03-09
