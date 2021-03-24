@@ -82,3 +82,32 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::http::{header, Method};
+    use crate::test::TestRequest;
+
+    #[actix_rt::test]
+    async fn test_header_extract() {
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((header::CONTENT_TYPE, mime::APPLICATION_JSON))
+            .insert_header((header::ALLOW, header::Allow(vec![Method::GET])))
+            .to_http_parts();
+
+        let s = Header::<header::ContentType>::from_request(&req, &mut pl)
+            .await
+            .unwrap();
+        assert_eq!(s.into_inner().0, mime::APPLICATION_JSON);
+
+        let s = Header::<header::Allow>::from_request(&req, &mut pl)
+            .await
+            .unwrap();
+        assert_eq!(s.into_inner().0, vec![Method::GET]);
+
+        assert!(Header::<header::Date>::from_request(&req, &mut pl)
+            .await
+            .is_err());
+    }
+}
