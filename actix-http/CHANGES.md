@@ -6,11 +6,15 @@
 * `client::ConnectorService` as `client::Connector::finish` method's return type [#2081]
 * `client::ConnectionIo` trait alias [#2081]
 
-### Chaged
+### Changed
 * `client::Connector` type now only have one generic type for `actix_service::Service`. [#2063]
+
+### Removed
+* Common HTTP headers were moved into actix-web. [2094]
 
 [#2063]: https://github.com/actix/actix-web/pull/2063
 [#2081]: https://github.com/actix/actix-web/pull/2081
+[#2094]: https://github.com/actix/actix-web/pull/2094
 
 
 ## 3.0.0-beta.4 - 2021-03-08

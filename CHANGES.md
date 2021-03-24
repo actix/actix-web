@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+* `Header` extractor for extracting common HTTP headers in handlers. [2094]
+
 ### Fixed
 * Double ampersand in Logger format is escaped correctly. [#2067]
 
@@ -9,6 +12,7 @@
   [871ca5e4](https://github.com/actix/actix-web/commit/871ca5e4ae2bdc22d1ea02701c2992fa8d04aed7)
 
 [#2067]: https://github.com/actix/actix-web/pull/2067
+[#2094]: https://github.com/actix/actix-web/pull/2094
 
 
 ## 4.0.0-beta.4 - 2021-03-09
