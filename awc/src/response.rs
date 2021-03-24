@@ -290,7 +290,7 @@ where
         let this = self.get_mut();
 
         match this.body {
-            Err(ref mut err) => return Poll::Ready(Err(err.take().unwrap())),
+            Err(ref mut err) => Poll::Ready(Err(err.take().unwrap())),
             Ok(ref mut body) => {
                 if let Some(len) = this.length.take() {
                     if len > body.limit {
