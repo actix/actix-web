@@ -52,10 +52,10 @@ cookies = ["actix-http/cookies"]
 secure-cookies = ["actix-http/secure-cookies"]
 
 # openssl
-openssl = ["tls-openssl", "actix-tls/accept", "actix-tls/openssl"]
+openssl = ["actix-tls/accept", "actix-tls/openssl"]
 
 # rustls
-rustls = ["tls-rustls", "actix-tls/accept", "actix-tls/rustls"]
+rustls = ["actix-tls/accept", "actix-tls/rustls"]
 
 [[example]]
 name = "basic"
@@ -85,7 +85,6 @@ actix-tls = { version = "3.0.0-beta.5", default-features = false, optional = tru
 
 actix-web-codegen = "0.5.0-beta.2"
 actix-http = "3.0.0-beta.4"
-# awc = { version = "3.0.0-beta.3", default-features = false }
 
 ahash = "0.7"
 bytes = "1"
@@ -104,11 +103,12 @@ serde_urlencoded = "0.7"
 smallvec = "1.6"
 socket2 = "0.4.0"
 time = { version = "0.2.23", default-features = false, features = ["std"] }
-tls-openssl = { package = "openssl", version = "0.10.9", optional = true }
-tls-rustls = { package = "rustls", version = "0.19.0", optional = true }
 url = "2.1"
 
 [dev-dependencies]
+actix-test = "0.0.1"
+awc = { version = "3.0.0-beta.3", features = ["openssl"] }
+
 brotli2 = "0.3.2"
 criterion = "0.3"
 env_logger = "0.8"
@@ -116,6 +116,8 @@ flate2 = "1.0.13"
 rand = "0.8"
 rcgen = "0.8"
 serde_derive = "1.0"
+tls-openssl = { package = "openssl", version = "0.10.9" }
+tls-rustls = { package = "rustls", version = "0.19.0" }
 
 [profile.release]
 lto = true
@@ -123,13 +125,14 @@ opt-level = 3
 codegen-units = 1
 
 [patch.crates-io]
-actix-web = { path = "." }
+actix-files = { path = "actix-files" }
 actix-http = { path = "actix-http" }
 actix-http-test = { path = "actix-http-test" }
+actix-multipart = { path = "actix-multipart" }
+actix-test = { path = "actix-test" }
+actix-web = { path = "." }
 actix-web-actors = { path = "actix-web-actors" }
 actix-web-codegen = { path = "actix-web-codegen" }
-actix-multipart = { path = "actix-multipart" }
-actix-files = { path = "actix-files" }
 awc = { path = "awc" }
 
 [[bench]]

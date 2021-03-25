@@ -260,7 +260,7 @@ impl Drop for TestServer {
     }
 }
 
-/// Get first available unused address
+/// Get a localhost socket address with random, unused port.
 pub fn unused_addr() -> net::SocketAddr {
     let addr: net::SocketAddr = "127.0.0.1:0".parse().unwrap();
     let socket = Socket::new(Domain::IPV4, Type::STREAM, Some(Protocol::TCP)).unwrap();

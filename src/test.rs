@@ -30,13 +30,13 @@ use crate::{
     Error, HttpRequest, HttpResponse,
 };
 
-/// Create service that always responds with `HttpResponse::Ok()`
+/// Create service that always responds with `HttpResponse::Ok()` and no body.
 pub fn ok_service(
 ) -> impl Service<ServiceRequest, Response = ServiceResponse<Body>, Error = Error> {
     default_service(StatusCode::OK)
 }
 
-/// Create service that responds with response with specified status code
+/// Create service that always responds with given status code and no body.
 pub fn default_service(
     status_code: StatusCode,
 ) -> impl Service<ServiceRequest, Response = ServiceResponse<Body>, Error = Error> {
@@ -46,8 +46,7 @@ pub fn default_service(
     .into_service()
 }
 
-/// This method accepts application builder instance, and constructs
-/// service.
+/// Initialize service from application builder instance.
 ///
 /// ```
 /// use actix_service::Service;
@@ -81,7 +80,7 @@ where
         .expect("service initialization failed")
 }
 
-/// Fallible version of init_service that allows testing data factory errors.
+/// Fallible version of [`init_service`] that allows testing initialization errors.
 pub(crate) async fn try_init_service<R, S, B, E>(
     app: R,
 ) -> Result<impl Service<Request, Response = ServiceResponse<B>, Error = E>, S::InitError>

@@ -15,7 +15,7 @@
 //!
 //! #[actix_rt::test]
 //! async fn test_example() {
-//!     let srv = test::start(||
+//!     let srv = actix_test::start(||
 //!         App::new().service(my_handler)
 //!     );
 //!
@@ -26,6 +26,11 @@
 //! }
 //! ```
 
+#[cfg(feature = "openssl")]
+extern crate tls_openssl as openssl;
+#[cfg(feature = "rustls")]
+extern crate tls_rustls as rustls;
+
 use std::{fmt, net, sync::mpsc, thread, time};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
@@ -34,9 +39,7 @@ use actix_http::{http::Method, ws, HttpService, Request};
 use actix_service::{map_config, IntoServiceFactory, ServiceFactory};
 use actix_web::{
     dev::{AppConfig, MessageBody, Server, Service},
-    rt,
-    web::Bytes,
-    Error, HttpResponse,
+    rt, web, Error, HttpResponse,
 };
 use awc::{error::PayloadError, Client, ClientRequest, ClientResponse, Connector};
 use futures_core::Stream;
@@ -47,29 +50,27 @@ pub use actix_web::test::{
     read_body_json, read_response, read_response_json, TestRequest,
 };
 
-/// Start default test server.
-///
-/// Test server is very simple server that simplify process of writing
-/// integration tests cases for actix web applications.
+/// Start default [`TestServer`].
 ///
 /// # Examples
 /// ```
-/// use actix_web::{web, test, App, HttpResponse, Error};
+/// use actix_web::{get, web, test, App, HttpResponse, Error, Responder};
 ///
-/// async fn my_handler() -> Result<HttpResponse, Error> {
-///     Ok(HttpResponse::Ok().into())
+/// #[get("/")]
+/// async fn my_handler() -> Result<impl Responder, Error> {
+///     Ok(HttpResponse::Ok())
 /// }
 ///
 /// #[actix_rt::test]
 /// async fn test_example() {
-///     let srv = test::start(
-///         || App::new().service(
-///                 web::resource("/").to(my_handler))
+///     let srv = actix_test::start(||
+///         App::new().service(my_handler)
 ///     );
 ///
 ///     let req = srv.get("/");
-///     let response = req.send().await.unwrap();
-///     assert!(response.status().is_success());
+///     let res = req.send().await.unwrap();
+///
+///     assert!(res.status().is_success());
 /// }
 /// ```
 pub fn start<F, I, S, B>(factory: F) -> TestServer
@@ -92,21 +93,23 @@ where
 ///
 /// # Examples
 /// ```
-/// use actix_web::{web, test, App, HttpResponse, Error, Responder};
+/// use actix_web::{get, web, test, App, HttpResponse, Error, Responder};
 ///
+/// #[get("/")]
 /// async fn my_handler() -> Result<impl Responder, Error> {
 ///     Ok(HttpResponse::Ok())
 /// }
 ///
 /// #[actix_rt::test]
 /// async fn test_example() {
-///     let srv = test::start_with(test::config().h1(), ||
-///         App::new().service(web::resource("/").to(my_handler))
+///     let srv = actix_test::start_with(actix_test::config().h1(), ||
+///         App::new().service(my_handler)
 ///     );
 ///
 ///     let req = srv.get("/");
-///     let response = req.send().await.unwrap();
-///     assert!(response.status().is_success());
+///     let res = req.send().await.unwrap();
+///
+///     assert!(res.status().is_success());
 /// }
 /// ```
 pub fn start_with<F, I, S, B>(cfg: TestServerConfig, factory: F) -> TestServer
@@ -174,7 +177,7 @@ where
                         AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
                     HttpService::build()
                         .client_timeout(timeout)
-                        .h1(map_config(factory(), |_| cfg.clone()))
+                        .h1(map_config(factory(), move |_| app_cfg.clone()))
                         .openssl(acceptor.clone())
                 }),
                 HttpVer::Http2 => builder.listen("test", tcp, move || {
@@ -182,7 +185,7 @@ where
                         AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
                     HttpService::build()
                         .client_timeout(timeout)
-                        .h2(map_config(factory(), |_| cfg.clone()))
+                        .h2(map_config(factory(), move |_| app_cfg.clone()))
                         .openssl(acceptor.clone())
                 }),
                 HttpVer::Both => builder.listen("test", tcp, move || {
@@ -190,7 +193,7 @@ where
                         AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
                     HttpService::build()
                         .client_timeout(timeout)
-                        .finish(map_config(factory(), |_| cfg.clone()))
+                        .finish(map_config(factory(), move |_| app_cfg.clone()))
                         .openssl(acceptor.clone())
                 }),
             },
@@ -201,7 +204,7 @@ where
                         AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
                     HttpService::build()
                         .client_timeout(timeout)
-                        .h1(map_config(factory(), |_| cfg.clone()))
+                        .h1(map_config(factory(), move |_| app_cfg.clone()))
                         .rustls(config.clone())
                 }),
                 HttpVer::Http2 => builder.listen("test", tcp, move || {
@@ -209,7 +212,7 @@ where
                         AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
                     HttpService::build()
                         .client_timeout(timeout)
-                        .h2(map_config(factory(), |_| cfg.clone()))
+                        .h2(map_config(factory(), move |_| app_cfg.clone()))
                         .rustls(config.clone())
                 }),
                 HttpVer::Both => builder.listen("test", tcp, move || {
@@ -217,7 +220,7 @@ where
                         AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
                     HttpService::build()
                         .client_timeout(timeout)
-                        .finish(map_config(factory(), |_| cfg.clone()))
+                        .finish(map_config(factory(), move |_| app_cfg.clone()))
                         .rustls(config.clone())
                 }),
             },
@@ -277,7 +280,7 @@ enum HttpVer {
     Both,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 enum StreamType {
     Tcp,
     #[cfg(feature = "openssl")]
@@ -291,7 +294,7 @@ pub fn config() -> TestServerConfig {
     TestServerConfig::default()
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct TestServerConfig {
     tp: HttpVer,
     stream: StreamType,
@@ -347,7 +350,10 @@ impl TestServerConfig {
     }
 }
 
-/// Test server controller.
+/// A basic HTTP server controller that simplifies the process of writing integration tests for
+/// Actix Web applications.
+///
+/// See [`start`] for usage example.
 pub struct TestServer {
     addr: net::SocketAddr,
     client: awc::Client,
@@ -416,9 +422,9 @@ impl TestServer {
     pub async fn load_body<S>(
         &mut self,
         mut response: ClientResponse<S>,
-    ) -> Result<Bytes, PayloadError>
+    ) -> Result<web::Bytes, PayloadError>
     where
-        S: Stream<Item = Result<Bytes, PayloadError>> + Unpin + 'static,
+        S: Stream<Item = Result<web::Bytes, PayloadError>> + Unpin + 'static,
     {
         response.body().limit(10_485_760).await
     }

@@ -343,7 +343,7 @@ where
                     };
 
                     svc.finish(map_config(factory(), move |_| {
-                        AppConfig::new(true, addr, host.clone())
+                        AppConfig::new(true, host.clone(), addr)
                     }))
                     .openssl(acceptor.clone())
                 })?;
@@ -396,7 +396,7 @@ where
                     };
 
                     svc.finish(map_config(factory(), move |_| {
-                        AppConfig::new(true, addr, host.clone())
+                        AppConfig::new(true, host.clone(), addr)
                     }))
                     .rustls(config.clone())
                 })?;

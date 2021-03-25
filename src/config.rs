@@ -103,8 +103,8 @@ impl AppService {
     }
 }
 
-/// Application connection config
-#[derive(Clone)]
+/// Application connection config.
+#[derive(Debug, Clone)]
 pub struct AppConfig {
     secure: bool,
     host: String,
