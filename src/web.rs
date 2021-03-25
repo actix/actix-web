@@ -42,7 +42,7 @@ pub use crate::types::*;
 /// `/users/{userid}/{friend}` and store `userid` and `friend` in
 /// the exposed `Params` object:
 ///
-/// ```rust
+/// ```
 /// # extern crate actix_web;
 /// use actix_web::{web, App, HttpResponse};
 ///
@@ -61,7 +61,7 @@ pub fn resource<T: IntoPattern>(path: T) -> Resource {
 /// Scopes collect multiple paths under a common path prefix.
 /// Scope path can contain variable path segments as resources.
 ///
-/// ```rust
+/// ```
 /// use actix_web::{web, App, HttpResponse};
 ///
 /// let app = App::new().service(
@@ -88,7 +88,7 @@ pub fn route() -> Route {
 
 /// Create *route* with `GET` method guard.
 ///
-/// ```rust
+/// ```
 /// use actix_web::{web, App, HttpResponse};
 ///
 /// let app = App::new().service(
@@ -106,7 +106,7 @@ pub fn get() -> Route {
 
 /// Create *route* with `POST` method guard.
 ///
-/// ```rust
+/// ```
 /// use actix_web::{web, App, HttpResponse};
 ///
 /// let app = App::new().service(
@@ -124,7 +124,7 @@ pub fn post() -> Route {
 
 /// Create *route* with `PUT` method guard.
 ///
-/// ```rust
+/// ```
 /// use actix_web::{web, App, HttpResponse};
 ///
 /// let app = App::new().service(
@@ -142,7 +142,7 @@ pub fn put() -> Route {
 
 /// Create *route* with `PATCH` method guard.
 ///
-/// ```rust
+/// ```
 /// use actix_web::{web, App, HttpResponse};
 ///
 /// let app = App::new().service(
@@ -160,7 +160,7 @@ pub fn patch() -> Route {
 
 /// Create *route* with `DELETE` method guard.
 ///
-/// ```rust
+/// ```
 /// use actix_web::{web, App, HttpResponse};
 ///
 /// let app = App::new().service(
@@ -178,7 +178,7 @@ pub fn delete() -> Route {
 
 /// Create *route* with `HEAD` method guard.
 ///
-/// ```rust
+/// ```
 /// use actix_web::{web, App, HttpResponse};
 ///
 /// let app = App::new().service(
@@ -196,7 +196,7 @@ pub fn head() -> Route {
 
 /// Create *route* with `TRACE` method guard.
 ///
-/// ```rust
+/// ```
 /// use actix_web::{web, App, HttpResponse};
 ///
 /// let app = App::new().service(
@@ -214,7 +214,7 @@ pub fn trace() -> Route {
 
 /// Create *route* and add method guard.
 ///
-/// ```rust
+/// ```
 /// use actix_web::{web, http, App, HttpResponse};
 ///
 /// let app = App::new().service(
@@ -232,7 +232,7 @@ pub fn method(method: Method) -> Route {
 
 /// Create a new route and add handler.
 ///
-/// ```rust
+/// ```
 /// use actix_web::{web, App, HttpResponse, Responder};
 ///
 /// async fn index() -> impl Responder {
@@ -256,7 +256,7 @@ where
 
 /// Create raw service for a specific path.
 ///
-/// ```rust
+/// ```
 /// use actix_web::{dev, web, guard, App, Error, HttpResponse};
 ///
 /// async fn my_service(req: dev::ServiceRequest) -> Result<dev::ServiceResponse, Error> {

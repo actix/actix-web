@@ -18,7 +18,7 @@ pub trait Responder {
 
     /// Override a status code for a Responder.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{http::StatusCode, HttpRequest, Responder};
     ///
     /// fn index(req: HttpRequest) -> impl Responder {
@@ -36,7 +36,7 @@ pub trait Responder {
     ///
     /// Overrides other headers with the same name.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{web, HttpRequest, Responder};
     /// use serde::Serialize;
     ///
@@ -169,7 +169,7 @@ impl<T: Responder> CustomResponder<T> {
 
     /// Override a status code for the Responder's response.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{HttpRequest, Responder, http::StatusCode};
     ///
     /// fn index(req: HttpRequest) -> impl Responder {
@@ -185,7 +185,7 @@ impl<T: Responder> CustomResponder<T> {
     ///
     /// Overrides other headers with the same name.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{web, HttpRequest, Responder};
     /// use serde::Serialize;
     ///

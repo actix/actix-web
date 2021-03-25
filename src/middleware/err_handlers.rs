@@ -34,7 +34,7 @@ type ErrorHandler<B> = dyn Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse
 /// for a given status code. Handlers can modify existing responses or create completely new ones.
 ///
 /// # Examples
-/// ```rust
+/// ```
 /// use actix_web::middleware::{ErrorHandlers, ErrorHandlerResponse};
 /// use actix_web::{web, http, dev, App, HttpRequest, HttpResponse, Result};
 ///

@@ -29,7 +29,7 @@ use crate::{
 /// Headers with the same key that are already set in a response will *not* be overwritten.
 ///
 /// # Examples
-/// ```rust
+/// ```
 /// use actix_web::{web, http, middleware, App, HttpResponse};
 ///
 /// fn main() {

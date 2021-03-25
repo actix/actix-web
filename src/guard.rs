@@ -12,7 +12,7 @@
 //! to store extra attributes on a request by using the `Extensions` container.
 //! Extensions containers are available via the `RequestHead::extensions()` method.
 //!
-//! ```rust
+//! ```
 //! use actix_web::{web, http, dev, guard, App, HttpResponse};
 //!
 //! fn main() {
@@ -42,7 +42,7 @@ pub trait Guard {
 
 /// Create guard object for supplied function.
 ///
-/// ```rust
+/// ```
 /// use actix_web::{guard, web, App, HttpResponse};
 ///
 /// fn main() {
@@ -85,7 +85,7 @@ where
 
 /// Return guard that matches if any of supplied guards.
 ///
-/// ```rust
+/// ```
 /// use actix_web::{web, guard, App, HttpResponse};
 ///
 /// fn main() {
@@ -124,7 +124,7 @@ impl Guard for AnyGuard {
 
 /// Return guard that matches if all of the supplied guards.
 ///
-/// ```rust
+/// ```
 /// use actix_web::{guard, web, App, HttpResponse};
 ///
 /// fn main() {
@@ -259,7 +259,7 @@ impl Guard for HeaderGuard {
 
 /// Return predicate that matches if request contains specified Host name.
 ///
-/// ```rust
+/// ```
 /// use actix_web::{web, guard::Host, App, HttpResponse};
 ///
 /// fn main() {

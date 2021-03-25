@@ -26,7 +26,7 @@ use crate::{
 
 /// Test `Request` builder
 ///
-/// ```rust,ignore
+/// ```ignore
 /// # use http::{header, StatusCode};
 /// # use actix_web::*;
 /// use actix_web::test::TestRequest;

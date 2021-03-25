@@ -35,7 +35,7 @@ struct Config {
 ///
 /// Create new HTTP server with application factory.
 ///
-/// ```rust,no_run
+/// ```no_run
 /// use actix_web::{web, App, HttpResponse, HttpServer};
 ///
 /// #[actix_rt::main]
@@ -588,7 +588,7 @@ where
     /// This methods panics if no socket address can be bound or an `Actix` system is not yet
     /// configured.
     ///
-    /// ```rust,no_run
+    /// ```no_run
     /// use std::io;
     /// use actix_web::{web, App, HttpResponse, HttpServer};
     ///

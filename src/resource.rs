@@ -35,7 +35,7 @@ type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Err
 /// and check guards for specific route, if request matches all
 /// guards, route considered matched and route handler get called.
 ///
-/// ```rust
+/// ```
 /// use actix_web::{web, App, HttpResponse};
 ///
 /// fn main() {
@@ -97,7 +97,7 @@ where
 
     /// Add match guard to a resource.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{web, guard, App, HttpResponse};
     ///
     /// async fn index(data: web::Path<(String, String)>) -> &'static str {
@@ -130,7 +130,7 @@ where
 
     /// Register a new route.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{web, guard, App, HttpResponse};
     ///
     /// fn main() {
@@ -147,7 +147,7 @@ where
     /// Multiple routes could be added to a resource. Resource object uses
     /// match guards for route selection.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{web, guard, App};
     ///
     /// fn main() {
@@ -172,7 +172,7 @@ where
     /// Provided data is available for all routes registered for the current resource.
     /// Resource data overrides data registered by `App::data()` method.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{web, App, FromRequest};
     ///
     /// /// extract text data from request
@@ -211,7 +211,7 @@ where
 
     /// Register a new route and add handler. This route matches all requests.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::*;
     ///
     /// fn index(req: HttpRequest) -> HttpResponse {
@@ -223,7 +223,7 @@ where
     ///
     /// This is shortcut for:
     ///
-    /// ```rust
+    /// ```
     /// # extern crate actix_web;
     /// # use actix_web::*;
     /// # fn index(req: HttpRequest) -> HttpResponse { unimplemented!() }
@@ -289,7 +289,7 @@ where
     /// Resource level middlewares are not allowed to change response
     /// type (i.e modify response's body).
     ///
-    /// ```rust
+    /// ```
     /// use actix_service::Service;
     /// use actix_web::{web, App};
     /// use actix_web::http::{header::CONTENT_TYPE, HeaderValue};

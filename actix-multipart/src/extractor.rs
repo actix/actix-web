@@ -10,7 +10,7 @@ use crate::server::Multipart;
 ///
 /// ## Server example
 ///
-/// ```rust
+/// ```
 /// use futures_util::stream::{Stream, StreamExt};
 /// use actix_web::{web, HttpResponse, Error};
 /// use actix_multipart as mp;
