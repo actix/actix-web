@@ -430,6 +430,8 @@ mod test {
 
         drop(conn);
 
+        actix_rt::task::yield_now().await;
+
         match sender.ready().await {
             Ok(_) => panic!("connection should be gone and can not be ready"),
             Err(e) => assert!(e.is_io()),
