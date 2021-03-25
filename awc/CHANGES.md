@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+* Add `Client::headers` to get default mut reference of `HeaderMap` of client object. 
+
 ### Changed
 * `ConnectorService` type is renamed to `BoxConnectorService` [#2081]
 
