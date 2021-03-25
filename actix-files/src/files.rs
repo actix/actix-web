@@ -19,7 +19,7 @@ use crate::{
 ///
 /// `Files` service must be registered with `App::service()` method.
 ///
-/// ```rust
+/// ```
 /// use actix_web::App;
 /// use actix_files::Files;
 ///

@@ -357,7 +357,7 @@ impl ResponseBuilder {
 
     /// Insert a header, replacing any that were set with an equivalent field name.
     ///
-    /// ```rust
+    /// ```
     /// # use actix_http::Response;
     /// use actix_http::http::header::ContentType;
     ///
@@ -384,7 +384,7 @@ impl ResponseBuilder {
 
     /// Append a header, keeping any that were set with an equivalent field name.
     ///
-    /// ```rust
+    /// ```
     /// # use actix_http::Response;
     /// use actix_http::http::header::ContentType;
     ///
@@ -525,7 +525,7 @@ impl ResponseBuilder {
 
     /// Set a cookie
     ///
-    /// ```rust
+    /// ```
     /// use actix_http::{http, Request, Response};
     ///
     /// fn index(req: Request) -> Response {
@@ -555,7 +555,7 @@ impl ResponseBuilder {
 
     /// Remove cookie
     ///
-    /// ```rust
+    /// ```
     /// use actix_http::{http, Request, Response, HttpMessage};
     ///
     /// fn index(req: Request) -> Response {

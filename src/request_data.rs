@@ -23,7 +23,7 @@ use crate::{dev::Payload, FromRequest, HttpRequest};
 /// provided to make this potential foot-gun more obvious.
 ///
 /// # Example
-/// ```rust,no_run
+/// ```no_run
 /// # use actix_web::{web, HttpResponse, HttpRequest, Responder};
 ///
 /// #[derive(Debug, Clone, PartialEq)]

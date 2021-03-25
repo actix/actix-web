@@ -31,7 +31,7 @@ use crate::{
 /// encoding to `ContentEncoding::Identity`.
 ///
 /// # Examples
-/// ```rust
+/// ```
 /// use actix_web::{web, middleware, App, HttpResponse};
 ///
 /// let app = App::new()
