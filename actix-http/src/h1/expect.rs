@@ -1,5 +1,3 @@
-use std::task::Poll;
-
 use actix_service::{Service, ServiceFactory};
 use futures_util::future::{ready, Ready};
 

@@ -3,7 +3,7 @@
 //! Provides a non-blocking service for serving static files from disk.
 //!
 //! # Example
-//! ```rust
+//! ```
 //! use actix_web::App;
 //! use actix_files::Files;
 //!
@@ -662,8 +662,12 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_static_files_bad_directory() {
-        let _st: Files = Files::new("/", "missing");
-        let _st: Files = Files::new("/", "Cargo.toml");
+        let service = Files::new("/", "./missing").new_service(()).await.unwrap();
+
+        let req = TestRequest::with_uri("/").to_srv_request();
+        let resp = test::call_service(&service, req).await;
+
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
     #[actix_rt::test]
@@ -676,75 +680,34 @@ mod tests {
             .await
             .unwrap();
         let req = TestRequest::with_uri("/missing").to_srv_request();
-
         let resp = test::call_service(&st, req).await;
+
         assert_eq!(resp.status(), StatusCode::OK);
         let bytes = test::read_body(resp).await;
         assert_eq!(bytes, web::Bytes::from_static(b"default content"));
     }
 
-    //     #[actix_rt::test]
-    //     async fn test_serve_index() {
-    //         let st = Files::new(".").index_file("test.binary");
-    //         let req = TestRequest::default().uri("/tests").finish();
+    #[actix_rt::test]
+    async fn test_serve_index_nested() {
+        let service = Files::new(".", ".")
+            .index_file("lib.rs")
+            .new_service(())
+            .await
+            .unwrap();
 
-    //         let resp = st.handle(&req).respond_to(&req).unwrap();
-    //         let resp = resp.as_msg();
-    //         assert_eq!(resp.status(), StatusCode::OK);
-    //         assert_eq!(
-    //             resp.headers()
-    //                 .get(header::CONTENT_TYPE)
-    //                 .expect("content type"),
-    //             "application/octet-stream"
-    //         );
-    //         assert_eq!(
-    //             resp.headers()
-    //                 .get(header::CONTENT_DISPOSITION)
-    //                 .expect("content disposition"),
-    //             "attachment; filename=\"test.binary\""
-    //         );
+        let req = TestRequest::default().uri("/src").to_srv_request();
+        let resp = test::call_service(&service, req).await;
 
-    //         let req = TestRequest::default().uri("/tests/").finish();
-    //         let resp = st.handle(&req).respond_to(&req).unwrap();
-    //         let resp = resp.as_msg();
-    //         assert_eq!(resp.status(), StatusCode::OK);
-    //         assert_eq!(
-    //             resp.headers().get(header::CONTENT_TYPE).unwrap(),
-    //             "application/octet-stream"
-    //         );
-    //         assert_eq!(
-    //             resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
-    //             "attachment; filename=\"test.binary\""
-    //         );
-
-    //         // nonexistent index file
-    //         let req = TestRequest::default().uri("/tests/unknown").finish();
-    //         let resp = st.handle(&req).respond_to(&req).unwrap();
-    //         let resp = resp.as_msg();
-    //         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
-
-    //         let req = TestRequest::default().uri("/tests/unknown/").finish();
-    //         let resp = st.handle(&req).respond_to(&req).unwrap();
-    //         let resp = resp.as_msg();
-    //         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
-    //     }
-
-    //     #[actix_rt::test]
-    //     async fn test_serve_index_nested() {
-    //         let st = Files::new(".").index_file("mod.rs");
-    //         let req = TestRequest::default().uri("/src/client").finish();
-    //         let resp = st.handle(&req).respond_to(&req).unwrap();
-    //         let resp = resp.as_msg();
-    //         assert_eq!(resp.status(), StatusCode::OK);
-    //         assert_eq!(
-    //             resp.headers().get(header::CONTENT_TYPE).unwrap(),
-    //             "text/x-rust"
-    //         );
-    //         assert_eq!(
-    //             resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
-    //             "inline; filename=\"mod.rs\""
-    //         );
-    //     }
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "text/x-rust"
+        );
+        assert_eq!(
+            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+            "inline; filename=\"lib.rs\""
+        );
+    }
 
     #[actix_rt::test]
     async fn integration_serve_index() {

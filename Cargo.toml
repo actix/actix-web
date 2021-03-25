@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "4.0.0-beta.3"
+version = "4.0.0-beta.4"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix Web is a powerful, pragmatic, and extremely fast web framework for Rust"
 readme = "README.md"
@@ -66,7 +66,7 @@ required-features = ["compress"]
 
 [[test]]
 name = "test_server"
-required-features = ["compress"]
+required-features = ["compress", "cookies"]
 
 [[example]]
 name = "on_connect"
@@ -80,15 +80,15 @@ required-features = ["rustls"]
 actix-codec = "0.4.0-beta.1"
 actix-macros = "0.2.0"
 actix-router = "0.2.7"
-actix-rt = "2"
+actix-rt = "2.1"
 actix-server = "2.0.0-beta.3"
 actix-service = "2.0.0-beta.4"
 actix-utils = "3.0.0-beta.2"
-actix-tls = { version = "3.0.0-beta.3", default-features = false, optional = true }
+actix-tls = { version = "3.0.0-beta.4", default-features = false, optional = true }
 
-actix-web-codegen = "0.5.0-beta.1"
-actix-http = "3.0.0-beta.3"
-awc = { version = "3.0.0-beta.2", default-features = false }
+actix-web-codegen = "0.5.0-beta.2"
+actix-http = "3.0.0-beta.4"
+awc = { version = "3.0.0-beta.3", default-features = false }
 
 ahash = "0.7"
 bytes = "1"
@@ -105,17 +105,11 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_urlencoded = "0.7"
 smallvec = "1.6"
-socket2 = "0.3.16"
+socket2 = "0.4.0"
 time = { version = "0.2.23", default-features = false, features = ["std"] }
 tls-openssl = { package = "openssl", version = "0.10.9", optional = true }
 tls-rustls = { package = "rustls", version = "0.19.0", optional = true }
 url = "2.1"
-
-[target.'cfg(windows)'.dependencies.tls-openssl]
-version = "0.10.9"
-package = "openssl"
-features = ["vendored"]
-optional = true
 
 [dev-dependencies]
 brotli2 = "0.3.2"

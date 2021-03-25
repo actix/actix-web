@@ -29,7 +29,7 @@ use crate::{dev::Payload, error::QueryPayloadError, Error, FromRequest, HttpRequ
 ///    Code
 /// }
 ///
-/// #[derive(Deserialize)]
+/// #[derive(Debug, Deserialize)]
 /// pub struct AuthRequest {
 ///    id: u64,
 ///    response_type: ResponseType,
@@ -42,9 +42,23 @@ use crate::{dev::Payload, error::QueryPayloadError, Error, FromRequest, HttpRequ
 /// async fn index(info: web::Query<AuthRequest>) -> String {
 ///     format!("Authorization request for id={} and type={:?}!", info.id, info.response_type)
 /// }
+///
+/// // To access the entire underlying query struct, use `.into_inner()`.
+/// #[get("/debug1")]
+/// async fn debug1(info: web::Query<AuthRequest>) -> String {
+///     dbg!("Authorization object={:?}", info.into_inner());
+///     "OK".to_string()
+/// }
+///
+/// // Or use `.0`, which is equivalent to `.into_inner()`.
+/// #[get("/debug2")]
+/// async fn debug2(info: web::Query<AuthRequest>) -> String {
+///     dbg!("Authorization object={:?}", info.0);
+///     "OK".to_string()
+/// }
 /// ```
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Query<T>(T);
+pub struct Query<T>(pub T);
 
 impl<T> Query<T> {
     /// Unwrap into inner `T` value.

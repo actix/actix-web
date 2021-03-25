@@ -1,15 +1,32 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+* `client::Connector::handshake_timeout` method for customize tls connection handshake timeout. [#2081]
+* `client::ConnectorService` as `client::Connector::finish` method's return type [#2081]
+* `client::ConnectionIo` trait alias [#2081]
+
+### Chaged
+* `client::Connector` type now only have one generic type for `actix_service::Service`. [#2063]
+
+[#2063]: https://github.com/actix/actix-web/pull/2063
+[#2081]: https://github.com/actix/actix-web/pull/2081
+
+
+## 3.0.0-beta.4 - 2021-03-08
 ### Changed
 * Feature `cookies` is now optional and disabled by default. [#1981]
+* `ws::hash_key` now returns array. [#2035]
+* `ResponseBuilder::json` now takes `impl Serialize`. [#2052]
 
 ### Removed
-* re-export of `futures_channel::oneshot::Canceled` is removed from `error` mod. [#1994]
+* Re-export of `futures_channel::oneshot::Canceled` is removed from `error` mod. [#1994]
 * `ResponseError` impl for `futures_channel::oneshot::Canceled` is removed. [#1994]
 
 [#1981]: https://github.com/actix/actix-web/pull/1981
 [#1994]: https://github.com/actix/actix-web/pull/1994
+[#2035]: https://github.com/actix/actix-web/pull/2035
+[#2052]: https://github.com/actix/actix-web/pull/2052
 
 
 ## 3.0.0-beta.3 - 2021-02-10

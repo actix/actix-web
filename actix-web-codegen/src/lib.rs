@@ -71,6 +71,7 @@ mod route;
 ///
 /// # Attributes
 /// - `"path"` - Raw literal string with path for which to register handler.
+/// - `name="resource_name"` - Specifies resource name for the handler. If not set, the function name of handler is used.
 /// - `method="HTTP_METHOD"` - Registers HTTP method to provide guard for. Upper-case string, "GET", "POST" for example.
 /// - `guard="function_name"` - Registers function as guard using `actix_web::guard::fn_guard`
 /// - `wrap="Middleware"` - Registers a resource middleware.
@@ -81,7 +82,7 @@ mod route;
 ///
 /// # Example
 ///
-/// ```rust
+/// ```
 /// # use actix_web::HttpResponse;
 /// # use actix_web_codegen::route;
 /// #[route("/test", method="GET", method="HEAD")]
@@ -116,6 +117,7 @@ Creates route handler with `actix_web::guard::", stringify!($variant), "`.
 
 # Attributes
 - `"path"` - Raw literal string with path for which to register handler.
+- `name="resource_name"` - Specifies resource name for the handler. If not set, the function name of handler is used.
 - `guard="function_name"` - Registers function as guard using `actix_web::guard::fn_guard`.
 - `wrap="Middleware"` - Registers a resource middleware.
 
@@ -125,7 +127,7 @@ code, e.g `my_guard` or `my_module::my_guard`.
 
 # Example
 
-```rust
+```
 # use actix_web::HttpResponse;
 # use actix_web_codegen::"#, stringify!($method), ";
 #[", stringify!($method), r#"("/")]
@@ -160,7 +162,7 @@ method_macro! {
 /// This macro can be applied with `#[actix_web::main]` when used in Actix Web applications.
 ///
 /// # Examples
-/// ```rust
+/// ```
 /// #[actix_web_codegen::main]
 /// async fn main() {
 ///     async { println!("Hello world"); }.await

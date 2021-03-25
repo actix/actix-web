@@ -60,7 +60,7 @@ impl NamedFile {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use actix_files::NamedFile;
     /// use std::io::{self, Write};
     /// use std::env;
@@ -137,7 +137,7 @@ impl NamedFile {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use actix_files::NamedFile;
     ///
     /// let file = NamedFile::open("foo.txt");
@@ -156,7 +156,7 @@ impl NamedFile {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// # use std::io;
     /// use actix_files::NamedFile;
     ///

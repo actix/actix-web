@@ -12,8 +12,11 @@ use actix_http::{body, Error, HttpService, Request, Response};
 use actix_http_test::test_server;
 use actix_service::{fn_service, ServiceFactoryExt};
 use bytes::{Bytes, BytesMut};
-use futures_util::future::{err, ok, ready};
-use futures_util::stream::{once, Stream, StreamExt};
+use futures_core::Stream;
+use futures_util::{
+    future::{err, ok, ready},
+    stream::{once, StreamExt as _},
+};
 use openssl::{
     pkey::PKey,
     ssl::{SslAcceptor, SslMethod},
@@ -123,16 +126,14 @@ async fn test_h2_content_length() {
     let srv = test_server(move || {
         HttpService::build()
             .h2(|req: Request| {
-                let indx: usize = req.uri().path()[1..].parse().unwrap();
+                let idx: usize = req.uri().path()[1..].parse().unwrap();
                 let statuses = [
-                    StatusCode::NO_CONTENT,
                     StatusCode::CONTINUE,
-                    StatusCode::SWITCHING_PROTOCOLS,
-                    StatusCode::PROCESSING,
+                    StatusCode::NO_CONTENT,
                     StatusCode::OK,
                     StatusCode::NOT_FOUND,
                 ];
-                ok::<_, ()>(Response::new(statuses[indx]))
+                ok::<_, ()>(Response::new(statuses[idx]))
             })
             .openssl(tls_config())
             .map_err(|_| ())
@@ -143,21 +144,29 @@ async fn test_h2_content_length() {
     let value = HeaderValue::from_static("0");
 
     {
-        for i in 0..4 {
+        for &i in &[0] {
+            let req = srv
+                .request(Method::HEAD, srv.surl(&format!("/{}", i)))
+                .send();
+            let _response = req.await.expect_err("should timeout on recv 1xx frame");
+            // assert_eq!(response.headers().get(&header), None);
+
+            let req = srv
+                .request(Method::GET, srv.surl(&format!("/{}", i)))
+                .send();
+            let _response = req.await.expect_err("should timeout on recv 1xx frame");
+            // assert_eq!(response.headers().get(&header), None);
+        }
+
+        for &i in &[1] {
             let req = srv
                 .request(Method::GET, srv.surl(&format!("/{}", i)))
                 .send();
             let response = req.await.unwrap();
             assert_eq!(response.headers().get(&header), None);
-
-            let req = srv
-                .request(Method::HEAD, srv.surl(&format!("/{}", i)))
-                .send();
-            let response = req.await.unwrap();
-            assert_eq!(response.headers().get(&header), None);
         }
 
-        for i in 4..6 {
+        for &i in &[2, 3] {
             let req = srv
                 .request(Method::GET, srv.surl(&format!("/{}", i)))
                 .send();

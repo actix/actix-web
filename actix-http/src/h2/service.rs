@@ -13,7 +13,7 @@ use actix_service::{
 use bytes::Bytes;
 use futures_core::ready;
 use futures_util::future::ok;
-use h2::server::{self, Handshake};
+use h2::server::{handshake, Handshake};
 use log::error;
 
 use crate::body::MessageBody;
@@ -93,12 +93,12 @@ where
 #[cfg(feature = "openssl")]
 mod openssl {
     use actix_service::{fn_factory, fn_service, ServiceFactoryExt};
-    use actix_tls::accept::openssl::{Acceptor, SslAcceptor, SslError, SslStream};
+    use actix_tls::accept::openssl::{Acceptor, SslAcceptor, SslError, TlsStream};
     use actix_tls::accept::TlsError;
 
     use super::*;
 
-    impl<S, B> H2Service<SslStream<TcpStream>, S, B>
+    impl<S, B> H2Service<TlsStream<TcpStream>, S, B>
     where
         S: ServiceFactory<Request, Config = ()>,
         S::Error: Into<Error> + 'static,
@@ -123,7 +123,7 @@ mod openssl {
                     .map_init_err(|_| panic!()),
             )
             .and_then(fn_factory(|| {
-                ok::<_, S::InitError>(fn_service(|io: SslStream<TcpStream>| {
+                ok::<_, S::InitError>(fn_service(|io: TlsStream<TcpStream>| {
                     let peer_addr = io.get_ref().peer_addr().ok();
                     ok((io, peer_addr))
                 }))
@@ -307,7 +307,7 @@ where
                 Some(self.cfg.clone()),
                 addr,
                 on_connect_data,
-                server::handshake(io),
+                handshake(io),
             ),
         }
     }
@@ -368,7 +368,6 @@ where
                         conn,
                         on_connect_data,
                         config.take().unwrap(),
-                        None,
                         *peer_addr,
                     ));
                     self.poll(cx)

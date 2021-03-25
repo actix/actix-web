@@ -6,10 +6,10 @@
   <p>
 
 [![crates.io](https://img.shields.io/crates/v/actix-web?label=latest)](https://crates.io/crates/actix-web)
-[![Documentation](https://docs.rs/actix-web/badge.svg?version=4.0.0-beta.2)](https://docs.rs/actix-web/4.0.0-beta.2)
+[![Documentation](https://docs.rs/actix-web/badge.svg?version=4.0.0-beta.4)](https://docs.rs/actix-web/4.0.0-beta.4)
 [![Version](https://img.shields.io/badge/rustc-1.46+-ab6000.svg)](https://blog.rust-lang.org/2020/03/12/Rust-1.46.html)
 ![MIT or Apache 2.0 licensed](https://img.shields.io/crates/l/actix-web.svg)
-[![Dependency Status](https://deps.rs/crate/actix-web/4.0.0-beta.2/status.svg)](https://deps.rs/crate/actix-web/4.0.0-beta.2)
+[![Dependency Status](https://deps.rs/crate/actix-web/4.0.0-beta.4/status.svg)](https://deps.rs/crate/actix-web/4.0.0-beta.4)
 <br />
 [![build status](https://github.com/actix/actix-web/workflows/CI%20%28Linux%29/badge.svg?branch=master&event=push)](https://github.com/actix/actix-web/actions)
 [![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web) 
@@ -71,18 +71,18 @@ async fn main() -> std::io::Result<()> {
 
 ### More examples
 
-* [Basic Setup](https://github.com/actix/examples/tree/master/basics/)
-* [Application State](https://github.com/actix/examples/tree/master/state/)
-* [JSON Handling](https://github.com/actix/examples/tree/master/json/)
-* [Multipart Streams](https://github.com/actix/examples/tree/master/multipart/)
-* [Diesel Integration](https://github.com/actix/examples/tree/master/diesel/)
-* [r2d2 Integration](https://github.com/actix/examples/tree/master/r2d2/)
-* [Simple WebSocket](https://github.com/actix/examples/tree/master/websocket/)
-* [Tera Templates](https://github.com/actix/examples/tree/master/template_tera/)
-* [Askama Templates](https://github.com/actix/examples/tree/master/template_askama/)
-* [HTTPS using Rustls](https://github.com/actix/examples/tree/master/rustls/)
-* [HTTPS using OpenSSL](https://github.com/actix/examples/tree/master/openssl/)
-* [WebSocket Chat](https://github.com/actix/examples/tree/master/websocket-chat/)
+* [Basic Setup](https://github.com/actix/examples/tree/master/basics/basics/)
+* [Application State](https://github.com/actix/examples/tree/master/basics/state/)
+* [JSON Handling](https://github.com/actix/examples/tree/master/json/json/)
+* [Multipart Streams](https://github.com/actix/examples/tree/master/forms/multipart/)
+* [Diesel Integration](https://github.com/actix/examples/tree/master/database_interactions/diesel/)
+* [r2d2 Integration](https://github.com/actix/examples/tree/master/database_interactions/r2d2/)
+* [Simple WebSocket](https://github.com/actix/examples/tree/master/websockets/websocket/)
+* [Tera Templates](https://github.com/actix/examples/tree/master/template_engines/tera/)
+* [Askama Templates](https://github.com/actix/examples/tree/master/template_engines/askama/)
+* [HTTPS using Rustls](https://github.com/actix/examples/tree/master/security/rustls/)
+* [HTTPS using OpenSSL](https://github.com/actix/examples/tree/master/security/openssl/)
+* [WebSocket Chat](https://github.com/actix/examples/tree/master/websockets/chat/)
 
 You may consider checking out
 [this directory](https://github.com/actix/examples/tree/master/) for more examples.

@@ -6,7 +6,7 @@
 //! Browser conformance tests at: http://greenbytes.de/tech/tc2231/
 //! IANA assignment: http://www.iana.org/assignments/cont-disp/cont-disp.xhtml
 
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use regex::Regex;
 use std::fmt::{self, Write};
 
@@ -520,9 +520,7 @@ impl fmt::Display for DispositionParam {
         //
         //
         // See also comments in test_from_raw_unnecessary_percent_decode.
-        lazy_static! {
-            static ref RE: Regex = Regex::new("[\x00-\x08\x10-\x1F\x7F\"\\\\]").unwrap();
-        }
+        static RE: Lazy<Regex> = Lazy::new(|| Regex::new("[\x00-\x08\x10-\x1F\x7F\"\\\\]").unwrap());
         match self {
             DispositionParam::Name(ref value) => write!(f, "name={}", value),
             DispositionParam::Filename(ref value) => {

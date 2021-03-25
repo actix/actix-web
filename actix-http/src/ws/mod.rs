@@ -1,4 +1,4 @@
-//! WebSocket protocol.
+//! WebSocket protocol implementation.
 //!
 //! To setup a WebSocket, first perform the WebSocket handshake then on success convert `Payload` into a
 //! `WsStream` stream and then use `WsWriter` to communicate with the peer.
@@ -8,9 +8,12 @@ use std::io;
 use derive_more::{Display, Error, From};
 use http::{header, Method, StatusCode};
 
-use crate::error::ResponseError;
-use crate::message::RequestHead;
-use crate::response::{Response, ResponseBuilder};
+use crate::{
+    error::ResponseError,
+    header::HeaderValue,
+    message::RequestHead,
+    response::{Response, ResponseBuilder},
+};
 
 mod codec;
 mod dispatcher;
@@ -89,7 +92,7 @@ pub enum HandshakeError {
     NoVersionHeader,
 
     /// Unsupported WebSocket version.
-    #[display(fmt = "Unsupported version.")]
+    #[display(fmt = "Unsupported WebSocket version.")]
     UnsupportedVersion,
 
     /// WebSocket key is not set or wrong.
@@ -105,19 +108,19 @@ impl ResponseError for HandshakeError {
                 .finish(),
 
             HandshakeError::NoWebsocketUpgrade => Response::BadRequest()
-                .reason("No WebSocket UPGRADE header found")
+                .reason("No WebSocket Upgrade header found")
                 .finish(),
 
             HandshakeError::NoConnectionUpgrade => Response::BadRequest()
-                .reason("No CONNECTION upgrade")
+                .reason("No Connection upgrade")
                 .finish(),
 
             HandshakeError::NoVersionHeader => Response::BadRequest()
-                .reason("Websocket version header is required")
+                .reason("WebSocket version header is required")
                 .finish(),
 
             HandshakeError::UnsupportedVersion => Response::BadRequest()
-                .reason("Unsupported version")
+                .reason("Unsupported WebSocket version")
                 .finish(),
 
             HandshakeError::BadWebsocketKey => {
@@ -193,7 +196,11 @@ pub fn handshake_response(req: &RequestHead) -> ResponseBuilder {
     Response::build(StatusCode::SWITCHING_PROTOCOLS)
         .upgrade("websocket")
         .insert_header((header::TRANSFER_ENCODING, "chunked"))
-        .insert_header((header::SEC_WEBSOCKET_ACCEPT, key))
+        .insert_header((
+            header::SEC_WEBSOCKET_ACCEPT,
+            // key is known to be header value safe ascii
+            HeaderValue::from_bytes(&key).unwrap(),
+        ))
         .take()
 }
 

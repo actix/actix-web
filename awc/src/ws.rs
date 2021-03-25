@@ -28,7 +28,6 @@
 
 use std::convert::TryFrom;
 use std::net::SocketAddr;
-use std::rc::Rc;
 use std::{fmt, str};
 
 use actix_codec::Framed;
@@ -56,7 +55,7 @@ pub struct WebsocketsRequest {
     addr: Option<SocketAddr>,
     max_size: usize,
     server_mode: bool,
-    config: Rc<ClientConfig>,
+    config: ClientConfig,
 
     #[cfg(feature = "cookies")]
     cookies: Option<CookieJar>,
@@ -64,7 +63,7 @@ pub struct WebsocketsRequest {
 
 impl WebsocketsRequest {
     /// Create new WebSocket connection
-    pub(crate) fn new<U>(uri: U, config: Rc<ClientConfig>) -> Self
+    pub(crate) fn new<U>(uri: U, config: ClientConfig) -> Self
     where
         Uri: TryFrom<U>,
         <Uri as TryFrom<U>>::Error: Into<HttpError>,
@@ -381,12 +380,14 @@ impl WebsocketsRequest {
 
         if let Some(hdr_key) = head.headers.get(&header::SEC_WEBSOCKET_ACCEPT) {
             let encoded = ws::hash_key(key.as_ref());
-            if hdr_key.as_bytes() != encoded.as_bytes() {
+
+            if hdr_key.as_bytes() != encoded {
                 log::trace!(
-                    "Invalid challenge response: expected: {} received: {:?}",
-                    encoded,
+                    "Invalid challenge response: expected: {:?} received: {:?}",
+                    &encoded,
                     key
                 );
+
                 return Err(WsClientError::InvalidChallengeResponse(
                     encoded,
                     hdr_key.clone(),

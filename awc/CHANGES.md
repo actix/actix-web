@@ -1,20 +1,31 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Changed
+* `ConnectorService` type is renamed to `BoxConnectorService` [#2081]
+
+[#2081]: https://github.com/actix/actix-web/pull/2081
+
+
+## 3.0.0-beta.3 - 2021-03-08
 ### Added
 * `ClientResponse::timeout` for set the timeout of collecting response body. [#1931]
+* `ClientBuilder::local_address` for bind to a local ip address for this client. [#2024]
 
 ### Changed
 * Feature `cookies` is now optional and enabled by default. [#1981]
 * `ClientBuilder::connector` method would take `actix_http::client::Connector<T, U>` type. [#2008]
+* Basic auth password now takes blank passwords as an empty string instead of Option. [#2050]
 
 ### Removed
 * `ClientBuilder::default` function [#2008]
-* `ClientBuilder::disable_redirects` and `ClientBuilder::max_redirects` method [#2008]
 
 [#1931]: https://github.com/actix/actix-web/pull/1931
 [#1981]: https://github.com/actix/actix-web/pull/1981
 [#2008]: https://github.com/actix/actix-web/pull/2008
+[#2024]: https://github.com/actix/actix-web/pull/2024
+[#2050]: https://github.com/actix/actix-web/pull/2050
+
 
 ## 3.0.0-beta.2 - 2021-02-10
 ### Added

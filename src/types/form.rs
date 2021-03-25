@@ -106,6 +106,18 @@ impl<T> ops::DerefMut for Form<T> {
     }
 }
 
+impl<T> Serialize for Form<T>
+where
+    T: Serialize,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.0.serialize(serializer)
+    }
+}
+
 /// See [here](#extractor) for example of usage as an extractor.
 impl<T> FromRequest for Form<T>
 where
@@ -400,12 +412,8 @@ mod tests {
             UrlencodedError::Overflow { .. } => {
                 matches!(other, UrlencodedError::Overflow { .. })
             }
-            UrlencodedError::UnknownLength => {
-                matches!(other, UrlencodedError::UnknownLength)
-            }
-            UrlencodedError::ContentType => {
-                matches!(other, UrlencodedError::ContentType)
-            }
+            UrlencodedError::UnknownLength => matches!(other, UrlencodedError::UnknownLength),
+            UrlencodedError::ContentType => matches!(other, UrlencodedError::ContentType),
             _ => false,
         }
     }

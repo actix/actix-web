@@ -7,7 +7,7 @@ use actix_rt::time::sleep;
 use actix_service::fn_service;
 use bytes::Bytes;
 use futures_util::future::{self, err, ok, ready, FutureExt};
-use futures_util::stream::{once, StreamExt};
+use futures_util::stream::{once, StreamExt as _};
 use regex::Regex;
 
 use actix_http::HttpMessage;
@@ -126,7 +126,7 @@ async fn test_chunked_payload() {
                     .take_payload()
                     .map(|res| match res {
                         Ok(pl) => pl,
-                        Err(e) => panic!(format!("Error reading payload: {}", e)),
+                        Err(e) => panic!("Error reading payload: {}", e),
                     })
                     .fold(0usize, |acc, chunk| ready(acc + chunk.len()))
                     .map(|req_size| {
@@ -162,7 +162,7 @@ async fn test_chunked_payload() {
         let re = Regex::new(r"size=(\d+)").unwrap();
         let size: usize = match re.captures(&data) {
             Some(caps) => caps.get(1).unwrap().as_str().parse().unwrap(),
-            None => panic!(format!("Failed to find size in HTTP Response: {}", data)),
+            None => panic!("Failed to find size in HTTP Response: {}", data),
         };
         size
     };

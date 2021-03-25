@@ -5,7 +5,6 @@ use std::{
     convert::TryInto,
     fmt,
     future::Future,
-    ops,
     pin::Pin,
     str,
     task::{Context, Poll},
@@ -358,7 +357,7 @@ impl ResponseBuilder {
 
     /// Insert a header, replacing any that were set with an equivalent field name.
     ///
-    /// ```rust
+    /// ```
     /// # use actix_http::Response;
     /// use actix_http::http::header::ContentType;
     ///
@@ -385,7 +384,7 @@ impl ResponseBuilder {
 
     /// Append a header, keeping any that were set with an equivalent field name.
     ///
-    /// ```rust
+    /// ```
     /// # use actix_http::Response;
     /// use actix_http::http::header::ContentType;
     ///
@@ -498,7 +497,8 @@ impl ResponseBuilder {
     /// Disable chunked transfer encoding for HTTP/1.1 streaming responses.
     #[inline]
     pub fn no_chunking(&mut self, len: u64) -> &mut Self {
-        self.insert_header((header::CONTENT_LENGTH, len));
+        let mut buf = itoa::Buffer::new();
+        self.insert_header((header::CONTENT_LENGTH, buf.format(len)));
 
         if let Some(parts) = parts(&mut self.head, &self.err) {
             parts.no_chunking(true);
@@ -525,7 +525,7 @@ impl ResponseBuilder {
 
     /// Set a cookie
     ///
-    /// ```rust
+    /// ```
     /// use actix_http::{http, Request, Response};
     ///
     /// fn index(req: Request) -> Response {
@@ -555,7 +555,7 @@ impl ResponseBuilder {
 
     /// Remove cookie
     ///
-    /// ```rust
+    /// ```
     /// use actix_http::{http, Request, Response, HttpMessage};
     ///
     /// fn index(req: Request) -> Response {
@@ -672,12 +672,8 @@ impl ResponseBuilder {
     /// Set a json body and generate `Response`
     ///
     /// `ResponseBuilder` can not be used after this call.
-    pub fn json<T>(&mut self, value: T) -> Response
-    where
-        T: ops::Deref,
-        T::Target: Serialize,
-    {
-        match serde_json::to_string(&*value) {
+    pub fn json(&mut self, value: impl Serialize) -> Response {
+        match serde_json::to_string(&value) {
             Ok(body) => {
                 let contains = if let Some(parts) = parts(&mut self.head, &self.err) {
                     parts.headers.contains_key(header::CONTENT_TYPE)
@@ -896,8 +892,9 @@ mod tests {
 
     use super::*;
     use crate::body::Body;
-    use crate::http::header::{HeaderValue, CONTENT_TYPE, COOKIE, SET_COOKIE};
-    use crate::HttpMessage;
+    use crate::http::header::{HeaderValue, CONTENT_TYPE, COOKIE};
+    #[cfg(feature = "cookies")]
+    use crate::{http::header::SET_COOKIE, HttpMessage};
 
     #[test]
     fn test_debug() {
@@ -909,6 +906,7 @@ mod tests {
         assert!(dbg.contains("Response"));
     }
 
+    #[cfg(feature = "cookies")]
     #[test]
     fn test_response_cookies() {
         let req = crate::test::TestRequest::default()
@@ -946,6 +944,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "cookies")]
     #[test]
     fn test_update_response_cookies() {
         let mut r = Response::Ok()
@@ -1003,7 +1002,12 @@ mod tests {
 
     #[test]
     fn test_json() {
-        let resp = Response::build(StatusCode::OK).json(vec!["v1", "v2", "v3"]);
+        let resp = Response::Ok().json(vec!["v1", "v2", "v3"]);
+        let ct = resp.headers().get(CONTENT_TYPE).unwrap();
+        assert_eq!(ct, HeaderValue::from_static("application/json"));
+        assert_eq!(resp.body().get_ref(), b"[\"v1\",\"v2\",\"v3\"]");
+
+        let resp = Response::Ok().json(&["v1", "v2", "v3"]);
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("application/json"));
         assert_eq!(resp.body().get_ref(), b"[\"v1\",\"v2\",\"v3\"]");
@@ -1097,6 +1101,7 @@ mod tests {
         assert_eq!(resp.body().get_ref(), b"test");
     }
 
+    #[cfg(feature = "cookies")]
     #[test]
     fn test_into_builder() {
         let mut resp: Response = "test".into();

@@ -1,18 +1,14 @@
-use std::future::Future;
-use std::marker::PhantomData;
-use std::net;
-use std::pin::Pin;
-use std::rc::Rc;
 use std::task::{Context, Poll};
-use std::{cmp, convert::TryFrom};
+use std::{cmp, future::Future, marker::PhantomData, net, pin::Pin, rc::Rc};
 
 use actix_codec::{AsyncRead, AsyncWrite};
-use actix_rt::time::{Instant, Sleep};
 use actix_service::Service;
 use bytes::{Bytes, BytesMut};
 use futures_core::ready;
-use h2::server::{Connection, SendResponse};
-use h2::SendStream;
+use h2::{
+    server::{Connection, SendResponse},
+    SendStream,
+};
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
 use log::{error, trace};
 
@@ -41,8 +37,6 @@ where
     on_connect_data: OnConnectData,
     config: ServiceConfig,
     peer_addr: Option<net::SocketAddr>,
-    ka_expire: Instant,
-    ka_timer: Option<Sleep>,
     _phantom: PhantomData<B>,
 }
 
@@ -59,33 +53,14 @@ where
         connection: Connection<T, Bytes>,
         on_connect_data: OnConnectData,
         config: ServiceConfig,
-        timeout: Option<Sleep>,
         peer_addr: Option<net::SocketAddr>,
     ) -> Self {
-        // let keepalive = config.keep_alive_enabled();
-        // let flags = if keepalive {
-        // Flags::KEEPALIVE | Flags::KEEPALIVE_ENABLED
-        // } else {
-        //     Flags::empty()
-        // };
-
-        // keep-alive timer
-        let (ka_expire, ka_timer) = if let Some(delay) = timeout {
-            (delay.deadline(), Some(delay))
-        } else if let Some(delay) = config.keep_alive_timer() {
-            (delay.deadline(), Some(delay))
-        } else {
-            (config.now(), None)
-        };
-
         Dispatcher {
             flow,
             config,
             peer_addr,
             connection,
             on_connect_data,
-            ka_expire,
-            ka_timer,
             _phantom: PhantomData,
         }
     }
@@ -113,19 +88,12 @@ where
                 Some(Err(err)) => return Poll::Ready(Err(err.into())),
 
                 Some(Ok((req, res))) => {
-                    // update keep-alive expire
-                    if this.ka_timer.is_some() {
-                        if let Some(expire) = this.config.keep_alive_expire() {
-                            this.ka_expire = expire;
-                        }
-                    }
-
                     let (parts, body) = req.into_parts();
                     let pl = crate::h2::Payload::new(body);
                     let pl = Payload::<crate::payload::PayloadStream>::H2(pl);
                     let mut req = Request::with_payload(pl);
 
-                    let head = &mut req.head_mut();
+                    let head = req.head_mut();
                     head.uri = parts.uri;
                     head.method = parts.method;
                     head.version = parts.version;
@@ -135,7 +103,7 @@ where
                     // merge on_connect_ext data into request extensions
                     this.on_connect_data.merge_into(&mut req);
 
-                    let svc = ServiceResponse::<S::Future, S::Response, S::Error, B> {
+                    let svc = ServiceResponse {
                         state: ServiceResponseState::ServiceCall(
                             this.flow.service.call(req),
                             Some(res),
@@ -203,16 +171,22 @@ where
             BodySize::Empty => res
                 .headers_mut()
                 .insert(CONTENT_LENGTH, HeaderValue::from_static("0")),
-            BodySize::Sized(len) => res.headers_mut().insert(
-                CONTENT_LENGTH,
-                HeaderValue::try_from(format!("{}", len)).unwrap(),
-            ),
+            BodySize::Sized(len) => {
+                let mut buf = itoa::Buffer::new();
+
+                res.headers_mut().insert(
+                    CONTENT_LENGTH,
+                    HeaderValue::from_str(buf.format(*len)).unwrap(),
+                )
+            }
         };
 
         // copy headers
         for (key, value) in head.headers.iter() {
             match *key {
-                // omit HTTP/1 only headers
+                // TODO: consider skipping other headers according to:
+                //       https://tools.ietf.org/html/rfc7540#section-8.1.2.2
+                // omit HTTP/1.x only headers
                 CONNECTION | TRANSFER_ENCODING => continue,
                 CONTENT_LENGTH if skip_len => continue,
                 DATE => has_date = true,
@@ -311,57 +285,50 @@ where
 
             ServiceResponseStateProj::SendPayload(ref mut stream, ref mut body) => {
                 loop {
-                    loop {
-                        match this.buffer {
-                            Some(ref mut buffer) => {
-                                match ready!(stream.poll_capacity(cx)) {
-                                    None => return Poll::Ready(()),
+                    match this.buffer {
+                        Some(ref mut buffer) => match ready!(stream.poll_capacity(cx)) {
+                            None => return Poll::Ready(()),
 
-                                    Some(Ok(cap)) => {
-                                        let len = buffer.len();
-                                        let bytes = buffer.split_to(cmp::min(cap, len));
+                            Some(Ok(cap)) => {
+                                let len = buffer.len();
+                                let bytes = buffer.split_to(cmp::min(cap, len));
 
-                                        if let Err(e) = stream.send_data(bytes, false) {
-                                            warn!("{:?}", e);
-                                            return Poll::Ready(());
-                                        } else if !buffer.is_empty() {
-                                            let cap = cmp::min(buffer.len(), CHUNK_SIZE);
-                                            stream.reserve_capacity(cap);
-                                        } else {
-                                            this.buffer.take();
-                                        }
-                                    }
-
-                                    Some(Err(e)) => {
-                                        warn!("{:?}", e);
-                                        return Poll::Ready(());
-                                    }
+                                if let Err(e) = stream.send_data(bytes, false) {
+                                    warn!("{:?}", e);
+                                    return Poll::Ready(());
+                                } else if !buffer.is_empty() {
+                                    let cap = cmp::min(buffer.len(), CHUNK_SIZE);
+                                    stream.reserve_capacity(cap);
+                                } else {
+                                    this.buffer.take();
                                 }
                             }
 
-                            None => match ready!(body.as_mut().poll_next(cx)) {
-                                None => {
-                                    if let Err(e) = stream.send_data(Bytes::new(), true)
-                                    {
-                                        warn!("{:?}", e);
-                                    }
-                                    return Poll::Ready(());
-                                }
+                            Some(Err(e)) => {
+                                warn!("{:?}", e);
+                                return Poll::Ready(());
+                            }
+                        },
 
-                                Some(Ok(chunk)) => {
-                                    stream.reserve_capacity(cmp::min(
-                                        chunk.len(),
-                                        CHUNK_SIZE,
-                                    ));
-                                    *this.buffer = Some(chunk);
+                        None => match ready!(body.as_mut().poll_next(cx)) {
+                            None => {
+                                if let Err(e) = stream.send_data(Bytes::new(), true) {
+                                    warn!("{:?}", e);
                                 }
+                                return Poll::Ready(());
+                            }
 
-                                Some(Err(e)) => {
-                                    error!("Response payload stream error: {:?}", e);
-                                    return Poll::Ready(());
-                                }
-                            },
-                        }
+                            Some(Ok(chunk)) => {
+                                stream
+                                    .reserve_capacity(cmp::min(chunk.len(), CHUNK_SIZE));
+                                *this.buffer = Some(chunk);
+                            }
+
+                            Some(Err(e)) => {
+                                error!("Response payload stream error: {:?}", e);
+                                return Poll::Ready(());
+                            }
+                        },
                     }
                 }
             }

@@ -1,8 +1,6 @@
-use std::task::Poll;
-
 use actix_codec::Framed;
 use actix_service::{Service, ServiceFactory};
-use futures_util::future::{ready, Ready};
+use futures_core::future::LocalBoxFuture;
 
 use crate::error::Error;
 use crate::h1::Codec;
@@ -16,7 +14,7 @@ impl<T> ServiceFactory<(Request, Framed<T, Codec>)> for UpgradeHandler {
     type Config = ();
     type Service = UpgradeHandler;
     type InitError = Error;
-    type Future = Ready<Result<Self::Service, Self::InitError>>;
+    type Future = LocalBoxFuture<'static, Result<Self::Service, Self::InitError>>;
 
     fn new_service(&self, _: ()) -> Self::Future {
         unimplemented!()
@@ -26,11 +24,11 @@ impl<T> ServiceFactory<(Request, Framed<T, Codec>)> for UpgradeHandler {
 impl<T> Service<(Request, Framed<T, Codec>)> for UpgradeHandler {
     type Response = ();
     type Error = Error;
-    type Future = Ready<Result<Self::Response, Self::Error>>;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
     actix_service::always_ready!();
 
     fn call(&self, _: (Request, Framed<T, Codec>)) -> Self::Future {
-        ready(Ok(()))
+        unimplemented!()
     }
 }

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::io::{Read, Write};
+use std::net::{IpAddr, Ipv4Addr};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -828,7 +829,7 @@ async fn client_basic_auth() {
                     .unwrap()
                     .to_str()
                     .unwrap()
-                    == "Basic dXNlcm5hbWU6cGFzc3dvcmQ="
+                    == format!("Basic {}", base64::encode("username:password"))
                 {
                     HttpResponse::Ok()
                 } else {
@@ -839,7 +840,7 @@ async fn client_basic_auth() {
     });
 
     // set authorization header to Basic <base64 encoded username:password>
-    let request = srv.get("/").basic_auth("username", Some("password"));
+    let request = srv.get("/").basic_auth("username", "password");
     let response = request.send().await.unwrap();
     assert!(response.status().is_success());
 }
@@ -870,4 +871,35 @@ async fn client_bearer_auth() {
     let request = srv.get("/").bearer_auth("someS3cr3tAutht0k3n");
     let response = request.send().await.unwrap();
     assert!(response.status().is_success());
+}
+
+#[actix_rt::test]
+async fn test_local_address() {
+    let ip = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
+
+    let srv = test::start(move || {
+        App::new().service(web::resource("/").route(web::to(
+            move |req: HttpRequest| async move {
+                assert_eq!(req.peer_addr().unwrap().ip(), ip);
+                Ok::<_, Error>(HttpResponse::Ok())
+            },
+        )))
+    });
+    let client = awc::Client::builder().local_address(ip).finish();
+
+    let res = client.get(srv.url("/")).send().await.unwrap();
+
+    assert_eq!(res.status(), 200);
+
+    let client = awc::Client::builder()
+        .connector(
+            // connector local address setting should always be override by client builder.
+            awc::Connector::new().local_address(IpAddr::V4(Ipv4Addr::new(128, 0, 0, 1))),
+        )
+        .local_address(ip)
+        .finish();
+
+    let res = client.get(srv.url("/")).send().await.unwrap();
+
+    assert_eq!(res.status(), 200);
 }

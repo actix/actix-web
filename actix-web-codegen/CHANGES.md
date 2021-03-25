@@ -3,6 +3,14 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 0.5.0-beta.2 - 2021-03-09
+* Preserve doc comments when using route macros. [#2022]
+* Add `name` attribute to `route` macro. [#1934]
+
+[#2022]: https://github.com/actix/actix-web/pull/2022
+[#1934]: https://github.com/actix/actix-web/pull/1934
+
+
 ## 0.5.0-beta.1 - 2021-02-10
 * Use new call signature for `System::new`.
 

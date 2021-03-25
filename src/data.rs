@@ -5,6 +5,7 @@ use std::sync::Arc;
 use actix_http::error::{Error, ErrorInternalServerError};
 use actix_http::Extensions;
 use futures_util::future::{err, ok, LocalBoxFuture, Ready};
+use serde::Serialize;
 
 use crate::dev::Payload;
 use crate::extract::FromRequest;
@@ -36,7 +37,7 @@ pub(crate) type FnDataFactory =
 /// If route data is not set for a handler, using `Data<T>` extractor would cause *Internal
 /// Server Error* response.
 ///
-/// ```rust
+/// ```
 /// use std::sync::Mutex;
 /// use actix_web::{web, App, HttpResponse, Responder};
 ///
@@ -99,6 +100,18 @@ impl<T: ?Sized> Clone for Data<T> {
 impl<T: ?Sized> From<Arc<T>> for Data<T> {
     fn from(arc: Arc<T>) -> Self {
         Data(arc)
+    }
+}
+
+impl<T> Serialize for Data<T>
+where
+    T: Serialize,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.0.serialize(serializer)
     }
 }
 

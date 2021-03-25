@@ -16,7 +16,7 @@ use crate::{error::Error, service::ServiceResponse};
 /// [`Scope::wrap`](crate::Scope::wrap) and [`Condition`](super::Condition).
 ///
 /// # Examples
-/// ```rust
+/// ```
 /// use actix_web::middleware::{Logger, Compat};
 /// use actix_web::{App, web};
 ///

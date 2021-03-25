@@ -1,10 +1,26 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Fixed
+* Double ampersand in Logger format is escaped correctly. [#2067]
+
+### Changed
+* `CustomResponder` would return error as `HttpResponse` when `CustomResponder::with_header` failed instead of skipping.
+  (Only the first error is kept when multiple error occur) [#2093]
+
+### Removed
+* The `client` mod was removed. Clients should now use `awc` directly.
+  [871ca5e4](https://github.com/actix/actix-web/commit/871ca5e4ae2bdc22d1ea02701c2992fa8d04aed7)
+
+[#2067]: https://github.com/actix/actix-web/pull/2067
+[#2093]: https://github.com/actix/actix-web/pull/2093
+
+
+## 4.0.0-beta.4 - 2021-03-09
 ### Changed
 * Feature `cookies` is now optional and enabled by default. [#1981]
-* `JsonBody::new` returns a default limit of 32kB to be consistent with `JsonConfig` and the
-  default behaviour of the `web::Json<T>` extractor. [#2010] 
+* `JsonBody::new` returns a default limit of 32kB to be consistent with `JsonConfig` and the default
+  behaviour of the `web::Json<T>` extractor. [#2010]
 
 [#1981]: https://github.com/actix/actix-web/pull/1981
 [#2010]: https://github.com/actix/actix-web/pull/2010
@@ -168,7 +184,7 @@
 
 ## 3.0.0-beta.4 - 2020-09-09
 ### Added
-* `middleware::NormalizePath` now has configurable behaviour for either always having a trailing
+* `middleware::NormalizePath` now has configurable behavior for either always having a trailing 
   slash, or as the new addition, always trimming trailing slashes. [#1639]
 
 ### Changed
@@ -496,7 +512,7 @@
 
 ## [1.0.0-rc] - 2019-05-18
 
-### Add
+### Added
 
 * Add `Query<T>::from_query()` to extract parameters from a query string. #846
 * `QueryConfig`, similar to `JsonConfig` for customizing error handling of query extractors.
@@ -512,7 +528,7 @@
 
 ## [1.0.0-beta.4] - 2019-05-12
 
-### Add
+### Added
 
 * Allow to set/override app data on scope level
 
@@ -538,7 +554,7 @@
 
 * CORS handling without headers #702
 
-* Allow to construct `Data` instances to avoid double `Arc` for `Send + Sync` types.
+* Allow constructing `Data` instances to avoid double `Arc` for `Send + Sync` types.
 
 ### Fixed
 
@@ -602,7 +618,7 @@
 
 ### Changed
 
-* Allow to use any service as default service.
+* Allow using any service as default service.
 
 * Remove generic type for request payload, always use default.
 
@@ -665,13 +681,13 @@
 
 ### Added
 
-* rustls support
+* Rustls support
 
 ### Changed
 
-* use forked cookie
+* Use forked cookie
 
-* multipart::Field renamed to MultipartField
+* Multipart::Field renamed to MultipartField
 
 ## [1.0.0-alpha.1] - 2019-03-28
 

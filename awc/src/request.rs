@@ -36,7 +36,7 @@ cfg_if::cfg_if! {
 /// This type can be used to construct an instance of `ClientRequest` through a
 /// builder-like pattern.
 ///
-/// ```rust
+/// ```
 /// #[actix_rt::main]
 /// async fn main() {
 ///    let response = awc::Client::new()
@@ -57,7 +57,7 @@ pub struct ClientRequest {
     addr: Option<net::SocketAddr>,
     response_decompress: bool,
     timeout: Option<Duration>,
-    config: Rc<ClientConfig>,
+    config: ClientConfig,
 
     #[cfg(feature = "cookies")]
     cookies: Option<CookieJar>,
@@ -65,7 +65,7 @@ pub struct ClientRequest {
 
 impl ClientRequest {
     /// Create new client request builder.
-    pub(crate) fn new<U>(method: Method, uri: U, config: Rc<ClientConfig>) -> Self
+    pub(crate) fn new<U>(method: Method, uri: U, config: ClientConfig) -> Self
     where
         Uri: TryFrom<U>,
         <Uri as TryFrom<U>>::Error: Into<HttpError>,
@@ -190,7 +190,7 @@ impl ClientRequest {
 
     /// Append a header, keeping any that were set with an equivalent field name.
     ///
-    /// ```rust
+    /// ```
     /// # #[actix_rt::main]
     /// # async fn main() {
     /// # use awc::Client;
@@ -248,35 +248,30 @@ impl ClientRequest {
     /// Set content length
     #[inline]
     pub fn content_length(self, len: u64) -> Self {
-        self.append_header((header::CONTENT_LENGTH, len))
+        let mut buf = itoa::Buffer::new();
+        self.insert_header((header::CONTENT_LENGTH, buf.format(len)))
     }
 
-    /// Set HTTP basic authorization header
-    pub fn basic_auth<U>(self, username: U, password: Option<&str>) -> Self
-    where
-        U: fmt::Display,
-    {
-        let auth = match password {
-            Some(password) => format!("{}:{}", username, password),
-            None => format!("{}:", username),
-        };
-        self.append_header((
+    /// Set HTTP basic authorization header.
+    ///
+    /// If no password is needed, just provide an empty string.
+    pub fn basic_auth(self, username: impl fmt::Display, password: impl fmt::Display) -> Self {
+        let auth = format!("{}:{}", username, password);
+
+        self.insert_header((
             header::AUTHORIZATION,
             format!("Basic {}", base64::encode(&auth)),
         ))
     }
 
     /// Set HTTP bearer authentication header
-    pub fn bearer_auth<T>(self, token: T) -> Self
-    where
-        T: fmt::Display,
-    {
-        self.append_header((header::AUTHORIZATION, format!("Bearer {}", token)))
+    pub fn bearer_auth(self, token: impl fmt::Display) -> Self {
+        self.insert_header((header::AUTHORIZATION, format!("Bearer {}", token)))
     }
 
     /// Set a cookie
     ///
-    /// ```rust
+    /// ```
     /// #[actix_rt::main]
     /// async fn main() {
     ///     let resp = awc::Client::new().get("https://www.rust-lang.org")
@@ -403,7 +398,7 @@ impl ClientRequest {
             slf.addr,
             slf.response_decompress,
             slf.timeout,
-            slf.config.as_ref(),
+            &slf.config,
             body,
         )
     }
@@ -419,7 +414,7 @@ impl ClientRequest {
             slf.addr,
             slf.response_decompress,
             slf.timeout,
-            slf.config.as_ref(),
+            &slf.config,
             value,
         )
     }
@@ -437,7 +432,7 @@ impl ClientRequest {
             slf.addr,
             slf.response_decompress,
             slf.timeout,
-            slf.config.as_ref(),
+            &slf.config,
             value,
         )
     }
@@ -457,7 +452,7 @@ impl ClientRequest {
             slf.addr,
             slf.response_decompress,
             slf.timeout,
-            slf.config.as_ref(),
+            &slf.config,
             stream,
         )
     }
@@ -473,7 +468,7 @@ impl ClientRequest {
             slf.addr,
             slf.response_decompress,
             slf.timeout,
-            slf.config.as_ref(),
+            &slf.config,
         )
     }
 
@@ -643,9 +638,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn client_basic_auth() {
-        let req = Client::new()
-            .get("/")
-            .basic_auth("username", Some("password"));
+        let req = Client::new().get("/").basic_auth("username", "password");
         assert_eq!(
             req.head
                 .headers
@@ -656,7 +649,7 @@ mod tests {
             "Basic dXNlcm5hbWU6cGFzc3dvcmQ="
         );
 
-        let req = Client::new().get("/").basic_auth("username", None);
+        let req = Client::new().get("/").basic_auth("username", "");
         assert_eq!(
             req.head
                 .headers
