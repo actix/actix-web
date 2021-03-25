@@ -174,7 +174,13 @@ impl H2ConnectionInner {
 /// Cancel spawned connection task on drop.
 impl Drop for H2ConnectionInner {
     fn drop(&mut self) {
-        self.handle.abort();
+        if self
+            .sender
+            .send_request(http::Request::new(()), true)
+            .is_err()
+        {
+            self.handle.abort();
+        }
     }
 }
 
