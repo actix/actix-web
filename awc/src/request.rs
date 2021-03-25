@@ -516,11 +516,11 @@ impl ClientRequest {
                 .unwrap_or(true);
 
             if https {
-                slf = slf.insert_header_if_none((header::ACCEPT_ENCODING, HTTPS_ENCODING))
+                slf = slf.insert_header_if_none((header::ACCEPT_ENCODING, HTTPS_ENCODING));
             } else {
-                #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
+                #[cfg(feature = "compress")]
                 {
-                    slf = slf.insert_header_if_none((header::ACCEPT_ENCODING, "gzip, deflate"))
+                    slf = slf.insert_header_if_none((header::ACCEPT_ENCODING, "gzip, deflate"));
                 }
             };
         }
