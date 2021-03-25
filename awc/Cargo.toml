@@ -51,7 +51,6 @@ actix-rt = { version = "2.1", default-features = false }
 
 base64 = "0.13"
 bytes = "1"
-cfg-if = "1.0"
 derive_more = "0.99.5"
 futures-core = { version = "0.3.7", default-features = false }
 itoa = "0.4"
