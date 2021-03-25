@@ -3,7 +3,7 @@
 ## Unreleased - 2021-xx-xx
 ### Changed
 * `ConnectorService` type is renamed to `BoxConnectorService`. [#2081]
-* Fix https encoding when enabling `compress` feature. [#2116]
+* Fix http/https encoding when enabling `compress` feature. [#2116]
 
 [#2081]: https://github.com/actix/actix-web/pull/2081
 [#2116]: https://github.com/actix/actix-web/pull/2116
