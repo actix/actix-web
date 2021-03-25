@@ -14,6 +14,7 @@ use crate::HttpMessage;
 mod as_name;
 mod into_pair;
 mod into_value;
+mod utils;
 
 pub(crate) mod map;
 mod shared;
@@ -27,6 +28,7 @@ pub use self::into_value::IntoHeaderValue;
 #[doc(hidden)]
 pub use self::map::GetAll;
 pub use self::map::HeaderMap;
+pub use self::utils::*;
 
 /// A trait for any object that already represents a valid header field and value.
 pub trait Header: IntoHeaderValue {

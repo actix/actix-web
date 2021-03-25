@@ -30,7 +30,7 @@ pub use self::if_range::IfRange;
 pub use self::if_unmodified_since::IfUnmodifiedSince;
 pub use self::last_modified::LastModified;
 //pub use self::range::{Range, ByteRangeSpec};
-pub(crate) use self::utils::{fmt_comma_delimited, from_comma_delimited, from_one_raw_str};
+pub(crate) use actix_http::http::header::{fmt_comma_delimited, from_comma_delimited, from_one_raw_str};
 
 #[doc(hidden)]
 #[macro_export]
@@ -353,4 +353,3 @@ mod if_none_match;
 mod if_range;
 mod if_unmodified_since;
 mod last_modified;
-mod utils;
