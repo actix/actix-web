@@ -36,25 +36,26 @@ members = [
   "actix-web-actors",
   "actix-web-codegen",
   "actix-http-test",
+  "actix-test",
 ]
 
 [features]
 default = ["compress", "cookies"]
 
 # content-encoding support
-compress = ["actix-http/compress", "awc/compress"]
+compress = ["actix-http/compress"]
 
 # support for cookies
-cookies = ["actix-http/cookies", "awc/cookies"]
+cookies = ["actix-http/cookies"]
 
 # secure cookies feature
 secure-cookies = ["actix-http/secure-cookies"]
 
 # openssl
-openssl = ["tls-openssl", "actix-tls/accept", "actix-tls/openssl", "awc/openssl"]
+openssl = ["tls-openssl", "actix-tls/accept", "actix-tls/openssl"]
 
 # rustls
-rustls = ["tls-rustls", "actix-tls/accept", "actix-tls/rustls", "awc/rustls"]
+rustls = ["tls-rustls", "actix-tls/accept", "actix-tls/rustls"]
 
 [[example]]
 name = "basic"
@@ -72,10 +73,6 @@ required-features = ["compress", "cookies"]
 name = "on_connect"
 required-features = []
 
-[[example]]
-name = "client"
-required-features = ["rustls"]
-
 [dependencies]
 actix-codec = "0.4.0-beta.1"
 actix-macros = "0.2.0"
@@ -88,7 +85,7 @@ actix-tls = { version = "3.0.0-beta.5", default-features = false, optional = tru
 
 actix-web-codegen = "0.5.0-beta.2"
 actix-http = "3.0.0-beta.4"
-awc = { version = "3.0.0-beta.3", default-features = false }
+# awc = { version = "3.0.0-beta.3", default-features = false }
 
 ahash = "0.7"
 bytes = "1"

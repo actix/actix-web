@@ -115,16 +115,6 @@ pub async fn test_server_with_addr<F: ServiceFactory<TcpStream>>(
     }
 }
 
-/// Get first available unused address
-pub fn unused_addr() -> net::SocketAddr {
-    let addr: net::SocketAddr = "127.0.0.1:0".parse().unwrap();
-    let socket = Socket::new(Domain::IPV4, Type::STREAM, Some(Protocol::TCP)).unwrap();
-    socket.bind(&addr.into()).unwrap();
-    socket.set_reuse_address(true).unwrap();
-    let tcp = net::TcpListener::from(socket);
-    tcp.local_addr().unwrap()
-}
-
 /// Test server controller
 pub struct TestServer {
     addr: net::SocketAddr,
@@ -268,4 +258,14 @@ impl Drop for TestServer {
     fn drop(&mut self) {
         self.stop()
     }
+}
+
+/// Get first available unused address
+pub fn unused_addr() -> net::SocketAddr {
+    let addr: net::SocketAddr = "127.0.0.1:0".parse().unwrap();
+    let socket = Socket::new(Domain::IPV4, Type::STREAM, Some(Protocol::TCP)).unwrap();
+    socket.bind(&addr.into()).unwrap();
+    socket.set_reuse_address(true).unwrap();
+    let tcp = net::TcpListener::from(socket);
+    tcp.local_addr().unwrap()
 }

@@ -1,0 +1,22 @@
+[package]
+name = "actix-test"
+version = "0.1.0"
+authors = ["Rob Ede <robjtede@icloud.com>"]
+edition = "2018"
+description = "Integration testing tools for Actix Web applications"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+actix-codec = "0.4.0-beta.1"
+actix-http = { version = "3.0.0-beta.4", features = ["cookies"] }
+actix-http-test = { version = "3.0.0-beta.3", features = [] }
+actix-service = "2.0.0-beta.4"
+actix-utils = "3.0.0-beta.2"
+actix-web = { version = "4.0.0-beta.4", default-features = false, features = ["cookies"] }
+awc = { version = "3.0.0-beta.3", default-features = false, features = ["cookies"] }
+
+futures-core = { version = "0.3.7", default-features = false, features = ["std"] }
+futures-util = { version = "0.3.7", default-features = false, features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_urlencoded = "0.7"

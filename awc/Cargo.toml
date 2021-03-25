@@ -79,3 +79,7 @@ flate2 = "1.0.13"
 futures-util = { version = "0.3.7", default-features = false }
 rcgen = "0.8"
 webpki = "0.21"
+
+[[example]]
+name = "client"
+required-features = ["rustls"]

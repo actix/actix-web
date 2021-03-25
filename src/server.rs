@@ -288,7 +288,7 @@ where
                     };
 
                     svc.finish(map_config(factory(), move |_| {
-                        AppConfig::new(false, addr, host.clone())
+                        AppConfig::new(false, host.clone(), addr)
                     }))
                     .tcp()
                 })?;
@@ -502,8 +502,8 @@ where
             let c = cfg.lock().unwrap();
             let config = AppConfig::new(
                 false,
-                socket_addr,
                 c.host.clone().unwrap_or_else(|| format!("{}", socket_addr)),
+                socket_addr,
             );
 
             pipeline_factory(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) })
@@ -552,8 +552,8 @@ where
                 let c = cfg.lock().unwrap();
                 let config = AppConfig::new(
                     false,
-                    socket_addr,
                     c.host.clone().unwrap_or_else(|| format!("{}", socket_addr)),
+                    socket_addr,
                 );
                 pipeline_factory(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) })
                     .and_then(
