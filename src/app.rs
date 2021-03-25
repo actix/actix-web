@@ -79,7 +79,7 @@ where
     /// uses `Arc` so data could be created outside of app factory and clones could
     /// be stored via `App::app_data()` method.
     ///
-    /// ```rust
+    /// ```
     /// use std::cell::Cell;
     /// use actix_web::{web, App, HttpResponse, Responder};
     ///
@@ -152,7 +152,7 @@ where
     /// different module or even library. For example,
     /// some of the resource's configuration could be moved to different module.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{web, App, HttpResponse};
     ///
     /// // this function could be located in different module
@@ -185,7 +185,7 @@ where
     /// This method can be used multiple times with same path, in that case
     /// multiple resources with one route would be registered for same resource path.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{web, App, HttpResponse};
     ///
     /// async fn index(data: web::Path<(String, String)>) -> &'static str {
@@ -228,7 +228,7 @@ where
     ///
     /// It is possible to use services like `Resource`, `Route`.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{web, App, HttpResponse};
     ///
     /// async fn index() -> &'static str {
@@ -246,7 +246,7 @@ where
     ///
     /// It is also possible to use static files as default service.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{web, App, HttpResponse};
     ///
     /// fn main() {
@@ -283,7 +283,7 @@ where
     /// and are never considered for matching at request time. Calls to
     /// `HttpRequest::url_for()` will work as expected.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{web, App, HttpRequest, HttpResponse, Result};
     ///
     /// async fn index(req: HttpRequest) -> Result<HttpResponse> {
@@ -325,7 +325,7 @@ where
     /// the builder chain.  Consequently, the *first* middleware registered
     /// in the builder chain is the *last* to execute during request processing.
     ///
-    /// ```rust
+    /// ```
     /// use actix_service::Service;
     /// use actix_web::{middleware, web, App};
     /// use actix_web::http::{header::CONTENT_TYPE, HeaderValue};
@@ -382,7 +382,7 @@ where
     ///
     /// Use middleware when you need to read or modify *every* request or response in some way.
     ///
-    /// ```rust
+    /// ```
     /// use actix_service::Service;
     /// use actix_web::{web, App};
     /// use actix_web::http::{header::CONTENT_TYPE, HeaderValue};

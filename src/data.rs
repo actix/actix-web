@@ -37,7 +37,7 @@ pub(crate) type FnDataFactory =
 /// If route data is not set for a handler, using `Data<T>` extractor would cause *Internal
 /// Server Error* response.
 ///
-/// ```rust
+/// ```
 /// use std::sync::Mutex;
 /// use actix_web::{web, App, HttpResponse, Responder};
 ///

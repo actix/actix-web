@@ -36,7 +36,7 @@ cfg_if::cfg_if! {
 /// This type can be used to construct an instance of `ClientRequest` through a
 /// builder-like pattern.
 ///
-/// ```rust
+/// ```
 /// #[actix_rt::main]
 /// async fn main() {
 ///    let response = awc::Client::new()
@@ -190,7 +190,7 @@ impl ClientRequest {
 
     /// Append a header, keeping any that were set with an equivalent field name.
     ///
-    /// ```rust
+    /// ```
     /// # #[actix_rt::main]
     /// # async fn main() {
     /// # use awc::Client;
@@ -271,7 +271,7 @@ impl ClientRequest {
 
     /// Set a cookie
     ///
-    /// ```rust
+    /// ```
     /// #[actix_rt::main]
     /// async fn main() {
     ///     let resp = awc::Client::new().get("https://www.rust-lang.org")

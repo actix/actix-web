@@ -26,7 +26,7 @@ use socket2::{Domain, Protocol, Socket, Type};
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```
 /// use actix_http::HttpService;
 /// use actix_http_test::TestServer;
 /// use actix_web::{web, App, HttpResponse, Error};

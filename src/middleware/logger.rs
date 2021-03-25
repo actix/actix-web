@@ -43,7 +43,7 @@ use crate::{
 /// ```
 ///
 /// # Examples
-/// ```rust
+/// ```
 /// use actix_web::{middleware::Logger, App};
 ///
 /// // access logs are printed with the INFO level so ensure it is enabled by default
@@ -124,7 +124,7 @@ impl Logger {
     /// It is convention to print "-" to indicate no output instead of an empty string.
     ///
     /// # Example
-    /// ```rust
+    /// ```
     /// # use actix_web::{http::HeaderValue, middleware::Logger};
     /// # fn parse_jwt_id (_req: Option<&HeaderValue>) -> String { "jwt_uid".to_owned() }
     /// Logger::new("example %{JWT_ID}xi")

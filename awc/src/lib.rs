@@ -131,7 +131,7 @@ pub use self::sender::SendClientRequest;
 ///
 /// ## Examples
 ///
-/// ```rust
+/// ```
 /// use awc::Client;
 ///
 /// #[actix_rt::main]
