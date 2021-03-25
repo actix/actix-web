@@ -1,8 +1,6 @@
 //! Test helpers for actix http client to use during testing.
-use std::convert::TryFrom;
-
-use actix_http::http::header::{Header, IntoHeaderPair, IntoHeaderValue};
-use actix_http::http::{Error as HttpError, HeaderName, StatusCode, Version};
+use actix_http::http::header::IntoHeaderPair;
+use actix_http::http::{StatusCode, Version};
 #[cfg(feature = "cookies")]
 use actix_http::{
     cookie::{Cookie, CookieJar},
@@ -34,13 +32,11 @@ impl Default for TestResponse {
 
 impl TestResponse {
     /// Create TestResponse and set header
-    pub fn with_header<K, V>(key: K, value: V) -> Self
+    pub fn with_header<H>(header: H) -> Self
     where
-        HeaderName: TryFrom<K>,
-        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
-        V: IntoHeaderValue,
+        H: IntoHeaderPair,
     {
-        Self::default().header(key, value)
+        Self::default().insert_header(header)
     }
 
     /// Set HTTP version of this response
@@ -49,17 +45,7 @@ impl TestResponse {
         self
     }
 
-    /// Set a header
-    pub fn set<H: Header>(mut self, hdr: H) -> Self {
-        if let Ok(value) = hdr.try_into_value() {
-            self.head.headers.append(H::name(), value);
-            return self;
-        }
-        panic!("Can not set header");
-    }
-
-    // TODO: Should `set` be removed and replaced with this instead?
-    // It looks like `TestResponse` was missed in the header rework
+    /// Insert a header
     pub fn insert_header<H>(mut self, header: H) -> Self
     where
         H: IntoHeaderPair,
@@ -72,17 +58,13 @@ impl TestResponse {
     }
 
     /// Append a header
-    pub fn header<K, V>(mut self, key: K, value: V) -> Self
+    pub fn append_header<H>(mut self, header: H) -> Self
     where
-        HeaderName: TryFrom<K>,
-        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
-        V: IntoHeaderValue,
+        H: IntoHeaderPair,
     {
-        if let Ok(key) = HeaderName::try_from(key) {
-            if let Ok(value) = value.try_into_value() {
-                self.head.headers.append(key, value);
-                return self;
-            }
+        if let Ok((key, value)) = header.try_into_header_pair() {
+            self.head.headers.append(key, value);
+            return self;
         }
         panic!("Can not create header");
     }
