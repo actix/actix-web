@@ -36,7 +36,7 @@ use crate::header::{
 /// builder.insert_header(CacheControl(vec![CacheDirective::MaxAge(86400u32)]));
 /// ```
 ///
-/// ```rust
+/// ```
 /// use actix_http::Response;
 /// use actix_http::http::header::{CacheControl, CacheDirective};
 ///

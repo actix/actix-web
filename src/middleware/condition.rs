@@ -12,7 +12,7 @@ use futures_util::future::{Either, FutureExt, LocalBoxFuture};
 /// middleware for a workaround.
 ///
 /// # Examples
-/// ```rust
+/// ```
 /// use actix_web::middleware::{Condition, NormalizePath};
 /// use actix_web::App;
 ///
@@ -106,6 +106,7 @@ mod tests {
         HttpResponse,
     };
 
+    #[allow(clippy::unnecessary_wraps)]
     fn render_500<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
         res.response_mut()
             .headers_mut()

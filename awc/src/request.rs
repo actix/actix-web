@@ -21,22 +21,17 @@ use crate::frozen::FrozenClientRequest;
 use crate::sender::{PrepForSendingError, RequestSender, SendClientRequest};
 use crate::ClientConfig;
 
-cfg_if::cfg_if! {
-    if #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))] {
-        const HTTPS_ENCODING: &str = "br, gzip, deflate";
-    } else if #[cfg(feature = "compress")] {
-        const HTTPS_ENCODING: &str = "br";
-    } else {
-        const HTTPS_ENCODING: &str = "identity";
-    }
-}
+#[cfg(feature = "compress")]
+const HTTPS_ENCODING: &str = "br, gzip, deflate";
+#[cfg(not(feature = "compress"))]
+const HTTPS_ENCODING: &str = "br";
 
 /// An HTTP Client request builder
 ///
 /// This type can be used to construct an instance of `ClientRequest` through a
 /// builder-like pattern.
 ///
-/// ```rust
+/// ```
 /// #[actix_rt::main]
 /// async fn main() {
 ///    let response = awc::Client::new()
@@ -57,7 +52,7 @@ pub struct ClientRequest {
     addr: Option<net::SocketAddr>,
     response_decompress: bool,
     timeout: Option<Duration>,
-    config: Rc<ClientConfig>,
+    config: ClientConfig,
 
     #[cfg(feature = "cookies")]
     cookies: Option<CookieJar>,
@@ -65,7 +60,7 @@ pub struct ClientRequest {
 
 impl ClientRequest {
     /// Create new client request builder.
-    pub(crate) fn new<U>(method: Method, uri: U, config: Rc<ClientConfig>) -> Self
+    pub(crate) fn new<U>(method: Method, uri: U, config: ClientConfig) -> Self
     where
         Uri: TryFrom<U>,
         <Uri as TryFrom<U>>::Error: Into<HttpError>,
@@ -190,7 +185,7 @@ impl ClientRequest {
 
     /// Append a header, keeping any that were set with an equivalent field name.
     ///
-    /// ```rust
+    /// ```
     /// # #[actix_rt::main]
     /// # async fn main() {
     /// # use awc::Client;
@@ -271,7 +266,7 @@ impl ClientRequest {
 
     /// Set a cookie
     ///
-    /// ```rust
+    /// ```
     /// #[actix_rt::main]
     /// async fn main() {
     ///     let resp = awc::Client::new().get("https://www.rust-lang.org")
@@ -398,7 +393,7 @@ impl ClientRequest {
             slf.addr,
             slf.response_decompress,
             slf.timeout,
-            slf.config.as_ref(),
+            &slf.config,
             body,
         )
     }
@@ -414,7 +409,7 @@ impl ClientRequest {
             slf.addr,
             slf.response_decompress,
             slf.timeout,
-            slf.config.as_ref(),
+            &slf.config,
             value,
         )
     }
@@ -432,7 +427,7 @@ impl ClientRequest {
             slf.addr,
             slf.response_decompress,
             slf.timeout,
-            slf.config.as_ref(),
+            &slf.config,
             value,
         )
     }
@@ -452,7 +447,7 @@ impl ClientRequest {
             slf.addr,
             slf.response_decompress,
             slf.timeout,
-            slf.config.as_ref(),
+            &slf.config,
             stream,
         )
     }
@@ -468,7 +463,7 @@ impl ClientRequest {
             slf.addr,
             slf.response_decompress,
             slf.timeout,
-            slf.config.as_ref(),
+            &slf.config,
         )
     }
 
@@ -521,11 +516,11 @@ impl ClientRequest {
                 .unwrap_or(true);
 
             if https {
-                slf = slf.insert_header_if_none((header::ACCEPT_ENCODING, HTTPS_ENCODING))
+                slf = slf.insert_header_if_none((header::ACCEPT_ENCODING, HTTPS_ENCODING));
             } else {
-                #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
+                #[cfg(feature = "compress")]
                 {
-                    slf = slf.insert_header_if_none((header::ACCEPT_ENCODING, "gzip, deflate"))
+                    slf = slf.insert_header_if_none((header::ACCEPT_ENCODING, "gzip, deflate"));
                 }
             };
         }

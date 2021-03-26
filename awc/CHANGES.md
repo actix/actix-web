@@ -1,6 +1,15 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Changed
+* `ConnectorService` type is renamed to `BoxConnectorService`. [#2081]
+* Fix http/https encoding when enabling `compress` feature. [#2116]
+
+[#2081]: https://github.com/actix/actix-web/pull/2081
+[#2116]: https://github.com/actix/actix-web/pull/2116
+
+
+## 3.0.0-beta.3 - 2021-03-08
 ### Added
 * `ClientResponse::timeout` for set the timeout of collecting response body. [#1931]
 * `ClientBuilder::local_address` for bind to a local ip address for this client. [#2024]

@@ -34,7 +34,7 @@ type ErrorHandler<B> = dyn Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse
 /// for a given status code. Handlers can modify existing responses or create completely new ones.
 ///
 /// # Examples
-/// ```rust
+/// ```
 /// use actix_web::middleware::{ErrorHandlers, ErrorHandlerResponse};
 /// use actix_web::{web, http, dev, App, HttpRequest, HttpResponse, Result};
 ///
@@ -182,6 +182,7 @@ mod tests {
     use crate::test::{self, TestRequest};
     use crate::HttpResponse;
 
+    #[allow(clippy::unnecessary_wraps)]
     fn render_500<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
         res.response_mut()
             .headers_mut()
@@ -205,6 +206,7 @@ mod tests {
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
     }
 
+    #[allow(clippy::unnecessary_wraps)]
     fn render_500_async<B: 'static>(
         mut res: ServiceResponse<B>,
     ) -> Result<ErrorHandlerResponse<B>> {

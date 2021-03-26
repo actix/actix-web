@@ -121,7 +121,7 @@ pub mod test;
 pub mod ws;
 
 pub use self::builder::ClientBuilder;
-pub use self::connect::{BoxedSocket, ConnectRequest, ConnectResponse, ConnectorService};
+pub use self::connect::{BoxConnectorService, BoxedSocket, ConnectRequest, ConnectResponse};
 pub use self::frozen::{FrozenClientRequest, FrozenSendBuilder};
 pub use self::request::ClientRequest;
 pub use self::response::{ClientResponse, JsonBody, MessageBody};
@@ -131,7 +131,7 @@ pub use self::sender::SendClientRequest;
 ///
 /// ## Examples
 ///
-/// ```rust
+/// ```
 /// use awc::Client;
 ///
 /// #[actix_rt::main]
@@ -147,11 +147,12 @@ pub use self::sender::SendClientRequest;
 /// }
 /// ```
 #[derive(Clone)]
-pub struct Client(Rc<ClientConfig>);
+pub struct Client(ClientConfig);
 
+#[derive(Clone)]
 pub(crate) struct ClientConfig {
-    pub(crate) connector: ConnectorService,
-    pub(crate) headers: HeaderMap,
+    pub(crate) connector: BoxConnectorService,
+    pub(crate) headers: Rc<HeaderMap>,
     pub(crate) timeout: Option<Duration>,
 }
 
@@ -175,7 +176,6 @@ impl Client {
                 Response = TcpConnection<Uri, TcpStream>,
                 Error = TcpConnectError,
             > + Clone,
-        TcpStream,
     > {
         ClientBuilder::new()
     }

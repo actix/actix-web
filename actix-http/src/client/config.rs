@@ -8,6 +8,7 @@ const DEFAULT_H2_STREAM_WINDOW: u32 = 1024 * 1024; // 1MB
 #[derive(Clone)]
 pub(crate) struct ConnectorConfig {
     pub(crate) timeout: Duration,
+    pub(crate) handshake_timeout: Duration,
     pub(crate) conn_lifetime: Duration,
     pub(crate) conn_keep_alive: Duration,
     pub(crate) disconnect_timeout: Option<Duration>,
@@ -21,6 +22,7 @@ impl Default for ConnectorConfig {
     fn default() -> Self {
         Self {
             timeout: Duration::from_secs(5),
+            handshake_timeout: Duration::from_secs(5),
             conn_lifetime: Duration::from_secs(75),
             conn_keep_alive: Duration::from_secs(15),
             disconnect_timeout: Some(Duration::from_millis(3000)),

@@ -189,7 +189,7 @@ where
                             // remove body
                             .call(ConnectRequest::Client(head, Body::None, addr));
 
-                        self.as_mut().set(RedirectServiceFuture::Client {
+                        self.set(RedirectServiceFuture::Client {
                             fut,
                             max_redirect_times,
                             uri: Some(uri),
@@ -236,7 +236,7 @@ where
                             .unwrap()
                             .call(ConnectRequest::Client(head, body_new, addr));
 
-                        self.as_mut().set(RedirectServiceFuture::Client {
+                        self.set(RedirectServiceFuture::Client {
                             fut,
                             max_redirect_times,
                             uri: Some(uri),

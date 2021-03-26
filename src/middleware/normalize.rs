@@ -54,7 +54,7 @@ impl Default for TrailingSlash {
 /// `TrailingSlash::Always` behavior), as shown in the example tests below.
 ///
 /// # Examples
-/// ```rust
+/// ```
 /// use actix_web::{web, middleware, App};
 ///
 /// # actix_web::rt::System::new().block_on(async {

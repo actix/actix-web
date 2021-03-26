@@ -54,7 +54,7 @@ pub fn default_service(
 /// This method accepts application builder instance, and constructs
 /// service.
 ///
-/// ```rust
+/// ```
 /// use actix_service::Service;
 /// use actix_web::{test, web, App, HttpResponse, http::StatusCode};
 ///
@@ -101,7 +101,7 @@ where
 
 /// Calls service and waits for response future completion.
 ///
-/// ```rust
+/// ```
 /// use actix_web::{test, web, App, HttpResponse, http::StatusCode};
 ///
 /// #[actix_rt::test]
@@ -131,7 +131,7 @@ where
 
 /// Helper function that returns a response body of a TestRequest
 ///
-/// ```rust
+/// ```
 /// use actix_web::{test, web, App, HttpResponse, http::header};
 /// use bytes::Bytes;
 ///
@@ -174,7 +174,7 @@ where
 
 /// Helper function that returns a response body of a ServiceResponse.
 ///
-/// ```rust
+/// ```
 /// use actix_web::{test, web, App, HttpResponse, http::header};
 /// use bytes::Bytes;
 ///
@@ -212,7 +212,7 @@ where
 
 /// Helper function that returns a deserialized response body of a ServiceResponse.
 ///
-/// ```rust
+/// ```
 /// use actix_web::{App, test, web, HttpResponse, http::header};
 /// use serde::{Serialize, Deserialize};
 ///
@@ -275,7 +275,7 @@ where
 
 /// Helper function that returns a deserialized response body of a TestRequest
 ///
-/// ```rust
+/// ```
 /// use actix_web::{App, test, web, HttpResponse, http::header};
 /// use serde::{Serialize, Deserialize};
 ///
@@ -332,7 +332,7 @@ where
 ///  * `TestRequest::to_srv_response` creates `ServiceResponse` instance.
 ///  * `TestRequest::to_http_request` creates `HttpRequest` instance, which is used for testing handlers.
 ///
-/// ```rust
+/// ```
 /// use actix_web::{test, HttpRequest, HttpResponse, HttpMessage};
 /// use actix_web::http::{header, StatusCode};
 ///
@@ -580,7 +580,7 @@ impl TestRequest {
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```
 /// use actix_web::{web, test, App, HttpResponse, Error};
 ///
 /// async fn my_handler() -> Result<HttpResponse, Error> {
@@ -620,7 +620,7 @@ where
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```
 /// use actix_web::{web, test, App, HttpResponse, Error};
 ///
 /// async fn my_handler() -> Result<HttpResponse, Error> {
@@ -782,10 +782,10 @@ where
     };
 
     TestServer {
-        ssl,
         addr,
         client,
         system,
+        ssl,
         server,
     }
 }
@@ -870,10 +870,10 @@ impl TestServerConfig {
 /// Get first available unused address
 pub fn unused_addr() -> net::SocketAddr {
     let addr: net::SocketAddr = "127.0.0.1:0".parse().unwrap();
-    let socket = Socket::new(Domain::ipv4(), Type::stream(), Some(Protocol::tcp())).unwrap();
+    let socket = Socket::new(Domain::IPV4, Type::STREAM, Some(Protocol::TCP)).unwrap();
     socket.bind(&addr.into()).unwrap();
     socket.set_reuse_address(true).unwrap();
-    let tcp = socket.into_tcp_listener();
+    let tcp = net::TcpListener::from(socket);
     tcp.local_addr().unwrap()
 }
 

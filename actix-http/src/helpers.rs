@@ -1,15 +1,15 @@
 use std::io;
 
-use bytes::{BufMut, BytesMut};
+use bytes::BufMut;
 use http::Version;
 
 const DIGITS_START: u8 = b'0';
 
-pub(crate) fn write_status_line(version: Version, n: u16, bytes: &mut BytesMut) {
+pub(crate) fn write_status_line<B: BufMut>(version: Version, n: u16, buf: &mut B) {
     match version {
-        Version::HTTP_11 => bytes.put_slice(b"HTTP/1.1 "),
-        Version::HTTP_10 => bytes.put_slice(b"HTTP/1.0 "),
-        Version::HTTP_09 => bytes.put_slice(b"HTTP/0.9 "),
+        Version::HTTP_11 => buf.put_slice(b"HTTP/1.1 "),
+        Version::HTTP_10 => buf.put_slice(b"HTTP/1.0 "),
+        Version::HTTP_09 => buf.put_slice(b"HTTP/0.9 "),
         _ => {
             // other HTTP version handlers do not use this method
         }
@@ -19,33 +19,36 @@ pub(crate) fn write_status_line(version: Version, n: u16, bytes: &mut BytesMut) 
     let d10 = ((n / 10) % 10) as u8;
     let d1 = (n % 10) as u8;
 
-    bytes.put_u8(DIGITS_START + d100);
-    bytes.put_u8(DIGITS_START + d10);
-    bytes.put_u8(DIGITS_START + d1);
+    buf.put_u8(DIGITS_START + d100);
+    buf.put_u8(DIGITS_START + d10);
+    buf.put_u8(DIGITS_START + d1);
 
     // trailing space before reason
-    bytes.put_u8(b' ');
+    buf.put_u8(b' ');
 }
 
 /// NOTE: bytes object has to contain enough space
-pub fn write_content_length(n: u64, bytes: &mut BytesMut) {
+pub fn write_content_length<B: BufMut>(n: u64, buf: &mut B) {
     if n == 0 {
-        bytes.put_slice(b"\r\ncontent-length: 0\r\n");
+        buf.put_slice(b"\r\ncontent-length: 0\r\n");
         return;
     }
 
-    let mut buf = itoa::Buffer::new();
+    let mut buffer = itoa::Buffer::new();
 
-    bytes.put_slice(b"\r\ncontent-length: ");
-    bytes.put_slice(buf.format(n).as_bytes());
-    bytes.put_slice(b"\r\n");
+    buf.put_slice(b"\r\ncontent-length: ");
+    buf.put_slice(buffer.format(n).as_bytes());
+    buf.put_slice(b"\r\n");
 }
 
-pub(crate) struct Writer<'a>(pub &'a mut BytesMut);
+pub(crate) struct Writer<'a, B>(pub &'a mut B);
 
-impl<'a> io::Write for Writer<'a> {
+impl<'a, B> io::Write for Writer<'a, B>
+where
+    B: BufMut,
+{
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.0.extend_from_slice(buf);
+        self.0.put_slice(buf);
         Ok(buf.len())
     }
 
@@ -57,6 +60,8 @@ impl<'a> io::Write for Writer<'a> {
 #[cfg(test)]
 mod tests {
     use std::str::from_utf8;
+
+    use bytes::BytesMut;
 
     use super::*;
 

@@ -1,6 +1,6 @@
 [package]
 name = "actix-files"
-version = "0.6.0-beta.2"
+version = "0.6.0-beta.3"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Static file serving for Actix Web"
 readme = "README.md"
@@ -17,7 +17,7 @@ name = "actix_files"
 path = "src/lib.rs"
 
 [dependencies]
-actix-web = { version = "4.0.0-beta.3", default-features = false }
+actix-web = { version = "4.0.0-beta.4", default-features = false }
 actix-service = "2.0.0-beta.4"
 
 askama_escape = "0.10"
@@ -34,4 +34,4 @@ percent-encoding = "2.1"
 
 [dev-dependencies]
 actix-rt = "2.1"
-actix-web = "4.0.0-beta.3"
+actix-web = "4.0.0-beta.4"
