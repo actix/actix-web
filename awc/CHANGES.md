@@ -5,10 +5,12 @@
 * Add `Client::headers` to get default mut reference of `HeaderMap` of client object. [#2114]
 
 ### Changed
-* `ConnectorService` type is renamed to `BoxConnectorService` [#2081]
+* `ConnectorService` type is renamed to `BoxConnectorService`. [#2081]
+* Fix http/https encoding when enabling `compress` feature. [#2116]
 
 [#2081]: https://github.com/actix/actix-web/pull/2081
 [#2114]: https://github.com/actix/actix-web/pull/2114
+[#2116]: https://github.com/actix/actix-web/pull/2116
 
 
 ## 3.0.0-beta.3 - 2021-03-08
