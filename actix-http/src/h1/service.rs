@@ -7,6 +7,7 @@ use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_rt::net::TcpStream;
 use actix_service::{pipeline_factory, IntoServiceFactory, Service, ServiceFactory};
 use futures_core::{future::LocalBoxFuture, ready};
+use futures_util::future::ready;
 
 use crate::body::MessageBody;
 use crate::config::ServiceConfig;
@@ -81,9 +82,9 @@ where
         Error = DispatchError,
         InitError = (),
     > {
-        pipeline_factory(|io: TcpStream| async {
+        pipeline_factory(|io: TcpStream| {
             let peer_addr = io.peer_addr().ok();
-            Ok((io, peer_addr))
+            ready(Ok((io, peer_addr)))
         })
         .and_then(self)
     }
@@ -136,9 +137,9 @@ mod openssl {
                     .map_err(TlsError::Tls)
                     .map_init_err(|_| panic!()),
             )
-            .and_then(|io: TlsStream<TcpStream>| async {
+            .and_then(|io: TlsStream<TcpStream>| {
                 let peer_addr = io.get_ref().peer_addr().ok();
-                Ok((io, peer_addr))
+                ready(Ok((io, peer_addr)))
             })
             .and_then(self.map_err(TlsError::Service))
         }
@@ -194,9 +195,9 @@ mod rustls {
                     .map_err(TlsError::Tls)
                     .map_init_err(|_| panic!()),
             )
-            .and_then(|io: TlsStream<TcpStream>| async {
+            .and_then(|io: TlsStream<TcpStream>| {
                 let peer_addr = io.get_ref().0.peer_addr().ok();
-                Ok((io, peer_addr))
+                ready(Ok((io, peer_addr)))
             })
             .and_then(self.map_err(TlsError::Service))
         }
