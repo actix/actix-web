@@ -19,7 +19,7 @@ syn = { version = "1", features = ["full", "parsing"] }
 proc-macro2 = "1"
 
 [dev-dependencies]
-actix-rt = "2.1"
+actix-rt = "2.2"
 actix-web = "4.0.0-beta.4"
 futures-util = { version = "0.3.7", default-features = false }
 trybuild = "1"

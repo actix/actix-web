@@ -51,7 +51,6 @@ actix-rt = { version = "2.1", default-features = false }
 
 base64 = "0.13"
 bytes = "1"
-cfg-if = "1.0"
 derive_more = "0.99.5"
 futures-core = { version = "0.3.7", default-features = false }
 itoa = "0.4"
@@ -72,7 +71,7 @@ actix-http = { version = "3.0.0-beta.4", features = ["openssl"] }
 actix-http-test = { version = "3.0.0-beta.3", features = ["openssl"] }
 actix-utils = "3.0.0-beta.1"
 actix-server = "2.0.0-beta.3"
-actix-tls = { version = "3.0.0-beta.4", features = ["openssl", "rustls"] }
+actix-tls = { version = "3.0.0-beta.5", features = ["openssl", "rustls"] }
 
 brotli2 = "0.3.2"
 env_logger = "0.8"
