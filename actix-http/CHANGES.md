@@ -6,7 +6,7 @@
 * `client::ConnectorService` as `client::Connector::finish` method's return type [#2081]
 * `client::ConnectionIo` trait alias [#2081]
 
-### Chaged
+### Changed
 * `client::Connector` type now only have one generic type for `actix_service::Service`. [#2063]
 
 [#2063]: https://github.com/actix/actix-web/pull/2063
