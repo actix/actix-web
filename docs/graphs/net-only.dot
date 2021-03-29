@@ -1,21 +1,19 @@
 digraph {
     subgraph cluster_net {
         label="actix/actix-net";
-        "actix-codec"
-        "actix-macros"
-        "actix-rt"
-        "actix-server"
-        "actix-service"
-        "actix-threadpool"
-        "actix-tls"
-        "actix-tracing"
-        "actix-utils"
-        "actix-router"
+        "actix-codec" "actix-macros" "actix-rt" "actix-server" "actix-service"
+        "actix-tls" "actix-tracing" "actix-utils" "actix-router"
+        "local-channel" "local-waker"
     }
 
-    "actix-utils" -> { "actix-service" "actix-rt" "actix-codec" }
+    "actix-codec" -> { "actix-rt" "actix-service" "local-channel" "tokio" }
+    "actix-utils" -> { "actix-rt" "actix-service" "local-waker" }
     "actix-tracing" -> { "actix-service" }
     "actix-tls" -> { "actix-service" "actix-codec" "actix-utils" "actix-rt" }
-    "actix-server" -> { "actix-service" "actix-rt" "actix-codec" "actix-utils" }
-    "actix-rt" -> { "actix-macros" "actix-threadpool" }
+    "actix-server" -> { "actix-service" "actix-rt" "actix-codec" "actix-utils" "tokio" }
+    "actix-rt" -> { "actix-macros" "tokio" }
+
+    "local-channel" -> { "local-waker" }
+
+    "tokio" [fontcolor = darkgreen]
 }
