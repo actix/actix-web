@@ -1450,13 +1450,25 @@ mod tests {
 
         stream.shutdown().await.unwrap();
 
-        actix_rt::time::sleep(Duration::from_secs(3)).await;
-        actix_rt::task::yield_now().await;
+        let start = Instant::now();
+        let mut interval = actix_rt::time::interval(Duration::from_secs(1));
 
-        poll_fn(|cx| {
-            assert!(h1.as_mut().poll(cx).is_ready());
-            Poll::Ready(())
-        })
-        .await;
+        loop {
+            let _ = interval.tick().await;
+
+            if start.elapsed() > Duration::from_secs(10) {
+                panic!("Payload interval pending check failed to shutdown dispatcher");
+            }
+
+            let ready = poll_fn(|cx| {
+                let ready = h1.as_mut().poll(cx).is_ready();
+                Poll::Ready(ready)
+            })
+            .await;
+
+            if ready {
+                return;
+            }
+        }
     }
 }
