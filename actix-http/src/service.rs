@@ -107,7 +107,6 @@ where
         X1: ServiceFactory<Request, Config = (), Response = Request>,
         X1::Error: Into<Error>,
         X1::InitError: fmt::Debug,
-        <X1::Service as Service<Request>>::Future: 'static,
     {
         HttpService {
             expect,
@@ -128,7 +127,6 @@ where
         U1: ServiceFactory<(Request, Framed<T, h1::Codec>), Config = (), Response = ()>,
         U1::Error: fmt::Display,
         U1::InitError: fmt::Debug,
-        <U1::Service as Service<(Request, Framed<T, h1::Codec>)>>::Future: 'static,
     {
         HttpService {
             upgrade,
@@ -158,7 +156,6 @@ where
     X: ServiceFactory<Request, Config = (), Response = Request>,
     X::Error: Into<Error>,
     X::InitError: fmt::Debug,
-    <X::Service as Service<Request>>::Future: 'static,
     U: ServiceFactory<
         (Request, Framed<TcpStream, h1::Codec>),
         Config = (),
@@ -166,7 +163,6 @@ where
     >,
     U::Error: fmt::Display + Into<Error>,
     U::InitError: fmt::Debug,
-    <U::Service as Service<(Request, Framed<TcpStream, h1::Codec>)>>::Future: 'static,
 {
     /// Create simple tcp stream service
     pub fn tcp(
@@ -204,7 +200,6 @@ mod openssl {
         X: ServiceFactory<Request, Config = (), Response = Request>,
         X::Error: Into<Error>,
         X::InitError: fmt::Debug,
-        <X::Service as Service<Request>>::Future: 'static,
         U: ServiceFactory<
             (Request, Framed<TlsStream<TcpStream>, h1::Codec>),
             Config = (),
@@ -212,7 +207,6 @@ mod openssl {
         >,
         U::Error: fmt::Display + Into<Error>,
         U::InitError: fmt::Debug,
-        <U::Service as Service<(Request, Framed<TlsStream<TcpStream>, h1::Codec>)>>::Future: 'static,
     {
         /// Create openssl based service
         pub fn openssl(
@@ -269,7 +263,6 @@ mod rustls {
         X: ServiceFactory<Request, Config = (), Response = Request>,
         X::Error: Into<Error>,
         X::InitError: fmt::Debug,
-        <X::Service as Service<Request>>::Future: 'static,
         U: ServiceFactory<
             (Request, Framed<TlsStream<TcpStream>, h1::Codec>),
             Config = (),
@@ -277,7 +270,6 @@ mod rustls {
         >,
         U::Error: fmt::Display + Into<Error>,
         U::InitError: fmt::Debug,
-        <U::Service as Service<(Request, Framed<TlsStream<TcpStream>, h1::Codec>)>>::Future: 'static,
     {
         /// Create openssl based service
         pub fn rustls(
@@ -329,11 +321,9 @@ where
     X: ServiceFactory<Request, Config = (), Response = Request>,
     X::Error: Into<Error>,
     X::InitError: fmt::Debug,
-    <X::Service as Service<Request>>::Future: 'static,
     U: ServiceFactory<(Request, Framed<T, h1::Codec>), Config = (), Response = ()>,
     U::Error: fmt::Display + Into<Error>,
     U::InitError: fmt::Debug,
-    <U::Service as Service<(Request, Framed<T, h1::Codec>)>>::Future: 'static,
 {
     type Response = ();
     type Error = DispatchError;
@@ -389,11 +379,9 @@ where
     X: ServiceFactory<Request, Response = Request>,
     X::Error: Into<Error>,
     X::InitError: fmt::Debug,
-    <X::Service as Service<Request>>::Future: 'static,
     U: ServiceFactory<(Request, Framed<T, h1::Codec>), Response = ()>,
     U::Error: fmt::Display,
     U::InitError: fmt::Debug,
-    <U::Service as Service<(Request, Framed<T, h1::Codec>)>>::Future: 'static,
 {
     type Output =
         Result<HttpServiceHandler<T, S::Service, B, X::Service, U::Service>, ()>;

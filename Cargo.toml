@@ -80,11 +80,11 @@ required-features = ["rustls"]
 actix-codec = "0.4.0-beta.1"
 actix-macros = "0.2.0"
 actix-router = "0.2.7"
-actix-rt = "2.1"
+actix-rt = "2.2"
 actix-server = "2.0.0-beta.3"
 actix-service = "2.0.0-beta.4"
 actix-utils = "3.0.0-beta.2"
-actix-tls = { version = "3.0.0-beta.4", default-features = false, optional = true }
+actix-tls = { version = "3.0.0-beta.5", default-features = false, optional = true }
 
 actix-web-codegen = "0.5.0-beta.2"
 actix-http = "3.0.0-beta.4"
@@ -134,9 +134,6 @@ actix-web-codegen = { path = "actix-web-codegen" }
 actix-multipart = { path = "actix-multipart" }
 actix-files = { path = "actix-files" }
 awc = { path = "awc" }
-
-actix-rt = { git = "https://github.com/actix/actix-net.git" }
-actix-tls = { git = "https://github.com/actix/actix-net.git" }
 
 [[bench]]
 name = "server"

@@ -1450,7 +1450,8 @@ mod tests {
 
         stream.shutdown().await.unwrap();
 
-        actix_rt::time::sleep(Duration::from_secs(2)).await;
+        actix_rt::time::sleep(Duration::from_secs(3)).await;
+        actix_rt::task::yield_now().await;
 
         poll_fn(|cx| {
             assert!(h1.as_mut().poll(cx).is_ready());
