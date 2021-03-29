@@ -21,15 +21,10 @@ use crate::frozen::FrozenClientRequest;
 use crate::sender::{PrepForSendingError, RequestSender, SendClientRequest};
 use crate::ClientConfig;
 
-cfg_if::cfg_if! {
-    if #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))] {
-        const HTTPS_ENCODING: &str = "br, gzip, deflate";
-    } else if #[cfg(feature = "compress")] {
-        const HTTPS_ENCODING: &str = "br";
-    } else {
-        const HTTPS_ENCODING: &str = "identity";
-    }
-}
+#[cfg(feature = "compress")]
+const HTTPS_ENCODING: &str = "br, gzip, deflate";
+#[cfg(not(feature = "compress"))]
+const HTTPS_ENCODING: &str = "br";
 
 /// An HTTP Client request builder
 ///
@@ -521,11 +516,11 @@ impl ClientRequest {
                 .unwrap_or(true);
 
             if https {
-                slf = slf.insert_header_if_none((header::ACCEPT_ENCODING, HTTPS_ENCODING))
+                slf = slf.insert_header_if_none((header::ACCEPT_ENCODING, HTTPS_ENCODING));
             } else {
-                #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
+                #[cfg(feature = "compress")]
                 {
-                    slf = slf.insert_header_if_none((header::ACCEPT_ENCODING, "gzip, deflate"))
+                    slf = slf.insert_header_if_none((header::ACCEPT_ENCODING, "gzip, deflate"));
                 }
             };
         }
