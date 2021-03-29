@@ -12,7 +12,7 @@ use futures_util::future::{Either, FutureExt, LocalBoxFuture};
 /// middleware for a workaround.
 ///
 /// # Examples
-/// ```rust
+/// ```
 /// use actix_web::middleware::{Condition, NormalizePath};
 /// use actix_web::App;
 ///

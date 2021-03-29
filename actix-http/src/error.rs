@@ -483,7 +483,7 @@ where
 /// response as opposite to *INTERNAL SERVER ERROR* which is defined by
 /// default.
 ///
-/// ```rust
+/// ```
 /// # use std::io;
 /// # use actix_http::*;
 ///

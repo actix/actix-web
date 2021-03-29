@@ -2,7 +2,7 @@
 //!
 //! ## Example
 //!
-//! ```rust,no_run
+//! ```no_run
 //! use actix_web::{get, web, App, HttpServer, Responder};
 //!
 //! #[get("/{id}/{name}/index.html")]

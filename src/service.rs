@@ -462,7 +462,7 @@ impl WebService {
 
     /// Add match guard to a web service.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{web, guard, dev, App, Error, HttpResponse};
     ///
     /// async fn index(req: dev::ServiceRequest) -> Result<dev::ServiceResponse, Error> {

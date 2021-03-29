@@ -159,7 +159,7 @@ impl HttpRequest {
 
     /// Generate url for named resource
     ///
-    /// ```rust
+    /// ```
     /// # use actix_web::{web, App, HttpRequest, HttpResponse};
     /// #
     /// fn index(req: HttpRequest) -> HttpResponse {
@@ -231,7 +231,7 @@ impl HttpRequest {
     ///
     /// If `App::data` was used to store object, use `Data<T>`:
     ///
-    /// ```rust,ignore
+    /// ```ignore
     /// let opt_t = req.app_data::<Data<T>>();
     /// ```
     pub fn app_data<T: 'static>(&self) -> Option<&T> {
@@ -302,7 +302,7 @@ impl Drop for HttpRequest {
 ///
 /// ## Example
 ///
-/// ```rust
+/// ```
 /// use actix_web::{web, App, HttpRequest};
 /// use serde_derive::Deserialize;
 ///

@@ -51,7 +51,7 @@ pub trait FromRequest: Sized {
 ///
 /// ## Example
 ///
-/// ```rust
+/// ```
 /// use actix_web::{web, dev, App, Error, HttpRequest, FromRequest};
 /// use actix_web::error::ErrorBadRequest;
 /// use futures_util::future::{ok, err, Ready};
@@ -143,7 +143,7 @@ where
 ///
 /// ## Example
 ///
-/// ```rust
+/// ```
 /// use actix_web::{web, dev, App, Result, Error, HttpRequest, FromRequest};
 /// use actix_web::error::ErrorBadRequest;
 /// use futures_util::future::{ok, err, Ready};

@@ -47,7 +47,7 @@ enum SslConnector {
 /// The `Connector` type uses a builder-like combinator pattern for service
 /// construction that finishes by calling the `.finish()` method.
 ///
-/// ```rust,ignore
+/// ```ignore
 /// use std::time::Duration;
 /// use actix_http::client::Connector;
 ///
