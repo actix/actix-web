@@ -1,9 +1,6 @@
 //! Typed HTTP headers, pre-defined `HeaderName`s, traits for parsing and conversion, and other
 //! header utility methods.
 
-use std::fmt;
-
-use bytes::{Bytes, BytesMut};
 use percent_encoding::{AsciiSet, CONTROLS};
 
 pub use http::header::*;
@@ -37,35 +34,6 @@ pub trait Header: IntoHeaderValue {
 
     /// Parse a header
     fn parse<T: HttpMessage>(msg: &T) -> Result<Self, ParseError>;
-}
-
-#[doc(hidden)]
-#[derive(Debug, Default)]
-pub struct Writer {
-    buf: BytesMut,
-}
-
-impl Writer {
-    pub fn new() -> Writer {
-        Writer::default()
-    }
-
-    pub fn take(&mut self) -> Bytes {
-        self.buf.split().freeze()
-    }
-}
-
-impl fmt::Write for Writer {
-    #[inline]
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        self.buf.extend_from_slice(s.as_bytes());
-        Ok(())
-    }
-
-    #[inline]
-    fn write_fmt(&mut self, args: fmt::Arguments<'_>) -> fmt::Result {
-        fmt::write(self, args)
-    }
 }
 
 /// Convert `http::HeaderMap` to our `HeaderMap`.
