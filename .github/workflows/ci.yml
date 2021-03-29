@@ -23,6 +23,9 @@ jobs:
     name: ${{ matrix.target.name }} / ${{ matrix.version }}
     runs-on: ${{ matrix.target.os }}
 
+    env:
+      VCPKGRS_DYNAMIC: 1
+
     steps:
       - uses: actions/checkout@v2
 
@@ -65,7 +68,13 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: hack
-          args: --clean-per-run check --workspace --no-default-features --tests
+          args: check --workspace --no-default-features
+
+      - name: check minimal + tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: hack
+          args: check --workspace --no-default-features --tests --examples
 
       - name: check full
         uses: actions-rs/cargo@v1
