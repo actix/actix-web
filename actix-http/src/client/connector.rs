@@ -119,7 +119,7 @@ impl<S> Connector<S> {
     /// Use custom connector.
     pub fn connector<S1, Io1>(self, connector: S1) -> Connector<S1>
     where
-        Io1: ConnectionIo + fmt::Debug,
+        Io1: ActixStream + fmt::Debug + 'static,
         S1: Service<
                 TcpConnect<Uri>,
                 Response = TcpConnection<Uri, Io1>,
@@ -136,7 +136,14 @@ impl<S> Connector<S> {
 
 impl<S, Io> Connector<S>
 where
-    Io: ConnectionIo + ActixStream + fmt::Debug,
+    // Note:
+    // Input Io type is bound to ActixStream trait but internally in client module they
+    // are bound to ConnectionIo trait alias. And latter is the trait exposed to public
+    // in the form of Box<dyn ConnectionIo> type.
+    //
+    // This remap is to hide ActixStream's trait methods. They are not meant to be called
+    // from user code.
+    Io: ActixStream + fmt::Debug + 'static,
     S: Service<
             TcpConnect<Uri>,
             Response = TcpConnection<Uri, Io>,
@@ -407,16 +414,14 @@ struct TlsConnectorService<S, St> {
     timeout: Duration,
 }
 
-impl<S, St, Io, Res> Service<Connect> for TlsConnectorService<S, St>
+impl<S, St, Io> Service<Connect> for TlsConnectorService<S, St>
 where
     S: Service<Connect, Response = TcpConnection<Uri, Io>, Error = ConnectError>
         + Clone
         + 'static,
-    St: Service<TcpConnection<Uri, Io>, Response = Res, Error = std::io::Error>
-        + Clone
-        + 'static,
+    St: Service<TcpConnection<Uri, Io>, Error = std::io::Error> + Clone + 'static,
     Io: ConnectionIo,
-    Res: IntoConnectionIo,
+    St::Response: IntoConnectionIo,
 {
     type Response = (Box<dyn ConnectionIo>, Protocol);
     type Error = ConnectError;
@@ -471,10 +476,10 @@ where
         Error = std::io::Error,
         Future = Fut2,
     >,
+    S::Response: IntoConnectionIo,
     Fut1: Future<Output = Result<TcpConnection<Uri, Io>, ConnectError>>,
     Fut2: Future<Output = Result<S::Response, S::Error>>,
     Io: ConnectionIo,
-    Res: IntoConnectionIo,
 {
     type Output = Result<(Box<dyn ConnectionIo>, Protocol), ConnectError>;
 
