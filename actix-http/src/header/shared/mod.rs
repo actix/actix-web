@@ -3,8 +3,8 @@
 mod charset;
 mod content_encoding;
 mod extended;
-mod quality_item;
 mod httpdate;
+mod quality_item;
 
 pub use self::charset::Charset;
 pub use self::content_encoding::ContentEncoding;
