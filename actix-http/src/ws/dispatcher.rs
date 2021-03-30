@@ -72,8 +72,13 @@ mod inner {
 
     use actix_codec::{AsyncRead, AsyncWrite, Decoder, Encoder, Framed};
 
+    use crate::ResponseError;
+
     /// Framed transport errors
-    pub enum DispatcherError<E, U: Encoder<I> + Decoder, I> {
+    pub enum DispatcherError<E, U, I>
+    where
+        U: Encoder<I> + Decoder,
+    {
         /// Inner service error.
         Service(E),
 
@@ -84,15 +89,19 @@ mod inner {
         Decoder(<U as Decoder>::Error),
     }
 
-    impl<E, U: Encoder<I> + Decoder, I> From<E> for DispatcherError<E, U, I> {
+    impl<E, U, I> From<E> for DispatcherError<E, U, I>
+    where
+        U: Encoder<I> + Decoder,
+    {
         fn from(err: E) -> Self {
             DispatcherError::Service(err)
         }
     }
 
-    impl<E, U: Encoder<I> + Decoder, I> fmt::Debug for DispatcherError<E, U, I>
+    impl<E, U, I> fmt::Debug for DispatcherError<E, U, I>
     where
         E: fmt::Debug,
+        U: Encoder<I> + Decoder,
         <U as Encoder<I>>::Error: fmt::Debug,
         <U as Decoder>::Error: fmt::Debug,
     {
@@ -111,9 +120,10 @@ mod inner {
         }
     }
 
-    impl<E, U: Encoder<I> + Decoder, I> fmt::Display for DispatcherError<E, U, I>
+    impl<E, U, I> fmt::Display for DispatcherError<E, U, I>
     where
         E: fmt::Display,
+        U: Encoder<I> + Decoder,
         <U as Encoder<I>>::Error: fmt::Debug,
         <U as Decoder>::Error: fmt::Debug,
     {
@@ -124,6 +134,15 @@ mod inner {
                 DispatcherError::Decoder(ref e) => write!(fmt, "{:?}", e),
             }
         }
+    }
+
+    impl<E, U, I> ResponseError for DispatcherError<E, U, I>
+    where
+        E: fmt::Debug + fmt::Display,
+        U: Encoder<I> + Decoder,
+        <U as Encoder<I>>::Error: fmt::Debug,
+        <U as Decoder>::Error: fmt::Debug,
+    {
     }
 
     /// Message type wrapper for signalling end of message stream.
