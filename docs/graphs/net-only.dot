@@ -3,31 +3,26 @@ digraph {
 
     subgraph cluster_net {
         label="actix-net"
-
         "actix-codec" "actix-macros" "actix-rt" "actix-server" "actix-service"
         "actix-tls" "actix-tracing" "actix-utils" "actix-router"
     }
     
     subgraph cluster_other {
         label="other actix owned crates"
-
-        {
-            rank=same
-            "local-channel" "local-waker" "bytestring"
-        }
+        { rank=same; "local-channel" "local-waker" "bytestring" }
     }
 
     subgraph cluster_tokio {
         label="tokio"
-
-        "tokio" [fontcolor = darkgreen]
-        "tokio-util" [fontcolor = darkgreen]
+        "tokio" "tokio-util"
     }
 
-    "actix-codec" -> { "tokio" "tokio-util" }
+    "actix-codec" -> { "tokio" }
+    "actix-codec" -> { "tokio-util" }[color=red]
     "actix-utils" -> { "local-waker" }
     "actix-tracing" -> { "actix-service" }
     "actix-tls" -> { "actix-service" "actix-codec" "actix-utils" "actix-rt" }
+    "actix-tls" -> { "tokio-util" }[color="#009900"]
     "actix-server" -> { "actix-service" "actix-rt" "actix-utils" "tokio" }
     "actix-rt" -> { "actix-macros" "tokio" }
     "actix-router" -> { "bytestring" }
