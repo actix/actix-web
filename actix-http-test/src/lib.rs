@@ -13,7 +13,9 @@ use std::{net, thread, time};
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_rt::{net::TcpStream, System};
 use actix_server::{Server, ServiceFactory};
-use awc::{error::PayloadError, ws, Client, ClientRequest, ClientResponse, Connector};
+use awc::{
+    error::PayloadError, http::HeaderMap, ws, Client, ClientRequest, ClientResponse, Connector,
+};
 use bytes::Bytes;
 use futures_core::stream::Stream;
 use http::Method;
@@ -26,7 +28,7 @@ use socket2::{Domain, Protocol, Socket, Type};
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```
 /// use actix_http::HttpService;
 /// use actix_http_test::TestServer;
 /// use actix_web::{web, App, HttpResponse, Error};
