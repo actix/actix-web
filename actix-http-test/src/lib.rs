@@ -26,7 +26,7 @@ use socket2::{Domain, Protocol, Socket, Type};
 ///
 /// # Examples
 ///
-/// ```
+/// ```rust
 /// use actix_http::HttpService;
 /// use actix_http_test::TestServer;
 /// use actix_web::{web, App, HttpResponse, Error};
@@ -256,6 +256,14 @@ impl TestServer {
         &mut self,
     ) -> Result<Framed<impl AsyncRead + AsyncWrite, ws::Codec>, awc::error::WsClientError> {
         self.ws_at("/").await
+    }
+
+    /// Get default HeaderMap of Client.
+    ///
+    /// Returns Some(&mut HeaderMap) when Client object is unique
+    /// (No other clone of client exists at the same time).
+    pub fn client_headers(&mut self) -> Option<&mut HeaderMap> {
+        self.client.headers()
     }
 
     /// Stop HTTP server

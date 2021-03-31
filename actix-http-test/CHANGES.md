@@ -1,7 +1,8 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
-
+### Added
+* Added `TestServer::client_headers` method. [#2097]
 
 ## 3.0.0-beta.3 - 2021-03-09
 * No notable changes.
