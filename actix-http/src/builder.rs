@@ -63,11 +63,9 @@ where
     X: ServiceFactory<Request, Config = (), Response = Request>,
     X::Error: Into<Error>,
     X::InitError: fmt::Debug,
-    <X::Service as Service<Request>>::Future: 'static,
     U: ServiceFactory<(Request, Framed<T, Codec>), Config = (), Response = ()>,
     U::Error: fmt::Display,
     U::InitError: fmt::Debug,
-    <U::Service as Service<(Request, Framed<T, Codec>)>>::Future: 'static,
 {
     /// Set server keep-alive setting.
     ///
@@ -127,7 +125,6 @@ where
         X1: ServiceFactory<Request, Config = (), Response = Request>,
         X1::Error: Into<Error>,
         X1::InitError: fmt::Debug,
-        <X1::Service as Service<Request>>::Future: 'static,
     {
         HttpServiceBuilder {
             keep_alive: self.keep_alive,
@@ -152,7 +149,6 @@ where
         U1: ServiceFactory<(Request, Framed<T, Codec>), Config = (), Response = ()>,
         U1::Error: fmt::Display,
         U1::InitError: fmt::Debug,
-        <U1::Service as Service<(Request, Framed<T, Codec>)>>::Future: 'static,
     {
         HttpServiceBuilder {
             keep_alive: self.keep_alive,
@@ -211,7 +207,6 @@ where
         S::Error: Into<Error> + 'static,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>> + 'static,
-        <S::Service as Service<Request>>::Future: 'static,
     {
         let cfg = ServiceConfig::new(
             self.keep_alive,
@@ -233,7 +228,6 @@ where
         S::Error: Into<Error> + 'static,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>> + 'static,
-        <S::Service as Service<Request>>::Future: 'static,
     {
         let cfg = ServiceConfig::new(
             self.keep_alive,

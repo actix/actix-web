@@ -3,6 +3,7 @@ use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
+use std::task::{Context, Poll};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_http::{body, h1, ws, Error, HttpService, Request, Response};
@@ -11,7 +12,6 @@ use actix_service::{fn_factory, Service};
 use actix_utils::dispatcher::Dispatcher;
 use bytes::Bytes;
 use futures_util::future;
-use futures_util::task::{Context, Poll};
 use futures_util::{SinkExt as _, StreamExt as _};
 
 struct WsService<T>(Arc<Mutex<(PhantomData<T>, Cell<bool>)>>);

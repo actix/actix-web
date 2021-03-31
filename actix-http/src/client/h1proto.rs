@@ -7,7 +7,7 @@ use std::{
 use actix_codec::Framed;
 use bytes::buf::BufMut;
 use bytes::{Bytes, BytesMut};
-use futures_core::Stream;
+use futures_core::{ready, Stream};
 use futures_util::{future::poll_fn, SinkExt as _};
 
 use crate::error::PayloadError;
@@ -17,7 +17,7 @@ use crate::http::{
     StatusCode,
 };
 use crate::message::{RequestHeadType, ResponseHead};
-use crate::payload::{Payload, PayloadStream};
+use crate::payload::Payload;
 
 use super::connection::{ConnectionIo, H1Connection};
 use super::error::{ConnectError, SendRequestError};
@@ -122,10 +122,7 @@ where
 
             Ok((head, Payload::None))
         }
-        _ => {
-            let pl: PayloadStream = Box::pin(PlStream::new(framed));
-            Ok((head, pl.into()))
-        }
+        _ => Ok((head, Payload::Stream(Box::pin(PlStream::new(framed))))),
     }
 }
 
@@ -194,21 +191,16 @@ where
 }
 
 #[pin_project::pin_project]
-pub(crate) struct PlStream<Io: ConnectionIo>
-where
-    Io: ConnectionIo,
-{
+pub(crate) struct PlStream<Io: ConnectionIo> {
     #[pin]
-    framed: Option<Framed<H1Connection<Io>, h1::ClientPayloadCodec>>,
+    framed: Framed<H1Connection<Io>, h1::ClientPayloadCodec>,
 }
 
 impl<Io: ConnectionIo> PlStream<Io> {
     fn new(framed: Framed<H1Connection<Io>, h1::ClientCodec>) -> Self {
         let framed = framed.into_map_codec(|codec| codec.into_payload_codec());
 
-        PlStream {
-            framed: Some(framed),
-        }
+        PlStream { framed }
     }
 }
 
@@ -219,20 +211,16 @@ impl<Io: ConnectionIo> Stream for PlStream<Io> {
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Option<Self::Item>> {
-        let mut framed = self.project().framed.as_pin_mut().unwrap();
+        let mut this = self.project();
 
-        match framed.as_mut().next_item(cx)? {
-            Poll::Pending => Poll::Pending,
-            Poll::Ready(Some(chunk)) => {
-                if let Some(chunk) = chunk {
-                    Poll::Ready(Some(Ok(chunk)))
-                } else {
-                    let keep_alive = framed.codec_ref().keepalive();
-                    framed.io_mut().on_release(keep_alive);
-                    Poll::Ready(None)
-                }
+        match ready!(this.framed.as_mut().next_item(cx)?) {
+            Some(Some(chunk)) => Poll::Ready(Some(Ok(chunk))),
+            Some(None) => {
+                let keep_alive = this.framed.codec_ref().keepalive();
+                this.framed.io_mut().on_release(keep_alive);
+                Poll::Ready(None)
             }
-            Poll::Ready(None) => Poll::Ready(None),
+            None => Poll::Ready(None),
         }
     }
 }
