@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+* Added `TestServer::client_headers` method. [#2097]
+
 ### Fixed
 * Double ampersand in Logger format is escaped correctly. [#2067]
 
