@@ -52,10 +52,10 @@ cookies = ["actix-http/cookies"]
 secure-cookies = ["actix-http/secure-cookies"]
 
 # openssl
-openssl = ["actix-tls/accept", "actix-tls/openssl"]
+openssl = ["actix-http/openssl", "actix-tls/accept", "actix-tls/openssl"]
 
 # rustls
-rustls = ["actix-tls/accept", "actix-tls/rustls"]
+rustls = ["actix-http/rustls", "actix-tls/accept", "actix-tls/rustls"]
 
 [[example]]
 name = "basic"
@@ -108,7 +108,7 @@ time = { version = "0.2.23", default-features = false, features = ["std"] }
 url = "2.1"
 
 [dev-dependencies]
-actix-test = "0.0.1"
+actix-test = { version = "0.0.1", features = ["openssl", "rustls"] }
 awc = { version = "3.0.0-beta.3", features = ["openssl"] }
 
 brotli2 = "0.3.2"

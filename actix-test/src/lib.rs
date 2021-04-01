@@ -35,7 +35,10 @@ use std::{fmt, net, sync::mpsc, thread, time};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 pub use actix_http::test::TestBuffer;
-use actix_http::{http::Method, ws, HttpService, Request};
+use actix_http::{
+    http::{HeaderMap, Method},
+    ws, HttpService, Request,
+};
 use actix_service::{map_config, IntoServiceFactory, ServiceFactory};
 use actix_web::{
     dev::{AppConfig, MessageBody, Server, Service},
@@ -444,6 +447,14 @@ impl TestServer {
         &mut self,
     ) -> Result<Framed<impl AsyncRead + AsyncWrite, ws::Codec>, awc::error::WsClientError> {
         self.ws_at("/").await
+    }
+
+    /// Get default HeaderMap of Client.
+    ///
+    /// Returns Some(&mut HeaderMap) when Client object is unique
+    /// (No other clone of client exists at the same time).
+    pub fn client_headers(&mut self) -> Option<&mut HeaderMap> {
+        self.client.headers()
     }
 
     /// Gracefully stop HTTP server.

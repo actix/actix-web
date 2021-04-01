@@ -153,11 +153,14 @@ where
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
+
     B: MessageBody + 'static,
+
     X: ServiceFactory<Request, Config = (), Response = Request>,
     X::Future: 'static,
     X::Error: Into<Error>,
     X::InitError: fmt::Debug,
+
     U: ServiceFactory<
         (Request, Framed<TcpStream, h1::Codec>),
         Config = (),
@@ -187,10 +190,11 @@ where
 
 #[cfg(feature = "openssl")]
 mod openssl {
-    use super::*;
     use actix_service::ServiceFactoryExt;
     use actix_tls::accept::openssl::{Acceptor, SslAcceptor, SslError, TlsStream};
     use actix_tls::accept::TlsError;
+
+    use super::*;
 
     impl<S, B, X, U> HttpService<TlsStream<TcpStream>, S, B, X, U>
     where
@@ -200,11 +204,14 @@ mod openssl {
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>> + 'static,
         <S::Service as Service<Request>>::Future: 'static,
+
         B: MessageBody + 'static,
+
         X: ServiceFactory<Request, Config = (), Response = Request>,
         X::Future: 'static,
         X::Error: Into<Error>,
         X::InitError: fmt::Debug,
+
         U: ServiceFactory<
             (Request, Framed<TlsStream<TcpStream>, h1::Codec>),
             Config = (),
@@ -252,11 +259,11 @@ mod openssl {
 mod rustls {
     use std::io;
 
-    use actix_service::ServiceFactoryExt as _;
     use actix_tls::accept::rustls::{Acceptor, ServerConfig, Session, TlsStream};
     use actix_tls::accept::TlsError;
 
     use super::*;
+    use actix_service::ServiceFactoryExt;
 
     impl<S, B, X, U> HttpService<TlsStream<TcpStream>, S, B, X, U>
     where
@@ -266,11 +273,14 @@ mod rustls {
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>> + 'static,
         <S::Service as Service<Request>>::Future: 'static,
+
         B: MessageBody + 'static,
+
         X: ServiceFactory<Request, Config = (), Response = Request>,
         X::Future: 'static,
         X::Error: Into<Error>,
         X::InitError: fmt::Debug,
+
         U: ServiceFactory<
             (Request, Framed<TlsStream<TcpStream>, h1::Codec>),
             Config = (),
@@ -280,7 +290,7 @@ mod rustls {
         U::Error: fmt::Display + Into<Error>,
         U::InitError: fmt::Debug,
     {
-        /// Create openssl based service
+        /// Create rustls based service
         pub fn rustls(
             self,
             mut config: ServerConfig,
@@ -321,17 +331,21 @@ impl<T, S, B, X, U> ServiceFactory<(T, Protocol, Option<net::SocketAddr>)>
     for HttpService<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin + 'static,
+
     S: ServiceFactory<Request, Config = ()>,
     S::Future: 'static,
     S::Error: Into<Error> + 'static,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
+
     B: MessageBody + 'static,
+
     X: ServiceFactory<Request, Config = (), Response = Request>,
     X::Future: 'static,
     X::Error: Into<Error>,
     X::InitError: fmt::Debug,
+
     U: ServiceFactory<(Request, Framed<T, h1::Codec>), Config = (), Response = ()>,
     U::Future: 'static,
     U::Error: fmt::Display + Into<Error>,

@@ -13,4 +13,3 @@ ignore: # ignore code coverage on following paths
   - "**/tests"
   - "**/benches"
   - "**/examples"
-  - "test-server"

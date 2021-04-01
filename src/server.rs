@@ -71,12 +71,15 @@ impl<F, I, S, B> HttpServer<F, I, S, B>
 where
     F: Fn() -> I + Send + Clone + 'static,
     I: IntoServiceFactory<S, Request>,
+
     S: ServiceFactory<Request, Config = AppConfig> + 'static,
+    // S::Future: 'static,
     S::Error: Into<Error> + 'static,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
     S::Service: 'static,
+    // S::Service: 'static,
     B: MessageBody + 'static,
 {
     /// Create new HTTP server with application factory
@@ -294,7 +297,7 @@ where
                 })?;
         Ok(self)
     }
-
+    
     #[cfg(feature = "openssl")]
     /// Use listener for accepting incoming tls connection requests
     ///
@@ -347,9 +350,10 @@ where
                     }))
                     .openssl(acceptor.clone())
                 })?;
+
         Ok(self)
     }
-
+    
     #[cfg(feature = "rustls")]
     /// Use listener for accepting incoming tls connection requests
     ///
