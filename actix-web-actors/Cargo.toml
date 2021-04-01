@@ -29,5 +29,6 @@ tokio = { version = "1", features = ["sync"] }
 
 [dev-dependencies]
 actix-rt = "2.2"
+awc = { version = "3.0.0-beta.3", default-features = false }
 env_logger = "0.8"
 futures-util = { version = "0.3.7", default-features = false }

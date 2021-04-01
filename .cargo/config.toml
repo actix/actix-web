@@ -1,0 +1,3 @@
+[alias]
+chk = "hack check --workspace --tests --examples"
+lint = "hack --clean-per-run clippy --workspace --tests --examples"

@@ -970,6 +970,14 @@ impl TestServer {
         self.ws_at("/").await
     }
 
+    /// Get default HeaderMap of Client.
+    ///
+    /// Returns Some(&mut HeaderMap) when Client object is unique
+    /// (No other clone of client exists at the same time).
+    pub fn client_headers(&mut self) -> Option<&mut HeaderMap> {
+        self.client.headers()
+    }
+
     /// Gracefully stop HTTP server
     pub async fn stop(self) {
         self.server.stop(true).await;

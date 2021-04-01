@@ -286,4 +286,12 @@ impl Client {
         }
         req
     }
+
+    /// Get default HeaderMap of Client.
+    ///
+    /// Returns Some(&mut HeaderMap) when Client object is unique
+    /// (No other clone of client exists at the same time).
+    pub fn headers(&mut self) -> Option<&mut HeaderMap> {
+        Rc::get_mut(&mut self.0.headers)
+    }
 }
