@@ -951,7 +951,8 @@ mod tests {
     use std::str;
 
     use actix_service::fn_service;
-    use futures_util::future::{lazy, ready, Ready};
+    use actix_utils::future::{ready, Ready};
+    use futures_util::future::lazy;
 
     use super::*;
     use crate::{

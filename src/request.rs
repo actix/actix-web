@@ -5,7 +5,7 @@ use std::{fmt, net};
 use actix_http::http::{HeaderMap, Method, Uri, Version};
 use actix_http::{Error, Extensions, HttpMessage, Message, Payload, RequestHead};
 use actix_router::{Path, Url};
-use futures_util::future::{ok, Ready};
+use actix_utils::future::{ok, Ready};
 use smallvec::SmallVec;
 
 use crate::app_service::AppInitServiceState;

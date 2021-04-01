@@ -1,7 +1,8 @@
 //! For either helper, see [`Either`].
 
 use bytes::Bytes;
-use futures_util::{future::LocalBoxFuture, FutureExt, TryFutureExt};
+use futures_core::future::LocalBoxFuture;
+use futures_util::{FutureExt as _, TryFutureExt as _};
 
 use crate::{
     dev,

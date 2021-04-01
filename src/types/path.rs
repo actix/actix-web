@@ -4,7 +4,7 @@ use std::{fmt, ops, sync::Arc};
 
 use actix_http::error::{Error, ErrorNotFound};
 use actix_router::PathDeserializer;
-use futures_util::future::{ready, Ready};
+use actix_utils::future::{ready, Ready};
 use serde::de;
 
 use crate::{dev::Payload, error::PathError, FromRequest, HttpRequest};

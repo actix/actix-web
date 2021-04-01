@@ -9,8 +9,12 @@
 ### Changed
 * `client::Connector` type now only have one generic type for `actix_service::Service`. [#2063]
 
+### Removed
+* `ResponseError` impl for `actix_utils::timeout::TimeoutError`. [#2127]
+
 [#2063]: https://github.com/actix/actix-web/pull/2063
 [#2081]: https://github.com/actix/actix-web/pull/2081
+[#2127]: https://github.com/actix/actix-web/pull/2127
 
 
 ## 3.0.0-beta.4 - 2021-03-08

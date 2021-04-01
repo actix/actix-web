@@ -519,7 +519,7 @@ mod tests {
 
     use actix_rt::time::sleep;
     use actix_service::Service;
-    use futures_util::future::ok;
+    use actix_utils::future::ok;
 
     use crate::http::{header, HeaderValue, Method, StatusCode};
     use crate::middleware::DefaultHeaders;

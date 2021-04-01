@@ -10,7 +10,7 @@ use actix_service::boxed::{self, BoxServiceFactory};
 use actix_service::{
     apply, apply_fn_factory, IntoServiceFactory, ServiceFactory, ServiceFactoryExt, Transform,
 };
-use futures_util::future::FutureExt;
+use futures_util::future::FutureExt as _;
 
 use crate::app_service::{AppEntry, AppInit, AppRoutingFactory};
 use crate::config::ServiceConfig;
@@ -465,8 +465,8 @@ where
 #[cfg(test)]
 mod tests {
     use actix_service::Service;
+    use actix_utils::future::{err, ok};
     use bytes::Bytes;
-    use futures_util::future::{err, ok};
 
     use super::*;
     use crate::http::{header, HeaderValue, Method, StatusCode};
