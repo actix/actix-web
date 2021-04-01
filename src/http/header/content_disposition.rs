@@ -10,7 +10,8 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use std::fmt::{self, Write};
 
-use crate::header::{self, ExtendedValue, Header, IntoHeaderValue, Writer};
+use crate::http::header;
+use super::{ExtendedValue, Header, IntoHeaderValue, Writer};
 
 /// Split at the index of the first `needle` if it exists or at the end.
 fn split_once(haystack: &str, needle: char) -> (&str, &str) {
@@ -63,7 +64,7 @@ impl<'a> From<&'a str> for DispositionType {
 ///
 /// # Examples
 /// ```
-/// use actix_http::http::header::DispositionParam;
+/// use actix_web::http::header::DispositionParam;
 ///
 /// let param = DispositionParam::Filename(String::from("sample.txt"));
 /// assert!(param.is_filename());
@@ -240,7 +241,7 @@ impl DispositionParam {
 /// # Example
 ///
 /// ```
-/// use actix_http::http::header::{
+/// use actix_web::http::header::{
 ///     Charset, ContentDisposition, DispositionParam, DispositionType,
 ///     ExtendedValue,
 /// };
@@ -554,8 +555,8 @@ impl fmt::Display for ContentDisposition {
 #[cfg(test)]
 mod tests {
     use super::{ContentDisposition, DispositionParam, DispositionType};
-    use crate::header::shared::Charset;
-    use crate::header::{ExtendedValue, HeaderValue};
+    use crate::http::header::Charset;
+    use crate::http::header::{ExtendedValue, HeaderValue};
 
     #[test]
     fn test_from_raw_basic() {

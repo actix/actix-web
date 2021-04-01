@@ -13,7 +13,9 @@ use std::{net, thread, time};
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_rt::{net::TcpStream, System};
 use actix_server::{Server, ServiceFactory};
-use awc::{error::PayloadError, ws, Client, ClientRequest, ClientResponse, Connector};
+use awc::{
+    error::PayloadError, http::HeaderMap, ws, Client, ClientRequest, ClientResponse, Connector,
+};
 use bytes::Bytes;
 use futures_core::stream::Stream;
 use http::Method;
@@ -246,6 +248,14 @@ impl TestServer {
         &mut self,
     ) -> Result<Framed<impl AsyncRead + AsyncWrite, ws::Codec>, awc::error::WsClientError> {
         self.ws_at("/").await
+    }
+
+    /// Get default HeaderMap of Client.
+    ///
+    /// Returns Some(&mut HeaderMap) when Client object is unique
+    /// (No other clone of client exists at the same time).
+    pub fn client_headers(&mut self) -> Option<&mut HeaderMap> {
+        self.client.headers()
     }
 
     /// Stop HTTP server

@@ -4,7 +4,8 @@ use std::sync::Arc;
 
 use actix_http::error::{Error, ErrorInternalServerError};
 use actix_http::Extensions;
-use futures_util::future::{err, ok, LocalBoxFuture, Ready};
+use actix_utils::future::{err, ok, Ready};
+use futures_core::future::LocalBoxFuture;
 use serde::Serialize;
 
 use crate::dev::Payload;
@@ -147,14 +148,20 @@ impl<T: ?Sized + 'static> DataFactory for Data<T> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
     use actix_service::Service;
 
     use super::*;
+    use crate::dev::Service;
+    use crate::http::StatusCode;
+    use crate::test::{self, init_service, TestRequest};
     use crate::{
         http::StatusCode,
         test::{init_service, TestRequest},
         web, App, HttpResponse,
     };
+    use crate::{web, App, HttpResponse};
 
     #[actix_rt::test]
     async fn test_data_extractor() {

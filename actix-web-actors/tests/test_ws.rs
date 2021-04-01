@@ -1,8 +1,11 @@
 use actix::prelude::*;
-use actix_web::{web, App, HttpRequest};
+use actix_web::{
+    http::{header, StatusCode},
+    test, web, App, HttpRequest, HttpResponse,
+};
 use actix_web_actors::*;
 use bytes::Bytes;
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{SinkExt as _, StreamExt as _};
 
 struct Ws;
 
@@ -47,6 +50,54 @@ async fn test_simple() {
     framed.send(ws::Message::Ping("text".into())).await.unwrap();
     let item = framed.next().await.unwrap().unwrap();
     assert_eq!(item, ws::Frame::Pong(Bytes::copy_from_slice(b"text")));
+
+    framed
+        .send(ws::Message::Close(Some(ws::CloseCode::Normal.into())))
+        .await
+        .unwrap();
+
+    let item = framed.next().await.unwrap().unwrap();
+    assert_eq!(item, ws::Frame::Close(Some(ws::CloseCode::Normal.into())));
+}
+
+#[actix_rt::test]
+async fn test_with_credentials() {
+    let mut srv = test::start(|| {
+        App::new().service(web::resource("/").to(
+            |req: HttpRequest, stream: web::Payload| async move {
+                if req.headers().contains_key("Authorization") {
+                    ws::start(Ws, &req, stream)
+                } else {
+                    Ok(HttpResponse::new(StatusCode::UNAUTHORIZED))
+                }
+            },
+        ))
+    });
+
+    // client service without credentials
+    match srv.ws().await {
+        Ok(_) => panic!("WebSocket client without credentials should panic"),
+        Err(awc::error::WsClientError::InvalidResponseStatus(status)) => {
+            assert_eq!(status, StatusCode::UNAUTHORIZED)
+        }
+        Err(e) => panic!("Invalid error from WebSocket client: {}", e),
+    }
+
+    let headers = srv.client_headers().unwrap();
+    headers.insert(
+        header::AUTHORIZATION,
+        header::HeaderValue::from_static("Bearer Something"),
+    );
+
+    // client service with credentials
+    let client = srv.ws();
+
+    let mut framed = client.await.unwrap();
+
+    framed.send(ws::Message::Text("text".into())).await.unwrap();
+
+    let item = framed.next().await.unwrap().unwrap();
+    assert_eq!(item, ws::Frame::Text(Bytes::from_static(b"text")));
 
     framed
         .send(ws::Message::Close(Some(ws::CloseCode::Normal.into())))

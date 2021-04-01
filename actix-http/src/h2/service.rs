@@ -10,9 +10,9 @@ use actix_service::{
     fn_factory, fn_service, pipeline_factory, IntoServiceFactory, Service,
     ServiceFactory,
 };
+use actix_utils::future::ready;
 use bytes::Bytes;
 use futures_core::{future::LocalBoxFuture, ready};
-use futures_util::future::ready;
 use h2::server::{handshake, Handshake};
 use log::error;
 

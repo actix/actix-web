@@ -1,6 +1,10 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+* `Header` extractor for extracting common HTTP headers in handlers. [#2094]
+* Added `TestServer::client_headers` method. [#2097]
+
 ### Fixed
 * Double ampersand in Logger format is escaped correctly. [#2067]
 
@@ -12,11 +16,13 @@
 * The `client` mod was removed. Clients should now use `awc` directly.
   [871ca5e4](https://github.com/actix/actix-web/commit/871ca5e4ae2bdc22d1ea02701c2992fa8d04aed7)
 * Integration testing was moved to new `actix-test` crate. Namely these items from the `test`
-  module: `TestServer`, `TestServerConfig`, `start`, `start_with`, and `unused_addr`. [#???]
+  module: `TestServer`, `TestServerConfig`, `start`, `start_with`, and `unused_addr`. [#2112]
 
 [#2067]: https://github.com/actix/actix-web/pull/2067
 [#2093]: https://github.com/actix/actix-web/pull/2093
-[#???]: https://github.com/actix/actix-web/pull/???
+[#2094]: https://github.com/actix/actix-web/pull/2094
+[#2097]: https://github.com/actix/actix-web/pull/2097
+[#2112]: https://github.com/actix/actix-web/pull/2112
 
 
 ## 4.0.0-beta.4 - 2021-03-09

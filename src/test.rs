@@ -6,17 +6,15 @@ use std::{net::SocketAddr, rc::Rc};
 use actix_http::cookie::Cookie;
 pub use actix_http::test::TestBuffer;
 use actix_http::{
-    http::{
-        header::{ContentType, IntoHeaderPair},
-        Method, StatusCode, Uri, Version,
-    },
+    http::{header::IntoHeaderPair, Method, StatusCode, Uri, Version},
     test::TestRequest as HttpTestRequest,
     Extensions, Request,
 };
 use actix_router::{Path, ResourceDef, Url};
 use actix_service::{IntoService, IntoServiceFactory, Service, ServiceFactory};
+use actix_utils::future::ok;
 use futures_core::Stream;
-use futures_util::{future::ok, StreamExt};
+use futures_util::StreamExt as _;
 use serde::{de::DeserializeOwned, Serialize};
 
 use crate::{
@@ -24,6 +22,7 @@ use crate::{
     config::AppConfig,
     data::Data,
     dev::{Body, MessageBody, Payload},
+    http::header::ContentType,
     rmap::ResourceMap,
     service::{ServiceRequest, ServiceResponse},
     web::{Bytes, BytesMut},
@@ -156,7 +155,7 @@ where
     let mut resp = app
         .call(req)
         .await
-        .expect("read_response failed at application call");
+        .unwrap_or_else(|e| panic!("read_response failed at application call: {}", e));
 
     let mut body = resp.take_body();
     let mut bytes = BytesMut::new();
@@ -250,8 +249,12 @@ where
 {
     let body = read_body(res).await;
 
-    serde_json::from_slice(&body)
-        .unwrap_or_else(|e| panic!("read_response_json failed during deserialization: {}", e))
+    serde_json::from_slice(&body).unwrap_or_else(|e| {
+        panic!(
+            "read_response_json failed during deserialization of body: {:?}, {}",
+            body, e
+        )
+    })
 }
 
 pub async fn load_stream<S>(mut stream: S) -> Result<Bytes, Error>
@@ -307,8 +310,12 @@ where
 {
     let body = read_response(app, req).await;
 
-    serde_json::from_slice(&body)
-        .unwrap_or_else(|_| panic!("read_response_json failed during deserialization"))
+    serde_json::from_slice(&body).unwrap_or_else(|_| {
+        panic!(
+            "read_response_json failed during deserialization of body: {:?}",
+            body
+        )
+    })
 }
 
 /// Test `Request` builder.
@@ -563,9 +570,10 @@ impl TestRequest {
 
 #[cfg(test)]
 mod tests {
+    use std::time::SystemTime;
+
     use actix_http::HttpMessage;
     use serde::{Deserialize, Serialize};
-    use std::time::SystemTime;
 
     use super::*;
     use crate::{http::header, web, App, HttpResponse, Responder};

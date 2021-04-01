@@ -79,6 +79,7 @@ pub mod error;
 mod extract;
 pub mod guard;
 mod handler;
+pub mod http;
 mod info;
 pub mod middleware;
 mod request;
@@ -97,7 +98,7 @@ pub mod web;
 #[cfg(feature = "cookies")]
 pub use actix_http::cookie;
 pub use actix_http::Response as HttpResponse;
-pub use actix_http::{body, http, Error, HttpMessage, ResponseError, Result};
+pub use actix_http::{body, Error, HttpMessage, ResponseError, Result};
 pub use actix_rt as rt;
 pub use actix_web_codegen::*;
 

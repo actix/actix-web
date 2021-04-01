@@ -16,8 +16,8 @@ use actix_http::{
     Error,
 };
 use actix_service::{Service, Transform};
+use actix_utils::future::{ok, Ready};
 use futures_core::ready;
-use futures_util::future::{ok, Ready};
 use pin_project::pin_project;
 
 use crate::{

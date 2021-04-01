@@ -6,10 +6,8 @@ use std::{
     task::{Context, Poll},
 };
 
-use futures_util::{
-    future::{ready, Ready},
-    ready,
-};
+use actix_utils::future::{ready, Ready};
+use futures_core::ready;
 
 use crate::{dev::Payload, Error, HttpRequest};
 
