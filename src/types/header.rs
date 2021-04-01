@@ -2,13 +2,12 @@
 
 use std::{fmt, ops};
 
-use futures_util::future::{err, ok, Ready};
+use actix_utils::future::{err, ok, Ready};
 
-use crate::dev::Payload;
-use crate::error::ParseError;
-use crate::extract::FromRequest;
-use crate::http::header::Header as ParseHeader;
-use crate::HttpRequest;
+use crate::{
+    dev::Payload, error::ParseError, extract::FromRequest, http::header::Header as ParseHeader,
+    HttpRequest,
+};
 
 /// Extract typed headers from the request.
 ///

@@ -8,7 +8,7 @@ use std::{fmt, net, thread, time};
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 #[cfg(feature = "cookies")]
 use actix_http::cookie::Cookie;
-use actix_http::http::{Method, StatusCode, Uri, Version};
+use actix_http::http::{HeaderMap, Method, StatusCode, Uri, Version};
 use actix_http::test::TestRequest as HttpTestRequest;
 use actix_http::{ws, Extensions, HttpService, Request};
 use actix_router::{Path, ResourceDef, Url};
