@@ -11,7 +11,7 @@ use std::{
 };
 
 use bytes::BytesMut;
-use futures_util::{ready, stream::Stream};
+use futures_core::{ready, stream::Stream as _};
 use serde::{de::DeserializeOwned, Serialize};
 
 use actix_http::Payload;

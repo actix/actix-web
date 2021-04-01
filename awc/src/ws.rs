@@ -6,7 +6,7 @@
 //!
 //! ```no_run
 //! use awc::{Client, ws};
-//! use futures_util::{sink::SinkExt, stream::StreamExt};
+//! use futures_util::{sink::SinkExt as _, stream::StreamExt as _};
 //!
 //! #[actix_rt::main]
 //! async fn main() {

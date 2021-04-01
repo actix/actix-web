@@ -5,10 +5,11 @@ use std::{
 };
 
 use actix_codec::Framed;
+use actix_utils::future::poll_fn;
 use bytes::buf::BufMut;
 use bytes::{Bytes, BytesMut};
 use futures_core::{ready, Stream};
-use futures_util::{future::poll_fn, SinkExt as _};
+use futures_util::SinkExt as _;
 
 use crate::error::PayloadError;
 use crate::h1;

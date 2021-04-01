@@ -6,8 +6,8 @@ use std::{fmt, net};
 use actix_codec::Framed;
 use actix_rt::net::{ActixStream, TcpStream};
 use actix_service::{pipeline_factory, IntoServiceFactory, Service, ServiceFactory};
+use actix_utils::future::ready;
 use futures_core::future::LocalBoxFuture;
-use futures_util::future::ready;
 
 use crate::body::MessageBody;
 use crate::config::ServiceConfig;

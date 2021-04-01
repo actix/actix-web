@@ -1002,8 +1002,8 @@ mod tests {
     use std::str;
 
     use actix_service::fn_service;
+    use actix_utils::future::{poll_fn, ready, Ready};
     use bytes::Bytes;
-    use futures_util::future::{lazy, poll_fn, ready, Ready};
 
     use super::*;
     use crate::{
@@ -1079,7 +1079,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_req_parse_err() {
-        lazy(|cx| {
+        poll_fn(|cx| {
             let buf = TestBuffer::new("GET /test HTTP/1\r\n\r\n");
 
             let services = HttpFlow::new(ok_service(), ExpectHandler, None);
@@ -1106,13 +1106,15 @@ mod tests {
                     b"HTTP/1.1 400 Bad Request\r\n"
                 );
             }
+
+            Poll::Ready(())
         })
         .await;
     }
 
     #[actix_rt::test]
     async fn test_pipelining() {
-        lazy(|cx| {
+        poll_fn(|cx| {
             let buf = TestBuffer::new(
                 "\
                 GET /abcd HTTP/1.1\r\n\r\n\
@@ -1163,10 +1165,12 @@ mod tests {
 
                 assert_eq!(res.to_vec(), exp.to_vec());
             }
+
+            Poll::Ready(())
         })
         .await;
 
-        lazy(|cx| {
+        poll_fn(|cx| {
             let buf = TestBuffer::new(
                 "\
                 GET /abcd HTTP/1.1\r\n\r\n\
@@ -1216,13 +1220,15 @@ mod tests {
 
                 assert_eq!(res.to_vec(), exp.to_vec());
             }
+
+            Poll::Ready(())
         })
         .await;
     }
 
     #[actix_rt::test]
     async fn test_expect() {
-        lazy(|cx| {
+        poll_fn(|cx| {
             let mut buf = TestSeqBuffer::empty();
             let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
 
@@ -1288,13 +1294,15 @@ mod tests {
                     "
                 );
             }
+
+            Poll::Ready(())
         })
         .await;
     }
 
     #[actix_rt::test]
     async fn test_eager_expect() {
-        lazy(|cx| {
+        poll_fn(|cx| {
             let mut buf = TestSeqBuffer::empty();
             let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
 
@@ -1348,6 +1356,8 @@ mod tests {
                     "
                 );
             }
+
+            Poll::Ready(())
         })
         .await;
     }
@@ -1371,7 +1381,7 @@ mod tests {
             }
         }
 
-        lazy(|cx| {
+        poll_fn(|cx| {
             let mut buf = TestSeqBuffer::empty();
             let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
 
@@ -1401,6 +1411,8 @@ mod tests {
 
             // polls: manual shutdown
             assert_eq!(h1.poll_count, 2);
+
+            Poll::Ready(())
         })
         .await;
     }

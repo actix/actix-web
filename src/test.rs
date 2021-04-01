@@ -8,19 +8,19 @@ use std::{fmt, net, thread, time};
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 #[cfg(feature = "cookies")]
 use actix_http::cookie::Cookie;
-use actix_http::http::header::{ContentType, IntoHeaderPair};
+use actix_http::http::header::{ContentType, HeaderMap, IntoHeaderPair};
 use actix_http::http::{Method, StatusCode, Uri, Version};
 use actix_http::test::TestRequest as HttpTestRequest;
 use actix_http::{ws, Extensions, HttpService, Request};
 use actix_router::{Path, ResourceDef, Url};
 use actix_rt::{time::sleep, System};
 use actix_service::{map_config, IntoService, IntoServiceFactory, Service, ServiceFactory};
+use actix_utils::future::ok;
 use awc::error::PayloadError;
 use awc::{Client, ClientRequest, ClientResponse, Connector};
 use bytes::{Bytes, BytesMut};
 use futures_core::Stream;
-use futures_util::future::ok;
-use futures_util::StreamExt;
+use futures_util::StreamExt as _;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use socket2::{Domain, Protocol, Socket, Type};
@@ -960,6 +960,14 @@ impl TestServer {
         &mut self,
     ) -> Result<Framed<impl AsyncRead + AsyncWrite, ws::Codec>, awc::error::WsClientError> {
         self.ws_at("/").await
+    }
+
+    /// Get default HeaderMap of Client.
+    ///
+    /// Returns Some(&mut HeaderMap) when Client object is unique
+    /// (No other clone of client exists at the same time).
+    pub fn client_headers(&mut self) -> Option<&mut HeaderMap> {
+        self.client.headers()
     }
 
     /// Gracefully stop HTTP server

@@ -11,12 +11,10 @@ use actix_http::HttpMessage;
 use actix_http::{body, Error, HttpService, Request, Response};
 use actix_http_test::test_server;
 use actix_service::{fn_service, ServiceFactoryExt};
+use actix_utils::future::{err, ok, ready};
 use bytes::{Bytes, BytesMut};
 use futures_core::Stream;
-use futures_util::{
-    future::{err, ok, ready},
-    stream::{once, StreamExt as _},
-};
+use futures_util::stream::{once, StreamExt as _};
 use openssl::{
     pkey::PKey,
     ssl::{SslAcceptor, SslMethod},
