@@ -1,5 +1,6 @@
 use actix_service::{Service, ServiceFactory};
 use actix_utils::future::{ok, ready, Ready};
+use actix_web::dev::{AppService, HttpServiceFactory, ResourceDef};
 use std::fs::{File, Metadata};
 use std::io;
 use std::ops::{Deref, DerefMut};
@@ -41,6 +42,29 @@ impl Default for Flags {
 }
 
 /// A file with an associated name.
+///
+/// `NamedFile` can be registered as services:
+/// ```
+/// use actix_web::App;
+/// use actix_files::NamedFile;
+///
+/// # fn run() -> Result<(), Box<dyn std::error::Error>> {
+/// let app = App::new()
+///     .service(NamedFile::open("./static/index.html")?);
+/// # Ok(())
+/// # }
+/// ```
+///
+/// They can also be returned from handlers:
+/// ```
+/// use actix_web::{Responder, get};
+/// use actix_files::NamedFile;
+///
+/// #[get("/")]
+/// async fn index() -> impl Responder {
+///     NamedFile::open("./static/index.html")
+/// }
+/// ```
 #[derive(Debug)]
 pub struct NamedFile {
     path: PathBuf,
@@ -487,9 +511,9 @@ impl ServiceFactory<ServiceRequest> for NamedFile {
     type Response = ServiceResponse;
     type Error = Error;
     type Config = ();
-    type InitError = io::Error;
+    type InitError = ();
     type Service = NamedFileService;
-    type Future = Ready<Result<Self::Service, io::Error>>;
+    type Future = Ready<Result<Self::Service, ()>>;
 
     fn new_service(&self, _: ()) -> Self::Future {
         ok(NamedFileService {
@@ -519,5 +543,17 @@ impl Service<ServiceRequest> for NamedFileService {
                 .map(|f| f.into_response(&req))
                 .map(|res| ServiceResponse::new(req, res)),
         )
+    }
+}
+
+impl HttpServiceFactory for NamedFile {
+    fn register(self, config: &mut AppService) {
+        let rdef = if config.is_root() {
+            ResourceDef::root_prefix(self.path.to_string_lossy().as_ref())
+        } else {
+            ResourceDef::prefix(self.path.to_string_lossy().as_ref())
+        };
+
+        config.register_service(rdef, None, self, None)
     }
 }
