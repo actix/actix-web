@@ -602,7 +602,7 @@ mod tests {
     use crate::test::{init_service, TestRequest};
     use crate::{guard, http, web, App, HttpResponse};
     use actix_service::Service;
-    use futures_util::future::ok;
+    use actix_utils::future::ok;
 
     #[actix_rt::test]
     async fn test_service() {

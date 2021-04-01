@@ -9,8 +9,8 @@ use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_http::{body, h1, ws, Error, HttpService, Request, Response};
 use actix_http_test::test_server;
 use actix_service::{fn_factory, Service};
+use actix_utils::future;
 use bytes::Bytes;
-use futures_util::future;
 use futures_util::{SinkExt as _, StreamExt as _};
 
 use crate::ws::Dispatcher;

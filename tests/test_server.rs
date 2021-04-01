@@ -20,7 +20,7 @@ use flate2::{
     write::{GzEncoder, ZlibDecoder, ZlibEncoder},
     Compression,
 };
-use futures_util::ready;
+use futures_core::ready;
 #[cfg(feature = "openssl")]
 use openssl::{
     pkey::PKey,

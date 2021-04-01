@@ -65,6 +65,7 @@ mod tests {
     };
 
     use actix_service::ServiceFactory;
+    use actix_utils::future::ok;
     use actix_web::{
         guard,
         http::{
@@ -76,7 +77,6 @@ mod tests {
         web::{self, Bytes},
         App, HttpResponse, Responder,
     };
-    use futures_util::future::ok;
 
     use super::*;
 

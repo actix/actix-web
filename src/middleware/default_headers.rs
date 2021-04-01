@@ -9,10 +9,8 @@ use std::{
     task::{Context, Poll},
 };
 
-use futures_util::{
-    future::{ready, Ready},
-    ready,
-};
+use actix_utils::future::{ready, Ready};
+use futures_core::ready;
 
 use crate::{
     dev::{Service, Transform},
@@ -188,7 +186,7 @@ where
 #[cfg(test)]
 mod tests {
     use actix_service::IntoService;
-    use futures_util::future::ok;
+    use actix_utils::future::ok;
 
     use super::*;
     use crate::{

@@ -575,8 +575,8 @@ impl ServiceFactory<ServiceRequest> for ScopeEndpoint {
 #[cfg(test)]
 mod tests {
     use actix_service::Service;
+    use actix_utils::future::ok;
     use bytes::Bytes;
-    use futures_util::future::ok;
 
     use crate::dev::{Body, ResponseBody};
     use crate::http::{header, HeaderValue, Method, StatusCode};
