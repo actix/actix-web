@@ -1,8 +1,9 @@
 use std::fmt::{self, Display, Write};
 
+use crate::http::header;
 use crate::error::ParseError;
-use crate::header::{
-    self, from_one_raw_str, EntityTag, Header, HeaderName, HeaderValue, HttpDate,
+use super::{
+    from_one_raw_str, EntityTag, Header, HeaderName, HeaderValue, HttpDate,
     IntoHeaderValue, InvalidHeaderValue, Writer,
 };
 use crate::HttpMessage;
@@ -36,10 +37,10 @@ use crate::HttpMessage;
 /// # Examples
 ///
 /// ```
-/// use actix_http::Response;
-/// use actix_http::http::header::{EntityTag, IfRange};
+/// use actix_web::HttpResponse;
+/// use actix_web::http::header::{EntityTag, IfRange};
 ///
-/// let mut builder = Response::Ok();
+/// let mut builder = HttpResponse::Ok();
 /// builder.insert_header(
 ///     IfRange::EntityTag(
 ///         EntityTag::new(false, "abc".to_owned())
@@ -49,9 +50,9 @@ use crate::HttpMessage;
 ///
 /// ```
 /// use std::time::{Duration, SystemTime};
-/// use actix_http::{http::header::IfRange, Response};
+/// use actix_web::{http::header::IfRange, HttpResponse};
 ///
-/// let mut builder = Response::Ok();
+/// let mut builder = HttpResponse::Ok();
 /// let fetched = SystemTime::now() - Duration::from_secs(60 * 60 * 24);
 /// builder.insert_header(
 ///     IfRange::Date(fetched.into())
@@ -111,7 +112,7 @@ impl IntoHeaderValue for IfRange {
 #[cfg(test)]
 mod test_if_range {
     use super::IfRange as HeaderField;
-    use crate::header::*;
+    use crate::http::header::*;
     use std::str;
 
     test_header!(test1, vec![b"Sat, 29 Oct 1994 19:43:31 GMT"]);

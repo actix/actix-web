@@ -2,6 +2,7 @@
 
 ## Unreleased - 2021-xx-xx
 ### Added
+* `Header` extractor for extracting common HTTP headers in handlers. [#2094]
 * Added `TestServer::client_headers` method. [#2097]
 
 ### Fixed
@@ -17,6 +18,8 @@
 
 [#2067]: https://github.com/actix/actix-web/pull/2067
 [#2093]: https://github.com/actix/actix-web/pull/2093
+[#2094]: https://github.com/actix/actix-web/pull/2094
+[#2097]: https://github.com/actix/actix-web/pull/2097
 
 
 ## 4.0.0-beta.4 - 2021-03-09

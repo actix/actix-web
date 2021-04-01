@@ -1,6 +1,6 @@
-use crate::header::{Charset, QualityItem, ACCEPT_CHARSET};
+use super::{Charset, QualityItem, ACCEPT_CHARSET};
 
-header! {
+crate::header! {
     /// `Accept-Charset` header, defined in
     /// [RFC7231](http://tools.ietf.org/html/rfc7231#section-5.3.3)
     ///
@@ -22,20 +22,20 @@ header! {
     ///
     /// # Examples
     /// ```
-    /// use actix_http::Response;
-    /// use actix_http::http::header::{AcceptCharset, Charset, qitem};
+    /// use actix_web::HttpResponse;
+    /// use actix_web::http::header::{AcceptCharset, Charset, qitem};
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     AcceptCharset(vec![qitem(Charset::Us_Ascii)])
     /// );
     /// ```
     ///
     /// ```
-    /// use actix_http::Response;
-    /// use actix_http::http::header::{AcceptCharset, Charset, q, QualityItem};
+    /// use actix_web::HttpResponse;
+    /// use actix_web::http::header::{AcceptCharset, Charset, q, QualityItem};
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     AcceptCharset(vec![
     ///         QualityItem::new(Charset::Us_Ascii, q(900)),
@@ -45,10 +45,10 @@ header! {
     /// ```
     ///
     /// ```
-    /// use actix_http::Response;
-    /// use actix_http::http::header::{AcceptCharset, Charset, qitem};
+    /// use actix_web::HttpResponse;
+    /// use actix_web::http::header::{AcceptCharset, Charset, qitem};
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     AcceptCharset(vec![qitem(Charset::Ext("utf-8".to_owned()))])
     /// );

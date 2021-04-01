@@ -189,12 +189,12 @@ impl ClientRequest {
     /// # #[actix_rt::main]
     /// # async fn main() {
     /// # use awc::Client;
-    /// use awc::http::header::ContentType;
+    /// use awc::http::header::CONTENT_TYPE;
     ///
     /// Client::new()
     ///     .get("http://www.rust-lang.org")
     ///     .insert_header(("X-TEST", "value"))
-    ///     .insert_header(ContentType(mime::APPLICATION_JSON));
+    ///     .insert_header((CONTENT_TYPE, mime::APPLICATION_JSON));
     /// # }
     /// ```
     pub fn append_header<H>(mut self, header: H) -> Self
@@ -548,6 +548,8 @@ impl fmt::Debug for ClientRequest {
 mod tests {
     use std::time::SystemTime;
 
+    use actix_http::http::header::HttpDate;
+
     use super::*;
     use crate::Client;
 
@@ -564,7 +566,7 @@ mod tests {
         let req = Client::new()
             .put("/")
             .version(Version::HTTP_2)
-            .insert_header(header::Date(SystemTime::now().into()))
+            .insert_header((header::DATE, HttpDate::from(SystemTime::now())))
             .content_type("plain/text")
             .append_header((header::SERVER, "awc"));
 
