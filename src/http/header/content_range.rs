@@ -2,11 +2,11 @@ use std::fmt::{self, Display, Write};
 use std::str::FromStr;
 
 use crate::error::ParseError;
-use crate::header::{
+use super::{
     HeaderValue, IntoHeaderValue, InvalidHeaderValue, Writer, CONTENT_RANGE,
 };
 
-header! {
+crate::header! {
     /// `Content-Range` header, defined in
     /// [RFC7233](http://tools.ietf.org/html/rfc7233#section-4.2)
     (ContentRange, CONTENT_RANGE) => [ContentRangeSpec]

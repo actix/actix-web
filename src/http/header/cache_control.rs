@@ -1,11 +1,11 @@
 use std::fmt::{self, Write};
 use std::str::FromStr;
 
-use http::header;
-
-use crate::header::{
+use super::{
     fmt_comma_delimited, from_comma_delimited, Header, IntoHeaderValue, Writer,
 };
+
+use crate::http::header;
 
 /// `Cache-Control` header, defined in [RFC7234](https://tools.ietf.org/html/rfc7234#section-5.2)
 ///
@@ -29,18 +29,18 @@ use crate::header::{
 ///
 /// # Examples
 /// ```
-/// use actix_http::Response;
-/// use actix_http::http::header::{CacheControl, CacheDirective};
+/// use actix_web::HttpResponse;
+/// use actix_web::http::header::{CacheControl, CacheDirective};
 ///
-/// let mut builder = Response::Ok();
+/// let mut builder = HttpResponse::Ok();
 /// builder.insert_header(CacheControl(vec![CacheDirective::MaxAge(86400u32)]));
 /// ```
 ///
 /// ```
-/// use actix_http::Response;
-/// use actix_http::http::header::{CacheControl, CacheDirective};
+/// use actix_web::HttpResponse;
+/// use actix_web::http::header::{CacheControl, CacheDirective};
 ///
-/// let mut builder = Response::Ok();
+/// let mut builder = HttpResponse::Ok();
 /// builder.insert_header(CacheControl(vec![
 ///     CacheDirective::NoCache,
 ///     CacheDirective::Private,
@@ -191,8 +191,8 @@ impl FromStr for CacheDirective {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::header::Header;
-    use crate::test::TestRequest;
+    use crate::http::header::Header;
+    use actix_http::test::TestRequest;
 
     #[test]
     fn test_parse_multiple_headers() {

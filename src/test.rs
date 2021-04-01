@@ -8,8 +8,7 @@ use std::{fmt, net, thread, time};
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 #[cfg(feature = "cookies")]
 use actix_http::cookie::Cookie;
-use actix_http::http::header::{ContentType, HeaderMap, IntoHeaderPair};
-use actix_http::http::{Method, StatusCode, Uri, Version};
+use actix_http::http::{HeaderMap, Method, StatusCode, Uri, Version};
 use actix_http::test::TestRequest as HttpTestRequest;
 use actix_http::{ws, Extensions, HttpService, Request};
 use actix_router::{Path, ResourceDef, Url};
@@ -31,6 +30,7 @@ use crate::app_service::AppInitServiceState;
 use crate::config::AppConfig;
 use crate::data::Data;
 use crate::dev::{Body, MessageBody, Payload, Server};
+use crate::http::header::{ContentType, IntoHeaderPair};
 use crate::rmap::ResourceMap;
 use crate::service::{ServiceRequest, ServiceResponse};
 use crate::{Error, HttpRequest, HttpResponse};
@@ -162,7 +162,7 @@ where
     let mut resp = app
         .call(req)
         .await
-        .unwrap_or_else(|_| panic!("read_response failed at application call"));
+        .unwrap_or_else(|e| panic!("read_response failed at application call: {}", e));
 
     let mut body = resp.take_body();
     let mut bytes = BytesMut::new();
@@ -254,8 +254,12 @@ where
 {
     let body = read_body(res).await;
 
-    serde_json::from_slice(&body)
-        .unwrap_or_else(|e| panic!("read_response_json failed during deserialization: {}", e))
+    serde_json::from_slice(&body).unwrap_or_else(|e| {
+        panic!(
+            "read_response_json failed during deserialization of body: {:?}, {}",
+            body, e
+        )
+    })
 }
 
 pub async fn load_stream<S>(mut stream: S) -> Result<Bytes, Error>
@@ -311,8 +315,12 @@ where
 {
     let body = read_response(app, req).await;
 
-    serde_json::from_slice(&body)
-        .unwrap_or_else(|_| panic!("read_response_json failed during deserialization"))
+    serde_json::from_slice(&body).unwrap_or_else(|_| {
+        panic!(
+            "read_response_json failed during deserialization of body: {:?}",
+            body
+        )
+    })
 }
 
 /// Test `Request` builder.

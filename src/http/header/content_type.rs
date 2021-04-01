@@ -1,7 +1,7 @@
-use crate::header::CONTENT_TYPE;
+use super::CONTENT_TYPE;
 use mime::Mime;
 
-header! {
+crate::header! {
     /// `Content-Type` header, defined in
     /// [RFC7231](http://tools.ietf.org/html/rfc7231#section-3.1.1.5)
     ///
@@ -31,20 +31,20 @@ header! {
     /// # Examples
     ///
     /// ```
-    /// use actix_http::Response;
-    /// use actix_http::http::header::ContentType;
+    /// use actix_web::HttpResponse;
+    /// use actix_web::http::header::ContentType;
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     ContentType::json()
     /// );
     /// ```
     ///
     /// ```
-    /// use actix_http::Response;
-    /// use actix_http::http::header::ContentType;
+    /// use actix_web::HttpResponse;
+    /// use actix_web::http::header::ContentType;
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     ContentType(mime::TEXT_HTML)
     /// );
