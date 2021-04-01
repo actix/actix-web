@@ -2,8 +2,8 @@
 
 use actix_http::http::{PathAndQuery, Uri};
 use actix_service::{Service, Transform};
+use actix_utils::future::{ready, Ready};
 use bytes::Bytes;
-use futures_util::future::{ready, Ready};
 use regex::Regex;
 
 use crate::{

@@ -5,7 +5,7 @@ use actix_web::{
 };
 use actix_web_actors::*;
 use bytes::Bytes;
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{SinkExt as _, StreamExt as _};
 
 struct Ws;
 

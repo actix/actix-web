@@ -175,7 +175,8 @@ where
 #[cfg(test)]
 mod tests {
     use actix_service::IntoService;
-    use futures_util::future::{ok, FutureExt};
+    use actix_utils::future::ok;
+    use futures_util::future::FutureExt as _;
 
     use super::*;
     use crate::http::{header::CONTENT_TYPE, HeaderValue, StatusCode};

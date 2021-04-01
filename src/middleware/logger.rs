@@ -13,8 +13,9 @@ use std::{
 };
 
 use actix_service::{Service, Transform};
+use actix_utils::future::{ok, Ready};
 use bytes::Bytes;
-use futures_util::future::{ok, Ready};
+use futures_core::ready;
 use log::{debug, warn};
 use regex::{Regex, RegexSet};
 use time::OffsetDateTime;
@@ -269,7 +270,7 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
 
-        let res = match futures_util::ready!(this.fut.poll(cx)) {
+        let res = match ready!(this.fut.poll(cx)) {
             Ok(res) => res,
             Err(e) => return Poll::Ready(Err(e)),
         };
@@ -588,7 +589,7 @@ impl<'a> fmt::Display for FormatDisplay<'a> {
 #[cfg(test)]
 mod tests {
     use actix_service::{IntoService, Service, Transform};
-    use futures_util::future::ok;
+    use actix_utils::future::ok;
 
     use super::*;
     use crate::http::{header, StatusCode};

@@ -20,8 +20,9 @@ mod tests {
     use std::pin::Pin;
 
     use actix_rt::pin;
+    use actix_utils::future::poll_fn;
     use bytes::{Bytes, BytesMut};
-    use futures_util::{future::poll_fn, stream};
+    use futures_util::stream;
 
     use super::*;
 

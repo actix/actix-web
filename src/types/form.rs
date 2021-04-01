@@ -12,10 +12,8 @@ use std::{
 use actix_http::Payload;
 use bytes::BytesMut;
 use encoding_rs::{Encoding, UTF_8};
-use futures_util::{
-    future::{FutureExt, LocalBoxFuture},
-    StreamExt,
-};
+use futures_core::future::LocalBoxFuture;
+use futures_util::{FutureExt as _, StreamExt as _};
 use serde::{de::DeserializeOwned, Serialize};
 
 #[cfg(feature = "compress")]

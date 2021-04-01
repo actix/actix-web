@@ -6,9 +6,6 @@ use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 use std::{fmt, io, result};
 
-use actix_codec::{Decoder, Encoder};
-use actix_utils::dispatcher::DispatcherError as FramedDispatcherError;
-use actix_utils::timeout::TimeoutError;
 use bytes::BytesMut;
 use derive_more::{Display, From};
 use http::uri::InvalidUri;
@@ -145,19 +142,6 @@ impl From<Response> for Error {
 impl From<ResponseBuilder> for Error {
     fn from(mut res: ResponseBuilder) -> Error {
         InternalError::from_response("", res.finish()).into()
-    }
-}
-
-/// Inspects the underlying enum and returns an appropriate status code.
-///
-/// If the variant is [`TimeoutError::Service`], the error code of the service is returned.
-/// Otherwise, [`StatusCode::GATEWAY_TIMEOUT`] is returned.
-impl<E: ResponseError> ResponseError for TimeoutError<E> {
-    fn status_code(&self) -> StatusCode {
-        match self {
-            TimeoutError::Service(e) => e.status_code(),
-            TimeoutError::Timeout => StatusCode::GATEWAY_TIMEOUT,
-        }
     }
 }
 
@@ -467,14 +451,6 @@ impl ResponseError for ContentTypeError {
     fn status_code(&self) -> StatusCode {
         StatusCode::BAD_REQUEST
     }
-}
-
-impl<E, U: Encoder<I> + Decoder, I> ResponseError for FramedDispatcherError<E, U, I>
-where
-    E: fmt::Debug + fmt::Display,
-    <U as Encoder<I>>::Error: fmt::Debug,
-    <U as Decoder>::Error: fmt::Debug,
-{
 }
 
 /// Helper type that can wrap any error and generate custom response.

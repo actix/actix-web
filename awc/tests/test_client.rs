@@ -5,12 +5,13 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
+use actix_utils::future::ok;
 use brotli2::write::BrotliEncoder;
 use bytes::Bytes;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
-use futures_util::{future::ok, stream};
+use futures_util::stream;
 use rand::Rng;
 
 use actix_http::{
@@ -159,7 +160,7 @@ async fn test_timeout_override() {
 
 #[actix_rt::test]
 async fn test_response_timeout() {
-    use futures_util::stream::{once, StreamExt};
+    use futures_util::stream::{once, StreamExt as _};
 
     let srv = test::start(|| {
         App::new().service(web::resource("/").route(web::to(|| async {

@@ -2,7 +2,7 @@
 
 use std::{fmt, ops, sync::Arc};
 
-use futures_util::future::{err, ok, Ready};
+use actix_utils::future::{err, ok, Ready};
 use serde::de;
 
 use crate::{dev::Payload, error::QueryPayloadError, Error, FromRequest, HttpRequest};
