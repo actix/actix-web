@@ -1,8 +1,11 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 3.0.0-beta.5 - 2021-04-02
 ### Added
-* `client::Connector::handshake_timeout` method for customize tls connection handshake timeout. [#2081]
+* `client::Connector::handshake_timeout` method for customizing TLS connection handshake timeout. [#2081]
 * `client::ConnectorService` as `client::Connector::finish` method's return type [#2081]
 * `client::ConnectionIo` trait alias [#2081]
 
@@ -10,7 +13,7 @@
 * `client::Connector` type now only have one generic type for `actix_service::Service`. [#2063]
 
 ### Removed
-* Common HTTP headers were moved into actix-web. [2094]
+* Common typed HTTP headers were moved to actix-web. [2094]
 * `ResponseError` impl for `actix_utils::timeout::TimeoutError`. [#2127]
 
 [#2063]: https://github.com/actix/actix-web/pull/2063

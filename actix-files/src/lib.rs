@@ -413,7 +413,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_named_file_content_range_headers() {
-        let srv = test::start(|| App::new().service(Files::new("/", ".")));
+        let srv = actix_test::start(|| App::new().service(Files::new("/", ".")));
 
         // Valid range header
         let response = srv
@@ -438,7 +438,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_named_file_content_length_headers() {
-        let srv = test::start(|| App::new().service(Files::new("/", ".")));
+        let srv = actix_test::start(|| App::new().service(Files::new("/", ".")));
 
         // Valid range header
         let response = srv
@@ -477,7 +477,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_head_content_length_headers() {
-        let srv = test::start(|| App::new().service(Files::new("/", ".")));
+        let srv = actix_test::start(|| App::new().service(Files::new("/", ".")));
 
         let response = srv.head("/tests/test.binary").send().await.unwrap();
 

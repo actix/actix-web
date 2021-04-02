@@ -69,6 +69,12 @@ impl ServiceRequest {
         Self { req, payload }
     }
 
+    /// Construct service request.
+    #[doc(hidden)]
+    pub fn __priv_test_new(req: HttpRequest, payload: Payload) -> Self {
+        Self::new(req, payload)
+    }
+
     /// Deconstruct request into parts
     #[inline]
     pub fn into_parts(self) -> (HttpRequest, Payload) {
