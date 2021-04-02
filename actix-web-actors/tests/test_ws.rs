@@ -1,7 +1,7 @@
 use actix::prelude::*;
 use actix_web::{
     http::{header, StatusCode},
-    test, web, App, HttpRequest, HttpResponse,
+    web, App, HttpRequest, HttpResponse,
 };
 use actix_web_actors::*;
 use bytes::Bytes;
@@ -27,7 +27,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Ws {
 
 #[actix_rt::test]
 async fn test_simple() {
-    let mut srv = test::start(|| {
+    let mut srv = actix_test::start(|| {
         App::new().service(web::resource("/").to(
             |req: HttpRequest, stream: web::Payload| async move { ws::start(Ws, &req, stream) },
         ))
@@ -62,7 +62,7 @@ async fn test_simple() {
 
 #[actix_rt::test]
 async fn test_with_credentials() {
-    let mut srv = test::start(|| {
+    let mut srv = actix_test::start(|| {
         App::new().service(web::resource("/").to(
             |req: HttpRequest, stream: web::Payload| async move {
                 if req.headers().contains_key("Authorization") {

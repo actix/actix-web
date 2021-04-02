@@ -15,11 +15,14 @@
 ### Removed
 * The `client` mod was removed. Clients should now use `awc` directly.
   [871ca5e4](https://github.com/actix/actix-web/commit/871ca5e4ae2bdc22d1ea02701c2992fa8d04aed7)
+* Integration testing was moved to new `actix-test` crate. Namely these items from the `test`
+  module: `TestServer`, `TestServerConfig`, `start`, `start_with`, and `unused_addr`. [#2112]
 
 [#2067]: https://github.com/actix/actix-web/pull/2067
 [#2093]: https://github.com/actix/actix-web/pull/2093
 [#2094]: https://github.com/actix/actix-web/pull/2094
 [#2097]: https://github.com/actix/actix-web/pull/2097
+[#2112]: https://github.com/actix/actix-web/pull/2112
 
 
 ## 4.0.0-beta.4 - 2021-03-09

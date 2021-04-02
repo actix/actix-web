@@ -7,9 +7,9 @@ async fn index() -> String {
 
 #[actix_web::main]
 async fn main() {
-    use actix_web::{App, test};
+    use actix_web::App;
     
-    let srv = test::start(|| App::new().service(index));
+    let srv = actix_test::start(|| App::new().service(index));
 
     let request = srv.get("/");
     let response = request.send().await.unwrap();
