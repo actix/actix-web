@@ -1,7 +1,10 @@
 [package]
 name = "awc"
-version = "3.0.0-beta.3"
-authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
+version = "3.0.0-beta.4"
+authors = [
+    "Nikolay Kim <fafhrd91@gmail.com>",
+    "fakeshadow <24548779@qq.com>",
+]
 description = "Async HTTP and WebSocket client library built on the Actix ecosystem"
 readme = "README.md"
 keywords = ["actix", "http", "framework", "async", "web"]
