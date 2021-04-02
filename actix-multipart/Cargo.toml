@@ -1,13 +1,13 @@
 [package]
 name = "actix-multipart"
-version = "0.4.0-beta.3"
+version = "0.4.0-beta.4"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Multipart form support for Actix Web"
 readme = "README.md"
 keywords = ["http", "web", "framework", "async", "futures"]
 homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-web.git"
-documentation = "https://docs.rs/actix-multipart/"
+documentation = "https://docs.rs/actix-multipart"
 license = "MIT OR Apache-2.0"
 edition = "2018"
 
