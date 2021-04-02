@@ -297,7 +297,7 @@ where
                 })?;
         Ok(self)
     }
-    
+
     #[cfg(feature = "openssl")]
     /// Use listener for accepting incoming tls connection requests
     ///
@@ -353,7 +353,7 @@ where
 
         Ok(self)
     }
-    
+
     #[cfg(feature = "rustls")]
     /// Use listener for accepting incoming tls connection requests
     ///
