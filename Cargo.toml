@@ -108,7 +108,7 @@ time = { version = "0.2.23", default-features = false, features = ["std"] }
 url = "2.1"
 
 [dev-dependencies]
-actix-test = { version = "0.0.1", features = ["openssl", "rustls"] }
+actix-test = { version = "0.1.0-beta.1", features = ["openssl", "rustls"] }
 awc = { version = "3.0.0-beta.4", features = ["openssl"] }
 
 brotli2 = "0.3.2"
