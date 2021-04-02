@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 4.0.0-beta.5 - 2021-04-02
 ### Added
 * `Header` extractor for extracting common HTTP headers in handlers. [#2094]
 * Added `TestServer::client_headers` method. [#2097]
@@ -9,8 +12,8 @@
 * Double ampersand in Logger format is escaped correctly. [#2067]
 
 ### Changed
-* `CustomResponder` would return error as `HttpResponse` when `CustomResponder::with_header` failed instead of skipping.
-  (Only the first error is kept when multiple error occur) [#2093]
+* `CustomResponder` would return error as `HttpResponse` when `CustomResponder::with_header` failed
+  instead of skipping. (Only the first error is kept when multiple error occur) [#2093]
 
 ### Removed
 * The `client` mod was removed. Clients should now use `awc` directly.
