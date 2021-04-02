@@ -60,8 +60,8 @@ impl Retry {
     ///     .finish();
     ///```
     pub fn policy<T>(mut self, p: T) -> Self
-        where
-            T: IntoRetryPolicy,
+    where
+        T: IntoRetryPolicy,
     {
         self.0.policies.push(p.into_policy());
         self
@@ -79,8 +79,8 @@ pub trait IntoRetryPolicy {
 }
 
 impl<T> IntoRetryPolicy for T
-    where
-        T: for<'a> Fn(StatusCode, &'a HeaderMap) -> bool + 'static,
+where
+    T: for<'a> Fn(StatusCode, &'a HeaderMap) -> bool + 'static,
 {
     fn into_policy(self) -> RetryPolicy {
         RetryPolicy::Custom(Box::new(self))
@@ -94,8 +94,8 @@ impl IntoRetryPolicy for Vec<StatusCode> {
 }
 
 impl<S> Transform<S, ConnectRequest> for Retry
-    where
-        S: Service<ConnectRequest, Response=ConnectResponse, Error=SendRequestError> + 'static,
+where
+    S: Service<ConnectRequest, Response = ConnectResponse, Error = SendRequestError> + 'static,
 {
     type Transform = RetryService<S>;
 
@@ -116,8 +116,8 @@ pub struct RetryService<S> {
 }
 
 impl<S> Service<ConnectRequest> for RetryService<S>
-    where
-        S: Service<ConnectRequest, Response=ConnectResponse, Error=SendRequestError> + 'static,
+where
+    S: Service<ConnectRequest, Response = ConnectResponse, Error = SendRequestError> + 'static,
 {
     type Response = S::Response;
     type Error = S::Error;
@@ -135,7 +135,7 @@ impl<S> Service<ConnectRequest> for RetryService<S>
         Box::pin(async move {
             match req {
                 ConnectRequest::Client(head, body, addr) => {
-                    for _ in 1..max_retry {
+                    for _ in 0..max_retry {
                         let h = clone_request_head_type(&head);
 
                         let result = connector
@@ -168,11 +168,8 @@ impl<S> Service<ConnectRequest> for RetryService<S>
 
                     // Exceed max retry so just return whatever response is received
                     log::debug!("Request max retry reached");
-                    connector.call(ConnectRequest::Client(
-                        head,
-                        body,
-                        addr,
-                    ))
+                    connector
+                        .call(ConnectRequest::Client(head, body, addr))
                         .await
                 }
                 ConnectRequest::Tunnel(head, addr) => {
@@ -189,13 +186,14 @@ impl<S> Service<ConnectRequest> for RetryService<S>
                                     }
                                 }
                                 ConnectResponse::Tunnel(head, _) => {
-                                    if is_valid_response(&policies, head.status, head.headers()) {
+                                    if is_valid_response(&policies, head.status, head.headers())
+                                    {
                                         return Ok(res);
                                     }
                                 }
                             }
                         }
-                    };
+                    }
 
                     // Exceed max retry so just return whatever response is received
                     log::debug!("Request max retry reached");
@@ -210,7 +208,7 @@ fn body_to_retry_body(body: &Body) -> Body {
     match body {
         Body::Empty => Body::Empty,
         Body::Bytes(b) => Body::Bytes(b.clone()),
-        _ => Body::None
+        _ => Body::None,
     }
 }
 
@@ -280,12 +278,9 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_basic_policy() {
-        std::env::set_var("RUST_LOG", "RUST_LOG=debug,a=debug");
-        env_logger::init();
-
         let client = ClientBuilder::new()
             .disable_redirects()
-            .wrap(Retry::new(3).policy(vec![StatusCode::INTERNAL_SERVER_ERROR]))
+            .wrap(Retry::new(1).policy(vec![StatusCode::INTERNAL_SERVER_ERROR]))
             .finish();
 
         let srv = actix_test::start(|| {
@@ -304,7 +299,7 @@ mod tests {
         let client = ClientBuilder::new()
             .disable_redirects()
             .wrap(
-                Retry::new(3).policy(|code: StatusCode, headers: &HeaderMap| {
+                Retry::new(2).policy(|code: StatusCode, headers: &HeaderMap| {
                     code.is_success() && headers.contains_key("SOME_HEADER")
                 }),
             )
