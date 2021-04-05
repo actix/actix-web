@@ -3,14 +3,14 @@ extern crate tls_openssl as openssl;
 
 #[cfg(any(unix, feature = "openssl"))]
 use {
-    actix_web::{test, web, App, HttpResponse, HttpServer},
+    actix_web::{web, App, HttpResponse, HttpServer},
     std::{sync::mpsc, thread, time::Duration},
 };
 
 #[cfg(unix)]
 #[actix_rt::test]
 async fn test_start() {
-    let addr = test::unused_addr();
+    let addr = actix_test::unused_addr();
     let (tx, rx) = mpsc::channel();
 
     thread::spawn(move || {
@@ -93,7 +93,7 @@ fn ssl_acceptor() -> openssl::ssl::SslAcceptorBuilder {
 async fn test_start_ssl() {
     use actix_web::HttpRequest;
 
-    let addr = test::unused_addr();
+    let addr = actix_test::unused_addr();
     let (tx, rx) = mpsc::channel();
 
     thread::spawn(move || {

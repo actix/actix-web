@@ -3,8 +3,8 @@ use std::{
     str::FromStr,
 };
 
+use actix_utils::future::{ready, Ready};
 use actix_web::{dev::Payload, FromRequest, HttpRequest};
-use futures_util::future::{ready, Ready};
 
 use crate::error::UriSegmentError;
 

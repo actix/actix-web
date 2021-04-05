@@ -1,6 +1,6 @@
-use crate::header::{EntityTag, IF_NONE_MATCH};
+use super::{EntityTag, IF_NONE_MATCH};
 
-header! {
+crate::header! {
     /// `If-None-Match` header, defined in
     /// [RFC7232](https://tools.ietf.org/html/rfc7232#section-3.2)
     ///
@@ -32,18 +32,18 @@ header! {
     /// # Examples
     ///
     /// ```
-    /// use actix_http::Response;
-    /// use actix_http::http::header::IfNoneMatch;
+    /// use actix_web::HttpResponse;
+    /// use actix_web::http::header::IfNoneMatch;
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(IfNoneMatch::Any);
     /// ```
     ///
     /// ```
-    /// use actix_http::Response;
-    /// use actix_http::http::header::{IfNoneMatch, EntityTag};
+    /// use actix_web::HttpResponse;
+    /// use actix_web::http::header::{IfNoneMatch, EntityTag};
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     IfNoneMatch::Items(vec![
     ///         EntityTag::new(false, "xyzzy".to_owned()),
@@ -66,8 +66,8 @@ header! {
 #[cfg(test)]
 mod tests {
     use super::IfNoneMatch;
-    use crate::header::{EntityTag, Header, IF_NONE_MATCH};
-    use crate::test::TestRequest;
+    use crate::http::header::{EntityTag, Header, IF_NONE_MATCH};
+    use actix_http::test::TestRequest;
 
     #[test]
     fn test_if_none_match() {

@@ -359,10 +359,10 @@ impl ResponseBuilder {
     ///
     /// ```
     /// # use actix_http::Response;
-    /// use actix_http::http::header::ContentType;
+    /// use actix_http::http::header;
     ///
     /// Response::Ok()
-    ///     .insert_header(ContentType(mime::APPLICATION_JSON))
+    ///     .insert_header((header::CONTENT_TYPE, mime::APPLICATION_JSON))
     ///     .insert_header(("X-TEST", "value"))
     ///     .finish();
     /// ```
@@ -386,10 +386,10 @@ impl ResponseBuilder {
     ///
     /// ```
     /// # use actix_http::Response;
-    /// use actix_http::http::header::ContentType;
+    /// use actix_http::http::header;
     ///
     /// Response::Ok()
-    ///     .append_header(ContentType(mime::APPLICATION_JSON))
+    ///     .append_header((header::CONTENT_TYPE, mime::APPLICATION_JSON))
     ///     .append_header(("X-TEST", "value1"))
     ///     .append_header(("X-TEST", "value2"))
     ///     .finish();
@@ -682,7 +682,7 @@ impl ResponseBuilder {
                 };
 
                 if !contains {
-                    self.insert_header(header::ContentType(mime::APPLICATION_JSON));
+                    self.insert_header((header::CONTENT_TYPE, mime::APPLICATION_JSON));
                 }
 
                 self.body(Body::from(body))
@@ -1133,7 +1133,7 @@ mod tests {
     #[test]
     fn response_builder_header_insert_typed() {
         let mut res = Response::Ok();
-        res.insert_header(header::ContentType(mime::APPLICATION_OCTET_STREAM));
+        res.insert_header((header::CONTENT_TYPE, mime::APPLICATION_OCTET_STREAM));
         let res = res.finish();
 
         assert_eq!(
@@ -1158,8 +1158,8 @@ mod tests {
     #[test]
     fn response_builder_header_append_typed() {
         let mut res = Response::Ok();
-        res.append_header(header::ContentType(mime::APPLICATION_OCTET_STREAM));
-        res.append_header(header::ContentType(mime::APPLICATION_JSON));
+        res.append_header((header::CONTENT_TYPE, mime::APPLICATION_OCTET_STREAM));
+        res.append_header((header::CONTENT_TYPE, mime::APPLICATION_JSON));
         let res = res.finish();
 
         let headers: Vec<_> = res.headers().get_all("Content-Type").cloned().collect();

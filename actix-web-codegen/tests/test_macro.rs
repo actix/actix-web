@@ -1,11 +1,12 @@
 use std::future::Future;
 use std::task::{Context, Poll};
 
+use actix_utils::future;
 use actix_web::dev::{Service, ServiceRequest, ServiceResponse, Transform};
 use actix_web::http::header::{HeaderName, HeaderValue};
-use actix_web::{http, test, web::Path, App, Error, HttpResponse, Responder};
+use actix_web::{http, web::Path, App, Error, HttpResponse, Responder};
 use actix_web_codegen::{connect, delete, get, head, options, patch, post, put, route, trace};
-use futures_util::future::{self, LocalBoxFuture};
+use futures_core::future::LocalBoxFuture;
 
 // Make sure that we can name function as 'config'
 #[get("/config")]
@@ -148,7 +149,7 @@ async fn get_wrap(_: Path<String>) -> impl Responder {
 
 #[actix_rt::test]
 async fn test_params() {
-    let srv = test::start(|| {
+    let srv = actix_test::start(|| {
         App::new()
             .service(get_param_test)
             .service(put_param_test)
@@ -170,7 +171,7 @@ async fn test_params() {
 
 #[actix_rt::test]
 async fn test_body() {
-    let srv = test::start(|| {
+    let srv = actix_test::start(|| {
         App::new()
             .service(post_test)
             .service(put_test)
@@ -244,7 +245,7 @@ async fn test_body() {
 
 #[actix_rt::test]
 async fn test_auto_async() {
-    let srv = test::start(|| App::new().service(auto_async));
+    let srv = actix_test::start(|| App::new().service(auto_async));
 
     let request = srv.request(http::Method::GET, srv.url("/test"));
     let response = request.send().await.unwrap();
@@ -253,7 +254,7 @@ async fn test_auto_async() {
 
 #[actix_rt::test]
 async fn test_wrap() {
-    let srv = test::start(|| App::new().service(get_wrap));
+    let srv = actix_test::start(|| App::new().service(get_wrap));
 
     let request = srv.request(http::Method::GET, srv.url("/test/wrap"));
     let response = request.send().await.unwrap();

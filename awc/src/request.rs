@@ -21,15 +21,10 @@ use crate::frozen::FrozenClientRequest;
 use crate::sender::{PrepForSendingError, RequestSender, SendClientRequest};
 use crate::ClientConfig;
 
-cfg_if::cfg_if! {
-    if #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))] {
-        const HTTPS_ENCODING: &str = "br, gzip, deflate";
-    } else if #[cfg(feature = "compress")] {
-        const HTTPS_ENCODING: &str = "br";
-    } else {
-        const HTTPS_ENCODING: &str = "identity";
-    }
-}
+#[cfg(feature = "compress")]
+const HTTPS_ENCODING: &str = "br, gzip, deflate";
+#[cfg(not(feature = "compress"))]
+const HTTPS_ENCODING: &str = "br";
 
 /// An HTTP Client request builder
 ///
@@ -194,12 +189,12 @@ impl ClientRequest {
     /// # #[actix_rt::main]
     /// # async fn main() {
     /// # use awc::Client;
-    /// use awc::http::header::ContentType;
+    /// use awc::http::header::CONTENT_TYPE;
     ///
     /// Client::new()
     ///     .get("http://www.rust-lang.org")
     ///     .insert_header(("X-TEST", "value"))
-    ///     .insert_header(ContentType(mime::APPLICATION_JSON));
+    ///     .insert_header((CONTENT_TYPE, mime::APPLICATION_JSON));
     /// # }
     /// ```
     pub fn append_header<H>(mut self, header: H) -> Self
@@ -521,11 +516,11 @@ impl ClientRequest {
                 .unwrap_or(true);
 
             if https {
-                slf = slf.insert_header_if_none((header::ACCEPT_ENCODING, HTTPS_ENCODING))
+                slf = slf.insert_header_if_none((header::ACCEPT_ENCODING, HTTPS_ENCODING));
             } else {
-                #[cfg(any(feature = "flate2-zlib", feature = "flate2-rust"))]
+                #[cfg(feature = "compress")]
                 {
-                    slf = slf.insert_header_if_none((header::ACCEPT_ENCODING, "gzip, deflate"))
+                    slf = slf.insert_header_if_none((header::ACCEPT_ENCODING, "gzip, deflate"));
                 }
             };
         }
@@ -553,6 +548,8 @@ impl fmt::Debug for ClientRequest {
 mod tests {
     use std::time::SystemTime;
 
+    use actix_http::http::header::HttpDate;
+
     use super::*;
     use crate::Client;
 
@@ -569,7 +566,7 @@ mod tests {
         let req = Client::new()
             .put("/")
             .version(Version::HTTP_2)
-            .insert_header(header::Date(SystemTime::now().into()))
+            .insert_header((header::DATE, HttpDate::from(SystemTime::now())))
             .content_type("plain/text")
             .append_header((header::SERVER, "awc"));
 

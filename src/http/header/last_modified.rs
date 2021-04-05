@@ -1,6 +1,6 @@
-use crate::header::{HttpDate, LAST_MODIFIED};
+use super::{HttpDate, LAST_MODIFIED};
 
-header! {
+crate::header! {
     /// `Last-Modified` header, defined in
     /// [RFC7232](http://tools.ietf.org/html/rfc7232#section-2.2)
     ///
@@ -23,10 +23,10 @@ header! {
     ///
     /// ```
     /// use std::time::{SystemTime, Duration};
-    /// use actix_http::Response;
-    /// use actix_http::http::header::LastModified;
+    /// use actix_web::HttpResponse;
+    /// use actix_web::http::header::LastModified;
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = HttpResponse::Ok();
     /// let modified = SystemTime::now() - Duration::from_secs(60 * 60 * 24);
     /// builder.insert_header(
     ///     LastModified(modified.into())

@@ -1,7 +1,7 @@
-use crate::header::{QualityItem, CONTENT_LANGUAGE};
+use super::{QualityItem, CONTENT_LANGUAGE};
 use language_tags::LanguageTag;
 
-header! {
+crate::header! {
     /// `Content-Language` header, defined in
     /// [RFC7231](https://tools.ietf.org/html/rfc7231#section-3.1.3.2)
     ///
@@ -25,10 +25,10 @@ header! {
     ///
     /// ```
     /// use language_tags::langtag;
-    /// use actix_http::Response;
-    /// use actix_http::http::header::{ContentLanguage, qitem};
+    /// use actix_web::HttpResponse;
+    /// use actix_web::http::header::{ContentLanguage, qitem};
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     ContentLanguage(vec![
     ///         qitem(langtag!(en)),
@@ -38,10 +38,10 @@ header! {
     ///
     /// ```
     /// use language_tags::langtag;
-    /// use actix_http::Response;
-    /// use actix_http::http::header::{ContentLanguage, qitem};
+    /// use actix_web::HttpResponse;
+    /// use actix_web::http::header::{ContentLanguage, qitem};
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     ContentLanguage(vec![
     ///         qitem(langtag!(da)),

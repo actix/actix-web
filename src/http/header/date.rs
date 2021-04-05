@@ -1,7 +1,7 @@
-use crate::header::{HttpDate, DATE};
+use super::{HttpDate, DATE};
 use std::time::SystemTime;
 
-header! {
+crate::header! {
     /// `Date` header, defined in [RFC7231](http://tools.ietf.org/html/rfc7231#section-7.1.1.2)
     ///
     /// The `Date` header field represents the date and time at which the
@@ -21,10 +21,10 @@ header! {
     ///
     /// ```
     /// use std::time::SystemTime;
-    /// use actix_http::Response;
-    /// use actix_http::http::header::Date;
+    /// use actix_web::HttpResponse;
+    /// use actix_web::http::header::Date;
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     Date(SystemTime::now().into())
     /// );

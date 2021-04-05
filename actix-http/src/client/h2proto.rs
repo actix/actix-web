@@ -1,7 +1,7 @@
 use std::future::Future;
 
+use actix_utils::future::poll_fn;
 use bytes::Bytes;
-use futures_util::future::poll_fn;
 use h2::{
     client::{Builder, Connection, SendRequest},
     SendStream,

@@ -69,6 +69,12 @@ impl ServiceRequest {
         Self { req, payload }
     }
 
+    /// Construct service request.
+    #[doc(hidden)]
+    pub fn __priv_test_new(req: HttpRequest, payload: Payload) -> Self {
+        Self::new(req, payload)
+    }
+
     /// Deconstruct request into parts
     #[inline]
     pub fn into_parts(self) -> (HttpRequest, Payload) {
@@ -602,7 +608,7 @@ mod tests {
     use crate::test::{init_service, TestRequest};
     use crate::{guard, http, web, App, HttpResponse};
     use actix_service::Service;
-    use futures_util::future::ok;
+    use actix_utils::future::ok;
 
     #[actix_rt::test]
     async fn test_service() {

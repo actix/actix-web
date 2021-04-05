@@ -5,7 +5,7 @@ use std::{fmt, net};
 use actix_http::http::{HeaderMap, Method, Uri, Version};
 use actix_http::{Error, Extensions, HttpMessage, Message, Payload, RequestHead};
 use actix_router::{Path, Url};
-use futures_util::future::{ok, Ready};
+use actix_utils::future::{ok, Ready};
 use smallvec::SmallVec;
 
 use crate::app_service::AppInitServiceState;
@@ -51,6 +51,18 @@ impl HttpRequest {
                 app_data: data,
             }),
         }
+    }
+
+    #[doc(hidden)]
+    pub fn __priv_test_new(
+        path: Path<Url>,
+        head: Message<RequestHead>,
+        rmap: Rc<ResourceMap>,
+        config: AppConfig,
+        app_data: Rc<Extensions>,
+    ) -> HttpRequest {
+        let app_state = AppInitServiceState::new(rmap, config);
+        Self::new(path, head, app_state, app_data)
     }
 }
 

@@ -5,8 +5,8 @@ use std::task::{Context, Poll};
 
 use actix_http::{Error, Response};
 use actix_service::{Service, ServiceFactory};
-use futures_util::future::{ready, Ready};
-use futures_util::ready;
+use actix_utils::future::{ready, Ready};
+use futures_core::ready;
 use pin_project::pin_project;
 
 use crate::extract::FromRequest;

@@ -283,10 +283,9 @@ fn rebuild_uri(res: &ClientResponse, org_uri: Uri) -> Result<Uri, SendRequestErr
 
 #[cfg(test)]
 mod tests {
-    use actix_web::{test::start, web, App, Error, HttpResponse};
+    use actix_web::{web, App, Error, HttpResponse};
 
     use super::*;
-
     use crate::ClientBuilder;
 
     #[actix_rt::test]
@@ -296,7 +295,7 @@ mod tests {
             .wrap(Redirect::new().max_redirect_times(10))
             .finish();
 
-        let srv = start(|| {
+        let srv = actix_test::start(|| {
             App::new()
                 .service(web::resource("/test").route(web::to(|| async {
                     Ok::<_, Error>(HttpResponse::BadRequest())
@@ -323,7 +322,7 @@ mod tests {
             .connector(crate::Connector::new())
             .finish();
 
-        let srv = start(|| {
+        let srv = actix_test::start(|| {
             App::new()
                 .service(web::resource("/").route(web::to(|| async {
                     Ok::<_, Error>(

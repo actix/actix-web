@@ -449,13 +449,13 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_body() {
-        let mut req = TestResponse::with_header(header::CONTENT_LENGTH, "xxxx").finish();
+        let mut req = TestResponse::with_header((header::CONTENT_LENGTH, "xxxx")).finish();
         match req.body().await.err().unwrap() {
             PayloadError::UnknownLength => {}
             _ => unreachable!("error"),
         }
 
-        let mut req = TestResponse::with_header(header::CONTENT_LENGTH, "10000000").finish();
+        let mut req = TestResponse::with_header((header::CONTENT_LENGTH, "10000000")).finish();
         match req.body().await.err().unwrap() {
             PayloadError::Overflow => {}
             _ => unreachable!("error"),
@@ -497,23 +497,23 @@ mod tests {
         assert!(json_eq(json.err().unwrap(), JsonPayloadError::ContentType));
 
         let mut req = TestResponse::default()
-            .header(
+            .insert_header((
                 header::CONTENT_TYPE,
                 header::HeaderValue::from_static("application/text"),
-            )
+            ))
             .finish();
         let json = JsonBody::<_, MyObject>::new(&mut req).await;
         assert!(json_eq(json.err().unwrap(), JsonPayloadError::ContentType));
 
         let mut req = TestResponse::default()
-            .header(
+            .insert_header((
                 header::CONTENT_TYPE,
                 header::HeaderValue::from_static("application/json"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::CONTENT_LENGTH,
                 header::HeaderValue::from_static("10000"),
-            )
+            ))
             .finish();
 
         let json = JsonBody::<_, MyObject>::new(&mut req).limit(100).await;
@@ -523,14 +523,14 @@ mod tests {
         ));
 
         let mut req = TestResponse::default()
-            .header(
+            .insert_header((
                 header::CONTENT_TYPE,
                 header::HeaderValue::from_static("application/json"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::CONTENT_LENGTH,
                 header::HeaderValue::from_static("16"),
-            )
+            ))
             .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
             .finish();
 

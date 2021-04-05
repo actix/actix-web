@@ -3,9 +3,9 @@ use std::io;
 use actix_codec::Framed;
 use actix_http::{body::BodySize, h1, ws, Error, HttpService, Request, Response};
 use actix_http_test::test_server;
+use actix_utils::future::ok;
 use bytes::Bytes;
-use futures_util::future::ok;
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{SinkExt as _, StreamExt as _};
 
 async fn ws_service(req: ws::Frame) -> Result<ws::Message, io::Error> {
     match req {
