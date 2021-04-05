@@ -96,9 +96,11 @@ pub(crate) mod types;
 pub mod web;
 
 #[cfg(feature = "cookies")]
+#[doc(inline)]
 pub use actix_http::cookie;
 pub use actix_http::Response as HttpResponse;
 pub use actix_http::{body, Error, HttpMessage, ResponseError, Result};
+#[doc(inline)]
 pub use actix_rt as rt;
 pub use actix_web_codegen::*;
 
