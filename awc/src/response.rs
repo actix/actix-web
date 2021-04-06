@@ -20,8 +20,7 @@ use futures_core::{ready, Stream};
 use serde::de::DeserializeOwned;
 
 #[cfg(feature = "cookies")]
-use {crate::cookie::Cookie, actix_http::error::CookieParseError};
-
+use crate::cookie::{Cookie, ParseError as CookieParseError};
 use crate::error::JsonPayloadError;
 
 /// Client Response
@@ -79,24 +78,6 @@ impl<S> HttpMessage for ClientResponse<S> {
 
     fn extensions_mut(&self) -> RefMut<'_, Extensions> {
         self.head.extensions_mut()
-    }
-
-    /// Load request cookies.
-    #[cfg(feature = "cookies")]
-    fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
-        struct Cookies(Vec<Cookie<'static>>);
-
-        if self.extensions().get::<Cookies>().is_none() {
-            let mut cookies = Vec::new();
-            for hdr in self.headers().get_all(&header::SET_COOKIE) {
-                let s = std::str::from_utf8(hdr.as_bytes()).map_err(CookieParseError::from)?;
-                cookies.push(Cookie::parse_encoded(s)?.into_owned());
-            }
-            self.extensions_mut().insert(Cookies(cookies));
-        }
-        Ok(Ref::map(self.extensions(), |ext| {
-            &ext.get::<Cookies>().unwrap().0
-        }))
     }
 }
 
@@ -179,6 +160,24 @@ impl<S> ClientResponse<S> {
     pub(crate) fn _timeout(mut self, timeout: Option<Pin<Box<Sleep>>>) -> Self {
         self.timeout = ResponseTimeout::Disabled(timeout);
         self
+    }
+
+    /// Load request cookies.
+    #[cfg(feature = "cookies")]
+    pub fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
+        struct Cookies(Vec<Cookie<'static>>);
+
+        if self.extensions().get::<Cookies>().is_none() {
+            let mut cookies = Vec::new();
+            for hdr in self.headers().get_all(&header::SET_COOKIE) {
+                let s = std::str::from_utf8(hdr.as_bytes()).map_err(CookieParseError::from)?;
+                cookies.push(Cookie::parse_encoded(s)?.into_owned());
+            }
+            self.extensions_mut().insert(Cookies(cookies));
+        }
+        Ok(Ref::map(self.extensions(), |ext| {
+            &ext.get::<Cookies>().unwrap().0
+        }))
     }
 
     /// Return request cookie.

@@ -826,7 +826,7 @@ mod plus_rustls {
 
 #[actix_rt::test]
 async fn test_server_cookies() {
-    use actix_web::{http, HttpMessage};
+    use actix_web::http;
 
     let srv = actix_test::start(|| {
         App::new().default_service(web::to(|| {

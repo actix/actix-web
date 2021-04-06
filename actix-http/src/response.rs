@@ -892,9 +892,9 @@ mod tests {
 
     use super::*;
     use crate::body::Body;
-    use crate::http::header::{HeaderValue, CONTENT_TYPE, COOKIE};
     #[cfg(feature = "cookies")]
-    use crate::{http::header::SET_COOKIE, HttpMessage};
+    use crate::http::header::SET_COOKIE;
+    use crate::http::header::{HeaderValue, CONTENT_TYPE, COOKIE};
 
     #[test]
     fn test_debug() {
