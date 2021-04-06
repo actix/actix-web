@@ -86,6 +86,7 @@ mod request;
 mod request_data;
 mod resource;
 mod responder;
+mod response;
 mod rmap;
 mod route;
 mod scope;
@@ -95,10 +96,10 @@ pub mod test;
 pub(crate) mod types;
 pub mod web;
 
-pub use actix_http::Response as HttpResponse;
 pub use actix_http::{body, Error, HttpMessage, ResponseError, Result};
 #[doc(inline)]
 pub use actix_rt as rt;
+pub use actix_http::Response as HttpResponse;
 pub use actix_web_codegen::*;
 #[cfg(feature = "cookies")]
 pub use cookie;
@@ -108,6 +109,7 @@ pub use crate::extract::FromRequest;
 pub use crate::request::HttpRequest;
 pub use crate::resource::Resource;
 pub use crate::responder::Responder;
+pub use crate::response::HttpResponseBuilder;
 pub use crate::route::Route;
 pub use crate::scope::Scope;
 pub use crate::server::HttpServer;
@@ -139,7 +141,7 @@ pub mod dev {
     pub use actix_http::body::{Body, BodySize, MessageBody, ResponseBody, SizedStream};
     #[cfg(feature = "compress")]
     pub use actix_http::encoding::Decoder as Decompress;
-    pub use actix_http::ResponseBuilder as HttpResponseBuilder;
+    pub use actix_http::ResponseBuilder as BaseHttpResponseBuilder;
     pub use actix_http::{Extensions, Payload, PayloadStream, RequestHead, ResponseHead};
     pub use actix_router::{Path, ResourceDef, ResourcePath, Url};
     pub use actix_server::Server;

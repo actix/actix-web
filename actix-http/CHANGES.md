@@ -1,7 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
-
+### Removed
+* `HttpMessage::cookies` and `HttpMessage::cookie`. [#????]
+* `impl ResponseError for CookieParseError`. [#????]
 
 ## 3.0.0-beta.5 - 2021-04-02
 ### Added

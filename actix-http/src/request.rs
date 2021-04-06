@@ -9,11 +9,14 @@ use std::{
 use cookie::{Cookie, ParseError as CookieParseError};
 use http::{header, Method, Uri, Version};
 
-use crate::extensions::Extensions;
-use crate::header::HeaderMap;
-use crate::message::{Message, RequestHead};
-use crate::payload::{Payload, PayloadStream};
-use crate::HttpMessage;
+
+use crate::{
+    extensions::Extensions,
+    header::HeaderMap,
+    message::{Message, RequestHead},
+    payload::{Payload, PayloadStream},
+    HttpMessage,
+};
 
 #[cfg(feature = "cookies")]
 struct Cookies(Vec<Cookie<'static>>);

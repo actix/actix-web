@@ -15,6 +15,7 @@ use actix_http::http::header::{
 };
 use brotli2::write::{BrotliDecoder, BrotliEncoder};
 use bytes::Bytes;
+use cookie::{Cookie, CookieBuilder};
 use flate2::{
     read::GzDecoder,
     write::{GzEncoder, ZlibDecoder, ZlibEncoder},
@@ -832,12 +833,12 @@ async fn test_server_cookies() {
         App::new().default_service(web::to(|| {
             HttpResponse::Ok()
                 .cookie(
-                    http::CookieBuilder::new("first", "first_value")
+                    CookieBuilder::new("first", "first_value")
                         .http_only(true)
                         .finish(),
                 )
-                .cookie(http::Cookie::new("second", "first_value"))
-                .cookie(http::Cookie::new("second", "second_value"))
+                .cookie(Cookie::new("second", "first_value"))
+                .cookie(Cookie::new("second", "second_value"))
                 .finish()
         }))
     });
@@ -846,10 +847,10 @@ async fn test_server_cookies() {
     let res = req.send().await.unwrap();
     assert!(res.status().is_success());
 
-    let first_cookie = http::CookieBuilder::new("first", "first_value")
+    let first_cookie = CookieBuilder::new("first", "first_value")
         .http_only(true)
         .finish();
-    let second_cookie = http::Cookie::new("second", "second_value");
+    let second_cookie = Cookie::new("second", "second_value");
 
     let cookies = res.cookies().expect("To have cookies");
     assert_eq!(cookies.len(), 2);

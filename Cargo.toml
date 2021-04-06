@@ -94,6 +94,7 @@ either = "1.5.3"
 encoding_rs = "0.8"
 futures-core = { version = "0.3.7", default-features = false }
 futures-util = { version = "0.3.7", default-features = false }
+itoa = "0.4"
 language-tags = "0.2"
 once_cell = "1.5"
 log = "0.4"

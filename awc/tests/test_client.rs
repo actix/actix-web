@@ -8,6 +8,7 @@ use std::time::Duration;
 use actix_utils::future::ok;
 use brotli2::write::BrotliEncoder;
 use bytes::Bytes;
+use cookie::Cookie;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
@@ -22,7 +23,7 @@ use actix_http_test::test_server;
 use actix_service::{map_config, pipeline_factory};
 use actix_web::{
     dev::{AppConfig, BodyEncoding},
-    http::{header, Cookie},
+    http::header,
     middleware::Compress,
     web, App, Error, HttpRequest, HttpResponse,
 };

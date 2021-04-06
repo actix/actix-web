@@ -18,9 +18,6 @@ use crate::body::Body;
 use crate::helpers::Writer;
 use crate::response::{Response, ResponseBuilder};
 
-#[cfg(feature = "cookies")]
-pub use crate::cookie::ParseError as CookieParseError;
-
 /// A specialized [`std::result::Result`]
 /// for actix web operations
 ///
@@ -375,14 +372,6 @@ impl ResponseError for PayloadError {
             PayloadError::Overflow => StatusCode::PAYLOAD_TOO_LARGE,
             _ => StatusCode::BAD_REQUEST,
         }
-    }
-}
-
-/// Return `BadRequest` for `cookie::ParseError`
-#[cfg(feature = "cookies")]
-impl ResponseError for crate::cookie::ParseError {
-    fn status_code(&self) -> StatusCode {
-        StatusCode::BAD_REQUEST
     }
 }
 
@@ -957,13 +946,6 @@ mod tests {
         let err: HttpError = StatusCode::from_u16(10000).err().unwrap().into();
         let resp: Response = err.error_response();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
-    }
-
-    #[cfg(feature = "cookies")]
-    #[test]
-    fn test_cookie_parse() {
-        let resp: Response = CookieParseError::EmptyName.error_response();
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 
     #[test]

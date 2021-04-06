@@ -4,13 +4,17 @@ use std::{net::SocketAddr, rc::Rc};
 
 pub use actix_http::test::TestBuffer;
 use actix_http::{
-    http::{header::IntoHeaderPair, Method, StatusCode, Uri, Version},
+    http::{
+        header::{self, HeaderValue, IntoHeaderPair},
+        Method, StatusCode, Uri, Version,
+    },
     test::TestRequest as HttpTestRequest,
     Extensions, Request,
 };
 use actix_router::{Path, ResourceDef, Url};
 use actix_service::{IntoService, IntoServiceFactory, Service, ServiceFactory};
 use actix_utils::future::ok;
+use cookie::{Cookie, CookieJar};
 use futures_core::Stream;
 use futures_util::StreamExt as _;
 use serde::{de::DeserializeOwned, Serialize};
@@ -357,6 +361,7 @@ pub struct TestRequest {
     path: Path<Url>,
     peer_addr: Option<SocketAddr>,
     app_data: Extensions,
+    cookies: CookieJar,
 }
 
 impl Default for TestRequest {
@@ -368,6 +373,7 @@ impl Default for TestRequest {
             path: Path::new(Url::new(Uri::default())),
             peer_addr: None,
             app_data: Extensions::new(),
+            cookies: CookieJar::new(),
         }
     }
 }
@@ -442,8 +448,8 @@ impl TestRequest {
 
     /// Set cookie for this request.
     #[cfg(feature = "cookies")]
-    pub fn cookie(mut self, cookie: crate::cookie::Cookie<'_>) -> Self {
-        self.req.cookie(cookie);
+    pub fn cookie(mut self, cookie: Cookie<'_>) -> Self {
+        self.cookies.add(cookie.into_owned());
         self
     }
 
@@ -505,16 +511,38 @@ impl TestRequest {
         self
     }
 
+    fn finish(&mut self) -> Request {
+        let mut req = self.req.finish();
+
+        #[cfg(feature = "cookies")]
+        {
+            let cookie: String = self
+                .cookies
+                .delta()
+                // ensure only name=value is written to cookie header
+                .map(|c| Cookie::new(c.name(), c.value()).encoded().to_string())
+                .collect::<Vec<_>>()
+                .join("; ");
+
+            if !cookie.is_empty() {
+                req.headers_mut()
+                    .insert(header::COOKIE, HeaderValue::from_str(&cookie).unwrap());
+            }
+        }
+
+        req
+    }
+
     /// Complete request creation and generate `Request` instance
     pub fn to_request(mut self) -> Request {
-        let mut req = self.req.finish();
+        let mut req = self.finish();
         req.head_mut().peer_addr = self.peer_addr;
         req
     }
 
     /// Complete request creation and generate `ServiceRequest` instance
     pub fn to_srv_request(mut self) -> ServiceRequest {
-        let (mut head, payload) = self.req.finish().into_parts();
+        let (mut head, payload) = self.finish().into_parts();
         head.peer_addr = self.peer_addr;
         self.path.get_mut().update(&head.uri);
 
@@ -533,7 +561,7 @@ impl TestRequest {
 
     /// Complete request creation and generate `HttpRequest` instance
     pub fn to_http_request(mut self) -> HttpRequest {
-        let (mut head, _) = self.req.finish().into_parts();
+        let (mut head, _) = self.finish().into_parts();
         head.peer_addr = self.peer_addr;
         self.path.get_mut().update(&head.uri);
 
@@ -544,7 +572,7 @@ impl TestRequest {
 
     /// Complete request creation and generate `HttpRequest` and `Payload` instances
     pub fn to_http_parts(mut self) -> (HttpRequest, Payload) {
-        let (mut head, payload) = self.req.finish().into_parts();
+        let (mut head, payload) = self.finish().into_parts();
         head.peer_addr = self.peer_addr;
         self.path.get_mut().update(&head.uri);
 

@@ -22,7 +22,7 @@ use actix_http::{
     http::HeaderValue,
     ws::{hash_key, Codec},
 };
-use actix_web::dev::HttpResponseBuilder;
+use actix_web::HttpResponseBuilder;
 use actix_web::error::{Error, PayloadError};
 use actix_web::http::{header, Method, StatusCode};
 use actix_web::{HttpRequest, HttpResponse};
@@ -163,7 +163,7 @@ pub fn handshake_with_protocols(
                     .find(|req_p| protocols.iter().any(|p| p == req_p))
             });
 
-    let mut response = HttpResponse::build(StatusCode::SWITCHING_PROTOCOLS)
+    let mut response = HttpResponseBuilder::new(StatusCode::SWITCHING_PROTOCOLS)
         .upgrade("websocket")
         .insert_header((
             header::SEC_WEBSOCKET_ACCEPT,
