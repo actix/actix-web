@@ -126,19 +126,6 @@ pub trait HttpMessage: Sized {
             &ext.get::<Cookies>().unwrap().0
         }))
     }
-
-    /// Return request cookie.
-    #[cfg(feature = "cookies")]
-    fn cookie(&self, name: &str) -> Option<Cookie<'static>> {
-        if let Ok(cookies) = self.cookies() {
-            for cookie in cookies.iter() {
-                if cookie.name() == name {
-                    return Some(cookie.to_owned());
-                }
-            }
-        }
-        None
-    }
 }
 
 impl<'a, T> HttpMessage for &'a mut T

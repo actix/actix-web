@@ -88,6 +88,7 @@ actix-http = "3.0.0-beta.5"
 
 ahash = "0.7"
 bytes = "1"
+cookie = "0.15"
 derive_more = "0.99.5"
 either = "1.5.3"
 encoding_rs = "0.8"

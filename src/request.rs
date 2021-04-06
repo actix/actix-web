@@ -6,6 +6,7 @@ use actix_http::http::{HeaderMap, Method, Uri, Version};
 use actix_http::{Error, Extensions, HttpMessage, Message, Payload, RequestHead};
 use actix_router::{Path, Url};
 use actix_utils::future::{ok, Ready};
+use cookie::Cookie;
 use smallvec::SmallVec;
 
 use crate::app_service::AppInitServiceState;
@@ -259,6 +260,19 @@ impl HttpRequest {
     #[inline]
     fn app_state(&self) -> &AppInitServiceState {
         &*self.inner.app_state
+    }
+
+    /// Return request cookie.
+    #[cfg(feature = "cookies")]
+    pub fn cookie(&self, name: &str) -> Option<Cookie<'static>> {
+        if let Ok(cookies) = self.cookies() {
+            for cookie in cookies.iter() {
+                if cookie.name() == name {
+                    return Some(cookie.to_owned());
+                }
+            }
+        }
+        None
     }
 }
 

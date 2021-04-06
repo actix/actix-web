@@ -1,14 +1,12 @@
 //! Test helpers for actix http client to use during testing.
 use actix_http::http::header::IntoHeaderPair;
+use actix_http::http::header::{self, HeaderValue};
 use actix_http::http::{StatusCode, Version};
-#[cfg(feature = "cookies")]
-use actix_http::{
-    cookie::{Cookie, CookieJar},
-    http::header::{self, HeaderValue},
-};
 use actix_http::{h1, Payload, ResponseHead};
 use bytes::Bytes;
 
+#[cfg(feature = "cookies")]
+use crate::cookie::{Cookie, CookieJar};
 use crate::ClientResponse;
 
 /// Test `ClientResponse` builder

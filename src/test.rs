@@ -2,8 +2,6 @@
 
 use std::{net::SocketAddr, rc::Rc};
 
-#[cfg(feature = "cookies")]
-use actix_http::cookie::Cookie;
 pub use actix_http::test::TestBuffer;
 use actix_http::{
     http::{header::IntoHeaderPair, Method, StatusCode, Uri, Version},
@@ -444,7 +442,7 @@ impl TestRequest {
 
     /// Set cookie for this request.
     #[cfg(feature = "cookies")]
-    pub fn cookie(mut self, cookie: Cookie<'_>) -> Self {
+    pub fn cookie(mut self, cookie: crate::cookie::Cookie<'_>) -> Self {
         self.req.cookie(cookie);
         self
     }

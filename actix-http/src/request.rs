@@ -5,6 +5,7 @@ use std::{
     fmt, net,
 };
 
+use cookie::Cookie;
 use http::{header, Method, Uri, Version};
 
 use crate::extensions::Extensions;
@@ -167,6 +168,20 @@ impl<P> Request<P> {
     #[inline]
     pub fn peer_addr(&self) -> Option<net::SocketAddr> {
         self.head().peer_addr
+    }
+
+    /// Return request cookie.
+    #[cfg(feature = "cookies")]
+    pub fn cookie(&self, name: &str) -> Option<Cookie<'static>> {
+        if let Ok(cookies) = self.cookies() {
+            for cookie in cookies.iter() {
+                if cookie.name() == name {
+                    return Some(cookie.to_owned());
+                }
+            }
+        }
+
+        None
     }
 }
 

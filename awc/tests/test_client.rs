@@ -24,7 +24,7 @@ use actix_web::{
     dev::{AppConfig, BodyEncoding},
     http::{header, Cookie},
     middleware::Compress,
-    web, App, Error, HttpMessage, HttpRequest, HttpResponse,
+    web, App, Error, HttpRequest, HttpResponse,
 };
 use awc::error::{JsonPayloadError, PayloadError, SendRequestError};
 

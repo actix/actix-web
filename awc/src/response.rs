@@ -20,7 +20,7 @@ use futures_core::{ready, Stream};
 use serde::de::DeserializeOwned;
 
 #[cfg(feature = "cookies")]
-use actix_http::{cookie::Cookie, error::CookieParseError};
+use {crate::cookie::Cookie, actix_http::error::CookieParseError};
 
 use crate::error::JsonPayloadError;
 
@@ -179,6 +179,19 @@ impl<S> ClientResponse<S> {
     pub(crate) fn _timeout(mut self, timeout: Option<Pin<Box<Sleep>>>) -> Self {
         self.timeout = ResponseTimeout::Disabled(timeout);
         self
+    }
+
+    /// Return request cookie.
+    #[cfg(feature = "cookies")]
+    pub fn cookie(&self, name: &str) -> Option<Cookie<'static>> {
+        if let Ok(cookies) = self.cookies() {
+            for cookie in cookies.iter() {
+                if cookie.name() == name {
+                    return Some(cookie.to_owned());
+                }
+            }
+        }
+        None
     }
 }
 

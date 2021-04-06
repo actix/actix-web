@@ -31,14 +31,14 @@ use std::net::SocketAddr;
 use std::{fmt, str};
 
 use actix_codec::Framed;
-#[cfg(feature = "cookies")]
-use actix_http::cookie::{Cookie, CookieJar};
 use actix_http::{ws, Payload, RequestHead};
 use actix_rt::time::timeout;
 use actix_service::Service;
 
 pub use actix_http::ws::{CloseCode, CloseReason, Codec, Frame, Message};
 
+#[cfg(feature = "cookies")]
+use crate::cookie::{Cookie, CookieJar};
 use crate::connect::{BoxedSocket, ConnectRequest};
 use crate::error::{InvalidUrl, SendRequestError, WsClientError};
 use crate::http::header::{self, HeaderName, HeaderValue, IntoHeaderValue, AUTHORIZATION};

@@ -6,13 +6,11 @@
 //! | `openssl`        | TLS support via [OpenSSL].                            |
 //! | `rustls`         | TLS support via [rustls].                             |
 //! | `compress`       | Payload compression support. (Deflate, Gzip & Brotli) |
-//! | `cookies`        | Support for cookies backed by the [cookie] crate.     |
 //! | `secure-cookies` | Adds for secure cookies. Enables `cookies` feature.   |
 //! | `trust-dns`      | Use [trust-dns] as the client DNS resolver.           |
 //!
 //! [OpenSSL]: https://crates.io/crates/openssl
 //! [rustls]: https://crates.io/crates/rustls
-//! [cookie]: https://crates.io/crates/cookie
 //! [trust-dns]: https://crates.io/crates/trust-dns
 
 #![deny(rust_2018_idioms, nonstandard_style)]
@@ -56,7 +54,7 @@ pub mod test;
 pub mod ws;
 
 #[cfg(feature = "cookies")]
-pub use cookie;
+use cookie;
 
 pub use self::builder::HttpServiceBuilder;
 pub use self::config::{KeepAlive, ServiceConfig};
