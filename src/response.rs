@@ -234,19 +234,6 @@ impl<B> HttpResponse<B> {
         }
     }
 
-    // /// Set a body and return previous body value
-    // pub(crate) fn replace_body<B2>(self, body: B2) -> (HttpResponse<B2>, ResponseBody<B>) {
-    //     let (res, old_body) = self.res.replace_body(body);
-
-    //     (
-    //         HttpResponse {
-    //             res,
-    //             error: self.error,
-    //         },
-    //         old_body,
-    //     )
-    // }
-
     /// Set a body and return previous body value
     pub fn map_body<F, B2>(self, f: F) -> HttpResponse<B2>
     where
@@ -349,11 +336,10 @@ impl HttpResponseBuilder {
     /// Insert a header, replacing any that were set with an equivalent field name.
     ///
     /// ```
-    /// # use actix_http::Response;
-    /// use actix_http::http::header;
+    /// use actix_web::{HttpResponse, http::header};
     ///
-    /// Response::Ok()
-    ///     .insert_header((header::CONTENT_TYPE, mime::APPLICATION_JSON))
+    /// HttpResponse::Ok()
+    ///     .insert_header(header::ContentType(mime::APPLICATION_JSON))
     ///     .insert_header(("X-TEST", "value"))
     ///     .finish();
     /// ```
@@ -376,11 +362,10 @@ impl HttpResponseBuilder {
     /// Append a header, keeping any that were set with an equivalent field name.
     ///
     /// ```
-    /// # use actix_http::Response;
-    /// use actix_http::http::header;
+    /// use actix_web::{HttpResponse, http::header};
     ///
-    /// Response::Ok()
-    ///     .append_header((header::CONTENT_TYPE, mime::APPLICATION_JSON))
+    /// HttpResponse::Ok()
+    ///     .append_header(header::ContentType(mime::APPLICATION_JSON))
     ///     .append_header(("X-TEST", "value1"))
     ///     .append_header(("X-TEST", "value2"))
     ///     .finish();
@@ -514,23 +499,21 @@ impl HttpResponseBuilder {
         self
     }
 
-    /// Set a cookie
+    /// Set a cookie.
     ///
     /// ```
-    /// use actix_http::{http, Request, Response};
+    /// use actix_web::{HttpResponse, cookie::Cookie};
     ///
-    /// fn index(req: Request) -> Response {
-    ///     Response::Ok()
-    ///         .cookie(
-    ///             http::Cookie::build("name", "value")
-    ///                 .domain("www.rust-lang.org")
-    ///                 .path("/")
-    ///                 .secure(true)
-    ///                 .http_only(true)
-    ///                 .finish(),
-    ///         )
-    ///         .finish()
-    /// }
+    /// HttpResponse::Ok()
+    ///     .cookie(
+    ///         Cookie::build("name", "value")
+    ///             .domain("www.rust-lang.org")
+    ///             .path("/")
+    ///             .secure(true)
+    ///             .http_only(true)
+    ///             .finish(),
+    ///     )
+    ///     .finish();
     /// ```
     #[cfg(feature = "cookies")]
     pub fn cookie<'c>(&mut self, cookie: Cookie<'c>) -> &mut Self {
@@ -544,13 +527,15 @@ impl HttpResponseBuilder {
         self
     }
 
-    /// Remove cookie
+    /// Remove cookie.
+    ///
+    /// A `Set-Cookie` header is added that will delete a cookie with the same name from the client.
     ///
     /// ```
-    /// use actix_http::{http, Request, Response, HttpMessage};
+    /// use actix_web::{HttpRequest, HttpResponse, Responder};
     ///
-    /// fn index(req: Request) -> Response {
-    ///     let mut builder = Response::Ok();
+    /// async fn handler(req: HttpRequest) -> impl Responder {
+    ///     let mut builder = HttpResponse::Ok();
     ///
     ///     if let Some(ref cookie) = req.cookie("name") {
     ///         builder.del_cookie(cookie);
