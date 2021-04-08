@@ -34,6 +34,18 @@ pub struct Response<B = Body> {
 }
 
 impl Response<Body> {
+    /// Create HTTP response builder with specific status.
+    #[inline]
+    pub fn build(status: StatusCode) -> ResponseBuilder {
+        ResponseBuilder::new(status)
+    }
+
+    /// Create HTTP response builder
+    #[inline]
+    pub fn build_from<T: Into<ResponseBuilder>>(source: T) -> ResponseBuilder {
+        source.into()
+    }
+
     /// Constructs a response
     #[inline]
     pub fn new(status: StatusCode) -> Response {
@@ -444,6 +456,32 @@ impl ResponseBuilder {
         self
     }
 
+    /// This method calls provided closure with builder reference if value is `true`.
+    #[doc(hidden)]
+    #[deprecated = "Use an if statement."]
+    pub fn if_true<F>(&mut self, value: bool, f: F) -> &mut Self
+    where
+        F: FnOnce(&mut ResponseBuilder),
+    {
+        if value {
+            f(self);
+        }
+        self
+    }
+
+    /// This method calls provided closure with builder reference if value is `Some`.
+    #[doc(hidden)]
+    #[deprecated = "Use an if-let construction."]
+    pub fn if_some<T, F>(&mut self, value: Option<T>, f: F) -> &mut Self
+    where
+        F: FnOnce(T, &mut ResponseBuilder),
+    {
+        if let Some(val) = value {
+            f(val, self);
+        }
+        self
+    }
+
     /// Responses extensions
     #[inline]
     pub fn extensions(&self) -> Ref<'_, Extensions> {
@@ -692,7 +730,7 @@ mod tests {
 
     #[test]
     fn test_upgrade() {
-        let resp = ResponseBuilder::new(StatusCode::OK)
+        let resp = Response::build(StatusCode::OK)
             .upgrade("websocket")
             .finish();
         assert!(resp.upgrade());
@@ -704,13 +742,13 @@ mod tests {
 
     #[test]
     fn test_force_close() {
-        let resp = ResponseBuilder::new(StatusCode::OK).force_close().finish();
+        let resp = Response::build(StatusCode::OK).force_close().finish();
         assert!(!resp.keep_alive())
     }
 
     #[test]
     fn test_content_type() {
-        let resp = ResponseBuilder::new(StatusCode::OK)
+        let resp = Response::build(StatusCode::OK)
             .content_type("text/plain")
             .body(Body::Empty);
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "text/plain")
@@ -731,7 +769,7 @@ mod tests {
 
     #[test]
     fn test_json_ct() {
-        let resp = ResponseBuilder::new(StatusCode::OK)
+        let resp = Response::build(StatusCode::OK)
             .insert_header((CONTENT_TYPE, "text/json"))
             .json(&vec!["v1", "v2", "v3"]);
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
@@ -744,7 +782,7 @@ mod tests {
         use serde_json::json;
 
         let resp =
-            ResponseBuilder::new(StatusCode::OK).body(json!({"test-key":"test-value"}));
+            Response::build(StatusCode::OK).body(json!({"test-key":"test-value"}));
         assert_eq!(resp.body().get_ref(), br#"{"test-key":"test-value"}"#);
     }
 
@@ -816,6 +854,24 @@ mod tests {
 
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().get_ref(), b"test");
+    }
+
+    #[test]
+    fn test_into_builder() {
+        let mut resp: Response = "test".into();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        resp.headers_mut().insert(
+            HeaderName::from_static("cookie"),
+            HeaderValue::from_static("cookie1=val100"),
+        );
+
+        let mut builder: ResponseBuilder = resp.into();
+        let resp = builder.status(StatusCode::BAD_REQUEST).finish();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        let cookie = resp.headers().get_all("Cookie").next().unwrap();
+        assert_eq!(cookie.to_str().unwrap(), "cookie1=val100");
     }
 
     #[test]

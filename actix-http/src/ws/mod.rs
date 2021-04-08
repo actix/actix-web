@@ -9,10 +9,8 @@ use derive_more::{Display, Error, From};
 use http::{header, Method, StatusCode};
 
 use crate::{
-    error::ResponseError,
-    header::HeaderValue,
-    message::{ConnectionType, RequestHead},
-    response::Response,
+    error::ResponseError, header::HeaderValue, message::RequestHead, response::Response,
+    ResponseBuilder,
 };
 
 mod codec;
@@ -131,7 +129,7 @@ impl ResponseError for HandshakeError {
 }
 
 /// Verify WebSocket handshake request and create handshake response.
-pub fn handshake(req: &RequestHead) -> Result<Response, HandshakeError> {
+pub fn handshake(req: &RequestHead) -> Result<ResponseBuilder, HandshakeError> {
     verify_handshake(req)?;
     Ok(handshake_response(req))
 }
@@ -187,39 +185,21 @@ pub fn verify_handshake(req: &RequestHead) -> Result<(), HandshakeError> {
 /// Create WebSocket handshake response.
 ///
 /// This function returns handshake `Response`, ready to send to peer.
-pub fn handshake_response(req: &RequestHead) -> Response {
+pub fn handshake_response(req: &RequestHead) -> ResponseBuilder {
     let key = {
         let key = req.headers().get(header::SEC_WEBSOCKET_KEY).unwrap();
         proto::hash_key(key.as_ref())
     };
 
-    let mut res = Response::new(StatusCode::SWITCHING_PROTOCOLS);
-
-    res.head_mut().set_connection_type(ConnectionType::Upgrade);
-    let headers = res.headers_mut();
-
-    headers.insert(header::UPGRADE, HeaderValue::from_static("websocket"));
-
-    headers.insert(
-        header::TRANSFER_ENCODING,
-        HeaderValue::from_static("chunked"),
-    );
-    headers.insert(
-        header::SEC_WEBSOCKET_ACCEPT,
-        // key is known to be header value safe ascii
-        HeaderValue::from_bytes(&key).unwrap(),
-    );
-
-    res
-
-    // Response::build(StatusCode::SWITCHING_PROTOCOLS)
-    //     .upgrade("websocket")
-    //     .insert_header((header::TRANSFER_ENCODING, "chunked"))
-    //     .insert_header((
-    //         header::SEC_WEBSOCKET_ACCEPT,
-    //         // key is known to be header value safe ascii
-    //         HeaderValue::from_bytes(&key).unwrap(),
-    //     ))
+    Response::build(StatusCode::SWITCHING_PROTOCOLS)
+        .upgrade("websocket")
+        .insert_header((header::TRANSFER_ENCODING, "chunked"))
+        .insert_header((
+            header::SEC_WEBSOCKET_ACCEPT,
+            // key is known to be header value safe ascii
+            HeaderValue::from_bytes(&key).unwrap(),
+        ))
+        .take()
 }
 
 #[cfg(test)]
@@ -334,7 +314,7 @@ mod tests {
             .finish();
         assert_eq!(
             StatusCode::SWITCHING_PROTOCOLS,
-            handshake_response(req.head()).status()
+            handshake_response(req.head()).finish().status()
         );
     }
 

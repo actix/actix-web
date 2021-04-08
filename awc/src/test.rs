@@ -1,6 +1,5 @@
 //! Test helpers for actix http client to use during testing.
 use actix_http::http::header::IntoHeaderPair;
-use actix_http::http::header::{self, HeaderValue};
 use actix_http::http::{StatusCode, Version};
 use actix_http::{h1, Payload, ResponseHead};
 use bytes::Bytes;
@@ -90,6 +89,8 @@ impl TestResponse {
 
         #[cfg(feature = "cookies")]
         for cookie in self.cookies.delta() {
+            use actix_http::http::header::{self, HeaderValue};
+
             head.headers.insert(
                 header::SET_COOKIE,
                 HeaderValue::from_str(&cookie.encoded().to_string()).unwrap(),

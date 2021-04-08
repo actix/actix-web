@@ -17,7 +17,7 @@ use smallvec::SmallVec;
 
 use crate::{
     app_service::AppInitServiceState, config::AppConfig, error::UrlGenerationError,
-    extract::FromRequest, http::header, info::ConnectionInfo, rmap::ResourceMap,
+    extract::FromRequest, info::ConnectionInfo, rmap::ResourceMap,
 };
 
 #[cfg(feature = "cookies")]
@@ -272,9 +272,11 @@ impl HttpRequest {
     /// Load request cookies.
     #[cfg(feature = "cookies")]
     pub fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
+        use actix_http::http::header::COOKIE;
+        
         if self.extensions().get::<Cookies>().is_none() {
             let mut cookies = Vec::new();
-            for hdr in self.headers().get_all(header::COOKIE) {
+            for hdr in self.headers().get_all(COOKIE) {
                 let s = str::from_utf8(hdr.as_bytes()).map_err(CookieParseError::from)?;
                 for cookie_str in s.split(';').map(|s| s.trim()) {
                     if !cookie_str.is_empty() {

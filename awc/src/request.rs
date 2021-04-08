@@ -8,13 +8,13 @@ use futures_core::Stream;
 use serde::Serialize;
 
 use actix_http::body::Body;
-#[cfg(feature = "cookies")]
 use actix_http::http::header::{self, IntoHeaderPair};
 use actix_http::http::{
     uri, ConnectionType, Error as HttpError, HeaderMap, HeaderValue, Method, Uri, Version,
 };
 use actix_http::{Error, RequestHead};
 
+#[cfg(feature = "cookies")]
 use crate::cookie::{Cookie, CookieJar};
 use crate::error::{FreezeRequestError, InvalidUrl};
 use crate::frozen::FrozenClientRequest;

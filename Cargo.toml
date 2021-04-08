@@ -16,7 +16,7 @@ edition = "2018"
 
 [package.metadata.docs.rs]
 # features that docs.rs will build with
-features = ["openssl", "rustls", "compress", "secure-cookies"]
+features = ["openssl", "rustls", "compress", "cookies", "secure-cookies"]
 
 [lib]
 name = "actix_web"
@@ -34,6 +34,7 @@ members = [
   "actix-http-test",
   "actix-test",
 ]
+resolver = "2"
 
 [features]
 default = ["compress", "cookies"]
@@ -52,22 +53,6 @@ openssl = ["actix-http/openssl", "actix-tls/accept", "actix-tls/openssl"]
 
 # rustls
 rustls = ["actix-http/rustls", "actix-tls/accept", "actix-tls/rustls"]
-
-[[example]]
-name = "basic"
-required-features = ["compress"]
-
-[[example]]
-name = "uds"
-required-features = ["compress"]
-
-[[test]]
-name = "test_server"
-required-features = ["compress", "cookies"]
-
-[[example]]
-name = "on_connect"
-required-features = []
 
 [dependencies]
 actix-codec = "0.4.0-beta.1"
@@ -134,6 +119,22 @@ actix-web = { path = "." }
 actix-web-actors = { path = "actix-web-actors" }
 actix-web-codegen = { path = "actix-web-codegen" }
 awc = { path = "awc" }
+
+[[test]]
+name = "test_server"
+required-features = ["compress", "cookies"]
+
+[[example]]
+name = "basic"
+required-features = ["compress"]
+
+[[example]]
+name = "uds"
+required-features = ["compress"]
+
+[[example]]
+name = "on_connect"
+required-features = []
 
 [[bench]]
 name = "server"

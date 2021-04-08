@@ -25,7 +25,7 @@ async fn test_simple() {
         HttpService::build()
             .upgrade(|(req, mut framed): (Request, Framed<_, _>)| {
                 async move {
-                    let res = ws::handshake_response(req.head());
+                    let res = ws::handshake_response(req.head()).finish();
                     // send handshake response
                     framed
                         .send(h1::Message::Item((res.drop_body(), BodySize::None)))

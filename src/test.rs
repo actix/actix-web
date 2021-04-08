@@ -4,21 +4,19 @@ use std::{net::SocketAddr, rc::Rc};
 
 pub use actix_http::test::TestBuffer;
 use actix_http::{
-    http::{
-        header::{self, HeaderValue, IntoHeaderPair},
-        Method, StatusCode, Uri, Version,
-    },
+    http::{header::IntoHeaderPair, Method, StatusCode, Uri, Version},
     test::TestRequest as HttpTestRequest,
     Extensions, Request,
 };
 use actix_router::{Path, ResourceDef, Url};
 use actix_service::{IntoService, IntoServiceFactory, Service, ServiceFactory};
 use actix_utils::future::ok;
-use cookie::{Cookie, CookieJar};
 use futures_core::Stream;
 use futures_util::StreamExt as _;
 use serde::{de::DeserializeOwned, Serialize};
 
+#[cfg(feature = "cookies")]
+use crate::cookie::{Cookie, CookieJar};
 use crate::{
     app_service::AppInitServiceState,
     config::AppConfig,
@@ -361,6 +359,7 @@ pub struct TestRequest {
     path: Path<Url>,
     peer_addr: Option<SocketAddr>,
     app_data: Extensions,
+    #[cfg(feature = "cookies")]
     cookies: CookieJar,
 }
 
@@ -373,6 +372,7 @@ impl Default for TestRequest {
             path: Path::new(Url::new(Uri::default())),
             peer_addr: None,
             app_data: Extensions::new(),
+            #[cfg(feature = "cookies")]
             cookies: CookieJar::new(),
         }
     }
@@ -512,10 +512,14 @@ impl TestRequest {
     }
 
     fn finish(&mut self) -> Request {
+        // mut used when cookie feature is enabled
+        #[allow(unused_mut)]
         let mut req = self.req.finish();
 
         #[cfg(feature = "cookies")]
         {
+            use actix_http::http::header::{HeaderValue, COOKIE};
+
             let cookie: String = self
                 .cookies
                 .delta()
@@ -526,7 +530,7 @@ impl TestRequest {
 
             if !cookie.is_empty() {
                 req.headers_mut()
-                    .insert(header::COOKIE, HeaderValue::from_str(&cookie).unwrap());
+                    .insert(COOKIE, HeaderValue::from_str(&cookie).unwrap());
             }
         }
 

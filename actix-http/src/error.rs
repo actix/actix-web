@@ -14,9 +14,7 @@ use serde::de::value::Error as DeError;
 use serde_json::error::Error as JsonError;
 use serde_urlencoded::ser::Error as FormError;
 
-use crate::body::Body;
-use crate::helpers::Writer;
-use crate::response::Response;
+use crate::{body::Body, helpers::Writer, Response, ResponseBuilder};
 
 /// A specialized [`std::result::Result`]
 /// for actix web operations
@@ -135,12 +133,12 @@ impl From<Response> for Error {
     }
 }
 
-// /// Convert ResponseBuilder to a Error
-// impl From<ResponseBuilder> for Error {
-//     fn from(mut res: ResponseBuilder) -> Error {
-//         InternalError::from_response("", res.finish()).into()
-//     }
-// }
+/// Convert ResponseBuilder to a Error
+impl From<ResponseBuilder> for Error {
+    fn from(mut res: ResponseBuilder) -> Error {
+        InternalError::from_response("", res.finish()).into()
+    }
+}
 
 #[derive(Debug, Display)]
 #[display(fmt = "UnknownError")]

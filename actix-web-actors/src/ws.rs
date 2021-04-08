@@ -163,7 +163,7 @@ pub fn handshake_with_protocols(
                     .find(|req_p| protocols.iter().any(|p| p == req_p))
             });
 
-    let mut response = HttpResponseBuilder::new(StatusCode::SWITCHING_PROTOCOLS)
+    let mut response = HttpResponse::build(StatusCode::SWITCHING_PROTOCOLS)
         .upgrade("websocket")
         .insert_header((
             header::SEC_WEBSOCKET_ACCEPT,

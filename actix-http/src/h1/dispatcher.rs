@@ -340,14 +340,12 @@ where
                 StateProj::ServiceCall(fut) => match fut.poll(cx) {
                     // service call resolved. send response.
                     Poll::Ready(Ok(res)) => {
-                        eprintln!("dispatcher ok!");
                         let (res, body) = res.into().replace_body(());
                         self.as_mut().send_response(res, body)?;
                     }
 
                     // send service call error as response
                     Poll::Ready(Err(err)) => {
-                        eprintln!("dispatcher err");
                         let res = Response::from_error(err.into());
                         let (res, body) = res.replace_body(());
                         self.as_mut().send_response(res, body.into_body())?;
