@@ -45,7 +45,7 @@ use crate::{dev::Payload, error::PathError, FromRequest, HttpRequest};
 ///     format!("Welcome {}!", info.name)
 /// }
 /// ```
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct Path<T>(T);
 
 impl<T> Path<T> {
@@ -78,12 +78,6 @@ impl<T> ops::DerefMut for Path<T> {
 impl<T> From<T> for Path<T> {
     fn from(inner: T) -> Path<T> {
         Path(inner)
-    }
-}
-
-impl<T: fmt::Debug> fmt::Debug for Path<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
     }
 }
 
