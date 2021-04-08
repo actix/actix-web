@@ -34,7 +34,8 @@ members = [
   "actix-http-test",
   "actix-test",
 ]
-resolver = "2"
+# enable when MSRV is 1.51+
+# resolver = "2"
 
 [features]
 default = ["compress", "cookies"]
