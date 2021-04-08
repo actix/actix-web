@@ -271,7 +271,7 @@ impl ClientRequest {
     /// async fn main() {
     ///     let resp = awc::Client::new().get("https://www.rust-lang.org")
     ///         .cookie(
-    ///             awc::http::Cookie::build("name", "value")
+    ///             awc::cookie::Cookie::build("name", "value")
     ///                 .domain("www.rust-lang.org")
     ///                 .path("/")
     ///                 .secure(true)
