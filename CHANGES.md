@@ -1,7 +1,10 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+* `HttpResponse` and `HttpResponseBuilder` structs. [#2065]
 
+[#2065]: https://github.com/actix/actix-web/pull/2065
 
 ## 4.0.0-beta.5 - 2021-04-02
 ### Added
