@@ -39,18 +39,6 @@ pub struct Response<B = Body> {
 }
 
 impl Response<Body> {
-    /// Create HTTP response builder with specific status.
-    #[inline]
-    pub fn build(status: StatusCode) -> ResponseBuilder {
-        ResponseBuilder::new(status)
-    }
-
-    /// Create HTTP response builder
-    #[inline]
-    pub fn build_from<T: Into<ResponseBuilder>>(source: T) -> ResponseBuilder {
-        source.into()
-    }
-
     /// Constructs a response
     #[inline]
     pub fn new(status: StatusCode) -> Response {
@@ -137,54 +125,6 @@ impl<B> Response<B> {
     #[inline]
     pub fn headers_mut(&mut self) -> &mut HeaderMap {
         &mut self.head.headers
-    }
-
-    /// Get an iterator for the cookies set by this response
-    #[cfg(feature = "cookies")]
-    #[inline]
-    pub fn cookies(&self) -> CookieIter<'_> {
-        CookieIter {
-            iter: self.head.headers.get_all(header::SET_COOKIE),
-        }
-    }
-
-    /// Add a cookie to this response
-    #[cfg(feature = "cookies")]
-    #[inline]
-    pub fn add_cookie(&mut self, cookie: &Cookie<'_>) -> Result<(), HttpError> {
-        let h = &mut self.head.headers;
-        HeaderValue::from_str(&cookie.to_string())
-            .map(|c| {
-                h.append(header::SET_COOKIE, c);
-            })
-            .map_err(|e| e.into())
-    }
-
-    /// Remove all cookies with the given name from this response. Returns
-    /// the number of cookies removed.
-    #[cfg(feature = "cookies")]
-    #[inline]
-    pub fn del_cookie(&mut self, name: &str) -> usize {
-        let h = &mut self.head.headers;
-        let vals: Vec<HeaderValue> = h
-            .get_all(header::SET_COOKIE)
-            .map(|v| v.to_owned())
-            .collect();
-        h.remove(header::SET_COOKIE);
-
-        let mut count: usize = 0;
-        for v in vals {
-            if let Ok(s) = v.to_str() {
-                if let Ok(c) = Cookie::parse_encoded(s) {
-                    if c.name() == name {
-                        count += 1;
-                        continue;
-                    }
-                }
-            }
-            h.append(header::SET_COOKIE, v);
-        }
-        count
     }
 
     /// Connection upgrade status
@@ -732,7 +672,7 @@ impl<B> From<Response<B>> for ResponseBuilder {
             head: Some(res.head),
             err: None,
             #[cfg(feature = "cookies")]
-            cookies: None
+            cookies: None,
         }
     }
 }
@@ -876,7 +816,7 @@ mod tests {
 
     #[test]
     fn test_upgrade() {
-        let resp = Response::build(StatusCode::OK)
+        let resp = ResponseBuilder::new(StatusCode::OK)
             .upgrade("websocket")
             .finish();
         assert!(resp.upgrade());
@@ -888,13 +828,13 @@ mod tests {
 
     #[test]
     fn test_force_close() {
-        let resp = Response::build(StatusCode::OK).force_close().finish();
+        let resp = ResponseBuilder::new(StatusCode::OK).force_close().finish();
         assert!(!resp.keep_alive())
     }
 
     #[test]
     fn test_content_type() {
-        let resp = Response::build(StatusCode::OK)
+        let resp = ResponseBuilder::new(StatusCode::OK)
             .content_type("text/plain")
             .body(Body::Empty);
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "text/plain")
@@ -915,7 +855,7 @@ mod tests {
 
     #[test]
     fn test_json_ct() {
-        let resp = Response::build(StatusCode::OK)
+        let resp = ResponseBuilder::new(StatusCode::OK)
             .insert_header((CONTENT_TYPE, "text/json"))
             .json(&vec!["v1", "v2", "v3"]);
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
@@ -927,7 +867,7 @@ mod tests {
     fn test_serde_json_in_body() {
         use serde_json::json;
         let resp =
-            Response::build(StatusCode::OK).body(json!({"test-key":"test-value"}));
+            ResponseBuilder::new(StatusCode::OK).body(json!({"test-key":"test-value"}));
         assert_eq!(resp.body().get_ref(), br#"{"test-key":"test-value"}"#);
     }
 

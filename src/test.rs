@@ -28,7 +28,7 @@ use crate::{
     rmap::ResourceMap,
     service::{ServiceRequest, ServiceResponse},
     web::{Bytes, BytesMut},
-    Error, HttpRequest, HttpResponse,
+    Error, HttpRequest, HttpResponse, HttpResponseBuilder,
 };
 
 /// Create service that always responds with `HttpResponse::Ok()` and no body.
@@ -42,7 +42,7 @@ pub fn default_service(
     status_code: StatusCode,
 ) -> impl Service<ServiceRequest, Response = ServiceResponse<Body>, Error = Error> {
     (move |req: ServiceRequest| {
-        ok(req.into_response(HttpResponse::build(status_code).finish()))
+        ok(req.into_response(HttpResponseBuilder::new(status_code).finish()))
     })
     .into_service()
 }

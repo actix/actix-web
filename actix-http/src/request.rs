@@ -9,7 +9,6 @@ use std::{
 use cookie::{Cookie, ParseError as CookieParseError};
 use http::{header, Method, Uri, Version};
 
-
 use crate::{
     extensions::Extensions,
     header::HeaderMap,

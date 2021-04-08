@@ -52,7 +52,7 @@ where
 
     fn call(&self, (req, mut framed): (Request, Framed<T, h1::Codec>)) -> Self::Future {
         let fut = async move {
-            let res = ws::handshake(req.head()).unwrap().message_body(());
+            let res = ws::handshake(req.head()).unwrap().set_body(());
 
             framed
                 .send((res, body::BodySize::None).into())

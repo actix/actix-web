@@ -7,7 +7,7 @@ use actix_http::{
 };
 use bytes::{Bytes, BytesMut};
 
-use crate::{Error, HttpRequest, HttpResponse};
+use crate::{Error, HttpRequest, HttpResponse, HttpResponseBuilder};
 
 /// Trait implemented by types that can be converted to an HTTP response.
 ///
@@ -66,11 +66,18 @@ impl Responder for HttpResponse {
     }
 }
 
+impl Responder for actix_http::Response {
+    #[inline]
+    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
+        HttpResponse::from(self)
+    }
+}
+
 impl<T: Responder> Responder for Option<T> {
     fn respond_to(self, req: &HttpRequest) -> HttpResponse {
         match self {
             Some(t) => t.respond_to(req),
-            None => HttpResponse::build(StatusCode::NOT_FOUND).finish(),
+            None => HttpResponseBuilder::new(StatusCode::NOT_FOUND).finish(),
         }
     }
 }
@@ -88,10 +95,17 @@ where
     }
 }
 
-impl Responder for ResponseBuilder {
+impl Responder for HttpResponseBuilder {
     #[inline]
     fn respond_to(mut self, _: &HttpRequest) -> HttpResponse {
         self.finish()
+    }
+}
+
+impl Responder for ResponseBuilder {
+    #[inline]
+    fn respond_to(mut self, _: &HttpRequest) -> HttpResponse {
+        HttpResponse::from(self.finish())
     }
 }
 

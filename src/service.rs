@@ -10,12 +10,15 @@ use actix_http::{
 use actix_router::{IntoPattern, Path, Resource, ResourceDef, Url};
 use actix_service::{IntoServiceFactory, ServiceFactory};
 
-use crate::config::{AppConfig, AppService};
 use crate::dev::insert_slash;
 use crate::guard::Guard;
 use crate::info::ConnectionInfo;
 use crate::request::HttpRequest;
 use crate::rmap::ResourceMap;
+use crate::{
+    config::{AppConfig, AppService},
+    HttpResponse,
+};
 
 pub trait HttpServiceFactory {
     fn register(self, config: &mut AppService);
@@ -99,13 +102,14 @@ impl ServiceRequest {
     /// Create service response
     #[inline]
     pub fn into_response<B, R: Into<Response<B>>>(self, res: R) -> ServiceResponse<B> {
-        ServiceResponse::new(self.req, res.into())
+        let res = HttpResponse::from(res.into());
+        ServiceResponse::new(self.req, res)
     }
 
     /// Create service response for error
     #[inline]
     pub fn error_response<B, E: Into<Error>>(self, err: E) -> ServiceResponse<B> {
-        let res: Response = err.into().into();
+        let res = HttpResponse::from_error(err.into());
         ServiceResponse::new(self.req, res.into_body())
     }
 
@@ -315,23 +319,19 @@ impl fmt::Debug for ServiceRequest {
 
 pub struct ServiceResponse<B = Body> {
     request: HttpRequest,
-    response: Response<B>,
+    response: HttpResponse<B>,
 }
 
 impl<B> ServiceResponse<B> {
     /// Create service response instance
-    pub fn new(request: HttpRequest, response: Response<B>) -> Self {
+    pub fn new(request: HttpRequest, response: HttpResponse<B>) -> Self {
         ServiceResponse { request, response }
     }
 
     /// Create service response from the error
     pub fn from_err<E: Into<Error>>(err: E, request: HttpRequest) -> Self {
-        let e: Error = err.into();
-        let res: Response = e.into();
-        ServiceResponse {
-            request,
-            response: res.into_body(),
-        }
+        let response = HttpResponse::from_error(err.into()).into_body();
+        ServiceResponse { request, response }
     }
 
     /// Create service response for error
@@ -342,7 +342,7 @@ impl<B> ServiceResponse<B> {
 
     /// Create service response
     #[inline]
-    pub fn into_response<B1>(self, response: Response<B1>) -> ServiceResponse<B1> {
+    pub fn into_response<B1>(self, response: HttpResponse<B1>) -> ServiceResponse<B1> {
         ServiceResponse::new(self.request, response)
     }
 
@@ -354,13 +354,13 @@ impl<B> ServiceResponse<B> {
 
     /// Get reference to response
     #[inline]
-    pub fn response(&self) -> &Response<B> {
+    pub fn response(&self) -> &HttpResponse<B> {
         &self.response
     }
 
     /// Get mutable reference to response
     #[inline]
-    pub fn response_mut(&mut self) -> &mut Response<B> {
+    pub fn response_mut(&mut self) -> &mut HttpResponse<B> {
         &mut self.response
     }
 
@@ -376,8 +376,8 @@ impl<B> ServiceResponse<B> {
         self.response.headers()
     }
 
-    #[inline]
     /// Returns mutable response's headers.
+    #[inline]
     pub fn headers_mut(&mut self) -> &mut HeaderMap {
         self.response.headers_mut()
     }
@@ -391,7 +391,7 @@ impl<B> ServiceResponse<B> {
         match f(&mut self) {
             Ok(_) => self,
             Err(err) => {
-                let res: Response = err.into().into();
+                let res = HttpResponse::from_error(err.into());
                 ServiceResponse::new(self.request, res.into_body())
             }
         }
@@ -418,9 +418,15 @@ impl<B> ServiceResponse<B> {
     }
 }
 
+impl<B> From<ServiceResponse<B>> for HttpResponse<B> {
+    fn from(res: ServiceResponse<B>) -> HttpResponse<B> {
+        res.response
+    }
+}
+
 impl<B> From<ServiceResponse<B>> for Response<B> {
     fn from(res: ServiceResponse<B>) -> Response<B> {
-        res.response
+        res.response.into()
     }
 }
 

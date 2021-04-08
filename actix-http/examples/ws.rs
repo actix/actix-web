@@ -11,7 +11,7 @@ use std::{
 };
 
 use actix_codec::Encoder;
-use actix_http::{error::Error, ws, HttpService, Request, Response};
+use actix_http::{body::BodyStream, error::Error, ws, HttpService, Request, Response};
 use actix_rt::time::{interval, Interval};
 use actix_server::Server;
 use bytes::{Bytes, BytesMut};
@@ -34,14 +34,14 @@ async fn main() -> io::Result<()> {
         .await
 }
 
-async fn handler(req: Request) -> Result<Response, Error> {
+async fn handler(req: Request) -> Result<Response<BodyStream<Heartbeat>>, Error> {
     log::info!("handshaking");
-    let mut res = ws::handshake(req.head())?;
+    let res = ws::handshake(req.head())?;
 
     // handshake will always fail under HTTP/2
 
     log::info!("responding");
-    Ok(res.streaming(Heartbeat::new(ws::Codec::new())))
+    Ok(res.set_body(BodyStream::new(Heartbeat::new(ws::Codec::new()))))
 }
 
 struct Heartbeat {

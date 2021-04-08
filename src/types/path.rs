@@ -155,7 +155,7 @@ where
 ///             .app_data(PathConfig::default().error_handler(|err, req| {
 ///                 error::InternalError::from_response(
 ///                     err,
-///                     HttpResponse::Conflict().finish(),
+///                     HttpResponse::Conflict().into(),
 ///                 )
 ///                 .into()
 ///             }))
@@ -298,15 +298,18 @@ mod tests {
     async fn test_custom_err_handler() {
         let (req, mut pl) = TestRequest::with_uri("/name/user1/")
             .app_data(PathConfig::default().error_handler(|err, _| {
-                error::InternalError::from_response(err, HttpResponse::Conflict().finish())
-                    .into()
+                error::InternalError::from_response(
+                    err,
+                    HttpResponse::Conflict().finish().into(),
+                )
+                .into()
             }))
             .to_http_parts();
 
         let s = Path::<(usize,)>::from_request(&req, &mut pl)
             .await
             .unwrap_err();
-        let res: HttpResponse = s.into();
+        let res = HttpResponse::from_error(s.into());
 
         assert_eq!(res.status(), http::StatusCode::CONFLICT);
     }

@@ -22,9 +22,9 @@ use actix_http::{
     http::HeaderValue,
     ws::{hash_key, Codec},
 };
-use actix_web::HttpResponseBuilder;
 use actix_web::error::{Error, PayloadError};
 use actix_web::http::{header, Method, StatusCode};
+use actix_web::HttpResponseBuilder;
 use actix_web::{HttpRequest, HttpResponse};
 use bytes::{Bytes, BytesMut};
 use bytestring::ByteString;
