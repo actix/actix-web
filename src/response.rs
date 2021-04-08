@@ -340,7 +340,7 @@ impl HttpResponseBuilder {
     /// Set HTTP status code of this response.
     #[inline]
     pub fn status(&mut self, status: StatusCode) -> &mut Self {
-        if let Some(parts) = self.parts() {
+        if let Some(parts) = self.inner() {
             parts.status = status;
         }
         self
@@ -361,7 +361,7 @@ impl HttpResponseBuilder {
     where
         H: IntoHeaderPair,
     {
-        if let Some(parts) = self.parts() {
+        if let Some(parts) = self.inner() {
             match header.try_into_header_pair() {
                 Ok((key, value)) => {
                     parts.headers.insert(key, value);
@@ -389,7 +389,7 @@ impl HttpResponseBuilder {
     where
         H: IntoHeaderPair,
     {
-        if let Some(parts) = self.parts() {
+        if let Some(parts) = self.inner() {
             match header.try_into_header_pair() {
                 Ok((key, value)) => parts.headers.append(key, value),
                 Err(e) => self.err = Some(e.into()),
@@ -444,7 +444,7 @@ impl HttpResponseBuilder {
     /// Set the custom reason for the response.
     #[inline]
     pub fn reason(&mut self, reason: &'static str) -> &mut Self {
-        if let Some(parts) = self.parts() {
+        if let Some(parts) = self.inner() {
             parts.reason = Some(reason);
         }
         self
@@ -453,7 +453,7 @@ impl HttpResponseBuilder {
     /// Set connection type to KeepAlive
     #[inline]
     pub fn keep_alive(&mut self) -> &mut Self {
-        if let Some(parts) = self.parts() {
+        if let Some(parts) = self.inner() {
             parts.set_connection_type(ConnectionType::KeepAlive);
         }
         self
@@ -465,7 +465,7 @@ impl HttpResponseBuilder {
     where
         V: IntoHeaderValue,
     {
-        if let Some(parts) = self.parts() {
+        if let Some(parts) = self.inner() {
             parts.set_connection_type(ConnectionType::Upgrade);
         }
 
@@ -479,7 +479,7 @@ impl HttpResponseBuilder {
     /// Force close connection, even if it is marked as keep-alive
     #[inline]
     pub fn force_close(&mut self) -> &mut Self {
-        if let Some(parts) = self.parts() {
+        if let Some(parts) = self.inner() {
             parts.set_connection_type(ConnectionType::Close);
         }
         self
@@ -491,7 +491,7 @@ impl HttpResponseBuilder {
         let mut buf = itoa::Buffer::new();
         self.insert_header((header::CONTENT_LENGTH, buf.format(len)));
 
-        if let Some(parts) = self.parts() {
+        if let Some(parts) = self.inner() {
             parts.no_chunking(true);
         }
         self
@@ -503,7 +503,7 @@ impl HttpResponseBuilder {
     where
         V: IntoHeaderValue,
     {
-        if let Some(parts) = self.parts() {
+        if let Some(parts) = self.inner() {
             match value.try_into_value() {
                 Ok(value) => {
                     parts.headers.insert(header::CONTENT_TYPE, value);
@@ -560,7 +560,7 @@ impl HttpResponseBuilder {
     /// }
     /// ```
     #[cfg(feature = "cookies")]
-    pub fn del_cookie<'a>(&mut self, cookie: &Cookie<'a>) -> &mut Self {
+    pub fn del_cookie(&mut self, cookie: &Cookie<'_>) -> &mut Self {
         if self.cookies.is_none() {
             self.cookies = Some(CookieJar::new())
         }
@@ -639,7 +639,7 @@ impl HttpResponseBuilder {
     pub fn json(&mut self, value: impl Serialize) -> HttpResponse {
         match serde_json::to_string(&value) {
             Ok(body) => {
-                let contains = if let Some(parts) = self.parts() {
+                let contains = if let Some(parts) = self.inner() {
                     parts.headers.contains_key(header::CONTENT_TYPE)
                 } else {
                     true
@@ -674,7 +674,7 @@ impl HttpResponseBuilder {
     }
 
     #[inline]
-    fn parts(&mut self) -> Option<&mut ResponseHead> {
+    fn inner(&mut self) -> Option<&mut ResponseHead> {
         if self.err.is_some() {
             return None;
         }

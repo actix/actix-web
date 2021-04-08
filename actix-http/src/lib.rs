@@ -53,9 +53,6 @@ pub mod h2;
 pub mod test;
 pub mod ws;
 
-#[cfg(feature = "cookies")]
-use cookie;
-
 pub use self::builder::HttpServiceBuilder;
 pub use self::config::{KeepAlive, ServiceConfig};
 pub use self::error::{Error, ResponseError, Result};
@@ -76,8 +73,6 @@ pub mod http {
     pub use http::{uri, Error, Uri};
     pub use http::{Method, StatusCode, Version};
 
-    #[cfg(feature = "cookies")]
-    pub use crate::cookie::{Cookie, CookieBuilder};
     pub use crate::header::HeaderMap;
 
     /// A collection of HTTP headers and helpers.

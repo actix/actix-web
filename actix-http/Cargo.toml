@@ -16,7 +16,7 @@ edition = "2018"
 
 [package.metadata.docs.rs]
 # features that docs.rs will build with
-features = ["openssl", "rustls", "compress", "cookies", "secure-cookies"]
+features = ["openssl", "rustls", "compress"]
 
 [lib]
 name = "actix_http"
@@ -34,12 +34,6 @@ rustls = ["actix-tls/rustls"]
 # enable compression support
 compress = ["flate2", "brotli2"]
 
-# support for cookies
-cookies = ["cookie"]
-
-# support for secure cookies
-secure-cookies = ["cookies", "cookie/secure"]
-
 # trust-dns as client dns resolver
 trust-dns = ["trust-dns-resolver"]
 
@@ -55,7 +49,6 @@ base64 = "0.13"
 bitflags = "1.2"
 bytes = "1"
 bytestring = "1"
-cookie = { version = "0.15", features = ["percent-encode"], optional = true }
 derive_more = "0.99.5"
 encoding_rs = "0.8"
 futures-core = { version = "0.3.7", default-features = false, features = ["alloc"] }
@@ -95,7 +88,7 @@ actix-tls = { version = "3.0.0-beta.5", features = ["openssl"] }
 criterion = "0.3"
 env_logger = "0.8"
 rcgen = "0.8"
-serde_derive = "1.0"
+serde = { version = "1.0", features = ["derive"] }
 tls-openssl = { version = "0.10", package = "openssl" }
 tls-rustls = { version = "0.19", package = "rustls" }
 

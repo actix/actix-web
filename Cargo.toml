@@ -18,10 +18,6 @@ edition = "2018"
 # features that docs.rs will build with
 features = ["openssl", "rustls", "compress", "secure-cookies"]
 
-[badges]
-travis-ci = { repository = "actix/actix-web", branch = "master" }
-codecov = { repository = "actix/actix-web", branch = "master", service = "github" }
-
 [lib]
 name = "actix_web"
 path = "src/lib.rs"
@@ -46,10 +42,10 @@ default = ["compress", "cookies"]
 compress = ["actix-http/compress"]
 
 # support for cookies
-cookies = ["actix-http/cookies"]
+cookies = ["cookie"]
 
 # secure cookies feature
-secure-cookies = ["actix-http/secure-cookies"]
+secure-cookies = ["cookie/secure"]
 
 # openssl
 openssl = ["actix-http/openssl", "actix-tls/accept", "actix-tls/openssl"]
@@ -88,7 +84,7 @@ actix-http = "3.0.0-beta.5"
 
 ahash = "0.7"
 bytes = "1"
-cookie = "0.15"
+cookie = { version = "0.15", features = ["percent-encode"], optional = true }
 derive_more = "0.99.5"
 either = "1.5.3"
 encoding_rs = "0.8"

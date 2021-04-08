@@ -25,11 +25,6 @@ use crate::{
     },
     message::{BoxedResponseHead, ConnectionType, ResponseHead},
 };
-#[cfg(feature = "cookies")]
-use crate::{
-    cookie::{Cookie, CookieJar},
-    http::header::HeaderValue,
-};
 
 /// An HTTP Response
 pub struct Response<B = Body> {
@@ -248,34 +243,12 @@ impl Future for Response {
     }
 }
 
-#[cfg(feature = "cookies")]
-pub struct CookieIter<'a> {
-    iter: header::GetAll<'a>,
-}
-
-#[cfg(feature = "cookies")]
-impl<'a> Iterator for CookieIter<'a> {
-    type Item = Cookie<'a>;
-
-    #[inline]
-    fn next(&mut self) -> Option<Cookie<'a>> {
-        for v in self.iter.by_ref() {
-            if let Ok(c) = Cookie::parse_encoded(v.to_str().ok()?) {
-                return Some(c);
-            }
-        }
-        None
-    }
-}
-
 /// An HTTP response builder.
 ///
 /// This type can be used to construct an instance of `Response` through a builder-like pattern.
 pub struct ResponseBuilder {
     head: Option<BoxedResponseHead>,
     err: Option<HttpError>,
-    #[cfg(feature = "cookies")]
-    cookies: Option<CookieJar>,
 }
 
 impl ResponseBuilder {
@@ -285,8 +258,6 @@ impl ResponseBuilder {
         ResponseBuilder {
             head: Some(BoxedResponseHead::new(status)),
             err: None,
-            #[cfg(feature = "cookies")]
-            cookies: None,
         }
     }
 
@@ -353,7 +324,10 @@ impl ResponseBuilder {
     }
 
     /// Replaced with [`Self::insert_header()`].
-    #[deprecated = "Replaced with `insert_header((key, value))`."]
+    #[deprecated(
+        since = "4.0.0",
+        note = "Replaced with `insert_header((key, value))`. Will be removed in v5."
+    )]
     pub fn set_header<K, V>(&mut self, key: K, value: V) -> &mut Self
     where
         K: TryInto<HeaderName>,
@@ -374,7 +348,10 @@ impl ResponseBuilder {
     }
 
     /// Replaced with [`Self::append_header()`].
-    #[deprecated = "Replaced with `append_header((key, value))`."]
+    #[deprecated(
+        since = "4.0.0",
+        note = "Replaced with `append_header((key, value))`. Will be removed in v5."
+    )]
     pub fn header<K, V>(&mut self, key: K, value: V) -> &mut Self
     where
         K: TryInto<HeaderName>,
@@ -467,89 +444,6 @@ impl ResponseBuilder {
         self
     }
 
-    /// Set a cookie
-    ///
-    /// ```
-    /// use actix_http::{http, Request, Response};
-    ///
-    /// fn index(req: Request) -> Response {
-    ///     Response::Ok()
-    ///         .cookie(
-    ///             http::Cookie::build("name", "value")
-    ///                 .domain("www.rust-lang.org")
-    ///                 .path("/")
-    ///                 .secure(true)
-    ///                 .http_only(true)
-    ///                 .finish(),
-    ///         )
-    ///         .finish()
-    /// }
-    /// ```
-    #[cfg(feature = "cookies")]
-    pub fn cookie<'c>(&mut self, cookie: Cookie<'c>) -> &mut Self {
-        if self.cookies.is_none() {
-            let mut jar = CookieJar::new();
-            jar.add(cookie.into_owned());
-            self.cookies = Some(jar)
-        } else {
-            self.cookies.as_mut().unwrap().add(cookie.into_owned());
-        }
-        self
-    }
-
-    /// Remove cookie
-    ///
-    /// ```
-    /// use actix_http::{http, Request, Response, HttpMessage};
-    ///
-    /// fn index(req: Request) -> Response {
-    ///     let mut builder = Response::Ok();
-    ///
-    ///     if let Some(ref cookie) = req.cookie("name") {
-    ///         builder.del_cookie(cookie);
-    ///     }
-    ///
-    ///     builder.finish()
-    /// }
-    /// ```
-    #[cfg(feature = "cookies")]
-    pub fn del_cookie<'a>(&mut self, cookie: &Cookie<'a>) -> &mut Self {
-        if self.cookies.is_none() {
-            self.cookies = Some(CookieJar::new())
-        }
-        let jar = self.cookies.as_mut().unwrap();
-        let cookie = cookie.clone().into_owned();
-        jar.add_original(cookie.clone());
-        jar.remove(cookie);
-        self
-    }
-
-    /// This method calls provided closure with builder reference if value is `true`.
-    #[doc(hidden)]
-    #[deprecated = "Use an if statement."]
-    pub fn if_true<F>(&mut self, value: bool, f: F) -> &mut Self
-    where
-        F: FnOnce(&mut ResponseBuilder),
-    {
-        if value {
-            f(self);
-        }
-        self
-    }
-
-    /// This method calls provided closure with builder reference if value is `Some`.
-    #[doc(hidden)]
-    #[deprecated = "Use an if-let construction."]
-    pub fn if_some<T, F>(&mut self, value: Option<T>, f: F) -> &mut Self
-    where
-        F: FnOnce(T, &mut ResponseBuilder),
-    {
-        if let Some(val) = value {
-            f(val, self);
-        }
-        self
-    }
-
     /// Responses extensions
     #[inline]
     pub fn extensions(&self) -> Ref<'_, Extensions> {
@@ -580,19 +474,7 @@ impl ResponseBuilder {
             return Response::from(Error::from(e)).into_body();
         }
 
-        // allow unused mut when cookies feature is disabled
-        #[allow(unused_mut)]
-        let mut response = self.head.take().expect("cannot reuse response builder");
-
-        #[cfg(feature = "cookies")]
-        if let Some(ref jar) = self.cookies {
-            for cookie in jar.delta() {
-                match HeaderValue::from_str(&cookie.to_string()) {
-                    Ok(val) => response.headers.append(header::SET_COOKIE, val),
-                    Err(e) => return Response::from(Error::from(e)).into_body(),
-                };
-            }
-        }
+        let response = self.head.take().expect("cannot reuse response builder");
 
         Response {
             head: response,
@@ -648,8 +530,6 @@ impl ResponseBuilder {
         ResponseBuilder {
             head: self.head.take(),
             err: self.err.take(),
-            #[cfg(feature = "cookies")]
-            cookies: self.cookies.take(),
         }
     }
 }
@@ -671,8 +551,6 @@ impl<B> From<Response<B>> for ResponseBuilder {
         ResponseBuilder {
             head: Some(res.head),
             err: None,
-            #[cfg(feature = "cookies")]
-            cookies: None,
         }
     }
 }
@@ -693,8 +571,6 @@ impl<'a> From<&'a ResponseHead> for ResponseBuilder {
         ResponseBuilder {
             head: Some(msg),
             err: None,
-            #[cfg(feature = "cookies")]
-            cookies: None,
         }
     }
 }
@@ -866,6 +742,7 @@ mod tests {
     #[test]
     fn test_serde_json_in_body() {
         use serde_json::json;
+
         let resp =
             ResponseBuilder::new(StatusCode::OK).body(json!({"test-key":"test-value"}));
         assert_eq!(resp.body().get_ref(), br#"{"test-key":"test-value"}"#);

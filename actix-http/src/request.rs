@@ -5,8 +5,6 @@ use std::{
     fmt, net, str,
 };
 
-#[cfg(feature = "cookies")]
-use cookie::{Cookie, ParseError as CookieParseError};
 use http::{header, Method, Uri, Version};
 
 use crate::{
@@ -16,9 +14,6 @@ use crate::{
     payload::{Payload, PayloadStream},
     HttpMessage,
 };
-
-#[cfg(feature = "cookies")]
-struct Cookies(Vec<Cookie<'static>>);
 
 /// Request
 pub struct Request<P = PayloadStream> {
@@ -174,42 +169,6 @@ impl<P> Request<P> {
     #[inline]
     pub fn peer_addr(&self) -> Option<net::SocketAddr> {
         self.head().peer_addr
-    }
-
-    /// Load request cookies.
-    #[cfg(feature = "cookies")]
-    pub fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
-        if self.extensions().get::<Cookies>().is_none() {
-            let mut cookies = Vec::new();
-            for hdr in self.headers().get_all(header::COOKIE) {
-                let s =
-                    str::from_utf8(hdr.as_bytes()).map_err(CookieParseError::from)?;
-                for cookie_str in s.split(';').map(|s| s.trim()) {
-                    if !cookie_str.is_empty() {
-                        cookies.push(Cookie::parse_encoded(cookie_str)?.into_owned());
-                    }
-                }
-            }
-            self.extensions_mut().insert(Cookies(cookies));
-        }
-
-        Ok(Ref::map(self.extensions(), |ext| {
-            &ext.get::<Cookies>().unwrap().0
-        }))
-    }
-
-    /// Return request cookie.
-    #[cfg(feature = "cookies")]
-    pub fn cookie(&self, name: &str) -> Option<Cookie<'static>> {
-        if let Ok(cookies) = self.cookies() {
-            for cookie in cookies.iter() {
-                if cookie.name() == name {
-                    return Some(cookie.to_owned());
-                }
-            }
-        }
-
-        None
     }
 }
 
