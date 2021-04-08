@@ -273,7 +273,7 @@ impl HttpRequest {
     #[cfg(feature = "cookies")]
     pub fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
         use actix_http::http::header::COOKIE;
-        
+
         if self.extensions().get::<Cookies>().is_none() {
             let mut cookies = Vec::new();
             for hdr in self.headers().get_all(COOKIE) {
