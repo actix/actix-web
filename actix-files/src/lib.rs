@@ -812,4 +812,20 @@ mod tests {
             assert_eq!(bytes, data);
         }
     }
+
+    #[actix_rt::test]
+    async fn test_default_handler_named_file() {
+        let st = Files::new("/", ".")
+            .default_handler(NamedFile::open("Cargo.toml").unwrap())
+            .new_service(())
+            .await
+            .unwrap();
+        let req = TestRequest::with_uri("/missing").to_srv_request();
+        let resp = test::call_service(&st, req).await;
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = test::read_body(resp).await;
+        let data = Bytes::from(fs::read("Cargo.toml").unwrap());
+        assert_eq!(bytes, data);
+    }
 }
