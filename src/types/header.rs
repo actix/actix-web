@@ -23,7 +23,7 @@ use crate::{
 ///     format!("Request was sent at {}", date.to_string())
 /// }
 /// ```
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct Header<T>(pub T);
 
 impl<T> Header<T> {
@@ -44,15 +44,6 @@ impl<T> ops::Deref for Header<T> {
 impl<T> ops::DerefMut for Header<T> {
     fn deref_mut(&mut self) -> &mut T {
         &mut self.0
-    }
-}
-
-impl<T> fmt::Debug for Header<T>
-where
-    T: fmt::Debug,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Header: {:?}", self.0)
     }
 }
 
