@@ -1,7 +1,10 @@
 [package]
 name = "awc"
-version = "3.0.0-beta.3"
-authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
+version = "3.0.0-beta.4"
+authors = [
+    "Nikolay Kim <fafhrd91@gmail.com>",
+    "fakeshadow <24548779@qq.com>",
+]
 description = "Async HTTP and WebSocket client library built on the Actix ecosystem"
 readme = "README.md"
 keywords = ["actix", "http", "framework", "async", "web"]
@@ -46,7 +49,7 @@ trust-dns = ["actix-http/trust-dns"]
 [dependencies]
 actix-codec = "0.4.0-beta.1"
 actix-service = "2.0.0-beta.4"
-actix-http = "3.0.0-beta.4"
+actix-http = "3.0.0-beta.5"
 actix-rt = { version = "2.1", default-features = false }
 
 base64 = "0.13"
@@ -66,12 +69,13 @@ tls-openssl = { version = "0.10.9", package = "openssl", optional = true }
 tls-rustls = { version = "0.19.0", package = "rustls", optional = true, features = ["dangerous_configuration"] }
 
 [dev-dependencies]
-actix-web = { version = "4.0.0-beta.4", features = ["openssl"] }
-actix-http = { version = "3.0.0-beta.4", features = ["openssl"] }
-actix-http-test = { version = "3.0.0-beta.3", features = ["openssl"] }
+actix-web = { version = "4.0.0-beta.5", features = ["openssl"] }
+actix-http = { version = "3.0.0-beta.5", features = ["openssl"] }
+actix-http-test = { version = "3.0.0-beta.4", features = ["openssl"] }
 actix-utils = "3.0.0-beta.4"
 actix-server = "2.0.0-beta.3"
 actix-tls = { version = "3.0.0-beta.5", features = ["openssl", "rustls"] }
+actix-test = { version = "0.1.0-beta.1", features = ["openssl", "rustls"] }
 
 brotli2 = "0.3.2"
 env_logger = "0.8"
@@ -79,3 +83,7 @@ flate2 = "1.0.13"
 futures-util = { version = "0.3.7", default-features = false }
 rcgen = "0.8"
 webpki = "0.21"
+
+[[example]]
+name = "client"
+required-features = ["rustls"]

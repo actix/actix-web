@@ -71,11 +71,6 @@
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 
-#[cfg(feature = "openssl")]
-extern crate tls_openssl as openssl;
-#[cfg(feature = "rustls")]
-extern crate tls_rustls as rustls;
-
 mod app;
 mod app_service;
 mod config;
@@ -104,6 +99,7 @@ pub mod web;
 pub use actix_http::cookie;
 pub use actix_http::Response as HttpResponse;
 pub use actix_http::{body, Error, HttpMessage, ResponseError, Result};
+#[doc(inline)]
 pub use actix_rt as rt;
 pub use actix_web_codegen::*;
 

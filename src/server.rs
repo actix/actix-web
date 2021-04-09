@@ -71,12 +71,15 @@ impl<F, I, S, B> HttpServer<F, I, S, B>
 where
     F: Fn() -> I + Send + Clone + 'static,
     I: IntoServiceFactory<S, Request>,
+
     S: ServiceFactory<Request, Config = AppConfig> + 'static,
+    // S::Future: 'static,
     S::Error: Into<Error> + 'static,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
     S::Service: 'static,
+    // S::Service: 'static,
     B: MessageBody + 'static,
 {
     /// Create new HTTP server with application factory
@@ -288,7 +291,7 @@ where
                     };
 
                     svc.finish(map_config(factory(), move |_| {
-                        AppConfig::new(false, addr, host.clone())
+                        AppConfig::new(false, host.clone(), addr)
                     }))
                     .tcp()
                 })?;
@@ -343,10 +346,11 @@ where
                     };
 
                     svc.finish(map_config(factory(), move |_| {
-                        AppConfig::new(true, addr, host.clone())
+                        AppConfig::new(true, host.clone(), addr)
                     }))
                     .openssl(acceptor.clone())
                 })?;
+
         Ok(self)
     }
 
@@ -396,10 +400,11 @@ where
                     };
 
                     svc.finish(map_config(factory(), move |_| {
-                        AppConfig::new(true, addr, host.clone())
+                        AppConfig::new(true, host.clone(), addr)
                     }))
                     .rustls(config.clone())
                 })?;
+
         Ok(self)
     }
 
@@ -502,8 +507,8 @@ where
             let c = cfg.lock().unwrap();
             let config = AppConfig::new(
                 false,
-                socket_addr,
                 c.host.clone().unwrap_or_else(|| format!("{}", socket_addr)),
+                socket_addr,
             );
 
             pipeline_factory(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) })
@@ -552,8 +557,8 @@ where
                 let c = cfg.lock().unwrap();
                 let config = AppConfig::new(
                     false,
-                    socket_addr,
                     c.host.clone().unwrap_or_else(|| format!("{}", socket_addr)),
+                    socket_addr,
                 );
                 pipeline_factory(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) })
                     .and_then(
