@@ -255,7 +255,7 @@ mod tests {
         assert_eq!(s.value, "user2");
         assert_eq!(
             format!("{}, {:?}", s, s),
-            "MyStruct(name, user2), MyStruct { key: \"name\", value: \"user2\" }"
+            "MyStruct(name, user2), Path(MyStruct { key: \"name\", value: \"user2\" })"
         );
         let s = s.into_inner();
         assert_eq!(s.value, "user2");
