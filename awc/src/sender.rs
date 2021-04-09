@@ -1,6 +1,6 @@
 use std::{
     future::Future,
-    net,
+    io, net,
     pin::Pin,
     rc::Rc,
     task::{Context, Poll},
@@ -209,7 +209,8 @@ impl RequestSender {
     ) -> SendClientRequest {
         let body = match serde_json::to_string(value) {
             Ok(body) => body,
-            Err(e) => return Error::from(e).into(),
+            // TODO: own error type
+            Err(e) => return Error::from(io::Error::new(io::ErrorKind::Other, e)).into(),
         };
 
         if let Err(e) = self.set_header_if_none(header::CONTENT_TYPE, "application/json") {
@@ -235,7 +236,8 @@ impl RequestSender {
     ) -> SendClientRequest {
         let body = match serde_urlencoded::to_string(value) {
             Ok(body) => body,
-            Err(e) => return Error::from(e).into(),
+            // TODO: own error type
+            Err(e) => return Error::from(io::Error::new(io::ErrorKind::Other, e)).into(),
         };
 
         // set content-type

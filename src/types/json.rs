@@ -127,7 +127,7 @@ impl<T: Serialize> Responder for Json<T> {
             Ok(body) => HttpResponse::Ok()
                 .content_type(mime::APPLICATION_JSON)
                 .body(body),
-            Err(err) => HttpResponse::from_error(err.into()),
+            Err(err) => HttpResponse::from_error(JsonPayloadError::Serialize(err).into()),
         }
     }
 }
@@ -412,7 +412,8 @@ where
                         }
                     }
                     None => {
-                        let json = serde_json::from_slice::<T>(&buf)?;
+                        let json = serde_json::from_slice::<T>(&buf)
+                            .map_err(JsonPayloadError::Deserialize)?;
                         return Poll::Ready(Ok(json));
                     }
                 }

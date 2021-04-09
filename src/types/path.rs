@@ -93,7 +93,7 @@ where
     T: de::DeserializeOwned,
 {
     type Error = Error;
-    type Future = Ready<Result<Self, Error>>;
+    type Future = Ready<Result<Self, Self::Error>>;
     type Config = PathConfig;
 
     #[inline]
@@ -106,17 +106,17 @@ where
         ready(
             de::Deserialize::deserialize(PathDeserializer::new(req.match_info()))
                 .map(Path)
-                .map_err(move |e| {
+                .map_err(move |err| {
                     log::debug!(
                         "Failed during Path extractor deserialization. \
                          Request path: {:?}",
                         req.path()
                     );
                     if let Some(error_handler) = error_handler {
-                        let e = PathError::Deserialize(e);
+                        let e = PathError::Deserialize(err);
                         (error_handler)(e, req)
                     } else {
-                        ErrorNotFound(e)
+                        ErrorNotFound(err)
                     }
                 }),
         )
@@ -303,7 +303,7 @@ mod tests {
         let s = Path::<(usize,)>::from_request(&req, &mut pl)
             .await
             .unwrap_err();
-        let res = HttpResponse::from_error(s.into());
+        let res = HttpResponse::from_error(s);
 
         assert_eq!(res.status(), http::StatusCode::CONFLICT);
     }

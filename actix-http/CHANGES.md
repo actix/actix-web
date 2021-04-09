@@ -6,8 +6,12 @@
 * Top-level `cookies` mod (re-export). [#2065]
 * `HttpMessage` trait loses the `cookies` and `cookie` methods. [#2065]
 * `impl ResponseError for CookieParseError`. [#2065]
+* Deprecated methods on `ResponseBuilder`: `if_true`, `if_some`. [#????]
+* `ResponseBuilder::json`. [#????]
+* `ResponseBuilder::{set_header, header}`. [#????]
 
 [#2065]: https://github.com/actix/actix-web/pull/2065
+[#????]: https://github.com/actix/actix-web/pull/????
 
 
 ## 3.0.0-beta.5 - 2021-04-02

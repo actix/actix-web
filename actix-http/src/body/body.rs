@@ -132,12 +132,6 @@ impl From<BytesMut> for Body {
     }
 }
 
-impl From<serde_json::Value> for Body {
-    fn from(v: serde_json::Value) -> Body {
-        Body::Bytes(v.to_string().into())
-    }
-}
-
 impl<S> From<SizedStream<S>> for Body
 where
     S: Stream<Item = Result<Bytes, Error>> + Unpin + 'static,

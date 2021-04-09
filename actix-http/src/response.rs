@@ -2,7 +2,6 @@
 
 use std::{
     cell::{Ref, RefMut},
-    convert::TryInto,
     fmt,
     future::Future,
     pin::Pin,
@@ -12,17 +11,13 @@ use std::{
 
 use bytes::{Bytes, BytesMut};
 use futures_core::Stream;
-use serde::Serialize;
 
 use crate::{
     body::{Body, BodyStream, MessageBody, ResponseBody},
     error::Error,
     extensions::Extensions,
     header::{IntoHeaderPair, IntoHeaderValue},
-    http::{
-        header::{self, HeaderName},
-        Error as HttpError, HeaderMap, StatusCode,
-    },
+    http::{header, Error as HttpError, HeaderMap, StatusCode},
     message::{BoxedResponseHead, ConnectionType, ResponseHead},
 };
 
@@ -335,54 +330,6 @@ impl ResponseBuilder {
         self
     }
 
-    /// Replaced with [`Self::insert_header()`].
-    #[deprecated(
-        since = "4.0.0",
-        note = "Replaced with `insert_header((key, value))`. Will be removed in v5."
-    )]
-    pub fn set_header<K, V>(&mut self, key: K, value: V) -> &mut Self
-    where
-        K: TryInto<HeaderName>,
-        K::Error: Into<HttpError>,
-        V: IntoHeaderValue,
-    {
-        if self.err.is_some() {
-            return self;
-        }
-
-        match (key.try_into(), value.try_into_value()) {
-            (Ok(name), Ok(value)) => return self.insert_header((name, value)),
-            (Err(err), _) => self.err = Some(err.into()),
-            (_, Err(err)) => self.err = Some(err.into()),
-        }
-
-        self
-    }
-
-    /// Replaced with [`Self::append_header()`].
-    #[deprecated(
-        since = "4.0.0",
-        note = "Replaced with `append_header((key, value))`. Will be removed in v5."
-    )]
-    pub fn header<K, V>(&mut self, key: K, value: V) -> &mut Self
-    where
-        K: TryInto<HeaderName>,
-        K::Error: Into<HttpError>,
-        V: IntoHeaderValue,
-    {
-        if self.err.is_some() {
-            return self;
-        }
-
-        match (key.try_into(), value.try_into_value()) {
-            (Ok(name), Ok(value)) => return self.append_header((name, value)),
-            (Err(err), _) => self.err = Some(err.into()),
-            (_, Err(err)) => self.err = Some(err.into()),
-        }
-
-        self
-    }
-
     /// Set the custom reason for the response.
     #[inline]
     pub fn reason(&mut self, reason: &'static str) -> &mut Self {
@@ -456,32 +403,6 @@ impl ResponseBuilder {
         self
     }
 
-    /// This method calls provided closure with builder reference if value is `true`.
-    #[doc(hidden)]
-    #[deprecated = "Use an if statement."]
-    pub fn if_true<F>(&mut self, value: bool, f: F) -> &mut Self
-    where
-        F: FnOnce(&mut ResponseBuilder),
-    {
-        if value {
-            f(self);
-        }
-        self
-    }
-
-    /// This method calls provided closure with builder reference if value is `Some`.
-    #[doc(hidden)]
-    #[deprecated = "Use an if-let construction."]
-    pub fn if_some<T, F>(&mut self, value: Option<T>, f: F) -> &mut Self
-    where
-        F: FnOnce(T, &mut ResponseBuilder),
-    {
-        if let Some(val) = value {
-            f(val, self);
-        }
-        self
-    }
-
     /// Responses extensions
     #[inline]
     pub fn extensions(&self) -> Ref<'_, Extensions> {
@@ -496,10 +417,10 @@ impl ResponseBuilder {
         head.extensions.borrow_mut()
     }
 
-    #[inline]
     /// Set a body and generate `Response`.
     ///
     /// `ResponseBuilder` can not be used after this call.
+    #[inline]
     pub fn body<B: Into<Body>>(&mut self, body: B) -> Response {
         self.message_body(body.into())
     }
@@ -521,10 +442,10 @@ impl ResponseBuilder {
         }
     }
 
-    #[inline]
     /// Set a streaming body and generate `Response`.
     ///
     /// `ResponseBuilder` can not be used after this call.
+    #[inline]
     pub fn streaming<S, E>(&mut self, stream: S) -> Response
     where
         S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
@@ -533,32 +454,10 @@ impl ResponseBuilder {
         self.body(Body::from_message(BodyStream::new(stream)))
     }
 
-    /// Set a json body and generate `Response`
-    ///
-    /// `ResponseBuilder` can not be used after this call.
-    pub fn json(&mut self, value: impl Serialize) -> Response {
-        match serde_json::to_string(&value) {
-            Ok(body) => {
-                let contains = if let Some(parts) = parts(&mut self.head, &self.err) {
-                    parts.headers.contains_key(header::CONTENT_TYPE)
-                } else {
-                    true
-                };
-
-                if !contains {
-                    self.insert_header((header::CONTENT_TYPE, mime::APPLICATION_JSON));
-                }
-
-                self.body(Body::from(body))
-            }
-            Err(e) => Error::from(e).into(),
-        }
-    }
-
-    #[inline]
     /// Set an empty body and generate `Response`
     ///
     /// `ResponseBuilder` can not be used after this call.
+    #[inline]
     pub fn finish(&mut self) -> Response {
         self.body(Body::Empty)
     }
@@ -706,11 +605,9 @@ impl From<BytesMut> for Response {
 
 #[cfg(test)]
 mod tests {
-    use serde_json::json;
-
     use super::*;
     use crate::body::Body;
-    use crate::http::header::{HeaderValue, CONTENT_TYPE, COOKIE};
+    use crate::http::header::{HeaderName, HeaderValue, CONTENT_TYPE, COOKIE};
 
     #[test]
     fn test_debug() {
@@ -752,38 +649,6 @@ mod tests {
             .content_type("text/plain")
             .body(Body::Empty);
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "text/plain")
-    }
-
-    #[test]
-    fn test_json() {
-        let resp = Response::Ok().json(vec!["v1", "v2", "v3"]);
-        let ct = resp.headers().get(CONTENT_TYPE).unwrap();
-        assert_eq!(ct, HeaderValue::from_static("application/json"));
-        assert_eq!(resp.body().get_ref(), b"[\"v1\",\"v2\",\"v3\"]");
-
-        let resp = Response::Ok().json(&["v1", "v2", "v3"]);
-        let ct = resp.headers().get(CONTENT_TYPE).unwrap();
-        assert_eq!(ct, HeaderValue::from_static("application/json"));
-        assert_eq!(resp.body().get_ref(), b"[\"v1\",\"v2\",\"v3\"]");
-    }
-
-    #[test]
-    fn test_json_ct() {
-        let resp = Response::build(StatusCode::OK)
-            .insert_header((CONTENT_TYPE, "text/json"))
-            .json(&vec!["v1", "v2", "v3"]);
-        let ct = resp.headers().get(CONTENT_TYPE).unwrap();
-        assert_eq!(ct, HeaderValue::from_static("text/json"));
-        assert_eq!(resp.body().get_ref(), b"[\"v1\",\"v2\",\"v3\"]");
-    }
-
-    #[test]
-    fn test_serde_json_in_body() {
-        use serde_json::json;
-
-        let resp =
-            Response::build(StatusCode::OK).body(json!({"test-key":"test-value"}));
-        assert_eq!(resp.body().get_ref(), br#"{"test-key":"test-value"}"#);
     }
 
     #[test]

@@ -163,7 +163,7 @@ impl<T: Serialize> Responder for Form<T> {
             Ok(body) => HttpResponse::Ok()
                 .content_type(mime::APPLICATION_WWW_FORM_URLENCODED)
                 .body(body),
-            Err(err) => HttpResponse::from_error(err.into()),
+            Err(err) => HttpResponse::from_error(UrlencodedError::Serialize(err).into()),
         }
     }
 }
@@ -346,14 +346,14 @@ where
                 }
 
                 if encoding == UTF_8 {
-                    serde_urlencoded::from_bytes::<T>(&body).map_err(|_| UrlencodedError::Parse)
+                    serde_urlencoded::from_bytes::<T>(&body).map_err(UrlencodedError::Parse)
                 } else {
                     let body = encoding
                         .decode_without_bom_handling_and_without_replacement(&body)
                         .map(|s| s.into_owned())
-                        .ok_or(UrlencodedError::Parse)?;
+                        .ok_or(UrlencodedError::Encoding)?;
 
-                    serde_urlencoded::from_str::<T>(&body).map_err(|_| UrlencodedError::Parse)
+                    serde_urlencoded::from_str::<T>(&body).map_err(UrlencodedError::Parse)
                 }
             }
             .boxed_local(),

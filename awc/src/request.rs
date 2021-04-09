@@ -311,34 +311,6 @@ impl ClientRequest {
         self
     }
 
-    /// This method calls provided closure with builder reference if value is `true`.
-    #[doc(hidden)]
-    #[deprecated = "Use an if statement."]
-    pub fn if_true<F>(self, value: bool, f: F) -> Self
-    where
-        F: FnOnce(ClientRequest) -> ClientRequest,
-    {
-        if value {
-            f(self)
-        } else {
-            self
-        }
-    }
-
-    /// This method calls provided closure with builder reference if value is `Some`.
-    #[doc(hidden)]
-    #[deprecated = "Use an if-let construction."]
-    pub fn if_some<T, F>(self, value: Option<T>, f: F) -> Self
-    where
-        F: FnOnce(T, ClientRequest) -> ClientRequest,
-    {
-        if let Some(val) = value {
-            f(val, self)
-        } else {
-            self
-        }
-    }
-
     /// Sets the query part of the request
     pub fn query<T: Serialize>(
         mut self,
