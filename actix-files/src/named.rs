@@ -548,12 +548,11 @@ impl Service<ServiceRequest> for NamedFileService {
 
 impl HttpServiceFactory for NamedFile {
     fn register(self, config: &mut AppService) {
-        let rdef = if config.is_root() {
-            ResourceDef::root_prefix(self.path.to_string_lossy().as_ref())
-        } else {
-            ResourceDef::prefix(self.path.to_string_lossy().as_ref())
-        };
-
-        config.register_service(rdef, None, self, None)
+        config.register_service(
+            ResourceDef::root_prefix(self.path.to_string_lossy().as_ref()),
+            None,
+            self,
+            None,
+        )
     }
 }

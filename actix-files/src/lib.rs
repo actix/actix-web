@@ -754,4 +754,62 @@ mod tests {
         let res = test::call_service(&srv, req).await;
         assert_eq!(res.status(), StatusCode::OK);
     }
+
+    #[actix_rt::test]
+    async fn test_serve_named_file() {
+        let srv =
+            test::init_service(App::new().service(NamedFile::open("Cargo.toml").unwrap()))
+                .await;
+
+        let req = TestRequest::get().uri("/Cargo.toml").to_request();
+        let res = test::call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+
+        let bytes = test::read_body(res).await;
+        let data = Bytes::from(fs::read("Cargo.toml").unwrap());
+        assert_eq!(bytes, data);
+
+        let req = TestRequest::get().uri("/test/unknown").to_request();
+        let res = test::call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[actix_rt::test]
+    async fn test_serve_named_file_prefix() {
+        let srv = test::init_service(
+            App::new()
+                .service(web::scope("/test").service(NamedFile::open("Cargo.toml").unwrap())),
+        )
+        .await;
+
+        let req = TestRequest::get().uri("/test/Cargo.toml").to_request();
+        let res = test::call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+
+        let bytes = test::read_body(res).await;
+        let data = Bytes::from(fs::read("Cargo.toml").unwrap());
+        assert_eq!(bytes, data);
+
+        let req = TestRequest::get().uri("/Cargo.toml").to_request();
+        let res = test::call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[actix_rt::test]
+    async fn test_named_file_default_service() {
+        let srv = test::init_service(
+            App::new().default_service(NamedFile::open("Cargo.toml").unwrap()),
+        )
+        .await;
+
+        for route in ["/foobar", "/baz", "/"].iter() {
+            let req = TestRequest::get().uri(route).to_request();
+            let res = test::call_service(&srv, req).await;
+            assert_eq!(res.status(), StatusCode::OK);
+
+            let bytes = test::read_body(res).await;
+            let data = Bytes::from(fs::read("Cargo.toml").unwrap());
+            assert_eq!(bytes, data);
+        }
+    }
 }
