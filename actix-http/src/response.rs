@@ -14,17 +14,16 @@ use bytes::{Bytes, BytesMut};
 use futures_core::Stream;
 use serde::Serialize;
 
-use crate::body::{Body, BodyStream, MessageBody, ResponseBody};
-use crate::error::Error;
-use crate::extensions::Extensions;
-use crate::header::{IntoHeaderPair, IntoHeaderValue};
-use crate::http::header::{self, HeaderName};
-use crate::http::{Error as HttpError, HeaderMap, StatusCode};
-use crate::message::{BoxedResponseHead, ConnectionType, ResponseHead};
-#[cfg(feature = "cookies")]
 use crate::{
-    cookie::{Cookie, CookieJar},
-    http::header::HeaderValue,
+    body::{Body, BodyStream, MessageBody, ResponseBody},
+    error::Error,
+    extensions::Extensions,
+    header::{IntoHeaderPair, IntoHeaderValue},
+    http::{
+        header::{self, HeaderName},
+        Error as HttpError, HeaderMap, StatusCode,
+    },
+    message::{BoxedResponseHead, ConnectionType, ResponseHead},
 };
 
 /// An HTTP Response
@@ -133,54 +132,6 @@ impl<B> Response<B> {
     #[inline]
     pub fn headers_mut(&mut self) -> &mut HeaderMap {
         &mut self.head.headers
-    }
-
-    /// Get an iterator for the cookies set by this response
-    #[cfg(feature = "cookies")]
-    #[inline]
-    pub fn cookies(&self) -> CookieIter<'_> {
-        CookieIter {
-            iter: self.head.headers.get_all(header::SET_COOKIE),
-        }
-    }
-
-    /// Add a cookie to this response
-    #[cfg(feature = "cookies")]
-    #[inline]
-    pub fn add_cookie(&mut self, cookie: &Cookie<'_>) -> Result<(), HttpError> {
-        let h = &mut self.head.headers;
-        HeaderValue::from_str(&cookie.to_string())
-            .map(|c| {
-                h.append(header::SET_COOKIE, c);
-            })
-            .map_err(|e| e.into())
-    }
-
-    /// Remove all cookies with the given name from this response. Returns
-    /// the number of cookies removed.
-    #[cfg(feature = "cookies")]
-    #[inline]
-    pub fn del_cookie(&mut self, name: &str) -> usize {
-        let h = &mut self.head.headers;
-        let vals: Vec<HeaderValue> = h
-            .get_all(header::SET_COOKIE)
-            .map(|v| v.to_owned())
-            .collect();
-        h.remove(header::SET_COOKIE);
-
-        let mut count: usize = 0;
-        for v in vals {
-            if let Ok(s) = v.to_str() {
-                if let Ok(c) = Cookie::parse_encoded(s) {
-                    if c.name() == name {
-                        count += 1;
-                        continue;
-                    }
-                }
-            }
-            h.append(header::SET_COOKIE, v);
-        }
-        count
     }
 
     /// Connection upgrade status
@@ -304,34 +255,12 @@ impl Future for Response {
     }
 }
 
-#[cfg(feature = "cookies")]
-pub struct CookieIter<'a> {
-    iter: header::GetAll<'a>,
-}
-
-#[cfg(feature = "cookies")]
-impl<'a> Iterator for CookieIter<'a> {
-    type Item = Cookie<'a>;
-
-    #[inline]
-    fn next(&mut self) -> Option<Cookie<'a>> {
-        for v in self.iter.by_ref() {
-            if let Ok(c) = Cookie::parse_encoded(v.to_str().ok()?) {
-                return Some(c);
-            }
-        }
-        None
-    }
-}
-
 /// An HTTP response builder.
 ///
 /// This type can be used to construct an instance of `Response` through a builder-like pattern.
 pub struct ResponseBuilder {
     head: Option<BoxedResponseHead>,
     err: Option<HttpError>,
-    #[cfg(feature = "cookies")]
-    cookies: Option<CookieJar>,
 }
 
 impl ResponseBuilder {
@@ -341,8 +270,6 @@ impl ResponseBuilder {
         ResponseBuilder {
             head: Some(BoxedResponseHead::new(status)),
             err: None,
-            #[cfg(feature = "cookies")]
-            cookies: None,
         }
     }
 
@@ -409,7 +336,10 @@ impl ResponseBuilder {
     }
 
     /// Replaced with [`Self::insert_header()`].
-    #[deprecated = "Replaced with `insert_header((key, value))`."]
+    #[deprecated(
+        since = "4.0.0",
+        note = "Replaced with `insert_header((key, value))`. Will be removed in v5."
+    )]
     pub fn set_header<K, V>(&mut self, key: K, value: V) -> &mut Self
     where
         K: TryInto<HeaderName>,
@@ -430,7 +360,10 @@ impl ResponseBuilder {
     }
 
     /// Replaced with [`Self::append_header()`].
-    #[deprecated = "Replaced with `append_header((key, value))`."]
+    #[deprecated(
+        since = "4.0.0",
+        note = "Replaced with `append_header((key, value))`. Will be removed in v5."
+    )]
     pub fn header<K, V>(&mut self, key: K, value: V) -> &mut Self
     where
         K: TryInto<HeaderName>,
@@ -523,63 +456,6 @@ impl ResponseBuilder {
         self
     }
 
-    /// Set a cookie
-    ///
-    /// ```
-    /// use actix_http::{http, Request, Response};
-    ///
-    /// fn index(req: Request) -> Response {
-    ///     Response::Ok()
-    ///         .cookie(
-    ///             http::Cookie::build("name", "value")
-    ///                 .domain("www.rust-lang.org")
-    ///                 .path("/")
-    ///                 .secure(true)
-    ///                 .http_only(true)
-    ///                 .finish(),
-    ///         )
-    ///         .finish()
-    /// }
-    /// ```
-    #[cfg(feature = "cookies")]
-    pub fn cookie<'c>(&mut self, cookie: Cookie<'c>) -> &mut Self {
-        if self.cookies.is_none() {
-            let mut jar = CookieJar::new();
-            jar.add(cookie.into_owned());
-            self.cookies = Some(jar)
-        } else {
-            self.cookies.as_mut().unwrap().add(cookie.into_owned());
-        }
-        self
-    }
-
-    /// Remove cookie
-    ///
-    /// ```
-    /// use actix_http::{http, Request, Response, HttpMessage};
-    ///
-    /// fn index(req: Request) -> Response {
-    ///     let mut builder = Response::Ok();
-    ///
-    ///     if let Some(ref cookie) = req.cookie("name") {
-    ///         builder.del_cookie(cookie);
-    ///     }
-    ///
-    ///     builder.finish()
-    /// }
-    /// ```
-    #[cfg(feature = "cookies")]
-    pub fn del_cookie<'a>(&mut self, cookie: &Cookie<'a>) -> &mut Self {
-        if self.cookies.is_none() {
-            self.cookies = Some(CookieJar::new())
-        }
-        let jar = self.cookies.as_mut().unwrap();
-        let cookie = cookie.clone().into_owned();
-        jar.add_original(cookie.clone());
-        jar.remove(cookie);
-        self
-    }
-
     /// This method calls provided closure with builder reference if value is `true`.
     #[doc(hidden)]
     #[deprecated = "Use an if statement."]
@@ -636,19 +512,7 @@ impl ResponseBuilder {
             return Response::from(Error::from(e)).into_body();
         }
 
-        // allow unused mut when cookies feature is disabled
-        #[allow(unused_mut)]
-        let mut response = self.head.take().expect("cannot reuse response builder");
-
-        #[cfg(feature = "cookies")]
-        if let Some(ref jar) = self.cookies {
-            for cookie in jar.delta() {
-                match HeaderValue::from_str(&cookie.to_string()) {
-                    Ok(val) => response.headers.append(header::SET_COOKIE, val),
-                    Err(e) => return Response::from(Error::from(e)).into_body(),
-                };
-            }
-        }
+        let response = self.head.take().expect("cannot reuse response builder");
 
         Response {
             head: response,
@@ -704,8 +568,6 @@ impl ResponseBuilder {
         ResponseBuilder {
             head: self.head.take(),
             err: self.err.take(),
-            #[cfg(feature = "cookies")]
-            cookies: self.cookies.take(),
         }
     }
 }
@@ -724,29 +586,9 @@ fn parts<'a>(
 /// Convert `Response` to a `ResponseBuilder`. Body get dropped.
 impl<B> From<Response<B>> for ResponseBuilder {
     fn from(res: Response<B>) -> ResponseBuilder {
-        #[cfg(feature = "cookies")]
-        let jar = {
-            // If this response has cookies, load them into a jar
-            let mut jar: Option<CookieJar> = None;
-
-            for c in res.cookies() {
-                if let Some(ref mut j) = jar {
-                    j.add_original(c.into_owned());
-                } else {
-                    let mut j = CookieJar::new();
-                    j.add_original(c.into_owned());
-                    jar = Some(j);
-                }
-            }
-
-            jar
-        };
-
         ResponseBuilder {
             head: Some(res.head),
             err: None,
-            #[cfg(feature = "cookies")]
-            cookies: jar,
         }
     }
 }
@@ -764,33 +606,9 @@ impl<'a> From<&'a ResponseHead> for ResponseBuilder {
 
         msg.no_chunking(!head.chunked());
 
-        #[cfg(feature = "cookies")]
-        let jar = {
-            // If this response has cookies, load them into a jar
-            let mut jar: Option<CookieJar> = None;
-
-            let cookies = CookieIter {
-                iter: head.headers.get_all(header::SET_COOKIE),
-            };
-
-            for c in cookies {
-                if let Some(ref mut j) = jar {
-                    j.add_original(c.into_owned());
-                } else {
-                    let mut j = CookieJar::new();
-                    j.add_original(c.into_owned());
-                    jar = Some(j);
-                }
-            }
-
-            jar
-        };
-
         ResponseBuilder {
             head: Some(msg),
             err: None,
-            #[cfg(feature = "cookies")]
-            cookies: jar,
         }
     }
 }
@@ -893,8 +711,6 @@ mod tests {
     use super::*;
     use crate::body::Body;
     use crate::http::header::{HeaderValue, CONTENT_TYPE, COOKIE};
-    #[cfg(feature = "cookies")]
-    use crate::{http::header::SET_COOKIE, HttpMessage};
 
     #[test]
     fn test_debug() {
@@ -904,68 +720,6 @@ mod tests {
             .finish();
         let dbg = format!("{:?}", resp);
         assert!(dbg.contains("Response"));
-    }
-
-    #[cfg(feature = "cookies")]
-    #[test]
-    fn test_response_cookies() {
-        let req = crate::test::TestRequest::default()
-            .append_header((COOKIE, "cookie1=value1"))
-            .append_header((COOKIE, "cookie2=value2"))
-            .finish();
-        let cookies = req.cookies().unwrap();
-
-        let resp = Response::Ok()
-            .cookie(
-                crate::http::Cookie::build("name", "value")
-                    .domain("www.rust-lang.org")
-                    .path("/test")
-                    .http_only(true)
-                    .max_age(time::Duration::days(1))
-                    .finish(),
-            )
-            .del_cookie(&cookies[0])
-            .finish();
-
-        let mut val = resp
-            .headers()
-            .get_all(SET_COOKIE)
-            .map(|v| v.to_str().unwrap().to_owned())
-            .collect::<Vec<_>>();
-        val.sort();
-
-        // the .del_cookie call
-        assert!(val[0].starts_with("cookie1=; Max-Age=0;"));
-
-        // the .cookie call
-        assert_eq!(
-            val[1],
-            "name=value; HttpOnly; Path=/test; Domain=www.rust-lang.org; Max-Age=86400"
-        );
-    }
-
-    #[cfg(feature = "cookies")]
-    #[test]
-    fn test_update_response_cookies() {
-        let mut r = Response::Ok()
-            .cookie(crate::http::Cookie::new("original", "val100"))
-            .finish();
-
-        r.add_cookie(&crate::http::Cookie::new("cookie2", "val200"))
-            .unwrap();
-        r.add_cookie(&crate::http::Cookie::new("cookie2", "val250"))
-            .unwrap();
-        r.add_cookie(&crate::http::Cookie::new("cookie3", "val300"))
-            .unwrap();
-
-        assert_eq!(r.cookies().count(), 4);
-        r.del_cookie("cookie2");
-
-        let mut iter = r.cookies();
-        let v = iter.next().unwrap();
-        assert_eq!((v.name(), v.value()), ("original", "val100"));
-        let v = iter.next().unwrap();
-        assert_eq!((v.name(), v.value()), ("cookie3", "val300"));
     }
 
     #[test]
@@ -1026,6 +780,7 @@ mod tests {
     #[test]
     fn test_serde_json_in_body() {
         use serde_json::json;
+
         let resp =
             Response::build(StatusCode::OK).body(json!({"test-key":"test-value"}));
         assert_eq!(resp.body().get_ref(), br#"{"test-key":"test-value"}"#);
@@ -1101,21 +856,22 @@ mod tests {
         assert_eq!(resp.body().get_ref(), b"test");
     }
 
-    #[cfg(feature = "cookies")]
     #[test]
     fn test_into_builder() {
         let mut resp: Response = "test".into();
         assert_eq!(resp.status(), StatusCode::OK);
 
-        resp.add_cookie(&crate::http::Cookie::new("cookie1", "val100"))
-            .unwrap();
+        resp.headers_mut().insert(
+            HeaderName::from_static("cookie"),
+            HeaderValue::from_static("cookie1=val100"),
+        );
 
         let mut builder: ResponseBuilder = resp.into();
         let resp = builder.status(StatusCode::BAD_REQUEST).finish();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
-        let cookie = resp.cookies().next().unwrap();
-        assert_eq!((cookie.name(), cookie.value()), ("cookie1", "val100"));
+        let cookie = resp.headers().get_all("Cookie").next().unwrap();
+        assert_eq!(cookie.to_str().unwrap(), "cookie1=val100");
     }
 
     #[test]

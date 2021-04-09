@@ -8,14 +8,14 @@ use futures_core::Stream;
 use serde::Serialize;
 
 use actix_http::body::Body;
-#[cfg(feature = "cookies")]
-use actix_http::cookie::{Cookie, CookieJar};
 use actix_http::http::header::{self, IntoHeaderPair};
 use actix_http::http::{
     uri, ConnectionType, Error as HttpError, HeaderMap, HeaderValue, Method, Uri, Version,
 };
 use actix_http::{Error, RequestHead};
 
+#[cfg(feature = "cookies")]
+use crate::cookie::{Cookie, CookieJar};
 use crate::error::{FreezeRequestError, InvalidUrl};
 use crate::frozen::FrozenClientRequest;
 use crate::sender::{PrepForSendingError, RequestSender, SendClientRequest};
@@ -271,7 +271,7 @@ impl ClientRequest {
     /// async fn main() {
     ///     let resp = awc::Client::new().get("https://www.rust-lang.org")
     ///         .cookie(
-    ///             awc::http::Cookie::build("name", "value")
+    ///             awc::cookie::Cookie::build("name", "value")
     ///                 .domain("www.rust-lang.org")
     ///                 .path("/")
     ///                 .secure(true)
@@ -494,7 +494,7 @@ impl ClientRequest {
             let cookie: String = jar
                 .delta()
                 // ensure only name=value is written to cookie header
-                .map(|c| Cookie::new(c.name(), c.value()).encoded().to_string())
+                .map(|c| c.stripped().encoded().to_string())
                 .collect::<Vec<_>>()
                 .join("; ");
 

@@ -5,7 +5,7 @@ use derive_more::{Display, Error, From};
 use serde_json::error::Error as JsonError;
 use url::ParseError as UrlParseError;
 
-use crate::{http::StatusCode, HttpResponse};
+use crate::http::StatusCode;
 
 /// Errors which can occur when attempting to generate resource uri.
 #[derive(Debug, PartialEq, Display, From)]
@@ -90,12 +90,11 @@ pub enum JsonPayloadError {
 
 impl std::error::Error for JsonPayloadError {}
 
-/// Return `BadRequest` for `JsonPayloadError`
 impl ResponseError for JsonPayloadError {
-    fn error_response(&self) -> HttpResponse {
+    fn status_code(&self) -> StatusCode {
         match *self {
-            JsonPayloadError::Overflow => HttpResponse::new(StatusCode::PAYLOAD_TOO_LARGE),
-            _ => HttpResponse::new(StatusCode::BAD_REQUEST),
+            JsonPayloadError::Overflow => StatusCode::PAYLOAD_TOO_LARGE,
+            _ => StatusCode::BAD_REQUEST,
         }
     }
 }
@@ -168,26 +167,25 @@ mod tests {
 
     #[test]
     fn test_urlencoded_error() {
-        let resp: HttpResponse =
-            UrlencodedError::Overflow { size: 0, limit: 0 }.error_response();
+        let resp = UrlencodedError::Overflow { size: 0, limit: 0 }.error_response();
         assert_eq!(resp.status(), StatusCode::PAYLOAD_TOO_LARGE);
-        let resp: HttpResponse = UrlencodedError::UnknownLength.error_response();
+        let resp = UrlencodedError::UnknownLength.error_response();
         assert_eq!(resp.status(), StatusCode::LENGTH_REQUIRED);
-        let resp: HttpResponse = UrlencodedError::ContentType.error_response();
+        let resp = UrlencodedError::ContentType.error_response();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 
     #[test]
     fn test_json_payload_error() {
-        let resp: HttpResponse = JsonPayloadError::Overflow.error_response();
+        let resp = JsonPayloadError::Overflow.error_response();
         assert_eq!(resp.status(), StatusCode::PAYLOAD_TOO_LARGE);
-        let resp: HttpResponse = JsonPayloadError::ContentType.error_response();
+        let resp = JsonPayloadError::ContentType.error_response();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 
     #[test]
     fn test_query_payload_error() {
-        let resp: HttpResponse = QueryPayloadError::Deserialize(
+        let resp = QueryPayloadError::Deserialize(
             serde_urlencoded::from_str::<i32>("bad query").unwrap_err(),
         )
         .error_response();
@@ -196,9 +194,9 @@ mod tests {
 
     #[test]
     fn test_readlines_error() {
-        let resp: HttpResponse = ReadlinesError::LimitOverflow.error_response();
+        let resp = ReadlinesError::LimitOverflow.error_response();
         assert_eq!(resp.status(), StatusCode::PAYLOAD_TOO_LARGE);
-        let resp: HttpResponse = ReadlinesError::EncodingError.error_response();
+        let resp = ReadlinesError::EncodingError.error_response();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 }

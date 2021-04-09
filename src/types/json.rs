@@ -225,7 +225,7 @@ where
 ///     .content_type(|mime| mime == mime::TEXT_PLAIN)
 ///     // use custom error handler
 ///     .error_handler(|err, req| {
-///         error::InternalError::from_response(err, HttpResponse::Conflict().finish()).into()
+///         error::InternalError::from_response(err, HttpResponse::Conflict().into()).into()
 ///     });
 ///
 /// App::new()
@@ -486,7 +486,7 @@ mod tests {
                 };
                 let resp =
                     HttpResponse::BadRequest().body(serde_json::to_string(&msg).unwrap());
-                InternalError::from_response(err, resp).into()
+                InternalError::from_response(err, resp.into()).into()
             }))
             .to_http_parts();
 

@@ -166,7 +166,7 @@ where
 /// let query_cfg = web::QueryConfig::default()
 ///     // use custom error handler
 ///     .error_handler(|err, req| {
-///         error::InternalError::from_response(err, HttpResponse::Conflict().finish()).into()
+///         error::InternalError::from_response(err, HttpResponse::Conflict().into()).into()
 ///     });
 ///
 /// App::new()
@@ -267,7 +267,7 @@ mod tests {
         let req = TestRequest::with_uri("/name/user1/")
             .app_data(QueryConfig::default().error_handler(|e, _| {
                 let resp = HttpResponse::UnprocessableEntity().finish();
-                InternalError::from_response(e, resp).into()
+                InternalError::from_response(e, resp.into()).into()
             }))
             .to_srv_request();
 

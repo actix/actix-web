@@ -346,7 +346,7 @@ where
 
                     // send service call error as response
                     Poll::Ready(Err(err)) => {
-                        let res: Response = err.into().into();
+                        let res = Response::from_error(err.into());
                         let (res, body) = res.replace_body(());
                         self.as_mut().send_response(res, body.into_body())?;
                     }
