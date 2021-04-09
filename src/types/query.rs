@@ -220,7 +220,10 @@ mod tests {
         let mut s = Query::<Id>::from_query(&req.query_string()).unwrap();
 
         assert_eq!(s.id, "test");
-        assert_eq!(format!("{}, {:?}", s, s), "test, Query(Id { id: \"test\" })");
+        assert_eq!(
+            format!("{}, {:?}", s, s),
+            "test, Query(Id { id: \"test\" })"
+        );
 
         s.id = "test1".to_string();
         let s = s.into_inner();
@@ -238,7 +241,10 @@ mod tests {
 
         let mut s = Query::<Id>::from_request(&req, &mut pl).await.unwrap();
         assert_eq!(s.id, "test");
-        assert_eq!(format!("{}, {:?}", s, s), "test, Query(Id { id: \"test\" })");
+        assert_eq!(
+            format!("{}, {:?}", s, s),
+            "test, Query(Id { id: \"test\" })"
+        );
 
         s.id = "test1".to_string();
         let s = s.into_inner();
