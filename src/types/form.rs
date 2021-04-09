@@ -80,7 +80,7 @@ use crate::{
 ///     })
 /// }
 /// ```
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct Form<T>(pub T);
 
 impl<T> Form<T> {
@@ -147,12 +147,6 @@ where
                 Ok(item) => Ok(Form(item)),
             })
             .boxed_local()
-    }
-}
-
-impl<T: fmt::Debug> fmt::Debug for Form<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
     }
 }
 
