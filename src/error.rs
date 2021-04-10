@@ -136,9 +136,7 @@ pub enum PathError {
 /// Return `BadRequest` for `PathError`
 impl ResponseError for PathError {
     fn status_code(&self) -> StatusCode {
-        match self {
-            _ => StatusCode::BAD_REQUEST,
-        }
+        StatusCode::BAD_REQUEST
     }
 }
 

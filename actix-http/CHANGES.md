@@ -9,6 +9,7 @@
 * Deprecated methods on `ResponseBuilder`: `if_true`, `if_some`. [#2148]
 * `ResponseBuilder::json`. [#2148]
 * `ResponseBuilder::{set_header, header}`. [#2148]
+* `impl From<serde_json::Value> for Body`. [#2148]
 
 [#2065]: https://github.com/actix/actix-web/pull/2065
 [#2148]: https://github.com/actix/actix-web/pull/2148

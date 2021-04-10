@@ -1,6 +1,10 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Removed
+* Deprecated methods on `ClientRequest`: `if_true`, `if_some`. [#2148]
+
+[#2148]: https://github.com/actix/actix-web/pull/2148
 
 
 ## 3.0.0-beta.4 - 2021-04-02
