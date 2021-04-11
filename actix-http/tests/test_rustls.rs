@@ -2,10 +2,15 @@
 
 extern crate tls_rustls as rustls;
 
-use actix_http::error::PayloadError;
-use actix_http::http::header::{self, HeaderName, HeaderValue};
-use actix_http::http::{Method, StatusCode, Version};
-use actix_http::{body, error, Error, HttpService, Request, Response};
+use actix_http::{
+    body::{Body, SizedStream},
+    error::{self, PayloadError},
+    http::{
+        header::{self, HeaderName, HeaderValue},
+        Method, StatusCode, Version,
+    },
+    Error, HttpService, Request, Response,
+};
 use actix_http_test::test_server;
 use actix_service::{fn_factory_with_config, fn_service};
 use actix_utils::future::{err, ok};
@@ -344,7 +349,7 @@ async fn test_h2_body_length() {
             .h2(|_| {
                 let body = once(ok(Bytes::from_static(STR.as_ref())));
                 ok::<_, ()>(
-                    Response::Ok().body(body::SizedStream::new(STR.len() as u64, body)),
+                    Response::Ok().body(SizedStream::new(STR.len() as u64, body)),
                 )
             })
             .rustls(tls_config())
@@ -416,7 +421,7 @@ async fn test_h2_response_http_error_handling() {
 async fn test_h2_service_error() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|_| err::<Response, Error>(error::ErrorBadRequest("error")))
+            .h2(|_| err::<Response<Body>, Error>(error::ErrorBadRequest("error")))
             .rustls(tls_config())
     })
     .await;
@@ -433,7 +438,7 @@ async fn test_h2_service_error() {
 async fn test_h1_service_error() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h1(|_| err::<Response, Error>(error::ErrorBadRequest("error")))
+            .h1(|_| err::<Response<Body>, Error>(error::ErrorBadRequest("error")))
             .rustls(tls_config())
     })
     .await;

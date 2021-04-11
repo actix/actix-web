@@ -22,7 +22,7 @@ use crate::{
 };
 
 /// An HTTP Response
-pub struct Response<B = Body> {
+pub struct Response<B> {
     head: BoxedResponseHead,
     body: ResponseBody<B>,
     error: Option<Error>,
@@ -43,7 +43,7 @@ impl Response<Body> {
 
     /// Constructs a response
     #[inline]
-    pub fn new(status: StatusCode) -> Response {
+    pub fn new(status: StatusCode) -> Response<Body> {
         Response {
             head: BoxedResponseHead::new(status),
             body: ResponseBody::Body(Body::Empty),
@@ -53,7 +53,7 @@ impl Response<Body> {
 
     /// Constructs an error response
     #[inline]
-    pub fn from_error(error: Error) -> Response {
+    pub fn from_error(error: Error) -> Response<Body> {
         let mut resp = error.as_response_error().error_response();
         if resp.head.status == StatusCode::INTERNAL_SERVER_ERROR {
             error!("Internal Server Error: {:?}", error);
@@ -238,18 +238,6 @@ impl<B: MessageBody> fmt::Debug for Response<B> {
     }
 }
 
-impl Future for Response {
-    type Output = Result<Response, Error>;
-
-    fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
-        Poll::Ready(Ok(Response {
-            head: self.head.take(),
-            body: self.body.take_body(),
-            error: self.error.take(),
-        }))
-    }
-}
-
 /// An HTTP response builder.
 ///
 /// This type can be used to construct an instance of `Response` through a builder-like pattern.
@@ -421,7 +409,7 @@ impl ResponseBuilder {
     ///
     /// `ResponseBuilder` can not be used after this call.
     #[inline]
-    pub fn body<B: Into<Body>>(&mut self, body: B) -> Response {
+    pub fn body<B: Into<Body>>(&mut self, body: B) -> Response<Body> {
         self.message_body(body.into())
     }
 
@@ -446,7 +434,7 @@ impl ResponseBuilder {
     ///
     /// `ResponseBuilder` can not be used after this call.
     #[inline]
-    pub fn streaming<S, E>(&mut self, stream: S) -> Response
+    pub fn streaming<S, E>(&mut self, stream: S) -> Response<Body>
     where
         S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
         E: Into<Error> + 'static,
@@ -458,7 +446,7 @@ impl ResponseBuilder {
     ///
     /// `ResponseBuilder` can not be used after this call.
     #[inline]
-    pub fn finish(&mut self) -> Response {
+    pub fn finish(&mut self) -> Response<Body> {
         self.body(Body::Empty)
     }
 
@@ -513,7 +501,7 @@ impl<'a> From<&'a ResponseHead> for ResponseBuilder {
 }
 
 impl Future for ResponseBuilder {
-    type Output = Result<Response, Error>;
+    type Output = Result<Response<Body>, Error>;
 
     fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
         Poll::Ready(Ok(self.finish()))
@@ -540,7 +528,7 @@ impl fmt::Debug for ResponseBuilder {
 }
 
 /// Helper converters
-impl<I: Into<Response>, E: Into<Error>> From<Result<I, E>> for Response {
+impl<I: Into<Response<Body>>, E: Into<Error>> From<Result<I, E>> for Response<Body> {
     fn from(res: Result<I, E>) -> Self {
         match res {
             Ok(val) => val.into(),
@@ -549,13 +537,13 @@ impl<I: Into<Response>, E: Into<Error>> From<Result<I, E>> for Response {
     }
 }
 
-impl From<ResponseBuilder> for Response {
+impl From<ResponseBuilder> for Response<Body> {
     fn from(mut builder: ResponseBuilder) -> Self {
         builder.finish()
     }
 }
 
-impl From<&'static str> for Response {
+impl From<&'static str> for Response<Body> {
     fn from(val: &'static str) -> Self {
         Response::Ok()
             .content_type(mime::TEXT_PLAIN_UTF_8)
@@ -563,7 +551,7 @@ impl From<&'static str> for Response {
     }
 }
 
-impl From<&'static [u8]> for Response {
+impl From<&'static [u8]> for Response<Body> {
     fn from(val: &'static [u8]) -> Self {
         Response::Ok()
             .content_type(mime::APPLICATION_OCTET_STREAM)
@@ -571,7 +559,7 @@ impl From<&'static [u8]> for Response {
     }
 }
 
-impl From<String> for Response {
+impl From<String> for Response<Body> {
     fn from(val: String) -> Self {
         Response::Ok()
             .content_type(mime::TEXT_PLAIN_UTF_8)
@@ -579,7 +567,7 @@ impl From<String> for Response {
     }
 }
 
-impl<'a> From<&'a String> for Response {
+impl<'a> From<&'a String> for Response<Body> {
     fn from(val: &'a String) -> Self {
         Response::Ok()
             .content_type(mime::TEXT_PLAIN_UTF_8)
@@ -587,7 +575,7 @@ impl<'a> From<&'a String> for Response {
     }
 }
 
-impl From<Bytes> for Response {
+impl From<Bytes> for Response<Body> {
     fn from(val: Bytes) -> Self {
         Response::Ok()
             .content_type(mime::APPLICATION_OCTET_STREAM)
@@ -595,7 +583,7 @@ impl From<Bytes> for Response {
     }
 }
 
-impl From<BytesMut> for Response {
+impl From<BytesMut> for Response<Body> {
     fn from(val: BytesMut) -> Self {
         Response::Ok()
             .content_type(mime::APPLICATION_OCTET_STREAM)
@@ -653,7 +641,7 @@ mod tests {
 
     #[test]
     fn test_into_response() {
-        let resp: Response = "test".into();
+        let resp: Response<Body> = "test".into();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
@@ -662,7 +650,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().get_ref(), b"test");
 
-        let resp: Response = b"test".as_ref().into();
+        let resp: Response<Body> = b"test".as_ref().into();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
@@ -671,7 +659,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().get_ref(), b"test");
 
-        let resp: Response = "test".to_owned().into();
+        let resp: Response<Body> = "test".to_owned().into();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
@@ -680,7 +668,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().get_ref(), b"test");
 
-        let resp: Response = (&"test".to_owned()).into();
+        let resp: Response<Body> = (&"test".to_owned()).into();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
@@ -690,7 +678,7 @@ mod tests {
         assert_eq!(resp.body().get_ref(), b"test");
 
         let b = Bytes::from_static(b"test");
-        let resp: Response = b.into();
+        let resp: Response<Body> = b.into();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
@@ -700,7 +688,7 @@ mod tests {
         assert_eq!(resp.body().get_ref(), b"test");
 
         let b = Bytes::from_static(b"test");
-        let resp: Response = b.into();
+        let resp: Response<Body> = b.into();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
@@ -710,7 +698,7 @@ mod tests {
         assert_eq!(resp.body().get_ref(), b"test");
 
         let b = BytesMut::from("test");
-        let resp: Response = b.into();
+        let resp: Response<Body> = b.into();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
@@ -723,7 +711,7 @@ mod tests {
 
     #[test]
     fn test_into_builder() {
-        let mut resp: Response = "test".into();
+        let mut resp: Response<Body> = "test".into();
         assert_eq!(resp.status(), StatusCode::OK);
 
         resp.headers_mut().insert(

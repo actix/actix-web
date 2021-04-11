@@ -4,11 +4,15 @@ extern crate tls_openssl as openssl;
 
 use std::io;
 
-use actix_http::error::{ErrorBadRequest, PayloadError};
-use actix_http::http::header::{self, HeaderName, HeaderValue};
-use actix_http::http::{Method, StatusCode, Version};
-use actix_http::HttpMessage;
-use actix_http::{body, Error, HttpService, Request, Response};
+use actix_http::{
+    body::{Body, SizedStream},
+    error::{ErrorBadRequest, PayloadError},
+    http::{
+        header::{self, HeaderName, HeaderValue},
+        Method, StatusCode, Version,
+    },
+    Error, HttpMessage, HttpService, Request, Response,
+};
 use actix_http_test::test_server;
 use actix_service::{fn_service, ServiceFactoryExt};
 use actix_utils::future::{err, ok, ready};
@@ -328,7 +332,7 @@ async fn test_h2_body_length() {
             .h2(|_| {
                 let body = once(ok(Bytes::from_static(STR.as_ref())));
                 ok::<_, ()>(
-                    Response::Ok().body(body::SizedStream::new(STR.len() as u64, body)),
+                    Response::Ok().body(SizedStream::new(STR.len() as u64, body)),
                 )
             })
             .openssl(tls_config())
@@ -401,7 +405,7 @@ async fn test_h2_response_http_error_handling() {
 async fn test_h2_service_error() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|_| err::<Response, Error>(ErrorBadRequest("error")))
+            .h2(|_| err::<Response<Body>, Error>(ErrorBadRequest("error")))
             .openssl(tls_config())
             .map_err(|_| ())
     })

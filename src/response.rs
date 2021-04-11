@@ -3,6 +3,7 @@ use std::{
     convert::TryInto,
     fmt,
     future::Future,
+    mem,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -287,18 +288,17 @@ impl<B> From<HttpResponse<B>> for Response<B> {
 }
 
 impl Future for HttpResponse {
-    type Output = Result<Response, Error>;
+    type Output = Result<Response<Body>, Error>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
         if let Some(err) = self.error.take() {
-            eprintln!("httpresponse future error");
             return Poll::Ready(Ok(Response::from_error(err).into_body()));
         }
 
-        let res = &mut self.res;
-        actix_rt::pin!(res);
-
-        res.poll(cx)
+        Poll::Ready(Ok(mem::replace(
+            &mut self.res,
+            Response::new(StatusCode::default()),
+        )))
     }
 }
 
@@ -680,7 +680,7 @@ impl From<HttpResponseBuilder> for HttpResponse {
     }
 }
 
-impl From<HttpResponseBuilder> for Response {
+impl From<HttpResponseBuilder> for Response<Body> {
     fn from(mut builder: HttpResponseBuilder) -> Self {
         builder.finish().into()
     }

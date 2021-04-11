@@ -9,8 +9,8 @@ use derive_more::{Display, Error, From};
 use http::{header, Method, StatusCode};
 
 use crate::{
-    error::ResponseError, header::HeaderValue, message::RequestHead, response::Response,
-    ResponseBuilder,
+    body::Body, error::ResponseError, header::HeaderValue, message::RequestHead,
+    response::Response, ResponseBuilder,
 };
 
 mod codec;
@@ -99,7 +99,7 @@ pub enum HandshakeError {
 }
 
 impl ResponseError for HandshakeError {
-    fn error_response(&self) -> Response {
+    fn error_response(&self) -> Response<Body> {
         match self {
             HandshakeError::GetMethodRequired => Response::MethodNotAllowed()
                 .insert_header((header::ALLOW, "GET"))
@@ -320,17 +320,17 @@ mod tests {
 
     #[test]
     fn test_wserror_http_response() {
-        let resp: Response = HandshakeError::GetMethodRequired.error_response();
+        let resp = HandshakeError::GetMethodRequired.error_response();
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
-        let resp: Response = HandshakeError::NoWebsocketUpgrade.error_response();
+        let resp = HandshakeError::NoWebsocketUpgrade.error_response();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let resp: Response = HandshakeError::NoConnectionUpgrade.error_response();
+        let resp = HandshakeError::NoConnectionUpgrade.error_response();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let resp: Response = HandshakeError::NoVersionHeader.error_response();
+        let resp = HandshakeError::NoVersionHeader.error_response();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let resp: Response = HandshakeError::UnsupportedVersion.error_response();
+        let resp = HandshakeError::UnsupportedVersion.error_response();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let resp: Response = HandshakeError::BadWebsocketKey.error_response();
+        let resp = HandshakeError::BadWebsocketKey.error_response();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 }

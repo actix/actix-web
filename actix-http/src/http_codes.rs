@@ -4,7 +4,10 @@
 
 use http::StatusCode;
 
-use crate::response::{Response, ResponseBuilder};
+use crate::{
+    body::Body,
+    response::{Response, ResponseBuilder},
+};
 
 macro_rules! static_resp {
     ($name:ident, $status:expr) => {
@@ -15,7 +18,7 @@ macro_rules! static_resp {
     };
 }
 
-impl Response {
+impl Response<Body> {
     static_resp!(Continue, StatusCode::CONTINUE);
     static_resp!(SwitchingProtocols, StatusCode::SWITCHING_PROTOCOLS);
     static_resp!(Processing, StatusCode::PROCESSING);
