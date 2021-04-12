@@ -137,7 +137,7 @@ impl From<BytesMut> for Body {
 
 impl<S> From<SizedStream<S>> for Body
 where
-    S: Stream<Item = Result<Bytes, Error>> + Unpin + 'static,
+    S: Stream<Item = Result<Bytes, Error>> + 'static,
 {
     fn from(s: SizedStream<S>) -> Body {
         Body::from_message(s)
@@ -146,7 +146,7 @@ where
 
 impl<S, E> From<BodyStream<S>> for Body
 where
-    S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
+    S: Stream<Item = Result<Bytes, E>> + 'static,
     E: Into<Error> + 'static,
 {
     fn from(s: BodyStream<S>) -> Body {

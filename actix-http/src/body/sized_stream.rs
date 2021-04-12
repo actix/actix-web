@@ -5,23 +5,27 @@ use std::{
 
 use bytes::Bytes;
 use futures_core::{ready, Stream};
+use pin_project_lite::pin_project;
 
 use crate::error::Error;
 
 use super::{BodySize, MessageBody};
 
-/// Known sized streaming response wrapper.
-///
-/// This body implementation should be used if total size of stream is known. Data get sent as is
-/// without using transfer encoding.
-pub struct SizedStream<S: Unpin> {
-    size: u64,
-    stream: S,
+pin_project! {
+    /// Known sized streaming response wrapper.
+    ///
+    /// This body implementation should be used if total size of stream is known. Data get sent as is
+    /// without using transfer encoding.
+    pub struct SizedStream<S> {
+        size: u64,
+        #[pin]
+        stream: S,
+    }
 }
 
 impl<S> SizedStream<S>
 where
-    S: Stream<Item = Result<Bytes, Error>> + Unpin,
+    S: Stream<Item = Result<Bytes, Error>>,
 {
     pub fn new(size: u64, stream: S) -> Self {
         SizedStream { size, stream }
@@ -30,7 +34,7 @@ where
 
 impl<S> MessageBody for SizedStream<S>
 where
-    S: Stream<Item = Result<Bytes, Error>> + Unpin,
+    S: Stream<Item = Result<Bytes, Error>>,
 {
     fn size(&self) -> BodySize {
         BodySize::Sized(self.size as u64)
@@ -46,9 +50,9 @@ where
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Error>>> {
         loop {
-            let stream = &mut self.as_mut().stream;
+            let stream = self.as_mut().project().stream;
 
-            let chunk = match ready!(Pin::new(stream).poll_next(cx)) {
+            let chunk = match ready!(stream.poll_next(cx)) {
                 Some(Ok(ref bytes)) if bytes.is_empty() => continue,
                 val => val,
             };
