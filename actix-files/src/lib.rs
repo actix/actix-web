@@ -754,4 +754,19 @@ mod tests {
         let res = test::call_service(&srv, req).await;
         assert_eq!(res.status(), StatusCode::OK);
     }
+
+    #[actix_rt::test]
+    async fn test_symlinks() {
+        let srv = test::init_service(App::new().service(Files::new("test", "."))).await;
+
+        let req = TestRequest::get()
+            .uri("/test/tests/symlink-test.png")
+            .to_request();
+        let res = test::call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(
+            res.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+            "inline; filename=\"symlink-test.png\""
+        );
+    }
 }
