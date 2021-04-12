@@ -24,7 +24,7 @@ use actix_http::http::header::HeaderValue;
 #[cfg(feature = "cookies")]
 use cookie::{Cookie, CookieJar};
 
-use crate::error::Error;
+use crate::error::{Error, JsonPayloadError};
 
 /// An HTTP Response
 pub struct HttpResponse<B = Body> {
@@ -385,7 +385,10 @@ impl HttpResponseBuilder {
     }
 
     /// Replaced with [`Self::insert_header()`].
-    #[deprecated = "Replaced with `insert_header((key, value))`."]
+    #[deprecated(
+        since = "4.0.0",
+        note = "Replaced with `insert_header((key, value))`. Will be removed in v5."
+    )]
     pub fn set_header<K, V>(&mut self, key: K, value: V) -> &mut Self
     where
         K: TryInto<HeaderName>,
@@ -406,7 +409,10 @@ impl HttpResponseBuilder {
     }
 
     /// Replaced with [`Self::append_header()`].
-    #[deprecated = "Replaced with `append_header((key, value))`."]
+    #[deprecated(
+        since = "4.0.0",
+        note = "Replaced with `append_header((key, value))`. Will be removed in v5."
+    )]
     pub fn header<K, V>(&mut self, key: K, value: V) -> &mut Self
     where
         K: TryInto<HeaderName>,
@@ -572,7 +578,7 @@ impl HttpResponseBuilder {
 
     /// Set a body and generate `Response`.
     ///
-    /// `ResponseBuilder` can not be used after this call.
+    /// `HttpResponseBuilder` can not be used after this call.
     #[inline]
     pub fn body<B: Into<Body>>(&mut self, body: B) -> HttpResponse {
         self.message_body(body.into())
@@ -580,7 +586,7 @@ impl HttpResponseBuilder {
 
     /// Set a body and generate `Response`.
     ///
-    /// `ResponseBuilder` can not be used after this call.
+    /// `HttpResponseBuilder` can not be used after this call.
     pub fn message_body<B>(&mut self, body: B) -> HttpResponse<B> {
         if let Some(err) = self.err.take() {
             return HttpResponse::from_error(Error::from(err)).into_body();
@@ -608,7 +614,7 @@ impl HttpResponseBuilder {
 
     /// Set a streaming body and generate `Response`.
     ///
-    /// `ResponseBuilder` can not be used after this call.
+    /// `HttpResponseBuilder` can not be used after this call.
     #[inline]
     pub fn streaming<S, E>(&mut self, stream: S) -> HttpResponse
     where
@@ -620,7 +626,7 @@ impl HttpResponseBuilder {
 
     /// Set a json body and generate `Response`
     ///
-    /// `ResponseBuilder` can not be used after this call.
+    /// `HttpResponseBuilder` can not be used after this call.
     pub fn json(&mut self, value: impl Serialize) -> HttpResponse {
         match serde_json::to_string(&value) {
             Ok(body) => {
@@ -636,19 +642,19 @@ impl HttpResponseBuilder {
 
                 self.body(Body::from(body))
             }
-            Err(e) => HttpResponse::from_error(Error::from(e)),
+            Err(err) => HttpResponse::from_error(JsonPayloadError::Serialize(err).into()),
         }
     }
 
     /// Set an empty body and generate `Response`
     ///
-    /// `ResponseBuilder` can not be used after this call.
+    /// `HttpResponseBuilder` can not be used after this call.
     #[inline]
     pub fn finish(&mut self) -> HttpResponse {
         self.body(Body::Empty)
     }
 
-    /// This method construct new `ResponseBuilder`
+    /// This method construct new `HttpResponseBuilder`
     pub fn take(&mut self) -> Self {
         Self {
             head: self.head.take(),
@@ -814,32 +820,33 @@ mod http_codes {
 #[cfg(test)]
 mod tests {
     use bytes::{Bytes, BytesMut};
-    use serde_json::json;
 
-    use super::{HttpResponse as Response, HttpResponseBuilder as ResponseBuilder};
+    use super::{HttpResponse, HttpResponseBuilder};
     use crate::dev::{Body, MessageBody, ResponseBody};
     use crate::http::header::{self, HeaderValue, CONTENT_TYPE, COOKIE};
     use crate::http::StatusCode;
 
     #[test]
     fn test_debug() {
-        let resp = Response::Ok()
+        let resp = HttpResponse::Ok()
             .append_header((COOKIE, HeaderValue::from_static("cookie1=value1; ")))
             .append_header((COOKIE, HeaderValue::from_static("cookie2=value2; ")))
             .finish();
         let dbg = format!("{:?}", resp);
-        assert!(dbg.contains("Response"));
+        assert!(dbg.contains("HttpResponse"));
     }
 
     #[test]
     fn test_basic_builder() {
-        let resp = Response::Ok().insert_header(("X-TEST", "value")).finish();
+        let resp = HttpResponse::Ok()
+            .insert_header(("X-TEST", "value"))
+            .finish();
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
     #[test]
     fn test_upgrade() {
-        let resp = ResponseBuilder::new(StatusCode::OK)
+        let resp = HttpResponseBuilder::new(StatusCode::OK)
             .upgrade("websocket")
             .finish();
         assert!(resp.upgrade());
@@ -851,13 +858,15 @@ mod tests {
 
     #[test]
     fn test_force_close() {
-        let resp = ResponseBuilder::new(StatusCode::OK).force_close().finish();
+        let resp = HttpResponseBuilder::new(StatusCode::OK)
+            .force_close()
+            .finish();
         assert!(!resp.keep_alive())
     }
 
     #[test]
     fn test_content_type() {
-        let resp = ResponseBuilder::new(StatusCode::OK)
+        let resp = HttpResponseBuilder::new(StatusCode::OK)
             .content_type("text/plain")
             .body(Body::Empty);
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "text/plain")
@@ -878,7 +887,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_json() {
-        let mut resp = Response::Ok().json(vec!["v1", "v2", "v3"]);
+        let mut resp = HttpResponse::Ok().json(vec!["v1", "v2", "v3"]);
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("application/json"));
         assert_eq!(
@@ -886,7 +895,7 @@ mod tests {
             br#"["v1","v2","v3"]"#
         );
 
-        let mut resp = Response::Ok().json(&["v1", "v2", "v3"]);
+        let mut resp = HttpResponse::Ok().json(&["v1", "v2", "v3"]);
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("application/json"));
         assert_eq!(
@@ -895,7 +904,7 @@ mod tests {
         );
 
         // content type override
-        let mut resp = Response::Ok()
+        let mut resp = HttpResponse::Ok()
             .insert_header((CONTENT_TYPE, "text/json"))
             .json(&vec!["v1", "v2", "v3"]);
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
@@ -908,8 +917,10 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_serde_json_in_body() {
-        use serde_json::json;
-        let mut resp = Response::Ok().body(json!({"test-key":"test-value"}));
+        let mut resp = HttpResponse::Ok().body(
+            serde_json::to_vec(&serde_json::json!({ "test-key": "test-value" })).unwrap(),
+        );
+
         assert_eq!(
             read_body(resp.take_body()).await.as_ref(),
             br#"{"test-key":"test-value"}"#
@@ -918,7 +929,7 @@ mod tests {
 
     #[test]
     fn response_builder_header_insert_kv() {
-        let mut res = Response::Ok();
+        let mut res = HttpResponse::Ok();
         res.insert_header(("Content-Type", "application/octet-stream"));
         let res = res.finish();
 
@@ -930,7 +941,7 @@ mod tests {
 
     #[test]
     fn response_builder_header_insert_typed() {
-        let mut res = Response::Ok();
+        let mut res = HttpResponse::Ok();
         res.insert_header((header::CONTENT_TYPE, mime::APPLICATION_OCTET_STREAM));
         let res = res.finish();
 
@@ -942,7 +953,7 @@ mod tests {
 
     #[test]
     fn response_builder_header_append_kv() {
-        let mut res = Response::Ok();
+        let mut res = HttpResponse::Ok();
         res.append_header(("Content-Type", "application/octet-stream"));
         res.append_header(("Content-Type", "application/json"));
         let res = res.finish();
@@ -955,7 +966,7 @@ mod tests {
 
     #[test]
     fn response_builder_header_append_typed() {
-        let mut res = Response::Ok();
+        let mut res = HttpResponse::Ok();
         res.append_header((header::CONTENT_TYPE, mime::APPLICATION_OCTET_STREAM));
         res.append_header((header::CONTENT_TYPE, mime::APPLICATION_JSON));
         let res = res.finish();

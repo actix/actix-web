@@ -1,18 +1,18 @@
 //! Error and Result module
 
-use std::cell::RefCell;
-use std::io::Write;
-use std::str::Utf8Error;
-use std::string::FromUtf8Error;
-use std::{fmt, io, result};
+use std::{
+    cell::RefCell,
+    fmt,
+    io::{self, Write as _},
+    str::Utf8Error,
+    string::FromUtf8Error,
+};
 
 use bytes::BytesMut;
-use derive_more::{Display, From};
+use derive_more::{Display, Error, From};
 use http::uri::InvalidUri;
 use http::{header, Error as HttpError, StatusCode};
 use serde::de::value::Error as DeError;
-use serde_json::error::Error as JsonError;
-use serde_urlencoded::ser::Error as FormError;
 
 use crate::{body::Body, helpers::Writer, Response, ResponseBuilder};
 
@@ -22,7 +22,7 @@ use crate::{body::Body, helpers::Writer, Response, ResponseBuilder};
 /// This typedef is generally used to avoid writing out
 /// `actix_http::error::Error` directly and is otherwise a direct mapping to
 /// `Result`.
-pub type Result<T, E = Error> = result::Result<T, E>;
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// General purpose actix web error.
 ///
@@ -147,14 +147,8 @@ struct UnitError;
 /// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`UnitError`].
 impl ResponseError for UnitError {}
 
-/// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`JsonError`].
-impl ResponseError for JsonError {}
-
-/// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`FormError`].
-impl ResponseError for FormError {}
-
-#[cfg(feature = "openssl")]
 /// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`actix_tls::accept::openssl::SslError`].
+#[cfg(feature = "openssl")]
 impl ResponseError for actix_tls::accept::openssl::SslError {}
 
 /// Returns [`StatusCode::BAD_REQUEST`] for [`DeError`].
@@ -421,17 +415,16 @@ pub enum DispatchError {
 }
 
 /// A set of error that can occur during parsing content type
-#[derive(PartialEq, Debug, Display)]
+#[derive(Debug, PartialEq, Display, Error)]
 pub enum ContentTypeError {
     /// Can not parse content type
     #[display(fmt = "Can not parse content type")]
     ParseError,
+
     /// Unknown content encoding
     #[display(fmt = "Unknown content encoding")]
     UnknownEncoding,
 }
-
-impl std::error::Error for ContentTypeError {}
 
 /// Return `BadRequest` for `ContentTypeError`
 impl ResponseError for ContentTypeError {
