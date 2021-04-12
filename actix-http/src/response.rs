@@ -238,6 +238,18 @@ impl<B: MessageBody> fmt::Debug for Response<B> {
     }
 }
 
+impl<B: Unpin> Future for Response<B> {
+    type Output = Result<Response<B>, Error>;
+
+    fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
+        Poll::Ready(Ok(Response {
+            head: self.head.take(),
+            body: self.body.take_body(),
+            error: self.error.take(),
+        }))
+    }
+}
+
 /// An HTTP response builder.
 ///
 /// This type can be used to construct an instance of `Response` through a builder-like pattern.

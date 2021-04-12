@@ -12,6 +12,7 @@ use crate::error::Error;
 use super::{BodySize, BodyStream, MessageBody, SizedStream};
 
 /// Represents various types of HTTP message body.
+// #[deprecated(since = "4.0.0", note = "Use body types directly.")]
 pub enum Body {
     /// Empty response. `Content-Length` header is not set.
     None,
