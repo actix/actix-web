@@ -982,15 +982,16 @@ mod tests {
         fn_service(|_req: Request| ready(Ok::<_, Error>(Response::Ok().finish())))
     }
 
-    fn echo_path_service() -> impl Service<Request, Response = Response<Body>, Error = Error> {
+    fn echo_path_service(
+    ) -> impl Service<Request, Response = Response<Body>, Error = Error> {
         fn_service(|req: Request| {
             let path = req.path().as_bytes();
             ready(Ok::<_, Error>(Response::Ok().body(Body::from_slice(path))))
         })
     }
 
-    fn echo_payload_service() -> impl Service<Request, Response = Response<Body>, Error = Error>
-    {
+    fn echo_payload_service(
+    ) -> impl Service<Request, Response = Response<Body>, Error = Error> {
         fn_service(|mut req: Request| {
             Box::pin(async move {
                 use futures_util::stream::StreamExt as _;

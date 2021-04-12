@@ -6,7 +6,6 @@
 //! | `openssl`        | TLS support via [OpenSSL].                            |
 //! | `rustls`         | TLS support via [rustls].                             |
 //! | `compress`       | Payload compression support. (Deflate, Gzip & Brotli) |
-//! | `secure-cookies` | Adds for secure cookies. Enables `cookies` feature.   |
 //! | `trust-dns`      | Use [trust-dns] as the client DNS resolver.           |
 //!
 //! [OpenSSL]: https://crates.io/crates/openssl

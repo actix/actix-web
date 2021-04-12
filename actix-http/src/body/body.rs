@@ -15,12 +15,15 @@ use super::{BodySize, BodyStream, MessageBody, SizedStream};
 pub enum Body {
     /// Empty response. `Content-Length` header is not set.
     None,
+
     /// Zero sized response body. `Content-Length` header is set to `0`.
     Empty,
+
     /// Specific response body.
     Bytes(Bytes),
+
     /// Generic message body.
-    Message(Box<dyn MessageBody + Unpin>),
+    Message(Pin<Box<dyn MessageBody>>),
 }
 
 impl Body {
@@ -30,8 +33,8 @@ impl Body {
     }
 
     /// Create body from generic message body.
-    pub fn from_message<B: MessageBody + Unpin + 'static>(body: B) -> Body {
-        Body::Message(Box::new(body))
+    pub fn from_message<B: MessageBody + 'static>(body: B) -> Body {
+        Body::Message(Box::pin(body))
     }
 }
 
@@ -60,7 +63,7 @@ impl MessageBody for Body {
                     Poll::Ready(Some(Ok(mem::take(bin))))
                 }
             }
-            Body::Message(body) => Pin::new(&mut **body).poll_next(cx),
+            Body::Message(body) => body.as_mut().poll_next(cx),
         }
     }
 }
