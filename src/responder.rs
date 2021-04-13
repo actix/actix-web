@@ -1,13 +1,13 @@
 use std::fmt;
 
 use actix_http::{
+    body::Body,
     error::InternalError,
     http::{header::IntoHeaderPair, Error as HttpError, HeaderMap, StatusCode},
-    ResponseBuilder,
 };
 use bytes::{Bytes, BytesMut};
 
-use crate::{Error, HttpRequest, HttpResponse};
+use crate::{Error, HttpRequest, HttpResponse, HttpResponseBuilder};
 
 /// Trait implemented by types that can be converted to an HTTP response.
 ///
@@ -18,7 +18,7 @@ pub trait Responder {
 
     /// Override a status code for a Responder.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{http::StatusCode, HttpRequest, Responder};
     ///
     /// fn index(req: HttpRequest) -> impl Responder {
@@ -36,7 +36,7 @@ pub trait Responder {
     ///
     /// Overrides other headers with the same name.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{web, HttpRequest, Responder};
     /// use serde::Serialize;
     ///
@@ -66,11 +66,32 @@ impl Responder for HttpResponse {
     }
 }
 
+impl Responder for actix_http::Response<Body> {
+    #[inline]
+    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
+        HttpResponse::from(self)
+    }
+}
+
+impl Responder for HttpResponseBuilder {
+    #[inline]
+    fn respond_to(mut self, _: &HttpRequest) -> HttpResponse {
+        self.finish()
+    }
+}
+
+impl Responder for actix_http::ResponseBuilder {
+    #[inline]
+    fn respond_to(mut self, _: &HttpRequest) -> HttpResponse {
+        HttpResponse::from(self.finish())
+    }
+}
+
 impl<T: Responder> Responder for Option<T> {
     fn respond_to(self, req: &HttpRequest) -> HttpResponse {
         match self {
-            Some(t) => t.respond_to(req),
-            None => HttpResponse::build(StatusCode::NOT_FOUND).finish(),
+            Some(val) => val.respond_to(req),
+            None => HttpResponse::new(StatusCode::NOT_FOUND),
         }
     }
 }
@@ -85,13 +106,6 @@ where
             Ok(val) => val.respond_to(req),
             Err(e) => HttpResponse::from_error(e.into()),
         }
-    }
-}
-
-impl Responder for ResponseBuilder {
-    #[inline]
-    fn respond_to(mut self, _: &HttpRequest) -> HttpResponse {
-        self.finish()
     }
 }
 
@@ -169,7 +183,7 @@ impl<T: Responder> CustomResponder<T> {
 
     /// Override a status code for the Responder's response.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{HttpRequest, Responder, http::StatusCode};
     ///
     /// fn index(req: HttpRequest) -> impl Responder {
@@ -185,7 +199,7 @@ impl<T: Responder> CustomResponder<T> {
     ///
     /// Overrides other headers with the same name.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{web, HttpRequest, Responder};
     /// use serde::Serialize;
     ///

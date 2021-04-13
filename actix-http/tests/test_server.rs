@@ -5,14 +5,18 @@ use std::{net, thread};
 use actix_http_test::test_server;
 use actix_rt::time::sleep;
 use actix_service::fn_service;
+use actix_utils::future::{err, ok, ready};
 use bytes::Bytes;
-use futures_util::future::{self, err, ok, ready, FutureExt};
 use futures_util::stream::{once, StreamExt as _};
+use futures_util::FutureExt as _;
 use regex::Regex;
 
 use actix_http::HttpMessage;
 use actix_http::{
-    body, error, http, http::header, Error, HttpService, KeepAlive, Request, Response,
+    body::{Body, SizedStream},
+    error, http,
+    http::header,
+    Error, HttpService, KeepAlive, Request, Response,
 };
 
 #[actix_rt::test]
@@ -24,7 +28,7 @@ async fn test_h1() {
             .client_disconnect(1000)
             .h1(|req: Request| {
                 assert!(req.peer_addr().is_some());
-                future::ok::<_, ()>(Response::Ok().finish())
+                ok::<_, ()>(Response::Ok().finish())
             })
             .tcp()
     })
@@ -44,7 +48,7 @@ async fn test_h1_2() {
             .finish(|req: Request| {
                 assert!(req.peer_addr().is_some());
                 assert_eq!(req.version(), http::Version::HTTP_11);
-                future::ok::<_, ()>(Response::Ok().finish())
+                ok::<_, ()>(Response::Ok().finish())
             })
             .tcp()
     })
@@ -65,7 +69,7 @@ async fn test_expect_continue() {
                     err(error::ErrorPreconditionFailed("error"))
                 }
             }))
-            .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
+            .finish(|_| ok::<_, ()>(Response::Ok().finish()))
             .tcp()
     })
     .await;
@@ -96,7 +100,7 @@ async fn test_expect_continue_h1() {
                     }
                 })
             }))
-            .h1(fn_service(|_| future::ok::<_, ()>(Response::Ok().finish())))
+            .h1(fn_service(|_| ok::<_, ()>(Response::Ok().finish())))
             .tcp()
     })
     .await;
@@ -175,7 +179,7 @@ async fn test_slow_request() {
     let srv = test_server(|| {
         HttpService::build()
             .client_timeout(100)
-            .finish(|_| future::ok::<_, ()>(Response::Ok().finish()))
+            .finish(|_| ok::<_, ()>(Response::Ok().finish()))
             .tcp()
     })
     .await;
@@ -191,7 +195,7 @@ async fn test_slow_request() {
 async fn test_http1_malformed_request() {
     let srv = test_server(|| {
         HttpService::build()
-            .h1(|_| future::ok::<_, ()>(Response::Ok().finish()))
+            .h1(|_| ok::<_, ()>(Response::Ok().finish()))
             .tcp()
     })
     .await;
@@ -207,7 +211,7 @@ async fn test_http1_malformed_request() {
 async fn test_http1_keepalive() {
     let srv = test_server(|| {
         HttpService::build()
-            .h1(|_| future::ok::<_, ()>(Response::Ok().finish()))
+            .h1(|_| ok::<_, ()>(Response::Ok().finish()))
             .tcp()
     })
     .await;
@@ -229,7 +233,7 @@ async fn test_http1_keepalive_timeout() {
     let srv = test_server(|| {
         HttpService::build()
             .keep_alive(1)
-            .h1(|_| future::ok::<_, ()>(Response::Ok().finish()))
+            .h1(|_| ok::<_, ()>(Response::Ok().finish()))
             .tcp()
     })
     .await;
@@ -250,7 +254,7 @@ async fn test_http1_keepalive_timeout() {
 async fn test_http1_keepalive_close() {
     let srv = test_server(|| {
         HttpService::build()
-            .h1(|_| future::ok::<_, ()>(Response::Ok().finish()))
+            .h1(|_| ok::<_, ()>(Response::Ok().finish()))
             .tcp()
     })
     .await;
@@ -271,7 +275,7 @@ async fn test_http1_keepalive_close() {
 async fn test_http10_keepalive_default_close() {
     let srv = test_server(|| {
         HttpService::build()
-            .h1(|_| future::ok::<_, ()>(Response::Ok().finish()))
+            .h1(|_| ok::<_, ()>(Response::Ok().finish()))
             .tcp()
     })
     .await;
@@ -291,7 +295,7 @@ async fn test_http10_keepalive_default_close() {
 async fn test_http10_keepalive() {
     let srv = test_server(|| {
         HttpService::build()
-            .h1(|_| future::ok::<_, ()>(Response::Ok().finish()))
+            .h1(|_| ok::<_, ()>(Response::Ok().finish()))
             .tcp()
     })
     .await;
@@ -319,7 +323,7 @@ async fn test_http1_keepalive_disabled() {
     let srv = test_server(|| {
         HttpService::build()
             .keep_alive(KeepAlive::Disabled)
-            .h1(|_| future::ok::<_, ()>(Response::Ok().finish()))
+            .h1(|_| ok::<_, ()>(Response::Ok().finish()))
             .tcp()
     })
     .await;
@@ -354,7 +358,7 @@ async fn test_content_length() {
                     StatusCode::OK,
                     StatusCode::NOT_FOUND,
                 ];
-                future::ok::<_, ()>(Response::new(statuses[indx]))
+                ok::<_, ()>(Response::new(statuses[indx]))
             })
             .tcp()
     })
@@ -409,7 +413,7 @@ async fn test_h1_headers() {
                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST ",
                 ));
             }
-            future::ok::<_, ()>(builder.body(data.clone()))
+            ok::<_, ()>(builder.body(data.clone()))
         }).tcp()
     }).await;
 
@@ -538,7 +542,7 @@ async fn test_h1_body_length() {
             .h1(|_| {
                 let body = once(ok(Bytes::from_static(STR.as_ref())));
                 ok::<_, ()>(
-                    Response::Ok().body(body::SizedStream::new(STR.len() as u64, body)),
+                    Response::Ok().body(SizedStream::new(STR.len() as u64, body)),
                 )
             })
             .tcp()
@@ -645,7 +649,7 @@ async fn test_h1_response_http_error_handling() {
 async fn test_h1_service_error() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .h1(|_| future::err::<Response, Error>(error::ErrorBadRequest("error")))
+            .h1(|_| err::<Response<Body>, _>(error::ErrorBadRequest("error")))
             .tcp()
     })
     .await;
@@ -667,7 +671,7 @@ async fn test_h1_on_connect() {
             })
             .h1(|req: Request| {
                 assert!(req.extensions().contains::<isize>());
-                future::ok::<_, ()>(Response::Ok().finish())
+                ok::<_, ()>(Response::Ok().finish())
             })
             .tcp()
     })

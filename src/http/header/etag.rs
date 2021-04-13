@@ -1,6 +1,6 @@
-use crate::header::{EntityTag, ETAG};
+use super::{EntityTag, ETAG};
 
-header! {
+crate::header! {
     /// `ETag` header, defined in [RFC7232](http://tools.ietf.org/html/rfc7232#section-2.3)
     ///
     /// The `ETag` header field in a response provides the current entity-tag
@@ -28,20 +28,20 @@ header! {
     /// # Examples
     ///
     /// ```
-    /// use actix_http::Response;
-    /// use actix_http::http::header::{ETag, EntityTag};
+    /// use actix_web::HttpResponse;
+    /// use actix_web::http::header::{ETag, EntityTag};
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     ETag(EntityTag::new(false, "xyzzy".to_owned()))
     /// );
     /// ```
     ///
     /// ```
-    /// use actix_http::Response;
-    /// use actix_http::http::header::{ETag, EntityTag};
+    /// use actix_web::HttpResponse;
+    /// use actix_web::http::header::{ETag, EntityTag};
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     ETag(EntityTag::new(true, "xyzzy".to_owned()))
     /// );

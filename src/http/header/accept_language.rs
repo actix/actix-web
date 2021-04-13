@@ -1,7 +1,7 @@
-use crate::header::{QualityItem, ACCEPT_LANGUAGE};
+use super::{QualityItem, ACCEPT_LANGUAGE};
 use language_tags::LanguageTag;
 
-header! {
+crate::header! {
     /// `Accept-Language` header, defined in
     /// [RFC7231](http://tools.ietf.org/html/rfc7231#section-5.3.5)
     ///
@@ -24,10 +24,10 @@ header! {
     ///
     /// ```
     /// use language_tags::langtag;
-    /// use actix_http::Response;
-    /// use actix_http::http::header::{AcceptLanguage, LanguageTag, qitem};
+    /// use actix_web::HttpResponse;
+    /// use actix_web::http::header::{AcceptLanguage, LanguageTag, qitem};
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = HttpResponse::Ok();
     /// let mut langtag: LanguageTag = Default::default();
     /// langtag.language = Some("en".to_owned());
     /// langtag.region = Some("US".to_owned());
@@ -40,10 +40,10 @@ header! {
     ///
     /// ```
     /// use language_tags::langtag;
-    /// use actix_http::Response;
-    /// use actix_http::http::header::{AcceptLanguage, QualityItem, q, qitem};
+    /// use actix_web::HttpResponse;
+    /// use actix_web::http::header::{AcceptLanguage, QualityItem, q, qitem};
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     AcceptLanguage(vec![
     ///         qitem(langtag!(da)),

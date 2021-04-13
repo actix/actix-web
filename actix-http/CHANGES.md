@@ -2,15 +2,47 @@
 
 ## Unreleased - 2021-xx-xx
 ### Added
-* `client::Connector::handshake_timeout` method for customize tls connection handshake timeout. [#2081]
+* `impl<T: MessageBody> MessageBody for Pin<Box<T>>`. [#2152]
+* Helper `body::to_bytes` for async collecting message body into Bytes. [#2158]
+
+### Changes
+* The type parameter of `Response` no longer has a default. [#2152]
+* The `Message` variant of `body::Body` is now `Pin<Box<dyn MessageBody>>`. [#2152]
+* `BodyStream` and `SizedStream` are no longer restricted to Unpin types. [#2152]
+
+### Removed
+* `cookies` feature flag. [#2065]
+* Top-level `cookies` mod (re-export). [#2065]
+* `HttpMessage` trait loses the `cookies` and `cookie` methods. [#2065]
+* `impl ResponseError for CookieParseError`. [#2065]
+* Deprecated methods on `ResponseBuilder`: `if_true`, `if_some`. [#2148]
+* `ResponseBuilder::json`. [#2148]
+* `ResponseBuilder::{set_header, header}`. [#2148]
+* `impl From<serde_json::Value> for Body`. [#2148]
+
+[#2065]: https://github.com/actix/actix-web/pull/2065
+[#2148]: https://github.com/actix/actix-web/pull/2148
+[#2152]: https://github.com/actix/actix-web/pull/2152
+[#2158]: https://github.com/actix/actix-web/pull/2158
+
+
+## 3.0.0-beta.5 - 2021-04-02
+### Added
+* `client::Connector::handshake_timeout` method for customizing TLS connection handshake timeout. [#2081]
 * `client::ConnectorService` as `client::Connector::finish` method's return type [#2081]
 * `client::ConnectionIo` trait alias [#2081]
 
-### Chaged
+### Changed
 * `client::Connector` type now only have one generic type for `actix_service::Service`. [#2063]
+
+### Removed
+* Common typed HTTP headers were moved to actix-web. [2094]
+* `ResponseError` impl for `actix_utils::timeout::TimeoutError`. [#2127]
 
 [#2063]: https://github.com/actix/actix-web/pull/2063
 [#2081]: https://github.com/actix/actix-web/pull/2081
+[#2094]: https://github.com/actix/actix-web/pull/2094
+[#2127]: https://github.com/actix/actix-web/pull/2127
 
 
 ## 3.0.0-beta.4 - 2021-03-08

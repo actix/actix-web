@@ -174,7 +174,13 @@ impl H2ConnectionInner {
 /// Cancel spawned connection task on drop.
 impl Drop for H2ConnectionInner {
     fn drop(&mut self) {
-        self.handle.abort();
+        if self
+            .sender
+            .send_request(http::Request::new(()), true)
+            .is_err()
+        {
+            self.handle.abort();
+        }
     }
 }
 
@@ -398,9 +404,18 @@ where
 
 #[cfg(test)]
 mod test {
-    use std::net;
+    use std::{
+        future::Future,
+        net,
+        pin::Pin,
+        task::{Context, Poll},
+        time::{Duration, Instant},
+    };
 
-    use actix_rt::net::TcpStream;
+    use actix_rt::{
+        net::TcpStream,
+        time::{interval, Interval},
+    };
 
     use super::*;
 
@@ -424,9 +439,36 @@ mod test {
 
         drop(conn);
 
-        match sender.ready().await {
-            Ok(_) => panic!("connection should be gone and can not be ready"),
-            Err(e) => assert!(e.is_io()),
-        };
+        struct DropCheck {
+            sender: h2::client::SendRequest<Bytes>,
+            interval: Interval,
+            start_from: Instant,
+        }
+
+        impl Future for DropCheck {
+            type Output = ();
+
+            fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+                let this = self.get_mut();
+                match futures_core::ready!(this.sender.poll_ready(cx)) {
+                    Ok(()) => {
+                        if this.start_from.elapsed() > Duration::from_secs(10) {
+                            panic!("connection should be gone and can not be ready");
+                        } else {
+                            let _ = this.interval.poll_tick(cx);
+                            Poll::Pending
+                        }
+                    }
+                    Err(_) => Poll::Ready(()),
+                }
+            }
+        }
+
+        DropCheck {
+            sender,
+            interval: interval(Duration::from_millis(100)),
+            start_from: Instant::now(),
+        }
+        .await;
     }
 }

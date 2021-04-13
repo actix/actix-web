@@ -12,10 +12,8 @@ use std::{
 use actix_http::Payload;
 use bytes::BytesMut;
 use encoding_rs::{Encoding, UTF_8};
-use futures_util::{
-    future::{FutureExt, LocalBoxFuture},
-    StreamExt,
-};
+use futures_core::future::LocalBoxFuture;
+use futures_util::{FutureExt as _, StreamExt as _};
 use serde::{de::DeserializeOwned, Serialize};
 
 #[cfg(feature = "compress")]
@@ -82,7 +80,7 @@ use crate::{
 ///     })
 /// }
 /// ```
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct Form<T>(pub T);
 
 impl<T> Form<T> {
@@ -152,12 +150,6 @@ where
     }
 }
 
-impl<T: fmt::Debug> fmt::Debug for Form<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
-    }
-}
-
 impl<T: fmt::Display> fmt::Display for Form<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
@@ -171,7 +163,7 @@ impl<T: Serialize> Responder for Form<T> {
             Ok(body) => HttpResponse::Ok()
                 .content_type(mime::APPLICATION_WWW_FORM_URLENCODED)
                 .body(body),
-            Err(err) => HttpResponse::from_error(err.into()),
+            Err(err) => HttpResponse::from_error(UrlencodedError::Serialize(err).into()),
         }
     }
 }
@@ -354,14 +346,14 @@ where
                 }
 
                 if encoding == UTF_8 {
-                    serde_urlencoded::from_bytes::<T>(&body).map_err(|_| UrlencodedError::Parse)
+                    serde_urlencoded::from_bytes::<T>(&body).map_err(UrlencodedError::Parse)
                 } else {
                     let body = encoding
                         .decode_without_bom_handling_and_without_replacement(&body)
                         .map(|s| s.into_owned())
-                        .ok_or(UrlencodedError::Parse)?;
+                        .ok_or(UrlencodedError::Encoding)?;
 
-                    serde_urlencoded::from_str::<T>(&body).map_err(|_| UrlencodedError::Parse)
+                    serde_urlencoded::from_str::<T>(&body).map_err(UrlencodedError::Parse)
                 }
             }
             .boxed_local(),

@@ -13,7 +13,9 @@ use std::{net, thread, time};
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_rt::{net::TcpStream, System};
 use actix_server::{Server, ServiceFactory};
-use awc::{error::PayloadError, ws, Client, ClientRequest, ClientResponse, Connector};
+use awc::{
+    error::PayloadError, http::HeaderMap, ws, Client, ClientRequest, ClientResponse, Connector,
+};
 use bytes::Bytes;
 use futures_core::stream::Stream;
 use http::Method;
@@ -26,7 +28,7 @@ use socket2::{Domain, Protocol, Socket, Type};
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```
 /// use actix_http::HttpService;
 /// use actix_http_test::TestServer;
 /// use actix_web::{web, App, HttpResponse, Error};
@@ -113,16 +115,6 @@ pub async fn test_server_with_addr<F: ServiceFactory<TcpStream>>(
         client,
         system,
     }
-}
-
-/// Get first available unused address
-pub fn unused_addr() -> net::SocketAddr {
-    let addr: net::SocketAddr = "127.0.0.1:0".parse().unwrap();
-    let socket = Socket::new(Domain::IPV4, Type::STREAM, Some(Protocol::TCP)).unwrap();
-    socket.bind(&addr.into()).unwrap();
-    socket.set_reuse_address(true).unwrap();
-    let tcp = net::TcpListener::from(socket);
-    tcp.local_addr().unwrap()
 }
 
 /// Test server controller
@@ -258,6 +250,14 @@ impl TestServer {
         self.ws_at("/").await
     }
 
+    /// Get default HeaderMap of Client.
+    ///
+    /// Returns Some(&mut HeaderMap) when Client object is unique
+    /// (No other clone of client exists at the same time).
+    pub fn client_headers(&mut self) -> Option<&mut HeaderMap> {
+        self.client.headers()
+    }
+
     /// Stop HTTP server
     fn stop(&mut self) {
         self.system.stop();
@@ -268,4 +268,14 @@ impl Drop for TestServer {
     fn drop(&mut self) {
         self.stop()
     }
+}
+
+/// Get a localhost socket address with random, unused port.
+pub fn unused_addr() -> net::SocketAddr {
+    let addr: net::SocketAddr = "127.0.0.1:0".parse().unwrap();
+    let socket = Socket::new(Domain::IPV4, Type::STREAM, Some(Protocol::TCP)).unwrap();
+    socket.bind(&addr.into()).unwrap();
+    socket.set_reuse_address(true).unwrap();
+    let tcp = net::TcpListener::from(socket);
+    tcp.local_addr().unwrap()
 }

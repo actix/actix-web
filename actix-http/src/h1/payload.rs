@@ -263,7 +263,7 @@ impl Inner {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures_util::future::poll_fn;
+    use actix_utils::future::poll_fn;
 
     #[actix_rt::test]
     async fn test_unread_data() {

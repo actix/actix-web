@@ -1,6 +1,6 @@
-use crate::header::{HttpDate, IF_UNMODIFIED_SINCE};
+use super::{HttpDate, IF_UNMODIFIED_SINCE};
 
-header! {
+crate::header! {
     /// `If-Unmodified-Since` header, defined in
     /// [RFC7232](http://tools.ietf.org/html/rfc7232#section-3.4)
     ///
@@ -24,10 +24,10 @@ header! {
     ///
     /// ```
     /// use std::time::{SystemTime, Duration};
-    /// use actix_http::Response;
-    /// use actix_http::http::header::IfUnmodifiedSince;
+    /// use actix_web::HttpResponse;
+    /// use actix_web::http::header::IfUnmodifiedSince;
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = HttpResponse::Ok();
     /// let modified = SystemTime::now() - Duration::from_secs(60 * 60 * 24);
     /// builder.insert_header(
     ///     IfUnmodifiedSince(modified.into())

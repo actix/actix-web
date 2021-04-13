@@ -1,6 +1,6 @@
-use crate::header::{EntityTag, IF_MATCH};
+use super::{EntityTag, IF_MATCH};
 
-header! {
+crate::header! {
     /// `If-Match` header, defined in
     /// [RFC7232](https://tools.ietf.org/html/rfc7232#section-3.1)
     ///
@@ -30,18 +30,18 @@ header! {
     /// # Examples
     ///
     /// ```
-    /// use actix_http::Response;
-    /// use actix_http::http::header::IfMatch;
+    /// use actix_web::HttpResponse;
+    /// use actix_web::http::header::IfMatch;
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(IfMatch::Any);
     /// ```
     ///
     /// ```
-    /// use actix_http::Response;
-    /// use actix_http::http::header::{IfMatch, EntityTag};
+    /// use actix_web::HttpResponse;
+    /// use actix_web::http::header::{IfMatch, EntityTag};
     ///
-    /// let mut builder = Response::Ok();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     IfMatch::Items(vec![
     ///         EntityTag::new(false, "xyzzy".to_owned()),

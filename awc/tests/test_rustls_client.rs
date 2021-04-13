@@ -13,8 +13,8 @@ use std::{
 use actix_http::HttpService;
 use actix_http_test::test_server;
 use actix_service::{map_config, pipeline_factory, ServiceFactoryExt};
+use actix_utils::future::ok;
 use actix_web::{dev::AppConfig, http::Version, web, App, HttpResponse};
-use futures_util::future::ok;
 use rustls::internal::pemfile::{certs, pkcs8_private_keys};
 use rustls::{ClientConfig, NoClientAuth, ServerConfig};
 

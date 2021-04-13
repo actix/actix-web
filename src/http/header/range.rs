@@ -1,8 +1,8 @@
 use std::fmt::{self, Display};
 use std::str::FromStr;
 
-use header::parsing::from_one_raw_str;
-use header::{Header, Raw};
+use super::parsing::from_one_raw_str;
+use super::{Header, Raw};
 
 /// `Range` header, defined in [RFC7233](https://tools.ietf.org/html/rfc7233#section-3.1)
 ///

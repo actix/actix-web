@@ -1,7 +1,7 @@
 use std::fmt::{self, Display, Write};
 use std::str::FromStr;
 
-use crate::header::{HeaderValue, IntoHeaderValue, InvalidHeaderValue, Writer};
+use super::{HeaderValue, IntoHeaderValue, InvalidHeaderValue, Writer};
 
 /// check that each char in the slice is either:
 /// 1. `%x21`, or

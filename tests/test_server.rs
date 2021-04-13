@@ -15,12 +15,13 @@ use actix_http::http::header::{
 };
 use brotli2::write::{BrotliDecoder, BrotliEncoder};
 use bytes::Bytes;
+use cookie::{Cookie, CookieBuilder};
 use flate2::{
     read::GzDecoder,
     write::{GzEncoder, ZlibDecoder, ZlibEncoder},
     Compression,
 };
-use futures_util::ready;
+use futures_core::ready;
 #[cfg(feature = "openssl")]
 use openssl::{
     pkey::PKey,
@@ -31,7 +32,7 @@ use rand::{distributions::Alphanumeric, Rng};
 
 use actix_web::dev::BodyEncoding;
 use actix_web::middleware::{Compress, NormalizePath, TrailingSlash};
-use actix_web::{dev, test, web, App, Error, HttpResponse};
+use actix_web::{dev, web, App, Error, HttpResponse};
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \
@@ -115,7 +116,7 @@ impl futures_core::stream::Stream for TestBody {
 
 #[actix_rt::test]
 async fn test_body() {
-    let srv = test::start(|| {
+    let srv = actix_test::start(|| {
         App::new().service(web::resource("/").route(web::to(|| HttpResponse::Ok().body(STR))))
     });
 
@@ -129,7 +130,7 @@ async fn test_body() {
 
 #[actix_rt::test]
 async fn test_body_gzip() {
-    let srv = test::start_with(test::config().h1(), || {
+    let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
             .wrap(Compress::new(ContentEncoding::Gzip))
             .service(web::resource("/").route(web::to(|| HttpResponse::Ok().body(STR))))
@@ -156,7 +157,7 @@ async fn test_body_gzip() {
 
 #[actix_rt::test]
 async fn test_body_gzip2() {
-    let srv = test::start_with(test::config().h1(), || {
+    let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
             .wrap(Compress::new(ContentEncoding::Gzip))
             .service(web::resource("/").route(web::to(|| {
@@ -185,7 +186,7 @@ async fn test_body_gzip2() {
 
 #[actix_rt::test]
 async fn test_body_encoding_override() {
-    let srv = test::start_with(test::config().h1(), || {
+    let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
             .wrap(Compress::new(ContentEncoding::Gzip))
             .service(web::resource("/").route(web::to(|| {
@@ -248,7 +249,7 @@ async fn test_body_gzip_large() {
     let data = STR.repeat(10);
     let srv_data = data.clone();
 
-    let srv = test::start_with(test::config().h1(), move || {
+    let srv = actix_test::start_with(actix_test::config().h1(), move || {
         let data = srv_data.clone();
         App::new()
             .wrap(Compress::new(ContentEncoding::Gzip))
@@ -286,7 +287,7 @@ async fn test_body_gzip_large_random() {
         .collect::<String>();
     let srv_data = data.clone();
 
-    let srv = test::start_with(test::config().h1(), move || {
+    let srv = actix_test::start_with(actix_test::config().h1(), move || {
         let data = srv_data.clone();
         App::new()
             .wrap(Compress::new(ContentEncoding::Gzip))
@@ -318,7 +319,7 @@ async fn test_body_gzip_large_random() {
 
 #[actix_rt::test]
 async fn test_body_chunked_implicit() {
-    let srv = test::start_with(test::config().h1(), || {
+    let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
             .wrap(Compress::new(ContentEncoding::Gzip))
             .service(web::resource("/").route(web::get().to(move || {
@@ -352,7 +353,7 @@ async fn test_body_chunked_implicit() {
 
 #[actix_rt::test]
 async fn test_body_br_streaming() {
-    let srv = test::start_with(test::config().h1(), || {
+    let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
             .wrap(Compress::new(ContentEncoding::Br))
             .service(web::resource("/").route(web::to(move || {
@@ -384,7 +385,7 @@ async fn test_body_br_streaming() {
 
 #[actix_rt::test]
 async fn test_head_binary() {
-    let srv = test::start_with(test::config().h1(), || {
+    let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().service(
             web::resource("/").route(web::head().to(move || HttpResponse::Ok().body(STR))),
         )
@@ -405,7 +406,7 @@ async fn test_head_binary() {
 
 #[actix_rt::test]
 async fn test_no_chunking() {
-    let srv = test::start_with(test::config().h1(), || {
+    let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().service(web::resource("/").route(web::to(move || {
             HttpResponse::Ok()
                 .no_chunking(STR.len() as u64)
@@ -424,7 +425,7 @@ async fn test_no_chunking() {
 
 #[actix_rt::test]
 async fn test_body_deflate() {
-    let srv = test::start_with(test::config().h1(), || {
+    let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
             .wrap(Compress::new(ContentEncoding::Deflate))
             .service(web::resource("/").route(web::to(move || HttpResponse::Ok().body(STR))))
@@ -451,7 +452,7 @@ async fn test_body_deflate() {
 
 #[actix_rt::test]
 async fn test_body_brotli() {
-    let srv = test::start_with(test::config().h1(), || {
+    let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
             .wrap(Compress::new(ContentEncoding::Br))
             .service(web::resource("/").route(web::to(move || HttpResponse::Ok().body(STR))))
@@ -479,7 +480,7 @@ async fn test_body_brotli() {
 
 #[actix_rt::test]
 async fn test_encoding() {
-    let srv = test::start_with(test::config().h1(), || {
+    let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().wrap(Compress::default()).service(
             web::resource("/").route(web::to(move |body: Bytes| HttpResponse::Ok().body(body))),
         )
@@ -504,7 +505,7 @@ async fn test_encoding() {
 
 #[actix_rt::test]
 async fn test_gzip_encoding() {
-    let srv = test::start_with(test::config().h1(), || {
+    let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().service(
             web::resource("/").route(web::to(move |body: Bytes| HttpResponse::Ok().body(body))),
         )
@@ -530,7 +531,7 @@ async fn test_gzip_encoding() {
 #[actix_rt::test]
 async fn test_gzip_encoding_large() {
     let data = STR.repeat(10);
-    let srv = test::start_with(test::config().h1(), || {
+    let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().service(
             web::resource("/").route(web::to(move |body: Bytes| HttpResponse::Ok().body(body))),
         )
@@ -561,7 +562,7 @@ async fn test_reading_gzip_encoding_large_random() {
         .map(char::from)
         .collect::<String>();
 
-    let srv = test::start_with(test::config().h1(), || {
+    let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().service(
             web::resource("/").route(web::to(move |body: Bytes| HttpResponse::Ok().body(body))),
         )
@@ -587,7 +588,7 @@ async fn test_reading_gzip_encoding_large_random() {
 
 #[actix_rt::test]
 async fn test_reading_deflate_encoding() {
-    let srv = test::start_with(test::config().h1(), || {
+    let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().service(
             web::resource("/").route(web::to(move |body: Bytes| HttpResponse::Ok().body(body))),
         )
@@ -613,7 +614,7 @@ async fn test_reading_deflate_encoding() {
 #[actix_rt::test]
 async fn test_reading_deflate_encoding_large() {
     let data = STR.repeat(10);
-    let srv = test::start_with(test::config().h1(), || {
+    let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().service(
             web::resource("/").route(web::to(move |body: Bytes| HttpResponse::Ok().body(body))),
         )
@@ -644,7 +645,7 @@ async fn test_reading_deflate_encoding_large_random() {
         .map(char::from)
         .collect::<String>();
 
-    let srv = test::start_with(test::config().h1(), || {
+    let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().service(
             web::resource("/").route(web::to(move |body: Bytes| HttpResponse::Ok().body(body))),
         )
@@ -670,7 +671,7 @@ async fn test_reading_deflate_encoding_large_random() {
 
 #[actix_rt::test]
 async fn test_brotli_encoding() {
-    let srv = test::start_with(test::config().h1(), || {
+    let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().service(
             web::resource("/").route(web::to(move |body: Bytes| HttpResponse::Ok().body(body))),
         )
@@ -701,7 +702,7 @@ async fn test_brotli_encoding_large() {
         .map(char::from)
         .collect::<String>();
 
-    let srv = test::start_with(test::config().h1(), || {
+    let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().service(
             web::resource("/")
                 .app_data(web::PayloadConfig::new(320_000))
@@ -732,13 +733,14 @@ async fn test_brotli_encoding_large() {
 #[actix_rt::test]
 async fn test_brotli_encoding_large_openssl() {
     let data = STR.repeat(10);
-    let srv = test::start_with(test::config().openssl(openssl_config()), move || {
-        App::new().service(web::resource("/").route(web::to(|bytes: Bytes| {
-            HttpResponse::Ok()
-                .encoding(actix_web::http::ContentEncoding::Identity)
-                .body(bytes)
-        })))
-    });
+    let srv =
+        actix_test::start_with(actix_test::config().openssl(openssl_config()), move || {
+            App::new().service(web::resource("/").route(web::to(|bytes: Bytes| {
+                HttpResponse::Ok()
+                    .encoding(actix_web::http::ContentEncoding::Identity)
+                    .body(bytes)
+            })))
+        });
 
     // body
     let mut e = BrotliEncoder::new(Vec::new(), 3);
@@ -794,7 +796,7 @@ mod plus_rustls {
             .map(char::from)
             .collect::<String>();
 
-        let srv = test::start_with(test::config().rustls(rustls_config()), || {
+        let srv = actix_test::start_with(actix_test::config().rustls(rustls_config()), || {
             App::new().service(web::resource("/").route(web::to(|bytes: Bytes| {
                 HttpResponse::Ok()
                     .encoding(actix_web::http::ContentEncoding::Identity)
@@ -825,18 +827,18 @@ mod plus_rustls {
 
 #[actix_rt::test]
 async fn test_server_cookies() {
-    use actix_web::{http, HttpMessage};
+    use actix_web::http;
 
-    let srv = test::start(|| {
+    let srv = actix_test::start(|| {
         App::new().default_service(web::to(|| {
             HttpResponse::Ok()
                 .cookie(
-                    http::CookieBuilder::new("first", "first_value")
+                    CookieBuilder::new("first", "first_value")
                         .http_only(true)
                         .finish(),
                 )
-                .cookie(http::Cookie::new("second", "first_value"))
-                .cookie(http::Cookie::new("second", "second_value"))
+                .cookie(Cookie::new("second", "first_value"))
+                .cookie(Cookie::new("second", "second_value"))
                 .finish()
         }))
     });
@@ -845,10 +847,10 @@ async fn test_server_cookies() {
     let res = req.send().await.unwrap();
     assert!(res.status().is_success());
 
-    let first_cookie = http::CookieBuilder::new("first", "first_value")
+    let first_cookie = CookieBuilder::new("first", "first_value")
         .http_only(true)
         .finish();
-    let second_cookie = http::Cookie::new("second", "second_value");
+    let second_cookie = Cookie::new("second", "second_value");
 
     let cookies = res.cookies().expect("To have cookies");
     assert_eq!(cookies.len(), 2);
@@ -880,7 +882,7 @@ async fn test_server_cookies() {
 async fn test_slow_request() {
     use std::net;
 
-    let srv = test::start_with(test::config().client_timeout(200), || {
+    let srv = actix_test::start_with(actix_test::config().client_timeout(200), || {
         App::new().service(web::resource("/").route(web::to(HttpResponse::Ok)))
     });
 
@@ -898,7 +900,7 @@ async fn test_slow_request() {
 
 #[actix_rt::test]
 async fn test_normalize() {
-    let srv = test::start_with(test::config().h1(), || {
+    let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
             .wrap(NormalizePath::new(TrailingSlash::Trim))
             .service(web::resource("/one").route(web::to(|| HttpResponse::Ok().finish())))
@@ -906,4 +908,52 @@ async fn test_normalize() {
 
     let response = srv.get("/one/").send().await.unwrap();
     assert!(response.status().is_success());
+}
+
+#[actix_rt::test]
+async fn test_data_drop() {
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+
+    struct TestData(Arc<AtomicUsize>);
+
+    impl TestData {
+        fn new(inner: Arc<AtomicUsize>) -> Self {
+            let _ = inner.fetch_add(1, Ordering::SeqCst);
+            Self(inner)
+        }
+    }
+
+    impl Clone for TestData {
+        fn clone(&self) -> Self {
+            let inner = self.0.clone();
+            let _ = inner.fetch_add(1, Ordering::SeqCst);
+            Self(inner)
+        }
+    }
+
+    impl Drop for TestData {
+        fn drop(&mut self) {
+            self.0.fetch_sub(1, Ordering::SeqCst);
+        }
+    }
+
+    let num = Arc::new(AtomicUsize::new(0));
+    let data = TestData::new(num.clone());
+    assert_eq!(num.load(Ordering::SeqCst), 1);
+
+    let srv = actix_test::start(move || {
+        let data = data.clone();
+
+        App::new()
+            .data(data)
+            .service(web::resource("/").to(|_data: web::Data<TestData>| async { "ok" }))
+    });
+
+    assert!(srv.get("/").send().await.unwrap().status().is_success());
+    srv.stop().await;
+
+    assert_eq!(num.load(Ordering::SeqCst), 0);
 }

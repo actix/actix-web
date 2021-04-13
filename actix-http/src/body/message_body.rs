@@ -52,6 +52,19 @@ impl<T: MessageBody + Unpin> MessageBody for Box<T> {
     }
 }
 
+impl<T: MessageBody> MessageBody for Pin<Box<T>> {
+    fn size(&self) -> BodySize {
+        self.as_ref().size()
+    }
+
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Bytes, Error>>> {
+        self.as_mut().poll_next(cx)
+    }
+}
+
 impl MessageBody for Bytes {
     fn size(&self) -> BodySize {
         BodySize::Sized(self.len() as u64)

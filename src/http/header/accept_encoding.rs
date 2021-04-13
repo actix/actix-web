@@ -26,18 +26,20 @@ header! {
     ///
     /// # Examples
     /// ```
-    /// use hyper::header::{Headers, AcceptEncoding, Encoding, qitem};
+    /// use actix_web::HttpResponse;
+    /// use actix_web::http::header::{AcceptEncoding, Encoding, qitem};
     ///
-    /// let mut headers = Headers::new();
-    /// headers.set(
+    /// let mut builder = HttpResponse::new();
+    /// builder.insert_header(
     ///     AcceptEncoding(vec![qitem(Encoding::Chunked)])
     /// );
     /// ```
     /// ```
-    /// use hyper::header::{Headers, AcceptEncoding, Encoding, qitem};
+    /// use actix_web::HttpResponse;
+    /// use actix_web::http::header::{AcceptEncoding, Encoding, qitem};
     ///
-    /// let mut headers = Headers::new();
-    /// headers.set(
+    /// let mut builder = HttpResponse::new();
+    /// builder.insert_header(
     ///     AcceptEncoding(vec![
     ///         qitem(Encoding::Chunked),
     ///         qitem(Encoding::Gzip),
@@ -46,10 +48,11 @@ header! {
     /// );
     /// ```
     /// ```
-    /// use hyper::header::{Headers, AcceptEncoding, Encoding, QualityItem, q, qitem};
+    /// use actix_web::HttpResponse;
+    /// use actix_web::http::header::{AcceptEncoding, Encoding, QualityItem, q, qitem};
     ///
-    /// let mut headers = Headers::new();
-    /// headers.set(
+    /// let mut builder = HttpResponse::new();
+    /// builder.insert_header(
     ///     AcceptEncoding(vec![
     ///         qitem(Encoding::Chunked),
     ///         QualityItem::new(Encoding::Gzip, q(600)),
