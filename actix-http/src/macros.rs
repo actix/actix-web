@@ -70,6 +70,7 @@ macro_rules! downcast {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::upper_case_acronyms)]
 
     trait MB {
         downcast_get_type_id!();
