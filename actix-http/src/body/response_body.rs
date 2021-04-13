@@ -55,10 +55,7 @@ impl<B: MessageBody> MessageBody for ResponseBody<B> {
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Error>>> {
-        match self.project() {
-            ResponseBodyProj::Body(body) => body.poll_next(cx),
-            ResponseBodyProj::Other(body) => Pin::new(body).poll_next(cx),
-        }
+        Stream::poll_next(self, cx)
     }
 }
 
