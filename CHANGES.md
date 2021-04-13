@@ -1,6 +1,14 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+* `HttpResponse` and `HttpResponseBuilder` structs. [#2065]
+
+### Changed
+* Most error types are now marked `#[non_exhaustive]`. [#2148]
+
+[#2065]: https://github.com/actix/actix-web/pull/2065
+[#2148]: https://github.com/actix/actix-web/pull/2148
 
 
 ## 4.0.0-beta.5 - 2021-04-02

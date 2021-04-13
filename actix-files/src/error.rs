@@ -1,4 +1,4 @@
-use actix_web::{http::StatusCode, HttpResponse, ResponseError};
+use actix_web::{http::StatusCode, ResponseError};
 use derive_more::Display;
 
 /// Errors which can occur when serving static files.
@@ -16,8 +16,8 @@ pub enum FilesError {
 
 /// Return `NotFound` for `FilesError`
 impl ResponseError for FilesError {
-    fn error_response(&self) -> HttpResponse {
-        HttpResponse::new(StatusCode::NOT_FOUND)
+    fn status_code(&self) -> StatusCode {
+        StatusCode::NOT_FOUND
     }
 }
 

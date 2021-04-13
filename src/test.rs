@@ -2,8 +2,6 @@
 
 use std::{net::SocketAddr, rc::Rc};
 
-#[cfg(feature = "cookies")]
-use actix_http::cookie::Cookie;
 pub use actix_http::test::TestBuffer;
 use actix_http::{
     http::{header::IntoHeaderPair, Method, StatusCode, Uri, Version},
@@ -17,6 +15,8 @@ use futures_core::Stream;
 use futures_util::StreamExt as _;
 use serde::{de::DeserializeOwned, Serialize};
 
+#[cfg(feature = "cookies")]
+use crate::cookie::{Cookie, CookieJar};
 use crate::{
     app_service::AppInitServiceState,
     config::AppConfig,
@@ -26,7 +26,7 @@ use crate::{
     rmap::ResourceMap,
     service::{ServiceRequest, ServiceResponse},
     web::{Bytes, BytesMut},
-    Error, HttpRequest, HttpResponse,
+    Error, HttpRequest, HttpResponse, HttpResponseBuilder,
 };
 
 /// Create service that always responds with `HttpResponse::Ok()` and no body.
@@ -40,7 +40,7 @@ pub fn default_service(
     status_code: StatusCode,
 ) -> impl Service<ServiceRequest, Response = ServiceResponse<Body>, Error = Error> {
     (move |req: ServiceRequest| {
-        ok(req.into_response(HttpResponse::build(status_code).finish()))
+        ok(req.into_response(HttpResponseBuilder::new(status_code).finish()))
     })
     .into_service()
 }
@@ -359,6 +359,8 @@ pub struct TestRequest {
     path: Path<Url>,
     peer_addr: Option<SocketAddr>,
     app_data: Extensions,
+    #[cfg(feature = "cookies")]
+    cookies: CookieJar,
 }
 
 impl Default for TestRequest {
@@ -370,6 +372,8 @@ impl Default for TestRequest {
             path: Path::new(Url::new(Uri::default())),
             peer_addr: None,
             app_data: Extensions::new(),
+            #[cfg(feature = "cookies")]
+            cookies: CookieJar::new(),
         }
     }
 }
@@ -445,7 +449,7 @@ impl TestRequest {
     /// Set cookie for this request.
     #[cfg(feature = "cookies")]
     pub fn cookie(mut self, cookie: Cookie<'_>) -> Self {
-        self.req.cookie(cookie);
+        self.cookies.add(cookie.into_owned());
         self
     }
 
@@ -507,16 +511,42 @@ impl TestRequest {
         self
     }
 
+    fn finish(&mut self) -> Request {
+        // mut used when cookie feature is enabled
+        #[allow(unused_mut)]
+        let mut req = self.req.finish();
+
+        #[cfg(feature = "cookies")]
+        {
+            use actix_http::http::header::{HeaderValue, COOKIE};
+
+            let cookie: String = self
+                .cookies
+                .delta()
+                // ensure only name=value is written to cookie header
+                .map(|c| c.stripped().encoded().to_string())
+                .collect::<Vec<_>>()
+                .join("; ");
+
+            if !cookie.is_empty() {
+                req.headers_mut()
+                    .insert(COOKIE, HeaderValue::from_str(&cookie).unwrap());
+            }
+        }
+
+        req
+    }
+
     /// Complete request creation and generate `Request` instance
     pub fn to_request(mut self) -> Request {
-        let mut req = self.req.finish();
+        let mut req = self.finish();
         req.head_mut().peer_addr = self.peer_addr;
         req
     }
 
     /// Complete request creation and generate `ServiceRequest` instance
     pub fn to_srv_request(mut self) -> ServiceRequest {
-        let (mut head, payload) = self.req.finish().into_parts();
+        let (mut head, payload) = self.finish().into_parts();
         head.peer_addr = self.peer_addr;
         self.path.get_mut().update(&head.uri);
 
@@ -535,7 +565,7 @@ impl TestRequest {
 
     /// Complete request creation and generate `HttpRequest` instance
     pub fn to_http_request(mut self) -> HttpRequest {
-        let (mut head, _) = self.req.finish().into_parts();
+        let (mut head, _) = self.finish().into_parts();
         head.peer_addr = self.peer_addr;
         self.path.get_mut().update(&head.uri);
 
@@ -546,7 +576,7 @@ impl TestRequest {
 
     /// Complete request creation and generate `HttpRequest` and `Payload` instances
     pub fn to_http_parts(mut self) -> (HttpRequest, Payload) {
-        let (mut head, payload) = self.req.finish().into_parts();
+        let (mut head, payload) = self.finish().into_parts();
         head.peer_addr = self.peer_addr;
         self.path.get_mut().update(&head.uri);
 

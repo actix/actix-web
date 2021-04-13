@@ -16,11 +16,7 @@ edition = "2018"
 
 [package.metadata.docs.rs]
 # features that docs.rs will build with
-features = ["openssl", "rustls", "compress", "secure-cookies"]
-
-[badges]
-travis-ci = { repository = "actix/actix-web", branch = "master" }
-codecov = { repository = "actix/actix-web", branch = "master", service = "github" }
+features = ["openssl", "rustls", "compress", "cookies", "secure-cookies"]
 
 [lib]
 name = "actix_web"
@@ -38,6 +34,8 @@ members = [
   "actix-http-test",
   "actix-test",
 ]
+# enable when MSRV is 1.51+
+# resolver = "2"
 
 [features]
 default = ["compress", "cookies"]
@@ -46,32 +44,16 @@ default = ["compress", "cookies"]
 compress = ["actix-http/compress"]
 
 # support for cookies
-cookies = ["actix-http/cookies"]
+cookies = ["cookie"]
 
 # secure cookies feature
-secure-cookies = ["actix-http/secure-cookies"]
+secure-cookies = ["cookie/secure"]
 
 # openssl
 openssl = ["actix-http/openssl", "actix-tls/accept", "actix-tls/openssl"]
 
 # rustls
 rustls = ["actix-http/rustls", "actix-tls/accept", "actix-tls/rustls"]
-
-[[example]]
-name = "basic"
-required-features = ["compress"]
-
-[[example]]
-name = "uds"
-required-features = ["compress"]
-
-[[test]]
-name = "test_server"
-required-features = ["compress", "cookies"]
-
-[[example]]
-name = "on_connect"
-required-features = []
 
 [dependencies]
 actix-codec = "0.4.0-beta.1"
@@ -88,11 +70,13 @@ actix-http = "3.0.0-beta.5"
 
 ahash = "0.7"
 bytes = "1"
+cookie = { version = "0.15", features = ["percent-encode"], optional = true }
 derive_more = "0.99.5"
 either = "1.5.3"
 encoding_rs = "0.8"
 futures-core = { version = "0.3.7", default-features = false }
 futures-util = { version = "0.3.7", default-features = false }
+itoa = "0.4"
 language-tags = "0.2"
 once_cell = "1.5"
 log = "0.4"
@@ -136,6 +120,22 @@ actix-web = { path = "." }
 actix-web-actors = { path = "actix-web-actors" }
 actix-web-codegen = { path = "actix-web-codegen" }
 awc = { path = "awc" }
+
+[[test]]
+name = "test_server"
+required-features = ["compress", "cookies"]
+
+[[example]]
+name = "basic"
+required-features = ["compress"]
+
+[[example]]
+name = "uds"
+required-features = ["compress"]
+
+[[example]]
+name = "on_connect"
+required-features = []
 
 [[bench]]
 name = "server"

@@ -1213,8 +1213,9 @@ mod tests {
     #[test]
     fn test_parse_chunked_payload_chunk_extension() {
         let mut buf = BytesMut::from(
-            &"GET /test HTTP/1.1\r\n\
-              transfer-encoding: chunked\r\n\r\n"[..],
+            "GET /test HTTP/1.1\r\n\
+            transfer-encoding: chunked\r\n\
+            \r\n",
         );
 
         let mut reader = MessageDecoder::<Request>::default();
@@ -1233,7 +1234,7 @@ mod tests {
 
     #[test]
     fn test_response_http10_read_until_eof() {
-        let mut buf = BytesMut::from(&"HTTP/1.0 200 Ok\r\n\r\ntest data"[..]);
+        let mut buf = BytesMut::from("HTTP/1.0 200 Ok\r\n\r\ntest data");
 
         let mut reader = MessageDecoder::<ResponseHead>::default();
         let (_msg, pl) = reader.decode(&mut buf).unwrap().unwrap();

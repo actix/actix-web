@@ -93,12 +93,11 @@
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 
-use std::convert::TryFrom;
-use std::rc::Rc;
-use std::time::Duration;
+use std::{convert::TryFrom, rc::Rc, time::Duration};
 
 #[cfg(feature = "cookies")]
-pub use actix_http::cookie;
+pub use cookie;
+
 pub use actix_http::{client::Connector, http};
 
 use actix_http::{

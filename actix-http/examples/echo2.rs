@@ -1,13 +1,13 @@
 use std::{env, io};
 
-use actix_http::http::HeaderValue;
+use actix_http::{body::Body, http::HeaderValue};
 use actix_http::{Error, HttpService, Request, Response};
 use actix_server::Server;
 use bytes::BytesMut;
 use futures_util::StreamExt as _;
 use log::info;
 
-async fn handle_request(mut req: Request) -> Result<Response, Error> {
+async fn handle_request(mut req: Request) -> Result<Response<Body>, Error> {
     let mut body = BytesMut::new();
     while let Some(item) = req.payload().next().await {
         body.extend_from_slice(&item?)

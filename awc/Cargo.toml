@@ -41,7 +41,7 @@ rustls = ["tls-rustls", "actix-http/rustls"]
 compress = ["actix-http/compress"]
 
 # cookie parsing and cookie jar
-cookies = ["actix-http/cookies"]
+cookies = ["cookie"]
 
 # trust-dns as dns resolver
 trust-dns = ["actix-http/trust-dns"]
@@ -54,6 +54,7 @@ actix-rt = { version = "2.1", default-features = false }
 
 base64 = "0.13"
 bytes = "1"
+cookie = { version = "0.15", features = ["percent-encode"], optional = true }
 derive_more = "0.99.5"
 futures-core = { version = "0.3.7", default-features = false }
 itoa = "0.4"

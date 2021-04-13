@@ -8,14 +8,14 @@ use futures_core::Stream;
 use serde::Serialize;
 
 use actix_http::body::Body;
-#[cfg(feature = "cookies")]
-use actix_http::cookie::{Cookie, CookieJar};
 use actix_http::http::header::{self, IntoHeaderPair};
 use actix_http::http::{
     uri, ConnectionType, Error as HttpError, HeaderMap, HeaderValue, Method, Uri, Version,
 };
 use actix_http::{Error, RequestHead};
 
+#[cfg(feature = "cookies")]
+use crate::cookie::{Cookie, CookieJar};
 use crate::error::{FreezeRequestError, InvalidUrl};
 use crate::frozen::FrozenClientRequest;
 use crate::sender::{PrepForSendingError, RequestSender, SendClientRequest};
@@ -271,7 +271,7 @@ impl ClientRequest {
     /// async fn main() {
     ///     let resp = awc::Client::new().get("https://www.rust-lang.org")
     ///         .cookie(
-    ///             awc::http::Cookie::build("name", "value")
+    ///             awc::cookie::Cookie::build("name", "value")
     ///                 .domain("www.rust-lang.org")
     ///                 .path("/")
     ///                 .secure(true)
@@ -309,34 +309,6 @@ impl ClientRequest {
     pub fn timeout(mut self, timeout: Duration) -> Self {
         self.timeout = Some(timeout);
         self
-    }
-
-    /// This method calls provided closure with builder reference if value is `true`.
-    #[doc(hidden)]
-    #[deprecated = "Use an if statement."]
-    pub fn if_true<F>(self, value: bool, f: F) -> Self
-    where
-        F: FnOnce(ClientRequest) -> ClientRequest,
-    {
-        if value {
-            f(self)
-        } else {
-            self
-        }
-    }
-
-    /// This method calls provided closure with builder reference if value is `Some`.
-    #[doc(hidden)]
-    #[deprecated = "Use an if-let construction."]
-    pub fn if_some<T, F>(self, value: Option<T>, f: F) -> Self
-    where
-        F: FnOnce(T, ClientRequest) -> ClientRequest,
-    {
-        if let Some(val) = value {
-            f(val, self)
-        } else {
-            self
-        }
     }
 
     /// Sets the query part of the request
@@ -494,7 +466,7 @@ impl ClientRequest {
             let cookie: String = jar
                 .delta()
                 // ensure only name=value is written to cookie header
-                .map(|c| Cookie::new(c.name(), c.value()).encoded().to_string())
+                .map(|c| c.stripped().encoded().to_string())
                 .collect::<Vec<_>>()
                 .join("; ");
 

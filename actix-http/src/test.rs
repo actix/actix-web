@@ -14,11 +14,6 @@ use actix_rt::net::{ActixStream, Ready};
 use bytes::{Bytes, BytesMut};
 use http::{Method, Uri, Version};
 
-#[cfg(feature = "cookies")]
-use crate::{
-    cookie::{Cookie, CookieJar},
-    header::{self, HeaderValue},
-};
 use crate::{
     header::{HeaderMap, IntoHeaderPair},
     payload::Payload,
@@ -55,8 +50,6 @@ struct Inner {
     method: Method,
     uri: Uri,
     headers: HeaderMap,
-    #[cfg(feature = "cookies")]
-    cookies: CookieJar,
     payload: Option<Payload>,
 }
 
@@ -67,8 +60,6 @@ impl Default for TestRequest {
             uri: Uri::from_str("/").unwrap(),
             version: Version::HTTP_11,
             headers: HeaderMap::new(),
-            #[cfg(feature = "cookies")]
-            cookies: CookieJar::new(),
             payload: None,
         }))
     }
@@ -135,13 +126,6 @@ impl TestRequest {
         self
     }
 
-    /// Set cookie for this request.
-    #[cfg(feature = "cookies")]
-    pub fn cookie<'a>(&mut self, cookie: Cookie<'a>) -> &mut Self {
-        parts(&mut self.0).cookies.add(cookie.into_owned());
-        self
-    }
-
     /// Set request payload.
     pub fn set_payload<B: Into<Bytes>>(&mut self, data: B) -> &mut Self {
         let mut payload = crate::h1::Payload::empty();
@@ -169,22 +153,6 @@ impl TestRequest {
         head.method = inner.method;
         head.version = inner.version;
         head.headers = inner.headers;
-
-        #[cfg(feature = "cookies")]
-        {
-            let cookie: String = inner
-                .cookies
-                .delta()
-                // ensure only name=value is written to cookie header
-                .map(|c| Cookie::new(c.name(), c.value()).encoded().to_string())
-                .collect::<Vec<_>>()
-                .join("; ");
-
-            if !cookie.is_empty() {
-                head.headers
-                    .insert(header::COOKIE, HeaderValue::from_str(&cookie).unwrap());
-            }
-        }
 
         req
     }

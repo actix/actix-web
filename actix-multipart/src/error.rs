@@ -45,11 +45,10 @@ impl ResponseError for MultipartError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use actix_web::HttpResponse;
 
     #[test]
     fn test_multipart_error() {
-        let resp: HttpResponse = MultipartError::Boundary.error_response();
+        let resp = MultipartError::Boundary.error_response();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 }

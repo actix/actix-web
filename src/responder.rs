@@ -1,13 +1,13 @@
 use std::fmt;
 
 use actix_http::{
+    body::Body,
     error::InternalError,
     http::{header::IntoHeaderPair, Error as HttpError, HeaderMap, StatusCode},
-    ResponseBuilder,
 };
 use bytes::{Bytes, BytesMut};
 
-use crate::{Error, HttpRequest, HttpResponse};
+use crate::{Error, HttpRequest, HttpResponse, HttpResponseBuilder};
 
 /// Trait implemented by types that can be converted to an HTTP response.
 ///
@@ -66,11 +66,32 @@ impl Responder for HttpResponse {
     }
 }
 
+impl Responder for actix_http::Response<Body> {
+    #[inline]
+    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
+        HttpResponse::from(self)
+    }
+}
+
+impl Responder for HttpResponseBuilder {
+    #[inline]
+    fn respond_to(mut self, _: &HttpRequest) -> HttpResponse {
+        self.finish()
+    }
+}
+
+impl Responder for actix_http::ResponseBuilder {
+    #[inline]
+    fn respond_to(mut self, _: &HttpRequest) -> HttpResponse {
+        HttpResponse::from(self.finish())
+    }
+}
+
 impl<T: Responder> Responder for Option<T> {
     fn respond_to(self, req: &HttpRequest) -> HttpResponse {
         match self {
-            Some(t) => t.respond_to(req),
-            None => HttpResponse::build(StatusCode::NOT_FOUND).finish(),
+            Some(val) => val.respond_to(req),
+            None => HttpResponse::new(StatusCode::NOT_FOUND),
         }
     }
 }
@@ -85,13 +106,6 @@ where
             Ok(val) => val.respond_to(req),
             Err(e) => HttpResponse::from_error(e.into()),
         }
-    }
-}
-
-impl Responder for ResponseBuilder {
-    #[inline]
-    fn respond_to(mut self, _: &HttpRequest) -> HttpResponse {
-        self.finish()
     }
 }
 

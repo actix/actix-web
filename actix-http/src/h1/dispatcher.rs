@@ -351,7 +351,7 @@ where
 
                     // send service call error as response
                     Poll::Ready(Err(err)) => {
-                        let res: Response = err.into().into();
+                        let res = Response::from_error(err.into());
                         let (res, body) = res.replace_body(());
                         self.as_mut().send_response(res, body.into_body())?;
                     }
@@ -441,7 +441,7 @@ where
                     }
                     // send expect error as response
                     Poll::Ready(Err(err)) => {
-                        let res: Response = err.into().into();
+                        let res = Response::from_error(err.into());
                         let (res, body) = res.replace_body(());
                         self.as_mut().send_response(res, body.into_body())?;
                     }
@@ -490,8 +490,7 @@ where
                         // to notify the dispatcher a new state is set and the outer loop
                         // should be continue.
                         Poll::Ready(Err(err)) => {
-                            let err = err.into();
-                            let res: Response = err.into();
+                            let res = Response::from_error(err.into());
                             let (res, body) = res.replace_body(());
                             return self.send_response(res, body.into_body());
                         }
@@ -511,7 +510,7 @@ where
                         Poll::Pending => Ok(()),
                         // see the comment on ExpectCall state branch's Ready(Err(err)).
                         Poll::Ready(Err(err)) => {
-                            let res: Response = err.into().into();
+                            let res = Response::from_error(err.into());
                             let (res, body) = res.replace_body(());
                             self.send_response(res, body.into_body())
                         }
@@ -1031,11 +1030,11 @@ mod tests {
         }
     }
 
-    fn ok_service() -> impl Service<Request, Response = Response, Error = Error> {
+    fn ok_service() -> impl Service<Request, Response = Response<Body>, Error = Error> {
         fn_service(|_req: Request| ready(Ok::<_, Error>(Response::Ok().finish())))
     }
 
-    fn pending_service() -> impl Service<Request, Response = Response, Error = Error> {
+    fn pending_service() -> impl Service<Request, Response = Response<Body>, Error = Error> {
         struct PendingForever;
         impl futures_core::Stream for PendingForever {
             type Item = Result<Bytes, Error>;
@@ -1053,15 +1052,16 @@ mod tests {
         })
     }
 
-    fn echo_path_service() -> impl Service<Request, Response = Response, Error = Error> {
+    fn echo_path_service(
+    ) -> impl Service<Request, Response = Response<Body>, Error = Error> {
         fn_service(|req: Request| {
             let path = req.path().as_bytes();
             ready(Ok::<_, Error>(Response::Ok().body(Body::from_slice(path))))
         })
     }
 
-    fn echo_payload_service() -> impl Service<Request, Response = Response, Error = Error>
-    {
+    fn echo_payload_service(
+    ) -> impl Service<Request, Response = Response<Body>, Error = Error> {
         fn_service(|mut req: Request| {
             Box::pin(async move {
                 use futures_util::stream::StreamExt as _;
