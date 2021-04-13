@@ -57,7 +57,7 @@ impl Response<Body> {
     /// Creates a new response with status 400 Bad Request.
     #[inline]
     pub fn bad_request() -> Response<Body> {
-        Response::new(StatusCode::OK)
+        Response::new(StatusCode::BAD_REQUEST)
     }
 
     /// Creates a new response with status 404 Not Found.
@@ -304,7 +304,7 @@ impl ResponseBuilder {
     ///
     /// ```
     /// # use actix_http::Response;
-    /// use actix_http::http::header;
+    /// use actix_http::http::{header, StatusCode};
     ///
     /// Response::build(StatusCode::OK)
     ///     .insert_header((header::CONTENT_TYPE, mime::APPLICATION_JSON))
@@ -331,7 +331,7 @@ impl ResponseBuilder {
     ///
     /// ```
     /// # use actix_http::Response;
-    /// use actix_http::http::header;
+    /// use actix_http::http::{header, StatusCode};
     ///
     /// Response::build(StatusCode::OK)
     ///     .append_header((header::CONTENT_TYPE, mime::APPLICATION_JSON))
