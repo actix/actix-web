@@ -1,6 +1,6 @@
 use std::{env, io};
 
-use actix_http::{http::StatusCode, Error, HttpService, Request, Response};
+use actix_http::{http::StatusCode, HttpService, Request, Response};
 use actix_server::Server;
 use bytes::BytesMut;
 use futures_util::StreamExt as _;
@@ -24,14 +24,14 @@ async fn main() -> io::Result<()> {
                     }
 
                     info!("request body: {:?}", body);
-                    Ok::<_, Error>(
-                        Response::builder(StatusCode::OK)
-                            .insert_header((
-                                "x-head",
-                                HeaderValue::from_static("dummy value!"),
-                            ))
-                            .body(body),
-                    )
+
+                    Response::builder(StatusCode::OK)
+                        .insert_header((
+                            "x-head",
+                            HeaderValue::from_static("dummy value!"),
+                        ))
+                        .take()
+                        .body(body)
                 })
                 .tcp()
         })?

@@ -82,8 +82,8 @@ impl Responder for HttpResponseBuilder {
 
 impl Responder for actix_http::ResponseBuilder {
     #[inline]
-    fn respond_to(mut self, _: &HttpRequest) -> HttpResponse {
-        HttpResponse::from(self.finish())
+    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
+        HttpResponse::from(self.complete())
     }
 }
 

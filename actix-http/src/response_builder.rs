@@ -2,6 +2,7 @@ use std::{
     cell::{Ref, RefMut},
     fmt,
     future::Future,
+    mem,
     pin::Pin,
     str,
     task::{Context, Poll},
@@ -24,8 +25,7 @@ use crate::{
 ///
 /// This type can be used to construct an instance of `Response` through a builder-like pattern.
 pub struct ResponseBuilder {
-    head: Option<BoxedResponseHead>,
-    err: Option<HttpError>,
+    inner: Result<BoxedResponseHead, HttpError>,
 }
 
 impl ResponseBuilder {
@@ -33,14 +33,13 @@ impl ResponseBuilder {
     /// Create response builder
     pub fn new(status: StatusCode) -> Self {
         ResponseBuilder {
-            head: Some(BoxedResponseHead::new(status)),
-            err: None,
+            inner: Ok(BoxedResponseHead::new(status)),
         }
     }
 
     /// Set HTTP status code of this response.
     #[inline]
-    pub fn status(&mut self, status: StatusCode) -> &mut Self {
+    pub fn status(mut self, status: StatusCode) -> Self {
         if let Some(parts) = self.inner() {
             parts.status = status;
         }
@@ -58,7 +57,7 @@ impl ResponseBuilder {
     ///     .insert_header(("X-TEST", "value"))
     ///     .finish();
     /// ```
-    pub fn insert_header<H>(&mut self, header: H) -> &mut Self
+    pub fn insert_header<H>(mut self, header: H) -> Self
     where
         H: IntoHeaderPair,
     {
@@ -67,7 +66,7 @@ impl ResponseBuilder {
                 Ok((key, value)) => {
                     parts.headers.insert(key, value);
                 }
-                Err(e) => self.err = Some(e.into()),
+                Err(err) => self.inner = Err(err.into()),
             };
         }
 
@@ -86,14 +85,14 @@ impl ResponseBuilder {
     ///     .append_header(("X-TEST", "value2"))
     ///     .finish();
     /// ```
-    pub fn append_header<H>(&mut self, header: H) -> &mut Self
+    pub fn append_header<H>(mut self, header: H) -> Self
     where
         H: IntoHeaderPair,
     {
         if let Some(parts) = self.inner() {
             match header.try_into_header_pair() {
                 Ok((key, value)) => parts.headers.append(key, value),
-                Err(e) => self.err = Some(e.into()),
+                Err(err) => self.inner = Err(err.into()),
             };
         }
 
@@ -102,7 +101,7 @@ impl ResponseBuilder {
 
     /// Set the custom reason for the response.
     #[inline]
-    pub fn reason(&mut self, reason: &'static str) -> &mut Self {
+    pub fn reason(mut self, reason: &'static str) -> Self {
         if let Some(parts) = self.inner() {
             parts.reason = Some(reason);
         }
@@ -111,7 +110,7 @@ impl ResponseBuilder {
 
     /// Set connection type to KeepAlive
     #[inline]
-    pub fn keep_alive(&mut self) -> &mut Self {
+    pub fn keep_alive(self) -> Self {
         if let Some(parts) = self.inner() {
             parts.set_connection_type(ConnectionType::KeepAlive);
         }
@@ -120,7 +119,7 @@ impl ResponseBuilder {
 
     /// Set connection type to Upgrade
     #[inline]
-    pub fn upgrade<V>(&mut self, value: V) -> &mut Self
+    pub fn upgrade<V>(mut self, value: V) -> Self
     where
         V: IntoHeaderValue,
     {
@@ -132,12 +131,12 @@ impl ResponseBuilder {
             self.insert_header((header::UPGRADE, value));
         }
 
-        self
+        res
     }
 
     /// Force close connection, even if it is marked as keep-alive
     #[inline]
-    pub fn force_close(&mut self) -> &mut Self {
+    pub fn force_close(mut self) -> Self {
         if let Some(parts) = self.inner() {
             parts.set_connection_type(ConnectionType::Close);
         }
@@ -146,28 +145,29 @@ impl ResponseBuilder {
 
     /// Disable chunked transfer encoding for HTTP/1.1 streaming responses.
     #[inline]
-    pub fn no_chunking(&mut self, len: u64) -> &mut Self {
+    pub fn no_chunking(self, len: u64) -> Self {
         let mut buf = itoa::Buffer::new();
-        self.insert_header((header::CONTENT_LENGTH, buf.format(len)));
+        let mut res = self.insert_header((header::CONTENT_LENGTH, buf.format(len)));
 
-        if let Some(parts) = self.inner() {
-            parts.no_chunking(true);
+        if let Some(head) = res.inner() {
+            head.no_chunking(true);
         }
-        self
+
+        res
     }
 
     /// Set response content type.
     #[inline]
-    pub fn content_type<V>(&mut self, value: V) -> &mut Self
+    pub fn content_type<V>(mut self, value: V) -> Self
     where
         V: IntoHeaderValue,
     {
-        if let Some(parts) = self.inner() {
+        if let Some(head) = self.inner() {
             match value.try_into_value() {
                 Ok(value) => {
-                    parts.headers.insert(header::CONTENT_TYPE, value);
+                    head.headers.insert(header::CONTENT_TYPE, value);
                 }
-                Err(e) => self.err = Some(e.into()),
+                Err(err) => self.inner = Err(err.into()),
             };
         }
         self
@@ -176,77 +176,74 @@ impl ResponseBuilder {
     /// Responses extensions
     #[inline]
     pub fn extensions(&self) -> Ref<'_, Extensions> {
-        let head = self.head.as_ref().expect("cannot reuse response builder");
+        let head = self.inner.as_ref().expect("cannot reuse response builder");
         head.extensions.borrow()
     }
 
     /// Mutable reference to a the response's extensions
     #[inline]
     pub fn extensions_mut(&mut self) -> RefMut<'_, Extensions> {
-        let head = self.head.as_ref().expect("cannot reuse response builder");
+        let head = self.inner.as_ref().expect("cannot reuse response builder");
         head.extensions.borrow_mut()
     }
 
-    /// Set a body and generate `Response`.
+    /// Creates an owned response builder, leaving a default-ish builder in it's place.
     ///
-    /// `ResponseBuilder` can not be used after this call.
-    #[inline]
-    pub fn body<B: Into<Body>>(&mut self, body: B) -> Response<Body> {
-        self.message_body(body.into())
+    /// Useful under the assumption the original builder will be dropped immediately.
+    ///
+    /// If the builder contains an error, it will be passed to the new, owned builder.
+    pub fn take(&mut self) -> ResponseBuilder {
+        let res = BoxedResponseHead::new(StatusCode::INTERNAL_SERVER_ERROR);
+        let inner = mem::replace(&mut self.inner, Ok(res));
+
+        ResponseBuilder { inner }
     }
 
     /// Set a body and generate `Response`.
     ///
     /// `ResponseBuilder` can not be used after this call.
-    pub fn message_body<B>(&mut self, body: B) -> Response<B> {
-        if let Some(e) = self.err.take() {
-            return Response::from(Error::from(e)).into_body();
-        }
-
-        let response = self.head.take().expect("cannot reuse response builder");
-
-        Response {
-            head: response,
-            body: ResponseBody::Body(body),
-            error: None,
+    fn with_body<B>(self, body: B) -> Result<Response<B>, Error> {
+        match self.inner {
+            Ok(head) => Ok(Response {
+                head,
+                body: ResponseBody::Body(body),
+                error: None,
+            }),
+            Err(err) => Err(Error::from(err)),
         }
     }
 
-    /// Set a streaming body and generate `Response`.
-    ///
-    /// `ResponseBuilder` can not be used after this call.
+    /// Consume builder and generate response with given body.
     #[inline]
-    pub fn streaming<S, E>(&mut self, stream: S) -> Response<Body>
+    pub fn body<B>(self, body: B) -> Result<Response<B>, Error> {
+        self.with_body(body.into())
+    }
+
+    /// Consume builder and generate response with given stream as body.
+    #[inline]
+    pub fn streaming<S, E>(self, stream: S) -> Result<Response<BodyStream<S>>, Error>
     where
-        S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
+        S: Stream<Item = Result<Bytes, E>> + 'static,
         E: Into<Error> + 'static,
     {
-        self.body(Body::from_message(BodyStream::new(stream)))
+        self.body(BodyStream::new(stream))
     }
 
-    /// Set an empty body and generate `Response`
-    ///
-    /// `ResponseBuilder` can not be used after this call.
+    /// Consume builder and generate response with empty body.
     #[inline]
-    pub fn finish(&mut self) -> Response<Body> {
+    pub fn finish(self) -> Result<Response<Body>, Error> {
         self.body(Body::Empty)
     }
 
-    /// This method construct new `ResponseBuilder`
-    pub fn take(&mut self) -> ResponseBuilder {
-        ResponseBuilder {
-            head: self.head.take(),
-            err: self.err.take(),
-        }
+    /// Consume builder and generate response with empty body, converting errors into responses.
+    #[inline]
+    pub fn complete(self) -> Response<Body> {
+        self.body(Body::Empty).into()
     }
 
     /// Access to contained response when there is no error.
     fn inner(&mut self) -> Option<&mut ResponseHead> {
-        if self.err.is_some() {
-            return None;
-        }
-
-        self.head.as_mut().map(|r| &mut **r)
+        self.inner.as_mut().ok().map(|head| &mut **head)
     }
 }
 
@@ -254,8 +251,7 @@ impl ResponseBuilder {
 impl<B> From<Response<B>> for ResponseBuilder {
     fn from(res: Response<B>) -> ResponseBuilder {
         ResponseBuilder {
-            head: Some(res.head),
-            err: None,
+            inner: Ok(res.head),
         }
     }
 }
@@ -273,10 +269,7 @@ impl<'a> From<&'a ResponseHead> for ResponseBuilder {
 
         msg.no_chunking(!head.chunked());
 
-        ResponseBuilder {
-            head: Some(msg),
-            err: None,
-        }
+        ResponseBuilder { inner: Ok(msg) }
     }
 }
 
@@ -284,13 +277,13 @@ impl Future for ResponseBuilder {
     type Output = Result<Response<Body>, Error>;
 
     fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
-        Poll::Ready(Ok(self.finish()))
+        Poll::Ready(self.take().finish())
     }
 }
 
 impl fmt::Debug for ResponseBuilder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let head = self.head.as_ref().unwrap();
+        let head = self.inner.as_ref().unwrap();
 
         let res = writeln!(
             f,
@@ -317,7 +310,7 @@ mod tests {
     fn test_basic_builder() {
         let resp = Response::builder(StatusCode::OK)
             .insert_header(("X-TEST", "value"))
-            .finish();
+            .complete();
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
@@ -325,7 +318,7 @@ mod tests {
     fn test_upgrade() {
         let resp = Response::builder(StatusCode::OK)
             .upgrade("websocket")
-            .finish();
+            .complete();
         assert!(resp.upgrade());
         assert_eq!(
             resp.headers().get(header::UPGRADE).unwrap(),
@@ -335,7 +328,10 @@ mod tests {
 
     #[test]
     fn test_force_close() {
-        let resp = Response::builder(StatusCode::OK).force_close().finish();
+        let resp = Response::builder(StatusCode::OK)
+            .force_close()
+            .finish()
+            .unwrap();
         assert!(!resp.keep_alive())
     }
 
@@ -343,13 +339,14 @@ mod tests {
     fn test_content_type() {
         let resp = Response::builder(StatusCode::OK)
             .content_type("text/plain")
-            .body(Body::Empty);
+            .body(Body::Empty)
+            .unwrap();
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "text/plain")
     }
 
     #[test]
     fn test_into_builder() {
-        let mut resp: Response<Body> = "test".into();
+        let mut resp: Response<_> = "test".into();
         assert_eq!(resp.status(), StatusCode::OK);
 
         resp.headers_mut().insert(
@@ -358,7 +355,7 @@ mod tests {
         );
 
         let mut builder: ResponseBuilder = resp.into();
-        let resp = builder.status(StatusCode::BAD_REQUEST).finish();
+        let resp = builder.status(StatusCode::BAD_REQUEST).finish().unwrap();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
         let cookie = resp.headers().get_all("Cookie").next().unwrap();
@@ -367,9 +364,11 @@ mod tests {
 
     #[test]
     fn response_builder_header_insert_kv() {
-        let mut res = Response::builder(StatusCode::OK);
-        res.insert_header(("Content-Type", "application/octet-stream"));
-        let res = res.finish();
+        let res = Response::builder(StatusCode::OK)
+            .insert_header(("Content-Type", "application/octet-stream"))
+            .take()
+            .finish()
+            .unwrap();
 
         assert_eq!(
             res.headers().get("Content-Type"),
@@ -379,9 +378,11 @@ mod tests {
 
     #[test]
     fn response_builder_header_insert_typed() {
-        let mut res = Response::builder(StatusCode::OK);
-        res.insert_header((header::CONTENT_TYPE, mime::APPLICATION_OCTET_STREAM));
-        let res = res.finish();
+        let res = Response::builder(StatusCode::OK)
+            .insert_header((header::CONTENT_TYPE, mime::APPLICATION_OCTET_STREAM))
+            .take()
+            .finish()
+            .unwrap();
 
         assert_eq!(
             res.headers().get("Content-Type"),
@@ -391,10 +392,12 @@ mod tests {
 
     #[test]
     fn response_builder_header_append_kv() {
-        let mut res = Response::builder(StatusCode::OK);
-        res.append_header(("Content-Type", "application/octet-stream"));
-        res.append_header(("Content-Type", "application/json"));
-        let res = res.finish();
+        let mut res = Response::builder(StatusCode::OK)
+            .append_header(("Content-Type", "application/octet-stream"))
+            .append_header(("Content-Type", "application/json"))
+            .take()
+            .finish()
+            .unwrap();
 
         let headers: Vec<_> = res.headers().get_all("Content-Type").cloned().collect();
         assert_eq!(headers.len(), 2);
@@ -407,7 +410,7 @@ mod tests {
         let mut res = Response::builder(StatusCode::OK);
         res.append_header((header::CONTENT_TYPE, mime::APPLICATION_OCTET_STREAM));
         res.append_header((header::CONTENT_TYPE, mime::APPLICATION_JSON));
-        let res = res.finish();
+        let res = res.finish().unwrap();
 
         let headers: Vec<_> = res.headers().get_all("Content-Type").cloned().collect();
         assert_eq!(headers.len(), 2);

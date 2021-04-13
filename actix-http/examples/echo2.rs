@@ -17,9 +17,10 @@ async fn handle_request(mut req: Request) -> Result<Response<Body>, Error> {
     }
 
     info!("request body: {:?}", body);
-    Ok(Response::builder(StatusCode::OK)
+    Response::builder(StatusCode::OK)
         .insert_header(("x-head", HeaderValue::from_static("dummy value!")))
-        .body(body))
+        .take()
+        .body(body)
 }
 
 #[actix_rt::main]

@@ -64,6 +64,12 @@ impl Response<()> {
     pub fn not_found() -> Response<()> {
         Response::new(StatusCode::NOT_FOUND)
     }
+
+    /// Creates a new response with status 500 Internal Server Error.
+    #[inline]
+    pub fn internal_server_error() -> Response<()> {
+        Response::new(StatusCode::INTERNAL_SERVER_ERROR)
+    }
 }
 
 impl Response<Body> {
@@ -204,7 +210,7 @@ impl<B> Response<B> {
         }
     }
 
-    /// Set a body and return previous body value
+    /// Set a body and return previous body value.
     pub(crate) fn replace_body<B2>(self, body: B2) -> (Response<B2>, ResponseBody<B>) {
         (
             Response {
@@ -216,7 +222,9 @@ impl<B> Response<B> {
         )
     }
 
-    /// Set a body and return previous body value
+    /// Consumes the response returning a new response with the body mapped by a function.
+    ///
+    /// Given function also has mutable access to response head.
     pub fn map_body<F, B2>(mut self, f: F) -> Response<B2>
     where
         F: FnOnce(&mut ResponseHead, ResponseBody<B>) -> ResponseBody<B2>,
@@ -271,38 +279,44 @@ impl<I: Into<Response<Body>>, E: Into<Error>> From<Result<I, E>> for Response<Bo
     fn from(res: Result<I, E>) -> Self {
         match res {
             Ok(val) => val.into(),
-            Err(err) => err.into().into(),
+            Err(err) => Response::from_error(err.into()),
         }
     }
 }
 
 impl From<ResponseBuilder> for Response<Body> {
-    fn from(mut builder: ResponseBuilder) -> Self {
-        builder.finish()
+    fn from(builder: ResponseBuilder) -> Self {
+        builder.finish().into()
     }
 }
 
-impl From<&'static str> for Response<Body> {
+impl From<&'static str> for Response<&'static str> {
     fn from(val: &'static str) -> Self {
         Response::builder(StatusCode::OK)
             .content_type(mime::TEXT_PLAIN_UTF_8)
+            .take()
             .body(val)
+            .unwrap()
     }
 }
 
-impl From<&'static [u8]> for Response<Body> {
+impl From<&'static [u8]> for Response<&'static [u8]> {
     fn from(val: &'static [u8]) -> Self {
         Response::builder(StatusCode::OK)
             .content_type(mime::APPLICATION_OCTET_STREAM)
+            .take()
             .body(val)
+            .unwrap()
     }
 }
 
-impl From<String> for Response<Body> {
+impl From<String> for Response<String> {
     fn from(val: String) -> Self {
         Response::builder(StatusCode::OK)
             .content_type(mime::TEXT_PLAIN_UTF_8)
+            .take()
             .body(val)
+            .unwrap()
     }
 }
 
@@ -310,23 +324,29 @@ impl<'a> From<&'a String> for Response<Body> {
     fn from(val: &'a String) -> Self {
         Response::builder(StatusCode::OK)
             .content_type(mime::TEXT_PLAIN_UTF_8)
-            .body(val)
+            .take()
+            .body(Body::from_slice(val.as_bytes()))
+            .unwrap()
     }
 }
 
-impl From<Bytes> for Response<Body> {
+impl From<Bytes> for Response<Bytes> {
     fn from(val: Bytes) -> Self {
         Response::builder(StatusCode::OK)
             .content_type(mime::APPLICATION_OCTET_STREAM)
+            .take()
             .body(val)
+            .unwrap()
     }
 }
 
-impl From<BytesMut> for Response<Body> {
+impl From<BytesMut> for Response<Bytes> {
     fn from(val: BytesMut) -> Self {
         Response::builder(StatusCode::OK)
             .content_type(mime::APPLICATION_OCTET_STREAM)
-            .body(val)
+            .take()
+            .body(val.freeze())
+            .unwrap()
     }
 }
 
@@ -348,7 +368,7 @@ mod tests {
 
     #[test]
     fn test_into_response() {
-        let resp: Response<Body> = "test".into();
+        let resp: Response<_> = "test".into();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
@@ -357,7 +377,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().get_ref(), b"test");
 
-        let resp: Response<Body> = b"test".as_ref().into();
+        let resp: Response<_> = b"test".as_ref().into();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
@@ -366,7 +386,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().get_ref(), b"test");
 
-        let resp: Response<Body> = "test".to_owned().into();
+        let resp: Response<_> = "test".to_owned().into();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
@@ -385,7 +405,7 @@ mod tests {
         assert_eq!(resp.body().get_ref(), b"test");
 
         let b = Bytes::from_static(b"test");
-        let resp: Response<Body> = b.into();
+        let resp: Response<_> = b.into();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
@@ -394,8 +414,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().get_ref(), b"test");
 
-        let b = Bytes::from_static(b"test");
-        let resp: Response<Body> = b.into();
+        let resp: Response<_> = Bytes::from_static(b"test").into();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
@@ -405,7 +424,7 @@ mod tests {
         assert_eq!(resp.body().get_ref(), b"test");
 
         let b = BytesMut::from("test");
-        let resp: Response<Body> = b.into();
+        let resp: Response<_> = b.into();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),

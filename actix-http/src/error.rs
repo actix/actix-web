@@ -135,8 +135,14 @@ impl From<Response<Body>> for Error {
 
 /// Convert ResponseBuilder to a Error
 impl From<ResponseBuilder> for Error {
-    fn from(mut res: ResponseBuilder) -> Error {
-        InternalError::from_response("", res.finish()).into()
+    fn from(res: ResponseBuilder) -> Error {
+        match res.finish() {
+            Ok(res) => InternalError::from_response("", res).into(),
+            Err(err) => {
+                let res = err.as_response_error().error_response();
+                InternalError::from_response(err, res).into()
+            }
+        }
     }
 }
 

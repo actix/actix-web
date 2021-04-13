@@ -416,7 +416,7 @@ async fn test_h1_headers() {
                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST ",
                 ));
             }
-            ok::<_, ()>(builder.body(data.clone()))
+            ok::<_, ()>(builder.body(data.clone()).unwrap())
         }).tcp()
     }).await;
 
@@ -566,9 +566,10 @@ async fn test_h1_body_chunked_explicit() {
         HttpService::build()
             .h1(|_| {
                 let body = once(ok::<_, Error>(Bytes::from_static(STR.as_ref())));
-                ok::<_, ()>(
+                ready(
                     Response::builder(StatusCode::OK)
                         .insert_header((header::TRANSFER_ENCODING, "chunked"))
+                        .take()
                         .streaming(body),
                 )
             })
@@ -601,7 +602,7 @@ async fn test_h1_body_chunked_implicit() {
         HttpService::build()
             .h1(|_| {
                 let body = once(ok::<_, Error>(Bytes::from_static(STR.as_ref())));
-                ok::<_, ()>(Response::builder(StatusCode::OK).streaming(body))
+                ready(Response::builder(StatusCode::OK).streaming(body))
             })
             .tcp()
     })
@@ -630,9 +631,10 @@ async fn test_h1_response_http_error_handling() {
         HttpService::build()
             .h1(fn_service(|_| {
                 let broken_header = Bytes::from_static(b"\0\0\0");
-                ok::<_, ()>(
+                ready(
                     Response::builder(StatusCode::OK)
                         .insert_header((http::header::CONTENT_TYPE, broken_header))
+                        .take()
                         .body(STR),
                 )
             }))

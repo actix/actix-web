@@ -36,12 +36,12 @@ async fn main() -> io::Result<()> {
 
 async fn handler(req: Request) -> Result<Response<BodyStream<Heartbeat>>, Error> {
     log::info!("handshaking");
-    let mut res = ws::handshake(req.head())?;
+    let res = ws::handshake(req.head())?;
 
     // handshake will always fail under HTTP/2
 
     log::info!("responding");
-    Ok(res.message_body(BodyStream::new(Heartbeat::new(ws::Codec::new()))))
+    res.streaming(Heartbeat::new(ws::Codec::new()))
 }
 
 struct Heartbeat {

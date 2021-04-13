@@ -205,7 +205,7 @@ async fn test_h2_headers() {
                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST ",
                 ));
             }
-            ok::<_, ()>(builder.body(data.clone()))
+            ready(builder.body(data.clone()))
         })
             .openssl(tls_config())
                     .map_err(|_| ())
@@ -331,8 +331,9 @@ async fn test_h2_body_length() {
         HttpService::build()
             .h2(|_| {
                 let body = once(ok(Bytes::from_static(STR.as_ref())));
-                ok::<_, ()>(
+                ready(
                     Response::builder(StatusCode::OK)
+                        .take()
                         .body(SizedStream::new(STR.len() as u64, body)),
                 )
             })
@@ -355,9 +356,10 @@ async fn test_h2_body_chunked_explicit() {
         HttpService::build()
             .h2(|_| {
                 let body = once(ok::<_, Error>(Bytes::from_static(STR.as_ref())));
-                ok::<_, ()>(
+                ready(
                     Response::builder(StatusCode::OK)
                         .insert_header((header::TRANSFER_ENCODING, "chunked"))
+                        .take()
                         .streaming(body),
                 )
             })
@@ -383,9 +385,10 @@ async fn test_h2_response_http_error_handling() {
         HttpService::build()
             .h2(fn_service(|_| {
                 let broken_header = Bytes::from_static(b"\0\0\0");
-                ok::<_, ()>(
+                ready(
                     Response::builder(StatusCode::OK)
                         .insert_header((header::CONTENT_TYPE, broken_header))
+                        .take()
                         .body(STR),
                 )
             }))

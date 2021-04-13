@@ -103,38 +103,50 @@ impl ResponseError for HandshakeError {
         match self {
             HandshakeError::GetMethodRequired => {
                 Response::builder(StatusCode::METHOD_NOT_ALLOWED)
-                .insert_header((header::ALLOW, "GET"))
-                    .finish()
+                    .insert_header((header::ALLOW, "GET"))
+                    .take()
+                    .body(Body::Empty)
+                    .unwrap()
             }
 
             HandshakeError::NoWebsocketUpgrade => {
                 Response::builder(StatusCode::BAD_REQUEST)
-                .reason("No WebSocket Upgrade header found")
-                    .finish()
+                    .reason("No WebSocket Upgrade header found")
+                    .take()
+                    .body(Body::Empty)
+                    .unwrap()
             }
 
             HandshakeError::NoConnectionUpgrade => {
                 Response::builder(StatusCode::BAD_REQUEST)
-                .reason("No Connection upgrade")
-                    .finish()
+                    .reason("No Connection upgrade")
+                    .take()
+                    .body(Body::Empty)
+                    .unwrap()
             }
 
             HandshakeError::NoVersionHeader => {
                 Response::builder(StatusCode::BAD_REQUEST)
-                .reason("WebSocket version header is required")
-                    .finish()
+                    .reason("WebSocket version header is required")
+                    .take()
+                    .body(Body::Empty)
+                    .unwrap()
             }
 
             HandshakeError::UnsupportedVersion => {
                 Response::builder(StatusCode::BAD_REQUEST)
-                .reason("Unsupported WebSocket version")
-                    .finish()
+                    .reason("Unsupported WebSocket version")
+                    .take()
+                    .body(Body::Empty)
+                    .unwrap()
             }
 
             HandshakeError::BadWebsocketKey => {
                 Response::builder(StatusCode::BAD_REQUEST)
                     .reason("Handshake error")
-                    .finish()
+                    .take()
+                    .body(Body::Empty)
+                    .unwrap()
             }
         }
     }
@@ -326,7 +338,7 @@ mod tests {
             .finish();
         assert_eq!(
             StatusCode::SWITCHING_PROTOCOLS,
-            handshake_response(req.head()).finish().status()
+            handshake_response(req.head()).finish().unwrap().status()
         );
     }
 

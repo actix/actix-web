@@ -1,5 +1,12 @@
 //! Traits and structures to aid consuming and writing HTTP payloads.
 
+use std::task::Poll;
+
+use actix_rt::pin;
+use actix_utils::future::poll_fn;
+use bytes::{Bytes, BytesMut};
+use futures_core::ready;
+
 #[allow(clippy::module_inception)]
 mod body;
 mod body_stream;
@@ -14,6 +21,31 @@ pub use self::message_body::MessageBody;
 pub use self::response_body::ResponseBody;
 pub use self::size::BodySize;
 pub use self::sized_stream::SizedStream;
+
+pub async fn to_bytes(body: impl MessageBody) -> Result<Bytes, crate::Error> {
+    let cap = match body.size() {
+        BodySize::None | BodySize::Empty | BodySize::Sized(0) => return Ok(Bytes::new()),
+        BodySize::Sized(size) => size as usize,
+        BodySize::Stream => 32_768,
+    };
+
+    let mut buf = BytesMut::with_capacity(cap);
+
+    pin!(body);
+
+    poll_fn(|cx| loop {
+        let body = body.as_mut();
+
+        match ready!(body.poll_next(cx)) {
+            Some(Ok(bytes)) => buf.extend(bytes),
+            None => return Poll::Ready(Ok(())),
+            Some(Err(err)) => return Poll::Ready(Err(err)),
+        }
+    })
+    .await?;
+
+    Ok(buf.freeze())
+}
 
 #[cfg(test)]
 mod tests {
@@ -39,6 +71,42 @@ mod tests {
         pub(crate) fn get_ref(&self) -> &[u8] {
             match *self {
                 ResponseBody::Body(ref b) => b.get_ref(),
+                ResponseBody::Other(ref b) => b.get_ref(),
+            }
+        }
+    }
+
+    impl ResponseBody<Bytes> {
+        pub(crate) fn get_ref(&self) -> &[u8] {
+            match *self {
+                ResponseBody::Body(ref b) => b.as_ref(),
+                ResponseBody::Other(ref b) => b.get_ref(),
+            }
+        }
+    }
+
+    impl ResponseBody<String> {
+        pub(crate) fn get_ref(&self) -> &[u8] {
+            match *self {
+                ResponseBody::Body(ref b) => b.as_ref(),
+                ResponseBody::Other(ref b) => b.get_ref(),
+            }
+        }
+    }
+
+    impl ResponseBody<&str> {
+        pub(crate) fn get_ref(&self) -> &[u8] {
+            match *self {
+                ResponseBody::Body(ref b) => b.as_ref(),
+                ResponseBody::Other(ref b) => b.get_ref(),
+            }
+        }
+    }
+
+    impl ResponseBody<&[u8]> {
+        pub(crate) fn get_ref(&self) -> &[u8] {
+            match *self {
+                ResponseBody::Body(ref b) => b.as_ref(),
                 ResponseBody::Other(ref b) => b.get_ref(),
             }
         }

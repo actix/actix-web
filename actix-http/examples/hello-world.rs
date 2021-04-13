@@ -23,7 +23,7 @@ async fn main() -> io::Result<()> {
                         "x-head",
                         HeaderValue::from_static("dummy value!"),
                     ));
-                    future::ok::<_, ()>(res.body("Hello world!"))
+                    future::ready(res.body("Hello world!"))
                 })
                 .tcp()
         })?

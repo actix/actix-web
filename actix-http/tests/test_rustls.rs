@@ -13,7 +13,7 @@ use actix_http::{
 };
 use actix_http_test::test_server;
 use actix_service::{fn_factory_with_config, fn_service};
-use actix_utils::future::{err, ok};
+use actix_utils::future::{err, ok, ready};
 
 use bytes::{Bytes, BytesMut};
 use futures_core::Stream;
@@ -218,9 +218,9 @@ async fn test_h2_headers() {
                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST ",
                 ));
             }
-            ok::<_, ()>(config.body(data.clone()))
+            ready(config.body(data.clone()))
         })
-            .rustls(tls_config())
+        .rustls(tls_config())
     }).await;
 
     let response = srv.sget("/").send().await.unwrap();
@@ -370,9 +370,10 @@ async fn test_h2_body_chunked_explicit() {
         HttpService::build()
             .h2(|_| {
                 let body = once(ok::<_, Error>(Bytes::from_static(STR.as_ref())));
-                ok::<_, ()>(
+                ready(
                     Response::builder(StatusCode::OK)
                         .insert_header((header::TRANSFER_ENCODING, "chunked"))
+                        .take()
                         .streaming(body),
                 )
             })
@@ -398,9 +399,10 @@ async fn test_h2_response_http_error_handling() {
             .h2(fn_factory_with_config(|_: ()| {
                 ok::<_, ()>(fn_service(|_| {
                     let broken_header = Bytes::from_static(b"\0\0\0");
-                    ok::<_, ()>(
+                    ready(
                         Response::builder(StatusCode::OK)
                             .insert_header((http::header::CONTENT_TYPE, broken_header))
+                            .take()
                             .body(STR),
                     )
                 }))
