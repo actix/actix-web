@@ -1,6 +1,14 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+* `impl<T: MessageBody> MessageBody for Pin<Box<T>>`. [#2152]
+
+### Changes
+* The type parameter of `Response` no longer has a default. [#2152]
+* The `Message` variant of `body::Body` is now `Pin<Box<dyn MessageBody>>`. [#2152]
+* `BodyStream` and `SizedStream` are no longer restricted to Unpin types. [#2152]
+
 ### Removed
 * `cookies` feature flag. [#2065]
 * Top-level `cookies` mod (re-export). [#2065]
@@ -13,6 +21,7 @@
 
 [#2065]: https://github.com/actix/actix-web/pull/2065
 [#2148]: https://github.com/actix/actix-web/pull/2148
+[#2152]: https://github.com/actix/actix-web/pull/2152
 
 
 ## 3.0.0-beta.5 - 2021-04-02

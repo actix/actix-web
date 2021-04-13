@@ -1,6 +1,7 @@
 use std::fmt;
 
 use actix_http::{
+    body::Body,
     error::InternalError,
     http::{header::IntoHeaderPair, Error as HttpError, HeaderMap, StatusCode},
 };
@@ -65,7 +66,7 @@ impl Responder for HttpResponse {
     }
 }
 
-impl Responder for actix_http::Response {
+impl Responder for actix_http::Response<Body> {
     #[inline]
     fn respond_to(self, _: &HttpRequest) -> HttpResponse {
         HttpResponse::from(self)

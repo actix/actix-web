@@ -13,7 +13,10 @@ use regex::Regex;
 
 use actix_http::HttpMessage;
 use actix_http::{
-    body, error, http, http::header, Error, HttpService, KeepAlive, Request, Response,
+    body::{Body, SizedStream},
+    error, http,
+    http::header,
+    Error, HttpService, KeepAlive, Request, Response,
 };
 
 #[actix_rt::test]
@@ -539,7 +542,7 @@ async fn test_h1_body_length() {
             .h1(|_| {
                 let body = once(ok(Bytes::from_static(STR.as_ref())));
                 ok::<_, ()>(
-                    Response::Ok().body(body::SizedStream::new(STR.len() as u64, body)),
+                    Response::Ok().body(SizedStream::new(STR.len() as u64, body)),
                 )
             })
             .tcp()
@@ -646,7 +649,7 @@ async fn test_h1_response_http_error_handling() {
 async fn test_h1_service_error() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .h1(|_| err::<Response, _>(error::ErrorBadRequest("error")))
+            .h1(|_| err::<Response<Body>, _>(error::ErrorBadRequest("error")))
             .tcp()
     })
     .await;

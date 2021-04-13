@@ -12,15 +12,19 @@ use crate::error::Error;
 use super::{BodySize, BodyStream, MessageBody, SizedStream};
 
 /// Represents various types of HTTP message body.
+// #[deprecated(since = "4.0.0", note = "Use body types directly.")]
 pub enum Body {
     /// Empty response. `Content-Length` header is not set.
     None,
+
     /// Zero sized response body. `Content-Length` header is set to `0`.
     Empty,
+
     /// Specific response body.
     Bytes(Bytes),
+
     /// Generic message body.
-    Message(Box<dyn MessageBody + Unpin>),
+    Message(Pin<Box<dyn MessageBody>>),
 }
 
 impl Body {
@@ -30,8 +34,8 @@ impl Body {
     }
 
     /// Create body from generic message body.
-    pub fn from_message<B: MessageBody + Unpin + 'static>(body: B) -> Body {
-        Body::Message(Box::new(body))
+    pub fn from_message<B: MessageBody + 'static>(body: B) -> Body {
+        Body::Message(Box::pin(body))
     }
 }
 
@@ -60,7 +64,7 @@ impl MessageBody for Body {
                     Poll::Ready(Some(Ok(mem::take(bin))))
                 }
             }
-            Body::Message(body) => Pin::new(&mut **body).poll_next(cx),
+            Body::Message(body) => body.as_mut().poll_next(cx),
         }
     }
 }
@@ -134,7 +138,7 @@ impl From<BytesMut> for Body {
 
 impl<S> From<SizedStream<S>> for Body
 where
-    S: Stream<Item = Result<Bytes, Error>> + Unpin + 'static,
+    S: Stream<Item = Result<Bytes, Error>> + 'static,
 {
     fn from(s: SizedStream<S>) -> Body {
         Body::from_message(s)
@@ -143,7 +147,7 @@ where
 
 impl<S, E> From<BodyStream<S>> for Body
 where
-    S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
+    S: Stream<Item = Result<Bytes, E>> + 'static,
     E: Into<Error> + 'static,
 {
     fn from(s: BodyStream<S>) -> Body {
