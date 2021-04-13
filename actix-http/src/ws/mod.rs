@@ -101,28 +101,40 @@ pub enum HandshakeError {
 impl ResponseError for HandshakeError {
     fn error_response(&self) -> Response<Body> {
         match self {
-            HandshakeError::GetMethodRequired => Response::MethodNotAllowed()
+            HandshakeError::GetMethodRequired => {
+                Response::builder(StatusCode::METHOD_NOT_ALLOWED)
                 .insert_header((header::ALLOW, "GET"))
-                .finish(),
+                    .finish()
+            }
 
-            HandshakeError::NoWebsocketUpgrade => Response::BadRequest()
+            HandshakeError::NoWebsocketUpgrade => {
+                Response::builder(StatusCode::BAD_REQUEST)
                 .reason("No WebSocket Upgrade header found")
-                .finish(),
+                    .finish()
+            }
 
-            HandshakeError::NoConnectionUpgrade => Response::BadRequest()
+            HandshakeError::NoConnectionUpgrade => {
+                Response::builder(StatusCode::BAD_REQUEST)
                 .reason("No Connection upgrade")
-                .finish(),
+                    .finish()
+            }
 
-            HandshakeError::NoVersionHeader => Response::BadRequest()
+            HandshakeError::NoVersionHeader => {
+                Response::builder(StatusCode::BAD_REQUEST)
                 .reason("WebSocket version header is required")
-                .finish(),
+                    .finish()
+            }
 
-            HandshakeError::UnsupportedVersion => Response::BadRequest()
+            HandshakeError::UnsupportedVersion => {
+                Response::builder(StatusCode::BAD_REQUEST)
                 .reason("Unsupported WebSocket version")
-                .finish(),
+                    .finish()
+            }
 
             HandshakeError::BadWebsocketKey => {
-                Response::BadRequest().reason("Handshake error").finish()
+                Response::builder(StatusCode::BAD_REQUEST)
+                    .reason("Handshake error")
+                    .finish()
             }
         }
     }
