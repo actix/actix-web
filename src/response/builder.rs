@@ -423,26 +423,16 @@ impl Future for HttpResponseBuilder {
 
 #[cfg(test)]
 mod tests {
-    use bytes::{Bytes, BytesMut};
+    use actix_http::body;
 
     use super::*;
-    use crate::dev::{Body, MessageBody, ResponseBody};
-    use crate::http::header::{self, HeaderValue, CONTENT_TYPE};
-    use crate::http::StatusCode;
-
-    // TODO: replace with body::to_bytes when merged
-    pub async fn read_body<B>(mut body: ResponseBody<B>) -> Bytes
-    where
-        B: MessageBody + Unpin,
-    {
-        use futures_util::StreamExt as _;
-
-        let mut bytes = BytesMut::new();
-        while let Some(item) = body.next().await {
-            bytes.extend_from_slice(&item.unwrap());
-        }
-        bytes.freeze()
-    }
+    use crate::{
+        dev::Body,
+        http::{
+            header::{self, HeaderValue, CONTENT_TYPE},
+            StatusCode,
+        },
+    };
 
     #[test]
     fn test_basic_builder() {
@@ -486,7 +476,7 @@ mod tests {
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("application/json"));
         assert_eq!(
-            read_body(resp.take_body()).await.as_ref(),
+            body::to_bytes(resp.take_body()).await.unwrap().as_ref(),
             br#"["v1","v2","v3"]"#
         );
 
@@ -494,7 +484,7 @@ mod tests {
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("application/json"));
         assert_eq!(
-            read_body(resp.take_body()).await.as_ref(),
+            body::to_bytes(resp.take_body()).await.unwrap().as_ref(),
             br#"["v1","v2","v3"]"#
         );
 
@@ -505,7 +495,7 @@ mod tests {
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("text/json"));
         assert_eq!(
-            read_body(resp.take_body()).await.as_ref(),
+            body::to_bytes(resp.take_body()).await.unwrap().as_ref(),
             br#"["v1","v2","v3"]"#
         );
     }
@@ -517,7 +507,7 @@ mod tests {
         );
 
         assert_eq!(
-            read_body(resp.take_body()).await.as_ref(),
+            body::to_bytes(resp.take_body()).await.unwrap().as_ref(),
             br#"{"test-key":"test-value"}"#
         );
     }

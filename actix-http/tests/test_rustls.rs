@@ -123,7 +123,7 @@ async fn test_h2_body1() -> io::Result<()> {
         HttpService::build()
             .h2(|mut req: Request<_>| async move {
                 let body = load_body(req.take_payload()).await?;
-                Ok::<_, Error>(Response::build(StatusCode::OK).body(body))
+                Ok::<_, Error>(Response::ok().set_body(body))
             })
             .rustls(tls_config())
     })
@@ -257,7 +257,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 async fn test_h2_body2() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|_| ok::<_, ()>(Response::build(StatusCode::OK).body(STR)))
+            .h2(|_| ok::<_, ()>(Response::ok().set_body(STR)))
             .rustls(tls_config())
     })
     .await;
@@ -274,7 +274,7 @@ async fn test_h2_body2() {
 async fn test_h2_head_empty() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .finish(|_| ok::<_, ()>(Response::build(StatusCode::OK).body(STR)))
+            .finish(|_| ok::<_, ()>(Response::ok().set_body(STR)))
             .rustls(tls_config())
     })
     .await;
@@ -300,7 +300,7 @@ async fn test_h2_head_empty() {
 async fn test_h2_head_binary() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|_| ok::<_, ()>(Response::build(StatusCode::OK).body(STR)))
+            .h2(|_| ok::<_, ()>(Response::ok().set_body(STR)))
             .rustls(tls_config())
     })
     .await;
@@ -325,7 +325,7 @@ async fn test_h2_head_binary() {
 async fn test_h2_head_binary2() {
     let srv = test_server(move || {
         HttpService::build()
-            .h2(|_| ok::<_, ()>(Response::build(StatusCode::OK).body(STR)))
+            .h2(|_| ok::<_, ()>(Response::ok().set_body(STR)))
             .rustls(tls_config())
     })
     .await;

@@ -454,7 +454,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 async fn test_h1_body() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .h1(|_| ok::<_, ()>(Response::build(StatusCode::OK).body(STR)))
+            .h1(|_| ok::<_, ()>(Response::ok().set_body(STR)))
             .tcp()
     })
     .await;
@@ -471,7 +471,7 @@ async fn test_h1_body() {
 async fn test_h1_head_empty() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .h1(|_| ok::<_, ()>(Response::build(StatusCode::OK).body(STR)))
+            .h1(|_| ok::<_, ()>(Response::ok().set_body(STR)))
             .tcp()
     })
     .await;
@@ -496,7 +496,7 @@ async fn test_h1_head_empty() {
 async fn test_h1_head_binary() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .h1(|_| ok::<_, ()>(Response::build(StatusCode::OK).body(STR)))
+            .h1(|_| ok::<_, ()>(Response::ok().set_body(STR)))
             .tcp()
     })
     .await;
@@ -521,7 +521,7 @@ async fn test_h1_head_binary() {
 async fn test_h1_head_binary2() {
     let srv = test_server(|| {
         HttpService::build()
-            .h1(|_| ok::<_, ()>(Response::build(StatusCode::OK).body(STR)))
+            .h1(|_| ok::<_, ()>(Response::ok().set_body(STR)))
             .tcp()
     })
     .await;
