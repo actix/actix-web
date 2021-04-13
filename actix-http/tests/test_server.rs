@@ -135,8 +135,7 @@ async fn test_chunked_payload() {
                     .fold(0usize, |acc, chunk| ready(acc + chunk.len()))
                     .map(|req_size| {
                         Ok::<_, Error>(
-                            Response::build(StatusCode::OK)
-                                .body(format!("size={}", req_size)),
+                            Response::ok().set_body(format!("size={}", req_size)),
                         )
                     })
             }))
@@ -545,8 +544,7 @@ async fn test_h1_body_length() {
             .h1(|_| {
                 let body = once(ok(Bytes::from_static(STR.as_ref())));
                 ok::<_, ()>(
-                    Response::build(StatusCode::OK)
-                        .body(SizedStream::new(STR.len() as u64, body)),
+                    Response::ok().set_body(SizedStream::new(STR.len() as u64, body)),
                 )
             })
             .tcp()

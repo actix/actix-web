@@ -332,8 +332,7 @@ async fn test_h2_body_length() {
             .h2(|_| {
                 let body = once(ok(Bytes::from_static(STR.as_ref())));
                 ok::<_, ()>(
-                    Response::build(StatusCode::OK)
-                        .body(SizedStream::new(STR.len() as u64, body)),
+                    Response::ok().set_body(SizedStream::new(STR.len() as u64, body)),
                 )
             })
             .openssl(tls_config())
