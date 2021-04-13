@@ -4,6 +4,7 @@
 ### Added
 * `impl<T: MessageBody> MessageBody for Pin<Box<T>>`. [#2152]
 * `Response::{ok, bad_request, not_found, internal_server_error}`. [#2159]
+* Helper `body::to_bytes` for async collecting message body into Bytes. [#2158]
 
 ### Changes
 * The type parameter of `Response` no longer has a default. [#2152]
@@ -26,6 +27,7 @@
 [#2148]: https://github.com/actix/actix-web/pull/2148
 [#2152]: https://github.com/actix/actix-web/pull/2152
 [#2159]: https://github.com/actix/actix-web/pull/2159
+[#2158]: https://github.com/actix/actix-web/pull/2158
 
 
 ## 3.0.0-beta.5 - 2021-04-02

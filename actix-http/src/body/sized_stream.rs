@@ -61,3 +61,49 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use actix_rt::pin;
+    use actix_utils::future::poll_fn;
+    use futures_util::stream;
+
+    use super::*;
+    use crate::body::to_bytes;
+
+    #[actix_rt::test]
+    async fn skips_empty_chunks() {
+        let body = SizedStream::new(
+            2,
+            stream::iter(["1", "", "2"].iter().map(|&v| Ok(Bytes::from(v)))),
+        );
+
+        pin!(body);
+
+        assert_eq!(
+            poll_fn(|cx| body.as_mut().poll_next(cx))
+                .await
+                .unwrap()
+                .ok(),
+            Some(Bytes::from("1")),
+        );
+
+        assert_eq!(
+            poll_fn(|cx| body.as_mut().poll_next(cx))
+                .await
+                .unwrap()
+                .ok(),
+            Some(Bytes::from("2")),
+        );
+    }
+
+    #[actix_rt::test]
+    async fn read_to_bytes() {
+        let body = SizedStream::new(
+            2,
+            stream::iter(["1", "", "2"].iter().map(|&v| Ok(Bytes::from(v)))),
+        );
+
+        assert_eq!(to_bytes(body).await.ok(), Some(Bytes::from("12")));
+    }
+}
