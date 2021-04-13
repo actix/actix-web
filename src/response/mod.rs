@@ -4,4 +4,7 @@ mod http_codes;
 mod response;
 
 pub use self::builder::HttpResponseBuilder;
-pub use self::response::{CookieIter, HttpResponse};
+pub use self::response::HttpResponse;
+
+#[cfg(feature = "cookies")]
+pub use self::response::CookieIter;

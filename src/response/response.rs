@@ -9,17 +9,18 @@ use std::{
 
 use actix_http::{
     body::{Body, MessageBody, ResponseBody},
-    http::{
-        header::{self, HeaderMap},
-        Error as HttpError, StatusCode,
-    },
+    http::{header::HeaderMap, StatusCode},
     Extensions, Response, ResponseHead,
 };
 
 #[cfg(feature = "cookies")]
-use actix_http::http::header::HeaderValue;
-#[cfg(feature = "cookies")]
-use cookie::Cookie;
+use {
+    actix_http::http::{
+        header::{self, HeaderValue},
+        Error as HttpError,
+    },
+    cookie::Cookie,
+};
 
 use crate::{error::Error, HttpResponseBuilder};
 
