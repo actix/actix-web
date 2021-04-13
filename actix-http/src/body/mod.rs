@@ -22,6 +22,25 @@ pub use self::response_body::ResponseBody;
 pub use self::size::BodySize;
 pub use self::sized_stream::SizedStream;
 
+/// Collects the body produced by a `MessageBody` implementation into `Bytes`.
+///
+/// Any errors produced by the body stream are returned immediately.
+///
+/// # Examples
+/// ```
+/// use actix_http::body::{Body, to_bytes};
+/// use bytes::Bytes;
+///
+/// # async fn test_to_bytes() {
+/// let body = Body::Empty;
+/// let bytes = to_bytes(body).await.unwrap();
+/// assert!(bytes.is_empty());
+///
+/// let body = Body::Bytes(Bytes::from_static(b"123"));
+/// let bytes = to_bytes(body).await.unwrap();
+/// assert_eq!(bytes, b"123"[..]);
+/// # }
+/// ```
 pub async fn to_bytes(body: impl MessageBody) -> Result<Bytes, crate::Error> {
     let cap = match body.size() {
         BodySize::None | BodySize::Empty | BodySize::Sized(0) => return Ok(Bytes::new()),
