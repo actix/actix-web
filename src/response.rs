@@ -50,7 +50,7 @@ impl HttpResponse<Body> {
     #[inline]
     pub fn new(status: StatusCode) -> Self {
         Self {
-            res: Response::new(status),
+            res: Response::with_body(status, Body::Empty),
             error: None,
         }
     }
@@ -297,7 +297,7 @@ impl Future for HttpResponse {
 
         Poll::Ready(Ok(mem::replace(
             &mut self.res,
-            Response::new(StatusCode::default()),
+            Response::with_body(StatusCode::OK, Body::Empty),
         )))
     }
 }

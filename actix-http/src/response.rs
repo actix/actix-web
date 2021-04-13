@@ -28,29 +28,46 @@ pub struct Response<B> {
     error: Option<Error>,
 }
 
-impl Response<Body> {
-    /// Create HTTP response builder with specific status.
-    #[inline]
-    pub fn build(status: StatusCode) -> ResponseBuilder {
-        ResponseBuilder::new(status)
-    }
-
-    /// Create HTTP response builder
-    #[inline]
-    pub fn build_from<T: Into<ResponseBuilder>>(source: T) -> ResponseBuilder {
-        source.into()
-    }
-
+impl Response<()> {
     /// Constructs a response
     #[inline]
-    pub fn new(status: StatusCode) -> Response<Body> {
+    pub fn new(status: StatusCode) -> Response<()> {
         Response {
             head: BoxedResponseHead::new(status),
-            body: ResponseBody::Body(Body::Empty),
+            body: ResponseBody::Body(()),
             error: None,
         }
     }
 
+    /// Create HTTP response builder with specific status.
+    #[inline]
+    pub fn builder(status: StatusCode) -> ResponseBuilder {
+        ResponseBuilder::new(status)
+    }
+
+    // just a couple frequently used shortcuts
+    // this list should not grow as larger than 3 or 4
+
+    /// Creates a new response with status 200 OK.
+    #[inline]
+    pub fn ok() -> Response<()> {
+        Response::new(StatusCode::OK)
+    }
+
+    /// Creates a new response with status 400 Bad Request.
+    #[inline]
+    pub fn bad_request() -> Response<()> {
+        Response::new(StatusCode::OK)
+    }
+
+    /// Creates a new response with status 404 Not Found.
+    #[inline]
+    pub fn not_found() -> Response<()> {
+        Response::new(StatusCode::NOT_FOUND)
+    }
+}
+
+impl Response<Body> {
     /// Constructs an error response
     #[inline]
     pub fn from_error(error: Error) -> Response<Body> {
@@ -557,7 +574,7 @@ impl From<ResponseBuilder> for Response<Body> {
 
 impl From<&'static str> for Response<Body> {
     fn from(val: &'static str) -> Self {
-        Response::Ok()
+        Response::builder(StatusCode::OK)
             .content_type(mime::TEXT_PLAIN_UTF_8)
             .body(val)
     }
@@ -565,7 +582,7 @@ impl From<&'static str> for Response<Body> {
 
 impl From<&'static [u8]> for Response<Body> {
     fn from(val: &'static [u8]) -> Self {
-        Response::Ok()
+        Response::builder(StatusCode::OK)
             .content_type(mime::APPLICATION_OCTET_STREAM)
             .body(val)
     }
@@ -573,7 +590,7 @@ impl From<&'static [u8]> for Response<Body> {
 
 impl From<String> for Response<Body> {
     fn from(val: String) -> Self {
-        Response::Ok()
+        Response::builder(StatusCode::OK)
             .content_type(mime::TEXT_PLAIN_UTF_8)
             .body(val)
     }
@@ -581,7 +598,7 @@ impl From<String> for Response<Body> {
 
 impl<'a> From<&'a String> for Response<Body> {
     fn from(val: &'a String) -> Self {
-        Response::Ok()
+        Response::builder(StatusCode::OK)
             .content_type(mime::TEXT_PLAIN_UTF_8)
             .body(val)
     }
@@ -589,7 +606,7 @@ impl<'a> From<&'a String> for Response<Body> {
 
 impl From<Bytes> for Response<Body> {
     fn from(val: Bytes) -> Self {
-        Response::Ok()
+        Response::builder(StatusCode::OK)
             .content_type(mime::APPLICATION_OCTET_STREAM)
             .body(val)
     }
@@ -597,7 +614,7 @@ impl From<Bytes> for Response<Body> {
 
 impl From<BytesMut> for Response<Body> {
     fn from(val: BytesMut) -> Self {
-        Response::Ok()
+        Response::builder(StatusCode::OK)
             .content_type(mime::APPLICATION_OCTET_STREAM)
             .body(val)
     }
@@ -611,7 +628,7 @@ mod tests {
 
     #[test]
     fn test_debug() {
-        let resp = Response::Ok()
+        let resp = Response::builder(StatusCode::OK)
             .append_header((COOKIE, HeaderValue::from_static("cookie1=value1; ")))
             .append_header((COOKIE, HeaderValue::from_static("cookie2=value2; ")))
             .finish();
@@ -621,13 +638,15 @@ mod tests {
 
     #[test]
     fn test_basic_builder() {
-        let resp = Response::Ok().insert_header(("X-TEST", "value")).finish();
+        let resp = Response::builder(StatusCode::OK)
+            .insert_header(("X-TEST", "value"))
+            .finish();
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
     #[test]
     fn test_upgrade() {
-        let resp = Response::build(StatusCode::OK)
+        let resp = Response::builder(StatusCode::OK)
             .upgrade("websocket")
             .finish();
         assert!(resp.upgrade());
@@ -639,13 +658,13 @@ mod tests {
 
     #[test]
     fn test_force_close() {
-        let resp = Response::build(StatusCode::OK).force_close().finish();
+        let resp = Response::builder(StatusCode::OK).force_close().finish();
         assert!(!resp.keep_alive())
     }
 
     #[test]
     fn test_content_type() {
-        let resp = Response::build(StatusCode::OK)
+        let resp = Response::builder(StatusCode::OK)
             .content_type("text/plain")
             .body(Body::Empty);
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "text/plain")
@@ -741,7 +760,7 @@ mod tests {
 
     #[test]
     fn response_builder_header_insert_kv() {
-        let mut res = Response::Ok();
+        let mut res = Response::builder(StatusCode::OK);
         res.insert_header(("Content-Type", "application/octet-stream"));
         let res = res.finish();
 
@@ -753,7 +772,7 @@ mod tests {
 
     #[test]
     fn response_builder_header_insert_typed() {
-        let mut res = Response::Ok();
+        let mut res = Response::builder(StatusCode::OK);
         res.insert_header((header::CONTENT_TYPE, mime::APPLICATION_OCTET_STREAM));
         let res = res.finish();
 
@@ -765,7 +784,7 @@ mod tests {
 
     #[test]
     fn response_builder_header_append_kv() {
-        let mut res = Response::Ok();
+        let mut res = Response::builder(StatusCode::OK);
         res.append_header(("Content-Type", "application/octet-stream"));
         res.append_header(("Content-Type", "application/json"));
         let res = res.finish();
@@ -778,7 +797,7 @@ mod tests {
 
     #[test]
     fn response_builder_header_append_typed() {
-        let mut res = Response::Ok();
+        let mut res = Response::builder(StatusCode::OK);
         res.append_header((header::CONTENT_TYPE, mime::APPLICATION_OCTET_STREAM));
         res.append_header((header::CONTENT_TYPE, mime::APPLICATION_JSON));
         let res = res.finish();

@@ -14,6 +14,7 @@ use actix_service::Service;
 use bitflags::bitflags;
 use bytes::{Buf, BytesMut};
 use futures_core::ready;
+use http::StatusCode;
 use log::{error, trace};
 use pin_project::pin_project;
 
@@ -562,7 +563,7 @@ where
                                 );
                                 this.flags.insert(Flags::READ_DISCONNECT);
                                 this.messages.push_back(DispatcherMessage::Error(
-                                    Response::InternalServerError().finish().drop_body(),
+                                    Response::new(StatusCode::INTERNAL_SERVER_ERROR),
                                 ));
                                 *this.error = Some(DispatchError::InternalError);
                                 break;
@@ -575,7 +576,7 @@ where
                                 error!("Internal server error: unexpected eof");
                                 this.flags.insert(Flags::READ_DISCONNECT);
                                 this.messages.push_back(DispatcherMessage::Error(
-                                    Response::InternalServerError().finish().drop_body(),
+                                    Response::new(StatusCode::INTERNAL_SERVER_ERROR),
                                 ));
                                 *this.error = Some(DispatchError::InternalError);
                                 break;
@@ -597,9 +598,10 @@ where
                         payload.set_error(PayloadError::Overflow);
                     }
                     // Requests overflow buffer size should be responded with 431
-                    this.messages.push_back(DispatcherMessage::Error(
-                        Response::RequestHeaderFieldsTooLarge().finish().drop_body(),
-                    ));
+                    this.messages
+                        .push_back(DispatcherMessage::Error(Response::new(
+                            StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
+                        )));
                     this.flags.insert(Flags::READ_DISCONNECT);
                     *this.error = Some(ParseError::TooLarge.into());
                     break;
@@ -610,9 +612,10 @@ where
                     }
 
                     // Malformed requests should be responded with 400
-                    this.messages.push_back(DispatcherMessage::Error(
-                        Response::BadRequest().finish().drop_body(),
-                    ));
+                    this.messages
+                        .push_back(DispatcherMessage::Error(Response::new(
+                            StatusCode::BAD_REQUEST,
+                        )));
                     this.flags.insert(Flags::READ_DISCONNECT);
                     *this.error = Some(err.into());
                     break;
@@ -684,7 +687,7 @@ where
                                 if !this.flags.contains(Flags::STARTED) {
                                     trace!("Slow request timeout");
                                     let _ = self.as_mut().send_response(
-                                        Response::RequestTimeout().finish().drop_body(),
+                                        Response::new(StatusCode::REQUEST_TIMEOUT),
                                         ResponseBody::Other(Body::Empty),
                                     );
                                     this = self.project();
@@ -951,6 +954,7 @@ mod tests {
 
     use actix_service::fn_service;
     use actix_utils::future::{ready, Ready};
+    use bytes::Bytes;
     use futures_util::future::lazy;
 
     use super::*;
@@ -978,20 +982,22 @@ mod tests {
         }
     }
 
-    fn ok_service() -> impl Service<Request, Response = Response<Body>, Error = Error> {
-        fn_service(|_req: Request| ready(Ok::<_, Error>(Response::Ok().finish())))
+    fn ok_service() -> impl Service<Request, Response = Response<()>, Error = Error> {
+        fn_service(|_req: Request| ready(Ok::<_, Error>(Response::ok())))
     }
 
     fn echo_path_service(
     ) -> impl Service<Request, Response = Response<Body>, Error = Error> {
         fn_service(|req: Request| {
             let path = req.path().as_bytes();
-            ready(Ok::<_, Error>(Response::Ok().body(Body::from_slice(path))))
+            ready(Ok::<_, Error>(
+                Response::ok().set_body(Body::from_slice(path)),
+            ))
         })
     }
 
     fn echo_payload_service(
-    ) -> impl Service<Request, Response = Response<Body>, Error = Error> {
+    ) -> impl Service<Request, Response = Response<Bytes>, Error = Error> {
         fn_service(|mut req: Request| {
             Box::pin(async move {
                 use futures_util::stream::StreamExt as _;
@@ -1002,7 +1008,7 @@ mod tests {
                     body.extend_from_slice(chunk.unwrap().chunk())
                 }
 
-                Ok::<_, Error>(Response::Ok().body(body))
+                Ok::<_, Error>(Response::ok().set_body(body.freeze()))
             })
         })
     }

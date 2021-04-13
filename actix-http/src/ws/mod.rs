@@ -203,7 +203,7 @@ pub fn handshake_response(req: &RequestHead) -> ResponseBuilder {
         proto::hash_key(key.as_ref())
     };
 
-    Response::build(StatusCode::SWITCHING_PROTOCOLS)
+    Response::builder(StatusCode::SWITCHING_PROTOCOLS)
         .upgrade("websocket")
         .insert_header((header::TRANSFER_ENCODING, "chunked"))
         .insert_header((

@@ -526,7 +526,7 @@ where
                 if let Some(resp) = resp.borrow_mut().take() {
                     resp
                 } else {
-                    Response::new(StatusCode::INTERNAL_SERVER_ERROR)
+                    Response::with_body(StatusCode::INTERNAL_SERVER_ERROR, Body::Empty)
                 }
             }
         }
@@ -1021,8 +1021,10 @@ mod tests {
 
     #[test]
     fn test_internal_error() {
-        let err =
-            InternalError::from_response(ParseError::Method, Response::Ok().into());
+        let err = InternalError::from_response(
+            ParseError::Method,
+            Response::builder(StatusCode::OK).into(),
+        );
         let resp: Response<Body> = err.error_response();
         assert_eq!(resp.status(), StatusCode::OK);
     }
