@@ -83,10 +83,10 @@ impl Service<ServiceRequest> for FilesService {
             };
 
         // full file path
-        let path = match self.directory.join(&real_path).canonicalize() {
-            Ok(path) => path,
-            Err(err) => return Box::pin(self.handle_err(err, req)),
-        };
+        let path = self.directory.join(&real_path);
+        if let Err(err) = path.canonicalize() {
+            return Box::pin(self.handle_err(err, req));
+        }
 
         if path.is_dir() {
             if let Some(ref redir_index) = self.index {
