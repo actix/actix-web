@@ -1,6 +1,13 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+* For symbolic links, `Content-Disposition` header no longer shows the filename of the original file. [#2156]
+
+[#2156]: https://github.com/actix/actix-web/pull/2156
+
+
+## 0.6.0-beta.4 - 2021-04-02
+* No notable changes.
 
 
 ## 0.6.0-beta.3 - 2021-03-09

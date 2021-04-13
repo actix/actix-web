@@ -20,8 +20,9 @@ mod tests {
     use std::pin::Pin;
 
     use actix_rt::pin;
+    use actix_utils::future::poll_fn;
     use bytes::{Bytes, BytesMut};
-    use futures_util::{future::poll_fn, stream};
+    use futures_util::stream;
 
     use super::*;
 
@@ -173,13 +174,15 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_serde_json() {
-        use serde_json::json;
+        use serde_json::{json, Value};
         assert_eq!(
-            Body::from(serde_json::Value::String("test".into())).size(),
+            Body::from(serde_json::to_vec(&Value::String("test".to_owned())).unwrap())
+                .size(),
             BodySize::Sized(6)
         );
         assert_eq!(
-            Body::from(json!({"test-key":"test-value"})).size(),
+            Body::from(serde_json::to_vec(&json!({"test-key":"test-value"})).unwrap())
+                .size(),
             BodySize::Sized(25)
         );
     }

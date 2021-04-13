@@ -35,7 +35,7 @@ struct Config {
 ///
 /// Create new HTTP server with application factory.
 ///
-/// ```rust,no_run
+/// ```no_run
 /// use actix_web::{web, App, HttpResponse, HttpServer};
 ///
 /// #[actix_rt::main]
@@ -71,12 +71,15 @@ impl<F, I, S, B> HttpServer<F, I, S, B>
 where
     F: Fn() -> I + Send + Clone + 'static,
     I: IntoServiceFactory<S, Request>,
+
     S: ServiceFactory<Request, Config = AppConfig> + 'static,
+    // S::Future: 'static,
     S::Error: Into<Error> + 'static,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
     S::Service: 'static,
+    // S::Service: 'static,
     B: MessageBody + 'static,
 {
     /// Create new HTTP server with application factory
@@ -288,7 +291,7 @@ where
                     };
 
                     svc.finish(map_config(factory(), move |_| {
-                        AppConfig::new(false, addr, host.clone())
+                        AppConfig::new(false, host.clone(), addr)
                     }))
                     .tcp()
                 })?;
@@ -343,10 +346,11 @@ where
                     };
 
                     svc.finish(map_config(factory(), move |_| {
-                        AppConfig::new(true, addr, host.clone())
+                        AppConfig::new(true, host.clone(), addr)
                     }))
                     .openssl(acceptor.clone())
                 })?;
+
         Ok(self)
     }
 
@@ -396,10 +400,11 @@ where
                     };
 
                     svc.finish(map_config(factory(), move |_| {
-                        AppConfig::new(true, addr, host.clone())
+                        AppConfig::new(true, host.clone(), addr)
                     }))
                     .rustls(config.clone())
                 })?;
+
         Ok(self)
     }
 
@@ -502,8 +507,8 @@ where
             let c = cfg.lock().unwrap();
             let config = AppConfig::new(
                 false,
-                socket_addr,
                 c.host.clone().unwrap_or_else(|| format!("{}", socket_addr)),
+                socket_addr,
             );
 
             pipeline_factory(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) })
@@ -552,8 +557,8 @@ where
                 let c = cfg.lock().unwrap();
                 let config = AppConfig::new(
                     false,
-                    socket_addr,
                     c.host.clone().unwrap_or_else(|| format!("{}", socket_addr)),
+                    socket_addr,
                 );
                 pipeline_factory(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) })
                     .and_then(
@@ -588,7 +593,7 @@ where
     /// This methods panics if no socket address can be bound or an `Actix` system is not yet
     /// configured.
     ///
-    /// ```rust,no_run
+    /// ```no_run
     /// use std::io;
     /// use actix_web::{web, App, HttpResponse, HttpServer};
     ///
@@ -607,17 +612,14 @@ where
 
 fn create_tcp_listener(addr: net::SocketAddr, backlog: u32) -> io::Result<net::TcpListener> {
     use socket2::{Domain, Protocol, Socket, Type};
-    let domain = match addr {
-        net::SocketAddr::V4(_) => Domain::ipv4(),
-        net::SocketAddr::V6(_) => Domain::ipv6(),
-    };
-    let socket = Socket::new(domain, Type::stream(), Some(Protocol::tcp()))?;
+    let domain = Domain::for_address(addr);
+    let socket = Socket::new(domain, Type::STREAM, Some(Protocol::TCP))?;
     socket.set_reuse_address(true)?;
     socket.bind(&addr.into())?;
     // clamp backlog to max u32 that fits in i32 range
     let backlog = cmp::min(backlog, i32::MAX as u32) as i32;
     socket.listen(backlog)?;
-    Ok(socket.into_tcp_listener())
+    Ok(net::TcpListener::from(socket))
 }
 
 #[cfg(feature = "openssl")]

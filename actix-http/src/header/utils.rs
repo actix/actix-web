@@ -1,7 +1,6 @@
 use std::{fmt, str::FromStr};
 
-use http::HeaderValue;
-
+use super::HeaderValue;
 use crate::{error::ParseError, header::HTTP_VALUE};
 
 /// Reads a comma-delimited raw header into a Vec.

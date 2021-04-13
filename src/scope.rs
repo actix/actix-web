@@ -40,7 +40,7 @@ type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Err
 /// You can get variable path segments from `HttpRequest::match_info()`.
 /// `Path` extractor also is able to extract scope level variable segments.
 ///
-/// ```rust
+/// ```
 /// use actix_web::{web, App, HttpResponse};
 ///
 /// fn main() {
@@ -97,7 +97,7 @@ where
 {
     /// Add match guard to a scope.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{web, guard, App, HttpRequest, HttpResponse};
     ///
     /// async fn index(data: web::Path<(String, String)>) -> &'static str {
@@ -123,7 +123,7 @@ where
     /// Set or override application data. Application data could be accessed
     /// by using `Data<T>` extractor where `T` is data type.
     ///
-    /// ```rust
+    /// ```
     /// use std::cell::Cell;
     /// use actix_web::{web, App, HttpResponse, Responder};
     ///
@@ -168,7 +168,7 @@ where
     /// different module or even library. For example,
     /// some of the resource's configuration could be moved to different module.
     ///
-    /// ```rust
+    /// ```
     /// # extern crate actix_web;
     /// use actix_web::{web, middleware, App, HttpResponse};
     ///
@@ -215,7 +215,7 @@ where
     /// * *Scope* is a set of resources with common root path.
     /// * "StaticFiles" is a service for static files support
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{web, App, HttpRequest};
     ///
     /// struct AppState;
@@ -247,7 +247,7 @@ where
     /// This method can be called multiple times, in that case
     /// multiple resources with one route would be registered for same resource path.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{web, App, HttpResponse};
     ///
     /// async fn index(data: web::Path<(String, String)>) -> &'static str {
@@ -341,7 +341,7 @@ where
     /// to Route or Application level middleware, in that Scope-level middleware
     /// can not modify ServiceResponse.
     ///
-    /// ```rust
+    /// ```
     /// use actix_service::Service;
     /// use actix_web::{web, App};
     /// use actix_web::http::{header::CONTENT_TYPE, HeaderValue};
@@ -575,8 +575,8 @@ impl ServiceFactory<ServiceRequest> for ScopeEndpoint {
 #[cfg(test)]
 mod tests {
     use actix_service::Service;
+    use actix_utils::future::ok;
     use bytes::Bytes;
-    use futures_util::future::ok;
 
     use crate::dev::{Body, ResponseBody};
     use crate::http::{header, HeaderValue, Method, StatusCode};

@@ -82,7 +82,7 @@ mod route;
 ///
 /// # Example
 ///
-/// ```rust
+/// ```
 /// # use actix_web::HttpResponse;
 /// # use actix_web_codegen::route;
 /// #[route("/test", method="GET", method="HEAD")]
@@ -127,7 +127,7 @@ code, e.g `my_guard` or `my_module::my_guard`.
 
 # Example
 
-```rust
+```
 # use actix_web::HttpResponse;
 # use actix_web_codegen::"#, stringify!($method), ";
 #[", stringify!($method), r#"("/")]
@@ -162,7 +162,7 @@ method_macro! {
 /// This macro can be applied with `#[actix_web::main]` when used in Actix Web applications.
 ///
 /// # Examples
-/// ```rust
+/// ```
 /// #[actix_web_codegen::main]
 /// async fn main() {
 ///     async { println!("Hello world"); }.await

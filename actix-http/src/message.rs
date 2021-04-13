@@ -345,8 +345,8 @@ impl ResponseHead {
 }
 
 pub struct Message<T: Head> {
-    // Rc here should not be cloned by anyone.
-    // It's used to reuse allocation of T and no shared ownership is allowed.
+    /// Rc here should not be cloned by anyone.
+    /// It's used to reuse allocation of T and no shared ownership is allowed.
     head: Rc<T>,
 }
 

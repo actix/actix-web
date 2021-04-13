@@ -1,28 +1,20 @@
 //! Error and Result module
 
-use std::cell::RefCell;
-use std::io::Write;
-use std::str::Utf8Error;
-use std::string::FromUtf8Error;
-use std::{fmt, io, result};
+use std::{
+    cell::RefCell,
+    fmt,
+    io::{self, Write as _},
+    str::Utf8Error,
+    string::FromUtf8Error,
+};
 
-use actix_codec::{Decoder, Encoder};
-use actix_utils::dispatcher::DispatcherError as FramedDispatcherError;
-use actix_utils::timeout::TimeoutError;
 use bytes::BytesMut;
-use derive_more::{Display, From};
+use derive_more::{Display, Error, From};
 use http::uri::InvalidUri;
 use http::{header, Error as HttpError, StatusCode};
 use serde::de::value::Error as DeError;
-use serde_json::error::Error as JsonError;
-use serde_urlencoded::ser::Error as FormError;
 
-use crate::body::Body;
-use crate::helpers::Writer;
-use crate::response::{Response, ResponseBuilder};
-
-#[cfg(feature = "cookies")]
-pub use crate::cookie::ParseError as CookieParseError;
+use crate::{body::Body, helpers::Writer, Response, ResponseBuilder};
 
 /// A specialized [`std::result::Result`]
 /// for actix web operations
@@ -30,7 +22,7 @@ pub use crate::cookie::ParseError as CookieParseError;
 /// This typedef is generally used to avoid writing out
 /// `actix_http::error::Error` directly and is otherwise a direct mapping to
 /// `Result`.
-pub type Result<T, E = Error> = result::Result<T, E>;
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// General purpose actix web error.
 ///
@@ -54,7 +46,7 @@ impl Error {
 
     /// Similar to `as_response_error` but downcasts.
     pub fn as_error<T: ResponseError + 'static>(&self) -> Option<&T> {
-        ResponseError::downcast_ref(self.cause.as_ref())
+        <dyn ResponseError>::downcast_ref(self.cause.as_ref())
     }
 }
 
@@ -148,19 +140,6 @@ impl From<ResponseBuilder> for Error {
     }
 }
 
-/// Inspects the underlying enum and returns an appropriate status code.
-///
-/// If the variant is [`TimeoutError::Service`], the error code of the service is returned.
-/// Otherwise, [`StatusCode::GATEWAY_TIMEOUT`] is returned.
-impl<E: ResponseError> ResponseError for TimeoutError<E> {
-    fn status_code(&self) -> StatusCode {
-        match self {
-            TimeoutError::Service(e) => e.status_code(),
-            TimeoutError::Timeout => StatusCode::GATEWAY_TIMEOUT,
-        }
-    }
-}
-
 #[derive(Debug, Display)]
 #[display(fmt = "UnknownError")]
 struct UnitError;
@@ -168,14 +147,8 @@ struct UnitError;
 /// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`UnitError`].
 impl ResponseError for UnitError {}
 
-/// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`JsonError`].
-impl ResponseError for JsonError {}
-
-/// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`FormError`].
-impl ResponseError for FormError {}
-
-#[cfg(feature = "openssl")]
 /// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`actix_tls::accept::openssl::SslError`].
+#[cfg(feature = "openssl")]
 impl ResponseError for actix_tls::accept::openssl::SslError {}
 
 /// Returns [`StatusCode::BAD_REQUEST`] for [`DeError`].
@@ -394,14 +367,6 @@ impl ResponseError for PayloadError {
     }
 }
 
-/// Return `BadRequest` for `cookie::ParseError`
-#[cfg(feature = "cookies")]
-impl ResponseError for crate::cookie::ParseError {
-    fn status_code(&self) -> StatusCode {
-        StatusCode::BAD_REQUEST
-    }
-}
-
 #[derive(Debug, Display, From)]
 /// A set of errors that can occur during dispatching HTTP requests
 pub enum DispatchError {
@@ -450,17 +415,16 @@ pub enum DispatchError {
 }
 
 /// A set of error that can occur during parsing content type
-#[derive(PartialEq, Debug, Display)]
+#[derive(Debug, PartialEq, Display, Error)]
 pub enum ContentTypeError {
     /// Can not parse content type
     #[display(fmt = "Can not parse content type")]
     ParseError,
+
     /// Unknown content encoding
     #[display(fmt = "Unknown content encoding")]
     UnknownEncoding,
 }
-
-impl std::error::Error for ContentTypeError {}
 
 /// Return `BadRequest` for `ContentTypeError`
 impl ResponseError for ContentTypeError {
@@ -469,21 +433,13 @@ impl ResponseError for ContentTypeError {
     }
 }
 
-impl<E, U: Encoder<I> + Decoder, I> ResponseError for FramedDispatcherError<E, U, I>
-where
-    E: fmt::Debug + fmt::Display,
-    <U as Encoder<I>>::Error: fmt::Debug,
-    <U as Decoder>::Error: fmt::Debug,
-{
-}
-
 /// Helper type that can wrap any error and generate custom response.
 ///
 /// In following example any `io::Error` will be converted into "BAD REQUEST"
 /// response as opposite to *INTERNAL SERVER ERROR* which is defined by
 /// default.
 ///
-/// ```rust
+/// ```
 /// # use std::io;
 /// # use actix_http::*;
 ///
@@ -981,13 +937,6 @@ mod tests {
         let err: HttpError = StatusCode::from_u16(10000).err().unwrap().into();
         let resp: Response = err.error_response();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
-    }
-
-    #[cfg(feature = "cookies")]
-    #[test]
-    fn test_cookie_parse() {
-        let resp: Response = CookieParseError::EmptyName.error_response();
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 
     #[test]

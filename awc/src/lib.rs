@@ -93,12 +93,11 @@
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 
-use std::convert::TryFrom;
-use std::rc::Rc;
-use std::time::Duration;
+use std::{convert::TryFrom, rc::Rc, time::Duration};
 
 #[cfg(feature = "cookies")]
-pub use actix_http::cookie;
+pub use cookie;
+
 pub use actix_http::{client::Connector, http};
 
 use actix_http::{
@@ -121,7 +120,7 @@ pub mod test;
 pub mod ws;
 
 pub use self::builder::ClientBuilder;
-pub use self::connect::{BoxedSocket, ConnectRequest, ConnectResponse, ConnectorService};
+pub use self::connect::{BoxConnectorService, BoxedSocket, ConnectRequest, ConnectResponse};
 pub use self::frozen::{FrozenClientRequest, FrozenSendBuilder};
 pub use self::request::ClientRequest;
 pub use self::response::{ClientResponse, JsonBody, MessageBody};
@@ -131,7 +130,7 @@ pub use self::sender::SendClientRequest;
 ///
 /// ## Examples
 ///
-/// ```rust
+/// ```
 /// use awc::Client;
 ///
 /// #[actix_rt::main]
@@ -147,11 +146,12 @@ pub use self::sender::SendClientRequest;
 /// }
 /// ```
 #[derive(Clone)]
-pub struct Client(Rc<ClientConfig>);
+pub struct Client(ClientConfig);
 
+#[derive(Clone)]
 pub(crate) struct ClientConfig {
-    pub(crate) connector: ConnectorService,
-    pub(crate) headers: HeaderMap,
+    pub(crate) connector: BoxConnectorService,
+    pub(crate) headers: Rc<HeaderMap>,
     pub(crate) timeout: Option<Duration>,
 }
 
@@ -284,5 +284,13 @@ impl Client {
             req.head.headers.insert(key.clone(), value.clone());
         }
         req
+    }
+
+    /// Get default HeaderMap of Client.
+    ///
+    /// Returns Some(&mut HeaderMap) when Client object is unique
+    /// (No other clone of client exists at the same time).
+    pub fn headers(&mut self) -> Option<&mut HeaderMap> {
+        Rc::get_mut(&mut self.0.headers)
     }
 }

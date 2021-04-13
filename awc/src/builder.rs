@@ -4,18 +4,17 @@ use std::net::IpAddr;
 use std::rc::Rc;
 use std::time::Duration;
 
-use actix_codec::{AsyncRead, AsyncWrite};
 use actix_http::{
-    client::{Connector, TcpConnect, TcpConnectError, TcpConnection},
+    client::{Connector, ConnectorService, TcpConnect, TcpConnectError, TcpConnection},
     http::{self, header, Error as HttpError, HeaderMap, HeaderName, Uri},
 };
-use actix_rt::net::TcpStream;
+use actix_rt::net::{ActixStream, TcpStream};
 use actix_service::{boxed, Service};
 
 use crate::connect::DefaultConnector;
 use crate::error::SendRequestError;
 use crate::middleware::{NestTransform, Redirect, Transform};
-use crate::{Client, ClientConfig, ConnectRequest, ConnectResponse, ConnectorService};
+use crate::{Client, ClientConfig, ConnectRequest, ConnectResponse};
 
 /// An HTTP Client builder
 ///
@@ -64,7 +63,7 @@ where
     S: Service<TcpConnect<Uri>, Response = TcpConnection<Uri, Io>, Error = TcpConnectError>
         + Clone
         + 'static,
-    Io: AsyncRead + AsyncWrite + Unpin + fmt::Debug + 'static,
+    Io: ActixStream + fmt::Debug + 'static,
 {
     /// Use custom connector service.
     pub fn connector<S1, Io1>(self, connector: Connector<S1>) -> ClientBuilder<S1, M>
@@ -75,7 +74,7 @@ where
                 Error = TcpConnectError,
             > + Clone
             + 'static,
-        Io1: AsyncRead + AsyncWrite + Unpin + fmt::Debug + 'static,
+        Io1: ActixStream + fmt::Debug + 'static,
     {
         ClientBuilder {
             middleware: self.middleware,
@@ -234,7 +233,7 @@ where
     /// Finish build process and create `Client` instance.
     pub fn finish(self) -> Client
     where
-        M: Transform<ConnectorService, ConnectRequest> + 'static,
+        M: Transform<DefaultConnector<ConnectorService<S, Io>>, ConnectRequest> + 'static,
         M::Transform:
             Service<ConnectRequest, Response = ConnectResponse, Error = SendRequestError>,
     {
@@ -250,7 +249,7 @@ where
 
     fn _finish(self) -> Client
     where
-        M: Transform<ConnectorService, ConnectRequest> + 'static,
+        M: Transform<DefaultConnector<ConnectorService<S, Io>>, ConnectRequest> + 'static,
         M::Transform:
             Service<ConnectRequest, Response = ConnectResponse, Error = SendRequestError>,
     {
@@ -269,16 +268,14 @@ where
             connector = connector.local_address(val);
         }
 
-        let connector = boxed::service(DefaultConnector::new(connector.finish()));
-        let connector = boxed::service(self.middleware.new_transform(connector));
+        let connector = DefaultConnector::new(connector.finish());
+        let connector = boxed::rc_service(self.middleware.new_transform(connector));
 
-        let config = ClientConfig {
-            headers: self.headers,
+        Client(ClientConfig {
+            headers: Rc::new(self.headers),
             timeout: self.timeout,
             connector,
-        };
-
-        Client(Rc::new(config))
+        })
     }
 }
 

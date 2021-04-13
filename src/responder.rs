@@ -3,11 +3,10 @@ use std::fmt;
 use actix_http::{
     error::InternalError,
     http::{header::IntoHeaderPair, Error as HttpError, HeaderMap, StatusCode},
-    ResponseBuilder,
 };
 use bytes::{Bytes, BytesMut};
 
-use crate::{Error, HttpRequest, HttpResponse};
+use crate::{Error, HttpRequest, HttpResponse, HttpResponseBuilder};
 
 /// Trait implemented by types that can be converted to an HTTP response.
 ///
@@ -18,7 +17,7 @@ pub trait Responder {
 
     /// Override a status code for a Responder.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{http::StatusCode, HttpRequest, Responder};
     ///
     /// fn index(req: HttpRequest) -> impl Responder {
@@ -36,7 +35,7 @@ pub trait Responder {
     ///
     /// Overrides other headers with the same name.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{web, HttpRequest, Responder};
     /// use serde::Serialize;
     ///
@@ -66,11 +65,32 @@ impl Responder for HttpResponse {
     }
 }
 
+impl Responder for actix_http::Response {
+    #[inline]
+    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
+        HttpResponse::from(self)
+    }
+}
+
+impl Responder for HttpResponseBuilder {
+    #[inline]
+    fn respond_to(mut self, _: &HttpRequest) -> HttpResponse {
+        self.finish()
+    }
+}
+
+impl Responder for actix_http::ResponseBuilder {
+    #[inline]
+    fn respond_to(mut self, _: &HttpRequest) -> HttpResponse {
+        HttpResponse::from(self.finish())
+    }
+}
+
 impl<T: Responder> Responder for Option<T> {
     fn respond_to(self, req: &HttpRequest) -> HttpResponse {
         match self {
-            Some(t) => t.respond_to(req),
-            None => HttpResponse::build(StatusCode::NOT_FOUND).finish(),
+            Some(val) => val.respond_to(req),
+            None => HttpResponse::new(StatusCode::NOT_FOUND),
         }
     }
 }
@@ -85,13 +105,6 @@ where
             Ok(val) => val.respond_to(req),
             Err(e) => HttpResponse::from_error(e.into()),
         }
-    }
-}
-
-impl Responder for ResponseBuilder {
-    #[inline]
-    fn respond_to(mut self, _: &HttpRequest) -> HttpResponse {
-        self.finish()
     }
 }
 
@@ -155,8 +168,7 @@ impl Responder for BytesMut {
 pub struct CustomResponder<T> {
     responder: T,
     status: Option<StatusCode>,
-    headers: Option<HeaderMap>,
-    error: Option<HttpError>,
+    headers: Result<HeaderMap, HttpError>,
 }
 
 impl<T: Responder> CustomResponder<T> {
@@ -164,14 +176,13 @@ impl<T: Responder> CustomResponder<T> {
         CustomResponder {
             responder,
             status: None,
-            headers: None,
-            error: None,
+            headers: Ok(HeaderMap::new()),
         }
     }
 
     /// Override a status code for the Responder's response.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{HttpRequest, Responder, http::StatusCode};
     ///
     /// fn index(req: HttpRequest) -> impl Responder {
@@ -187,7 +198,7 @@ impl<T: Responder> CustomResponder<T> {
     ///
     /// Overrides other headers with the same name.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{web, HttpRequest, Responder};
     /// use serde::Serialize;
     ///
@@ -206,14 +217,12 @@ impl<T: Responder> CustomResponder<T> {
     where
         H: IntoHeaderPair,
     {
-        if self.headers.is_none() {
-            self.headers = Some(HeaderMap::new());
+        if let Ok(ref mut headers) = self.headers {
+            match header.try_into_header_pair() {
+                Ok((key, value)) => headers.append(key, value),
+                Err(e) => self.headers = Err(e.into()),
+            };
         }
-
-        match header.try_into_header_pair() {
-            Ok((key, value)) => self.headers.as_mut().unwrap().append(key, value),
-            Err(e) => self.error = Some(e.into()),
-        };
 
         self
     }
@@ -221,17 +230,20 @@ impl<T: Responder> CustomResponder<T> {
 
 impl<T: Responder> Responder for CustomResponder<T> {
     fn respond_to(self, req: &HttpRequest) -> HttpResponse {
+        let headers = match self.headers {
+            Ok(headers) => headers,
+            Err(err) => return HttpResponse::from_error(Error::from(err)),
+        };
+
         let mut res = self.responder.respond_to(req);
 
         if let Some(status) = self.status {
             *res.status_mut() = status;
         }
 
-        if let Some(ref headers) = self.headers {
-            for (k, v) in headers {
-                // TODO: before v4, decide if this should be append instead
-                res.headers_mut().insert(k.clone(), v.clone());
-            }
+        for (k, v) in headers {
+            // TODO: before v4, decide if this should be append instead
+            res.headers_mut().insert(k, v);
         }
 
         res

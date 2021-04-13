@@ -1,4 +1,4 @@
-//! Multipart payload support
+//! Multipart response payload support.
 
 use std::cell::{Cell, RefCell, RefMut};
 use std::convert::TryFrom;
@@ -8,12 +8,12 @@ use std::rc::Rc;
 use std::task::{Context, Poll};
 use std::{cmp, fmt};
 
-use bytes::{Bytes, BytesMut};
-use futures_util::stream::{LocalBoxStream, Stream, StreamExt};
-
-use actix_utils::task::LocalWaker;
 use actix_web::error::{ParseError, PayloadError};
 use actix_web::http::header::{self, ContentDisposition, HeaderMap, HeaderName, HeaderValue};
+use bytes::{Bytes, BytesMut};
+use futures_core::stream::{LocalBoxStream, Stream};
+use futures_util::stream::StreamExt as _;
+use local_waker::LocalWaker;
 
 use crate::error::MultipartError;
 

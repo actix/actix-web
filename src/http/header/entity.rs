@@ -1,7 +1,7 @@
 use std::fmt::{self, Display, Write};
 use std::str::FromStr;
 
-use crate::header::{HeaderValue, IntoHeaderValue, InvalidHeaderValue, Writer};
+use super::{HeaderValue, IntoHeaderValue, InvalidHeaderValue, Writer};
 
 /// check that each char in the slice is either:
 /// 1. `%x21`, or
@@ -127,9 +127,8 @@ impl Display for EntityTag {
 impl FromStr for EntityTag {
     type Err = crate::error::ParseError;
 
-    fn from_str(s: &str) -> Result<EntityTag, crate::error::ParseError> {
-        let length: usize = s.len();
-        let slice = &s[..];
+    fn from_str(slice: &str) -> Result<EntityTag, crate::error::ParseError> {
+        let length = slice.len();
         // Early exits if it doesn't terminate in a DQUOTE.
         if !slice.ends_with('"') || slice.len() < 2 {
             return Err(crate::error::ParseError::Header);

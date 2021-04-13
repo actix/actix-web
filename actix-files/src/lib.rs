@@ -3,7 +3,7 @@
 //! Provides a non-blocking service for serving static files from disk.
 //!
 //! # Example
-//! ```rust
+//! ```
 //! use actix_web::App;
 //! use actix_files::Files;
 //!
@@ -65,6 +65,7 @@ mod tests {
     };
 
     use actix_service::ServiceFactory;
+    use actix_utils::future::ok;
     use actix_web::{
         guard,
         http::{
@@ -76,7 +77,6 @@ mod tests {
         web::{self, Bytes},
         App, HttpResponse, Responder,
     };
-    use futures_util::future::ok;
 
     use super::*;
 
@@ -413,7 +413,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_named_file_content_range_headers() {
-        let srv = test::start(|| App::new().service(Files::new("/", ".")));
+        let srv = actix_test::start(|| App::new().service(Files::new("/", ".")));
 
         // Valid range header
         let response = srv
@@ -438,7 +438,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_named_file_content_length_headers() {
-        let srv = test::start(|| App::new().service(Files::new("/", ".")));
+        let srv = actix_test::start(|| App::new().service(Files::new("/", ".")));
 
         // Valid range header
         let response = srv
@@ -477,7 +477,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_head_content_length_headers() {
-        let srv = test::start(|| App::new().service(Files::new("/", ".")));
+        let srv = actix_test::start(|| App::new().service(Files::new("/", ".")));
 
         let response = srv.head("/tests/test.binary").send().await.unwrap();
 
@@ -753,5 +753,20 @@ mod tests {
         let req = TestRequest::get().uri("/test/%43argo.toml").to_request();
         let res = test::call_service(&srv, req).await;
         assert_eq!(res.status(), StatusCode::OK);
+    }
+
+    #[actix_rt::test]
+    async fn test_symlinks() {
+        let srv = test::init_service(App::new().service(Files::new("test", "."))).await;
+
+        let req = TestRequest::get()
+            .uri("/test/tests/symlink-test.png")
+            .to_request();
+        let res = test::call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(
+            res.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+            "inline; filename=\"symlink-test.png\""
+        );
     }
 }

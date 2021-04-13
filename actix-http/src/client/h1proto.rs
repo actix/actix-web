@@ -1,38 +1,36 @@
-use std::io::Write;
-use std::pin::Pin;
-use std::task::{Context, Poll};
-use std::{io, time};
+use std::{
+    io::Write,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
-use actix_codec::{AsyncRead, AsyncWrite, Framed, ReadBuf};
+use actix_codec::Framed;
+use actix_utils::future::poll_fn;
 use bytes::buf::BufMut;
 use bytes::{Bytes, BytesMut};
-use futures_core::Stream;
-use futures_util::{future::poll_fn, SinkExt as _};
+use futures_core::{ready, Stream};
+use futures_util::SinkExt as _;
 
 use crate::error::PayloadError;
 use crate::h1;
-use crate::header::HeaderMap;
 use crate::http::{
-    header::{IntoHeaderValue, EXPECT, HOST},
+    header::{HeaderMap, IntoHeaderValue, EXPECT, HOST},
     StatusCode,
 };
 use crate::message::{RequestHeadType, ResponseHead};
-use crate::payload::{Payload, PayloadStream};
+use crate::payload::Payload;
 
-use super::connection::ConnectionType;
+use super::connection::{ConnectionIo, H1Connection};
 use super::error::{ConnectError, SendRequestError};
-use super::pool::Acquired;
 use crate::body::{BodySize, MessageBody};
 
-pub(crate) async fn send_request<T, B>(
-    io: T,
+pub(crate) async fn send_request<Io, B>(
+    io: H1Connection<Io>,
     mut head: RequestHeadType,
     body: B,
-    created: time::Instant,
-    acquired: Acquired<T>,
 ) -> Result<(ResponseHead, Payload), SendRequestError>
 where
-    T: AsyncRead + AsyncWrite + Unpin + 'static,
+    Io: ConnectionIo,
     B: MessageBody,
 {
     // set request host header
@@ -61,12 +59,6 @@ where
             }
         }
     }
-
-    let io = H1Connection {
-        created,
-        acquired,
-        io: Some(io),
-    };
 
     // create Framed and prepare sending request
     let mut framed = Framed::new(io, h1::ClientCodec::default());
@@ -131,25 +123,22 @@ where
 
             Ok((head, Payload::None))
         }
-        _ => {
-            let pl: PayloadStream = Box::pin(PlStream::new(framed));
-            Ok((head, pl.into()))
-        }
+        _ => Ok((head, Payload::Stream(Box::pin(PlStream::new(framed))))),
     }
 }
 
-pub(crate) async fn open_tunnel<T>(
-    io: T,
+pub(crate) async fn open_tunnel<Io>(
+    io: Io,
     head: RequestHeadType,
-) -> Result<(ResponseHead, Framed<T, h1::ClientCodec>), SendRequestError>
+) -> Result<(ResponseHead, Framed<Io, h1::ClientCodec>), SendRequestError>
 where
-    T: AsyncRead + AsyncWrite + Unpin + 'static,
+    Io: ConnectionIo,
 {
-    // create Framed and send request
+    // create Framed and send request.
     let mut framed = Framed::new(io, h1::ClientCodec::default());
     framed.send((head, BodySize::None).into()).await?;
 
-    // read response
+    // read response head.
     let head = poll_fn(|cx| Pin::new(&mut framed).poll_next(cx))
         .await
         .ok_or(ConnectError::Disconnected)??;
@@ -158,12 +147,12 @@ where
 }
 
 /// send request body to the peer
-pub(crate) async fn send_body<T, B>(
+pub(crate) async fn send_body<Io, B>(
     body: B,
-    mut framed: Pin<&mut Framed<T, h1::ClientCodec>>,
+    mut framed: Pin<&mut Framed<Io, h1::ClientCodec>>,
 ) -> Result<(), SendRequestError>
 where
-    T: AsyncRead + AsyncWrite + Unpin + 'static,
+    Io: ConnectionIo,
     B: MessageBody,
 {
     actix_rt::pin!(body);
@@ -202,125 +191,37 @@ where
     Ok(())
 }
 
-#[doc(hidden)]
-/// HTTP client connection
-pub struct H1Connection<T>
-where
-    T: AsyncRead + AsyncWrite + Unpin + 'static,
-{
-    /// T should be `Unpin`
-    io: Option<T>,
-    created: time::Instant,
-    acquired: Acquired<T>,
-}
-
-impl<T> H1Connection<T>
-where
-    T: AsyncRead + AsyncWrite + Unpin + 'static,
-{
-    fn on_release(&mut self, keep_alive: bool) {
-        if keep_alive {
-            self.release();
-        } else {
-            self.close();
-        }
-    }
-
-    /// Close connection
-    fn close(&mut self) {
-        if let Some(io) = self.io.take() {
-            self.acquired.close(ConnectionType::H1(io));
-        }
-    }
-
-    /// Release this connection to the connection pool
-    fn release(&mut self) {
-        if let Some(io) = self.io.take() {
-            self.acquired.release(ConnectionType::H1(io), self.created);
-        }
-    }
-}
-
-impl<T: AsyncRead + AsyncWrite + Unpin + 'static> AsyncRead for H1Connection<T> {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut ReadBuf<'_>,
-    ) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.io.as_mut().unwrap()).poll_read(cx, buf)
-    }
-}
-
-impl<T: AsyncRead + AsyncWrite + Unpin + 'static> AsyncWrite for H1Connection<T> {
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<io::Result<usize>> {
-        Pin::new(&mut self.io.as_mut().unwrap()).poll_write(cx, buf)
-    }
-
-    fn poll_flush(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<io::Result<()>> {
-        Pin::new(self.io.as_mut().unwrap()).poll_flush(cx)
-    }
-
-    fn poll_shutdown(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<(), io::Error>> {
-        Pin::new(self.io.as_mut().unwrap()).poll_shutdown(cx)
-    }
-}
-
 #[pin_project::pin_project]
-pub(crate) struct PlStream<Io>
-where
-    Io: AsyncRead + AsyncWrite + Unpin + 'static,
-{
+pub(crate) struct PlStream<Io: ConnectionIo> {
     #[pin]
-    framed: Option<Framed<H1Connection<Io>, h1::ClientPayloadCodec>>,
+    framed: Framed<H1Connection<Io>, h1::ClientPayloadCodec>,
 }
 
-impl<Io> PlStream<Io>
-where
-    Io: AsyncRead + AsyncWrite + Unpin + 'static,
-{
+impl<Io: ConnectionIo> PlStream<Io> {
     fn new(framed: Framed<H1Connection<Io>, h1::ClientCodec>) -> Self {
         let framed = framed.into_map_codec(|codec| codec.into_payload_codec());
 
-        PlStream {
-            framed: Some(framed),
-        }
+        PlStream { framed }
     }
 }
 
-impl<Io> Stream for PlStream<Io>
-where
-    Io: AsyncRead + AsyncWrite + Unpin + 'static,
-{
+impl<Io: ConnectionIo> Stream for PlStream<Io> {
     type Item = Result<Bytes, PayloadError>;
 
     fn poll_next(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Option<Self::Item>> {
-        let mut framed = self.project().framed.as_pin_mut().unwrap();
+        let mut this = self.project();
 
-        match framed.as_mut().next_item(cx)? {
-            Poll::Pending => Poll::Pending,
-            Poll::Ready(Some(chunk)) => {
-                if let Some(chunk) = chunk {
-                    Poll::Ready(Some(Ok(chunk)))
-                } else {
-                    let keep_alive = framed.codec_ref().keepalive();
-                    framed.io_mut().on_release(keep_alive);
-                    Poll::Ready(None)
-                }
+        match ready!(this.framed.as_mut().next_item(cx)?) {
+            Some(Some(chunk)) => Poll::Ready(Some(Ok(chunk))),
+            Some(None) => {
+                let keep_alive = this.framed.codec_ref().keepalive();
+                this.framed.io_mut().on_release(keep_alive);
+                Poll::Ready(None)
             }
-            Poll::Ready(None) => Poll::Ready(None),
+            None => Poll::Ready(None),
         }
     }
 }
