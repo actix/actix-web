@@ -436,6 +436,22 @@ pub enum ContentTypeError {
     UnknownEncoding,
 }
 
+#[cfg(test)]
+mod content_type_test_impls {
+    use super::*;
+
+    impl std::cmp::PartialEq for ContentTypeError {
+        fn eq(&self, other: &Self) -> bool {
+            match self {
+                Self::ParseError => matches!(other, ContentTypeError::ParseError),
+                Self::UnknownEncoding => {
+                    matches!(other, ContentTypeError::UnknownEncoding)
+                }
+            }
+        }
+    }
+}
+
 /// Return `BadRequest` for `ContentTypeError`
 impl ResponseError for ContentTypeError {
     fn status_code(&self) -> StatusCode {
