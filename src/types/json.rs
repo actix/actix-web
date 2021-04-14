@@ -455,7 +455,9 @@ mod tests {
 
     fn json_eq(err: JsonPayloadError, other: JsonPayloadError) -> bool {
         match err {
-            JsonPayloadError::Overflow { .. } => matches!(other, JsonPayloadError::Overflow { .. }),
+            JsonPayloadError::Overflow { .. } => {
+                matches!(other, JsonPayloadError::Overflow { .. })
+            }
             JsonPayloadError::ContentType => matches!(other, JsonPayloadError::ContentType),
             _ => false,
         }
@@ -599,7 +601,13 @@ mod tests {
         let json = JsonBody::<MyObject>::new(&req, &mut pl, None)
             .limit(100)
             .await;
-        assert!(json_eq(json.err().unwrap(), JsonPayloadError::Overflow { size: 10000, limit: 100 }));
+        assert!(json_eq(
+            json.err().unwrap(),
+            JsonPayloadError::Overflow {
+                size: 10000,
+                limit: 100
+            }
+        ));
 
         let (req, mut pl) = TestRequest::default()
             .insert_header((
@@ -696,6 +704,7 @@ mod tests {
         assert!(s.is_err());
 
         let err_str = s.err().unwrap().to_string();
-        assert!(err_str.contains("JSON payload (16 bytes) is larger than allowed (limit: 10 bytes)."));
+        assert!(err_str
+            .contains("JSON payload (16 bytes) is larger than allowed (limit: 10 bytes)."));
     }
 }

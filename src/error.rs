@@ -207,7 +207,7 @@ mod tests {
 
     #[test]
     fn test_json_payload_error() {
-        let resp = JsonPayloadError::Overflow{size: 0, limit: 0}.error_response();
+        let resp = JsonPayloadError::Overflow { size: 0, limit: 0 }.error_response();
         assert_eq!(resp.status(), StatusCode::PAYLOAD_TOO_LARGE);
         let resp = JsonPayloadError::ContentType.error_response();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
