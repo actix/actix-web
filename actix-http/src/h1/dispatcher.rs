@@ -680,7 +680,8 @@ where
                                 // timeout on first request (slow request) return 408
                                 trace!("Slow request timeout");
                                 let _ = self.as_mut().send_response(
-                                    Response::new(StatusCode::REQUEST_TIMEOUT).drop_body(),
+                                    Response::new(StatusCode::REQUEST_TIMEOUT)
+                                        .drop_body(),
                                     ResponseBody::Other(Body::Empty),
                                 );
                                 this = self.project();

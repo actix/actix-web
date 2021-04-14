@@ -60,8 +60,8 @@ pub use self::http_message::HttpMessage;
 pub use self::message::{Message, RequestHead, RequestHeadType, ResponseHead};
 pub use self::payload::{Payload, PayloadStream};
 pub use self::request::Request;
-pub use self::response::{Response};
-pub use self::response_builder::{ResponseBuilder};
+pub use self::response::Response;
+pub use self::response_builder::ResponseBuilder;
 pub use self::service::HttpService;
 
 pub mod http {
