@@ -24,15 +24,44 @@ use crate::{
 
 /// An HTTP response builder.
 ///
-/// This type can be used to construct an instance of `Response` using a builder pattern.
+/// Used to construct an instance of `Response` using a builder pattern. Response builders are often
+/// created using [`Response::build`].
+///
+/// # Examples
+/// ```
+/// use actix_http::{Response, ResponseBuilder, body, http::StatusCode, http::header};
+///
+/// # actix_rt::System::new().block_on(async {
+/// let mut res: Response<_> = Response::build(StatusCode::OK)
+///     .content_type(mime::APPLICATION_JSON)
+///     .insert_header((header::SERVER, "my-app/1.0"))
+///     .append_header((header::SET_COOKIE, "a=1"))
+///     .append_header((header::SET_COOKIE, "b=2"))
+///     .body("1234");
+///
+/// assert_eq!(res.status(), StatusCode::OK);
+/// assert_eq!(body::to_bytes(res.take_body()).await.unwrap(), &b"1234"[..]);
+///
+/// assert!(res.headers().contains_key("server"));
+/// assert_eq!(res.headers().get_all("set-cookie").count(), 2);
+/// # })
+/// ```
 pub struct ResponseBuilder {
     head: Option<BoxedResponseHead>,
     err: Option<HttpError>,
 }
 
 impl ResponseBuilder {
-    #[inline]
     /// Create response builder
+    ///
+    /// # Examples
+    /// ```
+    /// use actix_http::{Response, ResponseBuilder, http::StatusCode};
+    ///
+    /// let res: Response<_> = ResponseBuilder::default().finish();
+    /// assert_eq!(res.status(), StatusCode::OK);
+    /// ```
+    #[inline]
     pub fn new(status: StatusCode) -> Self {
         ResponseBuilder {
             head: Some(BoxedResponseHead::new(status)),
@@ -41,6 +70,14 @@ impl ResponseBuilder {
     }
 
     /// Set HTTP status code of this response.
+    ///
+    /// # Examples
+    /// ```
+    /// use actix_http::{ResponseBuilder, http::StatusCode};
+    ///
+    /// let res = ResponseBuilder::default().status(StatusCode::NOT_FOUND).finish();
+    /// assert_eq!(res.status(), StatusCode::NOT_FOUND);
+    /// ```
     #[inline]
     pub fn status(&mut self, status: StatusCode) -> &mut Self {
         if let Some(parts) = parts(&mut self.head, &self.err) {
@@ -51,14 +88,17 @@ impl ResponseBuilder {
 
     /// Insert a header, replacing any that were set with an equivalent field name.
     ///
+    /// # Examples
     /// ```
-    /// # use actix_http::Response;
-    /// use actix_http::http::{header, StatusCode};
+    /// use actix_http::{ResponseBuilder, http::header};
     ///
-    /// Response::build(StatusCode::OK)
+    /// let res = ResponseBuilder::default()
     ///     .insert_header((header::CONTENT_TYPE, mime::APPLICATION_JSON))
     ///     .insert_header(("X-TEST", "value"))
     ///     .finish();
+    ///
+    /// assert!(res.headers().contains_key("content-type"));
+    /// assert!(res.headers().contains_key("x-test"));
     /// ```
     pub fn insert_header<H>(&mut self, header: H) -> &mut Self
     where
@@ -78,15 +118,18 @@ impl ResponseBuilder {
 
     /// Append a header, keeping any that were set with an equivalent field name.
     ///
+    /// # Examples
     /// ```
-    /// # use actix_http::Response;
-    /// use actix_http::http::{header, StatusCode};
+    /// use actix_http::{ResponseBuilder, http::header};
     ///
-    /// Response::build(StatusCode::OK)
+    /// let res = ResponseBuilder::default()
     ///     .append_header((header::CONTENT_TYPE, mime::APPLICATION_JSON))
     ///     .append_header(("X-TEST", "value1"))
     ///     .append_header(("X-TEST", "value2"))
     ///     .finish();
+    ///
+    /// assert_eq!(res.headers().get_all("content-type").count(), 1);
+    /// assert_eq!(res.headers().get_all("x-test").count(), 2);
     /// ```
     pub fn append_header<H>(&mut self, header: H) -> &mut Self
     where
@@ -254,6 +297,12 @@ fn parts<'a>(
     parts.as_mut().map(|r| &mut **r)
 }
 
+impl Default for ResponseBuilder {
+    fn default() -> Self {
+        Self::new(StatusCode::OK)
+    }
+}
+
 /// Convert `Response` to a `ResponseBuilder`. Body get dropped.
 impl<B> From<Response<B>> for ResponseBuilder {
     fn from(res: Response<B>) -> ResponseBuilder {
@@ -313,21 +362,9 @@ impl fmt::Debug for ResponseBuilder {
 
 #[cfg(test)]
 mod tests {
-    use bytes::BytesMut;
-
     use super::*;
     use crate::body::Body;
-    use crate::http::header::{HeaderName, HeaderValue, CONTENT_TYPE, COOKIE};
-
-    #[test]
-    fn test_debug() {
-        let resp = Response::build(StatusCode::OK)
-            .append_header((COOKIE, HeaderValue::from_static("cookie1=value1; ")))
-            .append_header((COOKIE, HeaderValue::from_static("cookie2=value2; ")))
-            .finish();
-        let dbg = format!("{:?}", resp);
-        assert!(dbg.contains("Response"));
-    }
+    use crate::http::header::{HeaderName, HeaderValue, CONTENT_TYPE};
 
     #[test]
     fn test_basic_builder() {
@@ -361,76 +398,6 @@ mod tests {
             .content_type("text/plain")
             .body(Body::Empty);
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "text/plain")
-    }
-
-    #[test]
-    fn test_into_response() {
-        let resp: Response<Body> = "test".into();
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(
-            resp.headers().get(CONTENT_TYPE).unwrap(),
-            HeaderValue::from_static("text/plain; charset=utf-8")
-        );
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().get_ref(), b"test");
-
-        let resp: Response<Body> = b"test".as_ref().into();
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(
-            resp.headers().get(CONTENT_TYPE).unwrap(),
-            HeaderValue::from_static("application/octet-stream")
-        );
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().get_ref(), b"test");
-
-        let resp: Response<Body> = "test".to_owned().into();
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(
-            resp.headers().get(CONTENT_TYPE).unwrap(),
-            HeaderValue::from_static("text/plain; charset=utf-8")
-        );
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().get_ref(), b"test");
-
-        let resp: Response<Body> = (&"test".to_owned()).into();
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(
-            resp.headers().get(CONTENT_TYPE).unwrap(),
-            HeaderValue::from_static("text/plain; charset=utf-8")
-        );
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().get_ref(), b"test");
-
-        let b = Bytes::from_static(b"test");
-        let resp: Response<Body> = b.into();
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(
-            resp.headers().get(CONTENT_TYPE).unwrap(),
-            HeaderValue::from_static("application/octet-stream")
-        );
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().get_ref(), b"test");
-
-        let b = Bytes::from_static(b"test");
-        let resp: Response<Body> = b.into();
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(
-            resp.headers().get(CONTENT_TYPE).unwrap(),
-            HeaderValue::from_static("application/octet-stream")
-        );
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().get_ref(), b"test");
-
-        let b = BytesMut::from("test");
-        let resp: Response<Body> = b.into();
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(
-            resp.headers().get(CONTENT_TYPE).unwrap(),
-            HeaderValue::from_static("application/octet-stream")
-        );
-
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().get_ref(), b"test");
     }
 
     #[test]
