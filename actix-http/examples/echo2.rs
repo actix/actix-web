@@ -1,6 +1,6 @@
 use std::{env, io};
 
-use actix_http::{body::Body, http::HeaderValue};
+use actix_http::{body::Body, http::HeaderValue, http::StatusCode};
 use actix_http::{Error, HttpService, Request, Response};
 use actix_server::Server;
 use bytes::BytesMut;
@@ -14,7 +14,7 @@ async fn handle_request(mut req: Request) -> Result<Response<Body>, Error> {
     }
 
     info!("request body: {:?}", body);
-    Ok(Response::Ok()
+    Ok(Response::build(StatusCode::OK)
         .insert_header(("x-head", HeaderValue::from_static("dummy value!")))
         .body(body))
 }
