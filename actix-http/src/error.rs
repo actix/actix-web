@@ -140,8 +140,8 @@ impl From<ResponseBuilder> for Error {
     }
 }
 
-#[derive(Debug, Display)]
-#[display(fmt = "UnknownError")]
+#[derive(Debug, Display, Error)]
+#[display(fmt = "Unknown Error")]
 struct UnitError;
 
 /// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`UnitError`].
@@ -190,38 +190,47 @@ impl ResponseError for header::InvalidHeaderValue {
     }
 }
 
-/// A set of errors that can occur during parsing HTTP streams
-#[derive(Debug, Display)]
+/// A set of errors that can occur during parsing HTTP streams.
+#[derive(Debug, Display, Error)]
+#[non_exhaustive]
 pub enum ParseError {
     /// An invalid `Method`, such as `GE.T`.
     #[display(fmt = "Invalid Method specified")]
     Method,
+
     /// An invalid `Uri`, such as `exam ple.domain`.
     #[display(fmt = "Uri error: {}", _0)]
     Uri(InvalidUri),
+
     /// An invalid `HttpVersion`, such as `HTP/1.1`
     #[display(fmt = "Invalid HTTP version specified")]
     Version,
+
     /// An invalid `Header`.
     #[display(fmt = "Invalid Header provided")]
     Header,
+
     /// A message head is too large to be reasonable.
     #[display(fmt = "Message head is too large")]
     TooLarge,
+
     /// A message reached EOF, but is not complete.
     #[display(fmt = "Message is incomplete")]
     Incomplete,
+
     /// An invalid `Status`, such as `1337 ELITE`.
     #[display(fmt = "Invalid Status provided")]
     Status,
+
     /// A timeout occurred waiting for an IO event.
     #[allow(dead_code)]
     #[display(fmt = "Timeout")]
     Timeout,
-    /// An `io::Error` that occurred while trying to read or write to a network
-    /// stream.
+
+    /// An `io::Error` that occurred while trying to read or write to a network stream.
     #[display(fmt = "IO error: {}", _0)]
     Io(io::Error),
+
     /// Parsing a field as string failed
     #[display(fmt = "UTF8 error: {}", _0)]
     Utf8(Utf8Error),
@@ -273,17 +282,16 @@ impl From<httparse::Error> for ParseError {
 }
 
 /// A set of errors that can occur running blocking tasks in thread pool.
-#[derive(Debug, Display)]
+#[derive(Debug, Display, Error)]
 #[display(fmt = "Blocking thread pool is gone")]
 pub struct BlockingError;
-
-impl std::error::Error for BlockingError {}
 
 /// `InternalServerError` for `BlockingError`
 impl ResponseError for BlockingError {}
 
-#[derive(Display, Debug)]
-/// A set of errors that can occur during payload parsing
+/// A set of errors that can occur during payload parsing.
+#[derive(Debug, Display)]
+#[non_exhaustive]
 pub enum PayloadError {
     /// A payload reached EOF, but is not complete.
     #[display(
@@ -367,8 +375,9 @@ impl ResponseError for PayloadError {
     }
 }
 
-#[derive(Debug, Display, From)]
-/// A set of errors that can occur during dispatching HTTP requests
+/// A set of errors that can occur during dispatching HTTP requests.
+#[derive(Debug, Display, Error, From)]
+#[non_exhaustive]
 pub enum DispatchError {
     /// Service error
     Service(Error),
@@ -414,8 +423,9 @@ pub enum DispatchError {
     Unknown,
 }
 
-/// A set of error that can occur during parsing content type
-#[derive(Debug, PartialEq, Display, Error)]
+/// A set of error that can occur during parsing content type.
+#[derive(Debug, Display, Error)]
+#[non_exhaustive]
 pub enum ContentTypeError {
     /// Can not parse content type
     #[display(fmt = "Can not parse content type")]
@@ -424,6 +434,22 @@ pub enum ContentTypeError {
     /// Unknown content encoding
     #[display(fmt = "Unknown content encoding")]
     UnknownEncoding,
+}
+
+#[cfg(test)]
+mod content_type_test_impls {
+    use super::*;
+
+    impl std::cmp::PartialEq for ContentTypeError {
+        fn eq(&self, other: &Self) -> bool {
+            match self {
+                Self::ParseError => matches!(other, ContentTypeError::ParseError),
+                Self::UnknownEncoding => {
+                    matches!(other, ContentTypeError::UnknownEncoding)
+                }
+            }
+        }
+    }
 }
 
 /// Return `BadRequest` for `ContentTypeError`
@@ -533,395 +559,72 @@ where
     }
 }
 
-/// Helper function that creates wrapper of any error and generate *BAD
-/// REQUEST* response.
-#[allow(non_snake_case)]
-pub fn ErrorBadRequest<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::BAD_REQUEST).into()
+macro_rules! error_helper {
+    ($name:ident, $status:ident) => {
+        paste::paste! {
+            #[doc = "Helper function that wraps any error and generates a `" $status "` response."]
+            #[allow(non_snake_case)]
+            pub fn $name<T>(err: T) -> Error
+            where
+            T: fmt::Debug + fmt::Display + 'static,
+            {
+                InternalError::new(err, StatusCode::$status).into()
+            }
+        }
+    }
 }
 
-/// Helper function that creates wrapper of any error and generate
-/// *UNAUTHORIZED* response.
-#[allow(non_snake_case)]
-pub fn ErrorUnauthorized<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::UNAUTHORIZED).into()
-}
-
-/// Helper function that creates wrapper of any error and generate
-/// *PAYMENT_REQUIRED* response.
-#[allow(non_snake_case)]
-pub fn ErrorPaymentRequired<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::PAYMENT_REQUIRED).into()
-}
-
-/// Helper function that creates wrapper of any error and generate *FORBIDDEN*
-/// response.
-#[allow(non_snake_case)]
-pub fn ErrorForbidden<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::FORBIDDEN).into()
-}
-
-/// Helper function that creates wrapper of any error and generate *NOT FOUND*
-/// response.
-#[allow(non_snake_case)]
-pub fn ErrorNotFound<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::NOT_FOUND).into()
-}
-
-/// Helper function that creates wrapper of any error and generate *METHOD NOT
-/// ALLOWED* response.
-#[allow(non_snake_case)]
-pub fn ErrorMethodNotAllowed<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::METHOD_NOT_ALLOWED).into()
-}
-
-/// Helper function that creates wrapper of any error and generate *NOT
-/// ACCEPTABLE* response.
-#[allow(non_snake_case)]
-pub fn ErrorNotAcceptable<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::NOT_ACCEPTABLE).into()
-}
-
-/// Helper function that creates wrapper of any error and generate *PROXY
-/// AUTHENTICATION REQUIRED* response.
-#[allow(non_snake_case)]
-pub fn ErrorProxyAuthenticationRequired<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::PROXY_AUTHENTICATION_REQUIRED).into()
-}
-
-/// Helper function that creates wrapper of any error and generate *REQUEST
-/// TIMEOUT* response.
-#[allow(non_snake_case)]
-pub fn ErrorRequestTimeout<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::REQUEST_TIMEOUT).into()
-}
-
-/// Helper function that creates wrapper of any error and generate *CONFLICT*
-/// response.
-#[allow(non_snake_case)]
-pub fn ErrorConflict<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::CONFLICT).into()
-}
-
-/// Helper function that creates wrapper of any error and generate *GONE*
-/// response.
-#[allow(non_snake_case)]
-pub fn ErrorGone<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::GONE).into()
-}
-
-/// Helper function that creates wrapper of any error and generate *LENGTH
-/// REQUIRED* response.
-#[allow(non_snake_case)]
-pub fn ErrorLengthRequired<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::LENGTH_REQUIRED).into()
-}
-
-/// Helper function that creates wrapper of any error and generate
-/// *PAYLOAD TOO LARGE* response.
-#[allow(non_snake_case)]
-pub fn ErrorPayloadTooLarge<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::PAYLOAD_TOO_LARGE).into()
-}
-
-/// Helper function that creates wrapper of any error and generate
-/// *URI TOO LONG* response.
-#[allow(non_snake_case)]
-pub fn ErrorUriTooLong<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::URI_TOO_LONG).into()
-}
-
-/// Helper function that creates wrapper of any error and generate
-/// *UNSUPPORTED MEDIA TYPE* response.
-#[allow(non_snake_case)]
-pub fn ErrorUnsupportedMediaType<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::UNSUPPORTED_MEDIA_TYPE).into()
-}
-
-/// Helper function that creates wrapper of any error and generate
-/// *RANGE NOT SATISFIABLE* response.
-#[allow(non_snake_case)]
-pub fn ErrorRangeNotSatisfiable<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::RANGE_NOT_SATISFIABLE).into()
-}
-
-/// Helper function that creates wrapper of any error and generate
-/// *IM A TEAPOT* response.
-#[allow(non_snake_case)]
-pub fn ErrorImATeapot<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::IM_A_TEAPOT).into()
-}
-
-/// Helper function that creates wrapper of any error and generate
-/// *MISDIRECTED REQUEST* response.
-#[allow(non_snake_case)]
-pub fn ErrorMisdirectedRequest<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::MISDIRECTED_REQUEST).into()
-}
-
-/// Helper function that creates wrapper of any error and generate
-/// *UNPROCESSABLE ENTITY* response.
-#[allow(non_snake_case)]
-pub fn ErrorUnprocessableEntity<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::UNPROCESSABLE_ENTITY).into()
-}
-
-/// Helper function that creates wrapper of any error and generate
-/// *LOCKED* response.
-#[allow(non_snake_case)]
-pub fn ErrorLocked<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::LOCKED).into()
-}
-
-/// Helper function that creates wrapper of any error and generate
-/// *FAILED DEPENDENCY* response.
-#[allow(non_snake_case)]
-pub fn ErrorFailedDependency<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::FAILED_DEPENDENCY).into()
-}
-
-/// Helper function that creates wrapper of any error and generate
-/// *UPGRADE REQUIRED* response.
-#[allow(non_snake_case)]
-pub fn ErrorUpgradeRequired<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::UPGRADE_REQUIRED).into()
-}
-
-/// Helper function that creates wrapper of any error and generate
-/// *PRECONDITION FAILED* response.
-#[allow(non_snake_case)]
-pub fn ErrorPreconditionFailed<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::PRECONDITION_FAILED).into()
-}
-
-/// Helper function that creates wrapper of any error and generate
-/// *PRECONDITION REQUIRED* response.
-#[allow(non_snake_case)]
-pub fn ErrorPreconditionRequired<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::PRECONDITION_REQUIRED).into()
-}
-
-/// Helper function that creates wrapper of any error and generate
-/// *TOO MANY REQUESTS* response.
-#[allow(non_snake_case)]
-pub fn ErrorTooManyRequests<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::TOO_MANY_REQUESTS).into()
-}
-
-/// Helper function that creates wrapper of any error and generate
-/// *REQUEST HEADER FIELDS TOO LARGE* response.
-#[allow(non_snake_case)]
-pub fn ErrorRequestHeaderFieldsTooLarge<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE).into()
-}
-
-/// Helper function that creates wrapper of any error and generate
-/// *UNAVAILABLE FOR LEGAL REASONS* response.
-#[allow(non_snake_case)]
-pub fn ErrorUnavailableForLegalReasons<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS).into()
-}
-
-/// Helper function that creates wrapper of any error and generate
-/// *EXPECTATION FAILED* response.
-#[allow(non_snake_case)]
-pub fn ErrorExpectationFailed<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::EXPECTATION_FAILED).into()
-}
-
-/// Helper function that creates wrapper of any error and
-/// generate *INTERNAL SERVER ERROR* response.
-#[allow(non_snake_case)]
-pub fn ErrorInternalServerError<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::INTERNAL_SERVER_ERROR).into()
-}
-
-/// Helper function that creates wrapper of any error and
-/// generate *NOT IMPLEMENTED* response.
-#[allow(non_snake_case)]
-pub fn ErrorNotImplemented<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::NOT_IMPLEMENTED).into()
-}
-
-/// Helper function that creates wrapper of any error and
-/// generate *BAD GATEWAY* response.
-#[allow(non_snake_case)]
-pub fn ErrorBadGateway<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::BAD_GATEWAY).into()
-}
-
-/// Helper function that creates wrapper of any error and
-/// generate *SERVICE UNAVAILABLE* response.
-#[allow(non_snake_case)]
-pub fn ErrorServiceUnavailable<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::SERVICE_UNAVAILABLE).into()
-}
-
-/// Helper function that creates wrapper of any error and
-/// generate *GATEWAY TIMEOUT* response.
-#[allow(non_snake_case)]
-pub fn ErrorGatewayTimeout<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::GATEWAY_TIMEOUT).into()
-}
-
-/// Helper function that creates wrapper of any error and
-/// generate *HTTP VERSION NOT SUPPORTED* response.
-#[allow(non_snake_case)]
-pub fn ErrorHttpVersionNotSupported<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::HTTP_VERSION_NOT_SUPPORTED).into()
-}
-
-/// Helper function that creates wrapper of any error and
-/// generate *VARIANT ALSO NEGOTIATES* response.
-#[allow(non_snake_case)]
-pub fn ErrorVariantAlsoNegotiates<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::VARIANT_ALSO_NEGOTIATES).into()
-}
-
-/// Helper function that creates wrapper of any error and
-/// generate *INSUFFICIENT STORAGE* response.
-#[allow(non_snake_case)]
-pub fn ErrorInsufficientStorage<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::INSUFFICIENT_STORAGE).into()
-}
-
-/// Helper function that creates wrapper of any error and
-/// generate *LOOP DETECTED* response.
-#[allow(non_snake_case)]
-pub fn ErrorLoopDetected<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::LOOP_DETECTED).into()
-}
-
-/// Helper function that creates wrapper of any error and
-/// generate *NOT EXTENDED* response.
-#[allow(non_snake_case)]
-pub fn ErrorNotExtended<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::NOT_EXTENDED).into()
-}
-
-/// Helper function that creates wrapper of any error and
-/// generate *NETWORK AUTHENTICATION REQUIRED* response.
-#[allow(non_snake_case)]
-pub fn ErrorNetworkAuthenticationRequired<T>(err: T) -> Error
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    InternalError::new(err, StatusCode::NETWORK_AUTHENTICATION_REQUIRED).into()
-}
+error_helper!(ErrorBadRequest, BAD_REQUEST);
+error_helper!(ErrorUnauthorized, UNAUTHORIZED);
+error_helper!(ErrorPaymentRequired, PAYMENT_REQUIRED);
+error_helper!(ErrorForbidden, FORBIDDEN);
+error_helper!(ErrorNotFound, NOT_FOUND);
+error_helper!(ErrorMethodNotAllowed, METHOD_NOT_ALLOWED);
+error_helper!(ErrorNotAcceptable, NOT_ACCEPTABLE);
+error_helper!(
+    ErrorProxyAuthenticationRequired,
+    PROXY_AUTHENTICATION_REQUIRED
+);
+error_helper!(ErrorRequestTimeout, REQUEST_TIMEOUT);
+error_helper!(ErrorConflict, CONFLICT);
+error_helper!(ErrorGone, GONE);
+error_helper!(ErrorLengthRequired, LENGTH_REQUIRED);
+error_helper!(ErrorPayloadTooLarge, PAYLOAD_TOO_LARGE);
+error_helper!(ErrorUriTooLong, URI_TOO_LONG);
+error_helper!(ErrorUnsupportedMediaType, UNSUPPORTED_MEDIA_TYPE);
+error_helper!(ErrorRangeNotSatisfiable, RANGE_NOT_SATISFIABLE);
+error_helper!(ErrorImATeapot, IM_A_TEAPOT);
+error_helper!(ErrorMisdirectedRequest, MISDIRECTED_REQUEST);
+error_helper!(ErrorUnprocessableEntity, UNPROCESSABLE_ENTITY);
+error_helper!(ErrorLocked, LOCKED);
+error_helper!(ErrorFailedDependency, FAILED_DEPENDENCY);
+error_helper!(ErrorUpgradeRequired, UPGRADE_REQUIRED);
+error_helper!(ErrorPreconditionFailed, PRECONDITION_FAILED);
+error_helper!(ErrorPreconditionRequired, PRECONDITION_REQUIRED);
+error_helper!(ErrorTooManyRequests, TOO_MANY_REQUESTS);
+error_helper!(
+    ErrorRequestHeaderFieldsTooLarge,
+    REQUEST_HEADER_FIELDS_TOO_LARGE
+);
+error_helper!(
+    ErrorUnavailableForLegalReasons,
+    UNAVAILABLE_FOR_LEGAL_REASONS
+);
+error_helper!(ErrorExpectationFailed, EXPECTATION_FAILED);
+error_helper!(ErrorInternalServerError, INTERNAL_SERVER_ERROR);
+error_helper!(ErrorNotImplemented, NOT_IMPLEMENTED);
+error_helper!(ErrorBadGateway, BAD_GATEWAY);
+error_helper!(ErrorServiceUnavailable, SERVICE_UNAVAILABLE);
+error_helper!(ErrorGatewayTimeout, GATEWAY_TIMEOUT);
+error_helper!(ErrorHttpVersionNotSupported, HTTP_VERSION_NOT_SUPPORTED);
+error_helper!(ErrorVariantAlsoNegotiates, VARIANT_ALSO_NEGOTIATES);
+error_helper!(ErrorInsufficientStorage, INSUFFICIENT_STORAGE);
+error_helper!(ErrorLoopDetected, LOOP_DETECTED);
+error_helper!(ErrorNotExtended, NOT_EXTENDED);
+error_helper!(
+    ErrorNetworkAuthenticationRequired,
+    NETWORK_AUTHENTICATION_REQUIRED
+);
 
 #[cfg(test)]
 mod tests {
