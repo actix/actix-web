@@ -56,7 +56,7 @@ pub async fn to_bytes(body: impl MessageBody) -> Result<Bytes, crate::Error> {
         let body = body.as_mut();
 
         match ready!(body.poll_next(cx)) {
-            Some(Ok(bytes)) => buf.extend(bytes),
+            Some(Ok(bytes)) => buf.extend_from_slice(&*bytes),
             None => return Poll::Ready(Ok(())),
             Some(Err(err)) => return Poll::Ready(Err(err)),
         }
