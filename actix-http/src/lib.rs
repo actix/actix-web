@@ -37,7 +37,6 @@ pub mod encoding;
 mod extensions;
 mod header;
 mod helpers;
-mod http_codes;
 mod http_message;
 mod message;
 mod payload;

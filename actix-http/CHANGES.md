@@ -3,6 +3,7 @@
 ## Unreleased - 2021-xx-xx
 ### Added
 * `impl<T: MessageBody> MessageBody for Pin<Box<T>>`. [#2152]
+* `Response::{ok, bad_request, not_found, internal_server_error}`. [#2159]
 * Helper `body::to_bytes` for async collecting message body into Bytes. [#2158]
 
 ### Changes
@@ -19,10 +20,13 @@
 * `ResponseBuilder::json`. [#2148]
 * `ResponseBuilder::{set_header, header}`. [#2148]
 * `impl From<serde_json::Value> for Body`. [#2148]
+* `Response::build_from`. [#2159]
+* Most of the status code builders on `Response`. [#2159]
 
 [#2065]: https://github.com/actix/actix-web/pull/2065
 [#2148]: https://github.com/actix/actix-web/pull/2148
 [#2152]: https://github.com/actix/actix-web/pull/2152
+[#2159]: https://github.com/actix/actix-web/pull/2159
 [#2158]: https://github.com/actix/actix-web/pull/2158
 
 

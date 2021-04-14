@@ -1,6 +1,6 @@
 use std::{env, io};
 
-use actix_http::{HttpService, Response};
+use actix_http::{http::StatusCode, HttpService, Response};
 use actix_server::Server;
 use actix_utils::future;
 use http::header::HeaderValue;
@@ -18,7 +18,7 @@ async fn main() -> io::Result<()> {
                 .client_disconnect(1000)
                 .finish(|_req| {
                     info!("{:?}", _req);
-                    let mut res = Response::Ok();
+                    let mut res = Response::build(StatusCode::OK);
                     res.insert_header((
                         "x-head",
                         HeaderValue::from_static("dummy value!"),
