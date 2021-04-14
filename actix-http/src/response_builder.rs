@@ -80,7 +80,7 @@ impl ResponseBuilder {
     /// ```
     #[inline]
     pub fn status(&mut self, status: StatusCode) -> &mut Self {
-        if let Some(parts) = parts(&mut self.head, &self.err) {
+        if let Some(parts) = self.inner() {
             parts.status = status;
         }
         self
@@ -104,7 +104,7 @@ impl ResponseBuilder {
     where
         H: IntoHeaderPair,
     {
-        if let Some(parts) = parts(&mut self.head, &self.err) {
+        if let Some(parts) = self.inner() {
             match header.try_into_header_pair() {
                 Ok((key, value)) => {
                     parts.headers.insert(key, value);
@@ -135,7 +135,7 @@ impl ResponseBuilder {
     where
         H: IntoHeaderPair,
     {
-        if let Some(parts) = parts(&mut self.head, &self.err) {
+        if let Some(parts) = self.inner() {
             match header.try_into_header_pair() {
                 Ok((key, value)) => parts.headers.append(key, value),
                 Err(e) => self.err = Some(e.into()),
@@ -148,7 +148,7 @@ impl ResponseBuilder {
     /// Set the custom reason for the response.
     #[inline]
     pub fn reason(&mut self, reason: &'static str) -> &mut Self {
-        if let Some(parts) = parts(&mut self.head, &self.err) {
+        if let Some(parts) = self.inner() {
             parts.reason = Some(reason);
         }
         self
@@ -157,7 +157,7 @@ impl ResponseBuilder {
     /// Set connection type to KeepAlive
     #[inline]
     pub fn keep_alive(&mut self) -> &mut Self {
-        if let Some(parts) = parts(&mut self.head, &self.err) {
+        if let Some(parts) = self.inner() {
             parts.set_connection_type(ConnectionType::KeepAlive);
         }
         self
@@ -169,7 +169,7 @@ impl ResponseBuilder {
     where
         V: IntoHeaderValue,
     {
-        if let Some(parts) = parts(&mut self.head, &self.err) {
+        if let Some(parts) = self.inner() {
             parts.set_connection_type(ConnectionType::Upgrade);
         }
 
@@ -183,7 +183,7 @@ impl ResponseBuilder {
     /// Force close connection, even if it is marked as keep-alive
     #[inline]
     pub fn force_close(&mut self) -> &mut Self {
-        if let Some(parts) = parts(&mut self.head, &self.err) {
+        if let Some(parts) = self.inner() {
             parts.set_connection_type(ConnectionType::Close);
         }
         self
@@ -195,7 +195,7 @@ impl ResponseBuilder {
         let mut buf = itoa::Buffer::new();
         self.insert_header((header::CONTENT_LENGTH, buf.format(len)));
 
-        if let Some(parts) = parts(&mut self.head, &self.err) {
+        if let Some(parts) = self.inner() {
             parts.no_chunking(true);
         }
         self
@@ -207,7 +207,7 @@ impl ResponseBuilder {
     where
         V: IntoHeaderValue,
     {
-        if let Some(parts) = parts(&mut self.head, &self.err) {
+        if let Some(parts) = self.inner() {
             match value.try_into_value() {
                 Ok(value) => {
                     parts.headers.insert(header::CONTENT_TYPE, value);
@@ -232,17 +232,17 @@ impl ResponseBuilder {
         head.extensions.borrow_mut()
     }
 
-    /// Set a body and generate `Response`.
+    /// Generate response with a wrapped body.
     ///
-    /// `ResponseBuilder` can not be used after this call.
+    /// This `ResponseBuilder` will be left in a useless state.
     #[inline]
     pub fn body<B: Into<Body>>(&mut self, body: B) -> Response<Body> {
         self.message_body(body.into())
     }
 
-    /// Set a body and generate `Response`.
+    /// Generate response with a body.
     ///
-    /// `ResponseBuilder` can not be used after this call.
+    /// This `ResponseBuilder` will be left in a useless state.
     pub fn message_body<B>(&mut self, body: B) -> Response<B> {
         if let Some(e) = self.err.take() {
             return Response::from(Error::from(e)).into_body();
@@ -257,9 +257,9 @@ impl ResponseBuilder {
         }
     }
 
-    /// Set a streaming body and generate `Response`.
+    /// Generate response with a streaming body.
     ///
-    /// `ResponseBuilder` can not be used after this call.
+    /// This `ResponseBuilder` will be left in a useless state.
     #[inline]
     pub fn streaming<S, E>(&mut self, stream: S) -> Response<Body>
     where
@@ -269,32 +269,30 @@ impl ResponseBuilder {
         self.body(Body::from_message(BodyStream::new(stream)))
     }
 
-    /// Set an empty body and generate `Response`
+    /// Generate response with an empty body.
     ///
-    /// `ResponseBuilder` can not be used after this call.
+    /// This `ResponseBuilder` will be left in a useless state.
     #[inline]
     pub fn finish(&mut self) -> Response<Body> {
         self.body(Body::Empty)
     }
 
-    /// This method construct new `ResponseBuilder`
+    /// Create an owned `ResponseBuilder`, leaving the original in a useless state.
     pub fn take(&mut self) -> ResponseBuilder {
         ResponseBuilder {
             head: self.head.take(),
             err: self.err.take(),
         }
     }
-}
 
-#[inline]
-fn parts<'a>(
-    parts: &'a mut Option<BoxedResponseHead>,
-    err: &Option<HttpError>,
-) -> Option<&'a mut ResponseHead> {
-    if err.is_some() {
-        return None;
+    /// Get access to the inner response head if there has been no error.
+    fn inner(&mut self) -> Option<&mut ResponseHead> {
+        if self.err.is_some() {
+            return None;
+        }
+
+        self.head.as_mut().map(|r| &mut **r)
     }
-    parts.as_mut().map(|r| &mut **r)
 }
 
 impl Default for ResponseBuilder {
