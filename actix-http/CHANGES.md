@@ -10,7 +10,7 @@
 * The type parameter of `Response` no longer has a default. [#2152]
 * The `Message` variant of `body::Body` is now `Pin<Box<dyn MessageBody>>`. [#2152]
 * `BodyStream` and `SizedStream` are no longer restricted to Unpin types. [#2152]
-* Enum error types are marked `#[non_exhaustive]`. [#2161]
+* Error enum types are marked `#[non_exhaustive]`. [#2161]
 
 ### Removed
 * `cookies` feature flag. [#2065]
