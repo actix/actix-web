@@ -240,7 +240,7 @@ pub struct JsonConfig {
 }
 
 impl JsonConfig {
-    /// Set maximum accepted payload size. By default this limit is 32kB.
+    /// Set maximum accepted payload size. By default this limit is 2MB.
     pub fn limit(mut self, limit: usize) -> Self {
         self.limit = limit;
         self
@@ -273,9 +273,11 @@ impl JsonConfig {
     }
 }
 
+const DEFAULT_LIMIT: usize = 2_097_152; // 2 mb
+
 /// Allow shared refs used as default.
 const DEFAULT_CONFIG: JsonConfig = JsonConfig {
-    limit: 32_768, // 2^15 bytes, (~32kB)
+    limit: DEFAULT_LIMIT,
     err_handler: None,
     content_type: None,
 };
@@ -349,7 +351,7 @@ where
         let payload = payload.take();
 
         JsonBody::Body {
-            limit: 32_768,
+            limit: DEFAULT_LIMIT,
             length,
             payload,
             buf: BytesMut::with_capacity(8192),
@@ -357,7 +359,7 @@ where
         }
     }
 
-    /// Set maximum accepted payload size. The default limit is 32kB.
+    /// Set maximum accepted payload size. The default limit is 2MB.
     pub fn limit(self, limit: usize) -> Self {
         match self {
             JsonBody::Body {
@@ -368,7 +370,10 @@ where
             } => {
                 if let Some(len) = length {
                     if len > limit {
-                        return JsonBody::Error(Some(JsonPayloadError::Overflow));
+                        return JsonBody::Error(Some(JsonPayloadError::Overflow {
+                            size: len,
+                            limit,
+                        }));
                     }
                 }
 
@@ -399,14 +404,19 @@ where
                 limit,
                 buf,
                 payload,
+                length,
                 ..
             } => loop {
                 let res = ready!(Pin::new(&mut *payload).poll_next(cx));
                 match res {
                     Some(chunk) => {
                         let chunk = chunk?;
-                        if (buf.len() + chunk.len()) > *limit {
-                            return Poll::Ready(Err(JsonPayloadError::Overflow));
+                        let buf_len = buf.len() + chunk.len();
+                        if buf_len > *limit {
+                            return Poll::Ready(Err(JsonPayloadError::Overflow {
+                                size: length.unwrap_or(buf_len),
+                                limit: *limit,
+                            }));
                         } else {
                             buf.extend_from_slice(&chunk);
                         }
@@ -445,7 +455,7 @@ mod tests {
 
     fn json_eq(err: JsonPayloadError, other: JsonPayloadError) -> bool {
         match err {
-            JsonPayloadError::Overflow => matches!(other, JsonPayloadError::Overflow),
+            JsonPayloadError::Overflow { .. } => matches!(other, JsonPayloadError::Overflow { .. }),
             JsonPayloadError::ContentType => matches!(other, JsonPayloadError::ContentType),
             _ => false,
         }
@@ -538,7 +548,7 @@ mod tests {
 
         let s = Json::<MyObject>::from_request(&req, &mut pl).await;
         assert!(format!("{}", s.err().unwrap())
-            .contains("Json payload size is bigger than allowed"));
+            .contains("JSON payload (16 bytes) is larger than allowed (limit: 10 bytes)."));
 
         let (req, mut pl) = TestRequest::default()
             .insert_header((
@@ -589,7 +599,7 @@ mod tests {
         let json = JsonBody::<MyObject>::new(&req, &mut pl, None)
             .limit(100)
             .await;
-        assert!(json_eq(json.err().unwrap(), JsonPayloadError::Overflow));
+        assert!(json_eq(json.err().unwrap(), JsonPayloadError::Overflow { size: 10000, limit: 100 }));
 
         let (req, mut pl) = TestRequest::default()
             .insert_header((
@@ -686,6 +696,6 @@ mod tests {
         assert!(s.is_err());
 
         let err_str = s.err().unwrap().to_string();
-        assert!(err_str.contains("Json payload size is bigger than allowed"));
+        assert!(err_str.contains("JSON payload (16 bytes) is larger than allowed (limit: 10 bytes)."));
     }
 }
