@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     fmt, mem,
     pin::Pin,
     task::{Context, Poll},
@@ -118,9 +119,20 @@ impl From<String> for Body {
     }
 }
 
-impl<'a> From<&'a String> for Body {
-    fn from(s: &'a String) -> Body {
+impl From<&'_ String> for Body {
+    fn from(s: &String) -> Body {
         Body::Bytes(Bytes::copy_from_slice(AsRef::<[u8]>::as_ref(&s)))
+    }
+}
+
+impl From<Cow<'_, str>> for Body {
+    fn from(s: Cow<'_, str>) -> Body {
+        match s {
+            Cow::Owned(s) => Body::from(s),
+            Cow::Borrowed(s) => {
+                Body::Bytes(Bytes::copy_from_slice(AsRef::<[u8]>::as_ref(s)))
+            }
+        }
     }
 }
 
