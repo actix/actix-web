@@ -6,65 +6,65 @@ use super::{
     HeaderValue, IntoHeaderValue, InvalidHeaderValue, Writer, CONTENT_RANGE,
 };
 
-crate::header! {
+crate::__define_common_header! {
     /// `Content-Range` header, defined in
     /// [RFC7233](http://tools.ietf.org/html/rfc7233#section-4.2)
     (ContentRange, CONTENT_RANGE) => [ContentRangeSpec]
 
     test_content_range {
-        test_header!(test_bytes,
+        crate::__common_header_test!(test_bytes,
             vec![b"bytes 0-499/500"],
             Some(ContentRange(ContentRangeSpec::Bytes {
                 range: Some((0, 499)),
                 instance_length: Some(500)
             })));
 
-        test_header!(test_bytes_unknown_len,
+        crate::__common_header_test!(test_bytes_unknown_len,
             vec![b"bytes 0-499/*"],
             Some(ContentRange(ContentRangeSpec::Bytes {
                 range: Some((0, 499)),
                 instance_length: None
             })));
 
-        test_header!(test_bytes_unknown_range,
+        crate::__common_header_test!(test_bytes_unknown_range,
             vec![b"bytes */500"],
             Some(ContentRange(ContentRangeSpec::Bytes {
                 range: None,
                 instance_length: Some(500)
             })));
 
-        test_header!(test_unregistered,
+        crate::__common_header_test!(test_unregistered,
             vec![b"seconds 1-2"],
             Some(ContentRange(ContentRangeSpec::Unregistered {
                 unit: "seconds".to_owned(),
                 resp: "1-2".to_owned()
             })));
 
-        test_header!(test_no_len,
+        crate::__common_header_test!(test_no_len,
             vec![b"bytes 0-499"],
             None::<ContentRange>);
 
-        test_header!(test_only_unit,
+        crate::__common_header_test!(test_only_unit,
             vec![b"bytes"],
             None::<ContentRange>);
 
-        test_header!(test_end_less_than_start,
+        crate::__common_header_test!(test_end_less_than_start,
             vec![b"bytes 499-0/500"],
             None::<ContentRange>);
 
-        test_header!(test_blank,
+        crate::__common_header_test!(test_blank,
             vec![b""],
             None::<ContentRange>);
 
-        test_header!(test_bytes_many_spaces,
+        crate::__common_header_test!(test_bytes_many_spaces,
             vec![b"bytes 1-2/500 3"],
             None::<ContentRange>);
 
-        test_header!(test_bytes_many_slashes,
+        crate::__common_header_test!(test_bytes_many_slashes,
             vec![b"bytes 1-2/500/600"],
             None::<ContentRange>);
 
-        test_header!(test_bytes_many_dashes,
+        crate::__common_header_test!(test_bytes_many_dashes,
             vec![b"bytes 1-2-3/500"],
             None::<ContentRange>);
 

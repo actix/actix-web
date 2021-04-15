@@ -64,12 +64,12 @@ header! {
 
     test_accept_encoding {
         // From the RFC
-        test_header!(test1, vec![b"compress, gzip"]);
-        test_header!(test2, vec![b""], Some(AcceptEncoding(vec![])));
-        test_header!(test3, vec![b"*"]);
+        crate::__common_header_test!(test1, vec![b"compress, gzip"]);
+        crate::__common_header_test!(test2, vec![b""], Some(AcceptEncoding(vec![])));
+        crate::__common_header_test!(test3, vec![b"*"]);
         // Note: Removed quality 1 from gzip
-        test_header!(test4, vec![b"compress;q=0.5, gzip"]);
+        crate::__common_header_test!(test4, vec![b"compress;q=0.5, gzip"]);
         // Note: Removed quality 1 from gzip
-        test_header!(test5, vec![b"gzip, identity; q=0.5, *;q=0"]);
+        crate::__common_header_test!(test5, vec![b"gzip, identity; q=0.5, *;q=0"]);
     }
 }

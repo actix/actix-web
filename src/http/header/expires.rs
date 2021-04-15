@@ -1,6 +1,6 @@
 use super::{HttpDate, EXPIRES};
 
-crate::header! {
+crate::__define_common_header! {
     /// `Expires` header, defined in [RFC7234](http://tools.ietf.org/html/rfc7234#section-5.3)
     ///
     /// The `Expires` header field gives the date/time after which the
@@ -36,6 +36,6 @@ crate::header! {
 
     test_expires {
         // Test case from RFC
-        test_header!(test1, vec![b"Thu, 01 Dec 1994 16:00:00 GMT"]);
+        crate::__common_header_test!(test1, vec![b"Thu, 01 Dec 1994 16:00:00 GMT"]);
     }
 }

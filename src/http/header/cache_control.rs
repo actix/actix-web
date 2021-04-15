@@ -51,9 +51,9 @@ use crate::http::header;
 #[derive(PartialEq, Clone, Debug)]
 pub struct CacheControl(pub Vec<CacheDirective>);
 
-__hyper__deref!(CacheControl => Vec<CacheDirective>);
+crate::__common_header_deref!(CacheControl => Vec<CacheDirective>);
 
-//TODO: this could just be the header! macro
+// TODO: this could just be the __define_common_header! macro
 impl Header for CacheControl {
     fn name() -> header::HeaderName {
         header::CACHE_CONTROL
@@ -75,7 +75,7 @@ impl Header for CacheControl {
 
 impl fmt::Display for CacheControl {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt_comma_delimited(f, &self[..])
+        fmt_comma_delimited(f, &self.0[..])
     }
 }
 

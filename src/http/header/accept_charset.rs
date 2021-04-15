@@ -1,6 +1,6 @@
 use super::{Charset, QualityItem, ACCEPT_CHARSET};
 
-crate::header! {
+crate::__define_common_header! {
     /// `Accept-Charset` header, defined in
     /// [RFC7231](http://tools.ietf.org/html/rfc7231#section-5.3.3)
     ///
@@ -57,6 +57,6 @@ crate::header! {
 
     test_accept_charset {
         // Test case from RFC
-        test_header!(test1, vec![b"iso-8859-5, unicode-1-1;q=0.8"]);
+        crate::__common_header_test!(test1, vec![b"iso-8859-5, unicode-1-1;q=0.8"]);
     }
 }
