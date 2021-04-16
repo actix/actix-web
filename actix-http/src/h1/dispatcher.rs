@@ -1027,7 +1027,8 @@ mod tests {
         fn_service(|_req: Request| ready(Ok::<_, Error>(Response::ok())))
     }
 
-    fn pending_service() -> impl Service<Request, Response = Response<Body>, Error = Error> {
+    fn pending_service(
+    ) -> impl Service<Request, Response = Response<Body>, Error = Error> {
         struct PendingForever;
         impl futures_core::Stream for PendingForever {
             type Item = Result<Bytes, Error>;
