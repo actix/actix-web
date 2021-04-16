@@ -1,11 +1,15 @@
 use std::future::Future;
-use std::task::{Context, Poll};
 
 use actix_utils::future::{ok, Ready};
-use actix_web::dev::{Service, ServiceRequest, ServiceResponse, Transform};
-use actix_web::http::header::{HeaderName, HeaderValue};
-use actix_web::http::StatusCode;
-use actix_web::{http, web::Path, App, Error, HttpResponse, Responder};
+use actix_web::{
+    dev::{Service, ServiceRequest, ServiceResponse, Transform},
+    http::{
+        self,
+        header::{HeaderName, HeaderValue},
+        StatusCode,
+    },
+    web, App, Error, HttpResponse, Responder,
+};
 use actix_web_codegen::{connect, delete, get, head, options, patch, post, put, route, trace};
 use futures_core::future::LocalBoxFuture;
 
@@ -66,17 +70,17 @@ fn auto_sync() -> impl Future<Output = Result<HttpResponse, actix_web::Error>> {
 }
 
 #[put("/test/{param}")]
-async fn put_param_test(_: Path<String>) -> impl Responder {
+async fn put_param_test(_: web::Path<String>) -> impl Responder {
     HttpResponse::Created()
 }
 
 #[delete("/test/{param}")]
-async fn delete_param_test(_: Path<String>) -> impl Responder {
+async fn delete_param_test(_: web::Path<String>) -> impl Responder {
     HttpResponse::NoContent()
 }
 
 #[get("/test/{param}")]
-async fn get_param_test(_: Path<String>) -> impl Responder {
+async fn get_param_test(_: web::Path<String>) -> impl Responder {
     HttpResponse::Ok()
 }
 
@@ -125,9 +129,7 @@ where
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
-    fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.service.poll_ready(cx)
-    }
+    actix_web::dev::forward_ready!(service);
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let fut = self.service.call(req);
@@ -144,7 +146,7 @@ where
 }
 
 #[get("/test/wrap", wrap = "ChangeStatusCode")]
-async fn get_wrap(_: Path<String>) -> impl Responder {
+async fn get_wrap(_: web::Path<String>) -> impl Responder {
     // panic!("actually never gets called because path failed to extract");
     HttpResponse::Ok()
 }
