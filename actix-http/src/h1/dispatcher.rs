@@ -998,6 +998,7 @@ mod tests {
     use bytes::Bytes;
 
     use super::*;
+    use crate::body::BodyStream;
     use crate::{
         error::Error,
         h1::{ExpectHandler, UpgradeHandler},
@@ -1042,7 +1043,10 @@ mod tests {
         }
 
         fn_service(|_req: Request| async {
-            Ok::<_, Error>(Response::Ok().streaming(Box::pin(PendingForever)))
+            Ok::<_, Error>(
+                Response::ok()
+                    .set_body(Body::from_message(BodyStream::new(PendingForever))),
+            )
         })
     }
 
