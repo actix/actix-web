@@ -48,7 +48,7 @@ trust-dns = ["actix-http/trust-dns"]
 
 [dependencies]
 actix-codec = "0.4.0-beta.1"
-actix-service = "2.0.0-beta.4"
+actix-service = "2.0.0"
 actix-http = "3.0.0-beta.5"
 actix-rt = { version = "2.1", default-features = false }
 

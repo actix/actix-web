@@ -1,10 +1,8 @@
 use std::fmt::{self, Display, Write};
 use std::str::FromStr;
 
+use super::{HeaderValue, IntoHeaderValue, InvalidHeaderValue, Writer, CONTENT_RANGE};
 use crate::error::ParseError;
-use super::{
-    HeaderValue, IntoHeaderValue, InvalidHeaderValue, Writer, CONTENT_RANGE,
-};
 
 crate::__define_common_header! {
     /// `Content-Range` header, defined in
@@ -141,8 +139,7 @@ impl FromStr for ContentRangeSpec {
                 } else {
                     let (first_byte, last_byte) =
                         split_in_two(range, '-').ok_or(ParseError::Header)?;
-                    let first_byte =
-                        first_byte.parse().map_err(|_| ParseError::Header)?;
+                    let first_byte = first_byte.parse().map_err(|_| ParseError::Header)?;
                     let last_byte = last_byte.parse().map_err(|_| ParseError::Header)?;
                     if last_byte < first_byte {
                         return Err(ParseError::Header);

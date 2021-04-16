@@ -1,9 +1,7 @@
 use std::fmt::{self, Write};
 use std::str::FromStr;
 
-use super::{
-    fmt_comma_delimited, from_comma_delimited, Header, IntoHeaderValue, Writer,
-};
+use super::{fmt_comma_delimited, from_comma_delimited, Header, IntoHeaderValue, Writer};
 
 use crate::http::header;
 
@@ -176,9 +174,7 @@ impl FromStr for CacheDirective {
                         ("max-stale", secs) => secs.parse().map(MaxStale).map_err(Some),
                         ("min-fresh", secs) => secs.parse().map(MinFresh).map_err(Some),
                         ("s-maxage", secs) => secs.parse().map(SMaxAge).map_err(Some),
-                        (left, right) => {
-                            Ok(Extension(left.to_owned(), Some(right.to_owned())))
-                        }
+                        (left, right) => Ok(Extension(left.to_owned(), Some(right.to_owned()))),
                     }
                 }
                 Some(_) => Err(None),

@@ -38,7 +38,7 @@ compress = ["flate2", "brotli2"]
 trust-dns = ["trust-dns-resolver"]
 
 [dependencies]
-actix-service = "2.0.0-beta.4"
+actix-service = "2.0.0"
 actix-codec = "0.4.0-beta.1"
 actix-utils = "3.0.0-beta.4"
 actix-rt = "2.2"
