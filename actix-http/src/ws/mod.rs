@@ -101,29 +101,37 @@ pub enum HandshakeError {
 impl ResponseError for HandshakeError {
     fn error_response(&self) -> Response<Body> {
         match self {
-            HandshakeError::GetMethodRequired => Response::MethodNotAllowed()
-                .insert_header((header::ALLOW, "GET"))
-                .finish(),
+            HandshakeError::GetMethodRequired => {
+                Response::build(StatusCode::METHOD_NOT_ALLOWED)
+                    .insert_header((header::ALLOW, "GET"))
+                    .finish()
+            }
 
-            HandshakeError::NoWebsocketUpgrade => Response::BadRequest()
-                .reason("No WebSocket Upgrade header found")
-                .finish(),
+            HandshakeError::NoWebsocketUpgrade => {
+                Response::build(StatusCode::BAD_REQUEST)
+                    .reason("No WebSocket Upgrade header found")
+                    .finish()
+            }
 
-            HandshakeError::NoConnectionUpgrade => Response::BadRequest()
-                .reason("No Connection upgrade")
-                .finish(),
+            HandshakeError::NoConnectionUpgrade => {
+                Response::build(StatusCode::BAD_REQUEST)
+                    .reason("No Connection upgrade")
+                    .finish()
+            }
 
-            HandshakeError::NoVersionHeader => Response::BadRequest()
+            HandshakeError::NoVersionHeader => Response::build(StatusCode::BAD_REQUEST)
                 .reason("WebSocket version header is required")
                 .finish(),
 
-            HandshakeError::UnsupportedVersion => Response::BadRequest()
-                .reason("Unsupported WebSocket version")
-                .finish(),
-
-            HandshakeError::BadWebsocketKey => {
-                Response::BadRequest().reason("Handshake error").finish()
+            HandshakeError::UnsupportedVersion => {
+                Response::build(StatusCode::BAD_REQUEST)
+                    .reason("Unsupported WebSocket version")
+                    .finish()
             }
+
+            HandshakeError::BadWebsocketKey => Response::build(StatusCode::BAD_REQUEST)
+                .reason("Handshake error")
+                .finish(),
         }
     }
 }

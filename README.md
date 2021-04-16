@@ -90,7 +90,7 @@ You may consider checking out
 ## Benchmarks
 
 One of the fastest web frameworks available according to the
-[TechEmpower Framework Benchmark](https://www.techempower.com/benchmarks/#section=data-r19).
+[TechEmpower Framework Benchmark](https://www.techempower.com/benchmarks/#section=data-r20&test=composite).
 
 ## License
 

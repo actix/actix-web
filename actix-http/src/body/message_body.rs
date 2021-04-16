@@ -12,10 +12,12 @@ use crate::error::Error;
 
 use super::BodySize;
 
-/// Type that implement this trait can be streamed to a peer.
+/// An interface for response bodies.
 pub trait MessageBody {
+    /// Body size hint.
     fn size(&self) -> BodySize;
 
+    /// Attempt to pull out the next chunk of body bytes.
     fn poll_next(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,

@@ -3,12 +3,14 @@
 ## Unreleased - 2021-xx-xx
 ### Added
 * `impl<T: MessageBody> MessageBody for Pin<Box<T>>`. [#2152]
+* `Response::{ok, bad_request, not_found, internal_server_error}`. [#2159]
 * Helper `body::to_bytes` for async collecting message body into Bytes. [#2158]
 
 ### Changes
 * The type parameter of `Response` no longer has a default. [#2152]
 * The `Message` variant of `body::Body` is now `Pin<Box<dyn MessageBody>>`. [#2152]
 * `BodyStream` and `SizedStream` are no longer restricted to Unpin types. [#2152]
+* Error enum types are marked `#[non_exhaustive]`. [#2161]
 
 ### Removed
 * `cookies` feature flag. [#2065]
@@ -19,11 +21,15 @@
 * `ResponseBuilder::json`. [#2148]
 * `ResponseBuilder::{set_header, header}`. [#2148]
 * `impl From<serde_json::Value> for Body`. [#2148]
+* `Response::build_from`. [#2159]
+* Most of the status code builders on `Response`. [#2159]
 
 [#2065]: https://github.com/actix/actix-web/pull/2065
 [#2148]: https://github.com/actix/actix-web/pull/2148
 [#2152]: https://github.com/actix/actix-web/pull/2152
+[#2159]: https://github.com/actix/actix-web/pull/2159
 [#2158]: https://github.com/actix/actix-web/pull/2158
+[#2161]: https://github.com/actix/actix-web/pull/2161
 
 
 ## 3.0.0-beta.5 - 2021-04-02
