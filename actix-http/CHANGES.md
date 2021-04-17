@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 3.0.0-beta.6 - 2021-04-17
 ### Added
 * `impl<T: MessageBody> MessageBody for Pin<Box<T>>`. [#2152]
 * `Response::{ok, bad_request, not_found, internal_server_error}`. [#2159]
