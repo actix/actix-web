@@ -1,22 +1,20 @@
 [package]
 name = "awc"
-version = "3.0.0-beta.4"
+version = "3.0.0-beta.5"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
     "fakeshadow <24548779@qq.com>",
 ]
 description = "Async HTTP and WebSocket client library built on the Actix ecosystem"
-readme = "README.md"
 keywords = ["actix", "http", "framework", "async", "web"]
-homepage = "https://actix.rs"
-repository = "https://github.com/actix/actix-web.git"
-documentation = "https://docs.rs/awc/"
 categories = [
     "network-programming",
     "asynchronous",
     "web-programming::http-client",
     "web-programming::websocket",
 ]
+homepage = "https://actix.rs"
+repository = "https://github.com/actix/actix-web"
 license = "MIT OR Apache-2.0"
 edition = "2018"
 
