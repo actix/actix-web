@@ -35,4 +35,4 @@ percent-encoding = "2.1"
 [dev-dependencies]
 actix-rt = "2.2"
 actix-web = "4.0.0-beta.6"
-actix-test = "0.1.0-beta.1"
+actix-test = "0.1.0-beta.2"
