@@ -23,7 +23,7 @@ actix-codec = "0.4.0-beta.1"
 actix-http = "3.0.0-beta.5"
 actix-http-test = { version = "3.0.0-beta.4", features = [] }
 actix-service = "2.0.0"
-actix-utils = "3.0.0-beta.2"
+actix-utils = "3.0.0"
 actix-web = { version = "4.0.0-beta.5", default-features = false, features = ["cookies"] }
 actix-rt = "2.1"
 awc = { version = "3.0.0-beta.4", default-features = false, features = ["cookies"] }

@@ -19,7 +19,7 @@ path = "src/lib.rs"
 [dependencies]
 actix-web = { version = "4.0.0-beta.5", default-features = false }
 actix-service = "2.0.0"
-actix-utils = "3.0.0-beta.4"
+actix-utils = "3.0.0"
 
 askama_escape = "0.10"
 bitflags = "1"
