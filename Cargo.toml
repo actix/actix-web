@@ -1,16 +1,13 @@
 [package]
 name = "actix-web"
-version = "4.0.0-beta.5"
+version = "4.0.0-beta.6"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix Web is a powerful, pragmatic, and extremely fast web framework for Rust"
-readme = "README.md"
 keywords = ["actix", "http", "web", "framework", "async"]
-homepage = "https://actix.rs"
-repository = "https://github.com/actix/actix-web.git"
-documentation = "https://docs.rs/actix-web/"
 categories = ["network-programming", "asynchronous",
-              "web-programming::http-server",
-              "web-programming::websocket"]
+              "web-programming::http-server", "web-programming::websocket"]
+homepage = "https://actix.rs"
+repository = "https://github.com/actix/actix-web"
 license = "MIT OR Apache-2.0"
 edition = "2018"
 

@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 4.0.0-beta.6 - 2021-04-17
 ### Added
 * `HttpResponse` and `HttpResponseBuilder` structs. [#2065]
 
