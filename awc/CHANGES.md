@@ -3,6 +3,13 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 3.0.0-beta.5 - 2021-04-17
+### Removed
+* Deprecated methods on `ClientRequest`: `if_true`, `if_some`. [#2148]
+
+[#2148]: https://github.com/actix/actix-web/pull/2148
+
+
 ## 3.0.0-beta.4 - 2021-04-02
 ### Added
 * Add `Client::headers` to get default mut reference of `HeaderMap` of client object. [#2114]

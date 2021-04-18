@@ -1,26 +1,23 @@
 [package]
 name = "actix-web"
-version = "4.0.0-beta.5"
+version = "4.0.0-beta.6"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix Web is a powerful, pragmatic, and extremely fast web framework for Rust"
-readme = "README.md"
 keywords = ["actix", "http", "web", "framework", "async"]
+categories = [
+    "network-programming",
+    "asynchronous",
+    "web-programming::http-server",
+    "web-programming::websocket"
+]
 homepage = "https://actix.rs"
-repository = "https://github.com/actix/actix-web.git"
-documentation = "https://docs.rs/actix-web/"
-categories = ["network-programming", "asynchronous",
-              "web-programming::http-server",
-              "web-programming::websocket"]
+repository = "https://github.com/actix/actix-web"
 license = "MIT OR Apache-2.0"
 edition = "2018"
 
 [package.metadata.docs.rs]
 # features that docs.rs will build with
-features = ["openssl", "rustls", "compress", "secure-cookies"]
-
-[badges]
-travis-ci = { repository = "actix/actix-web", branch = "master" }
-codecov = { repository = "actix/actix-web", branch = "master", service = "github" }
+features = ["openssl", "rustls", "compress", "cookies", "secure-cookies"]
 
 [lib]
 name = "actix_web"
@@ -28,16 +25,18 @@ path = "src/lib.rs"
 
 [workspace]
 members = [
-  ".",
-  "awc",
-  "actix-http",
-  "actix-files",
-  "actix-multipart",
-  "actix-web-actors",
-  "actix-web-codegen",
-  "actix-http-test",
-  "actix-test",
+    ".",
+    "awc",
+    "actix-http",
+    "actix-files",
+    "actix-multipart",
+    "actix-web-actors",
+    "actix-web-codegen",
+    "actix-http-test",
+    "actix-test",
 ]
+# enable when MSRV is 1.51+
+# resolver = "2"
 
 [features]
 default = ["compress", "cookies"]
@@ -46,10 +45,10 @@ default = ["compress", "cookies"]
 compress = ["actix-http/compress"]
 
 # support for cookies
-cookies = ["actix-http/cookies"]
+cookies = ["cookie"]
 
 # secure cookies feature
-secure-cookies = ["actix-http/secure-cookies"]
+secure-cookies = ["cookie/secure"]
 
 # openssl
 openssl = ["actix-http/openssl", "actix-tls/accept", "actix-tls/openssl"]
@@ -57,42 +56,28 @@ openssl = ["actix-http/openssl", "actix-tls/accept", "actix-tls/openssl"]
 # rustls
 rustls = ["actix-http/rustls", "actix-tls/accept", "actix-tls/rustls"]
 
-[[example]]
-name = "basic"
-required-features = ["compress"]
-
-[[example]]
-name = "uds"
-required-features = ["compress"]
-
-[[test]]
-name = "test_server"
-required-features = ["compress", "cookies"]
-
-[[example]]
-name = "on_connect"
-required-features = []
-
 [dependencies]
 actix-codec = "0.4.0-beta.1"
 actix-macros = "0.2.0"
 actix-router = "0.2.7"
 actix-rt = "2.2"
 actix-server = "2.0.0-beta.3"
-actix-service = "2.0.0-beta.4"
-actix-utils = "3.0.0-beta.4"
+actix-service = "2.0.0"
+actix-utils = "3.0.0"
 actix-tls = { version = "3.0.0-beta.5", default-features = false, optional = true }
 
 actix-web-codegen = "0.5.0-beta.2"
-actix-http = "3.0.0-beta.5"
+actix-http = "3.0.0-beta.6"
 
 ahash = "0.7"
 bytes = "1"
+cookie = { version = "0.15", features = ["percent-encode"], optional = true }
 derive_more = "0.99.5"
 either = "1.5.3"
 encoding_rs = "0.8"
 futures-core = { version = "0.3.7", default-features = false }
 futures-util = { version = "0.3.7", default-features = false }
+itoa = "0.4"
 language-tags = "0.2"
 once_cell = "1.5"
 log = "0.4"
@@ -108,8 +93,8 @@ time = { version = "0.2.23", default-features = false, features = ["std"] }
 url = "2.1"
 
 [dev-dependencies]
-actix-test = { version = "0.1.0-beta.1", features = ["openssl", "rustls"] }
-awc = { version = "3.0.0-beta.4", features = ["openssl"] }
+actix-test = { version = "0.1.0-beta.2", features = ["openssl", "rustls"] }
+awc = { version = "3.0.0-beta.5", features = ["openssl"] }
 
 brotli2 = "0.3.2"
 criterion = "0.3"
@@ -136,6 +121,22 @@ actix-web = { path = "." }
 actix-web-actors = { path = "actix-web-actors" }
 actix-web-codegen = { path = "actix-web-codegen" }
 awc = { path = "awc" }
+
+[[test]]
+name = "test_server"
+required-features = ["compress", "cookies"]
+
+[[example]]
+name = "basic"
+required-features = ["compress"]
+
+[[example]]
+name = "uds"
+required-features = ["compress"]
+
+[[example]]
+name = "on_connect"
+required-features = []
 
 [[bench]]
 name = "server"

@@ -489,7 +489,7 @@ where
     pub fn listen_uds(mut self, lst: std::os::unix::net::UnixListener) -> io::Result<Self> {
         use actix_http::Protocol;
         use actix_rt::net::UnixStream;
-        use actix_service::pipeline_factory;
+        use actix_service::{fn_service, ServiceFactoryExt as _};
 
         let cfg = self.config.clone();
         let factory = self.factory.clone();
@@ -511,22 +511,19 @@ where
                 socket_addr,
             );
 
-            pipeline_factory(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) })
-                .and_then({
-                    let svc = HttpService::build()
-                        .keep_alive(c.keep_alive)
-                        .client_timeout(c.client_timeout);
+            fn_service(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) }).and_then({
+                let svc = HttpService::build()
+                    .keep_alive(c.keep_alive)
+                    .client_timeout(c.client_timeout);
 
-                    let svc = if let Some(handler) = on_connect_fn.clone() {
-                        svc.on_connect_ext(move |io: &_, ext: _| {
-                            (&*handler)(io as &dyn Any, ext)
-                        })
-                    } else {
-                        svc
-                    };
+                let svc = if let Some(handler) = on_connect_fn.clone() {
+                    svc.on_connect_ext(move |io: &_, ext: _| (&*handler)(io as &dyn Any, ext))
+                } else {
+                    svc
+                };
 
-                    svc.finish(map_config(factory(), move |_| config.clone()))
-                })
+                svc.finish(map_config(factory(), move |_| config.clone()))
+            })
         })?;
         Ok(self)
     }
@@ -539,7 +536,7 @@ where
     {
         use actix_http::Protocol;
         use actix_rt::net::UnixStream;
-        use actix_service::pipeline_factory;
+        use actix_service::{fn_service, ServiceFactoryExt as _};
 
         let cfg = self.config.clone();
         let factory = self.factory.clone();
@@ -560,13 +557,12 @@ where
                     c.host.clone().unwrap_or_else(|| format!("{}", socket_addr)),
                     socket_addr,
                 );
-                pipeline_factory(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) })
-                    .and_then(
-                        HttpService::build()
-                            .keep_alive(c.keep_alive)
-                            .client_timeout(c.client_timeout)
-                            .finish(map_config(factory(), move |_| config.clone())),
-                    )
+                fn_service(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) }).and_then(
+                    HttpService::build()
+                        .keep_alive(c.keep_alive)
+                        .client_timeout(c.client_timeout)
+                        .finish(map_config(factory(), move |_| config.clone())),
+                )
             },
         )?;
         Ok(self)

@@ -37,12 +37,12 @@ use actix_codec::{AsyncRead, AsyncWrite, Framed};
 pub use actix_http::test::TestBuffer;
 use actix_http::{
     http::{HeaderMap, Method},
-    ws, HttpService, Request,
+    ws, HttpService, Request, Response,
 };
 use actix_service::{map_config, IntoServiceFactory, ServiceFactory};
 use actix_web::{
     dev::{AppConfig, MessageBody, Server, Service},
-    rt, web, Error, HttpResponse,
+    rt, web, Error,
 };
 use awc::{error::PayloadError, Client, ClientRequest, ClientResponse, Connector};
 use futures_core::Stream;
@@ -83,7 +83,7 @@ where
     S: ServiceFactory<Request, Config = AppConfig> + 'static,
     S::Error: Into<Error> + 'static,
     S::InitError: fmt::Debug,
-    S::Response: Into<HttpResponse<B>> + 'static,
+    S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
     B: MessageBody + 'static,
 {
@@ -122,7 +122,7 @@ where
     S: ServiceFactory<Request, Config = AppConfig> + 'static,
     S::Error: Into<Error> + 'static,
     S::InitError: fmt::Debug,
-    S::Response: Into<HttpResponse<B>> + 'static,
+    S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
     B: MessageBody + 'static,
 {

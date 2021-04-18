@@ -252,8 +252,8 @@ where
                         }
                     }
 
-                    Err(e) => {
-                        let res: Response = e.into().into();
+                    Err(err) => {
+                        let res = Response::from_error(err.into());
                         let (res, body) = res.replace_body(());
 
                         let mut send = send.take().unwrap();

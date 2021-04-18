@@ -1,5 +1,12 @@
 //! Traits and structures to aid consuming and writing HTTP payloads.
 
+use std::task::Poll;
+
+use actix_rt::pin;
+use actix_utils::future::poll_fn;
+use bytes::{Bytes, BytesMut};
+use futures_core::ready;
+
 #[allow(clippy::module_inception)]
 mod body;
 mod body_stream;
@@ -15,6 +22,50 @@ pub use self::response_body::ResponseBody;
 pub use self::size::BodySize;
 pub use self::sized_stream::SizedStream;
 
+/// Collects the body produced by a `MessageBody` implementation into `Bytes`.
+///
+/// Any errors produced by the body stream are returned immediately.
+///
+/// # Examples
+/// ```
+/// use actix_http::body::{Body, to_bytes};
+/// use bytes::Bytes;
+///
+/// # async fn test_to_bytes() {
+/// let body = Body::Empty;
+/// let bytes = to_bytes(body).await.unwrap();
+/// assert!(bytes.is_empty());
+///
+/// let body = Body::Bytes(Bytes::from_static(b"123"));
+/// let bytes = to_bytes(body).await.unwrap();
+/// assert_eq!(bytes, b"123"[..]);
+/// # }
+/// ```
+pub async fn to_bytes(body: impl MessageBody) -> Result<Bytes, crate::Error> {
+    let cap = match body.size() {
+        BodySize::None | BodySize::Empty | BodySize::Sized(0) => return Ok(Bytes::new()),
+        BodySize::Sized(size) => size as usize,
+        BodySize::Stream => 32_768,
+    };
+
+    let mut buf = BytesMut::with_capacity(cap);
+
+    pin!(body);
+
+    poll_fn(|cx| loop {
+        let body = body.as_mut();
+
+        match ready!(body.poll_next(cx)) {
+            Some(Ok(bytes)) => buf.extend_from_slice(&*bytes),
+            None => return Poll::Ready(Ok(())),
+            Some(Err(err)) => return Poll::Ready(Err(err)),
+        }
+    })
+    .await?;
+
+    Ok(buf.freeze())
+}
+
 #[cfg(test)]
 mod tests {
     use std::pin::Pin;
@@ -22,7 +73,6 @@ mod tests {
     use actix_rt::pin;
     use actix_utils::future::poll_fn;
     use bytes::{Bytes, BytesMut};
-    use futures_util::stream;
 
     use super::*;
 
@@ -174,67 +224,17 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_serde_json() {
-        use serde_json::json;
+        use serde_json::{json, Value};
         assert_eq!(
-            Body::from(serde_json::Value::String("test".into())).size(),
+            Body::from(serde_json::to_vec(&Value::String("test".to_owned())).unwrap())
+                .size(),
             BodySize::Sized(6)
         );
         assert_eq!(
-            Body::from(json!({"test-key":"test-value"})).size(),
+            Body::from(serde_json::to_vec(&json!({"test-key":"test-value"})).unwrap())
+                .size(),
             BodySize::Sized(25)
         );
-    }
-
-    #[actix_rt::test]
-    async fn body_stream_skips_empty_chunks() {
-        let body = BodyStream::new(stream::iter(
-            ["1", "", "2"]
-                .iter()
-                .map(|&v| Ok(Bytes::from(v)) as Result<Bytes, ()>),
-        ));
-        pin!(body);
-
-        assert_eq!(
-            poll_fn(|cx| body.as_mut().poll_next(cx))
-                .await
-                .unwrap()
-                .ok(),
-            Some(Bytes::from("1")),
-        );
-        assert_eq!(
-            poll_fn(|cx| body.as_mut().poll_next(cx))
-                .await
-                .unwrap()
-                .ok(),
-            Some(Bytes::from("2")),
-        );
-    }
-
-    mod sized_stream {
-        use super::*;
-
-        #[actix_rt::test]
-        async fn skips_empty_chunks() {
-            let body = SizedStream::new(
-                2,
-                stream::iter(["1", "", "2"].iter().map(|&v| Ok(Bytes::from(v)))),
-            );
-            pin!(body);
-            assert_eq!(
-                poll_fn(|cx| body.as_mut().poll_next(cx))
-                    .await
-                    .unwrap()
-                    .ok(),
-                Some(Bytes::from("1")),
-            );
-            assert_eq!(
-                poll_fn(|cx| body.as_mut().poll_next(cx))
-                    .await
-                    .unwrap()
-                    .ok(),
-                Some(Bytes::from("2")),
-            );
-        }
     }
 
     #[actix_rt::test]
@@ -249,5 +249,16 @@ mod tests {
         assert_eq!(body, "hello cast!");
         let not_body = resp_body.downcast_ref::<()>();
         assert!(not_body.is_none());
+    }
+
+    #[actix_rt::test]
+    async fn test_to_bytes() {
+        let body = Body::Empty;
+        let bytes = to_bytes(body).await.unwrap();
+        assert!(bytes.is_empty());
+
+        let body = Body::Bytes(Bytes::from_static(b"123"));
+        let bytes = to_bytes(body).await.unwrap();
+        assert_eq!(bytes, b"123"[..]);
     }
 }

@@ -1,6 +1,6 @@
 use super::{EntityTag, IF_MATCH};
 
-crate::header! {
+crate::__define_common_header! {
     /// `If-Match` header, defined in
     /// [RFC7232](https://tools.ietf.org/html/rfc7232#section-3.1)
     ///
@@ -53,18 +53,18 @@ crate::header! {
     (IfMatch, IF_MATCH) => {Any / (EntityTag)+}
 
     test_if_match {
-        test_header!(
+        crate::__common_header_test!(
             test1,
             vec![b"\"xyzzy\""],
             Some(HeaderField::Items(
                 vec![EntityTag::new(false, "xyzzy".to_owned())])));
-        test_header!(
+        crate::__common_header_test!(
             test2,
             vec![b"\"xyzzy\", \"r2d2xxxx\", \"c3piozzzz\""],
             Some(HeaderField::Items(
                 vec![EntityTag::new(false, "xyzzy".to_owned()),
                      EntityTag::new(false, "r2d2xxxx".to_owned()),
                      EntityTag::new(false, "c3piozzzz".to_owned())])));
-        test_header!(test3, vec![b"*"], Some(IfMatch::Any));
+        crate::__common_header_test!(test3, vec![b"*"], Some(IfMatch::Any));
     }
 }

@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use actix_http::HttpService;
 use actix_http_test::test_server;
-use actix_service::{map_config, pipeline_factory, ServiceFactoryExt};
+use actix_service::{fn_service, map_config, ServiceFactoryExt};
 use actix_utils::future::ok;
 use actix_web::http::Version;
 use actix_web::{dev::AppConfig, web, App, HttpResponse};
@@ -48,7 +48,7 @@ async fn test_connection_reuse_h2() {
 
     let srv = test_server(move || {
         let num2 = num2.clone();
-        pipeline_factory(move |io| {
+        fn_service(move |io| {
             num2.fetch_add(1, Ordering::Relaxed);
             ok(io)
         })

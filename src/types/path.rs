@@ -93,7 +93,7 @@ where
     T: de::DeserializeOwned,
 {
     type Error = Error;
-    type Future = Ready<Result<Self, Error>>;
+    type Future = Ready<Result<Self, Self::Error>>;
     type Config = PathConfig;
 
     #[inline]
@@ -106,17 +106,17 @@ where
         ready(
             de::Deserialize::deserialize(PathDeserializer::new(req.match_info()))
                 .map(Path)
-                .map_err(move |e| {
+                .map_err(move |err| {
                     log::debug!(
                         "Failed during Path extractor deserialization. \
                          Request path: {:?}",
                         req.path()
                     );
                     if let Some(error_handler) = error_handler {
-                        let e = PathError::Deserialize(e);
+                        let e = PathError::Deserialize(err);
                         (error_handler)(e, req)
                     } else {
-                        ErrorNotFound(e)
+                        ErrorNotFound(err)
                     }
                 }),
         )
@@ -149,7 +149,7 @@ where
 ///             .app_data(PathConfig::default().error_handler(|err, req| {
 ///                 error::InternalError::from_response(
 ///                     err,
-///                     HttpResponse::Conflict().finish(),
+///                     HttpResponse::Conflict().into(),
 ///                 )
 ///                 .into()
 ///             }))
@@ -292,15 +292,18 @@ mod tests {
     async fn test_custom_err_handler() {
         let (req, mut pl) = TestRequest::with_uri("/name/user1/")
             .app_data(PathConfig::default().error_handler(|err, _| {
-                error::InternalError::from_response(err, HttpResponse::Conflict().finish())
-                    .into()
+                error::InternalError::from_response(
+                    err,
+                    HttpResponse::Conflict().finish().into(),
+                )
+                .into()
             }))
             .to_http_parts();
 
         let s = Path::<(usize,)>::from_request(&req, &mut pl)
             .await
             .unwrap_err();
-        let res: HttpResponse = s.into();
+        let res = HttpResponse::from_error(s);
 
         assert_eq!(res.status(), http::StatusCode::CONFLICT);
     }

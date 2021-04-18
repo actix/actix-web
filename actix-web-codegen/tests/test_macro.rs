@@ -1,10 +1,15 @@
 use std::future::Future;
-use std::task::{Context, Poll};
 
-use actix_utils::future;
-use actix_web::dev::{Service, ServiceRequest, ServiceResponse, Transform};
-use actix_web::http::header::{HeaderName, HeaderValue};
-use actix_web::{http, web::Path, App, Error, HttpResponse, Responder};
+use actix_utils::future::{ok, Ready};
+use actix_web::{
+    dev::{Service, ServiceRequest, ServiceResponse, Transform},
+    http::{
+        self,
+        header::{HeaderName, HeaderValue},
+        StatusCode,
+    },
+    web, App, Error, HttpResponse, Responder,
+};
 use actix_web_codegen::{connect, delete, get, head, options, patch, post, put, route, trace};
 use futures_core::future::LocalBoxFuture;
 
@@ -56,26 +61,26 @@ async fn trace_test() -> impl Responder {
 
 #[get("/test")]
 fn auto_async() -> impl Future<Output = Result<HttpResponse, actix_web::Error>> {
-    future::ok(HttpResponse::Ok().finish())
+    ok(HttpResponse::Ok().finish())
 }
 
 #[get("/test")]
 fn auto_sync() -> impl Future<Output = Result<HttpResponse, actix_web::Error>> {
-    future::ok(HttpResponse::Ok().finish())
+    ok(HttpResponse::Ok().finish())
 }
 
 #[put("/test/{param}")]
-async fn put_param_test(_: Path<String>) -> impl Responder {
+async fn put_param_test(_: web::Path<String>) -> impl Responder {
     HttpResponse::Created()
 }
 
 #[delete("/test/{param}")]
-async fn delete_param_test(_: Path<String>) -> impl Responder {
+async fn delete_param_test(_: web::Path<String>) -> impl Responder {
     HttpResponse::NoContent()
 }
 
 #[get("/test/{param}")]
-async fn get_param_test(_: Path<String>) -> impl Responder {
+async fn get_param_test(_: web::Path<String>) -> impl Responder {
     HttpResponse::Ok()
 }
 
@@ -103,10 +108,10 @@ where
     type Error = Error;
     type Transform = ChangeStatusCodeMiddleware<S>;
     type InitError = ();
-    type Future = future::Ready<Result<Self::Transform, Self::InitError>>;
+    type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        future::ok(ChangeStatusCodeMiddleware { service })
+        ok(ChangeStatusCodeMiddleware { service })
     }
 }
 
@@ -124,9 +129,7 @@ where
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
-    fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.service.poll_ready(cx)
-    }
+    actix_web::dev::forward_ready!(service);
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let fut = self.service.call(req);
@@ -143,7 +146,8 @@ where
 }
 
 #[get("/test/wrap", wrap = "ChangeStatusCode")]
-async fn get_wrap(_: Path<String>) -> impl Responder {
+async fn get_wrap(_: web::Path<String>) -> impl Responder {
+    // panic!("actually never gets called because path failed to extract");
     HttpResponse::Ok()
 }
 
@@ -257,6 +261,10 @@ async fn test_wrap() {
     let srv = actix_test::start(|| App::new().service(get_wrap));
 
     let request = srv.request(http::Method::GET, srv.url("/test/wrap"));
-    let response = request.send().await.unwrap();
+    let mut response = request.send().await.unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
     assert!(response.headers().contains_key("custom-header"));
+    let body = response.body().await.unwrap();
+    let body = String::from_utf8(body.to_vec()).unwrap();
+    assert!(body.contains("wrong number of parameters"));
 }

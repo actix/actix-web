@@ -1,19 +1,27 @@
-use std::cell::{Ref, RefCell, RefMut};
-use std::rc::Rc;
-use std::{fmt, net};
+use std::{
+    cell::{Ref, RefCell, RefMut},
+    fmt, net,
+    rc::Rc,
+    str,
+};
 
-use actix_http::http::{HeaderMap, Method, Uri, Version};
-use actix_http::{Error, Extensions, HttpMessage, Message, Payload, RequestHead};
+use actix_http::{
+    http::{HeaderMap, Method, Uri, Version},
+    Error, Extensions, HttpMessage, Message, Payload, RequestHead,
+};
 use actix_router::{Path, Url};
 use actix_utils::future::{ok, Ready};
+#[cfg(feature = "cookies")]
+use cookie::{Cookie, ParseError as CookieParseError};
 use smallvec::SmallVec;
 
-use crate::app_service::AppInitServiceState;
-use crate::config::AppConfig;
-use crate::error::UrlGenerationError;
-use crate::extract::FromRequest;
-use crate::info::ConnectionInfo;
-use crate::rmap::ResourceMap;
+use crate::{
+    app_service::AppInitServiceState, config::AppConfig, error::UrlGenerationError,
+    extract::FromRequest, info::ConnectionInfo, rmap::ResourceMap,
+};
+
+#[cfg(feature = "cookies")]
+struct Cookies(Vec<Cookie<'static>>);
 
 #[derive(Clone)]
 /// An HTTP Request
@@ -259,6 +267,42 @@ impl HttpRequest {
     #[inline]
     fn app_state(&self) -> &AppInitServiceState {
         &*self.inner.app_state
+    }
+
+    /// Load request cookies.
+    #[cfg(feature = "cookies")]
+    pub fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
+        use actix_http::http::header::COOKIE;
+
+        if self.extensions().get::<Cookies>().is_none() {
+            let mut cookies = Vec::new();
+            for hdr in self.headers().get_all(COOKIE) {
+                let s = str::from_utf8(hdr.as_bytes()).map_err(CookieParseError::from)?;
+                for cookie_str in s.split(';').map(|s| s.trim()) {
+                    if !cookie_str.is_empty() {
+                        cookies.push(Cookie::parse_encoded(cookie_str)?.into_owned());
+                    }
+                }
+            }
+            self.extensions_mut().insert(Cookies(cookies));
+        }
+
+        Ok(Ref::map(self.extensions(), |ext| {
+            &ext.get::<Cookies>().unwrap().0
+        }))
+    }
+
+    /// Return request cookie.
+    #[cfg(feature = "cookies")]
+    pub fn cookie(&self, name: &str) -> Option<Cookie<'static>> {
+        if let Ok(cookies) = self.cookies() {
+            for cookie in cookies.iter() {
+                if cookie.name() == name {
+                    return Some(cookie.to_owned());
+                }
+            }
+        }
+        None
     }
 }
 

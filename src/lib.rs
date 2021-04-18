@@ -86,6 +86,7 @@ mod request;
 mod request_data;
 mod resource;
 mod responder;
+mod response;
 mod rmap;
 mod route;
 mod scope;
@@ -95,19 +96,20 @@ pub mod test;
 pub(crate) mod types;
 pub mod web;
 
-#[cfg(feature = "cookies")]
-pub use actix_http::cookie;
-pub use actix_http::Response as HttpResponse;
+pub use actix_http::Response as BaseHttpResponse;
 pub use actix_http::{body, Error, HttpMessage, ResponseError, Result};
 #[doc(inline)]
 pub use actix_rt as rt;
 pub use actix_web_codegen::*;
+#[cfg(feature = "cookies")]
+pub use cookie;
 
 pub use crate::app::App;
 pub use crate::extract::FromRequest;
 pub use crate::request::HttpRequest;
 pub use crate::resource::Resource;
 pub use crate::responder::Responder;
+pub use crate::response::{HttpResponse, HttpResponseBuilder};
 pub use crate::route::Route;
 pub use crate::scope::Scope;
 pub use crate::server::HttpServer;
@@ -139,11 +141,11 @@ pub mod dev {
     pub use actix_http::body::{Body, BodySize, MessageBody, ResponseBody, SizedStream};
     #[cfg(feature = "compress")]
     pub use actix_http::encoding::Decoder as Decompress;
-    pub use actix_http::ResponseBuilder as HttpResponseBuilder;
+    pub use actix_http::ResponseBuilder as BaseHttpResponseBuilder;
     pub use actix_http::{Extensions, Payload, PayloadStream, RequestHead, ResponseHead};
     pub use actix_router::{Path, ResourceDef, ResourcePath, Url};
     pub use actix_server::Server;
-    pub use actix_service::{Service, Transform};
+    pub use actix_service::{always_ready, forward_ready, Service, Transform};
 
     pub(crate) fn insert_slash(mut patterns: Vec<String>) -> Vec<String> {
         for path in &mut patterns {
@@ -180,6 +182,28 @@ pub mod dev {
     }
 
     impl<B> BodyEncoding for Response<B> {
+        fn get_encoding(&self) -> Option<ContentEncoding> {
+            self.extensions().get::<Enc>().map(|enc| enc.0)
+        }
+
+        fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
+            self.extensions_mut().insert(Enc(encoding));
+            self
+        }
+    }
+
+    impl BodyEncoding for crate::HttpResponseBuilder {
+        fn get_encoding(&self) -> Option<ContentEncoding> {
+            self.extensions().get::<Enc>().map(|enc| enc.0)
+        }
+
+        fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
+            self.extensions_mut().insert(Enc(encoding));
+            self
+        }
+    }
+
+    impl<B> BodyEncoding for crate::HttpResponse<B> {
         fn get_encoding(&self) -> Option<ContentEncoding> {
             self.extensions().get::<Enc>().map(|enc| enc.0)
         }

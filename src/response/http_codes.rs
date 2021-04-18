@@ -1,21 +1,19 @@
 //! Status code based HTTP response builders.
 
-#![allow(non_upper_case_globals)]
+use actix_http::http::StatusCode;
 
-use http::StatusCode;
-
-use crate::response::{Response, ResponseBuilder};
+use crate::{HttpResponse, HttpResponseBuilder};
 
 macro_rules! static_resp {
     ($name:ident, $status:expr) => {
         #[allow(non_snake_case, missing_docs)]
-        pub fn $name() -> ResponseBuilder {
-            ResponseBuilder::new($status)
+        pub fn $name() -> HttpResponseBuilder {
+            HttpResponseBuilder::new($status)
         }
     };
 }
 
-impl Response {
+impl HttpResponse {
     static_resp!(Continue, StatusCode::CONTINUE);
     static_resp!(SwitchingProtocols, StatusCode::SWITCHING_PROTOCOLS);
     static_resp!(Processing, StatusCode::PROCESSING);
@@ -89,13 +87,13 @@ impl Response {
 
 #[cfg(test)]
 mod tests {
-    use crate::body::Body;
-    use crate::response::Response;
-    use http::StatusCode;
+    use crate::dev::Body;
+    use crate::http::StatusCode;
+    use crate::HttpResponse;
 
     #[test]
     fn test_build() {
-        let resp = Response::Ok().body(Body::Empty);
+        let resp = HttpResponse::Ok().body(Body::Empty);
         assert_eq!(resp.status(), StatusCode::OK);
     }
 }

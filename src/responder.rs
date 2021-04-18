@@ -1,13 +1,13 @@
-use std::fmt;
+use std::{borrow::Cow, fmt};
 
 use actix_http::{
+    body::Body,
     error::InternalError,
     http::{header::IntoHeaderPair, Error as HttpError, HeaderMap, StatusCode},
-    ResponseBuilder,
 };
 use bytes::{Bytes, BytesMut};
 
-use crate::{Error, HttpRequest, HttpResponse};
+use crate::{Error, HttpRequest, HttpResponse, HttpResponseBuilder};
 
 /// Trait implemented by types that can be converted to an HTTP response.
 ///
@@ -66,11 +66,32 @@ impl Responder for HttpResponse {
     }
 }
 
+impl Responder for actix_http::Response<Body> {
+    #[inline]
+    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
+        HttpResponse::from(self)
+    }
+}
+
+impl Responder for HttpResponseBuilder {
+    #[inline]
+    fn respond_to(mut self, _: &HttpRequest) -> HttpResponse {
+        self.finish()
+    }
+}
+
+impl Responder for actix_http::ResponseBuilder {
+    #[inline]
+    fn respond_to(mut self, _: &HttpRequest) -> HttpResponse {
+        HttpResponse::from(self.finish())
+    }
+}
+
 impl<T: Responder> Responder for Option<T> {
     fn respond_to(self, req: &HttpRequest) -> HttpResponse {
         match self {
-            Some(t) => t.respond_to(req),
-            None => HttpResponse::build(StatusCode::NOT_FOUND).finish(),
+            Some(val) => val.respond_to(req),
+            None => HttpResponse::new(StatusCode::NOT_FOUND),
         }
     }
 }
@@ -88,13 +109,6 @@ where
     }
 }
 
-impl Responder for ResponseBuilder {
-    #[inline]
-    fn respond_to(mut self, _: &HttpRequest) -> HttpResponse {
-        self.finish()
-    }
-}
-
 impl<T: Responder> Responder for (T, StatusCode) {
     fn respond_to(self, req: &HttpRequest) -> HttpResponse {
         let mut res = self.0.respond_to(req);
@@ -103,53 +117,29 @@ impl<T: Responder> Responder for (T, StatusCode) {
     }
 }
 
-impl Responder for &'static str {
-    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
-        HttpResponse::Ok()
-            .content_type(mime::TEXT_PLAIN_UTF_8)
-            .body(self)
-    }
+macro_rules! impl_responder {
+    ($res: ty, $ct: path) => {
+        impl Responder for $res {
+            fn respond_to(self, _: &HttpRequest) -> HttpResponse {
+                HttpResponse::Ok().content_type($ct).body(self)
+            }
+        }
+    };
 }
 
-impl Responder for &'static [u8] {
-    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
-        HttpResponse::Ok()
-            .content_type(mime::APPLICATION_OCTET_STREAM)
-            .body(self)
-    }
-}
+impl_responder!(&'static str, mime::TEXT_PLAIN_UTF_8);
 
-impl Responder for String {
-    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
-        HttpResponse::Ok()
-            .content_type(mime::TEXT_PLAIN_UTF_8)
-            .body(self)
-    }
-}
+impl_responder!(String, mime::TEXT_PLAIN_UTF_8);
 
-impl<'a> Responder for &'a String {
-    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
-        HttpResponse::Ok()
-            .content_type(mime::TEXT_PLAIN_UTF_8)
-            .body(self)
-    }
-}
+impl_responder!(&'_ String, mime::TEXT_PLAIN_UTF_8);
 
-impl Responder for Bytes {
-    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
-        HttpResponse::Ok()
-            .content_type(mime::APPLICATION_OCTET_STREAM)
-            .body(self)
-    }
-}
+impl_responder!(Cow<'_, str>, mime::TEXT_PLAIN_UTF_8);
 
-impl Responder for BytesMut {
-    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
-        HttpResponse::Ok()
-            .content_type(mime::APPLICATION_OCTET_STREAM)
-            .body(self)
-    }
-}
+impl_responder!(&'static [u8], mime::APPLICATION_OCTET_STREAM);
+
+impl_responder!(Bytes, mime::APPLICATION_OCTET_STREAM);
+
+impl_responder!(BytesMut, mime::APPLICATION_OCTET_STREAM);
 
 /// Allows overriding status code and headers for a responder.
 pub struct CustomResponder<T> {
@@ -337,6 +327,31 @@ pub(crate) mod tests {
         );
 
         let resp = (&"test".to_string()).respond_to(&req);
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.body().bin_ref(), b"test");
+        assert_eq!(
+            resp.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("text/plain; charset=utf-8")
+        );
+
+        let s = String::from("test");
+        let resp = Cow::Borrowed(s.as_str()).respond_to(&req);
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.body().bin_ref(), b"test");
+        assert_eq!(
+            resp.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("text/plain; charset=utf-8")
+        );
+
+        let resp = Cow::<'_, str>::Owned(s).respond_to(&req);
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.body().bin_ref(), b"test");
+        assert_eq!(
+            resp.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("text/plain; charset=utf-8")
+        );
+
+        let resp = Cow::Borrowed("test").respond_to(&req);
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().bin_ref(), b"test");
         assert_eq!(

@@ -1,7 +1,7 @@
 use super::{QualityItem, CONTENT_LANGUAGE};
 use language_tags::LanguageTag;
 
-crate::header! {
+crate::__define_common_header! {
     /// `Content-Language` header, defined in
     /// [RFC7231](https://tools.ietf.org/html/rfc7231#section-3.1.3.2)
     ///
@@ -52,7 +52,7 @@ crate::header! {
     (ContentLanguage, CONTENT_LANGUAGE) => (QualityItem<LanguageTag>)+
 
     test_content_language {
-        test_header!(test1, vec![b"da"]);
-        test_header!(test2, vec![b"mi, en"]);
+        crate::__common_header_test!(test1, vec![b"da"]);
+        crate::__common_header_test!(test2, vec![b"mi, en"]);
     }
 }

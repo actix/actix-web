@@ -3,7 +3,7 @@ use std::fmt;
 use std::future::Future;
 use std::rc::Rc;
 
-use actix_http::{Error, Extensions, Response};
+use actix_http::{Error, Extensions};
 use actix_router::IntoPattern;
 use actix_service::boxed::{self, BoxService, BoxServiceFactory};
 use actix_service::{
@@ -13,7 +13,6 @@ use actix_service::{
 use futures_core::future::LocalBoxFuture;
 use futures_util::future::join_all;
 
-use crate::data::Data;
 use crate::dev::{insert_slash, AppService, HttpServiceFactory, ResourceDef};
 use crate::extract::FromRequest;
 use crate::guard::Guard;
@@ -21,6 +20,7 @@ use crate::handler::Handler;
 use crate::responder::Responder;
 use crate::route::{Route, RouteService};
 use crate::service::{ServiceRequest, ServiceResponse};
+use crate::{data::Data, HttpResponse};
 
 type HttpService = BoxService<ServiceRequest, ServiceResponse, Error>;
 type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
@@ -71,7 +71,7 @@ impl Resource {
             guards: Vec::new(),
             app_data: None,
             default: boxed::factory(fn_service(|req: ServiceRequest| async {
-                Ok(req.into_response(Response::MethodNotAllowed().finish()))
+                Ok(req.into_response(HttpResponse::MethodNotAllowed()))
             })),
         }
     }

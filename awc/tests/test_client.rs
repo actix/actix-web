@@ -8,6 +8,7 @@ use std::time::Duration;
 use actix_utils::future::ok;
 use brotli2::write::BrotliEncoder;
 use bytes::Bytes;
+use cookie::Cookie;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
@@ -19,12 +20,12 @@ use actix_http::{
     HttpService,
 };
 use actix_http_test::test_server;
-use actix_service::{map_config, pipeline_factory};
+use actix_service::{fn_service, map_config, ServiceFactoryExt as _};
 use actix_web::{
     dev::{AppConfig, BodyEncoding},
-    http::{header, Cookie},
+    http::header,
     middleware::Compress,
-    web, App, Error, HttpMessage, HttpRequest, HttpResponse,
+    web, App, Error, HttpRequest, HttpResponse,
 };
 use awc::error::{JsonPayloadError, PayloadError, SendRequestError};
 
@@ -238,7 +239,7 @@ async fn test_connection_reuse() {
 
     let srv = test_server(move || {
         let num2 = num2.clone();
-        pipeline_factory(move |io| {
+        fn_service(move |io| {
             num2.fetch_add(1, Ordering::Relaxed);
             ok(io)
         })
@@ -275,7 +276,7 @@ async fn test_connection_force_close() {
 
     let srv = test_server(move || {
         let num2 = num2.clone();
-        pipeline_factory(move |io| {
+        fn_service(move |io| {
             num2.fetch_add(1, Ordering::Relaxed);
             ok(io)
         })
@@ -312,7 +313,7 @@ async fn test_connection_server_close() {
 
     let srv = test_server(move || {
         let num2 = num2.clone();
-        pipeline_factory(move |io| {
+        fn_service(move |io| {
             num2.fetch_add(1, Ordering::Relaxed);
             ok(io)
         })
@@ -352,7 +353,7 @@ async fn test_connection_wait_queue() {
 
     let srv = test_server(move || {
         let num2 = num2.clone();
-        pipeline_factory(move |io| {
+        fn_service(move |io| {
             num2.fetch_add(1, Ordering::Relaxed);
             ok(io)
         })
@@ -400,7 +401,7 @@ async fn test_connection_wait_queue_force_close() {
 
     let srv = test_server(move || {
         let num2 = num2.clone();
-        pipeline_factory(move |io| {
+        fn_service(move |io| {
             num2.fetch_add(1, Ordering::Relaxed);
             ok(io)
         })

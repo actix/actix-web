@@ -3,6 +3,10 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 0.1.0-beta.2 - 2021-04-17
+* * No significant changes from `0.1.0-beta.1`.
+
+
 ## 0.1.0-beta.1 - 2021-04-02
 * Move integration testing structs from `actix-web`. [#2112]
 
