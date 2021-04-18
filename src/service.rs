@@ -99,6 +99,18 @@ impl ServiceRequest {
         }
     }
 
+    /// This method returns reference to the request
+    #[inline]
+    pub fn request(&self) -> &HttpRequest {
+        &self.req
+    }
+
+    /// This method returns reference to the payload
+    #[inline]
+    pub fn payload(&self) -> &Payload {
+        &self.payload
+    }
+
     /// Create service response
     #[inline]
     pub fn into_response<B, R: Into<Response<B>>>(self, res: R) -> ServiceResponse<B> {
