@@ -390,7 +390,7 @@ impl BoxedResponseHead {
         RESPONSE_POOL.with(|p| p.get_message(status))
     }
 
-    pub(crate) fn take(&mut self) -> Self {
+    pub fn take(&mut self) -> Self {
         BoxedResponseHead {
             head: self.head.take(),
         }
