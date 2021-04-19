@@ -1,6 +1,19 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+* Re-export `http` crate's `Error` type as `error::HttpError`. [#2171]
+* Re-export `StatusCode`, `Method`, `Version` and `Uri` at the crate root. [#2171]
+* Re-export `ContentEncoding` and `ConnectionType` at the crate root. [#2171]
+
+### Changed
+* `header` mod is now public. [#2171]
+* `uri` mod is now public. [#2171]
+
+### Removed
+* Stop re-exporting `http` crate's `HeaderMap` types in addition to ours. [#2171]
+
+[#2171]: https://github.com/actix/actix-web/pull/2171
 
 
 ## 3.0.0-beta.6 - 2021-04-17

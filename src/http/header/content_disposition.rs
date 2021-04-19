@@ -553,7 +553,7 @@ impl fmt::Display for ContentDisposition {
 mod tests {
     use super::{ContentDisposition, DispositionParam, DispositionType};
     use crate::http::header::{Charset, ExtendedValue, HeaderValue};
-    
+
     #[test]
     fn test_from_raw_basic() {
         assert!(ContentDisposition::from_raw(&HeaderValue::from_static("")).is_err());

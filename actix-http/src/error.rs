@@ -10,11 +10,12 @@ use std::{
 
 use bytes::BytesMut;
 use derive_more::{Display, Error, From};
-use http::uri::InvalidUri;
-use http::{header, Error as HttpError, StatusCode};
+use http::{header, uri::InvalidUri, StatusCode};
 use serde::de::value::Error as DeError;
 
 use crate::{body::Body, helpers::Writer, Response, ResponseBuilder};
+
+pub use http::Error as HttpError;
 
 /// A specialized [`std::result::Result`]
 /// for actix web operations
