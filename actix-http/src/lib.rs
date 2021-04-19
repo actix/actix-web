@@ -56,21 +56,20 @@ pub use self::builder::HttpServiceBuilder;
 pub use self::config::{KeepAlive, ServiceConfig};
 pub use self::error::{Error, ResponseError, Result};
 pub use self::extensions::Extensions;
+pub use self::header::ContentEncoding;
 pub use self::http_message::HttpMessage;
+pub use self::message::ConnectionType;
 pub use self::message::{Message, RequestHead, RequestHeadType, ResponseHead};
 pub use self::payload::{Payload, PayloadStream};
 pub use self::request::Request;
 pub use self::response::Response;
 pub use self::response_builder::ResponseBuilder;
 pub use self::service::HttpService;
-pub use self::header::ContentEncoding;
-pub use self::message::ConnectionType;
 
-pub use ::http::{StatusCode, Version, Method};
 pub use ::http::{uri, uri::Uri};
+pub use ::http::{Method, StatusCode, Version};
 
-// deprecate this mish-mash of random items
-#[deprecated = "Everything in this module is available elsewhere."]
+// TODO: deprecate this mish-mash of random items
 pub mod http {
     //! Various HTTP related types.
 

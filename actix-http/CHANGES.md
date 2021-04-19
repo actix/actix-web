@@ -4,6 +4,7 @@
 ### Added
 * Re-export `http` crate's `Error` type as `error::HttpError`. [#2171]
 * Re-export `StatusCode`, `Method`, `Version` and `Uri` at the crate root. [#2171]
+* Re-export `ContentEncoding` and `ConnectionType` at the crate root. [#2171]
 
 ### Changed
 * `header` mod is now public. [#2171]

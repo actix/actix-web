@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use actix_http::HttpService;
 use actix_http_test::test_server;
-use actix_service::{map_config, fn_service, ServiceFactoryExt};
+use actix_service::{fn_service, map_config, ServiceFactoryExt};
 use actix_utils::future::ok;
 use actix_web::http::Version;
 use actix_web::{dev::AppConfig, web, App, HttpResponse};

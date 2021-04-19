@@ -289,7 +289,7 @@ impl ResponseBuilder {
             return None;
         }
 
-        self.head.as_mut().map(|r| &mut **r)
+        self.head.as_deref_mut()
     }
 }
 
