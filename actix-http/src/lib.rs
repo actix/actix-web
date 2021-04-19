@@ -34,7 +34,10 @@ pub mod client;
 mod config;
 #[cfg(feature = "compress")]
 pub mod encoding;
+pub mod error;
 mod extensions;
+pub mod h1;
+pub mod h2;
 pub mod header;
 mod helpers;
 mod http_message;
@@ -44,12 +47,8 @@ mod request;
 mod response;
 mod response_builder;
 mod service;
-mod time_parser;
-
-pub mod error;
-pub mod h1;
-pub mod h2;
 pub mod test;
+mod time_parser;
 pub mod ws;
 
 pub use self::builder::HttpServiceBuilder;

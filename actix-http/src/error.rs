@@ -111,7 +111,7 @@ impl From<std::convert::Infallible> for Error {
     }
 }
 
-/// Convert `Error` to a `Response` instance
+/// Convert `Error` to a `Response` instance.
 impl From<Error> for Response<Body> {
     fn from(err: Error) -> Self {
         Response::from_error(err)

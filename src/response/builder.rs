@@ -328,6 +328,7 @@ impl HttpResponseBuilder {
             .expect("cannot reuse response builder")
             .set_body(body);
 
+        // allow unused mut when cookies feature is disabled
         #[allow(unused_mut)]
         let mut res = HttpResponse::from(res);
 

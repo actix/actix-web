@@ -17,19 +17,22 @@ use futures_core::ready;
 use log::{error, trace};
 use pin_project::pin_project;
 
-use crate::body::{Body, BodySize, MessageBody, ResponseBody};
-use crate::config::ServiceConfig;
-use crate::error::{DispatchError, Error};
-use crate::error::{ParseError, PayloadError};
-use crate::http::StatusCode;
-use crate::request::Request;
-use crate::response::Response;
-use crate::service::HttpFlow;
-use crate::OnConnectData;
+use crate::{
+    body::{Body, BodySize, MessageBody, ResponseBody},
+    config::ServiceConfig,
+    error::{DispatchError, ParseError, PayloadError},
+    http::StatusCode,
+    request::Request,
+    response::Response,
+    service::HttpFlow,
+    OnConnectData,
+};
 
-use super::codec::Codec;
-use super::payload::{Payload, PayloadSender, PayloadStatus};
-use super::{Message, MessageType};
+use super::{
+    codec::Codec,
+    payload::{Payload, PayloadSender, PayloadStatus},
+    Message, MessageType,
+};
 
 const LW_BUFFER_SIZE: usize = 1024;
 const HW_BUFFER_SIZE: usize = 1024 * 8;
@@ -50,10 +53,10 @@ bitflags! {
 pub struct Dispatcher<T, S, B, X, U>
 where
     S: Service<Request>,
-    S::Error: Into<Error>,
+    S::Error: Into<Response<Body>>,
     B: MessageBody,
     X: Service<Request, Response = Request>,
-    X::Error: Into<Error>,
+    X::Error: Into<Response<Body>>,
     U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
@@ -68,10 +71,10 @@ where
 enum DispatcherState<T, S, B, X, U>
 where
     S: Service<Request>,
-    S::Error: Into<Error>,
+    S::Error: Into<Response<Body>>,
     B: MessageBody,
     X: Service<Request, Response = Request>,
-    X::Error: Into<Error>,
+    X::Error: Into<Response<Body>>,
     U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
@@ -83,10 +86,10 @@ where
 struct InnerDispatcher<T, S, B, X, U>
 where
     S: Service<Request>,
-    S::Error: Into<Error>,
+    S::Error: Into<Response<Body>>,
     B: MessageBody,
     X: Service<Request, Response = Request>,
-    X::Error: Into<Error>,
+    X::Error: Into<Response<Body>>,
     U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
@@ -151,11 +154,11 @@ impl<T, S, B, X, U> Dispatcher<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
     S: Service<Request>,
-    S::Error: Into<Error>,
+    S::Error: Into<Response<Body>>,
     S::Response: Into<Response<B>>,
     B: MessageBody,
     X: Service<Request, Response = Request>,
-    X::Error: Into<Error>,
+    X::Error: Into<Response<Body>>,
     U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
@@ -207,11 +210,11 @@ impl<T, S, B, X, U> InnerDispatcher<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
     S: Service<Request>,
-    S::Error: Into<Error>,
+    S::Error: Into<Response<Body>>,
     S::Response: Into<Response<B>>,
     B: MessageBody,
     X: Service<Request, Response = Request>,
-    X::Error: Into<Error>,
+    X::Error: Into<Response<Body>>,
     U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
@@ -347,7 +350,7 @@ where
 
                     // send service call error as response
                     Poll::Ready(Err(err)) => {
-                        let res = Response::from_error(err.into());
+                        let res: Response<Body> = err.into();
                         let (res, body) = res.replace_body(());
                         self.as_mut().send_response(res, body.into_body())?;
                     }
@@ -408,7 +411,7 @@ where
                     }
                     // send expect error as response
                     Poll::Ready(Err(err)) => {
-                        let res = Response::from_error(err.into());
+                        let res: Response<Body> = err.into();
                         let (res, body) = res.replace_body(());
                         self.as_mut().send_response(res, body.into_body())?;
                     }
@@ -457,7 +460,7 @@ where
                         // to notify the dispatcher a new state is set and the outer loop
                         // should be continue.
                         Poll::Ready(Err(err)) => {
-                            let res = Response::from_error(err.into());
+                            let res: Response<Body> = err.into();
                             let (res, body) = res.replace_body(());
                             return self.send_response(res, body.into_body());
                         }
@@ -477,7 +480,7 @@ where
                         Poll::Pending => Ok(()),
                         // see the comment on ExpectCall state branch's Ready(Err(err)).
                         Poll::Ready(Err(err)) => {
-                            let res = Response::from_error(err.into());
+                            let res: Response<Body> = err.into();
                             let (res, body) = res.replace_body(());
                             self.send_response(res, body.into_body())
                         }
@@ -818,11 +821,11 @@ impl<T, S, B, X, U> Future for Dispatcher<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
     S: Service<Request>,
-    S::Error: Into<Error>,
+    S::Error: Into<Response<Body>>,
     S::Response: Into<Response<B>>,
     B: MessageBody,
     X: Service<Request, Response = Request>,
-    X::Error: Into<Error>,
+    X::Error: Into<Response<Body>>,
     U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {

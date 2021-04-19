@@ -1,8 +1,11 @@
-use std::future::Future;
-use std::marker::PhantomData;
-use std::pin::Pin;
-use std::task::{Context, Poll};
-use std::{net, rc::Rc};
+use std::{
+    future::Future,
+    marker::PhantomData,
+    net,
+    pin::Pin,
+    rc::Rc,
+    task::{Context, Poll},
+};
 
 use actix_codec::{AsyncRead, AsyncWrite};
 use actix_rt::net::TcpStream;
@@ -16,13 +19,15 @@ use futures_core::{future::LocalBoxFuture, ready};
 use h2::server::{handshake, Handshake};
 use log::error;
 
-use crate::body::MessageBody;
-use crate::config::ServiceConfig;
-use crate::error::{DispatchError, Error};
-use crate::request::Request;
-use crate::response::Response;
-use crate::service::HttpFlow;
-use crate::{ConnectCallback, OnConnectData};
+use crate::{
+    body::{Body, MessageBody},
+    config::ServiceConfig,
+    error::DispatchError,
+    request::Request,
+    response::Response,
+    service::HttpFlow,
+    ConnectCallback, Error, OnConnectData,
+};
 
 use super::dispatcher::Dispatcher;
 
@@ -37,7 +42,7 @@ pub struct H2Service<T, S, B> {
 impl<T, S, B> H2Service<T, S, B>
 where
     S: ServiceFactory<Request, Config = ()>,
-    S::Error: Into<Error> + 'static,
+    S::Error: Into<Response<Body>> + 'static,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
     B: MessageBody + 'static,
@@ -66,7 +71,7 @@ impl<S, B> H2Service<TcpStream, S, B>
 where
     S: ServiceFactory<Request, Config = ()>,
     S::Future: 'static,
-    S::Error: Into<Error> + 'static,
+    S::Error: Into<Response<Body>> + 'static,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
     B: MessageBody + 'static,
@@ -103,7 +108,7 @@ mod openssl {
     where
         S: ServiceFactory<Request, Config = ()>,
         S::Future: 'static,
-        S::Error: Into<Error> + 'static,
+        S::Error: Into<Response<Body>> + 'static,
         S::Response: Into<Response<B>> + 'static,
         <S::Service as Service<Request>>::Future: 'static,
         B: MessageBody + 'static,
@@ -147,7 +152,7 @@ mod rustls {
     where
         S: ServiceFactory<Request, Config = ()>,
         S::Future: 'static,
-        S::Error: Into<Error> + 'static,
+        S::Error: Into<Response<Body>> + 'static,
         S::Response: Into<Response<B>> + 'static,
         <S::Service as Service<Request>>::Future: 'static,
         B: MessageBody + 'static,
@@ -187,7 +192,7 @@ where
     T: AsyncRead + AsyncWrite + Unpin + 'static,
     S: ServiceFactory<Request, Config = ()>,
     S::Future: 'static,
-    S::Error: Into<Error> + 'static,
+    S::Error: Into<Response<Body>> + 'static,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
     B: MessageBody + 'static,
@@ -225,7 +230,7 @@ where
 impl<T, S, B> H2ServiceHandler<T, S, B>
 where
     S: Service<Request>,
-    S::Error: Into<Error> + 'static,
+    S::Error: Into<Response<Body>> + 'static,
     S::Future: 'static,
     S::Response: Into<Response<B>> + 'static,
     B: MessageBody + 'static,
@@ -248,7 +253,7 @@ impl<T, S, B> Service<(T, Option<net::SocketAddr>)> for H2ServiceHandler<T, S, B
 where
     T: AsyncRead + AsyncWrite + Unpin,
     S: Service<Request>,
-    S::Error: Into<Error> + 'static,
+    S::Error: Into<Response<Body>> + 'static,
     S::Future: 'static,
     S::Response: Into<Response<B>> + 'static,
     B: MessageBody + 'static,
@@ -258,10 +263,10 @@ where
     type Future = H2ServiceHandlerResponse<T, S, B>;
 
     fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.flow.service.poll_ready(cx).map_err(|e| {
-            let e = e.into();
-            error!("Service readiness error: {:?}", e);
-            DispatchError::Service(e)
+        self.flow.service.poll_ready(cx).map_err(|err| {
+            let e = Error::from(err.into());
+            error!("HTTP/2 service readiness error: {:?}", e);
+            DispatchError::InternalError
         })
     }
 
@@ -300,7 +305,7 @@ pub struct H2ServiceHandlerResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite + Unpin,
     S: Service<Request>,
-    S::Error: Into<Error> + 'static,
+    S::Error: Into<Response<Body>> + 'static,
     S::Future: 'static,
     S::Response: Into<Response<B>> + 'static,
     B: MessageBody + 'static,
@@ -312,7 +317,7 @@ impl<T, S, B> Future for H2ServiceHandlerResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite + Unpin,
     S: Service<Request>,
-    S::Error: Into<Error> + 'static,
+    S::Error: Into<Response<Body>> + 'static,
     S::Future: 'static,
     S::Response: Into<Response<B>> + 'static,
     B: MessageBody,
