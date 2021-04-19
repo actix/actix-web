@@ -401,11 +401,11 @@ impl ContentDisposition {
     }
 
     /// Returns `true` if it is [`Ext`](DispositionType::Ext) and the `disp_type` matches.
-    pub fn is_ext<T: AsRef<str>>(&self, disp_type: T) -> bool {
-        match self.disposition {
-            DispositionType::Ext(ref t) if t.eq_ignore_ascii_case(disp_type.as_ref()) => true,
-            _ => false,
-        }
+    pub fn is_ext(&self, disp_type: impl AsRef<str>) -> bool {
+        matches!(
+            self.disposition,
+            DispositionType::Ext(ref t) if t.eq_ignore_ascii_case(disp_type.as_ref())
+        )
     }
 
     /// Return the value of *name* if exists.
@@ -430,7 +430,7 @@ impl ContentDisposition {
     }
 
     /// Return the value of the parameter which the `name` matches.
-    pub fn get_unknown<T: AsRef<str>>(&self, name: T) -> Option<&str> {
+    pub fn get_unknown(&self, name: impl AsRef<str>) -> Option<&str> {
         let name = name.as_ref();
         self.parameters
             .iter()
@@ -439,7 +439,7 @@ impl ContentDisposition {
     }
 
     /// Return the value of the extended parameter which the `name` matches.
-    pub fn get_unknown_ext<T: AsRef<str>>(&self, name: T) -> Option<&ExtendedValue> {
+    pub fn get_unknown_ext(&self, name: impl AsRef<str>) -> Option<&ExtendedValue> {
         let name = name.as_ref();
         self.parameters
             .iter()
@@ -552,9 +552,8 @@ impl fmt::Display for ContentDisposition {
 #[cfg(test)]
 mod tests {
     use super::{ContentDisposition, DispositionParam, DispositionType};
-    use crate::http::header::Charset;
-    use crate::http::header::{ExtendedValue, HeaderValue};
-
+    use crate::http::header::{Charset, ExtendedValue, HeaderValue};
+    
     #[test]
     fn test_from_raw_basic() {
         assert!(ContentDisposition::from_raw(&HeaderValue::from_static("")).is_err());
