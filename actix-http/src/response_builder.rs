@@ -14,12 +14,10 @@ use futures_core::Stream;
 
 use crate::{
     body::{Body, BodyStream, ResponseBody},
-    error::Error,
-    extensions::Extensions,
-    header::{IntoHeaderPair, IntoHeaderValue},
-    http::{header, Error as HttpError, StatusCode},
+    error::{Error, HttpError},
+    header::{self, IntoHeaderPair, IntoHeaderValue},
     message::{BoxedResponseHead, ConnectionType, ResponseHead},
-    Response,
+    Extensions, Response, StatusCode,
 };
 
 /// An HTTP response builder.

@@ -35,7 +35,7 @@ mod config;
 #[cfg(feature = "compress")]
 pub mod encoding;
 mod extensions;
-mod header;
+pub mod header;
 mod helpers;
 mod http_message;
 mod message;
@@ -63,7 +63,14 @@ pub use self::request::Request;
 pub use self::response::Response;
 pub use self::response_builder::ResponseBuilder;
 pub use self::service::HttpService;
+pub use self::header::ContentEncoding;
+pub use self::message::ConnectionType;
 
+pub use ::http::{StatusCode, Version, Method};
+pub use ::http::{uri, uri::Uri};
+
+// deprecate this mish-mash of random items
+#[deprecated = "Everything in this module is available elsewhere."]
 pub mod http {
     //! Various HTTP related types.
 
