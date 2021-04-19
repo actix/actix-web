@@ -1,6 +1,6 @@
 use std::{env, io};
 
-use actix_http::{http::StatusCode, HttpService, Response};
+use actix_http::{http::StatusCode, Error, HttpService, Response};
 use actix_server::Server;
 use actix_utils::future;
 use http::header::HeaderValue;
@@ -23,7 +23,7 @@ async fn main() -> io::Result<()> {
                         "x-head",
                         HeaderValue::from_static("dummy value!"),
                     ));
-                    future::ok::<_, ()>(res.body("Hello world!"))
+                    future::ok::<_, Error>(res.body("Hello world!"))
                 })
                 .tcp()
         })?

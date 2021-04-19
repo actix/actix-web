@@ -36,13 +36,14 @@ use std::{fmt, net, sync::mpsc, thread, time};
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 pub use actix_http::test::TestBuffer;
 use actix_http::{
+    body::Body,
     http::{HeaderMap, Method},
     ws, HttpService, Request, Response,
 };
 use actix_service::{map_config, IntoServiceFactory, ServiceFactory};
 use actix_web::{
     dev::{AppConfig, MessageBody, Server, Service},
-    rt, web, Error,
+    rt, web,
 };
 use awc::{error::PayloadError, Client, ClientRequest, ClientResponse, Connector};
 use futures_core::Stream;
@@ -81,7 +82,7 @@ where
     F: Fn() -> I + Send + Clone + 'static,
     I: IntoServiceFactory<S, Request>,
     S: ServiceFactory<Request, Config = AppConfig> + 'static,
-    S::Error: Into<Error> + 'static,
+    S::Error: Into<Response<Body>> + 'static,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
@@ -120,7 +121,7 @@ where
     F: Fn() -> I + Send + Clone + 'static,
     I: IntoServiceFactory<S, Request>,
     S: ServiceFactory<Request, Config = AppConfig> + 'static,
-    S::Error: Into<Error> + 'static,
+    S::Error: Into<Response<Body>> + 'static,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,

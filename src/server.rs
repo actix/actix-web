@@ -7,7 +7,8 @@ use std::{
 };
 
 use actix_http::{
-    body::MessageBody, Error, Extensions, HttpService, KeepAlive, Request, Response,
+    body::{Body, MessageBody},
+    Extensions, HttpService, KeepAlive, Request, Response,
 };
 use actix_server::{Server, ServerBuilder};
 use actix_service::{map_config, IntoServiceFactory, Service, ServiceFactory};
@@ -53,7 +54,7 @@ where
     F: Fn() -> I + Send + Clone + 'static,
     I: IntoServiceFactory<S, Request>,
     S: ServiceFactory<Request, Config = AppConfig>,
-    S::Error: Into<Error>,
+    S::Error: Into<Response<Body>>,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody,
@@ -74,7 +75,7 @@ where
 
     S: ServiceFactory<Request, Config = AppConfig> + 'static,
     // S::Future: 'static,
-    S::Error: Into<Error> + 'static,
+    S::Error: Into<Response<Body>> + 'static,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
@@ -574,7 +575,7 @@ where
     F: Fn() -> I + Send + Clone + 'static,
     I: IntoServiceFactory<S, Request>,
     S: ServiceFactory<Request, Config = AppConfig>,
-    S::Error: Into<Error>,
+    S::Error: Into<Response<Body>>,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
     S::Service: 'static,
