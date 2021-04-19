@@ -135,7 +135,7 @@ async fn test_h2_content_length() {
                     StatusCode::OK,
                     StatusCode::NOT_FOUND,
                 ];
-                ok::<_, ()>(Response::new(statuses[idx]))
+                ok::<_, Error>(Response::new(statuses[idx]))
             })
             .openssl(tls_config())
             .map_err(|_| ())
@@ -205,7 +205,7 @@ async fn test_h2_headers() {
                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST ",
                 ));
             }
-            ok::<_, ()>(builder.body(data.clone()))
+            ok::<_, Error>(builder.body(data.clone()))
         })
             .openssl(tls_config())
                     .map_err(|_| ())
@@ -245,7 +245,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 async fn test_h2_body2() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|_| ok::<_, ()>(Response::ok().set_body(STR)))
+            .h2(|_| ok::<_, Error>(Response::ok().set_body(STR)))
             .openssl(tls_config())
             .map_err(|_| ())
     })
@@ -263,7 +263,7 @@ async fn test_h2_body2() {
 async fn test_h2_head_empty() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .finish(|_| ok::<_, ()>(Response::ok().set_body(STR)))
+            .finish(|_| ok::<_, Error>(Response::ok().set_body(STR)))
             .openssl(tls_config())
             .map_err(|_| ())
     })
@@ -287,7 +287,7 @@ async fn test_h2_head_empty() {
 async fn test_h2_head_binary() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|_| ok::<_, ()>(Response::ok().set_body(STR)))
+            .h2(|_| ok::<_, Error>(Response::ok().set_body(STR)))
             .openssl(tls_config())
             .map_err(|_| ())
     })
@@ -310,7 +310,7 @@ async fn test_h2_head_binary() {
 async fn test_h2_head_binary2() {
     let srv = test_server(move || {
         HttpService::build()
-            .h2(|_| ok::<_, ()>(Response::ok().set_body(STR)))
+            .h2(|_| ok::<_, Error>(Response::ok().set_body(STR)))
             .openssl(tls_config())
             .map_err(|_| ())
     })
@@ -331,7 +331,7 @@ async fn test_h2_body_length() {
         HttpService::build()
             .h2(|_| {
                 let body = once(ok(Bytes::from_static(STR.as_ref())));
-                ok::<_, ()>(
+                ok::<_, Error>(
                     Response::ok().set_body(SizedStream::new(STR.len() as u64, body)),
                 )
             })
@@ -354,7 +354,7 @@ async fn test_h2_body_chunked_explicit() {
         HttpService::build()
             .h2(|_| {
                 let body = once(ok::<_, Error>(Bytes::from_static(STR.as_ref())));
-                ok::<_, ()>(
+                ok::<_, Error>(
                     Response::build(StatusCode::OK)
                         .insert_header((header::TRANSFER_ENCODING, "chunked"))
                         .streaming(body),
@@ -382,7 +382,7 @@ async fn test_h2_response_http_error_handling() {
         HttpService::build()
             .h2(fn_service(|_| {
                 let broken_header = Bytes::from_static(b"\0\0\0");
-                ok::<_, ()>(
+                ok::<_, Error>(
                     Response::build(StatusCode::OK)
                         .insert_header((header::CONTENT_TYPE, broken_header))
                         .body(STR),
@@ -428,7 +428,7 @@ async fn test_h2_on_connect() {
             })
             .h2(|req: Request| {
                 assert!(req.extensions().contains::<isize>());
-                ok::<_, ()>(Response::ok())
+                ok::<_, Error>(Response::ok())
             })
             .openssl(tls_config())
             .map_err(|_| ())
