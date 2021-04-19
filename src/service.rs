@@ -9,6 +9,7 @@ use actix_http::{
 };
 use actix_router::{IntoPattern, Path, Resource, ResourceDef, Url};
 use actix_service::{IntoServiceFactory, ServiceFactory};
+#[cfg(feature = "cookies")]
 use cookie::{Cookie, ParseError as CookieParseError};
 
 use crate::dev::insert_slash;
