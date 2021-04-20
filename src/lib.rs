@@ -100,6 +100,7 @@ pub use actix_http::Response as BaseHttpResponse;
 pub use actix_http::{body, Error, HttpMessage, ResponseError, Result};
 #[doc(inline)]
 pub use actix_rt as rt;
+pub use actix_rt::main;
 pub use actix_web_codegen::*;
 #[cfg(feature = "cookies")]
 pub use cookie;

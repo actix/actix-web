@@ -7,16 +7,6 @@
 //! explicit imports. Check the latest [actix-web attributes docs] to see which macros
 //! are re-exported.
 //!
-//! # Runtime Setup
-//! Used for setting up the actix async runtime. See [macro@main] macro docs.
-//!
-//! ```
-//! #[actix_web_codegen::main] // or `#[actix_web::main]` in Actix Web apps
-//! async fn main() {
-//!     async { println!("Hello world"); }.await
-//! }
-//! ```
-//!
 //! # Single Method Handler
 //! There is a macro to set up a handler for each of the most common HTTP methods that also define
 //! additional guards and route-specific middleware.
@@ -154,44 +144,4 @@ method_macro! {
     Options,   options,
     Trace,     trace,
     Patch,     patch,
-}
-
-/// Marks async main function as the actix system entry-point.
-///
-/// # Actix Web Re-export
-/// This macro can be applied with `#[actix_web::main]` when used in Actix Web applications.
-///
-/// # Examples
-/// ```
-/// #[actix_web_codegen::main]
-/// async fn main() {
-///     async { println!("Hello world"); }.await
-/// }
-/// ```
-#[proc_macro_attribute]
-pub fn main(_: TokenStream, item: TokenStream) -> TokenStream {
-    use quote::quote;
-
-    let mut input = syn::parse_macro_input!(item as syn::ItemFn);
-    let attrs = &input.attrs;
-    let vis = &input.vis;
-    let sig = &mut input.sig;
-    let body = &input.block;
-
-    if sig.asyncness.is_none() {
-        return syn::Error::new_spanned(sig.fn_token, "only async fn is supported")
-            .to_compile_error()
-            .into();
-    }
-
-    sig.asyncness = None;
-
-    (quote! {
-        #(#attrs)*
-        #vis #sig {
-            actix_web::rt::System::new()
-                .block_on(async move { #body })
-        }
-    })
-    .into()
 }
