@@ -160,10 +160,10 @@ impl<B: MessageBody<Error = Error>> MessageBody for Encoder<B> {
                 }
             }
 
-            let result = ready!(this.body.as_mut().poll_next(cx).map_err(Into::into));
+            let result = ready!(this.body.as_mut().poll_next(cx));
 
             match result {
-                Some(Err(err)) => return Poll::Ready(Some(Err(err))),
+                Some(Err(err)) => return Poll::Ready(Some(Err(err.into()))),
 
                 Some(Ok(chunk)) => {
                     if let Some(mut encoder) = this.encoder.take() {
