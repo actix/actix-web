@@ -7,7 +7,7 @@ use std::{
 };
 
 use bytes::{Bytes, BytesMut};
-use futures_core::Stream;
+use futures_core::{ready, Stream};
 
 use crate::error::Error;
 
@@ -72,7 +72,11 @@ impl MessageBody for Body {
                     Poll::Ready(Some(Ok(mem::take(bin))))
                 }
             }
-            Body::Message(body) => body.as_mut().poll_next(cx).map_err(Into::into),
+            Body::Message(body) => match ready!(body.as_mut().poll_next(cx)) {
+                Some(Err(err)) => Poll::Ready(Some(Err(err.into()))),
+                Some(Ok(val)) => Poll::Ready(Some(Ok(val))),
+                None => Poll::Ready(None),
+            },
         }
     }
 }
@@ -212,6 +216,10 @@ impl MessageBody for BoxAnyBody {
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
-        self.0.as_mut().poll_next(cx).map_err(Into::into)
+        match ready!(self.0.as_mut().poll_next(cx)) {
+            Some(Err(err)) => Poll::Ready(Some(Err(err.into()))),
+            Some(Ok(val)) => Poll::Ready(Some(Ok(val))),
+            None => Poll::Ready(None),
+        }
     }
 }

@@ -7,6 +7,7 @@ use std::{
 };
 
 use bytes::{Bytes, BytesMut};
+use futures_core::ready;
 use pin_project_lite::pin_project;
 
 use crate::error::Error;
@@ -212,9 +213,14 @@ where
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         let this = self.as_mut().project();
 
-        this.body.poll_next(cx).map_err(|err| {
-            let f = self.as_mut().project().mapper.take().unwrap();
-            (f)(err)
-        })
+        match ready!(this.body.poll_next(cx)) {
+            Some(Err(err)) => {
+                let f = self.as_mut().project().mapper.take().unwrap();
+                let mapped_err = (f)(err);
+                Poll::Ready(Some(Err(mapped_err)))
+            }
+            Some(Ok(val)) => Poll::Ready(Some(Ok(val))),
+            None => Poll::Ready(None),
+        }
     }
 }
