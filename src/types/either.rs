@@ -232,14 +232,16 @@ where
     },
 }
 
-impl<RF, RT, RE, LF, LT, LE, L, R> Future for EitherExtractFut<L, R>
+impl<R, RF, RE, L, LF, LE> Future for EitherExtractFut<L, R>
 where
     L: FromRequest<Future = LF, Error = LE>,
     R: FromRequest<Future = RF, Error = RE>,
-    LF: Future<Output = Result<LT, LE>> + 'static,
-    RF: Future<Output = Result<RT, RE>> + 'static,
+    LF: Future<Output = Result<L, LE>> + 'static,
+    RF: Future<Output = Result<R, RE>> + 'static,
+    LE: Into<Error>,
+    RE: Into<Error>,
 {
-    type Output = Result<Either<LT, RT>, EitherExtractError<LE, RE>>;
+    type Output = Result<Either<L, R>, EitherExtractError<LE, RE>>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut this = self.project();
