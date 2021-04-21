@@ -40,7 +40,9 @@ where
     S::Error: Into<Error> + 'static,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
+
     B: MessageBody + 'static,
+    B: MessageBody<Error = Error>,
 {
     /// Create new `H2Service` instance with config.
     pub(crate) fn with_config<F: IntoServiceFactory<S, Request>>(
@@ -69,7 +71,9 @@ where
     S::Error: Into<Error> + 'static,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
+
     B: MessageBody + 'static,
+    B: MessageBody<Error = Error>,
 {
     /// Create plain TCP based service
     pub fn tcp(
@@ -106,7 +110,9 @@ mod openssl {
         S::Error: Into<Error> + 'static,
         S::Response: Into<Response<B>> + 'static,
         <S::Service as Service<Request>>::Future: 'static,
+
         B: MessageBody + 'static,
+        B: MessageBody<Error = Error>,
     {
         /// Create OpenSSL based service
         pub fn openssl(
@@ -150,7 +156,9 @@ mod rustls {
         S::Error: Into<Error> + 'static,
         S::Response: Into<Response<B>> + 'static,
         <S::Service as Service<Request>>::Future: 'static,
+
         B: MessageBody + 'static,
+        B: MessageBody<Error = Error>,
     {
         /// Create Rustls based service
         pub fn rustls(
@@ -185,12 +193,15 @@ mod rustls {
 impl<T, S, B> ServiceFactory<(T, Option<net::SocketAddr>)> for H2Service<T, S, B>
 where
     T: AsyncRead + AsyncWrite + Unpin + 'static,
+
     S: ServiceFactory<Request, Config = ()>,
     S::Future: 'static,
     S::Error: Into<Error> + 'static,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
+
     B: MessageBody + 'static,
+    B: MessageBody<Error = Error>,
 {
     type Response = ();
     type Error = DispatchError;
@@ -252,6 +263,7 @@ where
     S::Future: 'static,
     S::Response: Into<Response<B>> + 'static,
     B: MessageBody + 'static,
+    B: MessageBody<Error = Error>,
 {
     type Response = ();
     type Error = DispatchError;
@@ -315,7 +327,7 @@ where
     S::Error: Into<Error> + 'static,
     S::Future: 'static,
     S::Response: Into<Response<B>> + 'static,
-    B: MessageBody,
+    B: MessageBody<Error = Error>,
 {
     type Output = Result<(), DispatchError>;
 

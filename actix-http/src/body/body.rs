@@ -1,5 +1,6 @@
 use std::{
     borrow::Cow,
+    error::Error as StdError,
     fmt, mem,
     pin::Pin,
     task::{Context, Poll},
@@ -10,7 +11,7 @@ use futures_core::Stream;
 
 use crate::error::Error;
 
-use super::{BodySize, BodyStream, MessageBody, SizedStream};
+use super::{BodySize, BodyStream, MessageBody, MessageBodyMapErr, SizedStream};
 
 /// Represents various types of HTTP message body.
 // #[deprecated(since = "4.0.0", note = "Use body types directly.")]
@@ -25,7 +26,7 @@ pub enum Body {
     Bytes(Bytes),
 
     /// Generic message body.
-    Message(Pin<Box<dyn MessageBody>>),
+    Message(BoxAnyBody),
 }
 
 impl Body {
@@ -35,12 +36,18 @@ impl Body {
     }
 
     /// Create body from generic message body.
-    pub fn from_message<B: MessageBody + 'static>(body: B) -> Body {
-        Body::Message(Box::pin(body))
+    pub fn from_message<B>(body: B) -> Body
+    where
+        B: MessageBody + 'static,
+        B::Error: Into<Box<dyn StdError + 'static>>,
+    {
+        Self::Message(BoxAnyBody::from_body(body))
     }
 }
 
 impl MessageBody for Body {
+    type Error = Error;
+
     fn size(&self) -> BodySize {
         match self {
             Body::None => BodySize::None,
@@ -65,7 +72,7 @@ impl MessageBody for Body {
                     Poll::Ready(Some(Ok(mem::take(bin))))
                 }
             }
-            Body::Message(body) => body.as_mut().poll_next(cx),
+            Body::Message(body) => body.as_mut().poll_next(cx).map_err(Into::into),
         }
     }
 }
@@ -164,5 +171,47 @@ where
 {
     fn from(s: BodyStream<S>) -> Body {
         Body::from_message(s)
+    }
+}
+
+/// A boxed message body with boxed errors.
+pub struct BoxAnyBody(Pin<Box<dyn MessageBody<Error = Box<dyn StdError + 'static>>>>);
+
+impl BoxAnyBody {
+    pub fn from_body<B>(body: B) -> Self
+    where
+        B: MessageBody + 'static,
+        B::Error: Into<Box<dyn StdError + 'static>>,
+    {
+        let body = MessageBodyMapErr::new(body, Into::into);
+        Self(Box::pin(body))
+    }
+
+    /// Returns a mutable pinned reference to the inner message body type.
+    pub fn as_mut(
+        &mut self,
+    ) -> Pin<&mut (dyn MessageBody<Error = Box<dyn StdError + 'static>>)> {
+        self.0.as_mut()
+    }
+}
+
+impl fmt::Debug for BoxAnyBody {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("BoxAnyBody(dyn MessageBody)")
+    }
+}
+
+impl MessageBody for BoxAnyBody {
+    type Error = Error;
+
+    fn size(&self) -> BodySize {
+        self.0.size()
+    }
+
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Bytes, Self::Error>>> {
+        self.0.as_mut().poll_next(cx).map_err(Into::into)
     }
 }

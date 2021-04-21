@@ -11,7 +11,6 @@ use bytes::{Bytes, BytesMut};
 use futures_core::{ready, Stream};
 use futures_util::SinkExt as _;
 
-use crate::error::PayloadError;
 use crate::h1;
 use crate::http::{
     header::{HeaderMap, IntoHeaderValue, EXPECT, HOST},
@@ -19,6 +18,7 @@ use crate::http::{
 };
 use crate::message::{RequestHeadType, ResponseHead};
 use crate::payload::Payload;
+use crate::{error::PayloadError, Error};
 
 use super::connection::{ConnectionIo, H1Connection};
 use super::error::{ConnectError, SendRequestError};
@@ -31,7 +31,7 @@ pub(crate) async fn send_request<Io, B>(
 ) -> Result<(ResponseHead, Payload), SendRequestError>
 where
     Io: ConnectionIo,
-    B: MessageBody,
+    B: MessageBody<Error = Error>,
 {
     // set request host header
     if !head.as_ref().headers.contains_key(HOST)
@@ -153,7 +153,7 @@ pub(crate) async fn send_body<Io, B>(
 ) -> Result<(), SendRequestError>
 where
     Io: ConnectionIo,
-    B: MessageBody,
+    B: MessageBody<Error = Error>,
 {
     actix_rt::pin!(body);
 

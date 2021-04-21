@@ -9,14 +9,19 @@ use h2::{
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, TRANSFER_ENCODING};
 use http::{request::Request, Method, Version};
 
-use crate::body::{BodySize, MessageBody};
-use crate::header::HeaderMap;
-use crate::message::{RequestHeadType, ResponseHead};
-use crate::payload::Payload;
+use crate::{
+    body::{BodySize, MessageBody},
+    header::HeaderMap,
+    message::{RequestHeadType, ResponseHead},
+    payload::Payload,
+    Error,
+};
 
-use super::config::ConnectorConfig;
-use super::connection::{ConnectionIo, H2Connection};
-use super::error::SendRequestError;
+use super::{
+    config::ConnectorConfig,
+    connection::{ConnectionIo, H2Connection},
+    error::SendRequestError,
+};
 
 pub(crate) async fn send_request<Io, B>(
     mut io: H2Connection<Io>,
@@ -25,7 +30,7 @@ pub(crate) async fn send_request<Io, B>(
 ) -> Result<(ResponseHead, Payload), SendRequestError>
 where
     Io: ConnectionIo,
-    B: MessageBody,
+    B: MessageBody<Error = Error>,
 {
     trace!("Sending client request: {:?} {:?}", head, body.size());
 
@@ -125,10 +130,13 @@ where
     Ok((head, payload))
 }
 
-async fn send_body<B: MessageBody>(
+async fn send_body<B>(
     body: B,
     mut send: SendStream<Bytes>,
-) -> Result<(), SendRequestError> {
+) -> Result<(), SendRequestError>
+where
+    B: MessageBody<Error = Error>,
+{
     let mut buf = None;
     actix_rt::pin!(body);
     loop {

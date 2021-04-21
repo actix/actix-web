@@ -36,6 +36,8 @@ where
     S: Stream<Item = Result<Bytes, E>>,
     E: Into<Error>,
 {
+    type Error = Error;
+
     fn size(&self) -> BodySize {
         BodySize::Stream
     }

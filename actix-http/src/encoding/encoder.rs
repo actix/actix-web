@@ -15,7 +15,7 @@ use futures_core::ready;
 use pin_project::pin_project;
 
 use crate::{
-    body::{Body, BodySize, MessageBody, ResponseBody},
+    body::{Body, BodySize, BoxAnyBody, MessageBody, ResponseBody},
     http::{
         header::{ContentEncoding, CONTENT_ENCODING},
         HeaderValue, StatusCode,
@@ -92,10 +92,12 @@ impl<B: MessageBody> Encoder<B> {
 enum EncoderBody<B> {
     Bytes(Bytes),
     Stream(#[pin] B),
-    BoxedStream(Pin<Box<dyn MessageBody>>),
+    BoxedStream(BoxAnyBody),
 }
 
-impl<B: MessageBody> MessageBody for EncoderBody<B> {
+impl<B: MessageBody<Error = Error>> MessageBody for EncoderBody<B> {
+    type Error = Error;
+
     fn size(&self) -> BodySize {
         match self {
             EncoderBody::Bytes(ref b) => b.size(),
@@ -117,12 +119,16 @@ impl<B: MessageBody> MessageBody for EncoderBody<B> {
                 }
             }
             EncoderBodyProj::Stream(b) => b.poll_next(cx),
-            EncoderBodyProj::BoxedStream(ref mut b) => b.as_mut().poll_next(cx),
+            EncoderBodyProj::BoxedStream(ref mut b) => {
+                b.as_mut().poll_next(cx).map_err(Into::into)
+            }
         }
     }
 }
 
-impl<B: MessageBody> MessageBody for Encoder<B> {
+impl<B: MessageBody<Error = Error>> MessageBody for Encoder<B> {
+    type Error = Error;
+
     fn size(&self) -> BodySize {
         if self.encoder.is_none() {
             self.body.size()
@@ -154,7 +160,7 @@ impl<B: MessageBody> MessageBody for Encoder<B> {
                 }
             }
 
-            let result = ready!(this.body.as_mut().poll_next(cx));
+            let result = ready!(this.body.as_mut().poll_next(cx).map_err(Into::into));
 
             match result {
                 Some(Err(err)) => return Poll::Ready(Some(Err(err))),

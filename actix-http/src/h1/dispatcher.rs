@@ -51,9 +51,13 @@ pub struct Dispatcher<T, S, B, X, U>
 where
     S: Service<Request>,
     S::Error: Into<Error>,
+
     B: MessageBody,
+    B: MessageBody<Error = Error>,
+
     X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
+
     U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
@@ -69,9 +73,13 @@ enum DispatcherState<T, S, B, X, U>
 where
     S: Service<Request>,
     S::Error: Into<Error>,
+
     B: MessageBody,
+    B: MessageBody<Error = Error>,
+
     X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
+
     U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
@@ -84,9 +92,13 @@ struct InnerDispatcher<T, S, B, X, U>
 where
     S: Service<Request>,
     S::Error: Into<Error>,
+
     B: MessageBody,
+    B: MessageBody<Error = Error>,
+
     X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
+
     U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
@@ -122,7 +134,9 @@ enum State<S, B, X>
 where
     S: Service<Request>,
     X: Service<Request, Response = Request>,
+
     B: MessageBody,
+    B: MessageBody<Error = Error>,
 {
     None,
     ExpectCall(#[pin] X::Future),
@@ -133,8 +147,11 @@ where
 impl<S, B, X> State<S, B, X>
 where
     S: Service<Request>,
+
     X: Service<Request, Response = Request>,
+
     B: MessageBody,
+    B: MessageBody<Error = Error>,
 {
     fn is_empty(&self) -> bool {
         matches!(self, State::None)
@@ -150,12 +167,17 @@ enum PollResponse {
 impl<T, S, B, X, U> Dispatcher<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
+
     S: Service<Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
+
     B: MessageBody,
+    B: MessageBody<Error = Error>,
+
     X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
+
     U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
@@ -206,12 +228,17 @@ where
 impl<T, S, B, X, U> InnerDispatcher<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
+
     S: Service<Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
+
     B: MessageBody,
+    B: MessageBody<Error = Error>,
+
     X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
+
     U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
@@ -817,12 +844,17 @@ where
 impl<T, S, B, X, U> Future for Dispatcher<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
+
     S: Service<Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
+
     B: MessageBody,
+    B: MessageBody<Error = Error>,
+
     X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
+
     U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {

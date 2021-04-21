@@ -242,7 +242,10 @@ impl<B> Response<B> {
     }
 }
 
-impl<B: MessageBody> fmt::Debug for Response<B> {
+impl<B> fmt::Debug for Response<B>
+where
+    B: MessageBody<Error = Error>,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = writeln!(
             f,

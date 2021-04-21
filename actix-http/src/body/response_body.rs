@@ -43,7 +43,12 @@ impl<B: MessageBody> ResponseBody<B> {
     }
 }
 
-impl<B: MessageBody> MessageBody for ResponseBody<B> {
+impl<B> MessageBody for ResponseBody<B>
+where
+    B: MessageBody<Error = Error>,
+{
+    type Error = Error;
+
     fn size(&self) -> BodySize {
         match self {
             ResponseBody::Body(ref body) => body.size(),
@@ -54,12 +59,15 @@ impl<B: MessageBody> MessageBody for ResponseBody<B> {
     fn poll_next(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<Bytes, Error>>> {
+    ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         Stream::poll_next(self, cx)
     }
 }
 
-impl<B: MessageBody> Stream for ResponseBody<B> {
+impl<B> Stream for ResponseBody<B>
+where
+    B: MessageBody<Error = Error>,
+{
     type Item = Result<Bytes, Error>;
 
     fn poll_next(

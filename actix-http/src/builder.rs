@@ -202,11 +202,13 @@ where
     /// Finish service configuration and create a HTTP service for HTTP/2 protocol.
     pub fn h2<F, B>(self, service: F) -> H2Service<T, S, B>
     where
-        B: MessageBody + 'static,
         F: IntoServiceFactory<S, Request>,
         S::Error: Into<Error> + 'static,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>> + 'static,
+
+        B: MessageBody + 'static,
+        B: MessageBody<Error = Error>,
     {
         let cfg = ServiceConfig::new(
             self.keep_alive,

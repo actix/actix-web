@@ -36,6 +36,8 @@ impl<S> MessageBody for SizedStream<S>
 where
     S: Stream<Item = Result<Bytes, Error>>,
 {
+    type Error = Error;
+
     fn size(&self) -> BodySize {
         BodySize::Sized(self.size as u64)
     }

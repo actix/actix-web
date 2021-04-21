@@ -12,10 +12,10 @@ use bytes::Bytes;
 use futures_core::future::LocalBoxFuture;
 use h2::client::SendRequest;
 
-use crate::body::MessageBody;
 use crate::h1::ClientCodec;
 use crate::message::{RequestHeadType, ResponseHead};
 use crate::payload::Payload;
+use crate::{body::MessageBody, Error};
 
 use super::error::SendRequestError;
 use super::pool::Acquired;
@@ -256,8 +256,8 @@ where
         body: RB,
     ) -> LocalBoxFuture<'static, Result<(ResponseHead, Payload), SendRequestError>>
     where
-        RB: MessageBody + 'static,
         H: Into<RequestHeadType> + 'static,
+        RB: MessageBody<Error = Error> + 'static,
     {
         Box::pin(async move {
             match self {

@@ -15,9 +15,10 @@ mod response_body;
 mod size;
 mod sized_stream;
 
-pub use self::body::Body;
+pub use self::body::{Body, BoxAnyBody};
 pub use self::body_stream::BodyStream;
 pub use self::message_body::MessageBody;
+pub(crate) use self::message_body::MessageBodyMapErr;
 pub use self::response_body::ResponseBody;
 pub use self::size::BodySize;
 pub use self::sized_stream::SizedStream;
@@ -41,7 +42,7 @@ pub use self::sized_stream::SizedStream;
 /// assert_eq!(bytes, b"123"[..]);
 /// # }
 /// ```
-pub async fn to_bytes(body: impl MessageBody) -> Result<Bytes, crate::Error> {
+pub async fn to_bytes<B: MessageBody>(body: B) -> Result<Bytes, B::Error> {
     let cap = match body.size() {
         BodySize::None | BodySize::Empty | BodySize::Sized(0) => return Ok(Bytes::new()),
         BodySize::Sized(size) => size as usize,
@@ -75,6 +76,7 @@ mod tests {
     use bytes::{Bytes, BytesMut};
 
     use super::*;
+    // use crate::Error;
 
     impl Body {
         pub(crate) fn get_ref(&self) -> &[u8] {
@@ -240,7 +242,8 @@ mod tests {
     #[actix_rt::test]
     async fn test_body_casting() {
         let mut body = String::from("hello cast");
-        let resp_body: &mut dyn MessageBody = &mut body;
+        // let mut resp_body: &mut dyn MessageBody<Error = Error> = &mut body;
+        let resp_body: &mut dyn std::any::Any = &mut body;
         let body = resp_body.downcast_ref::<String>().unwrap();
         assert_eq!(body, "hello cast");
         let body = &mut resp_body.downcast_mut::<String>().unwrap();

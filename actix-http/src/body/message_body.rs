@@ -7,6 +7,7 @@ use std::{
 };
 
 use bytes::{Bytes, BytesMut};
+use pin_project_lite::pin_project;
 
 use crate::error::Error;
 
@@ -14,6 +15,8 @@ use super::BodySize;
 
 /// An interface for response bodies.
 pub trait MessageBody {
+    type Error;
+
     /// Body size hint.
     fn size(&self) -> BodySize;
 
@@ -21,14 +24,12 @@ pub trait MessageBody {
     fn poll_next(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<Bytes, Error>>>;
-
-    downcast_get_type_id!();
+    ) -> Poll<Option<Result<Bytes, Self::Error>>>;
 }
 
-downcast!(MessageBody);
-
 impl MessageBody for () {
+    type Error = Error;
+
     fn size(&self) -> BodySize {
         BodySize::Empty
     }
@@ -36,12 +37,17 @@ impl MessageBody for () {
     fn poll_next(
         self: Pin<&mut Self>,
         _: &mut Context<'_>,
-    ) -> Poll<Option<Result<Bytes, Error>>> {
+    ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         Poll::Ready(None)
     }
 }
 
-impl<T: MessageBody + Unpin> MessageBody for Box<T> {
+impl<T> MessageBody for Box<T>
+where
+    T: MessageBody<Error = Error> + Unpin,
+{
+    type Error = Error;
+
     fn size(&self) -> BodySize {
         self.as_ref().size()
     }
@@ -49,12 +55,14 @@ impl<T: MessageBody + Unpin> MessageBody for Box<T> {
     fn poll_next(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<Bytes, Error>>> {
+    ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         Pin::new(self.get_mut().as_mut()).poll_next(cx)
     }
 }
 
 impl<T: MessageBody> MessageBody for Pin<Box<T>> {
+    type Error = Error;
+
     fn size(&self) -> BodySize {
         self.as_ref().size()
     }
@@ -62,12 +70,14 @@ impl<T: MessageBody> MessageBody for Pin<Box<T>> {
     fn poll_next(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<Bytes, Error>>> {
+    ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         self.as_mut().poll_next(cx)
     }
 }
 
 impl MessageBody for Bytes {
+    type Error = Error;
+
     fn size(&self) -> BodySize {
         BodySize::Sized(self.len() as u64)
     }
@@ -75,7 +85,7 @@ impl MessageBody for Bytes {
     fn poll_next(
         self: Pin<&mut Self>,
         _: &mut Context<'_>,
-    ) -> Poll<Option<Result<Bytes, Error>>> {
+    ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         if self.is_empty() {
             Poll::Ready(None)
         } else {
@@ -85,6 +95,8 @@ impl MessageBody for Bytes {
 }
 
 impl MessageBody for BytesMut {
+    type Error = Error;
+
     fn size(&self) -> BodySize {
         BodySize::Sized(self.len() as u64)
     }
@@ -92,7 +104,7 @@ impl MessageBody for BytesMut {
     fn poll_next(
         self: Pin<&mut Self>,
         _: &mut Context<'_>,
-    ) -> Poll<Option<Result<Bytes, Error>>> {
+    ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         if self.is_empty() {
             Poll::Ready(None)
         } else {
@@ -102,6 +114,8 @@ impl MessageBody for BytesMut {
 }
 
 impl MessageBody for &'static str {
+    type Error = Error;
+
     fn size(&self) -> BodySize {
         BodySize::Sized(self.len() as u64)
     }
@@ -109,7 +123,7 @@ impl MessageBody for &'static str {
     fn poll_next(
         self: Pin<&mut Self>,
         _: &mut Context<'_>,
-    ) -> Poll<Option<Result<Bytes, Error>>> {
+    ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         if self.is_empty() {
             Poll::Ready(None)
         } else {
@@ -121,6 +135,8 @@ impl MessageBody for &'static str {
 }
 
 impl MessageBody for Vec<u8> {
+    type Error = Error;
+
     fn size(&self) -> BodySize {
         BodySize::Sized(self.len() as u64)
     }
@@ -128,7 +144,7 @@ impl MessageBody for Vec<u8> {
     fn poll_next(
         self: Pin<&mut Self>,
         _: &mut Context<'_>,
-    ) -> Poll<Option<Result<Bytes, Error>>> {
+    ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         if self.is_empty() {
             Poll::Ready(None)
         } else {
@@ -138,6 +154,8 @@ impl MessageBody for Vec<u8> {
 }
 
 impl MessageBody for String {
+    type Error = Error;
+
     fn size(&self) -> BodySize {
         BodySize::Sized(self.len() as u64)
     }
@@ -145,7 +163,7 @@ impl MessageBody for String {
     fn poll_next(
         self: Pin<&mut Self>,
         _: &mut Context<'_>,
-    ) -> Poll<Option<Result<Bytes, Error>>> {
+    ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         if self.is_empty() {
             Poll::Ready(None)
         } else {
@@ -153,5 +171,50 @@ impl MessageBody for String {
                 mem::take(self.get_mut()).into_bytes(),
             ))))
         }
+    }
+}
+
+pin_project! {
+    pub(crate) struct MessageBodyMapErr<B, F> {
+        #[pin]
+        body: B,
+        mapper: Option<F>,
+    }
+}
+
+impl<B, F, E> MessageBodyMapErr<B, F>
+where
+    B: MessageBody,
+    F: FnOnce(B::Error) -> E,
+{
+    pub(crate) fn new(body: B, mapper: F) -> Self {
+        Self {
+            body,
+            mapper: Some(mapper),
+        }
+    }
+}
+
+impl<B, F, E> MessageBody for MessageBodyMapErr<B, F>
+where
+    B: MessageBody,
+    F: FnOnce(B::Error) -> E,
+{
+    type Error = E;
+
+    fn size(&self) -> BodySize {
+        self.body.size()
+    }
+
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Bytes, Self::Error>>> {
+        let this = self.as_mut().project();
+
+        this.body.poll_next(cx).map_err(|err| {
+            let f = self.as_mut().project().mapper.take().unwrap();
+            (f)(err)
+        })
     }
 }
