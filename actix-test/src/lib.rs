@@ -85,7 +85,7 @@ where
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
-    B: MessageBody + 'static,
+    B: MessageBody<Error = Error> + 'static,
 {
     start_with(TestServerConfig::default(), factory)
 }
@@ -124,7 +124,7 @@ where
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
-    B: MessageBody + 'static,
+    B: MessageBody<Error = Error> + 'static,
 {
     let (tx, rx) = mpsc::channel();
 

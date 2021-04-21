@@ -22,10 +22,9 @@ use time::OffsetDateTime;
 
 use crate::{
     dev::{BodySize, MessageBody, ResponseBody},
-    error::{Error, Result},
     http::{HeaderName, StatusCode},
     service::{ServiceRequest, ServiceResponse},
-    HttpResponse,
+    Error, HttpResponse, Result,
 };
 
 /// Middleware for logging request and response summaries to the terminal.
@@ -327,7 +326,9 @@ impl<B> PinnedDrop for StreamLog<B> {
     }
 }
 
-impl<B: MessageBody> MessageBody for StreamLog<B> {
+impl<B: MessageBody<Error = Error>> MessageBody for StreamLog<B> {
+    type Error = Error;
+
     fn size(&self) -> BodySize {
         self.body.size()
     }

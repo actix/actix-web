@@ -80,7 +80,7 @@ where
     <S::Service as Service<Request>>::Future: 'static,
     S::Service: 'static,
     // S::Service: 'static,
-    B: MessageBody + 'static,
+    B: MessageBody<Error = Error> + 'static,
 {
     /// Create new HTTP server with application factory
     pub fn new(factory: F) -> Self {
