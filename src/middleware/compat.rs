@@ -8,7 +8,7 @@ use std::{
 
 use actix_http::body::{Body, MessageBody, ResponseBody};
 use actix_service::{Service, Transform};
-use futures_core::{future::LocalBoxFuture, ready};
+use futures_core::ready;
 
 use crate::{error::Error, service::ServiceResponse};
 
@@ -55,14 +55,30 @@ where
     type Error = Error;
     type Transform = CompatMiddleware<T::Transform>;
     type InitError = T::InitError;
-    type Future = LocalBoxFuture<'static, Result<Self::Transform, Self::InitError>>;
+    type Future = CompatFut<T::Future>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        let fut = self.transform.new_transform(service);
-        Box::pin(async move {
-            let service = fut.await?;
-            Ok(CompatMiddleware { service })
-        })
+        CompatFut {
+            fut: self.transform.new_transform(service),
+        }
+    }
+}
+
+#[pin_project::pin_project]
+pub struct CompatFut<F> {
+    #[pin]
+    fut: F,
+}
+
+impl<T, TE, F> Future for CompatFut<F>
+where
+    F: Future<Output = Result<T, TE>>,
+{
+    type Output = Result<CompatMiddleware<T>, TE>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let service = ready!(self.project().fut.poll(cx))?;
+        Poll::Ready(Ok(CompatMiddleware { service }))
     }
 }
 
