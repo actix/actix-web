@@ -185,7 +185,7 @@ where
             let result = ready!(this.body.as_mut().poll_next(cx));
 
             match result {
-                Some(Err(err)) => return Poll::Ready(Some(Err(err.into()))),
+                Some(Err(err)) => return Poll::Ready(Some(Err(err))),
 
                 Some(Ok(chunk)) => {
                     if let Some(mut encoder) = this.encoder.take() {
