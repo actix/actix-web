@@ -12,7 +12,7 @@ use std::{
 use actix_http::Payload;
 use bytes::BytesMut;
 use encoding_rs::{Encoding, UTF_8};
-use futures_core::future::LocalBoxFuture;
+use futures_core::{future::LocalBoxFuture, ready};
 use futures_util::{FutureExt as _, StreamExt as _};
 use serde::{de::DeserializeOwned, Serialize};
 
@@ -123,11 +123,10 @@ where
 {
     type Config = FormConfig;
     type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<Self, Error>>;
+    type Future = FormExtractFut<T>;
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-        let req2 = req.clone();
         let (limit, err_handler) = req
             .app_data::<Self::Config>()
             .or_else(|| {
@@ -137,16 +136,42 @@ where
             .map(|c| (c.limit, c.err_handler.clone()))
             .unwrap_or((16384, None));
 
-        UrlEncoded::new(req, payload)
-            .limit(limit)
-            .map(move |res| match res {
-                Err(err) => match err_handler {
-                    Some(err_handler) => Err((err_handler)(err, &req2)),
-                    None => Err(err.into()),
-                },
-                Ok(item) => Ok(Form(item)),
-            })
-            .boxed_local()
+        FormExtractFut {
+            fut: UrlEncoded::new(req, payload).limit(limit),
+            req: req.clone(),
+            err_handler,
+        }
+    }
+}
+
+type FormErrHandler = Option<Rc<dyn Fn(UrlencodedError, &HttpRequest) -> Error>>;
+
+pub struct FormExtractFut<T> {
+    fut: UrlEncoded<T>,
+    err_handler: FormErrHandler,
+    req: HttpRequest,
+}
+
+impl<T> Future for FormExtractFut<T>
+where
+    T: DeserializeOwned + 'static,
+{
+    type Output = Result<Form<T>, Error>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+
+        let res = ready!(Pin::new(&mut this.fut).poll(cx));
+
+        let res = match res {
+            Err(err) => match &this.err_handler {
+                Some(err_handler) => Err((err_handler)(err, &this.req)),
+                None => Err(err.into()),
+            },
+            Ok(item) => Ok(Form(item)),
+        };
+
+        Poll::Ready(res)
     }
 }
 
@@ -193,7 +218,7 @@ impl<T: Serialize> Responder for Form<T> {
 #[derive(Clone)]
 pub struct FormConfig {
     limit: usize,
-    err_handler: Option<Rc<dyn Fn(UrlencodedError, &HttpRequest) -> Error>>,
+    err_handler: FormErrHandler,
 }
 
 impl FormConfig {
