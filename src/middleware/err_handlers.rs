@@ -9,7 +9,10 @@ use std::{
 
 use actix_service::{Service, Transform};
 use ahash::AHashMap;
-use futures_core::{future::LocalBoxFuture, ready};
+use futures_util::{
+    future::{ok, LocalBoxFuture, Ready},
+    ready,
+};
 
 use crate::{
     dev::{ServiceRequest, ServiceResponse},
@@ -97,11 +100,11 @@ where
     type Error = Error;
     type Transform = ErrorHandlersMiddleware<S, B>;
     type InitError = ();
-    type Future = LocalBoxFuture<'static, Result<Self::Transform, Self::InitError>>;
+    type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
         let handlers = self.handlers.clone();
-        Box::pin(async move { Ok(ErrorHandlersMiddleware { service, handlers }) })
+        ok(ErrorHandlersMiddleware { service, handlers })
     }
 }
 

@@ -6,7 +6,6 @@ use std::task::{Context, Poll};
 
 use actix_service::{Service, Transform};
 use actix_utils::future::Either;
-
 use futures_core::ready;
 
 /// Middleware for conditionally enabling other middleware.
