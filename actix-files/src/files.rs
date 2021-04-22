@@ -158,7 +158,6 @@ impl Files {
     /// Specifies whether to use ETag or not.
     ///
     /// Default is true.
-    #[inline]
     pub fn use_etag(mut self, value: bool) -> Self {
         self.file_flags.set(named::Flags::ETAG, value);
         self
@@ -167,7 +166,6 @@ impl Files {
     /// Specifies whether to use Last-Modified or not.
     ///
     /// Default is true.
-    #[inline]
     pub fn use_last_modified(mut self, value: bool) -> Self {
         self.file_flags.set(named::Flags::LAST_MD, value);
         self
@@ -176,46 +174,55 @@ impl Files {
     /// Specifies whether text responses should signal a UTF-8 encoding.
     ///
     /// Default is false (but will default to true in a future version).
-    #[inline]
     pub fn prefer_utf8(mut self, value: bool) -> Self {
         self.file_flags.set(named::Flags::PREFER_UTF8, value);
         self
     }
 
-    /// Specifies custom guards to use for directory listings and files.
+    /// Adds a routing guard.
     ///
-    /// Default behaviour allows GET and HEAD.
-    #[inline]
-    pub fn use_guards<G: Guard + 'static>(mut self, guards: G) -> Self {
-        self.use_guards = Some(Rc::new(guards));
-        self
-    }
-
-    /// Add match guard to use on directory listings and files.
+    /// Use this to allow multiple chained file services that respond to strictly different
+    /// properties of a request. Due to the way routing works, if a guard check returns true and the
+    /// request starts being handled by the file service, it will not be able to back-out and try
+    /// the next service, you will simply get a 404 (or 405) error response.
     ///
-    /// ```rust
-    /// use actix_web::{guard, App};
+    /// To allow `POST` requests to retrieve files, see [`Files::use_guards`].
+    ///
+    /// # Examples
+    /// ```
+    /// use actix_web::{guard::Header, App};
     /// use actix_files::Files;
     ///
-    ///
-    /// fn main() {
-    ///     let app = App::new()
-    ///         .service(
-    ///             Files::new("/","/my/site/files")
-    ///                 .guard(guard::Header("Host", "example.com"))
-    ///         );
-    /// }
+    /// App::new().service(
+    ///     Files::new("/","/my/site/files")
+    ///         .guard(Header("Host", "example.com"))
+    /// );
     /// ```
-    #[inline]
     pub fn guard<G: Guard + 'static>(mut self, guard: G) -> Self {
         self.guards.push(Box::new(Rc::new(guard)));
         self
     }
 
+    /// Specifies guard to check before fetching directory listings or files.
+    ///
+    /// Note that this guard has no effect on routing; it's main use is to guard on the request's
+    /// method just before serving the file, only allowing `GET` and `HEAD` requests by default.
+    /// See [`Files::guard`] for routing guards.
+    pub fn method_guard<G: Guard + 'static>(mut self, guard: G) -> Self {
+        self.use_guards = Some(Rc::new(guard));
+        self
+    }
+
+    #[doc(hidden)]
+    #[deprecated(since = "0.6.0", note = "Renamed to `method_guard`.")]
+    /// See [`Files::method_guard`].
+    pub fn use_guards<G: Guard + 'static>(self, guard: G) -> Self {
+        self.method_guard(guard)
+    }
+
     /// Disable `Content-Disposition` header.
     ///
     /// By default Content-Disposition` header is enabled.
-    #[inline]
     pub fn disable_content_disposition(mut self) -> Self {
         self.file_flags.remove(named::Flags::CONTENT_DISPOSITION);
         self
@@ -223,8 +230,9 @@ impl Files {
 
     /// Sets default handler which is used when no matched file could be found.
     ///
-    /// For example, you could set a fall back static file handler:
-    /// ```rust
+    /// # Examples
+    /// Setting a fallback static file handler:
+    /// ```
     /// use actix_files::{Files, NamedFile};
     ///
     /// # fn run() -> Result<(), actix_web::Error> {
@@ -253,7 +261,6 @@ impl Files {
     }
 
     /// Enables serving hidden files and directories, allowing a leading dots in url fragments.
-    #[inline]
     pub fn use_hidden_files(mut self) -> Self {
         self.hidden_files = true;
         self
