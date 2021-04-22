@@ -30,16 +30,16 @@
 //!
 //! To get started navigating the API docs, you may consider looking at the following pages first:
 //!
-//! * [App]: This struct represents an Actix Web application and is used to
+//! * [`App`]: This struct represents an Actix Web application and is used to
 //!   configure routes and other common application settings.
 //!
-//! * [HttpServer]: This struct represents an HTTP server instance and is
+//! * [`HttpServer`]: This struct represents an HTTP server instance and is
 //!   used to instantiate and configure servers.
 //!
-//! * [web]: This module provides essential types for route registration as well as
+//! * [`web`]: This module provides essential types for route registration as well as
 //!   common utilities for request handlers.
 //!
-//! * [HttpRequest] and [HttpResponse]: These
+//! * [`HttpRequest`] and [`HttpResponse`]: These
 //!   structs represent HTTP requests and responses and expose methods for creating, inspecting,
 //!   and otherwise utilizing them.
 //!
@@ -55,7 +55,7 @@
 //! * Static assets
 //! * SSL support using OpenSSL or Rustls
 //! * Middlewares ([Logger, Session, CORS, etc](https://actix.rs/docs/middleware/))
-//! * Includes an async [HTTP client](https://actix.rs/actix-web/actix_web/client/index.html)
+//! * Includes an async [HTTP client](https://docs.rs/awc/)
 //! * Runs on stable Rust 1.46+
 //!
 //! ## Crate Features
