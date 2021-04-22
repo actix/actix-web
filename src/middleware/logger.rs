@@ -326,7 +326,11 @@ impl<B> PinnedDrop for StreamLog<B> {
     }
 }
 
-impl<B: MessageBody<Error = Error>> MessageBody for StreamLog<B> {
+impl<B> MessageBody for StreamLog<B>
+where
+    B: MessageBody,
+    B::Error: Into<Error>,
+{
     type Error = Error;
 
     fn size(&self) -> BodySize {

@@ -31,7 +31,8 @@ pub(crate) async fn send_request<Io, B>(
 ) -> Result<(ResponseHead, Payload), SendRequestError>
 where
     Io: ConnectionIo,
-    B: MessageBody<Error = Error>,
+    B: MessageBody,
+    B::Error: Into<Error>,
 {
     // set request host header
     if !head.as_ref().headers.contains_key(HOST)
@@ -153,7 +154,8 @@ pub(crate) async fn send_body<Io, B>(
 ) -> Result<(), SendRequestError>
 where
     Io: ConnectionIo,
-    B: MessageBody<Error = Error>,
+    B: MessageBody,
+    B::Error: Into<Error>,
 {
     actix_rt::pin!(body);
 
@@ -161,9 +163,10 @@ where
     while !eof {
         while !eof && !framed.as_ref().is_write_buf_full() {
             match poll_fn(|cx| body.as_mut().poll_next(cx)).await {
-                Some(result) => {
-                    framed.as_mut().write(h1::Message::Chunk(Some(result?)))?;
+                Some(Ok(chunk)) => {
+                    framed.as_mut().write(h1::Message::Chunk(Some(chunk)))?;
                 }
+                Some(Err(err)) => return Err(err.into().into()),
                 None => {
                     eof = true;
                     framed.as_mut().write(h1::Message::Chunk(None))?;

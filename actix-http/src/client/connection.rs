@@ -257,7 +257,8 @@ where
     ) -> LocalBoxFuture<'static, Result<(ResponseHead, Payload), SendRequestError>>
     where
         H: Into<RequestHeadType> + 'static,
-        RB: MessageBody<Error = Error> + 'static,
+        RB: MessageBody + 'static,
+        RB::Error: Into<Error>,
     {
         Box::pin(async move {
             match self {

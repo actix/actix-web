@@ -22,7 +22,7 @@ pub struct SendResponse<T, B> {
 impl<T, B> SendResponse<T, B>
 where
     B: MessageBody,
-    B: MessageBody<Error = Error>,
+    B::Error: Into<Error>,
 {
     pub fn new(framed: Framed<T, Codec>, response: Response<B>) -> Self {
         let (res, body) = response.into_parts();
@@ -39,7 +39,7 @@ impl<T, B> Future for SendResponse<T, B>
 where
     T: AsyncRead + AsyncWrite + Unpin,
     B: MessageBody + Unpin,
-    B: MessageBody<Error = Error>,
+    B::Error: Into<Error>,
 {
     type Output = Result<Framed<T, Codec>, Error>;
 

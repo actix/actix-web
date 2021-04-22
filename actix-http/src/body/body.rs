@@ -72,6 +72,8 @@ impl MessageBody for Body {
                     Poll::Ready(Some(Ok(mem::take(bin))))
                 }
             }
+
+            // TODO: MSRV 1.51: poll_map_err
             Body::Message(body) => match ready!(body.as_mut().poll_next(cx)) {
                 Some(Err(err)) => Poll::Ready(Some(Err(err.into()))),
                 Some(Ok(val)) => Poll::Ready(Some(Ok(val))),

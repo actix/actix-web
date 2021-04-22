@@ -445,7 +445,8 @@ impl<B> From<ServiceResponse<B>> for Response<B> {
 
 impl<B> fmt::Debug for ServiceResponse<B>
 where
-    B: MessageBody<Error = Error>,
+    B: MessageBody,
+    B::Error: Into<Error>,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = writeln!(

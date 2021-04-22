@@ -66,7 +66,7 @@ where
     S::Response: Into<Response<B>>,
 
     B: MessageBody,
-    B: MessageBody<Error = Error>,
+    B::Error: Into<Error>,
 
     X: ServiceFactory<Request, Config = (), Response = Request>,
     X::Future: 'static,
@@ -115,7 +115,7 @@ mod openssl {
         S::Response: Into<Response<B>>,
 
         B: MessageBody,
-        B: MessageBody<Error = Error>,
+        B::Error: Into<Error>,
 
         X: ServiceFactory<Request, Config = (), Response = Request>,
         X::Future: 'static,
@@ -175,7 +175,7 @@ mod rustls {
         S::Response: Into<Response<B>>,
 
         B: MessageBody,
-        B: MessageBody<Error = Error>,
+        B::Error: Into<Error>,
 
         X: ServiceFactory<Request, Config = (), Response = Request>,
         X::Future: 'static,
@@ -273,7 +273,7 @@ where
     S::InitError: fmt::Debug,
 
     B: MessageBody,
-    B: MessageBody<Error = Error>,
+    B::Error: Into<Error>,
 
     X: ServiceFactory<Request, Config = (), Response = Request>,
     X::Future: 'static,
@@ -342,7 +342,7 @@ where
     S::Response: Into<Response<B>>,
 
     B: MessageBody,
-    B: MessageBody<Error = Error>,
+    B::Error: Into<Error>,
 
     X: Service<Request, Response = Request>,
     X::Error: Into<Error>,

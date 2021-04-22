@@ -76,7 +76,7 @@ where
     S::Response: Into<Response<B>> + 'static,
 
     B: MessageBody + 'static,
-    B::Error: Into<Error> + 'static,
+    B::Error: Into<Error>,
 {
     type Output = Result<(), DispatchError>;
 

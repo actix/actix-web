@@ -45,7 +45,8 @@ impl MessageBody for () {
 
 impl<T> MessageBody for Box<T>
 where
-    T: MessageBody<Error = Error> + Unpin,
+    T: MessageBody + Unpin,
+    T::Error: Into<Error>,
 {
     type Error = Error;
 
@@ -57,11 +58,19 @@ where
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
-        Pin::new(self.get_mut().as_mut()).poll_next(cx)
+        match ready!(Pin::new(self.get_mut().as_mut()).poll_next(cx)) {
+            Some(Err(err)) => Poll::Ready(Some(Err(err.into()))),
+            Some(Ok(val)) => Poll::Ready(Some(Ok(val))),
+            None => Poll::Ready(None),
+        }
     }
 }
 
-impl<T: MessageBody> MessageBody for Pin<Box<T>> {
+impl<T> MessageBody for Pin<Box<T>>
+where
+    T: MessageBody,
+    T::Error: Into<Error>,
+{
     type Error = Error;
 
     fn size(&self) -> BodySize {
@@ -72,7 +81,11 @@ impl<T: MessageBody> MessageBody for Pin<Box<T>> {
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
-        self.as_mut().poll_next(cx)
+        match ready!(self.as_mut().poll_next(cx)) {
+            Some(Err(err)) => Poll::Ready(Some(Err(err.into()))),
+            Some(Ok(val)) => Poll::Ready(Some(Ok(val))),
+            None => Poll::Ready(None),
+        }
     }
 }
 

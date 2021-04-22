@@ -150,7 +150,8 @@ where
 pub async fn read_response<S, B>(app: &S, req: Request) -> Bytes
 where
     S: Service<Request, Response = ServiceResponse<B>, Error = Error>,
-    B: MessageBody<Error = Error> + Unpin,
+    B: MessageBody + Unpin,
+    B::Error: Into<Error>,
 {
     let mut resp = app
         .call(req)
@@ -195,7 +196,8 @@ where
 /// ```
 pub async fn read_body<B>(mut res: ServiceResponse<B>) -> Bytes
 where
-    B: MessageBody<Error = Error> + Unpin,
+    B: MessageBody + Unpin,
+    B::Error: Into<Error>,
 {
     let mut body = res.take_body();
     let mut bytes = BytesMut::new();
@@ -244,7 +246,8 @@ where
 /// ```
 pub async fn read_body_json<T, B>(res: ServiceResponse<B>) -> T
 where
-    B: MessageBody<Error = Error> + Unpin,
+    B: MessageBody + Unpin,
+    B::Error: Into<Error>,
     T: DeserializeOwned,
 {
     let body = read_body(res).await;
@@ -305,7 +308,8 @@ where
 pub async fn read_response_json<S, B, T>(app: &S, req: Request) -> T
 where
     S: Service<Request, Response = ServiceResponse<B>, Error = Error>,
-    B: MessageBody<Error = Error> + Unpin,
+    B: MessageBody + Unpin,
+    B::Error: Into<Error>,
     T: DeserializeOwned,
 {
     let body = read_response(app, req).await;
