@@ -5,7 +5,7 @@ use std::{
 };
 
 use bytes::Bytes;
-use futures_core::Stream;
+use futures_core::{ready, Stream};
 use pin_project::pin_project;
 
 use crate::error::Error;
@@ -77,7 +77,12 @@ where
         cx: &mut Context<'_>,
     ) -> Poll<Option<Self::Item>> {
         match self.project() {
-            ResponseBodyProj::Body(body) => body.poll_next(cx).map_err(Into::into),
+            // TODO: MSRV 1.51: poll_map_err
+            ResponseBodyProj::Body(body) => match ready!(body.poll_next(cx)) {
+                Some(Err(err)) => Poll::Ready(Some(Err(err.into()))),
+                Some(Ok(val)) => Poll::Ready(Some(Ok(val))),
+                None => Poll::Ready(None),
+            },
             ResponseBodyProj::Other(body) => Pin::new(body).poll_next(cx),
         }
     }

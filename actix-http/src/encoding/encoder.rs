@@ -131,7 +131,7 @@ where
                 None => Poll::Ready(None),
             },
             EncoderBodyProj::BoxedStream(ref mut b) => {
-                match ready!(b.as_mut().poll_next(cx)) {
+                match ready!(b.as_pin_mut().poll_next(cx)) {
                     Some(Err(err)) => {
                         Poll::Ready(Some(Err(EncoderError::Boxed(err.into()))))
                     }

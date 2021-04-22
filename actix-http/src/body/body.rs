@@ -60,7 +60,7 @@ impl MessageBody for Body {
     fn poll_next(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<Bytes, Error>>> {
+    ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         match self.get_mut() {
             Body::None => Poll::Ready(None),
             Body::Empty => Poll::Ready(None),
@@ -74,7 +74,7 @@ impl MessageBody for Body {
             }
 
             // TODO: MSRV 1.51: poll_map_err
-            Body::Message(body) => match ready!(body.as_mut().poll_next(cx)) {
+            Body::Message(body) => match ready!(body.as_pin_mut().poll_next(cx)) {
                 Some(Err(err)) => Poll::Ready(Some(Err(err.into()))),
                 Some(Ok(val)) => Poll::Ready(Some(Ok(val))),
                 None => Poll::Ready(None),
@@ -194,7 +194,7 @@ impl BoxAnyBody {
     }
 
     /// Returns a mutable pinned reference to the inner message body type.
-    pub fn as_mut(
+    pub fn as_pin_mut(
         &mut self,
     ) -> Pin<&mut (dyn MessageBody<Error = Box<dyn StdError + 'static>>)> {
         self.0.as_mut()
@@ -218,6 +218,7 @@ impl MessageBody for BoxAnyBody {
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
+        // TODO: MSRV 1.51: poll_map_err
         match ready!(self.0.as_mut().poll_next(cx)) {
             Some(Err(err)) => Poll::Ready(Some(Err(err.into()))),
             Some(Ok(val)) => Poll::Ready(Some(Ok(val))),

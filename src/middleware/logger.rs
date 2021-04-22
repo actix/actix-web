@@ -340,7 +340,7 @@ where
     fn poll_next(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<Bytes, Error>>> {
+    ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         let this = self.project();
         match this.body.poll_next(cx) {
             Poll::Ready(Some(Ok(chunk))) => {
