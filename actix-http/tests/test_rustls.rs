@@ -2,16 +2,22 @@
 
 extern crate tls_rustls as rustls;
 
-use actix_http::error::PayloadError;
-use actix_http::http::header::{self, HeaderName, HeaderValue};
-use actix_http::http::{Method, StatusCode, Version};
-use actix_http::{body, error, Error, HttpService, Request, Response};
+use actix_http::{
+    body::{Body, SizedStream},
+    error::{self, PayloadError},
+    http::{
+        header::{self, HeaderName, HeaderValue},
+        Method, StatusCode, Version,
+    },
+    Error, HttpService, Request, Response,
+};
 use actix_http_test::test_server;
 use actix_service::{fn_factory_with_config, fn_service};
+use actix_utils::future::{err, ok};
 
 use bytes::{Bytes, BytesMut};
-use futures_util::future::{self, err, ok};
-use futures_util::stream::{once, Stream, StreamExt};
+use futures_core::Stream;
+use futures_util::stream::{once, StreamExt as _};
 use rustls::{
     internal::pemfile::{certs, pkcs8_private_keys},
     NoClientAuth, ServerConfig as RustlsServerConfig,
@@ -50,7 +56,7 @@ fn tls_config() -> RustlsServerConfig {
 async fn test_h1() -> io::Result<()> {
     let srv = test_server(move || {
         HttpService::build()
-            .h1(|_| future::ok::<_, Error>(Response::Ok().finish()))
+            .h1(|_| ok::<_, Error>(Response::ok()))
             .rustls(tls_config())
     })
     .await;
@@ -64,7 +70,7 @@ async fn test_h1() -> io::Result<()> {
 async fn test_h2() -> io::Result<()> {
     let srv = test_server(move || {
         HttpService::build()
-            .h2(|_| future::ok::<_, Error>(Response::Ok().finish()))
+            .h2(|_| ok::<_, Error>(Response::ok()))
             .rustls(tls_config())
     })
     .await;
@@ -81,7 +87,7 @@ async fn test_h1_1() -> io::Result<()> {
             .h1(|req: Request| {
                 assert!(req.peer_addr().is_some());
                 assert_eq!(req.version(), Version::HTTP_11);
-                future::ok::<_, Error>(Response::Ok().finish())
+                ok::<_, Error>(Response::ok())
             })
             .rustls(tls_config())
     })
@@ -99,7 +105,7 @@ async fn test_h2_1() -> io::Result<()> {
             .finish(|req: Request| {
                 assert!(req.peer_addr().is_some());
                 assert_eq!(req.version(), Version::HTTP_2);
-                future::ok::<_, Error>(Response::Ok().finish())
+                ok::<_, Error>(Response::ok())
             })
             .rustls(tls_config())
     })
@@ -117,7 +123,7 @@ async fn test_h2_body1() -> io::Result<()> {
         HttpService::build()
             .h2(|mut req: Request<_>| async move {
                 let body = load_body(req.take_payload()).await?;
-                Ok::<_, Error>(Response::Ok().body(body))
+                Ok::<_, Error>(Response::ok().set_body(body))
             })
             .rustls(tls_config())
     })
@@ -143,7 +149,7 @@ async fn test_h2_content_length() {
                     StatusCode::OK,
                     StatusCode::NOT_FOUND,
                 ];
-                future::ok::<_, ()>(Response::new(statuses[indx]))
+                ok::<_, ()>(Response::new(statuses[indx]))
             })
             .rustls(tls_config())
     })
@@ -193,7 +199,7 @@ async fn test_h2_headers() {
     let mut srv = test_server(move || {
         let data = data.clone();
         HttpService::build().h2(move |_| {
-            let mut config = Response::Ok();
+            let mut config = Response::build(StatusCode::OK);
             for idx in 0..90 {
                 config.insert_header((
                     format!("X-TEST-{}", idx).as_str(),
@@ -212,7 +218,7 @@ async fn test_h2_headers() {
                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST ",
                 ));
             }
-            future::ok::<_, ()>(config.body(data.clone()))
+            ok::<_, ()>(config.body(data.clone()))
         })
             .rustls(tls_config())
     }).await;
@@ -251,7 +257,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 async fn test_h2_body2() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|_| future::ok::<_, ()>(Response::Ok().body(STR)))
+            .h2(|_| ok::<_, ()>(Response::ok().set_body(STR)))
             .rustls(tls_config())
     })
     .await;
@@ -268,7 +274,7 @@ async fn test_h2_body2() {
 async fn test_h2_head_empty() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .finish(|_| ok::<_, ()>(Response::Ok().body(STR)))
+            .finish(|_| ok::<_, ()>(Response::ok().set_body(STR)))
             .rustls(tls_config())
     })
     .await;
@@ -294,7 +300,7 @@ async fn test_h2_head_empty() {
 async fn test_h2_head_binary() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|_| ok::<_, ()>(Response::Ok().body(STR)))
+            .h2(|_| ok::<_, ()>(Response::ok().set_body(STR)))
             .rustls(tls_config())
     })
     .await;
@@ -319,7 +325,7 @@ async fn test_h2_head_binary() {
 async fn test_h2_head_binary2() {
     let srv = test_server(move || {
         HttpService::build()
-            .h2(|_| ok::<_, ()>(Response::Ok().body(STR)))
+            .h2(|_| ok::<_, ()>(Response::ok().set_body(STR)))
             .rustls(tls_config())
     })
     .await;
@@ -343,7 +349,7 @@ async fn test_h2_body_length() {
             .h2(|_| {
                 let body = once(ok(Bytes::from_static(STR.as_ref())));
                 ok::<_, ()>(
-                    Response::Ok().body(body::SizedStream::new(STR.len() as u64, body)),
+                    Response::ok().set_body(SizedStream::new(STR.len() as u64, body)),
                 )
             })
             .rustls(tls_config())
@@ -365,7 +371,7 @@ async fn test_h2_body_chunked_explicit() {
             .h2(|_| {
                 let body = once(ok::<_, Error>(Bytes::from_static(STR.as_ref())));
                 ok::<_, ()>(
-                    Response::Ok()
+                    Response::build(StatusCode::OK)
                         .insert_header((header::TRANSFER_ENCODING, "chunked"))
                         .streaming(body),
                 )
@@ -393,7 +399,7 @@ async fn test_h2_response_http_error_handling() {
                 ok::<_, ()>(fn_service(|_| {
                     let broken_header = Bytes::from_static(b"\0\0\0");
                     ok::<_, ()>(
-                        Response::Ok()
+                        Response::build(StatusCode::OK)
                             .insert_header((http::header::CONTENT_TYPE, broken_header))
                             .body(STR),
                     )
@@ -415,7 +421,7 @@ async fn test_h2_response_http_error_handling() {
 async fn test_h2_service_error() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|_| err::<Response, Error>(error::ErrorBadRequest("error")))
+            .h2(|_| err::<Response<Body>, Error>(error::ErrorBadRequest("error")))
             .rustls(tls_config())
     })
     .await;
@@ -432,7 +438,7 @@ async fn test_h2_service_error() {
 async fn test_h1_service_error() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h1(|_| err::<Response, Error>(error::ErrorBadRequest("error")))
+            .h1(|_| err::<Response<Body>, Error>(error::ErrorBadRequest("error")))
             .rustls(tls_config())
     })
     .await;

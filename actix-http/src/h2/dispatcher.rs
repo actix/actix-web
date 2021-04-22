@@ -5,8 +5,10 @@ use actix_codec::{AsyncRead, AsyncWrite};
 use actix_service::Service;
 use bytes::{Bytes, BytesMut};
 use futures_core::ready;
-use h2::server::{Connection, SendResponse};
-use h2::SendStream;
+use h2::{
+    server::{Connection, SendResponse},
+    SendStream,
+};
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
 use log::{error, trace};
 
@@ -250,8 +252,8 @@ where
                         }
                     }
 
-                    Err(e) => {
-                        let res: Response = e.into().into();
+                    Err(err) => {
+                        let res = Response::from_error(err.into());
                         let (res, body) = res.replace_body(());
 
                         let mut send = send.take().unwrap();

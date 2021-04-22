@@ -2,9 +2,8 @@ use std::cell::RefCell;
 use std::fmt;
 use std::future::Future;
 use std::rc::Rc;
-use std::task::Poll;
 
-use actix_http::{Error, Extensions, Response};
+use actix_http::{Error, Extensions};
 use actix_router::IntoPattern;
 use actix_service::boxed::{self, BoxService, BoxServiceFactory};
 use actix_service::{
@@ -14,7 +13,6 @@ use actix_service::{
 use futures_core::future::LocalBoxFuture;
 use futures_util::future::join_all;
 
-use crate::data::Data;
 use crate::dev::{insert_slash, AppService, HttpServiceFactory, ResourceDef};
 use crate::extract::FromRequest;
 use crate::guard::Guard;
@@ -22,6 +20,7 @@ use crate::handler::Handler;
 use crate::responder::Responder;
 use crate::route::{Route, RouteService};
 use crate::service::{ServiceRequest, ServiceResponse};
+use crate::{data::Data, HttpResponse};
 
 type HttpService = BoxService<ServiceRequest, ServiceResponse, Error>;
 type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
@@ -36,7 +35,7 @@ type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Err
 /// and check guards for specific route, if request matches all
 /// guards, route considered matched and route handler get called.
 ///
-/// ```rust
+/// ```
 /// use actix_web::{web, App, HttpResponse};
 ///
 /// fn main() {
@@ -72,7 +71,7 @@ impl Resource {
             guards: Vec::new(),
             app_data: None,
             default: boxed::factory(fn_service(|req: ServiceRequest| async {
-                Ok(req.into_response(Response::MethodNotAllowed().finish()))
+                Ok(req.into_response(HttpResponse::MethodNotAllowed()))
             })),
         }
     }
@@ -98,7 +97,7 @@ where
 
     /// Add match guard to a resource.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{web, guard, App, HttpResponse};
     ///
     /// async fn index(data: web::Path<(String, String)>) -> &'static str {
@@ -131,7 +130,7 @@ where
 
     /// Register a new route.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{web, guard, App, HttpResponse};
     ///
     /// fn main() {
@@ -148,7 +147,7 @@ where
     /// Multiple routes could be added to a resource. Resource object uses
     /// match guards for route selection.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{web, guard, App};
     ///
     /// fn main() {
@@ -173,7 +172,7 @@ where
     /// Provided data is available for all routes registered for the current resource.
     /// Resource data overrides data registered by `App::data()` method.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{web, App, FromRequest};
     ///
     /// /// extract text data from request
@@ -212,7 +211,7 @@ where
 
     /// Register a new route and add handler. This route matches all requests.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::*;
     ///
     /// fn index(req: HttpRequest) -> HttpResponse {
@@ -224,7 +223,7 @@ where
     ///
     /// This is shortcut for:
     ///
-    /// ```rust
+    /// ```
     /// # extern crate actix_web;
     /// # use actix_web::*;
     /// # fn index(req: HttpRequest) -> HttpResponse { unimplemented!() }
@@ -290,7 +289,7 @@ where
     /// Resource level middlewares are not allowed to change response
     /// type (i.e modify response's body).
     ///
-    /// ```rust
+    /// ```
     /// use actix_service::Service;
     /// use actix_web::{web, App};
     /// use actix_web::http::{header::CONTENT_TYPE, HeaderValue};
@@ -450,9 +449,9 @@ impl ServiceFactory<ServiceRequest> for ResourceFactory {
                 .collect::<Result<Vec<_>, _>>()?;
 
             Ok(ResourceService {
+                routes,
                 app_data,
                 default,
-                routes,
             })
         })
     }
@@ -520,7 +519,7 @@ mod tests {
 
     use actix_rt::time::sleep;
     use actix_service::Service;
-    use futures_util::future::ok;
+    use actix_utils::future::ok;
 
     use crate::http::{header, HeaderValue, Method, StatusCode};
     use crate::middleware::DefaultHeaders;

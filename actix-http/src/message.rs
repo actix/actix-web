@@ -1,12 +1,15 @@
-use std::cell::{Ref, RefCell, RefMut};
-use std::net;
-use std::rc::Rc;
+use std::{
+    cell::{Ref, RefCell, RefMut},
+    net,
+    rc::Rc,
+};
 
 use bitflags::bitflags;
 
-use crate::extensions::Extensions;
-use crate::header::HeaderMap;
-use crate::http::{header, Method, StatusCode, Uri, Version};
+use crate::{
+    header::{self, HeaderMap},
+    Extensions, Method, StatusCode, Uri, Version,
+};
 
 /// Represents various types of connection
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -345,8 +348,8 @@ impl ResponseHead {
 }
 
 pub struct Message<T: Head> {
-    // Rc here should not be cloned by anyone.
-    // It's used to reuse allocation of T and no shared ownership is allowed.
+    /// Rc here should not be cloned by anyone.
+    /// It's used to reuse allocation of T and no shared ownership is allowed.
     head: Rc<T>,
 }
 

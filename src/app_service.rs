@@ -1,21 +1,23 @@
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::task::Poll;
 
-use actix_http::{Extensions, Request, Response};
+use actix_http::{Extensions, Request};
 use actix_router::{Path, ResourceDef, Router, Url};
 use actix_service::boxed::{self, BoxService, BoxServiceFactory};
 use actix_service::{fn_service, Service, ServiceFactory};
 use futures_core::future::LocalBoxFuture;
 use futures_util::future::join_all;
 
-use crate::config::{AppConfig, AppService};
 use crate::data::FnDataFactory;
 use crate::error::Error;
 use crate::guard::Guard;
 use crate::request::{HttpRequest, HttpRequestPool};
 use crate::rmap::ResourceMap;
 use crate::service::{AppServiceFactory, ServiceRequest, ServiceResponse};
+use crate::{
+    config::{AppConfig, AppService},
+    HttpResponse,
+};
 
 type Guards = Vec<Box<dyn Guard>>;
 type HttpService = BoxService<ServiceRequest, ServiceResponse, Error>;
@@ -65,7 +67,7 @@ where
         // if no user defined default service exists.
         let default = self.default.clone().unwrap_or_else(|| {
             Rc::new(boxed::factory(fn_service(|req: ServiceRequest| async {
-                Ok(req.into_response(Response::NotFound().finish()))
+                Ok(req.into_response(HttpResponse::NotFound()))
             })))
         });
 

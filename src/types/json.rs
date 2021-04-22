@@ -11,7 +11,7 @@ use std::{
 };
 
 use bytes::BytesMut;
-use futures_util::{ready, stream::Stream};
+use futures_core::{ready, stream::Stream as _};
 use serde::{de::DeserializeOwned, Serialize};
 
 use actix_http::Payload;
@@ -73,6 +73,7 @@ use crate::{
 ///     })
 /// }
 /// ```
+#[derive(Debug)]
 pub struct Json<T>(pub T);
 
 impl<T> Json<T> {
@@ -93,15 +94,6 @@ impl<T> ops::Deref for Json<T> {
 impl<T> ops::DerefMut for Json<T> {
     fn deref_mut(&mut self) -> &mut T {
         &mut self.0
-    }
-}
-
-impl<T> fmt::Debug for Json<T>
-where
-    T: fmt::Debug,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Json: {:?}", self.0)
     }
 }
 
@@ -135,7 +127,7 @@ impl<T: Serialize> Responder for Json<T> {
             Ok(body) => HttpResponse::Ok()
                 .content_type(mime::APPLICATION_JSON)
                 .body(body),
-            Err(err) => HttpResponse::from_error(err.into()),
+            Err(err) => HttpResponse::from_error(JsonPayloadError::Serialize(err).into()),
         }
     }
 }
@@ -233,7 +225,7 @@ where
 ///     .content_type(|mime| mime == mime::TEXT_PLAIN)
 ///     // use custom error handler
 ///     .error_handler(|err, req| {
-///         error::InternalError::from_response(err, HttpResponse::Conflict().finish()).into()
+///         error::InternalError::from_response(err, HttpResponse::Conflict().into()).into()
 ///     });
 ///
 /// App::new()
@@ -420,7 +412,8 @@ where
                         }
                     }
                     None => {
-                        let json = serde_json::from_slice::<T>(&buf)?;
+                        let json = serde_json::from_slice::<T>(&buf)
+                            .map_err(JsonPayloadError::Deserialize)?;
                         return Poll::Ready(Ok(json));
                     }
                 }
@@ -494,7 +487,7 @@ mod tests {
                 };
                 let resp =
                     HttpResponse::BadRequest().body(serde_json::to_string(&msg).unwrap());
-                InternalError::from_response(err, resp).into()
+                InternalError::from_response(err, resp.into()).into()
             }))
             .to_http_parts();
 

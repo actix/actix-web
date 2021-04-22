@@ -3,16 +3,17 @@ use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
+use std::task::{Context, Poll};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_http::{body, h1, ws, Error, HttpService, Request, Response};
 use actix_http_test::test_server;
 use actix_service::{fn_factory, Service};
-use actix_utils::dispatcher::Dispatcher;
+use actix_utils::future;
 use bytes::Bytes;
-use futures_util::future;
-use futures_util::task::{Context, Poll};
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{SinkExt as _, StreamExt as _};
+
+use crate::ws::Dispatcher;
 
 struct WsService<T>(Arc<Mutex<(PhantomData<T>, Cell<bool>)>>);
 
@@ -58,7 +59,7 @@ where
                 .await
                 .unwrap();
 
-            Dispatcher::new(framed.replace_codec(ws::Codec::new()), service)
+            Dispatcher::with(framed.replace_codec(ws::Codec::new()), service)
                 .await
                 .map_err(|_| panic!())
         };
@@ -90,7 +91,7 @@ async fn test_simple() {
             let ws_service = ws_service.clone();
             HttpService::build()
                 .upgrade(fn_factory(move || future::ok::<_, ()>(ws_service.clone())))
-                .finish(|_| future::ok::<_, ()>(Response::NotFound()))
+                .finish(|_| future::ok::<_, ()>(Response::not_found()))
                 .tcp()
         }
     })

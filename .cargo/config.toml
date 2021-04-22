@@ -1,0 +1,7 @@
+[alias]
+chk = "hack check --workspace --all-features --tests --examples"
+lint = "hack --clean-per-run clippy --workspace --tests --examples"
+ci-min = "hack check --workspace --no-default-features"
+ci-min-test = "hack check --workspace --no-default-features --tests --examples"
+ci-default = "hack check --workspace"
+ci-full = "check --workspace --bins --examples --tests"

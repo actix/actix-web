@@ -1,6 +1,7 @@
 use std::{cell::RefCell, fmt, io, path::PathBuf, rc::Rc};
 
 use actix_service::{boxed, IntoServiceFactory, ServiceFactory, ServiceFactoryExt};
+use actix_utils::future::ok;
 use actix_web::{
     dev::{AppService, HttpServiceFactory, ResourceDef, ServiceRequest, ServiceResponse},
     error::Error,
@@ -8,7 +9,7 @@ use actix_web::{
     http::header::DispositionType,
     HttpRequest,
 };
-use futures_util::future::{ok, FutureExt, LocalBoxFuture};
+use futures_core::future::LocalBoxFuture;
 
 use crate::{
     directory_listing, named, Directory, DirectoryRenderer, FilesService, HttpNewService,
@@ -19,7 +20,7 @@ use crate::{
 ///
 /// `Files` service must be registered with `App::service()` method.
 ///
-/// ```rust
+/// ```
 /// use actix_web::App;
 /// use actix_files::Files;
 ///
@@ -221,6 +222,18 @@ impl Files {
     }
 
     /// Sets default handler which is used when no matched file could be found.
+    ///
+    /// For example, you could set a fall back static file handler:
+    /// ```rust
+    /// use actix_files::{Files, NamedFile};
+    ///
+    /// # fn run() -> Result<(), actix_web::Error> {
+    /// let files = Files::new("/", "./static")
+    ///     .index_file("index.html")
+    ///     .default_handler(NamedFile::open("./static/404.html")?);
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn default_handler<F, U>(mut self, f: F) -> Self
     where
         F: IntoServiceFactory<U, ServiceRequest>,
@@ -298,18 +311,18 @@ impl ServiceFactory<ServiceRequest> for Files {
         };
 
         if let Some(ref default) = *self.default.borrow() {
-            default
-                .new_service(())
-                .map(move |result| match result {
+            let fut = default.new_service(());
+            Box::pin(async {
+                match fut.await {
                     Ok(default) => {
                         srv.default = Some(default);
                         Ok(srv)
                     }
                     Err(_) => Err(()),
-                })
-                .boxed_local()
+                }
+            })
         } else {
-            ok(srv).boxed_local()
+            Box::pin(ok(srv))
         }
     }
 }

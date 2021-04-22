@@ -13,8 +13,9 @@ use std::{
 };
 
 use actix_service::{Service, Transform};
+use actix_utils::future::{ok, Ready};
 use bytes::Bytes;
-use futures_util::future::{ok, Ready};
+use futures_core::ready;
 use log::{debug, warn};
 use regex::{Regex, RegexSet};
 use time::OffsetDateTime;
@@ -43,7 +44,7 @@ use crate::{
 /// ```
 ///
 /// # Examples
-/// ```rust
+/// ```
 /// use actix_web::{middleware::Logger, App};
 ///
 /// // access logs are printed with the INFO level so ensure it is enabled by default
@@ -124,7 +125,7 @@ impl Logger {
     /// It is convention to print "-" to indicate no output instead of an empty string.
     ///
     /// # Example
-    /// ```rust
+    /// ```
     /// # use actix_web::{http::HeaderValue, middleware::Logger};
     /// # fn parse_jwt_id (_req: Option<&HeaderValue>) -> String { "jwt_uid".to_owned() }
     /// Logger::new("example %{JWT_ID}xi")
@@ -269,7 +270,7 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
 
-        let res = match futures_util::ready!(this.fut.poll(cx)) {
+        let res = match ready!(this.fut.poll(cx)) {
             Ok(res) => res,
             Err(e) => return Poll::Ready(Err(e)),
         };
@@ -379,7 +380,7 @@ impl Format {
                 results.push(match cap.get(3).unwrap().as_str() {
                     "a" => {
                         if key.as_str() == "r" {
-                            FormatText::RealIPRemoteAddr
+                            FormatText::RealIpRemoteAddr
                         } else {
                             unreachable!()
                         }
@@ -433,7 +434,7 @@ enum FormatText {
     Time,
     TimeMillis,
     RemoteAddr,
-    RealIPRemoteAddr,
+    RealIpRemoteAddr,
     UrlPath,
     RequestHeader(HeaderName),
     ResponseHeader(HeaderName),
@@ -553,7 +554,7 @@ impl FormatText {
                 };
                 *self = s;
             }
-            FormatText::RealIPRemoteAddr => {
+            FormatText::RealIpRemoteAddr => {
                 let s = if let Some(remote) = req.connection_info().realip_remote_addr() {
                     FormatText::Str(remote.to_string())
                 } else {
@@ -588,7 +589,7 @@ impl<'a> fmt::Display for FormatDisplay<'a> {
 #[cfg(test)]
 mod tests {
     use actix_service::{IntoService, Service, Transform};
-    use futures_util::future::ok;
+    use actix_utils::future::ok;
 
     use super::*;
     use crate::http::{header, StatusCode};

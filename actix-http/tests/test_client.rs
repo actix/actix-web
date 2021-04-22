@@ -3,11 +3,9 @@ use actix_http::{
 };
 use actix_http_test::test_server;
 use actix_service::ServiceFactoryExt;
+use actix_utils::future;
 use bytes::Bytes;
-use futures_util::{
-    future::{self, ok},
-    StreamExt,
-};
+use futures_util::StreamExt as _;
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \
@@ -35,7 +33,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 async fn test_h1_v2() {
     let srv = test_server(move || {
         HttpService::build()
-            .finish(|_| future::ok::<_, ()>(Response::Ok().body(STR)))
+            .finish(|_| future::ok::<_, ()>(Response::ok().set_body(STR)))
             .tcp()
     })
     .await;
@@ -63,7 +61,7 @@ async fn test_h1_v2() {
 async fn test_connection_close() {
     let srv = test_server(move || {
         HttpService::build()
-            .finish(|_| ok::<_, ()>(Response::Ok().body(STR)))
+            .finish(|_| future::ok::<_, ()>(Response::ok().set_body(STR)))
             .tcp()
             .map(|_| ())
     })
@@ -79,9 +77,9 @@ async fn test_with_query_parameter() {
         HttpService::build()
             .finish(|req: Request| {
                 if req.uri().query().unwrap().contains("qp=") {
-                    ok::<_, ()>(Response::Ok().finish())
+                    future::ok::<_, ()>(Response::ok())
                 } else {
-                    ok::<_, ()>(Response::BadRequest().finish())
+                    future::ok::<_, ()>(Response::bad_request())
                 }
             })
             .tcp()
@@ -114,7 +112,7 @@ async fn test_h1_expect() {
                 let str = std::str::from_utf8(&buf).unwrap();
                 assert_eq!(str, "expect body");
 
-                Ok::<_, ()>(Response::Ok().finish())
+                Ok::<_, ()>(Response::ok())
             })
             .tcp()
     })

@@ -16,7 +16,7 @@ use crate::{error::Error, service::ServiceResponse};
 /// [`Scope::wrap`](crate::Scope::wrap) and [`Condition`](super::Condition).
 ///
 /// # Examples
-/// ```rust
+/// ```
 /// use actix_web::middleware::{Logger, Compat};
 /// use actix_web::{App, web};
 ///
@@ -80,9 +80,7 @@ where
     type Error = Error;
     type Future = CompatMiddlewareFuture<S::Future>;
 
-    fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.service.poll_ready(cx).map_err(From::from)
-    }
+    actix_service::forward_ready!(service);
 
     fn call(&self, req: Req) -> Self::Future {
         let fut = self.service.call(req);
@@ -137,7 +135,7 @@ mod tests {
     use crate::{web, App, HttpResponse};
 
     #[actix_rt::test]
-    #[cfg(feature = "cookies")]
+    #[cfg(all(feature = "cookies", feature = "compress"))]
     async fn test_scope_middleware() {
         use crate::middleware::Compress;
 
@@ -160,7 +158,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    #[cfg(feature = "cookies")]
+    #[cfg(all(feature = "cookies", feature = "compress"))]
     async fn test_resource_scope_middleware() {
         use crate::middleware::Compress;
 

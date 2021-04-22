@@ -1,3 +1,6 @@
+use actix_service::{Service, ServiceFactory};
+use actix_utils::future::{ok, ready, Ready};
+use actix_web::dev::{AppService, HttpServiceFactory, ResourceDef};
 use std::fs::{File, Metadata};
 use std::io;
 use std::ops::{Deref, DerefMut};
@@ -8,14 +11,14 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use std::os::unix::fs::MetadataExt;
 
 use actix_web::{
-    dev::{BodyEncoding, SizedStream},
+    dev::{BodyEncoding, ServiceRequest, ServiceResponse, SizedStream},
     http::{
         header::{
             self, Charset, ContentDisposition, DispositionParam, DispositionType, ExtendedValue,
         },
         ContentEncoding, StatusCode,
     },
-    HttpMessage, HttpRequest, HttpResponse, Responder,
+    Error, HttpMessage, HttpRequest, HttpResponse, Responder,
 };
 use bitflags::bitflags;
 use mime_guess::from_path;
@@ -39,6 +42,29 @@ impl Default for Flags {
 }
 
 /// A file with an associated name.
+///
+/// `NamedFile` can be registered as services:
+/// ```
+/// use actix_web::App;
+/// use actix_files::NamedFile;
+///
+/// # fn run() -> Result<(), Box<dyn std::error::Error>> {
+/// let app = App::new()
+///     .service(NamedFile::open("./static/index.html")?);
+/// # Ok(())
+/// # }
+/// ```
+///
+/// They can also be returned from handlers:
+/// ```
+/// use actix_web::{Responder, get};
+/// use actix_files::NamedFile;
+///
+/// #[get("/")]
+/// async fn index() -> impl Responder {
+///     NamedFile::open("./static/index.html")
+/// }
+/// ```
 #[derive(Debug)]
 pub struct NamedFile {
     path: PathBuf,
@@ -60,7 +86,7 @@ impl NamedFile {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use actix_files::NamedFile;
     /// use std::io::{self, Write};
     /// use std::env;
@@ -137,7 +163,7 @@ impl NamedFile {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use actix_files::NamedFile;
     ///
     /// let file = NamedFile::open("foo.txt");
@@ -156,7 +182,7 @@ impl NamedFile {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// # use std::io;
     /// use actix_files::NamedFile;
     ///
@@ -478,5 +504,55 @@ fn none_match(etag: Option<&header::EntityTag>, req: &HttpRequest) -> bool {
 impl Responder for NamedFile {
     fn respond_to(self, req: &HttpRequest) -> HttpResponse {
         self.into_response(req)
+    }
+}
+
+impl ServiceFactory<ServiceRequest> for NamedFile {
+    type Response = ServiceResponse;
+    type Error = Error;
+    type Config = ();
+    type InitError = ();
+    type Service = NamedFileService;
+    type Future = Ready<Result<Self::Service, ()>>;
+
+    fn new_service(&self, _: ()) -> Self::Future {
+        ok(NamedFileService {
+            path: self.path.clone(),
+        })
+    }
+}
+
+#[doc(hidden)]
+#[derive(Debug)]
+pub struct NamedFileService {
+    path: PathBuf,
+}
+
+impl Service<ServiceRequest> for NamedFileService {
+    type Response = ServiceResponse;
+    type Error = Error;
+    type Future = Ready<Result<Self::Response, Self::Error>>;
+
+    actix_service::always_ready!();
+
+    fn call(&self, req: ServiceRequest) -> Self::Future {
+        let (req, _) = req.into_parts();
+        ready(
+            NamedFile::open(&self.path)
+                .map_err(|e| e.into())
+                .map(|f| f.into_response(&req))
+                .map(|res| ServiceResponse::new(req, res)),
+        )
+    }
+}
+
+impl HttpServiceFactory for NamedFile {
+    fn register(self, config: &mut AppService) {
+        config.register_service(
+            ResourceDef::root_prefix(self.path.to_string_lossy().as_ref()),
+            None,
+            self,
+            None,
+        )
     }
 }

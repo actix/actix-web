@@ -2,7 +2,7 @@
 //!
 //! ## Example
 //!
-//! ```rust,no_run
+//! ```no_run
 //! use actix_web::{get, web, App, HttpServer, Responder};
 //!
 //! #[get("/{id}/{name}/index.html")]
@@ -30,16 +30,16 @@
 //!
 //! To get started navigating the API docs, you may consider looking at the following pages first:
 //!
-//! * [App]: This struct represents an Actix Web application and is used to
+//! * [`App`]: This struct represents an Actix Web application and is used to
 //!   configure routes and other common application settings.
 //!
-//! * [HttpServer]: This struct represents an HTTP server instance and is
+//! * [`HttpServer`]: This struct represents an HTTP server instance and is
 //!   used to instantiate and configure servers.
 //!
-//! * [web]: This module provides essential types for route registration as well as
+//! * [`web`]: This module provides essential types for route registration as well as
 //!   common utilities for request handlers.
 //!
-//! * [HttpRequest] and [HttpResponse]: These
+//! * [`HttpRequest`] and [`HttpResponse`]: These
 //!   structs represent HTTP requests and responses and expose methods for creating, inspecting,
 //!   and otherwise utilizing them.
 //!
@@ -55,7 +55,7 @@
 //! * Static assets
 //! * SSL support using OpenSSL or Rustls
 //! * Middlewares ([Logger, Session, CORS, etc](https://actix.rs/docs/middleware/))
-//! * Includes an async [HTTP client](https://actix.rs/actix-web/actix_web/client/index.html)
+//! * Includes an async [HTTP client](https://docs.rs/awc/)
 //! * Runs on stable Rust 1.46+
 //!
 //! ## Crate Features
@@ -71,11 +71,6 @@
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 
-#[cfg(feature = "openssl")]
-extern crate tls_openssl as openssl;
-#[cfg(feature = "rustls")]
-extern crate tls_rustls as rustls;
-
 mod app;
 mod app_service;
 mod config;
@@ -84,12 +79,14 @@ pub mod error;
 mod extract;
 pub mod guard;
 mod handler;
+pub mod http;
 mod info;
 pub mod middleware;
 mod request;
 mod request_data;
 mod resource;
 mod responder;
+mod response;
 mod rmap;
 mod route;
 mod scope;
@@ -99,18 +96,20 @@ pub mod test;
 pub(crate) mod types;
 pub mod web;
 
-#[cfg(feature = "cookies")]
-pub use actix_http::cookie;
-pub use actix_http::Response as HttpResponse;
-pub use actix_http::{body, http, Error, HttpMessage, ResponseError, Result};
+pub use actix_http::Response as BaseHttpResponse;
+pub use actix_http::{body, Error, HttpMessage, ResponseError, Result};
+#[doc(inline)]
 pub use actix_rt as rt;
 pub use actix_web_codegen::*;
+#[cfg(feature = "cookies")]
+pub use cookie;
 
 pub use crate::app::App;
 pub use crate::extract::FromRequest;
 pub use crate::request::HttpRequest;
 pub use crate::resource::Resource;
 pub use crate::responder::Responder;
+pub use crate::response::{HttpResponse, HttpResponseBuilder};
 pub use crate::route::Route;
 pub use crate::scope::Scope;
 pub use crate::server::HttpServer;
@@ -142,11 +141,11 @@ pub mod dev {
     pub use actix_http::body::{Body, BodySize, MessageBody, ResponseBody, SizedStream};
     #[cfg(feature = "compress")]
     pub use actix_http::encoding::Decoder as Decompress;
-    pub use actix_http::ResponseBuilder as HttpResponseBuilder;
+    pub use actix_http::ResponseBuilder as BaseHttpResponseBuilder;
     pub use actix_http::{Extensions, Payload, PayloadStream, RequestHead, ResponseHead};
     pub use actix_router::{Path, ResourceDef, ResourcePath, Url};
     pub use actix_server::Server;
-    pub use actix_service::{Service, Transform};
+    pub use actix_service::{always_ready, forward_ready, Service, Transform};
 
     pub(crate) fn insert_slash(mut patterns: Vec<String>) -> Vec<String> {
         for path in &mut patterns {
@@ -173,11 +172,7 @@ pub mod dev {
 
     impl BodyEncoding for ResponseBuilder {
         fn get_encoding(&self) -> Option<ContentEncoding> {
-            if let Some(ref enc) = self.extensions().get::<Enc>() {
-                Some(enc.0)
-            } else {
-                None
-            }
+            self.extensions().get::<Enc>().map(|enc| enc.0)
         }
 
         fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
@@ -188,11 +183,29 @@ pub mod dev {
 
     impl<B> BodyEncoding for Response<B> {
         fn get_encoding(&self) -> Option<ContentEncoding> {
-            if let Some(ref enc) = self.extensions().get::<Enc>() {
-                Some(enc.0)
-            } else {
-                None
-            }
+            self.extensions().get::<Enc>().map(|enc| enc.0)
+        }
+
+        fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
+            self.extensions_mut().insert(Enc(encoding));
+            self
+        }
+    }
+
+    impl BodyEncoding for crate::HttpResponseBuilder {
+        fn get_encoding(&self) -> Option<ContentEncoding> {
+            self.extensions().get::<Enc>().map(|enc| enc.0)
+        }
+
+        fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
+            self.extensions_mut().insert(Enc(encoding));
+            self
+        }
+    }
+
+    impl<B> BodyEncoding for crate::HttpResponse<B> {
+        fn get_encoding(&self) -> Option<ContentEncoding> {
+            self.extensions().get::<Enc>().map(|enc| enc.0)
         }
 
         fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self {

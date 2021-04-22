@@ -1,12 +1,33 @@
-//! Typed HTTP headers, pre-defined `HeaderName`s, traits for parsing and conversion, and other
-//! header utility methods.
+//! Pre-defined `HeaderName`s, traits for parsing and conversion, and other header utility methods.
 
-use std::fmt;
-
-use bytes::{Bytes, BytesMut};
 use percent_encoding::{AsciiSet, CONTROLS};
 
-pub use http::header::*;
+// re-export from http except header map related items
+pub use http::header::{
+    HeaderName, HeaderValue, InvalidHeaderName, InvalidHeaderValue, ToStrError,
+};
+
+// re-export const header names
+pub use http::header::{
+    ACCEPT, ACCEPT_CHARSET, ACCEPT_ENCODING, ACCEPT_LANGUAGE, ACCEPT_RANGES,
+    ACCESS_CONTROL_ALLOW_CREDENTIALS, ACCESS_CONTROL_ALLOW_HEADERS,
+    ACCESS_CONTROL_ALLOW_METHODS, ACCESS_CONTROL_ALLOW_ORIGIN,
+    ACCESS_CONTROL_EXPOSE_HEADERS, ACCESS_CONTROL_MAX_AGE,
+    ACCESS_CONTROL_REQUEST_HEADERS, ACCESS_CONTROL_REQUEST_METHOD, AGE, ALLOW, ALT_SVC,
+    AUTHORIZATION, CACHE_CONTROL, CONNECTION, CONTENT_DISPOSITION, CONTENT_ENCODING,
+    CONTENT_LANGUAGE, CONTENT_LENGTH, CONTENT_LOCATION, CONTENT_RANGE,
+    CONTENT_SECURITY_POLICY, CONTENT_SECURITY_POLICY_REPORT_ONLY, CONTENT_TYPE, COOKIE,
+    DATE, DNT, ETAG, EXPECT, EXPIRES, FORWARDED, FROM, HOST, IF_MATCH,
+    IF_MODIFIED_SINCE, IF_NONE_MATCH, IF_RANGE, IF_UNMODIFIED_SINCE, LAST_MODIFIED,
+    LINK, LOCATION, MAX_FORWARDS, ORIGIN, PRAGMA, PROXY_AUTHENTICATE,
+    PROXY_AUTHORIZATION, PUBLIC_KEY_PINS, PUBLIC_KEY_PINS_REPORT_ONLY, RANGE, REFERER,
+    REFERRER_POLICY, REFRESH, RETRY_AFTER, SEC_WEBSOCKET_ACCEPT,
+    SEC_WEBSOCKET_EXTENSIONS, SEC_WEBSOCKET_KEY, SEC_WEBSOCKET_PROTOCOL,
+    SEC_WEBSOCKET_VERSION, SERVER, SET_COOKIE, STRICT_TRANSPORT_SECURITY, TE, TRAILER,
+    TRANSFER_ENCODING, UPGRADE, UPGRADE_INSECURE_REQUESTS, USER_AGENT, VARY, VIA,
+    WARNING, WWW_AUTHENTICATE, X_CONTENT_TYPE_OPTIONS, X_DNS_PREFETCH_CONTROL,
+    X_FRAME_OPTIONS, X_XSS_PROTECTION,
+};
 
 use crate::error::ParseError;
 use crate::HttpMessage;
@@ -16,11 +37,9 @@ mod into_pair;
 mod into_value;
 mod utils;
 
-mod common;
 pub(crate) mod map;
 mod shared;
 
-pub use self::common::*;
 #[doc(hidden)]
 pub use self::shared::*;
 
@@ -39,34 +58,6 @@ pub trait Header: IntoHeaderValue {
 
     /// Parse a header
     fn parse<T: HttpMessage>(msg: &T) -> Result<Self, ParseError>;
-}
-
-#[derive(Debug, Default)]
-pub(crate) struct Writer {
-    buf: BytesMut,
-}
-
-impl Writer {
-    fn new() -> Writer {
-        Writer::default()
-    }
-
-    fn take(&mut self) -> Bytes {
-        self.buf.split().freeze()
-    }
-}
-
-impl fmt::Write for Writer {
-    #[inline]
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        self.buf.extend_from_slice(s.as_bytes());
-        Ok(())
-    }
-
-    #[inline]
-    fn write_fmt(&mut self, args: fmt::Arguments<'_>) -> fmt::Result {
-        fmt::write(self, args)
-    }
 }
 
 /// Convert `http::HeaderMap` to our `HeaderMap`.

@@ -6,7 +6,7 @@
 //!
 //! ```no_run
 //! use awc::{Client, ws};
-//! use futures_util::{sink::SinkExt, stream::StreamExt};
+//! use futures_util::{sink::SinkExt as _, stream::StreamExt as _};
 //!
 //! #[actix_rt::main]
 //! async fn main() {
@@ -28,12 +28,9 @@
 
 use std::convert::TryFrom;
 use std::net::SocketAddr;
-use std::rc::Rc;
 use std::{fmt, str};
 
 use actix_codec::Framed;
-#[cfg(feature = "cookies")]
-use actix_http::cookie::{Cookie, CookieJar};
 use actix_http::{ws, Payload, RequestHead};
 use actix_rt::time::timeout;
 use actix_service::Service;
@@ -41,6 +38,8 @@ use actix_service::Service;
 pub use actix_http::ws::{CloseCode, CloseReason, Codec, Frame, Message};
 
 use crate::connect::{BoxedSocket, ConnectRequest};
+#[cfg(feature = "cookies")]
+use crate::cookie::{Cookie, CookieJar};
 use crate::error::{InvalidUrl, SendRequestError, WsClientError};
 use crate::http::header::{self, HeaderName, HeaderValue, IntoHeaderValue, AUTHORIZATION};
 use crate::http::{ConnectionType, Error as HttpError, Method, StatusCode, Uri, Version};
@@ -56,7 +55,7 @@ pub struct WebsocketsRequest {
     addr: Option<SocketAddr>,
     max_size: usize,
     server_mode: bool,
-    config: Rc<ClientConfig>,
+    config: ClientConfig,
 
     #[cfg(feature = "cookies")]
     cookies: Option<CookieJar>,
@@ -64,7 +63,7 @@ pub struct WebsocketsRequest {
 
 impl WebsocketsRequest {
     /// Create new WebSocket connection
-    pub(crate) fn new<U>(uri: U, config: Rc<ClientConfig>) -> Self
+    pub(crate) fn new<U>(uri: U, config: ClientConfig) -> Self
     where
         Uri: TryFrom<U>,
         <Uri as TryFrom<U>>::Error: Into<HttpError>,
@@ -281,7 +280,7 @@ impl WebsocketsRequest {
             let cookie: String = jar
                 .delta()
                 // ensure only name=value is written to cookie header
-                .map(|c| Cookie::new(c.name(), c.value()).encoded().to_string())
+                .map(|c| c.stripped().encoded().to_string())
                 .collect::<Vec<_>>()
                 .join("; ");
 

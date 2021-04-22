@@ -90,7 +90,7 @@ impl Service<ServiceRequest> for RouteService {
 impl Route {
     /// Add method guard to the route.
     ///
-    /// ```rust
+    /// ```
     /// # use actix_web::*;
     /// # fn main() {
     /// App::new().service(web::resource("/path").route(
@@ -110,7 +110,7 @@ impl Route {
 
     /// Add guard to the route.
     ///
-    /// ```rust
+    /// ```
     /// # use actix_web::*;
     /// # fn main() {
     /// App::new().service(web::resource("/path").route(
@@ -128,7 +128,7 @@ impl Route {
 
     /// Set handler function, use request extractors for parameters.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{web, http, App};
     /// use serde_derive::Deserialize;
     ///
@@ -152,7 +152,7 @@ impl Route {
     ///
     /// It is possible to use multiple extractors for one handler function.
     ///
-    /// ```rust
+    /// ```
     /// # use std::collections::HashMap;
     /// # use serde_derive::Deserialize;
     /// use actix_web::{web, App};
