@@ -311,6 +311,7 @@ impl ContentEncoder {
 }
 
 #[derive(Debug, Display)]
+#[non_exhaustive]
 pub enum EncoderError<E> {
     #[display(fmt = "body")]
     Body(E),

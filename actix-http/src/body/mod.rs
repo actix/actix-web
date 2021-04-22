@@ -76,7 +76,6 @@ mod tests {
     use bytes::{Bytes, BytesMut};
 
     use super::*;
-    // use crate::Error;
 
     impl Body {
         pub(crate) fn get_ref(&self) -> &[u8] {
@@ -239,6 +238,8 @@ mod tests {
         );
     }
 
+    // down-casting used to be done with a method on MessageBody trait
+    // test is kept to demonstrate equivalence of Any trait
     #[actix_rt::test]
     async fn test_body_casting() {
         let mut body = String::from("hello cast");
