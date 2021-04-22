@@ -1,6 +1,10 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Changed
+* Adjusted default JSON payload limit to 2MB (from 32kb) and included size and limits in the `JsonPayloadError::Overflow` error variant. [#2162]
+
+[#2162]: (https://github.com/actix/actix-web/pull/2162)
 
 
 ## 4.0.0-beta.6 - 2021-04-17
@@ -14,9 +18,6 @@
 [#2065]: https://github.com/actix/actix-web/pull/2065
 [#2148]: https://github.com/actix/actix-web/pull/2148
 
-* Adjusted default JSON payload limit to 2MB (from 32kb) and included size and limits in the `JsonPayloadError::Overflow` error variant. [#2162]
-
-[#2162]: (https://github.com/actix/actix-web/pull/2162)
 
 ## 4.0.0-beta.5 - 2021-04-02
 ### Added
