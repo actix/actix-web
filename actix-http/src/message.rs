@@ -1,12 +1,15 @@
-use std::cell::{Ref, RefCell, RefMut};
-use std::net;
-use std::rc::Rc;
+use std::{
+    cell::{Ref, RefCell, RefMut},
+    net,
+    rc::Rc,
+};
 
 use bitflags::bitflags;
 
-use crate::extensions::Extensions;
-use crate::header::HeaderMap;
-use crate::http::{header, Method, StatusCode, Uri, Version};
+use crate::{
+    header::{self, HeaderMap},
+    Extensions, Method, StatusCode, Uri, Version,
+};
 
 /// Represents various types of connection
 #[derive(Copy, Clone, PartialEq, Debug)]

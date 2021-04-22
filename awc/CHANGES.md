@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 3.0.0-beta.5 - 2021-04-17
 ### Removed
 * Deprecated methods on `ClientRequest`: `if_true`, `if_some`. [#2148]
 

@@ -1,11 +1,15 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 4.0.0-beta.6 - 2021-04-17
 ### Added
 * `HttpResponse` and `HttpResponseBuilder` structs. [#2065]
 
 ### Changed
 * Most error types are now marked `#[non_exhaustive]`. [#2148]
+* Methods on `ContentDisposition` that took `T: AsRef<str>` now take `impl AsRef<str>`.
 
 [#2065]: https://github.com/actix/actix-web/pull/2065
 [#2148]: https://github.com/actix/actix-web/pull/2148

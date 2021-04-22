@@ -20,7 +20,7 @@ use actix_http::{
     HttpService,
 };
 use actix_http_test::test_server;
-use actix_service::{map_config, pipeline_factory};
+use actix_service::{fn_service, map_config, ServiceFactoryExt as _};
 use actix_web::{
     dev::{AppConfig, BodyEncoding},
     http::header,
@@ -239,7 +239,7 @@ async fn test_connection_reuse() {
 
     let srv = test_server(move || {
         let num2 = num2.clone();
-        pipeline_factory(move |io| {
+        fn_service(move |io| {
             num2.fetch_add(1, Ordering::Relaxed);
             ok(io)
         })
@@ -276,7 +276,7 @@ async fn test_connection_force_close() {
 
     let srv = test_server(move || {
         let num2 = num2.clone();
-        pipeline_factory(move |io| {
+        fn_service(move |io| {
             num2.fetch_add(1, Ordering::Relaxed);
             ok(io)
         })
@@ -313,7 +313,7 @@ async fn test_connection_server_close() {
 
     let srv = test_server(move || {
         let num2 = num2.clone();
-        pipeline_factory(move |io| {
+        fn_service(move |io| {
             num2.fetch_add(1, Ordering::Relaxed);
             ok(io)
         })
@@ -353,7 +353,7 @@ async fn test_connection_wait_queue() {
 
     let srv = test_server(move || {
         let num2 = num2.clone();
-        pipeline_factory(move |io| {
+        fn_service(move |io| {
             num2.fetch_add(1, Ordering::Relaxed);
             ok(io)
         })
@@ -401,7 +401,7 @@ async fn test_connection_wait_queue_force_close() {
 
     let srv = test_server(move || {
         let num2 = num2.clone();
-        pipeline_factory(move |io| {
+        fn_service(move |io| {
             num2.fetch_add(1, Ordering::Relaxed);
             ok(io)
         })

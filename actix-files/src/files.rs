@@ -199,6 +199,18 @@ impl Files {
     }
 
     /// Sets default handler which is used when no matched file could be found.
+    ///
+    /// For example, you could set a fall back static file handler:
+    /// ```rust
+    /// use actix_files::{Files, NamedFile};
+    ///
+    /// # fn run() -> Result<(), actix_web::Error> {
+    /// let files = Files::new("/", "./static")
+    ///     .index_file("index.html")
+    ///     .default_handler(NamedFile::open("./static/404.html")?);
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn default_handler<F, U>(mut self, f: F) -> Self
     where
         F: IntoServiceFactory<U, ServiceRequest>,

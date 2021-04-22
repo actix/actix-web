@@ -31,7 +31,7 @@
 * Static assets
 * SSL support using OpenSSL or Rustls
 * Middlewares ([Logger, Session, CORS, etc](https://actix.rs/docs/middleware/))
-* Includes an async [HTTP client](https://docs.rs/actix-web/latest/actix_web/client/index.html)
+* Includes an async [HTTP client](https://docs.rs/awc/)
 * Runs on stable Rust 1.46+
 
 ## Documentation
@@ -90,7 +90,7 @@ You may consider checking out
 ## Benchmarks
 
 One of the fastest web frameworks available according to the
-[TechEmpower Framework Benchmark](https://www.techempower.com/benchmarks/#section=data-r19).
+[TechEmpower Framework Benchmark](https://www.techempower.com/benchmarks/#section=data-r20&test=composite).
 
 ## License
 

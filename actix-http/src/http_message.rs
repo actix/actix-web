@@ -1,14 +1,18 @@
-use std::cell::{Ref, RefMut};
-use std::str;
+use std::{
+    cell::{Ref, RefMut},
+    str,
+};
 
 use encoding_rs::{Encoding, UTF_8};
 use http::header;
 use mime::Mime;
 
-use crate::error::{ContentTypeError, ParseError};
-use crate::extensions::Extensions;
-use crate::header::{Header, HeaderMap};
-use crate::payload::Payload;
+use crate::{
+    error::{ContentTypeError, ParseError},
+    header::{Header, HeaderMap},
+    payload::Payload,
+    Extensions,
+};
 
 /// Trait that implements general purpose operations on HTTP messages.
 pub trait HttpMessage: Sized {

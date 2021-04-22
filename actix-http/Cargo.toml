@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "3.0.0-beta.5"
+version = "3.0.0-beta.6"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "HTTP primitives for the Actix ecosystem"
 readme = "README.md"
@@ -38,9 +38,9 @@ compress = ["flate2", "brotli2"]
 trust-dns = ["trust-dns-resolver"]
 
 [dependencies]
-actix-service = "2.0.0-beta.4"
-actix-codec = "0.4.0-beta.1"
-actix-utils = "3.0.0-beta.4"
+actix-service = "2.0.0"
+actix-codec = "0.4.0"
+actix-utils = "3.0.0"
 actix-rt = "2.2"
 actix-tls = { version = "3.0.0-beta.5", features = ["accept", "connect"] }
 

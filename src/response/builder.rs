@@ -32,7 +32,7 @@ use crate::{
 ///
 /// This type can be used to construct an instance of `Response` through a builder-like pattern.
 pub struct HttpResponseBuilder {
-    head: Option<ResponseHead>,
+    res: Option<Response<Body>>,
     err: Option<HttpError>,
     #[cfg(feature = "cookies")]
     cookies: Option<CookieJar>,
@@ -43,7 +43,7 @@ impl HttpResponseBuilder {
     /// Create response builder
     pub fn new(status: StatusCode) -> Self {
         Self {
-            head: Some(ResponseHead::new(status)),
+            res: Some(Response::new(status)),
             err: None,
             #[cfg(feature = "cookies")]
             cookies: None,
@@ -291,15 +291,19 @@ impl HttpResponseBuilder {
     /// Responses extensions
     #[inline]
     pub fn extensions(&self) -> Ref<'_, Extensions> {
-        let head = self.head.as_ref().expect("cannot reuse response builder");
-        head.extensions()
+        self.res
+            .as_ref()
+            .expect("cannot reuse response builder")
+            .extensions()
     }
 
     /// Mutable reference to a the response's extensions
     #[inline]
     pub fn extensions_mut(&mut self) -> RefMut<'_, Extensions> {
-        let head = self.head.as_ref().expect("cannot reuse response builder");
-        head.extensions_mut()
+        self.res
+            .as_mut()
+            .expect("cannot reuse response builder")
+            .extensions_mut()
     }
 
     /// Set a body and generate `Response`.
@@ -318,12 +322,14 @@ impl HttpResponseBuilder {
             return HttpResponse::from_error(Error::from(err)).into_body();
         }
 
-        // allow unused mut when cookies feature is disabled
-        #[allow(unused_mut)]
-        let mut head = self.head.take().expect("cannot reuse response builder");
+        let res = self
+            .res
+            .take()
+            .expect("cannot reuse response builder")
+            .set_body(body);
 
-        let mut res = HttpResponse::with_body(StatusCode::OK, body);
-        *res.head_mut() = head;
+        #[allow(unused_mut)]
+        let mut res = HttpResponse::from(res);
 
         #[cfg(feature = "cookies")]
         if let Some(ref jar) = self.cookies {
@@ -383,7 +389,7 @@ impl HttpResponseBuilder {
     /// This method construct new `HttpResponseBuilder`
     pub fn take(&mut self) -> Self {
         Self {
-            head: self.head.take(),
+            res: self.res.take(),
             err: self.err.take(),
             #[cfg(feature = "cookies")]
             cookies: self.cookies.take(),
@@ -396,7 +402,7 @@ impl HttpResponseBuilder {
             return None;
         }
 
-        self.head.as_mut()
+        self.res.as_mut().map(|res| res.head_mut())
     }
 }
 

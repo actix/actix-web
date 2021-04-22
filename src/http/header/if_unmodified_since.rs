@@ -1,6 +1,6 @@
 use super::{HttpDate, IF_UNMODIFIED_SINCE};
 
-crate::header! {
+crate::__define_common_header! {
     /// `If-Unmodified-Since` header, defined in
     /// [RFC7232](http://tools.ietf.org/html/rfc7232#section-3.4)
     ///
@@ -37,6 +37,6 @@ crate::header! {
 
     test_if_unmodified_since {
         // Test case from RFC
-        test_header!(test1, vec![b"Sat, 29 Oct 1994 19:43:31 GMT"]);
+        crate::__common_header_test!(test1, vec![b"Sat, 29 Oct 1994 19:43:31 GMT"]);
     }
 }
