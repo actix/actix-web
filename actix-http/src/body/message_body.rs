@@ -1,6 +1,7 @@
 //! [`MessageBody`] trait and foreign implementations.
 
 use std::{
+    convert::Infallible,
     mem,
     pin::Pin,
     task::{Context, Poll},
@@ -29,7 +30,7 @@ pub trait MessageBody {
 }
 
 impl MessageBody for () {
-    type Error = Error;
+    type Error = Infallible;
 
     fn size(&self) -> BodySize {
         BodySize::Empty
@@ -43,12 +44,12 @@ impl MessageBody for () {
     }
 }
 
-impl<T> MessageBody for Box<T>
+impl<B> MessageBody for Box<B>
 where
-    T: MessageBody + Unpin,
-    T::Error: Into<Error>,
+    B: MessageBody + Unpin,
+    B::Error: Into<Error>,
 {
-    type Error = Error;
+    type Error = B::Error;
 
     fn size(&self) -> BodySize {
         self.as_ref().size()
@@ -58,20 +59,16 @@ where
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
-        match ready!(Pin::new(self.get_mut().as_mut()).poll_next(cx)) {
-            Some(Err(err)) => Poll::Ready(Some(Err(err.into()))),
-            Some(Ok(val)) => Poll::Ready(Some(Ok(val))),
-            None => Poll::Ready(None),
-        }
+        Pin::new(self.get_mut().as_mut()).poll_next(cx)
     }
 }
 
-impl<T> MessageBody for Pin<Box<T>>
+impl<B> MessageBody for Pin<Box<B>>
 where
-    T: MessageBody,
-    T::Error: Into<Error>,
+    B: MessageBody,
+    B::Error: Into<Error>,
 {
-    type Error = Error;
+    type Error = B::Error;
 
     fn size(&self) -> BodySize {
         self.as_ref().size()
@@ -81,16 +78,12 @@ where
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
-        match ready!(self.as_mut().poll_next(cx)) {
-            Some(Err(err)) => Poll::Ready(Some(Err(err))),
-            Some(Ok(val)) => Poll::Ready(Some(Ok(val))),
-            None => Poll::Ready(None),
-        }
+        self.as_mut().poll_next(cx)
     }
 }
 
 impl MessageBody for Bytes {
-    type Error = Error;
+    type Error = Infallible;
 
     fn size(&self) -> BodySize {
         BodySize::Sized(self.len() as u64)
@@ -109,7 +102,7 @@ impl MessageBody for Bytes {
 }
 
 impl MessageBody for BytesMut {
-    type Error = Error;
+    type Error = Infallible;
 
     fn size(&self) -> BodySize {
         BodySize::Sized(self.len() as u64)
@@ -128,7 +121,7 @@ impl MessageBody for BytesMut {
 }
 
 impl MessageBody for &'static str {
-    type Error = Error;
+    type Error = Infallible;
 
     fn size(&self) -> BodySize {
         BodySize::Sized(self.len() as u64)
@@ -149,7 +142,7 @@ impl MessageBody for &'static str {
 }
 
 impl MessageBody for Vec<u8> {
-    type Error = Error;
+    type Error = Infallible;
 
     fn size(&self) -> BodySize {
         BodySize::Sized(self.len() as u64)
@@ -168,7 +161,7 @@ impl MessageBody for Vec<u8> {
 }
 
 impl MessageBody for String {
-    type Error = Error;
+    type Error = Infallible;
 
     fn size(&self) -> BodySize {
         BodySize::Sized(self.len() as u64)

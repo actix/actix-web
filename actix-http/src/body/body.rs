@@ -184,6 +184,7 @@ where
 pub struct BoxAnyBody(Pin<Box<dyn MessageBody<Error = Box<dyn StdError + 'static>>>>);
 
 impl BoxAnyBody {
+    /// Boxes a `MessageBody` and any errors it generates.
     pub fn from_body<B>(body: B) -> Self
     where
         B: MessageBody + 'static,

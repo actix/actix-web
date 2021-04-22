@@ -106,8 +106,7 @@ impl From<()> for Error {
 
 impl From<std::convert::Infallible> for Error {
     fn from(_: std::convert::Infallible) -> Self {
-        // `std::convert::Infallible` indicates an error
-        // that will never happen
+        // hint that an error that will never happen
         unreachable!()
     }
 }
