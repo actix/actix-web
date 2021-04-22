@@ -81,10 +81,9 @@ impl Files {
     /// If the mount path is set as the root path `/`, services registered after this one will
     /// be inaccessible. Register more specific handlers and services first.
     ///
-    /// `Files` uses a threadpool for blocking filesystem operations. By default, the pool uses a
-    /// max number of threads equal to `512 * HttpServer::worker`. Real time thread count are
-    /// adjusted with work load. More threads would spawn when need and threads goes idle for a
-    /// period of time would be de-spawned.
+    /// `Files` utilizes the existing Tokio thread-pool for blocking filesystem operations.
+    /// The number of running threads is adjusted over time as needed, up to a maximum of 512 times
+    /// the number of server [workers](HttpServer::workers), by default.
     pub fn new<T: Into<PathBuf>>(mount_path: &str, serve_from: T) -> Files {
         let orig_dir = serve_from.into();
         let dir = match orig_dir.canonicalize() {
