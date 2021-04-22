@@ -45,7 +45,8 @@ impl<B: MessageBody> ResponseBody<B> {
 
 impl<B> MessageBody for ResponseBody<B>
 where
-    B: MessageBody<Error = Error>,
+    B: MessageBody,
+    B::Error: Into<Error>,
 {
     type Error = Error;
 
@@ -66,7 +67,8 @@ where
 
 impl<B> Stream for ResponseBody<B>
 where
-    B: MessageBody<Error = Error>,
+    B: MessageBody,
+    B::Error: Into<Error>,
 {
     type Item = Result<Bytes, Error>;
 
@@ -75,7 +77,7 @@ where
         cx: &mut Context<'_>,
     ) -> Poll<Option<Self::Item>> {
         match self.project() {
-            ResponseBodyProj::Body(body) => body.poll_next(cx),
+            ResponseBodyProj::Body(body) => body.poll_next(cx).map_err(Into::into),
             ResponseBodyProj::Other(body) => Pin::new(body).poll_next(cx),
         }
     }

@@ -157,7 +157,7 @@ where
     <S::Service as Service<Request>>::Future: 'static,
 
     B: MessageBody + 'static,
-    B: MessageBody<Error = Error>,
+    B::Error: Into<Error>,
 
     X: ServiceFactory<Request, Config = (), Response = Request>,
     X::Future: 'static,
@@ -209,7 +209,7 @@ mod openssl {
         <S::Service as Service<Request>>::Future: 'static,
 
         B: MessageBody + 'static,
-        B: MessageBody<Error = Error>,
+        B::Error: Into<Error>,
 
         X: ServiceFactory<Request, Config = (), Response = Request>,
         X::Future: 'static,
@@ -277,7 +277,7 @@ mod rustls {
         <S::Service as Service<Request>>::Future: 'static,
 
         B: MessageBody + 'static,
-        B: MessageBody<Error = Error>,
+        B::Error: Into<Error>,
 
         X: ServiceFactory<Request, Config = (), Response = Request>,
         X::Future: 'static,
@@ -342,7 +342,7 @@ where
     <S::Service as Service<Request>>::Future: 'static,
 
     B: MessageBody + 'static,
-    B: MessageBody<Error = Error>,
+    B::Error: Into<Error>,
 
     X: ServiceFactory<Request, Config = (), Response = Request>,
     X::Future: 'static,
@@ -476,7 +476,7 @@ where
     S::Response: Into<Response<B>> + 'static,
 
     B: MessageBody + 'static,
-    B: MessageBody<Error = Error>,
+    B::Error: Into<Error>,
 
     X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
@@ -538,7 +538,7 @@ where
     S::Error: Into<Error>,
 
     B: MessageBody,
-    B: MessageBody<Error = Error>,
+    B::Error: Into<Error>,
 
     X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
@@ -569,8 +569,8 @@ where
     S::Future: 'static,
     S::Response: Into<Response<B>> + 'static,
 
-    B: MessageBody + 'static,
-    B: MessageBody<Error = Error>,
+    B: MessageBody,
+    B::Error: Into<Error>,
 
     X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
@@ -591,8 +591,8 @@ where
     S::Future: 'static,
     S::Response: Into<Response<B>> + 'static,
 
-    B: MessageBody,
-    B: MessageBody<Error = Error>,
+    B: MessageBody + 'static,
+    B::Error: Into<Error>,
 
     X: Service<Request, Response = Request>,
     X::Error: Into<Error>,

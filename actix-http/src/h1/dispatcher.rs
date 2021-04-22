@@ -53,7 +53,7 @@ where
     S::Error: Into<Error>,
 
     B: MessageBody,
-    B: MessageBody<Error = Error>,
+    B::Error: Into<Error>,
 
     X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
@@ -75,7 +75,7 @@ where
     S::Error: Into<Error>,
 
     B: MessageBody,
-    B: MessageBody<Error = Error>,
+    B::Error: Into<Error>,
 
     X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
@@ -94,7 +94,7 @@ where
     S::Error: Into<Error>,
 
     B: MessageBody,
-    B: MessageBody<Error = Error>,
+    B::Error: Into<Error>,
 
     X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
@@ -136,7 +136,7 @@ where
     X: Service<Request, Response = Request>,
 
     B: MessageBody,
-    B: MessageBody<Error = Error>,
+    B::Error: Into<Error>,
 {
     None,
     ExpectCall(#[pin] X::Future),
@@ -151,7 +151,7 @@ where
     X: Service<Request, Response = Request>,
 
     B: MessageBody,
-    B: MessageBody<Error = Error>,
+    B::Error: Into<Error>,
 {
     fn is_empty(&self) -> bool {
         matches!(self, State::None)
@@ -173,7 +173,7 @@ where
     S::Response: Into<Response<B>>,
 
     B: MessageBody,
-    B: MessageBody<Error = Error>,
+    B::Error: Into<Error>,
 
     X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
@@ -234,7 +234,7 @@ where
     S::Response: Into<Response<B>>,
 
     B: MessageBody,
-    B: MessageBody<Error = Error>,
+    B::Error: Into<Error>,
 
     X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
@@ -850,7 +850,7 @@ where
     S::Response: Into<Response<B>>,
 
     B: MessageBody,
-    B: MessageBody<Error = Error>,
+    B::Error: Into<Error>,
 
     X: Service<Request, Response = Request>,
     X::Error: Into<Error>,

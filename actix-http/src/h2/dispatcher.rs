@@ -69,11 +69,14 @@ where
 impl<T, S, B, X, U> Future for Dispatcher<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
+
     S: Service<Request>,
     S::Error: Into<Error> + 'static,
     S::Future: 'static,
     S::Response: Into<Response<B>> + 'static,
-    B: MessageBody<Error = Error> + 'static,
+
+    B: MessageBody + 'static,
+    B::Error: Into<Error> + 'static,
 {
     type Output = Result<(), DispatchError>;
 
@@ -140,7 +143,9 @@ where
     F: Future<Output = Result<I, E>>,
     E: Into<Error>,
     I: Into<Response<B>>,
+
     B: MessageBody,
+    B::Error: Into<Error>,
 {
     fn prepare_response(
         &self,
@@ -216,7 +221,9 @@ where
     F: Future<Output = Result<I, E>>,
     E: Into<Error>,
     I: Into<Response<B>>,
-    B: MessageBody<Error = Error>,
+
+    B: MessageBody,
+    B::Error: Into<Error>,
 {
     type Output = ();
 
