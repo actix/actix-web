@@ -1,11 +1,13 @@
 //! For middleware documentation, see [`Condition`].
 
+use std::future::Future;
+use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use actix_service::{Service, Transform};
 use actix_utils::future::Either;
-use futures_core::future::LocalBoxFuture;
-use futures_util::future::FutureExt as _;
+
+use futures_core::ready;
 
 /// Middleware for conditionally enabling other middleware.
 ///
@@ -48,19 +50,39 @@ where
     type Error = S::Error;
     type Transform = ConditionMiddleware<T::Transform, S>;
     type InitError = T::InitError;
-    type Future = LocalBoxFuture<'static, Result<Self::Transform, Self::InitError>>;
+    type Future = ConditionFut<<T>::Future, S>;
 
     fn new_transform(&self, service: S) -> Self::Future {
         if self.enable {
             let fut = self.transformer.new_transform(service);
-            async move {
-                let wrapped_svc = fut.await?;
-                Ok(ConditionMiddleware::Enable(wrapped_svc))
-            }
-            .boxed_local()
+            ConditionFut::Enable(fut)
         } else {
-            async move { Ok(ConditionMiddleware::Disable(service)) }.boxed_local()
+            ConditionFut::Disable(Some(service))
         }
+    }
+}
+
+#[pin_project::pin_project(project = ConditionFutProj)]
+pub enum ConditionFut<F, D> {
+    Enable(#[pin] F),
+    Disable(Option<D>),
+}
+
+impl<F, E, D, Ie> Future for ConditionFut<F, D>
+where
+    F: Future<Output = Result<E, Ie>>,
+{
+    type Output = Result<ConditionMiddleware<E, D>, Ie>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let middleware = match self.project() {
+            ConditionFutProj::Enable(fut) => ConditionMiddleware::Enable(ready!(fut.poll(cx))?),
+            ConditionFutProj::Disable(service) => {
+                ConditionMiddleware::Disable(service.take().unwrap())
+            }
+        };
+
+        Poll::Ready(Ok(middleware))
     }
 }
 
