@@ -5,7 +5,7 @@ use mime::Mime;
 use super::{qitem, QualityItem};
 use crate::http::header;
 
-crate::header! {
+crate::__define_common_header! {
     /// `Accept` header, defined in [RFC7231](http://tools.ietf.org/html/rfc7231#section-5.3.2)
     ///
     /// The `Accept` header field can be used by user agents to specify
@@ -81,14 +81,14 @@ crate::header! {
 
     test_accept {
         // Tests from the RFC
-         test_header!(
+         crate::__common_header_test!(
             test1,
             vec![b"audio/*; q=0.2, audio/basic"],
             Some(Accept(vec![
                 QualityItem::new("audio/*".parse().unwrap(), q(200)),
                 qitem("audio/basic".parse().unwrap()),
                 ])));
-        test_header!(
+        crate::__common_header_test!(
             test2,
             vec![b"text/plain; q=0.5, text/html, text/x-dvi; q=0.8, text/x-c"],
             Some(Accept(vec![
@@ -100,13 +100,13 @@ crate::header! {
                 qitem("text/x-c".parse().unwrap()),
                 ])));
         // Custom tests
-        test_header!(
+        crate::__common_header_test!(
             test3,
             vec![b"text/plain; charset=utf-8"],
             Some(Accept(vec![
                 qitem(mime::TEXT_PLAIN_UTF_8),
                 ])));
-        test_header!(
+        crate::__common_header_test!(
             test4,
             vec![b"text/plain; charset=utf-8; q=0.5"],
             Some(Accept(vec![

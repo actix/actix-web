@@ -10,7 +10,9 @@ use std::{
 
 use actix_codec::Framed;
 use actix_rt::net::{ActixStream, TcpStream};
-use actix_service::{pipeline_factory, IntoServiceFactory, Service, ServiceFactory};
+use actix_service::{
+    fn_service, IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt as _,
+};
 use bytes::Bytes;
 use futures_core::{future::LocalBoxFuture, ready};
 use h2::server::{handshake, Handshake};
@@ -180,7 +182,7 @@ where
         Error = DispatchError,
         InitError = (),
     > {
-        pipeline_factory(|io: TcpStream| async {
+        fn_service(|io: TcpStream| async {
             let peer_addr = io.peer_addr().ok();
             Ok((io, Protocol::Http1, peer_addr))
         })
@@ -232,25 +234,23 @@ mod openssl {
             Error = TlsError<SslError, DispatchError>,
             InitError = (),
         > {
-            pipeline_factory(
-                Acceptor::new(acceptor)
-                    .map_err(TlsError::Tls)
-                    .map_init_err(|_| panic!()),
-            )
-            .and_then(|io: TlsStream<TcpStream>| async {
-                let proto = if let Some(protos) = io.ssl().selected_alpn_protocol() {
-                    if protos.windows(2).any(|window| window == b"h2") {
-                        Protocol::Http2
+            Acceptor::new(acceptor)
+                .map_err(TlsError::Tls)
+                .map_init_err(|_| panic!())
+                .and_then(|io: TlsStream<TcpStream>| async {
+                    let proto = if let Some(protos) = io.ssl().selected_alpn_protocol() {
+                        if protos.windows(2).any(|window| window == b"h2") {
+                            Protocol::Http2
+                        } else {
+                            Protocol::Http1
+                        }
                     } else {
                         Protocol::Http1
-                    }
-                } else {
-                    Protocol::Http1
-                };
-                let peer_addr = io.get_ref().peer_addr().ok();
-                Ok((io, proto, peer_addr))
-            })
-            .and_then(self.map_err(TlsError::Service))
+                    };
+                    let peer_addr = io.get_ref().peer_addr().ok();
+                    Ok((io, proto, peer_addr))
+                })
+                .and_then(self.map_err(TlsError::Service))
         }
     }
 }
@@ -304,25 +304,24 @@ mod rustls {
             let protos = vec!["h2".to_string().into(), "http/1.1".to_string().into()];
             config.set_protocols(&protos);
 
-            pipeline_factory(
-                Acceptor::new(config)
-                    .map_err(TlsError::Tls)
-                    .map_init_err(|_| panic!()),
-            )
-            .and_then(|io: TlsStream<TcpStream>| async {
-                let proto = if let Some(protos) = io.get_ref().1.get_alpn_protocol() {
-                    if protos.windows(2).any(|window| window == b"h2") {
-                        Protocol::Http2
+            Acceptor::new(config)
+                .map_err(TlsError::Tls)
+                .map_init_err(|_| panic!())
+                .and_then(|io: TlsStream<TcpStream>| async {
+                    let proto = if let Some(protos) = io.get_ref().1.get_alpn_protocol()
+                    {
+                        if protos.windows(2).any(|window| window == b"h2") {
+                            Protocol::Http2
+                        } else {
+                            Protocol::Http1
+                        }
                     } else {
                         Protocol::Http1
-                    }
-                } else {
-                    Protocol::Http1
-                };
-                let peer_addr = io.get_ref().0.peer_addr().ok();
-                Ok((io, proto, peer_addr))
-            })
-            .and_then(self.map_err(TlsError::Service))
+                    };
+                    let peer_addr = io.get_ref().0.peer_addr().ok();
+                    Ok((io, proto, peer_addr))
+                })
+                .and_then(self.map_err(TlsError::Service))
         }
     }
 }

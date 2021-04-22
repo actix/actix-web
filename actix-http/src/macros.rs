@@ -1,4 +1,5 @@
 #[macro_export]
+#[doc(hidden)]
 macro_rules! downcast_get_type_id {
     () => {
         /// A helper method to get the type ID of the type
@@ -25,6 +26,7 @@ macro_rules! downcast_get_type_id {
 }
 
 //Generate implementation for dyn $name
+#[doc(hidden)]
 #[macro_export]
 macro_rules! downcast {
     ($name:ident) => {

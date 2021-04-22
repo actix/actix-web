@@ -1,11 +1,11 @@
 use std::fmt::{self, Display, Write};
 
-use crate::http::header;
-use crate::error::ParseError;
 use super::{
-    from_one_raw_str, EntityTag, Header, HeaderName, HeaderValue, HttpDate,
-    IntoHeaderValue, InvalidHeaderValue, Writer,
+    from_one_raw_str, EntityTag, Header, HeaderName, HeaderValue, HttpDate, IntoHeaderValue,
+    InvalidHeaderValue, Writer,
 };
+use crate::error::ParseError;
+use crate::http::header;
 use crate::HttpMessage;
 
 /// `If-Range` header, defined in [RFC7233](http://tools.ietf.org/html/rfc7233#section-3.2)
@@ -76,13 +76,11 @@ impl Header for IfRange {
     where
         T: HttpMessage,
     {
-        let etag: Result<EntityTag, _> =
-            from_one_raw_str(msg.headers().get(&header::IF_RANGE));
+        let etag: Result<EntityTag, _> = from_one_raw_str(msg.headers().get(&header::IF_RANGE));
         if let Ok(etag) = etag {
             return Ok(IfRange::EntityTag(etag));
         }
-        let date: Result<HttpDate, _> =
-            from_one_raw_str(msg.headers().get(&header::IF_RANGE));
+        let date: Result<HttpDate, _> = from_one_raw_str(msg.headers().get(&header::IF_RANGE));
         if let Ok(date) = date {
             return Ok(IfRange::Date(date));
         }
@@ -115,7 +113,7 @@ mod test_if_range {
     use crate::http::header::*;
     use std::str;
 
-    test_header!(test1, vec![b"Sat, 29 Oct 1994 19:43:31 GMT"]);
-    test_header!(test2, vec![b"\"abc\""]);
-    test_header!(test3, vec![b"this-is-invalid"], None::<IfRange>);
+    crate::__common_header_test!(test1, vec![b"Sat, 29 Oct 1994 19:43:31 GMT"]);
+    crate::__common_header_test!(test2, vec![b"\"abc\""]);
+    crate::__common_header_test!(test3, vec![b"this-is-invalid"], None::<IfRange>);
 }

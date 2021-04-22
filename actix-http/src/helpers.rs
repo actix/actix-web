@@ -41,6 +41,7 @@ pub fn write_content_length<B: BufMut>(n: u64, buf: &mut B) {
     buf.put_slice(b"\r\n");
 }
 
+// TODO: bench why this is needed
 pub(crate) struct Writer<'a, B>(pub &'a mut B);
 
 impl<'a, B> io::Write for Writer<'a, B>

@@ -2,6 +2,22 @@
 
 ## Unreleased - 2021-xx-xx
 ### Added
+* Re-export `http` crate's `Error` type as `error::HttpError`. [#2171]
+* Re-export `StatusCode`, `Method`, `Version` and `Uri` at the crate root. [#2171]
+* Re-export `ContentEncoding` and `ConnectionType` at the crate root. [#2171]
+
+### Changed
+* `header` mod is now public. [#2171]
+* `uri` mod is now public. [#2171]
+
+### Removed
+* Stop re-exporting `http` crate's `HeaderMap` types in addition to ours. [#2171]
+
+[#2171]: https://github.com/actix/actix-web/pull/2171
+
+
+## 3.0.0-beta.6 - 2021-04-17
+### Added
 * `impl<T: MessageBody> MessageBody for Pin<Box<T>>`. [#2152]
 * `Response::{ok, bad_request, not_found, internal_server_error}`. [#2159]
 * Helper `body::to_bytes` for async collecting message body into Bytes. [#2158]
