@@ -380,7 +380,7 @@ impl Format {
                 results.push(match cap.get(3).unwrap().as_str() {
                     "a" => {
                         if key.as_str() == "r" {
-                            FormatText::RealIPRemoteAddr
+                            FormatText::RealIpRemoteAddr
                         } else {
                             unreachable!()
                         }
@@ -434,7 +434,7 @@ enum FormatText {
     Time,
     TimeMillis,
     RemoteAddr,
-    RealIPRemoteAddr,
+    RealIpRemoteAddr,
     UrlPath,
     RequestHeader(HeaderName),
     ResponseHeader(HeaderName),
@@ -554,7 +554,7 @@ impl FormatText {
                 };
                 *self = s;
             }
-            FormatText::RealIPRemoteAddr => {
+            FormatText::RealIpRemoteAddr => {
                 let s = if let Some(remote) = req.connection_info().realip_remote_addr() {
                     FormatText::Str(remote.to_string())
                 } else {

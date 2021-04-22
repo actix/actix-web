@@ -80,9 +80,7 @@ where
     type Error = Error;
     type Future = CompatMiddlewareFuture<S::Future>;
 
-    fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.service.poll_ready(cx).map_err(From::from)
-    }
+    actix_service::forward_ready!(service);
 
     fn call(&self, req: Req) -> Self::Future {
         let fut = self.service.call(req);

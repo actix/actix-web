@@ -92,7 +92,7 @@ impl<B: MessageBody> Encoder<B> {
 enum EncoderBody<B> {
     Bytes(Bytes),
     Stream(#[pin] B),
-    BoxedStream(Box<dyn MessageBody + Unpin>),
+    BoxedStream(Pin<Box<dyn MessageBody>>),
 }
 
 impl<B: MessageBody> MessageBody for EncoderBody<B> {
@@ -117,9 +117,7 @@ impl<B: MessageBody> MessageBody for EncoderBody<B> {
                 }
             }
             EncoderBodyProj::Stream(b) => b.poll_next(cx),
-            EncoderBodyProj::BoxedStream(ref mut b) => {
-                Pin::new(b.as_mut()).poll_next(cx)
-            }
+            EncoderBodyProj::BoxedStream(ref mut b) => b.as_mut().poll_next(cx),
         }
     }
 }

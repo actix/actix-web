@@ -5,7 +5,9 @@ use std::{fmt, net};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_rt::net::TcpStream;
-use actix_service::{pipeline_factory, IntoServiceFactory, Service, ServiceFactory};
+use actix_service::{
+    fn_service, IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt as _,
+};
 use actix_utils::future::ready;
 use futures_core::future::LocalBoxFuture;
 
@@ -82,7 +84,7 @@ where
         Error = DispatchError,
         InitError = (),
     > {
-        pipeline_factory(|io: TcpStream| {
+        fn_service(|io: TcpStream| {
             let peer_addr = io.peer_addr().ok();
             ready(Ok((io, peer_addr)))
         })
@@ -132,16 +134,14 @@ mod openssl {
             Error = TlsError<SslError, DispatchError>,
             InitError = (),
         > {
-            pipeline_factory(
-                Acceptor::new(acceptor)
-                    .map_err(TlsError::Tls)
-                    .map_init_err(|_| panic!()),
-            )
-            .and_then(|io: TlsStream<TcpStream>| {
-                let peer_addr = io.get_ref().peer_addr().ok();
-                ready(Ok((io, peer_addr)))
-            })
-            .and_then(self.map_err(TlsError::Service))
+            Acceptor::new(acceptor)
+                .map_err(TlsError::Tls)
+                .map_init_err(|_| panic!())
+                .and_then(|io: TlsStream<TcpStream>| {
+                    let peer_addr = io.get_ref().peer_addr().ok();
+                    ready(Ok((io, peer_addr)))
+                })
+                .and_then(self.map_err(TlsError::Service))
         }
     }
 }
@@ -190,16 +190,14 @@ mod rustls {
             Error = TlsError<io::Error, DispatchError>,
             InitError = (),
         > {
-            pipeline_factory(
-                Acceptor::new(config)
-                    .map_err(TlsError::Tls)
-                    .map_init_err(|_| panic!()),
-            )
-            .and_then(|io: TlsStream<TcpStream>| {
-                let peer_addr = io.get_ref().0.peer_addr().ok();
-                ready(Ok((io, peer_addr)))
-            })
-            .and_then(self.map_err(TlsError::Service))
+            Acceptor::new(config)
+                .map_err(TlsError::Tls)
+                .map_init_err(|_| panic!())
+                .and_then(|io: TlsStream<TcpStream>| {
+                    let peer_addr = io.get_ref().0.peer_addr().ok();
+                    ready(Ok((io, peer_addr)))
+                })
+                .and_then(self.map_err(TlsError::Service))
         }
     }
 }

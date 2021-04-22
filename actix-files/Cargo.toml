@@ -17,9 +17,9 @@ name = "actix_files"
 path = "src/lib.rs"
 
 [dependencies]
-actix-web = { version = "4.0.0-beta.5", default-features = false }
-actix-service = "2.0.0-beta.4"
-actix-utils = "3.0.0-beta.4"
+actix-web = { version = "4.0.0-beta.6", default-features = false }
+actix-service = "2.0.0"
+actix-utils = "3.0.0"
 
 askama_escape = "0.10"
 bitflags = "1"
@@ -34,5 +34,5 @@ percent-encoding = "2.1"
 
 [dev-dependencies]
 actix-rt = "2.2"
-actix-web = "4.0.0-beta.5"
-actix-test = "0.1.0-beta.1"
+actix-web = "4.0.0-beta.6"
+actix-test = "0.1.0-beta.2"

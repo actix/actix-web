@@ -9,6 +9,8 @@ use actix_http::{
 };
 use actix_router::{IntoPattern, Path, Resource, ResourceDef, Url};
 use actix_service::{IntoServiceFactory, ServiceFactory};
+#[cfg(feature = "cookies")]
+use cookie::{Cookie, ParseError as CookieParseError};
 
 use crate::dev::insert_slash;
 use crate::guard::Guard;
@@ -242,6 +244,17 @@ impl ServiceRequest {
         }
 
         None
+    }
+
+    #[cfg(feature = "cookies")]
+    pub fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
+        self.req.cookies()
+    }
+
+    /// Return request cookie.
+    #[cfg(feature = "cookies")]
+    pub fn cookie(&self, name: &str) -> Option<Cookie<'static>> {
+        self.req.cookie(name)
     }
 
     /// Set request payload.

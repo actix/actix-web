@@ -1,6 +1,6 @@
 use super::{HttpDate, IF_MODIFIED_SINCE};
 
-crate::header! {
+crate::__define_common_header! {
     /// `If-Modified-Since` header, defined in
     /// [RFC7232](http://tools.ietf.org/html/rfc7232#section-3.3)
     ///
@@ -36,6 +36,6 @@ crate::header! {
 
     test_if_modified_since {
         // Test case from RFC
-        test_header!(test1, vec![b"Sat, 29 Oct 1994 19:43:31 GMT"]);
+        crate::__common_header_test!(test1, vec![b"Sat, 29 Oct 1994 19:43:31 GMT"]);
     }
 }
