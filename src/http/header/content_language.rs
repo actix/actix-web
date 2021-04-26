@@ -24,28 +24,28 @@ crate::__define_common_header! {
     /// # Examples
     ///
     /// ```
-    /// use language_tags::langtag;
+    /// use language_tags::LanguageTag;
     /// use actix_web::HttpResponse;
     /// use actix_web::http::header::{ContentLanguage, qitem};
     ///
     /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     ContentLanguage(vec![
-    ///         qitem(langtag!(en)),
+    ///         qitem(LanguageTag::parse("en").unwrap()),
     ///     ])
     /// );
     /// ```
     ///
     /// ```
-    /// use language_tags::langtag;
+    /// use language_tags::LanguageTag;
     /// use actix_web::HttpResponse;
     /// use actix_web::http::header::{ContentLanguage, qitem};
     ///
     /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     ContentLanguage(vec![
-    ///         qitem(langtag!(da)),
-    ///         qitem(langtag!(en;;;GB)),
+    ///         qitem(LanguageTag::parse("da").unwrap()),
+    ///         qitem(LanguageTag::parse("en-GB").unwrap()),
     ///     ])
     /// );
     /// ```
