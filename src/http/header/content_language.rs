@@ -24,9 +24,8 @@ crate::__define_common_header! {
     /// # Examples
     ///
     /// ```
-    /// use language_tags::LanguageTag;
     /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{ContentLanguage, qitem};
+    /// use actix_web::http::header::{ContentLanguage, LanguageTag, qitem};
     ///
     /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
@@ -37,9 +36,8 @@ crate::__define_common_header! {
     /// ```
     ///
     /// ```
-    /// use language_tags::LanguageTag;
     /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{ContentLanguage, qitem};
+    /// use actix_web::http::header::{ContentLanguage, LanguageTag, qitem};
     ///
     /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
