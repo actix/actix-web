@@ -266,7 +266,10 @@ where
         };
         if let Some(val) = self.local_address {
             connector = connector.local_address(val);
-        }
+        };
+        if let Some(val) = self.timeout {
+            connector = connector.timeout(val);
+        };
 
         let connector = DefaultConnector::new(connector.finish());
         let connector = boxed::rc_service(self.middleware.new_transform(connector));
