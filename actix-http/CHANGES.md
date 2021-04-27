@@ -9,6 +9,7 @@
 ### Changed
 * `header` mod is now public. [#2171]
 * `uri` mod is now public. [#2171]
+* Update `language-tags` to `0.3`.
 
 ### Removed
 * Stop re-exporting `http` crate's `HeaderMap` types in addition to ours. [#2171]
