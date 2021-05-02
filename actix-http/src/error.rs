@@ -130,7 +130,11 @@ impl<T: ResponseError + 'static> From<T> for Error {
 /// Convert Response to a Error
 impl From<Response<Body>> for Error {
     fn from(res: Response<Body>) -> Error {
-        InternalError::from_response("", res).into()
+        if res.error.is_some() {
+            res.error.unwrap()
+        } else {
+            InternalError::from_response("", res).into()
+        }
     }
 }
 

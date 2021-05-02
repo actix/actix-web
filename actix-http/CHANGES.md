@@ -14,6 +14,9 @@
 ### Removed
 * Stop re-exporting `http` crate's `HeaderMap` types in addition to ours. [#2171]
 
+### Fixed
+* Converting an `HttpResponse` to an `Error` return the underlying `Error` if `HttpResponse` was built using `HttpResponse::from_error`.
+
 [#2171]: https://github.com/actix/actix-web/pull/2171
 
 

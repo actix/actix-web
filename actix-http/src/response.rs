@@ -341,6 +341,7 @@ mod tests {
     use super::*;
     use crate::body::Body;
     use crate::http::header::{HeaderValue, CONTENT_TYPE, COOKIE};
+    use crate::ResponseError;
 
     #[test]
     fn test_debug() {
@@ -350,6 +351,26 @@ mod tests {
             .finish();
         let dbg = format!("{:?}", resp);
         assert!(dbg.contains("Response"));
+    }
+
+    #[test]
+    fn test_response_error_conversions() {
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub struct MyError;
+
+        impl std::fmt::Display for MyError {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "An error")
+            }
+        }
+
+        impl ResponseError for MyError {}
+
+        let error = MyError;
+        let response = Response::from_error(error.clone().into());
+        let actix_error: crate::Error = response.into();
+
+        assert_eq!(actix_error.as_error::<MyError>(), Some(&error));
     }
 
     #[test]
