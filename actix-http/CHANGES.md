@@ -10,11 +10,13 @@
 * `header` mod is now public. [#2171]
 * `uri` mod is now public. [#2171]
 * Update `language-tags` to `0.3`.
+* Reduce the level from `error` to `debug` for the log line that is emitted when a `500 Internal Server Error` is built using `HttpResponse::from_error`. [#2196]
 
 ### Removed
 * Stop re-exporting `http` crate's `HeaderMap` types in addition to ours. [#2171]
 
 [#2171]: https://github.com/actix/actix-web/pull/2171
+[#2196]: https://github.com/actix/actix-web/pull/2196
 
 
 ## 3.0.0-beta.6 - 2021-04-17
