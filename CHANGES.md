@@ -3,6 +3,7 @@
 ## Unreleased - 2021-xx-xx
 ### Changed
 * Update `language-tags` to `0.3`.
+* Reduce the level from `error` to `debug` for the log line that is emitted when a `500 Internal Server Error` occurs.
 
 
 ## 4.0.0-beta.6 - 2021-04-17
