@@ -532,7 +532,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_files_guards() {
         let srv = test::init_service(
-            App::new().service(Files::new("/", ".").use_guards(guard::Post())),
+            App::new().service(Files::new("/", ".").method_guard(guard::Post())),
         )
         .await;
 

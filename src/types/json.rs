@@ -370,8 +370,8 @@ where
             } => {
                 if let Some(len) = length {
                     if len > limit {
-                        return JsonBody::Error(Some(JsonPayloadError::Overflow {
-                            size: len,
+                        return JsonBody::Error(Some(JsonPayloadError::OverflowKnownLength {
+                            length: len,
                             limit,
                         }));
                     }
@@ -404,7 +404,6 @@ where
                 limit,
                 buf,
                 payload,
-                length,
                 ..
             } => loop {
                 let res = ready!(Pin::new(&mut *payload).poll_next(cx));
@@ -414,7 +413,6 @@ where
                         let buf_len = buf.len() + chunk.len();
                         if buf_len > *limit {
                             return Poll::Ready(Err(JsonPayloadError::Overflow {
-                                size: length.unwrap_or(buf_len),
                                 limit: *limit,
                             }));
                         } else {
@@ -457,6 +455,9 @@ mod tests {
         match err {
             JsonPayloadError::Overflow { .. } => {
                 matches!(other, JsonPayloadError::Overflow { .. })
+            }
+            JsonPayloadError::OverflowKnownLength { .. } => {
+                matches!(other, JsonPayloadError::OverflowKnownLength { .. })
             }
             JsonPayloadError::ContentType => matches!(other, JsonPayloadError::ContentType),
             _ => false,
@@ -603,10 +604,27 @@ mod tests {
             .await;
         assert!(json_eq(
             json.err().unwrap(),
-            JsonPayloadError::Overflow {
-                size: 10000,
+            JsonPayloadError::OverflowKnownLength {
+                length: 10000,
                 limit: 100
             }
+        ));
+
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((
+                header::CONTENT_TYPE,
+                header::HeaderValue::from_static("application/json"),
+            ))
+            .set_payload(Bytes::from_static(&[0u8; 1000]))
+            .to_http_parts();
+
+        let json = JsonBody::<MyObject>::new(&req, &mut pl, None)
+            .limit(100)
+            .await;
+
+        assert!(json_eq(
+            json.err().unwrap(),
+            JsonPayloadError::Overflow { limit: 100 }
         ));
 
         let (req, mut pl) = TestRequest::default()

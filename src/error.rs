@@ -86,13 +86,17 @@ impl ResponseError for UrlencodedError {
 #[derive(Debug, Display, Error)]
 #[non_exhaustive]
 pub enum JsonPayloadError {
-    /// Payload size is bigger than allowed. (default: 2MB)
+    /// Payload size is bigger than allowed & content length header set. (default: 2MB)
     #[display(
         fmt = "JSON payload ({} bytes) is larger than allowed (limit: {} bytes).",
-        size,
+        length,
         limit
     )]
-    Overflow { size: usize, limit: usize },
+    OverflowKnownLength { length: usize, limit: usize },
+
+    /// Payload size is bigger than allowed but no content length header set. (default: 2MB)
+    #[display(fmt = "JSON payload has exceeded limit ({} bytes).", limit)]
+    Overflow { limit: usize },
 
     /// Content type error
     #[display(fmt = "Content type error")]
@@ -120,7 +124,11 @@ impl From<PayloadError> for JsonPayloadError {
 impl ResponseError for JsonPayloadError {
     fn status_code(&self) -> StatusCode {
         match self {
-            Self::Overflow { size: _, limit: _ } => StatusCode::PAYLOAD_TOO_LARGE,
+            Self::OverflowKnownLength {
+                length: _,
+                limit: _,
+            } => StatusCode::PAYLOAD_TOO_LARGE,
+            Self::Overflow { limit: _ } => StatusCode::PAYLOAD_TOO_LARGE,
             Self::Serialize(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Payload(err) => err.status_code(),
             _ => StatusCode::BAD_REQUEST,
@@ -207,7 +215,13 @@ mod tests {
 
     #[test]
     fn test_json_payload_error() {
-        let resp = JsonPayloadError::Overflow { size: 0, limit: 0 }.error_response();
+        let resp = JsonPayloadError::OverflowKnownLength {
+            length: 0,
+            limit: 0,
+        }
+        .error_response();
+        assert_eq!(resp.status(), StatusCode::PAYLOAD_TOO_LARGE);
+        let resp = JsonPayloadError::Overflow { limit: 0 }.error_response();
         assert_eq!(resp.status(), StatusCode::PAYLOAD_TOO_LARGE);
         let resp = JsonPayloadError::ContentType.error_response();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
