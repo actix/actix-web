@@ -24,14 +24,11 @@ crate::__define_common_header! {
     /// # Examples
     ///
     /// ```
-    /// use language_tags::langtag;
     /// use actix_web::HttpResponse;
     /// use actix_web::http::header::{AcceptLanguage, LanguageTag, qitem};
     ///
     /// let mut builder = HttpResponse::Ok();
-    /// let mut langtag: LanguageTag = Default::default();
-    /// langtag.language = Some("en".to_owned());
-    /// langtag.region = Some("US".to_owned());
+    /// let langtag = LanguageTag::parse("en-US").unwrap();
     /// builder.insert_header(
     ///     AcceptLanguage(vec![
     ///         qitem(langtag),
@@ -40,16 +37,15 @@ crate::__define_common_header! {
     /// ```
     ///
     /// ```
-    /// use language_tags::langtag;
     /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{AcceptLanguage, QualityItem, q, qitem};
+    /// use actix_web::http::header::{AcceptLanguage, LanguageTag, QualityItem, q, qitem};
     ///
     /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     AcceptLanguage(vec![
-    ///         qitem(langtag!(da)),
-    ///         QualityItem::new(langtag!(en;;;GB), q(800)),
-    ///         QualityItem::new(langtag!(en), q(700)),
+    ///         qitem(LanguageTag::parse("da").unwrap()),
+    ///         QualityItem::new(LanguageTag::parse("en-GB").unwrap(), q(800)),
+    ///         QualityItem::new(LanguageTag::parse("en").unwrap(), q(700)),
     ///     ])
     /// );
     /// ```
