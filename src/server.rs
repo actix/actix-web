@@ -81,6 +81,7 @@ where
     S::Service: 'static,
     // S::Service: 'static,
     B: MessageBody + 'static,
+    B::Error: Into<Error>,
 {
     /// Create new HTTP server with application factory
     pub fn new(factory: F) -> Self {

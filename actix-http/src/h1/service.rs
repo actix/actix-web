@@ -64,11 +64,15 @@ where
     S::Error: Into<Error>,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
+
     B: MessageBody,
+    B::Error: Into<Error>,
+
     X: ServiceFactory<Request, Config = (), Response = Request>,
     X::Future: 'static,
     X::Error: Into<Error>,
     X::InitError: fmt::Debug,
+
     U: ServiceFactory<(Request, Framed<TcpStream, Codec>), Config = (), Response = ()>,
     U::Future: 'static,
     U::Error: fmt::Display + Into<Error>,
@@ -109,11 +113,15 @@ mod openssl {
         S::Error: Into<Error>,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>>,
+
         B: MessageBody,
+        B::Error: Into<Error>,
+
         X: ServiceFactory<Request, Config = (), Response = Request>,
         X::Future: 'static,
         X::Error: Into<Error>,
         X::InitError: fmt::Debug,
+
         U: ServiceFactory<
             (Request, Framed<TlsStream<TcpStream>, Codec>),
             Config = (),
@@ -165,11 +173,15 @@ mod rustls {
         S::Error: Into<Error>,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>>,
+
         B: MessageBody,
+        B::Error: Into<Error>,
+
         X: ServiceFactory<Request, Config = (), Response = Request>,
         X::Future: 'static,
         X::Error: Into<Error>,
         X::InitError: fmt::Debug,
+
         U: ServiceFactory<
             (Request, Framed<TlsStream<TcpStream>, Codec>),
             Config = (),
@@ -253,16 +265,21 @@ impl<T, S, B, X, U> ServiceFactory<(T, Option<net::SocketAddr>)>
     for H1Service<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin + 'static,
+
     S: ServiceFactory<Request, Config = ()>,
     S::Future: 'static,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
     S::InitError: fmt::Debug,
+
     B: MessageBody,
+    B::Error: Into<Error>,
+
     X: ServiceFactory<Request, Config = (), Response = Request>,
     X::Future: 'static,
     X::Error: Into<Error>,
     X::InitError: fmt::Debug,
+
     U: ServiceFactory<(Request, Framed<T, Codec>), Config = (), Response = ()>,
     U::Future: 'static,
     U::Error: fmt::Display + Into<Error>,
@@ -319,12 +336,17 @@ impl<T, S, B, X, U> Service<(T, Option<net::SocketAddr>)>
     for HttpServiceHandler<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
+
     S: Service<Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
+
     B: MessageBody,
+    B::Error: Into<Error>,
+
     X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
+
     U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display + Into<Error>,
 {

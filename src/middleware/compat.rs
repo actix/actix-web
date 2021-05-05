@@ -113,7 +113,11 @@ pub trait MapServiceResponseBody {
     fn map_body(self) -> ServiceResponse;
 }
 
-impl<B: MessageBody + Unpin + 'static> MapServiceResponseBody for ServiceResponse<B> {
+impl<B> MapServiceResponseBody for ServiceResponse<B>
+where
+    B: MessageBody + Unpin + 'static,
+    B::Error: Into<Error>,
+{
     fn map_body(self) -> ServiceResponse {
         self.map_body(|_, body| ResponseBody::Other(Body::from_message(body)))
     }
