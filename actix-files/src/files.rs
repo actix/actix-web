@@ -66,6 +66,7 @@ impl Clone for Files {
         }
     }
 }
+
 impl Files {
     /// Create new `Files` instance for a specified base directory.
     ///

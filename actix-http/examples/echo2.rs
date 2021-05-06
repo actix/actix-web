@@ -1,4 +1,4 @@
-use std::{env, io};
+use std::io;
 
 use actix_http::{body::Body, http::HeaderValue, http::StatusCode};
 use actix_http::{Error, HttpService, Request, Response};
@@ -21,8 +21,7 @@ async fn handle_request(mut req: Request) -> Result<Response<Body>, Error> {
 
 #[actix_rt::main]
 async fn main() -> io::Result<()> {
-    env::set_var("RUST_LOG", "echo=info");
-    env_logger::init();
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
     Server::build()
         .bind("echo", "127.0.0.1:8080", || {

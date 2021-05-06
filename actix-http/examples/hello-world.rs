@@ -1,4 +1,4 @@
-use std::{env, io};
+use std::io;
 
 use actix_http::{http::StatusCode, HttpService, Response};
 use actix_server::Server;
@@ -8,8 +8,7 @@ use log::info;
 
 #[actix_rt::main]
 async fn main() -> io::Result<()> {
-    env::set_var("RUST_LOG", "hello_world=info");
-    env_logger::init();
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
     Server::build()
         .bind("hello-world", "127.0.0.1:8080", || {
