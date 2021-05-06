@@ -2,6 +2,7 @@
 
 use std::{
     cell::RefCell,
+    error::Error as StdError,
     fmt,
     io::{self, Write as _},
     str::Utf8Error,
@@ -105,8 +106,7 @@ impl From<()> for Error {
 
 impl From<std::convert::Infallible> for Error {
     fn from(_: std::convert::Infallible) -> Self {
-        // `std::convert::Infallible` indicates an error
-        // that will never happen
+        // hint that an error that will never happen
         unreachable!()
     }
 }
@@ -144,6 +144,8 @@ impl From<ResponseBuilder> for Error {
 #[derive(Debug, Display, Error)]
 #[display(fmt = "Unknown Error")]
 struct UnitError;
+
+impl ResponseError for Box<dyn StdError + 'static> {}
 
 /// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`UnitError`].
 impl ResponseError for UnitError {}

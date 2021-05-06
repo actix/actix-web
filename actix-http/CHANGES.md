@@ -2,18 +2,25 @@
 
 ## Unreleased - 2021-xx-xx
 ### Added
+* `BoxAnyBody`: a boxed message body with boxed errors. [#2183]
 * Re-export `http` crate's `Error` type as `error::HttpError`. [#2171]
 * Re-export `StatusCode`, `Method`, `Version` and `Uri` at the crate root. [#2171]
 * Re-export `ContentEncoding` and `ConnectionType` at the crate root. [#2171]
 
 ### Changed
+* The `MessageBody` trait now has an associated `Error` type. [#2183]
 * `header` mod is now public. [#2171]
 * `uri` mod is now public. [#2171]
+* Update `language-tags` to `0.3`.
+* Reduce the level from `error` to `debug` for the log line that is emitted when a `500 Internal Server Error` is built using `HttpResponse::from_error`. [#2196]
 
 ### Removed
 * Stop re-exporting `http` crate's `HeaderMap` types in addition to ours. [#2171]
+* Down-casting for `MessageBody` types. [#2183]
 
 [#2171]: https://github.com/actix/actix-web/pull/2171
+[#2183]: https://github.com/actix/actix-web/pull/2183
+[#2196]: https://github.com/actix/actix-web/pull/2196
 
 
 ## 3.0.0-beta.6 - 2021-04-17

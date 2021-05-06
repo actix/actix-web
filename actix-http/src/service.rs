@@ -59,6 +59,7 @@ where
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
     B: MessageBody + 'static,
+    B::Error: Into<Error>,
 {
     /// Create new `HttpService` instance.
     pub fn new<F: IntoServiceFactory<S, Request>>(service: F) -> Self {
@@ -157,6 +158,7 @@ where
     <S::Service as Service<Request>>::Future: 'static,
 
     B: MessageBody + 'static,
+    B::Error: Into<Error>,
 
     X: ServiceFactory<Request, Config = (), Response = Request>,
     X::Future: 'static,
@@ -208,6 +210,7 @@ mod openssl {
         <S::Service as Service<Request>>::Future: 'static,
 
         B: MessageBody + 'static,
+        B::Error: Into<Error>,
 
         X: ServiceFactory<Request, Config = (), Response = Request>,
         X::Future: 'static,
@@ -275,6 +278,7 @@ mod rustls {
         <S::Service as Service<Request>>::Future: 'static,
 
         B: MessageBody + 'static,
+        B::Error: Into<Error>,
 
         X: ServiceFactory<Request, Config = (), Response = Request>,
         X::Future: 'static,
@@ -338,6 +342,7 @@ where
     <S::Service as Service<Request>>::Future: 'static,
 
     B: MessageBody + 'static,
+    B::Error: Into<Error>,
 
     X: ServiceFactory<Request, Config = (), Response = Request>,
     X::Future: 'static,
@@ -464,13 +469,18 @@ impl<T, S, B, X, U> Service<(T, Protocol, Option<net::SocketAddr>)>
     for HttpServiceHandler<T, S, B, X, U>
 where
     T: ActixStream,
+
     S: Service<Request>,
     S::Error: Into<Error> + 'static,
     S::Future: 'static,
     S::Response: Into<Response<B>> + 'static,
+
     B: MessageBody + 'static,
+    B::Error: Into<Error>,
+
     X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
+
     U: Service<(Request, Framed<T, h1::Codec>), Response = ()>,
     U::Error: fmt::Display + Into<Error>,
 {
@@ -521,13 +531,18 @@ where
 #[pin_project(project = StateProj)]
 enum State<T, S, B, X, U>
 where
+    T: ActixStream,
+
     S: Service<Request>,
     S::Future: 'static,
     S::Error: Into<Error>,
-    T: ActixStream,
+
     B: MessageBody,
+    B::Error: Into<Error>,
+
     X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
+
     U: Service<(Request, Framed<T, h1::Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
@@ -548,13 +563,18 @@ where
 pub struct HttpServiceHandlerResponse<T, S, B, X, U>
 where
     T: ActixStream,
+
     S: Service<Request>,
     S::Error: Into<Error> + 'static,
     S::Future: 'static,
     S::Response: Into<Response<B>> + 'static,
-    B: MessageBody + 'static,
+
+    B: MessageBody,
+    B::Error: Into<Error>,
+
     X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
+
     U: Service<(Request, Framed<T, h1::Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
@@ -565,13 +585,18 @@ where
 impl<T, S, B, X, U> Future for HttpServiceHandlerResponse<T, S, B, X, U>
 where
     T: ActixStream,
+
     S: Service<Request>,
     S::Error: Into<Error> + 'static,
     S::Future: 'static,
     S::Response: Into<Response<B>> + 'static,
-    B: MessageBody,
+
+    B: MessageBody + 'static,
+    B::Error: Into<Error>,
+
     X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
+
     U: Service<(Request, Framed<T, h1::Codec>), Response = ()>,
     U::Error: fmt::Display,
 {

@@ -243,7 +243,11 @@ impl<B> HttpResponse<B> {
     }
 }
 
-impl<B: MessageBody> fmt::Debug for HttpResponse<B> {
+impl<B> fmt::Debug for HttpResponse<B>
+where
+    B: MessageBody,
+    B::Error: Into<Error>,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("HttpResponse")
             .field("error", &self.error)

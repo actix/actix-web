@@ -78,7 +78,7 @@ impl Response<Body> {
     pub fn from_error(error: Error) -> Response<Body> {
         let mut resp = error.as_response_error().error_response();
         if resp.head.status == StatusCode::INTERNAL_SERVER_ERROR {
-            error!("Internal Server Error: {:?}", error);
+            debug!("Internal Server Error: {:?}", error);
         }
         resp.error = Some(error);
         resp
@@ -242,7 +242,11 @@ impl<B> Response<B> {
     }
 }
 
-impl<B: MessageBody> fmt::Debug for Response<B> {
+impl<B> fmt::Debug for Response<B>
+where
+    B: MessageBody,
+    B::Error: Into<Error>,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = writeln!(
             f,
