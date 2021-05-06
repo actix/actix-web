@@ -1,8 +1,13 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+* `HttpServer::worker_max_blocking_threads` for setting block thread pool. [#2200]
+
 ### Changed
 * Update `language-tags` to `0.3`.
+
+[#2200]: https://github.com/actix/actix-web/pull/2200
 
 
 ## 4.0.0-beta.6 - 2021-04-17

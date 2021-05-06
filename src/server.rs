@@ -174,6 +174,16 @@ where
         self
     }
 
+    /// Set max number of threads for each worker's blocking task thread pool.
+    ///
+    /// One thread pool is set up **per worker**; not shared across workers.
+    ///
+    /// By default set to 512 / workers.
+    pub fn worker_max_blocking_threads(mut self, num: usize) -> Self {
+        self.builder = self.builder.worker_max_blocking_threads(num);
+        self
+    }
+
     /// Set server keep-alive setting.
     ///
     /// By default keep alive is set to a 5 seconds.
