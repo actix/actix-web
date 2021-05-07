@@ -310,17 +310,20 @@ impl HttpResponseBuilder {
     ///
     /// `HttpResponseBuilder` can not be used after this call.
     #[inline]
-    pub fn body<B: Into<Body>>(&mut self, body: B) -> HttpResponse {
-        self.message_body(body.into())
+    pub fn body<B: Into<Body>>(&mut self, body: B) -> HttpResponse<Body> {
+        match self.message_body(body.into()) {
+            Ok(res) => res,
+            Err(err) => HttpResponse::from_error(err),
+        }
     }
 
     /// Set a body and generate `Response`.
     ///
     /// `HttpResponseBuilder` can not be used after this call.
-    pub fn message_body<B>(&mut self, body: B) -> HttpResponse<B> {
-        // if let Some(err) = self.err.take() {
-        //     return HttpResponse::from_error(Error::from(err)).into_body();
-        // }
+    pub fn message_body<B>(&mut self, body: B) -> Result<HttpResponse<B>, Error> {
+        if let Some(err) = self.err.take() {
+            return Err(err.into());
+        }
 
         let res = self
             .res
@@ -336,13 +339,12 @@ impl HttpResponseBuilder {
             for cookie in jar.delta() {
                 match HeaderValue::from_str(&cookie.to_string()) {
                     Ok(val) => res.headers_mut().append(header::SET_COOKIE, val),
-                    Err(err) => res.error = Some(err.into()),
-                    // Err(err) => return HttpResponse::from_error(Error::from(err)).into_body(),
+                    Err(err) => return Err(err.into()),
                 };
             }
         }
 
-        res
+        Ok(res)
     }
 
     /// Set a streaming body and generate `Response`.
