@@ -578,7 +578,7 @@ mod tests {
     use actix_utils::future::ok;
     use bytes::Bytes;
 
-    use crate::dev::{Body};
+    use crate::dev::Body;
     use crate::http::{header, HeaderValue, Method, StatusCode};
     use crate::middleware::DefaultHeaders;
     use crate::service::ServiceRequest;

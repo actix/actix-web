@@ -346,7 +346,7 @@ where
 
             ServiceResponseStateProj::SendErrorPayload(ref mut stream, ref mut body) => {
                 // TODO: de-dupe impl with SendPayload
-                
+
                 loop {
                     match this.buffer {
                         Some(ref mut buffer) => match ready!(stream.poll_capacity(cx)) {

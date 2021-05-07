@@ -4,9 +4,10 @@ use std::{net::SocketAddr, rc::Rc};
 
 pub use actix_http::test::TestBuffer;
 use actix_http::{
+    body,
     http::{header::IntoHeaderPair, Method, StatusCode, Uri, Version},
     test::TestRequest as HttpTestRequest,
-    Extensions, Request, body
+    Extensions, Request,
 };
 use actix_router::{Path, ResourceDef, Url};
 use actix_service::{IntoService, IntoServiceFactory, Service, ServiceFactory};

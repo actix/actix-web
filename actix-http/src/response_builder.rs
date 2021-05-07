@@ -251,7 +251,7 @@ impl ResponseBuilder {
 
         Response {
             head: response,
-            body,
+            body: Some(body),
             error: None,
         }
     }

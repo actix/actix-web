@@ -19,7 +19,7 @@ use crate::{
 /// An HTTP response.
 pub struct Response<B> {
     pub(crate) head: BoxedResponseHead,
-    pub(crate) body: B,
+    pub(crate) body: Option<B>,
     pub(crate) error: Option<Error>,
 }
 
@@ -29,7 +29,7 @@ impl Response<Body> {
     pub fn new(status: StatusCode) -> Response<Body> {
         Response {
             head: BoxedResponseHead::new(status),
-            body: Body::Empty,
+            body: Some(Body::Empty),
             error: None,
         }
     }
@@ -79,19 +79,6 @@ impl Response<Body> {
         resp.error = Some(error);
         resp
     }
-
-    // /// Convert response to response with body
-    // pub fn into_body<B>(self) -> Response<B> {
-    //     let b = match self.body {
-    //         ResponseBody::Body(b) => b,
-    //         ResponseBody::Other(b) => b,
-    //     };
-    //     Response {
-    //         head: self.head,
-    //         error: self.error,
-    //         body: ResponseBody::Other(b),
-    //     }
-    // }
 }
 
 impl<B> Response<B> {
@@ -100,7 +87,7 @@ impl<B> Response<B> {
     pub fn with_body(status: StatusCode, body: B) -> Response<B> {
         Response {
             head: BoxedResponseHead::new(status),
-            body,
+            body: Some(body),
             error: None,
         }
     }
@@ -173,14 +160,14 @@ impl<B> Response<B> {
     /// Get body of this response
     #[inline]
     pub fn body(&self) -> &B {
-        &self.body
+        self.body.as_ref().unwrap()
     }
 
     /// Set a body
     pub fn set_body<B2>(self, body: B2) -> Response<B2> {
         Response {
             head: self.head,
-            body,
+            body: Some(body),
             error: None,
         }
     }
@@ -190,10 +177,10 @@ impl<B> Response<B> {
         (
             Response {
                 head: self.head,
-                body: (),
+                body: Some(()),
                 error: self.error,
             },
-            self.body,
+            self.body.unwrap(),
         )
     }
 
@@ -201,7 +188,7 @@ impl<B> Response<B> {
     pub fn drop_body(self) -> Response<()> {
         Response {
             head: self.head,
-            body: (),
+            body: Some(()),
             error: None,
         }
     }
@@ -211,10 +198,10 @@ impl<B> Response<B> {
         (
             Response {
                 head: self.head,
-                body,
+                body: Some(body),
                 error: self.error,
             },
-            self.body,
+            self.body.unwrap(),
         )
     }
 
@@ -223,11 +210,11 @@ impl<B> Response<B> {
     where
         F: FnOnce(&mut ResponseHead, B) -> B2,
     {
-        let body = f(&mut self.head, self.body);
+        let body = f(&mut self.head, self.body.unwrap());
 
         Response {
-            body,
             head: self.head,
+            body: Some(body),
             error: self.error,
         }
     }
@@ -239,7 +226,7 @@ impl<B> Response<B> {
 
     /// Extract response body
     pub fn into_body(self) -> B {
-        self.body
+        self.body.unwrap()
     }
 }
 
@@ -260,23 +247,41 @@ where
         for (key, val) in self.head.headers.iter() {
             let _ = writeln!(f, "    {:?}: {:?}", key, val);
         }
-        let _ = writeln!(f, "  body: {:?}", self.body.size());
+        let _ = writeln!(f, "  body: {:?}", self.body.as_ref().unwrap().size());
         res
     }
 }
 
-// TODO: document why this is needed
-// impl<B: Unpin> Future for Response<B> {
-//     type Output = Result<Response<B>, Infallible>;
+impl<B: Default> Default for Response<B> {
+    #[inline]
+    fn default() -> Response<B> {
+        Response::with_body(StatusCode::default(), B::default())
+    }
+}
 
-//     fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
-//         Poll::Ready(Ok(Response {
-//             head: self.head.take(),
-//             body: self.body.take_body(),
-//             error: self.error.take(),
-//         }))
-//     }
-// }
+mod fut {
+    use std::{
+        convert::Infallible,
+        future::Future,
+        pin::Pin,
+        task::{Context, Poll},
+    };
+
+    use super::*;
+
+    // TODO: document why this is needed
+    impl<B: Unpin> Future for Response<B> {
+        type Output = Result<Response<B>, Infallible>;
+
+        fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
+            Poll::Ready(Ok(Response {
+                head: self.head.take(),
+                body: self.body.take(),
+                error: self.error.take(),
+            }))
+        }
+    }
+}
 
 /// Helper converters
 impl<I: Into<Response<Body>>, E: Into<Error>> From<Result<I, E>> for Response<Body> {

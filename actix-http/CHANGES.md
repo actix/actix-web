@@ -9,6 +9,7 @@
 
 ### Changed
 * The `MessageBody` trait now has an associated `Error` type. [#2183]
+* Places in `Response` where `ResponseBody<B>` was received or returned now simply use `B`. [#2201]
 * `header` mod is now public. [#2171]
 * `uri` mod is now public. [#2171]
 * Update `language-tags` to `0.3`.
@@ -17,12 +18,12 @@
 ### Removed
 * Stop re-exporting `http` crate's `HeaderMap` types in addition to ours. [#2171]
 * Down-casting for `MessageBody` types. [#2183]
-* `error::Result` alias. [#????]
+* `error::Result` alias. [#2201]
 
 [#2171]: https://github.com/actix/actix-web/pull/2171
 [#2183]: https://github.com/actix/actix-web/pull/2183
 [#2196]: https://github.com/actix/actix-web/pull/2196
-[#????]: https://github.com/actix/actix-web/pull/????
+[#2201]: https://github.com/actix/actix-web/pull/2201
 
 
 ## 3.0.0-beta.6 - 2021-04-17
