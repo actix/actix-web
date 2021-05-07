@@ -464,9 +464,8 @@ impl ResponseError for ContentTypeError {
 ///
 /// ```
 /// # use std::io;
-/// # use actix_http::*;
-///
-/// fn index(req: Request) -> Result<&'static str> {
+/// # use actix_http::{error, Request};
+/// fn index(req: Request) -> Result<&'static str, actix_http::Error> {
 ///     Err(error::ErrorBadRequest(io::Error::new(io::ErrorKind::Other, "error")))
 /// }
 /// ```

@@ -219,11 +219,6 @@ impl<B> Response<B> {
         }
     }
 
-    // /// Extract response body
-    // pub fn take_body(&mut self) -> ResponseBody<B> {
-    //     self.body.take_body()
-    // }
-
     /// Extract response body
     pub fn into_body(self) -> B {
         self.body.unwrap()

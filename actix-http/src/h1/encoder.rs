@@ -630,7 +630,7 @@ mod tests {
     async fn test_no_content_length() {
         let mut bytes = BytesMut::with_capacity(2048);
 
-        let mut res = Response::new(StatusCode::SWITCHING_PROTOCOLS).drop_body();
+        let mut res = Response::with_body(StatusCode::SWITCHING_PROTOCOLS, ());
         res.headers_mut().insert(DATE, HeaderValue::from_static(""));
         res.headers_mut()
             .insert(CONTENT_LENGTH, HeaderValue::from_static("0"));

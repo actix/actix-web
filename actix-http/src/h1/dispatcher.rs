@@ -320,7 +320,7 @@ where
         Ok(())
     }
 
-    fn send_response_any_body(
+    fn send_error_response(
         self: Pin<&mut Self>,
         message: Response<()>,
         body: Body,
@@ -380,7 +380,7 @@ where
                         // send_response would update InnerDispatcher state to SendPayload or
                         // None(If response body is empty).
                         // continue loop to poll it.
-                        self.as_mut().send_response_any_body(res, Body::Empty)?;
+                        self.as_mut().send_error_response(res, Body::Empty)?;
                     }
 
                     // return with upgrade request and poll it exclusively.
@@ -402,7 +402,7 @@ where
                     Poll::Ready(Err(err)) => {
                         let res = Response::from_error(err.into());
                         let (res, body) = res.replace_body(());
-                        self.as_mut().send_response_any_body(res, body)?;
+                        self.as_mut().send_error_response(res, body)?;
                     }
 
                     // service call pending and could be waiting for more chunk messages.
@@ -474,7 +474,7 @@ where
                             }
 
                             Poll::Ready(Some(Err(err))) => {
-                                return Err(DispatchError::Service(err))
+                                return Err(DispatchError::Service(err.into()))
                             }
 
                             Poll::Pending => return Ok(PollResponse::DoNothing),
@@ -499,7 +499,7 @@ where
                     Poll::Ready(Err(err)) => {
                         let res = Response::from_error(err.into());
                         let (res, body) = res.replace_body(());
-                        self.as_mut().send_response_any_body(res, body)?;
+                        self.as_mut().send_error_response(res, body)?;
                     }
 
                     // expect must be solved before progress can be made.
@@ -549,7 +549,7 @@ where
                         Poll::Ready(Err(err)) => {
                             let res = Response::from_error(err.into());
                             let (res, body) = res.replace_body(());
-                            return self.send_response_any_body(res, body);
+                            return self.send_error_response(res, body);
                         }
                     }
                 }
@@ -569,7 +569,7 @@ where
                         Poll::Ready(Err(err)) => {
                             let res = Response::from_error(err.into());
                             let (res, body) = res.replace_body(());
-                            self.send_response_any_body(res, body)
+                            self.send_error_response(res, body)
                         }
                     };
                 }
@@ -689,8 +689,10 @@ where
                     }
                     // Requests overflow buffer size should be responded with 431
                     this.messages.push_back(DispatcherMessage::Error(
-                        Response::new(StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE)
-                            .drop_body(),
+                        Response::with_body(
+                            StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
+                            (),
+                        ),
                     ));
                     this.flags.insert(Flags::READ_DISCONNECT);
                     *this.error = Some(ParseError::TooLarge.into());
@@ -769,9 +771,8 @@ where
                             } else {
                                 // timeout on first request (slow request) return 408
                                 trace!("Slow request timeout");
-                                let _ = self.as_mut().send_response_any_body(
-                                    Response::new(StatusCode::REQUEST_TIMEOUT)
-                                        .drop_body(),
+                                let _ = self.as_mut().send_error_response(
+                                    Response::with_body(StatusCode::REQUEST_TIMEOUT, ()),
                                     Body::Empty,
                                 );
                                 this = self.project();
