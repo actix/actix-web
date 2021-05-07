@@ -38,10 +38,11 @@ use crate::{
 ///     .body("1234");
 ///
 /// assert_eq!(res.status(), StatusCode::OK);
-/// assert_eq!(body::to_bytes(res.into_body()).await.unwrap(), &b"1234"[..]);
 ///
 /// assert!(res.headers().contains_key("server"));
 /// assert_eq!(res.headers().get_all("set-cookie").count(), 2);
+///
+/// assert_eq!(body::to_bytes(res.into_body()).await.unwrap(), &b"1234"[..]);
 /// # })
 /// ```
 pub struct ResponseBuilder {
