@@ -422,7 +422,6 @@ impl Future for HttpResponseBuilder {
     type Output = Result<HttpResponse, Error>;
 
     fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
-        eprintln!("httpresponse future error");
         Poll::Ready(Ok(self.finish()))
     }
 }
