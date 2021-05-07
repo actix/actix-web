@@ -6,7 +6,7 @@ pub use actix_http::test::TestBuffer;
 use actix_http::{
     http::{header::IntoHeaderPair, Method, StatusCode, Uri, Version},
     test::TestRequest as HttpTestRequest,
-    Extensions, Request,
+    Extensions, Request, body
 };
 use actix_router::{Path, ResourceDef, Url};
 use actix_service::{IntoService, IntoServiceFactory, Service, ServiceFactory};
@@ -273,6 +273,14 @@ where
         data.extend_from_slice(&item?);
     }
     Ok(data.freeze())
+}
+
+pub async fn load_body<B>(body: B) -> Result<Bytes, Error>
+where
+    B: MessageBody + Unpin,
+    B::Error: Into<Error>,
+{
+    body::to_bytes(body).await.map_err(Into::into)
 }
 
 /// Helper function that returns a deserialized response body of a TestRequest

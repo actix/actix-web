@@ -479,42 +479,42 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_json() {
-        let mut resp = HttpResponse::Ok().json(vec!["v1", "v2", "v3"]);
+        let resp = HttpResponse::Ok().json(vec!["v1", "v2", "v3"]);
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("application/json"));
         assert_eq!(
-            body::to_bytes(resp.take_body()).await.unwrap().as_ref(),
+            body::to_bytes(resp.into_body()).await.unwrap().as_ref(),
             br#"["v1","v2","v3"]"#
         );
 
-        let mut resp = HttpResponse::Ok().json(&["v1", "v2", "v3"]);
+        let resp = HttpResponse::Ok().json(&["v1", "v2", "v3"]);
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("application/json"));
         assert_eq!(
-            body::to_bytes(resp.take_body()).await.unwrap().as_ref(),
+            body::to_bytes(resp.into_body()).await.unwrap().as_ref(),
             br#"["v1","v2","v3"]"#
         );
 
         // content type override
-        let mut resp = HttpResponse::Ok()
+        let resp = HttpResponse::Ok()
             .insert_header((CONTENT_TYPE, "text/json"))
             .json(&vec!["v1", "v2", "v3"]);
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("text/json"));
         assert_eq!(
-            body::to_bytes(resp.take_body()).await.unwrap().as_ref(),
+            body::to_bytes(resp.into_body()).await.unwrap().as_ref(),
             br#"["v1","v2","v3"]"#
         );
     }
 
     #[actix_rt::test]
     async fn test_serde_json_in_body() {
-        let mut resp = HttpResponse::Ok().body(
+        let resp = HttpResponse::Ok().body(
             serde_json::to_vec(&serde_json::json!({ "test-key": "test-value" })).unwrap(),
         );
 
         assert_eq!(
-            body::to_bytes(resp.take_body()).await.unwrap().as_ref(),
+            body::to_bytes(resp.into_body()).await.unwrap().as_ref(),
             br#"{"test-key":"test-value"}"#
         );
     }

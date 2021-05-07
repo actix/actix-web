@@ -87,6 +87,7 @@ mod tests {
     }
 
     impl ResponseBody<Body> {
+        #[allow(dead_code)]
         pub(crate) fn get_ref(&self) -> &[u8] {
             match *self {
                 ResponseBody::Body(ref b) => b.get_ref(),
