@@ -10,7 +10,7 @@ use actix_http::{
 };
 use actix_router::{Path, ResourceDef, Url};
 use actix_service::{IntoService, IntoServiceFactory, Service, ServiceFactory};
-use actix_utils::future::ok;
+use actix_utils::future::{ok, poll_fn};
 use futures_core::Stream;
 use futures_util::StreamExt as _;
 use serde::{de::DeserializeOwned, Serialize};
@@ -153,16 +153,17 @@ where
     B: MessageBody + Unpin,
     B::Error: Into<Error>,
 {
-    let mut resp = app
+    let resp = app
         .call(req)
         .await
         .unwrap_or_else(|e| panic!("read_response failed at application call: {}", e));
 
-    let mut body = resp.take_body();
+    let body = resp.into_body();
     let mut bytes = BytesMut::new();
 
-    while let Some(item) = body.next().await {
-        bytes.extend_from_slice(&item.unwrap());
+    actix_rt::pin!(body);
+    while let Some(item) = poll_fn(|cx| body.as_mut().poll_next(cx)).await {
+        bytes.extend_from_slice(&item.map_err(Into::into).unwrap());
     }
 
     bytes.freeze()
@@ -194,16 +195,19 @@ where
 ///     assert_eq!(result, Bytes::from_static(b"welcome!"));
 /// }
 /// ```
-pub async fn read_body<B>(mut res: ServiceResponse<B>) -> Bytes
+pub async fn read_body<B>(res: ServiceResponse<B>) -> Bytes
 where
     B: MessageBody + Unpin,
     B::Error: Into<Error>,
 {
-    let mut body = res.take_body();
+    let body = res.into_body();
     let mut bytes = BytesMut::new();
-    while let Some(item) = body.next().await {
-        bytes.extend_from_slice(&item.unwrap());
+
+    actix_rt::pin!(body);
+    while let Some(item) = poll_fn(|cx| body.as_mut().poll_next(cx)).await {
+        bytes.extend_from_slice(&item.map_err(Into::into).unwrap());
     }
+
     bytes.freeze()
 }
 

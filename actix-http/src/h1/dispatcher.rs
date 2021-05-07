@@ -17,7 +17,7 @@ use futures_core::ready;
 use log::{error, trace};
 use pin_project::pin_project;
 
-use crate::body::{Body, BodySize, MessageBody, ResponseBody};
+use crate::body::{Body, BodySize, MessageBody};
 use crate::config::ServiceConfig;
 use crate::error::{DispatchError, Error};
 use crate::error::{ParseError, PayloadError};
@@ -141,7 +141,8 @@ where
     None,
     ExpectCall(#[pin] X::Future),
     ServiceCall(#[pin] S::Future),
-    SendPayload(#[pin] ResponseBody<B>),
+    SendPayload(#[pin] B),
+    SendErrorPayload(#[pin] Body),
 }
 
 impl<S, B, X> State<S, B, X>
@@ -298,7 +299,7 @@ where
     fn send_response(
         self: Pin<&mut Self>,
         message: Response<()>,
-        body: ResponseBody<B>,
+        body: B,
     ) -> Result<(), DispatchError> {
         let size = body.size();
         let mut this = self.project();
@@ -315,6 +316,32 @@ where
         match size {
             BodySize::None | BodySize::Empty => this.state.set(State::None),
             _ => this.state.set(State::SendPayload(body)),
+        };
+        Ok(())
+    }
+
+    fn send_response_any_body(
+        self: Pin<&mut Self>,
+        message: Response<()>,
+        body: Body,
+    ) -> Result<(), DispatchError> {
+        // TODO: de-dupe impl with send_response
+
+        let size = body.size();
+        let mut this = self.project();
+        this.codec
+            .encode(Message::Item((message, size)), &mut this.write_buf)
+            .map_err(|err| {
+                if let Some(mut payload) = this.payload.take() {
+                    payload.set_error(PayloadError::Incomplete(None));
+                }
+                DispatchError::Io(err)
+            })?;
+
+        this.flags.set(Flags::KEEPALIVE, this.codec.keepalive());
+        match size {
+            BodySize::None | BodySize::Empty => this.state.set(State::None),
+            _ => this.state.set(State::SendErrorPayload(body)),
         };
         Ok(())
     }
@@ -353,8 +380,7 @@ where
                         // send_response would update InnerDispatcher state to SendPayload or
                         // None(If response body is empty).
                         // continue loop to poll it.
-                        self.as_mut()
-                            .send_response(res, ResponseBody::Other(Body::Empty))?;
+                        self.as_mut().send_response_any_body(res, Body::Empty)?;
                     }
 
                     // return with upgrade request and poll it exclusively.
@@ -376,7 +402,7 @@ where
                     Poll::Ready(Err(err)) => {
                         let res = Response::from_error(err.into());
                         let (res, body) = res.replace_body(());
-                        self.as_mut().send_response(res, body.into_body())?;
+                        self.as_mut().send_response_any_body(res, body)?;
                     }
 
                     // service call pending and could be waiting for more chunk messages.
@@ -392,6 +418,41 @@ where
                 },
 
                 StateProj::SendPayload(mut stream) => {
+                    // keep populate writer buffer until buffer size limit hit,
+                    // get blocked or finished.
+                    while this.write_buf.len() < super::payload::MAX_BUFFER_SIZE {
+                        match stream.as_mut().poll_next(cx) {
+                            Poll::Ready(Some(Ok(item))) => {
+                                this.codec.encode(
+                                    Message::Chunk(Some(item)),
+                                    &mut this.write_buf,
+                                )?;
+                            }
+
+                            Poll::Ready(None) => {
+                                this.codec
+                                    .encode(Message::Chunk(None), &mut this.write_buf)?;
+                                // payload stream finished.
+                                // set state to None and handle next message
+                                this.state.set(State::None);
+                                continue 'res;
+                            }
+
+                            Poll::Ready(Some(Err(err))) => {
+                                return Err(DispatchError::Service(err.into()))
+                            }
+
+                            Poll::Pending => return Ok(PollResponse::DoNothing),
+                        }
+                    }
+                    // buffer is beyond max size.
+                    // return and try to write the whole buffer to io stream.
+                    return Ok(PollResponse::DrainWriteBuf);
+                }
+
+                StateProj::SendErrorPayload(mut stream) => {
+                    // TODO: de-dupe impl with SendPayload
+
                     // keep populate writer buffer until buffer size limit hit,
                     // get blocked or finished.
                     while this.write_buf.len() < super::payload::MAX_BUFFER_SIZE {
@@ -433,12 +494,14 @@ where
                         let fut = this.flow.service.call(req);
                         this.state.set(State::ServiceCall(fut));
                     }
+
                     // send expect error as response
                     Poll::Ready(Err(err)) => {
                         let res = Response::from_error(err.into());
                         let (res, body) = res.replace_body(());
-                        self.as_mut().send_response(res, body.into_body())?;
+                        self.as_mut().send_response_any_body(res, body)?;
                     }
+
                     // expect must be solved before progress can be made.
                     Poll::Pending => return Ok(PollResponse::DoNothing),
                 },
@@ -486,7 +549,7 @@ where
                         Poll::Ready(Err(err)) => {
                             let res = Response::from_error(err.into());
                             let (res, body) = res.replace_body(());
-                            return self.send_response(res, body.into_body());
+                            return self.send_response_any_body(res, body);
                         }
                     }
                 }
@@ -506,7 +569,7 @@ where
                         Poll::Ready(Err(err)) => {
                             let res = Response::from_error(err.into());
                             let (res, body) = res.replace_body(());
-                            self.send_response(res, body.into_body())
+                            self.send_response_any_body(res, body)
                         }
                     };
                 }
@@ -706,10 +769,10 @@ where
                             } else {
                                 // timeout on first request (slow request) return 408
                                 trace!("Slow request timeout");
-                                let _ = self.as_mut().send_response(
+                                let _ = self.as_mut().send_response_any_body(
                                     Response::new(StatusCode::REQUEST_TIMEOUT)
                                         .drop_body(),
-                                    ResponseBody::Other(Body::Empty),
+                                    Body::Empty,
                                 );
                                 this = self.project();
                                 this.flags.insert(Flags::STARTED | Flags::SHUTDOWN);

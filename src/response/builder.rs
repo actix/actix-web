@@ -318,9 +318,9 @@ impl HttpResponseBuilder {
     ///
     /// `HttpResponseBuilder` can not be used after this call.
     pub fn message_body<B>(&mut self, body: B) -> HttpResponse<B> {
-        if let Some(err) = self.err.take() {
-            return HttpResponse::from_error(Error::from(err)).into_body();
-        }
+        // if let Some(err) = self.err.take() {
+        //     return HttpResponse::from_error(Error::from(err)).into_body();
+        // }
 
         let res = self
             .res
@@ -336,7 +336,8 @@ impl HttpResponseBuilder {
             for cookie in jar.delta() {
                 match HeaderValue::from_str(&cookie.to_string()) {
                     Ok(val) => res.headers_mut().append(header::SET_COOKIE, val),
-                    Err(err) => return HttpResponse::from_error(Error::from(err)).into_body(),
+                    Err(err) => res.error = Some(err.into()),
+                    // Err(err) => return HttpResponse::from_error(Error::from(err)).into_body(),
                 };
             }
         }

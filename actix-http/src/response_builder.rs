@@ -13,7 +13,7 @@ use bytes::Bytes;
 use futures_core::Stream;
 
 use crate::{
-    body::{Body, BodyStream, ResponseBody},
+    body::{Body, BodyStream},
     error::{Error, HttpError},
     header::{self, IntoHeaderPair, IntoHeaderValue},
     message::{BoxedResponseHead, ConnectionType, ResponseHead},
@@ -242,15 +242,16 @@ impl ResponseBuilder {
     ///
     /// This `ResponseBuilder` will be left in a useless state.
     pub fn message_body<B>(&mut self, body: B) -> Response<B> {
-        if let Some(e) = self.err.take() {
-            return Response::from(Error::from(e)).into_body();
-        }
+        // TODO: put error handling back somehow
+        // if let Some(e) = self.err.take() {
+        //     return Response::from(Error::from(e)).into_body();
+        // }
 
         let response = self.head.take().expect("cannot reuse response builder");
 
         Response {
             head: response,
-            body: ResponseBody::Body(body),
+            body,
             error: None,
         }
     }

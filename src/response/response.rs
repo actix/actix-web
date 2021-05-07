@@ -8,7 +8,7 @@ use std::{
 };
 
 use actix_http::{
-    body::{Body, MessageBody, ResponseBody},
+    body::{Body, MessageBody},
     http::{header::HeaderMap, StatusCode},
     Extensions, Response, ResponseHead,
 };
@@ -27,7 +27,7 @@ use crate::{error::Error, HttpResponseBuilder};
 /// An HTTP Response
 pub struct HttpResponse<B = Body> {
     res: Response<B>,
-    error: Option<Error>,
+    pub(crate) error: Option<Error>,
 }
 
 impl HttpResponse<Body> {
@@ -57,13 +57,13 @@ impl HttpResponse<Body> {
         }
     }
 
-    /// Convert response to response with body
-    pub fn into_body<B>(self) -> HttpResponse<B> {
-        HttpResponse {
-            res: self.res.into_body(),
-            error: self.error,
-        }
-    }
+    // /// Convert response to response with body
+    // pub fn into_body<B>(self) -> HttpResponse<B> {
+    //     HttpResponse {
+    //         res: self.res.into_body(),
+    //         error: self.error,
+    //     }
+    // }
 }
 
 impl<B> HttpResponse<B> {
@@ -192,7 +192,7 @@ impl<B> HttpResponse<B> {
 
     /// Get body of this response
     #[inline]
-    pub fn body(&self) -> &ResponseBody<B> {
+    pub fn body(&self) -> &B {
         self.res.body()
     }
 
@@ -206,7 +206,7 @@ impl<B> HttpResponse<B> {
     }
 
     /// Split response and body
-    pub fn into_parts(self) -> (HttpResponse<()>, ResponseBody<B>) {
+    pub fn into_parts(self) -> (HttpResponse<()>, B) {
         let (head, body) = self.res.into_parts();
 
         (
@@ -229,7 +229,7 @@ impl<B> HttpResponse<B> {
     /// Set a body and return previous body value
     pub fn map_body<F, B2>(self, f: F) -> HttpResponse<B2>
     where
-        F: FnOnce(&mut ResponseHead, ResponseBody<B>) -> ResponseBody<B2>,
+        F: FnOnce(&mut ResponseHead, B) -> B2,
     {
         HttpResponse {
             res: self.res.map_body(f),
@@ -237,9 +237,14 @@ impl<B> HttpResponse<B> {
         }
     }
 
+    // /// Extract response body
+    // pub fn take_body(&mut self) -> ResponseBody<B> {
+    //     self.res.take_body()
+    // }
+    
     /// Extract response body
-    pub fn take_body(&mut self) -> ResponseBody<B> {
-        self.res.take_body()
+    pub fn into_body(self) -> B {
+        self.res.into_body()
     }
 }
 
@@ -286,9 +291,9 @@ impl Future for HttpResponse {
     type Output = Result<Response<Body>, Error>;
 
     fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
-        if let Some(err) = self.error.take() {
-            return Poll::Ready(Ok(Response::from_error(err).into_body()));
-        }
+        // if let Some(err) = self.error.take() {
+        //     return Poll::Ready(Ok(Response::from_error(err).into_body()));
+        // }
 
         Poll::Ready(Ok(mem::replace(
             &mut self.res,

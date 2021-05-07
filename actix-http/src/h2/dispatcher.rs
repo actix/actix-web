@@ -12,7 +12,7 @@ use h2::{
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
 use log::{error, trace};
 
-use crate::body::{BodySize, MessageBody, ResponseBody};
+use crate::body::{Body, BodySize, MessageBody};
 use crate::config::ServiceConfig;
 use crate::error::{DispatchError, Error};
 use crate::message::ResponseHead;
@@ -135,7 +135,8 @@ struct ServiceResponse<F, I, E, B> {
 #[pin_project::pin_project(project = ServiceResponseStateProj)]
 enum ServiceResponseState<F, B> {
     ServiceCall(#[pin] F, Option<SendResponse<Bytes>>),
-    SendPayload(SendStream<Bytes>, #[pin] ResponseBody<B>),
+    SendPayload(SendStream<Bytes>, #[pin] B),
+    SendErrorPayload(SendStream<Bytes>, #[pin] Body),
 }
 
 impl<F, I, E, B> ServiceResponse<F, I, E, B>
@@ -280,9 +281,8 @@ where
                         if size.is_eof() {
                             Poll::Ready(())
                         } else {
-                            this.state.set(ServiceResponseState::SendPayload(
-                                stream,
-                                body.into_body(),
+                            this.state.set(ServiceResponseState::SendErrorPayload(
+                                stream, body,
                             ));
                             self.poll(cx)
                         }
@@ -331,8 +331,65 @@ where
                                 *this.buffer = Some(chunk);
                             }
 
+                            Some(Err(err)) => {
+                                error!(
+                                    "Response payload stream error: {:?}",
+                                    err.into()
+                                );
+
+                                return Poll::Ready(());
+                            }
+                        },
+                    }
+                }
+            }
+
+            ServiceResponseStateProj::SendErrorPayload(ref mut stream, ref mut body) => {
+                // TODO: de-dupe impl with SendPayload
+                
+                loop {
+                    match this.buffer {
+                        Some(ref mut buffer) => match ready!(stream.poll_capacity(cx)) {
+                            None => return Poll::Ready(()),
+
+                            Some(Ok(cap)) => {
+                                let len = buffer.len();
+                                let bytes = buffer.split_to(cmp::min(cap, len));
+
+                                if let Err(e) = stream.send_data(bytes, false) {
+                                    warn!("{:?}", e);
+                                    return Poll::Ready(());
+                                } else if !buffer.is_empty() {
+                                    let cap = cmp::min(buffer.len(), CHUNK_SIZE);
+                                    stream.reserve_capacity(cap);
+                                } else {
+                                    this.buffer.take();
+                                }
+                            }
+
                             Some(Err(e)) => {
-                                error!("Response payload stream error: {:?}", e);
+                                warn!("{:?}", e);
+                                return Poll::Ready(());
+                            }
+                        },
+
+                        None => match ready!(body.as_mut().poll_next(cx)) {
+                            None => {
+                                if let Err(e) = stream.send_data(Bytes::new(), true) {
+                                    warn!("{:?}", e);
+                                }
+                                return Poll::Ready(());
+                            }
+
+                            Some(Ok(chunk)) => {
+                                stream
+                                    .reserve_capacity(cmp::min(chunk.len(), CHUNK_SIZE));
+                                *this.buffer = Some(chunk);
+                            }
+
+                            Some(Err(err)) => {
+                                error!("Response payload stream error: {:?}", err);
+
                                 return Poll::Ready(());
                             }
                         },

@@ -2,17 +2,13 @@
 
 use std::{
     cell::{Ref, RefMut},
-    fmt,
-    future::Future,
-    pin::Pin,
-    str,
-    task::{Context, Poll},
+    fmt, str,
 };
 
 use bytes::{Bytes, BytesMut};
 
 use crate::{
-    body::{Body, MessageBody, ResponseBody},
+    body::{Body, MessageBody},
     error::Error,
     extensions::Extensions,
     http::{HeaderMap, StatusCode},
@@ -23,7 +19,7 @@ use crate::{
 /// An HTTP response.
 pub struct Response<B> {
     pub(crate) head: BoxedResponseHead,
-    pub(crate) body: ResponseBody<B>,
+    pub(crate) body: B,
     pub(crate) error: Option<Error>,
 }
 
@@ -33,7 +29,7 @@ impl Response<Body> {
     pub fn new(status: StatusCode) -> Response<Body> {
         Response {
             head: BoxedResponseHead::new(status),
-            body: ResponseBody::Body(Body::Empty),
+            body: Body::Empty,
             error: None,
         }
     }
@@ -84,18 +80,18 @@ impl Response<Body> {
         resp
     }
 
-    /// Convert response to response with body
-    pub fn into_body<B>(self) -> Response<B> {
-        let b = match self.body {
-            ResponseBody::Body(b) => b,
-            ResponseBody::Other(b) => b,
-        };
-        Response {
-            head: self.head,
-            error: self.error,
-            body: ResponseBody::Other(b),
-        }
-    }
+    // /// Convert response to response with body
+    // pub fn into_body<B>(self) -> Response<B> {
+    //     let b = match self.body {
+    //         ResponseBody::Body(b) => b,
+    //         ResponseBody::Other(b) => b,
+    //     };
+    //     Response {
+    //         head: self.head,
+    //         error: self.error,
+    //         body: ResponseBody::Other(b),
+    //     }
+    // }
 }
 
 impl<B> Response<B> {
@@ -104,7 +100,7 @@ impl<B> Response<B> {
     pub fn with_body(status: StatusCode, body: B) -> Response<B> {
         Response {
             head: BoxedResponseHead::new(status),
-            body: ResponseBody::Body(body),
+            body,
             error: None,
         }
     }
@@ -176,7 +172,7 @@ impl<B> Response<B> {
 
     /// Get body of this response
     #[inline]
-    pub fn body(&self) -> &ResponseBody<B> {
+    pub fn body(&self) -> &B {
         &self.body
     }
 
@@ -184,17 +180,17 @@ impl<B> Response<B> {
     pub fn set_body<B2>(self, body: B2) -> Response<B2> {
         Response {
             head: self.head,
-            body: ResponseBody::Body(body),
+            body,
             error: None,
         }
     }
 
     /// Split response and body
-    pub fn into_parts(self) -> (Response<()>, ResponseBody<B>) {
+    pub fn into_parts(self) -> (Response<()>, B) {
         (
             Response {
                 head: self.head,
-                body: ResponseBody::Body(()),
+                body: (),
                 error: self.error,
             },
             self.body,
@@ -205,17 +201,17 @@ impl<B> Response<B> {
     pub fn drop_body(self) -> Response<()> {
         Response {
             head: self.head,
-            body: ResponseBody::Body(()),
+            body: (),
             error: None,
         }
     }
 
     /// Set a body and return previous body value
-    pub(crate) fn replace_body<B2>(self, body: B2) -> (Response<B2>, ResponseBody<B>) {
+    pub(crate) fn replace_body<B2>(self, body: B2) -> (Response<B2>, B) {
         (
             Response {
                 head: self.head,
-                body: ResponseBody::Body(body),
+                body,
                 error: self.error,
             },
             self.body,
@@ -225,7 +221,7 @@ impl<B> Response<B> {
     /// Set a body and return previous body value
     pub fn map_body<F, B2>(mut self, f: F) -> Response<B2>
     where
-        F: FnOnce(&mut ResponseHead, ResponseBody<B>) -> ResponseBody<B2>,
+        F: FnOnce(&mut ResponseHead, B) -> B2,
     {
         let body = f(&mut self.head, self.body);
 
@@ -236,9 +232,14 @@ impl<B> Response<B> {
         }
     }
 
+    // /// Extract response body
+    // pub fn take_body(&mut self) -> ResponseBody<B> {
+    //     self.body.take_body()
+    // }
+
     /// Extract response body
-    pub fn take_body(&mut self) -> ResponseBody<B> {
-        self.body.take_body()
+    pub fn into_body(self) -> B {
+        self.body
     }
 }
 
@@ -264,17 +265,18 @@ where
     }
 }
 
-impl<B: Unpin> Future for Response<B> {
-    type Output = Result<Response<B>, Error>;
+// TODO: document why this is needed
+// impl<B: Unpin> Future for Response<B> {
+//     type Output = Result<Response<B>, Infallible>;
 
-    fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
-        Poll::Ready(Ok(Response {
-            head: self.head.take(),
-            body: self.body.take_body(),
-            error: self.error.take(),
-        }))
-    }
-}
+//     fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
+//         Poll::Ready(Ok(Response {
+//             head: self.head.take(),
+//             body: self.body.take_body(),
+//             error: self.error.take(),
+//         }))
+//     }
+// }
 
 /// Helper converters
 impl<I: Into<Response<Body>>, E: Into<Error>> From<Result<I, E>> for Response<Body> {
