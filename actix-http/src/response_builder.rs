@@ -235,25 +235,27 @@ impl ResponseBuilder {
     /// This `ResponseBuilder` will be left in a useless state.
     #[inline]
     pub fn body<B: Into<Body>>(&mut self, body: B) -> Response<Body> {
-        self.message_body(body.into())
+        match self.message_body(body.into()) {
+            Ok(res) => res,
+            Err(err) => Response::from_error(err),
+        }
     }
 
     /// Generate response with a body.
     ///
     /// This `ResponseBuilder` will be left in a useless state.
-    pub fn message_body<B>(&mut self, body: B) -> Response<B> {
-        // TODO: put error handling back somehow
-        // if let Some(e) = self.err.take() {
-        //     return Response::from(Error::from(e)).into_body();
-        // }
+    pub fn message_body<B>(&mut self, body: B) -> Result<Response<B>, Error> {
+        if let Some(err) = self.err.take() {
+            return Err(err.into());
+        }
 
         let response = self.head.take().expect("cannot reuse response builder");
 
-        Response {
+        Ok(Response {
             head: response,
             body: Some(body),
             error: None,
-        }
+        })
     }
 
     /// Generate response with a streaming body.
