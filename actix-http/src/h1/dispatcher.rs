@@ -296,11 +296,11 @@ where
         io.poll_flush(cx)
     }
 
-    fn send_response(
+    fn send_response_inner(
         self: Pin<&mut Self>,
         message: Response<()>,
-        body: B,
-    ) -> Result<(), DispatchError> {
+        body: &impl MessageBody,
+    ) -> Result<BodySize, DispatchError> {
         let size = body.size();
         let mut this = self.project();
         this.codec
@@ -313,36 +313,35 @@ where
             })?;
 
         this.flags.set(Flags::KEEPALIVE, this.codec.keepalive());
-        match size {
-            BodySize::None | BodySize::Empty => this.state.set(State::None),
-            _ => this.state.set(State::SendPayload(body)),
+
+        Ok(size)
+    }
+
+    fn send_response(
+        mut self: Pin<&mut Self>,
+        message: Response<()>,
+        body: B,
+    ) -> Result<(), DispatchError> {
+        let size = self.as_mut().send_response_inner(message, &body)?;
+        let state = match size {
+            BodySize::None | BodySize::Empty => State::None,
+            _ => State::SendPayload(body),
         };
+        self.project().state.set(state);
         Ok(())
     }
 
     fn send_error_response(
-        self: Pin<&mut Self>,
+        mut self: Pin<&mut Self>,
         message: Response<()>,
         body: Body,
     ) -> Result<(), DispatchError> {
-        // TODO: de-dupe impl with send_response
-
-        let size = body.size();
-        let mut this = self.project();
-        this.codec
-            .encode(Message::Item((message, size)), &mut this.write_buf)
-            .map_err(|err| {
-                if let Some(mut payload) = this.payload.take() {
-                    payload.set_error(PayloadError::Incomplete(None));
-                }
-                DispatchError::Io(err)
-            })?;
-
-        this.flags.set(Flags::KEEPALIVE, this.codec.keepalive());
-        match size {
-            BodySize::None | BodySize::Empty => this.state.set(State::None),
-            _ => this.state.set(State::SendErrorPayload(body)),
+        let size = self.as_mut().send_response_inner(message, &body)?;
+        let state = match size {
+            BodySize::None | BodySize::Empty => State::None,
+            _ => State::SendErrorPayload(body),
         };
+        self.project().state.set(state);
         Ok(())
     }
 
