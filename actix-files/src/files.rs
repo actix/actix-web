@@ -84,7 +84,7 @@ impl Files {
     ///
     /// `Files` utilizes the existing Tokio thread-pool for blocking filesystem operations.
     /// The number of running threads is adjusted over time as needed, up to a maximum of 512 times
-    /// the number of server [workers](HttpServer::workers), by default.
+    /// the number of server [workers](actix_web::HttpServer::workers), by default.
     pub fn new<T: Into<PathBuf>>(mount_path: &str, serve_from: T) -> Files {
         let orig_dir = serve_from.into();
         let dir = match orig_dir.canonicalize() {

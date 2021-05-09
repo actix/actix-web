@@ -248,13 +248,8 @@ impl ResponseBuilder {
             return Err(err.into());
         }
 
-        let response = self.head.take().expect("cannot reuse response builder");
-
-        Ok(Response {
-            head: response,
-            body,
-            error: None,
-        })
+        let head = self.head.take().expect("cannot reuse response builder");
+        Ok(Response { head, body })
     }
 
     /// Generate response with a streaming body.
