@@ -389,14 +389,6 @@ impl BoxedResponseHead {
     pub fn new(status: StatusCode) -> Self {
         RESPONSE_POOL.with(|p| p.get_message(status))
     }
-
-    // used in: impl Future for Response
-    #[allow(dead_code)]
-    pub(crate) fn take(&mut self) -> Self {
-        BoxedResponseHead {
-            head: self.head.take(),
-        }
-    }
 }
 
 impl std::ops::Deref for BoxedResponseHead {
