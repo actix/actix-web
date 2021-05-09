@@ -20,7 +20,6 @@ use crate::{
 pub struct Response<B> {
     pub(crate) head: BoxedResponseHead,
     pub(crate) body: B,
-    pub(crate) error: Option<Error>,
 }
 
 impl Response<Body> {
@@ -30,7 +29,6 @@ impl Response<Body> {
         Response {
             head: BoxedResponseHead::new(status),
             body: Body::Empty,
-            error: None,
         }
     }
 
@@ -72,11 +70,10 @@ impl Response<Body> {
     /// Constructs a new response from an error.
     #[inline]
     pub fn from_error(error: Error) -> Response<Body> {
-        let mut resp = error.as_response_error().error_response();
+        let resp = error.as_response_error().error_response();
         if resp.head.status == StatusCode::INTERNAL_SERVER_ERROR {
             debug!("Internal Server Error: {:?}", error);
         }
-        resp.error = Some(error);
         resp
     }
 }
@@ -88,7 +85,6 @@ impl<B> Response<B> {
         Response {
             head: BoxedResponseHead::new(status),
             body: body,
-            error: None,
         }
     }
 
@@ -102,12 +98,6 @@ impl<B> Response<B> {
     #[inline]
     pub fn head_mut(&mut self) -> &mut ResponseHead {
         &mut *self.head
-    }
-
-    /// Return the source `error` for this response, if one is set.
-    #[inline]
-    pub fn error(&self) -> Option<&Error> {
-        self.error.as_ref()
     }
 
     /// Return the status code of this response.
@@ -168,7 +158,6 @@ impl<B> Response<B> {
         Response {
             head: self.head,
             body,
-            error: None,
         }
     }
 
@@ -183,7 +172,6 @@ impl<B> Response<B> {
             Response {
                 head: self.head,
                 body,
-                error: self.error,
             },
             self.body,
         )
@@ -208,7 +196,6 @@ impl<B> Response<B> {
         Response {
             head: self.head,
             body,
-            error: self.error,
         }
     }
 
