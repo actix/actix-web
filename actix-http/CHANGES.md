@@ -22,6 +22,7 @@
 * Stop re-exporting `http` crate's `HeaderMap` types in addition to ours. [#2171]
 * Down-casting for `MessageBody` types. [#2183]
 * `error::Result` alias. [#2201]
+* Error field from `Response` and `Response::error`. [#2205]
 * `impl Future` for `Response`. [#2201]
 * `Response::take_body` and old `Response::into_body` method that casted body type. [#2201]
 
@@ -29,6 +30,7 @@
 [#2183]: https://github.com/actix/actix-web/pull/2183
 [#2196]: https://github.com/actix/actix-web/pull/2196
 [#2201]: https://github.com/actix/actix-web/pull/2201
+[#2205]: https://github.com/actix/actix-web/pull/2205
 
 
 ## 3.0.0-beta.6 - 2021-04-17
