@@ -229,11 +229,6 @@ impl<B> HttpResponse<B> {
         }
     }
 
-    // /// Extract response body
-    // pub fn take_body(&mut self) -> ResponseBody<B> {
-    //     self.res.take_body()
-    // }
-
     /// Extract response body
     pub fn into_body(self) -> B {
         self.res.into_body()

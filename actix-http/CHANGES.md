@@ -6,6 +6,8 @@
 * Re-export `http` crate's `Error` type as `error::HttpError`. [#2171]
 * Re-export `StatusCode`, `Method`, `Version` and `Uri` at the crate root. [#2171]
 * Re-export `ContentEncoding` and `ConnectionType` at the crate root. [#2171]
+* `Response::into_body` that consumes response and returns body type. [#2201]
+* `impl Default` for `Response`. [#2201]
 
 ### Changed
 * The `MessageBody` trait now has an associated `Error` type. [#2183]
@@ -13,13 +15,15 @@
 * `header` mod is now public. [#2171]
 * `uri` mod is now public. [#2171]
 * Update `language-tags` to `0.3`.
-* Reduce the level from `error` to `debug` for the log line that is emitted when a `500 Internal Server Error` is built using `HttpResponse::from_error`. [#2196]
+* Reduce the level from `error` to `debug` for the log line that is emitted when a `500 Internal Server Error` is built using `HttpResponse::from_error`. [#2201]
+* `ResponseBuilder::message_body` now returns a `Result`. [#2201]
 
 ### Removed
 * Stop re-exporting `http` crate's `HeaderMap` types in addition to ours. [#2171]
 * Down-casting for `MessageBody` types. [#2183]
 * `error::Result` alias. [#2201]
 * `impl Future` for `Response`. [#2201]
+* `Response::take_body` and old `Response::into_body` method that casted body type. [#2201]
 
 [#2171]: https://github.com/actix/actix-web/pull/2171
 [#2183]: https://github.com/actix/actix-web/pull/2183

@@ -403,14 +403,8 @@ impl<B> ServiceResponse<B> {
         F: FnOnce(&mut Self) -> Result<(), E>,
         E: Into<Error>,
     {
-        match f(&mut self) {
-            Ok(_) => Ok(self),
-            Err(err) => {
-                Err(err.into())
-                // let res = HttpResponse::from_error(err.into());
-                // ServiceResponse::new(self.request, res.into_body())
-            }
-        }
+        f(&mut self).map_err(Into::into)?;
+        Ok(self)
     }
 
     /// Extract response body
