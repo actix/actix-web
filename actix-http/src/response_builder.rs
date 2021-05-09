@@ -236,10 +236,8 @@ impl ResponseBuilder {
     /// This `ResponseBuilder` will be left in a useless state.
     #[inline]
     pub fn body<B: Into<Body>>(&mut self, body: B) -> Response<Body> {
-        match self.message_body(body.into()) {
-            Ok(res) => res,
-            Err(err) => Response::from_error(err),
-        }
+        self.message_body(body.into())
+            .unwrap_or_else(Response::from_error)
     }
 
     /// Generate response with a body.

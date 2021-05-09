@@ -473,7 +473,7 @@ where
                             }
 
                             Poll::Ready(Some(Err(err))) => {
-                                return Err(DispatchError::Service(err.into()))
+                                return Err(DispatchError::Service(err))
                             }
 
                             Poll::Pending => return Ok(PollResponse::DoNothing),

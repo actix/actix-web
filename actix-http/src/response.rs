@@ -92,25 +92,25 @@ impl<B> Response<B> {
         }
     }
 
-    /// Return a reference to the head of this response.
+    /// Returns a reference to the head of this response.
     #[inline]
     pub fn head(&self) -> &ResponseHead {
         &*self.head
     }
 
-    /// Return a mutable reference to the head of this response.
+    /// Returns a mutable reference to the head of this response.
     #[inline]
     pub fn head_mut(&mut self) -> &mut ResponseHead {
         &mut *self.head
     }
 
-    /// Return the source `error` for this response, if one is set.
+    /// Returns the source `error` for this response, if one is set.
     #[inline]
     pub fn error(&self) -> Option<&Error> {
         self.error.as_ref()
     }
 
-    /// Return the status code of this response.
+    /// Returns the status code of this response.
     #[inline]
     pub fn status(&self) -> StatusCode {
         self.head.status
