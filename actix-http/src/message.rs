@@ -293,14 +293,14 @@ impl ResponseHead {
         }
     }
 
-    #[inline]
     /// Check if keep-alive is enabled
+    #[inline]
     pub fn keep_alive(&self) -> bool {
         self.connection_type() == ConnectionType::KeepAlive
     }
 
-    #[inline]
     /// Check upgrade status of this message
+    #[inline]
     pub fn upgrade(&self) -> bool {
         self.connection_type() == ConnectionType::Upgrade
     }

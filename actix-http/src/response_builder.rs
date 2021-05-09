@@ -254,7 +254,7 @@ impl ResponseBuilder {
 
         Ok(Response {
             head: response,
-            body: Some(body),
+            body,
             error: None,
         })
     }

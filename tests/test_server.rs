@@ -901,7 +901,7 @@ async fn test_normalize() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
             .wrap(NormalizePath::new(TrailingSlash::Trim))
-            .service(web::resource("/one").route(web::to(|| HttpResponse::Ok().finish())))
+            .service(web::resource("/one").route(web::to(|| HttpResponse::Ok())))
     });
 
     let response = srv.get("/one/").send().await.unwrap();

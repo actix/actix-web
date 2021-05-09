@@ -2,6 +2,7 @@ use std::{
     cell::{Ref, RefMut},
     fmt,
     future::Future,
+    mem,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -11,7 +12,6 @@ use actix_http::{
     http::{header::HeaderMap, StatusCode},
     Extensions, Response, ResponseHead,
 };
-use futures_core::ready;
 
 #[cfg(feature = "cookies")]
 use {
@@ -278,21 +278,24 @@ impl<B> From<HttpResponse<B>> for Response<B> {
     }
 }
 
-impl<B: Unpin> Future for HttpResponse<B> {
-    type Output = Result<Response<B>, Error>;
+// Future is only implemented for Body payload type because it's the most useful for making simple
+// handlers without async blocks. Making it generic over all MessageBody types requires a future
+// impl on Response which would cause it's body field to be, undesirably, Option<B>.
+//
+// This impl is not particularly efficient due to the Response construction and should probably
+// not be invoked if performance is important. Prefer an async fn/block in such cases.
+impl Future for HttpResponse<Body> {
+    type Output = Result<Response<Body>, Error>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
         if let Some(err) = self.error.take() {
             return Poll::Ready(Err(err));
         }
 
-        let res = &mut self.res;
-        actix_rt::pin!(res);
-
-        match ready!(res.poll(cx)) {
-            Ok(val) => Poll::Ready(Ok(val)),
-            Err(err) => Poll::Ready(Err(err.into())),
-        }
+        Poll::Ready(Ok(mem::replace(
+            &mut self.res,
+            Response::new(StatusCode::default()),
+        )))
     }
 }
 

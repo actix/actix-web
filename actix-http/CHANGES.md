@@ -19,6 +19,7 @@
 * Stop re-exporting `http` crate's `HeaderMap` types in addition to ours. [#2171]
 * Down-casting for `MessageBody` types. [#2183]
 * `error::Result` alias. [#2201]
+* `impl Future` for `Response`. [#2201]
 
 [#2171]: https://github.com/actix/actix-web/pull/2171
 [#2183]: https://github.com/actix/actix-web/pull/2183
