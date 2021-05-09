@@ -32,7 +32,7 @@ use rand::{distributions::Alphanumeric, Rng};
 
 use actix_web::dev::BodyEncoding;
 use actix_web::middleware::{Compress, NormalizePath, TrailingSlash};
-use actix_web::{dev, web, App, Error, HttpResponse};
+use actix_web::{web, App, Error, HttpResponse};
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \
@@ -160,9 +160,7 @@ async fn test_body_gzip2() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
             .wrap(Compress::new(ContentEncoding::Gzip))
-            .service(web::resource("/").route(web::to(|| {
-                HttpResponse::Ok().body(STR).into_body::<dev::Body>()
-            })))
+            .service(web::resource("/").route(web::to(|| HttpResponse::Ok().body(STR))))
     });
 
     let mut response = srv
@@ -903,7 +901,7 @@ async fn test_normalize() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
             .wrap(NormalizePath::new(TrailingSlash::Trim))
-            .service(web::resource("/one").route(web::to(|| HttpResponse::Ok().finish())))
+            .service(web::resource("/one").route(web::to(|| HttpResponse::Ok())))
     });
 
     let response = srv.get("/one/").send().await.unwrap();

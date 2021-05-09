@@ -13,7 +13,7 @@ use bytes::Bytes;
 use futures_core::Stream;
 
 use crate::{
-    body::{Body, BodyStream, ResponseBody},
+    body::{Body, BodyStream},
     error::{Error, HttpError},
     header::{self, IntoHeaderPair, IntoHeaderValue},
     message::{BoxedResponseHead, ConnectionType, ResponseHead},
@@ -38,10 +38,11 @@ use crate::{
 ///     .body("1234");
 ///
 /// assert_eq!(res.status(), StatusCode::OK);
-/// assert_eq!(body::to_bytes(res.take_body()).await.unwrap(), &b"1234"[..]);
 ///
 /// assert!(res.headers().contains_key("server"));
 /// assert_eq!(res.headers().get_all("set-cookie").count(), 2);
+///
+/// assert_eq!(body::to_bytes(res.into_body()).await.unwrap(), &b"1234"[..]);
 /// # })
 /// ```
 pub struct ResponseBuilder {
@@ -236,23 +237,24 @@ impl ResponseBuilder {
     #[inline]
     pub fn body<B: Into<Body>>(&mut self, body: B) -> Response<Body> {
         self.message_body(body.into())
+            .unwrap_or_else(Response::from_error)
     }
 
     /// Generate response with a body.
     ///
     /// This `ResponseBuilder` will be left in a useless state.
-    pub fn message_body<B>(&mut self, body: B) -> Response<B> {
-        if let Some(e) = self.err.take() {
-            return Response::from(Error::from(e)).into_body();
+    pub fn message_body<B>(&mut self, body: B) -> Result<Response<B>, Error> {
+        if let Some(err) = self.err.take() {
+            return Err(err.into());
         }
 
         let response = self.head.take().expect("cannot reuse response builder");
 
-        Response {
+        Ok(Response {
             head: response,
-            body: ResponseBody::Body(body),
+            body,
             error: None,
-        }
+        })
     }
 
     /// Generate response with a streaming body.

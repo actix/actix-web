@@ -21,7 +21,7 @@ use regex::{Regex, RegexSet};
 use time::OffsetDateTime;
 
 use crate::{
-    dev::{BodySize, MessageBody, ResponseBody},
+    dev::{BodySize, MessageBody},
     http::{HeaderName, StatusCode},
     service::{ServiceRequest, ServiceResponse},
     Error, HttpResponse, Result,
@@ -289,13 +289,11 @@ where
         let time = *this.time;
         let format = this.format.take();
 
-        Poll::Ready(Ok(res.map_body(move |_, body| {
-            ResponseBody::Body(StreamLog {
-                body,
-                time,
-                format,
-                size: 0,
-            })
+        Poll::Ready(Ok(res.map_body(move |_, body| StreamLog {
+            body,
+            time,
+            format,
+            size: 0,
         })))
     }
 }
@@ -305,7 +303,7 @@ use pin_project::{pin_project, pinned_drop};
 #[pin_project(PinnedDrop)]
 pub struct StreamLog<B> {
     #[pin]
-    body: ResponseBody<B>,
+    body: B,
     format: Option<Format>,
     size: usize,
     time: OffsetDateTime,
@@ -342,12 +340,15 @@ where
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         let this = self.project();
-        match this.body.poll_next(cx) {
-            Poll::Ready(Some(Ok(chunk))) => {
+
+        // TODO: MSRV 1.51: poll_map_err
+        match ready!(this.body.poll_next(cx)) {
+            Some(Ok(chunk)) => {
                 *this.size += chunk.len();
                 Poll::Ready(Some(Ok(chunk)))
             }
-            val => val,
+            Some(Err(err)) => Poll::Ready(Some(Err(err.into()))),
+            None => Poll::Ready(None),
         }
     }
 }
