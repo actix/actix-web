@@ -21,7 +21,7 @@ use futures_core::ready;
 use log::{error, trace};
 use pin_project::pin_project;
 
-use crate::body::{Body, BodySize, MessageBody, ResponseBody};
+use crate::body::{Body, BodySize, MessageBody};
 use crate::config::ServiceConfig;
 use crate::error::{DispatchError, Error};
 use crate::error::{ParseError, PayloadError};
@@ -146,7 +146,8 @@ where
     None,
     ExpectCall(#[pin] X::Future),
     ServiceCall(#[pin] S::Future),
-    SendPayload(#[pin] ResponseBody<B>),
+    SendPayload(#[pin] B),
+    SendErrorPayload(#[pin] Body),
 }
 
 impl<S, B, X> State<S, B, X>
@@ -300,11 +301,11 @@ where
         io.poll_flush(cx)
     }
 
-    fn send_response(
+    fn send_response_inner(
         self: Pin<&mut Self>,
         message: Response<()>,
-        body: ResponseBody<B>,
-    ) -> Result<(), DispatchError> {
+        body: &impl MessageBody,
+    ) -> Result<BodySize, DispatchError> {
         let size = body.size();
         let mut this = self.project();
         this.codec
@@ -317,10 +318,35 @@ where
             })?;
 
         this.flags.set(Flags::KEEPALIVE, this.codec.keepalive());
-        match size {
-            BodySize::None | BodySize::Empty => this.state.set(State::None),
-            _ => this.state.set(State::SendPayload(body)),
+
+        Ok(size)
+    }
+
+    fn send_response(
+        mut self: Pin<&mut Self>,
+        message: Response<()>,
+        body: B,
+    ) -> Result<(), DispatchError> {
+        let size = self.as_mut().send_response_inner(message, &body)?;
+        let state = match size {
+            BodySize::None | BodySize::Empty => State::None,
+            _ => State::SendPayload(body),
         };
+        self.project().state.set(state);
+        Ok(())
+    }
+
+    fn send_error_response(
+        mut self: Pin<&mut Self>,
+        message: Response<()>,
+        body: Body,
+    ) -> Result<(), DispatchError> {
+        let size = self.as_mut().send_response_inner(message, &body)?;
+        let state = match size {
+            BodySize::None | BodySize::Empty => State::None,
+            _ => State::SendErrorPayload(body),
+        };
+        self.project().state.set(state);
         Ok(())
     }
 
@@ -358,8 +384,7 @@ where
                         // send_response would update InnerDispatcher state to SendPayload or
                         // None(If response body is empty).
                         // continue loop to poll it.
-                        self.as_mut()
-                            .send_response(res, ResponseBody::Other(Body::Empty))?;
+                        self.as_mut().send_error_response(res, Body::Empty)?;
                     }
 
                     // return with upgrade request and poll it exclusively.
@@ -381,7 +406,7 @@ where
                     Poll::Ready(Err(err)) => {
                         let res = Response::from_error(err.into());
                         let (res, body) = res.replace_body(());
-                        self.as_mut().send_response(res, body.into_body())?;
+                        self.as_mut().send_error_response(res, body)?;
                     }
 
                     // service call pending and could be waiting for more chunk messages.
@@ -423,7 +448,42 @@ where
 
                             Poll::Ready(Some(Err(err))) => {
                                 this.flags.remove(Flags::PAYLOAD_PENDING);
-                                return Err(DispatchError::Service(err));
+                                return Err(DispatchError::Service(err.into()))
+                            }
+
+                            Poll::Pending => return Ok(PollResponse::DoNothing),
+                        }
+                    }
+                    // buffer is beyond max size.
+                    // return and try to write the whole buffer to io stream.
+                    return Ok(PollResponse::DrainWriteBuf);
+                }
+
+                StateProj::SendErrorPayload(mut stream) => {
+                    // TODO: de-dupe impl with SendPayload
+
+                    // keep populate writer buffer until buffer size limit hit,
+                    // get blocked or finished.
+                    while this.write_buf.len() < super::payload::MAX_BUFFER_SIZE {
+                        match stream.as_mut().poll_next(cx) {
+                            Poll::Ready(Some(Ok(item))) => {
+                                this.codec.encode(
+                                    Message::Chunk(Some(item)),
+                                    &mut this.write_buf,
+                                )?;
+                            }
+
+                            Poll::Ready(None) => {
+                                this.codec
+                                    .encode(Message::Chunk(None), &mut this.write_buf)?;
+                                // payload stream finished.
+                                // set state to None and handle next message
+                                this.state.set(State::None);
+                                continue 'res;
+                            }
+
+                            Poll::Ready(Some(Err(err))) => {
+                                return Err(DispatchError::Service(err))
                             }
 
                             // Payload is pending. register a timer for wake up
@@ -467,12 +527,14 @@ where
                         let fut = this.flow.service.call(req);
                         this.state.set(State::ServiceCall(fut));
                     }
+
                     // send expect error as response
                     Poll::Ready(Err(err)) => {
                         let res = Response::from_error(err.into());
                         let (res, body) = res.replace_body(());
-                        self.as_mut().send_response(res, body.into_body())?;
+                        self.as_mut().send_error_response(res, body)?;
                     }
+
                     // expect must be solved before progress can be made.
                     Poll::Pending => return Ok(PollResponse::DoNothing),
                 },
@@ -520,7 +582,7 @@ where
                         Poll::Ready(Err(err)) => {
                             let res = Response::from_error(err.into());
                             let (res, body) = res.replace_body(());
-                            return self.send_response(res, body.into_body());
+                            return self.send_error_response(res, body);
                         }
                     }
                 }
@@ -540,7 +602,7 @@ where
                         Poll::Ready(Err(err)) => {
                             let res = Response::from_error(err.into());
                             let (res, body) = res.replace_body(());
-                            self.send_response(res, body.into_body())
+                            self.send_error_response(res, body)
                         }
                     };
                 }
@@ -660,8 +722,10 @@ where
                     }
                     // Requests overflow buffer size should be responded with 431
                     this.messages.push_back(DispatcherMessage::Error(
-                        Response::new(StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE)
-                            .drop_body(),
+                        Response::with_body(
+                            StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
+                            (),
+                        ),
                     ));
                     this.flags.insert(Flags::READ_DISCONNECT);
                     *this.error = Some(ParseError::TooLarge.into());
@@ -757,10 +821,9 @@ where
                             } else {
                                 // timeout on first request (slow request) return 408
                                 trace!("Slow request timeout");
-                                let _ = self.as_mut().send_response(
-                                    Response::new(StatusCode::REQUEST_TIMEOUT)
-                                        .drop_body(),
-                                    ResponseBody::Other(Body::Empty),
+                                let _ = self.as_mut().send_error_response(
+                                    Response::with_body(StatusCode::REQUEST_TIMEOUT, ()),
+                                    Body::Empty,
                                 );
                                 this = self.project();
                                 this.flags.insert(Flags::STARTED | Flags::SHUTDOWN);

@@ -97,7 +97,7 @@ pub(crate) mod types;
 pub mod web;
 
 pub use actix_http::Response as BaseHttpResponse;
-pub use actix_http::{body, Error, HttpMessage, ResponseError, Result};
+pub use actix_http::{body, Error, HttpMessage, ResponseError};
 #[doc(inline)]
 pub use actix_rt as rt;
 pub use actix_web_codegen::*;
@@ -105,6 +105,7 @@ pub use actix_web_codegen::*;
 pub use cookie;
 
 pub use crate::app::App;
+pub use crate::error::Result;
 pub use crate::extract::FromRequest;
 pub use crate::request::HttpRequest;
 pub use crate::resource::Resource;

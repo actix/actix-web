@@ -2,7 +2,7 @@ use std::cell::{Ref, RefMut};
 use std::rc::Rc;
 use std::{fmt, net};
 
-use actix_http::body::{Body, MessageBody, ResponseBody};
+use actix_http::body::{Body, MessageBody};
 use actix_http::http::{HeaderMap, Method, StatusCode, Uri, Version};
 use actix_http::{
     Error, Extensions, HttpMessage, Payload, PayloadStream, RequestHead, Response, ResponseHead,
@@ -110,9 +110,9 @@ impl ServiceRequest {
 
     /// Create service response for error
     #[inline]
-    pub fn error_response<B, E: Into<Error>>(self, err: E) -> ServiceResponse<B> {
+    pub fn error_response<E: Into<Error>>(self, err: E) -> ServiceResponse {
         let res = HttpResponse::from_error(err.into());
-        ServiceResponse::new(self.req, res.into_body())
+        ServiceResponse::new(self.req, res)
     }
 
     /// This method returns reference to the request head
@@ -335,22 +335,24 @@ pub struct ServiceResponse<B = Body> {
     response: HttpResponse<B>,
 }
 
+impl ServiceResponse<Body> {
+    /// Create service response from the error
+    pub fn from_err<E: Into<Error>>(err: E, request: HttpRequest) -> Self {
+        let response = HttpResponse::from_error(err.into());
+        ServiceResponse { request, response }
+    }
+}
+
 impl<B> ServiceResponse<B> {
     /// Create service response instance
     pub fn new(request: HttpRequest, response: HttpResponse<B>) -> Self {
         ServiceResponse { request, response }
     }
 
-    /// Create service response from the error
-    pub fn from_err<E: Into<Error>>(err: E, request: HttpRequest) -> Self {
-        let response = HttpResponse::from_error(err.into()).into_body();
-        ServiceResponse { request, response }
-    }
-
     /// Create service response for error
     #[inline]
-    pub fn error_response<E: Into<Error>>(self, err: E) -> Self {
-        Self::from_err(err, self.request)
+    pub fn error_response<E: Into<Error>>(self, err: E) -> ServiceResponse {
+        ServiceResponse::from_err(err, self.request)
     }
 
     /// Create service response
@@ -396,23 +398,18 @@ impl<B> ServiceResponse<B> {
     }
 
     /// Execute closure and in case of error convert it to response.
-    pub fn checked_expr<F, E>(mut self, f: F) -> Self
+    pub fn checked_expr<F, E>(mut self, f: F) -> Result<Self, Error>
     where
         F: FnOnce(&mut Self) -> Result<(), E>,
         E: Into<Error>,
     {
-        match f(&mut self) {
-            Ok(_) => self,
-            Err(err) => {
-                let res = HttpResponse::from_error(err.into());
-                ServiceResponse::new(self.request, res.into_body())
-            }
-        }
+        f(&mut self).map_err(Into::into)?;
+        Ok(self)
     }
 
     /// Extract response body
-    pub fn take_body(&mut self) -> ResponseBody<B> {
-        self.response.take_body()
+    pub fn into_body(self) -> B {
+        self.response.into_body()
     }
 }
 
@@ -420,7 +417,7 @@ impl<B> ServiceResponse<B> {
     /// Set a new body
     pub fn map_body<F, B2>(self, f: F) -> ServiceResponse<B2>
     where
-        F: FnOnce(&mut ResponseHead, ResponseBody<B>) -> ResponseBody<B2>,
+        F: FnOnce(&mut ResponseHead, B) -> B2,
     {
         let response = self.response.map_body(f);
 

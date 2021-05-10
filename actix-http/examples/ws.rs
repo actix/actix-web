@@ -40,7 +40,7 @@ async fn handler(req: Request) -> Result<Response<BodyStream<Heartbeat>>, Error>
     // handshake will always fail under HTTP/2
 
     log::info!("responding");
-    Ok(res.message_body(BodyStream::new(Heartbeat::new(ws::Codec::new()))))
+    Ok(res.message_body(BodyStream::new(Heartbeat::new(ws::Codec::new())))?)
 }
 
 struct Heartbeat {

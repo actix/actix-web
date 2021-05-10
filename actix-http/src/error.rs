@@ -18,12 +18,6 @@ use crate::{body::Body, helpers::Writer, Response, ResponseBuilder};
 
 pub use http::Error as HttpError;
 
-/// A specialized [`std::result::Result`] for Actix Web operations.
-///
-/// This typedef is generally used to avoid writing out `actix_http::error::Error` directly and is
-/// otherwise a direct mapping to `Result`.
-pub type Result<T, E = Error> = std::result::Result<T, E>;
-
 /// General purpose actix web error.
 ///
 /// An actix web error is used to carry errors from `std::error`
@@ -470,9 +464,8 @@ impl ResponseError for ContentTypeError {
 ///
 /// ```
 /// # use std::io;
-/// # use actix_http::*;
-///
-/// fn index(req: Request) -> Result<&'static str> {
+/// # use actix_http::{error, Request};
+/// fn index(req: Request) -> Result<&'static str, actix_http::Error> {
 ///     Err(error::ErrorBadRequest(io::Error::new(io::ErrorKind::Other, "error")))
 /// }
 /// ```
