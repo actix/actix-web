@@ -2,6 +2,7 @@
 
 use std::{
     cell::RefCell,
+    error::Error as StdError,
     fmt,
     io::{self, Write as _},
     str::Utf8Error,
@@ -16,12 +17,6 @@ use serde::de::value::Error as DeError;
 use crate::{body::Body, helpers::Writer, Response, ResponseBuilder};
 
 pub use http::Error as HttpError;
-
-/// A specialized [`std::result::Result`] for Actix Web operations.
-///
-/// This typedef is generally used to avoid writing out `actix_http::error::Error` directly and is
-/// otherwise a direct mapping to `Result`.
-pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// General purpose actix web error.
 ///
@@ -105,8 +100,7 @@ impl From<()> for Error {
 
 impl From<std::convert::Infallible> for Error {
     fn from(_: std::convert::Infallible) -> Self {
-        // `std::convert::Infallible` indicates an error
-        // that will never happen
+        // hint that an error that will never happen
         unreachable!()
     }
 }
@@ -148,6 +142,8 @@ impl From<ResponseBuilder> for Error {
 #[derive(Debug, Display, Error)]
 #[display(fmt = "Unknown Error")]
 struct UnitError;
+
+impl ResponseError for Box<dyn StdError + 'static> {}
 
 /// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`UnitError`].
 impl ResponseError for UnitError {}
@@ -472,9 +468,8 @@ impl ResponseError for ContentTypeError {
 ///
 /// ```
 /// # use std::io;
-/// # use actix_http::*;
-///
-/// fn index(req: Request) -> Result<&'static str> {
+/// # use actix_http::{error, Request};
+/// fn index(req: Request) -> Result<&'static str, actix_http::Error> {
 ///     Err(error::ErrorBadRequest(io::Error::new(io::ErrorKind::Other, "error")))
 /// }
 /// ```

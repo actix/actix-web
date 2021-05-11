@@ -15,8 +15,15 @@ macro_rules! downcast_get_type_id {
         /// making it impossible for safe code to construct outside of
         /// this module. This ensures that safe code cannot violate
         /// type-safety by implementing this method.
+        ///
+        /// We also take `PrivateHelper` as a parameter, to ensure that
+        /// safe code cannot obtain a `PrivateHelper` instance by
+        /// delegating to an existing implementation of `__private_get_type_id__`
         #[doc(hidden)]
-        fn __private_get_type_id__(&self) -> (std::any::TypeId, PrivateHelper)
+        fn __private_get_type_id__(
+            &self,
+            _: PrivateHelper,
+        ) -> (std::any::TypeId, PrivateHelper)
         where
             Self: 'static,
         {
@@ -39,7 +46,9 @@ macro_rules! downcast {
         impl dyn $name + 'static {
             /// Downcasts generic body to a specific type.
             pub fn downcast_ref<T: $name + 'static>(&self) -> Option<&T> {
-                if self.__private_get_type_id__().0 == std::any::TypeId::of::<T>() {
+                if self.__private_get_type_id__(PrivateHelper(())).0
+                    == std::any::TypeId::of::<T>()
+                {
                     // SAFETY: external crates cannot override the default
                     // implementation of `__private_get_type_id__`, since
                     // it requires returning a private type. We can therefore
@@ -53,7 +62,9 @@ macro_rules! downcast {
 
             /// Downcasts a generic body to a mutable specific type.
             pub fn downcast_mut<T: $name + 'static>(&mut self) -> Option<&mut T> {
-                if self.__private_get_type_id__().0 == std::any::TypeId::of::<T>() {
+                if self.__private_get_type_id__(PrivateHelper(())).0
+                    == std::any::TypeId::of::<T>()
+                {
                     // SAFETY: external crates cannot override the default
                     // implementation of `__private_get_type_id__`, since
                     // it requires returning a private type. We can therefore

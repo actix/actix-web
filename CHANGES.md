@@ -1,8 +1,21 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+* `HttpServer::worker_max_blocking_threads` for setting block thread pool. [#2200]
+
 ### Changed
+* `ServiceResponse::error_response` now uses body type of `Body`. [#2201]
+* `ServiceResponse::checked_expr` now returns a `Result`. [#2201]
 * Update `language-tags` to `0.3`.
+* `ServiceResponse::take_body`. [#2201]
+* `ServiceResponse::map_body` closure receives and returns `B` instead of `ResponseBody<B>` types. [#2201]
+
+### Removed
+* `HttpResponse::take_body` and old `HttpResponse::into_body` method that casted body type. [#2201]
+
+[#2200]: https://github.com/actix/actix-web/pull/2200
+[#2201]: https://github.com/actix/actix-web/pull/2201
 
 
 ## 4.0.0-beta.6 - 2021-04-17

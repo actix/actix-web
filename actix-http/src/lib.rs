@@ -54,7 +54,7 @@ pub mod ws;
 
 pub use self::builder::HttpServiceBuilder;
 pub use self::config::{KeepAlive, ServiceConfig};
-pub use self::error::{Error, ResponseError, Result};
+pub use self::error::{Error, ResponseError};
 pub use self::extensions::Extensions;
 pub use self::header::ContentEncoding;
 pub use self::http_message::HttpMessage;

@@ -96,8 +96,7 @@ impl Service<ServiceRequest> for FilesService {
                     return Box::pin(ok(req.into_response(
                         HttpResponse::Found()
                             .insert_header((header::LOCATION, redirect_to))
-                            .body("")
-                            .into_body(),
+                            .finish(),
                     )));
                 }
 

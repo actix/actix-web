@@ -10,7 +10,7 @@ use std::{
 };
 
 use actix_http::{
-    body::MessageBody,
+    body::{MessageBody, ResponseBody},
     encoding::Encoder,
     http::header::{ContentEncoding, ACCEPT_ENCODING},
     Error,
@@ -59,7 +59,7 @@ where
     B: MessageBody,
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
-    type Response = ServiceResponse<Encoder<B>>;
+    type Response = ServiceResponse<ResponseBody<Encoder<B>>>;
     type Error = Error;
     type Transform = CompressMiddleware<S>;
     type InitError = ();
@@ -83,7 +83,7 @@ where
     B: MessageBody,
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
-    type Response = ServiceResponse<Encoder<B>>;
+    type Response = ServiceResponse<ResponseBody<Encoder<B>>>;
     type Error = Error;
     type Future = CompressResponse<S, B>;
 
@@ -127,7 +127,7 @@ where
     B: MessageBody,
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
-    type Output = Result<ServiceResponse<Encoder<B>>, Error>;
+    type Output = Result<ServiceResponse<ResponseBody<Encoder<B>>>, Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
@@ -140,9 +140,9 @@ where
                     *this.encoding
                 };
 
-                Poll::Ready(Ok(
-                    resp.map_body(move |head, body| Encoder::response(enc, head, body))
-                ))
+                Poll::Ready(Ok(resp.map_body(move |head, body| {
+                    Encoder::response(enc, head, ResponseBody::Body(body))
+                })))
             }
             Err(e) => Poll::Ready(Err(e)),
         }

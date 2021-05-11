@@ -435,7 +435,7 @@ mod tests {
             header::{self, CONTENT_LENGTH, CONTENT_TYPE},
             StatusCode,
         },
-        test::{load_stream, TestRequest},
+        test::{load_body, TestRequest},
     };
 
     #[derive(Serialize, Deserialize, PartialEq, Debug)]
@@ -492,10 +492,10 @@ mod tests {
             .to_http_parts();
 
         let s = Json::<MyObject>::from_request(&req, &mut pl).await;
-        let mut resp = HttpResponse::from_error(s.err().unwrap());
+        let resp = HttpResponse::from_error(s.err().unwrap());
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
-        let body = load_stream(resp.take_body()).await.unwrap();
+        let body = load_body(resp.into_body()).await.unwrap();
         let msg: MyObject = serde_json::from_slice(&body).unwrap();
         assert_eq!(msg.name, "invalid request");
     }

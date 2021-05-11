@@ -2,17 +2,13 @@
 
 use std::{
     cell::{Ref, RefMut},
-    fmt,
-    future::Future,
-    pin::Pin,
-    str,
-    task::{Context, Poll},
+    fmt, str,
 };
 
 use bytes::{Bytes, BytesMut};
 
 use crate::{
-    body::{Body, MessageBody, ResponseBody},
+    body::{Body, MessageBody},
     error::Error,
     extensions::Extensions,
     http::{HeaderMap, StatusCode},
@@ -23,22 +19,20 @@ use crate::{
 /// An HTTP response.
 pub struct Response<B> {
     pub(crate) head: BoxedResponseHead,
-    pub(crate) body: ResponseBody<B>,
-    pub(crate) error: Option<Error>,
+    pub(crate) body: B,
 }
 
 impl Response<Body> {
-    /// Constructs a response
+    /// Constructs a new response with default body.
     #[inline]
     pub fn new(status: StatusCode) -> Response<Body> {
         Response {
             head: BoxedResponseHead::new(status),
-            body: ResponseBody::Body(Body::Empty),
-            error: None,
+            body: Body::Empty,
         }
     }
 
-    /// Create HTTP response builder with specific status.
+    /// Constructs a new response builder.
     #[inline]
     pub fn build(status: StatusCode) -> ResponseBuilder {
         ResponseBuilder::new(status)
@@ -47,25 +41,25 @@ impl Response<Body> {
     // just a couple frequently used shortcuts
     // this list should not grow larger than a few
 
-    /// Creates a new response with status 200 OK.
+    /// Constructs a new response with status 200 OK.
     #[inline]
     pub fn ok() -> Response<Body> {
         Response::new(StatusCode::OK)
     }
 
-    /// Creates a new response with status 400 Bad Request.
+    /// Constructs a new response with status 400 Bad Request.
     #[inline]
     pub fn bad_request() -> Response<Body> {
         Response::new(StatusCode::BAD_REQUEST)
     }
 
-    /// Creates a new response with status 404 Not Found.
+    /// Constructs a new response with status 404 Not Found.
     #[inline]
     pub fn not_found() -> Response<Body> {
         Response::new(StatusCode::NOT_FOUND)
     }
 
-    /// Creates a new response with status 500 Internal Server Error.
+    /// Constructs a new response with status 500 Internal Server Error.
     #[inline]
     pub fn internal_server_error() -> Response<Body> {
         Response::new(StatusCode::INTERNAL_SERVER_ERROR)
@@ -73,176 +67,149 @@ impl Response<Body> {
 
     // end shortcuts
 
-    /// Constructs an error response
+    /// Constructs a new response from an error.
     #[inline]
     pub fn from_error(error: Error) -> Response<Body> {
-        let mut resp = error.as_response_error().error_response();
+        let resp = error.as_response_error().error_response();
         if resp.head.status == StatusCode::INTERNAL_SERVER_ERROR {
             debug!("Internal Server Error: {:?}", error);
         }
-        resp.error = Some(error);
         resp
-    }
-
-    /// Convert response to response with body
-    pub fn into_body<B>(self) -> Response<B> {
-        let b = match self.body {
-            ResponseBody::Body(b) => b,
-            ResponseBody::Other(b) => b,
-        };
-        Response {
-            head: self.head,
-            error: self.error,
-            body: ResponseBody::Other(b),
-        }
     }
 }
 
 impl<B> Response<B> {
-    /// Constructs a response with body
+    /// Constructs a new response with given body.
     #[inline]
     pub fn with_body(status: StatusCode, body: B) -> Response<B> {
         Response {
             head: BoxedResponseHead::new(status),
-            body: ResponseBody::Body(body),
-            error: None,
+            body: body,
         }
     }
 
+    /// Returns a reference to the head of this response.
     #[inline]
-    /// Http message part of the response
     pub fn head(&self) -> &ResponseHead {
         &*self.head
     }
 
+    /// Returns a mutable reference to the head of this response.
     #[inline]
-    /// Mutable reference to a HTTP message part of the response
     pub fn head_mut(&mut self) -> &mut ResponseHead {
         &mut *self.head
     }
 
-    /// The source `error` for this response
-    #[inline]
-    pub fn error(&self) -> Option<&Error> {
-        self.error.as_ref()
-    }
-
-    /// Get the response status code
+    /// Returns the status code of this response.
     #[inline]
     pub fn status(&self) -> StatusCode {
         self.head.status
     }
 
-    /// Set the `StatusCode` for this response
+    /// Returns a mutable reference the status code of this response.
     #[inline]
     pub fn status_mut(&mut self) -> &mut StatusCode {
         &mut self.head.status
     }
 
-    /// Get the headers from the response
+    /// Returns a reference to response headers.
     #[inline]
     pub fn headers(&self) -> &HeaderMap {
         &self.head.headers
     }
 
-    /// Get a mutable reference to the headers
+    /// Returns a mutable reference to response headers.
     #[inline]
     pub fn headers_mut(&mut self) -> &mut HeaderMap {
         &mut self.head.headers
     }
 
-    /// Connection upgrade status
+    /// Returns true if connection upgrade is enabled.
     #[inline]
     pub fn upgrade(&self) -> bool {
         self.head.upgrade()
     }
 
-    /// Keep-alive status for this connection
+    /// Returns true if keep-alive is enabled.
     pub fn keep_alive(&self) -> bool {
         self.head.keep_alive()
     }
 
-    /// Responses extensions
+    /// Returns a reference to the extensions of this response.
     #[inline]
     pub fn extensions(&self) -> Ref<'_, Extensions> {
         self.head.extensions.borrow()
     }
 
-    /// Mutable reference to a the response's extensions
+    /// Returns a mutable reference to the extensions of this response.
     #[inline]
     pub fn extensions_mut(&mut self) -> RefMut<'_, Extensions> {
         self.head.extensions.borrow_mut()
     }
 
-    /// Get body of this response
+    /// Returns a reference to the body of this response.
     #[inline]
-    pub fn body(&self) -> &ResponseBody<B> {
+    pub fn body(&self) -> &B {
         &self.body
     }
 
-    /// Set a body
+    /// Sets new body.
     pub fn set_body<B2>(self, body: B2) -> Response<B2> {
         Response {
             head: self.head,
-            body: ResponseBody::Body(body),
-            error: None,
+            body,
         }
     }
 
-    /// Split response and body
-    pub fn into_parts(self) -> (Response<()>, ResponseBody<B>) {
-        (
-            Response {
-                head: self.head,
-                body: ResponseBody::Body(()),
-                error: self.error,
-            },
-            self.body,
-        )
-    }
-
-    /// Drop request's body
+    /// Drops body and returns new response.
     pub fn drop_body(self) -> Response<()> {
-        Response {
-            head: self.head,
-            body: ResponseBody::Body(()),
-            error: None,
-        }
+        self.set_body(())
     }
 
-    /// Set a body and return previous body value
-    pub(crate) fn replace_body<B2>(self, body: B2) -> (Response<B2>, ResponseBody<B>) {
+    /// Sets new body, returning new response and previous body value.
+    pub(crate) fn replace_body<B2>(self, body: B2) -> (Response<B2>, B) {
         (
             Response {
                 head: self.head,
-                body: ResponseBody::Body(body),
-                error: self.error,
+                body,
             },
             self.body,
         )
     }
 
-    /// Set a body and return previous body value
+    /// Returns split head and body.
+    ///
+    /// # Implementation Notes
+    /// Due to internal performance optimisations, the first element of the returned tuple is a
+    /// `Response` as well but only contains the head of the response this was called on.
+    pub fn into_parts(self) -> (Response<()>, B) {
+        self.replace_body(())
+    }
+
+    /// Returns new response with mapped body.
     pub fn map_body<F, B2>(mut self, f: F) -> Response<B2>
     where
-        F: FnOnce(&mut ResponseHead, ResponseBody<B>) -> ResponseBody<B2>,
+        F: FnOnce(&mut ResponseHead, B) -> B2,
     {
         let body = f(&mut self.head, self.body);
 
         Response {
-            body,
             head: self.head,
-            error: self.error,
+            body,
         }
     }
 
-    /// Extract response body
-    pub fn take_body(&mut self) -> ResponseBody<B> {
-        self.body.take_body()
+    /// Returns body, consuming this response.
+    pub fn into_body(self) -> B {
+        self.body
     }
 }
 
-impl<B: MessageBody> fmt::Debug for Response<B> {
+impl<B> fmt::Debug for Response<B>
+where
+    B: MessageBody,
+    B::Error: Into<Error>,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = writeln!(
             f,
@@ -260,19 +227,13 @@ impl<B: MessageBody> fmt::Debug for Response<B> {
     }
 }
 
-impl<B: Unpin> Future for Response<B> {
-    type Output = Result<Response<B>, Error>;
-
-    fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
-        Poll::Ready(Ok(Response {
-            head: self.head.take(),
-            body: self.body.take_body(),
-            error: self.error.take(),
-        }))
+impl<B: Default> Default for Response<B> {
+    #[inline]
+    fn default() -> Response<B> {
+        Response::with_body(StatusCode::default(), B::default())
     }
 }
 
-/// Helper converters
 impl<I: Into<Response<Body>>, E: Into<Error>> From<Result<I, E>> for Response<Body> {
     fn from(res: Result<I, E>) -> Self {
         match res {

@@ -1,12 +1,13 @@
 //! For middleware documentation, see [`Compat`].
 
 use std::{
+    error::Error as StdError,
     future::Future,
     pin::Pin,
     task::{Context, Poll},
 };
 
-use actix_http::body::{Body, MessageBody, ResponseBody};
+use actix_http::body::{Body, MessageBody};
 use actix_service::{Service, Transform};
 use futures_core::{future::LocalBoxFuture, ready};
 
@@ -113,9 +114,13 @@ pub trait MapServiceResponseBody {
     fn map_body(self) -> ServiceResponse;
 }
 
-impl<B: MessageBody + Unpin + 'static> MapServiceResponseBody for ServiceResponse<B> {
+impl<B> MapServiceResponseBody for ServiceResponse<B>
+where
+    B: MessageBody + Unpin + 'static,
+    B::Error: Into<Box<dyn StdError + 'static>>,
+{
     fn map_body(self) -> ServiceResponse {
-        self.map_body(|_, body| ResponseBody::Other(Body::from_message(body)))
+        self.map_body(|_, body| Body::from_message(body))
     }
 }
 

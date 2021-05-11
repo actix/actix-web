@@ -86,6 +86,7 @@ where
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
     B: MessageBody + 'static,
+    B::Error: Into<Error>,
 {
     start_with(TestServerConfig::default(), factory)
 }
@@ -125,6 +126,7 @@ where
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
     B: MessageBody + 'static,
+    B::Error: Into<Error>,
 {
     let (tx, rx) = mpsc::channel();
 
