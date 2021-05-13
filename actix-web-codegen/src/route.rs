@@ -77,16 +77,23 @@ impl TryFrom<&syn::LitStr> for MethodType {
 }
 
 struct Args {
-    path: syn::LitStr,
+    //path: Option<syn::LitStr>,
+    path: Box<dyn PathMarker>,
+    //  i_path: Option<syn::Ident>,
     resource_name: Option<syn::LitStr>,
     guards: Vec<Ident>,
     wrappers: Vec<syn::Type>,
     methods: HashSet<MethodType>,
 }
 
+trait PathMarker: quote::ToTokens {}
+
+impl PathMarker for syn::Ident {}
+impl PathMarker for syn::LitStr {}
+
 impl Args {
     fn new(args: AttributeArgs, method: Option<MethodType>) -> syn::Result<Self> {
-        let mut path = None;
+        let mut path: Option<Box<dyn PathMarker>> = None;
         let mut resource_name = None;
         let mut guards = Vec::new();
         let mut wrappers = Vec::new();
@@ -101,8 +108,9 @@ impl Args {
             match arg {
                 NestedMeta::Lit(syn::Lit::Str(lit)) => match path {
                     None => {
-                        path = Some(lit);
+                        path = Some(Box::new(lit));
                     }
+
                     _ => {
                         return Err(syn::Error::new_spanned(
                             lit,
@@ -118,6 +126,31 @@ impl Args {
                             return Err(syn::Error::new_spanned(
                                 nv.lit,
                                 "Attribute name expects literal string!",
+                            ));
+                        }
+                    } else if nv.path.is_ident("path") {
+                        if let syn::Lit::Str(lit) = nv.lit {
+                            //                            path = Some(syn::LitStr::new(
+                            //                                &Ident::new(&lit.value(), Span::call_site()).to_string(),
+                            //                                Span::call_site(),
+                            //                            ));
+
+                            match path {
+                                None => {
+                                    let x = Ident::new(&lit.value(), Span::call_site());
+                                    path = Some(Box::new(x));
+                                }
+                                _ => {
+                                    return Err(syn::Error::new_spanned(
+                                        lit,
+                                        "Multiple paths specified! Should be only one!",
+                                    ));
+                                }
+                            }
+                        } else {
+                            return Err(syn::Error::new_spanned(
+                                nv.lit,
+                                "Attribute path expects literal string!",
                             ));
                         }
                     } else if nv.path.is_ident("guard") {
@@ -173,6 +206,7 @@ impl Args {
                 }
             }
         }
+
         Ok(Args {
             path: path.unwrap(),
             resource_name,
@@ -318,6 +352,8 @@ impl ToTokens for Route {
             }
         };
 
+        let path = path.as_ref();
+
         let stream = quote! {
             #(#doc_attributes)*
             #[allow(non_camel_case_types, missing_docs)]
@@ -337,7 +373,6 @@ impl ToTokens for Route {
                 }
             }
         };
-
         output.extend(stream);
     }
 }

@@ -19,6 +19,12 @@ async fn config() -> impl Responder {
     HttpResponse::Ok()
 }
 
+const PATH: &str = "/path";
+#[get(path = "PATH")]
+async fn path() -> impl Responder {
+    HttpResponse::Ok()
+}
+
 #[get("/test")]
 async fn test_handler() -> impl Responder {
     HttpResponse::Ok()
@@ -158,7 +164,11 @@ async fn test_params() {
             .service(get_param_test)
             .service(put_param_test)
             .service(delete_param_test)
+            .service(path)
     });
+    let request = srv.request(http::Method::GET, srv.url(PATH));
+    let response = request.send().await.unwrap();
+    assert_eq!(response.status(), http::StatusCode::OK);
 
     let request = srv.request(http::Method::GET, srv.url("/test/it"));
     let response = request.send().await.unwrap();
