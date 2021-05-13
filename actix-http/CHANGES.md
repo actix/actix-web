@@ -2,6 +2,7 @@
 
 ## Unreleased - 2021-xx-xx
 ### Added
+* Alias `body::Body` as `body::AnyBody`. [#????]
 * `BoxAnyBody`: a boxed message body with boxed errors. [#2183]
 * Re-export `http` crate's `Error` type as `error::HttpError`. [#2171]
 * Re-export `StatusCode`, `Method`, `Version` and `Uri` at the crate root. [#2171]
@@ -25,12 +26,15 @@
 * Error field from `Response` and `Response::error`. [#2205]
 * `impl Future` for `Response`. [#2201]
 * `Response::take_body` and old `Response::into_body` method that casted body type. [#2201]
+* `InternalError` and all the error types it constructed. [#????]
+* Conversion (`impl Into`) of `Response<Body>` and `ResponseBuilder` to `Error`. [#????]
 
 [#2171]: https://github.com/actix/actix-web/pull/2171
 [#2183]: https://github.com/actix/actix-web/pull/2183
 [#2196]: https://github.com/actix/actix-web/pull/2196
 [#2201]: https://github.com/actix/actix-web/pull/2201
 [#2205]: https://github.com/actix/actix-web/pull/2205
+[#????]: https://github.com/actix/actix-web/pull/????
 
 
 ## 3.0.0-beta.6 - 2021-04-17
