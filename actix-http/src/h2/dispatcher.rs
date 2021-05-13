@@ -104,14 +104,10 @@ where
             actix_rt::spawn(async move {
                 // resolve service call and send response.
                 let res = match fut.await {
-                    Ok(res) => {
-                        let (res, body) = res.into().replace_body(());
-                        handle_response(res, body, tx, config).await
-                    }
+                    Ok(res) => handle_response(res.into(), tx, config).await,
                     Err(err) => {
-                        let (res, body) =
-                            Response::from_error(err.into()).replace_body(());
-                        handle_response(res, body, tx, config).await
+                        let res = Response::from_error(err.into());
+                        handle_response(res, tx, config).await
                     }
                 };
 
@@ -141,8 +137,7 @@ enum DispatchError {
 }
 
 async fn handle_response<B>(
-    res: Response<()>,
-    body: B,
+    res: Response<B>,
     mut tx: SendResponse<Bytes>,
     config: ServiceConfig,
 ) -> Result<(), DispatchError>
@@ -150,6 +145,8 @@ where
     B: MessageBody,
     B::Error: Into<Error>,
 {
+    let (res, body) = res.replace_body(());
+
     // prepare response.
     let mut size = body.size();
     let res = prepare_response(config, res.head(), &mut size);
