@@ -84,7 +84,7 @@ impl<B> Response<B> {
     pub fn with_body(status: StatusCode, body: B) -> Response<B> {
         Response {
             head: BoxedResponseHead::new(status),
-            body: body,
+            body,
         }
     }
 

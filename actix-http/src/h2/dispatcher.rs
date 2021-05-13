@@ -1,5 +1,12 @@
-use std::task::{Context, Poll};
-use std::{cmp, future::Future, marker::PhantomData, net, pin::Pin, rc::Rc};
+use std::{
+    cmp,
+    future::Future,
+    marker::PhantomData,
+    net,
+    pin::Pin,
+    rc::Rc,
+    task::{Context, Poll},
+};
 
 use actix_codec::{AsyncRead, AsyncWrite};
 use actix_service::Service;
@@ -9,6 +16,7 @@ use futures_core::ready;
 use h2::server::{Connection, SendResponse};
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
 use log::{error, trace};
+use pin_project_lite::pin_project;
 
 use crate::body::{BodySize, MessageBody};
 use crate::config::ServiceConfig;
@@ -22,30 +30,19 @@ use crate::OnConnectData;
 
 const CHUNK_SIZE: usize = 16_384;
 
-/// Dispatcher for HTTP/2 protocol.
-#[pin_project::pin_project]
-pub struct Dispatcher<T, S, B, X, U>
-where
-    T: AsyncRead + AsyncWrite + Unpin,
-    S: Service<Request>,
-    B: MessageBody,
-{
-    flow: Rc<HttpFlow<S, X, U>>,
-    connection: Connection<T, Bytes>,
-    on_connect_data: OnConnectData,
-    config: ServiceConfig,
-    peer_addr: Option<net::SocketAddr>,
-    _phantom: PhantomData<B>,
+pin_project! {
+    /// Dispatcher for HTTP/2 protocol.
+    pub struct Dispatcher<T, S, B, X, U> {
+        flow: Rc<HttpFlow<S, X, U>>,
+        connection: Connection<T, Bytes>,
+        on_connect_data: OnConnectData,
+        config: ServiceConfig,
+        peer_addr: Option<net::SocketAddr>,
+        _phantom: PhantomData<B>,
+    }
 }
 
-impl<T, S, B, X, U> Dispatcher<T, S, B, X, U>
-where
-    T: AsyncRead + AsyncWrite + Unpin,
-    S: Service<Request>,
-    S::Error: Into<Error>,
-    S::Response: Into<Response<B>>,
-    B: MessageBody,
-{
+impl<T, S, B, X, U> Dispatcher<T, S, B, X, U> {
     pub(crate) fn new(
         flow: Rc<HttpFlow<S, X, U>>,
         connection: Connection<T, Bytes>,
@@ -53,7 +50,7 @@ where
         config: ServiceConfig,
         peer_addr: Option<net::SocketAddr>,
     ) -> Self {
-        Dispatcher {
+        Self {
             flow,
             config,
             peer_addr,
@@ -82,62 +79,58 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
 
-        loop {
-            match ready!(Pin::new(&mut this.connection).poll_accept(cx)) {
-                None => return Poll::Ready(Ok(())),
+        while let Some((req, tx)) =
+            ready!(Pin::new(&mut this.connection).poll_accept(cx)).transpose()?
+        {
+            let (parts, body) = req.into_parts();
+            let pl = crate::h2::Payload::new(body);
+            let pl = Payload::<crate::payload::PayloadStream>::H2(pl);
+            let mut req = Request::with_payload(pl);
 
-                Some(Err(err)) => return Poll::Ready(Err(err.into())),
+            let head = req.head_mut();
+            head.uri = parts.uri;
+            head.method = parts.method;
+            head.version = parts.version;
+            head.headers = parts.headers.into();
+            head.peer_addr = this.peer_addr;
 
-                Some(Ok((req, tx))) => {
-                    let (parts, body) = req.into_parts();
-                    let pl = crate::h2::Payload::new(body);
-                    let pl = Payload::<crate::payload::PayloadStream>::H2(pl);
-                    let mut req = Request::with_payload(pl);
+            // merge on_connect_ext data into request extensions
+            this.on_connect_data.merge_into(&mut req);
 
-                    let head = req.head_mut();
-                    head.uri = parts.uri;
-                    head.method = parts.method;
-                    head.version = parts.version;
-                    head.headers = parts.headers.into();
-                    head.peer_addr = this.peer_addr;
+            let fut = this.flow.service.call(req);
+            let config = this.config.clone();
 
-                    // merge on_connect_ext data into request extensions
-                    this.on_connect_data.merge_into(&mut req);
+            // multiplex request handling with spawn task
+            actix_rt::spawn(async move {
+                // resolve service call and send response.
+                let res = match fut.await {
+                    Ok(res) => {
+                        let (res, body) = res.into().replace_body(());
+                        handle_response(res, body, tx, config).await
+                    }
+                    Err(err) => {
+                        let (res, body) =
+                            Response::from_error(err.into()).replace_body(());
+                        handle_response(res, body, tx, config).await
+                    }
+                };
 
-                    let fut = this.flow.service.call(req);
-                    let config = this.config.clone();
-
-                    // multiplex request handling with spawn task
-                    actix_rt::spawn(async move {
-                        // resolve service call and send response.
-                        let res = match fut.await {
-                            Ok(res) => {
-                                let (res, body) = res.into().replace_body(());
-                                handle_response(res, body, tx, config).await
-                            }
-                            Err(err) => {
-                                let (res, body) =
-                                    Response::from_error(err.into()).replace_body(());
-                                handle_response(res, body, tx, config).await
-                            }
-                        };
-
-                        // log error.
-                        if let Err(err) = res {
-                            match err {
-                                DispatchError::SendResponse(err) => {
-                                    trace!("Error sending HTTP/2 response: {:?}", err)
-                                }
-                                DispatchError::SendData(err) => warn!("{:?}", err),
-                                DispatchError::ResponseBody(err) => {
-                                    error!("Response payload stream error: {:?}", err)
-                                }
-                            }
+                // log error.
+                if let Err(err) = res {
+                    match err {
+                        DispatchError::SendResponse(err) => {
+                            trace!("Error sending HTTP/2 response: {:?}", err)
                         }
-                    });
+                        DispatchError::SendData(err) => warn!("{:?}", err),
+                        DispatchError::ResponseBody(err) => {
+                            error!("Response payload stream error: {:?}", err)
+                        }
+                    }
                 }
-            }
+            });
         }
+
+        Poll::Ready(Ok(()))
     }
 }
 
