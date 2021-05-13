@@ -27,4 +27,11 @@ async fn five() -> String {
     "Hello World!".to_owned()
 }
 
+const SIX: &str = "/six";
+
+#[get("/six", path="SIX")]
+async fn six() -> String {
+    "Hello World!".to_owned()
+}
+
 fn main() {}

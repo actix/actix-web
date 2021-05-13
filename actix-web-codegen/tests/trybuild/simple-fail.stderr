@@ -27,3 +27,9 @@ error: HTTP method forbidden here. To handle multiple methods, use `route` inste
    |
 25 | #[delete("/five", method="GET")]
    |                   ^^^^^^^^^^^^
+
+error: Multiple paths specified! Should be only one!
+  --> $DIR/simple-fail.rs:32:20
+   |
+32 | #[get("/six", path="SIX")]
+   |                    ^^^^^
