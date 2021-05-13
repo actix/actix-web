@@ -80,7 +80,7 @@ where
         let this = self.get_mut();
 
         while let Some((req, tx)) =
-            ready!(Pin::new(&mut this.connection).poll_accept(cx)).transpose()?
+            ready!(Pin::new(&mut this.connection).poll_accept(cx)?)
         {
             let (parts, body) = req.into_parts();
             let pl = crate::h2::Payload::new(body);
