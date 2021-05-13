@@ -117,6 +117,7 @@ Creates route handler with `actix_web::guard::", stringify!($variant), "`.
 
 # Attributes
 - `"path"` - Raw literal string with path for which to register handler.
+- `path="variable_name"` -  Variable name that contains path for which to register handler
 - `name="resource_name"` - Specifies resource name for the handler. If not set, the function name of handler is used.
 - `guard="function_name"` - Registers function as guard using `actix_web::guard::fn_guard`.
 - `wrap="Middleware"` - Registers a resource middleware.

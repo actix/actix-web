@@ -77,9 +77,7 @@ impl TryFrom<&syn::LitStr> for MethodType {
 }
 
 struct Args {
-    //path: Option<syn::LitStr>,
     path: Box<dyn PathMarker>,
-    //  i_path: Option<syn::Ident>,
     resource_name: Option<syn::LitStr>,
     guards: Vec<Ident>,
     wrappers: Vec<syn::Type>,
@@ -130,11 +128,6 @@ impl Args {
                         }
                     } else if nv.path.is_ident("path") {
                         if let syn::Lit::Str(lit) = nv.lit {
-                            //                            path = Some(syn::LitStr::new(
-                            //                                &Ident::new(&lit.value(), Span::call_site()).to_string(),
-                            //                                Span::call_site(),
-                            //                            ));
-
                             match path {
                                 None => {
                                     let x = Ident::new(&lit.value(), Span::call_site());
