@@ -2,12 +2,11 @@ use std::{borrow::Cow, fmt};
 
 use actix_http::{
     body::Body,
-    error::InternalError,
     http::{header::IntoHeaderPair, Error as HttpError, HeaderMap, StatusCode},
 };
 use bytes::{Bytes, BytesMut};
 
-use crate::{Error, HttpRequest, HttpResponse, HttpResponseBuilder};
+use crate::{error::InternalError, Error, HttpRequest, HttpResponse, HttpResponseBuilder};
 
 /// Trait implemented by types that can be converted to an HTTP response.
 ///

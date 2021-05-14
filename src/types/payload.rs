@@ -7,14 +7,17 @@ use std::{
     task::{Context, Poll},
 };
 
-use actix_http::error::{ErrorBadRequest, PayloadError};
+use actix_http::error::PayloadError;
 use actix_utils::future::{ready, Either, Ready};
 use bytes::{Bytes, BytesMut};
 use encoding_rs::{Encoding, UTF_8};
 use futures_core::{ready, stream::Stream};
 use mime::Mime;
 
-use crate::{dev, http::header, web, Error, FromRequest, HttpMessage, HttpRequest};
+use crate::{
+    dev, error::ErrorBadRequest, http::header, web, Error, FromRequest, HttpMessage,
+    HttpRequest,
+};
 
 /// Extract a request's raw payload stream.
 ///

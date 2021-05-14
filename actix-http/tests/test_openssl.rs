@@ -6,17 +6,18 @@ use std::io;
 
 use actix_http::{
     body::{Body, SizedStream},
-    error::{ErrorBadRequest, PayloadError},
+    error::PayloadError,
     http::{
         header::{self, HeaderName, HeaderValue},
         Method, StatusCode, Version,
     },
-    Error, HttpMessage, HttpService, Request, Response,
+    Error, HttpMessage, HttpService, Request, Response, ResponseError,
 };
 use actix_http_test::test_server;
 use actix_service::{fn_service, ServiceFactoryExt};
 use actix_utils::future::{err, ok, ready};
 use bytes::{Bytes, BytesMut};
+use derive_more::{Display, Error};
 use futures_core::Stream;
 use futures_util::stream::{once, StreamExt as _};
 use openssl::{
@@ -401,11 +402,21 @@ async fn test_h2_response_http_error_handling() {
     assert_eq!(bytes, Bytes::from_static(b"failed to parse header value"));
 }
 
+#[derive(Debug, Display, Error)]
+#[display(fmt = "error")]
+struct BadRequest;
+
+impl ResponseError for BadRequest {
+    fn status_code(&self) -> StatusCode {
+        StatusCode::BAD_REQUEST
+    }
+}
+
 #[actix_rt::test]
 async fn test_h2_service_error() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|_| err::<Response<Body>, Error>(ErrorBadRequest("error")))
+            .h2(|_| err::<Response<Body>, _>(BadRequest))
             .openssl(tls_config())
             .map_err(|_| ())
     })

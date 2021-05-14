@@ -2,12 +2,16 @@
 
 use std::{fmt, ops, sync::Arc};
 
-use actix_http::error::{Error, ErrorNotFound};
+use actix_http::error::Error;
 use actix_router::PathDeserializer;
 use actix_utils::future::{ready, Ready};
 use serde::de;
 
-use crate::{dev::Payload, error::PathError, FromRequest, HttpRequest};
+use crate::{
+    dev::Payload,
+    error::{ErrorNotFound, PathError},
+    FromRequest, HttpRequest,
+};
 
 /// Extract typed data from request path segments.
 ///

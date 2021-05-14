@@ -9,6 +9,10 @@ use url::ParseError as UrlParseError;
 
 use crate::http::StatusCode;
 
+mod internal;
+
+pub use self::internal::*;
+
 /// A convenience [`Result`](std::result::Result) for Actix Web operations.
 ///
 /// This type alias is generally used to avoid writing out `actix_http::Error` directly.
