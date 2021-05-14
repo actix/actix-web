@@ -41,7 +41,8 @@ pub fn write_content_length<B: BufMut>(n: u64, buf: &mut B) {
     buf.put_slice(b"\r\n");
 }
 
-// TODO: bench why this is needed
+// TODO: bench why this is needed vs Buf::writer
+/// An `io` writer for a `BufMut` that should only be used once and on an empty buffer.
 pub(crate) struct Writer<'a, B>(pub &'a mut B);
 
 impl<'a, B> io::Write for Writer<'a, B>

@@ -13,9 +13,10 @@ use crate::error::Error;
 
 use super::{BodySize, BodyStream, MessageBody, MessageBodyMapErr, SizedStream};
 
+pub type Body = AnyBody;
+
 /// Represents various types of HTTP message body.
-// #[deprecated(since = "4.0.0", note = "Use body types directly.")]
-pub enum Body {
+pub enum AnyBody {
     /// Empty response. `Content-Length` header is not set.
     None,
 
@@ -29,14 +30,14 @@ pub enum Body {
     Message(BoxAnyBody),
 }
 
-impl Body {
+impl AnyBody {
     /// Create body from slice (copy)
-    pub fn from_slice(s: &[u8]) -> Body {
-        Body::Bytes(Bytes::copy_from_slice(s))
+    pub fn from_slice(s: &[u8]) -> Self {
+        Self::Bytes(Bytes::copy_from_slice(s))
     }
 
     /// Create body from generic message body.
-    pub fn from_message<B>(body: B) -> Body
+    pub fn from_message<B>(body: B) -> Self
     where
         B: MessageBody + 'static,
         B::Error: Into<Box<dyn StdError + 'static>>,
@@ -45,15 +46,15 @@ impl Body {
     }
 }
 
-impl MessageBody for Body {
+impl MessageBody for AnyBody {
     type Error = Error;
 
     fn size(&self) -> BodySize {
         match self {
-            Body::None => BodySize::None,
-            Body::Empty => BodySize::Empty,
-            Body::Bytes(ref bin) => BodySize::Sized(bin.len() as u64),
-            Body::Message(ref body) => body.size(),
+            AnyBody::None => BodySize::None,
+            AnyBody::Empty => BodySize::Empty,
+            AnyBody::Bytes(ref bin) => BodySize::Sized(bin.len() as u64),
+            AnyBody::Message(ref body) => body.size(),
         }
     }
 
@@ -62,9 +63,9 @@ impl MessageBody for Body {
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         match self.get_mut() {
-            Body::None => Poll::Ready(None),
-            Body::Empty => Poll::Ready(None),
-            Body::Bytes(ref mut bin) => {
+            AnyBody::None => Poll::Ready(None),
+            AnyBody::Empty => Poll::Ready(None),
+            AnyBody::Bytes(ref mut bin) => {
                 let len = bin.len();
                 if len == 0 {
                     Poll::Ready(None)
@@ -74,7 +75,7 @@ impl MessageBody for Body {
             }
 
             // TODO: MSRV 1.51: poll_map_err
-            Body::Message(body) => match ready!(body.as_pin_mut().poll_next(cx)) {
+            AnyBody::Message(body) => match ready!(body.as_pin_mut().poll_next(cx)) {
                 Some(Err(err)) => Poll::Ready(Some(Err(err.into()))),
                 Some(Ok(val)) => Poll::Ready(Some(Ok(val))),
                 None => Poll::Ready(None),
@@ -83,100 +84,100 @@ impl MessageBody for Body {
     }
 }
 
-impl PartialEq for Body {
+impl PartialEq for AnyBody {
     fn eq(&self, other: &Body) -> bool {
         match *self {
-            Body::None => matches!(*other, Body::None),
-            Body::Empty => matches!(*other, Body::Empty),
-            Body::Bytes(ref b) => match *other {
-                Body::Bytes(ref b2) => b == b2,
+            AnyBody::None => matches!(*other, AnyBody::None),
+            AnyBody::Empty => matches!(*other, AnyBody::Empty),
+            AnyBody::Bytes(ref b) => match *other {
+                AnyBody::Bytes(ref b2) => b == b2,
                 _ => false,
             },
-            Body::Message(_) => false,
+            AnyBody::Message(_) => false,
         }
     }
 }
 
-impl fmt::Debug for Body {
+impl fmt::Debug for AnyBody {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
-            Body::None => write!(f, "Body::None"),
-            Body::Empty => write!(f, "Body::Empty"),
-            Body::Bytes(ref b) => write!(f, "Body::Bytes({:?})", b),
-            Body::Message(_) => write!(f, "Body::Message(_)"),
+            AnyBody::None => write!(f, "AnyBody::None"),
+            AnyBody::Empty => write!(f, "AnyBody::Empty"),
+            AnyBody::Bytes(ref b) => write!(f, "AnyBody::Bytes({:?})", b),
+            AnyBody::Message(_) => write!(f, "AnyBody::Message(_)"),
         }
     }
 }
 
-impl From<&'static str> for Body {
+impl From<&'static str> for AnyBody {
     fn from(s: &'static str) -> Body {
-        Body::Bytes(Bytes::from_static(s.as_ref()))
+        AnyBody::Bytes(Bytes::from_static(s.as_ref()))
     }
 }
 
-impl From<&'static [u8]> for Body {
+impl From<&'static [u8]> for AnyBody {
     fn from(s: &'static [u8]) -> Body {
-        Body::Bytes(Bytes::from_static(s))
+        AnyBody::Bytes(Bytes::from_static(s))
     }
 }
 
-impl From<Vec<u8>> for Body {
+impl From<Vec<u8>> for AnyBody {
     fn from(vec: Vec<u8>) -> Body {
-        Body::Bytes(Bytes::from(vec))
+        AnyBody::Bytes(Bytes::from(vec))
     }
 }
 
-impl From<String> for Body {
+impl From<String> for AnyBody {
     fn from(s: String) -> Body {
         s.into_bytes().into()
     }
 }
 
-impl From<&'_ String> for Body {
+impl From<&'_ String> for AnyBody {
     fn from(s: &String) -> Body {
-        Body::Bytes(Bytes::copy_from_slice(AsRef::<[u8]>::as_ref(&s)))
+        AnyBody::Bytes(Bytes::copy_from_slice(AsRef::<[u8]>::as_ref(&s)))
     }
 }
 
-impl From<Cow<'_, str>> for Body {
+impl From<Cow<'_, str>> for AnyBody {
     fn from(s: Cow<'_, str>) -> Body {
         match s {
-            Cow::Owned(s) => Body::from(s),
+            Cow::Owned(s) => AnyBody::from(s),
             Cow::Borrowed(s) => {
-                Body::Bytes(Bytes::copy_from_slice(AsRef::<[u8]>::as_ref(s)))
+                AnyBody::Bytes(Bytes::copy_from_slice(AsRef::<[u8]>::as_ref(s)))
             }
         }
     }
 }
 
-impl From<Bytes> for Body {
+impl From<Bytes> for AnyBody {
     fn from(s: Bytes) -> Body {
-        Body::Bytes(s)
+        AnyBody::Bytes(s)
     }
 }
 
-impl From<BytesMut> for Body {
+impl From<BytesMut> for AnyBody {
     fn from(s: BytesMut) -> Body {
-        Body::Bytes(s.freeze())
+        AnyBody::Bytes(s.freeze())
     }
 }
 
-impl<S> From<SizedStream<S>> for Body
+impl<S> From<SizedStream<S>> for AnyBody
 where
     S: Stream<Item = Result<Bytes, Error>> + 'static,
 {
     fn from(s: SizedStream<S>) -> Body {
-        Body::from_message(s)
+        AnyBody::from_message(s)
     }
 }
 
-impl<S, E> From<BodyStream<S>> for Body
+impl<S, E> From<BodyStream<S>> for AnyBody
 where
     S: Stream<Item = Result<Bytes, E>> + 'static,
     E: Into<Error> + 'static,
 {
     fn from(s: BodyStream<S>) -> Body {
-        Body::from_message(s)
+        AnyBody::from_message(s)
     }
 }
 
