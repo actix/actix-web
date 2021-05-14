@@ -44,6 +44,7 @@ impl Error {
 }
 
 /// Errors that can generate responses.
+// TODO: add std::error::Error bound when replacement for Box<dyn Error> is found
 pub trait ResponseError: fmt::Debug + fmt::Display {
     /// Returns appropriate status code for error.
     ///

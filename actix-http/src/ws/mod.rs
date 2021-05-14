@@ -25,7 +25,7 @@ pub use self::frame::Parser;
 pub use self::proto::{hash_key, CloseCode, CloseReason, OpCode};
 
 /// WebSocket protocol errors.
-#[derive(Debug, Display, From, Error)]
+#[derive(Debug, Display, Error, From)]
 pub enum ProtocolError {
     /// Received an unmasked frame from client.
     #[display(fmt = "Received an unmasked frame from client.")]
@@ -71,7 +71,7 @@ pub enum ProtocolError {
 impl ResponseError for ProtocolError {}
 
 /// WebSocket handshake errors
-#[derive(PartialEq, Debug, Display)]
+#[derive(Debug, PartialEq, Display, Error)]
 pub enum HandshakeError {
     /// Only get method is allowed.
     #[display(fmt = "Method not allowed.")]
