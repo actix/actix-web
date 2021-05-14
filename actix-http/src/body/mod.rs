@@ -15,7 +15,7 @@ mod response_body;
 mod size;
 mod sized_stream;
 
-pub use self::body::{Body, BoxAnyBody};
+pub use self::body::{AnyBody, Body, BoxAnyBody};
 pub use self::body_stream::BodyStream;
 pub use self::message_body::MessageBody;
 pub(crate) use self::message_body::MessageBodyMapErr;
