@@ -199,7 +199,7 @@ impl Files {
     /// );
     /// ```
     pub fn guard<G: Guard + 'static>(mut self, guard: G) -> Self {
-        self.guards.push(Box::new(Rc::new(guard)));
+        self.guards.push(Rc::new(guard));
         self
     }
 
@@ -276,7 +276,7 @@ impl HttpServiceFactory for Files {
             Some(
                 guards
                     .into_iter()
-                    .map(|guard| -> Box<dyn Guard> { guard })
+                    .map(|guard| -> Box<dyn Guard> { Box::new(guard) })
                     .collect::<Vec<_>>(),
             )
         };
