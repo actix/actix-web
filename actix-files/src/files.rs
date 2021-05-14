@@ -38,7 +38,7 @@ pub struct Files {
     mime_override: Option<Rc<MimeOverride>>,
     file_flags: named::Flags,
     use_guards: Option<Rc<dyn Guard>>,
-    guards: Vec<Box<Rc<dyn Guard>>>,
+    guards: Vec<Rc<dyn Guard>>,
     hidden_files: bool,
 }
 
