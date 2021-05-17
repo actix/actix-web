@@ -5,14 +5,13 @@ use actix_server::Server;
 use bytes::BytesMut;
 use futures_util::StreamExt as _;
 use http::header::HeaderValue;
-use log::info;
 
 #[actix_rt::main]
 async fn main() -> io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
     Server::build()
-        .bind("echo", "127.0.0.1:8080", || {
+        .bind("echo", ("127.0.0.1", 8080), || {
             HttpService::build()
                 .client_timeout(1000)
                 .client_disconnect(1000)
@@ -22,7 +21,8 @@ async fn main() -> io::Result<()> {
                         body.extend_from_slice(&item?);
                     }
 
-                    info!("request body: {:?}", body);
+                    log::info!("request body: {:?}", body);
+
                     Ok::<_, Error>(
                         Response::build(StatusCode::OK)
                             .insert_header((
