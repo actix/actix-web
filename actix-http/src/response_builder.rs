@@ -258,7 +258,7 @@ impl ResponseBuilder {
     #[inline]
     pub fn streaming<S, E>(&mut self, stream: S) -> Response<Body>
     where
-        S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
+        S: Stream<Item = Result<Bytes, E>> + 'static,
         E: Into<Error> + 'static,
     {
         self.body(Body::from_message(BodyStream::new(stream)))
