@@ -72,7 +72,7 @@ mod inner {
 
     use actix_codec::{AsyncRead, AsyncWrite, Decoder, Encoder, Framed};
 
-    use crate::ResponseError;
+    use crate::{body::AnyBody, Response, ResponseError};
 
     /// Framed transport errors
     pub enum DispatcherError<E, U, I>
@@ -143,6 +143,18 @@ mod inner {
         <U as Encoder<I>>::Error: fmt::Debug,
         <U as Decoder>::Error: fmt::Debug,
     {
+    }
+
+    impl<E, U, I> From<DispatcherError<E, U, I>> for Response<AnyBody>
+    where
+        E: fmt::Debug + fmt::Display,
+        U: Encoder<I> + Decoder,
+        <U as Encoder<I>>::Error: fmt::Debug,
+        <U as Decoder>::Error: fmt::Debug,
+    {
+        fn from(err: DispatcherError<E, U, I>) -> Self {
+            Response::internal_server_error().set_body(AnyBody::from(err.to_string()))
+        }
     }
 
     /// Message type wrapper for signalling end of message stream.
