@@ -12,15 +12,13 @@ use h2::{
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
 use log::{error, trace};
 
-use crate::body::{Body, BodySize, MessageBody};
-use crate::config::ServiceConfig;
-use crate::error::{DispatchError, Error};
-use crate::message::ResponseHead;
-use crate::payload::Payload;
-use crate::request::Request;
-use crate::response::Response;
-use crate::service::HttpFlow;
-use crate::OnConnectData;
+use crate::{
+    body::{AnyBody, Body, BodySize, MessageBody},
+    config::ServiceConfig,
+    error::DispatchError,
+    service::HttpFlow,
+    OnConnectData, Payload, Request, Response, ResponseHead,
+};
 
 const CHUNK_SIZE: usize = 16_384;
 
@@ -44,7 +42,7 @@ impl<T, S, B, X, U> Dispatcher<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
     S: Service<Request>,
-    S::Error: Into<Error>,
+    S::Error: Into<Response<AnyBody>>,
     S::Response: Into<Response<B>>,
     B: MessageBody,
 {
@@ -71,12 +69,12 @@ where
     T: AsyncRead + AsyncWrite + Unpin,
 
     S: Service<Request>,
-    S::Error: Into<Error> + 'static,
+    S::Error: Into<Response<AnyBody>> + 'static,
     S::Future: 'static,
     S::Response: Into<Response<B>> + 'static,
 
     B: MessageBody + 'static,
-    B::Error: Into<Error>,
+    B::Error: Into<Response<AnyBody>>,
 {
     type Output = Result<(), DispatchError>;
 
@@ -142,11 +140,11 @@ enum ServiceResponseState<F, B> {
 impl<F, I, E, B> ServiceResponse<F, I, E, B>
 where
     F: Future<Output = Result<I, E>>,
-    E: Into<Error>,
+    E: Into<Response<AnyBody>>,
     I: Into<Response<B>>,
 
     B: MessageBody,
-    B::Error: Into<Error>,
+    B::Error: Into<Response<AnyBody>>,
 {
     fn prepare_response(
         &self,
@@ -220,11 +218,11 @@ where
 impl<F, I, E, B> Future for ServiceResponse<F, I, E, B>
 where
     F: Future<Output = Result<I, E>>,
-    E: Into<Error>,
+    E: Into<Response<AnyBody>>,
     I: Into<Response<B>>,
 
     B: MessageBody,
-    B::Error: Into<Error>,
+    B::Error: Into<Response<AnyBody>>,
 {
     type Output = ();
 
@@ -261,7 +259,7 @@ where
                     }
 
                     Err(err) => {
-                        let res = Response::from_error(err.into());
+                        let res: Response<AnyBody> = err.into();
                         let (res, body) = res.replace_body(());
 
                         let mut send = send.take().unwrap();

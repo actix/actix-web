@@ -3,7 +3,7 @@ use std::time::Duration;
 use std::{net, thread};
 
 use actix_http::{
-    body::{Body, SizedStream},
+    body::{AnyBody, Body, SizedStream},
     http::{self, header, StatusCode},
     Error, HttpService, KeepAlive, Request, Response,
 };
@@ -64,6 +64,12 @@ struct ExpectFailed;
 impl ResponseError for ExpectFailed {
     fn status_code(&self) -> StatusCode {
         StatusCode::PRECONDITION_FAILED
+    }
+}
+
+impl From<ExpectFailed> for Response<AnyBody> {
+    fn from(res: ExpectFailed) -> Self {
+        res.error_response()
     }
 }
 
@@ -663,6 +669,12 @@ struct BadRequest;
 impl ResponseError for BadRequest {
     fn status_code(&self) -> StatusCode {
         StatusCode::BAD_REQUEST
+    }
+}
+
+impl From<BadRequest> for Response<AnyBody> {
+    fn from(res: BadRequest) -> Self {
+        res.error_response()
     }
 }
 

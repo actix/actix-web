@@ -13,7 +13,11 @@ use derive_more::{Display, Error, From};
 use http::{header, uri::InvalidUri, StatusCode};
 use serde::de::value::Error as DeError;
 
-use crate::{body::Body, helpers::Writer, Response};
+use crate::{
+    body::{AnyBody, Body},
+    helpers::Writer,
+    Response,
+};
 
 pub use http::Error as HttpError;
 
@@ -99,9 +103,8 @@ impl From<()> for Error {
 }
 
 impl From<std::convert::Infallible> for Error {
-    fn from(_: std::convert::Infallible) -> Self {
-        // hint that an error that will never happen
-        unreachable!()
+    fn from(val: std::convert::Infallible) -> Self {
+        match val {}
     }
 }
 
@@ -123,7 +126,7 @@ impl<T: ResponseError + 'static> From<T> for Error {
 
 #[derive(Debug, Display, Error)]
 #[display(fmt = "Unknown Error")]
-struct UnitError;
+pub(crate) struct UnitError;
 
 impl ResponseError for Box<dyn StdError + 'static> {}
 
@@ -363,13 +366,14 @@ impl ResponseError for PayloadError {
 #[non_exhaustive]
 pub enum DispatchError {
     /// Service error
-    Service(Error),
+    // FIXME: display and error type
+    #[display(fmt = "Service Error")]
+    Service(#[error(not(source))] Response<AnyBody>),
 
     /// Upgrade service error
     Upgrade,
 
-    /// An `io::Error` that occurred while trying to read or write to a network
-    /// stream.
+    /// An `io::Error` that occurred while trying to read or write to a network stream.
     #[display(fmt = "IO error: {}", _0)]
     Io(io::Error),
 

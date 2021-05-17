@@ -1,5 +1,6 @@
 use actix_http::{
-    http, http::StatusCode, HttpMessage, HttpService, Request, Response, ResponseError,
+    body::AnyBody, http, http::StatusCode, HttpMessage, HttpService, Request, Response,
+    ResponseError,
 };
 use actix_http_test::test_server;
 use actix_service::ServiceFactoryExt;
@@ -100,6 +101,12 @@ struct ExpectFailed;
 impl ResponseError for ExpectFailed {
     fn status_code(&self) -> StatusCode {
         StatusCode::EXPECTATION_FAILED
+    }
+}
+
+impl From<ExpectFailed> for Response<AnyBody> {
+    fn from(res: ExpectFailed) -> Self {
+        res.error_response()
     }
 }
 

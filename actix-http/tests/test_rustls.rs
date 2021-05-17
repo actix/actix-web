@@ -3,7 +3,7 @@
 extern crate tls_rustls as rustls;
 
 use actix_http::{
-    body::{Body, SizedStream},
+    body::{AnyBody, Body, SizedStream},
     error::PayloadError,
     http::{
         header::{self, HeaderName, HeaderValue},
@@ -424,6 +424,12 @@ struct BadRequest;
 impl ResponseError for BadRequest {
     fn status_code(&self) -> StatusCode {
         StatusCode::BAD_REQUEST
+    }
+}
+
+impl From<BadRequest> for Response<AnyBody> {
+    fn from(res: BadRequest) -> Self {
+        res.error_response()
     }
 }
 

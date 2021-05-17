@@ -249,6 +249,20 @@ impl From<ResponseBuilder> for Response<Body> {
     }
 }
 
+impl From<()> for Response<Body> {
+    fn from(_: ()) -> Self {
+        Error::from(crate::error::UnitError)
+            .as_response_error()
+            .error_response()
+    }
+}
+
+impl From<std::convert::Infallible> for Response<Body> {
+    fn from(val: std::convert::Infallible) -> Self {
+        match val {}
+    }
+}
+
 impl From<&'static str> for Response<Body> {
     fn from(val: &'static str) -> Self {
         Response::build(StatusCode::OK)
