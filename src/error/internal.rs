@@ -88,7 +88,7 @@ where
                     header::CONTENT_TYPE,
                     header::HeaderValue::from_static("text/plain; charset=utf-8"),
                 );
-                res.set_body(Body::from(buf.into_inner())).into()
+                res.set_body(Body::from(buf.into_inner()))
             }
 
             InternalErrorType::Response(ref resp) => {

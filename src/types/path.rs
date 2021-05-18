@@ -296,11 +296,8 @@ mod tests {
     async fn test_custom_err_handler() {
         let (req, mut pl) = TestRequest::with_uri("/name/user1/")
             .app_data(PathConfig::default().error_handler(|err, _| {
-                error::InternalError::from_response(
-                    err,
-                    HttpResponse::Conflict().finish().into(),
-                )
-                .into()
+                error::InternalError::from_response(err, HttpResponse::Conflict().finish())
+                    .into()
             }))
             .to_http_parts();
 

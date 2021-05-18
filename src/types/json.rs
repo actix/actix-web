@@ -487,7 +487,7 @@ mod tests {
                 };
                 let resp =
                     HttpResponse::BadRequest().body(serde_json::to_string(&msg).unwrap());
-                InternalError::from_response(err, resp.into()).into()
+                InternalError::from_response(err, resp).into()
             }))
             .to_http_parts();
 

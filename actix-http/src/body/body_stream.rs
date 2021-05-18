@@ -74,7 +74,7 @@ mod tests {
     use actix_utils::future::poll_fn;
     use derive_more::{Display, Error};
     use futures_core::ready;
-    use futures_util::{stream, FutureExt};
+    use futures_util::{stream, FutureExt as _};
 
     use super::*;
     use crate::body::to_bytes;
@@ -134,7 +134,7 @@ mod tests {
         #[derive(Debug)]
         enum TimeDelayStream {
             Start,
-            Sleep(#[pin] Sleep),
+            Sleep(Pin<Box<Sleep>>),
             Done,
         }
 
@@ -145,24 +145,22 @@ mod tests {
                 mut self: Pin<&mut Self>,
                 cx: &mut Context<'_>,
             ) -> Poll<Option<Self::Item>> {
-                let this = self.as_mut().project();
-
-                match this {
-                    TimeDelayStreamProj::Start => {
+                match self.as_mut().get_mut() {
+                    TimeDelayStream::Start => {
                         let sleep = sleep(Duration::from_millis(1));
-                        self.set(TimeDelayStream::Sleep(sleep));
+                        self.as_mut().set(TimeDelayStream::Sleep(Box::pin(sleep)));
                         cx.waker().wake_by_ref();
                         Poll::Pending
                     }
 
-                    TimeDelayStreamProj::Sleep(mut delay) => {
+                    TimeDelayStream::Sleep(ref mut delay) => {
                         ready!(delay.poll_unpin(cx));
                         self.set(TimeDelayStream::Done);
                         cx.waker().wake_by_ref();
                         Poll::Pending
                     }
 
-                    TimeDelayStreamProj::Done => Poll::Ready(Some(Err(StreamErr))),
+                    TimeDelayStream::Done => Poll::Ready(Some(Err(StreamErr))),
                 }
             }
         }
