@@ -2,7 +2,7 @@
 
 extern crate tls_openssl as openssl;
 
-use std::io;
+use std::{convert::Infallible, io};
 
 use actix_http::{
     body::{AnyBody, Body, SizedStream},
@@ -330,9 +330,12 @@ async fn test_h2_head_binary2() {
 async fn test_h2_body_length() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|_| {
-                let body = once(ok(Bytes::from_static(STR.as_ref())));
-                ok::<_, ()>(
+            .h2(|_| async {
+                let body = once(async {
+                    Ok::<_, Infallible>(Bytes::from_static(STR.as_ref()))
+                });
+
+                Ok::<_, Infallible>(
                     Response::ok().set_body(SizedStream::new(STR.len() as u64, body)),
                 )
             })

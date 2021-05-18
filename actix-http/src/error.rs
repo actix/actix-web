@@ -90,7 +90,7 @@ impl fmt::Debug for Error {
     }
 }
 
-impl std::error::Error for Error {
+impl StdError for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         None
     }

@@ -1,6 +1,9 @@
-use std::io::{Read, Write};
-use std::time::Duration;
-use std::{net, thread};
+use std::{
+    convert::Infallible,
+    io::{Read, Write},
+    net, thread,
+    time::Duration,
+};
 
 use actix_http::{
     body::{AnyBody, Body, SizedStream},
@@ -557,7 +560,7 @@ async fn test_h1_body_length() {
     let mut srv = test_server(|| {
         HttpService::build()
             .h1(|_| {
-                let body = once(ok(Bytes::from_static(STR.as_ref())));
+                let body = once(ok::<_, Infallible>(Bytes::from_static(STR.as_ref())));
                 ok::<_, ()>(
                     Response::ok().set_body(SizedStream::new(STR.len() as u64, body)),
                 )

@@ -11,6 +11,7 @@
 * `ServiceResponse::take_body`. [#2201]
 * `ServiceResponse::map_body` closure receives and returns `B` instead of `ResponseBody<B>` types. [#2201]
 * All error trait bounds in server service builders have changed from `Into<Error>` to `Into<Response<AnyBody>>`. [#2224]
+* All error trait bounds in message body and stream impls changed from `Into<Error>` to `Into<Box<dyn std::error::Error>>`. [#2224]
 
 ### Removed
 * `HttpResponse::take_body` and old `HttpResponse::into_body` method that casted body type. [#2201]

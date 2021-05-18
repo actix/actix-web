@@ -2,6 +2,11 @@
 
 extern crate tls_rustls as rustls;
 
+use std::{
+    convert::Infallible,
+    io::{self, BufReader},
+};
+
 use actix_http::{
     body::{AnyBody, Body, SizedStream},
     error::PayloadError,
@@ -22,8 +27,6 @@ use rustls::{
     internal::pemfile::{certs, pkcs8_private_keys},
     NoClientAuth, ServerConfig as RustlsServerConfig,
 };
-
-use std::io::{self, BufReader};
 
 async fn load_body<S>(mut stream: S) -> Result<BytesMut, PayloadError>
 where
@@ -347,7 +350,7 @@ async fn test_h2_body_length() {
     let mut srv = test_server(move || {
         HttpService::build()
             .h2(|_| {
-                let body = once(ok(Bytes::from_static(STR.as_ref())));
+                let body = once(ok::<_, Infallible>(Bytes::from_static(STR.as_ref())));
                 ok::<_, ()>(
                     Response::ok().set_body(SizedStream::new(STR.len() as u64, body)),
                 )

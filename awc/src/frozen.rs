@@ -1,21 +1,21 @@
-use std::convert::TryFrom;
-use std::net;
-use std::rc::Rc;
-use std::time::Duration;
+use std::{convert::TryFrom, error::Error as StdError, net, rc::Rc, time::Duration};
 
 use bytes::Bytes;
 use futures_core::Stream;
 use serde::Serialize;
 
-use actix_http::body::Body;
-use actix_http::http::header::IntoHeaderValue;
-use actix_http::http::{Error as HttpError, HeaderMap, HeaderName, Method, Uri};
-use actix_http::{Error, RequestHead};
+use actix_http::{
+    body::Body,
+    http::{header::IntoHeaderValue, Error as HttpError, HeaderMap, HeaderName, Method, Uri},
+    RequestHead,
+};
 
-use crate::sender::{RequestSender, SendClientRequest};
-use crate::ClientConfig;
+use crate::{
+    sender::{RequestSender, SendClientRequest},
+    ClientConfig,
+};
 
-/// `FrozenClientRequest` struct represents clonable client request.
+/// `FrozenClientRequest` struct represents cloneable client request.
 /// It could be used to send same request multiple times.
 #[derive(Clone)]
 pub struct FrozenClientRequest {
@@ -82,7 +82,7 @@ impl FrozenClientRequest {
     pub fn send_stream<S, E>(&self, stream: S) -> SendClientRequest
     where
         S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
-        E: Into<Error> + 'static,
+        E: Into<Box<dyn StdError>> + 'static,
     {
         RequestSender::Rc(self.head.clone(), None).send_stream(
             self.addr,
@@ -207,7 +207,7 @@ impl FrozenSendBuilder {
     pub fn send_stream<S, E>(self, stream: S) -> SendClientRequest
     where
         S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
-        E: Into<Error> + 'static,
+        E: Into<Box<dyn StdError>> + 'static,
     {
         if let Some(e) = self.err {
             return e.into();

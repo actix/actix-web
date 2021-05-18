@@ -2,6 +2,7 @@
 
 use std::{
     cell::{Ref, RefMut},
+    error::Error as StdError,
     fmt,
     future::Future,
     pin::Pin,
@@ -259,7 +260,7 @@ impl ResponseBuilder {
     pub fn streaming<S, E>(&mut self, stream: S) -> Response<Body>
     where
         S: Stream<Item = Result<Bytes, E>> + 'static,
-        E: Into<Error> + 'static,
+        E: Into<Box<dyn StdError>> + 'static,
     {
         self.body(Body::from_message(BodyStream::new(stream)))
     }

@@ -174,7 +174,7 @@ where
 impl<S, E> From<BodyStream<S>> for AnyBody
 where
     S: Stream<Item = Result<Bytes, E>> + 'static,
-    E: Into<Error> + 'static,
+    E: Into<Box<dyn StdError>> + 'static,
 {
     fn from(s: BodyStream<S>) -> Body {
         AnyBody::from_message(s)

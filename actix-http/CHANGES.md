@@ -13,6 +13,7 @@
 ### Changed
 * The `MessageBody` trait now has an associated `Error` type. [#2183]
 * All error trait bounds in server service builders have changed from `Into<Error>` to `Into<Response<AnyBody>>`. [#2224]
+* All error trait bounds in message body and stream impls changed from `Into<Error>` to `Into<Box<dyn std::error::Error>>`. [#2224]
 * Places in `Response` where `ResponseBody<B>` was received or returned now simply use `B`. [#2201]
 * `header` mod is now public. [#2171]
 * `uri` mod is now public. [#2171]

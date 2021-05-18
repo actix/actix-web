@@ -1,6 +1,7 @@
 use std::{
     cell::{Ref, RefMut},
     convert::TryInto,
+    error::Error as StdError,
     future::Future,
     pin::Pin,
     task::{Context, Poll},
@@ -354,7 +355,7 @@ impl HttpResponseBuilder {
     pub fn streaming<S, E>(&mut self, stream: S) -> HttpResponse
     where
         S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
-        E: Into<Error> + 'static,
+        E: Into<Box<dyn StdError>> + 'static,
     {
         self.body(Body::from_message(BodyStream::new(stream)))
     }

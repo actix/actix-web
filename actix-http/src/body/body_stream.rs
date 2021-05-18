@@ -1,4 +1,5 @@
 use std::{
+    error::Error as StdError,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -6,8 +7,6 @@ use std::{
 use bytes::Bytes;
 use futures_core::{ready, Stream};
 use pin_project_lite::pin_project;
-
-use crate::error::Error;
 
 use super::{BodySize, MessageBody};
 
@@ -24,7 +23,7 @@ pin_project! {
 impl<S, E> BodyStream<S>
 where
     S: Stream<Item = Result<Bytes, E>>,
-    E: Into<Error>,
+    E: Into<Box<dyn StdError>> + 'static,
 {
     pub fn new(stream: S) -> Self {
         BodyStream { stream }
@@ -34,9 +33,9 @@ where
 impl<S, E> MessageBody for BodyStream<S>
 where
     S: Stream<Item = Result<Bytes, E>>,
-    E: Into<Error>,
+    E: Into<Box<dyn StdError>> + 'static,
 {
-    type Error = Error;
+    type Error = E;
 
     fn size(&self) -> BodySize {
         BodySize::Stream
@@ -56,7 +55,7 @@ where
 
             let chunk = match ready!(stream.poll_next(cx)) {
                 Some(Ok(ref bytes)) if bytes.is_empty() => continue,
-                opt => opt.map(|res| res.map_err(Into::into)),
+                opt => opt,
             };
 
             return Poll::Ready(chunk);
@@ -66,6 +65,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::convert::Infallible;
+
     use actix_rt::pin;
     use actix_utils::future::poll_fn;
     use futures_util::stream;
@@ -78,7 +79,7 @@ mod tests {
         let body = BodyStream::new(stream::iter(
             ["1", "", "2"]
                 .iter()
-                .map(|&v| Ok(Bytes::from(v)) as Result<Bytes, ()>),
+                .map(|&v| Ok::<_, Infallible>(Bytes::from(v))),
         ));
         pin!(body);
 
@@ -103,7 +104,7 @@ mod tests {
         let body = BodyStream::new(stream::iter(
             ["1", "", "2"]
                 .iter()
-                .map(|&v| Ok(Bytes::from(v)) as Result<Bytes, ()>),
+                .map(|&v| Ok::<_, Infallible>(Bytes::from(v))),
         ));
 
         assert_eq!(to_bytes(body).await.ok(), Some(Bytes::from("12")));

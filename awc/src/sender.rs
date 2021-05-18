@@ -1,4 +1,5 @@
 use std::{
+    error::Error as StdError,
     future::Future,
     io, net,
     pin::Pin,
@@ -266,7 +267,7 @@ impl RequestSender {
     ) -> SendClientRequest
     where
         S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
-        E: Into<Error> + 'static,
+        E: Into<Box<dyn StdError>> + 'static,
     {
         self.send_body(
             addr,
