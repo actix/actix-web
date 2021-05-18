@@ -370,6 +370,11 @@ pub enum DispatchError {
     #[display(fmt = "Service Error")]
     Service(#[error(not(source))] Response<AnyBody>),
 
+    /// Body error
+    // FIXME: display and error type
+    #[display(fmt = "Body Error")]
+    Body(#[error(not(source))] Box<dyn StdError>),
+
     /// Upgrade service error
     Upgrade,
 

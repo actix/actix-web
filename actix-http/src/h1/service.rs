@@ -1,7 +1,11 @@
-use std::marker::PhantomData;
-use std::rc::Rc;
-use std::task::{Context, Poll};
-use std::{fmt, net};
+use std::{
+    error::Error as StdError,
+    fmt,
+    marker::PhantomData,
+    net,
+    rc::Rc,
+    task::{Context, Poll},
+};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_rt::net::TcpStream;
@@ -19,9 +23,7 @@ use crate::{
     ConnectCallback, OnConnectData, Request, Response,
 };
 
-use super::codec::Codec;
-use super::dispatcher::Dispatcher;
-use super::{ExpectHandler, UpgradeHandler};
+use super::{codec::Codec, dispatcher::Dispatcher, ExpectHandler, UpgradeHandler};
 
 /// `ServiceFactory` implementation for HTTP1 transport
 pub struct H1Service<T, S, B, X = ExpectHandler, U = UpgradeHandler> {
@@ -66,7 +68,7 @@ where
     S::Response: Into<Response<B>>,
 
     B: MessageBody,
-    B::Error: Into<Response<AnyBody>>,
+    B::Error: Into<Box<dyn StdError>>,
 
     X: ServiceFactory<Request, Config = (), Response = Request>,
     X::Future: 'static,
@@ -115,7 +117,7 @@ mod openssl {
         S::Response: Into<Response<B>>,
 
         B: MessageBody,
-        B::Error: Into<Response<AnyBody>>,
+        B::Error: Into<Box<dyn StdError>>,
 
         X: ServiceFactory<Request, Config = (), Response = Request>,
         X::Future: 'static,
@@ -175,7 +177,7 @@ mod rustls {
         S::Response: Into<Response<B>>,
 
         B: MessageBody,
-        B::Error: Into<Response<AnyBody>>,
+        B::Error: Into<Box<dyn StdError>>,
 
         X: ServiceFactory<Request, Config = (), Response = Request>,
         X::Future: 'static,
@@ -273,7 +275,7 @@ where
     S::InitError: fmt::Debug,
 
     B: MessageBody,
-    B::Error: Into<Response<AnyBody>>,
+    B::Error: Into<Box<dyn StdError>>,
 
     X: ServiceFactory<Request, Config = (), Response = Request>,
     X::Future: 'static,
@@ -342,7 +344,7 @@ where
     S::Response: Into<Response<B>>,
 
     B: MessageBody,
-    B::Error: Into<Response<AnyBody>>,
+    B::Error: Into<Box<dyn StdError>>,
 
     X: Service<Request, Response = Request>,
     X::Error: Into<Response<AnyBody>>,

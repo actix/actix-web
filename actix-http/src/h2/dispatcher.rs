@@ -1,5 +1,13 @@
-use std::task::{Context, Poll};
-use std::{cmp, future::Future, marker::PhantomData, net, pin::Pin, rc::Rc};
+use std::{
+    cmp,
+    error::Error as StdError,
+    future::Future,
+    marker::PhantomData,
+    net,
+    pin::Pin,
+    rc::Rc,
+    task::{Context, Poll},
+};
 
 use actix_codec::{AsyncRead, AsyncWrite};
 use actix_service::Service;
@@ -74,7 +82,7 @@ where
     S::Response: Into<Response<B>> + 'static,
 
     B: MessageBody + 'static,
-    B::Error: Into<Response<AnyBody>>,
+    B::Error: Into<Box<dyn StdError>>,
 {
     type Output = Result<(), DispatchError>;
 
@@ -144,7 +152,7 @@ where
     I: Into<Response<B>>,
 
     B: MessageBody,
-    B::Error: Into<Response<AnyBody>>,
+    B::Error: Into<Box<dyn StdError>>,
 {
     fn prepare_response(
         &self,
@@ -222,7 +230,7 @@ where
     I: Into<Response<B>>,
 
     B: MessageBody,
-    B::Error: Into<Response<AnyBody>>,
+    B::Error: Into<Box<dyn StdError>>,
 {
     type Output = ();
 

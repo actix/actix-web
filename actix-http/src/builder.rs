@@ -1,6 +1,4 @@
-use std::marker::PhantomData;
-use std::rc::Rc;
-use std::{fmt, net};
+use std::{error::Error as StdError, fmt, marker::PhantomData, net, rc::Rc};
 
 use actix_codec::Framed;
 use actix_service::{IntoServiceFactory, Service, ServiceFactory};
@@ -207,7 +205,7 @@ where
         S::Response: Into<Response<B>> + 'static,
 
         B: MessageBody + 'static,
-        B::Error: Into<Response<AnyBody>>,
+        B::Error: Into<Box<dyn StdError>>,
     {
         let cfg = ServiceConfig::new(
             self.keep_alive,
@@ -230,7 +228,7 @@ where
         S::Response: Into<Response<B>> + 'static,
 
         B: MessageBody + 'static,
-        B::Error: Into<Response<AnyBody>>,
+        B::Error: Into<Box<dyn StdError>>,
     {
         let cfg = ServiceConfig::new(
             self.keep_alive,

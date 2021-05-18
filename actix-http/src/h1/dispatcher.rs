@@ -1,5 +1,6 @@
 use std::{
     collections::VecDeque,
+    error::Error as StdError,
     fmt,
     future::Future,
     io, mem, net,
@@ -53,7 +54,7 @@ where
     S::Error: Into<Response<AnyBody>>,
 
     B: MessageBody,
-    B::Error: Into<Response<AnyBody>>,
+    B::Error: Into<Box<dyn StdError>>,
 
     X: Service<Request, Response = Request>,
     X::Error: Into<Response<AnyBody>>,
@@ -75,7 +76,7 @@ where
     S::Error: Into<Response<AnyBody>>,
 
     B: MessageBody,
-    B::Error: Into<Response<AnyBody>>,
+    B::Error: Into<Box<dyn StdError>>,
 
     X: Service<Request, Response = Request>,
     X::Error: Into<Response<AnyBody>>,
@@ -94,7 +95,7 @@ where
     S::Error: Into<Response<AnyBody>>,
 
     B: MessageBody,
-    B::Error: Into<Response<AnyBody>>,
+    B::Error: Into<Box<dyn StdError>>,
 
     X: Service<Request, Response = Request>,
     X::Error: Into<Response<AnyBody>>,
@@ -136,7 +137,7 @@ where
     X: Service<Request, Response = Request>,
 
     B: MessageBody,
-    B::Error: Into<Response<AnyBody>>,
+    B::Error: Into<Box<dyn StdError>>,
 {
     None,
     ExpectCall(#[pin] X::Future),
@@ -152,7 +153,7 @@ where
     X: Service<Request, Response = Request>,
 
     B: MessageBody,
-    B::Error: Into<Response<AnyBody>>,
+    B::Error: Into<Box<dyn StdError>>,
 {
     fn is_empty(&self) -> bool {
         matches!(self, State::None)
@@ -174,7 +175,7 @@ where
     S::Response: Into<Response<B>>,
 
     B: MessageBody,
-    B::Error: Into<Response<AnyBody>>,
+    B::Error: Into<Box<dyn StdError>>,
 
     X: Service<Request, Response = Request>,
     X::Error: Into<Response<AnyBody>>,
@@ -235,7 +236,7 @@ where
     S::Response: Into<Response<B>>,
 
     B: MessageBody,
-    B::Error: Into<Response<AnyBody>>,
+    B::Error: Into<Box<dyn StdError>>,
 
     X: Service<Request, Response = Request>,
     X::Error: Into<Response<AnyBody>>,
@@ -438,7 +439,7 @@ where
                             }
 
                             Poll::Ready(Some(Err(err))) => {
-                                return Err(DispatchError::Service(err.into()))
+                                return Err(DispatchError::Body(err.into()))
                             }
 
                             Poll::Pending => return Ok(PollResponse::DoNothing),
@@ -913,7 +914,7 @@ where
     S::Response: Into<Response<B>>,
 
     B: MessageBody,
-    B::Error: Into<Response<AnyBody>>,
+    B::Error: Into<Box<dyn StdError>>,
 
     X: Service<Request, Response = Request>,
     X::Error: Into<Response<AnyBody>>,

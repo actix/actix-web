@@ -1,14 +1,15 @@
 use std::{
     any::Any,
-    cmp, fmt, io,
+    cmp,
+    error::Error as StdError,
+    fmt, io,
     marker::PhantomData,
     net,
     sync::{Arc, Mutex},
 };
 
 use actix_http::{
-    body::{AnyBody, MessageBody},
-    Error, Extensions, HttpService, KeepAlive, Request, Response,
+    body::MessageBody, Error, Extensions, HttpService, KeepAlive, Request, Response,
 };
 use actix_server::{Server, ServerBuilder};
 use actix_service::{
@@ -84,7 +85,7 @@ where
     S::Service: 'static,
     // S::Service: 'static,
     B: MessageBody + 'static,
-    B::Error: Into<Response<AnyBody>>,
+    B::Error: Into<Box<dyn StdError>>,
 {
     /// Create new HTTP server with application factory
     pub fn new(factory: F) -> Self {

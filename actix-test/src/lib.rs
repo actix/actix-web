@@ -31,12 +31,11 @@ extern crate tls_openssl as openssl;
 #[cfg(feature = "rustls")]
 extern crate tls_rustls as rustls;
 
-use std::{fmt, net, sync::mpsc, thread, time};
+use std::{error::Error as StdError, fmt, net, sync::mpsc, thread, time};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 pub use actix_http::test::TestBuffer;
 use actix_http::{
-    body::AnyBody,
     http::{HeaderMap, Method},
     ws, HttpService, Request, Response,
 };
@@ -87,7 +86,7 @@ where
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
     B: MessageBody + 'static,
-    B::Error: Into<Response<AnyBody>>,
+    B::Error: Into<Box<dyn StdError>>,
 {
     start_with(TestServerConfig::default(), factory)
 }
@@ -127,7 +126,7 @@ where
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
     B: MessageBody + 'static,
-    B::Error: Into<Response<AnyBody>>,
+    B::Error: Into<Box<dyn StdError>>,
 {
     let (tx, rx) = mpsc::channel();
 

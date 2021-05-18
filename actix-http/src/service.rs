@@ -1,4 +1,5 @@
 use std::{
+    error::Error as StdError,
     fmt,
     future::Future,
     marker::PhantomData,
@@ -59,7 +60,7 @@ where
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
     B: MessageBody + 'static,
-    B::Error: Into<Response<AnyBody>>,
+    B::Error: Into<Box<dyn StdError>>,
 {
     /// Create new `HttpService` instance.
     pub fn new<F: IntoServiceFactory<S, Request>>(service: F) -> Self {
@@ -158,7 +159,7 @@ where
     <S::Service as Service<Request>>::Future: 'static,
 
     B: MessageBody + 'static,
-    B::Error: Into<Response<AnyBody>>,
+    B::Error: Into<Box<dyn StdError>>,
 
     X: ServiceFactory<Request, Config = (), Response = Request>,
     X::Future: 'static,
@@ -210,7 +211,7 @@ mod openssl {
         <S::Service as Service<Request>>::Future: 'static,
 
         B: MessageBody + 'static,
-        B::Error: Into<Response<AnyBody>>,
+        B::Error: Into<Box<dyn StdError>>,
 
         X: ServiceFactory<Request, Config = (), Response = Request>,
         X::Future: 'static,
@@ -278,7 +279,7 @@ mod rustls {
         <S::Service as Service<Request>>::Future: 'static,
 
         B: MessageBody + 'static,
-        B::Error: Into<Response<AnyBody>>,
+        B::Error: Into<Box<dyn StdError>>,
 
         X: ServiceFactory<Request, Config = (), Response = Request>,
         X::Future: 'static,
@@ -343,7 +344,7 @@ where
     <S::Service as Service<Request>>::Future: 'static,
 
     B: MessageBody + 'static,
-    B::Error: Into<Response<AnyBody>>,
+    B::Error: Into<Box<dyn StdError>>,
 
     X: ServiceFactory<Request, Config = (), Response = Request>,
     X::Future: 'static,
@@ -480,7 +481,7 @@ where
     S::Response: Into<Response<B>> + 'static,
 
     B: MessageBody + 'static,
-    B::Error: Into<Response<AnyBody>>,
+    B::Error: Into<Box<dyn StdError>>,
 
     X: Service<Request, Response = Request>,
     X::Error: Into<Response<AnyBody>>,
@@ -542,7 +543,7 @@ where
     S::Error: Into<Response<AnyBody>>,
 
     B: MessageBody,
-    B::Error: Into<Response<AnyBody>>,
+    B::Error: Into<Box<dyn StdError>>,
 
     X: Service<Request, Response = Request>,
     X::Error: Into<Response<AnyBody>>,
@@ -574,7 +575,7 @@ where
     S::Response: Into<Response<B>> + 'static,
 
     B: MessageBody,
-    B::Error: Into<Response<AnyBody>>,
+    B::Error: Into<Box<dyn StdError>>,
 
     X: Service<Request, Response = Request>,
     X::Error: Into<Response<AnyBody>>,
@@ -596,7 +597,7 @@ where
     S::Response: Into<Response<B>> + 'static,
 
     B: MessageBody + 'static,
-    B::Error: Into<Response<AnyBody>>,
+    B::Error: Into<Box<dyn StdError>>,
 
     X: Service<Request, Response = Request>,
     X::Error: Into<Response<AnyBody>>,
