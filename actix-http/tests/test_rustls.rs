@@ -460,3 +460,107 @@ async fn test_h1_service_error() {
     let bytes = srv.load_body(response).await.unwrap();
     assert_eq!(bytes, Bytes::from_static(b"error"));
 }
+
+const H2_ALPN_PROTOCOL: &[u8] = b"h2";
+const HTTP1_1_ALPN_PROTOCOL: &[u8] = b"http/1.1";
+const CUSTOM_ALPN_PROTOCOL: &[u8] = b"custom";
+
+#[actix_rt::test]
+async fn test_alpn_h1() -> io::Result<()> {
+    let srv = test_server(move || {
+        let mut config = tls_config();
+        config.alpn_protocols.push(CUSTOM_ALPN_PROTOCOL.to_vec());
+        HttpService::build()
+            .h1(|_| ok::<_, Error>(Response::ok()))
+            .rustls(config)
+    })
+    .await;
+
+    assert_eq!(
+        srv.get_negotiated_alpn_protocol(CUSTOM_ALPN_PROTOCOL),
+        Some(CUSTOM_ALPN_PROTOCOL.to_vec())
+    );
+
+    let response = srv.sget("/").send().await.unwrap();
+    assert!(response.status().is_success());
+
+    Ok(())
+}
+
+#[actix_rt::test]
+async fn test_alpn_h2() -> io::Result<()> {
+    let srv = test_server(move || {
+        let mut config = tls_config();
+        config.alpn_protocols.push(CUSTOM_ALPN_PROTOCOL.to_vec());
+        HttpService::build()
+            .h2(|_| ok::<_, Error>(Response::ok()))
+            .rustls(config)
+    })
+    .await;
+
+    assert_eq!(
+        srv.get_negotiated_alpn_protocol(H2_ALPN_PROTOCOL),
+        Some(H2_ALPN_PROTOCOL.to_vec())
+    );
+    assert_eq!(
+        srv.get_negotiated_alpn_protocol(CUSTOM_ALPN_PROTOCOL),
+        Some(CUSTOM_ALPN_PROTOCOL.to_vec())
+    );
+
+    let response = srv.sget("/").send().await.unwrap();
+    assert!(response.status().is_success());
+
+    Ok(())
+}
+
+#[actix_rt::test]
+async fn test_alpn_h1_1() -> io::Result<()> {
+    let srv = test_server(move || {
+        let mut config = tls_config();
+        config.alpn_protocols.push(CUSTOM_ALPN_PROTOCOL.to_vec());
+        HttpService::build()
+            .h1(|_| ok::<_, Error>(Response::ok()))
+            .rustls(config)
+    })
+    .await;
+
+    assert_eq!(
+        srv.get_negotiated_alpn_protocol(CUSTOM_ALPN_PROTOCOL),
+        Some(CUSTOM_ALPN_PROTOCOL.to_vec())
+    );
+
+    let response = srv.sget("/").send().await.unwrap();
+    assert!(response.status().is_success());
+
+    Ok(())
+}
+
+#[actix_rt::test]
+async fn test_alpn_h2_1() -> io::Result<()> {
+    let srv = test_server(move || {
+        let mut config = tls_config();
+        config.alpn_protocols.push(CUSTOM_ALPN_PROTOCOL.to_vec());
+        HttpService::build()
+            .finish(|_| ok::<_, Error>(Response::ok()))
+            .rustls(config)
+    })
+    .await;
+
+    assert_eq!(
+        srv.get_negotiated_alpn_protocol(H2_ALPN_PROTOCOL),
+        Some(H2_ALPN_PROTOCOL.to_vec())
+    );
+    assert_eq!(
+        srv.get_negotiated_alpn_protocol(HTTP1_1_ALPN_PROTOCOL),
+        Some(HTTP1_1_ALPN_PROTOCOL.to_vec())
+    );
+    assert_eq!(
+        srv.get_negotiated_alpn_protocol(CUSTOM_ALPN_PROTOCOL),
+        Some(CUSTOM_ALPN_PROTOCOL.to_vec())
+    );
+
+    let response = srv.sget("/").send().await.unwrap();
+    assert!(response.status().is_success());
+
+    Ok(())
+}

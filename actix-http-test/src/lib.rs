@@ -7,8 +7,17 @@
 #[cfg(feature = "openssl")]
 extern crate tls_openssl as openssl;
 
+#[cfg(feature = "rustls")]
+extern crate tls_rustls as rustls;
+
 use std::sync::mpsc;
 use std::{net, thread, time};
+#[cfg(feature = "rustls")]
+use {
+    rustls::Session,
+    std::{io::Write, net::TcpStream as StdTcpStream, sync::Arc},
+    webpki::DNSNameRef,
+};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_rt::{net::TcpStream, System};
@@ -221,6 +230,24 @@ impl TestServer {
     /// Connect to test HTTP server
     pub fn request<S: AsRef<str>>(&self, method: Method, path: S) -> ClientRequest {
         self.client.request(method, path.as_ref())
+    }
+
+    #[cfg(feature = "rustls")]
+    /// Get the negotiated ALPN protocol with the server
+    pub fn get_negotiated_alpn_protocol(&self, client_alpn_protocol: &[u8]) -> Option<Vec<u8>> {
+        let mut config = rustls::ClientConfig::new();
+        config.alpn_protocols.push(client_alpn_protocol.to_vec());
+        let mut sess = rustls::ClientSession::new(
+            &Arc::new(config),
+            DNSNameRef::try_from_ascii_str("localhost").unwrap(),
+        );
+        let mut sock = StdTcpStream::connect(self.addr).unwrap();
+        let mut stream = rustls::Stream::new(&mut sess, &mut sock);
+        // The handshake will fails because the client will not be able to verify the server
+        // certificate, but it doesn't matter here as we are just interested in the negotiated ALPN
+        // protocol
+        let _ = stream.flush();
+        sess.get_alpn_protocol().map(|proto| proto.to_vec())
     }
 
     pub async fn load_body<S>(
