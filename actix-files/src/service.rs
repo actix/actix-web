@@ -129,6 +129,7 @@ impl Service<ServiceRequest> for FilesService {
             match self.index {
                 Some(ref index) => match NamedFile::open(path.join(index)) {
                     Ok(named_file) => serve_named_file(req, named_file),
+                    Err(_) if self.show_index => show_index(req),
                     Err(err) => self.handle_err(err, req),
                 },
                 None if self.show_index => show_index(req),
