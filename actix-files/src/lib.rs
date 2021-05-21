@@ -856,4 +856,33 @@ mod tests {
             "inline; filename=\"symlink-test.png\""
         );
     }
+
+    #[actix_rt::test]
+    async fn test_index_with_show_files_listing() {
+        let service = Files::new(".", ".")
+            .index_file("lib.rs")
+            .show_files_listing()
+            .new_service(())
+            .await
+            .unwrap();
+
+        // Serve the index if exists
+        let req = TestRequest::default().uri("/src").to_srv_request();
+        let resp = test::call_service(&service, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "text/x-rust"
+        );
+
+        // Show files listing, otherwise.
+        let req = TestRequest::default().uri("/tests").to_srv_request();
+        let resp = test::call_service(&service, req).await;
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "text/html; charset=utf-8"
+        );
+        let bytes = test::read_body(resp).await;
+        assert!(format!("{:?}", bytes).contains("/tests/test.png"));
+    }
 }
