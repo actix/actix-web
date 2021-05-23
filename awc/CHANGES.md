@@ -1,7 +1,10 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Changed
+* Fix `Redirect` middleware to handle redirects without `Location` header. #[#2230]
 
+[#2230]: https://github.com/actix/actix-web/pull/2230
 
 ## 3.0.0-beta.5 - 2021-04-17
 ### Removed
