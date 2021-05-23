@@ -156,7 +156,8 @@ where
                     StatusCode::MOVED_PERMANENTLY
                     | StatusCode::FOUND
                     | StatusCode::SEE_OTHER
-                        if *max_redirect_times > 0  && res.headers().contains_key(header::LOCATION) =>
+                        if *max_redirect_times > 0
+                            && res.headers().contains_key(header::LOCATION) =>
                     {
                         let org_uri = uri.take().unwrap();
                         // rebuild uri from the location header value.
@@ -203,7 +204,8 @@ where
                         self.poll(cx)
                     }
                     StatusCode::TEMPORARY_REDIRECT | StatusCode::PERMANENT_REDIRECT
-                        if *max_redirect_times > 0  && res.headers().contains_key(header::LOCATION) =>
+                        if *max_redirect_times > 0
+                            && res.headers().contains_key(header::LOCATION) =>
                     {
                         let org_uri = uri.take().unwrap();
                         // rebuild uri from the location header value.
