@@ -156,7 +156,7 @@ where
                     StatusCode::MOVED_PERMANENTLY
                     | StatusCode::FOUND
                     | StatusCode::SEE_OTHER
-                        if *max_redirect_times > 0 =>
+                        if *max_redirect_times > 0  && res.headers().contains_key(header::LOCATION) =>
                     {
                         let org_uri = uri.take().unwrap();
                         // rebuild uri from the location header value.
@@ -203,7 +203,7 @@ where
                         self.poll(cx)
                     }
                     StatusCode::TEMPORARY_REDIRECT | StatusCode::PERMANENT_REDIRECT
-                        if *max_redirect_times > 0 =>
+                        if *max_redirect_times > 0  && res.headers().contains_key(header::LOCATION) =>
                     {
                         let org_uri = uri.take().unwrap();
                         // rebuild uri from the location header value.
@@ -312,6 +312,30 @@ mod tests {
         let res = client.get(srv.url("/")).send().await.unwrap();
 
         assert_eq!(res.status().as_u16(), 400);
+    }
+
+    #[actix_rt::test]
+    async fn test_redirect_without_location() {
+        let client = ClientBuilder::new()
+            .disable_redirects()
+            .wrap(Redirect::new().max_redirect_times(10))
+            .finish();
+
+        let srv = actix_test::start(|| {
+            App::new()
+                .service(web::resource("/test").route(web::to(|| async {
+                    Ok::<_, Error>(HttpResponse::BadRequest())
+                })))
+                .service(web::resource("/").route(web::to(|| async {
+                    Ok::<_, Error>(
+                        HttpResponse::Found().finish(),
+                    )
+                })))
+        });
+
+        let res = client.get(srv.url("/")).send().await.unwrap();
+
+        assert_eq!(res.status().as_u16(), 302);
     }
 
     #[actix_rt::test]
