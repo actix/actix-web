@@ -329,9 +329,7 @@ mod tests {
                     Ok::<_, Error>(HttpResponse::BadRequest())
                 })))
                 .service(web::resource("/").route(web::to(|| async {
-                    Ok::<_, Error>(
-                        HttpResponse::Found().finish(),
-                    )
+                    Ok::<_, Error>(HttpResponse::Found().finish())
                 })))
         });
 
