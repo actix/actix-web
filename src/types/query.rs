@@ -113,12 +113,11 @@ where
 {
     type Error = Error;
     type Future = Ready<Result<Self, Error>>;
-    type Config = QueryConfig;
 
     #[inline]
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let error_handler = req
-            .app_data::<Self::Config>()
+            .app_data::<QueryConfig>()
             .map(|c| c.err_handler.clone())
             .unwrap_or(None);
 

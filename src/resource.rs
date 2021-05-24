@@ -173,7 +173,7 @@ where
     /// Resource data overrides data registered by `App::data()` method.
     ///
     /// ```
-    /// use actix_web::{web, App, FromRequest};
+    /// use actix_web::{web, App};
     ///
     /// /// extract text data from request
     /// async fn index(body: String) -> String {
@@ -184,9 +184,7 @@ where
     ///     let app = App::new().service(
     ///         web::resource("/index.html")
     ///           // limit size of the payload
-    ///           .data(String::configure(|cfg| {
-    ///                cfg.limit(4096)
-    ///           }))
+    ///           .data(web::PayloadConfig::new(4096))
     ///           .route(
     ///               web::get()
     ///                  // register handler

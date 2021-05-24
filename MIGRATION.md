@@ -10,6 +10,7 @@
 
   Alternatively, explicitly require trailing slashes: `NormalizePath::new(TrailingSlash::Always)`.
 
+* The `type Config` of `FromRequest` was removed.
 
 ## 3.0.0
 

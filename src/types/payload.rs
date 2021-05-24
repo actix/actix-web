@@ -62,7 +62,6 @@ impl Stream for Payload {
 
 /// See [here](#usage) for example of usage as an extractor.
 impl FromRequest for Payload {
-    type Config = PayloadConfig;
     type Error = Error;
     type Future = Ready<Result<Payload, Error>>;
 
@@ -89,7 +88,6 @@ impl FromRequest for Payload {
 /// }
 /// ```
 impl FromRequest for Bytes {
-    type Config = PayloadConfig;
     type Error = Error;
     type Future = Either<BytesExtractFut, Ready<Result<Bytes, Error>>>;
 
@@ -138,7 +136,6 @@ impl<'a> Future for BytesExtractFut {
 ///     format!("Body {}!", text)
 /// }
 impl FromRequest for String {
-    type Config = PayloadConfig;
     type Error = Error;
     type Future = Either<StringExtractFut, Ready<Result<String, Error>>>;
 

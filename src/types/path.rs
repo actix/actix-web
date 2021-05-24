@@ -98,12 +98,11 @@ where
 {
     type Error = Error;
     type Future = Ready<Result<Self, Self::Error>>;
-    type Config = PathConfig;
 
     #[inline]
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let error_handler = req
-            .app_data::<Self::Config>()
+            .app_data::<PathConfig>()
             .map(|c| c.ehandler.clone())
             .unwrap_or(None);
 
