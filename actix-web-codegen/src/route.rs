@@ -88,6 +88,7 @@ trait PathMarker: quote::ToTokens {}
 
 impl PathMarker for syn::Ident {}
 impl PathMarker for syn::LitStr {}
+impl PathMarker for syn::Expr {}
 
 impl Args {
     fn new(args: AttributeArgs, method: Option<MethodType>) -> syn::Result<Self> {
@@ -130,8 +131,7 @@ impl Args {
                         if let syn::Lit::Str(lit) = nv.lit {
                             match path {
                                 None => {
-                                    let x = Ident::new(&lit.value(), Span::call_site());
-                                    path = Some(Box::new(x));
+                                    path = Some(Box::new(lit.parse::<syn::Expr>()?));
                                 }
                                 _ => {
                                     return Err(syn::Error::new_spanned(

@@ -25,6 +25,14 @@ async fn path() -> impl Responder {
     HttpResponse::Ok()
 }
 
+struct FieldPath(&'static str);
+
+const FIELD_PATH: FieldPath = FieldPath("/path/new/");
+#[get(path = "FIELD_PATH.0")]
+async fn field_path() -> impl Responder {
+    HttpResponse::Ok()
+}
+
 #[get("/test")]
 async fn test_handler() -> impl Responder {
     HttpResponse::Ok()
@@ -165,7 +173,12 @@ async fn test_params() {
             .service(put_param_test)
             .service(delete_param_test)
             .service(path)
+            .service(field_path)
     });
+    let request = srv.request(http::Method::GET, srv.url(FIELD_PATH.0));
+    let response = request.send().await.unwrap();
+    assert_eq!(response.status(), http::StatusCode::OK);
+
     let request = srv.request(http::Method::GET, srv.url(PATH));
     let response = request.send().await.unwrap();
     assert_eq!(response.status(), http::StatusCode::OK);
