@@ -4,18 +4,18 @@ extern crate tls_rustls as rustls;
 
 use actix_http::{
     body::{Body, SizedStream},
-    error::{self, PayloadError},
+    error::PayloadError,
     http::{
         header::{self, HeaderName, HeaderValue},
         Method, StatusCode, Version,
     },
-    Error, HttpService, Request, Response,
+    Error, HttpService, Request, Response, ResponseError,
 };
 use actix_http_test::test_server;
 use actix_service::{fn_factory_with_config, fn_service};
 use actix_utils::future::{err, ok};
-
 use bytes::{Bytes, BytesMut};
+use derive_more::{Display, Error};
 use futures_core::Stream;
 use futures_util::stream::{once, StreamExt as _};
 use rustls::{
@@ -417,11 +417,21 @@ async fn test_h2_response_http_error_handling() {
     assert_eq!(bytes, Bytes::from_static(b"failed to parse header value"));
 }
 
+#[derive(Debug, Display, Error)]
+#[display(fmt = "error")]
+struct BadRequest;
+
+impl ResponseError for BadRequest {
+    fn status_code(&self) -> StatusCode {
+        StatusCode::BAD_REQUEST
+    }
+}
+
 #[actix_rt::test]
 async fn test_h2_service_error() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|_| err::<Response<Body>, Error>(error::ErrorBadRequest("error")))
+            .h2(|_| err::<Response<Body>, _>(BadRequest))
             .rustls(tls_config())
     })
     .await;
@@ -438,7 +448,7 @@ async fn test_h2_service_error() {
 async fn test_h1_service_error() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h1(|_| err::<Response<Body>, Error>(error::ErrorBadRequest("error")))
+            .h1(|_| err::<Response<Body>, _>(BadRequest))
             .rustls(tls_config())
     })
     .await;
