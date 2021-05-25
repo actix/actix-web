@@ -1,16 +1,13 @@
-use std::any::type_name;
-use std::ops::Deref;
-use std::sync::Arc;
+use std::{any::type_name, ops::Deref, sync::Arc};
 
-use actix_http::error::{Error, ErrorInternalServerError};
-use actix_http::Extensions;
+use actix_http::{error::Error, Extensions};
 use actix_utils::future::{err, ok, Ready};
 use futures_core::future::LocalBoxFuture;
 use serde::Serialize;
 
-use crate::dev::Payload;
-use crate::extract::FromRequest;
-use crate::request::HttpRequest;
+use crate::{
+    dev::Payload, error::ErrorInternalServerError, extract::FromRequest, request::HttpRequest,
+};
 
 /// Data factory.
 pub(crate) trait DataFactory {
