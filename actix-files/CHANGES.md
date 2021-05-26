@@ -3,9 +3,11 @@
 ## Unreleased - 2021-xx-xx
 * `NamedFile` now implements `ServiceFactory` and `HttpServiceFactory` making it much more useful in routing. For example, it can be used directly as a default service. [#2135]
 * For symbolic links, `Content-Disposition` header no longer shows the filename of the original file. [#2156]
+* `Files::redirect_to_slash_directory()` now works as expected when used with `Files::show_files_listing()`. [#2225]
 
 [#2135]: https://github.com/actix/actix-web/pull/2135
 [#2156]: https://github.com/actix/actix-web/pull/2156
+[#2225]: https://github.com/actix/actix-web/pull/2225
 
 
 ## 0.6.0-beta.4 - 2021-04-02
