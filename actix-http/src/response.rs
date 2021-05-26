@@ -69,7 +69,8 @@ impl Response<Body> {
 
     /// Constructs a new response from an error.
     #[inline]
-    pub fn from_error(error: Error) -> Response<Body> {
+    pub fn from_error(error: impl Into<Error>) -> Response<Body> {
+        let error = error.into();
         let resp = error.as_response_error().error_response();
         if resp.head.status == StatusCode::INTERNAL_SERVER_ERROR {
             debug!("Internal Server Error: {:?}", error);
