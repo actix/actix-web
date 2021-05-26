@@ -1,10 +1,11 @@
 use actix_http::{
-    error, http, http::StatusCode, HttpMessage, HttpService, Request, Response,
+    http, http::StatusCode, HttpMessage, HttpService, Request, Response, ResponseError,
 };
 use actix_http_test::test_server;
 use actix_service::ServiceFactoryExt;
 use actix_utils::future;
 use bytes::Bytes;
+use derive_more::{Display, Error};
 use futures_util::StreamExt as _;
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
@@ -92,6 +93,16 @@ async fn test_with_query_parameter() {
     assert!(response.status().is_success());
 }
 
+#[derive(Debug, Display, Error)]
+#[display(fmt = "expect failed")]
+struct ExpectFailed;
+
+impl ResponseError for ExpectFailed {
+    fn status_code(&self) -> StatusCode {
+        StatusCode::EXPECTATION_FAILED
+    }
+}
+
 #[actix_rt::test]
 async fn test_h1_expect() {
     let srv = test_server(move || {
@@ -100,7 +111,7 @@ async fn test_h1_expect() {
                 if req.headers().contains_key("AUTH") {
                     Ok(req)
                 } else {
-                    Err(error::ErrorExpectationFailed("expect failed"))
+                    Err(ExpectFailed)
                 }
             })
             .h1(|req: Request| async move {
@@ -134,7 +145,7 @@ async fn test_h1_expect() {
     let response = request.send_body("expect body").await.unwrap();
     assert_eq!(response.status(), StatusCode::EXPECTATION_FAILED);
 
-    // test exepct would continue
+    // test expect would continue
     let request = srv
         .request(http::Method::GET, srv.url("/"))
         .insert_header(("Expect", "100-continue"))

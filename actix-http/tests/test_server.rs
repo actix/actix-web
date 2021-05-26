@@ -2,22 +2,21 @@ use std::io::{Read, Write};
 use std::time::Duration;
 use std::{net, thread};
 
+use actix_http::{
+    body::{Body, SizedStream},
+    http::{self, header, StatusCode},
+    Error, HttpService, KeepAlive, Request, Response,
+};
+use actix_http::{HttpMessage, ResponseError};
 use actix_http_test::test_server;
 use actix_rt::time::sleep;
 use actix_service::fn_service;
 use actix_utils::future::{err, ok, ready};
 use bytes::Bytes;
+use derive_more::{Display, Error};
 use futures_util::stream::{once, StreamExt as _};
 use futures_util::FutureExt as _;
 use regex::Regex;
-
-use actix_http::HttpMessage;
-use actix_http::{
-    body::{Body, SizedStream},
-    error,
-    http::{self, header, StatusCode},
-    Error, HttpService, KeepAlive, Request, Response,
-};
 
 #[actix_rt::test]
 async fn test_h1() {
@@ -58,6 +57,16 @@ async fn test_h1_2() {
     assert!(response.status().is_success());
 }
 
+#[derive(Debug, Display, Error)]
+#[display(fmt = "expect failed")]
+struct ExpectFailed;
+
+impl ResponseError for ExpectFailed {
+    fn status_code(&self) -> StatusCode {
+        StatusCode::PRECONDITION_FAILED
+    }
+}
+
 #[actix_rt::test]
 async fn test_expect_continue() {
     let srv = test_server(|| {
@@ -66,7 +75,7 @@ async fn test_expect_continue() {
                 if req.head().uri.query() == Some("yes=") {
                     ok(req)
                 } else {
-                    err(error::ErrorPreconditionFailed("error"))
+                    err(ExpectFailed)
                 }
             }))
             .finish(|_| ok::<_, ()>(Response::ok()))
@@ -96,7 +105,7 @@ async fn test_expect_continue_h1() {
                     if req.head().uri.query() == Some("yes=") {
                         ok(req)
                     } else {
-                        err(error::ErrorPreconditionFailed("error"))
+                        err(ExpectFailed)
                     }
                 })
             }))
@@ -647,11 +656,21 @@ async fn test_h1_response_http_error_handling() {
     assert_eq!(bytes, Bytes::from_static(b"failed to parse header value"));
 }
 
+#[derive(Debug, Display, Error)]
+#[display(fmt = "error")]
+struct BadRequest;
+
+impl ResponseError for BadRequest {
+    fn status_code(&self) -> StatusCode {
+        StatusCode::BAD_REQUEST
+    }
+}
+
 #[actix_rt::test]
 async fn test_h1_service_error() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .h1(|_| err::<Response<Body>, _>(error::ErrorBadRequest("error")))
+            .h1(|_| err::<Response<Body>, _>(BadRequest))
             .tcp()
     })
     .await;
