@@ -1,3 +1,4 @@
+#[rustversion::stable(1.46)] // MSRV
 #[test]
 fn compile_macros() {
     let t = trybuild::TestCases::new();
@@ -12,11 +13,3 @@ fn compile_macros() {
 
     t.pass("tests/trybuild/docstring-ok.rs");
 }
-
-// #[rustversion::not(nightly)]
-// fn skip_on_nightly(t: &trybuild::TestCases) {
-//
-// }
-
-// #[rustversion::nightly]
-// fn skip_on_nightly(_t: &trybuild::TestCases) {}

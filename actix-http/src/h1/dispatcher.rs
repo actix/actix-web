@@ -399,7 +399,7 @@ where
 
                     // send service call error as response
                     Poll::Ready(Err(err)) => {
-                        let res = Response::from_error(err.into());
+                        let res = Response::from_error(err);
                         let (res, body) = res.replace_body(());
                         self.as_mut().send_error_response(res, body)?;
                     }
@@ -496,7 +496,7 @@ where
 
                     // send expect error as response
                     Poll::Ready(Err(err)) => {
-                        let res = Response::from_error(err.into());
+                        let res = Response::from_error(err);
                         let (res, body) = res.replace_body(());
                         self.as_mut().send_error_response(res, body)?;
                     }
@@ -546,7 +546,7 @@ where
                         // to notify the dispatcher a new state is set and the outer loop
                         // should be continue.
                         Poll::Ready(Err(err)) => {
-                            let res = Response::from_error(err.into());
+                            let res = Response::from_error(err);
                             let (res, body) = res.replace_body(());
                             return self.send_error_response(res, body);
                         }
@@ -566,7 +566,7 @@ where
                         Poll::Pending => Ok(()),
                         // see the comment on ExpectCall state branch's Ready(Err(err)).
                         Poll::Ready(Err(err)) => {
-                            let res = Response::from_error(err.into());
+                            let res = Response::from_error(err);
                             let (res, body) = res.replace_body(());
                             self.send_error_response(res, body)
                         }
