@@ -81,6 +81,7 @@ where
     S::Service: 'static,
     // S::Service: 'static,
     B: MessageBody + 'static,
+    B::Error: Into<Error>,
 {
     /// Create new HTTP server with application factory
     pub fn new(factory: F) -> Self {
@@ -170,6 +171,16 @@ where
     pub fn max_connection_rate(self, num: usize) -> Self {
         #[cfg(any(feature = "rustls", feature = "openssl"))]
         actix_tls::accept::max_concurrent_tls_connect(num);
+        self
+    }
+
+    /// Set max number of threads for each worker's blocking task thread pool.
+    ///
+    /// One thread pool is set up **per worker**; not shared across workers.
+    ///
+    /// By default set to 512 / workers.
+    pub fn worker_max_blocking_threads(mut self, num: usize) -> Self {
+        self.builder = self.builder.worker_max_blocking_threads(num);
         self
     }
 
@@ -489,7 +500,7 @@ where
     pub fn listen_uds(mut self, lst: std::os::unix::net::UnixListener) -> io::Result<Self> {
         use actix_http::Protocol;
         use actix_rt::net::UnixStream;
-        use actix_service::pipeline_factory;
+        use actix_service::{fn_service, ServiceFactoryExt as _};
 
         let cfg = self.config.clone();
         let factory = self.factory.clone();
@@ -511,22 +522,19 @@ where
                 socket_addr,
             );
 
-            pipeline_factory(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) })
-                .and_then({
-                    let svc = HttpService::build()
-                        .keep_alive(c.keep_alive)
-                        .client_timeout(c.client_timeout);
+            fn_service(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) }).and_then({
+                let svc = HttpService::build()
+                    .keep_alive(c.keep_alive)
+                    .client_timeout(c.client_timeout);
 
-                    let svc = if let Some(handler) = on_connect_fn.clone() {
-                        svc.on_connect_ext(move |io: &_, ext: _| {
-                            (&*handler)(io as &dyn Any, ext)
-                        })
-                    } else {
-                        svc
-                    };
+                let svc = if let Some(handler) = on_connect_fn.clone() {
+                    svc.on_connect_ext(move |io: &_, ext: _| (&*handler)(io as &dyn Any, ext))
+                } else {
+                    svc
+                };
 
-                    svc.finish(map_config(factory(), move |_| config.clone()))
-                })
+                svc.finish(map_config(factory(), move |_| config.clone()))
+            })
         })?;
         Ok(self)
     }
@@ -539,7 +547,7 @@ where
     {
         use actix_http::Protocol;
         use actix_rt::net::UnixStream;
-        use actix_service::pipeline_factory;
+        use actix_service::{fn_service, ServiceFactoryExt as _};
 
         let cfg = self.config.clone();
         let factory = self.factory.clone();
@@ -560,13 +568,12 @@ where
                     c.host.clone().unwrap_or_else(|| format!("{}", socket_addr)),
                     socket_addr,
                 );
-                pipeline_factory(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) })
-                    .and_then(
-                        HttpService::build()
-                            .keep_alive(c.keep_alive)
-                            .client_timeout(c.client_timeout)
-                            .finish(map_config(factory(), move |_| config.clone())),
-                    )
+                fn_service(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) }).and_then(
+                    HttpService::build()
+                        .keep_alive(c.keep_alive)
+                        .client_timeout(c.client_timeout)
+                        .finish(map_config(factory(), move |_| config.clone())),
+                )
             },
         )?;
         Ok(self)

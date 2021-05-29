@@ -1,12 +1,13 @@
 //! For middleware documentation, see [`Compat`].
 
 use std::{
+    error::Error as StdError,
     future::Future,
     pin::Pin,
     task::{Context, Poll},
 };
 
-use actix_http::body::{Body, MessageBody, ResponseBody};
+use actix_http::body::{Body, MessageBody};
 use actix_service::{Service, Transform};
 use futures_core::{future::LocalBoxFuture, ready};
 
@@ -80,9 +81,7 @@ where
     type Error = Error;
     type Future = CompatMiddlewareFuture<S::Future>;
 
-    fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.service.poll_ready(cx).map_err(From::from)
-    }
+    actix_service::forward_ready!(service);
 
     fn call(&self, req: Req) -> Self::Future {
         let fut = self.service.call(req);
@@ -115,9 +114,13 @@ pub trait MapServiceResponseBody {
     fn map_body(self) -> ServiceResponse;
 }
 
-impl<B: MessageBody + Unpin + 'static> MapServiceResponseBody for ServiceResponse<B> {
+impl<B> MapServiceResponseBody for ServiceResponse<B>
+where
+    B: MessageBody + Unpin + 'static,
+    B::Error: Into<Box<dyn StdError + 'static>>,
+{
     fn map_body(self) -> ServiceResponse {
-        self.map_body(|_, body| ResponseBody::Other(Body::from_message(body)))
+        self.map_body(|_, body| Body::from_message(body))
     }
 }
 

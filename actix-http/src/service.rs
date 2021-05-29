@@ -10,7 +10,9 @@ use std::{
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_rt::net::TcpStream;
-use actix_service::{pipeline_factory, IntoServiceFactory, Service, ServiceFactory};
+use actix_service::{
+    fn_service, IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt as _,
+};
 use bytes::Bytes;
 use futures_core::{future::LocalBoxFuture, ready};
 use h2::server::{handshake, Handshake};
@@ -57,6 +59,7 @@ where
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
     B: MessageBody + 'static,
+    B::Error: Into<Error>,
 {
     /// Create new `HttpService` instance.
     pub fn new<F: IntoServiceFactory<S, Request>>(service: F) -> Self {
@@ -155,6 +158,7 @@ where
     <S::Service as Service<Request>>::Future: 'static,
 
     B: MessageBody + 'static,
+    B::Error: Into<Error>,
 
     X: ServiceFactory<Request, Config = (), Response = Request>,
     X::Future: 'static,
@@ -180,7 +184,7 @@ where
         Error = DispatchError,
         InitError = (),
     > {
-        pipeline_factory(|io: TcpStream| async {
+        fn_service(|io: TcpStream| async {
             let peer_addr = io.peer_addr().ok();
             Ok((io, Protocol::Http1, peer_addr))
         })
@@ -206,6 +210,7 @@ mod openssl {
         <S::Service as Service<Request>>::Future: 'static,
 
         B: MessageBody + 'static,
+        B::Error: Into<Error>,
 
         X: ServiceFactory<Request, Config = (), Response = Request>,
         X::Future: 'static,
@@ -232,25 +237,23 @@ mod openssl {
             Error = TlsError<SslError, DispatchError>,
             InitError = (),
         > {
-            pipeline_factory(
-                Acceptor::new(acceptor)
-                    .map_err(TlsError::Tls)
-                    .map_init_err(|_| panic!()),
-            )
-            .and_then(|io: TlsStream<TcpStream>| async {
-                let proto = if let Some(protos) = io.ssl().selected_alpn_protocol() {
-                    if protos.windows(2).any(|window| window == b"h2") {
-                        Protocol::Http2
+            Acceptor::new(acceptor)
+                .map_err(TlsError::Tls)
+                .map_init_err(|_| panic!())
+                .and_then(|io: TlsStream<TcpStream>| async {
+                    let proto = if let Some(protos) = io.ssl().selected_alpn_protocol() {
+                        if protos.windows(2).any(|window| window == b"h2") {
+                            Protocol::Http2
+                        } else {
+                            Protocol::Http1
+                        }
                     } else {
                         Protocol::Http1
-                    }
-                } else {
-                    Protocol::Http1
-                };
-                let peer_addr = io.get_ref().peer_addr().ok();
-                Ok((io, proto, peer_addr))
-            })
-            .and_then(self.map_err(TlsError::Service))
+                    };
+                    let peer_addr = io.get_ref().peer_addr().ok();
+                    Ok((io, proto, peer_addr))
+                })
+                .and_then(self.map_err(TlsError::Service))
         }
     }
 }
@@ -275,6 +278,7 @@ mod rustls {
         <S::Service as Service<Request>>::Future: 'static,
 
         B: MessageBody + 'static,
+        B::Error: Into<Error>,
 
         X: ServiceFactory<Request, Config = (), Response = Request>,
         X::Future: 'static,
@@ -304,25 +308,24 @@ mod rustls {
             let protos = vec!["h2".to_string().into(), "http/1.1".to_string().into()];
             config.set_protocols(&protos);
 
-            pipeline_factory(
-                Acceptor::new(config)
-                    .map_err(TlsError::Tls)
-                    .map_init_err(|_| panic!()),
-            )
-            .and_then(|io: TlsStream<TcpStream>| async {
-                let proto = if let Some(protos) = io.get_ref().1.get_alpn_protocol() {
-                    if protos.windows(2).any(|window| window == b"h2") {
-                        Protocol::Http2
+            Acceptor::new(config)
+                .map_err(TlsError::Tls)
+                .map_init_err(|_| panic!())
+                .and_then(|io: TlsStream<TcpStream>| async {
+                    let proto = if let Some(protos) = io.get_ref().1.get_alpn_protocol()
+                    {
+                        if protos.windows(2).any(|window| window == b"h2") {
+                            Protocol::Http2
+                        } else {
+                            Protocol::Http1
+                        }
                     } else {
                         Protocol::Http1
-                    }
-                } else {
-                    Protocol::Http1
-                };
-                let peer_addr = io.get_ref().0.peer_addr().ok();
-                Ok((io, proto, peer_addr))
-            })
-            .and_then(self.map_err(TlsError::Service))
+                    };
+                    let peer_addr = io.get_ref().0.peer_addr().ok();
+                    Ok((io, proto, peer_addr))
+                })
+                .and_then(self.map_err(TlsError::Service))
         }
     }
 }
@@ -340,6 +343,7 @@ where
     <S::Service as Service<Request>>::Future: 'static,
 
     B: MessageBody + 'static,
+    B::Error: Into<Error>,
 
     X: ServiceFactory<Request, Config = (), Response = Request>,
     X::Future: 'static,
@@ -466,13 +470,18 @@ impl<T, S, B, X, U> Service<(T, Protocol, Option<net::SocketAddr>)>
     for HttpServiceHandler<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
+
     S: Service<Request>,
     S::Error: Into<Error> + 'static,
     S::Future: 'static,
     S::Response: Into<Response<B>> + 'static,
+
     B: MessageBody + 'static,
+    B::Error: Into<Error>,
+
     X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
+
     U: Service<(Request, Framed<T, h1::Codec>), Response = ()>,
     U::Error: fmt::Display + Into<Error>,
 {
@@ -523,13 +532,18 @@ where
 #[pin_project(project = StateProj)]
 enum State<T, S, B, X, U>
 where
+    T: AsyncRead + AsyncWrite + Unpin,
+
     S: Service<Request>,
     S::Future: 'static,
     S::Error: Into<Error>,
-    T: AsyncRead + AsyncWrite + Unpin,
+
     B: MessageBody,
+    B::Error: Into<Error>,
+
     X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
+
     U: Service<(Request, Framed<T, h1::Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
@@ -550,13 +564,18 @@ where
 pub struct HttpServiceHandlerResponse<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
+
     S: Service<Request>,
     S::Error: Into<Error> + 'static,
     S::Future: 'static,
     S::Response: Into<Response<B>> + 'static,
-    B: MessageBody + 'static,
+
+    B: MessageBody,
+    B::Error: Into<Error>,
+
     X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
+
     U: Service<(Request, Framed<T, h1::Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
@@ -567,13 +586,18 @@ where
 impl<T, S, B, X, U> Future for HttpServiceHandlerResponse<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
+
     S: Service<Request>,
     S::Error: Into<Error> + 'static,
     S::Future: 'static,
     S::Response: Into<Response<B>> + 'static,
-    B: MessageBody,
+
+    B: MessageBody + 'static,
+    B::Error: Into<Error>,
+
     X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
+
     U: Service<(Request, Framed<T, h1::Codec>), Response = ()>,
     U::Error: fmt::Display,
 {

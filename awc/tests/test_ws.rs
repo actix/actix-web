@@ -36,7 +36,7 @@ async fn test_simple() {
                     ws::Dispatcher::with(framed, ws_service).await
                 }
             })
-            .finish(|_| ok::<_, Error>(Response::NotFound()))
+            .finish(|_| ok::<_, Error>(Response::not_found()))
             .tcp()
     })
     .await;

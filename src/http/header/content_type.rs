@@ -1,7 +1,7 @@
 use super::CONTENT_TYPE;
 use mime::Mime;
 
-crate::header! {
+crate::__define_common_header! {
     /// `Content-Type` header, defined in
     /// [RFC7231](http://tools.ietf.org/html/rfc7231#section-3.1.1.5)
     ///
@@ -52,7 +52,7 @@ crate::header! {
     (ContentType, CONTENT_TYPE) => [Mime]
 
     test_content_type {
-        test_header!(
+        crate::__common_header_test!(
             test1,
             vec![b"text/html"],
             Some(HeaderField(mime::TEXT_HTML)));

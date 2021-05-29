@@ -532,7 +532,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_files_guards() {
         let srv = test::init_service(
-            App::new().service(Files::new("/", ".").use_guards(guard::Post())),
+            App::new().service(Files::new("/", ".").method_guard(guard::Post())),
         )
         .await;
 
@@ -632,7 +632,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_redirect_to_slash_directory() {
-        // should not redirect if no index
+        // should not redirect if no index and files listing is disabled
         let srv = test::init_service(
             App::new().service(Files::new("/", ".").redirect_to_slash_directory()),
         )
@@ -646,6 +646,19 @@ mod tests {
             App::new().service(
                 Files::new("/", ".")
                     .index_file("test.png")
+                    .redirect_to_slash_directory(),
+            ),
+        )
+        .await;
+        let req = TestRequest::with_uri("/tests").to_request();
+        let resp = test::call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::FOUND);
+
+        // should redirect if files listing is enabled
+        let srv = test::init_service(
+            App::new().service(
+                Files::new("/", ".")
+                    .show_files_listing()
                     .redirect_to_slash_directory(),
             ),
         )
@@ -753,5 +766,94 @@ mod tests {
         let req = TestRequest::get().uri("/test/%43argo.toml").to_request();
         let res = test::call_service(&srv, req).await;
         assert_eq!(res.status(), StatusCode::OK);
+    }
+
+    #[actix_rt::test]
+    async fn test_serve_named_file() {
+        let srv =
+            test::init_service(App::new().service(NamedFile::open("Cargo.toml").unwrap()))
+                .await;
+
+        let req = TestRequest::get().uri("/Cargo.toml").to_request();
+        let res = test::call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+
+        let bytes = test::read_body(res).await;
+        let data = Bytes::from(fs::read("Cargo.toml").unwrap());
+        assert_eq!(bytes, data);
+
+        let req = TestRequest::get().uri("/test/unknown").to_request();
+        let res = test::call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[actix_rt::test]
+    async fn test_serve_named_file_prefix() {
+        let srv = test::init_service(
+            App::new()
+                .service(web::scope("/test").service(NamedFile::open("Cargo.toml").unwrap())),
+        )
+        .await;
+
+        let req = TestRequest::get().uri("/test/Cargo.toml").to_request();
+        let res = test::call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+
+        let bytes = test::read_body(res).await;
+        let data = Bytes::from(fs::read("Cargo.toml").unwrap());
+        assert_eq!(bytes, data);
+
+        let req = TestRequest::get().uri("/Cargo.toml").to_request();
+        let res = test::call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[actix_rt::test]
+    async fn test_named_file_default_service() {
+        let srv = test::init_service(
+            App::new().default_service(NamedFile::open("Cargo.toml").unwrap()),
+        )
+        .await;
+
+        for route in ["/foobar", "/baz", "/"].iter() {
+            let req = TestRequest::get().uri(route).to_request();
+            let res = test::call_service(&srv, req).await;
+            assert_eq!(res.status(), StatusCode::OK);
+
+            let bytes = test::read_body(res).await;
+            let data = Bytes::from(fs::read("Cargo.toml").unwrap());
+            assert_eq!(bytes, data);
+        }
+    }
+
+    #[actix_rt::test]
+    async fn test_default_handler_named_file() {
+        let st = Files::new("/", ".")
+            .default_handler(NamedFile::open("Cargo.toml").unwrap())
+            .new_service(())
+            .await
+            .unwrap();
+        let req = TestRequest::with_uri("/missing").to_srv_request();
+        let resp = test::call_service(&st, req).await;
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = test::read_body(resp).await;
+        let data = Bytes::from(fs::read("Cargo.toml").unwrap());
+        assert_eq!(bytes, data);
+    }
+
+    #[actix_rt::test]
+    async fn test_symlinks() {
+        let srv = test::init_service(App::new().service(Files::new("test", "."))).await;
+
+        let req = TestRequest::get()
+            .uri("/test/tests/symlink-test.png")
+            .to_request();
+        let res = test::call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(
+            res.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+            "inline; filename=\"symlink-test.png\""
+        );
     }
 }

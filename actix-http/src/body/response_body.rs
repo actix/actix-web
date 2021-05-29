@@ -5,7 +5,7 @@ use std::{
 };
 
 use bytes::Bytes;
-use futures_core::Stream;
+use futures_core::{ready, Stream};
 use pin_project::pin_project;
 
 use crate::error::Error;
@@ -43,7 +43,13 @@ impl<B: MessageBody> ResponseBody<B> {
     }
 }
 
-impl<B: MessageBody> MessageBody for ResponseBody<B> {
+impl<B> MessageBody for ResponseBody<B>
+where
+    B: MessageBody,
+    B::Error: Into<Error>,
+{
+    type Error = Error;
+
     fn size(&self) -> BodySize {
         match self {
             ResponseBody::Body(ref body) => body.size(),
@@ -54,15 +60,16 @@ impl<B: MessageBody> MessageBody for ResponseBody<B> {
     fn poll_next(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<Bytes, Error>>> {
-        match self.project() {
-            ResponseBodyProj::Body(body) => body.poll_next(cx),
-            ResponseBodyProj::Other(body) => Pin::new(body).poll_next(cx),
-        }
+    ) -> Poll<Option<Result<Bytes, Self::Error>>> {
+        Stream::poll_next(self, cx)
     }
 }
 
-impl<B: MessageBody> Stream for ResponseBody<B> {
+impl<B> Stream for ResponseBody<B>
+where
+    B: MessageBody,
+    B::Error: Into<Error>,
+{
     type Item = Result<Bytes, Error>;
 
     fn poll_next(
@@ -70,7 +77,12 @@ impl<B: MessageBody> Stream for ResponseBody<B> {
         cx: &mut Context<'_>,
     ) -> Poll<Option<Self::Item>> {
         match self.project() {
-            ResponseBodyProj::Body(body) => body.poll_next(cx),
+            // TODO: MSRV 1.51: poll_map_err
+            ResponseBodyProj::Body(body) => match ready!(body.poll_next(cx)) {
+                Some(Err(err)) => Poll::Ready(Some(Err(err.into()))),
+                Some(Ok(val)) => Poll::Ready(Some(Ok(val))),
+                None => Poll::Ready(None),
+            },
             ResponseBodyProj::Other(body) => Pin::new(body).poll_next(cx),
         }
     }

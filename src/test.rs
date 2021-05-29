@@ -2,21 +2,22 @@
 
 use std::{net::SocketAddr, rc::Rc};
 
-#[cfg(feature = "cookies")]
-use actix_http::cookie::Cookie;
 pub use actix_http::test::TestBuffer;
 use actix_http::{
+    body,
     http::{header::IntoHeaderPair, Method, StatusCode, Uri, Version},
     test::TestRequest as HttpTestRequest,
     Extensions, Request,
 };
 use actix_router::{Path, ResourceDef, Url};
 use actix_service::{IntoService, IntoServiceFactory, Service, ServiceFactory};
-use actix_utils::future::ok;
+use actix_utils::future::{ok, poll_fn};
 use futures_core::Stream;
 use futures_util::StreamExt as _;
 use serde::{de::DeserializeOwned, Serialize};
 
+#[cfg(feature = "cookies")]
+use crate::cookie::{Cookie, CookieJar};
 use crate::{
     app_service::AppInitServiceState,
     config::AppConfig,
@@ -26,7 +27,7 @@ use crate::{
     rmap::ResourceMap,
     service::{ServiceRequest, ServiceResponse},
     web::{Bytes, BytesMut},
-    Error, HttpRequest, HttpResponse,
+    Error, HttpRequest, HttpResponse, HttpResponseBuilder,
 };
 
 /// Create service that always responds with `HttpResponse::Ok()` and no body.
@@ -40,7 +41,7 @@ pub fn default_service(
     status_code: StatusCode,
 ) -> impl Service<ServiceRequest, Response = ServiceResponse<Body>, Error = Error> {
     (move |req: ServiceRequest| {
-        ok(req.into_response(HttpResponse::build(status_code).finish()))
+        ok(req.into_response(HttpResponseBuilder::new(status_code).finish()))
     })
     .into_service()
 }
@@ -151,17 +152,19 @@ pub async fn read_response<S, B>(app: &S, req: Request) -> Bytes
 where
     S: Service<Request, Response = ServiceResponse<B>, Error = Error>,
     B: MessageBody + Unpin,
+    B::Error: Into<Error>,
 {
-    let mut resp = app
+    let resp = app
         .call(req)
         .await
         .unwrap_or_else(|e| panic!("read_response failed at application call: {}", e));
 
-    let mut body = resp.take_body();
+    let body = resp.into_body();
     let mut bytes = BytesMut::new();
 
-    while let Some(item) = body.next().await {
-        bytes.extend_from_slice(&item.unwrap());
+    actix_rt::pin!(body);
+    while let Some(item) = poll_fn(|cx| body.as_mut().poll_next(cx)).await {
+        bytes.extend_from_slice(&item.map_err(Into::into).unwrap());
     }
 
     bytes.freeze()
@@ -193,15 +196,19 @@ where
 ///     assert_eq!(result, Bytes::from_static(b"welcome!"));
 /// }
 /// ```
-pub async fn read_body<B>(mut res: ServiceResponse<B>) -> Bytes
+pub async fn read_body<B>(res: ServiceResponse<B>) -> Bytes
 where
     B: MessageBody + Unpin,
+    B::Error: Into<Error>,
 {
-    let mut body = res.take_body();
+    let body = res.into_body();
     let mut bytes = BytesMut::new();
-    while let Some(item) = body.next().await {
-        bytes.extend_from_slice(&item.unwrap());
+
+    actix_rt::pin!(body);
+    while let Some(item) = poll_fn(|cx| body.as_mut().poll_next(cx)).await {
+        bytes.extend_from_slice(&item.map_err(Into::into).unwrap());
     }
+
     bytes.freeze()
 }
 
@@ -245,6 +252,7 @@ where
 pub async fn read_body_json<T, B>(res: ServiceResponse<B>) -> T
 where
     B: MessageBody + Unpin,
+    B::Error: Into<Error>,
     T: DeserializeOwned,
 {
     let body = read_body(res).await;
@@ -266,6 +274,14 @@ where
         data.extend_from_slice(&item?);
     }
     Ok(data.freeze())
+}
+
+pub async fn load_body<B>(body: B) -> Result<Bytes, Error>
+where
+    B: MessageBody + Unpin,
+    B::Error: Into<Error>,
+{
+    body::to_bytes(body).await.map_err(Into::into)
 }
 
 /// Helper function that returns a deserialized response body of a TestRequest
@@ -306,6 +322,7 @@ pub async fn read_response_json<S, B, T>(app: &S, req: Request) -> T
 where
     S: Service<Request, Response = ServiceResponse<B>, Error = Error>,
     B: MessageBody + Unpin,
+    B::Error: Into<Error>,
     T: DeserializeOwned,
 {
     let body = read_response(app, req).await;
@@ -359,6 +376,8 @@ pub struct TestRequest {
     path: Path<Url>,
     peer_addr: Option<SocketAddr>,
     app_data: Extensions,
+    #[cfg(feature = "cookies")]
+    cookies: CookieJar,
 }
 
 impl Default for TestRequest {
@@ -370,6 +389,8 @@ impl Default for TestRequest {
             path: Path::new(Url::new(Uri::default())),
             peer_addr: None,
             app_data: Extensions::new(),
+            #[cfg(feature = "cookies")]
+            cookies: CookieJar::new(),
         }
     }
 }
@@ -445,7 +466,7 @@ impl TestRequest {
     /// Set cookie for this request.
     #[cfg(feature = "cookies")]
     pub fn cookie(mut self, cookie: Cookie<'_>) -> Self {
-        self.req.cookie(cookie);
+        self.cookies.add(cookie.into_owned());
         self
     }
 
@@ -507,16 +528,42 @@ impl TestRequest {
         self
     }
 
+    fn finish(&mut self) -> Request {
+        // mut used when cookie feature is enabled
+        #[allow(unused_mut)]
+        let mut req = self.req.finish();
+
+        #[cfg(feature = "cookies")]
+        {
+            use actix_http::http::header::{HeaderValue, COOKIE};
+
+            let cookie: String = self
+                .cookies
+                .delta()
+                // ensure only name=value is written to cookie header
+                .map(|c| c.stripped().encoded().to_string())
+                .collect::<Vec<_>>()
+                .join("; ");
+
+            if !cookie.is_empty() {
+                req.headers_mut()
+                    .insert(COOKIE, HeaderValue::from_str(&cookie).unwrap());
+            }
+        }
+
+        req
+    }
+
     /// Complete request creation and generate `Request` instance
     pub fn to_request(mut self) -> Request {
-        let mut req = self.req.finish();
+        let mut req = self.finish();
         req.head_mut().peer_addr = self.peer_addr;
         req
     }
 
     /// Complete request creation and generate `ServiceRequest` instance
     pub fn to_srv_request(mut self) -> ServiceRequest {
-        let (mut head, payload) = self.req.finish().into_parts();
+        let (mut head, payload) = self.finish().into_parts();
         head.peer_addr = self.peer_addr;
         self.path.get_mut().update(&head.uri);
 
@@ -535,7 +582,7 @@ impl TestRequest {
 
     /// Complete request creation and generate `HttpRequest` instance
     pub fn to_http_request(mut self) -> HttpRequest {
-        let (mut head, _) = self.req.finish().into_parts();
+        let (mut head, _) = self.finish().into_parts();
         head.peer_addr = self.peer_addr;
         self.path.get_mut().update(&head.uri);
 
@@ -546,7 +593,7 @@ impl TestRequest {
 
     /// Complete request creation and generate `HttpRequest` and `Payload` instances
     pub fn to_http_parts(mut self) -> (HttpRequest, Payload) {
-        let (mut head, payload) = self.req.finish().into_parts();
+        let (mut head, payload) = self.finish().into_parts();
         head.peer_addr = self.peer_addr;
         self.path.get_mut().update(&head.uri);
 

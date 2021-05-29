@@ -7,8 +7,8 @@ use std::{net, rc::Rc};
 use actix_codec::{AsyncRead, AsyncWrite};
 use actix_rt::net::TcpStream;
 use actix_service::{
-    fn_factory, fn_service, pipeline_factory, IntoServiceFactory, Service,
-    ServiceFactory,
+    fn_factory, fn_service, IntoServiceFactory, Service, ServiceFactory,
+    ServiceFactoryExt as _,
 };
 use actix_utils::future::ready;
 use bytes::Bytes;
@@ -40,7 +40,9 @@ where
     S::Error: Into<Error> + 'static,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
+
     B: MessageBody + 'static,
+    B::Error: Into<Error>,
 {
     /// Create new `H2Service` instance with config.
     pub(crate) fn with_config<F: IntoServiceFactory<S, Request>>(
@@ -69,7 +71,9 @@ where
     S::Error: Into<Error> + 'static,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
+
     B: MessageBody + 'static,
+    B::Error: Into<Error>,
 {
     /// Create plain TCP based service
     pub fn tcp(
@@ -81,12 +85,12 @@ where
         Error = DispatchError,
         InitError = S::InitError,
     > {
-        pipeline_factory(fn_factory(|| {
+        fn_factory(|| {
             ready(Ok::<_, S::InitError>(fn_service(|io: TcpStream| {
                 let peer_addr = io.peer_addr().ok();
                 ready(Ok::<_, DispatchError>((io, peer_addr)))
             })))
-        }))
+        })
         .and_then(self)
     }
 }
@@ -106,7 +110,9 @@ mod openssl {
         S::Error: Into<Error> + 'static,
         S::Response: Into<Response<B>> + 'static,
         <S::Service as Service<Request>>::Future: 'static,
+
         B: MessageBody + 'static,
+        B::Error: Into<Error>,
     {
         /// Create OpenSSL based service
         pub fn openssl(
@@ -119,20 +125,18 @@ mod openssl {
             Error = TlsError<SslError, DispatchError>,
             InitError = S::InitError,
         > {
-            pipeline_factory(
-                Acceptor::new(acceptor)
-                    .map_err(TlsError::Tls)
-                    .map_init_err(|_| panic!()),
-            )
-            .and_then(fn_factory(|| {
-                ready(Ok::<_, S::InitError>(fn_service(
-                    |io: TlsStream<TcpStream>| {
-                        let peer_addr = io.get_ref().peer_addr().ok();
-                        ready(Ok((io, peer_addr)))
-                    },
-                )))
-            }))
-            .and_then(self.map_err(TlsError::Service))
+            Acceptor::new(acceptor)
+                .map_err(TlsError::Tls)
+                .map_init_err(|_| panic!())
+                .and_then(fn_factory(|| {
+                    ready(Ok::<_, S::InitError>(fn_service(
+                        |io: TlsStream<TcpStream>| {
+                            let peer_addr = io.get_ref().peer_addr().ok();
+                            ready(Ok((io, peer_addr)))
+                        },
+                    )))
+                }))
+                .and_then(self.map_err(TlsError::Service))
         }
     }
 }
@@ -152,7 +156,9 @@ mod rustls {
         S::Error: Into<Error> + 'static,
         S::Response: Into<Response<B>> + 'static,
         <S::Service as Service<Request>>::Future: 'static,
+
         B: MessageBody + 'static,
+        B::Error: Into<Error>,
     {
         /// Create Rustls based service
         pub fn rustls(
@@ -168,20 +174,18 @@ mod rustls {
             let protos = vec!["h2".to_string().into()];
             config.set_protocols(&protos);
 
-            pipeline_factory(
-                Acceptor::new(config)
-                    .map_err(TlsError::Tls)
-                    .map_init_err(|_| panic!()),
-            )
-            .and_then(fn_factory(|| {
-                ready(Ok::<_, S::InitError>(fn_service(
-                    |io: TlsStream<TcpStream>| {
-                        let peer_addr = io.get_ref().0.peer_addr().ok();
-                        ready(Ok((io, peer_addr)))
-                    },
-                )))
-            }))
-            .and_then(self.map_err(TlsError::Service))
+            Acceptor::new(config)
+                .map_err(TlsError::Tls)
+                .map_init_err(|_| panic!())
+                .and_then(fn_factory(|| {
+                    ready(Ok::<_, S::InitError>(fn_service(
+                        |io: TlsStream<TcpStream>| {
+                            let peer_addr = io.get_ref().0.peer_addr().ok();
+                            ready(Ok((io, peer_addr)))
+                        },
+                    )))
+                }))
+                .and_then(self.map_err(TlsError::Service))
         }
     }
 }
@@ -189,12 +193,15 @@ mod rustls {
 impl<T, S, B> ServiceFactory<(T, Option<net::SocketAddr>)> for H2Service<T, S, B>
 where
     T: AsyncRead + AsyncWrite + Unpin + 'static,
+
     S: ServiceFactory<Request, Config = ()>,
     S::Future: 'static,
     S::Error: Into<Error> + 'static,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
+
     B: MessageBody + 'static,
+    B::Error: Into<Error>,
 {
     type Response = ();
     type Error = DispatchError;
@@ -256,6 +263,7 @@ where
     S::Future: 'static,
     S::Response: Into<Response<B>> + 'static,
     B: MessageBody + 'static,
+    B::Error: Into<Error>,
 {
     type Response = ();
     type Error = DispatchError;
@@ -320,6 +328,7 @@ where
     S::Future: 'static,
     S::Response: Into<Response<B>> + 'static,
     B: MessageBody,
+    B::Error: Into<Error>,
 {
     type Output = Result<(), DispatchError>;
 

@@ -3,20 +3,23 @@ use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use actix_http::{Error, Response};
+use actix_http::Error;
 use actix_service::{Service, ServiceFactory};
 use actix_utils::future::{ready, Ready};
 use futures_core::ready;
 use pin_project::pin_project;
 
-use crate::extract::FromRequest;
-use crate::request::HttpRequest;
-use crate::responder::Responder;
-use crate::service::{ServiceRequest, ServiceResponse};
+use crate::{
+    extract::FromRequest,
+    request::HttpRequest,
+    responder::Responder,
+    response::HttpResponse,
+    service::{ServiceRequest, ServiceResponse},
+};
 
-///  A request handler is an async function that accepts zero or more parameters that can be
-///  extracted from a request (ie, [`impl FromRequest`](crate::FromRequest)) and returns a type that can be converted into
-///  an [`HttpResponse`](crate::HttpResponse) (ie, [`impl Responder`](crate::Responder)).
+/// A request handler is an async function that accepts zero or more parameters that can be
+/// extracted from a request (i.e., [`impl FromRequest`](crate::FromRequest)) and returns a type
+/// that can be converted into an [`HttpResponse`] (that is, it impls the [`Responder`] trait).
 ///
 /// If you got the error `the trait Handler<_, _, _> is not implemented`, then your function is not
 /// a valid handler. See [Request Handlers](https://actix.rs/docs/handlers/) for more information.
@@ -102,9 +105,7 @@ where
     type Error = Error;
     type Future = HandlerServiceFuture<F, T, R>;
 
-    fn poll_ready(&self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
+    actix_service::always_ready!();
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let (req, mut payload) = req.into_parts();
@@ -147,9 +148,9 @@ where
                             let state = HandlerServiceFuture::Handle(fut, req.take());
                             self.as_mut().set(state);
                         }
-                        Err(e) => {
-                            let res: Response = e.into().into();
+                        Err(err) => {
                             let req = req.take().unwrap();
+                            let res = HttpResponse::from_error(err.into());
                             return Poll::Ready(Ok(ServiceResponse::new(req, res)));
                         }
                     };

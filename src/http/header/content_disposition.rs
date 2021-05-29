@@ -10,8 +10,8 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use std::fmt::{self, Write};
 
-use crate::http::header;
 use super::{ExtendedValue, Header, IntoHeaderValue, Writer};
+use crate::http::header;
 
 /// Split at the index of the first `needle` if it exists or at the end.
 fn split_once(haystack: &str, needle: char) -> (&str, &str) {
@@ -401,15 +401,11 @@ impl ContentDisposition {
     }
 
     /// Returns `true` if it is [`Ext`](DispositionType::Ext) and the `disp_type` matches.
-    pub fn is_ext<T: AsRef<str>>(&self, disp_type: T) -> bool {
-        match self.disposition {
-            DispositionType::Ext(ref t)
-                if t.eq_ignore_ascii_case(disp_type.as_ref()) =>
-            {
-                true
-            }
-            _ => false,
-        }
+    pub fn is_ext(&self, disp_type: impl AsRef<str>) -> bool {
+        matches!(
+            self.disposition,
+            DispositionType::Ext(ref t) if t.eq_ignore_ascii_case(disp_type.as_ref())
+        )
     }
 
     /// Return the value of *name* if exists.
@@ -434,7 +430,7 @@ impl ContentDisposition {
     }
 
     /// Return the value of the parameter which the `name` matches.
-    pub fn get_unknown<T: AsRef<str>>(&self, name: T) -> Option<&str> {
+    pub fn get_unknown(&self, name: impl AsRef<str>) -> Option<&str> {
         let name = name.as_ref();
         self.parameters
             .iter()
@@ -443,7 +439,7 @@ impl ContentDisposition {
     }
 
     /// Return the value of the extended parameter which the `name` matches.
-    pub fn get_unknown_ext<T: AsRef<str>>(&self, name: T) -> Option<&ExtendedValue> {
+    pub fn get_unknown_ext(&self, name: impl AsRef<str>) -> Option<&ExtendedValue> {
         let name = name.as_ref();
         self.parameters
             .iter()
@@ -521,7 +517,8 @@ impl fmt::Display for DispositionParam {
         //
         //
         // See also comments in test_from_raw_unnecessary_percent_decode.
-        static RE: Lazy<Regex> = Lazy::new(|| Regex::new("[\x00-\x08\x10-\x1F\x7F\"\\\\]").unwrap());
+        static RE: Lazy<Regex> =
+            Lazy::new(|| Regex::new("[\x00-\x08\x10-\x1F\x7F\"\\\\]").unwrap());
         match self {
             DispositionParam::Name(ref value) => write!(f, "name={}", value),
             DispositionParam::Filename(ref value) => {
@@ -555,8 +552,7 @@ impl fmt::Display for ContentDisposition {
 #[cfg(test)]
 mod tests {
     use super::{ContentDisposition, DispositionParam, DispositionType};
-    use crate::http::header::Charset;
-    use crate::http::header::{ExtendedValue, HeaderValue};
+    use crate::http::header::{Charset, ExtendedValue, HeaderValue};
 
     #[test]
     fn test_from_raw_basic() {
@@ -618,8 +614,8 @@ mod tests {
                 charset: Charset::Ext(String::from("UTF-8")),
                 language_tag: None,
                 value: vec![
-                    0xc2, 0xa3, 0x20, b'a', b'n', b'd', 0x20, 0xe2, 0x82, 0xac, 0x20,
-                    b'r', b'a', b't', b'e', b's',
+                    0xc2, 0xa3, 0x20, b'a', b'n', b'd', 0x20, 0xe2, 0x82, 0xac, 0x20, b'r',
+                    b'a', b't', b'e', b's',
                 ],
             })],
         };
@@ -635,8 +631,8 @@ mod tests {
                 charset: Charset::Ext(String::from("UTF-8")),
                 language_tag: None,
                 value: vec![
-                    0xc2, 0xa3, 0x20, b'a', b'n', b'd', 0x20, 0xe2, 0x82, 0xac, 0x20,
-                    b'r', b'a', b't', b'e', b's',
+                    0xc2, 0xa3, 0x20, b'a', b'n', b'd', 0x20, 0xe2, 0x82, 0xac, 0x20, b'r',
+                    b'a', b't', b'e', b's',
                 ],
             })],
         };
@@ -698,26 +694,22 @@ mod tests {
 
     #[test]
     fn test_from_raw_only_disp() {
-        let a = ContentDisposition::from_raw(&HeaderValue::from_static("attachment"))
-            .unwrap();
+        let a = ContentDisposition::from_raw(&HeaderValue::from_static("attachment")).unwrap();
         let b = ContentDisposition {
             disposition: DispositionType::Attachment,
             parameters: vec![],
         };
         assert_eq!(a, b);
 
-        let a =
-            ContentDisposition::from_raw(&HeaderValue::from_static("inline ;")).unwrap();
+        let a = ContentDisposition::from_raw(&HeaderValue::from_static("inline ;")).unwrap();
         let b = ContentDisposition {
             disposition: DispositionType::Inline,
             parameters: vec![],
         };
         assert_eq!(a, b);
 
-        let a = ContentDisposition::from_raw(&HeaderValue::from_static(
-            "unknown-disp-param",
-        ))
-        .unwrap();
+        let a = ContentDisposition::from_raw(&HeaderValue::from_static("unknown-disp-param"))
+            .unwrap();
         let b = ContentDisposition {
             disposition: DispositionType::Ext(String::from("unknown-disp-param")),
             parameters: vec![],
@@ -756,8 +748,8 @@ mod tests {
         Mainstream browsers like Firefox (gecko) and Chrome use UTF-8 directly as above.
         (And now, only UTF-8 is handled by this implementation.)
         */
-        let a = HeaderValue::from_str("form-data; name=upload; filename=\"文件.webp\"")
-            .unwrap();
+        let a =
+            HeaderValue::from_str("form-data; name=upload; filename=\"文件.webp\"").unwrap();
         let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
         let b = ContentDisposition {
             disposition: DispositionType::FormData,
@@ -808,8 +800,7 @@ mod tests {
 
     #[test]
     fn test_from_raw_semicolon() {
-        let a =
-            HeaderValue::from_static("form-data; filename=\"A semicolon here;.pdf\"");
+        let a = HeaderValue::from_static("form-data; filename=\"A semicolon here;.pdf\"");
         let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
         let b = ContentDisposition {
             disposition: DispositionType::FormData,
@@ -845,9 +836,8 @@ mod tests {
         };
         assert_eq!(a, b);
 
-        let a = HeaderValue::from_static(
-            "form-data; name=photo; filename=\"%74%65%73%74.png\"",
-        );
+        let a =
+            HeaderValue::from_static("form-data; name=photo; filename=\"%74%65%73%74.png\"");
         let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
         let b = ContentDisposition {
             disposition: DispositionType::FormData,
@@ -892,8 +882,7 @@ mod tests {
 
     #[test]
     fn test_display_extended() {
-        let as_string =
-            "attachment; filename*=UTF-8'en'%C2%A3%20and%20%E2%82%AC%20rates";
+        let as_string = "attachment; filename*=UTF-8'en'%C2%A3%20and%20%E2%82%AC%20rates";
         let a = HeaderValue::from_static(as_string);
         let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
         let display_rendered = format!("{}", a);

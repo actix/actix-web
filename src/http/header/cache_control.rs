@@ -1,9 +1,7 @@
 use std::fmt::{self, Write};
 use std::str::FromStr;
 
-use super::{
-    fmt_comma_delimited, from_comma_delimited, Header, IntoHeaderValue, Writer,
-};
+use super::{fmt_comma_delimited, from_comma_delimited, Header, IntoHeaderValue, Writer};
 
 use crate::http::header;
 
@@ -51,9 +49,9 @@ use crate::http::header;
 #[derive(PartialEq, Clone, Debug)]
 pub struct CacheControl(pub Vec<CacheDirective>);
 
-__hyper__deref!(CacheControl => Vec<CacheDirective>);
+crate::__common_header_deref!(CacheControl => Vec<CacheDirective>);
 
-//TODO: this could just be the header! macro
+// TODO: this could just be the __define_common_header! macro
 impl Header for CacheControl {
     fn name() -> header::HeaderName {
         header::CACHE_CONTROL
@@ -75,7 +73,7 @@ impl Header for CacheControl {
 
 impl fmt::Display for CacheControl {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt_comma_delimited(f, &self[..])
+        fmt_comma_delimited(f, &self.0[..])
     }
 }
 
@@ -176,9 +174,7 @@ impl FromStr for CacheDirective {
                         ("max-stale", secs) => secs.parse().map(MaxStale).map_err(Some),
                         ("min-fresh", secs) => secs.parse().map(MinFresh).map_err(Some),
                         ("s-maxage", secs) => secs.parse().map(SMaxAge).map_err(Some),
-                        (left, right) => {
-                            Ok(Extension(left.to_owned(), Some(right.to_owned())))
-                        }
+                        (left, right) => Ok(Extension(left.to_owned(), Some(right.to_owned()))),
                     }
                 }
                 Some(_) => Err(None),

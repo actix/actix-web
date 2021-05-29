@@ -4,7 +4,7 @@ use std::task::{Context, Poll};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 
-use crate::body::{BodySize, MessageBody, ResponseBody};
+use crate::body::{BodySize, MessageBody};
 use crate::error::Error;
 use crate::h1::{Codec, Message};
 use crate::response::Response;
@@ -14,7 +14,7 @@ use crate::response::Response;
 pub struct SendResponse<T, B> {
     res: Option<Message<(Response<()>, BodySize)>>,
     #[pin]
-    body: Option<ResponseBody<B>>,
+    body: Option<B>,
     #[pin]
     framed: Option<Framed<T, Codec>>,
 }
@@ -22,6 +22,7 @@ pub struct SendResponse<T, B> {
 impl<T, B> SendResponse<T, B>
 where
     B: MessageBody,
+    B::Error: Into<Error>,
 {
     pub fn new(framed: Framed<T, Codec>, response: Response<B>) -> Self {
         let (res, body) = response.into_parts();
@@ -38,6 +39,7 @@ impl<T, B> Future for SendResponse<T, B>
 where
     T: AsyncRead + AsyncWrite + Unpin,
     B: MessageBody + Unpin,
+    B::Error: Into<Error>,
 {
     type Output = Result<Framed<T, Codec>, Error>;
 
@@ -60,7 +62,18 @@ where
                         .unwrap()
                         .is_write_buf_full()
                 {
-                    match this.body.as_mut().as_pin_mut().unwrap().poll_next(cx)? {
+                    let next =
+                        // TODO: MSRV 1.51: poll_map_err
+                        match this.body.as_mut().as_pin_mut().unwrap().poll_next(cx) {
+                            Poll::Ready(Some(Ok(item))) => Poll::Ready(Some(item)),
+                            Poll::Ready(Some(Err(err))) => {
+                                return Poll::Ready(Err(err.into()))
+                            }
+                            Poll::Ready(None) => Poll::Ready(None),
+                            Poll::Pending => Poll::Pending,
+                        };
+
+                    match next {
                         Poll::Ready(item) => {
                             // body is done when item is None
                             body_done = item.is_none();

@@ -2,16 +2,18 @@
 
 use std::{
     cell::{Ref, RefMut},
-    fmt, net,
+    fmt, net, str,
 };
 
 use http::{header, Method, Uri, Version};
 
-use crate::extensions::Extensions;
-use crate::header::HeaderMap;
-use crate::message::{Message, RequestHead};
-use crate::payload::{Payload, PayloadStream};
-use crate::HttpMessage;
+use crate::{
+    extensions::Extensions,
+    header::HeaderMap,
+    message::{Message, RequestHead},
+    payload::{Payload, PayloadStream},
+    HttpMessage,
+};
 
 /// Request
 pub struct Request<P = PayloadStream> {

@@ -5,7 +5,9 @@ use std::{fmt, net};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_rt::net::TcpStream;
-use actix_service::{pipeline_factory, IntoServiceFactory, Service, ServiceFactory};
+use actix_service::{
+    fn_service, IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt as _,
+};
 use actix_utils::future::ready;
 use futures_core::future::LocalBoxFuture;
 
@@ -62,11 +64,15 @@ where
     S::Error: Into<Error>,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
+
     B: MessageBody,
+    B::Error: Into<Error>,
+
     X: ServiceFactory<Request, Config = (), Response = Request>,
     X::Future: 'static,
     X::Error: Into<Error>,
     X::InitError: fmt::Debug,
+
     U: ServiceFactory<(Request, Framed<TcpStream, Codec>), Config = (), Response = ()>,
     U::Future: 'static,
     U::Error: fmt::Display + Into<Error>,
@@ -82,7 +88,7 @@ where
         Error = DispatchError,
         InitError = (),
     > {
-        pipeline_factory(|io: TcpStream| {
+        fn_service(|io: TcpStream| {
             let peer_addr = io.peer_addr().ok();
             ready(Ok((io, peer_addr)))
         })
@@ -107,11 +113,15 @@ mod openssl {
         S::Error: Into<Error>,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>>,
+
         B: MessageBody,
+        B::Error: Into<Error>,
+
         X: ServiceFactory<Request, Config = (), Response = Request>,
         X::Future: 'static,
         X::Error: Into<Error>,
         X::InitError: fmt::Debug,
+
         U: ServiceFactory<
             (Request, Framed<TlsStream<TcpStream>, Codec>),
             Config = (),
@@ -132,16 +142,14 @@ mod openssl {
             Error = TlsError<SslError, DispatchError>,
             InitError = (),
         > {
-            pipeline_factory(
-                Acceptor::new(acceptor)
-                    .map_err(TlsError::Tls)
-                    .map_init_err(|_| panic!()),
-            )
-            .and_then(|io: TlsStream<TcpStream>| {
-                let peer_addr = io.get_ref().peer_addr().ok();
-                ready(Ok((io, peer_addr)))
-            })
-            .and_then(self.map_err(TlsError::Service))
+            Acceptor::new(acceptor)
+                .map_err(TlsError::Tls)
+                .map_init_err(|_| panic!())
+                .and_then(|io: TlsStream<TcpStream>| {
+                    let peer_addr = io.get_ref().peer_addr().ok();
+                    ready(Ok((io, peer_addr)))
+                })
+                .and_then(self.map_err(TlsError::Service))
         }
     }
 }
@@ -165,11 +173,15 @@ mod rustls {
         S::Error: Into<Error>,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>>,
+
         B: MessageBody,
+        B::Error: Into<Error>,
+
         X: ServiceFactory<Request, Config = (), Response = Request>,
         X::Future: 'static,
         X::Error: Into<Error>,
         X::InitError: fmt::Debug,
+
         U: ServiceFactory<
             (Request, Framed<TlsStream<TcpStream>, Codec>),
             Config = (),
@@ -190,16 +202,14 @@ mod rustls {
             Error = TlsError<io::Error, DispatchError>,
             InitError = (),
         > {
-            pipeline_factory(
-                Acceptor::new(config)
-                    .map_err(TlsError::Tls)
-                    .map_init_err(|_| panic!()),
-            )
-            .and_then(|io: TlsStream<TcpStream>| {
-                let peer_addr = io.get_ref().0.peer_addr().ok();
-                ready(Ok((io, peer_addr)))
-            })
-            .and_then(self.map_err(TlsError::Service))
+            Acceptor::new(config)
+                .map_err(TlsError::Tls)
+                .map_init_err(|_| panic!())
+                .and_then(|io: TlsStream<TcpStream>| {
+                    let peer_addr = io.get_ref().0.peer_addr().ok();
+                    ready(Ok((io, peer_addr)))
+                })
+                .and_then(self.map_err(TlsError::Service))
         }
     }
 }
@@ -255,16 +265,21 @@ impl<T, S, B, X, U> ServiceFactory<(T, Option<net::SocketAddr>)>
     for H1Service<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin + 'static,
+
     S: ServiceFactory<Request, Config = ()>,
     S::Future: 'static,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
     S::InitError: fmt::Debug,
+
     B: MessageBody,
+    B::Error: Into<Error>,
+
     X: ServiceFactory<Request, Config = (), Response = Request>,
     X::Future: 'static,
     X::Error: Into<Error>,
     X::InitError: fmt::Debug,
+
     U: ServiceFactory<(Request, Framed<T, Codec>), Config = (), Response = ()>,
     U::Future: 'static,
     U::Error: fmt::Display + Into<Error>,
@@ -321,12 +336,17 @@ impl<T, S, B, X, U> Service<(T, Option<net::SocketAddr>)>
     for HttpServiceHandler<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
+
     S: Service<Request>,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
+
     B: MessageBody,
+    B::Error: Into<Error>,
+
     X: Service<Request, Response = Request>,
     X::Error: Into<Error>,
+
     U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display + Into<Error>,
 {
