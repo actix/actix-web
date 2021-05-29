@@ -13,9 +13,11 @@
 
 ### Removed
 * `HttpResponse::take_body` and old `HttpResponse::into_body` method that casted body type. [#2201]
+* `FromRequest::Config` was removed
 
 [#2200]: https://github.com/actix/actix-web/pull/2200
 [#2201]: https://github.com/actix/actix-web/pull/2201
+[#2233]: https://github.com/actix/actix-web/pull/2233
 
 
 ## 4.0.0-beta.6 - 2021-04-17
