@@ -229,8 +229,9 @@ impl FormConfig {
         self
     }
 
-    /// Extract payload config from app data. Check both `T` and `Data<T>`, in that order, and fall
-    /// back to the default payload config.
+    /// Extract payload config from app data.
+    ///
+    /// Checks both `T` and `Data<T>`, in that order, and falls back to the default payload config.
     fn from_req(req: &HttpRequest) -> &Self {
         req.app_data::<Self>()
             .or_else(|| req.app_data::<web::Data<Self>>().map(|d| d.as_ref()))
