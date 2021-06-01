@@ -247,7 +247,7 @@ const DEFAULT_CONFIG: FormConfig = FormConfig {
 
 impl Default for FormConfig {
     fn default() -> Self {
-        DEFAULT_CONFIG.clone()
+        DEFAULT_CONFIG
     }
 }
 
