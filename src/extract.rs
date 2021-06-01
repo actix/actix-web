@@ -14,7 +14,7 @@ use crate::{dev::Payload, Error, HttpRequest};
 /// [`FromRequest`] is one of the most commonly used trait, although some may not realize it.
 ///
 /// A type that implements [`FromRequest`] is called an **extractor** and can extract data
-/// from the request, for example [`Json`], [`Form`], [`Path`] and so on.
+/// from the request. Examples of types that implement this trait are [`Json`], [`Form`], [`Path`].
 ///
 /// An extractor can be customized by injecting the corresponding configuration with:
 ///
