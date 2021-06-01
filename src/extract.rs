@@ -26,7 +26,7 @@ use crate::{dev::Payload, Error, HttpRequest};
 /// - [`Resource::app_data()`](`crate::Resource::app_data`)
 ///
 /// Here are some built-in extractors and their corresponding configuration.
-/// Please refer to the respective documents for details.
+/// Please refer to the respective documentation for details.
 ///
 /// | Extractor   | Configuration     |
 /// |-------------|-------------------|
