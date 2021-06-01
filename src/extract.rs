@@ -50,7 +50,7 @@ use crate::{dev::Payload, Error, HttpRequest};
 /// [`PayloadConfig`]: crate::web::PayloadConfig
 /// [`String`]: FromRequest#impl-FromRequest-for-String
 /// [`Bytes`]: crate::web::Bytes#impl-FromRequest
-#[doc(alias = "Extractor")]
+#[cfg_attr(docsrs, doc(alias = "Extractor"))]
 pub trait FromRequest: Sized {
     /// The associated error which can be returned.
     type Error: Into<Error>;
