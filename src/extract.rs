@@ -11,9 +11,46 @@ use futures_core::ready;
 
 use crate::{dev::Payload, Error, HttpRequest};
 
-/// Trait implemented by types that can be extracted from request.
+/// [`FromRequest`] is one of the most commonly used trait, although some may not realize it.
 ///
-/// Types that implement this trait can be used with `Route` handlers.
+/// A type that implements [`FromRequest`] is called an **extractor** and can be extracted
+/// from the request, for example [`Json`], [`Form`], [`Path`] and so on.
+///
+/// An extractor can be customized by injecting the corresponding configuration with:
+///
+/// - [`App::data()`](`crate::App::data`)
+/// - [`App::app_data()`](`crate::App::app_data`)
+/// - [`Scope::data()`](`crate::Scope::data`)
+/// - [`Scope::app_data()`](`crate::Scope::app_data`)
+/// - [`Resource::data()`](`crate::Resource::data`)
+/// - [`Resource::app_data()`](`crate::Resource::app_data`)
+///
+/// Here are some built-in extractors and their corresponding configuration.
+/// Please refer to the respective documents for details.
+///
+/// | Extractor   | Configuration     |
+/// |-------------|-------------------|
+/// | [`Json`]    | [`JsonConfig`]    |
+/// | [`Form`]    | [`FormConfig`]    |
+/// | [`Path`]    | [`PathConfig`]    |
+/// | [`Query`]   | [`QueryConfig`]   |
+/// | [`Payload`] | [`PayloadConfig`] |
+/// | [`String`]  | [`PayloadConfig`] |
+/// | [`Bytes`]   | [`PayloadConfig`] |
+///
+/// [`Json`]: crate::web::Json
+/// [`JsonConfig`]: crate::web::JsonConfig
+/// [`Form`]: crate::web::Form
+/// [`FormConfig`]: crate::web::FormConfig
+/// [`Path`]: crate::web::Path
+/// [`PathConfig`]: crate::web::PathConfig
+/// [`Query`]: crate::web::Query
+/// [`QueryConfig`]: crate::web::QueryConfig
+/// [`Payload`]: crate::web::Payload
+/// [`PayloadConfig`]: crate::web::PayloadConfig
+/// [`String`]: FromRequest#impl-FromRequest-for-String
+/// [`Bytes`]: crate::web::Bytes#impl-FromRequest
+#[doc(alias = "Extractor")]
 pub trait FromRequest: Sized {
     /// The associated error which can be returned.
     type Error: Into<Error>;
