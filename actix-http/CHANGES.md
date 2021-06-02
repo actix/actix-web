@@ -9,6 +9,7 @@
 * Re-export `ContentEncoding` and `ConnectionType` at the crate root. [#2171]
 * `Response::into_body` that consumes response and returns body type. [#2201]
 * `impl Default` for `Response`. [#2201]
+* Add zstd support for `ContentEncoding`.
 
 ### Changed
 * The `MessageBody` trait now has an associated `Error` type. [#2183]
