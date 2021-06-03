@@ -23,6 +23,9 @@ pub enum ContentEncoding {
     /// Gzip algorithm.
     Gzip,
 
+    // Zstd algorithm.
+    Zstd,
+
     /// Indicates the identity function (i.e. no compression, nor modification).
     Identity,
 }
@@ -41,6 +44,7 @@ impl ContentEncoding {
             ContentEncoding::Br => "br",
             ContentEncoding::Gzip => "gzip",
             ContentEncoding::Deflate => "deflate",
+            ContentEncoding::Zstd => "zstd",
             ContentEncoding::Identity | ContentEncoding::Auto => "identity",
         }
     }
@@ -53,6 +57,7 @@ impl ContentEncoding {
             ContentEncoding::Gzip => 1.0,
             ContentEncoding::Deflate => 0.9,
             ContentEncoding::Identity | ContentEncoding::Auto => 0.1,
+            ContentEncoding::Zstd => 0.0,
         }
     }
 }
@@ -81,6 +86,8 @@ impl From<&str> for ContentEncoding {
             ContentEncoding::Gzip
         } else if val.eq_ignore_ascii_case("deflate") {
             ContentEncoding::Deflate
+        } else if val.eq_ignore_ascii_case("zstd") {
+            ContentEncoding::Zstd
         } else {
             ContentEncoding::default()
         }
