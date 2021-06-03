@@ -226,7 +226,7 @@ mod tests {
         for uri in test_uris {
             let req = TestRequest::with_uri(uri).to_request();
             let res = call_service(&app, req).await;
-            assert!(res.status().is_success());
+            assert!(res.status().is_success(), "Failed uri: {}", uri);
         }
     }
 
@@ -263,7 +263,7 @@ mod tests {
         for uri in test_uris {
             let req = TestRequest::with_uri(uri).to_request();
             let res = call_service(&app, req).await;
-            assert!(res.status().is_success());
+            assert!(res.status().is_success(), "Failed uri: {}", uri);
         }
     }
 
@@ -283,7 +283,7 @@ mod tests {
         for uri in test_uris {
             let req = TestRequest::with_uri(uri).to_request();
             let res = call_service(&app, req).await;
-            assert!(res.status().is_success());
+            assert!(res.status().is_success(), "Failed uri: {}", uri);
         }
     }
 
@@ -320,7 +320,7 @@ mod tests {
         for uri in test_uris {
             let req = TestRequest::with_uri(uri).to_request();
             let res = call_service(&app, req).await;
-            assert!(res.status().is_success());
+            assert!(res.status().is_success(), "Failed uri: {}", uri);
         }
     }
 
@@ -342,7 +342,7 @@ mod tests {
         for uri in test_uris {
             let req = TestRequest::with_uri(uri).to_request();
             let res = call_service(&app, req).await;
-            assert!(res.status().is_success());
+            assert!(res.status().is_success(), "Failed uri: {}", uri);
         }
     }
 
@@ -380,10 +380,10 @@ mod tests {
             ("//v2//something?query=test", true),
         ];
 
-        for (path, success) in tests {
-            let req = TestRequest::with_uri(path).to_request();
+        for (uri, success) in tests {
+            let req = TestRequest::with_uri(uri).to_request();
             let res = call_service(&app, req).await;
-            assert_eq!(res.status().is_success(), success);
+            assert_eq!(res.status().is_success(), success, "Failed uri: {}", uri);
         }
     }
 
@@ -409,7 +409,7 @@ mod tests {
         for uri in test_uris {
             let req = TestRequest::with_uri(uri).to_srv_request();
             let res = normalize.call(req).await.unwrap();
-            assert!(res.status().is_success());
+            assert!(res.status().is_success(), "Failed uri: {}", uri);
         }
     }
 
