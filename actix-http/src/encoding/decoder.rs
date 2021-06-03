@@ -46,10 +46,9 @@ where
             ContentEncoding::Gzip => Some(ContentDecoder::Gzip(Box::new(
                 GzDecoder::new(Writer::new()),
             ))),
-            ContentEncoding::Zstd => match ZstdDecoder::new(Writer::new()) {
-                Ok(decoder) => Some(ContentDecoder::Zstd(Box::new(decoder))),
-                Err(_) => None,
-            },
+            ContentEncoding::Zstd => Some(ContentDecoder::Zstd(Box::new(
+                ZstdDecoder::new(Writer::new()).expect("Fail to create zstd decoder"),
+            ))),
             _ => None,
         };
 
