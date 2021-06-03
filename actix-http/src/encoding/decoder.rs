@@ -50,7 +50,7 @@ where
                 ZstdDecoder::new(Writer::new())
                     .expect(
                         "Failed to create zstd decoder. This is a bug. \
-                        Please report it to the actix-web repository."
+                         Please report it to the actix-web repository.",
                     ),
             ))),
             _ => None,
