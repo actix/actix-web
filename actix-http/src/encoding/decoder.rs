@@ -49,7 +49,7 @@ where
             ContentEncoding::Zstd => Some(ContentDecoder::Zstd(Box::new(
                 ZstdDecoder::new(Writer::new())
                     .expect(
-                        "Failed to create zstd decoder. This is a bug and should normally happen. \
+                        "Failed to create zstd decoder. This is a bug. \
                         Please report it to the actix-web repository."
                     ),
             ))),
