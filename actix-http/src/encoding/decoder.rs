@@ -47,7 +47,11 @@ where
                 GzDecoder::new(Writer::new()),
             ))),
             ContentEncoding::Zstd => Some(ContentDecoder::Zstd(Box::new(
-                ZstdDecoder::new(Writer::new()).expect("Fail to create zstd decoder"),
+                ZstdDecoder::new(Writer::new())
+                    .expect(
+                        "Failed to create zstd decoder. This is a bug and should normally happen. \
+                        Please report it to the actix-web repository."
+                    ),
             ))),
             _ => None,
         };
