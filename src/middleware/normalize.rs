@@ -143,7 +143,7 @@ where
             // Either adds a string to the end (duplicates will be removed anyways) or trims all
             // slashes from the end
             let path = match self.trailing_slash_behavior {
-                TrailingSlash::Always => original_path.to_string() + "/",
+                TrailingSlash::Always => format!("{}/", original_path),
                 TrailingSlash::MergeOnly => original_path.to_string(),
                 TrailingSlash::Trim => original_path.trim_end_matches('/').to_string(),
             };
@@ -170,10 +170,9 @@ where
                 let mut parts = head.uri.clone().into_parts();
                 let query = parts.path_and_query.as_ref().and_then(|pq| pq.query());
 
-                let path = if let Some(q) = query {
-                    Bytes::from(format!("{}?{}", path, q))
-                } else {
-                    Bytes::copy_from_slice(path.as_bytes())
+                let path = match query {
+                    Some(q) => Bytes::from(format!("{}?{}", path, q)),
+                    None => Bytes::copy_from_slice(path.as_bytes()),
                 };
                 parts.path_and_query = Some(PathAndQuery::from_maybe_shared(path).unwrap());
 
