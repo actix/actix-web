@@ -417,7 +417,10 @@ async fn test_h2_response_http_error_handling() {
 
     // read response
     let bytes = srv.load_body(response).await.unwrap();
-    assert_eq!(bytes, Bytes::from_static(b"failed to parse header value"));
+    assert_eq!(
+        bytes,
+        Bytes::from_static(b"error processing HTTP: failed to parse header value")
+    );
 }
 
 #[derive(Debug, Display, Error)]
@@ -426,7 +429,7 @@ struct BadRequest;
 
 impl From<BadRequest> for Response<AnyBody> {
     fn from(_: BadRequest) -> Self {
-        Response::bad_request()
+        Response::bad_request().set_body(AnyBody::from("error"))
     }
 }
 

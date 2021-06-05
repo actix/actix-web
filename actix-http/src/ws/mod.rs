@@ -141,7 +141,7 @@ impl From<&HandshakeError> for Response<AnyBody> {
 
 impl From<HandshakeError> for Response<AnyBody> {
     fn from(err: HandshakeError) -> Self {
-        err.into()
+        (&err).into()
     }
 }
 

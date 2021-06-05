@@ -188,8 +188,7 @@ impl Route {
 
 #[cfg(test)]
 mod tests {
-    use std::convert::Infallible;
-    use std::time::Duration;
+    use std::{convert::Infallible, time::Duration};
 
     use actix_rt::time::sleep;
     use bytes::Bytes;

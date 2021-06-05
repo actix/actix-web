@@ -91,7 +91,7 @@ async fn test_expect_continue() {
     let _ = stream.write_all(b"GET /test HTTP/1.1\r\nexpect: 100-continue\r\n\r\n");
     let mut data = String::new();
     let _ = stream.read_to_string(&mut data);
-    assert!(data.starts_with("HTTP/1.1 412 Expectation Failed\r\ncontent-length"));
+    assert!(data.starts_with("HTTP/1.1 417 Expectation Failed\r\ncontent-length"));
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
     let _ = stream.write_all(b"GET /test?yes= HTTP/1.1\r\nexpect: 100-continue\r\n\r\n");
@@ -122,7 +122,7 @@ async fn test_expect_continue_h1() {
     let _ = stream.write_all(b"GET /test HTTP/1.1\r\nexpect: 100-continue\r\n\r\n");
     let mut data = String::new();
     let _ = stream.read_to_string(&mut data);
-    assert!(data.starts_with("HTTP/1.1 412 Precondition Failed\r\ncontent-length"));
+    assert!(data.starts_with("HTTP/1.1 417 Expectation Failed\r\ncontent-length"));
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
     let _ = stream.write_all(b"GET /test?yes= HTTP/1.1\r\nexpect: 100-continue\r\n\r\n");
@@ -657,7 +657,7 @@ async fn test_h1_response_http_error_handling() {
 
     // read response
     let bytes = srv.load_body(response).await.unwrap();
-    assert_eq!(bytes, Bytes::from_static(b"failed to parse header value"));
+    assert_eq!(bytes, Bytes::from_static(b"error processing HTTP: failed to parse header value"));
 }
 
 #[derive(Debug, Display, Error)]
@@ -666,7 +666,7 @@ struct BadRequest;
 
 impl From<BadRequest> for Response<AnyBody> {
     fn from(_: BadRequest) -> Self {
-        Response::bad_request()
+        Response::bad_request().set_body(AnyBody::from("error"))
     }
 }
 

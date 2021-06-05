@@ -7,7 +7,7 @@ use std::{
 
 use actix_http::{
     http::{HeaderMap, Method, Uri, Version},
-    Error, Extensions, HttpMessage, Message, Payload, RequestHead,
+    Extensions, HttpMessage, Message, Payload, RequestHead,
 };
 use actix_router::{Path, Url};
 use actix_utils::future::{ok, Ready};
@@ -17,7 +17,7 @@ use smallvec::SmallVec;
 
 use crate::{
     app_service::AppInitServiceState, config::AppConfig, error::UrlGenerationError,
-    extract::FromRequest, info::ConnectionInfo, rmap::ResourceMap,
+    info::ConnectionInfo, rmap::ResourceMap, Error, FromRequest,
 };
 
 #[cfg(feature = "cookies")]
