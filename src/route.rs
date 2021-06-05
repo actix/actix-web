@@ -188,6 +188,7 @@ impl Route {
 
 #[cfg(test)]
 mod tests {
+    use std::convert::Infallible;
     use std::time::Duration;
 
     use actix_rt::time::sleep;
@@ -215,7 +216,7 @@ mod tests {
                         }))
                         .route(web::post().to(|| async {
                             sleep(Duration::from_millis(100)).await;
-                            Ok::<_, ()>(HttpResponse::Created())
+                            Ok::<_, Infallible>(HttpResponse::Created())
                         }))
                         .route(web::delete().to(|| async {
                             sleep(Duration::from_millis(100)).await;

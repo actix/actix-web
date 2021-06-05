@@ -2,9 +2,9 @@ use std::cell::{Ref, RefMut};
 use std::rc::Rc;
 use std::{fmt, net};
 
-use actix_http::body::{Body, MessageBody};
-use actix_http::http::{HeaderMap, Method, StatusCode, Uri, Version};
 use actix_http::{
+    body::{AnyBody, MessageBody},
+    http::{HeaderMap, Method, StatusCode, Uri, Version},
     Extensions, HttpMessage, Payload, PayloadStream, RequestHead, Response, ResponseHead,
 };
 use actix_router::{IntoPattern, Path, Resource, ResourceDef, Url};
@@ -330,12 +330,12 @@ impl fmt::Debug for ServiceRequest {
     }
 }
 
-pub struct ServiceResponse<B = Body> {
+pub struct ServiceResponse<B = AnyBody> {
     request: HttpRequest,
     response: HttpResponse<B>,
 }
 
-impl ServiceResponse<Body> {
+impl ServiceResponse<AnyBody> {
     /// Create service response from the error
     pub fn from_err<E: Into<Error>>(err: E, request: HttpRequest) -> Self {
         let response = HttpResponse::from_error(err);

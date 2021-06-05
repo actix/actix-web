@@ -196,7 +196,7 @@ mod tests {
         pin!(val);
         assert_eq!(val.size(), BodySize::Empty);
         assert!(poll_fn(|cx| val.as_mut().poll_next(cx)).await.is_none());
-    
+
         let mut val = Box::pin(());
         assert_eq!(val.size(), BodySize::Empty);
         assert!(poll_fn(|cx| val.as_mut().poll_next(cx)).await.is_none());

@@ -1,12 +1,13 @@
 use std::{any::type_name, ops::Deref, sync::Arc};
 
-use actix_http::{ Extensions};
+use actix_http::Extensions;
 use actix_utils::future::{err, ok, Ready};
 use futures_core::future::LocalBoxFuture;
 use serde::Serialize;
 
 use crate::{
-    dev::Payload,Error, error::ErrorInternalServerError, extract::FromRequest, request::HttpRequest,
+    dev::Payload, error::ErrorInternalServerError, extract::FromRequest, request::HttpRequest,
+    Error,
 };
 
 /// Data factory.

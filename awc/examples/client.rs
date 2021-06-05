@@ -1,7 +1,7 @@
-use actix_http::Error;
+use std::error::Error as StdError;
 
 #[actix_web::main]
-async fn main() -> Result<(), Error> {
+async fn main() -> Result<(), Box<dyn StdError>> {
     std::env::set_var("RUST_LOG", "actix_http=trace");
     env_logger::init();
 

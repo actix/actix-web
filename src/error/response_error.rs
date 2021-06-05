@@ -6,10 +6,7 @@ use std::{
     io::{self, Write as _},
 };
 
-use actix_http::{
-    body::{AnyBody, Body},
-    header, Response, StatusCode,
-};
+use actix_http::{body::AnyBody, header, Response, StatusCode};
 use bytes::BytesMut;
 
 use crate::{__downcast_dyn, __downcast_get_type_id};
@@ -76,6 +73,12 @@ impl<T: ResponseError + 'static> From<T> for Error {
         Error {
             cause: Box::new(err),
         }
+    }
+}
+
+impl From<Error> for Response<AnyBody> {
+    fn from(err: Error) -> Response<AnyBody> {
+        err.error_response().into()
     }
 }
 
@@ -164,7 +167,7 @@ impl ResponseError for actix_http::Error {
     }
 
     fn error_response(&self) -> HttpResponse {
-        HttpResponse::new(self.status_code()).set_body(Body::from(self.to_string()))
+        HttpResponse::new(self.status_code()).set_body(self.to_string().into())
     }
 }
 
@@ -191,6 +194,8 @@ impl ResponseError for actix_http::error::PayloadError {
     }
 }
 
+impl ResponseError for actix_http::ws::ProtocolError {}
+
 impl ResponseError for actix_http::error::ContentTypeError {
     fn status_code(&self) -> StatusCode {
         StatusCode::BAD_REQUEST
@@ -209,10 +214,14 @@ mod tests {
 
     #[test]
     fn test_error_casting() {
-        let err = actix_http::error::PayloadError::Overflow;
+        use actix_http::error::{ContentTypeError, PayloadError};
+
+        let err = PayloadError::Overflow;
         let resp_err: &dyn ResponseError = &err;
+
         let err = resp_err.downcast_ref::<PayloadError>().unwrap();
         assert_eq!(err.to_string(), "Payload reached size limit.");
+
         let not_err = resp_err.downcast_ref::<ContentTypeError>();
         assert!(not_err.is_none());
     }

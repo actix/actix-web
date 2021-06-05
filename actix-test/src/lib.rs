@@ -154,7 +154,9 @@ where
                     let app_cfg =
                         AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
 
-                    let fac = factory().into_factory().map_err(|err| err.into());
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
 
                     HttpService::build()
                         .client_timeout(timeout)
@@ -165,7 +167,9 @@ where
                     let app_cfg =
                         AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
 
-                    let fac = factory().into_factory().map_err(|err| err.into());
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
 
                     HttpService::build()
                         .client_timeout(timeout)
@@ -176,7 +180,9 @@ where
                     let app_cfg =
                         AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
 
-                    let fac = factory().into_factory().map_err(|err| err.into());
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
 
                     HttpService::build()
                         .client_timeout(timeout)
@@ -190,7 +196,9 @@ where
                     let app_cfg =
                         AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
 
-                    let fac = factory().into_factory().map_err(|err| err.into());
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
 
                     HttpService::build()
                         .client_timeout(timeout)
@@ -201,7 +209,9 @@ where
                     let app_cfg =
                         AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
 
-                    let fac = factory().into_factory().map_err(|err| err.into());
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
 
                     HttpService::build()
                         .client_timeout(timeout)
@@ -212,7 +222,9 @@ where
                     let app_cfg =
                         AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
 
-                    let fac = factory().into_factory().map_err(|err| err.into());
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
 
                     HttpService::build()
                         .client_timeout(timeout)
@@ -226,7 +238,9 @@ where
                     let app_cfg =
                         AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
 
-                    let fac = factory().into_factory().map_err(|err| err.into());
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
 
                     HttpService::build()
                         .client_timeout(timeout)
@@ -237,7 +251,9 @@ where
                     let app_cfg =
                         AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
 
-                    let fac = factory().into_factory().map_err(|err| err.into());
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
 
                     HttpService::build()
                         .client_timeout(timeout)
@@ -248,7 +264,9 @@ where
                     let app_cfg =
                         AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
 
-                    let fac = factory().into_factory().map_err(|err| err.into());
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
 
                     HttpService::build()
                         .client_timeout(timeout)

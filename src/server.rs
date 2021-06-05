@@ -8,9 +8,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use actix_http::{
-    body::MessageBody, Error, Extensions, HttpService, KeepAlive, Request, Response,
-};
+use actix_http::{body::MessageBody, Extensions, HttpService, KeepAlive, Request, Response};
 use actix_server::{Server, ServerBuilder};
 use actix_service::{
     map_config, IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt as _,
@@ -21,7 +19,7 @@ use actix_tls::accept::openssl::{AlpnError, SslAcceptor, SslAcceptorBuilder};
 #[cfg(feature = "rustls")]
 use actix_tls::accept::rustls::ServerConfig as RustlsServerConfig;
 
-use crate::config::AppConfig;
+use crate::{config::AppConfig, Error};
 
 struct Socket {
     scheme: &'static str,
@@ -305,7 +303,9 @@ where
                         svc
                     };
 
-                    let fac = factory().into_factory().map_err(|err| err.into());
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
 
                     svc.finish(map_config(fac, move |_| {
                         AppConfig::new(false, host.clone(), addr)
@@ -362,7 +362,9 @@ where
                         svc
                     };
 
-                    let fac = factory().into_factory().map_err(|err| err.into());
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
 
                     svc.finish(map_config(fac, move |_| {
                         AppConfig::new(true, host.clone(), addr)
@@ -418,7 +420,9 @@ where
                         svc
                     };
 
-                    let fac = factory().into_factory().map_err(|err| err.into());
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
 
                     svc.finish(map_config(fac, move |_| {
                         AppConfig::new(true, host.clone(), addr)
@@ -543,7 +547,9 @@ where
                     svc
                 };
 
-                let fac = factory().into_factory().map_err(|err| err.into());
+                let fac = factory()
+                    .into_factory()
+                    .map_err(|err| err.into().error_response());
 
                 svc.finish(map_config(fac, move |_| config.clone()))
             })
@@ -581,7 +587,9 @@ where
                     socket_addr,
                 );
 
-                let fac = factory().into_factory().map_err(|err| err.into());
+                let fac = factory()
+                    .into_factory()
+                    .map_err(|err| err.into().error_response());
 
                 fn_service(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) }).and_then(
                     HttpService::build()

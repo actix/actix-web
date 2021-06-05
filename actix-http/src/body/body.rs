@@ -164,9 +164,10 @@ impl From<BytesMut> for AnyBody {
     }
 }
 
-impl<S> From<SizedStream<S>> for AnyBody
+impl<S, E> From<SizedStream<S>> for AnyBody
 where
-    S: Stream<Item = Result<Bytes, Error>> + 'static,
+    S: Stream<Item = Result<Bytes, E>> + 'static,
+    E: Into<Box<dyn StdError>> + 'static,
 {
     fn from(s: SizedStream<S>) -> Body {
         AnyBody::from_message(s)

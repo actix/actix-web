@@ -326,8 +326,19 @@ pub enum EncoderError<E> {
     Io(io::Error),
 }
 
-impl<E: StdError> StdError for EncoderError<E> {
+impl<E: StdError + 'static> StdError for EncoderError<E> {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        None
+        match self {
+            EncoderError::Body(err) => Some(err),
+            EncoderError::Boxed(err) => Some(&**err),
+            EncoderError::Blocking(err) => Some(err),
+            EncoderError::Io(err) => Some(err),
+        }
+    }
+}
+
+impl<E: StdError + 'static> From<EncoderError<E>> for crate::Error {
+    fn from(err: EncoderError<E>) -> Self {
+        crate::Error::new_encoder().with_cause(err)
     }
 }

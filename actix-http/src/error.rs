@@ -5,7 +5,10 @@ use std::{error::Error as StdError, fmt, io, str::Utf8Error, string::FromUtf8Err
 use derive_more::{Display, Error, From};
 use http::{uri::InvalidUri, StatusCode};
 
-use crate::{Response, body::{AnyBody, Body}, ws};
+use crate::{
+    body::{AnyBody, Body},
+    ws, Response,
+};
 
 pub use http::Error as HttpError;
 
@@ -46,8 +49,14 @@ impl Error {
         Self::new(Kind::SendResponse)
     }
 
+    // TODO: remove allow
+    #[allow(dead_code)]
     pub(crate) fn new_io() -> Self {
         Self::new(Kind::Io)
+    }
+
+    pub(crate) fn new_encoder() -> Self {
+        Self::new(Kind::Encoder)
     }
 
     pub(crate) fn new_ws() -> Self {
@@ -93,6 +102,9 @@ pub enum Kind {
 
     #[display(fmt = "connection error")]
     Io,
+
+    #[display(fmt = "encoder error")]
+    Encoder,
 }
 
 impl fmt::Debug for Error {
@@ -424,7 +436,10 @@ mod tests {
     fn test_as_response() {
         let orig = io::Error::new(io::ErrorKind::Other, "other");
         let err: Error = ParseError::Io(orig).into();
-        assert_eq!(format!("{}", err), "error parsing HTTP message: IO error: other");
+        assert_eq!(
+            format!("{}", err),
+            "error parsing HTTP message: IO error: other"
+        );
     }
 
     #[test]
