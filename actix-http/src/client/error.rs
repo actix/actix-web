@@ -5,8 +5,8 @@ use derive_more::{Display, From};
 #[cfg(feature = "openssl")]
 use actix_tls::accept::openssl::SslError;
 
-use crate::error::{Error, ParseError, ResponseError};
-use crate::http::{Error as HttpError, StatusCode};
+use crate::error::{Error, ParseError};
+use crate::http::Error as HttpError;
 
 /// A set of errors that can occur while connecting to an HTTP host
 #[derive(Debug, Display, From)]
@@ -118,19 +118,6 @@ pub enum SendRequestError {
 }
 
 impl std::error::Error for SendRequestError {}
-
-/// Convert `SendRequestError` to a server `Response`
-impl ResponseError for SendRequestError {
-    fn status_code(&self) -> StatusCode {
-        match *self {
-            SendRequestError::Connect(ConnectError::Timeout) => {
-                StatusCode::GATEWAY_TIMEOUT
-            }
-            SendRequestError::Connect(_) => StatusCode::BAD_REQUEST,
-            _ => StatusCode::INTERNAL_SERVER_ERROR,
-        }
-    }
-}
 
 /// A set of errors that can occur during freezing a request
 #[derive(Debug, Display, From)]

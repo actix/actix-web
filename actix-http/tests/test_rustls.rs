@@ -14,7 +14,7 @@ use actix_http::{
         header::{self, HeaderName, HeaderValue},
         Method, StatusCode, Version,
     },
-    Error, HttpService, Request, Response, ResponseError,
+    Error, HttpService, Request, Response,
 };
 use actix_http_test::test_server;
 use actix_service::{fn_factory_with_config, fn_service};
@@ -152,7 +152,7 @@ async fn test_h2_content_length() {
                     StatusCode::OK,
                     StatusCode::NOT_FOUND,
                 ];
-                ok::<_, ()>(Response::new(statuses[indx]))
+                ok::<_, Infallible>(Response::new(statuses[indx]))
             })
             .rustls(tls_config())
     })
@@ -221,7 +221,7 @@ async fn test_h2_headers() {
                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST ",
                 ));
             }
-            ok::<_, ()>(config.body(data.clone()))
+            ok::<_, Infallible>(config.body(data.clone()))
         })
             .rustls(tls_config())
     }).await;
@@ -260,7 +260,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 async fn test_h2_body2() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|_| ok::<_, ()>(Response::ok().set_body(STR)))
+            .h2(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
             .rustls(tls_config())
     })
     .await;
@@ -277,7 +277,7 @@ async fn test_h2_body2() {
 async fn test_h2_head_empty() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .finish(|_| ok::<_, ()>(Response::ok().set_body(STR)))
+            .finish(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
             .rustls(tls_config())
     })
     .await;
@@ -303,7 +303,7 @@ async fn test_h2_head_empty() {
 async fn test_h2_head_binary() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|_| ok::<_, ()>(Response::ok().set_body(STR)))
+            .h2(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
             .rustls(tls_config())
     })
     .await;
@@ -328,7 +328,7 @@ async fn test_h2_head_binary() {
 async fn test_h2_head_binary2() {
     let srv = test_server(move || {
         HttpService::build()
-            .h2(|_| ok::<_, ()>(Response::ok().set_body(STR)))
+            .h2(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
             .rustls(tls_config())
     })
     .await;
@@ -351,7 +351,7 @@ async fn test_h2_body_length() {
         HttpService::build()
             .h2(|_| {
                 let body = once(ok::<_, Infallible>(Bytes::from_static(STR.as_ref())));
-                ok::<_, ()>(
+                ok::<_, Infallible>(
                     Response::ok().set_body(SizedStream::new(STR.len() as u64, body)),
                 )
             })
@@ -373,7 +373,7 @@ async fn test_h2_body_chunked_explicit() {
         HttpService::build()
             .h2(|_| {
                 let body = once(ok::<_, Error>(Bytes::from_static(STR.as_ref())));
-                ok::<_, ()>(
+                ok::<_, Infallible>(
                     Response::build(StatusCode::OK)
                         .insert_header((header::TRANSFER_ENCODING, "chunked"))
                         .streaming(body),
@@ -399,9 +399,9 @@ async fn test_h2_response_http_error_handling() {
     let mut srv = test_server(move || {
         HttpService::build()
             .h2(fn_factory_with_config(|_: ()| {
-                ok::<_, ()>(fn_service(|_| {
+                ok::<_, Infallible>(fn_service(|_| {
                     let broken_header = Bytes::from_static(b"\0\0\0");
-                    ok::<_, ()>(
+                    ok::<_, Infallible>(
                         Response::build(StatusCode::OK)
                             .insert_header((http::header::CONTENT_TYPE, broken_header))
                             .body(STR),
@@ -424,15 +424,9 @@ async fn test_h2_response_http_error_handling() {
 #[display(fmt = "error")]
 struct BadRequest;
 
-impl ResponseError for BadRequest {
-    fn status_code(&self) -> StatusCode {
-        StatusCode::BAD_REQUEST
-    }
-}
-
 impl From<BadRequest> for Response<AnyBody> {
-    fn from(res: BadRequest) -> Self {
-        res.error_response()
+    fn from(_: BadRequest) -> Self {
+        Response::bad_request()
     }
 }
 

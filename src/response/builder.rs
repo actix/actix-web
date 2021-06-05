@@ -378,7 +378,7 @@ impl HttpResponseBuilder {
 
                 self.body(Body::from(body))
             }
-            Err(err) => HttpResponse::from_error(JsonPayloadError::Serialize(err).into()),
+            Err(err) => HttpResponse::from_error(JsonPayloadError::Serialize(err)),
         }
     }
 

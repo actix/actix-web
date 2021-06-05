@@ -66,16 +66,6 @@ impl Response<AnyBody> {
     }
 
     // end shortcuts
-
-    /// Constructs a new response from an error.
-    #[inline]
-    pub fn from_error(error: Error) -> Response<AnyBody> {
-        let resp = error.as_response_error().error_response();
-        if resp.head.status == StatusCode::INTERNAL_SERVER_ERROR {
-            debug!("Internal Server Error: {:?}", error);
-        }
-        resp
-    }
 }
 
 impl<B> Response<B> {
@@ -248,14 +238,6 @@ impl<I: Into<Response<AnyBody>>, E: Into<Error>> From<Result<I, E>>
 impl From<ResponseBuilder> for Response<AnyBody> {
     fn from(mut builder: ResponseBuilder) -> Self {
         builder.finish()
-    }
-}
-
-impl From<()> for Response<AnyBody> {
-    fn from(_: ()) -> Self {
-        Error::from(crate::error::UnitError)
-            .as_response_error()
-            .error_response()
     }
 }
 

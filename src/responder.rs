@@ -231,7 +231,7 @@ where
     T: fmt::Debug + fmt::Display + 'static,
 {
     fn respond_to(self, _: &HttpRequest) -> HttpResponse {
-        HttpResponse::from_error(self.into())
+        HttpResponse::from_error(self)
     }
 }
 

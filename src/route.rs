@@ -2,19 +2,19 @@
 
 use std::{future::Future, rc::Rc};
 
-use actix_http::{http::Method, Error};
+use actix_http::http::Method;
 use actix_service::{
     boxed::{self, BoxService, BoxServiceFactory},
     Service, ServiceFactory,
 };
 use futures_core::future::LocalBoxFuture;
 
-use crate::extract::FromRequest;
-use crate::guard::{self, Guard};
-use crate::handler::{Handler, HandlerService};
-use crate::responder::Responder;
-use crate::service::{ServiceRequest, ServiceResponse};
-use crate::HttpResponse;
+use crate::{
+    guard::{self, Guard},
+    handler::{Handler, HandlerService},
+    service::{ServiceRequest, ServiceResponse},
+    Error, FromRequest, HttpResponse, Responder,
+};
 
 /// Resource route definition
 ///

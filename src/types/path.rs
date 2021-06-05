@@ -2,14 +2,13 @@
 
 use std::{fmt, ops, sync::Arc};
 
-use actix_http::error::Error;
 use actix_router::PathDeserializer;
 use actix_utils::future::{ready, Ready};
 use serde::de;
 
 use crate::{
     dev::Payload,
-    error::{ErrorNotFound, PathError},
+    error::{Error, ErrorNotFound, PathError},
     FromRequest, HttpRequest,
 };
 

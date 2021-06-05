@@ -1,178 +1,143 @@
 //! Error and Result module
 
-use std::{
-    error::Error as StdError,
-    fmt,
-    io::{self, Write as _},
-    str::Utf8Error,
-    string::FromUtf8Error,
-};
+use std::{error::Error as StdError, fmt, io, str::Utf8Error, string::FromUtf8Error};
 
-use bytes::BytesMut;
 use derive_more::{Display, Error, From};
-use http::{header, uri::InvalidUri, StatusCode};
-use serde::de::value::Error as DeError;
+use http::{uri::InvalidUri, StatusCode};
 
-use crate::{
-    body::{AnyBody, Body},
-    helpers::Writer,
-    Response,
-};
+use crate::{Response, body::{AnyBody, Body}, ws};
 
 pub use http::Error as HttpError;
 
-/// General purpose actix web error.
-///
-/// An actix web error is used to carry errors from `std::error`
-/// through actix in a convenient way.  It can be created through
-/// converting errors with `into()`.
-///
-/// Whenever it is created from an external object a response error is created
-/// for it that can be used to create an HTTP response from it this means that
-/// if you have access to an actix `Error` you can always get a
-/// `ResponseError` reference from it.
 pub struct Error {
-    cause: Box<dyn ResponseError>,
+    inner: Box<ErrorInner>,
+}
+
+pub(crate) struct ErrorInner {
+    #[allow(dead_code)]
+    kind: Kind,
+    cause: Option<Box<dyn StdError>>,
 }
 
 impl Error {
-    /// Returns the reference to the underlying `ResponseError`.
-    pub fn as_response_error(&self) -> &dyn ResponseError {
-        self.cause.as_ref()
+    fn new(kind: Kind) -> Self {
+        Self {
+            inner: Box::new(ErrorInner { kind, cause: None }),
+        }
     }
 
-    /// Similar to `as_response_error` but downcasts.
-    pub fn as_error<T: ResponseError + 'static>(&self) -> Option<&T> {
-        <dyn ResponseError>::downcast_ref(self.cause.as_ref())
+    pub(crate) fn new_http() -> Self {
+        Self::new(Kind::Http)
+    }
+
+    pub(crate) fn new_parse() -> Self {
+        Self::new(Kind::Parse)
+    }
+
+    pub(crate) fn new_payload() -> Self {
+        Self::new(Kind::Payload)
+    }
+
+    pub(crate) fn new_body() -> Self {
+        Self::new(Kind::Body)
+    }
+
+    pub(crate) fn new_send_response() -> Self {
+        Self::new(Kind::SendResponse)
+    }
+
+    pub(crate) fn new_io() -> Self {
+        Self::new(Kind::Io)
+    }
+
+    pub(crate) fn new_ws() -> Self {
+        Self::new(Kind::Ws)
+    }
+
+    pub(crate) fn with_cause(mut self, cause: impl Into<Box<dyn StdError>>) -> Self {
+        self.inner.cause = Some(cause.into());
+        self
     }
 }
 
-/// Errors that can generate responses.
-// TODO: add std::error::Error bound when replacement for Box<dyn Error> is found
-pub trait ResponseError: fmt::Debug + fmt::Display {
-    /// Returns appropriate status code for error.
-    ///
-    /// A 500 Internal Server Error is used by default. If [error_response](Self::error_response) is
-    /// also implemented and does not call `self.status_code()`, then this will not be used.
-    fn status_code(&self) -> StatusCode {
-        StatusCode::INTERNAL_SERVER_ERROR
-    }
+impl From<Error> for Response<AnyBody> {
+    fn from(err: Error) -> Self {
+        let status_code = match err.inner.kind {
+            Kind::Parse => StatusCode::BAD_REQUEST,
+            _ => StatusCode::INTERNAL_SERVER_ERROR,
+        };
 
-    /// Creates full response for error.
-    ///
-    /// By default, the generated response uses a 500 Internal Server Error status code, a
-    /// `Content-Type` of `text/plain`, and the body is set to `Self`'s `Display` impl.
-    fn error_response(&self) -> Response<Body> {
-        let mut resp = Response::new(self.status_code());
-        let mut buf = BytesMut::new();
-        let _ = write!(Writer(&mut buf), "{}", self);
-        resp.headers_mut().insert(
-            header::CONTENT_TYPE,
-            header::HeaderValue::from_static("text/plain; charset=utf-8"),
-        );
-        resp.set_body(Body::from(buf))
+        Response::new(status_code).set_body(Body::from(err.to_string()))
     }
-
-    downcast_get_type_id!();
 }
 
-downcast!(ResponseError);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Display)]
+pub enum Kind {
+    #[display(fmt = "error processing HTTP")]
+    Http,
 
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(&self.cause, f)
-    }
+    #[display(fmt = "error parsing HTTP message")]
+    Parse,
+
+    #[display(fmt = "request payload read error")]
+    Payload,
+
+    #[display(fmt = "response body write error")]
+    Body,
+
+    #[display(fmt = "send response error")]
+    SendResponse,
+
+    #[display(fmt = "error in WebSocket process")]
+    Ws,
+
+    #[display(fmt = "connection error")]
+    Io,
 }
 
 impl fmt::Debug for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", &self.cause)
+        // TODO: more detail
+        f.write_str("actix_http::Error")
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.inner.cause.as_ref() {
+            Some(err) => write!(f, "{}: {}", &self.inner.kind, err),
+            None => write!(f, "{}", &self.inner.kind),
+        }
     }
 }
 
 impl StdError for Error {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None
-    }
-}
-
-impl From<()> for Error {
-    fn from(_: ()) -> Self {
-        Error::from(UnitError)
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        self.inner.cause.as_ref().map(|err| err.as_ref())
     }
 }
 
 impl From<std::convert::Infallible> for Error {
-    fn from(val: std::convert::Infallible) -> Self {
-        match val {}
+    fn from(err: std::convert::Infallible) -> Self {
+        match err {}
     }
 }
 
-/// Convert `Error` to a `Response` instance
-impl From<Error> for Response<Body> {
-    fn from(err: Error) -> Self {
-        Response::from_error(err)
+impl From<ws::ProtocolError> for Error {
+    fn from(err: ws::ProtocolError) -> Self {
+        Self::new_ws().with_cause(err)
     }
 }
 
-/// `Error` for any error that implements `ResponseError`
-impl<T: ResponseError + 'static> From<T> for Error {
-    fn from(err: T) -> Error {
-        Error {
-            cause: Box::new(err),
-        }
+impl From<HttpError> for Error {
+    fn from(err: HttpError) -> Self {
+        Self::new_http().with_cause(err)
     }
 }
 
-#[derive(Debug, Display, Error)]
-#[display(fmt = "Unknown Error")]
-pub(crate) struct UnitError;
-
-impl ResponseError for Box<dyn StdError + 'static> {}
-
-/// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`UnitError`].
-impl ResponseError for UnitError {}
-
-/// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`actix_tls::accept::openssl::SslError`].
-#[cfg(feature = "openssl")]
-impl ResponseError for actix_tls::accept::openssl::SslError {}
-
-/// Returns [`StatusCode::BAD_REQUEST`] for [`DeError`].
-impl ResponseError for DeError {
-    fn status_code(&self) -> StatusCode {
-        StatusCode::BAD_REQUEST
-    }
-}
-
-/// Returns [`StatusCode::BAD_REQUEST`] for [`Utf8Error`].
-impl ResponseError for Utf8Error {
-    fn status_code(&self) -> StatusCode {
-        StatusCode::BAD_REQUEST
-    }
-}
-
-/// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`HttpError`].
-impl ResponseError for HttpError {}
-
-/// Inspects the underlying [`io::ErrorKind`] and returns an appropriate status code.
-///
-/// If the error is [`io::ErrorKind::NotFound`], [`StatusCode::NOT_FOUND`] is returned. If the
-/// error is [`io::ErrorKind::PermissionDenied`], [`StatusCode::FORBIDDEN`] is returned. Otherwise,
-/// [`StatusCode::INTERNAL_SERVER_ERROR`] is returned.
-impl ResponseError for io::Error {
-    fn status_code(&self) -> StatusCode {
-        match self.kind() {
-            io::ErrorKind::NotFound => StatusCode::NOT_FOUND,
-            io::ErrorKind::PermissionDenied => StatusCode::FORBIDDEN,
-            _ => StatusCode::INTERNAL_SERVER_ERROR,
-        }
-    }
-}
-
-/// Returns [`StatusCode::BAD_REQUEST`] for [`header::InvalidHeaderValue`].
-impl ResponseError for header::InvalidHeaderValue {
-    fn status_code(&self) -> StatusCode {
-        StatusCode::BAD_REQUEST
+impl From<ws::HandshakeError> for Error {
+    fn from(err: ws::HandshakeError) -> Self {
+        Self::new_ws().with_cause(err)
     }
 }
 
@@ -222,13 +187,6 @@ pub enum ParseError {
     Utf8(Utf8Error),
 }
 
-/// Return `BadRequest` for `ParseError`
-impl ResponseError for ParseError {
-    fn status_code(&self) -> StatusCode {
-        StatusCode::BAD_REQUEST
-    }
-}
-
 impl From<io::Error> for ParseError {
     fn from(err: io::Error) -> ParseError {
         ParseError::Io(err)
@@ -267,13 +225,22 @@ impl From<httparse::Error> for ParseError {
     }
 }
 
+impl From<ParseError> for Error {
+    fn from(err: ParseError) -> Self {
+        Self::new_parse().with_cause(err)
+    }
+}
+
+impl From<ParseError> for Response<AnyBody> {
+    fn from(err: ParseError) -> Self {
+        Error::from(err).into()
+    }
+}
+
 /// A set of errors that can occur running blocking tasks in thread pool.
 #[derive(Debug, Display, Error)]
 #[display(fmt = "Blocking thread pool is gone")]
 pub struct BlockingError;
-
-/// `InternalServerError` for `BlockingError`
-impl ResponseError for BlockingError {}
 
 /// A set of errors that can occur during payload parsing.
 #[derive(Debug, Display)]
@@ -348,16 +315,9 @@ impl From<BlockingError> for PayloadError {
     }
 }
 
-/// `PayloadError` returns two possible results:
-///
-/// - `Overflow` returns `PayloadTooLarge`
-/// - Other errors returns `BadRequest`
-impl ResponseError for PayloadError {
-    fn status_code(&self) -> StatusCode {
-        match *self {
-            PayloadError::Overflow => StatusCode::PAYLOAD_TOO_LARGE,
-            _ => StatusCode::BAD_REQUEST,
-        }
+impl From<PayloadError> for Error {
+    fn from(err: PayloadError) -> Self {
+        Self::new_payload().with_cause(err)
     }
 }
 
@@ -444,12 +404,6 @@ mod content_type_test_impls {
     }
 }
 
-impl ResponseError for ContentTypeError {
-    fn status_code(&self) -> StatusCode {
-        StatusCode::BAD_REQUEST
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -458,42 +412,33 @@ mod tests {
 
     #[test]
     fn test_into_response() {
-        let resp: Response<Body> = ParseError::Incomplete.error_response();
+        let resp: Response<AnyBody> = ParseError::Incomplete.into();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
         let err: HttpError = StatusCode::from_u16(10000).err().unwrap().into();
-        let resp: Response<Body> = err.error_response();
+        let resp: Response<AnyBody> = Error::new_http().with_cause(err).into();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
     #[test]
     fn test_as_response() {
         let orig = io::Error::new(io::ErrorKind::Other, "other");
-        let e: Error = ParseError::Io(orig).into();
-        assert_eq!(format!("{}", e.as_response_error()), "IO error: other");
-    }
-
-    #[test]
-    fn test_error_cause() {
-        let orig = io::Error::new(io::ErrorKind::Other, "other");
-        let desc = orig.to_string();
-        let e = Error::from(orig);
-        assert_eq!(format!("{}", e.as_response_error()), desc);
+        let err: Error = ParseError::Io(orig).into();
+        assert_eq!(format!("{}", err), "error parsing HTTP message: IO error: other");
     }
 
     #[test]
     fn test_error_display() {
         let orig = io::Error::new(io::ErrorKind::Other, "other");
-        let desc = orig.to_string();
-        let e = Error::from(orig);
-        assert_eq!(format!("{}", e), desc);
+        let err = Error::new_io().with_cause(orig);
+        assert_eq!("connection error: other", err.to_string());
     }
 
     #[test]
     fn test_error_http_response() {
         let orig = io::Error::new(io::ErrorKind::Other, "other");
-        let e = Error::from(orig);
-        let resp: Response<Body> = e.into();
+        let err = Error::new_io().with_cause(orig);
+        let resp: Response<AnyBody> = err.into();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
@@ -544,15 +489,5 @@ mod tests {
         from!(httparse::Error::Token => ParseError::Header);
         from!(httparse::Error::TooManyHeaders => ParseError::TooLarge);
         from!(httparse::Error::Version => ParseError::Version);
-    }
-
-    #[test]
-    fn test_error_casting() {
-        let err = PayloadError::Overflow;
-        let resp_err: &dyn ResponseError = &err;
-        let err = resp_err.downcast_ref::<PayloadError>().unwrap();
-        assert_eq!(err.to_string(), "Payload reached size limit.");
-        let not_err = resp_err.downcast_ref::<ContentTypeError>();
-        assert!(not_err.is_none());
     }
 }

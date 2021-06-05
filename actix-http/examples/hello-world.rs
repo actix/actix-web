@@ -1,4 +1,4 @@
-use std::io;
+use std::{convert::Infallible, io};
 
 use actix_http::{http::StatusCode, HttpService, Response};
 use actix_server::Server;
@@ -22,7 +22,7 @@ async fn main() -> io::Result<()> {
                         HeaderValue::from_static("dummy value!"),
                     ));
 
-                    Ok::<_, ()>(res.body("Hello world!"))
+                    Ok::<_, Infallible>(res.body("Hello world!"))
                 })
                 .tcp()
         })?

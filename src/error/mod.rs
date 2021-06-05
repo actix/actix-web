@@ -10,8 +10,11 @@ use url::ParseError as UrlParseError;
 use crate::http::StatusCode;
 
 mod internal;
+mod macros;
+mod response_error;
 
 pub use self::internal::*;
+pub use self::response_error::{Error, ResponseError};
 
 /// A convenience [`Result`](std::result::Result) for Actix Web operations.
 ///

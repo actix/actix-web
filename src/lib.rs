@@ -79,6 +79,7 @@ pub mod error;
 mod extract;
 pub mod guard;
 mod handler;
+mod helpers;
 pub mod http;
 mod info;
 pub mod middleware;
@@ -97,7 +98,7 @@ pub(crate) mod types;
 pub mod web;
 
 pub use actix_http::Response as BaseHttpResponse;
-pub use actix_http::{body, Error, HttpMessage, ResponseError};
+pub use actix_http::{body, HttpMessage};
 #[doc(inline)]
 pub use actix_rt as rt;
 pub use actix_web_codegen::*;
@@ -105,7 +106,7 @@ pub use actix_web_codegen::*;
 pub use cookie;
 
 pub use crate::app::App;
-pub use crate::error::Result;
+pub use crate::error::{Error, ResponseError, Result};
 pub use crate::extract::FromRequest;
 pub use crate::request::HttpRequest;
 pub use crate::resource::Resource;

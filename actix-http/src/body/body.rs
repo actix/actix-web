@@ -76,7 +76,9 @@ impl MessageBody for AnyBody {
 
             // TODO: MSRV 1.51: poll_map_err
             AnyBody::Message(body) => match ready!(body.as_pin_mut().poll_next(cx)) {
-                Some(Err(err)) => Poll::Ready(Some(Err(err.into()))),
+                Some(Err(err)) => {
+                    Poll::Ready(Some(Err(Error::new_body().with_cause(err))))
+                }
                 Some(Ok(val)) => Poll::Ready(Some(Ok(val))),
                 None => Poll::Ready(None),
             },
@@ -222,7 +224,7 @@ impl MessageBody for BoxAnyBody {
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         // TODO: MSRV 1.51: poll_map_err
         match ready!(self.0.as_mut().poll_next(cx)) {
-            Some(Err(err)) => Poll::Ready(Some(Err(err.into()))),
+            Some(Err(err)) => Poll::Ready(Some(Err(Error::new_body().with_cause(err)))),
             Some(Ok(val)) => Poll::Ready(Some(Ok(val))),
             None => Poll::Ready(None),
         }

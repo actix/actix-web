@@ -127,7 +127,7 @@ impl<T: Serialize> Responder for Json<T> {
             Ok(body) => HttpResponse::Ok()
                 .content_type(mime::APPLICATION_JSON)
                 .body(body),
-            Err(err) => HttpResponse::from_error(JsonPayloadError::Serialize(err).into()),
+            Err(err) => HttpResponse::from_error(JsonPayloadError::Serialize(err)),
         }
     }
 }

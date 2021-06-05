@@ -9,8 +9,8 @@ use derive_more::{Display, Error, From};
 use http::{header, Method, StatusCode};
 
 use crate::{
-    body::Body, error::ResponseError, header::HeaderValue, message::RequestHead,
-    response::Response, ResponseBuilder,
+    body::AnyBody, header::HeaderValue, message::RequestHead, response::Response,
+    ResponseBuilder,
 };
 
 mod codec;
@@ -68,8 +68,6 @@ pub enum ProtocolError {
     Io(io::Error),
 }
 
-impl ResponseError for ProtocolError {}
-
 /// WebSocket handshake errors
 #[derive(Debug, PartialEq, Display, Error)]
 pub enum HandshakeError {
@@ -98,41 +96,52 @@ pub enum HandshakeError {
     BadWebsocketKey,
 }
 
-impl ResponseError for HandshakeError {
-    fn error_response(&self) -> Response<Body> {
-        match self {
+impl From<&HandshakeError> for Response<AnyBody> {
+    fn from(err: &HandshakeError) -> Self {
+        match err {
             HandshakeError::GetMethodRequired => {
-                Response::build(StatusCode::METHOD_NOT_ALLOWED)
-                    .insert_header((header::ALLOW, "GET"))
-                    .finish()
+                let mut res = Response::new(StatusCode::METHOD_NOT_ALLOWED);
+                res.headers_mut()
+                    .insert(header::ALLOW, HeaderValue::from_static("GET"));
+                res
             }
 
             HandshakeError::NoWebsocketUpgrade => {
-                Response::build(StatusCode::BAD_REQUEST)
-                    .reason("No WebSocket Upgrade header found")
-                    .finish()
+                let mut res = Response::bad_request();
+                res.head_mut().reason = Some("No WebSocket Upgrade header found");
+                res
             }
 
             HandshakeError::NoConnectionUpgrade => {
-                Response::build(StatusCode::BAD_REQUEST)
-                    .reason("No Connection upgrade")
-                    .finish()
+                let mut res = Response::bad_request();
+                res.head_mut().reason = Some("No Connection upgrade");
+                res
             }
 
-            HandshakeError::NoVersionHeader => Response::build(StatusCode::BAD_REQUEST)
-                .reason("WebSocket version header is required")
-                .finish(),
+            HandshakeError::NoVersionHeader => {
+                let mut res = Response::bad_request();
+                res.head_mut().reason = Some("WebSocket version header is required");
+                res
+            }
 
             HandshakeError::UnsupportedVersion => {
-                Response::build(StatusCode::BAD_REQUEST)
-                    .reason("Unsupported WebSocket version")
-                    .finish()
+                let mut res = Response::bad_request();
+                res.head_mut().reason = Some("Unsupported WebSocket version");
+                res
             }
 
-            HandshakeError::BadWebsocketKey => Response::build(StatusCode::BAD_REQUEST)
-                .reason("Handshake error")
-                .finish(),
+            HandshakeError::BadWebsocketKey => {
+                let mut res = Response::bad_request();
+                res.head_mut().reason = Some("Handshake error");
+                res
+            }
         }
+    }
+}
+
+impl From<HandshakeError> for Response<AnyBody> {
+    fn from(err: HandshakeError) -> Self {
+        err.into()
     }
 }
 
@@ -213,7 +222,7 @@ pub fn handshake_response(req: &RequestHead) -> ResponseBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test::TestRequest;
+    use crate::{body::AnyBody, test::TestRequest};
     use http::{header, Method};
 
     #[test]
@@ -327,18 +336,18 @@ mod tests {
     }
 
     #[test]
-    fn test_wserror_http_response() {
-        let resp = HandshakeError::GetMethodRequired.error_response();
+    fn test_ws_error_http_response() {
+        let resp: Response<AnyBody> = HandshakeError::GetMethodRequired.into();
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
-        let resp = HandshakeError::NoWebsocketUpgrade.error_response();
+        let resp: Response<AnyBody> = HandshakeError::NoWebsocketUpgrade.into();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let resp = HandshakeError::NoConnectionUpgrade.error_response();
+        let resp: Response<AnyBody> = HandshakeError::NoConnectionUpgrade.into();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let resp = HandshakeError::NoVersionHeader.error_response();
+        let resp: Response<AnyBody> = HandshakeError::NoVersionHeader.into();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let resp = HandshakeError::UnsupportedVersion.error_response();
+        let resp: Response<AnyBody> = HandshakeError::UnsupportedVersion.into();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let resp = HandshakeError::BadWebsocketKey.error_response();
+        let resp: Response<AnyBody> = HandshakeError::BadWebsocketKey.into();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 }

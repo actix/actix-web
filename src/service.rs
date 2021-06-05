@@ -5,21 +5,21 @@ use std::{fmt, net};
 use actix_http::body::{Body, MessageBody};
 use actix_http::http::{HeaderMap, Method, StatusCode, Uri, Version};
 use actix_http::{
-    Error, Extensions, HttpMessage, Payload, PayloadStream, RequestHead, Response, ResponseHead,
+    Extensions, HttpMessage, Payload, PayloadStream, RequestHead, Response, ResponseHead,
 };
 use actix_router::{IntoPattern, Path, Resource, ResourceDef, Url};
 use actix_service::{IntoServiceFactory, ServiceFactory};
 #[cfg(feature = "cookies")]
 use cookie::{Cookie, ParseError as CookieParseError};
 
-use crate::dev::insert_slash;
-use crate::guard::Guard;
-use crate::info::ConnectionInfo;
-use crate::request::HttpRequest;
-use crate::rmap::ResourceMap;
 use crate::{
     config::{AppConfig, AppService},
-    HttpResponse,
+    dev::insert_slash,
+    guard::Guard,
+    info::ConnectionInfo,
+    request::HttpRequest,
+    rmap::ResourceMap,
+    Error, HttpResponse,
 };
 
 pub trait HttpServiceFactory {
@@ -338,7 +338,7 @@ pub struct ServiceResponse<B = Body> {
 impl ServiceResponse<Body> {
     /// Create service response from the error
     pub fn from_err<E: Into<Error>>(err: E, request: HttpRequest) -> Self {
-        let response = HttpResponse::from_error(err.into());
+        let response = HttpResponse::from_error(err);
         ServiceResponse { request, response }
     }
 }

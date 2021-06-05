@@ -1,6 +1,6 @@
 use std::{cell::RefCell, fmt, io::Write as _};
 
-use actix_http::{body::Body, header, Response, StatusCode};
+use actix_http::{body::Body, header, StatusCode};
 use bytes::{BufMut as _, BytesMut};
 
 use crate::{Error, HttpResponse, ResponseError};
@@ -77,10 +77,10 @@ where
         }
     }
 
-    fn error_response(&self) -> Response<Body> {
+    fn error_response(&self) -> HttpResponse {
         match self.status {
             InternalErrorType::Status(status) => {
-                let mut res = Response::new(status);
+                let mut res = HttpResponse::new(status);
                 let mut buf = BytesMut::new().writer();
                 let _ = write!(buf, "{}", self);
 
@@ -95,7 +95,7 @@ where
                 if let Some(resp) = resp.borrow_mut().take() {
                     resp.into()
                 } else {
-                    Response::new(StatusCode::INTERNAL_SERVER_ERROR)
+                    HttpResponse::new(StatusCode::INTERNAL_SERVER_ERROR)
                 }
             }
         }

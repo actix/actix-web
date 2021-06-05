@@ -1,7 +1,7 @@
 use std::{
     error::Error as StdError,
     future::Future,
-    io, net,
+    net,
     pin::Pin,
     rc::Rc,
     task::{Context, Poll},
@@ -25,10 +25,10 @@ use serde::Serialize;
 #[cfg(feature = "compress")]
 use actix_http::{encoding::Decoder, http::header::ContentEncoding, Payload, PayloadStream};
 
-use crate::connect::{ConnectRequest, ConnectResponse};
-use crate::error::{FreezeRequestError, InvalidUrl, SendRequestError};
-use crate::response::ClientResponse;
-use crate::ClientConfig;
+use crate::{
+    error::{FreezeRequestError, InvalidUrl, SendRequestError},
+    ClientConfig, ClientResponse, ConnectRequest, ConnectResponse,
+};
 
 #[derive(Debug, From)]
 pub(crate) enum PrepForSendingError {
@@ -211,7 +211,7 @@ impl RequestSender {
         let body = match serde_json::to_string(value) {
             Ok(body) => body,
             // TODO: own error type
-            Err(e) => return Error::from(io::Error::new(io::ErrorKind::Other, e)).into(),
+            Err(_e) => todo!(),
         };
 
         if let Err(e) = self.set_header_if_none(header::CONTENT_TYPE, "application/json") {
@@ -238,7 +238,7 @@ impl RequestSender {
         let body = match serde_urlencoded::to_string(value) {
             Ok(body) => body,
             // TODO: own error type
-            Err(e) => return Error::from(io::Error::new(io::ErrorKind::Other, e)).into(),
+            Err(_e) => todo!(),
         };
 
         // set content-type

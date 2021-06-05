@@ -317,7 +317,7 @@ pub enum EncoderError<E> {
     Body(E),
 
     #[display(fmt = "boxed")]
-    Boxed(Error),
+    Boxed(Box<dyn StdError>),
 
     #[display(fmt = "blocking")]
     Blocking(BlockingError),
@@ -329,16 +329,5 @@ pub enum EncoderError<E> {
 impl<E: StdError> StdError for EncoderError<E> {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         None
-    }
-}
-
-impl<E: Into<Error>> From<EncoderError<E>> for Error {
-    fn from(err: EncoderError<E>) -> Self {
-        match err {
-            EncoderError::Body(err) => err.into(),
-            EncoderError::Boxed(err) => err,
-            EncoderError::Blocking(err) => err.into(),
-            EncoderError::Io(err) => err.into(),
-        }
     }
 }
