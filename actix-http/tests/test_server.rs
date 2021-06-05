@@ -657,7 +657,10 @@ async fn test_h1_response_http_error_handling() {
 
     // read response
     let bytes = srv.load_body(response).await.unwrap();
-    assert_eq!(bytes, Bytes::from_static(b"error processing HTTP: failed to parse header value"));
+    assert_eq!(
+        bytes,
+        Bytes::from_static(b"error processing HTTP: failed to parse header value")
+    );
 }
 
 #[derive(Debug, Display, Error)]
