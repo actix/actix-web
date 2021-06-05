@@ -9,6 +9,7 @@
 * Re-export `ContentEncoding` and `ConnectionType` at the crate root. [#2171]
 * `Response::into_body` that consumes response and returns body type. [#2201]
 * `impl Default` for `Response`. [#2201]
+* Add zstd support for `ContentEncoding`. [#2244]
 
 ### Changed
 * The `MessageBody` trait now has an associated `Error` type. [#2183]
@@ -39,6 +40,8 @@
 [#2205]: https://github.com/actix/actix-web/pull/2205
 [#2215]: https://github.com/actix/actix-web/pull/2215
 [#2224]: https://github.com/actix/actix-web/pull/2224
+[#2244]: https://github.com/actix/actix-web/pull/2244
+
 
 
 ## 3.0.0-beta.6 - 2021-04-17
