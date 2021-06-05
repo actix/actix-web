@@ -12,6 +12,7 @@
 * `ServiceResponse::map_body` closure receives and returns `B` instead of `ResponseBody<B>` types. [#2201]
 * All error trait bounds in server service builders have changed from `Into<Error>` to `Into<Response<AnyBody>>`. [#2224]
 * All error trait bounds in message body and stream impls changed from `Into<Error>` to `Into<Box<dyn std::error::Error>>`. [#2224]
+* `middleware::normalize` now will not try to normalize URIs with no valid path [#2246]
 
 ### Removed
 * `HttpResponse::take_body` and old `HttpResponse::into_body` method that casted body type. [#2201]
@@ -19,6 +20,7 @@
 [#2200]: https://github.com/actix/actix-web/pull/2200
 [#2201]: https://github.com/actix/actix-web/pull/2201
 [#2224]: https://github.com/actix/actix-web/pull/2224
+[#2246]: https://github.com/actix/actix-web/pull/2246
 
 
 ## 4.0.0-beta.6 - 2021-04-17
