@@ -93,7 +93,7 @@ where
 
             InternalErrorType::Response(ref resp) => {
                 if let Some(resp) = resp.borrow_mut().take() {
-                    resp.into()
+                    resp
                 } else {
                     HttpResponse::new(StatusCode::INTERNAL_SERVER_ERROR)
                 }
