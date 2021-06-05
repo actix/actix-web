@@ -1,7 +1,6 @@
 //! Actix Web is a powerful, pragmatic, and extremely fast web framework for Rust.
 //!
-//! ## Example
-//!
+//! # Examples
 //! ```no_run
 //! use actix_web::{get, web, App, HttpServer, Responder};
 //!
@@ -20,8 +19,7 @@
 //! }
 //! ```
 //!
-//! ## Documentation & Community Resources
-//!
+//! # Documentation & Community Resources
 //! In addition to this API documentation, several other resources are available:
 //!
 //! * [Website & User Guide](https://actix.rs/)
@@ -44,8 +42,7 @@
 //!   structs represent HTTP requests and responses and expose methods for creating, inspecting,
 //!   and otherwise utilizing them.
 //!
-//! ## Features
-//!
+//! # Features
 //! * Supports *HTTP/1.x* and *HTTP/2*
 //! * Streaming and pipelining
 //! * Keep-alive and slow requests handling
@@ -59,8 +56,7 @@
 //! * Includes an async [HTTP client](https://docs.rs/awc/)
 //! * Runs on stable Rust 1.46+
 //!
-//! ## Crate Features
-//!
+//! # Crate Features
 //! * `compress` - content encoding compression support (enabled by default)
 //! * `cookies` - cookies support (enabled by default)
 //! * `openssl` - HTTPS support via `openssl` crate, supports `HTTP/2`

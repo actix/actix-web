@@ -22,10 +22,7 @@ use {
     cookie::Cookie,
 };
 
-use crate::{
-    error::{Error, ResponseError},
-    HttpResponseBuilder,
-};
+use crate::{error::Error, HttpResponseBuilder};
 
 /// An HTTP Response
 pub struct HttpResponse<B = AnyBody> {
@@ -53,12 +50,6 @@ impl HttpResponse<AnyBody> {
     #[inline]
     pub fn from_error(error: impl Into<Error>) -> Self {
         error.into().as_response_error().error_response()
-    }
-
-    /// Create an error response.
-    #[inline]
-    pub fn from_http_error(error: &dyn ResponseError) -> Self {
-        error.error_response()
     }
 }
 
@@ -242,7 +233,6 @@ impl<B> HttpResponse<B> {
 impl<B> fmt::Debug for HttpResponse<B>
 where
     B: MessageBody,
-    B::Error: Into<actix_http::Error>,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("HttpResponse")

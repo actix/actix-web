@@ -356,8 +356,7 @@ impl Drop for HttpRequest {
 
 /// It is possible to get `HttpRequest` as an extractor handler parameter
 ///
-/// ## Example
-///
+/// # Examples
 /// ```
 /// use actix_web::{web, App, HttpRequest};
 /// use serde_derive::Deserialize;

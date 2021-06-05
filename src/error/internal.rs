@@ -3,7 +3,7 @@ use std::{cell::RefCell, fmt, io::Write as _};
 use actix_http::{body::Body, header, StatusCode};
 use bytes::{BufMut as _, BytesMut};
 
-use crate::{Error, HttpResponse, ResponseError};
+use crate::{Error, HttpRequest, HttpResponse, Responder, ResponseError};
 
 /// Wraps errors to alter the generated response status code.
 ///
@@ -99,6 +99,15 @@ where
                 }
             }
         }
+    }
+}
+
+impl<T> Responder for InternalError<T>
+where
+    T: fmt::Debug + fmt::Display + 'static,
+{
+    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
+        HttpResponse::from_error(self)
     }
 }
 

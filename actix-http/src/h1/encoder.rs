@@ -9,14 +9,11 @@ use bytes::{BufMut, BytesMut};
 use crate::{
     body::BodySize,
     config::ServiceConfig,
-    header::{map::Value, HeaderName},
+    header::{map::Value, HeaderMap, HeaderName},
+    header::{CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING},
     helpers,
-    http::{
-        header::{CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING},
-        HeaderMap, StatusCode, Version,
-    },
     message::{ConnectionType, RequestHeadType},
-    response::Response,
+    Response, StatusCode, Version,
 };
 
 const AVERAGE_HEADER_SIZE: usize = 30;

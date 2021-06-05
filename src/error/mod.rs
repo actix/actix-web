@@ -9,12 +9,15 @@ use url::ParseError as UrlParseError;
 
 use crate::http::StatusCode;
 
+#[allow(clippy::module_inception)]
+mod error;
 mod internal;
 mod macros;
 mod response_error;
 
+pub use self::error::Error;
 pub use self::internal::*;
-pub use self::response_error::{Error, ResponseError};
+pub use self::response_error::ResponseError;
 
 /// A convenience [`Result`](std::result::Result) for Actix Web operations.
 ///
