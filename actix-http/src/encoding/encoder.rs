@@ -15,6 +15,7 @@ use derive_more::Display;
 use flate2::write::{GzEncoder, ZlibEncoder};
 use futures_core::ready;
 use pin_project::pin_project;
+use zstd::stream::write::Encoder as ZstdEncoder;
 
 use crate::{
     body::{Body, BodySize, BoxAnyBody, MessageBody, ResponseBody},
@@ -237,6 +238,9 @@ enum ContentEncoder {
     Deflate(ZlibEncoder<Writer>),
     Gzip(GzEncoder<Writer>),
     Br(BrotliEncoder<Writer>),
+    // We need explicit 'static lifetime here because ZstdEncoder need lifetime
+    // argument, and we use `spawn_blocking` in `Encoder::poll_next` that require `FnOnce() -> R + Send + 'static`
+    Zstd(ZstdEncoder<'static, Writer>),
 }
 
 impl ContentEncoder {
@@ -253,6 +257,10 @@ impl ContentEncoder {
             ContentEncoding::Br => {
                 Some(ContentEncoder::Br(BrotliEncoder::new(Writer::new(), 3)))
             }
+            ContentEncoding::Zstd => {
+                let encoder = ZstdEncoder::new(Writer::new(), 3).ok()?;
+                Some(ContentEncoder::Zstd(encoder))
+            }
             _ => None,
         }
     }
@@ -263,6 +271,7 @@ impl ContentEncoder {
             ContentEncoder::Br(ref mut encoder) => encoder.get_mut().take(),
             ContentEncoder::Deflate(ref mut encoder) => encoder.get_mut().take(),
             ContentEncoder::Gzip(ref mut encoder) => encoder.get_mut().take(),
+            ContentEncoder::Zstd(ref mut encoder) => encoder.get_mut().take(),
         }
     }
 
@@ -277,6 +286,10 @@ impl ContentEncoder {
                 Err(err) => Err(err),
             },
             ContentEncoder::Deflate(encoder) => match encoder.finish() {
+                Ok(writer) => Ok(writer.buf.freeze()),
+                Err(err) => Err(err),
+            },
+            ContentEncoder::Zstd(encoder) => match encoder.finish() {
                 Ok(writer) => Ok(writer.buf.freeze()),
                 Err(err) => Err(err),
             },
@@ -303,6 +316,13 @@ impl ContentEncoder {
                 Ok(_) => Ok(()),
                 Err(err) => {
                     trace!("Error decoding deflate encoding: {}", err);
+                    Err(err)
+                }
+            },
+            ContentEncoder::Zstd(ref mut encoder) => match encoder.write_all(data) {
+                Ok(_) => Ok(()),
+                Err(err) => {
+                    trace!("Error decoding ztsd encoding: {}", err);
                     Err(err)
                 }
             },

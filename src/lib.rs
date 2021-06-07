@@ -26,6 +26,7 @@
 //!
 //! * [Website & User Guide](https://actix.rs/)
 //! * [Examples Repository](https://github.com/actix/examples)
+//! * [Community Chat on Discord](https://discord.gg/NWpN5mmg3x)
 //! * [Community Chat on Gitter](https://gitter.im/actix/actix-web)
 //!
 //! To get started navigating the API docs, you may consider looking at the following pages first:

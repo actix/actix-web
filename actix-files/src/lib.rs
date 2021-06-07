@@ -632,7 +632,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_redirect_to_slash_directory() {
-        // should not redirect if no index
+        // should not redirect if no index and files listing is disabled
         let srv = test::init_service(
             App::new().service(Files::new("/", ".").redirect_to_slash_directory()),
         )
@@ -646,6 +646,19 @@ mod tests {
             App::new().service(
                 Files::new("/", ".")
                     .index_file("test.png")
+                    .redirect_to_slash_directory(),
+            ),
+        )
+        .await;
+        let req = TestRequest::with_uri("/tests").to_request();
+        let resp = test::call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::FOUND);
+
+        // should redirect if files listing is enabled
+        let srv = test::init_service(
+            App::new().service(
+                Files::new("/", ".")
+                    .show_files_listing()
                     .redirect_to_slash_directory(),
             ),
         )

@@ -12,6 +12,7 @@ use brotli2::write::BrotliDecoder;
 use bytes::Bytes;
 use flate2::write::{GzDecoder, ZlibDecoder};
 use futures_core::{ready, Stream};
+use zstd::stream::write::Decoder as ZstdDecoder;
 
 use crate::{
     encoding::Writer,
@@ -44,6 +45,12 @@ where
             ))),
             ContentEncoding::Gzip => Some(ContentDecoder::Gzip(Box::new(
                 GzDecoder::new(Writer::new()),
+            ))),
+            ContentEncoding::Zstd => Some(ContentDecoder::Zstd(Box::new(
+                ZstdDecoder::new(Writer::new()).expect(
+                    "Failed to create zstd decoder. This is a bug. \
+                         Please report it to the actix-web repository.",
+                ),
             ))),
             _ => None,
         };
@@ -144,6 +151,9 @@ enum ContentDecoder {
     Deflate(Box<ZlibDecoder<Writer>>),
     Gzip(Box<GzDecoder<Writer>>),
     Br(Box<BrotliDecoder<Writer>>),
+    // We need explicit 'static lifetime here because ZstdDecoder need lifetime
+    // argument, and we use `spawn_blocking` in `Decoder::poll_next` that require `FnOnce() -> R + Send + 'static`
+    Zstd(Box<ZstdDecoder<'static, Writer>>),
 }
 
 impl ContentDecoder {
@@ -176,6 +186,18 @@ impl ContentDecoder {
             },
 
             ContentDecoder::Deflate(ref mut decoder) => match decoder.try_finish() {
+                Ok(_) => {
+                    let b = decoder.get_mut().take();
+                    if !b.is_empty() {
+                        Ok(Some(b))
+                    } else {
+                        Ok(None)
+                    }
+                }
+                Err(e) => Err(e),
+            },
+
+            ContentDecoder::Zstd(ref mut decoder) => match decoder.flush() {
                 Ok(_) => {
                     let b = decoder.get_mut().take();
                     if !b.is_empty() {
@@ -220,6 +242,20 @@ impl ContentDecoder {
             },
 
             ContentDecoder::Deflate(ref mut decoder) => match decoder.write_all(&data) {
+                Ok(_) => {
+                    decoder.flush()?;
+
+                    let b = decoder.get_mut().take();
+                    if !b.is_empty() {
+                        Ok(Some(b))
+                    } else {
+                        Ok(None)
+                    }
+                }
+                Err(e) => Err(e),
+            },
+
+            ContentDecoder::Zstd(ref mut decoder) => match decoder.write_all(&data) {
                 Ok(_) => {
                     decoder.flush()?;
 
