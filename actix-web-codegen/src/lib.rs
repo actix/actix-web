@@ -171,27 +171,10 @@ method_macro! {
 #[proc_macro_attribute]
 pub fn main(_: TokenStream, item: TokenStream) -> TokenStream {
     use quote::quote;
-
-    let mut input = syn::parse_macro_input!(item as syn::ItemFn);
-    let attrs = &input.attrs;
-    let vis = &input.vis;
-    let sig = &mut input.sig;
-    let body = &input.block;
-
-    if sig.asyncness.is_none() {
-        return syn::Error::new_spanned(sig.fn_token, "only async fn is supported")
-            .to_compile_error()
-            .into();
-    }
-
-    sig.asyncness = None;
-
+    let input = syn::parse_macro_input!(item as syn::ItemFn);
     (quote! {
-        #(#attrs)*
-        #vis #sig {
-            actix_web::rt::System::new()
-                .block_on(async move { #body })
-        }
+        #[actix_web::rt::main(system = "::actix_web::rt::System")]
+        #input
     })
     .into()
 }
