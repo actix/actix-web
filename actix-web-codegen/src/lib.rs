@@ -173,7 +173,7 @@ pub fn main(_: TokenStream, item: TokenStream) -> TokenStream {
     use quote::quote;
     let input = syn::parse_macro_input!(item as syn::ItemFn);
     (quote! {
-        #[actix_web::rt::main]
+        #[actix_web::rt::main(system = "::actix_web::rt::System")]
         #input
     })
     .into()
