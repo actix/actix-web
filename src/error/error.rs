@@ -29,7 +29,7 @@ impl Error {
         <dyn ResponseError>::downcast_ref(self.cause.as_ref())
     }
 
-    /// TODO
+    /// Shortcut for creating an `HttpResponse`.
     pub fn error_response(&self) -> HttpResponse {
         self.cause.error_response()
     }
@@ -49,6 +49,7 @@ impl fmt::Debug for Error {
 
 impl StdError for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        // TODO: populate if replacement for Box<dyn Error> is found
         None
     }
 }
