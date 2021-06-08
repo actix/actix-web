@@ -213,7 +213,7 @@ impl HeaderMap {
     }
 
     fn get_value(&self, key: impl AsHeaderName) -> Option<&Value> {
-        match key.try_as_name().ok()? {
+        match key.try_as_name(super::as_name::Seal).ok()? {
             Cow::Borrowed(name) => self.inner.get(name),
             Cow::Owned(name) => self.inner.get(&name),
         }
@@ -279,7 +279,7 @@ impl HeaderMap {
     /// assert!(map.get("INVALID HEADER NAME").is_none());
     /// ```
     pub fn get_mut(&mut self, key: impl AsHeaderName) -> Option<&mut HeaderValue> {
-        match key.try_as_name().ok()? {
+        match key.try_as_name(super::as_name::Seal).ok()? {
             Cow::Borrowed(name) => self.inner.get_mut(name).map(|v| v.first_mut()),
             Cow::Owned(name) => self.inner.get_mut(&name).map(|v| v.first_mut()),
         }
@@ -327,7 +327,7 @@ impl HeaderMap {
     /// assert!(map.contains_key(header::ACCEPT));
     /// ```
     pub fn contains_key(&self, key: impl AsHeaderName) -> bool {
-        match key.try_as_name() {
+        match key.try_as_name(super::as_name::Seal) {
             Ok(Cow::Borrowed(name)) => self.inner.contains_key(name),
             Ok(Cow::Owned(name)) => self.inner.contains_key(&name),
             Err(_) => false,
@@ -410,7 +410,7 @@ impl HeaderMap {
     ///
     /// assert!(map.is_empty());
     pub fn remove(&mut self, key: impl AsHeaderName) -> Removed {
-        let value = match key.try_as_name() {
+        let value = match key.try_as_name(super::as_name::Seal) {
             Ok(Cow::Borrowed(name)) => self.inner.remove(name),
             Ok(Cow::Owned(name)) => self.inner.remove(&name),
             Err(_) => None,
