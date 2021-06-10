@@ -20,10 +20,15 @@ use futures_core::Stream;
 use futures_util::stream::{once, StreamExt as _};
 use rustls::{
     internal::pemfile::{certs, pkcs8_private_keys},
-    NoClientAuth, ServerConfig as RustlsServerConfig,
+    NoClientAuth, ServerConfig as RustlsServerConfig, Session,
 };
+use webpki::DNSNameRef;
 
-use std::io::{self, BufReader};
+use std::{
+    io::{self, BufReader, Write},
+    net::{SocketAddr, TcpStream as StdTcpStream},
+    sync::Arc,
+};
 
 async fn load_body<S>(mut stream: S) -> Result<BytesMut, PayloadError>
 where
@@ -50,6 +55,25 @@ fn tls_config() -> RustlsServerConfig {
     config.set_single_cert(cert_chain, keys.remove(0)).unwrap();
 
     config
+}
+
+pub fn get_negotiated_alpn_protocol(
+    addr: SocketAddr,
+    client_alpn_protocol: &[u8],
+) -> Option<Vec<u8>> {
+    let mut config = rustls::ClientConfig::new();
+    config.alpn_protocols.push(client_alpn_protocol.to_vec());
+    let mut sess = rustls::ClientSession::new(
+        &Arc::new(config),
+        DNSNameRef::try_from_ascii_str("localhost").unwrap(),
+    );
+    let mut sock = StdTcpStream::connect(addr).unwrap();
+    let mut stream = rustls::Stream::new(&mut sess, &mut sock);
+    // The handshake will fails because the client will not be able to verify the server
+    // certificate, but it doesn't matter here as we are just interested in the negotiated ALPN
+    // protocol
+    let _ = stream.flush();
+    sess.get_alpn_protocol().map(|proto| proto.to_vec())
 }
 
 #[actix_rt::test]
@@ -477,7 +501,7 @@ async fn test_alpn_h1() -> io::Result<()> {
     .await;
 
     assert_eq!(
-        srv.get_negotiated_alpn_protocol(CUSTOM_ALPN_PROTOCOL),
+        get_negotiated_alpn_protocol(srv.addr(), CUSTOM_ALPN_PROTOCOL),
         Some(CUSTOM_ALPN_PROTOCOL.to_vec())
     );
 
@@ -499,33 +523,11 @@ async fn test_alpn_h2() -> io::Result<()> {
     .await;
 
     assert_eq!(
-        srv.get_negotiated_alpn_protocol(H2_ALPN_PROTOCOL),
+        get_negotiated_alpn_protocol(srv.addr(), H2_ALPN_PROTOCOL),
         Some(H2_ALPN_PROTOCOL.to_vec())
     );
     assert_eq!(
-        srv.get_negotiated_alpn_protocol(CUSTOM_ALPN_PROTOCOL),
-        Some(CUSTOM_ALPN_PROTOCOL.to_vec())
-    );
-
-    let response = srv.sget("/").send().await.unwrap();
-    assert!(response.status().is_success());
-
-    Ok(())
-}
-
-#[actix_rt::test]
-async fn test_alpn_h1_1() -> io::Result<()> {
-    let srv = test_server(move || {
-        let mut config = tls_config();
-        config.alpn_protocols.push(CUSTOM_ALPN_PROTOCOL.to_vec());
-        HttpService::build()
-            .h1(|_| ok::<_, Error>(Response::ok()))
-            .rustls(config)
-    })
-    .await;
-
-    assert_eq!(
-        srv.get_negotiated_alpn_protocol(CUSTOM_ALPN_PROTOCOL),
+        get_negotiated_alpn_protocol(srv.addr(), CUSTOM_ALPN_PROTOCOL),
         Some(CUSTOM_ALPN_PROTOCOL.to_vec())
     );
 
@@ -547,15 +549,15 @@ async fn test_alpn_h2_1() -> io::Result<()> {
     .await;
 
     assert_eq!(
-        srv.get_negotiated_alpn_protocol(H2_ALPN_PROTOCOL),
+        get_negotiated_alpn_protocol(srv.addr(), H2_ALPN_PROTOCOL),
         Some(H2_ALPN_PROTOCOL.to_vec())
     );
     assert_eq!(
-        srv.get_negotiated_alpn_protocol(HTTP1_1_ALPN_PROTOCOL),
+        get_negotiated_alpn_protocol(srv.addr(), HTTP1_1_ALPN_PROTOCOL),
         Some(HTTP1_1_ALPN_PROTOCOL.to_vec())
     );
     assert_eq!(
-        srv.get_negotiated_alpn_protocol(CUSTOM_ALPN_PROTOCOL),
+        get_negotiated_alpn_protocol(srv.addr(), CUSTOM_ALPN_PROTOCOL),
         Some(CUSTOM_ALPN_PROTOCOL.to_vec())
     );
 

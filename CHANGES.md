@@ -3,7 +3,6 @@
 ## Unreleased - 2021-xx-xx
 ### Added
 * `HttpServer::worker_max_blocking_threads` for setting block thread pool. [#2200]
-* Added `TestServer::get_negotiated_alpn_protocol` method.
 
 ### Changed
 * `ServiceResponse::error_response` now uses body type of `Body`. [#2201]
@@ -11,7 +10,7 @@
 * Update `language-tags` to `0.3`.
 * `ServiceResponse::take_body`. [#2201]
 * `ServiceResponse::map_body` closure receives and returns `B` instead of `ResponseBody<B>` types. [#2201]
-* Extends Rustls ALPN protocols instead of replacing them when creating Rustls based services
+* `HttpServer::{listen_rustls(), bind_rustls()}` now honor the ALPN protocols in the configuation parameter. [#2226]
 * `middleware::normalize` now will not try to normalize URIs with no valid path [#2246]
 
 ### Removed
