@@ -91,6 +91,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tls-openssl = { version = "0.10", package = "openssl" }
 tls-rustls = { version = "0.19", package = "rustls" }
+webpki = { version = "0.21.0" }
 
 [[example]]
 name = "ws"

@@ -10,6 +10,7 @@
 * Update `language-tags` to `0.3`.
 * `ServiceResponse::take_body`. [#2201]
 * `ServiceResponse::map_body` closure receives and returns `B` instead of `ResponseBody<B>` types. [#2201]
+* `HttpServer::{listen_rustls(), bind_rustls()}` now honor the ALPN protocols in the configuation parameter. [#2226]
 * `middleware::normalize` now will not try to normalize URIs with no valid path [#2246]
 
 ### Removed
