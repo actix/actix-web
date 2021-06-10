@@ -175,7 +175,8 @@ mod rustls {
             Error = TlsError<io::Error, DispatchError>,
             InitError = S::InitError,
         > {
-            let protos = vec!["h2".to_string().into()];
+            let mut protos = vec![b"h2".to_vec()];
+            protos.extend_from_slice(&config.alpn_protocols);
             config.set_protocols(&protos);
 
             Acceptor::new(config)

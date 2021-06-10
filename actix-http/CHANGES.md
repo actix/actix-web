@@ -22,6 +22,7 @@
 * Reduce the level from `error` to `debug` for the log line that is emitted when a `500 Internal Server Error` is built using `HttpResponse::from_error`. [#2201]
 * `ResponseBuilder::message_body` now returns a `Result`. [#2201]
 * Remove `Unpin` bound on `ResponseBuilder::streaming`. [#2253]
+* `HttpServer::{listen_rustls(), bind_rustls()}` now honor the ALPN protocols in the configuation parameter. [#2226]
 
 ### Removed
 * Stop re-exporting `http` crate's `HeaderMap` types in addition to ours. [#2171]
