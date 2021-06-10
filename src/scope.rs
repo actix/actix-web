@@ -424,7 +424,6 @@ where
 
         // complete scope pipeline creation
         *self.factory_ref.borrow_mut() = Some(ScopeFactory {
-            app_data: self.app_data.take().map(Rc::new),
             default,
             services: cfg
                 .into_services()
@@ -446,18 +445,25 @@ where
             Some(self.guards)
         };
 
+        let app_data = self.app_data.take().map(Rc::new);
+        let endpoint = apply_fn_factory(self.endpoint, move |mut req: ServiceRequest, srv| {
+            if let Some(ref data) = app_data {
+                req.add_data_container(Rc::clone(data));
+            }
+            srv.call(req)
+        });
+
         // register final service
         config.register_service(
             ResourceDef::root_prefix(&self.rdef),
             guards,
-            self.endpoint,
+            endpoint,
             Some(Rc::new(rmap)),
         )
     }
 }
 
 pub struct ScopeFactory {
-    app_data: Option<Rc<Extensions>>,
     services: Rc<[(ResourceDef, HttpNewService, RefCell<Option<Guards>>)]>,
     default: Rc<HttpNewService>,
 }
@@ -485,8 +491,6 @@ impl ServiceFactory<ServiceRequest> for ScopeFactory {
             }
         }));
 
-        let app_data = self.app_data.clone();
-
         Box::pin(async move {
             let default = default_fut.await?;
 
@@ -502,17 +506,12 @@ impl ServiceFactory<ServiceRequest> for ScopeFactory {
                 })
                 .finish();
 
-            Ok(ScopeService {
-                app_data,
-                router,
-                default,
-            })
+            Ok(ScopeService { router, default })
         })
     }
 }
 
 pub struct ScopeService {
-    app_data: Option<Rc<Extensions>>,
     router: Router<HttpService, Vec<Box<dyn Guard>>>,
     default: HttpService,
 }
@@ -535,10 +534,6 @@ impl Service<ServiceRequest> for ScopeService {
             }
             true
         });
-
-        if let Some(ref app_data) = self.app_data {
-            req.add_data_container(app_data.clone());
-        }
 
         if let Some((srv, _info)) = res {
             srv.call(req)
