@@ -130,9 +130,7 @@ impl Route {
     ///
     /// ```
     /// # use actix_web::{*, dev::*, http::header};
-    /// # use std::task::{Context, Poll};
-    /// # use std::pin::Pin;
-    /// # use std::future::Future;
+    /// # use std::{task::{Context, Poll}, pin::Pin, future::Future};
     /// use futures_util::future::{ok, LocalBoxFuture};
     ///
     /// struct HelloWorld;
