@@ -368,7 +368,7 @@ where
     #[cfg(feature = "rustls")]
     /// Use listener for accepting incoming tls connection requests
     ///
-    /// This method sets alpn protocols to "h2" and "http/1.1"
+    /// This method prepends alpn protocols "h2" and "http/1.1" to configured ones
     pub fn listen_rustls(
         self,
         lst: net::TcpListener,
@@ -482,7 +482,7 @@ where
     #[cfg(feature = "rustls")]
     /// Start listening for incoming tls connections.
     ///
-    /// This method sets alpn protocols to "h2" and "http/1.1"
+    /// This method prepends alpn protocols "h2" and "http/1.1" to configured ones
     pub fn bind_rustls<A: net::ToSocketAddrs>(
         mut self,
         addr: A,

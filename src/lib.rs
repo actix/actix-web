@@ -170,6 +170,8 @@ pub mod dev {
         fn get_encoding(&self) -> Option<ContentEncoding>;
 
         /// Set content encoding
+        ///
+        /// Must be used with [`crate::middleware::Compress`] to take effect.
         fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self;
     }
 
