@@ -126,6 +126,55 @@ impl Route {
         self
     }
 
+    /// Set the service to be called when this route is hit.
+    ///
+    /// ```
+    /// # use actix_web::{*, dev::*, http::header};
+    /// # use std::task::{Context, Poll};
+    /// # use std::pin::Pin;
+    /// # use std::future::Future;
+    /// use futures_util::future::{ok, LocalBoxFuture};
+    /// 
+    /// struct HelloWorld;
+    /// 
+    /// impl Service<ServiceRequest> for HelloWorld {
+    ///     type Response = ServiceResponse;
+    ///     type Error = actix_web::Error;
+    ///     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
+    /// 
+    ///     fn poll_ready(&self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+    ///         Poll::Ready(Ok(()))
+    ///     }
+    /// 
+    ///     fn call(&self, req: ServiceRequest) -> Self::Future {
+    ///         let (req, _) = req.into_parts();
+    /// 
+    ///         let res = HttpResponse::Ok()
+    ///             .insert_header(header::ContentType::plaintext())
+    ///             .body("Hello world!");
+    /// 
+    ///         Box::pin(ok(ServiceResponse::new(req, res)))
+    ///     }
+    /// }
+    /// 
+    /// App::new().service(
+    ///     web::resource("/").route(web::get().service(fn_factory(|| ok(HelloWorld))))
+    /// );
+    /// ```
+    pub fn service<S>(mut self, service: S) -> Self
+    where
+        S: ServiceFactory<
+                ServiceRequest,
+                Response = ServiceResponse,
+                Error = Error,
+                InitError = (),
+                Config = (),
+            > + 'static,
+    {
+        self.service = boxed::factory(service);
+        self
+    }
+
     /// Set handler function, use request extractors for parameters.
     ///
     /// ```

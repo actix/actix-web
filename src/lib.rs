@@ -130,6 +130,7 @@ pub mod dev {
     //! ```
 
     pub use crate::config::{AppConfig, AppService};
+    pub use actix_service::fn_factory;
     #[doc(hidden)]
     pub use crate::handler::Handler;
     pub use crate::info::ConnectionInfo;
