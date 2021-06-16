@@ -280,6 +280,22 @@ mod tests {
     }
 
     #[actix_rt::test]
+    async fn test_named_file_javascript() {
+        let file = NamedFile::open("tests/test.js").unwrap();
+
+        let req = TestRequest::default().to_http_request();
+        let resp = file.respond_to(&req).await.unwrap();
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "application/javascript"
+        );
+        assert_eq!(
+            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+            "inline; filename=\"test.js\""
+        );
+    }
+
+    #[actix_rt::test]
     async fn test_named_file_image_attachment() {
         let cd = ContentDisposition {
             disposition: DispositionType::Attachment,
