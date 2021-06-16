@@ -137,53 +137,57 @@ where
 
         let original_path = head.uri.path();
 
-        // Either adds a string to the end (duplicates will be removed anyways) or trims all slashes from the end
-        let path = match self.trailing_slash_behavior {
-            TrailingSlash::Always => original_path.to_string() + "/",
-            TrailingSlash::MergeOnly => original_path.to_string(),
-            TrailingSlash::Trim => original_path.trim_end_matches('/').to_string(),
-        };
-
-        // normalize multiple /'s to one /
-        let path = self.merge_slash.replace_all(&path, "/");
-
-        // Ensure root paths are still resolvable. If resulting path is blank after previous step
-        // it means the path was one or more slashes. Reduce to single slash.
-        let path = if path.is_empty() { "/" } else { path.as_ref() };
-
-        // Check whether the path has been changed
-        //
-        // This check was previously implemented as string length comparison
-        //
-        // That approach fails when a trailing slash is added,
-        // and a duplicate slash is removed,
-        // since the length of the strings remains the same
-        //
-        // For example, the path "/v1//s" will be normalized to "/v1/s/"
-        // Both of the paths have the same length,
-        // so the change can not be deduced from the length comparison
-        if path != original_path {
-            let mut parts = head.uri.clone().into_parts();
-            let query = parts.path_and_query.as_ref().and_then(|pq| pq.query());
-
-            let path = if let Some(q) = query {
-                Bytes::from(format!("{}?{}", path, q))
-            } else {
-                Bytes::copy_from_slice(path.as_bytes())
+        // An empty path here means that the URI has no valid path. We skip normalization in this
+        // case, because adding a path can make the URI invalid
+        if !original_path.is_empty() {
+            // Either adds a string to the end (duplicates will be removed anyways) or trims all
+            // slashes from the end
+            let path = match self.trailing_slash_behavior {
+                TrailingSlash::Always => format!("{}/", original_path),
+                TrailingSlash::MergeOnly => original_path.to_string(),
+                TrailingSlash::Trim => original_path.trim_end_matches('/').to_string(),
             };
-            parts.path_and_query = Some(PathAndQuery::from_maybe_shared(path).unwrap());
 
-            let uri = Uri::from_parts(parts).unwrap();
-            req.match_info_mut().get_mut().update(&uri);
-            req.head_mut().uri = uri;
+            // normalize multiple /'s to one /
+            let path = self.merge_slash.replace_all(&path, "/");
+
+            // Ensure root paths are still resolvable. If resulting path is blank after previous
+            // step it means the path was one or more slashes. Reduce to single slash.
+            let path = if path.is_empty() { "/" } else { path.as_ref() };
+
+            // Check whether the path has been changed
+            //
+            // This check was previously implemented as string length comparison
+            //
+            // That approach fails when a trailing slash is added,
+            // and a duplicate slash is removed,
+            // since the length of the strings remains the same
+            //
+            // For example, the path "/v1//s" will be normalized to "/v1/s/"
+            // Both of the paths have the same length,
+            // so the change can not be deduced from the length comparison
+            if path != original_path {
+                let mut parts = head.uri.clone().into_parts();
+                let query = parts.path_and_query.as_ref().and_then(|pq| pq.query());
+
+                let path = match query {
+                    Some(q) => Bytes::from(format!("{}?{}", path, q)),
+                    None => Bytes::copy_from_slice(path.as_bytes()),
+                };
+                parts.path_and_query = Some(PathAndQuery::from_maybe_shared(path).unwrap());
+
+                let uri = Uri::from_parts(parts).unwrap();
+                req.match_info_mut().get_mut().update(&uri);
+                req.head_mut().uri = uri;
+            }
         }
-
         self.service.call(req)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use actix_http::StatusCode;
     use actix_service::IntoService;
 
     use super::*;
@@ -385,6 +389,22 @@ mod tests {
             let res = call_service(&app, req).await;
             assert_eq!(res.status().is_success(), success, "Failed uri: {}", uri);
         }
+    }
+
+    #[actix_rt::test]
+    async fn no_path() {
+        let app = init_service(
+            App::new()
+                .wrap(NormalizePath::default())
+                .service(web::resource("/").to(HttpResponse::Ok)),
+        )
+        .await;
+
+        // This URI will be interpreted as an authority form, i.e. there is no path nor scheme
+        // (https://datatracker.ietf.org/doc/html/rfc7230#section-5.3.3)
+        let req = TestRequest::with_uri("eh").to_request();
+        let res = call_service(&app, req).await;
+        assert_eq!(res.status(), StatusCode::NOT_FOUND);
     }
 
     #[actix_rt::test]

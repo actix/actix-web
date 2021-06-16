@@ -9,6 +9,7 @@
 * Re-export `ContentEncoding` and `ConnectionType` at the crate root. [#2171]
 * `Response::into_body` that consumes response and returns body type. [#2201]
 * `impl Default` for `Response`. [#2201]
+* Add zstd support for `ContentEncoding`. [#2244]
 
 ### Changed
 * The `MessageBody` trait now has an associated `Error` type. [#2183]
@@ -18,6 +19,7 @@
 * Update `language-tags` to `0.3`.
 * Reduce the level from `error` to `debug` for the log line that is emitted when a `500 Internal Server Error` is built using `HttpResponse::from_error`. [#2201]
 * `ResponseBuilder::message_body` now returns a `Result`. [#2201]
+* `HttpServer::{listen_rustls(), bind_rustls()}` now honor the ALPN protocols in the configuation parameter. [#2226]
 
 ### Removed
 * Stop re-exporting `http` crate's `HeaderMap` types in addition to ours. [#2171]
@@ -35,6 +37,8 @@
 [#2201]: https://github.com/actix/actix-web/pull/2201
 [#2205]: https://github.com/actix/actix-web/pull/2205
 [#2215]: https://github.com/actix/actix-web/pull/2215
+[#2244]: https://github.com/actix/actix-web/pull/2244
+
 
 
 ## 3.0.0-beta.6 - 2021-04-17
