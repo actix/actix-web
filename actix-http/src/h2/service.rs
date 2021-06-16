@@ -40,7 +40,9 @@ where
     S::Error: Into<Error> + 'static,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
+
     B: MessageBody + 'static,
+    B::Error: Into<Error>,
 {
     /// Create new `H2Service` instance with config.
     pub(crate) fn with_config<F: IntoServiceFactory<S, Request>>(
@@ -69,7 +71,9 @@ where
     S::Error: Into<Error> + 'static,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
+
     B: MessageBody + 'static,
+    B::Error: Into<Error>,
 {
     /// Create plain TCP based service
     pub fn tcp(
@@ -106,7 +110,9 @@ mod openssl {
         S::Error: Into<Error> + 'static,
         S::Response: Into<Response<B>> + 'static,
         <S::Service as Service<Request>>::Future: 'static,
+
         B: MessageBody + 'static,
+        B::Error: Into<Error>,
     {
         /// Create OpenSSL based service
         pub fn openssl(
@@ -150,7 +156,9 @@ mod rustls {
         S::Error: Into<Error> + 'static,
         S::Response: Into<Response<B>> + 'static,
         <S::Service as Service<Request>>::Future: 'static,
+
         B: MessageBody + 'static,
+        B::Error: Into<Error>,
     {
         /// Create Rustls based service
         pub fn rustls(
@@ -163,7 +171,8 @@ mod rustls {
             Error = TlsError<io::Error, DispatchError>,
             InitError = S::InitError,
         > {
-            let protos = vec!["h2".to_string().into()];
+            let mut protos = vec![b"h2".to_vec()];
+            protos.extend_from_slice(&config.alpn_protocols);
             config.set_protocols(&protos);
 
             Acceptor::new(config)
@@ -185,12 +194,15 @@ mod rustls {
 impl<T, S, B> ServiceFactory<(T, Option<net::SocketAddr>)> for H2Service<T, S, B>
 where
     T: AsyncRead + AsyncWrite + Unpin + 'static,
+
     S: ServiceFactory<Request, Config = ()>,
     S::Future: 'static,
     S::Error: Into<Error> + 'static,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
+
     B: MessageBody + 'static,
+    B::Error: Into<Error>,
 {
     type Response = ();
     type Error = DispatchError;
@@ -252,6 +264,7 @@ where
     S::Future: 'static,
     S::Response: Into<Response<B>> + 'static,
     B: MessageBody + 'static,
+    B::Error: Into<Error>,
 {
     type Response = ();
     type Error = DispatchError;
@@ -316,6 +329,7 @@ where
     S::Future: 'static,
     S::Response: Into<Response<B>> + 'static,
     B: MessageBody,
+    B::Error: Into<Error>,
 {
     type Output = Result<(), DispatchError>;
 

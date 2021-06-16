@@ -26,6 +26,7 @@
 //!
 //! * [Website & User Guide](https://actix.rs/)
 //! * [Examples Repository](https://github.com/actix/examples)
+//! * [Community Chat on Discord](https://discord.gg/NWpN5mmg3x)
 //! * [Community Chat on Gitter](https://gitter.im/actix/actix-web)
 //!
 //! To get started navigating the API docs, you may consider looking at the following pages first:
@@ -97,7 +98,7 @@ pub(crate) mod types;
 pub mod web;
 
 pub use actix_http::Response as BaseHttpResponse;
-pub use actix_http::{body, Error, HttpMessage, ResponseError, Result};
+pub use actix_http::{body, Error, HttpMessage, ResponseError};
 #[doc(inline)]
 pub use actix_rt as rt;
 pub use actix_web_codegen::*;
@@ -105,6 +106,7 @@ pub use actix_web_codegen::*;
 pub use cookie;
 
 pub use crate::app::App;
+pub use crate::error::Result;
 pub use crate::extract::FromRequest;
 pub use crate::request::HttpRequest;
 pub use crate::resource::Resource;
@@ -167,6 +169,8 @@ pub mod dev {
         fn get_encoding(&self) -> Option<ContentEncoding>;
 
         /// Set content encoding
+        ///
+        /// Must be used with [`crate::middleware::Compress`] to take effect.
         fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self;
     }
 

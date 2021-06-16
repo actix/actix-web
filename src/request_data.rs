@@ -1,9 +1,9 @@
 use std::{any::type_name, ops::Deref};
 
-use actix_http::error::{Error, ErrorInternalServerError};
+use actix_http::error::Error;
 use actix_utils::future::{err, ok, Ready};
 
-use crate::{dev::Payload, FromRequest, HttpRequest};
+use crate::{dev::Payload, error::ErrorInternalServerError, FromRequest, HttpRequest};
 
 /// Request-local data extractor.
 ///

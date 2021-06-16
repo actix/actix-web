@@ -32,7 +32,7 @@ openssl = ["actix-tls/openssl"]
 rustls = ["actix-tls/rustls"]
 
 # enable compression support
-compress = ["flate2", "brotli2"]
+compress = ["flate2", "brotli2", "zstd"]
 
 # trust-dns as client dns resolver
 trust-dns = ["trust-dns-resolver"]
@@ -62,7 +62,6 @@ local-channel = "0.1"
 once_cell = "1.5"
 log = "0.4"
 mime = "0.3"
-paste = "1"
 percent-encoding = "2.1"
 pin-project = "1.0.0"
 pin-project-lite = "0.2"
@@ -77,6 +76,7 @@ tokio = { version = "1.2", features = ["sync"] }
 # compression
 brotli2 = { version="0.3.2", optional = true }
 flate2 = { version = "1.0.13", optional = true }
+zstd = { version = "0.7", optional = true }
 
 trust-dns-resolver = { version = "0.20.0", optional = true }
 
@@ -91,6 +91,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tls-openssl = { version = "0.10", package = "openssl" }
 tls-rustls = { version = "0.19", package = "rustls" }
+webpki = { version = "0.21.0" }
 
 [[example]]
 name = "ws"

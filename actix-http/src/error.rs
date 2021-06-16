@@ -1,7 +1,7 @@
 //! Error and Result module
 
 use std::{
-    cell::RefCell,
+    error::Error as StdError,
     fmt,
     io::{self, Write as _},
     str::Utf8Error,
@@ -13,15 +13,9 @@ use derive_more::{Display, Error, From};
 use http::{header, uri::InvalidUri, StatusCode};
 use serde::de::value::Error as DeError;
 
-use crate::{body::Body, helpers::Writer, Response, ResponseBuilder};
+use crate::{body::Body, helpers::Writer, Response};
 
 pub use http::Error as HttpError;
-
-/// A specialized [`std::result::Result`] for Actix Web operations.
-///
-/// This typedef is generally used to avoid writing out `actix_http::error::Error` directly and is
-/// otherwise a direct mapping to `Result`.
-pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// General purpose actix web error.
 ///
@@ -105,8 +99,7 @@ impl From<()> for Error {
 
 impl From<std::convert::Infallible> for Error {
     fn from(_: std::convert::Infallible) -> Self {
-        // `std::convert::Infallible` indicates an error
-        // that will never happen
+        // hint that an error that will never happen
         unreachable!()
     }
 }
@@ -127,23 +120,11 @@ impl<T: ResponseError + 'static> From<T> for Error {
     }
 }
 
-/// Convert Response to a Error
-impl From<Response<Body>> for Error {
-    fn from(res: Response<Body>) -> Error {
-        InternalError::from_response("", res).into()
-    }
-}
-
-/// Convert ResponseBuilder to a Error
-impl From<ResponseBuilder> for Error {
-    fn from(mut res: ResponseBuilder) -> Error {
-        InternalError::from_response("", res.finish()).into()
-    }
-}
-
 #[derive(Debug, Display, Error)]
 #[display(fmt = "Unknown Error")]
 struct UnitError;
+
+impl ResponseError for Box<dyn StdError + 'static> {}
 
 /// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`UnitError`].
 impl ResponseError for UnitError {}
@@ -453,179 +434,11 @@ mod content_type_test_impls {
     }
 }
 
-/// Return `BadRequest` for `ContentTypeError`
 impl ResponseError for ContentTypeError {
     fn status_code(&self) -> StatusCode {
         StatusCode::BAD_REQUEST
     }
 }
-
-/// Helper type that can wrap any error and generate custom response.
-///
-/// In following example any `io::Error` will be converted into "BAD REQUEST"
-/// response as opposite to *INTERNAL SERVER ERROR* which is defined by
-/// default.
-///
-/// ```
-/// # use std::io;
-/// # use actix_http::*;
-///
-/// fn index(req: Request) -> Result<&'static str> {
-///     Err(error::ErrorBadRequest(io::Error::new(io::ErrorKind::Other, "error")))
-/// }
-/// ```
-pub struct InternalError<T> {
-    cause: T,
-    status: InternalErrorType,
-}
-
-enum InternalErrorType {
-    Status(StatusCode),
-    Response(RefCell<Option<Response<Body>>>),
-}
-
-impl<T> InternalError<T> {
-    /// Create `InternalError` instance
-    pub fn new(cause: T, status: StatusCode) -> Self {
-        InternalError {
-            cause,
-            status: InternalErrorType::Status(status),
-        }
-    }
-
-    /// Create `InternalError` with predefined `Response`.
-    pub fn from_response(cause: T, response: Response<Body>) -> Self {
-        InternalError {
-            cause,
-            status: InternalErrorType::Response(RefCell::new(Some(response))),
-        }
-    }
-}
-
-impl<T> fmt::Debug for InternalError<T>
-where
-    T: fmt::Debug + 'static,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(&self.cause, f)
-    }
-}
-
-impl<T> fmt::Display for InternalError<T>
-where
-    T: fmt::Display + 'static,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(&self.cause, f)
-    }
-}
-
-impl<T> ResponseError for InternalError<T>
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    fn status_code(&self) -> StatusCode {
-        match self.status {
-            InternalErrorType::Status(st) => st,
-            InternalErrorType::Response(ref resp) => {
-                if let Some(resp) = resp.borrow().as_ref() {
-                    resp.head().status
-                } else {
-                    StatusCode::INTERNAL_SERVER_ERROR
-                }
-            }
-        }
-    }
-
-    fn error_response(&self) -> Response<Body> {
-        match self.status {
-            InternalErrorType::Status(st) => {
-                let mut res = Response::new(st);
-                let mut buf = BytesMut::new();
-                let _ = write!(Writer(&mut buf), "{}", self);
-                res.headers_mut().insert(
-                    header::CONTENT_TYPE,
-                    header::HeaderValue::from_static("text/plain; charset=utf-8"),
-                );
-                res.set_body(Body::from(buf))
-            }
-            InternalErrorType::Response(ref resp) => {
-                if let Some(resp) = resp.borrow_mut().take() {
-                    resp
-                } else {
-                    Response::new(StatusCode::INTERNAL_SERVER_ERROR)
-                }
-            }
-        }
-    }
-}
-
-macro_rules! error_helper {
-    ($name:ident, $status:ident) => {
-        paste::paste! {
-            #[doc = "Helper function that wraps any error and generates a `" $status "` response."]
-            #[allow(non_snake_case)]
-            pub fn $name<T>(err: T) -> Error
-            where
-            T: fmt::Debug + fmt::Display + 'static,
-            {
-                InternalError::new(err, StatusCode::$status).into()
-            }
-        }
-    }
-}
-
-error_helper!(ErrorBadRequest, BAD_REQUEST);
-error_helper!(ErrorUnauthorized, UNAUTHORIZED);
-error_helper!(ErrorPaymentRequired, PAYMENT_REQUIRED);
-error_helper!(ErrorForbidden, FORBIDDEN);
-error_helper!(ErrorNotFound, NOT_FOUND);
-error_helper!(ErrorMethodNotAllowed, METHOD_NOT_ALLOWED);
-error_helper!(ErrorNotAcceptable, NOT_ACCEPTABLE);
-error_helper!(
-    ErrorProxyAuthenticationRequired,
-    PROXY_AUTHENTICATION_REQUIRED
-);
-error_helper!(ErrorRequestTimeout, REQUEST_TIMEOUT);
-error_helper!(ErrorConflict, CONFLICT);
-error_helper!(ErrorGone, GONE);
-error_helper!(ErrorLengthRequired, LENGTH_REQUIRED);
-error_helper!(ErrorPayloadTooLarge, PAYLOAD_TOO_LARGE);
-error_helper!(ErrorUriTooLong, URI_TOO_LONG);
-error_helper!(ErrorUnsupportedMediaType, UNSUPPORTED_MEDIA_TYPE);
-error_helper!(ErrorRangeNotSatisfiable, RANGE_NOT_SATISFIABLE);
-error_helper!(ErrorImATeapot, IM_A_TEAPOT);
-error_helper!(ErrorMisdirectedRequest, MISDIRECTED_REQUEST);
-error_helper!(ErrorUnprocessableEntity, UNPROCESSABLE_ENTITY);
-error_helper!(ErrorLocked, LOCKED);
-error_helper!(ErrorFailedDependency, FAILED_DEPENDENCY);
-error_helper!(ErrorUpgradeRequired, UPGRADE_REQUIRED);
-error_helper!(ErrorPreconditionFailed, PRECONDITION_FAILED);
-error_helper!(ErrorPreconditionRequired, PRECONDITION_REQUIRED);
-error_helper!(ErrorTooManyRequests, TOO_MANY_REQUESTS);
-error_helper!(
-    ErrorRequestHeaderFieldsTooLarge,
-    REQUEST_HEADER_FIELDS_TOO_LARGE
-);
-error_helper!(
-    ErrorUnavailableForLegalReasons,
-    UNAVAILABLE_FOR_LEGAL_REASONS
-);
-error_helper!(ErrorExpectationFailed, EXPECTATION_FAILED);
-error_helper!(ErrorInternalServerError, INTERNAL_SERVER_ERROR);
-error_helper!(ErrorNotImplemented, NOT_IMPLEMENTED);
-error_helper!(ErrorBadGateway, BAD_GATEWAY);
-error_helper!(ErrorServiceUnavailable, SERVICE_UNAVAILABLE);
-error_helper!(ErrorGatewayTimeout, GATEWAY_TIMEOUT);
-error_helper!(ErrorHttpVersionNotSupported, HTTP_VERSION_NOT_SUPPORTED);
-error_helper!(ErrorVariantAlsoNegotiates, VARIANT_ALSO_NEGOTIATES);
-error_helper!(ErrorInsufficientStorage, INSUFFICIENT_STORAGE);
-error_helper!(ErrorLoopDetected, LOOP_DETECTED);
-error_helper!(ErrorNotExtended, NOT_EXTENDED);
-error_helper!(
-    ErrorNetworkAuthenticationRequired,
-    NETWORK_AUTHENTICATION_REQUIRED
-);
 
 #[cfg(test)]
 mod tests {
@@ -724,13 +537,6 @@ mod tests {
     }
 
     #[test]
-    fn test_internal_error() {
-        let err = InternalError::from_response(ParseError::Method, Response::ok());
-        let resp: Response<Body> = err.error_response();
-        assert_eq!(resp.status(), StatusCode::OK);
-    }
-
-    #[test]
     fn test_error_casting() {
         let err = PayloadError::Overflow;
         let resp_err: &dyn ResponseError = &err;
@@ -738,125 +544,5 @@ mod tests {
         assert_eq!(err.to_string(), "Payload reached size limit.");
         let not_err = resp_err.downcast_ref::<ContentTypeError>();
         assert!(not_err.is_none());
-    }
-
-    #[test]
-    fn test_error_helpers() {
-        let res: Response<Body> = ErrorBadRequest("err").into();
-        assert_eq!(res.status(), StatusCode::BAD_REQUEST);
-
-        let res: Response<Body> = ErrorUnauthorized("err").into();
-        assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
-
-        let res: Response<Body> = ErrorPaymentRequired("err").into();
-        assert_eq!(res.status(), StatusCode::PAYMENT_REQUIRED);
-
-        let res: Response<Body> = ErrorForbidden("err").into();
-        assert_eq!(res.status(), StatusCode::FORBIDDEN);
-
-        let res: Response<Body> = ErrorNotFound("err").into();
-        assert_eq!(res.status(), StatusCode::NOT_FOUND);
-
-        let res: Response<Body> = ErrorMethodNotAllowed("err").into();
-        assert_eq!(res.status(), StatusCode::METHOD_NOT_ALLOWED);
-
-        let res: Response<Body> = ErrorNotAcceptable("err").into();
-        assert_eq!(res.status(), StatusCode::NOT_ACCEPTABLE);
-
-        let res: Response<Body> = ErrorProxyAuthenticationRequired("err").into();
-        assert_eq!(res.status(), StatusCode::PROXY_AUTHENTICATION_REQUIRED);
-
-        let res: Response<Body> = ErrorRequestTimeout("err").into();
-        assert_eq!(res.status(), StatusCode::REQUEST_TIMEOUT);
-
-        let res: Response<Body> = ErrorConflict("err").into();
-        assert_eq!(res.status(), StatusCode::CONFLICT);
-
-        let res: Response<Body> = ErrorGone("err").into();
-        assert_eq!(res.status(), StatusCode::GONE);
-
-        let res: Response<Body> = ErrorLengthRequired("err").into();
-        assert_eq!(res.status(), StatusCode::LENGTH_REQUIRED);
-
-        let res: Response<Body> = ErrorPreconditionFailed("err").into();
-        assert_eq!(res.status(), StatusCode::PRECONDITION_FAILED);
-
-        let res: Response<Body> = ErrorPayloadTooLarge("err").into();
-        assert_eq!(res.status(), StatusCode::PAYLOAD_TOO_LARGE);
-
-        let res: Response<Body> = ErrorUriTooLong("err").into();
-        assert_eq!(res.status(), StatusCode::URI_TOO_LONG);
-
-        let res: Response<Body> = ErrorUnsupportedMediaType("err").into();
-        assert_eq!(res.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
-
-        let res: Response<Body> = ErrorRangeNotSatisfiable("err").into();
-        assert_eq!(res.status(), StatusCode::RANGE_NOT_SATISFIABLE);
-
-        let res: Response<Body> = ErrorExpectationFailed("err").into();
-        assert_eq!(res.status(), StatusCode::EXPECTATION_FAILED);
-
-        let res: Response<Body> = ErrorImATeapot("err").into();
-        assert_eq!(res.status(), StatusCode::IM_A_TEAPOT);
-
-        let res: Response<Body> = ErrorMisdirectedRequest("err").into();
-        assert_eq!(res.status(), StatusCode::MISDIRECTED_REQUEST);
-
-        let res: Response<Body> = ErrorUnprocessableEntity("err").into();
-        assert_eq!(res.status(), StatusCode::UNPROCESSABLE_ENTITY);
-
-        let res: Response<Body> = ErrorLocked("err").into();
-        assert_eq!(res.status(), StatusCode::LOCKED);
-
-        let res: Response<Body> = ErrorFailedDependency("err").into();
-        assert_eq!(res.status(), StatusCode::FAILED_DEPENDENCY);
-
-        let res: Response<Body> = ErrorUpgradeRequired("err").into();
-        assert_eq!(res.status(), StatusCode::UPGRADE_REQUIRED);
-
-        let res: Response<Body> = ErrorPreconditionRequired("err").into();
-        assert_eq!(res.status(), StatusCode::PRECONDITION_REQUIRED);
-
-        let res: Response<Body> = ErrorTooManyRequests("err").into();
-        assert_eq!(res.status(), StatusCode::TOO_MANY_REQUESTS);
-
-        let res: Response<Body> = ErrorRequestHeaderFieldsTooLarge("err").into();
-        assert_eq!(res.status(), StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE);
-
-        let res: Response<Body> = ErrorUnavailableForLegalReasons("err").into();
-        assert_eq!(res.status(), StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS);
-
-        let res: Response<Body> = ErrorInternalServerError("err").into();
-        assert_eq!(res.status(), StatusCode::INTERNAL_SERVER_ERROR);
-
-        let res: Response<Body> = ErrorNotImplemented("err").into();
-        assert_eq!(res.status(), StatusCode::NOT_IMPLEMENTED);
-
-        let res: Response<Body> = ErrorBadGateway("err").into();
-        assert_eq!(res.status(), StatusCode::BAD_GATEWAY);
-
-        let res: Response<Body> = ErrorServiceUnavailable("err").into();
-        assert_eq!(res.status(), StatusCode::SERVICE_UNAVAILABLE);
-
-        let res: Response<Body> = ErrorGatewayTimeout("err").into();
-        assert_eq!(res.status(), StatusCode::GATEWAY_TIMEOUT);
-
-        let res: Response<Body> = ErrorHttpVersionNotSupported("err").into();
-        assert_eq!(res.status(), StatusCode::HTTP_VERSION_NOT_SUPPORTED);
-
-        let res: Response<Body> = ErrorVariantAlsoNegotiates("err").into();
-        assert_eq!(res.status(), StatusCode::VARIANT_ALSO_NEGOTIATES);
-
-        let res: Response<Body> = ErrorInsufficientStorage("err").into();
-        assert_eq!(res.status(), StatusCode::INSUFFICIENT_STORAGE);
-
-        let res: Response<Body> = ErrorLoopDetected("err").into();
-        assert_eq!(res.status(), StatusCode::LOOP_DETECTED);
-
-        let res: Response<Body> = ErrorNotExtended("err").into();
-        assert_eq!(res.status(), StatusCode::NOT_EXTENDED);
-
-        let res: Response<Body> = ErrorNetworkAuthenticationRequired("err").into();
-        assert_eq!(res.status(), StatusCode::NETWORK_AUTHENTICATION_REQUIRED);
     }
 }

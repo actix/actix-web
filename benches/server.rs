@@ -1,4 +1,4 @@
-use actix_web::{test, web, App, HttpResponse};
+use actix_web::{web, App, HttpResponse};
 use awc::Client;
 use criterion::{criterion_group, criterion_main, Criterion};
 use futures_util::future::join_all;

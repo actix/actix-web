@@ -9,6 +9,15 @@ use url::ParseError as UrlParseError;
 
 use crate::http::StatusCode;
 
+mod internal;
+
+pub use self::internal::*;
+
+/// A convenience [`Result`](std::result::Result) for Actix Web operations.
+///
+/// This type alias is generally used to avoid writing out `actix_http::Error` directly.
+pub type Result<T, E = actix_http::Error> = std::result::Result<T, E>;
+
 /// Errors which can occur when attempting to generate resource uri.
 #[derive(Debug, PartialEq, Display, Error, From)]
 #[non_exhaustive]
@@ -26,7 +35,6 @@ pub enum UrlGenerationError {
     ParseError(UrlParseError),
 }
 
-/// `InternalServerError` for `UrlGeneratorError`
 impl ResponseError for UrlGenerationError {}
 
 /// A set of errors that can occur during parsing urlencoded payloads
@@ -70,7 +78,6 @@ pub enum UrlencodedError {
     Payload(PayloadError),
 }
 
-/// Return `BadRequest` for `UrlencodedError`
 impl ResponseError for UrlencodedError {
     fn status_code(&self) -> StatusCode {
         match self {
@@ -161,7 +168,6 @@ pub enum QueryPayloadError {
     Deserialize(serde::de::value::Error),
 }
 
-/// Return `BadRequest` for `QueryPayloadError`
 impl ResponseError for QueryPayloadError {
     fn status_code(&self) -> StatusCode {
         StatusCode::BAD_REQUEST
@@ -189,7 +195,6 @@ pub enum ReadlinesError {
     ContentTypeError(ContentTypeError),
 }
 
-/// Return `BadRequest` for `ReadlinesError`
 impl ResponseError for ReadlinesError {
     fn status_code(&self) -> StatusCode {
         match *self {

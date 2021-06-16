@@ -89,18 +89,20 @@ impl Service<ServiceRequest> for FilesService {
         }
 
         if path.is_dir() {
+            if self.redirect_to_slash
+                && !req.path().ends_with('/')
+                && (self.index.is_some() || self.show_index)
+            {
+                let redirect_to = format!("{}/", req.path());
+
+                return Box::pin(ok(req.into_response(
+                    HttpResponse::Found()
+                        .insert_header((header::LOCATION, redirect_to))
+                        .finish(),
+                )));
+            }
+
             if let Some(ref redir_index) = self.index {
-                if self.redirect_to_slash && !req.path().ends_with('/') {
-                    let redirect_to = format!("{}/", req.path());
-
-                    return Box::pin(ok(req.into_response(
-                        HttpResponse::Found()
-                            .insert_header((header::LOCATION, redirect_to))
-                            .body("")
-                            .into_body(),
-                    )));
-                }
-
                 let path = path.join(redir_index);
 
                 match NamedFile::open(path) {

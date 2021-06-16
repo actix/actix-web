@@ -293,14 +293,14 @@ impl ResponseHead {
         }
     }
 
-    #[inline]
     /// Check if keep-alive is enabled
+    #[inline]
     pub fn keep_alive(&self) -> bool {
         self.connection_type() == ConnectionType::KeepAlive
     }
 
-    #[inline]
     /// Check upgrade status of this message
+    #[inline]
     pub fn upgrade(&self) -> bool {
         self.connection_type() == ConnectionType::Upgrade
     }
@@ -388,12 +388,6 @@ impl BoxedResponseHead {
     /// Get new message from the pool of objects
     pub fn new(status: StatusCode) -> Self {
         RESPONSE_POOL.with(|p| p.get_message(status))
-    }
-
-    pub(crate) fn take(&mut self) -> Self {
-        BoxedResponseHead {
-            head: self.head.take(),
-        }
     }
 }
 

@@ -81,6 +81,7 @@ where
     S::Service: 'static,
     // S::Service: 'static,
     B: MessageBody + 'static,
+    B::Error: Into<Error>,
 {
     /// Create new HTTP server with application factory
     pub fn new(factory: F) -> Self {
@@ -170,6 +171,16 @@ where
     pub fn max_connection_rate(self, num: usize) -> Self {
         #[cfg(any(feature = "rustls", feature = "openssl"))]
         actix_tls::accept::max_concurrent_tls_connect(num);
+        self
+    }
+
+    /// Set max number of threads for each worker's blocking task thread pool.
+    ///
+    /// One thread pool is set up **per worker**; not shared across workers.
+    ///
+    /// By default set to 512 / workers.
+    pub fn worker_max_blocking_threads(mut self, num: usize) -> Self {
+        self.builder = self.builder.worker_max_blocking_threads(num);
         self
     }
 
@@ -357,7 +368,7 @@ where
     #[cfg(feature = "rustls")]
     /// Use listener for accepting incoming tls connection requests
     ///
-    /// This method sets alpn protocols to "h2" and "http/1.1"
+    /// This method prepends alpn protocols "h2" and "http/1.1" to configured ones
     pub fn listen_rustls(
         self,
         lst: net::TcpListener,
@@ -471,7 +482,7 @@ where
     #[cfg(feature = "rustls")]
     /// Start listening for incoming tls connections.
     ///
-    /// This method sets alpn protocols to "h2" and "http/1.1"
+    /// This method prepends alpn protocols "h2" and "http/1.1" to configured ones
     pub fn bind_rustls<A: net::ToSocketAddrs>(
         mut self,
         addr: A,
