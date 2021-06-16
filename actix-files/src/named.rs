@@ -121,7 +121,8 @@ impl NamedFile {
             let disposition = match ct.type_() {
                 mime::IMAGE | mime::TEXT | mime::VIDEO => DispositionType::Inline,
                 mime::APPLICATION => match ct.subtype() {
-                    mime::JAVASCRIPT => DispositionType::Inline,
+                    mime::JAVASCRIPT | mime::JSON => DispositionType::Inline,
+                    name if name == "wasm" => DispositionType::Inline,
                     _ => DispositionType::Attachment,
                 },
                 _ => DispositionType::Attachment,
@@ -217,8 +218,10 @@ impl NamedFile {
 
     /// Set the Content-Disposition for serving this file. This allows
     /// changing the inline/attachment disposition as well as the filename
-    /// sent to the peer. By default the disposition is `inline` for text,
-    /// image, video and `application/javascript` content types, and `attachment` otherwise,
+    /// sent to the peer.
+    ///
+    /// By default the disposition is `inline` for `text/*`, `image/*`, `video/*` and
+    /// `application/{javascript, json, wasm}` mime types, and `attachment` otherwise,
     /// and the filename is taken from the path provided in the `open` method
     /// after converting it to UTF-8 using.
     /// [`std::ffi::OsStr::to_string_lossy`]
