@@ -5,6 +5,9 @@
 * `HttpServer::worker_max_blocking_threads` for setting block thread pool. [#2200]
 
 ### Changed
+
+* Adjusted default JSON payload limit to 2MB (from 32kb) and included size and limits in the `JsonPayloadError::Overflow` error variant. [#2162]
+[#2162]: (https://github.com/actix/actix-web/pull/2162)
 * `ServiceResponse::error_response` now uses body type of `Body`. [#2201]
 * `ServiceResponse::checked_expr` now returns a `Result`. [#2201]
 * Update `language-tags` to `0.3`.
