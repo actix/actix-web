@@ -8,7 +8,7 @@ use std::{
 };
 
 use actix_http::{
-    body::{Body, MessageBody},
+    body::{AnyBody, Body, MessageBody},
     http::{header::HeaderMap, StatusCode},
     Extensions, Response, ResponseHead,
 };
@@ -25,12 +25,12 @@ use {
 use crate::{error::Error, HttpResponseBuilder};
 
 /// An HTTP Response
-pub struct HttpResponse<B = Body> {
+pub struct HttpResponse<B = AnyBody> {
     res: Response<B>,
     pub(crate) error: Option<Error>,
 }
 
-impl HttpResponse<Body> {
+impl HttpResponse<AnyBody> {
     /// Create HTTP response builder with specific status.
     #[inline]
     pub fn build(status: StatusCode) -> HttpResponseBuilder {
@@ -48,13 +48,8 @@ impl HttpResponse<Body> {
 
     /// Create an error response.
     #[inline]
-    pub fn from_error(error: Error) -> Self {
-        let res = error.as_response_error().error_response();
-
-        Self {
-            res,
-            error: Some(error),
-        }
+    pub fn from_error(error: impl Into<Error>) -> Self {
+        error.into().as_response_error().error_response()
     }
 }
 
@@ -238,7 +233,6 @@ impl<B> HttpResponse<B> {
 impl<B> fmt::Debug for HttpResponse<B>
 where
     B: MessageBody,
-    B::Error: Into<Error>,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("HttpResponse")

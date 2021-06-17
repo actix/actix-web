@@ -1,13 +1,14 @@
 use std::{
     cell::{Ref, RefMut},
     convert::TryInto,
+    error::Error as StdError,
     future::Future,
     pin::Pin,
     task::{Context, Poll},
 };
 
 use actix_http::{
-    body::{Body, BodyStream},
+    body::{AnyBody, BodyStream},
     http::{
         header::{self, HeaderName, IntoHeaderPair, IntoHeaderValue},
         ConnectionType, Error as HttpError, StatusCode,
@@ -32,7 +33,7 @@ use crate::{
 ///
 /// This type can be used to construct an instance of `Response` through a builder-like pattern.
 pub struct HttpResponseBuilder {
-    res: Option<Response<Body>>,
+    res: Option<Response<AnyBody>>,
     err: Option<HttpError>,
     #[cfg(feature = "cookies")]
     cookies: Option<CookieJar>,
@@ -310,7 +311,7 @@ impl HttpResponseBuilder {
     ///
     /// `HttpResponseBuilder` can not be used after this call.
     #[inline]
-    pub fn body<B: Into<Body>>(&mut self, body: B) -> HttpResponse<Body> {
+    pub fn body<B: Into<AnyBody>>(&mut self, body: B) -> HttpResponse<AnyBody> {
         match self.message_body(body.into()) {
             Ok(res) => res,
             Err(err) => HttpResponse::from_error(err),
@@ -354,9 +355,9 @@ impl HttpResponseBuilder {
     pub fn streaming<S, E>(&mut self, stream: S) -> HttpResponse
     where
         S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
-        E: Into<Error> + 'static,
+        E: Into<Box<dyn StdError>> + 'static,
     {
-        self.body(Body::from_message(BodyStream::new(stream)))
+        self.body(AnyBody::from_message(BodyStream::new(stream)))
     }
 
     /// Set a json body and generate `Response`
@@ -375,9 +376,9 @@ impl HttpResponseBuilder {
                     self.insert_header((header::CONTENT_TYPE, mime::APPLICATION_JSON));
                 }
 
-                self.body(Body::from(body))
+                self.body(AnyBody::from(body))
             }
-            Err(err) => HttpResponse::from_error(JsonPayloadError::Serialize(err).into()),
+            Err(err) => HttpResponse::from_error(JsonPayloadError::Serialize(err)),
         }
     }
 
@@ -386,7 +387,7 @@ impl HttpResponseBuilder {
     /// `HttpResponseBuilder` can not be used after this call.
     #[inline]
     pub fn finish(&mut self) -> HttpResponse {
-        self.body(Body::Empty)
+        self.body(AnyBody::Empty)
     }
 
     /// This method construct new `HttpResponseBuilder`
@@ -415,7 +416,7 @@ impl From<HttpResponseBuilder> for HttpResponse {
     }
 }
 
-impl From<HttpResponseBuilder> for Response<Body> {
+impl From<HttpResponseBuilder> for Response<AnyBody> {
     fn from(mut builder: HttpResponseBuilder) -> Self {
         builder.finish().into()
     }

@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt};
+use std::borrow::Cow;
 
 use actix_http::{
     body::Body,
@@ -6,7 +6,7 @@ use actix_http::{
 };
 use bytes::{Bytes, BytesMut};
 
-use crate::{error::InternalError, Error, HttpRequest, HttpResponse, HttpResponseBuilder};
+use crate::{Error, HttpRequest, HttpResponse, HttpResponseBuilder};
 
 /// Trait implemented by types that can be converted to an HTTP response.
 ///
@@ -223,15 +223,6 @@ impl<T: Responder> Responder for CustomResponder<T> {
         }
 
         res
-    }
-}
-
-impl<T> Responder for InternalError<T>
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
-        HttpResponse::from_error(self.into())
     }
 }
 

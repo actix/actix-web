@@ -1,6 +1,7 @@
 use std::{
+    error::Error as StdError,
     future::Future,
-    io, net,
+    net,
     pin::Pin,
     rc::Rc,
     task::{Context, Poll},
@@ -24,22 +25,30 @@ use serde::Serialize;
 #[cfg(feature = "compress")]
 use actix_http::{encoding::Decoder, http::header::ContentEncoding, Payload, PayloadStream};
 
-use crate::connect::{ConnectRequest, ConnectResponse};
-use crate::error::{FreezeRequestError, InvalidUrl, SendRequestError};
-use crate::response::ClientResponse;
-use crate::ClientConfig;
+use crate::{
+    error::{FreezeRequestError, InvalidUrl, SendRequestError},
+    ClientConfig, ClientResponse, ConnectRequest, ConnectResponse,
+};
 
 #[derive(Debug, From)]
 pub(crate) enum PrepForSendingError {
     Url(InvalidUrl),
     Http(HttpError),
+    Json(serde_json::Error),
+    Form(serde_urlencoded::ser::Error),
 }
 
 impl From<PrepForSendingError> for FreezeRequestError {
     fn from(err: PrepForSendingError) -> FreezeRequestError {
         match err {
-            PrepForSendingError::Url(e) => FreezeRequestError::Url(e),
-            PrepForSendingError::Http(e) => FreezeRequestError::Http(e),
+            PrepForSendingError::Url(err) => FreezeRequestError::Url(err),
+            PrepForSendingError::Http(err) => FreezeRequestError::Http(err),
+            PrepForSendingError::Json(err) => {
+                FreezeRequestError::Custom(Box::new(err), Box::new("json serialization error"))
+            }
+            PrepForSendingError::Form(err) => {
+                FreezeRequestError::Custom(Box::new(err), Box::new("form serialization error"))
+            }
         }
     }
 }
@@ -49,6 +58,12 @@ impl From<PrepForSendingError> for SendRequestError {
         match err {
             PrepForSendingError::Url(e) => SendRequestError::Url(e),
             PrepForSendingError::Http(e) => SendRequestError::Http(e),
+            PrepForSendingError::Json(err) => {
+                SendRequestError::Custom(Box::new(err), Box::new("json serialization error"))
+            }
+            PrepForSendingError::Form(err) => {
+                SendRequestError::Custom(Box::new(err), Box::new("form serialization error"))
+            }
         }
     }
 }
@@ -209,8 +224,7 @@ impl RequestSender {
     ) -> SendClientRequest {
         let body = match serde_json::to_string(value) {
             Ok(body) => body,
-            // TODO: own error type
-            Err(e) => return Error::from(io::Error::new(io::ErrorKind::Other, e)).into(),
+            Err(err) => return PrepForSendingError::Json(err).into(),
         };
 
         if let Err(e) = self.set_header_if_none(header::CONTENT_TYPE, "application/json") {
@@ -236,8 +250,7 @@ impl RequestSender {
     ) -> SendClientRequest {
         let body = match serde_urlencoded::to_string(value) {
             Ok(body) => body,
-            // TODO: own error type
-            Err(e) => return Error::from(io::Error::new(io::ErrorKind::Other, e)).into(),
+            Err(err) => return PrepForSendingError::Form(err).into(),
         };
 
         // set content-type
@@ -266,7 +279,7 @@ impl RequestSender {
     ) -> SendClientRequest
     where
         S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
-        E: Into<Error> + 'static,
+        E: Into<Box<dyn StdError>> + 'static,
     {
         self.send_body(
             addr,

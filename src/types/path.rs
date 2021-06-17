@@ -2,14 +2,13 @@
 
 use std::{fmt, ops, sync::Arc};
 
-use actix_http::error::Error;
 use actix_router::PathDeserializer;
 use actix_utils::future::{ready, Ready};
 use serde::de;
 
 use crate::{
     dev::Payload,
-    error::{ErrorNotFound, PathError},
+    error::{Error, ErrorNotFound, PathError},
     FromRequest, HttpRequest,
 };
 
@@ -296,11 +295,8 @@ mod tests {
     async fn test_custom_err_handler() {
         let (req, mut pl) = TestRequest::with_uri("/name/user1/")
             .app_data(PathConfig::default().error_handler(|err, _| {
-                error::InternalError::from_response(
-                    err,
-                    HttpResponse::Conflict().finish().into(),
-                )
-                .into()
+                error::InternalError::from_response(err, HttpResponse::Conflict().finish())
+                    .into()
             }))
             .to_http_parts();
 
