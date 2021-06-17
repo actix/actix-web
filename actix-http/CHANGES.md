@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 3.0.0-beta.7 - 2021-06-17
 ### Added
 * Alias `body::Body` as `body::AnyBody`. [#2215]
 * `BoxAnyBody`: a boxed message body with boxed errors. [#2183]
