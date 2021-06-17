@@ -123,5 +123,5 @@ jobs:
 
       - name: Clear the cargo caches
         run: |
-          cargo install cargo-cache --no-default-features --features ci-autoclean
+          cargo install cargo-cache --version 0.6.2 --no-default-features --features ci-autoclean
           cargo-cache
