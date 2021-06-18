@@ -432,7 +432,7 @@ where
                 .into_iter()
                 .map(|(mut rdef, srv, guards, nested)| {
                     rmap.add(&mut rdef, nested);
-                    (rdef, srv, RefCell::new(guards))
+                    (rdef, srv, guards.map(Rc::new))
                 })
                 .collect::<Vec<_>>()
                 .into_boxed_slice()
@@ -458,7 +458,7 @@ where
 
 pub struct ScopeFactory {
     app_data: Option<Rc<Extensions>>,
-    services: Rc<[(ResourceDef, HttpNewService, RefCell<Option<Guards>>)]>,
+    services: Rc<[(ResourceDef, HttpNewService, Option<Rc<Guards>>)]>,
     default: Rc<HttpNewService>,
 }
 
@@ -477,7 +477,7 @@ impl ServiceFactory<ServiceRequest> for ScopeFactory {
         // construct all services factory future with it's resource def and guards.
         let factory_fut = join_all(self.services.iter().map(|(path, factory, guards)| {
             let path = path.clone();
-            let guards = guards.borrow_mut().take();
+            let guards = guards.clone();
             let factory_fut = factory.new_service(());
             async move {
                 let service = factory_fut.await?;
@@ -513,7 +513,7 @@ impl ServiceFactory<ServiceRequest> for ScopeFactory {
 
 pub struct ScopeService {
     app_data: Option<Rc<Extensions>>,
-    router: Router<HttpService, Vec<Box<dyn Guard>>>,
+    router: Router<HttpService, Rc<Guards>>,
     default: HttpService,
 }
 
@@ -527,7 +527,7 @@ impl Service<ServiceRequest> for ScopeService {
     fn call(&self, mut req: ServiceRequest) -> Self::Future {
         let res = self.router.recognize_checked(&mut req, |req, guards| {
             if let Some(ref guards) = guards {
-                for f in guards {
+                for f in guards.iter() {
                     if !f.check(req.head()) {
                         return false;
                     }
