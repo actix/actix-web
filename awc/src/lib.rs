@@ -128,8 +128,7 @@ pub use self::sender::SendClientRequest;
 
 /// An asynchronous HTTP and WebSocket client.
 ///
-/// ## Examples
-///
+/// # Examples
 /// ```
 /// use awc::Client;
 ///

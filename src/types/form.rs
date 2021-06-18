@@ -188,7 +188,7 @@ impl<T: Serialize> Responder for Form<T> {
             Ok(body) => HttpResponse::Ok()
                 .content_type(mime::APPLICATION_WWW_FORM_URLENCODED)
                 .body(body),
-            Err(err) => HttpResponse::from_error(UrlencodedError::Serialize(err).into()),
+            Err(err) => HttpResponse::from_error(UrlencodedError::Serialize(err)),
         }
     }
 }

@@ -1,9 +1,9 @@
 use std::{cell::RefCell, fmt, io::Write as _};
 
-use actix_http::{body::Body, header, Response, StatusCode};
+use actix_http::{body::Body, header, StatusCode};
 use bytes::{BufMut as _, BytesMut};
 
-use crate::{Error, HttpResponse, ResponseError};
+use crate::{Error, HttpRequest, HttpResponse, Responder, ResponseError};
 
 /// Wraps errors to alter the generated response status code.
 ///
@@ -77,10 +77,10 @@ where
         }
     }
 
-    fn error_response(&self) -> Response<Body> {
+    fn error_response(&self) -> HttpResponse {
         match self.status {
             InternalErrorType::Status(status) => {
-                let mut res = Response::new(status);
+                let mut res = HttpResponse::new(status);
                 let mut buf = BytesMut::new().writer();
                 let _ = write!(buf, "{}", self);
 
@@ -88,17 +88,26 @@ where
                     header::CONTENT_TYPE,
                     header::HeaderValue::from_static("text/plain; charset=utf-8"),
                 );
-                res.set_body(Body::from(buf.into_inner())).into()
+                res.set_body(Body::from(buf.into_inner()))
             }
 
             InternalErrorType::Response(ref resp) => {
                 if let Some(resp) = resp.borrow_mut().take() {
-                    resp.into()
+                    resp
                 } else {
-                    Response::new(StatusCode::INTERNAL_SERVER_ERROR)
+                    HttpResponse::new(StatusCode::INTERNAL_SERVER_ERROR)
                 }
             }
         }
+    }
+}
+
+impl<T> Responder for InternalError<T>
+where
+    T: fmt::Debug + fmt::Display + 'static,
+{
+    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
+        HttpResponse::from_error(self)
     }
 }
 
@@ -171,134 +180,134 @@ error_helper!(
 
 #[cfg(test)]
 mod tests {
-    use actix_http::{error::ParseError, Response};
+    use actix_http::error::ParseError;
 
     use super::*;
 
     #[test]
     fn test_internal_error() {
         let err = InternalError::from_response(ParseError::Method, HttpResponse::Ok().finish());
-        let resp: Response<Body> = err.error_response();
+        let resp: HttpResponse = err.error_response();
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
     #[test]
     fn test_error_helpers() {
-        let res: Response<Body> = ErrorBadRequest("err").into();
+        let res: HttpResponse = ErrorBadRequest("err").into();
         assert_eq!(res.status(), StatusCode::BAD_REQUEST);
 
-        let res: Response<Body> = ErrorUnauthorized("err").into();
+        let res: HttpResponse = ErrorUnauthorized("err").into();
         assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
 
-        let res: Response<Body> = ErrorPaymentRequired("err").into();
+        let res: HttpResponse = ErrorPaymentRequired("err").into();
         assert_eq!(res.status(), StatusCode::PAYMENT_REQUIRED);
 
-        let res: Response<Body> = ErrorForbidden("err").into();
+        let res: HttpResponse = ErrorForbidden("err").into();
         assert_eq!(res.status(), StatusCode::FORBIDDEN);
 
-        let res: Response<Body> = ErrorNotFound("err").into();
+        let res: HttpResponse = ErrorNotFound("err").into();
         assert_eq!(res.status(), StatusCode::NOT_FOUND);
 
-        let res: Response<Body> = ErrorMethodNotAllowed("err").into();
+        let res: HttpResponse = ErrorMethodNotAllowed("err").into();
         assert_eq!(res.status(), StatusCode::METHOD_NOT_ALLOWED);
 
-        let res: Response<Body> = ErrorNotAcceptable("err").into();
+        let res: HttpResponse = ErrorNotAcceptable("err").into();
         assert_eq!(res.status(), StatusCode::NOT_ACCEPTABLE);
 
-        let res: Response<Body> = ErrorProxyAuthenticationRequired("err").into();
+        let res: HttpResponse = ErrorProxyAuthenticationRequired("err").into();
         assert_eq!(res.status(), StatusCode::PROXY_AUTHENTICATION_REQUIRED);
 
-        let res: Response<Body> = ErrorRequestTimeout("err").into();
+        let res: HttpResponse = ErrorRequestTimeout("err").into();
         assert_eq!(res.status(), StatusCode::REQUEST_TIMEOUT);
 
-        let res: Response<Body> = ErrorConflict("err").into();
+        let res: HttpResponse = ErrorConflict("err").into();
         assert_eq!(res.status(), StatusCode::CONFLICT);
 
-        let res: Response<Body> = ErrorGone("err").into();
+        let res: HttpResponse = ErrorGone("err").into();
         assert_eq!(res.status(), StatusCode::GONE);
 
-        let res: Response<Body> = ErrorLengthRequired("err").into();
+        let res: HttpResponse = ErrorLengthRequired("err").into();
         assert_eq!(res.status(), StatusCode::LENGTH_REQUIRED);
 
-        let res: Response<Body> = ErrorPreconditionFailed("err").into();
+        let res: HttpResponse = ErrorPreconditionFailed("err").into();
         assert_eq!(res.status(), StatusCode::PRECONDITION_FAILED);
 
-        let res: Response<Body> = ErrorPayloadTooLarge("err").into();
+        let res: HttpResponse = ErrorPayloadTooLarge("err").into();
         assert_eq!(res.status(), StatusCode::PAYLOAD_TOO_LARGE);
 
-        let res: Response<Body> = ErrorUriTooLong("err").into();
+        let res: HttpResponse = ErrorUriTooLong("err").into();
         assert_eq!(res.status(), StatusCode::URI_TOO_LONG);
 
-        let res: Response<Body> = ErrorUnsupportedMediaType("err").into();
+        let res: HttpResponse = ErrorUnsupportedMediaType("err").into();
         assert_eq!(res.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
 
-        let res: Response<Body> = ErrorRangeNotSatisfiable("err").into();
+        let res: HttpResponse = ErrorRangeNotSatisfiable("err").into();
         assert_eq!(res.status(), StatusCode::RANGE_NOT_SATISFIABLE);
 
-        let res: Response<Body> = ErrorExpectationFailed("err").into();
+        let res: HttpResponse = ErrorExpectationFailed("err").into();
         assert_eq!(res.status(), StatusCode::EXPECTATION_FAILED);
 
-        let res: Response<Body> = ErrorImATeapot("err").into();
+        let res: HttpResponse = ErrorImATeapot("err").into();
         assert_eq!(res.status(), StatusCode::IM_A_TEAPOT);
 
-        let res: Response<Body> = ErrorMisdirectedRequest("err").into();
+        let res: HttpResponse = ErrorMisdirectedRequest("err").into();
         assert_eq!(res.status(), StatusCode::MISDIRECTED_REQUEST);
 
-        let res: Response<Body> = ErrorUnprocessableEntity("err").into();
+        let res: HttpResponse = ErrorUnprocessableEntity("err").into();
         assert_eq!(res.status(), StatusCode::UNPROCESSABLE_ENTITY);
 
-        let res: Response<Body> = ErrorLocked("err").into();
+        let res: HttpResponse = ErrorLocked("err").into();
         assert_eq!(res.status(), StatusCode::LOCKED);
 
-        let res: Response<Body> = ErrorFailedDependency("err").into();
+        let res: HttpResponse = ErrorFailedDependency("err").into();
         assert_eq!(res.status(), StatusCode::FAILED_DEPENDENCY);
 
-        let res: Response<Body> = ErrorUpgradeRequired("err").into();
+        let res: HttpResponse = ErrorUpgradeRequired("err").into();
         assert_eq!(res.status(), StatusCode::UPGRADE_REQUIRED);
 
-        let res: Response<Body> = ErrorPreconditionRequired("err").into();
+        let res: HttpResponse = ErrorPreconditionRequired("err").into();
         assert_eq!(res.status(), StatusCode::PRECONDITION_REQUIRED);
 
-        let res: Response<Body> = ErrorTooManyRequests("err").into();
+        let res: HttpResponse = ErrorTooManyRequests("err").into();
         assert_eq!(res.status(), StatusCode::TOO_MANY_REQUESTS);
 
-        let res: Response<Body> = ErrorRequestHeaderFieldsTooLarge("err").into();
+        let res: HttpResponse = ErrorRequestHeaderFieldsTooLarge("err").into();
         assert_eq!(res.status(), StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE);
 
-        let res: Response<Body> = ErrorUnavailableForLegalReasons("err").into();
+        let res: HttpResponse = ErrorUnavailableForLegalReasons("err").into();
         assert_eq!(res.status(), StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS);
 
-        let res: Response<Body> = ErrorInternalServerError("err").into();
+        let res: HttpResponse = ErrorInternalServerError("err").into();
         assert_eq!(res.status(), StatusCode::INTERNAL_SERVER_ERROR);
 
-        let res: Response<Body> = ErrorNotImplemented("err").into();
+        let res: HttpResponse = ErrorNotImplemented("err").into();
         assert_eq!(res.status(), StatusCode::NOT_IMPLEMENTED);
 
-        let res: Response<Body> = ErrorBadGateway("err").into();
+        let res: HttpResponse = ErrorBadGateway("err").into();
         assert_eq!(res.status(), StatusCode::BAD_GATEWAY);
 
-        let res: Response<Body> = ErrorServiceUnavailable("err").into();
+        let res: HttpResponse = ErrorServiceUnavailable("err").into();
         assert_eq!(res.status(), StatusCode::SERVICE_UNAVAILABLE);
 
-        let res: Response<Body> = ErrorGatewayTimeout("err").into();
+        let res: HttpResponse = ErrorGatewayTimeout("err").into();
         assert_eq!(res.status(), StatusCode::GATEWAY_TIMEOUT);
 
-        let res: Response<Body> = ErrorHttpVersionNotSupported("err").into();
+        let res: HttpResponse = ErrorHttpVersionNotSupported("err").into();
         assert_eq!(res.status(), StatusCode::HTTP_VERSION_NOT_SUPPORTED);
 
-        let res: Response<Body> = ErrorVariantAlsoNegotiates("err").into();
+        let res: HttpResponse = ErrorVariantAlsoNegotiates("err").into();
         assert_eq!(res.status(), StatusCode::VARIANT_ALSO_NEGOTIATES);
 
-        let res: Response<Body> = ErrorInsufficientStorage("err").into();
+        let res: HttpResponse = ErrorInsufficientStorage("err").into();
         assert_eq!(res.status(), StatusCode::INSUFFICIENT_STORAGE);
 
-        let res: Response<Body> = ErrorLoopDetected("err").into();
+        let res: HttpResponse = ErrorLoopDetected("err").into();
         assert_eq!(res.status(), StatusCode::LOOP_DETECTED);
 
-        let res: Response<Body> = ErrorNotExtended("err").into();
+        let res: HttpResponse = ErrorNotExtended("err").into();
         assert_eq!(res.status(), StatusCode::NOT_EXTENDED);
 
-        let res: Response<Body> = ErrorNetworkAuthenticationRequired("err").into();
+        let res: HttpResponse = ErrorNetworkAuthenticationRequired("err").into();
         assert_eq!(res.status(), StatusCode::NETWORK_AUTHENTICATION_REQUIRED);
     }
 }

@@ -6,7 +6,6 @@ pub use actix_http::http::Error as HttpError;
 pub use actix_http::ws::HandshakeError as WsHandshakeError;
 pub use actix_http::ws::ProtocolError as WsProtocolError;
 
-use actix_http::ResponseError;
 use serde_json::error::Error as JsonError;
 
 use actix_http::http::{header::HeaderValue, StatusCode};
@@ -77,6 +76,3 @@ pub enum JsonPayloadError {
 }
 
 impl std::error::Error for JsonPayloadError {}
-
-/// Return `InternalServerError` for `JsonPayloadError`
-impl ResponseError for JsonPayloadError {}

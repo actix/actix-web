@@ -1,21 +1,25 @@
-use std::io::{Read, Write};
-use std::time::Duration;
-use std::{net, thread};
+use std::{
+    convert::Infallible,
+    io::{Read, Write},
+    net, thread,
+    time::Duration,
+};
 
 use actix_http::{
-    body::{Body, SizedStream},
-    http::{self, header, StatusCode},
-    Error, HttpService, KeepAlive, Request, Response,
+    body::{AnyBody, Body, SizedStream},
+    header, http, Error, HttpMessage, HttpService, KeepAlive, Request, Response,
+    StatusCode,
 };
-use actix_http::{HttpMessage, ResponseError};
 use actix_http_test::test_server;
 use actix_rt::time::sleep;
 use actix_service::fn_service;
 use actix_utils::future::{err, ok, ready};
 use bytes::Bytes;
 use derive_more::{Display, Error};
-use futures_util::stream::{once, StreamExt as _};
-use futures_util::FutureExt as _;
+use futures_util::{
+    stream::{once, StreamExt as _},
+    FutureExt as _,
+};
 use regex::Regex;
 
 #[actix_rt::test]
@@ -27,7 +31,7 @@ async fn test_h1() {
             .client_disconnect(1000)
             .h1(|req: Request| {
                 assert!(req.peer_addr().is_some());
-                ok::<_, ()>(Response::ok())
+                ok::<_, Infallible>(Response::ok())
             })
             .tcp()
     })
@@ -47,7 +51,7 @@ async fn test_h1_2() {
             .finish(|req: Request| {
                 assert!(req.peer_addr().is_some());
                 assert_eq!(req.version(), http::Version::HTTP_11);
-                ok::<_, ()>(Response::ok())
+                ok::<_, Infallible>(Response::ok())
             })
             .tcp()
     })
@@ -61,9 +65,9 @@ async fn test_h1_2() {
 #[display(fmt = "expect failed")]
 struct ExpectFailed;
 
-impl ResponseError for ExpectFailed {
-    fn status_code(&self) -> StatusCode {
-        StatusCode::PRECONDITION_FAILED
+impl From<ExpectFailed> for Response<AnyBody> {
+    fn from(_: ExpectFailed) -> Self {
+        Response::new(StatusCode::EXPECTATION_FAILED)
     }
 }
 
@@ -78,7 +82,7 @@ async fn test_expect_continue() {
                     err(ExpectFailed)
                 }
             }))
-            .finish(|_| ok::<_, ()>(Response::ok()))
+            .finish(|_| ok::<_, Infallible>(Response::ok()))
             .tcp()
     })
     .await;
@@ -87,7 +91,7 @@ async fn test_expect_continue() {
     let _ = stream.write_all(b"GET /test HTTP/1.1\r\nexpect: 100-continue\r\n\r\n");
     let mut data = String::new();
     let _ = stream.read_to_string(&mut data);
-    assert!(data.starts_with("HTTP/1.1 412 Precondition Failed\r\ncontent-length"));
+    assert!(data.starts_with("HTTP/1.1 417 Expectation Failed\r\ncontent-length"));
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
     let _ = stream.write_all(b"GET /test?yes= HTTP/1.1\r\nexpect: 100-continue\r\n\r\n");
@@ -109,7 +113,7 @@ async fn test_expect_continue_h1() {
                     }
                 })
             }))
-            .h1(fn_service(|_| ok::<_, ()>(Response::ok())))
+            .h1(fn_service(|_| ok::<_, Infallible>(Response::ok())))
             .tcp()
     })
     .await;
@@ -118,7 +122,7 @@ async fn test_expect_continue_h1() {
     let _ = stream.write_all(b"GET /test HTTP/1.1\r\nexpect: 100-continue\r\n\r\n");
     let mut data = String::new();
     let _ = stream.read_to_string(&mut data);
-    assert!(data.starts_with("HTTP/1.1 412 Precondition Failed\r\ncontent-length"));
+    assert!(data.starts_with("HTTP/1.1 417 Expectation Failed\r\ncontent-length"));
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
     let _ = stream.write_all(b"GET /test?yes= HTTP/1.1\r\nexpect: 100-continue\r\n\r\n");
@@ -190,7 +194,7 @@ async fn test_slow_request() {
     let srv = test_server(|| {
         HttpService::build()
             .client_timeout(100)
-            .finish(|_| ok::<_, ()>(Response::ok()))
+            .finish(|_| ok::<_, Infallible>(Response::ok()))
             .tcp()
     })
     .await;
@@ -206,7 +210,7 @@ async fn test_slow_request() {
 async fn test_http1_malformed_request() {
     let srv = test_server(|| {
         HttpService::build()
-            .h1(|_| ok::<_, ()>(Response::ok()))
+            .h1(|_| ok::<_, Infallible>(Response::ok()))
             .tcp()
     })
     .await;
@@ -222,7 +226,7 @@ async fn test_http1_malformed_request() {
 async fn test_http1_keepalive() {
     let srv = test_server(|| {
         HttpService::build()
-            .h1(|_| ok::<_, ()>(Response::ok()))
+            .h1(|_| ok::<_, Infallible>(Response::ok()))
             .tcp()
     })
     .await;
@@ -244,7 +248,7 @@ async fn test_http1_keepalive_timeout() {
     let srv = test_server(|| {
         HttpService::build()
             .keep_alive(1)
-            .h1(|_| ok::<_, ()>(Response::ok()))
+            .h1(|_| ok::<_, Infallible>(Response::ok()))
             .tcp()
     })
     .await;
@@ -265,7 +269,7 @@ async fn test_http1_keepalive_timeout() {
 async fn test_http1_keepalive_close() {
     let srv = test_server(|| {
         HttpService::build()
-            .h1(|_| ok::<_, ()>(Response::ok()))
+            .h1(|_| ok::<_, Infallible>(Response::ok()))
             .tcp()
     })
     .await;
@@ -286,7 +290,7 @@ async fn test_http1_keepalive_close() {
 async fn test_http10_keepalive_default_close() {
     let srv = test_server(|| {
         HttpService::build()
-            .h1(|_| ok::<_, ()>(Response::ok()))
+            .h1(|_| ok::<_, Infallible>(Response::ok()))
             .tcp()
     })
     .await;
@@ -306,7 +310,7 @@ async fn test_http10_keepalive_default_close() {
 async fn test_http10_keepalive() {
     let srv = test_server(|| {
         HttpService::build()
-            .h1(|_| ok::<_, ()>(Response::ok()))
+            .h1(|_| ok::<_, Infallible>(Response::ok()))
             .tcp()
     })
     .await;
@@ -334,7 +338,7 @@ async fn test_http1_keepalive_disabled() {
     let srv = test_server(|| {
         HttpService::build()
             .keep_alive(KeepAlive::Disabled)
-            .h1(|_| ok::<_, ()>(Response::ok()))
+            .h1(|_| ok::<_, Infallible>(Response::ok()))
             .tcp()
     })
     .await;
@@ -369,7 +373,7 @@ async fn test_content_length() {
                     StatusCode::OK,
                     StatusCode::NOT_FOUND,
                 ];
-                ok::<_, ()>(Response::new(statuses[indx]))
+                ok::<_, Infallible>(Response::new(statuses[indx]))
             })
             .tcp()
     })
@@ -424,7 +428,7 @@ async fn test_h1_headers() {
                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST ",
                 ));
             }
-            ok::<_, ()>(builder.body(data.clone()))
+            ok::<_, Infallible>(builder.body(data.clone()))
         }).tcp()
     }).await;
 
@@ -462,7 +466,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 async fn test_h1_body() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .h1(|_| ok::<_, ()>(Response::ok().set_body(STR)))
+            .h1(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
             .tcp()
     })
     .await;
@@ -479,7 +483,7 @@ async fn test_h1_body() {
 async fn test_h1_head_empty() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .h1(|_| ok::<_, ()>(Response::ok().set_body(STR)))
+            .h1(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
             .tcp()
     })
     .await;
@@ -504,7 +508,7 @@ async fn test_h1_head_empty() {
 async fn test_h1_head_binary() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .h1(|_| ok::<_, ()>(Response::ok().set_body(STR)))
+            .h1(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
             .tcp()
     })
     .await;
@@ -529,7 +533,7 @@ async fn test_h1_head_binary() {
 async fn test_h1_head_binary2() {
     let srv = test_server(|| {
         HttpService::build()
-            .h1(|_| ok::<_, ()>(Response::ok().set_body(STR)))
+            .h1(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
             .tcp()
     })
     .await;
@@ -551,8 +555,8 @@ async fn test_h1_body_length() {
     let mut srv = test_server(|| {
         HttpService::build()
             .h1(|_| {
-                let body = once(ok(Bytes::from_static(STR.as_ref())));
-                ok::<_, ()>(
+                let body = once(ok::<_, Infallible>(Bytes::from_static(STR.as_ref())));
+                ok::<_, Infallible>(
                     Response::ok().set_body(SizedStream::new(STR.len() as u64, body)),
                 )
             })
@@ -574,7 +578,7 @@ async fn test_h1_body_chunked_explicit() {
         HttpService::build()
             .h1(|_| {
                 let body = once(ok::<_, Error>(Bytes::from_static(STR.as_ref())));
-                ok::<_, ()>(
+                ok::<_, Infallible>(
                     Response::build(StatusCode::OK)
                         .insert_header((header::TRANSFER_ENCODING, "chunked"))
                         .streaming(body),
@@ -609,7 +613,7 @@ async fn test_h1_body_chunked_implicit() {
         HttpService::build()
             .h1(|_| {
                 let body = once(ok::<_, Error>(Bytes::from_static(STR.as_ref())));
-                ok::<_, ()>(Response::build(StatusCode::OK).streaming(body))
+                ok::<_, Infallible>(Response::build(StatusCode::OK).streaming(body))
             })
             .tcp()
     })
@@ -638,7 +642,7 @@ async fn test_h1_response_http_error_handling() {
         HttpService::build()
             .h1(fn_service(|_| {
                 let broken_header = Bytes::from_static(b"\0\0\0");
-                ok::<_, ()>(
+                ok::<_, Infallible>(
                     Response::build(StatusCode::OK)
                         .insert_header((http::header::CONTENT_TYPE, broken_header))
                         .body(STR),
@@ -653,16 +657,19 @@ async fn test_h1_response_http_error_handling() {
 
     // read response
     let bytes = srv.load_body(response).await.unwrap();
-    assert_eq!(bytes, Bytes::from_static(b"failed to parse header value"));
+    assert_eq!(
+        bytes,
+        Bytes::from_static(b"error processing HTTP: failed to parse header value")
+    );
 }
 
 #[derive(Debug, Display, Error)]
 #[display(fmt = "error")]
 struct BadRequest;
 
-impl ResponseError for BadRequest {
-    fn status_code(&self) -> StatusCode {
-        StatusCode::BAD_REQUEST
+impl From<BadRequest> for Response<AnyBody> {
+    fn from(_: BadRequest) -> Self {
+        Response::bad_request().set_body(AnyBody::from("error"))
     }
 }
 
@@ -692,7 +699,7 @@ async fn test_h1_on_connect() {
             })
             .h1(|req: Request| {
                 assert!(req.extensions().contains::<isize>());
-                ok::<_, ()>(Response::ok())
+                ok::<_, Infallible>(Response::ok())
             })
             .tcp()
     })

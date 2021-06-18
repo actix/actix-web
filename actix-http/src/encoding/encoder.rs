@@ -133,9 +133,7 @@ where
             },
             EncoderBodyProj::BoxedStream(ref mut b) => {
                 match ready!(b.as_pin_mut().poll_next(cx)) {
-                    Some(Err(err)) => {
-                        Poll::Ready(Some(Err(EncoderError::Boxed(err.into()))))
-                    }
+                    Some(Err(err)) => Poll::Ready(Some(Err(EncoderError::Boxed(err)))),
                     Some(Ok(val)) => Poll::Ready(Some(Ok(val))),
                     None => Poll::Ready(None),
                 }
@@ -337,7 +335,7 @@ pub enum EncoderError<E> {
     Body(E),
 
     #[display(fmt = "boxed")]
-    Boxed(Error),
+    Boxed(Box<dyn StdError>),
 
     #[display(fmt = "blocking")]
     Blocking(BlockingError),
@@ -346,19 +344,19 @@ pub enum EncoderError<E> {
     Io(io::Error),
 }
 
-impl<E: StdError> StdError for EncoderError<E> {
+impl<E: StdError + 'static> StdError for EncoderError<E> {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        None
+        match self {
+            EncoderError::Body(err) => Some(err),
+            EncoderError::Boxed(err) => Some(&**err),
+            EncoderError::Blocking(err) => Some(err),
+            EncoderError::Io(err) => Some(err),
+        }
     }
 }
 
-impl<E: Into<Error>> From<EncoderError<E>> for Error {
+impl<E: StdError + 'static> From<EncoderError<E>> for crate::Error {
     fn from(err: EncoderError<E>) -> Self {
-        match err {
-            EncoderError::Body(err) => err.into(),
-            EncoderError::Boxed(err) => err,
-            EncoderError::Blocking(err) => err.into(),
-            EncoderError::Io(err) => err.into(),
-        }
+        crate::Error::new_encoder().with_cause(err)
     }
 }

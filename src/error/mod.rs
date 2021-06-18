@@ -9,14 +9,20 @@ use url::ParseError as UrlParseError;
 
 use crate::http::StatusCode;
 
+#[allow(clippy::module_inception)]
+mod error;
 mod internal;
+mod macros;
+mod response_error;
 
+pub use self::error::Error;
 pub use self::internal::*;
+pub use self::response_error::ResponseError;
 
 /// A convenience [`Result`](std::result::Result) for Actix Web operations.
 ///
 /// This type alias is generally used to avoid writing out `actix_http::Error` directly.
-pub type Result<T, E = actix_http::Error> = std::result::Result<T, E>;
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Errors which can occur when attempting to generate resource uri.
 #[derive(Debug, PartialEq, Display, Error, From)]

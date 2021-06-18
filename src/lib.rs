@@ -1,7 +1,6 @@
 //! Actix Web is a powerful, pragmatic, and extremely fast web framework for Rust.
 //!
-//! ## Example
-//!
+//! # Examples
 //! ```no_run
 //! use actix_web::{get, web, App, HttpServer, Responder};
 //!
@@ -20,8 +19,7 @@
 //! }
 //! ```
 //!
-//! ## Documentation & Community Resources
-//!
+//! # Documentation & Community Resources
 //! In addition to this API documentation, several other resources are available:
 //!
 //! * [Website & User Guide](https://actix.rs/)
@@ -44,8 +42,7 @@
 //!   structs represent HTTP requests and responses and expose methods for creating, inspecting,
 //!   and otherwise utilizing them.
 //!
-//! ## Features
-//!
+//! # Features
 //! * Supports *HTTP/1.x* and *HTTP/2*
 //! * Streaming and pipelining
 //! * Keep-alive and slow requests handling
@@ -59,8 +56,7 @@
 //! * Includes an async [HTTP client](https://docs.rs/awc/)
 //! * Runs on stable Rust 1.46+
 //!
-//! ## Crate Features
-//!
+//! # Crate Features
 //! * `compress` - content encoding compression support (enabled by default)
 //! * `cookies` - cookies support (enabled by default)
 //! * `openssl` - HTTPS support via `openssl` crate, supports `HTTP/2`
@@ -80,6 +76,7 @@ pub mod error;
 mod extract;
 pub mod guard;
 mod handler;
+mod helpers;
 pub mod http;
 mod info;
 pub mod middleware;
@@ -98,7 +95,7 @@ pub(crate) mod types;
 pub mod web;
 
 pub use actix_http::Response as BaseHttpResponse;
-pub use actix_http::{body, Error, HttpMessage, ResponseError};
+pub use actix_http::{body, HttpMessage};
 #[doc(inline)]
 pub use actix_rt as rt;
 pub use actix_web_codegen::*;
@@ -106,7 +103,7 @@ pub use actix_web_codegen::*;
 pub use cookie;
 
 pub use crate::app::App;
-pub use crate::error::Result;
+pub use crate::error::{Error, ResponseError, Result};
 pub use crate::extract::FromRequest;
 pub use crate::request::HttpRequest;
 pub use crate::resource::Resource;
@@ -140,7 +137,9 @@ pub mod dev {
     pub use crate::types::json::JsonBody;
     pub use crate::types::readlines::Readlines;
 
-    pub use actix_http::body::{Body, BodySize, MessageBody, ResponseBody, SizedStream};
+    pub use actix_http::body::{
+        AnyBody, Body, BodySize, MessageBody, ResponseBody, SizedStream,
+    };
     #[cfg(feature = "compress")]
     pub use actix_http::encoding::Decoder as Decompress;
     pub use actix_http::ResponseBuilder as BaseHttpResponseBuilder;
