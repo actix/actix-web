@@ -1,25 +1,26 @@
-use std::convert::TryFrom;
-use std::rc::Rc;
-use std::time::Duration;
-use std::{fmt, net};
+use std::{convert::TryFrom, error::Error as StdError, fmt, net, rc::Rc, time::Duration};
 
 use bytes::Bytes;
 use futures_core::Stream;
 use serde::Serialize;
 
-use actix_http::body::Body;
-use actix_http::http::header::{self, IntoHeaderPair};
-use actix_http::http::{
-    uri, ConnectionType, Error as HttpError, HeaderMap, HeaderValue, Method, Uri, Version,
+use actix_http::{
+    body::Body,
+    http::{
+        header::{self, IntoHeaderPair},
+        uri, ConnectionType, Error as HttpError, HeaderMap, HeaderValue, Method, Uri, Version,
+    },
+    RequestHead,
 };
-use actix_http::{Error, RequestHead};
 
 #[cfg(feature = "cookies")]
 use crate::cookie::{Cookie, CookieJar};
-use crate::error::{FreezeRequestError, InvalidUrl};
-use crate::frozen::FrozenClientRequest;
-use crate::sender::{PrepForSendingError, RequestSender, SendClientRequest};
-use crate::ClientConfig;
+use crate::{
+    error::{FreezeRequestError, InvalidUrl},
+    frozen::FrozenClientRequest,
+    sender::{PrepForSendingError, RequestSender, SendClientRequest},
+    ClientConfig,
+};
 
 #[cfg(feature = "compress")]
 const HTTPS_ENCODING: &str = "br, gzip, deflate";
@@ -408,7 +409,7 @@ impl ClientRequest {
     pub fn send_stream<S, E>(self, stream: S) -> SendClientRequest
     where
         S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
-        E: Into<Error> + 'static,
+        E: Into<Box<dyn StdError>> + 'static,
     {
         let slf = match self.prep_for_sending() {
             Ok(slf) => slf,

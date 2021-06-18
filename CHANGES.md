@@ -13,6 +13,8 @@
 * Update `language-tags` to `0.3`.
 * `ServiceResponse::take_body`. [#2201]
 * `ServiceResponse::map_body` closure receives and returns `B` instead of `ResponseBody<B>` types. [#2201]
+* All error trait bounds in server service builders have changed from `Into<Error>` to `Into<Response<AnyBody>>`. [#2253]
+* All error trait bounds in message body and stream impls changed from `Into<Error>` to `Into<Box<dyn std::error::Error>>`. [#2253]
 * `HttpServer::{listen_rustls(), bind_rustls()}` now honor the ALPN protocols in the configuation parameter. [#2226]
 * `middleware::normalize` now will not try to normalize URIs with no valid path [#2246]
 
@@ -21,6 +23,7 @@
 
 [#2200]: https://github.com/actix/actix-web/pull/2200
 [#2201]: https://github.com/actix/actix-web/pull/2201
+[#2253]: https://github.com/actix/actix-web/pull/2253
 [#2246]: https://github.com/actix/actix-web/pull/2246
 
 

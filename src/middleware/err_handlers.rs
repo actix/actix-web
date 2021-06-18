@@ -13,8 +13,8 @@ use futures_core::{future::LocalBoxFuture, ready};
 
 use crate::{
     dev::{ServiceRequest, ServiceResponse},
-    error::{Error, Result},
     http::StatusCode,
+    Error, Result,
 };
 
 /// Return type for [`ErrorHandlers`] custom handlers.

@@ -8,7 +8,7 @@ use std::{
 use bytes::{Bytes, BytesMut};
 
 use crate::{
-    body::{Body, MessageBody},
+    body::{AnyBody, MessageBody},
     error::Error,
     extensions::Extensions,
     http::{HeaderMap, StatusCode},
@@ -22,13 +22,13 @@ pub struct Response<B> {
     pub(crate) body: B,
 }
 
-impl Response<Body> {
+impl Response<AnyBody> {
     /// Constructs a new response with default body.
     #[inline]
-    pub fn new(status: StatusCode) -> Response<Body> {
+    pub fn new(status: StatusCode) -> Self {
         Response {
             head: BoxedResponseHead::new(status),
-            body: Body::Empty,
+            body: AnyBody::Empty,
         }
     }
 
@@ -43,40 +43,29 @@ impl Response<Body> {
 
     /// Constructs a new response with status 200 OK.
     #[inline]
-    pub fn ok() -> Response<Body> {
+    pub fn ok() -> Self {
         Response::new(StatusCode::OK)
     }
 
     /// Constructs a new response with status 400 Bad Request.
     #[inline]
-    pub fn bad_request() -> Response<Body> {
+    pub fn bad_request() -> Self {
         Response::new(StatusCode::BAD_REQUEST)
     }
 
     /// Constructs a new response with status 404 Not Found.
     #[inline]
-    pub fn not_found() -> Response<Body> {
+    pub fn not_found() -> Self {
         Response::new(StatusCode::NOT_FOUND)
     }
 
     /// Constructs a new response with status 500 Internal Server Error.
     #[inline]
-    pub fn internal_server_error() -> Response<Body> {
+    pub fn internal_server_error() -> Self {
         Response::new(StatusCode::INTERNAL_SERVER_ERROR)
     }
 
     // end shortcuts
-
-    /// Constructs a new response from an error.
-    #[inline]
-    pub fn from_error(error: impl Into<Error>) -> Response<Body> {
-        let error = error.into();
-        let resp = error.as_response_error().error_response();
-        if resp.head.status == StatusCode::INTERNAL_SERVER_ERROR {
-            debug!("Internal Server Error: {:?}", error);
-        }
-        resp
-    }
 }
 
 impl<B> Response<B> {
@@ -209,7 +198,6 @@ impl<B> Response<B> {
 impl<B> fmt::Debug for Response<B>
 where
     B: MessageBody,
-    B::Error: Into<Error>,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = writeln!(
@@ -235,7 +223,9 @@ impl<B: Default> Default for Response<B> {
     }
 }
 
-impl<I: Into<Response<Body>>, E: Into<Error>> From<Result<I, E>> for Response<Body> {
+impl<I: Into<Response<AnyBody>>, E: Into<Error>> From<Result<I, E>>
+    for Response<AnyBody>
+{
     fn from(res: Result<I, E>) -> Self {
         match res {
             Ok(val) => val.into(),
@@ -244,13 +234,19 @@ impl<I: Into<Response<Body>>, E: Into<Error>> From<Result<I, E>> for Response<Bo
     }
 }
 
-impl From<ResponseBuilder> for Response<Body> {
+impl From<ResponseBuilder> for Response<AnyBody> {
     fn from(mut builder: ResponseBuilder) -> Self {
         builder.finish()
     }
 }
 
-impl From<&'static str> for Response<Body> {
+impl From<std::convert::Infallible> for Response<AnyBody> {
+    fn from(val: std::convert::Infallible) -> Self {
+        match val {}
+    }
+}
+
+impl From<&'static str> for Response<AnyBody> {
     fn from(val: &'static str) -> Self {
         Response::build(StatusCode::OK)
             .content_type(mime::TEXT_PLAIN_UTF_8)
@@ -258,7 +254,7 @@ impl From<&'static str> for Response<Body> {
     }
 }
 
-impl From<&'static [u8]> for Response<Body> {
+impl From<&'static [u8]> for Response<AnyBody> {
     fn from(val: &'static [u8]) -> Self {
         Response::build(StatusCode::OK)
             .content_type(mime::APPLICATION_OCTET_STREAM)
@@ -266,7 +262,7 @@ impl From<&'static [u8]> for Response<Body> {
     }
 }
 
-impl From<String> for Response<Body> {
+impl From<String> for Response<AnyBody> {
     fn from(val: String) -> Self {
         Response::build(StatusCode::OK)
             .content_type(mime::TEXT_PLAIN_UTF_8)
@@ -274,7 +270,7 @@ impl From<String> for Response<Body> {
     }
 }
 
-impl<'a> From<&'a String> for Response<Body> {
+impl<'a> From<&'a String> for Response<AnyBody> {
     fn from(val: &'a String) -> Self {
         Response::build(StatusCode::OK)
             .content_type(mime::TEXT_PLAIN_UTF_8)
@@ -282,7 +278,7 @@ impl<'a> From<&'a String> for Response<Body> {
     }
 }
 
-impl From<Bytes> for Response<Body> {
+impl From<Bytes> for Response<AnyBody> {
     fn from(val: Bytes) -> Self {
         Response::build(StatusCode::OK)
             .content_type(mime::APPLICATION_OCTET_STREAM)
@@ -290,7 +286,7 @@ impl From<Bytes> for Response<Body> {
     }
 }
 
-impl From<BytesMut> for Response<Body> {
+impl From<BytesMut> for Response<AnyBody> {
     fn from(val: BytesMut) -> Self {
         Response::build(StatusCode::OK)
             .content_type(mime::APPLICATION_OCTET_STREAM)
@@ -301,7 +297,6 @@ impl From<BytesMut> for Response<Body> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::body::Body;
     use crate::http::header::{HeaderValue, CONTENT_TYPE, COOKIE};
 
     #[test]
@@ -316,7 +311,7 @@ mod tests {
 
     #[test]
     fn test_into_response() {
-        let resp: Response<Body> = "test".into();
+        let resp: Response<AnyBody> = "test".into();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
@@ -325,7 +320,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().get_ref(), b"test");
 
-        let resp: Response<Body> = b"test".as_ref().into();
+        let resp: Response<AnyBody> = b"test".as_ref().into();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
@@ -334,7 +329,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().get_ref(), b"test");
 
-        let resp: Response<Body> = "test".to_owned().into();
+        let resp: Response<AnyBody> = "test".to_owned().into();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
@@ -343,7 +338,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(resp.body().get_ref(), b"test");
 
-        let resp: Response<Body> = (&"test".to_owned()).into();
+        let resp: Response<AnyBody> = (&"test".to_owned()).into();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
@@ -353,7 +348,7 @@ mod tests {
         assert_eq!(resp.body().get_ref(), b"test");
 
         let b = Bytes::from_static(b"test");
-        let resp: Response<Body> = b.into();
+        let resp: Response<AnyBody> = b.into();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
@@ -363,7 +358,7 @@ mod tests {
         assert_eq!(resp.body().get_ref(), b"test");
 
         let b = Bytes::from_static(b"test");
-        let resp: Response<Body> = b.into();
+        let resp: Response<AnyBody> = b.into();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
@@ -373,7 +368,7 @@ mod tests {
         assert_eq!(resp.body().get_ref(), b"test");
 
         let b = BytesMut::from("test");
-        let resp: Response<Body> = b.into();
+        let resp: Response<AnyBody> = b.into();
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),

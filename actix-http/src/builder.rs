@@ -1,19 +1,16 @@
-use std::marker::PhantomData;
-use std::rc::Rc;
-use std::{fmt, net};
+use std::{error::Error as StdError, fmt, marker::PhantomData, net, rc::Rc};
 
 use actix_codec::Framed;
 use actix_service::{IntoServiceFactory, Service, ServiceFactory};
 
-use crate::body::MessageBody;
-use crate::config::{KeepAlive, ServiceConfig};
-use crate::error::Error;
-use crate::h1::{Codec, ExpectHandler, H1Service, UpgradeHandler};
-use crate::h2::H2Service;
-use crate::request::Request;
-use crate::response::Response;
-use crate::service::HttpService;
-use crate::{ConnectCallback, Extensions};
+use crate::{
+    body::{AnyBody, MessageBody},
+    config::{KeepAlive, ServiceConfig},
+    h1::{self, ExpectHandler, H1Service, UpgradeHandler},
+    h2::H2Service,
+    service::HttpService,
+    ConnectCallback, Extensions, Request, Response,
+};
 
 /// A HTTP service builder
 ///
@@ -34,7 +31,7 @@ pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler> {
 impl<T, S> HttpServiceBuilder<T, S, ExpectHandler, UpgradeHandler>
 where
     S: ServiceFactory<Request, Config = ()>,
-    S::Error: Into<Error> + 'static,
+    S::Error: Into<Response<AnyBody>> + 'static,
     S::InitError: fmt::Debug,
     <S::Service as Service<Request>>::Future: 'static,
 {
@@ -57,13 +54,13 @@ where
 impl<T, S, X, U> HttpServiceBuilder<T, S, X, U>
 where
     S: ServiceFactory<Request, Config = ()>,
-    S::Error: Into<Error> + 'static,
+    S::Error: Into<Response<AnyBody>> + 'static,
     S::InitError: fmt::Debug,
     <S::Service as Service<Request>>::Future: 'static,
     X: ServiceFactory<Request, Config = (), Response = Request>,
-    X::Error: Into<Error>,
+    X::Error: Into<Response<AnyBody>>,
     X::InitError: fmt::Debug,
-    U: ServiceFactory<(Request, Framed<T, Codec>), Config = (), Response = ()>,
+    U: ServiceFactory<(Request, Framed<T, h1::Codec>), Config = (), Response = ()>,
     U::Error: fmt::Display,
     U::InitError: fmt::Debug,
 {
@@ -123,7 +120,7 @@ where
     where
         F: IntoServiceFactory<X1, Request>,
         X1: ServiceFactory<Request, Config = (), Response = Request>,
-        X1::Error: Into<Error>,
+        X1::Error: Into<Response<AnyBody>>,
         X1::InitError: fmt::Debug,
     {
         HttpServiceBuilder {
@@ -145,8 +142,8 @@ where
     /// and this service get called with original request and framed object.
     pub fn upgrade<F, U1>(self, upgrade: F) -> HttpServiceBuilder<T, S, X, U1>
     where
-        F: IntoServiceFactory<U1, (Request, Framed<T, Codec>)>,
-        U1: ServiceFactory<(Request, Framed<T, Codec>), Config = (), Response = ()>,
+        F: IntoServiceFactory<U1, (Request, Framed<T, h1::Codec>)>,
+        U1: ServiceFactory<(Request, Framed<T, h1::Codec>), Config = (), Response = ()>,
         U1::Error: fmt::Display,
         U1::InitError: fmt::Debug,
     {
@@ -181,7 +178,7 @@ where
     where
         B: MessageBody,
         F: IntoServiceFactory<S, Request>,
-        S::Error: Into<Error>,
+        S::Error: Into<Response<AnyBody>>,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>>,
     {
@@ -203,12 +200,12 @@ where
     pub fn h2<F, B>(self, service: F) -> H2Service<T, S, B>
     where
         F: IntoServiceFactory<S, Request>,
-        S::Error: Into<Error> + 'static,
+        S::Error: Into<Response<AnyBody>> + 'static,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>> + 'static,
 
         B: MessageBody + 'static,
-        B::Error: Into<Error>,
+        B::Error: Into<Box<dyn StdError>>,
     {
         let cfg = ServiceConfig::new(
             self.keep_alive,
@@ -226,12 +223,12 @@ where
     pub fn finish<F, B>(self, service: F) -> HttpService<T, S, B, X, U>
     where
         F: IntoServiceFactory<S, Request>,
-        S::Error: Into<Error> + 'static,
+        S::Error: Into<Response<AnyBody>> + 'static,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>> + 'static,
 
         B: MessageBody + 'static,
-        B::Error: Into<Error>,
+        B::Error: Into<Box<dyn StdError>>,
     {
         let cfg = ServiceConfig::new(
             self.keep_alive,

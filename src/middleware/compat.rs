@@ -50,7 +50,7 @@ where
     T: Transform<S, Req>,
     T::Future: 'static,
     T::Response: MapServiceResponseBody,
-    Error: From<T::Error>,
+    T::Error: Into<Error>,
 {
     type Response = ServiceResponse;
     type Error = Error;
@@ -75,7 +75,7 @@ impl<S, Req> Service<Req> for CompatMiddleware<S>
 where
     S: Service<Req>,
     S::Response: MapServiceResponseBody,
-    Error: From<S::Error>,
+    S::Error: Into<Error>,
 {
     type Response = ServiceResponse;
     type Error = Error;
@@ -99,12 +99,16 @@ impl<Fut, T, E> Future for CompatMiddlewareFuture<Fut>
 where
     Fut: Future<Output = Result<T, E>>,
     T: MapServiceResponseBody,
-    Error: From<E>,
+    E: Into<Error>,
 {
     type Output = Result<ServiceResponse, Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let res = ready!(self.project().fut.poll(cx))?;
+        let res = match ready!(self.project().fut.poll(cx)) {
+            Ok(res) => res,
+            Err(err) => return Poll::Ready(Err(err.into())),
+        };
+
         Poll::Ready(Ok(res.map_body()))
     }
 }

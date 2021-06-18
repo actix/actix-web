@@ -127,7 +127,7 @@ impl<T: Serialize> Responder for Json<T> {
             Ok(body) => HttpResponse::Ok()
                 .content_type(mime::APPLICATION_JSON)
                 .body(body),
-            Err(err) => HttpResponse::from_error(JsonPayloadError::Serialize(err).into()),
+            Err(err) => HttpResponse::from_error(JsonPayloadError::Serialize(err)),
         }
     }
 }
@@ -500,7 +500,7 @@ mod tests {
                 };
                 let resp =
                     HttpResponse::BadRequest().body(serde_json::to_string(&msg).unwrap());
-                InternalError::from_response(err, resp.into()).into()
+                InternalError::from_response(err, resp).into()
             }))
             .to_http_parts();
 
