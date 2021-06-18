@@ -29,6 +29,7 @@ pub struct AppService {
         HttpNewService,
         Option<Guards>,
         Option<Rc<ResourceMap>>,
+        Option<Rc<Extensions>>,
     )>,
 }
 
@@ -57,6 +58,7 @@ impl AppService {
             HttpNewService,
             Option<Guards>,
             Option<Rc<ResourceMap>>,
+            Option<Rc<Extensions>>,
         )>,
     ) {
         (self.config, self.services)
@@ -88,6 +90,7 @@ impl AppService {
         guards: Option<Vec<Box<dyn Guard>>>,
         factory: F,
         nested: Option<Rc<ResourceMap>>,
+        app_data: Option<Rc<Extensions>>,
     ) where
         F: IntoServiceFactory<S, ServiceRequest>,
         S: ServiceFactory<
@@ -98,8 +101,13 @@ impl AppService {
                 InitError = (),
             > + 'static,
     {
-        self.services
-            .push((rdef, boxed::factory(factory.into_factory()), guards, nested));
+        self.services.push((
+            rdef,
+            boxed::factory(factory.into_factory()),
+            guards,
+            nested,
+            app_data,
+        ));
     }
 }
 

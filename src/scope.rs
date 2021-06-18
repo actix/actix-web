@@ -424,15 +424,14 @@ where
 
         // complete scope pipeline creation
         *self.factory_ref.borrow_mut() = Some(ScopeFactory {
-            app_data: self.app_data.take().map(Rc::new),
             default,
             services: cfg
                 .into_services()
                 .1
                 .into_iter()
-                .map(|(mut rdef, srv, guards, nested)| {
+                .map(|(mut rdef, srv, guards, nested, app_data)| {
                     rmap.add(&mut rdef, nested);
-                    (rdef, srv, RefCell::new(guards))
+                    (rdef, srv, RefCell::new(guards), app_data)
                 })
                 .collect::<Vec<_>>()
                 .into_boxed_slice()
@@ -452,13 +451,20 @@ where
             guards,
             self.endpoint,
             Some(Rc::new(rmap)),
+            self.app_data.take().map(Rc::new),
         )
     }
 }
 
 pub struct ScopeFactory {
-    app_data: Option<Rc<Extensions>>,
-    services: Rc<[(ResourceDef, HttpNewService, RefCell<Option<Guards>>)]>,
+    services: Rc<
+        [(
+            ResourceDef,
+            HttpNewService,
+            RefCell<Option<Guards>>,
+            Option<Rc<Extensions>>,
+        )],
+    >,
     default: Rc<HttpNewService>,
 }
 
@@ -475,17 +481,18 @@ impl ServiceFactory<ServiceRequest> for ScopeFactory {
         let default_fut = self.default.new_service(());
 
         // construct all services factory future with it's resource def and guards.
-        let factory_fut = join_all(self.services.iter().map(|(path, factory, guards)| {
-            let path = path.clone();
-            let guards = guards.borrow_mut().take();
-            let factory_fut = factory.new_service(());
-            async move {
-                let service = factory_fut.await?;
-                Ok((path, guards, service))
-            }
-        }));
-
-        let app_data = self.app_data.clone();
+        let factory_fut = join_all(self.services.iter().map(
+            |(path, factory, guards, app_data)| {
+                let path = path.clone();
+                let guards = guards.borrow_mut().take();
+                let factory_fut = factory.new_service(());
+                let app_data = app_data.clone();
+                async move {
+                    let service = factory_fut.await?;
+                    Ok((path, guards, service, app_data))
+                }
+            },
+        ));
 
         Box::pin(async move {
             let default = default_fut.await?;
@@ -496,24 +503,22 @@ impl ServiceFactory<ServiceRequest> for ScopeFactory {
                 .into_iter()
                 .collect::<Result<Vec<_>, _>>()?
                 .drain(..)
-                .fold(Router::build(), |mut router, (path, guards, service)| {
-                    router.rdef(path, service).2 = guards;
-                    router
-                })
+                .fold(
+                    Router::build(),
+                    |mut router, (path, guards, service, app_data)| {
+                        router.rdef(path, (service, app_data)).2 = guards;
+                        router
+                    },
+                )
                 .finish();
 
-            Ok(ScopeService {
-                app_data,
-                router,
-                default,
-            })
+            Ok(ScopeService { router, default })
         })
     }
 }
 
 pub struct ScopeService {
-    app_data: Option<Rc<Extensions>>,
-    router: Router<HttpService, Vec<Box<dyn Guard>>>,
+    router: Router<(HttpService, Option<Rc<Extensions>>), Vec<Box<dyn Guard>>>,
     default: HttpService,
 }
 
@@ -536,11 +541,10 @@ impl Service<ServiceRequest> for ScopeService {
             true
         });
 
-        if let Some(ref app_data) = self.app_data {
-            req.add_data_container(app_data.clone());
-        }
-
-        if let Some((srv, _info)) = res {
+        if let Some(((srv, app_data), _info)) = res {
+            if let Some(ref app_data) = app_data {
+                req.add_data_container(app_data.clone());
+            }
             srv.call(req)
         } else {
             self.default.call(req)

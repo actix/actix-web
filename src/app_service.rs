@@ -88,9 +88,9 @@ where
             default,
             services: services
                 .into_iter()
-                .map(|(mut rdef, srv, guards, nested)| {
+                .map(|(mut rdef, srv, guards, nested, app_data)| {
                     rmap.add(&mut rdef, nested);
-                    (rdef, srv, RefCell::new(guards))
+                    (rdef, srv, RefCell::new(guards), app_data)
                 })
                 .collect::<Vec<_>>()
                 .into_boxed_slice()
@@ -228,7 +228,14 @@ where
 }
 
 pub struct AppRoutingFactory {
-    services: Rc<[(ResourceDef, HttpNewService, RefCell<Option<Guards>>)]>,
+    services: Rc<
+        [(
+            ResourceDef,
+            HttpNewService,
+            RefCell<Option<Guards>>,
+            Option<Rc<Extensions>>,
+        )],
+    >,
     default: Rc<HttpNewService>,
 }
 
@@ -242,15 +249,18 @@ impl ServiceFactory<ServiceRequest> for AppRoutingFactory {
 
     fn new_service(&self, _: ()) -> Self::Future {
         // construct all services factory future with it's resource def and guards.
-        let factory_fut = join_all(self.services.iter().map(|(path, factory, guards)| {
-            let path = path.clone();
-            let guards = guards.borrow_mut().take();
-            let factory_fut = factory.new_service(());
-            async move {
-                let service = factory_fut.await?;
-                Ok((path, guards, service))
-            }
-        }));
+        let factory_fut = join_all(self.services.iter().map(
+            |(path, factory, guards, app_data)| {
+                let path = path.clone();
+                let guards = guards.borrow_mut().take();
+                let factory_fut = factory.new_service(());
+                let app_data = app_data.clone();
+                async move {
+                    let service = factory_fut.await?;
+                    Ok((path, guards, service, app_data))
+                }
+            },
+        ));
 
         // construct default service factory future
         let default_fut = self.default.new_service(());
@@ -264,10 +274,13 @@ impl ServiceFactory<ServiceRequest> for AppRoutingFactory {
                 .into_iter()
                 .collect::<Result<Vec<_>, _>>()?
                 .drain(..)
-                .fold(Router::build(), |mut router, (path, guards, service)| {
-                    router.rdef(path, service).2 = guards;
-                    router
-                })
+                .fold(
+                    Router::build(),
+                    |mut router, (path, guards, service, app_data)| {
+                        router.rdef(path, (service, app_data)).2 = guards;
+                        router
+                    },
+                )
                 .finish();
 
             Ok(AppRouting { router, default })
@@ -276,7 +289,7 @@ impl ServiceFactory<ServiceRequest> for AppRoutingFactory {
 }
 
 pub struct AppRouting {
-    router: Router<HttpService, Guards>,
+    router: Router<(HttpService, Option<Rc<Extensions>>), Guards>,
     default: HttpService,
 }
 
@@ -299,7 +312,10 @@ impl Service<ServiceRequest> for AppRouting {
             true
         });
 
-        if let Some((srv, _info)) = res {
+        if let Some(((srv, app_data), _info)) = res {
+            if let Some(ref app_data) = app_data {
+                req.add_data_container(app_data.clone());
+            }
             srv.call(req)
         } else {
             self.default.call(req)

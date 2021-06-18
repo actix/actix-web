@@ -291,7 +291,7 @@ impl HttpServiceFactory for Files {
             ResourceDef::prefix(&self.path)
         };
 
-        config.register_service(rdef, guards, self, None)
+        config.register_service(rdef, guards, self, None, None)
     }
 }
 

@@ -395,7 +395,9 @@ where
             *rdef.name_mut() = name.clone();
         }
 
-        config.register_service(rdef, guards, self, None)
+        let app_data = self.app_data.take().map(Rc::new);
+
+        config.register_service(rdef, guards, self, None, app_data)
     }
 }
 
@@ -412,7 +414,6 @@ where
     fn into_factory(self) -> T {
         *self.factory_ref.borrow_mut() = Some(ResourceFactory {
             routes: self.routes,
-            app_data: self.app_data.map(Rc::new),
             default: self.default,
         });
 
@@ -422,7 +423,6 @@ where
 
 pub struct ResourceFactory {
     routes: Vec<Route>,
-    app_data: Option<Rc<Extensions>>,
     default: HttpNewService,
 }
 
@@ -441,8 +441,6 @@ impl ServiceFactory<ServiceRequest> for ResourceFactory {
         // construct route service factory futures
         let factory_fut = join_all(self.routes.iter().map(|route| route.new_service(())));
 
-        let app_data = self.app_data.clone();
-
         Box::pin(async move {
             let default = default_fut.await?;
             let routes = factory_fut
@@ -450,18 +448,13 @@ impl ServiceFactory<ServiceRequest> for ResourceFactory {
                 .into_iter()
                 .collect::<Result<Vec<_>, _>>()?;
 
-            Ok(ResourceService {
-                routes,
-                app_data,
-                default,
-            })
+            Ok(ResourceService { routes, default })
         })
     }
 }
 
 pub struct ResourceService {
     routes: Vec<RouteService>,
-    app_data: Option<Rc<Extensions>>,
     default: HttpService,
 }
 
@@ -475,16 +468,8 @@ impl Service<ServiceRequest> for ResourceService {
     fn call(&self, mut req: ServiceRequest) -> Self::Future {
         for route in self.routes.iter() {
             if route.check(&mut req) {
-                if let Some(ref app_data) = self.app_data {
-                    req.add_data_container(app_data.clone());
-                }
-
                 return route.call(req);
             }
-        }
-
-        if let Some(ref app_data) = self.app_data {
-            req.add_data_container(app_data.clone());
         }
 
         self.default.call(req)

@@ -562,6 +562,7 @@ impl HttpServiceFactory for NamedFile {
             None,
             self,
             None,
+            None,
         )
     }
 }

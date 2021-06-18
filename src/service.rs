@@ -562,7 +562,7 @@ where
         if let Some(ref name) = self.name {
             *rdef.name_mut() = name.clone();
         }
-        config.register_service(rdef, guards, self.srv, None)
+        config.register_service(rdef, guards, self.srv, None, None)
     }
 }
 
