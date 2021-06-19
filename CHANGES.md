@@ -1,6 +1,10 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Changed
+* App data set on `Scope` instance can now be accessed in middlewares defined on the same scope. [#2267]
+
+[#2267]: (https://github.com/actix/actix-web/pull/2267)
 
 
 ## 4.0.0-beta.7 - 2021-06-17
