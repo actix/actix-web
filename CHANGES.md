@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 4.0.0-beta.7 - 2021-06-17
 ### Added
 * `HttpServer::worker_max_blocking_threads` for setting block thread pool. [#2200]
 
