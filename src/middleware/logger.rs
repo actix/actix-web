@@ -13,18 +13,18 @@ use std::{
 };
 
 use actix_service::{Service, Transform};
+use actix_utils::future::{ok, Ready};
 use bytes::Bytes;
-use futures_util::future::{ok, Ready};
+use futures_core::ready;
 use log::{debug, warn};
 use regex::{Regex, RegexSet};
 use time::OffsetDateTime;
 
 use crate::{
-    dev::{BodySize, MessageBody, ResponseBody},
-    error::{Error, Result},
+    dev::{BodySize, MessageBody},
     http::{HeaderName, StatusCode},
     service::{ServiceRequest, ServiceResponse},
-    HttpResponse,
+    Error, HttpResponse, Result,
 };
 
 /// Middleware for logging request and response summaries to the terminal.
@@ -43,7 +43,7 @@ use crate::{
 /// ```
 ///
 /// # Examples
-/// ```rust
+/// ```
 /// use actix_web::{middleware::Logger, App};
 ///
 /// // access logs are printed with the INFO level so ensure it is enabled by default
@@ -124,7 +124,7 @@ impl Logger {
     /// It is convention to print "-" to indicate no output instead of an empty string.
     ///
     /// # Example
-    /// ```rust
+    /// ```
     /// # use actix_web::{http::HeaderValue, middleware::Logger};
     /// # fn parse_jwt_id (_req: Option<&HeaderValue>) -> String { "jwt_uid".to_owned() }
     /// Logger::new("example %{JWT_ID}xi")
@@ -269,7 +269,7 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
 
-        let res = match futures_util::ready!(this.fut.poll(cx)) {
+        let res = match ready!(this.fut.poll(cx)) {
             Ok(res) => res,
             Err(e) => return Poll::Ready(Err(e)),
         };
@@ -289,13 +289,11 @@ where
         let time = *this.time;
         let format = this.format.take();
 
-        Poll::Ready(Ok(res.map_body(move |_, body| {
-            ResponseBody::Body(StreamLog {
-                body,
-                time,
-                format,
-                size: 0,
-            })
+        Poll::Ready(Ok(res.map_body(move |_, body| StreamLog {
+            body,
+            time,
+            format,
+            size: 0,
         })))
     }
 }
@@ -305,7 +303,7 @@ use pin_project::{pin_project, pinned_drop};
 #[pin_project(PinnedDrop)]
 pub struct StreamLog<B> {
     #[pin]
-    body: ResponseBody<B>,
+    body: B,
     format: Option<Format>,
     size: usize,
     time: OffsetDateTime,
@@ -326,7 +324,13 @@ impl<B> PinnedDrop for StreamLog<B> {
     }
 }
 
-impl<B: MessageBody> MessageBody for StreamLog<B> {
+impl<B> MessageBody for StreamLog<B>
+where
+    B: MessageBody,
+    B::Error: Into<Error>,
+{
+    type Error = Error;
+
     fn size(&self) -> BodySize {
         self.body.size()
     }
@@ -334,14 +338,17 @@ impl<B: MessageBody> MessageBody for StreamLog<B> {
     fn poll_next(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<Bytes, Error>>> {
+    ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         let this = self.project();
-        match this.body.poll_next(cx) {
-            Poll::Ready(Some(Ok(chunk))) => {
+
+        // TODO: MSRV 1.51: poll_map_err
+        match ready!(this.body.poll_next(cx)) {
+            Some(Ok(chunk)) => {
                 *this.size += chunk.len();
                 Poll::Ready(Some(Ok(chunk)))
             }
-            val => val,
+            Some(Err(err)) => Poll::Ready(Some(Err(err.into()))),
+            None => Poll::Ready(None),
         }
     }
 }
@@ -363,7 +370,7 @@ impl Format {
     /// Returns `None` if the format string syntax is incorrect.
     pub fn new(s: &str) -> Format {
         log::trace!("Access log format: {}", s);
-        let fmt = Regex::new(r"%(\{([A-Za-z0-9\-_]+)\}([aioe]|xi)|[atPrUsbTD]?)").unwrap();
+        let fmt = Regex::new(r"%(\{([A-Za-z0-9\-_]+)\}([aioe]|xi)|[%atPrUsbTD]?)").unwrap();
 
         let mut idx = 0;
         let mut results = Vec::new();
@@ -379,7 +386,7 @@ impl Format {
                 results.push(match cap.get(3).unwrap().as_str() {
                     "a" => {
                         if key.as_str() == "r" {
-                            FormatText::RealIPRemoteAddr
+                            FormatText::RealIpRemoteAddr
                         } else {
                             unreachable!()
                         }
@@ -433,7 +440,7 @@ enum FormatText {
     Time,
     TimeMillis,
     RemoteAddr,
-    RealIPRemoteAddr,
+    RealIpRemoteAddr,
     UrlPath,
     RequestHeader(HeaderName),
     ResponseHeader(HeaderName),
@@ -553,7 +560,7 @@ impl FormatText {
                 };
                 *self = s;
             }
-            FormatText::RealIPRemoteAddr => {
+            FormatText::RealIpRemoteAddr => {
                 let s = if let Some(remote) = req.connection_info().realip_remote_addr() {
                     FormatText::Str(remote.to_string())
                 } else {
@@ -588,7 +595,7 @@ impl<'a> fmt::Display for FormatDisplay<'a> {
 #[cfg(test)]
 mod tests {
     use actix_service::{IntoService, Service, Transform};
-    use futures_util::future::ok;
+    use actix_utils::future::ok;
 
     use super::*;
     use crate::http::{header, StatusCode};
@@ -637,6 +644,38 @@ mod tests {
             ))
             .to_srv_request();
         let _res = srv.call(req).await.unwrap();
+    }
+
+    #[actix_rt::test]
+    async fn test_escape_percent() {
+        let mut format = Format::new("%%{r}a");
+
+        let req = TestRequest::default()
+            .insert_header((
+                header::FORWARDED,
+                header::HeaderValue::from_static("for=192.0.2.60;proto=http;by=203.0.113.43"),
+            ))
+            .to_srv_request();
+
+        let now = OffsetDateTime::now_utc();
+        for unit in &mut format.0 {
+            unit.render_request(now, &req);
+        }
+
+        let resp = HttpResponse::build(StatusCode::OK).force_close().finish();
+        for unit in &mut format.0 {
+            unit.render_response(&resp);
+        }
+
+        let entry_time = OffsetDateTime::now_utc();
+        let render = |fmt: &mut fmt::Formatter<'_>| {
+            for unit in &format.0 {
+                unit.render(fmt, 1024, entry_time)?;
+            }
+            Ok(())
+        };
+        let s = format!("{}", FormatDisplay(&render));
+        assert_eq!(s, "%{r}a");
     }
 
     #[actix_rt::test]

@@ -8,6 +8,31 @@
 [#2059]: https://github.com/actix/actix-web/pull/2059
 
 
+## 0.6.0-beta.5 - 2021-06-17
+* `NamedFile` now implements `ServiceFactory` and `HttpServiceFactory` making it much more useful in routing. For example, it can be used directly as a default service. [#2135]
+* For symbolic links, `Content-Disposition` header no longer shows the filename of the original file. [#2156]
+* `Files::redirect_to_slash_directory()` now works as expected when used with `Files::show_files_listing()`. [#2225]
+* `application/{javascript, json, wasm}` mime type now have `inline` disposition by default. [#2257]
+* `Files::show_files_listing()` can now be used with `Files::index_file()` to show files listing as a fallback when the index file is not found. [#2228]
+
+[#2135]: https://github.com/actix/actix-web/pull/2135
+[#2156]: https://github.com/actix/actix-web/pull/2156
+[#2225]: https://github.com/actix/actix-web/pull/2225
+[#2257]: https://github.com/actix/actix-web/pull/2257
+[#2228]: https://github.com/actix/actix-web/pull/2228
+
+
+## 0.6.0-beta.4 - 2021-04-02
+* No notable changes.
+
+* Add support for `.guard` in `Files` to selectively filter `Files` services. [#2046]
+
+[#2046]: https://github.com/actix/actix-web/pull/2046
+
+## 0.6.0-beta.3 - 2021-03-09
+* No notable changes.
+
+
 ## 0.6.0-beta.2 - 2021-02-10
 * Fix If-Modified-Since and If-Unmodified-Since to not compare using sub-second timestamps. [#1887]
 * Replace `v_htmlescape` with `askama_escape`. [#1953]

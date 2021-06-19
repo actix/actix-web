@@ -6,10 +6,8 @@ use std::{
     task::{Context, Poll},
 };
 
-use futures_util::{
-    future::{ready, Ready},
-    ready,
-};
+use actix_utils::future::{ready, Ready};
+use futures_core::ready;
 
 use crate::{dev::Payload, Error, HttpRequest};
 
@@ -49,9 +47,8 @@ pub trait FromRequest: Sized {
 ///
 /// If the FromRequest for T fails, return None rather than returning an error response
 ///
-/// ## Example
-///
-/// ```rust
+/// # Examples
+/// ```
 /// use actix_web::{web, dev, App, Error, HttpRequest, FromRequest};
 /// use actix_web::error::ErrorBadRequest;
 /// use futures_util::future::{ok, err, Ready};
@@ -141,9 +138,8 @@ where
 ///
 /// If the `FromRequest` for T fails, inject Err into handler rather than returning an error response
 ///
-/// ## Example
-///
-/// ```rust
+/// # Examples
+/// ```
 /// use actix_web::{web, dev, App, Result, Error, HttpRequest, FromRequest};
 /// use actix_web::error::ErrorBadRequest;
 /// use futures_util::future::{ok, err, Ready};
@@ -302,13 +298,13 @@ macro_rules! tuple_from_req ({$fut_type:ident, $(($n:tt, $T:ident)),+} => {
                     }
                 )+
 
-                    if ready {
-                        Poll::Ready(Ok(
-                            ($(this.items.$n.take().unwrap(),)+)
-                        ))
-                    } else {
-                        Poll::Pending
-                    }
+                if ready {
+                    Poll::Ready(Ok(
+                        ($(this.items.$n.take().unwrap(),)+)
+                    ))
+                } else {
+                    Poll::Pending
+                }
             }
         }
     }
@@ -318,16 +314,16 @@ macro_rules! tuple_from_req ({$fut_type:ident, $(($n:tt, $T:ident)),+} => {
 mod m {
     use super::*;
 
-tuple_from_req!(TupleFromRequest1, (0, A));
-tuple_from_req!(TupleFromRequest2, (0, A), (1, B));
-tuple_from_req!(TupleFromRequest3, (0, A), (1, B), (2, C));
-tuple_from_req!(TupleFromRequest4, (0, A), (1, B), (2, C), (3, D));
-tuple_from_req!(TupleFromRequest5, (0, A), (1, B), (2, C), (3, D), (4, E));
-tuple_from_req!(TupleFromRequest6, (0, A), (1, B), (2, C), (3, D), (4, E), (5, F));
-tuple_from_req!(TupleFromRequest7, (0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G));
-tuple_from_req!(TupleFromRequest8, (0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H));
-tuple_from_req!(TupleFromRequest9, (0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H), (8, I));
-tuple_from_req!(TupleFromRequest10, (0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H), (8, I), (9, J));
+    tuple_from_req!(TupleFromRequest1, (0, A));
+    tuple_from_req!(TupleFromRequest2, (0, A), (1, B));
+    tuple_from_req!(TupleFromRequest3, (0, A), (1, B), (2, C));
+    tuple_from_req!(TupleFromRequest4, (0, A), (1, B), (2, C), (3, D));
+    tuple_from_req!(TupleFromRequest5, (0, A), (1, B), (2, C), (3, D), (4, E));
+    tuple_from_req!(TupleFromRequest6, (0, A), (1, B), (2, C), (3, D), (4, E), (5, F));
+    tuple_from_req!(TupleFromRequest7, (0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G));
+    tuple_from_req!(TupleFromRequest8, (0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H));
+    tuple_from_req!(TupleFromRequest9, (0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H), (8, I));
+    tuple_from_req!(TupleFromRequest10, (0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H), (8, I), (9, J));
 }
 
 #[cfg(test)]

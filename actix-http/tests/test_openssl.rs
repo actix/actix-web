@@ -2,18 +2,24 @@
 
 extern crate tls_openssl as openssl;
 
-use std::io;
+use std::{convert::Infallible, io};
 
-use actix_http::error::{ErrorBadRequest, PayloadError};
-use actix_http::http::header::{self, HeaderName, HeaderValue};
-use actix_http::http::{Method, StatusCode, Version};
-use actix_http::HttpMessage;
-use actix_http::{body, Error, HttpService, Request, Response};
+use actix_http::{
+    body::{AnyBody, Body, SizedStream},
+    error::PayloadError,
+    http::{
+        header::{self, HeaderName, HeaderValue},
+        Method, StatusCode, Version,
+    },
+    Error, HttpMessage, HttpService, Request, Response,
+};
 use actix_http_test::test_server;
 use actix_service::{fn_service, ServiceFactoryExt};
+use actix_utils::future::{err, ok, ready};
 use bytes::{Bytes, BytesMut};
-use futures_util::future::{err, ok, ready};
-use futures_util::stream::{once, Stream, StreamExt};
+use derive_more::{Display, Error};
+use futures_core::Stream;
+use futures_util::stream::{once, StreamExt as _};
 use openssl::{
     pkey::PKey,
     ssl::{SslAcceptor, SslMethod},
@@ -66,7 +72,7 @@ fn tls_config() -> SslAcceptor {
 async fn test_h2() -> io::Result<()> {
     let srv = test_server(move || {
         HttpService::build()
-            .h2(|_| ok::<_, Error>(Response::Ok().finish()))
+            .h2(|_| ok::<_, Error>(Response::ok()))
             .openssl(tls_config())
             .map_err(|_| ())
     })
@@ -84,7 +90,7 @@ async fn test_h2_1() -> io::Result<()> {
             .finish(|req: Request| {
                 assert!(req.peer_addr().is_some());
                 assert_eq!(req.version(), Version::HTTP_2);
-                ok::<_, Error>(Response::Ok().finish())
+                ok::<_, Error>(Response::ok())
             })
             .openssl(tls_config())
             .map_err(|_| ())
@@ -103,7 +109,7 @@ async fn test_h2_body() -> io::Result<()> {
         HttpService::build()
             .h2(|mut req: Request<_>| async move {
                 let body = load_body(req.take_payload()).await?;
-                Ok::<_, Error>(Response::Ok().body(body))
+                Ok::<_, Error>(Response::ok().set_body(body))
             })
             .openssl(tls_config())
             .map_err(|_| ())
@@ -130,7 +136,7 @@ async fn test_h2_content_length() {
                     StatusCode::OK,
                     StatusCode::NOT_FOUND,
                 ];
-                ok::<_, ()>(Response::new(statuses[idx]))
+                ok::<_, Infallible>(Response::new(statuses[idx]))
             })
             .openssl(tls_config())
             .map_err(|_| ())
@@ -181,7 +187,7 @@ async fn test_h2_headers() {
     let mut srv = test_server(move || {
         let data = data.clone();
         HttpService::build().h2(move |_| {
-            let mut builder = Response::Ok();
+            let mut builder = Response::build(StatusCode::OK);
             for idx in 0..90 {
                 builder.insert_header(
                     (format!("X-TEST-{}", idx).as_str(),
@@ -200,7 +206,7 @@ async fn test_h2_headers() {
                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST ",
                 ));
             }
-            ok::<_, ()>(builder.body(data.clone()))
+            ok::<_, Infallible>(builder.body(data.clone()))
         })
             .openssl(tls_config())
                     .map_err(|_| ())
@@ -240,7 +246,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
 async fn test_h2_body2() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|_| ok::<_, ()>(Response::Ok().body(STR)))
+            .h2(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
             .openssl(tls_config())
             .map_err(|_| ())
     })
@@ -258,7 +264,7 @@ async fn test_h2_body2() {
 async fn test_h2_head_empty() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .finish(|_| ok::<_, ()>(Response::Ok().body(STR)))
+            .finish(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
             .openssl(tls_config())
             .map_err(|_| ())
     })
@@ -282,7 +288,7 @@ async fn test_h2_head_empty() {
 async fn test_h2_head_binary() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|_| ok::<_, ()>(Response::Ok().body(STR)))
+            .h2(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
             .openssl(tls_config())
             .map_err(|_| ())
     })
@@ -305,7 +311,7 @@ async fn test_h2_head_binary() {
 async fn test_h2_head_binary2() {
     let srv = test_server(move || {
         HttpService::build()
-            .h2(|_| ok::<_, ()>(Response::Ok().body(STR)))
+            .h2(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
             .openssl(tls_config())
             .map_err(|_| ())
     })
@@ -324,10 +330,13 @@ async fn test_h2_head_binary2() {
 async fn test_h2_body_length() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|_| {
-                let body = once(ok(Bytes::from_static(STR.as_ref())));
-                ok::<_, ()>(
-                    Response::Ok().body(body::SizedStream::new(STR.len() as u64, body)),
+            .h2(|_| async {
+                let body = once(async {
+                    Ok::<_, Infallible>(Bytes::from_static(STR.as_ref()))
+                });
+
+                Ok::<_, Infallible>(
+                    Response::ok().set_body(SizedStream::new(STR.len() as u64, body)),
                 )
             })
             .openssl(tls_config())
@@ -349,8 +358,8 @@ async fn test_h2_body_chunked_explicit() {
         HttpService::build()
             .h2(|_| {
                 let body = once(ok::<_, Error>(Bytes::from_static(STR.as_ref())));
-                ok::<_, ()>(
-                    Response::Ok()
+                ok::<_, Infallible>(
+                    Response::build(StatusCode::OK)
                         .insert_header((header::TRANSFER_ENCODING, "chunked"))
                         .streaming(body),
                 )
@@ -377,8 +386,8 @@ async fn test_h2_response_http_error_handling() {
         HttpService::build()
             .h2(fn_service(|_| {
                 let broken_header = Bytes::from_static(b"\0\0\0");
-                ok::<_, ()>(
-                    Response::Ok()
+                ok::<_, Infallible>(
+                    Response::build(StatusCode::OK)
                         .insert_header((header::CONTENT_TYPE, broken_header))
                         .body(STR),
                 )
@@ -393,14 +402,27 @@ async fn test_h2_response_http_error_handling() {
 
     // read response
     let bytes = srv.load_body(response).await.unwrap();
-    assert_eq!(bytes, Bytes::from_static(b"failed to parse header value"));
+    assert_eq!(
+        bytes,
+        Bytes::from_static(b"error processing HTTP: failed to parse header value")
+    );
+}
+
+#[derive(Debug, Display, Error)]
+#[display(fmt = "error")]
+struct BadRequest;
+
+impl From<BadRequest> for Response<AnyBody> {
+    fn from(err: BadRequest) -> Self {
+        Response::build(StatusCode::BAD_REQUEST).body(err.to_string())
+    }
 }
 
 #[actix_rt::test]
 async fn test_h2_service_error() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|_| err::<Response, Error>(ErrorBadRequest("error")))
+            .h2(|_| err::<Response<Body>, _>(BadRequest))
             .openssl(tls_config())
             .map_err(|_| ())
     })
@@ -423,7 +445,7 @@ async fn test_h2_on_connect() {
             })
             .h2(|req: Request| {
                 assert!(req.extensions().contains::<isize>());
-                ok::<_, ()>(Response::Ok().finish())
+                ok::<_, Infallible>(Response::ok())
             })
             .openssl(tls_config())
             .map_err(|_| ())

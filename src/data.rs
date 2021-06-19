@@ -1,15 +1,14 @@
-use std::any::type_name;
-use std::ops::Deref;
-use std::sync::Arc;
+use std::{any::type_name, ops::Deref, sync::Arc};
 
-use actix_http::error::{Error, ErrorInternalServerError};
 use actix_http::Extensions;
-use futures_util::future::{err, ok, LocalBoxFuture, Ready};
+use actix_utils::future::{err, ok, Ready};
+use futures_core::future::LocalBoxFuture;
 use serde::Serialize;
 
-use crate::dev::Payload;
-use crate::extract::FromRequest;
-use crate::request::HttpRequest;
+use crate::{
+    dev::Payload, error::ErrorInternalServerError, extract::FromRequest, request::HttpRequest,
+    Error,
+};
 
 /// Data factory.
 pub(crate) trait DataFactory {
@@ -37,7 +36,7 @@ pub(crate) type FnDataFactory =
 /// If route data is not set for a handler, using `Data<T>` extractor would cause *Internal
 /// Server Error* response.
 ///
-/// ```rust
+/// ```
 /// use std::sync::Mutex;
 /// use actix_web::{web, App, HttpResponse, Responder};
 ///
@@ -147,13 +146,13 @@ impl<T: ?Sized + 'static> DataFactory for Data<T> {
 
 #[cfg(test)]
 mod tests {
-    use actix_service::Service;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-
     use super::*;
-    use crate::http::StatusCode;
-    use crate::test::{self, init_service, TestRequest};
-    use crate::{web, App, HttpResponse};
+    use crate::{
+        dev::Service,
+        http::StatusCode,
+        test::{init_service, TestRequest},
+        web, App, HttpResponse,
+    };
 
     #[actix_rt::test]
     async fn test_data_extractor() {
@@ -267,49 +266,6 @@ mod tests {
         let req = TestRequest::default().to_request();
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-    }
-
-    #[actix_rt::test]
-    async fn test_data_drop() {
-        struct TestData(Arc<AtomicUsize>);
-
-        impl TestData {
-            fn new(inner: Arc<AtomicUsize>) -> Self {
-                let _ = inner.fetch_add(1, Ordering::SeqCst);
-                Self(inner)
-            }
-        }
-
-        impl Clone for TestData {
-            fn clone(&self) -> Self {
-                let inner = self.0.clone();
-                let _ = inner.fetch_add(1, Ordering::SeqCst);
-                Self(inner)
-            }
-        }
-
-        impl Drop for TestData {
-            fn drop(&mut self) {
-                let _ = self.0.fetch_sub(1, Ordering::SeqCst);
-            }
-        }
-
-        let num = Arc::new(AtomicUsize::new(0));
-        let data = TestData::new(num.clone());
-        assert_eq!(num.load(Ordering::SeqCst), 1);
-
-        let srv = test::start(move || {
-            let data = data.clone();
-
-            App::new()
-                .data(data)
-                .service(web::resource("/").to(|_data: Data<TestData>| async { "ok" }))
-        });
-
-        assert!(srv.get("/").send().await.unwrap().status().is_success());
-        srv.stop().await;
-
-        assert_eq!(num.load(Ordering::SeqCst), 0);
     }
 
     #[actix_rt::test]

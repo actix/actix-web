@@ -12,13 +12,11 @@ use std::{
 use actix_http::Payload;
 use bytes::BytesMut;
 use encoding_rs::{Encoding, UTF_8};
-use futures_util::{
-    future::{FutureExt, LocalBoxFuture},
-    StreamExt,
-};
+use futures_core::{future::LocalBoxFuture, ready};
+use futures_util::{FutureExt as _, StreamExt as _};
 use serde::{de::DeserializeOwned, Serialize};
 
-#[cfg(feature = "compress")]
+#[cfg(feature = "__compress")]
 use crate::dev::Decompress;
 use crate::{
     error::UrlencodedError, extract::FromRequest, http::header::CONTENT_LENGTH, web, Error,
@@ -82,7 +80,7 @@ use crate::{
 ///     })
 /// }
 /// ```
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct Form<T>(pub T);
 
 impl<T> Form<T> {
@@ -125,11 +123,10 @@ where
 {
     type Config = FormConfig;
     type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<Self, Error>>;
+    type Future = FormExtractFut<T>;
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-        let req2 = req.clone();
         let (limit, err_handler) = req
             .app_data::<Self::Config>()
             .or_else(|| {
@@ -139,22 +136,42 @@ where
             .map(|c| (c.limit, c.err_handler.clone()))
             .unwrap_or((16384, None));
 
-        UrlEncoded::new(req, payload)
-            .limit(limit)
-            .map(move |res| match res {
-                Err(err) => match err_handler {
-                    Some(err_handler) => Err((err_handler)(err, &req2)),
-                    None => Err(err.into()),
-                },
-                Ok(item) => Ok(Form(item)),
-            })
-            .boxed_local()
+        FormExtractFut {
+            fut: UrlEncoded::new(req, payload).limit(limit),
+            req: req.clone(),
+            err_handler,
+        }
     }
 }
 
-impl<T: fmt::Debug> fmt::Debug for Form<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
+type FormErrHandler = Option<Rc<dyn Fn(UrlencodedError, &HttpRequest) -> Error>>;
+
+pub struct FormExtractFut<T> {
+    fut: UrlEncoded<T>,
+    err_handler: FormErrHandler,
+    req: HttpRequest,
+}
+
+impl<T> Future for FormExtractFut<T>
+where
+    T: DeserializeOwned + 'static,
+{
+    type Output = Result<Form<T>, Error>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+
+        let res = ready!(Pin::new(&mut this.fut).poll(cx));
+
+        let res = match res {
+            Err(err) => match &this.err_handler {
+                Some(err_handler) => Err((err_handler)(err, &this.req)),
+                None => Err(err.into()),
+            },
+            Ok(item) => Ok(Form(item)),
+        };
+
+        Poll::Ready(res)
     }
 }
 
@@ -171,7 +188,7 @@ impl<T: Serialize> Responder for Form<T> {
             Ok(body) => HttpResponse::Ok()
                 .content_type(mime::APPLICATION_WWW_FORM_URLENCODED)
                 .body(body),
-            Err(err) => HttpResponse::from_error(err.into()),
+            Err(err) => HttpResponse::from_error(UrlencodedError::Serialize(err)),
         }
     }
 }
@@ -201,7 +218,7 @@ impl<T: Serialize> Responder for Form<T> {
 #[derive(Clone)]
 pub struct FormConfig {
     limit: usize,
-    err_handler: Option<Rc<dyn Fn(UrlencodedError, &HttpRequest) -> Error>>,
+    err_handler: FormErrHandler,
 }
 
 impl FormConfig {
@@ -238,9 +255,9 @@ impl Default for FormConfig {
 /// - content type is not `application/x-www-form-urlencoded`
 /// - content length is greater than [limit](UrlEncoded::limit())
 pub struct UrlEncoded<T> {
-    #[cfg(feature = "compress")]
+    #[cfg(feature = "__compress")]
     stream: Option<Decompress<Payload>>,
-    #[cfg(not(feature = "compress"))]
+    #[cfg(not(feature = "__compress"))]
     stream: Option<Payload>,
 
     limit: usize,
@@ -276,10 +293,15 @@ impl<T> UrlEncoded<T> {
             }
         };
 
-        #[cfg(feature = "compress")]
-        let payload = Decompress::from_headers(payload.take(), req.headers());
-        #[cfg(not(feature = "compress"))]
-        let payload = payload.take();
+        let payload = {
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "__compress")] {
+                    Decompress::from_headers(payload.take(), req.headers())
+                } else {
+                    payload.take()
+                }
+            }
+        };
 
         UrlEncoded {
             encoding,
@@ -354,14 +376,14 @@ where
                 }
 
                 if encoding == UTF_8 {
-                    serde_urlencoded::from_bytes::<T>(&body).map_err(|_| UrlencodedError::Parse)
+                    serde_urlencoded::from_bytes::<T>(&body).map_err(UrlencodedError::Parse)
                 } else {
                     let body = encoding
                         .decode_without_bom_handling_and_without_replacement(&body)
                         .map(|s| s.into_owned())
-                        .ok_or(UrlencodedError::Parse)?;
+                        .ok_or(UrlencodedError::Encoding)?;
 
-                    serde_urlencoded::from_str::<T>(&body).map_err(|_| UrlencodedError::Parse)
+                    serde_urlencoded::from_str::<T>(&body).map_err(UrlencodedError::Parse)
                 }
             }
             .boxed_local(),

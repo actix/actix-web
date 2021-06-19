@@ -11,6 +11,5 @@ coverage:
 
 ignore: # ignore code coverage on following paths
   - "**/tests"
-  - "test-server"
   - "**/benches"
   - "**/examples"

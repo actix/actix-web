@@ -103,8 +103,8 @@ impl AppService {
     }
 }
 
-/// Application connection config
-#[derive(Clone)]
+/// Application connection config.
+#[derive(Debug, Clone)]
 pub struct AppConfig {
     secure: bool,
     host: String,
@@ -112,8 +112,13 @@ pub struct AppConfig {
 }
 
 impl AppConfig {
-    pub(crate) fn new(secure: bool, addr: SocketAddr, host: String) -> Self {
-        AppConfig { secure, addr, host }
+    pub(crate) fn new(secure: bool, host: String, addr: SocketAddr) -> Self {
+        AppConfig { secure, host, addr }
+    }
+
+    #[doc(hidden)]
+    pub fn __priv_test_new(secure: bool, host: String, addr: SocketAddr) -> Self {
+        AppConfig::new(secure, host, addr)
     }
 
     /// Server host name.
@@ -142,8 +147,8 @@ impl Default for AppConfig {
     fn default() -> Self {
         AppConfig::new(
             false,
-            "127.0.0.1:8080".parse().unwrap(),
             "localhost:8080".to_owned(),
+            "127.0.0.1:8080".parse().unwrap(),
         )
     }
 }

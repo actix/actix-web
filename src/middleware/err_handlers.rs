@@ -13,8 +13,8 @@ use futures_core::{future::LocalBoxFuture, ready};
 
 use crate::{
     dev::{ServiceRequest, ServiceResponse},
-    error::{Error, Result},
     http::StatusCode,
+    Error, Result,
 };
 
 /// Return type for [`ErrorHandlers`] custom handlers.
@@ -34,7 +34,7 @@ type ErrorHandler<B> = dyn Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse
 /// for a given status code. Handlers can modify existing responses or create completely new ones.
 ///
 /// # Examples
-/// ```rust
+/// ```
 /// use actix_web::middleware::{ErrorHandlers, ErrorHandlerResponse};
 /// use actix_web::{web, http, dev, App, HttpRequest, HttpResponse, Result};
 ///
@@ -175,7 +175,8 @@ where
 #[cfg(test)]
 mod tests {
     use actix_service::IntoService;
-    use futures_util::future::{ok, FutureExt};
+    use actix_utils::future::ok;
+    use futures_util::future::FutureExt as _;
 
     use super::*;
     use crate::http::{header::CONTENT_TYPE, HeaderValue, StatusCode};

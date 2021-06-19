@@ -6,14 +6,15 @@ use std::{cmp, io};
 
 use bytes::{BufMut, BytesMut};
 
-use crate::body::BodySize;
-use crate::config::ServiceConfig;
-use crate::header::{map::Value, HeaderName};
-use crate::helpers;
-use crate::http::header::{CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
-use crate::http::{HeaderMap, StatusCode, Version};
-use crate::message::{ConnectionType, RequestHeadType};
-use crate::response::Response;
+use crate::{
+    body::BodySize,
+    config::ServiceConfig,
+    header::{map::Value, HeaderMap, HeaderName},
+    header::{CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING},
+    helpers,
+    message::{ConnectionType, RequestHeadType},
+    Response, StatusCode, Version,
+};
 
 const AVERAGE_HEADER_SIZE: usize = 30;
 
@@ -287,7 +288,7 @@ impl MessageType for RequestHeadType {
         let head = self.as_ref();
         dst.reserve(256 + head.headers.len() * AVERAGE_HEADER_SIZE);
         write!(
-            helpers::Writer(dst),
+            helpers::MutWriter(dst),
             "{} {} {}",
             head.method,
             head.uri.path_and_query().map(|u| u.as_str()).unwrap_or("/"),
@@ -420,7 +421,7 @@ impl TransferEncoding {
                     *eof = true;
                     buf.extend_from_slice(b"0\r\n\r\n");
                 } else {
-                    writeln!(helpers::Writer(buf), "{:X}\r", msg.len())
+                    writeln!(helpers::MutWriter(buf), "{:X}\r", msg.len())
                         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
                     buf.reserve(msg.len() + 2);
@@ -630,8 +631,7 @@ mod tests {
     async fn test_no_content_length() {
         let mut bytes = BytesMut::with_capacity(2048);
 
-        let mut res: Response<()> =
-            Response::new(StatusCode::SWITCHING_PROTOCOLS).into_body::<()>();
+        let mut res = Response::with_body(StatusCode::SWITCHING_PROTOCOLS, ());
         res.headers_mut().insert(DATE, HeaderValue::from_static(""));
         res.headers_mut()
             .insert(CONTENT_LENGTH, HeaderValue::from_static("0"));

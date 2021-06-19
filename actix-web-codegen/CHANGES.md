@@ -1,6 +1,13 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 0.5.0-beta.3 - 2021-06-17
+* No notable changes.
+
+
+## 0.5.0-beta.2 - 2021-03-09
 * Preserve doc comments when using route macros. [#2022]
 * Add `name` attribute to `route` macro. [#1934]
 

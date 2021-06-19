@@ -7,17 +7,17 @@ use std::{
     task::{Context, Poll},
 };
 
-use actix_http::error::{ErrorBadRequest, PayloadError};
+use actix_http::error::PayloadError;
+use actix_utils::future::{ready, Either, Ready};
 use bytes::{Bytes, BytesMut};
 use encoding_rs::{Encoding, UTF_8};
-use futures_core::stream::Stream;
-use futures_util::{
-    future::{ready, Either, ErrInto, Ready, TryFutureExt as _},
-    ready,
-};
+use futures_core::{ready, stream::Stream};
 use mime::Mime;
 
-use crate::{dev, http::header, web, Error, FromRequest, HttpMessage, HttpRequest};
+use crate::{
+    dev, error::ErrorBadRequest, http::header, web, Error, FromRequest, HttpMessage,
+    HttpRequest,
+};
 
 /// Extract a request's raw payload stream.
 ///
@@ -26,7 +26,7 @@ use crate::{dev, http::header, web, Error, FromRequest, HttpMessage, HttpRequest
 /// # Examples
 /// ```
 /// use std::future::Future;
-/// use futures_util::stream::{Stream, StreamExt};
+/// use futures_util::stream::StreamExt as _;
 /// use actix_web::{post, web};
 ///
 /// // `body: web::Payload` parameter extracts raw payload stream from request
@@ -91,7 +91,7 @@ impl FromRequest for Payload {
 impl FromRequest for Bytes {
     type Config = PayloadConfig;
     type Error = Error;
-    type Future = Either<ErrInto<HttpMessageBody, Error>, Ready<Result<Bytes, Error>>>;
+    type Future = Either<BytesExtractFut, Ready<Result<Bytes, Error>>>;
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
@@ -99,12 +99,25 @@ impl FromRequest for Bytes {
         let cfg = PayloadConfig::from_req(req);
 
         if let Err(err) = cfg.check_mimetype(req) {
-            return Either::Right(ready(Err(err)));
+            return Either::right(ready(Err(err)));
         }
 
-        let limit = cfg.limit;
-        let fut = HttpMessageBody::new(req, payload).limit(limit);
-        Either::Left(fut.err_into())
+        Either::left(BytesExtractFut {
+            body_fut: HttpMessageBody::new(req, payload).limit(cfg.limit),
+        })
+    }
+}
+
+/// Future for `Bytes` extractor.
+pub struct BytesExtractFut {
+    body_fut: HttpMessageBody,
+}
+
+impl<'a> Future for BytesExtractFut {
+    type Output = Result<Bytes, Error>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut self.body_fut).poll(cx).map_err(Into::into)
     }
 }
 
@@ -135,21 +148,22 @@ impl FromRequest for String {
 
         // check content-type
         if let Err(err) = cfg.check_mimetype(req) {
-            return Either::Right(ready(Err(err)));
+            return Either::right(ready(Err(err)));
         }
 
         // check charset
         let encoding = match req.encoding() {
             Ok(enc) => enc,
-            Err(err) => return Either::Right(ready(Err(err.into()))),
+            Err(err) => return Either::right(ready(Err(err.into()))),
         };
         let limit = cfg.limit;
         let body_fut = HttpMessageBody::new(req, payload).limit(limit);
 
-        Either::Left(StringExtractFut { body_fut, encoding })
+        Either::left(StringExtractFut { body_fut, encoding })
     }
 }
 
+/// Future for `String` extractor.
 pub struct StringExtractFut {
     body_fut: HttpMessageBody,
     encoding: &'static Encoding,
@@ -268,9 +282,9 @@ impl Default for PayloadConfig {
 pub struct HttpMessageBody {
     limit: usize,
     length: Option<usize>,
-    #[cfg(feature = "compress")]
+    #[cfg(feature = "__compress")]
     stream: dev::Decompress<dev::Payload>,
-    #[cfg(not(feature = "compress"))]
+    #[cfg(not(feature = "__compress"))]
     stream: dev::Payload,
     buf: BytesMut,
     err: Option<PayloadError>,
@@ -298,10 +312,15 @@ impl HttpMessageBody {
             }
         }
 
-        #[cfg(feature = "compress")]
-        let stream = dev::Decompress::from_headers(payload.take(), req.headers());
-        #[cfg(not(feature = "compress"))]
-        let stream = payload.take();
+        let stream = {
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "__compress")] {
+                    dev::Decompress::from_headers(payload.take(), req.headers())
+                } else {
+                    payload.take()
+                }
+            }
+        };
 
         HttpMessageBody {
             stream,

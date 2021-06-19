@@ -1,6 +1,7 @@
-use std::{fmt, io, path::PathBuf, rc::Rc, task::Poll};
+use std::{fmt, io, path::PathBuf, rc::Rc};
 
 use actix_service::Service;
+use actix_utils::future::ok;
 use actix_web::{
     dev::{ServiceRequest, ServiceResponse},
     error::Error,
@@ -8,7 +9,7 @@ use actix_web::{
     http::{header, Method},
     HttpResponse,
 };
-use futures_util::future::{ok, Either, LocalBoxFuture, Ready};
+use futures_core::future::LocalBoxFuture;
 
 use crate::{
     named, Directory, DirectoryRenderer, FilesError, HttpService, MimeOverride, NamedFile,
@@ -29,19 +30,18 @@ pub struct FilesService {
     pub(crate) hidden_files: bool,
 }
 
-type FilesServiceFuture = Either<
-    Ready<Result<ServiceResponse, Error>>,
-    LocalBoxFuture<'static, Result<ServiceResponse, Error>>,
->;
-
 impl FilesService {
-    fn handle_err(&self, e: io::Error, req: ServiceRequest) -> FilesServiceFuture {
-        log::debug!("Failed to handle {}: {}", req.path(), e);
+    fn handle_err(
+        &self,
+        err: io::Error,
+        req: ServiceRequest,
+    ) -> LocalBoxFuture<'static, Result<ServiceResponse, Error>> {
+        log::debug!("error handling {}: {}", req.path(), err);
 
         if let Some(ref default) = self.default {
-            Either::Right(default.call(req))
+            Box::pin(default.call(req))
         } else {
-            Either::Left(ok(req.error_response(e)))
+            Box::pin(ok(req.error_response(err)))
         }
     }
 }
@@ -55,7 +55,7 @@ impl fmt::Debug for FilesService {
 impl Service<ServiceRequest> for FilesService {
     type Response = ServiceResponse;
     type Error = Error;
-    type Future = FilesServiceFuture;
+    type Future = LocalBoxFuture<'static, Result<ServiceResponse, Error>>;
 
     actix_service::always_ready!();
 
@@ -69,7 +69,7 @@ impl Service<ServiceRequest> for FilesService {
         };
 
         if !is_method_valid {
-            return Either::Left(ok(req.into_response(
+            return Box::pin(ok(req.into_response(
                 actix_web::HttpResponse::MethodNotAllowed()
                     .insert_header(header::ContentType(mime::TEXT_PLAIN_UTF_8))
                     .body("Request did not meet this resource's requirements."),
@@ -79,14 +79,14 @@ impl Service<ServiceRequest> for FilesService {
         let real_path =
             match PathBufWrap::parse_path(req.match_info().path(), self.hidden_files) {
                 Ok(item) => item,
-                Err(e) => return Either::Left(ok(req.error_response(e))),
+                Err(e) => return Box::pin(ok(req.error_response(e))),
             };
 
         // full file path
-        let path = match self.directory.join(&real_path).canonicalize() {
-            Ok(path) => path,
-            Err(e) => return self.handle_err(e, req),
-        };
+        let path = self.directory.join(&real_path);
+        if let Err(err) = path.canonicalize() {
+            return Box::pin(self.handle_err(err, req));
+        }
 
         let is_path_descendant = path
             .as_path()
@@ -101,50 +101,54 @@ impl Service<ServiceRequest> for FilesService {
         }
 
         if path.is_dir() {
-            if let Some(ref redir_index) = self.index {
-                if self.redirect_to_slash && !req.path().ends_with('/') {
-                    let redirect_to = format!("{}/", req.path());
+            if self.redirect_to_slash
+                && !req.path().ends_with('/')
+                && (self.index.is_some() || self.show_index)
+            {
+                let redirect_to = format!("{}/", req.path());
 
-                    return Either::Left(ok(req.into_response(
-                        HttpResponse::Found()
-                            .insert_header((header::LOCATION, redirect_to))
-                            .body("")
-                            .into_body(),
-                    )));
+                return Box::pin(ok(req.into_response(
+                    HttpResponse::Found()
+                        .insert_header((header::LOCATION, redirect_to))
+                        .finish(),
+                )));
+            }
+
+            let serve_named_file = |req: ServiceRequest, mut named_file: NamedFile| {
+                if let Some(ref mime_override) = self.mime_override {
+                    let new_disposition = mime_override(&named_file.content_type.type_());
+                    named_file.content_disposition.disposition = new_disposition;
                 }
+                named_file.flags = self.file_flags;
 
-                let path = path.join(redir_index);
+                let (req, _) = req.into_parts();
+                let res = named_file.into_response(&req);
+                Box::pin(ok(ServiceResponse::new(req, res)))
+            };
 
-                match NamedFile::open(path) {
-                    Ok(mut named_file) => {
-                        if let Some(ref mime_override) = self.mime_override {
-                            let new_disposition =
-                                mime_override(&named_file.content_type.type_());
-                            named_file.content_disposition.disposition = new_disposition;
-                        }
-                        named_file.flags = self.file_flags;
-
-                        let (req, _) = req.into_parts();
-                        let res = named_file.into_response(&req);
-                        Either::Left(ok(ServiceResponse::new(req, res)))
-                    }
-                    Err(e) => self.handle_err(e, req),
-                }
-            } else if self.show_index {
-                let dir = Directory::new(self.directory.clone(), path);
+            let show_index = |req: ServiceRequest| {
+                let dir = Directory::new(self.directory.clone(), path.clone());
 
                 let (req, _) = req.into_parts();
                 let x = (self.renderer)(&dir, &req);
 
-                match x {
-                    Ok(resp) => Either::Left(ok(resp)),
-                    Err(e) => Either::Left(ok(ServiceResponse::from_err(e, req))),
-                }
-            } else {
-                Either::Left(ok(ServiceResponse::from_err(
+                Box::pin(match x {
+                    Ok(resp) => ok(resp),
+                    Err(err) => ok(ServiceResponse::from_err(err, req)),
+                })
+            };
+
+            match self.index {
+                Some(ref index) => match NamedFile::open(path.join(index)) {
+                    Ok(named_file) => serve_named_file(req, named_file),
+                    Err(_) if self.show_index => show_index(req),
+                    Err(err) => self.handle_err(err, req),
+                },
+                None if self.show_index => show_index(req),
+                _ => Box::pin(ok(ServiceResponse::from_err(
                     FilesError::IsDirectory,
                     req.into_parts().0,
-                )))
+                ))),
             }
         } else {
             match NamedFile::open(path) {
@@ -157,9 +161,9 @@ impl Service<ServiceRequest> for FilesService {
 
                     let (req, _) = req.into_parts();
                     let res = named_file.into_response(&req);
-                    Either::Left(ok(ServiceResponse::new(req, res)))
+                    Box::pin(ok(ServiceResponse::new(req, res)))
                 }
-                Err(e) => self.handle_err(e, req),
+                Err(err) => self.handle_err(err, req),
             }
         }
     }

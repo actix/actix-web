@@ -1,7 +1,6 @@
 //! `awc` is a HTTP and WebSocket client library built on the Actix ecosystem.
 //!
-//! ## Making a GET request
-//!
+//! # Making a GET request
 //! ```no_run
 //! # #[actix_rt::main]
 //! # async fn main() -> Result<(), awc::error::SendRequestError> {
@@ -16,10 +15,8 @@
 //! # }
 //! ```
 //!
-//! ## Making POST requests
-//!
-//! ### Raw body contents
-//!
+//! # Making POST requests
+//! ## Raw body contents
 //! ```no_run
 //! # #[actix_rt::main]
 //! # async fn main() -> Result<(), awc::error::SendRequestError> {
@@ -31,8 +28,7 @@
 //! # }
 //! ```
 //!
-//! ### Forms
-//!
+//! ## Forms
 //! ```no_run
 //! # #[actix_rt::main]
 //! # async fn main() -> Result<(), awc::error::SendRequestError> {
@@ -46,8 +42,7 @@
 //! # }
 //! ```
 //!
-//! ### JSON
-//!
+//! ## JSON
 //! ```no_run
 //! # #[actix_rt::main]
 //! # async fn main() -> Result<(), awc::error::SendRequestError> {
@@ -64,8 +59,24 @@
 //! # }
 //! ```
 //!
-//! ## WebSocket support
+//! # Response Compression
+//! All [official][iana-encodings] and common content encoding codecs are supported, optionally.
 //!
+//! The `Accept-Encoding` header will automatically be populated with enabled codecs and added to
+//! outgoing requests, allowing servers to select their `Content-Encoding` accordingly.
+//!
+//! Feature flags enable these codecs according to the table below. By default, all `compress-*`
+//! features are enabled.
+//!
+//! | Feature           | Codecs        |
+//! | ----------------- | ------------- |
+//! | `compress-brotli` | brotli        |
+//! | `compress-gzip`   | gzip, deflate |
+//! | `compress-zstd`   | zstd          |
+//!
+//! [iana-encodings]: https://www.iana.org/assignments/http-parameters/http-parameters.xhtml#content-coding
+//!
+//! # WebSocket support
 //! ```no_run
 //! # #[actix_rt::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -93,12 +104,11 @@
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 
-use std::convert::TryFrom;
-use std::rc::Rc;
-use std::time::Duration;
+use std::{convert::TryFrom, rc::Rc, time::Duration};
 
 #[cfg(feature = "cookies")]
-pub use actix_http::cookie;
+pub use cookie;
+
 pub use actix_http::{client::Connector, http};
 
 use actix_http::{
@@ -121,7 +131,7 @@ pub mod test;
 pub mod ws;
 
 pub use self::builder::ClientBuilder;
-pub use self::connect::{BoxedSocket, ConnectRequest, ConnectResponse, ConnectorService};
+pub use self::connect::{BoxConnectorService, BoxedSocket, ConnectRequest, ConnectResponse};
 pub use self::frozen::{FrozenClientRequest, FrozenSendBuilder};
 pub use self::request::ClientRequest;
 pub use self::response::{ClientResponse, JsonBody, MessageBody};
@@ -129,29 +139,32 @@ pub use self::sender::SendClientRequest;
 
 /// An asynchronous HTTP and WebSocket client.
 ///
-/// ## Examples
+/// You should take care to create, at most, one `Client` per thread. Otherwise, expect higher CPU
+/// and memory usage.
 ///
-/// ```rust
+/// # Examples
+/// ```
 /// use awc::Client;
 ///
 /// #[actix_rt::main]
 /// async fn main() {
 ///     let mut client = Client::default();
 ///
-///     let res = client.get("http://www.rust-lang.org") // <- Create request builder
-///         .insert_header(("User-Agent", "Actix-web"))
-///         .send()                             // <- Send HTTP request
-///         .await;                             // <- send request and wait for response
+///     let res = client.get("http://www.rust-lang.org")
+///         .insert_header(("User-Agent", "my-app/1.2"))
+///         .send()
+///         .await;
 ///
 ///      println!("Response: {:?}", res);
 /// }
 /// ```
 #[derive(Clone)]
-pub struct Client(Rc<ClientConfig>);
+pub struct Client(ClientConfig);
 
+#[derive(Clone)]
 pub(crate) struct ClientConfig {
-    pub(crate) connector: ConnectorService,
-    pub(crate) headers: HeaderMap,
+    pub(crate) connector: BoxConnectorService,
+    pub(crate) headers: Rc<HeaderMap>,
     pub(crate) timeout: Option<Duration>,
 }
 
@@ -175,7 +188,6 @@ impl Client {
                 Response = TcpConnection<Uri, TcpStream>,
                 Error = TcpConnectError,
             > + Clone,
-        TcpStream,
     > {
         ClientBuilder::new()
     }
@@ -285,5 +297,13 @@ impl Client {
             req.head.headers.insert(key.clone(), value.clone());
         }
         req
+    }
+
+    /// Get default HeaderMap of Client.
+    ///
+    /// Returns Some(&mut HeaderMap) when Client object is unique
+    /// (No other clone of client exists at the same time).
+    pub fn headers(&mut self) -> Option<&mut HeaderMap> {
+        Rc::get_mut(&mut self.0.headers)
     }
 }

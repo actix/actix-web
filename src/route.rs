@@ -2,19 +2,19 @@
 
 use std::{future::Future, rc::Rc};
 
-use actix_http::{http::Method, Error};
+use actix_http::http::Method;
 use actix_service::{
     boxed::{self, BoxService, BoxServiceFactory},
     Service, ServiceFactory,
 };
 use futures_core::future::LocalBoxFuture;
 
-use crate::extract::FromRequest;
-use crate::guard::{self, Guard};
-use crate::handler::{Handler, HandlerService};
-use crate::responder::Responder;
-use crate::service::{ServiceRequest, ServiceResponse};
-use crate::HttpResponse;
+use crate::{
+    guard::{self, Guard},
+    handler::{Handler, HandlerService},
+    service::{ServiceRequest, ServiceResponse},
+    Error, FromRequest, HttpResponse, Responder,
+};
 
 /// Resource route definition
 ///
@@ -90,7 +90,7 @@ impl Service<ServiceRequest> for RouteService {
 impl Route {
     /// Add method guard to the route.
     ///
-    /// ```rust
+    /// ```
     /// # use actix_web::*;
     /// # fn main() {
     /// App::new().service(web::resource("/path").route(
@@ -110,7 +110,7 @@ impl Route {
 
     /// Add guard to the route.
     ///
-    /// ```rust
+    /// ```
     /// # use actix_web::*;
     /// # fn main() {
     /// App::new().service(web::resource("/path").route(
@@ -128,7 +128,7 @@ impl Route {
 
     /// Set handler function, use request extractors for parameters.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{web, http, App};
     /// use serde_derive::Deserialize;
     ///
@@ -152,7 +152,7 @@ impl Route {
     ///
     /// It is possible to use multiple extractors for one handler function.
     ///
-    /// ```rust
+    /// ```
     /// # use std::collections::HashMap;
     /// # use serde_derive::Deserialize;
     /// use actix_web::{web, App};
@@ -188,7 +188,7 @@ impl Route {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use std::{convert::Infallible, time::Duration};
 
     use actix_rt::time::sleep;
     use bytes::Bytes;
@@ -215,7 +215,7 @@ mod tests {
                         }))
                         .route(web::post().to(|| async {
                             sleep(Duration::from_millis(100)).await;
-                            Ok::<_, ()>(HttpResponse::Created())
+                            Ok::<_, Infallible>(HttpResponse::Created())
                         }))
                         .route(web::delete().to(|| async {
                             sleep(Duration::from_millis(100)).await;

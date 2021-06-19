@@ -2,20 +2,25 @@ use std::cell::{Ref, RefMut};
 use std::rc::Rc;
 use std::{fmt, net};
 
-use actix_http::body::{Body, MessageBody, ResponseBody};
-use actix_http::http::{HeaderMap, Method, StatusCode, Uri, Version};
 use actix_http::{
-    Error, Extensions, HttpMessage, Payload, PayloadStream, RequestHead, Response, ResponseHead,
+    body::{AnyBody, MessageBody},
+    http::{HeaderMap, Method, StatusCode, Uri, Version},
+    Extensions, HttpMessage, Payload, PayloadStream, RequestHead, Response, ResponseHead,
 };
 use actix_router::{IntoPattern, Path, Resource, ResourceDef, Url};
 use actix_service::{IntoServiceFactory, ServiceFactory};
+#[cfg(feature = "cookies")]
+use cookie::{Cookie, ParseError as CookieParseError};
 
-use crate::config::{AppConfig, AppService};
-use crate::dev::insert_slash;
-use crate::guard::Guard;
-use crate::info::ConnectionInfo;
-use crate::request::HttpRequest;
-use crate::rmap::ResourceMap;
+use crate::{
+    config::{AppConfig, AppService},
+    dev::insert_slash,
+    guard::Guard,
+    info::ConnectionInfo,
+    request::HttpRequest,
+    rmap::ResourceMap,
+    Error, HttpResponse,
+};
 
 pub trait HttpServiceFactory {
     fn register(self, config: &mut AppService);
@@ -69,6 +74,12 @@ impl ServiceRequest {
         Self { req, payload }
     }
 
+    /// Construct service request.
+    #[doc(hidden)]
+    pub fn __priv_test_new(req: HttpRequest, payload: Payload) -> Self {
+        Self::new(req, payload)
+    }
+
     /// Deconstruct request into parts
     #[inline]
     pub fn into_parts(self) -> (HttpRequest, Payload) {
@@ -93,14 +104,15 @@ impl ServiceRequest {
     /// Create service response
     #[inline]
     pub fn into_response<B, R: Into<Response<B>>>(self, res: R) -> ServiceResponse<B> {
-        ServiceResponse::new(self.req, res.into())
+        let res = HttpResponse::from(res.into());
+        ServiceResponse::new(self.req, res)
     }
 
     /// Create service response for error
     #[inline]
-    pub fn error_response<B, E: Into<Error>>(self, err: E) -> ServiceResponse<B> {
-        let res: Response = err.into().into();
-        ServiceResponse::new(self.req, res.into_body())
+    pub fn error_response<E: Into<Error>>(self, err: E) -> ServiceResponse {
+        let res = HttpResponse::from_error(err.into());
+        ServiceResponse::new(self.req, res)
     }
 
     /// This method returns reference to the request head
@@ -234,6 +246,17 @@ impl ServiceRequest {
         None
     }
 
+    #[cfg(feature = "cookies")]
+    pub fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
+        self.req.cookies()
+    }
+
+    /// Return request cookie.
+    #[cfg(feature = "cookies")]
+    pub fn cookie(&self, name: &str) -> Option<Cookie<'static>> {
+        self.req.cookie(name)
+    }
+
     /// Set request payload.
     pub fn set_payload(&mut self, payload: Payload) {
         self.payload = payload;
@@ -307,36 +330,34 @@ impl fmt::Debug for ServiceRequest {
     }
 }
 
-pub struct ServiceResponse<B = Body> {
+pub struct ServiceResponse<B = AnyBody> {
     request: HttpRequest,
-    response: Response<B>,
+    response: HttpResponse<B>,
+}
+
+impl ServiceResponse<AnyBody> {
+    /// Create service response from the error
+    pub fn from_err<E: Into<Error>>(err: E, request: HttpRequest) -> Self {
+        let response = HttpResponse::from_error(err);
+        ServiceResponse { request, response }
+    }
 }
 
 impl<B> ServiceResponse<B> {
     /// Create service response instance
-    pub fn new(request: HttpRequest, response: Response<B>) -> Self {
+    pub fn new(request: HttpRequest, response: HttpResponse<B>) -> Self {
         ServiceResponse { request, response }
-    }
-
-    /// Create service response from the error
-    pub fn from_err<E: Into<Error>>(err: E, request: HttpRequest) -> Self {
-        let e: Error = err.into();
-        let res: Response = e.into();
-        ServiceResponse {
-            request,
-            response: res.into_body(),
-        }
     }
 
     /// Create service response for error
     #[inline]
-    pub fn error_response<E: Into<Error>>(self, err: E) -> Self {
-        Self::from_err(err, self.request)
+    pub fn error_response<E: Into<Error>>(self, err: E) -> ServiceResponse {
+        ServiceResponse::from_err(err, self.request)
     }
 
     /// Create service response
     #[inline]
-    pub fn into_response<B1>(self, response: Response<B1>) -> ServiceResponse<B1> {
+    pub fn into_response<B1>(self, response: HttpResponse<B1>) -> ServiceResponse<B1> {
         ServiceResponse::new(self.request, response)
     }
 
@@ -348,13 +369,13 @@ impl<B> ServiceResponse<B> {
 
     /// Get reference to response
     #[inline]
-    pub fn response(&self) -> &Response<B> {
+    pub fn response(&self) -> &HttpResponse<B> {
         &self.response
     }
 
     /// Get mutable reference to response
     #[inline]
-    pub fn response_mut(&mut self) -> &mut Response<B> {
+    pub fn response_mut(&mut self) -> &mut HttpResponse<B> {
         &mut self.response
     }
 
@@ -370,30 +391,25 @@ impl<B> ServiceResponse<B> {
         self.response.headers()
     }
 
-    #[inline]
     /// Returns mutable response's headers.
+    #[inline]
     pub fn headers_mut(&mut self) -> &mut HeaderMap {
         self.response.headers_mut()
     }
 
     /// Execute closure and in case of error convert it to response.
-    pub fn checked_expr<F, E>(mut self, f: F) -> Self
+    pub fn checked_expr<F, E>(mut self, f: F) -> Result<Self, Error>
     where
         F: FnOnce(&mut Self) -> Result<(), E>,
         E: Into<Error>,
     {
-        match f(&mut self) {
-            Ok(_) => self,
-            Err(err) => {
-                let res: Response = err.into().into();
-                ServiceResponse::new(self.request, res.into_body())
-            }
-        }
+        f(&mut self).map_err(Into::into)?;
+        Ok(self)
     }
 
     /// Extract response body
-    pub fn take_body(&mut self) -> ResponseBody<B> {
-        self.response.take_body()
+    pub fn into_body(self) -> B {
+        self.response.into_body()
     }
 }
 
@@ -401,7 +417,7 @@ impl<B> ServiceResponse<B> {
     /// Set a new body
     pub fn map_body<F, B2>(self, f: F) -> ServiceResponse<B2>
     where
-        F: FnOnce(&mut ResponseHead, ResponseBody<B>) -> ResponseBody<B2>,
+        F: FnOnce(&mut ResponseHead, B) -> B2,
     {
         let response = self.response.map_body(f);
 
@@ -412,13 +428,23 @@ impl<B> ServiceResponse<B> {
     }
 }
 
-impl<B> From<ServiceResponse<B>> for Response<B> {
-    fn from(res: ServiceResponse<B>) -> Response<B> {
+impl<B> From<ServiceResponse<B>> for HttpResponse<B> {
+    fn from(res: ServiceResponse<B>) -> HttpResponse<B> {
         res.response
     }
 }
 
-impl<B: MessageBody> fmt::Debug for ServiceResponse<B> {
+impl<B> From<ServiceResponse<B>> for Response<B> {
+    fn from(res: ServiceResponse<B>) -> Response<B> {
+        res.response.into()
+    }
+}
+
+impl<B> fmt::Debug for ServiceResponse<B>
+where
+    B: MessageBody,
+    B::Error: Into<Error>,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = writeln!(
             f,
@@ -462,7 +488,7 @@ impl WebService {
 
     /// Add match guard to a web service.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{web, guard, dev, App, Error, HttpResponse};
     ///
     /// async fn index(req: dev::ServiceRequest) -> Result<dev::ServiceResponse, Error> {
@@ -573,31 +599,28 @@ macro_rules! services {
 }
 
 /// HttpServiceFactory trait impl for tuples
-macro_rules! service_tuple ({ $(($n:tt, $T:ident)),+} => {
+macro_rules! service_tuple ({ $($T:ident)+ } => {
     impl<$($T: HttpServiceFactory),+> HttpServiceFactory for ($($T,)+) {
+        #[allow(non_snake_case)]
         fn register(self, config: &mut AppService) {
-            $(self.$n.register(config);)+
+            let ($($T,)*) = self;
+            $($T.register(config);)+
         }
     }
 });
 
-#[rustfmt::skip]
-mod m {
-    use super::*;
-
-    service_tuple!((0, A));
-    service_tuple!((0, A), (1, B));
-    service_tuple!((0, A), (1, B), (2, C));
-    service_tuple!((0, A), (1, B), (2, C), (3, D));
-    service_tuple!((0, A), (1, B), (2, C), (3, D), (4, E));
-    service_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F));
-    service_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G));
-    service_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H));
-    service_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H), (8, I));
-    service_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H), (8, I), (9, J));
-    service_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H), (8, I), (9, J), (10, K));
-    service_tuple!((0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H), (8, I), (9, J), (10, K), (11, L));
-}
+service_tuple! { A }
+service_tuple! { A B }
+service_tuple! { A B C }
+service_tuple! { A B C D }
+service_tuple! { A B C D E }
+service_tuple! { A B C D E F }
+service_tuple! { A B C D E F G }
+service_tuple! { A B C D E F G H }
+service_tuple! { A B C D E F G H I }
+service_tuple! { A B C D E F G H I J }
+service_tuple! { A B C D E F G H I J K }
+service_tuple! { A B C D E F G H I J K L }
 
 #[cfg(test)]
 mod tests {
@@ -605,7 +628,7 @@ mod tests {
     use crate::test::{init_service, TestRequest};
     use crate::{guard, http, web, App, HttpResponse};
     use actix_service::Service;
-    use futures_util::future::ok;
+    use actix_utils::future::ok;
 
     #[actix_rt::test]
     async fn test_service() {

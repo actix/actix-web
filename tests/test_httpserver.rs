@@ -1,20 +1,16 @@
-use std::sync::mpsc;
-use std::{thread, time::Duration};
-
 #[cfg(feature = "openssl")]
 extern crate tls_openssl as openssl;
-#[cfg(feature = "rustls")]
-extern crate tls_rustls as rustls;
 
-#[cfg(feature = "openssl")]
-use openssl::ssl::SslAcceptorBuilder;
-
-use actix_web::{test, web, App, HttpResponse, HttpServer};
+#[cfg(any(unix, feature = "openssl"))]
+use {
+    actix_web::{web, App, HttpResponse, HttpServer},
+    std::{sync::mpsc, thread, time::Duration},
+};
 
 #[cfg(unix)]
 #[actix_rt::test]
 async fn test_start() {
-    let addr = test::unused_addr();
+    let addr = actix_test::unused_addr();
     let (tx, rx) = mpsc::channel();
 
     thread::spawn(move || {
@@ -72,7 +68,7 @@ async fn test_start() {
 }
 
 #[cfg(feature = "openssl")]
-fn ssl_acceptor() -> SslAcceptorBuilder {
+fn ssl_acceptor() -> openssl::ssl::SslAcceptorBuilder {
     use openssl::{
         pkey::PKey,
         ssl::{SslAcceptor, SslMethod},
@@ -97,7 +93,7 @@ fn ssl_acceptor() -> SslAcceptorBuilder {
 async fn test_start_ssl() {
     use actix_web::HttpRequest;
 
-    let addr = test::unused_addr();
+    let addr = actix_test::unused_addr();
     let (tx, rx) = mpsc::channel();
 
     thread::spawn(move || {

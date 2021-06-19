@@ -1,19 +1,20 @@
 [package]
 name = "awc"
-version = "3.0.0-beta.3"
-authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
+version = "3.0.0-beta.6"
+authors = [
+    "Nikolay Kim <fafhrd91@gmail.com>",
+    "fakeshadow <24548779@qq.com>",
+]
 description = "Async HTTP and WebSocket client library built on the Actix ecosystem"
-readme = "README.md"
 keywords = ["actix", "http", "framework", "async", "web"]
-homepage = "https://actix.rs"
-repository = "https://github.com/actix/actix-web.git"
-documentation = "https://docs.rs/awc/"
 categories = [
     "network-programming",
     "asynchronous",
     "web-programming::http-client",
     "web-programming::websocket",
 ]
+homepage = "https://actix.rs"
+repository = "https://github.com/actix/actix-web"
 license = "MIT OR Apache-2.0"
 edition = "2018"
 
@@ -23,10 +24,10 @@ path = "src/lib.rs"
 
 [package.metadata.docs.rs]
 # features that docs.rs will build with
-features = ["openssl", "rustls", "compress", "cookies"]
+features = ["openssl", "rustls", "compress-brotli", "compress-gzip", "compress-zstd", "cookies"]
 
 [features]
-default = ["compress", "cookies"]
+default = ["compress-brotli", "compress-gzip", "compress-zstd", "cookies"]
 
 # openssl
 openssl = ["tls-openssl", "actix-http/openssl"]
@@ -34,24 +35,33 @@ openssl = ["tls-openssl", "actix-http/openssl"]
 # rustls
 rustls = ["tls-rustls", "actix-http/rustls"]
 
-# content-encoding support
-compress = ["actix-http/compress"]
+# Brotli algorithm content-encoding support
+compress-brotli = ["actix-http/compress-brotli", "__compress"]
+# Gzip and deflate algorithms content-encoding support
+compress-gzip = ["actix-http/compress-gzip", "__compress"]
+# Zstd algorithm content-encoding support
+compress-zstd = ["actix-http/compress-zstd", "__compress"]
 
 # cookie parsing and cookie jar
-cookies = ["actix-http/cookies"]
+cookies = ["cookie"]
 
 # trust-dns as dns resolver
 trust-dns = ["actix-http/trust-dns"]
 
+# Internal (PRIVATE!) features used to aid testing and cheking feature status.
+# Don't rely on these whatsoever. They may disappear at anytime.
+__compress = []
+
 [dependencies]
-actix-codec = "0.4.0-beta.1"
-actix-service = "2.0.0-beta.4"
-actix-http = "3.0.0-beta.4"
+actix-codec = "0.4.0"
+actix-service = "2.0.0"
+actix-http = "3.0.0-beta.7"
 actix-rt = { version = "2.1", default-features = false }
 
 base64 = "0.13"
 bytes = "1"
-cfg-if = "1.0"
+cfg-if = "1"
+cookie = { version = "0.15", features = ["percent-encode"], optional = true }
 derive_more = "0.99.5"
 futures-core = { version = "0.3.7", default-features = false }
 itoa = "0.4"
@@ -66,19 +76,14 @@ serde_urlencoded = "0.7"
 tls-openssl = { version = "0.10.9", package = "openssl", optional = true }
 tls-rustls = { version = "0.19.0", package = "rustls", optional = true, features = ["dangerous_configuration"] }
 
-[target.'cfg(windows)'.dependencies.tls-openssl]
-version = "0.10.9"
-package = "openssl"
-features = ["vendored"]
-optional = true
-
 [dev-dependencies]
-actix-web = { version = "4.0.0-beta.3", features = ["openssl"] }
-actix-http = { version = "3.0.0-beta.4", features = ["openssl"] }
-actix-http-test = { version = "3.0.0-beta.2", features = ["openssl"] }
-actix-utils = "3.0.0-beta.1"
+actix-web = { version = "4.0.0-beta.7", features = ["openssl"] }
+actix-http = { version = "3.0.0-beta.7", features = ["openssl"] }
+actix-http-test = { version = "3.0.0-beta.4", features = ["openssl"] }
+actix-utils = "3.0.0"
 actix-server = "2.0.0-beta.3"
-actix-tls = { version = "3.0.0-beta.4", features = ["openssl", "rustls"] }
+actix-tls = { version = "3.0.0-beta.5", features = ["openssl", "rustls"] }
+actix-test = { version = "0.1.0-beta.2", features = ["openssl", "rustls"] }
 
 brotli2 = "0.3.2"
 env_logger = "0.8"
@@ -86,3 +91,7 @@ flate2 = "1.0.13"
 futures-util = { version = "0.3.7", default-features = false }
 rcgen = "0.8"
 webpki = "0.21"
+
+[[example]]
+name = "client"
+required-features = ["rustls"]

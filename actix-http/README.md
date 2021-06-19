@@ -3,11 +3,11 @@
 > HTTP primitives for the Actix ecosystem.
 
 [![crates.io](https://img.shields.io/crates/v/actix-http?label=latest)](https://crates.io/crates/actix-http)
-[![Documentation](https://docs.rs/actix-http/badge.svg?version=3.0.0-beta.4)](https://docs.rs/actix-http/3.0.0-beta.4)
+[![Documentation](https://docs.rs/actix-http/badge.svg?version=3.0.0-beta.7)](https://docs.rs/actix-http/3.0.0-beta.7)
 [![Version](https://img.shields.io/badge/rustc-1.46+-ab6000.svg)](https://blog.rust-lang.org/2020/03/12/Rust-1.46.html)
 ![MIT or Apache 2.0 licensed](https://img.shields.io/crates/l/actix-http.svg)
 <br />
-[![dependency status](https://deps.rs/crate/actix-http/3.0.0-beta.4/status.svg)](https://deps.rs/crate/actix-http/3.0.0-beta.4)
+[![dependency status](https://deps.rs/crate/actix-http/3.0.0-beta.7/status.svg)](https://deps.rs/crate/actix-http/3.0.0-beta.7)
 [![Download](https://img.shields.io/crates/d/actix-http.svg)](https://crates.io/crates/actix-http)
 [![Join the chat at https://gitter.im/actix/actix](https://badges.gitter.im/actix/actix.svg)](https://gitter.im/actix/actix?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 

@@ -4,31 +4,30 @@ use std::net::IpAddr;
 use std::rc::Rc;
 use std::time::Duration;
 
-use actix_codec::{AsyncRead, AsyncWrite};
 use actix_http::{
-    client::{Connector, TcpConnect, TcpConnectError, TcpConnection},
+    client::{Connector, ConnectorService, TcpConnect, TcpConnectError, TcpConnection},
     http::{self, header, Error as HttpError, HeaderMap, HeaderName, Uri},
 };
-use actix_rt::net::TcpStream;
+use actix_rt::net::{ActixStream, TcpStream};
 use actix_service::{boxed, Service};
 
 use crate::connect::DefaultConnector;
 use crate::error::SendRequestError;
 use crate::middleware::{NestTransform, Redirect, Transform};
-use crate::{Client, ClientConfig, ConnectRequest, ConnectResponse, ConnectorService};
+use crate::{Client, ClientConfig, ConnectRequest, ConnectResponse};
 
 /// An HTTP Client builder
 ///
 /// This type can be used to construct an instance of `Client` through a
 /// builder-like pattern.
-pub struct ClientBuilder<S = (), Io = (), M = ()> {
+pub struct ClientBuilder<S = (), M = ()> {
     default_headers: bool,
     max_http_version: Option<http::Version>,
     stream_window_size: Option<u32>,
     conn_window_size: Option<u32>,
     headers: HeaderMap,
     timeout: Option<Duration>,
-    connector: Connector<S, Io>,
+    connector: Connector<S>,
     middleware: M,
     local_address: Option<IpAddr>,
     max_redirects: u8,
@@ -42,7 +41,6 @@ impl ClientBuilder {
                 Response = TcpConnection<Uri, TcpStream>,
                 Error = TcpConnectError,
             > + Clone,
-        TcpStream,
         (),
     > {
         ClientBuilder {
@@ -60,15 +58,15 @@ impl ClientBuilder {
     }
 }
 
-impl<S, Io, M> ClientBuilder<S, Io, M>
+impl<S, Io, M> ClientBuilder<S, M>
 where
     S: Service<TcpConnect<Uri>, Response = TcpConnection<Uri, Io>, Error = TcpConnectError>
         + Clone
         + 'static,
-    Io: AsyncRead + AsyncWrite + Unpin + fmt::Debug + 'static,
+    Io: ActixStream + fmt::Debug + 'static,
 {
     /// Use custom connector service.
-    pub fn connector<S1, Io1>(self, connector: Connector<S1, Io1>) -> ClientBuilder<S1, Io1, M>
+    pub fn connector<S1, Io1>(self, connector: Connector<S1>) -> ClientBuilder<S1, M>
     where
         S1: Service<
                 TcpConnect<Uri>,
@@ -76,7 +74,7 @@ where
                 Error = TcpConnectError,
             > + Clone
             + 'static,
-        Io1: AsyncRead + AsyncWrite + Unpin + fmt::Debug + 'static,
+        Io1: ActixStream + fmt::Debug + 'static,
     {
         ClientBuilder {
             middleware: self.middleware,
@@ -213,7 +211,7 @@ where
     pub fn wrap<S1, M1>(
         self,
         mw: M1,
-    ) -> ClientBuilder<S, Io, NestTransform<M, M1, S1, ConnectRequest>>
+    ) -> ClientBuilder<S, NestTransform<M, M1, S1, ConnectRequest>>
     where
         M: Transform<S1, ConnectRequest>,
         M1: Transform<M::Transform, ConnectRequest>,
@@ -235,7 +233,7 @@ where
     /// Finish build process and create `Client` instance.
     pub fn finish(self) -> Client
     where
-        M: Transform<ConnectorService, ConnectRequest> + 'static,
+        M: Transform<DefaultConnector<ConnectorService<S, Io>>, ConnectRequest> + 'static,
         M::Transform:
             Service<ConnectRequest, Response = ConnectResponse, Error = SendRequestError>,
     {
@@ -251,7 +249,7 @@ where
 
     fn _finish(self) -> Client
     where
-        M: Transform<ConnectorService, ConnectRequest> + 'static,
+        M: Transform<DefaultConnector<ConnectorService<S, Io>>, ConnectRequest> + 'static,
         M::Transform:
             Service<ConnectRequest, Response = ConnectResponse, Error = SendRequestError>,
     {
@@ -270,16 +268,14 @@ where
             connector = connector.local_address(val);
         }
 
-        let connector = boxed::service(DefaultConnector::new(connector.finish()));
-        let connector = boxed::service(self.middleware.new_transform(connector));
+        let connector = DefaultConnector::new(connector.finish());
+        let connector = boxed::rc_service(self.middleware.new_transform(connector));
 
-        let config = ClientConfig {
-            headers: self.headers,
+        Client(ClientConfig {
+            headers: Rc::new(self.headers),
             timeout: self.timeout,
             connector,
-        };
-
-        Client(Rc::new(config))
+        })
     }
 }
 

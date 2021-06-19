@@ -9,7 +9,7 @@ use actix_web::test::{init_service, ok_service, TestRequest};
 
 /// Criterion Benchmark for async Service
 /// Should be used from within criterion group:
-/// ```rust,ignore
+/// ```ignore
 /// let mut criterion: ::criterion::Criterion<_> =
 ///     ::criterion::Criterion::default().configure_from_args();
 /// bench_async_service(&mut criterion, ok_service(), "async_service_direct");

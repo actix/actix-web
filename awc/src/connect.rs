@@ -1,15 +1,17 @@
 use std::{
-    fmt,
     future::Future,
-    io, net,
+    net,
     pin::Pin,
+    rc::Rc,
     task::{Context, Poll},
 };
 
-use actix_codec::{AsyncRead, AsyncWrite, Framed, ReadBuf};
+use actix_codec::Framed;
 use actix_http::{
     body::Body,
-    client::{Connect as ClientConnect, ConnectError, Connection, SendRequestError},
+    client::{
+        Connect as ClientConnect, ConnectError, Connection, ConnectionIo, SendRequestError,
+    },
     h1::ClientCodec,
     Payload, RequestHead, RequestHeadType, ResponseHead,
 };
@@ -18,7 +20,7 @@ use futures_core::{future::LocalBoxFuture, ready};
 
 use crate::response::ClientResponse;
 
-pub type ConnectorService = Box<
+pub type BoxConnectorService = Rc<
     dyn Service<
         ConnectRequest,
         Response = ConnectResponse,
@@ -26,6 +28,8 @@ pub type ConnectorService = Box<
         Future = LocalBoxFuture<'static, Result<ConnectResponse, SendRequestError>>,
     >,
 >;
+
+pub type BoxedSocket = Box<dyn ConnectionIo>;
 
 pub enum ConnectRequest {
     Client(RequestHeadType, Body, Option<net::SocketAddr>),
@@ -57,7 +61,7 @@ impl ConnectResponse {
     }
 }
 
-pub(crate) struct DefaultConnector<S> {
+pub struct DefaultConnector<S> {
     connector: S,
 }
 
@@ -67,15 +71,14 @@ impl<S> DefaultConnector<S> {
     }
 }
 
-impl<S> Service<ConnectRequest> for DefaultConnector<S>
+impl<S, Io> Service<ConnectRequest> for DefaultConnector<S>
 where
-    S: Service<ClientConnect, Error = ConnectError>,
-    S::Response: Connection,
-    <S::Response as Connection>::Io: 'static,
+    S: Service<ClientConnect, Error = ConnectError, Response = Connection<Io>>,
+    Io: ConnectionIo,
 {
     type Response = ConnectResponse;
     type Error = SendRequestError;
-    type Future = ConnectRequestFuture<S::Future, <S::Response as Connection>::Io>;
+    type Future = ConnectRequestFuture<S::Future, Io>;
 
     actix_service::forward_ready!(connector);
 
@@ -101,7 +104,10 @@ where
 
 pin_project_lite::pin_project! {
     #[project = ConnectRequestProj]
-    pub(crate) enum ConnectRequestFuture<Fut, Io> {
+    pub enum ConnectRequestFuture<Fut, Io>
+    where
+        Io: ConnectionIo
+    {
         Connection {
             #[pin]
             fut: Fut,
@@ -113,17 +119,16 @@ pin_project_lite::pin_project! {
         Tunnel {
             fut: LocalBoxFuture<
                 'static,
-                Result<(ResponseHead, Framed<Io, ClientCodec>), SendRequestError>,
+                Result<(ResponseHead, Framed<Connection<Io>, ClientCodec>), SendRequestError>,
             >,
         }
     }
 }
 
-impl<Fut, C, Io> Future for ConnectRequestFuture<Fut, Io>
+impl<Fut, Io> Future for ConnectRequestFuture<Fut, Io>
 where
-    Fut: Future<Output = Result<C, ConnectError>>,
-    C: Connection<Io = Io>,
-    Io: AsyncRead + AsyncWrite + Unpin + 'static,
+    Fut: Future<Output = Result<Connection<Io>, ConnectError>>,
+    Io: ConnectionIo,
 {
     type Output = Result<ConnectResponse, SendRequestError>;
 
@@ -138,14 +143,14 @@ where
                         let fut = ConnectRequestFuture::Client {
                             fut: connection.send_request(head, body),
                         };
-                        self.as_mut().set(fut);
+                        self.set(fut);
                     }
                     ConnectRequest::Tunnel(head, ..) => {
                         // send request
                         let fut = ConnectRequestFuture::Tunnel {
                             fut: connection.open_tunnel(RequestHeadType::from(head)),
                         };
-                        self.as_mut().set(fut);
+                        self.set(fut);
                     }
                 }
                 self.poll(cx)
@@ -158,65 +163,9 @@ where
             }
             ConnectRequestProj::Tunnel { fut } => {
                 let (head, framed) = ready!(fut.as_mut().poll(cx))?;
-                let framed = framed.into_map_io(|io| BoxedSocket(Box::new(Socket(io))));
+                let framed = framed.into_map_io(|io| Box::new(io) as _);
                 Poll::Ready(Ok(ConnectResponse::Tunnel(head, framed)))
             }
         }
-    }
-}
-
-trait AsyncSocket {
-    fn as_read(&self) -> &(dyn AsyncRead + Unpin);
-    fn as_read_mut(&mut self) -> &mut (dyn AsyncRead + Unpin);
-    fn as_write(&mut self) -> &mut (dyn AsyncWrite + Unpin);
-}
-
-struct Socket<T: AsyncRead + AsyncWrite + Unpin>(T);
-
-impl<T: AsyncRead + AsyncWrite + Unpin> AsyncSocket for Socket<T> {
-    fn as_read(&self) -> &(dyn AsyncRead + Unpin) {
-        &self.0
-    }
-    fn as_read_mut(&mut self) -> &mut (dyn AsyncRead + Unpin) {
-        &mut self.0
-    }
-    fn as_write(&mut self) -> &mut (dyn AsyncWrite + Unpin) {
-        &mut self.0
-    }
-}
-
-pub struct BoxedSocket(Box<dyn AsyncSocket>);
-
-impl fmt::Debug for BoxedSocket {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "BoxedSocket")
-    }
-}
-
-impl AsyncRead for BoxedSocket {
-    fn poll_read(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut ReadBuf<'_>,
-    ) -> Poll<io::Result<()>> {
-        Pin::new(self.get_mut().0.as_read_mut()).poll_read(cx, buf)
-    }
-}
-
-impl AsyncWrite for BoxedSocket {
-    fn poll_write(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<io::Result<usize>> {
-        Pin::new(self.get_mut().0.as_write()).poll_write(cx, buf)
-    }
-
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(self.get_mut().0.as_write()).poll_flush(cx)
-    }
-
-    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(self.get_mut().0.as_write()).poll_shutdown(cx)
     }
 }

@@ -1,6 +1,106 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Changed
+* Change compression algorithm features flags. [#2250]
+
+[#2250]: https://github.com/actix/actix-web/pull/2250
+
+
+## 3.0.0-beta.7 - 2021-06-17
+### Added
+* Alias `body::Body` as `body::AnyBody`. [#2215]
+* `BoxAnyBody`: a boxed message body with boxed errors. [#2183]
+* Re-export `http` crate's `Error` type as `error::HttpError`. [#2171]
+* Re-export `StatusCode`, `Method`, `Version` and `Uri` at the crate root. [#2171]
+* Re-export `ContentEncoding` and `ConnectionType` at the crate root. [#2171]
+* `Response::into_body` that consumes response and returns body type. [#2201]
+* `impl Default` for `Response`. [#2201]
+* Add zstd support for `ContentEncoding`. [#2244]
+
+### Changed
+* The `MessageBody` trait now has an associated `Error` type. [#2183]
+* All error trait bounds in server service builders have changed from `Into<Error>` to `Into<Response<AnyBody>>`. [#2253]
+* All error trait bounds in message body and stream impls changed from `Into<Error>` to `Into<Box<dyn std::error::Error>>`. [#2253]
+* Places in `Response` where `ResponseBody<B>` was received or returned now simply use `B`. [#2201]
+* `header` mod is now public. [#2171]
+* `uri` mod is now public. [#2171]
+* Update `language-tags` to `0.3`.
+* Reduce the level from `error` to `debug` for the log line that is emitted when a `500 Internal Server Error` is built using `HttpResponse::from_error`. [#2201]
+* `ResponseBuilder::message_body` now returns a `Result`. [#2201]
+* Remove `Unpin` bound on `ResponseBuilder::streaming`. [#2253]
+* `HttpServer::{listen_rustls(), bind_rustls()}` now honor the ALPN protocols in the configuation parameter. [#2226]
+
+### Removed
+* Stop re-exporting `http` crate's `HeaderMap` types in addition to ours. [#2171]
+* Down-casting for `MessageBody` types. [#2183]
+* `error::Result` alias. [#2201]
+* Error field from `Response` and `Response::error`. [#2205]
+* `impl Future` for `Response`. [#2201]
+* `Response::take_body` and old `Response::into_body` method that casted body type. [#2201]
+* `InternalError` and all the error types it constructed. [#2215]
+* Conversion (`impl Into`) of `Response<Body>` and `ResponseBuilder` to `Error`. [#2215]
+
+[#2171]: https://github.com/actix/actix-web/pull/2171
+[#2183]: https://github.com/actix/actix-web/pull/2183
+[#2196]: https://github.com/actix/actix-web/pull/2196
+[#2201]: https://github.com/actix/actix-web/pull/2201
+[#2205]: https://github.com/actix/actix-web/pull/2205
+[#2215]: https://github.com/actix/actix-web/pull/2215
+[#2253]: https://github.com/actix/actix-web/pull/2253
+[#2244]: https://github.com/actix/actix-web/pull/2244
+
+
+
+## 3.0.0-beta.6 - 2021-04-17
+### Added
+* `impl<T: MessageBody> MessageBody for Pin<Box<T>>`. [#2152]
+* `Response::{ok, bad_request, not_found, internal_server_error}`. [#2159]
+* Helper `body::to_bytes` for async collecting message body into Bytes. [#2158]
+
+### Changes
+* The type parameter of `Response` no longer has a default. [#2152]
+* The `Message` variant of `body::Body` is now `Pin<Box<dyn MessageBody>>`. [#2152]
+* `BodyStream` and `SizedStream` are no longer restricted to Unpin types. [#2152]
+* Error enum types are marked `#[non_exhaustive]`. [#2161]
+
+### Removed
+* `cookies` feature flag. [#2065]
+* Top-level `cookies` mod (re-export). [#2065]
+* `HttpMessage` trait loses the `cookies` and `cookie` methods. [#2065]
+* `impl ResponseError for CookieParseError`. [#2065]
+* Deprecated methods on `ResponseBuilder`: `if_true`, `if_some`. [#2148]
+* `ResponseBuilder::json`. [#2148]
+* `ResponseBuilder::{set_header, header}`. [#2148]
+* `impl From<serde_json::Value> for Body`. [#2148]
+* `Response::build_from`. [#2159]
+* Most of the status code builders on `Response`. [#2159]
+
+[#2065]: https://github.com/actix/actix-web/pull/2065
+[#2148]: https://github.com/actix/actix-web/pull/2148
+[#2152]: https://github.com/actix/actix-web/pull/2152
+[#2159]: https://github.com/actix/actix-web/pull/2159
+[#2158]: https://github.com/actix/actix-web/pull/2158
+[#2161]: https://github.com/actix/actix-web/pull/2161
+
+
+## 3.0.0-beta.5 - 2021-04-02
+### Added
+* `client::Connector::handshake_timeout` method for customizing TLS connection handshake timeout. [#2081]
+* `client::ConnectorService` as `client::Connector::finish` method's return type [#2081]
+* `client::ConnectionIo` trait alias [#2081]
+
+### Changed
+* `client::Connector` type now only have one generic type for `actix_service::Service`. [#2063]
+
+### Removed
+* Common typed HTTP headers were moved to actix-web. [2094]
+* `ResponseError` impl for `actix_utils::timeout::TimeoutError`. [#2127]
+
+[#2063]: https://github.com/actix/actix-web/pull/2063
+[#2081]: https://github.com/actix/actix-web/pull/2081
+[#2094]: https://github.com/actix/actix-web/pull/2094
+[#2127]: https://github.com/actix/actix-web/pull/2127
 
 
 ## 3.0.0-beta.4 - 2021-03-08

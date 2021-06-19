@@ -2,7 +2,7 @@
 
 use std::{fmt, ops, sync::Arc};
 
-use futures_util::future::{err, ok, Ready};
+use actix_utils::future::{err, ok, Ready};
 use serde::de;
 
 use crate::{dev::Payload, error::QueryPayloadError, Error, FromRequest, HttpRequest};
@@ -57,7 +57,7 @@ use crate::{dev::Payload, error::QueryPayloadError, Error, FromRequest, HttpRequ
 ///     "OK".to_string()
 /// }
 /// ```
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct Query<T>(pub T);
 
 impl<T> Query<T> {
@@ -97,12 +97,6 @@ impl<T> ops::Deref for Query<T> {
 impl<T> ops::DerefMut for Query<T> {
     fn deref_mut(&mut self) -> &mut T {
         &mut self.0
-    }
-}
-
-impl<T: fmt::Debug> fmt::Debug for Query<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
     }
 }
 
@@ -172,7 +166,7 @@ where
 /// let query_cfg = web::QueryConfig::default()
 ///     // use custom error handler
 ///     .error_handler(|err, req| {
-///         error::InternalError::from_response(err, HttpResponse::Conflict().finish()).into()
+///         error::InternalError::from_response(err, HttpResponse::Conflict().into()).into()
 ///     });
 ///
 /// App::new()
@@ -226,7 +220,10 @@ mod tests {
         let mut s = Query::<Id>::from_query(&req.query_string()).unwrap();
 
         assert_eq!(s.id, "test");
-        assert_eq!(format!("{}, {:?}", s, s), "test, Id { id: \"test\" }");
+        assert_eq!(
+            format!("{}, {:?}", s, s),
+            "test, Query(Id { id: \"test\" })"
+        );
 
         s.id = "test1".to_string();
         let s = s.into_inner();
@@ -244,7 +241,10 @@ mod tests {
 
         let mut s = Query::<Id>::from_request(&req, &mut pl).await.unwrap();
         assert_eq!(s.id, "test");
-        assert_eq!(format!("{}, {:?}", s, s), "test, Id { id: \"test\" }");
+        assert_eq!(
+            format!("{}, {:?}", s, s),
+            "test, Query(Id { id: \"test\" })"
+        );
 
         s.id = "test1".to_string();
         let s = s.into_inner();
