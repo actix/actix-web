@@ -14,7 +14,8 @@ pub use self::err_handlers::{ErrorHandlerResponse, ErrorHandlers};
 pub use self::logger::Logger;
 pub use self::normalize::{NormalizePath, TrailingSlash};
 
-#[cfg(feature = "compress")]
+#[cfg(feature = "__compress")]
 mod compress;
-#[cfg(feature = "compress")]
+
+#[cfg(feature = "__compress")]
 pub use self::compress::Compress;

@@ -104,7 +104,7 @@ impl Display for Charset {
 impl FromStr for Charset {
     type Err = crate::Error;
 
-    fn from_str(s: &str) -> crate::Result<Charset> {
+    fn from_str(s: &str) -> Result<Charset, crate::Error> {
         Ok(match s.to_ascii_uppercase().as_ref() {
             "US-ASCII" => Us_Ascii,
             "ISO-8859-1" => Iso_8859_1,

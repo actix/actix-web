@@ -7,14 +7,17 @@ use std::{
     task::{Context, Poll},
 };
 
-use actix_http::error::{ErrorBadRequest, PayloadError};
+use actix_http::error::PayloadError;
 use actix_utils::future::{ready, Either, Ready};
 use bytes::{Bytes, BytesMut};
 use encoding_rs::{Encoding, UTF_8};
 use futures_core::{ready, stream::Stream};
 use mime::Mime;
 
-use crate::{dev, http::header, web, Error, FromRequest, HttpMessage, HttpRequest};
+use crate::{
+    dev, error::ErrorBadRequest, http::header, web, Error, FromRequest, HttpMessage,
+    HttpRequest,
+};
 
 /// Extract a request's raw payload stream.
 ///
@@ -279,9 +282,9 @@ impl Default for PayloadConfig {
 pub struct HttpMessageBody {
     limit: usize,
     length: Option<usize>,
-    #[cfg(feature = "compress")]
+    #[cfg(feature = "__compress")]
     stream: dev::Decompress<dev::Payload>,
-    #[cfg(not(feature = "compress"))]
+    #[cfg(not(feature = "__compress"))]
     stream: dev::Payload,
     buf: BytesMut,
     err: Option<PayloadError>,
@@ -309,10 +312,15 @@ impl HttpMessageBody {
             }
         }
 
-        #[cfg(feature = "compress")]
-        let stream = dev::Decompress::from_headers(payload.take(), req.headers());
-        #[cfg(not(feature = "compress"))]
-        let stream = payload.take();
+        let stream = {
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "__compress")] {
+                    dev::Decompress::from_headers(payload.take(), req.headers())
+                } else {
+                    payload.take()
+                }
+            }
+        };
 
         HttpMessageBody {
             stream,

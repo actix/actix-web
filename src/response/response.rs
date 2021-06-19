@@ -8,7 +8,7 @@ use std::{
 };
 
 use actix_http::{
-    body::{Body, MessageBody, ResponseBody},
+    body::{AnyBody, Body, MessageBody},
     http::{header::HeaderMap, StatusCode},
     Extensions, Response, ResponseHead,
 };
@@ -25,12 +25,12 @@ use {
 use crate::{error::Error, HttpResponseBuilder};
 
 /// An HTTP Response
-pub struct HttpResponse<B = Body> {
+pub struct HttpResponse<B = AnyBody> {
     res: Response<B>,
-    error: Option<Error>,
+    pub(crate) error: Option<Error>,
 }
 
-impl HttpResponse<Body> {
+impl HttpResponse<AnyBody> {
     /// Create HTTP response builder with specific status.
     #[inline]
     pub fn build(status: StatusCode) -> HttpResponseBuilder {
@@ -48,21 +48,8 @@ impl HttpResponse<Body> {
 
     /// Create an error response.
     #[inline]
-    pub fn from_error(error: Error) -> Self {
-        let res = error.as_response_error().error_response();
-
-        Self {
-            res,
-            error: Some(error),
-        }
-    }
-
-    /// Convert response to response with body
-    pub fn into_body<B>(self) -> HttpResponse<B> {
-        HttpResponse {
-            res: self.res.into_body(),
-            error: self.error,
-        }
+    pub fn from_error(error: impl Into<Error>) -> Self {
+        error.into().as_response_error().error_response()
     }
 }
 
@@ -192,7 +179,7 @@ impl<B> HttpResponse<B> {
 
     /// Get body of this response
     #[inline]
-    pub fn body(&self) -> &ResponseBody<B> {
+    pub fn body(&self) -> &B {
         self.res.body()
     }
 
@@ -206,7 +193,7 @@ impl<B> HttpResponse<B> {
     }
 
     /// Split response and body
-    pub fn into_parts(self) -> (HttpResponse<()>, ResponseBody<B>) {
+    pub fn into_parts(self) -> (HttpResponse<()>, B) {
         let (head, body) = self.res.into_parts();
 
         (
@@ -229,7 +216,7 @@ impl<B> HttpResponse<B> {
     /// Set a body and return previous body value
     pub fn map_body<F, B2>(self, f: F) -> HttpResponse<B2>
     where
-        F: FnOnce(&mut ResponseHead, ResponseBody<B>) -> ResponseBody<B2>,
+        F: FnOnce(&mut ResponseHead, B) -> B2,
     {
         HttpResponse {
             res: self.res.map_body(f),
@@ -238,12 +225,15 @@ impl<B> HttpResponse<B> {
     }
 
     /// Extract response body
-    pub fn take_body(&mut self) -> ResponseBody<B> {
-        self.res.take_body()
+    pub fn into_body(self) -> B {
+        self.res.into_body()
     }
 }
 
-impl<B: MessageBody> fmt::Debug for HttpResponse<B> {
+impl<B> fmt::Debug for HttpResponse<B>
+where
+    B: MessageBody,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("HttpResponse")
             .field("error", &self.error)
@@ -270,20 +260,25 @@ impl<B> From<HttpResponse<B>> for Response<B> {
 
         // TODO: expose cause somewhere?
         // if let Some(err) = res.error {
-        //     eprintln!("impl<B> From<HttpResponse<B>> for Response<B> let Some(err)");
-        //     return Response::from_error(err).into_body();
+        //     return Response::from_error(err);
         // }
 
         res.res
     }
 }
 
-impl Future for HttpResponse {
+// Future is only implemented for Body payload type because it's the most useful for making simple
+// handlers without async blocks. Making it generic over all MessageBody types requires a future
+// impl on Response which would cause it's body field to be, undesirably, Option<B>.
+//
+// This impl is not particularly efficient due to the Response construction and should probably
+// not be invoked if performance is important. Prefer an async fn/block in such cases.
+impl Future for HttpResponse<Body> {
     type Output = Result<Response<Body>, Error>;
 
     fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
         if let Some(err) = self.error.take() {
-            return Poll::Ready(Ok(Response::from_error(err).into_body()));
+            return Poll::Ready(Err(err));
         }
 
         Poll::Ready(Ok(mem::replace(

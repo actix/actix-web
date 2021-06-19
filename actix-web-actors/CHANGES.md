@@ -3,6 +3,10 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 4.0.0-beta.5 - 2021-06-17
+* No notable changes.
+
+
 ## 4.0.0-beta.4 - 2021-04-02
 * No notable changes.
 

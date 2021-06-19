@@ -1,12 +1,13 @@
 //! For middleware documentation, see [`Compat`].
 
 use std::{
+    error::Error as StdError,
     future::Future,
     pin::Pin,
     task::{Context, Poll},
 };
 
-use actix_http::body::{Body, MessageBody, ResponseBody};
+use actix_http::body::{Body, MessageBody};
 use actix_service::{Service, Transform};
 use futures_core::{future::LocalBoxFuture, ready};
 
@@ -49,7 +50,7 @@ where
     T: Transform<S, Req>,
     T::Future: 'static,
     T::Response: MapServiceResponseBody,
-    Error: From<T::Error>,
+    T::Error: Into<Error>,
 {
     type Response = ServiceResponse;
     type Error = Error;
@@ -74,7 +75,7 @@ impl<S, Req> Service<Req> for CompatMiddleware<S>
 where
     S: Service<Req>,
     S::Response: MapServiceResponseBody,
-    Error: From<S::Error>,
+    S::Error: Into<Error>,
 {
     type Response = ServiceResponse;
     type Error = Error;
@@ -98,12 +99,16 @@ impl<Fut, T, E> Future for CompatMiddlewareFuture<Fut>
 where
     Fut: Future<Output = Result<T, E>>,
     T: MapServiceResponseBody,
-    Error: From<E>,
+    E: Into<Error>,
 {
     type Output = Result<ServiceResponse, Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let res = ready!(self.project().fut.poll(cx))?;
+        let res = match ready!(self.project().fut.poll(cx)) {
+            Ok(res) => res,
+            Err(err) => return Poll::Ready(Err(err.into())),
+        };
+
         Poll::Ready(Ok(res.map_body()))
     }
 }
@@ -113,9 +118,13 @@ pub trait MapServiceResponseBody {
     fn map_body(self) -> ServiceResponse;
 }
 
-impl<B: MessageBody + Unpin + 'static> MapServiceResponseBody for ServiceResponse<B> {
+impl<B> MapServiceResponseBody for ServiceResponse<B>
+where
+    B: MessageBody + Unpin + 'static,
+    B::Error: Into<Box<dyn StdError + 'static>>,
+{
     fn map_body(self) -> ServiceResponse {
-        self.map_body(|_, body| ResponseBody::Other(Body::from_message(body)))
+        self.map_body(|_, body| Body::from_message(body))
     }
 }
 
@@ -135,7 +144,7 @@ mod tests {
     use crate::{web, App, HttpResponse};
 
     #[actix_rt::test]
-    #[cfg(all(feature = "cookies", feature = "compress"))]
+    #[cfg(all(feature = "cookies", feature = "__compress"))]
     async fn test_scope_middleware() {
         use crate::middleware::Compress;
 
@@ -158,7 +167,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    #[cfg(all(feature = "cookies", feature = "compress"))]
+    #[cfg(all(feature = "cookies", feature = "__compress"))]
     async fn test_resource_scope_middleware() {
         use crate::middleware::Compress;
 

@@ -1,23 +1,25 @@
 use std::{
     any::Any,
-    cmp, fmt, io,
+    cmp,
+    error::Error as StdError,
+    fmt, io,
     marker::PhantomData,
     net,
     sync::{Arc, Mutex},
 };
 
-use actix_http::{
-    body::MessageBody, Error, Extensions, HttpService, KeepAlive, Request, Response,
-};
+use actix_http::{body::MessageBody, Extensions, HttpService, KeepAlive, Request, Response};
 use actix_server::{Server, ServerBuilder};
-use actix_service::{map_config, IntoServiceFactory, Service, ServiceFactory};
+use actix_service::{
+    map_config, IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt as _,
+};
 
 #[cfg(feature = "openssl")]
 use actix_tls::accept::openssl::{AlpnError, SslAcceptor, SslAcceptorBuilder};
 #[cfg(feature = "rustls")]
 use actix_tls::accept::rustls::ServerConfig as RustlsServerConfig;
 
-use crate::config::AppConfig;
+use crate::{config::AppConfig, Error};
 
 struct Socket {
     scheme: &'static str,
@@ -81,6 +83,7 @@ where
     S::Service: 'static,
     // S::Service: 'static,
     B: MessageBody + 'static,
+    B::Error: Into<Box<dyn StdError>>,
 {
     /// Create new HTTP server with application factory
     pub fn new(factory: F) -> Self {
@@ -170,6 +173,16 @@ where
     pub fn max_connection_rate(self, num: usize) -> Self {
         #[cfg(any(feature = "rustls", feature = "openssl"))]
         actix_tls::accept::max_concurrent_tls_connect(num);
+        self
+    }
+
+    /// Set max number of threads for each worker's blocking task thread pool.
+    ///
+    /// One thread pool is set up **per worker**; not shared across workers.
+    ///
+    /// By default set to 512 / workers.
+    pub fn worker_max_blocking_threads(mut self, num: usize) -> Self {
+        self.builder = self.builder.worker_max_blocking_threads(num);
         self
     }
 
@@ -290,7 +303,11 @@ where
                         svc
                     };
 
-                    svc.finish(map_config(factory(), move |_| {
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
+
+                    svc.finish(map_config(fac, move |_| {
                         AppConfig::new(false, host.clone(), addr)
                     }))
                     .tcp()
@@ -345,7 +362,11 @@ where
                         svc
                     };
 
-                    svc.finish(map_config(factory(), move |_| {
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
+
+                    svc.finish(map_config(fac, move |_| {
                         AppConfig::new(true, host.clone(), addr)
                     }))
                     .openssl(acceptor.clone())
@@ -357,7 +378,7 @@ where
     #[cfg(feature = "rustls")]
     /// Use listener for accepting incoming tls connection requests
     ///
-    /// This method sets alpn protocols to "h2" and "http/1.1"
+    /// This method prepends alpn protocols "h2" and "http/1.1" to configured ones
     pub fn listen_rustls(
         self,
         lst: net::TcpListener,
@@ -399,7 +420,11 @@ where
                         svc
                     };
 
-                    svc.finish(map_config(factory(), move |_| {
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
+
+                    svc.finish(map_config(fac, move |_| {
                         AppConfig::new(true, host.clone(), addr)
                     }))
                     .rustls(config.clone())
@@ -471,7 +496,7 @@ where
     #[cfg(feature = "rustls")]
     /// Start listening for incoming tls connections.
     ///
-    /// This method sets alpn protocols to "h2" and "http/1.1"
+    /// This method prepends alpn protocols "h2" and "http/1.1" to configured ones
     pub fn bind_rustls<A: net::ToSocketAddrs>(
         mut self,
         addr: A,
@@ -522,7 +547,11 @@ where
                     svc
                 };
 
-                svc.finish(map_config(factory(), move |_| config.clone()))
+                let fac = factory()
+                    .into_factory()
+                    .map_err(|err| err.into().error_response());
+
+                svc.finish(map_config(fac, move |_| config.clone()))
             })
         })?;
         Ok(self)
@@ -557,14 +586,20 @@ where
                     c.host.clone().unwrap_or_else(|| format!("{}", socket_addr)),
                     socket_addr,
                 );
+
+                let fac = factory()
+                    .into_factory()
+                    .map_err(|err| err.into().error_response());
+
                 fn_service(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) }).and_then(
                     HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_timeout(c.client_timeout)
-                        .finish(map_config(factory(), move |_| config.clone())),
+                        .finish(map_config(fac, move |_| config.clone())),
                 )
             },
         )?;
+
         Ok(self)
     }
 }

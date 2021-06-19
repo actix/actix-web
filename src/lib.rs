@@ -1,7 +1,6 @@
 //! Actix Web is a powerful, pragmatic, and extremely fast web framework for Rust.
 //!
-//! ## Example
-//!
+//! # Examples
 //! ```no_run
 //! use actix_web::{get, web, App, HttpServer, Responder};
 //!
@@ -20,48 +19,48 @@
 //! }
 //! ```
 //!
-//! ## Documentation & Community Resources
-//!
+//! # Documentation & Community Resources
 //! In addition to this API documentation, several other resources are available:
 //!
 //! * [Website & User Guide](https://actix.rs/)
 //! * [Examples Repository](https://github.com/actix/examples)
+//! * [Community Chat on Discord](https://discord.gg/NWpN5mmg3x)
 //! * [Community Chat on Gitter](https://gitter.im/actix/actix-web)
 //!
 //! To get started navigating the API docs, you may consider looking at the following pages first:
 //!
-//! * [App]: This struct represents an Actix Web application and is used to
+//! * [`App`]: This struct represents an Actix Web application and is used to
 //!   configure routes and other common application settings.
 //!
-//! * [HttpServer]: This struct represents an HTTP server instance and is
+//! * [`HttpServer`]: This struct represents an HTTP server instance and is
 //!   used to instantiate and configure servers.
 //!
-//! * [web]: This module provides essential types for route registration as well as
+//! * [`web`]: This module provides essential types for route registration as well as
 //!   common utilities for request handlers.
 //!
-//! * [HttpRequest] and [HttpResponse]: These
+//! * [`HttpRequest`] and [`HttpResponse`]: These
 //!   structs represent HTTP requests and responses and expose methods for creating, inspecting,
 //!   and otherwise utilizing them.
 //!
-//! ## Features
-//!
+//! # Features
 //! * Supports *HTTP/1.x* and *HTTP/2*
 //! * Streaming and pipelining
 //! * Keep-alive and slow requests handling
 //! * Client/server [WebSockets](https://actix.rs/docs/websockets/) support
-//! * Transparent content compression/decompression (br, gzip, deflate)
+//! * Transparent content compression/decompression (br, gzip, deflate, zstd)
 //! * Powerful [request routing](https://actix.rs/docs/url-dispatch/)
 //! * Multipart streams
 //! * Static assets
 //! * SSL support using OpenSSL or Rustls
 //! * Middlewares ([Logger, Session, CORS, etc](https://actix.rs/docs/middleware/))
-//! * Includes an async [HTTP client](https://actix.rs/actix-web/actix_web/client/index.html)
+//! * Includes an async [HTTP client](https://docs.rs/awc/)
 //! * Runs on stable Rust 1.46+
 //!
-//! ## Crate Features
-//!
-//! * `compress` - content encoding compression support (enabled by default)
+//! # Crate Features
 //! * `cookies` - cookies support (enabled by default)
+//! * `compress-brotli` - brotli content encoding compression support (enabled by default)
+//! * `compress-gzip` - gzip and deflate content encoding compression support (enabled by default)
+//! * `compress-zstd` - zstd content encoding compression support (enabled by default)
 //! * `openssl` - HTTPS support via `openssl` crate, supports `HTTP/2`
 //! * `rustls` - HTTPS support via `rustls` crate, supports `HTTP/2`
 //! * `secure-cookies` - secure cookies support
@@ -79,6 +78,7 @@ pub mod error;
 mod extract;
 pub mod guard;
 mod handler;
+mod helpers;
 pub mod http;
 mod info;
 pub mod middleware;
@@ -97,7 +97,7 @@ pub(crate) mod types;
 pub mod web;
 
 pub use actix_http::Response as BaseHttpResponse;
-pub use actix_http::{body, Error, HttpMessage, ResponseError, Result};
+pub use actix_http::{body, HttpMessage};
 #[doc(inline)]
 pub use actix_rt as rt;
 pub use actix_web_codegen::*;
@@ -105,6 +105,7 @@ pub use actix_web_codegen::*;
 pub use cookie;
 
 pub use crate::app::App;
+pub use crate::error::{Error, ResponseError, Result};
 pub use crate::extract::FromRequest;
 pub use crate::request::HttpRequest;
 pub use crate::resource::Resource;
@@ -138,8 +139,11 @@ pub mod dev {
     pub use crate::types::json::JsonBody;
     pub use crate::types::readlines::Readlines;
 
-    pub use actix_http::body::{Body, BodySize, MessageBody, ResponseBody, SizedStream};
-    #[cfg(feature = "compress")]
+    pub use actix_http::body::{
+        AnyBody, Body, BodySize, MessageBody, ResponseBody, SizedStream,
+    };
+
+    #[cfg(feature = "__compress")]
     pub use actix_http::encoding::Decoder as Decompress;
     pub use actix_http::ResponseBuilder as BaseHttpResponseBuilder;
     pub use actix_http::{Extensions, Payload, PayloadStream, RequestHead, ResponseHead};
@@ -167,6 +171,8 @@ pub mod dev {
         fn get_encoding(&self) -> Option<ContentEncoding>;
 
         /// Set content encoding
+        ///
+        /// Must be used with [`crate::middleware::Compress`] to take effect.
         fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self;
     }
 

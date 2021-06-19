@@ -1,13 +1,14 @@
 use std::{
     cell::{Ref, RefMut},
     convert::TryInto,
+    error::Error as StdError,
     future::Future,
     pin::Pin,
     task::{Context, Poll},
 };
 
 use actix_http::{
-    body::{Body, BodyStream},
+    body::{AnyBody, BodyStream},
     http::{
         header::{self, HeaderName, IntoHeaderPair, IntoHeaderValue},
         ConnectionType, Error as HttpError, StatusCode,
@@ -32,7 +33,7 @@ use crate::{
 ///
 /// This type can be used to construct an instance of `Response` through a builder-like pattern.
 pub struct HttpResponseBuilder {
-    res: Option<Response<Body>>,
+    res: Option<Response<AnyBody>>,
     err: Option<HttpError>,
     #[cfg(feature = "cookies")]
     cookies: Option<CookieJar>,
@@ -310,16 +311,19 @@ impl HttpResponseBuilder {
     ///
     /// `HttpResponseBuilder` can not be used after this call.
     #[inline]
-    pub fn body<B: Into<Body>>(&mut self, body: B) -> HttpResponse {
-        self.message_body(body.into())
+    pub fn body<B: Into<AnyBody>>(&mut self, body: B) -> HttpResponse<AnyBody> {
+        match self.message_body(body.into()) {
+            Ok(res) => res,
+            Err(err) => HttpResponse::from_error(err),
+        }
     }
 
     /// Set a body and generate `Response`.
     ///
     /// `HttpResponseBuilder` can not be used after this call.
-    pub fn message_body<B>(&mut self, body: B) -> HttpResponse<B> {
+    pub fn message_body<B>(&mut self, body: B) -> Result<HttpResponse<B>, Error> {
         if let Some(err) = self.err.take() {
-            return HttpResponse::from_error(Error::from(err)).into_body();
+            return Err(err.into());
         }
 
         let res = self
@@ -336,12 +340,12 @@ impl HttpResponseBuilder {
             for cookie in jar.delta() {
                 match HeaderValue::from_str(&cookie.to_string()) {
                     Ok(val) => res.headers_mut().append(header::SET_COOKIE, val),
-                    Err(err) => return HttpResponse::from_error(Error::from(err)).into_body(),
+                    Err(err) => return Err(err.into()),
                 };
             }
         }
 
-        res
+        Ok(res)
     }
 
     /// Set a streaming body and generate `Response`.
@@ -351,9 +355,9 @@ impl HttpResponseBuilder {
     pub fn streaming<S, E>(&mut self, stream: S) -> HttpResponse
     where
         S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
-        E: Into<Error> + 'static,
+        E: Into<Box<dyn StdError>> + 'static,
     {
-        self.body(Body::from_message(BodyStream::new(stream)))
+        self.body(AnyBody::from_message(BodyStream::new(stream)))
     }
 
     /// Set a json body and generate `Response`
@@ -372,9 +376,9 @@ impl HttpResponseBuilder {
                     self.insert_header((header::CONTENT_TYPE, mime::APPLICATION_JSON));
                 }
 
-                self.body(Body::from(body))
+                self.body(AnyBody::from(body))
             }
-            Err(err) => HttpResponse::from_error(JsonPayloadError::Serialize(err).into()),
+            Err(err) => HttpResponse::from_error(JsonPayloadError::Serialize(err)),
         }
     }
 
@@ -383,7 +387,7 @@ impl HttpResponseBuilder {
     /// `HttpResponseBuilder` can not be used after this call.
     #[inline]
     pub fn finish(&mut self) -> HttpResponse {
-        self.body(Body::Empty)
+        self.body(AnyBody::Empty)
     }
 
     /// This method construct new `HttpResponseBuilder`
@@ -412,7 +416,7 @@ impl From<HttpResponseBuilder> for HttpResponse {
     }
 }
 
-impl From<HttpResponseBuilder> for Response<Body> {
+impl From<HttpResponseBuilder> for Response<AnyBody> {
     fn from(mut builder: HttpResponseBuilder) -> Self {
         builder.finish().into()
     }
@@ -422,7 +426,6 @@ impl Future for HttpResponseBuilder {
     type Output = Result<HttpResponse, Error>;
 
     fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
-        eprintln!("httpresponse future error");
         Poll::Ready(Ok(self.finish()))
     }
 }
@@ -478,42 +481,42 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_json() {
-        let mut resp = HttpResponse::Ok().json(vec!["v1", "v2", "v3"]);
+        let resp = HttpResponse::Ok().json(vec!["v1", "v2", "v3"]);
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("application/json"));
         assert_eq!(
-            body::to_bytes(resp.take_body()).await.unwrap().as_ref(),
+            body::to_bytes(resp.into_body()).await.unwrap().as_ref(),
             br#"["v1","v2","v3"]"#
         );
 
-        let mut resp = HttpResponse::Ok().json(&["v1", "v2", "v3"]);
+        let resp = HttpResponse::Ok().json(&["v1", "v2", "v3"]);
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("application/json"));
         assert_eq!(
-            body::to_bytes(resp.take_body()).await.unwrap().as_ref(),
+            body::to_bytes(resp.into_body()).await.unwrap().as_ref(),
             br#"["v1","v2","v3"]"#
         );
 
         // content type override
-        let mut resp = HttpResponse::Ok()
+        let resp = HttpResponse::Ok()
             .insert_header((CONTENT_TYPE, "text/json"))
             .json(&vec!["v1", "v2", "v3"]);
         let ct = resp.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("text/json"));
         assert_eq!(
-            body::to_bytes(resp.take_body()).await.unwrap().as_ref(),
+            body::to_bytes(resp.into_body()).await.unwrap().as_ref(),
             br#"["v1","v2","v3"]"#
         );
     }
 
     #[actix_rt::test]
     async fn test_serde_json_in_body() {
-        let mut resp = HttpResponse::Ok().body(
+        let resp = HttpResponse::Ok().body(
             serde_json::to_vec(&serde_json::json!({ "test-key": "test-value" })).unwrap(),
         );
 
         assert_eq!(
-            body::to_bytes(resp.take_body()).await.unwrap().as_ref(),
+            body::to_bytes(resp.into_body()).await.unwrap().as_ref(),
             br#"{"test-key":"test-value"}"#
         );
     }

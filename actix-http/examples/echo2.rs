@@ -1,11 +1,10 @@
-use std::{env, io};
+use std::io;
 
 use actix_http::{body::Body, http::HeaderValue, http::StatusCode};
 use actix_http::{Error, HttpService, Request, Response};
 use actix_server::Server;
 use bytes::BytesMut;
 use futures_util::StreamExt as _;
-use log::info;
 
 async fn handle_request(mut req: Request) -> Result<Response<Body>, Error> {
     let mut body = BytesMut::new();
@@ -13,7 +12,8 @@ async fn handle_request(mut req: Request) -> Result<Response<Body>, Error> {
         body.extend_from_slice(&item?)
     }
 
-    info!("request body: {:?}", body);
+    log::info!("request body: {:?}", body);
+
     Ok(Response::build(StatusCode::OK)
         .insert_header(("x-head", HeaderValue::from_static("dummy value!")))
         .body(body))
@@ -21,11 +21,10 @@ async fn handle_request(mut req: Request) -> Result<Response<Body>, Error> {
 
 #[actix_rt::main]
 async fn main() -> io::Result<()> {
-    env::set_var("RUST_LOG", "echo=info");
-    env_logger::init();
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
     Server::build()
-        .bind("echo", "127.0.0.1:8080", || {
+        .bind("echo", ("127.0.0.1", 8080), || {
             HttpService::build().finish(handle_request).tcp()
         })?
         .run()

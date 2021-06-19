@@ -578,7 +578,7 @@ mod tests {
     use actix_utils::future::ok;
     use bytes::Bytes;
 
-    use crate::dev::{Body, ResponseBody};
+    use crate::dev::Body;
     use crate::http::{header, HeaderValue, Method, StatusCode};
     use crate::middleware::DefaultHeaders;
     use crate::service::ServiceRequest;
@@ -748,7 +748,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
 
         match resp.response().body() {
-            ResponseBody::Body(Body::Bytes(ref b)) => {
+            Body::Bytes(ref b) => {
                 let bytes = b.clone();
                 assert_eq!(bytes, Bytes::from_static(b"project: project1"));
             }
@@ -849,7 +849,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::CREATED);
 
         match resp.response().body() {
-            ResponseBody::Body(Body::Bytes(ref b)) => {
+            Body::Bytes(ref b) => {
                 let bytes = b.clone();
                 assert_eq!(bytes, Bytes::from_static(b"project: project_1"));
             }
@@ -877,7 +877,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::CREATED);
 
         match resp.response().body() {
-            ResponseBody::Body(Body::Bytes(ref b)) => {
+            Body::Bytes(ref b) => {
                 let bytes = b.clone();
                 assert_eq!(bytes, Bytes::from_static(b"project: test - 1"));
             }

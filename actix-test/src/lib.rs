@@ -31,7 +31,7 @@ extern crate tls_openssl as openssl;
 #[cfg(feature = "rustls")]
 extern crate tls_rustls as rustls;
 
-use std::{fmt, net, sync::mpsc, thread, time};
+use std::{error::Error as StdError, fmt, net, sync::mpsc, thread, time};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 pub use actix_http::test::TestBuffer;
@@ -39,7 +39,7 @@ use actix_http::{
     http::{HeaderMap, Method},
     ws, HttpService, Request, Response,
 };
-use actix_service::{map_config, IntoServiceFactory, ServiceFactory};
+use actix_service::{map_config, IntoServiceFactory, ServiceFactory, ServiceFactoryExt as _};
 use actix_web::{
     dev::{AppConfig, MessageBody, Server, Service},
     rt, web, Error,
@@ -86,6 +86,7 @@ where
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
     B: MessageBody + 'static,
+    B::Error: Into<Box<dyn StdError>>,
 {
     start_with(TestServerConfig::default(), factory)
 }
@@ -125,6 +126,7 @@ where
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
     B: MessageBody + 'static,
+    B::Error: Into<Box<dyn StdError>>,
 {
     let (tx, rx) = mpsc::channel();
 
@@ -151,25 +153,40 @@ where
                 HttpVer::Http1 => builder.listen("test", tcp, move || {
                     let app_cfg =
                         AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
+
                     HttpService::build()
                         .client_timeout(timeout)
-                        .h1(map_config(factory(), move |_| app_cfg.clone()))
+                        .h1(map_config(fac, move |_| app_cfg.clone()))
                         .tcp()
                 }),
                 HttpVer::Http2 => builder.listen("test", tcp, move || {
                     let app_cfg =
                         AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
+
                     HttpService::build()
                         .client_timeout(timeout)
-                        .h2(map_config(factory(), move |_| app_cfg.clone()))
+                        .h2(map_config(fac, move |_| app_cfg.clone()))
                         .tcp()
                 }),
                 HttpVer::Both => builder.listen("test", tcp, move || {
                     let app_cfg =
                         AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
+
                     HttpService::build()
                         .client_timeout(timeout)
-                        .finish(map_config(factory(), move |_| app_cfg.clone()))
+                        .finish(map_config(fac, move |_| app_cfg.clone()))
                         .tcp()
                 }),
             },
@@ -178,25 +195,40 @@ where
                 HttpVer::Http1 => builder.listen("test", tcp, move || {
                     let app_cfg =
                         AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
+
                     HttpService::build()
                         .client_timeout(timeout)
-                        .h1(map_config(factory(), move |_| app_cfg.clone()))
+                        .h1(map_config(fac, move |_| app_cfg.clone()))
                         .openssl(acceptor.clone())
                 }),
                 HttpVer::Http2 => builder.listen("test", tcp, move || {
                     let app_cfg =
                         AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
+
                     HttpService::build()
                         .client_timeout(timeout)
-                        .h2(map_config(factory(), move |_| app_cfg.clone()))
+                        .h2(map_config(fac, move |_| app_cfg.clone()))
                         .openssl(acceptor.clone())
                 }),
                 HttpVer::Both => builder.listen("test", tcp, move || {
                     let app_cfg =
                         AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
+
                     HttpService::build()
                         .client_timeout(timeout)
-                        .finish(map_config(factory(), move |_| app_cfg.clone()))
+                        .finish(map_config(fac, move |_| app_cfg.clone()))
                         .openssl(acceptor.clone())
                 }),
             },
@@ -205,25 +237,40 @@ where
                 HttpVer::Http1 => builder.listen("test", tcp, move || {
                     let app_cfg =
                         AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
+
                     HttpService::build()
                         .client_timeout(timeout)
-                        .h1(map_config(factory(), move |_| app_cfg.clone()))
+                        .h1(map_config(fac, move |_| app_cfg.clone()))
                         .rustls(config.clone())
                 }),
                 HttpVer::Http2 => builder.listen("test", tcp, move || {
                     let app_cfg =
                         AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
+
                     HttpService::build()
                         .client_timeout(timeout)
-                        .h2(map_config(factory(), move |_| app_cfg.clone()))
+                        .h2(map_config(fac, move |_| app_cfg.clone()))
                         .rustls(config.clone())
                 }),
                 HttpVer::Both => builder.listen("test", tcp, move || {
                     let app_cfg =
                         AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
+
                     HttpService::build()
                         .client_timeout(timeout)
-                        .finish(map_config(factory(), move |_| app_cfg.clone()))
+                        .finish(map_config(fac, move |_| app_cfg.clone()))
                         .rustls(config.clone())
                 }),
             },

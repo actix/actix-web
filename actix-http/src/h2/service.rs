@@ -1,8 +1,12 @@
-use std::future::Future;
-use std::marker::PhantomData;
-use std::pin::Pin;
-use std::task::{Context, Poll};
-use std::{net, rc::Rc};
+use std::{
+    error::Error as StdError,
+    future::Future,
+    marker::PhantomData,
+    net,
+    pin::Pin,
+    rc::Rc,
+    task::{Context, Poll},
+};
 
 use actix_codec::{AsyncRead, AsyncWrite};
 use actix_rt::net::TcpStream;
@@ -13,16 +17,16 @@ use actix_service::{
 use actix_utils::future::ready;
 use bytes::Bytes;
 use futures_core::{future::LocalBoxFuture, ready};
-use h2::server::{handshake, Handshake};
+use h2::server::{handshake as h2_handshake, Handshake as H2Handshake};
 use log::error;
 
-use crate::body::MessageBody;
-use crate::config::ServiceConfig;
-use crate::error::{DispatchError, Error};
-use crate::request::Request;
-use crate::response::Response;
-use crate::service::HttpFlow;
-use crate::{ConnectCallback, OnConnectData};
+use crate::{
+    body::{AnyBody, MessageBody},
+    config::ServiceConfig,
+    error::DispatchError,
+    service::HttpFlow,
+    ConnectCallback, OnConnectData, Request, Response,
+};
 
 use super::dispatcher::Dispatcher;
 
@@ -37,10 +41,12 @@ pub struct H2Service<T, S, B> {
 impl<T, S, B> H2Service<T, S, B>
 where
     S: ServiceFactory<Request, Config = ()>,
-    S::Error: Into<Error> + 'static,
+    S::Error: Into<Response<AnyBody>> + 'static,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
+
     B: MessageBody + 'static,
+    B::Error: Into<Box<dyn StdError>>,
 {
     /// Create new `H2Service` instance with config.
     pub(crate) fn with_config<F: IntoServiceFactory<S, Request>>(
@@ -66,10 +72,12 @@ impl<S, B> H2Service<TcpStream, S, B>
 where
     S: ServiceFactory<Request, Config = ()>,
     S::Future: 'static,
-    S::Error: Into<Error> + 'static,
+    S::Error: Into<Response<AnyBody>> + 'static,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
+
     B: MessageBody + 'static,
+    B::Error: Into<Box<dyn StdError>>,
 {
     /// Create plain TCP based service
     pub fn tcp(
@@ -103,10 +111,12 @@ mod openssl {
     where
         S: ServiceFactory<Request, Config = ()>,
         S::Future: 'static,
-        S::Error: Into<Error> + 'static,
+        S::Error: Into<Response<AnyBody>> + 'static,
         S::Response: Into<Response<B>> + 'static,
         <S::Service as Service<Request>>::Future: 'static,
+
         B: MessageBody + 'static,
+        B::Error: Into<Box<dyn StdError>>,
     {
         /// Create OpenSSL based service
         pub fn openssl(
@@ -147,10 +157,12 @@ mod rustls {
     where
         S: ServiceFactory<Request, Config = ()>,
         S::Future: 'static,
-        S::Error: Into<Error> + 'static,
+        S::Error: Into<Response<AnyBody>> + 'static,
         S::Response: Into<Response<B>> + 'static,
         <S::Service as Service<Request>>::Future: 'static,
+
         B: MessageBody + 'static,
+        B::Error: Into<Box<dyn StdError>>,
     {
         /// Create Rustls based service
         pub fn rustls(
@@ -163,7 +175,8 @@ mod rustls {
             Error = TlsError<io::Error, DispatchError>,
             InitError = S::InitError,
         > {
-            let protos = vec!["h2".to_string().into()];
+            let mut protos = vec![b"h2".to_vec()];
+            protos.extend_from_slice(&config.alpn_protocols);
             config.set_protocols(&protos);
 
             Acceptor::new(config)
@@ -185,12 +198,15 @@ mod rustls {
 impl<T, S, B> ServiceFactory<(T, Option<net::SocketAddr>)> for H2Service<T, S, B>
 where
     T: AsyncRead + AsyncWrite + Unpin + 'static,
+
     S: ServiceFactory<Request, Config = ()>,
     S::Future: 'static,
-    S::Error: Into<Error> + 'static,
+    S::Error: Into<Response<AnyBody>> + 'static,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
+
     B: MessageBody + 'static,
+    B::Error: Into<Box<dyn StdError>>,
 {
     type Response = ();
     type Error = DispatchError;
@@ -225,7 +241,7 @@ where
 impl<T, S, B> H2ServiceHandler<T, S, B>
 where
     S: Service<Request>,
-    S::Error: Into<Error> + 'static,
+    S::Error: Into<Response<AnyBody>> + 'static,
     S::Future: 'static,
     S::Response: Into<Response<B>> + 'static,
     B: MessageBody + 'static,
@@ -248,10 +264,11 @@ impl<T, S, B> Service<(T, Option<net::SocketAddr>)> for H2ServiceHandler<T, S, B
 where
     T: AsyncRead + AsyncWrite + Unpin,
     S: Service<Request>,
-    S::Error: Into<Error> + 'static,
+    S::Error: Into<Response<AnyBody>> + 'static,
     S::Future: 'static,
     S::Response: Into<Response<B>> + 'static,
     B: MessageBody + 'static,
+    B::Error: Into<Box<dyn StdError>>,
 {
     type Response = ();
     type Error = DispatchError;
@@ -275,7 +292,7 @@ where
                 Some(self.cfg.clone()),
                 addr,
                 on_connect_data,
-                handshake(io),
+                h2_handshake(io),
             ),
         }
     }
@@ -292,7 +309,7 @@ where
         Option<ServiceConfig>,
         Option<net::SocketAddr>,
         OnConnectData,
-        Handshake<T, Bytes>,
+        H2Handshake<T, Bytes>,
     ),
 }
 
@@ -300,7 +317,7 @@ pub struct H2ServiceHandlerResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite + Unpin,
     S: Service<Request>,
-    S::Error: Into<Error> + 'static,
+    S::Error: Into<Response<AnyBody>> + 'static,
     S::Future: 'static,
     S::Response: Into<Response<B>> + 'static,
     B: MessageBody + 'static,
@@ -312,10 +329,11 @@ impl<T, S, B> Future for H2ServiceHandlerResponse<T, S, B>
 where
     T: AsyncRead + AsyncWrite + Unpin,
     S: Service<Request>,
-    S::Error: Into<Error> + 'static,
+    S::Error: Into<Response<AnyBody>> + 'static,
     S::Future: 'static,
     S::Response: Into<Response<B>> + 'static,
     B: MessageBody,
+    B::Error: Into<Box<dyn StdError>>,
 {
     type Output = Result<(), DispatchError>;
 

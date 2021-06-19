@@ -4,7 +4,7 @@
 extern crate tls_rustls as rustls;
 
 use std::{
-    env, io,
+    io,
     pin::Pin,
     task::{Context, Poll},
     time::Duration,
@@ -20,8 +20,7 @@ use futures_core::{ready, Stream};
 
 #[actix_rt::main]
 async fn main() -> io::Result<()> {
-    env::set_var("RUST_LOG", "actix=info,h2_ws=info");
-    env_logger::init();
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
     Server::build()
         .bind("tcp", ("127.0.0.1", 8080), || {
@@ -41,7 +40,7 @@ async fn handler(req: Request) -> Result<Response<BodyStream<Heartbeat>>, Error>
     // handshake will always fail under HTTP/2
 
     log::info!("responding");
-    Ok(res.message_body(BodyStream::new(Heartbeat::new(ws::Codec::new()))))
+    Ok(res.message_body(BodyStream::new(Heartbeat::new(ws::Codec::new())))?)
 }
 
 struct Heartbeat {
