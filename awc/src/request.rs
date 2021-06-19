@@ -8,7 +8,7 @@ use actix_http::{
     body::Body,
     http::{
         header::{self, IntoHeaderPair},
-        uri, ConnectionType, Error as HttpError, HeaderMap, HeaderValue, Method, Uri, Version,
+        ConnectionType, Error as HttpError, HeaderMap, HeaderValue, Method, Uri, Version,
     },
     RequestHead,
 };
@@ -21,11 +21,6 @@ use crate::{
     sender::{PrepForSendingError, RequestSender, SendClientRequest},
     ClientConfig,
 };
-
-#[cfg(feature = "compress")]
-const HTTPS_ENCODING: &str = "br, gzip, deflate";
-#[cfg(not(feature = "compress"))]
-const HTTPS_ENCODING: &str = "br";
 
 /// An HTTP Client request builder
 ///
@@ -480,22 +475,37 @@ impl ClientRequest {
 
         let mut slf = self;
 
+        // Set Accept-Encoding HTTP header depending on enabled feature.
+        // If decompress is not ask, then we are not able to find which encoding is
+        // supported, so we cannot guess Accept-Encoding HTTP header.
         if slf.response_decompress {
-            let https = slf
-                .head
-                .uri
-                .scheme()
-                .map(|s| s == &uri::Scheme::HTTPS)
-                .unwrap_or(true);
+            // Set Accept-Encoding with compression algorithm awc is built with.
+            #[cfg(feature = "__compress")]
+            let accept_encoding = {
+                let mut encoding = vec![];
 
-            if https {
-                slf = slf.insert_header_if_none((header::ACCEPT_ENCODING, HTTPS_ENCODING));
-            } else {
-                #[cfg(feature = "compress")]
+                #[cfg(feature = "compress-brotli")]
+                encoding.push("br");
+
+                #[cfg(feature = "compress-gzip")]
                 {
-                    slf = slf.insert_header_if_none((header::ACCEPT_ENCODING, "gzip, deflate"));
+                    encoding.push("gzip");
+                    encoding.push("deflate");
                 }
+
+                #[cfg(feature = "compress-zstd")]
+                encoding.push("zstd");
+
+                assert!(!encoding.is_empty(), "encoding cannot be empty unless __compress feature has been explictily enabled.");
+                encoding.join(", ")
             };
+
+            // Otherwise tell the server, we do not support any compression algorithm.
+            // So we clearly indicate that we do want identity encoding.
+            #[cfg(not(feature = "__compress"))]
+            let accept_encoding = "identity";
+
+            slf = slf.insert_header_if_none((header::ACCEPT_ENCODING, accept_encoding));
         }
 
         Ok(slf)

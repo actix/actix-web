@@ -1,6 +1,14 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+### Changed
+
+* Change compression algorithm features flags. [#2250]
+
+[#2250]: https://github.com/actix/actix-web/pull/2250
+
+## 3.0.0-beta.7 - 2021-06-17
 ### Added
 * Alias `body::Body` as `body::AnyBody`. [#2215]
 * `BoxAnyBody`: a boxed message body with boxed errors. [#2183]
