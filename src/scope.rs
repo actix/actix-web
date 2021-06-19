@@ -146,6 +146,7 @@ where
     ///     );
     /// }
     /// ```
+    #[deprecated(since = "4.0.0", note = "Use `.app_data(Data::new(val))` instead.")]
     pub fn data<U: 'static>(self, data: U) -> Self {
         self.app_data(Data::new(data))
     }
