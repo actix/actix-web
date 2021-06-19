@@ -9,12 +9,18 @@ use std::{
 };
 
 use actix_rt::task::{spawn_blocking, JoinHandle};
-use brotli2::write::BrotliEncoder;
 use bytes::Bytes;
 use derive_more::Display;
-use flate2::write::{GzEncoder, ZlibEncoder};
 use futures_core::ready;
 use pin_project::pin_project;
+
+#[cfg(feature = "compress-brotli")]
+use brotli2::write::BrotliEncoder;
+
+#[cfg(feature = "compress-gzip")]
+use flate2::write::{GzEncoder, ZlibEncoder};
+
+#[cfg(feature = "compress-zstd")]
 use zstd::stream::write::Encoder as ZstdEncoder;
 
 use crate::{
@@ -233,28 +239,36 @@ fn update_head(encoding: ContentEncoding, head: &mut ResponseHead) {
 }
 
 enum ContentEncoder {
+    #[cfg(feature = "compress-gzip")]
     Deflate(ZlibEncoder<Writer>),
+    #[cfg(feature = "compress-gzip")]
     Gzip(GzEncoder<Writer>),
+    #[cfg(feature = "compress-brotli")]
     Br(BrotliEncoder<Writer>),
     // We need explicit 'static lifetime here because ZstdEncoder need lifetime
     // argument, and we use `spawn_blocking` in `Encoder::poll_next` that require `FnOnce() -> R + Send + 'static`
+    #[cfg(feature = "compress-zstd")]
     Zstd(ZstdEncoder<'static, Writer>),
 }
 
 impl ContentEncoder {
     fn encoder(encoding: ContentEncoding) -> Option<Self> {
         match encoding {
+            #[cfg(feature = "compress-gzip")]
             ContentEncoding::Deflate => Some(ContentEncoder::Deflate(ZlibEncoder::new(
                 Writer::new(),
                 flate2::Compression::fast(),
             ))),
+            #[cfg(feature = "compress-gzip")]
             ContentEncoding::Gzip => Some(ContentEncoder::Gzip(GzEncoder::new(
                 Writer::new(),
                 flate2::Compression::fast(),
             ))),
+            #[cfg(feature = "compress-brotli")]
             ContentEncoding::Br => {
                 Some(ContentEncoder::Br(BrotliEncoder::new(Writer::new(), 3)))
             }
+            #[cfg(feature = "compress-zstd")]
             ContentEncoding::Zstd => {
                 let encoder = ZstdEncoder::new(Writer::new(), 3).ok()?;
                 Some(ContentEncoder::Zstd(encoder))
@@ -266,27 +280,35 @@ impl ContentEncoder {
     #[inline]
     pub(crate) fn take(&mut self) -> Bytes {
         match *self {
+            #[cfg(feature = "compress-brotli")]
             ContentEncoder::Br(ref mut encoder) => encoder.get_mut().take(),
+            #[cfg(feature = "compress-gzip")]
             ContentEncoder::Deflate(ref mut encoder) => encoder.get_mut().take(),
+            #[cfg(feature = "compress-gzip")]
             ContentEncoder::Gzip(ref mut encoder) => encoder.get_mut().take(),
+            #[cfg(feature = "compress-zstd")]
             ContentEncoder::Zstd(ref mut encoder) => encoder.get_mut().take(),
         }
     }
 
     fn finish(self) -> Result<Bytes, io::Error> {
         match self {
+            #[cfg(feature = "compress-brotli")]
             ContentEncoder::Br(encoder) => match encoder.finish() {
                 Ok(writer) => Ok(writer.buf.freeze()),
                 Err(err) => Err(err),
             },
+            #[cfg(feature = "compress-gzip")]
             ContentEncoder::Gzip(encoder) => match encoder.finish() {
                 Ok(writer) => Ok(writer.buf.freeze()),
                 Err(err) => Err(err),
             },
+            #[cfg(feature = "compress-gzip")]
             ContentEncoder::Deflate(encoder) => match encoder.finish() {
                 Ok(writer) => Ok(writer.buf.freeze()),
                 Err(err) => Err(err),
             },
+            #[cfg(feature = "compress-zstd")]
             ContentEncoder::Zstd(encoder) => match encoder.finish() {
                 Ok(writer) => Ok(writer.buf.freeze()),
                 Err(err) => Err(err),
@@ -296,6 +318,7 @@ impl ContentEncoder {
 
     fn write(&mut self, data: &[u8]) -> Result<(), io::Error> {
         match *self {
+            #[cfg(feature = "compress-brotli")]
             ContentEncoder::Br(ref mut encoder) => match encoder.write_all(data) {
                 Ok(_) => Ok(()),
                 Err(err) => {
@@ -303,6 +326,7 @@ impl ContentEncoder {
                     Err(err)
                 }
             },
+            #[cfg(feature = "compress-gzip")]
             ContentEncoder::Gzip(ref mut encoder) => match encoder.write_all(data) {
                 Ok(_) => Ok(()),
                 Err(err) => {
@@ -310,6 +334,7 @@ impl ContentEncoder {
                     Err(err)
                 }
             },
+            #[cfg(feature = "compress-gzip")]
             ContentEncoder::Deflate(ref mut encoder) => match encoder.write_all(data) {
                 Ok(_) => Ok(()),
                 Err(err) => {
@@ -317,6 +342,7 @@ impl ContentEncoder {
                     Err(err)
                 }
             },
+            #[cfg(feature = "compress-zstd")]
             ContentEncoder::Zstd(ref mut encoder) => match encoder.write_all(data) {
                 Ok(_) => Ok(()),
                 Err(err) => {

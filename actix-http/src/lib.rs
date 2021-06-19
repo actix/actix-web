@@ -1,12 +1,14 @@
 //! HTTP primitives for the Actix ecosystem.
 //!
 //! ## Crate Features
-//! | Feature          | Functionality                                         |
-//! | ---------------- | ----------------------------------------------------- |
-//! | `openssl`        | TLS support via [OpenSSL].                            |
-//! | `rustls`         | TLS support via [rustls].                             |
-//! | `compress`       | Payload compression support. (Deflate, Gzip & Brotli) |
-//! | `trust-dns`      | Use [trust-dns] as the client DNS resolver.           |
+//! | Feature             | Functionality                               |
+//! | ------------------- | ------------------------------------------- |
+//! | `openssl`           | TLS support via [OpenSSL].                  |
+//! | `rustls`            | TLS support via [rustls].                   |
+//! | `compress-brotli`   | Payload compression support: Brotli.        |
+//! | `compress-gzip`     | Payload compression support: Deflate, Gzip. |
+//! | `compress-zstd`     | Payload compression support: Zstd.          |
+//! | `trust-dns`         | Use [trust-dns] as the client DNS resolver. |
 //!
 //! [OpenSSL]: https://crates.io/crates/openssl
 //! [rustls]: https://crates.io/crates/rustls
@@ -32,7 +34,8 @@ pub mod body;
 mod builder;
 pub mod client;
 mod config;
-#[cfg(feature = "compress")]
+
+#[cfg(feature = "__compress")]
 pub mod encoding;
 mod extensions;
 pub mod header;

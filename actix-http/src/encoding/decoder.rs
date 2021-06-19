@@ -8,10 +8,16 @@ use std::{
 };
 
 use actix_rt::task::{spawn_blocking, JoinHandle};
-use brotli2::write::BrotliDecoder;
 use bytes::Bytes;
-use flate2::write::{GzDecoder, ZlibDecoder};
 use futures_core::{ready, Stream};
+
+#[cfg(feature = "compress-brotli")]
+use brotli2::write::BrotliDecoder;
+
+#[cfg(feature = "compress-gzip")]
+use flate2::write::{GzDecoder, ZlibDecoder};
+
+#[cfg(feature = "compress-zstd")]
 use zstd::stream::write::Decoder as ZstdDecoder;
 
 use crate::{
@@ -37,15 +43,19 @@ where
     #[inline]
     pub fn new(stream: S, encoding: ContentEncoding) -> Decoder<S> {
         let decoder = match encoding {
+            #[cfg(feature = "compress-brotli")]
             ContentEncoding::Br => Some(ContentDecoder::Br(Box::new(
                 BrotliDecoder::new(Writer::new()),
             ))),
+            #[cfg(feature = "compress-gzip")]
             ContentEncoding::Deflate => Some(ContentDecoder::Deflate(Box::new(
                 ZlibDecoder::new(Writer::new()),
             ))),
+            #[cfg(feature = "compress-gzip")]
             ContentEncoding::Gzip => Some(ContentDecoder::Gzip(Box::new(
                 GzDecoder::new(Writer::new()),
             ))),
+            #[cfg(feature = "compress-zstd")]
             ContentEncoding::Zstd => Some(ContentDecoder::Zstd(Box::new(
                 ZstdDecoder::new(Writer::new()).expect(
                     "Failed to create zstd decoder. This is a bug. \
@@ -148,17 +158,22 @@ where
 }
 
 enum ContentDecoder {
+    #[cfg(feature = "compress-gzip")]
     Deflate(Box<ZlibDecoder<Writer>>),
+    #[cfg(feature = "compress-gzip")]
     Gzip(Box<GzDecoder<Writer>>),
+    #[cfg(feature = "compress-brotli")]
     Br(Box<BrotliDecoder<Writer>>),
     // We need explicit 'static lifetime here because ZstdDecoder need lifetime
     // argument, and we use `spawn_blocking` in `Decoder::poll_next` that require `FnOnce() -> R + Send + 'static`
+    #[cfg(feature = "compress-zstd")]
     Zstd(Box<ZstdDecoder<'static, Writer>>),
 }
 
 impl ContentDecoder {
     fn feed_eof(&mut self) -> io::Result<Option<Bytes>> {
         match self {
+            #[cfg(feature = "compress-brotli")]
             ContentDecoder::Br(ref mut decoder) => match decoder.flush() {
                 Ok(()) => {
                     let b = decoder.get_mut().take();
@@ -172,6 +187,7 @@ impl ContentDecoder {
                 Err(e) => Err(e),
             },
 
+            #[cfg(feature = "compress-gzip")]
             ContentDecoder::Gzip(ref mut decoder) => match decoder.try_finish() {
                 Ok(_) => {
                     let b = decoder.get_mut().take();
@@ -185,6 +201,7 @@ impl ContentDecoder {
                 Err(e) => Err(e),
             },
 
+            #[cfg(feature = "compress-gzip")]
             ContentDecoder::Deflate(ref mut decoder) => match decoder.try_finish() {
                 Ok(_) => {
                     let b = decoder.get_mut().take();
@@ -197,6 +214,7 @@ impl ContentDecoder {
                 Err(e) => Err(e),
             },
 
+            #[cfg(feature = "compress-zstd")]
             ContentDecoder::Zstd(ref mut decoder) => match decoder.flush() {
                 Ok(_) => {
                     let b = decoder.get_mut().take();
@@ -213,6 +231,7 @@ impl ContentDecoder {
 
     fn feed_data(&mut self, data: Bytes) -> io::Result<Option<Bytes>> {
         match self {
+            #[cfg(feature = "compress-brotli")]
             ContentDecoder::Br(ref mut decoder) => match decoder.write_all(&data) {
                 Ok(_) => {
                     decoder.flush()?;
@@ -227,6 +246,7 @@ impl ContentDecoder {
                 Err(e) => Err(e),
             },
 
+            #[cfg(feature = "compress-gzip")]
             ContentDecoder::Gzip(ref mut decoder) => match decoder.write_all(&data) {
                 Ok(_) => {
                     decoder.flush()?;
@@ -241,6 +261,7 @@ impl ContentDecoder {
                 Err(e) => Err(e),
             },
 
+            #[cfg(feature = "compress-gzip")]
             ContentDecoder::Deflate(ref mut decoder) => match decoder.write_all(&data) {
                 Ok(_) => {
                     decoder.flush()?;
@@ -255,6 +276,7 @@ impl ContentDecoder {
                 Err(e) => Err(e),
             },
 
+            #[cfg(feature = "compress-zstd")]
             ContentDecoder::Zstd(ref mut decoder) => match decoder.write_all(&data) {
                 Ok(_) => {
                     decoder.flush()?;

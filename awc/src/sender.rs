@@ -22,7 +22,7 @@ use derive_more::From;
 use futures_core::Stream;
 use serde::Serialize;
 
-#[cfg(feature = "compress")]
+#[cfg(feature = "__compress")]
 use actix_http::{encoding::Decoder, http::header::ContentEncoding, Payload, PayloadStream};
 
 use crate::{
@@ -91,7 +91,7 @@ impl SendClientRequest {
     }
 }
 
-#[cfg(feature = "compress")]
+#[cfg(feature = "__compress")]
 impl Future for SendClientRequest {
     type Output = Result<ClientResponse<Decoder<Payload<PayloadStream>>>, SendRequestError>;
 
@@ -131,7 +131,7 @@ impl Future for SendClientRequest {
     }
 }
 
-#[cfg(not(feature = "compress"))]
+#[cfg(not(feature = "__compress"))]
 impl Future for SendClientRequest {
     type Output = Result<ClientResponse, SendRequestError>;
 

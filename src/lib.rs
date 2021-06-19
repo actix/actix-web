@@ -47,7 +47,7 @@
 //! * Streaming and pipelining
 //! * Keep-alive and slow requests handling
 //! * Client/server [WebSockets](https://actix.rs/docs/websockets/) support
-//! * Transparent content compression/decompression (br, gzip, deflate)
+//! * Transparent content compression/decompression (br, gzip, deflate, zstd)
 //! * Powerful [request routing](https://actix.rs/docs/url-dispatch/)
 //! * Multipart streams
 //! * Static assets
@@ -140,7 +140,8 @@ pub mod dev {
     pub use actix_http::body::{
         AnyBody, Body, BodySize, MessageBody, ResponseBody, SizedStream,
     };
-    #[cfg(feature = "compress")]
+
+    #[cfg(feature = "__compress")]
     pub use actix_http::encoding::Decoder as Decompress;
     pub use actix_http::ResponseBuilder as BaseHttpResponseBuilder;
     pub use actix_http::{Extensions, Payload, PayloadStream, RequestHead, ResponseHead};

@@ -16,7 +16,7 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use actix_http::Payload;
 
-#[cfg(feature = "compress")]
+#[cfg(feature = "__compress")]
 use crate::dev::Decompress;
 use crate::{
     error::{Error, JsonPayloadError},
@@ -300,9 +300,9 @@ pub enum JsonBody<T> {
     Body {
         limit: usize,
         length: Option<usize>,
-        #[cfg(feature = "compress")]
+        #[cfg(feature = "__compress")]
         payload: Decompress<Payload>,
-        #[cfg(not(feature = "compress"))]
+        #[cfg(not(feature = "__compress"))]
         payload: Payload,
         buf: BytesMut,
         _res: PhantomData<T>,
@@ -345,10 +345,15 @@ where
         // As the internal usage always call JsonBody::limit after JsonBody::new.
         // And limit check to return an error variant of JsonBody happens there.
 
-        #[cfg(feature = "compress")]
-        let payload = Decompress::from_headers(payload.take(), req.headers());
-        #[cfg(not(feature = "compress"))]
-        let payload = payload.take();
+        let payload = {
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "__compress")] {
+                    Decompress::from_headers(payload.take(), req.headers())
+                } else {
+                    payload.take()
+                }
+            }
+        };
 
         JsonBody::Body {
             limit: DEFAULT_LIMIT,
