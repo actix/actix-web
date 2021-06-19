@@ -3,8 +3,10 @@
 ## Unreleased - 2021-xx-xx
 ### Changed
 * Change compression algorithm features flags. [#2250]
+* Deprecate `App::data` and `App::data_factory`. [#????]
 
 [#2250]: https://github.com/actix/actix-web/pull/2250
+[#????]: https://github.com/actix/actix-web/pull/????
 
 
 ## 4.0.0-beta.7 - 2021-06-17
