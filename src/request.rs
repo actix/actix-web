@@ -60,18 +60,6 @@ impl HttpRequest {
             }),
         }
     }
-
-    #[doc(hidden)]
-    pub fn __priv_test_new(
-        path: Path<Url>,
-        head: Message<RequestHead>,
-        rmap: Rc<ResourceMap>,
-        config: AppConfig,
-        app_data: Rc<Extensions>,
-    ) -> HttpRequest {
-        let app_state = AppInitServiceState::new(rmap, config);
-        Self::new(path, head, app_state, app_data)
-    }
 }
 
 impl HttpRequest {
