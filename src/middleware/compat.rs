@@ -144,7 +144,7 @@ mod tests {
     use crate::{web, App, HttpResponse};
 
     #[actix_rt::test]
-    #[cfg(all(feature = "cookies", feature = "compress"))]
+    #[cfg(all(feature = "cookies", feature = "__compress"))]
     async fn test_scope_middleware() {
         use crate::middleware::Compress;
 
@@ -167,7 +167,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    #[cfg(all(feature = "cookies", feature = "compress"))]
+    #[cfg(all(feature = "cookies", feature = "__compress"))]
     async fn test_resource_scope_middleware() {
         use crate::middleware::Compress;
 

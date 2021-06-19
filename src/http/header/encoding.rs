@@ -1,7 +1,7 @@
 use std::{fmt, str};
 
 pub use self::Encoding::{
-    Brotli, Chunked, Compress, Deflate, EncodingExt, Gzip, Identity, Trailers,
+    Brotli, Chunked, Compress, Deflate, EncodingExt, Gzip, Identity, Trailers, Zstd,
 };
 
 /// A value to represent an encoding used in `Transfer-Encoding`
@@ -22,6 +22,8 @@ pub enum Encoding {
     Identity,
     /// The `trailers` encoding.
     Trailers,
+    /// The `zstd` encoding.
+    Zstd,
     /// Some other encoding that is less common, can be any String.
     EncodingExt(String),
 }
@@ -36,6 +38,7 @@ impl fmt::Display for Encoding {
             Compress => "compress",
             Identity => "identity",
             Trailers => "trailers",
+            Zstd => "zstd",
             EncodingExt(ref s) => s.as_ref(),
         })
     }
@@ -52,6 +55,7 @@ impl str::FromStr for Encoding {
             "compress" => Ok(Compress),
             "identity" => Ok(Identity),
             "trailers" => Ok(Trailers),
+            "zstd" => Ok(Zstd),
             _ => Ok(EncodingExt(s.to_owned())),
         }
     }
