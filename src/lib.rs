@@ -57,8 +57,10 @@
 //! * Runs on stable Rust 1.46+
 //!
 //! # Crate Features
-//! * `compress` - content encoding compression support (enabled by default)
 //! * `cookies` - cookies support (enabled by default)
+//! * `compress-brotli` - brotli content encoding compression support (enabled by default)
+//! * `compress-gzip` - gzip and deflate content encoding compression support (enabled by default)
+//! * `compress-zstd` - zstd content encoding compression support (enabled by default)
 //! * `openssl` - HTTPS support via `openssl` crate, supports `HTTP/2`
 //! * `rustls` - HTTPS support via `rustls` crate, supports `HTTP/2`
 //! * `secure-cookies` - secure cookies support

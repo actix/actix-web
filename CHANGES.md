@@ -1,19 +1,17 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
-
 ### Changed
-
 * Change compression algorithm features flags. [#2250]
 
 [#2250]: https://github.com/actix/actix-web/pull/2250
+
 
 ## 4.0.0-beta.7 - 2021-06-17
 ### Added
 * `HttpServer::worker_max_blocking_threads` for setting block thread pool. [#2200]
 
 ### Changed
-
 * Adjusted default JSON payload limit to 2MB (from 32kb) and included size and limits in the `JsonPayloadError::Overflow` error variant. [#2162]
 [#2162]: (https://github.com/actix/actix-web/pull/2162)
 * `ServiceResponse::error_response` now uses body type of `Body`. [#2201]

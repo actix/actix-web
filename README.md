@@ -25,7 +25,7 @@
 * Streaming and pipelining
 * Keep-alive and slow requests handling
 * Client/server [WebSockets](https://actix.rs/docs/websockets/) support
-* Transparent content compression/decompression (br, gzip, deflate)
+* Transparent content compression/decompression (br, gzip, deflate, zstd)
 * Powerful [request routing](https://actix.rs/docs/url-dispatch/)
 * Multipart streams
 * Static assets
