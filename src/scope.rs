@@ -995,6 +995,26 @@ mod tests {
     }
 
     #[actix_rt::test]
+    async fn test_middleware_app_data() {
+        let srv = init_service(
+            App::new().service(
+                web::scope("app")
+                    .app_data(1usize)
+                    .wrap_fn(|req, srv| {
+                        assert_eq!(req.app_data::<usize>(), Some(&1usize));
+                        srv.call(req)
+                    })
+                    .route("/test", web::get().to(HttpResponse::Ok)),
+            ),
+        )
+        .await;
+
+        let req = TestRequest::with_uri("/app/test").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[actix_rt::test]
     async fn test_override_data() {
         let srv = init_service(App::new().data(1usize).service(
             web::scope("app").data(10usize).route(
