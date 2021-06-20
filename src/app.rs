@@ -523,6 +523,8 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::CREATED);
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_data_factory() {
         let srv = init_service(
@@ -546,6 +548,8 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_data_factory_errors() {
         let srv = try_init_service(

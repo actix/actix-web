@@ -398,6 +398,8 @@ mod tests {
         assert!(cfg.check_mimetype(&req).is_ok());
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_config_recall_locations() {
         async fn bytes_handler(_: Bytes) -> impl Responder {
