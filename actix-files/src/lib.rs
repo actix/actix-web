@@ -21,6 +21,7 @@ use actix_web::{
     http::header::DispositionType,
 };
 use mime_guess::from_ext;
+use std::path::Path;
 
 mod chunked;
 mod directory;
@@ -55,6 +56,8 @@ pub fn file_extension_to_mime(ext: &str) -> mime::Mime {
 }
 
 type MimeOverride = dyn Fn(&mime::Name<'_>) -> DispositionType;
+
+type PathFilter = dyn Fn(&Path) -> bool;
 
 #[cfg(test)]
 mod tests {

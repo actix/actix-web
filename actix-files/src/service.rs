@@ -13,7 +13,7 @@ use futures_core::future::LocalBoxFuture;
 
 use crate::{
     named, Directory, DirectoryRenderer, FilesError, HttpService, MimeOverride, NamedFile,
-    PathBufWrap,
+    PathBufWrap, PathFilter,
 };
 
 /// Assembled file serving service.
@@ -25,6 +25,7 @@ pub struct FilesService {
     pub(crate) default: Option<HttpService>,
     pub(crate) renderer: Rc<DirectoryRenderer>,
     pub(crate) mime_override: Option<Rc<MimeOverride>>,
+    pub(crate) path_filter: Option<Rc<PathFilter>>,
     pub(crate) file_flags: named::Flags,
     pub(crate) guards: Option<Rc<dyn Guard>>,
     pub(crate) hidden_files: bool,
@@ -86,6 +87,18 @@ impl Service<ServiceRequest> for FilesService {
         let path = self.directory.join(&real_path);
         if let Err(err) = path.canonicalize() {
             return Box::pin(self.handle_err(err, req));
+        }
+
+        if let Some(filter) = &self.path_filter {
+            if !filter(real_path.as_ref()) {
+                if let Some(ref default) = self.default {
+                    return Box::pin(default.call(req));
+                } else {
+                    return Box::pin(ok(
+                        req.into_response(actix_web::HttpResponse::NotFound().finish())
+                    ));
+                }
+            }
         }
 
         if path.is_dir() {
