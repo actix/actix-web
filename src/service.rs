@@ -649,6 +649,8 @@ mod tests {
         assert_eq!(resp.status(), http::StatusCode::NOT_FOUND);
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_service_data() {
         let srv =
