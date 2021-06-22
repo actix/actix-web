@@ -1,12 +1,12 @@
+use actix_utils::future::{ok, Ready};
 use actix_web::dev::{Service, ServiceRequest, ServiceResponse, Transform};
 use actix_web::test::{call_service, init_service, TestRequest};
 use actix_web::{HttpResponse, ResponseError};
+use futures_util::lock::Mutex;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use futures_util::lock::Mutex;
-use actix_utils::future::{ok, Ready};
 
 #[derive(Debug, Clone)]
 pub struct MyError;
@@ -29,10 +29,10 @@ async fn test() -> Result<actix_web::HttpResponse, actix_web::error::Error> {
 pub struct SpyMiddleware(Arc<Mutex<Option<bool>>>);
 
 impl<S, B> Transform<S, ServiceRequest> for SpyMiddleware
-    where
-        S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = actix_web::Error>,
-        S::Future: 'static,
-        B: 'static,
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = actix_web::Error>,
+    S::Future: 'static,
+    B: 'static,
 {
     type Response = ServiceResponse<B>;
     type Error = actix_web::Error;
@@ -55,10 +55,10 @@ pub struct Middleware<S> {
 }
 
 impl<S, B> Service<ServiceRequest> for Middleware<S>
-    where
-        S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = actix_web::Error>,
-        S::Future: 'static,
-        B: 'static,
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = actix_web::Error>,
+    S::Future: 'static,
+    B: 'static,
 {
     type Response = ServiceResponse<B>;
     type Error = actix_web::Error;
@@ -91,7 +91,7 @@ async fn error_cause_should_be_propagated_to_middlewares() {
             .wrap(spy_middleware.clone())
             .service(test),
     )
-        .await;
+    .await;
 
     call_service(&app, TestRequest::with_uri("/test").to_request()).await;
 
