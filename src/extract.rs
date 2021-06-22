@@ -244,16 +244,6 @@ impl FromRequest for Uri {
     }
 }
 
-impl FromRequest for Version {
-    type Error = Infallible;
-    type Future = Ready<Result<Version, Infallible>>;
-    type Config = ();
-
-    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        ok(req.version())
-    }
-}
-
 /// Extract the request's method.
 ///
 /// ## Example

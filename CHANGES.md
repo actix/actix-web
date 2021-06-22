@@ -2,7 +2,7 @@
 
 ## Unreleased - 2021-xx-xx
 ### Added
-* Add extractors for `Version`, `Uri` and `Method`. [#2263]
+* Add extractors for `Uri` and `Method`. [#2263]
 * Add extractor for `ConnectionInfo` and `PeerAddr`. [#2263]
 
 ### Changed
