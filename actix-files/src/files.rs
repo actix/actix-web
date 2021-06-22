@@ -8,7 +8,10 @@ use std::{
 use actix_service::{boxed, IntoServiceFactory, ServiceFactory, ServiceFactoryExt};
 use actix_utils::future::ok;
 use actix_web::{
-    dev::{AppService, HttpServiceFactory, ResourceDef, ServiceRequest, ServiceResponse},
+    dev::{
+        AppService, HttpServiceFactory, RequestHead, ResourceDef, ServiceRequest,
+        ServiceResponse,
+    },
     error::Error,
     guard::Guard,
     http::header::DispositionType,
@@ -163,7 +166,7 @@ impl Files {
     /// `404 NotFound` is returned.
     pub fn path_filter<F>(mut self, f: F) -> Self
     where
-        F: Fn(&Path) -> bool + 'static,
+        F: Fn(&Path, &RequestHead) -> bool + 'static,
     {
         self.path_filter = Some(Rc::new(f));
         self

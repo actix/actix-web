@@ -16,7 +16,7 @@
 
 use actix_service::boxed::{BoxService, BoxServiceFactory};
 use actix_web::{
-    dev::{ServiceRequest, ServiceResponse},
+    dev::{RequestHead, ServiceRequest, ServiceResponse},
     error::Error,
     http::header::DispositionType,
 };
@@ -57,7 +57,7 @@ pub fn file_extension_to_mime(ext: &str) -> mime::Mime {
 
 type MimeOverride = dyn Fn(&mime::Name<'_>) -> DispositionType;
 
-type PathFilter = dyn Fn(&Path) -> bool;
+type PathFilter = dyn Fn(&Path, &RequestHead) -> bool;
 
 #[cfg(test)]
 mod tests {
@@ -907,17 +907,18 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_path_filter() {
+        // prevent searching subdirectories
         let st = Files::new("/", ".")
-            .path_filter(|path| path.extension() == Some("png".as_ref()))
+            .path_filter(|path, _| path.components().count() == 1)
             .new_service(())
             .await
             .unwrap();
 
-        let req = TestRequest::with_uri("/tests/test.png").to_srv_request();
+        let req = TestRequest::with_uri("/Cargo.toml").to_srv_request();
         let resp = test::call_service(&st, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let req = TestRequest::with_uri("/Cargo.toml").to_srv_request();
+        let req = TestRequest::with_uri("/tests/test.png").to_srv_request();
         let resp = test::call_service(&st, req).await;
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
@@ -928,7 +929,7 @@ mod tests {
             .default_handler(|req: ServiceRequest| {
                 ok(req.into_response(HttpResponse::Ok().body("default content")))
             })
-            .path_filter(|path| path.extension() == Some("png".as_ref()))
+            .path_filter(|path, _| path.extension() == Some("png".as_ref()))
             .new_service(())
             .await
             .unwrap();

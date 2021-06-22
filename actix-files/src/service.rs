@@ -83,14 +83,8 @@ impl Service<ServiceRequest> for FilesService {
                 Err(e) => return Box::pin(ok(req.error_response(e))),
             };
 
-        // full file path
-        let path = self.directory.join(&real_path);
-        if let Err(err) = path.canonicalize() {
-            return Box::pin(self.handle_err(err, req));
-        }
-
         if let Some(filter) = &self.path_filter {
-            if !filter(real_path.as_ref()) {
+            if !filter(real_path.as_ref(), req.head()) {
                 if let Some(ref default) = self.default {
                     return Box::pin(default.call(req));
                 } else {
@@ -99,6 +93,12 @@ impl Service<ServiceRequest> for FilesService {
                     ));
                 }
             }
+        }
+
+        // full file path
+        let path = self.directory.join(&real_path);
+        if let Err(err) = path.canonicalize() {
+            return Box::pin(self.handle_err(err, req));
         }
 
         if path.is_dir() {
