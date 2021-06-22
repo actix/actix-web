@@ -83,7 +83,7 @@ actix-http-test = { version = "3.0.0-beta.4", features = ["openssl"] }
 actix-utils = "3.0.0"
 actix-server = "2.0.0-beta.3"
 actix-tls = { version = "3.0.0-beta.5", features = ["openssl", "rustls"] }
-actix-test = { version = "0.1.0-beta.2", features = ["openssl", "rustls"] }
+actix-test = { version = "0.1.0-beta.3", features = ["openssl", "rustls"] }
 
 brotli2 = "0.3.2"
 env_logger = "0.8"
