@@ -218,6 +218,22 @@ where
     }
 }
 
+/// Extract the request's uri.
+///
+/// ## Example
+///
+/// ```
+/// use actix_web::{web, App, HttpRequest, http::Uri};
+///
+/// async fn index(uri: Uri) -> &'static str {
+///     log::info!("Incoming request to: {}", uri.path());
+///     "Welcome!"
+/// }
+///
+/// fn main() {
+///     let app = App::new().route("/", web::get().to(index));
+/// }
+/// ```
 impl FromRequest for Uri {
     type Error = Infallible;
     type Future = Ready<Result<Uri, Infallible>>;
