@@ -1,6 +1,7 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+* Update `actix` to `0.12`
 
 
 ## 4.0.0-beta.5 - 2021-06-17
