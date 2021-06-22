@@ -5,13 +5,16 @@ use derive_more::{Display, Error};
 
 use crate::{
     dev::{AppConfig, Payload, RequestHead},
-    http::header::{self, HeaderName},
+    http::{
+        header,
+        uri::{Authority, Scheme},
+    },
     FromRequest, HttpRequest, ResponseError,
 };
 
-const X_FORWARDED_FOR: &[u8] = b"x-forwarded-for";
-const X_FORWARDED_HOST: &[u8] = b"x-forwarded-host";
-const X_FORWARDED_PROTO: &[u8] = b"x-forwarded-proto";
+const X_FORWARDED_FOR: &str = "x-forwarded-for";
+const X_FORWARDED_HOST: &str = "x-forwarded-host";
+const X_FORWARDED_PROTO: &str = "x-forwarded-proto";
 
 /// HTTP connection information.
 ///
@@ -48,105 +51,73 @@ impl ConnectionInfo {
         Ref::map(req.extensions(), |e| e.get().unwrap())
     }
 
-    #[allow(clippy::cognitive_complexity, clippy::borrow_interior_mutable_const)]
     fn new(req: &RequestHead, cfg: &AppConfig) -> ConnectionInfo {
         let mut host = None;
         let mut scheme = None;
         let mut realip_remote_addr = None;
 
-        // load forwarded header
-        for hdr in req.headers.get_all(&header::FORWARDED) {
-            if let Ok(val) = hdr.to_str() {
-                for pair in val.split(';') {
-                    for el in pair.split(',') {
-                        let mut items = el.trim().splitn(2, '=');
-                        if let Some(name) = items.next() {
-                            if let Some(val) = items.next() {
-                                match &name.to_lowercase() as &str {
-                                    "for" => {
-                                        if realip_remote_addr.is_none() {
-                                            realip_remote_addr = Some(val.trim());
-                                        }
-                                    }
-                                    "proto" => {
-                                        if scheme.is_none() {
-                                            scheme = Some(val.trim());
-                                        }
-                                    }
-                                    "host" => {
-                                        if host.is_none() {
-                                            host = Some(val.trim());
-                                        }
-                                    }
-                                    _ => {}
-                                }
-                            }
-                        }
+        for el in req
+            .headers
+            .get_all(&header::FORWARDED)
+            .into_iter()
+            .filter_map(|hdr| hdr.to_str().ok())
+            .flat_map(|val| val.split(';'))
+            .flat_map(|pair| pair.split(','))
+        {
+            let mut items = el.trim().splitn(2, '=');
+            if let (Some(name), Some(val)) = (items.next(), items.next()) {
+                match name.to_lowercase().as_ref() {
+                    "for" => {
+                        realip_remote_addr.get_or_insert_with(|| val.trim());
                     }
-                }
-            }
-        }
-
-        // scheme
-        if scheme.is_none() {
-            if let Some(h) = req
-                .headers
-                .get(&HeaderName::from_lowercase(X_FORWARDED_PROTO).unwrap())
-            {
-                if let Ok(h) = h.to_str() {
-                    scheme = h.split(',').next().map(|v| v.trim());
-                }
-            }
-            if scheme.is_none() {
-                scheme = req.uri.scheme().map(|a| a.as_str());
-                if scheme.is_none() && cfg.secure() {
-                    scheme = Some("https")
-                }
-            }
-        }
-
-        // host
-        if host.is_none() {
-            if let Some(h) = req
-                .headers
-                .get(&HeaderName::from_lowercase(X_FORWARDED_HOST).unwrap())
-            {
-                if let Ok(h) = h.to_str() {
-                    host = h.split(',').next().map(|v| v.trim());
-                }
-            }
-            if host.is_none() {
-                if let Some(h) = req.headers.get(&header::HOST) {
-                    host = h.to_str().ok();
-                }
-                if host.is_none() {
-                    host = req.uri.authority().map(|a| a.as_str());
-                    if host.is_none() {
-                        host = Some(cfg.host());
+                    "proto" => {
+                        scheme.get_or_insert_with(|| val.trim());
                     }
+                    "host" => {
+                        host.get_or_insert_with(|| val.trim());
+                    }
+                    _ => {}
                 }
             }
         }
 
-        // get remote_addraddr from socketaddr
+        let first_header_value = |name| {
+            let val = req
+                .headers
+                .get(name)?
+                .to_str()
+                .ok()?
+                .split(',')
+                .next()?
+                .trim();
+            Some(val)
+        };
+
+        let scheme = scheme
+            .or_else(|| first_header_value(X_FORWARDED_PROTO))
+            .or_else(|| req.uri.scheme().map(Scheme::as_str))
+            .or_else(|| cfg.secure().then(|| "https"))
+            .unwrap_or("http")
+            .to_owned();
+
+        let host = host
+            .or_else(|| first_header_value(X_FORWARDED_HOST))
+            .or_else(|| req.headers.get(&header::HOST)?.to_str().ok())
+            .or_else(|| req.uri.authority().map(Authority::as_str))
+            .unwrap_or(cfg.host())
+            .to_owned();
+
+        let realip_remote_addr = realip_remote_addr
+            .or_else(|| first_header_value(X_FORWARDED_FOR))
+            .map(str::to_owned);
+
         let remote_addr = req.peer_addr.map(|addr| format!("{}", addr));
-
-        if realip_remote_addr.is_none() {
-            if let Some(h) = req
-                .headers
-                .get(&HeaderName::from_lowercase(X_FORWARDED_FOR).unwrap())
-            {
-                if let Ok(h) = h.to_str() {
-                    realip_remote_addr = h.split(',').next().map(|v| v.trim());
-                }
-            }
-        }
 
         ConnectionInfo {
             remote_addr,
-            scheme: scheme.unwrap_or("http").to_owned(),
-            host: host.unwrap_or("localhost").to_owned(),
-            realip_remote_addr: realip_remote_addr.map(|s| s.to_owned()),
+            scheme,
+            host,
+            realip_remote_addr,
         }
     }
 
