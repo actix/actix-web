@@ -13,26 +13,23 @@ const X_FORWARDED_FOR: &[u8] = b"x-forwarded-for";
 const X_FORWARDED_HOST: &[u8] = b"x-forwarded-host";
 const X_FORWARDED_PROTO: &[u8] = b"x-forwarded-proto";
 
-/// `HttpRequest` connection information
+/// HTTP connection information.
 ///
 /// `ConnectionInfo` implements `FromRequest` and can be extracted in handlers.
 ///
-/// ## Example
-///
+/// # Examples
 /// ```
-/// use actix_web::{web, App, HttpRequest, HttpResponse, dev::ConnectionInfo};
+/// # use actix_web::{HttpResponse, Responder};
+/// use actix_web::dev::ConnectionInfo;
 ///
-/// async fn index(conn: ConnectionInfo) -> HttpResponse {
+/// async fn handler(conn: ConnectionInfo) -> impl Responder {
 ///     match conn.host() {
 ///         "actix.rs" => HttpResponse::Ok().body("Welcome!"),
 ///         "admin.actix.rs" => HttpResponse::Ok().body("Admin portal."),
 ///         _ => HttpResponse::NotFound().finish()
 ///     }
 /// }
-///
-/// fn main() {
-///     let app = App::new().route("/", web::get().to(index));
-/// }
+/// # let _svc = actix_web::web::to(handler);
 /// ```
 #[derive(Debug, Clone, Default)]
 pub struct ConnectionInfo {
@@ -215,7 +212,7 @@ impl ConnectionInfo {
 
 impl FromRequest for ConnectionInfo {
     type Error = Infallible;
-    type Future = Ready<Result<ConnectionInfo, Infallible>>;
+    type Future = Ready<Result<Self, Self::Error>>;
     type Config = ();
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
@@ -250,6 +247,7 @@ impl PeerAddr {
 }
 
 #[derive(Debug, Display, Error)]
+#[non_exhaustive]
 #[display(fmt = "Missing peer address")]
 pub struct MissingPeerAddr;
 

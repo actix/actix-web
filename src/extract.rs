@@ -7,7 +7,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use actix_http::http::{Method, Uri, Version};
+use actix_http::http::{Method, Uri};
 use actix_utils::future::{ok, Ready};
 use futures_core::ready;
 
@@ -218,24 +218,21 @@ where
     }
 }
 
-/// Extract the request's uri.
+/// Extract the request's URI.
 ///
-/// ## Example
-///
+/// # Examples
 /// ```
-/// use actix_web::{web, App, HttpRequest, http::Uri};
+/// use actix_web::{http::Uri, web, App, Responder};
 ///
-/// async fn index(uri: Uri) -> String {
+/// async fn handler(uri: Uri) -> impl Responder {
 ///     format!("Requested path: {}", uri.path())
 /// }
 ///
-/// fn main() {
-///     let app = App::new().route("/", web::get().to(index));
-/// }
+/// let app = App::new().default_service(web::to(handler));
 /// ```
 impl FromRequest for Uri {
     type Error = Infallible;
-    type Future = Ready<Result<Uri, Infallible>>;
+    type Future = Ready<Result<Self, Self::Error>>;
     type Config = ();
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
@@ -245,22 +242,19 @@ impl FromRequest for Uri {
 
 /// Extract the request's method.
 ///
-/// ## Example
-///
+/// # Examples
 /// ```
-/// use actix_web::{web, App, HttpRequest, http::Method};
+/// use actix_web::{http::Method, web, App, Responder};
 ///
-/// async fn index(method: Method) -> String {
+/// async fn handler(method: Method) -> impl Responder {
 ///     format!("Request method: {}", method)
 /// }
 ///
-/// fn main() {
-///     let app = App::new().route("/", web::get().to(index));
-/// }
+/// let app = App::new().default_service(web::to(handler));
 /// ```
 impl FromRequest for Method {
     type Error = Infallible;
-    type Future = Ready<Result<Method, Infallible>>;
+    type Future = Ready<Result<Self, Self::Error>>;
     type Config = ();
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
