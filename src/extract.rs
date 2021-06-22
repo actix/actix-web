@@ -254,6 +254,22 @@ impl FromRequest for Version {
     }
 }
 
+/// Extract the request's method.
+///
+/// ## Example
+///
+/// ```
+/// use actix_web::{web, App, HttpRequest, http::Method};
+///
+/// async fn index(method: Method) -> &'static str {
+///     assert_eq!(method, Method::GET);
+///     "Welcome!"
+/// }
+///
+/// fn main() {
+///     let app = App::new().route("/", web::get().to(index));
+/// }
+/// ```
 impl FromRequest for Method {
     type Error = Infallible;
     type Future = Ready<Result<Method, Infallible>>;
