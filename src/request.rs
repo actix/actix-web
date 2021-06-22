@@ -711,6 +711,8 @@ mod tests {
         assert_eq!(body, Bytes::from_static(b"1"));
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_extensions_dropped() {
         struct Tracker {
