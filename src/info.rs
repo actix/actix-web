@@ -14,6 +14,26 @@ const X_FORWARDED_HOST: &[u8] = b"x-forwarded-host";
 const X_FORWARDED_PROTO: &[u8] = b"x-forwarded-proto";
 
 /// `HttpRequest` connection information
+///
+/// `ConnectionInfo` implements `FromRequest` and extracted in handlers.
+///
+/// ## Example
+///
+/// ```
+/// use actix_web::{web, App, HttpRequest, HttpResponse, dev::ConnectionInfo};
+///
+/// async fn index(conn: ConnectionInfo) -> HttpResponse {
+///     match conn.host() {
+///         "actix.rs" => HttpResponse::Ok().body("Welcome!"),
+///         "admin.actix.rs" => HttpResponse::Ok().body("Admin portal."),
+///         _ => HttpResponse::NotFound().finish()
+///     }
+/// }
+///
+/// fn main() {
+///     let app = App::new().route("/", web::get().to(index));
+/// }
+/// ```
 #[derive(Debug, Clone, Default)]
 pub struct ConnectionInfo {
     scheme: String,
