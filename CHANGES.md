@@ -1,12 +1,17 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+* Add extractors for `Uri` and `Method`. [#2263]
+* Add extractor for `ConnectionInfo` and `PeerAddr`. [#2263]
+
 ### Changed
 * Change compression algorithm features flags. [#2250]
 * Deprecate `App::data` and `App::data_factory`. [#2271]
 
 [#2250]: https://github.com/actix/actix-web/pull/2250
 [#2271]: https://github.com/actix/actix-web/pull/2271
+[#2263]: https://github.com/actix/actix-web/pull/2263
 
 
 ## 4.0.0-beta.7 - 2021-06-17
