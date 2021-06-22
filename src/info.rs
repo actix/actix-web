@@ -2,6 +2,7 @@ use std::cell::Ref;
 
 use crate::dev::{AppConfig, RequestHead};
 use crate::http::header::{self, HeaderName};
+use crate::http::uri::{Authority, Scheme};
 
 const X_FORWARDED_FOR: &[u8] = b"x-forwarded-for";
 const X_FORWARDED_HOST: &[u8] = b"x-forwarded-host";
@@ -71,11 +72,11 @@ impl ConnectionInfo {
                 .get(&HeaderName::from_lowercase(X_FORWARDED_PROTO).unwrap())
             {
                 if let Ok(h) = h.to_str() {
-                    scheme = h.split(',').next().map(|v| v.trim());
+                    scheme = h.split(',').next().map(str::trim);
                 }
             }
             if scheme.is_none() {
-                scheme = req.uri.scheme().map(|a| a.as_str());
+                scheme = req.uri.scheme().map(Scheme::as_str);
                 if scheme.is_none() && cfg.secure() {
                     scheme = Some("https")
                 }
@@ -89,7 +90,7 @@ impl ConnectionInfo {
                 .get(&HeaderName::from_lowercase(X_FORWARDED_HOST).unwrap())
             {
                 if let Ok(h) = h.to_str() {
-                    host = h.split(',').next().map(|v| v.trim());
+                    host = h.split(',').next().map(str::trim);
                 }
             }
             if host.is_none() {
@@ -97,7 +98,7 @@ impl ConnectionInfo {
                     host = h.to_str().ok();
                 }
                 if host.is_none() {
-                    host = req.uri.authority().map(|a| a.as_str());
+                    host = req.uri.authority().map(Authority::as_str);
                     if host.is_none() {
                         host = Some(cfg.host());
                     }
@@ -114,7 +115,7 @@ impl ConnectionInfo {
                 .get(&HeaderName::from_lowercase(X_FORWARDED_FOR).unwrap())
             {
                 if let Ok(h) = h.to_str() {
-                    realip_remote_addr = h.split(',').next().map(|v| v.trim());
+                    realip_remote_addr = h.split(',').next().map(str::trim);
                 }
             }
         }
@@ -123,7 +124,7 @@ impl ConnectionInfo {
             remote_addr,
             scheme: scheme.unwrap_or("http").to_owned(),
             host: host.unwrap_or("localhost").to_owned(),
-            realip_remote_addr: realip_remote_addr.map(|s| s.to_owned()),
+            realip_remote_addr: realip_remote_addr.map(str::to_owned),
         }
     }
 
@@ -135,6 +136,7 @@ impl ConnectionInfo {
     /// - X-Forwarded-Proto
     /// - Uri
     #[inline]
+    #[must_use]
     pub fn scheme(&self) -> &str {
         &self.scheme
     }
@@ -148,6 +150,7 @@ impl ConnectionInfo {
     /// - Host
     /// - Uri
     /// - Server hostname
+    #[must_use]
     pub fn host(&self) -> &str {
         &self.host
     }
@@ -155,12 +158,9 @@ impl ConnectionInfo {
     /// remote_addr address of the request.
     ///
     /// Get remote_addr address from socket address
+    #[must_use]
     pub fn remote_addr(&self) -> Option<&str> {
-        if let Some(ref remote_addr) = self.remote_addr {
-            Some(remote_addr)
-        } else {
-            None
-        }
+        self.remote_addr.as_ref().map(String::as_ref)
     }
     /// Real ip remote addr of client initiated HTTP request.
     ///
@@ -176,13 +176,12 @@ impl ConnectionInfo {
     /// address explicitly, use
     /// [`HttpRequest::peer_addr()`](super::web::HttpRequest::peer_addr()) instead.
     #[inline]
+    #[must_use]
     pub fn realip_remote_addr(&self) -> Option<&str> {
         if let Some(ref r) = self.realip_remote_addr {
             Some(r)
-        } else if let Some(ref remote_addr) = self.remote_addr {
-            Some(remote_addr)
         } else {
-            None
+            self.remote_addr.as_ref().map(String::as_ref)
         }
     }
 }

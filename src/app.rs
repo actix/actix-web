@@ -42,6 +42,7 @@ pub struct App<T, B> {
 impl App<AppEntry, Body> {
     /// Create application builder. Application can be configured with a builder-like pattern.
     #[allow(clippy::new_without_default)]
+    #[must_use]
     pub fn new() -> Self {
         let fref = Rc::new(RefCell::new(None));
         App {

@@ -20,16 +20,19 @@ pub struct Error {
 
 impl Error {
     /// Returns the reference to the underlying `ResponseError`.
+    #[must_use]
     pub fn as_response_error(&self) -> &dyn ResponseError {
         self.cause.as_ref()
     }
 
     /// Similar to `as_response_error` but downcasts.
+    #[must_use]
     pub fn as_error<T: ResponseError + 'static>(&self) -> Option<&T> {
         <dyn ResponseError>::downcast_ref(self.cause.as_ref())
     }
 
     /// Shortcut for creating an `HttpResponse`.
+    #[must_use]
     pub fn error_response(&self) -> HttpResponse {
         self.cause.error_response()
     }

@@ -65,6 +65,7 @@ impl HttpRequest {
 impl HttpRequest {
     /// This method returns reference to the request head
     #[inline]
+    #[must_use]
     pub fn head(&self) -> &RequestHead {
         &self.inner.head
     }
@@ -78,23 +79,27 @@ impl HttpRequest {
 
     /// Request's uri.
     #[inline]
+    #[must_use]
     pub fn uri(&self) -> &Uri {
         &self.head().uri
     }
 
     /// Read the Request method.
     #[inline]
+    #[must_use]
     pub fn method(&self) -> &Method {
         &self.head().method
     }
 
     /// Read the Request Version.
     #[inline]
+    #[must_use]
     pub fn version(&self) -> Version {
         self.head().version
     }
 
     #[inline]
+    #[must_use]
     /// Returns request's headers.
     pub fn headers(&self) -> &HeaderMap {
         &self.head().headers
@@ -102,6 +107,7 @@ impl HttpRequest {
 
     /// The target path of this Request.
     #[inline]
+    #[must_use]
     pub fn path(&self) -> &str {
         self.head().uri.path()
     }
@@ -110,12 +116,9 @@ impl HttpRequest {
     ///
     /// E.g., id=10
     #[inline]
+    #[must_use]
     pub fn query_string(&self) -> &str {
-        if let Some(query) = self.uri().query().as_ref() {
-            query
-        } else {
-            ""
-        }
+        self.uri().query().unwrap_or_default()
     }
 
     /// Get a reference to the Path parameters.
@@ -125,6 +128,7 @@ impl HttpRequest {
     /// where the identifier can be used later in a request handler to
     /// access the matched value for that segment.
     #[inline]
+    #[must_use]
     pub fn match_info(&self) -> &Path<Url> {
         &self.inner.path
     }
@@ -141,6 +145,7 @@ impl HttpRequest {
     ///
     /// Returns a None when no resource is fully matched, including default services.
     #[inline]
+    #[must_use]
     pub fn match_pattern(&self) -> Option<String> {
         self.resource_map().match_pattern(self.path())
     }
@@ -149,18 +154,21 @@ impl HttpRequest {
     ///
     /// Returns a None when no resource is fully matched, including default services.
     #[inline]
+    #[must_use]
     pub fn match_name(&self) -> Option<&str> {
         self.resource_map().match_name(self.path())
     }
 
     /// Request extensions
     #[inline]
+    #[must_use]
     pub fn extensions(&self) -> Ref<'_, Extensions> {
         self.head().extensions()
     }
 
     /// Mutable reference to a the request's extensions
     #[inline]
+    #[must_use]
     pub fn extensions_mut(&self) -> RefMut<'_, Extensions> {
         self.head().extensions_mut()
     }
@@ -201,6 +209,7 @@ impl HttpRequest {
     }
 
     #[inline]
+    #[must_use]
     /// Get a reference to a `ResourceMap` of current application.
     pub fn resource_map(&self) -> &ResourceMap {
         &self.app_state().rmap()
@@ -215,6 +224,7 @@ impl HttpRequest {
     ///
     /// Will only return None when called in unit tests.
     #[inline]
+    #[must_use]
     pub fn peer_addr(&self) -> Option<net::SocketAddr> {
         self.head().peer_addr
     }
@@ -224,12 +234,14 @@ impl HttpRequest {
     /// This method panics if request's extensions container is already
     /// borrowed.
     #[inline]
+    #[must_use]
     pub fn connection_info(&self) -> Ref<'_, ConnectionInfo> {
         ConnectionInfo::get(self.head(), self.app_config())
     }
 
     /// App config
     #[inline]
+    #[must_use]
     pub fn app_config(&self) -> &AppConfig {
         self.app_state().config()
     }
@@ -242,6 +254,7 @@ impl HttpRequest {
     /// ```ignore
     /// let opt_t = req.app_data::<Data<T>>();
     /// ```
+    #[must_use]
     pub fn app_data<T: 'static>(&self) -> Option<&T> {
         for container in self.inner.app_data.iter().rev() {
             if let Some(data) = container.get::<T>() {
@@ -282,11 +295,12 @@ impl HttpRequest {
 
     /// Return request cookie.
     #[cfg(feature = "cookies")]
+    #[must_use]
     pub fn cookie(&self, name: &str) -> Option<Cookie<'static>> {
         if let Ok(cookies) = self.cookies() {
             for cookie in cookies.iter() {
                 if cookie.name() == name {
-                    return Some(cookie.to_owned());
+                    return Some(cookie.clone());
                 }
             }
         }

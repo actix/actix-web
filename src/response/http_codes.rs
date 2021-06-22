@@ -7,6 +7,7 @@ use crate::{HttpResponse, HttpResponseBuilder};
 macro_rules! static_resp {
     ($name:ident, $status:expr) => {
         #[allow(non_snake_case, missing_docs)]
+        #[must_use]
         pub fn $name() -> HttpResponseBuilder {
             HttpResponseBuilder::new($status)
         }

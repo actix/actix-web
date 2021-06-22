@@ -474,7 +474,7 @@ impl Service<ServiceRequest> for ResourceService {
     actix_service::always_ready!();
 
     fn call(&self, mut req: ServiceRequest) -> Self::Future {
-        for route in self.routes.iter() {
+        for route in &self.routes {
             if route.check(&mut req) {
                 if let Some(ref app_data) = self.app_data {
                     req.add_data_container(app_data.clone());

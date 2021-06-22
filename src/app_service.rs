@@ -131,9 +131,9 @@ where
             let service = endpoint_fut.await?;
 
             // populate app data container from (async) data factories.
-            async_data_factories.iter().for_each(|factory| {
+            for factory in &async_data_factories {
                 factory.create(&mut app_data);
-            });
+            }
 
             Ok(AppInitService {
                 service,

@@ -63,6 +63,7 @@ impl ContentType {
     /// A constructor  to easily create a `Content-Type: application/json`
     /// header.
     #[inline]
+    #[must_use]
     pub fn json() -> ContentType {
         ContentType(mime::APPLICATION_JSON)
     }
@@ -70,18 +71,21 @@ impl ContentType {
     /// A constructor  to easily create a `Content-Type: text/plain;
     /// charset=utf-8` header.
     #[inline]
+    #[must_use]
     pub fn plaintext() -> ContentType {
         ContentType(mime::TEXT_PLAIN_UTF_8)
     }
 
     /// A constructor  to easily create a `Content-Type: text/html` header.
     #[inline]
+    #[must_use]
     pub fn html() -> ContentType {
         ContentType(mime::TEXT_HTML)
     }
 
     /// A constructor  to easily create a `Content-Type: text/xml` header.
     #[inline]
+    #[must_use]
     pub fn xml() -> ContentType {
         ContentType(mime::TEXT_XML)
     }
@@ -89,18 +93,21 @@ impl ContentType {
     /// A constructor  to easily create a `Content-Type:
     /// application/www-form-url-encoded` header.
     #[inline]
+    #[must_use]
     pub fn form_url_encoded() -> ContentType {
         ContentType(mime::APPLICATION_WWW_FORM_URLENCODED)
     }
 
     /// A constructor  to easily create a `Content-Type: image/jpeg` header.
     #[inline]
+    #[must_use]
     pub fn jpeg() -> ContentType {
         ContentType(mime::IMAGE_JPEG)
     }
 
     /// A constructor  to easily create a `Content-Type: image/png` header.
     #[inline]
+    #[must_use]
     pub fn png() -> ContentType {
         ContentType(mime::IMAGE_PNG)
     }
@@ -108,6 +115,7 @@ impl ContentType {
     /// A constructor  to easily create a `Content-Type:
     /// application/octet-stream` header.
     #[inline]
+    #[must_use]
     pub fn octet_stream() -> ContentType {
         ContentType(mime::APPLICATION_OCTET_STREAM)
     }

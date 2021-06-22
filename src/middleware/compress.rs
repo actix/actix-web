@@ -43,6 +43,7 @@ pub struct Compress(ContentEncoding);
 
 impl Compress {
     /// Create new `Compress` middleware with the specified encoding.
+    #[must_use]
     pub fn new(encoding: ContentEncoding) -> Self {
         Compress(encoding)
     }
@@ -200,8 +201,7 @@ impl AcceptEncoding {
         let mut encodings = raw
             .replace(' ', "")
             .split(',')
-            .map(|l| AcceptEncoding::new(l))
-            .flatten()
+            .filter_map(|l| AcceptEncoding::new(l))
             .collect::<Vec<_>>();
 
         encodings.sort();

@@ -17,6 +17,7 @@ pub struct ResourceMap {
 }
 
 impl ResourceMap {
+    #[must_use]
     pub fn new(root: ResourceDef) -> Self {
         ResourceMap {
             root,

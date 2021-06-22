@@ -52,6 +52,7 @@ pub use crate::types::*;
 ///         .route(web::head().to(|| HttpResponse::MethodNotAllowed()))
 /// );
 /// ```
+#[must_use]
 pub fn resource<T: IntoPattern>(path: T) -> Resource {
     Resource::new(path)
 }
@@ -77,11 +78,13 @@ pub fn resource<T: IntoPattern>(path: T) -> Resource {
 ///  * /{project_id}/path2
 ///  * /{project_id}/path3
 ///
+#[must_use]
 pub fn scope(path: &str) -> Scope {
     Scope::new(path)
 }
 
 /// Create *route* without configuration.
+#[must_use]
 pub fn route() -> Route {
     Route::new()
 }
@@ -100,6 +103,7 @@ pub fn route() -> Route {
 /// In the above example, one `GET` route gets added:
 ///  * /{project_id}
 ///
+#[must_use]
 pub fn get() -> Route {
     method(Method::GET)
 }
@@ -118,6 +122,7 @@ pub fn get() -> Route {
 /// In the above example, one `POST` route gets added:
 ///  * /{project_id}
 ///
+#[must_use]
 pub fn post() -> Route {
     method(Method::POST)
 }
@@ -136,6 +141,7 @@ pub fn post() -> Route {
 /// In the above example, one `PUT` route gets added:
 ///  * /{project_id}
 ///
+#[must_use]
 pub fn put() -> Route {
     method(Method::PUT)
 }
@@ -154,6 +160,7 @@ pub fn put() -> Route {
 /// In the above example, one `PATCH` route gets added:
 ///  * /{project_id}
 ///
+#[must_use]
 pub fn patch() -> Route {
     method(Method::PATCH)
 }
@@ -172,6 +179,7 @@ pub fn patch() -> Route {
 /// In the above example, one `DELETE` route gets added:
 ///  * /{project_id}
 ///
+#[must_use]
 pub fn delete() -> Route {
     method(Method::DELETE)
 }
@@ -190,6 +198,7 @@ pub fn delete() -> Route {
 /// In the above example, one `HEAD` route gets added:
 ///  * /{project_id}
 ///
+#[must_use]
 pub fn head() -> Route {
     method(Method::HEAD)
 }
@@ -208,6 +217,7 @@ pub fn head() -> Route {
 /// In the above example, one `HEAD` route gets added:
 ///  * /{project_id}
 ///
+#[must_use]
 pub fn trace() -> Route {
     method(Method::TRACE)
 }
@@ -226,6 +236,7 @@ pub fn trace() -> Route {
 /// In the above example, one `GET` route gets added:
 ///  * /{project_id}
 ///
+#[must_use]
 pub fn method(method: Method) -> Route {
     Route::new().method(method)
 }
@@ -244,6 +255,7 @@ pub fn method(method: Method) -> Route {
 ///         web::to(index))
 /// );
 /// ```
+#[must_use]
 pub fn to<F, I, R>(handler: F) -> Route
 where
     F: Handler<I, R>,
@@ -269,6 +281,7 @@ where
 ///         .finish(my_service)
 /// );
 /// ```
+#[must_use]
 pub fn service<T: IntoPattern>(path: T) -> WebService {
     WebService::new(path)
 }

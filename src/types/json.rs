@@ -241,12 +241,14 @@ pub struct JsonConfig {
 
 impl JsonConfig {
     /// Set maximum accepted payload size. By default this limit is 2MB.
+    #[must_use]
     pub fn limit(mut self, limit: usize) -> Self {
         self.limit = limit;
         self
     }
 
     /// Set custom error handler.
+    #[must_use]
     pub fn error_handler<F>(mut self, f: F) -> Self
     where
         F: Fn(JsonPayloadError, &HttpRequest) -> Error + Send + Sync + 'static,
@@ -256,6 +258,7 @@ impl JsonConfig {
     }
 
     /// Set predicate for allowed content types.
+    #[must_use]
     pub fn content_type<F>(mut self, predicate: F) -> Self
     where
         F: Fn(mime::Mime) -> bool + Send + Sync + 'static,
@@ -365,6 +368,7 @@ where
     }
 
     /// Set maximum accepted payload size. The default limit is 2MB.
+    #[must_use]
     pub fn limit(self, limit: usize) -> Self {
         match self {
             JsonBody::Body {

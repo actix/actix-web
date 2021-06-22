@@ -42,6 +42,7 @@ pub struct HttpResponseBuilder {
 impl HttpResponseBuilder {
     #[inline]
     /// Create response builder
+    #[must_use]
     pub fn new(status: StatusCode) -> Self {
         Self {
             res: Some(Response::new(status)),
@@ -406,7 +407,7 @@ impl HttpResponseBuilder {
             return None;
         }
 
-        self.res.as_mut().map(|res| res.head_mut())
+        self.res.as_mut().map(Response::head_mut)
     }
 }
 

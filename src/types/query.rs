@@ -119,8 +119,7 @@ where
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let error_handler = req
             .app_data::<Self::Config>()
-            .map(|c| c.err_handler.clone())
-            .unwrap_or(None);
+            .and_then(|c| c.err_handler.clone());
 
         serde_urlencoded::from_str::<T>(req.query_string())
             .map(|val| ok(Query(val)))
