@@ -225,9 +225,8 @@ where
 /// ```
 /// use actix_web::{web, App, HttpRequest, http::Uri};
 ///
-/// async fn index(uri: Uri) -> &'static str {
-///     log::info!("Incoming request to: {}", uri.path());
-///     "Welcome!"
+/// async fn index(uri: Uri) -> String {
+///     format!("Requested path: {}", uri.path())
 /// }
 ///
 /// fn main() {
@@ -251,9 +250,8 @@ impl FromRequest for Uri {
 /// ```
 /// use actix_web::{web, App, HttpRequest, http::Method};
 ///
-/// async fn index(method: Method) -> &'static str {
-///     assert_eq!(method, Method::GET);
-///     "Welcome!"
+/// async fn index(method: Method) -> String {
+///     format!("Request method: {}", method)
 /// }
 ///
 /// fn main() {
