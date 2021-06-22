@@ -6,7 +6,7 @@ use derive_more::{Display, Error};
 use crate::{
     dev::{AppConfig, Payload, RequestHead},
     http::header::{self, HeaderName},
-    Error, FromRequest, HttpRequest, ResponseError,
+    FromRequest, HttpRequest, ResponseError,
 };
 
 const X_FORWARDED_FOR: &[u8] = b"x-forwarded-for";
@@ -216,6 +216,7 @@ impl FromRequest for ConnectionInfo {
 ///     let socket_addr = peer_addr.0;
 ///     socket_addr.to_string()
 /// }
+/// # let _svc = actix_web::web::to(handler);
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Display)]
 #[display(fmt = "{}", _0)]
@@ -230,13 +231,13 @@ impl PeerAddr {
 
 #[derive(Debug, Display, Error)]
 #[display(fmt = "Missing peer address")]
-struct MissingPeerAddr;
+pub struct MissingPeerAddr;
 
 impl ResponseError for MissingPeerAddr {}
 
 impl FromRequest for PeerAddr {
-    type Error = Error;
-    type Future = Ready<Result<PeerAddr, Error>>;
+    type Error = MissingPeerAddr;
+    type Future = Ready<Result<Self, Self::Error>>;
     type Config = ();
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
@@ -244,7 +245,7 @@ impl FromRequest for PeerAddr {
             Some(addr) => ok(PeerAddr(addr)),
             None => {
                 log::error!("Missing peer address.");
-                err(MissingPeerAddr.into())
+                err(MissingPeerAddr)
             }
         }
     }
