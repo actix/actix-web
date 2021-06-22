@@ -472,15 +472,6 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_version() {
-        let req = TestRequest::default()
-            .version(Version::HTTP_11)
-            .to_http_request();
-        let version = Version::extract(&req).await.unwrap();
-        assert_eq!(version, Version::HTTP_11);
-    }
-
-    #[actix_rt::test]
     async fn test_method() {
         let req = TestRequest::default().method(Method::GET).to_http_request();
         let method = Method::extract(&req).await.unwrap();
