@@ -49,7 +49,10 @@ impl HttpResponse<AnyBody> {
     /// Create an error response.
     #[inline]
     pub fn from_error(error: impl Into<Error>) -> Self {
-        error.into().as_response_error().error_response()
+        let error = error.into();
+        let mut response = error.as_response_error().error_response();
+        response.error = Some(error);
+        response
     }
 }
 

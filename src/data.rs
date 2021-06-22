@@ -154,6 +154,8 @@ mod tests {
         web, App, HttpResponse,
     };
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_data_extractor() {
         let srv = init_service(App::new().data("TEST".to_string()).service(
@@ -221,6 +223,8 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_route_data_extractor() {
         let srv = init_service(
@@ -250,6 +254,8 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_override_data() {
         let srv =

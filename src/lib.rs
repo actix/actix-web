@@ -131,7 +131,7 @@ pub mod dev {
     pub use crate::config::{AppConfig, AppService};
     #[doc(hidden)]
     pub use crate::handler::Handler;
-    pub use crate::info::ConnectionInfo;
+    pub use crate::info::{ConnectionInfo, PeerAddr};
     pub use crate::rmap::ResourceMap;
     pub use crate::service::{HttpServiceFactory, ServiceRequest, ServiceResponse, WebService};
 
