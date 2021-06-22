@@ -53,6 +53,7 @@ impl ClientCodec {
     /// Create HTTP/1 codec.
     ///
     /// `keepalive_enabled` how response `connection` header get generated.
+    #[must_use]
     pub fn new(config: ServiceConfig) -> Self {
         let flags = if config.keep_alive_enabled() {
             Flags::KEEPALIVE_ENABLED
@@ -74,16 +75,19 @@ impl ClientCodec {
     }
 
     /// Check if request is upgrade
+    #[must_use]
     pub fn upgrade(&self) -> bool {
         self.inner.ctype == ConnectionType::Upgrade
     }
 
     /// Check if last response is keep-alive
+    #[must_use]
     pub fn keepalive(&self) -> bool {
         self.inner.ctype == ConnectionType::KeepAlive
     }
 
     /// Check last request's message type
+    #[must_use]
     pub fn message_type(&self) -> MessageType {
         if self.inner.flags.contains(Flags::STREAM) {
             MessageType::Stream
@@ -95,6 +99,7 @@ impl ClientCodec {
     }
 
     /// Convert message codec to a payload codec
+    #[must_use]
     pub fn into_payload_codec(self) -> ClientPayloadCodec {
         ClientPayloadCodec { inner: self.inner }
     }
@@ -102,11 +107,13 @@ impl ClientCodec {
 
 impl ClientPayloadCodec {
     /// Check if last response is keep-alive
+    #[must_use]
     pub fn keepalive(&self) -> bool {
         self.inner.ctype == ConnectionType::KeepAlive
     }
 
     /// Transform payload codec to a message codec
+    #[must_use]
     pub fn into_message_codec(self) -> ClientCodec {
         ClientCodec { inner: self.inner }
     }

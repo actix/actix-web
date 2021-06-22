@@ -41,6 +41,7 @@ impl Payload {
     /// * `PayloadSender` - *Sender* side of the stream
     ///
     /// * `Payload` - *Receiver* side of the stream
+    #[must_use]
     pub fn create(eof: bool) -> (PayloadSender, Payload) {
         let shared = Rc::new(RefCell::new(Inner::new(eof)));
 
@@ -54,6 +55,7 @@ impl Payload {
 
     /// Create empty payload
     #[doc(hidden)]
+    #[must_use]
     pub fn empty() -> Payload {
         Payload {
             inner: Rc::new(RefCell::new(Inner::new(true))),
@@ -186,8 +188,7 @@ impl Inner {
         if self
             .task
             .as_ref()
-            .map(|w| !cx.waker().will_wake(w))
-            .unwrap_or(true)
+            .map_or(true, |w| !cx.waker().will_wake(w))
         {
             self.task = Some(cx.waker().clone());
         }
@@ -199,8 +200,7 @@ impl Inner {
         if self
             .io_task
             .as_ref()
-            .map(|w| !cx.waker().will_wake(w))
-            .unwrap_or(true)
+            .map_or(true, |w| !cx.waker().will_wake(w))
         {
             self.io_task = Some(cx.waker().clone());
         }

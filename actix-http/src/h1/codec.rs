@@ -52,6 +52,7 @@ impl Codec {
     /// Create HTTP/1 codec.
     ///
     /// `keepalive_enabled` how response `connection` header get generated.
+    #[must_use]
     pub fn new(config: ServiceConfig) -> Self {
         let flags = if config.keep_alive_enabled() {
             Flags::KEEPALIVE_ENABLED
@@ -72,24 +73,28 @@ impl Codec {
 
     /// Check if request is upgrade.
     #[inline]
+    #[must_use]
     pub fn upgrade(&self) -> bool {
         self.ctype == ConnectionType::Upgrade
     }
 
     /// Check if last response is keep-alive.
     #[inline]
+    #[must_use]
     pub fn keepalive(&self) -> bool {
         self.ctype == ConnectionType::KeepAlive
     }
 
     /// Check if keep-alive enabled on server level.
     #[inline]
+    #[must_use]
     pub fn keepalive_enabled(&self) -> bool {
         self.flags.contains(Flags::KEEPALIVE_ENABLED)
     }
 
     /// Check last request's message type.
     #[inline]
+    #[must_use]
     pub fn message_type(&self) -> MessageType {
         if self.flags.contains(Flags::STREAM) {
             MessageType::Stream
@@ -101,6 +106,7 @@ impl Codec {
     }
 
     #[inline]
+    #[must_use]
     pub fn config(&self) -> &ServiceConfig {
         &self.config
     }

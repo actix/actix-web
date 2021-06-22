@@ -36,6 +36,7 @@ where
     <S::Service as Service<Request>>::Future: 'static,
 {
     /// Create instance of `ServiceConfigBuilder`
+    #[must_use]
     pub fn new() -> Self {
         HttpServiceBuilder {
             keep_alive: KeepAlive::Timeout(5),

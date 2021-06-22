@@ -68,6 +68,7 @@ impl Default for ServiceConfig {
 
 impl ServiceConfig {
     /// Create instance of `ServiceConfig`
+    #[must_use]
     pub fn new(
         keep_alive: KeepAlive,
         client_timeout: u64,
@@ -99,30 +100,35 @@ impl ServiceConfig {
 
     /// Returns true if connection is secure (HTTPS)
     #[inline]
+    #[must_use]
     pub fn secure(&self) -> bool {
         self.0.secure
     }
 
     /// Returns the local address that this server is bound to.
     #[inline]
+    #[must_use]
     pub fn local_addr(&self) -> Option<net::SocketAddr> {
         self.0.local_addr
     }
 
     /// Keep alive duration if configured.
     #[inline]
+    #[must_use]
     pub fn keep_alive(&self) -> Option<Duration> {
         self.0.keep_alive
     }
 
     /// Return state of connection keep-alive functionality
     #[inline]
+    #[must_use]
     pub fn keep_alive_enabled(&self) -> bool {
         self.0.ka_enabled
     }
 
     /// Client timeout for first request.
     #[inline]
+    #[must_use]
     pub fn client_timer(&self) -> Option<Sleep> {
         let delay_time = self.0.client_timeout;
         if delay_time != 0 {
@@ -133,6 +139,7 @@ impl ServiceConfig {
     }
 
     /// Client timeout for first request.
+    #[must_use]
     pub fn client_timer_expire(&self) -> Option<Instant> {
         let delay = self.0.client_timeout;
         if delay != 0 {
@@ -143,6 +150,7 @@ impl ServiceConfig {
     }
 
     /// Client disconnect timer
+    #[must_use]
     pub fn client_disconnect_timer(&self) -> Option<Instant> {
         let delay = self.0.client_disconnect;
         if delay != 0 {
@@ -152,13 +160,15 @@ impl ServiceConfig {
         }
     }
 
-    #[inline]
     /// Return keep-alive timer delay is configured.
+    #[inline]
+    #[must_use]
     pub fn keep_alive_timer(&self) -> Option<Sleep> {
         self.keep_alive().map(|ka| sleep_until(self.now() + ka))
     }
 
     /// Keep-alive expire time
+    #[must_use]
     pub fn keep_alive_expire(&self) -> Option<Instant> {
         self.keep_alive().map(|ka| self.now() + ka)
     }
@@ -365,11 +375,11 @@ mod tests {
         let clone3 = service.clone();
 
         drop(clone1);
-        assert_eq!(false, notify_on_drop::is_dropped());
+        assert!(!notify_on_drop::is_dropped());
         drop(clone2);
-        assert_eq!(false, notify_on_drop::is_dropped());
+        assert!(!notify_on_drop::is_dropped());
         drop(clone3);
-        assert_eq!(false, notify_on_drop::is_dropped());
+        assert!(!notify_on_drop::is_dropped());
 
         drop(service);
         assert!(notify_on_drop::is_dropped());

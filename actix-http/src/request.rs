@@ -57,6 +57,7 @@ impl From<Message<RequestHead>> for Request<PayloadStream> {
 
 impl Request<PayloadStream> {
     /// Create new Request instance
+    #[must_use]
     pub fn new() -> Request<PayloadStream> {
         Request {
             head: Message::new(),

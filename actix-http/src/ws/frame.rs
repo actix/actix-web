@@ -139,6 +139,7 @@ impl Parser {
     }
 
     /// Parse the payload of a close frame.
+    #[must_use]
     pub fn parse_close_payload(payload: &[u8]) -> Option<CloseReason> {
         if payload.len() >= 2 {
             let raw_code = u16::from_be_bytes(TryFrom::try_from(&payload[..2]).unwrap());

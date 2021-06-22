@@ -515,14 +515,13 @@ where
         cx: &mut Context<'_>,
     ) -> Result<(), DispatchError> {
         // Handle `EXPECT: 100-Continue` header
+        // set dispatcher state so the future is pinned.
+        let mut this = self.as_mut().project();
         if req.head().expect() {
-            // set dispatcher state so the future is pinned.
-            let mut this = self.as_mut().project();
             let task = this.flow.expect.call(req);
             this.state.set(State::ExpectCall(task));
         } else {
             // the same as above.
-            let mut this = self.as_mut().project();
             let task = this.flow.service.call(req);
             this.state.set(State::ServiceCall(task));
         };

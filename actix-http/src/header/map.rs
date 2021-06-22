@@ -81,6 +81,7 @@ impl HeaderMap {
     /// assert!(map.is_empty());
     /// assert_eq!(0, map.capacity());
     /// ```
+    #[must_use]
     pub fn new() -> Self {
         HeaderMap::default()
     }
@@ -98,6 +99,7 @@ impl HeaderMap {
     /// assert!(map.is_empty());
     /// assert!(map.capacity() >= 16);
     /// ```
+    #[must_use]
     pub fn with_capacity(capacity: usize) -> Self {
         HeaderMap {
             inner: AHashMap::with_capacity(capacity),
@@ -150,6 +152,7 @@ impl HeaderMap {
     /// map.append(header::SET_COOKIE, HeaderValue::from_static("two=2"));
     /// assert_eq!(map.len(), 3);
     /// ```
+    #[must_use]
     pub fn len(&self) -> usize {
         self.inner
             .iter()
@@ -173,6 +176,7 @@ impl HeaderMap {
     /// map.append(header::SET_COOKIE, HeaderValue::from_static("two=2"));
     /// assert_eq!(map.len_keys(), 2);
     /// ```
+    #[must_use]
     pub fn len_keys(&self) -> usize {
         self.inner.len()
     }
@@ -188,6 +192,7 @@ impl HeaderMap {
     /// map.insert(header::ACCEPT, HeaderValue::from_static("text/plain"));
     /// assert!(!map.is_empty());
     /// ```
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.inner.len() == 0
     }
@@ -249,7 +254,7 @@ impl HeaderMap {
     /// assert!(map.get("INVALID HEADER NAME").is_none());
     /// ```
     pub fn get(&self, key: impl AsHeaderName) -> Option<&HeaderValue> {
-        self.get_value(key).map(|val| val.first())
+        self.get_value(key).map(Value::first)
     }
 
     /// Returns a mutable reference to the _first_ value associated a header name.
@@ -280,8 +285,8 @@ impl HeaderMap {
     /// ```
     pub fn get_mut(&mut self, key: impl AsHeaderName) -> Option<&mut HeaderValue> {
         match key.try_as_name(super::as_name::Seal).ok()? {
-            Cow::Borrowed(name) => self.inner.get_mut(name).map(|v| v.first_mut()),
-            Cow::Owned(name) => self.inner.get_mut(&name).map(|v| v.first_mut()),
+            Cow::Borrowed(name) => self.inner.get_mut(name).map(Value::first_mut),
+            Cow::Owned(name) => self.inner.get_mut(&name).map(Value::first_mut),
         }
     }
 
@@ -434,6 +439,7 @@ impl HeaderMap {
     /// assert!(map.is_empty());
     /// assert!(map.capacity() >= 16);
     /// ```
+    #[must_use]
     pub fn capacity(&self) -> usize {
         self.inner.capacity()
     }
@@ -489,6 +495,7 @@ impl HeaderMap {
     /// assert!(pairs.contains(&(&header::SET_COOKIE, &HeaderValue::from_static("one=1"))));
     /// assert!(pairs.contains(&(&header::SET_COOKIE, &HeaderValue::from_static("two=2"))));
     /// ```
+    #[must_use]
     pub fn iter(&self) -> Iter<'_> {
         Iter::new(self.inner.iter())
     }
@@ -515,6 +522,7 @@ impl HeaderMap {
     /// assert!(keys.contains(&header::HOST));
     /// assert!(keys.contains(&header::SET_COOKIE));
     /// ```
+    #[must_use]
     pub fn keys(&self) -> Keys<'_> {
         Keys(self.inner.keys())
     }

@@ -18,6 +18,7 @@ pub struct Extensions {
 impl Extensions {
     /// Creates an empty `Extensions`.
     #[inline]
+    #[must_use]
     pub fn new() -> Extensions {
         Extensions {
             map: AHashMap::default(),
@@ -52,6 +53,7 @@ impl Extensions {
     /// assert_eq!(map.insert(1u32), None);
     /// assert!(map.contains::<u32>());
     /// ```
+    #[must_use]
     pub fn contains<T: 'static>(&self) -> bool {
         self.map.contains_key(&TypeId::of::<T>())
     }
@@ -64,6 +66,7 @@ impl Extensions {
     /// map.insert(1u32);
     /// assert_eq!(map.get::<u32>(), Some(&1u32));
     /// ```
+    #[must_use]
     pub fn get<T: 'static>(&self) -> Option<&T> {
         self.map
             .get(&TypeId::of::<T>())

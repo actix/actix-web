@@ -47,6 +47,7 @@ where
     B: MessageBody + 'static,
 {
     /// Create builder for `HttpService` instance.
+    #[must_use]
     pub fn build() -> HttpServiceBuilder<T, S> {
         HttpServiceBuilder::new()
     }

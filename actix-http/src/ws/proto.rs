@@ -226,6 +226,7 @@ static WS_GUID: &[u8] = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 /// Hashes the `Sec-WebSocket-Key` header according to the WebSocket spec.
 ///
 /// Result is a Base64 encoded byte array. `base64(sha1(input))` is always 28 bytes.
+#[must_use]
 pub fn hash_key(key: &[u8]) -> [u8; 28] {
     let hash = {
         use sha1::Digest as _;

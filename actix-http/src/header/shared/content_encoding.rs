@@ -33,12 +33,14 @@ pub enum ContentEncoding {
 impl ContentEncoding {
     /// Is the content compressed?
     #[inline]
+    #[must_use]
     pub fn is_compression(self) -> bool {
         matches!(self, ContentEncoding::Identity | ContentEncoding::Auto)
     }
 
     /// Convert content encoding to string
     #[inline]
+    #[must_use]
     pub fn as_str(self) -> &'static str {
         match self {
             ContentEncoding::Br => "br",
@@ -51,6 +53,7 @@ impl ContentEncoding {
 
     /// Default Q-factor (quality) value.
     #[inline]
+    #[must_use]
     pub fn quality(self) -> f64 {
         match self {
             ContentEncoding::Br => 1.1,
