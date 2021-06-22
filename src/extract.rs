@@ -2,21 +2,16 @@
 
 use std::{
     convert::Infallible,
-    fmt,
     future::Future,
-    net::SocketAddr,
     pin::Pin,
     task::{Context, Poll},
 };
 
 use actix_http::http::{Method, Uri, Version};
-use actix_utils::future::{err, ok, Ready};
+use actix_utils::future::{ok, Ready};
 use futures_core::ready;
 
-use crate::{
-    dev::{ConnectionInfo, Payload},
-    Error, HttpRequest, ResponseError,
-};
+use crate::{dev::Payload, Error, HttpRequest};
 
 /// Trait implemented by types that can be extracted from request.
 ///
@@ -253,43 +248,6 @@ impl FromRequest for Method {
     }
 }
 
-impl FromRequest for ConnectionInfo {
-    type Error = Infallible;
-    type Future = Ready<Result<ConnectionInfo, Infallible>>;
-    type Config = ();
-
-    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        ok(req.connection_info().clone())
-    }
-}
-
-#[derive(Debug)]
-struct MissingPeerAddr;
-
-impl fmt::Display for MissingPeerAddr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Missing peer address.")
-    }
-}
-
-impl ResponseError for MissingPeerAddr {}
-
-impl FromRequest for SocketAddr {
-    type Error = Error;
-    type Future = Ready<Result<SocketAddr, Error>>;
-    type Config = ();
-
-    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        match req.peer_addr() {
-            Some(addr) => ok(addr),
-            None => {
-                log::error!("Missing peer address.");
-                err(MissingPeerAddr.into())
-            }
-        }
-    }
-}
-
 #[doc(hidden)]
 impl FromRequest for () {
     type Error = Infallible;
@@ -507,26 +465,5 @@ mod tests {
         let req = TestRequest::default().method(Method::GET).to_http_request();
         let method = Method::extract(&req).await.unwrap();
         assert_eq!(method, Method::GET);
-    }
-
-    #[actix_rt::test]
-    async fn test_conn_info() {
-        let req = TestRequest::default()
-            .uri("http://actix.rs/")
-            .to_http_request();
-        let conn_info = ConnectionInfo::extract(&req).await.unwrap();
-        assert_eq!(conn_info.scheme(), "http");
-    }
-
-    #[actix_rt::test]
-    async fn test_peer_addr() {
-        let addr = "127.0.0.1:8080".parse().unwrap();
-        let req = TestRequest::default().peer_addr(addr).to_http_request();
-        let peer_addr = SocketAddr::extract(&req).await.unwrap();
-        assert_eq!(peer_addr, addr);
-
-        let req = TestRequest::default().to_http_request();
-        let res = SocketAddr::extract(&req).await;
-        assert!(res.is_err());
     }
 }

@@ -1,7 +1,13 @@
-use std::cell::Ref;
+use std::{cell::Ref, convert::Infallible, net::SocketAddr};
 
-use crate::dev::{AppConfig, RequestHead};
-use crate::http::header::{self, HeaderName};
+use actix_utils::future::{err, ok, Ready};
+use derive_more::{Display, Error};
+
+use crate::{
+    dev::{AppConfig, Payload, RequestHead},
+    http::header::{self, HeaderName},
+    Error, FromRequest, HttpRequest, ResponseError,
+};
 
 const X_FORWARDED_FOR: &[u8] = b"x-forwarded-for";
 const X_FORWARDED_HOST: &[u8] = b"x-forwarded-host";
@@ -187,6 +193,63 @@ impl ConnectionInfo {
     }
 }
 
+impl FromRequest for ConnectionInfo {
+    type Error = Infallible;
+    type Future = Ready<Result<ConnectionInfo, Infallible>>;
+    type Config = ();
+
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        ok(req.connection_info().clone())
+    }
+}
+
+/// Extractor for peer's socket address.
+///
+/// Also see [`HttpRequest::peer_addr`].
+///
+/// # Examples
+/// ```
+/// # use actix_web::Responder;
+/// use actix_web::dev::PeerAddr;
+///
+/// async fn handler(peer_addr: PeerAddr) -> impl Responder {
+///     let socket_addr = peer_addr.0;
+///     socket_addr.to_string()
+/// }
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Display)]
+#[display(fmt = "{}", _0)]
+pub struct PeerAddr(pub SocketAddr);
+
+impl PeerAddr {
+    /// Unwrap into inner `SocketAddr` value.
+    pub fn into_inner(self) -> SocketAddr {
+        self.0
+    }
+}
+
+#[derive(Debug, Display, Error)]
+#[display(fmt = "Missing peer address")]
+struct MissingPeerAddr;
+
+impl ResponseError for MissingPeerAddr {}
+
+impl FromRequest for PeerAddr {
+    type Error = Error;
+    type Future = Ready<Result<PeerAddr, Error>>;
+    type Config = ();
+
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        match req.peer_addr() {
+            Some(addr) => ok(PeerAddr(addr)),
+            None => {
+                log::error!("Missing peer address.");
+                err(MissingPeerAddr.into())
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -238,5 +301,26 @@ mod tests {
             .to_http_request();
         let info = req.connection_info();
         assert_eq!(info.scheme(), "https");
+    }
+
+    #[actix_rt::test]
+    async fn test_conn_info() {
+        let req = TestRequest::default()
+            .uri("http://actix.rs/")
+            .to_http_request();
+        let conn_info = ConnectionInfo::extract(&req).await.unwrap();
+        assert_eq!(conn_info.scheme(), "http");
+    }
+
+    #[actix_rt::test]
+    async fn test_peer_addr() {
+        let addr = "127.0.0.1:8080".parse().unwrap();
+        let req = TestRequest::default().peer_addr(addr).to_http_request();
+        let peer_addr = PeerAddr::extract(&req).await.unwrap();
+        assert_eq!(peer_addr, PeerAddr(addr));
+
+        let req = TestRequest::default().to_http_request();
+        let res = PeerAddr::extract(&req).await;
+        assert!(res.is_err());
     }
 }
