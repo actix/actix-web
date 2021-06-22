@@ -2,6 +2,7 @@
 
 ## Unreleased - 2021-xx-xx
 ### Added
+* Add `ServiceRequest::parts_mut`. [#2177]
 * Add extractors for `Uri` and `Method`. [#2263]
 * Add extractor for `ConnectionInfo` and `PeerAddr`. [#2263]
 
@@ -9,6 +10,7 @@
 * Change compression algorithm features flags. [#2250]
 * Deprecate `App::data` and `App::data_factory`. [#2271]
 
+[#2177]: https://github.com/actix/actix-web/pull/2177
 [#2250]: https://github.com/actix/actix-web/pull/2250
 [#2271]: https://github.com/actix/actix-web/pull/2271
 [#2263]: https://github.com/actix/actix-web/pull/2263
