@@ -1,6 +1,6 @@
 [package]
 name = "actix-test"
-version = "0.1.0-beta.2"
+version = "0.1.0-beta.3"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
     "Rob Ede <robjtede@icloud.com>",
@@ -20,13 +20,13 @@ openssl = ["tls-openssl", "actix-http/openssl"]
 
 [dependencies]
 actix-codec = "0.4.0"
-actix-http = "3.0.0-beta.6"
+actix-http = "3.0.0-beta.7"
 actix-http-test = { version = "3.0.0-beta.4", features = [] }
 actix-service = "2.0.0"
 actix-utils = "3.0.0"
-actix-web = { version = "4.0.0-beta.6", default-features = false, features = ["cookies"] }
+actix-web = { version = "4.0.0-beta.7", default-features = false, features = ["cookies"] }
 actix-rt = "2.1"
-awc = { version = "3.0.0-beta.5", default-features = false, features = ["cookies"] }
+awc = { version = "3.0.0-beta.6", default-features = false, features = ["cookies"] }
 
 futures-core = { version = "0.3.7", default-features = false, features = ["std"] }
 futures-util = { version = "0.3.7", default-features = false, features = [] }

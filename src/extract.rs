@@ -54,8 +54,7 @@ pub trait FromRequest: Sized {
 ///
 /// If the FromRequest for T fails, return None rather than returning an error response
 ///
-/// ## Example
-///
+/// # Examples
 /// ```
 /// use actix_web::{web, dev, App, Error, HttpRequest, FromRequest};
 /// use actix_web::error::ErrorBadRequest;
@@ -146,8 +145,7 @@ where
 ///
 /// If the `FromRequest` for T fails, inject Err into handler rather than returning an error response
 ///
-/// ## Example
-///
+/// # Examples
 /// ```
 /// use actix_web::{web, dev, App, Result, Error, HttpRequest, FromRequest};
 /// use actix_web::error::ErrorBadRequest;

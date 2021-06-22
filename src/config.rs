@@ -116,6 +116,7 @@ impl AppConfig {
         AppConfig { secure, host, addr }
     }
 
+    /// Needed in actix-test crate.
     #[doc(hidden)]
     pub fn __priv_test_new(secure: bool, host: String, addr: SocketAddr) -> Self {
         AppConfig::new(secure, host, addr)

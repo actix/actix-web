@@ -280,6 +280,22 @@ mod tests {
     }
 
     #[actix_rt::test]
+    async fn test_named_file_javascript() {
+        let file = NamedFile::open("tests/test.js").unwrap();
+
+        let req = TestRequest::default().to_http_request();
+        let resp = file.respond_to(&req).await.unwrap();
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "application/javascript"
+        );
+        assert_eq!(
+            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+            "inline; filename=\"test.js\""
+        );
+    }
+
+    #[actix_rt::test]
     async fn test_named_file_image_attachment() {
         let cd = ContentDisposition {
             disposition: DispositionType::Attachment,
@@ -855,5 +871,34 @@ mod tests {
             res.headers().get(header::CONTENT_DISPOSITION).unwrap(),
             "inline; filename=\"symlink-test.png\""
         );
+    }
+
+    #[actix_rt::test]
+    async fn test_index_with_show_files_listing() {
+        let service = Files::new(".", ".")
+            .index_file("lib.rs")
+            .show_files_listing()
+            .new_service(())
+            .await
+            .unwrap();
+
+        // Serve the index if exists
+        let req = TestRequest::default().uri("/src").to_srv_request();
+        let resp = test::call_service(&service, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "text/x-rust"
+        );
+
+        // Show files listing, otherwise.
+        let req = TestRequest::default().uri("/tests").to_srv_request();
+        let resp = test::call_service(&service, req).await;
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "text/html; charset=utf-8"
+        );
+        let bytes = test::read_body(resp).await;
+        assert!(format!("{:?}", bytes).contains("/tests/test.png"));
     }
 }

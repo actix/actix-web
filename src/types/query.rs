@@ -267,7 +267,7 @@ mod tests {
         let req = TestRequest::with_uri("/name/user1/")
             .app_data(QueryConfig::default().error_handler(|e, _| {
                 let resp = HttpResponse::UnprocessableEntity().finish();
-                InternalError::from_response(e, resp.into()).into()
+                InternalError::from_response(e, resp).into()
             }))
             .to_srv_request();
 

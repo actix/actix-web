@@ -16,7 +16,7 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use actix_http::Payload;
 
-#[cfg(feature = "compress")]
+#[cfg(feature = "__compress")]
 use crate::dev::Decompress;
 use crate::{
     error::{Error, JsonPayloadError},
@@ -127,7 +127,7 @@ impl<T: Serialize> Responder for Json<T> {
             Ok(body) => HttpResponse::Ok()
                 .content_type(mime::APPLICATION_JSON)
                 .body(body),
-            Err(err) => HttpResponse::from_error(JsonPayloadError::Serialize(err).into()),
+            Err(err) => HttpResponse::from_error(JsonPayloadError::Serialize(err)),
         }
     }
 }
@@ -240,7 +240,7 @@ pub struct JsonConfig {
 }
 
 impl JsonConfig {
-    /// Set maximum accepted payload size. By default this limit is 32kB.
+    /// Set maximum accepted payload size. By default this limit is 2MB.
     pub fn limit(mut self, limit: usize) -> Self {
         self.limit = limit;
         self
@@ -273,9 +273,11 @@ impl JsonConfig {
     }
 }
 
+const DEFAULT_LIMIT: usize = 2_097_152; // 2 mb
+
 /// Allow shared refs used as default.
 const DEFAULT_CONFIG: JsonConfig = JsonConfig {
-    limit: 32_768, // 2^15 bytes, (~32kB)
+    limit: DEFAULT_LIMIT,
     err_handler: None,
     content_type: None,
 };
@@ -298,9 +300,9 @@ pub enum JsonBody<T> {
     Body {
         limit: usize,
         length: Option<usize>,
-        #[cfg(feature = "compress")]
+        #[cfg(feature = "__compress")]
         payload: Decompress<Payload>,
-        #[cfg(not(feature = "compress"))]
+        #[cfg(not(feature = "__compress"))]
         payload: Payload,
         buf: BytesMut,
         _res: PhantomData<T>,
@@ -343,13 +345,18 @@ where
         // As the internal usage always call JsonBody::limit after JsonBody::new.
         // And limit check to return an error variant of JsonBody happens there.
 
-        #[cfg(feature = "compress")]
-        let payload = Decompress::from_headers(payload.take(), req.headers());
-        #[cfg(not(feature = "compress"))]
-        let payload = payload.take();
+        let payload = {
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "__compress")] {
+                    Decompress::from_headers(payload.take(), req.headers())
+                } else {
+                    payload.take()
+                }
+            }
+        };
 
         JsonBody::Body {
-            limit: 32_768,
+            limit: DEFAULT_LIMIT,
             length,
             payload,
             buf: BytesMut::with_capacity(8192),
@@ -357,7 +364,7 @@ where
         }
     }
 
-    /// Set maximum accepted payload size. The default limit is 32kB.
+    /// Set maximum accepted payload size. The default limit is 2MB.
     pub fn limit(self, limit: usize) -> Self {
         match self {
             JsonBody::Body {
@@ -368,7 +375,10 @@ where
             } => {
                 if let Some(len) = length {
                     if len > limit {
-                        return JsonBody::Error(Some(JsonPayloadError::Overflow));
+                        return JsonBody::Error(Some(JsonPayloadError::OverflowKnownLength {
+                            length: len,
+                            limit,
+                        }));
                     }
                 }
 
@@ -405,8 +415,11 @@ where
                 match res {
                     Some(chunk) => {
                         let chunk = chunk?;
-                        if (buf.len() + chunk.len()) > *limit {
-                            return Poll::Ready(Err(JsonPayloadError::Overflow));
+                        let buf_len = buf.len() + chunk.len();
+                        if buf_len > *limit {
+                            return Poll::Ready(Err(JsonPayloadError::Overflow {
+                                limit: *limit,
+                            }));
                         } else {
                             buf.extend_from_slice(&chunk);
                         }
@@ -445,7 +458,12 @@ mod tests {
 
     fn json_eq(err: JsonPayloadError, other: JsonPayloadError) -> bool {
         match err {
-            JsonPayloadError::Overflow => matches!(other, JsonPayloadError::Overflow),
+            JsonPayloadError::Overflow { .. } => {
+                matches!(other, JsonPayloadError::Overflow { .. })
+            }
+            JsonPayloadError::OverflowKnownLength { .. } => {
+                matches!(other, JsonPayloadError::OverflowKnownLength { .. })
+            }
             JsonPayloadError::ContentType => matches!(other, JsonPayloadError::ContentType),
             _ => false,
         }
@@ -487,7 +505,7 @@ mod tests {
                 };
                 let resp =
                     HttpResponse::BadRequest().body(serde_json::to_string(&msg).unwrap());
-                InternalError::from_response(err, resp.into()).into()
+                InternalError::from_response(err, resp).into()
             }))
             .to_http_parts();
 
@@ -538,7 +556,7 @@ mod tests {
 
         let s = Json::<MyObject>::from_request(&req, &mut pl).await;
         assert!(format!("{}", s.err().unwrap())
-            .contains("Json payload size is bigger than allowed"));
+            .contains("JSON payload (16 bytes) is larger than allowed (limit: 10 bytes)."));
 
         let (req, mut pl) = TestRequest::default()
             .insert_header((
@@ -589,7 +607,30 @@ mod tests {
         let json = JsonBody::<MyObject>::new(&req, &mut pl, None)
             .limit(100)
             .await;
-        assert!(json_eq(json.err().unwrap(), JsonPayloadError::Overflow));
+        assert!(json_eq(
+            json.err().unwrap(),
+            JsonPayloadError::OverflowKnownLength {
+                length: 10000,
+                limit: 100
+            }
+        ));
+
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((
+                header::CONTENT_TYPE,
+                header::HeaderValue::from_static("application/json"),
+            ))
+            .set_payload(Bytes::from_static(&[0u8; 1000]))
+            .to_http_parts();
+
+        let json = JsonBody::<MyObject>::new(&req, &mut pl, None)
+            .limit(100)
+            .await;
+
+        assert!(json_eq(
+            json.err().unwrap(),
+            JsonPayloadError::Overflow { limit: 100 }
+        ));
 
         let (req, mut pl) = TestRequest::default()
             .insert_header((
@@ -686,6 +727,7 @@ mod tests {
         assert!(s.is_err());
 
         let err_str = s.err().unwrap().to_string();
-        assert!(err_str.contains("Json payload size is bigger than allowed"));
+        assert!(err_str
+            .contains("JSON payload (16 bytes) is larger than allowed (limit: 10 bytes)."));
     }
 }

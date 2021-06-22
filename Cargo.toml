@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "4.0.0-beta.6"
+version = "4.0.0-beta.7"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix Web is a powerful, pragmatic, and extremely fast web framework for Rust"
 keywords = ["actix", "http", "web", "framework", "async"]
@@ -17,7 +17,7 @@ edition = "2018"
 
 [package.metadata.docs.rs]
 # features that docs.rs will build with
-features = ["openssl", "rustls", "compress", "cookies", "secure-cookies"]
+features = ["openssl", "rustls", "compress-brotli", "compress-gzip", "compress-zstd", "cookies", "secure-cookies"]
 
 [lib]
 name = "actix_web"
@@ -39,10 +39,14 @@ members = [
 # resolver = "2"
 
 [features]
-default = ["compress", "cookies"]
+default = ["compress-brotli", "compress-gzip", "compress-zstd", "cookies"]
 
-# content-encoding support
-compress = ["actix-http/compress"]
+# Brotli algorithm content-encoding support
+compress-brotli = ["actix-http/compress-brotli", "__compress"]
+# Gzip and deflate algorithms content-encoding support
+compress-gzip = ["actix-http/compress-gzip", "__compress"]
+# Zstd algorithm content-encoding support
+compress-zstd = ["actix-http/compress-zstd", "__compress"]
 
 # support for cookies
 cookies = ["cookie"]
@@ -56,6 +60,10 @@ openssl = ["actix-http/openssl", "actix-tls/accept", "actix-tls/openssl"]
 # rustls
 rustls = ["actix-http/rustls", "actix-tls/accept", "actix-tls/rustls"]
 
+# Internal (PRIVATE!) features used to aid testing and cheking feature status.
+# Don't rely on these whatsoever. They may disappear at anytime.
+__compress = []
+
 [dependencies]
 actix-codec = "0.4.0"
 actix-macros = "0.2.1"
@@ -67,10 +75,11 @@ actix-utils = "3.0.0"
 actix-tls = { version = "3.0.0-beta.5", default-features = false, optional = true }
 
 actix-web-codegen = "0.5.0-beta.2"
-actix-http = "3.0.0-beta.6"
+actix-http = "3.0.0-beta.7"
 
 ahash = "0.7"
 bytes = "1"
+cfg-if = "1"
 cookie = { version = "0.15", features = ["percent-encode"], optional = true }
 derive_more = "0.99.5"
 either = "1.5.3"
@@ -94,8 +103,8 @@ time = { version = "0.2.23", default-features = false, features = ["std"] }
 url = "2.1"
 
 [dev-dependencies]
-actix-test = { version = "0.1.0-beta.2", features = ["openssl", "rustls"] }
-awc = { version = "3.0.0-beta.5", features = ["openssl"] }
+actix-test = { version = "0.1.0-beta.3", features = ["openssl", "rustls"] }
+awc = { version = "3.0.0-beta.6", features = ["openssl"] }
 
 brotli2 = "0.3.2"
 criterion = "0.3"
@@ -126,15 +135,15 @@ awc = { path = "awc" }
 
 [[test]]
 name = "test_server"
-required-features = ["compress", "cookies"]
+required-features = ["compress-brotli", "compress-gzip", "compress-zstd", "cookies"]
 
 [[example]]
 name = "basic"
-required-features = ["compress"]
+required-features = ["compress-gzip"]
 
 [[example]]
 name = "uds"
-required-features = ["compress"]
+required-features = ["compress-gzip"]
 
 [[example]]
 name = "on_connect"
