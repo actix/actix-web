@@ -80,6 +80,12 @@ impl ServiceRequest {
         (self.req, self.payload)
     }
 
+    /// Get mutable access to inner `HttpRequest` and `Payload`
+    #[inline]
+    pub fn parts_mut(&mut self) -> (&mut HttpRequest, &mut Payload) {
+        (&mut self.req, &mut self.payload)
+    }
+
     /// Construct request from parts.
     pub fn from_parts(req: HttpRequest, payload: Payload) -> Self {
         Self { req, payload }
