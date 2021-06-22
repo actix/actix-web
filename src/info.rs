@@ -15,7 +15,7 @@ const X_FORWARDED_PROTO: &[u8] = b"x-forwarded-proto";
 
 /// `HttpRequest` connection information
 ///
-/// `ConnectionInfo` implements `FromRequest` and extracted in handlers.
+/// `ConnectionInfo` implements `FromRequest` and can be extracted in handlers.
 ///
 /// ## Example
 ///
