@@ -764,7 +764,7 @@ mod tests {
                         },
                     )))
                     .default_service(web::to(move |req: HttpRequest| {
-                        assert!(req.match_pattern().is_none());
+                        assert_eq!(req.match_pattern().as_deref(), Some("/user/{id}"));
                         HttpResponse::Ok().finish()
                     })),
             ),

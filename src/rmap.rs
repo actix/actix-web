@@ -26,6 +26,10 @@ impl ResourceMap {
         }
     }
 
+    pub fn set_root_prefix(&mut self, prefix: &str) {
+        rdef_set_root_prefix(&mut self.root, prefix);
+    }
+
     pub fn add(&mut self, pattern: &mut ResourceDef, nested: Option<Rc<ResourceMap>>) {
         pattern.set_id(self.patterns.len() as u16);
         self.patterns.push((pattern.clone(), nested));
@@ -245,6 +249,20 @@ impl ResourceMap {
             Ok(None)
         }
     }
+}
+
+pub fn rdef_set_root_prefix(rdef: &mut ResourceDef, prefix: &str) {
+    // TODO Doesn't work with multiple patterns
+    let pattern = if prefix.starts_with("/") {
+        [prefix, rdef.pattern()].concat()
+    } else {
+        ["/", prefix, rdef.pattern()].concat()
+    };
+    let mut res = ResourceDef::new(pattern);
+    res.set_id(rdef.id());
+    *res.name_mut() = rdef.name().to_string();
+
+    *rdef = res;
 }
 
 #[cfg(test)]

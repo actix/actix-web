@@ -1,17 +1,14 @@
-use std::cell::RefCell;
 use std::fmt;
 use std::future::Future;
 use std::rc::Rc;
 
 use actix_http::Extensions;
-use actix_router::{ResourceDef, Router};
-use actix_service::boxed::{self, BoxService, BoxServiceFactory};
+use actix_router::ResourceDef;
+use actix_service::boxed::{self, BoxServiceFactory};
 use actix_service::{
     apply, apply_fn_factory, IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt,
     Transform,
 };
-use futures_core::future::LocalBoxFuture;
-use futures_util::future::join_all;
 
 use crate::config::ServiceConfig;
 use crate::data::Data;
@@ -19,15 +16,51 @@ use crate::dev::{AppService, HttpServiceFactory};
 use crate::error::Error;
 use crate::guard::Guard;
 use crate::resource::Resource;
-use crate::rmap::ResourceMap;
+use crate::rmap::{self, ResourceMap};
 use crate::route::Route;
 use crate::service::{
     AppServiceFactory, ServiceFactoryWrapper, ServiceRequest, ServiceResponse,
 };
 
-type Guards = Vec<Box<dyn Guard>>;
-type HttpService = BoxService<ServiceRequest, ServiceResponse, Error>;
-type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
+type BoxedFactory = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
+
+pub trait EndpointConstructor {
+    type Output: ServiceFactory<
+            ServiceRequest,
+            Config = (),
+            Response = ServiceResponse,
+            Error = Error,
+            InitError = (),
+        > + 'static;
+
+    fn call(&self, f: BoxedFactory) -> Self::Output;
+}
+
+impl EndpointConstructor for () {
+    type Output = BoxedFactory;
+
+    fn call(&self, f: BoxedFactory) -> Self::Output {
+        f
+    }
+}
+
+impl<F, O> EndpointConstructor for F
+where
+    F: Fn(BoxedFactory) -> O,
+    O: ServiceFactory<
+            ServiceRequest,
+            Config = (),
+            Response = ServiceResponse,
+            Error = Error,
+            InitError = (),
+        > + 'static,
+{
+    type Output = O;
+
+    fn call(&self, f: BoxedFactory) -> Self::Output {
+        self(f)
+    }
+}
 
 /// Resources scope.
 ///
@@ -57,44 +90,33 @@ type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Err
 ///  * /{project_id}/path1 - responds to all http method
 ///  * /{project_id}/path2 - `GET` requests
 ///  * /{project_id}/path3 - `HEAD` requests
-pub struct Scope<T = ScopeEndpoint> {
-    endpoint: T,
-    rdef: String,
+// use actix_service::{boxed, IntoServiceFactory, ServiceFactory};
+pub struct Scope<Cons = ()> {
+    constructor: Cons,
+    prefix: String,
     app_data: Option<Extensions>,
     services: Vec<Box<dyn AppServiceFactory>>,
-    guards: Vec<Box<dyn Guard>>,
-    default: Option<Rc<HttpNewService>>,
+    guards: Vec<Rc<dyn Guard>>,
+    default: Option<BoxedFactory>,
     external: Vec<ResourceDef>,
-    factory_ref: Rc<RefCell<Option<ScopeFactory>>>,
 }
 
 impl Scope {
     /// Create a new scope
     pub fn new(path: &str) -> Scope {
-        let fref = Rc::new(RefCell::new(None));
         Scope {
-            endpoint: ScopeEndpoint::new(fref.clone()),
-            rdef: path.to_string(),
+            constructor: (),
+            prefix: path.to_string(),
             app_data: None,
             guards: Vec::new(),
             services: Vec::new(),
             default: None,
             external: Vec::new(),
-            factory_ref: fref,
         }
     }
 }
 
-impl<T> Scope<T>
-where
-    T: ServiceFactory<
-        ServiceRequest,
-        Config = (),
-        Response = ServiceResponse,
-        Error = Error,
-        InitError = (),
-    >,
-{
+impl<C: EndpointConstructor> Scope<C> {
     /// Add match guard to a scope.
     ///
     /// ```
@@ -116,7 +138,7 @@ where
     /// }
     /// ```
     pub fn guard<G: Guard + 'static>(mut self, guard: G) -> Self {
-        self.guards.push(Box::new(guard));
+        self.guards.push(Rc::new(guard));
         self
     }
 
@@ -286,9 +308,9 @@ where
         U::InitError: fmt::Debug,
     {
         // create and configure default resource
-        self.default = Some(Rc::new(boxed::factory(f.into_factory().map_init_err(
-            |e| log::error!("Can not construct default service: {:?}", e),
-        ))));
+        self.default = Some(boxed::factory(f.into_factory().map_init_err(|e| {
+            log::error!("Can not construct default service: {:?}", e)
+        })));
 
         self
     }
@@ -302,36 +324,26 @@ where
     /// ServiceResponse.
     ///
     /// Use middleware when you need to read or modify *every* request in some way.
-    pub fn wrap<M>(
-        self,
-        mw: M,
-    ) -> Scope<
-        impl ServiceFactory<
-            ServiceRequest,
-            Config = (),
-            Response = ServiceResponse,
-            Error = Error,
-            InitError = (),
-        >,
-    >
+    pub fn wrap<M>(self, mw: M) -> Scope<impl EndpointConstructor>
     where
         M: Transform<
-            T::Service,
-            ServiceRequest,
-            Response = ServiceResponse,
-            Error = Error,
-            InitError = (),
-        >,
+                <C::Output as ServiceFactory<ServiceRequest>>::Service,
+                ServiceRequest,
+                Response = ServiceResponse,
+                Error = Error,
+                InitError = (),
+            > + 'static,
     {
+        let mw = Rc::new(mw);
+        let constructor = self.constructor;
         Scope {
-            endpoint: apply(mw, self.endpoint),
-            rdef: self.rdef,
+            constructor: move |factory| apply(mw.clone(), constructor.call(factory)),
+            prefix: self.prefix,
             app_data: self.app_data,
             guards: self.guards,
             services: self.services,
             default: self.default,
             external: self.external,
-            factory_ref: self.factory_ref,
         }
     }
 
@@ -367,209 +379,104 @@ where
     ///             .route("/index.html", web::get().to(index)));
     /// }
     /// ```
-    pub fn wrap_fn<F, R>(
-        self,
-        mw: F,
-    ) -> Scope<
-        impl ServiceFactory<
-            ServiceRequest,
-            Config = (),
-            Response = ServiceResponse,
-            Error = Error,
-            InitError = (),
-        >,
-    >
+    pub fn wrap_fn<F, R>(self, mw: F) -> Scope<impl EndpointConstructor>
     where
-        F: Fn(ServiceRequest, &T::Service) -> R + Clone,
+        F: Fn(ServiceRequest, &<C::Output as ServiceFactory<ServiceRequest>>::Service) -> R
+            + Clone
+            + 'static,
+
         R: Future<Output = Result<ServiceResponse, Error>>,
     {
+        let constructor = self.constructor;
         Scope {
-            endpoint: apply_fn_factory(self.endpoint, mw),
-            rdef: self.rdef,
+            constructor: move |factory| apply_fn_factory(constructor.call(factory), mw.clone()),
+            prefix: self.prefix,
             app_data: self.app_data,
             guards: self.guards,
             services: self.services,
             default: self.default,
             external: self.external,
-            factory_ref: self.factory_ref,
         }
     }
-}
 
-impl<T> HttpServiceFactory for Scope<T>
-where
-    T: ServiceFactory<
-            ServiceRequest,
-            Config = (),
-            Response = ServiceResponse,
-            Error = Error,
-            InitError = (),
-        > + 'static,
-{
-    fn register(mut self, config: &mut AppService) {
-        // update default resource if needed
-        let default = self.default.unwrap_or_else(|| config.default_service());
+    fn _register(mut self, config: &mut AppService) {
+        let default_service = self.default.take();
+        let services = self.services.drain(..).collect::<Vec<_>>();
+        let mut external_resources = self.external.drain(..).collect::<Vec<_>>();
 
-        // register nested services
-        let mut cfg = config.clone_config();
-        self.services
-            .into_iter()
-            .for_each(|mut srv| srv.register(&mut cfg));
-
-        let mut rmap = ResourceMap::new(ResourceDef::root_prefix(&self.rdef));
-
-        // external resources
-        for mut rdef in std::mem::take(&mut self.external) {
-            rmap.add(&mut rdef, None);
-        }
-
-        // complete scope pipeline creation
-        *self.factory_ref.borrow_mut() = Some(ScopeFactory {
-            app_data: self.app_data.take().map(Rc::new),
-            default,
-            services: cfg
-                .into_services()
-                .1
-                .into_iter()
-                .map(|(mut rdef, srv, guards, nested)| {
-                    rmap.add(&mut rdef, nested);
-                    (rdef, srv, RefCell::new(guards))
-                })
-                .collect::<Vec<_>>()
-                .into_boxed_slice()
-                .into(),
-        });
-
-        // get guards
-        let guards = if self.guards.is_empty() {
-            None
-        } else {
-            Some(self.guards)
+        let wrapped_guards = |guards: Option<Vec<Box<dyn Guard>>>| {
+            let guards = self
+                .guards
+                .iter()
+                .map(|g| Box::new(g.clone()) as Box<dyn Guard>)
+                .chain(guards.into_iter().flatten())
+                .collect::<Vec<_>>();
+            match guards {
+                guards if !guards.is_empty() => Some(guards),
+                _ => None,
+            }
         };
 
-        // register final service
-        config.register_service(
-            ResourceDef::root_prefix(&self.rdef),
-            guards,
-            self.endpoint,
-            Some(Rc::new(rmap)),
-        )
-    }
-}
+        let wrapped_rdef = |mut rdef: ResourceDef| {
+            rmap::rdef_set_root_prefix(&mut rdef, &self.prefix);
+            rdef
+        };
 
-pub struct ScopeFactory {
-    app_data: Option<Rc<Extensions>>,
-    services: Rc<[(ResourceDef, HttpNewService, RefCell<Option<Guards>>)]>,
-    default: Rc<HttpNewService>,
-}
-
-impl ServiceFactory<ServiceRequest> for ScopeFactory {
-    type Response = ServiceResponse;
-    type Error = Error;
-    type Config = ();
-    type Service = ScopeService;
-    type InitError = ();
-    type Future = LocalBoxFuture<'static, Result<Self::Service, Self::InitError>>;
-
-    fn new_service(&self, _: ()) -> Self::Future {
-        // construct default service factory future
-        let default_fut = self.default.new_service(());
-
-        // construct all services factory future with it's resource def and guards.
-        let factory_fut = join_all(self.services.iter().map(|(path, factory, guards)| {
-            let path = path.clone();
-            let guards = guards.borrow_mut().take();
-            let factory_fut = factory.new_service(());
-            async move {
-                let service = factory_fut.await?;
-                Ok((path, guards, service))
-            }
-        }));
-
-        let app_data = self.app_data.clone();
-
-        Box::pin(async move {
-            let default = default_fut.await?;
-
-            // build router from the factory future result.
-            let router = factory_fut
-                .await
-                .into_iter()
-                .collect::<Result<Vec<_>, _>>()?
-                .drain(..)
-                .fold(Router::build(), |mut router, (path, guards, service)| {
-                    router.rdef(path, service).2 = guards;
-                    router
-                })
-                .finish();
-
-            Ok(ScopeService {
-                app_data,
-                router,
-                default,
-            })
-        })
-    }
-}
-
-pub struct ScopeService {
-    app_data: Option<Rc<Extensions>>,
-    router: Router<HttpService, Vec<Box<dyn Guard>>>,
-    default: HttpService,
-}
-
-impl Service<ServiceRequest> for ScopeService {
-    type Response = ServiceResponse;
-    type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
-
-    actix_service::always_ready!();
-
-    fn call(&self, mut req: ServiceRequest) -> Self::Future {
-        let res = self.router.recognize_checked(&mut req, |req, guards| {
-            if let Some(ref guards) = guards {
-                for f in guards {
-                    if !f.check(req.head()) {
-                        return false;
-                    }
+        let mut wrapped_rmap = |rmap: Option<Rc<ResourceMap>>, rdef: &ResourceDef| {
+            let rmap = rmap.map(|rmap| {
+                let mut rmap = (*rmap).clone();
+                rmap.set_root_prefix(&self.prefix);
+                rmap
+            });
+            if external_resources.is_empty() {
+                rmap
+            } else {
+                let mut rmap = rmap.unwrap_or_else(|| ResourceMap::new(rdef.clone()));
+                for ext in external_resources.iter_mut() {
+                    rmap.add(ext, None);
                 }
+                Some(rmap)
             }
-            true
-        });
+            .map(Rc::new)
+        };
 
-        if let Some(ref app_data) = self.app_data {
-            req.add_data_container(app_data.clone());
+        let mut config_dummy = config.clone_config();
+        services
+            .into_iter()
+            .for_each(|mut srv| srv.register(&mut config_dummy));
+
+        let (_, services) = config_dummy.into_services();
+
+        for (rdef, factory, guards, rmap) in services {
+            let rdef = wrapped_rdef(rdef);
+            let rmap = wrapped_rmap(rmap, &rdef);
+            let guards = wrapped_guards(guards);
+            let factory = self.constructor.call(factory);
+            config.register_service(rdef, guards, factory, rmap);
         }
 
-        if let Some((srv, _info)) = res {
-            srv.call(req)
+        if let Some(default) = default_service {
+            let root_rdef = ResourceDef::root_prefix(&self.prefix);
+            let rmap = wrapped_rmap(None, &root_rdef);
+            let guards = wrapped_guards(None);
+            let factory = self.constructor.call(default);
+            config.register_service(root_rdef, guards, factory, rmap);
+        }
+    }
+}
+
+impl<C: EndpointConstructor> HttpServiceFactory for Scope<C> {
+    fn register(mut self, config: &mut AppService) {
+        if let Some(app_data) = self.app_data.take().map(Rc::new) {
+            return self
+                .wrap_fn(move |mut req, srv| {
+                    req.add_data_container(app_data.clone());
+                    srv.call(req)
+                })
+                ._register(config);
         } else {
-            self.default.call(req)
+            self._register(config);
         }
-    }
-}
-
-#[doc(hidden)]
-pub struct ScopeEndpoint {
-    factory: Rc<RefCell<Option<ScopeFactory>>>,
-}
-
-impl ScopeEndpoint {
-    fn new(factory: Rc<RefCell<Option<ScopeFactory>>>) -> Self {
-        ScopeEndpoint { factory }
-    }
-}
-
-impl ServiceFactory<ServiceRequest> for ScopeEndpoint {
-    type Response = ServiceResponse;
-    type Error = Error;
-    type Config = ();
-    type Service = ScopeService;
-    type InitError = ();
-    type Future = LocalBoxFuture<'static, Result<Self::Service, Self::InitError>>;
-
-    fn new_service(&self, _: ()) -> Self::Future {
-        self.factory.borrow_mut().as_mut().unwrap().new_service(())
     }
 }
 
