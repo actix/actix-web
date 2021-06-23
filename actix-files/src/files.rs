@@ -167,17 +167,20 @@ impl Files {
     /// However, the real path may not exist since the filter is called before checking path existence.
     ///
     /// When a path doesn't pass the filter, [`Files::default_handler`] is called if set, otherwise,
-    /// `404 NotFound` is returned.
+    /// `404 Not Found` is returned.
+    ///
+    /// # Examples
     /// ```
     /// use std::path::Path;
     /// use actix_files::Files;
     ///
+    /// // prevent searching subdirectories and following symlinks
     /// let files_service = Files::new("/", "./static").path_filter(|path, _| {
-    ///     path.components.count() == 1
+    ///     path.components().count() == 1
     ///         && Path::new("./static")
     ///             .join(path)
     ///             .symlink_metadata()
-    ///             .map(|m| m.file_type().is_symlink())
+    ///             .map(|m| !m.file_type().is_symlink())
     ///             .unwrap_or(false)
     /// });
     /// ```
