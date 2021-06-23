@@ -376,7 +376,7 @@ mod m {
 mod tests {
     use actix_http::http::header;
     use bytes::Bytes;
-    use serde_derive::Deserialize;
+    use serde::Deserialize;
 
     use super::*;
     use crate::test::TestRequest;
