@@ -17,7 +17,7 @@
 [#2271]: https://github.com/actix/actix-web/pull/2271
 [#2262]: https://github.com/actix/actix-web/pull/2262
 [#2263]: https://github.com/actix/actix-web/pull/2263
-[#2267]: (https://github.com/actix/actix-web/pull/2267)
+[#2267]: https://github.com/actix/actix-web/pull/2267
 
 
 ## 4.0.0-beta.7 - 2021-06-17
