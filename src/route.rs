@@ -131,7 +131,7 @@ impl Route {
     /// # Examples
     /// ```
     /// use actix_web::{web, http, App};
-    /// use serde_derive::Deserialize;
+    /// use serde::Deserialize;
     ///
     /// #[derive(Deserialize)]
     /// struct Info {
@@ -155,7 +155,7 @@ impl Route {
     ///
     /// ```
     /// # use std::collections::HashMap;
-    /// # use serde_derive::Deserialize;
+    /// # use serde::Deserialize;
     /// use actix_web::{web, App};
     ///
     /// #[derive(Deserialize)]

@@ -54,7 +54,7 @@ pub trait FromRequest: Sized {
 /// use actix_web::{web, dev, App, Error, HttpRequest, FromRequest};
 /// use actix_web::error::ErrorBadRequest;
 /// use futures_util::future::{ok, err, Ready};
-/// use serde_derive::Deserialize;
+/// use serde::Deserialize;
 /// use rand;
 ///
 /// #[derive(Debug, Deserialize)]
@@ -145,7 +145,7 @@ where
 /// use actix_web::{web, dev, App, Result, Error, HttpRequest, FromRequest};
 /// use actix_web::error::ErrorBadRequest;
 /// use futures_util::future::{ok, err, Ready};
-/// use serde_derive::Deserialize;
+/// use serde::Deserialize;
 /// use rand;
 ///
 /// #[derive(Debug, Deserialize)]
