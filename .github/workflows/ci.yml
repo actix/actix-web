@@ -66,35 +66,25 @@ jobs:
 
       - name: check minimal
         uses: actions-rs/cargo@v1
-        with:
-          command: hack
-          args: check --workspace --no-default-features
+        with: { command: ci-min }
 
       - name: check minimal + tests
         uses: actions-rs/cargo@v1
-        with:
-          command: hack
-          args: check --workspace --no-default-features --tests --examples
+        with: { command: ci-min-test }
 
       - name: check full
         uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --workspace --all-features --bins --examples --tests
+        with: { command: ci-full }
 
       - name: tests
         uses: actions-rs/cargo@v1
         timeout-minutes: 40
-        with:
-          command: test
-          args: --workspace --all-features --no-fail-fast --lib --tests -- --nocapture
+        with: { command: ci-test }
 
       - name: doc tests
         uses: actions-rs/cargo@v1
         timeout-minutes: 40
-        with:
-          command: test
-          args: --workspace --all-features --no-fail-fast --doc -- --nocapture
+        with: { command: ci-doctest }
 
       - name: Generate coverage file
         if: >
