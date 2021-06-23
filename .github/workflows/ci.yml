@@ -64,22 +64,21 @@ jobs:
           command: install
           args: cargo-hack
 
-      # - name: check minimal
-      #   uses: actions-rs/cargo@v1
-      #   with: { command: ci-min }
-
-      # - name: check minimal + tests
-      #   uses: actions-rs/cargo@v1
-      #   with: { command: ci-min-test }
-
-      # - name: check full
-      #   uses: actions-rs/cargo@v1
-      #   with: { command: ci-full }
-
-      - name: doc tests
+      - name: check minimal
         uses: actions-rs/cargo@v1
-        timeout-minutes: 40
-        with: { command: ci-doctest }
+        with: { command: ci-min }
+
+      - name: check minimal + tests
+        uses: actions-rs/cargo@v1
+        with: { command: ci-min-test }
+
+      - name: check default
+        uses: actions-rs/cargo@v1
+        with: { command: ci-default }
+      
+      - name: check full
+        uses: actions-rs/cargo@v1
+        with: { command: ci-full }
 
       - name: tests
         uses: actions-rs/cargo@v1
@@ -87,6 +86,13 @@ jobs:
         with:
           command: ci-test
           args: --skip=test_reading_deflate_encoding_large_random_rustls
+
+      - name: doc tests
+        # due to unknown issue with running doc tests on macOS
+        if: matrix.target.os == 'ubuntu-latest'
+        uses: actions-rs/cargo@v1
+        timeout-minutes: 40
+        with: { command: ci-doctest }
 
       - name: Generate coverage file
         if: >
