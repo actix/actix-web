@@ -74,16 +74,16 @@ impl ServiceRequest {
         Self { req, payload }
     }
 
-    /// Construct service request.
-    #[doc(hidden)]
-    pub fn __priv_test_new(req: HttpRequest, payload: Payload) -> Self {
-        Self::new(req, payload)
-    }
-
     /// Deconstruct request into parts
     #[inline]
     pub fn into_parts(self) -> (HttpRequest, Payload) {
         (self.req, self.payload)
+    }
+
+    /// Get mutable access to inner `HttpRequest` and `Payload`
+    #[inline]
+    pub fn parts_mut(&mut self) -> (&mut HttpRequest, &mut Payload) {
+        (&mut self.req, &mut self.payload)
     }
 
     /// Construct request from parts.
@@ -655,6 +655,8 @@ mod tests {
         assert_eq!(resp.status(), http::StatusCode::NOT_FOUND);
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_service_data() {
         let srv =

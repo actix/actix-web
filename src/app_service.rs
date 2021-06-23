@@ -365,6 +365,8 @@ mod tests {
         }
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_drop_data() {
         let data = Arc::new(AtomicBool::new(false));

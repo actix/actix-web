@@ -66,43 +66,33 @@ jobs:
 
       - name: check minimal
         uses: actions-rs/cargo@v1
-        with:
-          command: hack
-          args: check --workspace --no-default-features
+        with: { command: ci-min }
 
       - name: check minimal + tests
         uses: actions-rs/cargo@v1
-        with:
-          command: hack
-          args: check --workspace --no-default-features --tests --examples
+        with: { command: ci-min-test }
 
+      - name: check default
+        uses: actions-rs/cargo@v1
+        with: { command: ci-default }
+      
       - name: check full
         uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --workspace --bins --examples --tests
+        with: { command: ci-full }
 
       - name: tests
         uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --workspace --all-features --no-fail-fast -- --nocapture
-            --skip=test_h2_content_length
-            --skip=test_reading_deflate_encoding_large_random_rustls
-
-      - name: tests (actix-http)
-        uses: actions-rs/cargo@v1
         timeout-minutes: 40
         with:
-          command: test
-          args: --package=actix-http --no-default-features --features=rustls -- --nocapture
+          command: ci-test
+          args: --skip=test_reading_deflate_encoding_large_random_rustls
 
-      - name: tests (awc)
+      - name: doc tests
+        # due to unknown issue with running doc tests on macOS
+        if: matrix.target.os == 'ubuntu-latest'
         uses: actions-rs/cargo@v1
         timeout-minutes: 40
-        with:
-          command: test
-          args: --package=awc --no-default-features --features=rustls -- --nocapture
+        with: { command: ci-doctest }
 
       - name: Generate coverage file
         if: >

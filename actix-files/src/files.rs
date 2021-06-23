@@ -114,6 +114,9 @@ impl Files {
     /// Show files listing for directories.
     ///
     /// By default show files listing is disabled.
+    ///
+    /// When used with [`Files::index_file()`], files listing is shown as a fallback
+    /// when the index file is not found.
     pub fn show_files_listing(mut self) -> Self {
         self.show_index = true;
         self
@@ -148,8 +151,11 @@ impl Files {
 
     /// Set index file
     ///
-    /// Shows specific index file for directory "/" instead of
+    /// Shows specific index file for directories instead of
     /// showing files listing.
+    ///
+    /// If the index file is not found, files listing is shown as a fallback if
+    /// [`Files::show_files_listing()`] is set.
     pub fn index_file<T: Into<String>>(mut self, index: T) -> Self {
         self.index = Some(index.into());
         self

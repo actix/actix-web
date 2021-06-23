@@ -146,6 +146,7 @@ where
     ///     );
     /// }
     /// ```
+    #[deprecated(since = "4.0.0", note = "Use `.app_data(Data::new(val))` instead.")]
     pub fn data<U: 'static>(self, data: U) -> Self {
         self.app_data(Data::new(data))
     }
@@ -994,6 +995,8 @@ mod tests {
         );
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_middleware_app_data() {
         let srv = init_service(
@@ -1032,6 +1035,8 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_override_data_default_service() {
         let srv = init_service(App::new().data(1usize).service(

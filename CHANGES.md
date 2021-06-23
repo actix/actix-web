@@ -1,9 +1,20 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
-### Changed
-* App data set on `Scope` instance can now be accessed in middlewares defined on the same scope. [#2267]
+### Added
+* Add `ServiceRequest::parts_mut`. [#2177]
+* Add extractors for `Uri` and `Method`. [#2263]
+* Add extractor for `ConnectionInfo` and `PeerAddr`. [#2263]
 
+### Changed
+* Change compression algorithm features flags. [#2250]
+* Deprecate `App::data` and `App::data_factory`. [#2271]
+* `app_data` set on a `Scope` instance can now be accessed in middlewares defined on the same scope. This applies to `Resource` too. [#2267]
+
+[#2177]: https://github.com/actix/actix-web/pull/2177
+[#2250]: https://github.com/actix/actix-web/pull/2250
+[#2271]: https://github.com/actix/actix-web/pull/2271
+[#2263]: https://github.com/actix/actix-web/pull/2263
 [#2267]: (https://github.com/actix/actix-web/pull/2267)
 
 
@@ -12,7 +23,6 @@
 * `HttpServer::worker_max_blocking_threads` for setting block thread pool. [#2200]
 
 ### Changed
-
 * Adjusted default JSON payload limit to 2MB (from 32kb) and included size and limits in the `JsonPayloadError::Overflow` error variant. [#2162]
 [#2162]: (https://github.com/actix/actix-web/pull/2162)
 * `ServiceResponse::error_response` now uses body type of `Body`. [#2201]

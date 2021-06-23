@@ -879,7 +879,7 @@ async fn test_brotli_encoding_large_openssl() {
     assert_eq!(bytes, Bytes::from(data));
 }
 
-#[cfg(all(feature = "rustls", feature = "openssl"))]
+#[cfg(feature = "rustls")]
 mod plus_rustls {
     use std::io::BufReader;
 
@@ -1028,6 +1028,8 @@ async fn test_normalize() {
     assert!(response.status().is_success());
 }
 
+// allow deprecated App::data
+#[allow(deprecated)]
 #[actix_rt::test]
 async fn test_data_drop() {
     use std::sync::{
