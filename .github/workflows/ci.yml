@@ -76,17 +76,17 @@ jobs:
         uses: actions-rs/cargo@v1
         with: { command: ci-full }
 
+      - name: doc tests
+        uses: actions-rs/cargo@v1
+        timeout-minutes: 40
+        with: { command: ci-doctest }
+
       - name: tests
         uses: actions-rs/cargo@v1
         timeout-minutes: 40
         with:
           command: ci-test
           args: --skip=test_reading_deflate_encoding_large_random_rustls
-
-      - name: doc tests
-        uses: actions-rs/cargo@v1
-        timeout-minutes: 40
-        with: { command: ci-doctest }
 
       - name: Generate coverage file
         if: >
