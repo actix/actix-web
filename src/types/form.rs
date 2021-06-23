@@ -80,6 +80,10 @@ use crate::{
 ///     })
 /// }
 /// ```
+///
+/// # Panics
+/// URL encoded forms consist of unordered `key=value` pairs, therefore they cannot be decoded into
+/// any type which depends upon data ordering (eg. tuples). Trying to do so will result in a panic.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct Form<T>(pub T);
 
