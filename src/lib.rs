@@ -135,7 +135,7 @@ pub mod dev {
     pub use crate::info::ConnectionInfo;
     pub use crate::rmap::ResourceMap;
     pub use crate::service::{HttpServiceFactory, ServiceRequest, ServiceResponse, WebService};
-    pub use actix_service::fn_factory;
+    pub use actix_service::{always_ready, fn_factory, fn_service, forward_ready};
 
     pub use crate::types::form::UrlEncoded;
     pub use crate::types::json::JsonBody;
