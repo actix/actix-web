@@ -64,17 +64,17 @@ jobs:
           command: install
           args: cargo-hack
 
-      - name: check minimal
-        uses: actions-rs/cargo@v1
-        with: { command: ci-min }
+      # - name: check minimal
+      #   uses: actions-rs/cargo@v1
+      #   with: { command: ci-min }
 
-      - name: check minimal + tests
-        uses: actions-rs/cargo@v1
-        with: { command: ci-min-test }
+      # - name: check minimal + tests
+      #   uses: actions-rs/cargo@v1
+      #   with: { command: ci-min-test }
 
-      - name: check full
-        uses: actions-rs/cargo@v1
-        with: { command: ci-full }
+      # - name: check full
+      #   uses: actions-rs/cargo@v1
+      #   with: { command: ci-full }
 
       - name: doc tests
         uses: actions-rs/cargo@v1
