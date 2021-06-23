@@ -265,7 +265,7 @@ impl FromRequest for Method {
 #[doc(hidden)]
 impl FromRequest for () {
     type Error = Infallible;
-    type Future = Ready<Result<(), Infallible>>;
+    type Future = Ready<Result<Self, Self::Error>>;
     type Config = ();
 
     fn from_request(_: &HttpRequest, _: &mut Payload) -> Self::Future {
