@@ -80,29 +80,21 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: check
-          args: --workspace --bins --examples --tests
+          args: --workspace --all-features --bins --examples --tests
 
       - name: tests
         uses: actions-rs/cargo@v1
+        timeout-minutes: 40
         with:
           command: test
-          args: --workspace --all-features --no-fail-fast -- --nocapture
-            --skip=test_h2_content_length
-            --skip=test_reading_deflate_encoding_large_random_rustls
+          args: --workspace --all-features --no-fail-fast --lib --tests -- --nocapture
 
-      - name: tests (actix-http)
+      - name: doc tests
         uses: actions-rs/cargo@v1
         timeout-minutes: 40
         with:
           command: test
-          args: --package=actix-http --no-default-features --features=rustls -- --nocapture
-
-      - name: tests (awc)
-        uses: actions-rs/cargo@v1
-        timeout-minutes: 40
-        with:
-          command: test
-          args: --package=awc --no-default-features --features=rustls -- --nocapture
+          args: --workspace --all-features --no-fail-fast --doc -- --nocapture
 
       - name: Generate coverage file
         if: >
