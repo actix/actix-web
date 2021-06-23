@@ -135,7 +135,6 @@ pub mod dev {
     pub use crate::info::ConnectionInfo;
     pub use crate::rmap::ResourceMap;
     pub use crate::service::{HttpServiceFactory, ServiceRequest, ServiceResponse, WebService};
-    pub use actix_service::{always_ready, fn_factory, fn_service, forward_ready};
 
     pub use crate::types::form::UrlEncoded;
     pub use crate::types::json::JsonBody;
@@ -148,7 +147,7 @@ pub mod dev {
     pub use actix_http::{Extensions, Payload, PayloadStream, RequestHead, ResponseHead};
     pub use actix_router::{Path, ResourceDef, ResourcePath, Url};
     pub use actix_server::Server;
-    pub use actix_service::{always_ready, forward_ready, Service, Transform};
+    pub use actix_service::{always_ready, fn_factory, fn_service, forward_ready, Service, Transform};
 
     pub(crate) fn insert_slash(mut patterns: Vec<String>) -> Vec<String> {
         for path in &mut patterns {
