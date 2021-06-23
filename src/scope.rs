@@ -1035,6 +1035,8 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_override_data_default_service() {
         let srv = init_service(App::new().data(1usize).service(
@@ -1052,8 +1054,6 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    // allow deprecated App::data
-    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_override_app_data() {
         let srv = init_service(App::new().app_data(web::Data::new(1usize)).service(
