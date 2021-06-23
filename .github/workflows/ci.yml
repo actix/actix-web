@@ -79,7 +79,9 @@ jobs:
       - name: tests
         uses: actions-rs/cargo@v1
         timeout-minutes: 40
-        with: { command: ci-test }
+        with:
+          command: ci-test
+          args: --skip=test_reading_deflate_encoding_large_random_rustls
 
       - name: doc tests
         uses: actions-rs/cargo@v1
