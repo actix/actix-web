@@ -3,7 +3,7 @@ use std::fmt;
 use std::future::Future;
 use std::rc::Rc;
 
-use actix_http::{Error, Extensions};
+use actix_http::Extensions;
 use actix_router::IntoPattern;
 use actix_service::boxed::{self, BoxService, BoxServiceFactory};
 use actix_service::{
@@ -13,14 +13,16 @@ use actix_service::{
 use futures_core::future::LocalBoxFuture;
 use futures_util::future::join_all;
 
-use crate::dev::{insert_slash, AppService, HttpServiceFactory, ResourceDef};
-use crate::extract::FromRequest;
-use crate::guard::Guard;
-use crate::handler::Handler;
-use crate::responder::Responder;
-use crate::route::{Route, RouteService};
-use crate::service::{ServiceRequest, ServiceResponse};
-use crate::{data::Data, HttpResponse};
+use crate::{
+    data::Data,
+    dev::{insert_slash, AppService, HttpServiceFactory, ResourceDef},
+    guard::Guard,
+    handler::Handler,
+    responder::Responder,
+    route::{Route, RouteService},
+    service::{ServiceRequest, ServiceResponse},
+    Error, FromRequest, HttpResponse,
+};
 
 type HttpService = BoxService<ServiceRequest, ServiceResponse, Error>;
 type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
@@ -194,6 +196,7 @@ where
     ///           ));
     /// }
     /// ```
+    #[deprecated(since = "4.0.0", note = "Use `.app_data(Data::new(val))` instead.")]
     pub fn data<U: 'static>(self, data: U) -> Self {
         self.app_data(Data::new(data))
     }
@@ -692,6 +695,8 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::NO_CONTENT);
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_data() {
         let srv = init_service(
@@ -724,6 +729,8 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_data_default_service() {
         let srv = init_service(

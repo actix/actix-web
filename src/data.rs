@@ -1,12 +1,13 @@
 use std::{any::type_name, ops::Deref, sync::Arc};
 
-use actix_http::{error::Error, Extensions};
+use actix_http::Extensions;
 use actix_utils::future::{err, ok, Ready};
 use futures_core::future::LocalBoxFuture;
 use serde::Serialize;
 
 use crate::{
     dev::Payload, error::ErrorInternalServerError, extract::FromRequest, request::HttpRequest,
+    Error,
 };
 
 /// Data factory.
@@ -153,6 +154,8 @@ mod tests {
         web, App, HttpResponse,
     };
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_data_extractor() {
         let srv = init_service(App::new().data("TEST".to_string()).service(
@@ -220,6 +223,8 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_route_data_extractor() {
         let srv = init_service(
@@ -249,6 +254,8 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_override_data() {
         let srv =

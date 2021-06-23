@@ -2,19 +2,19 @@
 
 use std::{future::Future, rc::Rc};
 
-use actix_http::{http::Method, Error};
+use actix_http::http::Method;
 use actix_service::{
     boxed::{self, BoxService, BoxServiceFactory},
     Service, ServiceFactory,
 };
 use futures_core::future::LocalBoxFuture;
 
-use crate::extract::FromRequest;
-use crate::guard::{self, Guard};
-use crate::handler::{Handler, HandlerService};
-use crate::responder::Responder;
-use crate::service::{ServiceRequest, ServiceResponse};
-use crate::HttpResponse;
+use crate::{
+    guard::{self, Guard},
+    handler::{Handler, HandlerService},
+    service::{ServiceRequest, ServiceResponse},
+    Error, FromRequest, HttpResponse, Responder,
+};
 
 /// Resource route definition
 ///
@@ -233,7 +233,7 @@ impl Route {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use std::{convert::Infallible, time::Duration};
 
     use actix_rt::time::sleep;
     use bytes::Bytes;
@@ -260,7 +260,7 @@ mod tests {
                         }))
                         .route(web::post().to(|| async {
                             sleep(Duration::from_millis(100)).await;
-                            Ok::<_, ()>(HttpResponse::Created())
+                            Ok::<_, Infallible>(HttpResponse::Created())
                         }))
                         .route(web::delete().to(|| async {
                             sleep(Duration::from_millis(100)).await;

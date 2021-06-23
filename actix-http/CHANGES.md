@@ -1,6 +1,13 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Changed
+* Change compression algorithm features flags. [#2250]
+
+[#2250]: https://github.com/actix/actix-web/pull/2250
+
+
+## 3.0.0-beta.7 - 2021-06-17
 ### Added
 * Alias `body::Body` as `body::AnyBody`. [#2215]
 * `BoxAnyBody`: a boxed message body with boxed errors. [#2183]
@@ -13,12 +20,15 @@
 
 ### Changed
 * The `MessageBody` trait now has an associated `Error` type. [#2183]
+* All error trait bounds in server service builders have changed from `Into<Error>` to `Into<Response<AnyBody>>`. [#2253]
+* All error trait bounds in message body and stream impls changed from `Into<Error>` to `Into<Box<dyn std::error::Error>>`. [#2253]
 * Places in `Response` where `ResponseBody<B>` was received or returned now simply use `B`. [#2201]
 * `header` mod is now public. [#2171]
 * `uri` mod is now public. [#2171]
 * Update `language-tags` to `0.3`.
 * Reduce the level from `error` to `debug` for the log line that is emitted when a `500 Internal Server Error` is built using `HttpResponse::from_error`. [#2201]
 * `ResponseBuilder::message_body` now returns a `Result`. [#2201]
+* Remove `Unpin` bound on `ResponseBuilder::streaming`. [#2253]
 * `HttpServer::{listen_rustls(), bind_rustls()}` now honor the ALPN protocols in the configuation parameter. [#2226]
 
 ### Removed
@@ -37,6 +47,7 @@
 [#2201]: https://github.com/actix/actix-web/pull/2201
 [#2205]: https://github.com/actix/actix-web/pull/2205
 [#2215]: https://github.com/actix/actix-web/pull/2215
+[#2253]: https://github.com/actix/actix-web/pull/2253
 [#2244]: https://github.com/actix/actix-web/pull/2244
 
 

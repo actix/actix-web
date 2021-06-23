@@ -16,7 +16,7 @@ use futures_core::{future::LocalBoxFuture, ready};
 use futures_util::{FutureExt as _, StreamExt as _};
 use serde::{de::DeserializeOwned, Serialize};
 
-#[cfg(feature = "compress")]
+#[cfg(feature = "__compress")]
 use crate::dev::Decompress;
 use crate::{
     error::UrlencodedError, extract::FromRequest, http::header::CONTENT_LENGTH, web, Error,
@@ -188,7 +188,7 @@ impl<T: Serialize> Responder for Form<T> {
             Ok(body) => HttpResponse::Ok()
                 .content_type(mime::APPLICATION_WWW_FORM_URLENCODED)
                 .body(body),
-            Err(err) => HttpResponse::from_error(UrlencodedError::Serialize(err).into()),
+            Err(err) => HttpResponse::from_error(UrlencodedError::Serialize(err)),
         }
     }
 }
@@ -255,9 +255,9 @@ impl Default for FormConfig {
 /// - content type is not `application/x-www-form-urlencoded`
 /// - content length is greater than [limit](UrlEncoded::limit())
 pub struct UrlEncoded<T> {
-    #[cfg(feature = "compress")]
+    #[cfg(feature = "__compress")]
     stream: Option<Decompress<Payload>>,
-    #[cfg(not(feature = "compress"))]
+    #[cfg(not(feature = "__compress"))]
     stream: Option<Payload>,
 
     limit: usize,
@@ -293,10 +293,15 @@ impl<T> UrlEncoded<T> {
             }
         };
 
-        #[cfg(feature = "compress")]
-        let payload = Decompress::from_headers(payload.take(), req.headers());
-        #[cfg(not(feature = "compress"))]
-        let payload = payload.take();
+        let payload = {
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "__compress")] {
+                    Decompress::from_headers(payload.take(), req.headers())
+                } else {
+                    payload.take()
+                }
+            }
+        };
 
         UrlEncoded {
             encoding,

@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "3.0.0-beta.6"
+version = "3.0.0-beta.7"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "HTTP primitives for the Actix ecosystem"
 readme = "README.md"
@@ -16,7 +16,7 @@ edition = "2018"
 
 [package.metadata.docs.rs]
 # features that docs.rs will build with
-features = ["openssl", "rustls", "compress"]
+features = ["openssl", "rustls", "compress-brotli", "compress-gzip", "compress-zstd"]
 
 [lib]
 name = "actix_http"
@@ -32,10 +32,16 @@ openssl = ["actix-tls/openssl"]
 rustls = ["actix-tls/rustls"]
 
 # enable compression support
-compress = ["flate2", "brotli2", "zstd"]
+compress-brotli = ["brotli2", "__compress"]
+compress-gzip = ["flate2", "__compress"]
+compress-zstd = ["zstd", "__compress"]
 
 # trust-dns as client dns resolver
 trust-dns = ["trust-dns-resolver"]
+
+# Internal (PRIVATE!) features used to aid testing and cheking feature status.
+# Don't rely on these whatsoever. They may disappear at anytime.
+__compress = []
 
 [dependencies]
 actix-service = "2.0.0"
@@ -84,7 +90,8 @@ trust-dns-resolver = { version = "0.20.0", optional = true }
 actix-server = "2.0.0-beta.3"
 actix-http-test = { version = "3.0.0-beta.4", features = ["openssl"] }
 actix-tls = { version = "3.0.0-beta.5", features = ["openssl"] }
-criterion = "0.3"
+async-stream = "0.3"
+criterion = { version = "0.3", features = ["html_reports"] }
 env_logger = "0.8"
 rcgen = "0.8"
 serde = { version = "1.0", features = ["derive"] }

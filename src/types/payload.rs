@@ -282,9 +282,9 @@ impl Default for PayloadConfig {
 pub struct HttpMessageBody {
     limit: usize,
     length: Option<usize>,
-    #[cfg(feature = "compress")]
+    #[cfg(feature = "__compress")]
     stream: dev::Decompress<dev::Payload>,
-    #[cfg(not(feature = "compress"))]
+    #[cfg(not(feature = "__compress"))]
     stream: dev::Payload,
     buf: BytesMut,
     err: Option<PayloadError>,
@@ -312,10 +312,15 @@ impl HttpMessageBody {
             }
         }
 
-        #[cfg(feature = "compress")]
-        let stream = dev::Decompress::from_headers(payload.take(), req.headers());
-        #[cfg(not(feature = "compress"))]
-        let stream = payload.take();
+        let stream = {
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "__compress")] {
+                    dev::Decompress::from_headers(payload.take(), req.headers())
+                } else {
+                    payload.take()
+                }
+            }
+        };
 
         HttpMessageBody {
             stream,
@@ -393,6 +398,8 @@ mod tests {
         assert!(cfg.check_mimetype(&req).is_ok());
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_config_recall_locations() {
         async fn bytes_handler(_: Bytes) -> impl Responder {

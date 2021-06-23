@@ -2,24 +2,24 @@ use std::cell::{Ref, RefMut};
 use std::rc::Rc;
 use std::{fmt, net};
 
-use actix_http::body::{Body, MessageBody};
-use actix_http::http::{HeaderMap, Method, StatusCode, Uri, Version};
 use actix_http::{
-    Error, Extensions, HttpMessage, Payload, PayloadStream, RequestHead, Response, ResponseHead,
+    body::{AnyBody, MessageBody},
+    http::{HeaderMap, Method, StatusCode, Uri, Version},
+    Extensions, HttpMessage, Payload, PayloadStream, RequestHead, Response, ResponseHead,
 };
 use actix_router::{IntoPattern, Path, Resource, ResourceDef, Url};
 use actix_service::{IntoServiceFactory, ServiceFactory};
 #[cfg(feature = "cookies")]
 use cookie::{Cookie, ParseError as CookieParseError};
 
-use crate::dev::insert_slash;
-use crate::guard::Guard;
-use crate::info::ConnectionInfo;
-use crate::request::HttpRequest;
-use crate::rmap::ResourceMap;
 use crate::{
     config::{AppConfig, AppService},
-    HttpResponse,
+    dev::insert_slash,
+    guard::Guard,
+    info::ConnectionInfo,
+    request::HttpRequest,
+    rmap::ResourceMap,
+    Error, HttpResponse,
 };
 
 pub trait HttpServiceFactory {
@@ -74,16 +74,16 @@ impl ServiceRequest {
         Self { req, payload }
     }
 
-    /// Construct service request.
-    #[doc(hidden)]
-    pub fn __priv_test_new(req: HttpRequest, payload: Payload) -> Self {
-        Self::new(req, payload)
-    }
-
     /// Deconstruct request into parts
     #[inline]
     pub fn into_parts(self) -> (HttpRequest, Payload) {
         (self.req, self.payload)
+    }
+
+    /// Get mutable access to inner `HttpRequest` and `Payload`
+    #[inline]
+    pub fn parts_mut(&mut self) -> (&mut HttpRequest, &mut Payload) {
+        (&mut self.req, &mut self.payload)
     }
 
     /// Construct request from parts.
@@ -330,15 +330,15 @@ impl fmt::Debug for ServiceRequest {
     }
 }
 
-pub struct ServiceResponse<B = Body> {
+pub struct ServiceResponse<B = AnyBody> {
     request: HttpRequest,
     response: HttpResponse<B>,
 }
 
-impl ServiceResponse<Body> {
+impl ServiceResponse<AnyBody> {
     /// Create service response from the error
     pub fn from_err<E: Into<Error>>(err: E, request: HttpRequest) -> Self {
-        let response = HttpResponse::from_error(err.into());
+        let response = HttpResponse::from_error(err);
         ServiceResponse { request, response }
     }
 }
@@ -655,6 +655,8 @@ mod tests {
         assert_eq!(resp.status(), http::StatusCode::NOT_FOUND);
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_service_data() {
         let srv =

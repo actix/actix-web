@@ -1,5 +1,6 @@
 use std::{
     cmp,
+    error::Error as StdError,
     future::Future,
     marker::PhantomData,
     net,
@@ -18,15 +19,12 @@ use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCOD
 use log::{error, trace};
 use pin_project_lite::pin_project;
 
-use crate::body::{BodySize, MessageBody};
-use crate::config::ServiceConfig;
-use crate::error::Error;
-use crate::message::ResponseHead;
-use crate::payload::Payload;
-use crate::request::Request;
-use crate::response::Response;
-use crate::service::HttpFlow;
-use crate::OnConnectData;
+use crate::{
+    body::{AnyBody, BodySize, MessageBody},
+    config::ServiceConfig,
+    service::HttpFlow,
+    OnConnectData, Payload, Request, Response, ResponseHead,
+};
 
 const CHUNK_SIZE: usize = 16_384;
 
@@ -66,12 +64,12 @@ where
     T: AsyncRead + AsyncWrite + Unpin,
 
     S: Service<Request>,
-    S::Error: Into<Error>,
+    S::Error: Into<Response<AnyBody>>,
     S::Future: 'static,
     S::Response: Into<Response<B>>,
 
     B: MessageBody,
-    B::Error: Into<Error>,
+    B::Error: Into<Box<dyn StdError>>,
 {
     type Output = Result<(), crate::error::DispatchError>;
 
@@ -106,7 +104,7 @@ where
                 let res = match fut.await {
                     Ok(res) => handle_response(res.into(), tx, config).await,
                     Err(err) => {
-                        let res = Response::from_error(err.into());
+                        let res: Response<AnyBody> = err.into();
                         handle_response(res, tx, config).await
                     }
                 };
@@ -133,7 +131,7 @@ where
 enum DispatchError {
     SendResponse(h2::Error),
     SendData(h2::Error),
-    ResponseBody(Error),
+    ResponseBody(Box<dyn StdError>),
 }
 
 async fn handle_response<B>(
@@ -143,7 +141,7 @@ async fn handle_response<B>(
 ) -> Result<(), DispatchError>
 where
     B: MessageBody,
-    B::Error: Into<Error>,
+    B::Error: Into<Box<dyn StdError>>,
 {
     let (res, body) = res.replace_body(());
 

@@ -1028,6 +1028,8 @@ async fn test_normalize() {
     assert!(response.status().is_success());
 }
 
+// allow deprecated App::data
+#[allow(deprecated)]
 #[actix_rt::test]
 async fn test_data_drop() {
     use std::sync::{
