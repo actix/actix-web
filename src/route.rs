@@ -140,9 +140,7 @@ impl Route {
     ///     type Error = actix_web::Error;
     ///     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
     ///
-    ///     fn poll_ready(&self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-    ///         Poll::Ready(Ok(()))
-    ///     }
+    ///     always_ready!();
     ///
     ///     fn call(&self, req: ServiceRequest) -> Self::Future {
     ///         let (req, _) = req.into_parts();
