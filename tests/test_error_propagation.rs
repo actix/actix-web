@@ -1,12 +1,14 @@
-use actix_utils::future::{ok, Ready};
-use actix_web::dev::{Service, ServiceRequest, ServiceResponse, Transform};
-use actix_web::test::{call_service, init_service, TestRequest};
-use actix_web::{HttpResponse, ResponseError};
-use futures_util::lock::Mutex;
-use std::future::Future;
-use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
+
+use actix_utils::future::{ok, Ready};
+use actix_web::{
+    dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
+    get,
+    test::{call_service, init_service, TestRequest},
+    ResponseError,
+};
+use futures_core::future::LocalBoxFuture;
+use futures_util::lock::Mutex;
 
 #[derive(Debug, Clone)]
 pub struct MyError;
@@ -19,10 +21,9 @@ impl std::fmt::Display for MyError {
     }
 }
 
-#[actix_web::get("/test")]
+#[get("/test")]
 async fn test() -> Result<actix_web::HttpResponse, actix_web::error::Error> {
-    Err(MyError)?;
-    Ok(HttpResponse::NoContent().finish())
+    return Err(MyError.into());
 }
 
 #[derive(Clone)]
@@ -62,11 +63,9 @@ where
 {
     type Response = ServiceResponse<B>;
     type Error = actix_web::Error;
-    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
-    fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.service.poll_ready(cx)
-    }
+    forward_ready!(service);
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let lock = self.was_error.clone();
