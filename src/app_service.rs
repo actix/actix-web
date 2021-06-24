@@ -302,10 +302,6 @@ impl Service<ServiceRequest> for AppRouting {
             true
         });
 
-        // you might expect to find `req.add_data_container()` called here but `HttpRequest` objects
-        // are created with the root data already set (in `AppInitService::call`) and root data is
-        // retained when releasing requests back to the pool
-
         if let Some((srv, _info)) = res {
             srv.call(req)
         } else {
