@@ -144,7 +144,9 @@ where
     }
 }
 
-/// Service that takes a [`Request`] and delegates to a service that take a [`ServiceRequest`].
+/// The [`Service`] that is passed to `actix-http`'s server builder.
+///
+/// Wraps a service receiving a [`ServiceRequest`] into one receiving a [`Request`].
 pub struct AppInitService<T, B>
 where
     T: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
@@ -275,6 +277,7 @@ impl ServiceFactory<ServiceRequest> for AppRoutingFactory {
     }
 }
 
+/// The Actix Web router default entry point.
 pub struct AppRouting {
     router: Router<HttpService, Guards>,
     default: HttpService,
@@ -298,6 +301,10 @@ impl Service<ServiceRequest> for AppRouting {
             }
             true
         });
+
+        // you might expect to find `req.add_data_container()` called here but `HttpRequest` objects
+        // are created with the root data already set (in `AppInitService::call`) and root data is
+        // retained when releasing requests back to the pool
 
         if let Some((srv, _info)) = res {
             srv.call(req)

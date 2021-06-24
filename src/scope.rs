@@ -1,28 +1,23 @@
-use std::cell::RefCell;
-use std::fmt;
-use std::future::Future;
-use std::rc::Rc;
+use std::{cell::RefCell, fmt, future::Future, mem, rc::Rc};
 
 use actix_http::Extensions;
 use actix_router::{ResourceDef, Router};
-use actix_service::boxed::{self, BoxService, BoxServiceFactory};
 use actix_service::{
-    apply, apply_fn_factory, IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt,
-    Transform,
+    apply, apply_fn_factory,
+    boxed::{self, BoxService, BoxServiceFactory},
+    IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt, Transform,
 };
 use futures_core::future::LocalBoxFuture;
 use futures_util::future::join_all;
 
-use crate::config::ServiceConfig;
-use crate::data::Data;
-use crate::dev::{AppService, HttpServiceFactory};
-use crate::error::Error;
-use crate::guard::Guard;
-use crate::resource::Resource;
-use crate::rmap::ResourceMap;
-use crate::route::Route;
-use crate::service::{
-    AppServiceFactory, ServiceFactoryWrapper, ServiceRequest, ServiceResponse,
+use crate::{
+    config::ServiceConfig,
+    data::Data,
+    dev::{AppService, HttpServiceFactory},
+    guard::Guard,
+    rmap::ResourceMap,
+    service::{AppServiceFactory, ServiceFactoryWrapper, ServiceRequest, ServiceResponse},
+    Error, Resource, Route,
 };
 
 type Guards = Vec<Box<dyn Guard>>;
@@ -71,16 +66,17 @@ pub struct Scope<T = ScopeEndpoint> {
 impl Scope {
     /// Create a new scope
     pub fn new(path: &str) -> Scope {
-        let fref = Rc::new(RefCell::new(None));
+        let factory_ref = Rc::new(RefCell::new(None));
+
         Scope {
-            endpoint: ScopeEndpoint::new(fref.clone()),
+            endpoint: ScopeEndpoint::new(Rc::clone(&factory_ref)),
             rdef: path.to_string(),
             app_data: None,
             guards: Vec::new(),
             services: Vec::new(),
             default: None,
             external: Vec::new(),
-            factory_ref: fref,
+            factory_ref,
         }
     }
 }
@@ -120,40 +116,38 @@ where
         self
     }
 
-    /// Set or override application data. Application data could be accessed
-    /// by using `Data<T>` extractor where `T` is data type.
-    ///
-    /// ```
-    /// use std::cell::Cell;
-    /// use actix_web::{web, App, HttpResponse, Responder};
-    ///
-    /// struct MyData {
-    ///     counter: Cell<usize>,
-    /// }
-    ///
-    /// async fn index(data: web::Data<MyData>) -> impl Responder {
-    ///     data.counter.set(data.counter.get() + 1);
-    ///     HttpResponse::Ok()
-    /// }
-    ///
-    /// fn main() {
-    ///     let app = App::new().service(
-    ///         web::scope("/app")
-    ///             .data(MyData{ counter: Cell::new(0) })
-    ///             .service(
-    ///                 web::resource("/index.html").route(
-    ///                     web::get().to(index)))
-    ///     );
-    /// }
-    /// ```
-    #[deprecated(since = "4.0.0", note = "Use `.app_data(Data::new(val))` instead.")]
-    pub fn data<U: 'static>(self, data: U) -> Self {
-        self.app_data(Data::new(data))
-    }
-
     /// Add scope data.
     ///
-    /// Data of different types from parent contexts will still be accessible.
+    /// Data of different types from parent contexts will still be accessible. Any `Data<T>` types
+    /// set here can be extracted in handlers using the `Data<T>` extractor.
+    ///
+    /// # Examples
+    /// ```
+    /// use std::cell::Cell;
+    /// use actix_web::{web, App, HttpRequest, HttpResponse, Responder};
+    ///
+    /// struct MyData {
+    ///     count: std::cell::Cell<usize>,
+    /// }
+    ///
+    /// async fn handler(req: HttpRequest, counter: web::Data<MyData>) -> impl Responder {
+    ///     // note this cannot use the Data<T> extractor because it was not added with it
+    ///     let incr = *req.app_data::<usize>().unwrap();
+    ///     assert_eq!(incr, 3);
+    ///
+    ///     // update counter using other value from app data
+    ///     counter.count.set(counter.count.get() + incr);
+    ///
+    ///     HttpResponse::Ok().body(counter.count.get().to_string())
+    /// }
+    ///
+    /// let app = App::new().service(
+    ///     web::scope("/app")
+    ///         .app_data(3usize)
+    ///         .app_data(web::Data::new(MyData { count: Default::default() }))
+    ///         .route("/", web::get().to(handler))
+    /// );
+    /// ```
     pub fn app_data<U: 'static>(mut self, data: U) -> Self {
         self.app_data
             .get_or_insert_with(Extensions::new)
@@ -162,15 +156,20 @@ where
         self
     }
 
-    /// Run external configuration as part of the scope building
-    /// process
+    /// Add scope data after wrapping in `Data<T>`.
     ///
-    /// This function is useful for moving parts of configuration to a
-    /// different module or even library. For example,
-    /// some of the resource's configuration could be moved to different module.
+    /// Deprecated in favor of [`app_data`](Self::app_data).
+    #[deprecated(since = "4.0.0", note = "Use `.app_data(Data::new(val))` instead.")]
+    pub fn data<U: 'static>(self, data: U) -> Self {
+        self.app_data(Data::new(data))
+    }
+
+    /// Run external configuration as part of the scope building process.
+    ///
+    /// This function is useful for moving parts of configuration to a different module or library.
+    /// For example, some of the resource's configuration could be moved to different module.
     ///
     /// ```
-    /// # extern crate actix_web;
     /// use actix_web::{web, middleware, App, HttpResponse};
     ///
     /// // this function could be located in different module
@@ -191,18 +190,21 @@ where
     ///         .route("/index.html", web::get().to(|| HttpResponse::Ok()));
     /// }
     /// ```
-    pub fn configure<F>(mut self, f: F) -> Self
+    pub fn configure<F>(mut self, cfg_fn: F) -> Self
     where
         F: FnOnce(&mut ServiceConfig),
     {
         let mut cfg = ServiceConfig::new();
-        f(&mut cfg);
+        cfg_fn(&mut cfg);
+
         self.services.extend(cfg.services);
         self.external.extend(cfg.external);
 
+        // TODO: add Extensions::is_empty check and conditionally insert data
         self.app_data
             .get_or_insert_with(Extensions::new)
             .extend(cfg.app_data);
+
         self
     }
 
@@ -419,7 +421,7 @@ where
         let mut rmap = ResourceMap::new(ResourceDef::root_prefix(&self.rdef));
 
         // external resources
-        for mut rdef in std::mem::take(&mut self.external) {
+        for mut rdef in mem::take(&mut self.external) {
             rmap.add(&mut rdef, None);
         }
 
@@ -991,7 +993,7 @@ mod tests {
         );
     }
 
-    // allow deprecated App::data
+    // allow deprecated {App, Scope}::data
     #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_override_data() {
@@ -1011,7 +1013,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    // allow deprecated App::data
+    // allow deprecated `{App, Scope}::data`
     #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_override_data_default_service() {

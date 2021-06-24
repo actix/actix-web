@@ -17,9 +17,8 @@ use crate::{
     dev::insert_slash,
     guard::Guard,
     info::ConnectionInfo,
-    request::HttpRequest,
     rmap::ResourceMap,
-    Error, HttpResponse,
+    Error, HttpRequest, HttpResponse,
 };
 
 pub trait HttpServiceFactory {
