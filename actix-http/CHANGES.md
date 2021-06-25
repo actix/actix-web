@@ -4,6 +4,10 @@
 ### Changed
 * Change compression algorithm features flags. [#2250]
 
+### Removed
+* `downcast` and `downcast_get_type_id` macros. [#2291]
+
+[#2291]: https://github.com/actix/actix-web/pull/2291
 [#2250]: https://github.com/actix/actix-web/pull/2250
 
 
