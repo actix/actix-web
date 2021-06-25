@@ -43,13 +43,14 @@ impl App<AppEntry, Body> {
     /// Create application builder. Application can be configured with a builder-like pattern.
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
-        let fref = Rc::new(RefCell::new(None));
+        let factory_ref = Rc::new(RefCell::new(None));
+
         App {
-            endpoint: AppEntry::new(fref.clone()),
+            endpoint: AppEntry::new(factory_ref.clone()),
             data_factories: Vec::new(),
             services: Vec::new(),
             default: None,
-            factory_ref: fref,
+            factory_ref,
             external: Vec::new(),
             extensions: Extensions::new(),
             _phantom: PhantomData,
