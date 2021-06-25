@@ -97,9 +97,9 @@ impl AppService {
         F: IntoServiceFactory<S, ServiceRequest>,
         S: ServiceFactory<
                 ServiceRequest,
-                Config = (),
                 Response = ServiceResponse,
                 Error = Error,
+                Config = (),
                 InitError = (),
             > + 'static,
     {

@@ -428,7 +428,6 @@ where
 
         // complete scope pipeline creation
         *self.factory_ref.borrow_mut() = Some(ScopeFactory {
-            app_data: self.app_data.take().map(Rc::new),
             default,
             services: cfg
                 .into_services()
@@ -450,18 +449,28 @@ where
             Some(self.guards)
         };
 
+        let scope_data = self.app_data.map(Rc::new);
+
+        // wraps endpoint service (including middleware) call and injects app data for this scope
+        let endpoint = apply_fn_factory(self.endpoint, move |mut req: ServiceRequest, srv| {
+            if let Some(ref data) = scope_data {
+                req.add_data_container(Rc::clone(data));
+            }
+
+            srv.call(req)
+        });
+
         // register final service
         config.register_service(
             ResourceDef::root_prefix(&self.rdef),
             guards,
-            self.endpoint,
+            endpoint,
             Some(Rc::new(rmap)),
         )
     }
 }
 
 pub struct ScopeFactory {
-    app_data: Option<Rc<Extensions>>,
     services: Rc<[(ResourceDef, HttpNewService, RefCell<Option<Guards>>)]>,
     default: Rc<HttpNewService>,
 }
@@ -489,8 +498,6 @@ impl ServiceFactory<ServiceRequest> for ScopeFactory {
             }
         }));
 
-        let app_data = self.app_data.clone();
-
         Box::pin(async move {
             let default = default_fut.await?;
 
@@ -506,17 +513,12 @@ impl ServiceFactory<ServiceRequest> for ScopeFactory {
                 })
                 .finish();
 
-            Ok(ScopeService {
-                app_data,
-                router,
-                default,
-            })
+            Ok(ScopeService { router, default })
         })
     }
 }
 
 pub struct ScopeService {
-    app_data: Option<Rc<Extensions>>,
     router: Router<HttpService, Vec<Box<dyn Guard>>>,
     default: HttpService,
 }
@@ -539,10 +541,6 @@ impl Service<ServiceRequest> for ScopeService {
             }
             true
         });
-
-        if let Some(ref app_data) = self.app_data {
-            req.add_data_container(app_data.clone());
-        }
 
         if let Some((srv, _info)) = res {
             srv.call(req)
@@ -582,12 +580,15 @@ mod tests {
     use actix_utils::future::ok;
     use bytes::Bytes;
 
-    use crate::dev::Body;
-    use crate::http::{header, HeaderValue, Method, StatusCode};
-    use crate::middleware::DefaultHeaders;
-    use crate::service::ServiceRequest;
-    use crate::test::{call_service, init_service, read_body, TestRequest};
-    use crate::{guard, web, App, HttpRequest, HttpResponse};
+    use crate::{
+        dev::Body,
+        guard,
+        http::{header, HeaderValue, Method, StatusCode},
+        middleware::DefaultHeaders,
+        service::{ServiceRequest, ServiceResponse},
+        test::{call_service, init_service, read_body, TestRequest},
+        web, App, HttpMessage, HttpRequest, HttpResponse,
+    };
 
     #[actix_rt::test]
     async fn test_scope() {
@@ -919,10 +920,7 @@ mod tests {
     async fn test_default_resource_propagation() {
         let srv = init_service(
             App::new()
-                .service(
-                    web::scope("/app1")
-                        .default_service(web::resource("").to(HttpResponse::BadRequest)),
-                )
+                .service(web::scope("/app1").default_service(web::to(HttpResponse::BadRequest)))
                 .service(web::scope("/app2"))
                 .default_service(|r: ServiceRequest| {
                     ok(r.into_response(HttpResponse::MethodNotAllowed()))
@@ -992,6 +990,41 @@ mod tests {
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             HeaderValue::from_static("0001")
         );
+    }
+
+    #[actix_rt::test]
+    async fn test_middleware_app_data() {
+        let srv = init_service(
+            App::new().service(
+                web::scope("app")
+                    .app_data(1usize)
+                    .wrap_fn(|req, srv| {
+                        assert_eq!(req.app_data::<usize>(), Some(&1usize));
+                        req.extensions_mut().insert(1usize);
+                        srv.call(req)
+                    })
+                    .route("/test", web::get().to(HttpResponse::Ok))
+                    .default_service(|req: ServiceRequest| async move {
+                        let (req, _) = req.into_parts();
+
+                        assert_eq!(req.extensions().get::<usize>(), Some(&1));
+
+                        Ok(ServiceResponse::new(
+                            req,
+                            HttpResponse::BadRequest().finish(),
+                        ))
+                    }),
+            ),
+        )
+        .await;
+
+        let req = TestRequest::with_uri("/app/test").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/app/default").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 
     // allow deprecated {App, Scope}::data

@@ -1,6 +1,6 @@
 use super::{HttpDate, LAST_MODIFIED};
 
-crate::__define_common_header! {
+crate::http::header::common_header! {
     /// `Last-Modified` header, defined in
     /// [RFC7232](http://tools.ietf.org/html/rfc7232#section-2.2)
     ///
@@ -36,6 +36,6 @@ crate::__define_common_header! {
 
         test_last_modified {
             // Test case from RFC
-            crate::__common_header_test!(test1, vec![b"Sat, 29 Oct 1994 19:43:31 GMT"]);
+            crate::http::header::common_header_test!(test1, vec![b"Sat, 29 Oct 1994 19:43:31 GMT"]);
         }
 }

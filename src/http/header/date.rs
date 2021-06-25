@@ -1,7 +1,7 @@
 use super::{HttpDate, DATE};
 use std::time::SystemTime;
 
-crate::__define_common_header! {
+crate::http::header::common_header! {
     /// `Date` header, defined in [RFC7231](http://tools.ietf.org/html/rfc7231#section-7.1.1.2)
     ///
     /// The `Date` header field represents the date and time at which the
@@ -32,7 +32,7 @@ crate::__define_common_header! {
     (Date, DATE) => [HttpDate]
 
     test_date {
-        crate::__common_header_test!(test1, vec![b"Tue, 15 Nov 1994 08:12:31 GMT"]);
+        crate::http::header::common_header_test!(test1, vec![b"Tue, 15 Nov 1994 08:12:31 GMT"]);
     }
 }
 

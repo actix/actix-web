@@ -44,13 +44,14 @@ impl App<AppEntry, Body> {
     #[allow(clippy::new_without_default)]
     #[must_use]
     pub fn new() -> Self {
-        let fref = Rc::new(RefCell::new(None));
+        let factory_ref = Rc::new(RefCell::new(None));
+
         App {
-            endpoint: AppEntry::new(fref.clone()),
+            endpoint: AppEntry::new(factory_ref.clone()),
             data_factories: Vec::new(),
             services: Vec::new(),
             default: None,
-            factory_ref: fref,
+            factory_ref,
             external: Vec::new(),
             extensions: Extensions::new(),
             _phantom: PhantomData,

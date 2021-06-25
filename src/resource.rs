@@ -400,34 +400,28 @@ where
             *rdef.name_mut() = name.clone();
         }
 
-        config.register_service(rdef, guards, self, None)
-    }
-}
-
-impl<T> IntoServiceFactory<T, ServiceRequest> for Resource<T>
-where
-    T: ServiceFactory<
-        ServiceRequest,
-        Config = (),
-        Response = ServiceResponse,
-        Error = Error,
-        InitError = (),
-    >,
-{
-    fn into_factory(self) -> T {
         *self.factory_ref.borrow_mut() = Some(ResourceFactory {
             routes: self.routes,
-            app_data: self.app_data.map(Rc::new),
             default: self.default,
         });
 
-        self.endpoint
+        let resource_data = self.app_data.map(Rc::new);
+
+        // wraps endpoint service (including middleware) call and injects app data for this scope
+        let endpoint = apply_fn_factory(self.endpoint, move |mut req: ServiceRequest, srv| {
+            if let Some(ref data) = resource_data {
+                req.add_data_container(Rc::clone(data));
+            }
+
+            srv.call(req)
+        });
+
+        config.register_service(rdef, guards, endpoint, None)
     }
 }
 
 pub struct ResourceFactory {
     routes: Vec<Route>,
-    app_data: Option<Rc<Extensions>>,
     default: HttpNewService,
 }
 
@@ -446,8 +440,6 @@ impl ServiceFactory<ServiceRequest> for ResourceFactory {
         // construct route service factory futures
         let factory_fut = join_all(self.routes.iter().map(|route| route.new_service(())));
 
-        let app_data = self.app_data.clone();
-
         Box::pin(async move {
             let default = default_fut.await?;
             let routes = factory_fut
@@ -455,18 +447,13 @@ impl ServiceFactory<ServiceRequest> for ResourceFactory {
                 .into_iter()
                 .collect::<Result<Vec<_>, _>>()?;
 
-            Ok(ResourceService {
-                routes,
-                app_data,
-                default,
-            })
+            Ok(ResourceService { routes, default })
         })
     }
 }
 
 pub struct ResourceService {
     routes: Vec<RouteService>,
-    app_data: Option<Rc<Extensions>>,
     default: HttpService,
 }
 
@@ -480,16 +467,8 @@ impl Service<ServiceRequest> for ResourceService {
     fn call(&self, mut req: ServiceRequest) -> Self::Future {
         for route in &self.routes {
             if route.check(&mut req) {
-                if let Some(ref app_data) = self.app_data {
-                    req.add_data_container(app_data.clone());
-                }
-
                 return route.call(req);
             }
-        }
-
-        if let Some(ref app_data) = self.app_data {
-            req.add_data_container(app_data.clone());
         }
 
         self.default.call(req)
@@ -528,11 +507,14 @@ mod tests {
     use actix_service::Service;
     use actix_utils::future::ok;
 
-    use crate::http::{header, HeaderValue, Method, StatusCode};
-    use crate::middleware::DefaultHeaders;
-    use crate::service::ServiceRequest;
-    use crate::test::{call_service, init_service, TestRequest};
-    use crate::{guard, web, App, Error, HttpResponse};
+    use crate::{
+        guard,
+        http::{header, HeaderValue, Method, StatusCode},
+        middleware::DefaultHeaders,
+        service::{ServiceRequest, ServiceResponse},
+        test::{call_service, init_service, TestRequest},
+        web, App, Error, HttpMessage, HttpResponse,
+    };
 
     #[actix_rt::test]
     async fn test_middleware() {
@@ -752,5 +734,40 @@ mod tests {
         let req = TestRequest::get().uri("/test").to_request();
         let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[actix_rt::test]
+    async fn test_middleware_app_data() {
+        let srv = init_service(
+            App::new().service(
+                web::resource("test")
+                    .app_data(1usize)
+                    .wrap_fn(|req, srv| {
+                        assert_eq!(req.app_data::<usize>(), Some(&1usize));
+                        req.extensions_mut().insert(1usize);
+                        srv.call(req)
+                    })
+                    .route(web::get().to(HttpResponse::Ok))
+                    .default_service(|req: ServiceRequest| async move {
+                        let (req, _) = req.into_parts();
+
+                        assert_eq!(req.extensions().get::<usize>(), Some(&1));
+
+                        Ok(ServiceResponse::new(
+                            req,
+                            HttpResponse::BadRequest().finish(),
+                        ))
+                    }),
+            ),
+        )
+        .await;
+
+        let req = TestRequest::get().uri("/test").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let req = TestRequest::post().uri("/test").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 }
