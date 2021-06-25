@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+* Added `Files::path_filter()`. [#2274]
+
+[#2274]: https://github.com/actix/actix-web/pull/2274
 
 
 ## 0.6.0-beta.5 - 2021-06-17
