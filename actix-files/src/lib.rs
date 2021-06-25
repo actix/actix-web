@@ -918,7 +918,7 @@ mod tests {
         let resp = test::call_service(&st, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let req = TestRequest::with_uri("/tests/test.png").to_srv_request();
+        let req = TestRequest::with_uri("/src/lib.rs").to_srv_request();
         let resp = test::call_service(&st, req).await;
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
