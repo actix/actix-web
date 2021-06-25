@@ -1,6 +1,4 @@
-#[doc(hidden)]
-#[macro_export]
-macro_rules! __common_header_deref {
+macro_rules! common_header_deref {
     ($from:ty => $to:ty) => {
         impl ::std::ops::Deref for $from {
             type Target = $to;
@@ -20,9 +18,7 @@ macro_rules! __common_header_deref {
     };
 }
 
-#[doc(hidden)]
-#[macro_export]
-macro_rules! __common_header_test_module {
+macro_rules! common_header_test_module {
     ($id:ident, $tm:ident{$($tf:item)*}) => {
         #[allow(unused_imports)]
         #[cfg(test)]
@@ -37,9 +33,8 @@ macro_rules! __common_header_test_module {
     }
 }
 
-#[doc(hidden)]
-#[macro_export]
-macro_rules! __common_header_test {
+#[cfg(test)]
+macro_rules! common_header_test {
     ($id:ident, $raw:expr) => {
         #[test]
         fn $id() {
@@ -99,9 +94,7 @@ macro_rules! __common_header_test {
     };
 }
 
-#[doc(hidden)]
-#[macro_export]
-macro_rules! __define_common_header {
+macro_rules! common_header {
     // $a:meta: Attributes associated with the header item (usually docs)
     // $id:ident: Identifier of the header
     // $n:expr: Lowercase name of the header
@@ -112,7 +105,7 @@ macro_rules! __define_common_header {
         $(#[$a])*
         #[derive(Clone, Debug, PartialEq)]
         pub struct $id(pub Vec<$item>);
-        crate::__common_header_deref!($id => Vec<$item>);
+        crate::http::header::common_header_deref!($id => Vec<$item>);
         impl $crate::http::header::Header for $id {
             #[inline]
             fn name() -> $crate::http::header::HeaderName {
@@ -148,7 +141,7 @@ macro_rules! __define_common_header {
         $(#[$a])*
         #[derive(Clone, Debug, PartialEq)]
         pub struct $id(pub Vec<$item>);
-        crate::__common_header_deref!($id => Vec<$item>);
+        crate::http::header::common_header_deref!($id => Vec<$item>);
         impl $crate::http::header::Header for $id {
             #[inline]
             fn name() -> $crate::http::header::HeaderName {
@@ -184,7 +177,7 @@ macro_rules! __define_common_header {
         $(#[$a])*
         #[derive(Clone, Debug, PartialEq)]
         pub struct $id(pub $value);
-        crate::__common_header_deref!($id => $value);
+        crate::http::header::common_header_deref!($id => $value);
         impl $crate::http::header::Header for $id {
             #[inline]
             fn name() -> $crate::http::header::HeaderName {
@@ -267,34 +260,39 @@ macro_rules! __define_common_header {
 
     // optional test module
     ($(#[$a:meta])*($id:ident, $name:expr) => ($item:ty)* $tm:ident{$($tf:item)*}) => {
-        crate::__define_common_header! {
+        crate::http::header::common_header! {
             $(#[$a])*
             ($id, $name) => ($item)*
         }
 
-        crate::__common_header_test_module! { $id, $tm { $($tf)* }}
+        crate::http::header::common_header_test_module! { $id, $tm { $($tf)* }}
     };
     ($(#[$a:meta])*($id:ident, $n:expr) => ($item:ty)+ $tm:ident{$($tf:item)*}) => {
-        crate::__define_common_header! {
+        crate::http::header::common_header! {
             $(#[$a])*
             ($id, $n) => ($item)+
         }
 
-        crate::__common_header_test_module! { $id, $tm { $($tf)* }}
+        crate::http::header::common_header_test_module! { $id, $tm { $($tf)* }}
     };
     ($(#[$a:meta])*($id:ident, $name:expr) => [$item:ty] $tm:ident{$($tf:item)*}) => {
-        crate::__define_common_header! {
+        crate::http::header::common_header! {
             $(#[$a])* ($id, $name) => [$item]
         }
 
-        crate::__common_header_test_module! { $id, $tm { $($tf)* }}
+        crate::http::header::common_header_test_module! { $id, $tm { $($tf)* }}
     };
     ($(#[$a:meta])*($id:ident, $name:expr) => {Any / ($item:ty)+} $tm:ident{$($tf:item)*}) => {
-        crate::__define_common_header! {
+        crate::http::header::common_header! {
             $(#[$a])*
             ($id, $name) => {Any / ($item)+}
         }
 
-        crate::__common_header_test_module! { $id, $tm { $($tf)* }}
+        crate::http::header::common_header_test_module! { $id, $tm { $($tf)* }}
     };
 }
+
+pub(crate) use {common_header, common_header_deref, common_header_test_module};
+
+#[cfg(test)]
+pub(crate) use common_header_test;

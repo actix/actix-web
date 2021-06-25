@@ -1,7 +1,7 @@
 use crate::http::header;
 use actix_http::http::Method;
 
-crate::__define_common_header! {
+crate::http::header::common_header! {
     /// `Allow` header, defined in [RFC7231](http://tools.ietf.org/html/rfc7231#section-7.4.1)
     ///
     /// The `Allow` header field lists the set of methods advertised as
@@ -49,12 +49,12 @@ crate::__define_common_header! {
 
     test_allow {
         // From the RFC
-        crate::__common_header_test!(
+        crate::http::header::common_header_test!(
             test1,
             vec![b"GET, HEAD, PUT"],
             Some(HeaderField(vec![Method::GET, Method::HEAD, Method::PUT])));
         // Own tests
-        crate::__common_header_test!(
+        crate::http::header::common_header_test!(
             test2,
             vec![b"OPTIONS, GET, PUT, POST, DELETE, HEAD, TRACE, CONNECT, PATCH"],
             Some(HeaderField(vec![
@@ -67,7 +67,7 @@ crate::__define_common_header! {
                 Method::TRACE,
                 Method::CONNECT,
                 Method::PATCH])));
-        crate::__common_header_test!(
+        crate::http::header::common_header_test!(
             test3,
             vec![b""],
             Some(HeaderField(Vec::<Method>::new())));
