@@ -131,7 +131,7 @@ pub mod dev {
     pub use crate::config::{AppConfig, AppService};
     #[doc(hidden)]
     pub use crate::handler::Handler;
-    pub use crate::info::ConnectionInfo;
+    pub use crate::info::{ConnectionInfo, PeerAddr};
     pub use crate::rmap::ResourceMap;
     pub use crate::service::{HttpServiceFactory, ServiceRequest, ServiceResponse, WebService};
 
@@ -149,7 +149,9 @@ pub mod dev {
     pub use actix_http::{Extensions, Payload, PayloadStream, RequestHead, ResponseHead};
     pub use actix_router::{Path, ResourceDef, ResourcePath, Url};
     pub use actix_server::Server;
-    pub use actix_service::{always_ready, forward_ready, Service, Transform};
+    pub use actix_service::{
+        always_ready, fn_factory, fn_service, forward_ready, Service, Transform,
+    };
 
     pub(crate) fn insert_slash(mut patterns: Vec<String>) -> Vec<String> {
         for path in &mut patterns {

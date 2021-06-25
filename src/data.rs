@@ -36,6 +36,11 @@ pub(crate) type FnDataFactory =
 /// If route data is not set for a handler, using `Data<T>` extractor would cause *Internal
 /// Server Error* response.
 ///
+// TODO: document `dyn T` functionality through converting an Arc
+// TODO: note equivalence of req.app_data<Data<T>> and Data<T> extractor
+// TODO: note that data must be inserted using Data<T> in order to extract it
+///
+/// # Examples
 /// ```
 /// use std::sync::Mutex;
 /// use actix_web::{web, App, HttpResponse, Responder};
@@ -154,6 +159,8 @@ mod tests {
         web, App, HttpResponse,
     };
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_data_extractor() {
         let srv = init_service(App::new().data("TEST".to_string()).service(
@@ -221,6 +228,8 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_route_data_extractor() {
         let srv = init_service(
@@ -250,6 +259,8 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_override_data() {
         let srv =

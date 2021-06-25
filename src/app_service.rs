@@ -144,7 +144,9 @@ where
     }
 }
 
-/// Service that takes a [`Request`] and delegates to a service that take a [`ServiceRequest`].
+/// The [`Service`] that is passed to `actix-http`'s server builder.
+///
+/// Wraps a service receiving a [`ServiceRequest`] into one receiving a [`Request`].
 pub struct AppInitService<T, B>
 where
     T: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
@@ -275,6 +277,7 @@ impl ServiceFactory<ServiceRequest> for AppRoutingFactory {
     }
 }
 
+/// The Actix Web router default entry point.
 pub struct AppRouting {
     router: Router<HttpService, Guards>,
     default: HttpService,
@@ -349,6 +352,8 @@ mod tests {
         }
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_drop_data() {
         let data = Arc::new(AtomicBool::new(false));
