@@ -228,14 +228,12 @@ pub struct FormConfig {
 
 impl FormConfig {
     /// Set maximum accepted payload size. By default this limit is 16kB.
-    #[must_use]
     pub fn limit(mut self, limit: usize) -> Self {
         self.limit = limit;
         self
     }
 
     /// Set custom error handler
-    #[must_use]
     pub fn error_handler<F>(mut self, f: F) -> Self
     where
         F: Fn(UrlencodedError, &HttpRequest) -> Error + 'static,
@@ -332,7 +330,6 @@ impl<T> UrlEncoded<T> {
     }
 
     /// Set maximum accepted payload size. The default limit is 256kB.
-    #[must_use]
     pub fn limit(mut self, limit: usize) -> Self {
         self.limit = limit;
         self

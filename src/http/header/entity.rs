@@ -58,7 +58,6 @@ impl EntityTag {
     /// Constructs a new EntityTag.
     /// # Panics
     /// If the tag contains invalid characters.
-    #[must_use]
     pub fn new(weak: bool, tag: String) -> EntityTag {
         assert!(check_slice_validity(&tag), "Invalid tag: {:?}", tag);
         EntityTag { weak, tag }
@@ -67,7 +66,6 @@ impl EntityTag {
     /// Constructs a new weak EntityTag.
     /// # Panics
     /// If the tag contains invalid characters.
-    #[must_use]
     pub fn weak(tag: String) -> EntityTag {
         EntityTag::new(true, tag)
     }
@@ -75,13 +73,11 @@ impl EntityTag {
     /// Constructs a new strong EntityTag.
     /// # Panics
     /// If the tag contains invalid characters.
-    #[must_use]
     pub fn strong(tag: String) -> EntityTag {
         EntityTag::new(false, tag)
     }
 
     /// Get the tag.
-    #[must_use]
     pub fn tag(&self) -> &str {
         self.tag.as_ref()
     }
@@ -96,7 +92,6 @@ impl EntityTag {
 
     /// For strong comparison two entity-tags are equivalent if both are not
     /// weak and their opaque-tags match character-by-character.
-    #[must_use]
     pub fn strong_eq(&self, other: &EntityTag) -> bool {
         !self.weak && !other.weak && self.tag == other.tag
     }
@@ -104,19 +99,16 @@ impl EntityTag {
     /// For weak comparison two entity-tags are equivalent if their
     /// opaque-tags match character-by-character, regardless of either or
     /// both being tagged as "weak".
-    #[must_use]
     pub fn weak_eq(&self, other: &EntityTag) -> bool {
         self.tag == other.tag
     }
 
     /// The inverse of `EntityTag.strong_eq()`.
-    #[must_use]
     pub fn strong_ne(&self, other: &EntityTag) -> bool {
         !self.strong_eq(other)
     }
 
     /// The inverse of `EntityTag.weak_eq()`.
-    #[must_use]
     pub fn weak_ne(&self, other: &EntityTag) -> bool {
         !self.weak_eq(other)
     }

@@ -62,7 +62,6 @@ impl ResponseBuilder {
     /// assert_eq!(res.status(), StatusCode::OK);
     /// ```
     #[inline]
-    #[must_use]
     pub fn new(status: StatusCode) -> Self {
         ResponseBuilder {
             head: Some(BoxedResponseHead::new(status)),
@@ -221,7 +220,6 @@ impl ResponseBuilder {
 
     /// Responses extensions
     #[inline]
-    #[must_use]
     pub fn extensions(&self) -> Ref<'_, Extensions> {
         let head = self.head.as_ref().expect("cannot reuse response builder");
         head.extensions.borrow()

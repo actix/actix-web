@@ -41,7 +41,6 @@ impl Payload {
     /// * `PayloadSender` - *Sender* side of the stream
     ///
     /// * `Payload` - *Receiver* side of the stream
-    #[must_use]
     pub fn create(eof: bool) -> (PayloadSender, Payload) {
         let shared = Rc::new(RefCell::new(Inner::new(eof)));
 
@@ -55,7 +54,6 @@ impl Payload {
 
     /// Create empty payload
     #[doc(hidden)]
-    #[must_use]
     pub fn empty() -> Payload {
         Payload {
             inner: Rc::new(RefCell::new(Inner::new(true))),

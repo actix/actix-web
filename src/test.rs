@@ -31,14 +31,12 @@ use crate::{
 };
 
 /// Create service that always responds with `HttpResponse::Ok()` and no body.
-#[must_use]
 pub fn ok_service(
 ) -> impl Service<ServiceRequest, Response = ServiceResponse<Body>, Error = Error> {
     default_service(StatusCode::OK)
 }
 
 /// Create service that always responds with given status code and no body.
-#[must_use]
 pub fn default_service(
     status_code: StatusCode,
 ) -> impl Service<ServiceRequest, Response = ServiceResponse<Body>, Error = Error> {
@@ -400,37 +398,31 @@ impl Default for TestRequest {
 #[allow(clippy::wrong_self_convention)]
 impl TestRequest {
     /// Create TestRequest and set request uri
-    #[must_use]
     pub fn with_uri(path: &str) -> TestRequest {
         TestRequest::default().uri(path)
     }
 
     /// Create TestRequest and set method to `Method::GET`
-    #[must_use]
     pub fn get() -> TestRequest {
         TestRequest::default().method(Method::GET)
     }
 
     /// Create TestRequest and set method to `Method::POST`
-    #[must_use]
     pub fn post() -> TestRequest {
         TestRequest::default().method(Method::POST)
     }
 
     /// Create TestRequest and set method to `Method::PUT`
-    #[must_use]
     pub fn put() -> TestRequest {
         TestRequest::default().method(Method::PUT)
     }
 
     /// Create TestRequest and set method to `Method::PATCH`
-    #[must_use]
     pub fn patch() -> TestRequest {
         TestRequest::default().method(Method::PATCH)
     }
 
     /// Create TestRequest and set method to `Method::DELETE`
-    #[must_use]
     pub fn delete() -> TestRequest {
         TestRequest::default().method(Method::DELETE)
     }

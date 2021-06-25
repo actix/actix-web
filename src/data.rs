@@ -77,13 +77,11 @@ impl<T> Data<T> {
     }
 
     /// Get reference to inner app data.
-    #[must_use]
     pub fn get_ref(&self) -> &T {
         self.0.as_ref()
     }
 
     /// Convert to the internal Arc<T>
-    #[must_use]
     pub fn into_inner(self) -> Arc<T> {
         self.0
     }

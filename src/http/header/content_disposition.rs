@@ -101,28 +101,24 @@ pub enum DispositionParam {
 impl DispositionParam {
     /// Returns `true` if the parameter is [`Name`](DispositionParam::Name).
     #[inline]
-    #[must_use]
     pub fn is_name(&self) -> bool {
         self.as_name().is_some()
     }
 
     /// Returns `true` if the parameter is [`Filename`](DispositionParam::Filename).
     #[inline]
-    #[must_use]
     pub fn is_filename(&self) -> bool {
         self.as_filename().is_some()
     }
 
     /// Returns `true` if the parameter is [`FilenameExt`](DispositionParam::FilenameExt).
     #[inline]
-    #[must_use]
     pub fn is_filename_ext(&self) -> bool {
         self.as_filename_ext().is_some()
     }
 
     /// Returns `true` if the parameter is [`Unknown`](DispositionParam::Unknown) and the `name`
     #[inline]
-    #[must_use]
     /// matches.
     pub fn is_unknown<T: AsRef<str>>(&self, name: T) -> bool {
         self.as_unknown(name).is_some()
@@ -131,14 +127,12 @@ impl DispositionParam {
     /// Returns `true` if the parameter is [`UnknownExt`](DispositionParam::UnknownExt) and the
     /// `name` matches.
     #[inline]
-    #[must_use]
     pub fn is_unknown_ext<T: AsRef<str>>(&self, name: T) -> bool {
         self.as_unknown_ext(name).is_some()
     }
 
     /// Returns the name if applicable.
     #[inline]
-    #[must_use]
     pub fn as_name(&self) -> Option<&str> {
         match self {
             DispositionParam::Name(ref name) => Some(name.as_str()),
@@ -148,7 +142,6 @@ impl DispositionParam {
 
     /// Returns the filename if applicable.
     #[inline]
-    #[must_use]
     pub fn as_filename(&self) -> Option<&str> {
         match self {
             DispositionParam::Filename(ref filename) => Some(filename.as_str()),
@@ -158,7 +151,6 @@ impl DispositionParam {
 
     /// Returns the filename* if applicable.
     #[inline]
-    #[must_use]
     pub fn as_filename_ext(&self) -> Option<&ExtendedValue> {
         match self {
             DispositionParam::FilenameExt(ref value) => Some(value),
@@ -169,7 +161,6 @@ impl DispositionParam {
     /// Returns the value of the unrecognized regular parameter if it is
     /// [`Unknown`](DispositionParam::Unknown) and the `name` matches.
     #[inline]
-    #[must_use]
     pub fn as_unknown<T: AsRef<str>>(&self, name: T) -> Option<&str> {
         match self {
             DispositionParam::Unknown(ref ext_name, ref value)
@@ -184,7 +175,6 @@ impl DispositionParam {
     /// Returns the value of the unrecognized extended parameter if it is
     /// [`Unknown`](DispositionParam::Unknown) and the `name` matches.
     #[inline]
-    #[must_use]
     pub fn as_unknown_ext<T: AsRef<str>>(&self, name: T) -> Option<&ExtendedValue> {
         match self {
             DispositionParam::UnknownExt(ref ext_name, ref value)
@@ -396,25 +386,21 @@ impl ContentDisposition {
     }
 
     /// Returns `true` if it is [`Inline`](DispositionType::Inline).
-    #[must_use]
     pub fn is_inline(&self) -> bool {
         matches!(self.disposition, DispositionType::Inline)
     }
 
     /// Returns `true` if it is [`Attachment`](DispositionType::Attachment).
-    #[must_use]
     pub fn is_attachment(&self) -> bool {
         matches!(self.disposition, DispositionType::Attachment)
     }
 
     /// Returns `true` if it is [`FormData`](DispositionType::FormData).
-    #[must_use]
     pub fn is_form_data(&self) -> bool {
         matches!(self.disposition, DispositionType::FormData)
     }
 
     /// Returns `true` if it is [`Ext`](DispositionType::Ext) and the `disp_type` matches.
-    #[must_use]
     pub fn is_ext(&self, disp_type: impl AsRef<str>) -> bool {
         matches!(
             self.disposition,
@@ -423,13 +409,11 @@ impl ContentDisposition {
     }
 
     /// Return the value of *name* if exists.
-    #[must_use]
     pub fn get_name(&self) -> Option<&str> {
         self.parameters.iter().find_map(DispositionParam::as_name)
     }
 
     /// Return the value of *filename* if exists.
-    #[must_use]
     pub fn get_filename(&self) -> Option<&str> {
         self.parameters
             .iter()
@@ -437,7 +421,6 @@ impl ContentDisposition {
     }
 
     /// Return the value of *filename\** if exists.
-    #[must_use]
     pub fn get_filename_ext(&self) -> Option<&ExtendedValue> {
         self.parameters
             .iter()
@@ -445,14 +428,12 @@ impl ContentDisposition {
     }
 
     /// Return the value of the parameter which the `name` matches.
-    #[must_use]
     pub fn get_unknown(&self, name: impl AsRef<str>) -> Option<&str> {
         let name = name.as_ref();
         self.parameters.iter().find_map(|p| p.as_unknown(name))
     }
 
     /// Return the value of the extended parameter which the `name` matches.
-    #[must_use]
     pub fn get_unknown_ext(&self, name: impl AsRef<str>) -> Option<&ExtendedValue> {
         let name = name.as_ref();
         self.parameters.iter().find_map(|p| p.as_unknown_ext(name))

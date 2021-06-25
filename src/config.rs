@@ -44,7 +44,6 @@ impl AppService {
     }
 
     /// Check if root is being configured
-    #[must_use]
     pub fn is_root(&self) -> bool {
         self.root
     }
@@ -75,13 +74,11 @@ impl AppService {
     }
 
     /// Returns reference to configuration.
-    #[must_use]
     pub fn config(&self) -> &AppConfig {
         &self.config
     }
 
     /// Returns default handler factory.
-    #[must_use]
     pub fn default_service(&self) -> Rc<HttpNewService> {
         self.default.clone()
     }
@@ -134,19 +131,16 @@ impl AppConfig {
     /// documentation for more information.
     ///
     /// By default host name is set to a "localhost" value.
-    #[must_use]
     pub fn host(&self) -> &str {
         &self.host
     }
 
     /// Returns true if connection is secure(https)
-    #[must_use]
     pub fn secure(&self) -> bool {
         self.secure
     }
 
     /// Returns the socket address of the local half of this TCP connection
-    #[must_use]
     pub fn local_addr(&self) -> SocketAddr {
         self.addr
     }

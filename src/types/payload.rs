@@ -47,7 +47,6 @@ pub struct Payload(pub crate::dev::Payload);
 
 impl Payload {
     /// Unwrap to inner Payload type.
-    #[must_use]
     pub fn into_inner(self) -> crate::dev::Payload {
         self.0
     }
@@ -215,7 +214,6 @@ pub struct PayloadConfig {
 
 impl PayloadConfig {
     /// Create new instance with a size limit (in bytes) and no mime type condition.
-    #[must_use]
     pub fn new(limit: usize) -> Self {
         Self {
             limit,
@@ -224,14 +222,12 @@ impl PayloadConfig {
     }
 
     /// Set maximum accepted payload size in bytes. The default limit is 256kB.
-    #[must_use]
     pub fn limit(mut self, limit: usize) -> Self {
         self.limit = limit;
         self
     }
 
     /// Set required mime type of the request. By default mime type is not enforced.
-    #[must_use]
     pub fn mimetype(mut self, mt: Mime) -> Self {
         self.mimetype = Some(mt);
         self

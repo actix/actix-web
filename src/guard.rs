@@ -195,68 +195,57 @@ impl Guard for MethodGuard {
 }
 
 /// Guard to match *GET* HTTP method.
-#[must_use]
 pub fn Get() -> MethodGuard {
     MethodGuard(http::Method::GET)
 }
 
 /// Predicate to match *POST* HTTP method.
-#[must_use]
 pub fn Post() -> MethodGuard {
     MethodGuard(http::Method::POST)
 }
 
 /// Predicate to match *PUT* HTTP method.
-#[must_use]
 pub fn Put() -> MethodGuard {
     MethodGuard(http::Method::PUT)
 }
 
 /// Predicate to match *DELETE* HTTP method.
-#[must_use]
 pub fn Delete() -> MethodGuard {
     MethodGuard(http::Method::DELETE)
 }
 
 /// Predicate to match *HEAD* HTTP method.
-#[must_use]
 pub fn Head() -> MethodGuard {
     MethodGuard(http::Method::HEAD)
 }
 
 /// Predicate to match *OPTIONS* HTTP method.
-#[must_use]
 pub fn Options() -> MethodGuard {
     MethodGuard(http::Method::OPTIONS)
 }
 
 /// Predicate to match *CONNECT* HTTP method.
-#[must_use]
 pub fn Connect() -> MethodGuard {
     MethodGuard(http::Method::CONNECT)
 }
 
 /// Predicate to match *PATCH* HTTP method.
-#[must_use]
 pub fn Patch() -> MethodGuard {
     MethodGuard(http::Method::PATCH)
 }
 
 /// Predicate to match *TRACE* HTTP method.
-#[must_use]
 pub fn Trace() -> MethodGuard {
     MethodGuard(http::Method::TRACE)
 }
 
 /// Predicate to match specified HTTP method.
-#[must_use]
 pub fn Method(method: http::Method) -> MethodGuard {
     MethodGuard(method)
 }
 
 /// Return predicate that matches if request contains specified header and
 /// value.
-#[must_use]
 pub fn Header(name: &'static str, value: &'static str) -> HeaderGuard {
     HeaderGuard(
         header::HeaderName::try_from(name).unwrap(),

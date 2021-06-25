@@ -33,13 +33,11 @@ pub struct HttpResponse<B = AnyBody> {
 impl HttpResponse<AnyBody> {
     /// Create HTTP response builder with specific status.
     #[inline]
-    #[must_use]
     pub fn build(status: StatusCode) -> HttpResponseBuilder {
         HttpResponseBuilder::new(status)
     }
 
     /// Create a response.
-    #[must_use]
     #[inline]
     pub fn new(status: StatusCode) -> Self {
         Self {
@@ -50,7 +48,6 @@ impl HttpResponse<AnyBody> {
 
     /// Create an error response.
     #[inline]
-    #[must_use]
     pub fn from_error(error: impl Into<Error>) -> Self {
         let error = error.into();
         let mut response = error.as_response_error().error_response();

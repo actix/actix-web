@@ -75,7 +75,6 @@ impl ServiceRequest {
 
     /// Deconstruct request into parts
     #[inline]
-    #[must_use]
     pub fn into_parts(self) -> (HttpRequest, Payload) {
         (self.req, self.payload)
     }
@@ -87,7 +86,6 @@ impl ServiceRequest {
     }
 
     /// Construct request from parts.
-    #[must_use]
     pub fn from_parts(req: HttpRequest, payload: Payload) -> Self {
         Self { req, payload }
     }
@@ -95,7 +93,6 @@ impl ServiceRequest {
     /// Construct request from request.
     ///
     /// The returned `ServiceRequest` would have no payload.
-    #[must_use]
     pub fn from_request(req: HttpRequest) -> Self {
         ServiceRequest {
             req,
@@ -119,7 +116,6 @@ impl ServiceRequest {
 
     /// This method returns reference to the request head
     #[inline]
-    #[must_use]
     pub fn head(&self) -> &RequestHead {
         &self.req.head()
     }
@@ -132,34 +128,29 @@ impl ServiceRequest {
 
     /// Request's uri.
     #[inline]
-    #[must_use]
     pub fn uri(&self) -> &Uri {
         &self.head().uri
     }
 
     /// Read the Request method.
     #[inline]
-    #[must_use]
     pub fn method(&self) -> &Method {
         &self.head().method
     }
 
     /// Read the Request Version.
     #[inline]
-    #[must_use]
     pub fn version(&self) -> Version {
         self.head().version
     }
 
     #[inline]
-    #[must_use]
     /// Returns request's headers.
     pub fn headers(&self) -> &HeaderMap {
         &self.head().headers
     }
 
     #[inline]
-    #[must_use]
     /// Returns mutable request's headers.
     pub fn headers_mut(&mut self) -> &mut HeaderMap {
         &mut self.head_mut().headers
@@ -167,7 +158,6 @@ impl ServiceRequest {
 
     /// The target path of this Request.
     #[inline]
-    #[must_use]
     pub fn path(&self) -> &str {
         self.head().uri.path()
     }
@@ -176,7 +166,6 @@ impl ServiceRequest {
     ///
     /// E.g., id=10
     #[inline]
-    #[must_use]
     pub fn query_string(&self) -> &str {
         self.uri().query().unwrap_or_default()
     }
@@ -190,14 +179,12 @@ impl ServiceRequest {
     ///
     /// Will only return None when called in unit tests.
     #[inline]
-    #[must_use]
     pub fn peer_addr(&self) -> Option<net::SocketAddr> {
         self.head().peer_addr
     }
 
     /// Get *ConnectionInfo* for the current request.
     #[inline]
-    #[must_use]
     pub fn connection_info(&self) -> Ref<'_, ConnectionInfo> {
         ConnectionInfo::get(self.head(), &*self.app_config())
     }
@@ -209,34 +196,29 @@ impl ServiceRequest {
     /// where the identifier can be used later in a request handler to
     /// access the matched value for that segment.
     #[inline]
-    #[must_use]
     pub fn match_info(&self) -> &Path<Url> {
         self.req.match_info()
     }
 
     /// Counterpart to [`HttpRequest::match_name`](super::HttpRequest::match_name()).
     #[inline]
-    #[must_use]
     pub fn match_name(&self) -> Option<&str> {
         self.req.match_name()
     }
 
     /// Counterpart to [`HttpRequest::match_pattern`](super::HttpRequest::match_pattern()).
     #[inline]
-    #[must_use]
     pub fn match_pattern(&self) -> Option<String> {
         self.req.match_pattern()
     }
 
     #[inline]
-    #[must_use]
     /// Get a mutable reference to the Path parameters.
     pub fn match_info_mut(&mut self) -> &mut Path<Url> {
         self.req.match_info_mut()
     }
 
     #[inline]
-    #[must_use]
     /// Get a reference to a `ResourceMap` of current application.
     pub fn resource_map(&self) -> &ResourceMap {
         self.req.resource_map()
@@ -244,13 +226,11 @@ impl ServiceRequest {
 
     /// Service configuration
     #[inline]
-    #[must_use]
     pub fn app_config(&self) -> &AppConfig {
         self.req.app_config()
     }
 
     /// Counterpart to [`HttpRequest::app_data`](super::HttpRequest::app_data()).
-    #[must_use]
     pub fn app_data<T: 'static>(&self) -> Option<&T> {
         for container in self.req.inner.app_data.iter().rev() {
             if let Some(data) = container.get::<T>() {
@@ -268,7 +248,6 @@ impl ServiceRequest {
 
     /// Return request cookie.
     #[cfg(feature = "cookies")]
-    #[must_use]
     pub fn cookie(&self, name: &str) -> Option<Cookie<'static>> {
         self.req.cookie(name)
     }
@@ -497,7 +476,6 @@ impl WebService {
     /// Set service name.
     ///
     /// Name is used for url generation.
-    #[must_use]
     pub fn name(mut self, name: &str) -> Self {
         self.name = Some(name.to_string());
         self

@@ -38,7 +38,6 @@ crate::http::header::common_header! {
 
 impl Date {
     /// Create a date instance set to the current system time
-    #[must_use]
     pub fn now() -> Date {
         Date(SystemTime::now().into())
     }

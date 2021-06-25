@@ -234,7 +234,6 @@ pub struct ResponseHead {
 impl ResponseHead {
     /// Create new instance of `ResponseHead` type
     #[inline]
-    #[must_use]
     pub fn new(status: StatusCode) -> ResponseHead {
         ResponseHead {
             status,
@@ -355,7 +354,6 @@ pub struct Message<T: Head> {
 
 impl<T: Head> Message<T> {
     /// Get new message from the pool of objects
-    #[must_use]
     pub fn new() -> Self {
         T::with_pool(MessagePool::get_message)
     }

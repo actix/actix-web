@@ -25,7 +25,6 @@ pub struct Response<B> {
 impl Response<AnyBody> {
     /// Constructs a new response with default body.
     #[inline]
-    #[must_use]
     pub fn new(status: StatusCode) -> Self {
         Response {
             head: BoxedResponseHead::new(status),
@@ -35,7 +34,6 @@ impl Response<AnyBody> {
 
     /// Constructs a new response builder.
     #[inline]
-    #[must_use]
     pub fn build(status: StatusCode) -> ResponseBuilder {
         ResponseBuilder::new(status)
     }
@@ -45,28 +43,24 @@ impl Response<AnyBody> {
 
     /// Constructs a new response with status 200 OK.
     #[inline]
-    #[must_use]
     pub fn ok() -> Self {
         Response::new(StatusCode::OK)
     }
 
     /// Constructs a new response with status 400 Bad Request.
     #[inline]
-    #[must_use]
     pub fn bad_request() -> Self {
         Response::new(StatusCode::BAD_REQUEST)
     }
 
     /// Constructs a new response with status 404 Not Found.
     #[inline]
-    #[must_use]
     pub fn not_found() -> Self {
         Response::new(StatusCode::NOT_FOUND)
     }
 
     /// Constructs a new response with status 500 Internal Server Error.
     #[inline]
-    #[must_use]
     pub fn internal_server_error() -> Self {
         Response::new(StatusCode::INTERNAL_SERVER_ERROR)
     }

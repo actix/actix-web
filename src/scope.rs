@@ -65,7 +65,6 @@ pub struct Scope<T = ScopeEndpoint> {
 
 impl Scope {
     /// Create a new scope
-    #[must_use]
     pub fn new(path: &str) -> Scope {
         let factory_ref = Rc::new(RefCell::new(None));
 

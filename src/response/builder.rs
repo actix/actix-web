@@ -42,7 +42,6 @@ pub struct HttpResponseBuilder {
 impl HttpResponseBuilder {
     #[inline]
     /// Create response builder
-    #[must_use]
     pub fn new(status: StatusCode) -> Self {
         Self {
             res: Some(Response::new(status)),

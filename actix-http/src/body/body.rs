@@ -32,7 +32,6 @@ pub enum AnyBody {
 
 impl AnyBody {
     /// Create body from slice (copy)
-    #[must_use]
     pub fn from_slice(s: &[u8]) -> Self {
         Self::Bytes(Bytes::copy_from_slice(s))
     }

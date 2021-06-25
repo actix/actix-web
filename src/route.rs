@@ -28,7 +28,6 @@ pub struct Route {
 impl Route {
     /// Create new route which matches any request.
     #[allow(clippy::new_without_default)]
-    #[must_use]
     pub fn new() -> Route {
         Route {
             service: boxed::factory(HandlerService::new(HttpResponse::NotFound)),
@@ -102,7 +101,6 @@ impl Route {
     /// );
     /// # }
     /// ```
-    #[must_use]
     pub fn method(mut self, method: Method) -> Self {
         Rc::get_mut(&mut self.guards)
             .unwrap()

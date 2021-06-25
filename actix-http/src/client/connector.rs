@@ -64,7 +64,6 @@ pub struct Connector<T> {
 
 impl Connector<()> {
     #[allow(clippy::new_ret_no_self, clippy::let_unit_value)]
-    #[must_use]
     pub fn new() -> Connector<
         impl Service<
                 TcpConnect<Uri>,

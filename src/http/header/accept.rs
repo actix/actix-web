@@ -126,31 +126,26 @@ crate::http::header::common_header! {
 
 impl Accept {
     /// Construct `Accept: */*`.
-    #[must_use]
     pub fn star() -> Accept {
         Accept(vec![qitem(mime::STAR_STAR)])
     }
 
     /// Construct `Accept: application/json`.
-    #[must_use]
     pub fn json() -> Accept {
         Accept(vec![qitem(mime::APPLICATION_JSON)])
     }
 
     /// Construct `Accept: text/*`.
-    #[must_use]
     pub fn text() -> Accept {
         Accept(vec![qitem(mime::TEXT_STAR)])
     }
 
     /// Construct `Accept: image/*`.
-    #[must_use]
     pub fn image() -> Accept {
         Accept(vec![qitem(mime::IMAGE_STAR)])
     }
 
     /// Construct `Accept: text/html`.
-    #[must_use]
     pub fn html() -> Accept {
         Accept(vec![qitem(mime::TEXT_HTML)])
     }
@@ -159,7 +154,6 @@ impl Accept {
     /// [q-factor weighting] and specificity.
     ///
     /// [q-factor weighting]: https://tools.ietf.org/html/rfc7231#section-5.3.2
-    #[must_use]
     pub fn mime_precedence(&self) -> Vec<Mime> {
         let mut types = self.0.clone();
 
@@ -210,7 +204,6 @@ impl Accept {
     /// Returns `None` if contained list is empty.
     ///
     /// [q-factor weighting]: https://tools.ietf.org/html/rfc7231#section-5.3.2
-    #[must_use]
     pub fn mime_preference(&self) -> Option<Mime> {
         let types = self.mime_precedence();
         types.first().cloned()

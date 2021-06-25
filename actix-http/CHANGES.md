@@ -3,14 +3,12 @@
 ## Unreleased - 2021-xx-xx
 ### Changed
 * Change compression algorithm features flags. [#2250]
-* Add `#[must_use]` attribute for many public functions/methods. [#2281]
 
 ### Removed
 * `downcast` and `downcast_get_type_id` macros. [#2291]
 
 [#2291]: https://github.com/actix/actix-web/pull/2291
 [#2250]: https://github.com/actix/actix-web/pull/2250
-[#2281]: https://github.com/actix/actix-web/pull/2281
 
 
 ## 3.0.0-beta.7 - 2021-06-17

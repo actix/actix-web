@@ -10,7 +10,6 @@
 ### Changed
 * Change compression algorithm features flags. [#2250]
 * Deprecate `App::data` and `App::data_factory`. [#2271]
-* Add `#[must_use]` attribute for many public functions/methods. [#2281]
 
 
 ### Fixed
@@ -21,7 +20,6 @@
 [#2271]: https://github.com/actix/actix-web/pull/2271
 [#2262]: https://github.com/actix/actix-web/pull/2262
 [#2263]: https://github.com/actix/actix-web/pull/2263
-[#2281]: https://github.com/actix/actix-web/pull/2281
 [#2288]: https://github.com/actix/actix-web/pull/2288
 
 

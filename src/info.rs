@@ -161,7 +161,6 @@ impl ConnectionInfo {
     /// - X-Forwarded-Proto
     /// - Uri
     #[inline]
-    #[must_use]
     pub fn scheme(&self) -> &str {
         &self.scheme
     }
@@ -175,7 +174,6 @@ impl ConnectionInfo {
     /// - Host
     /// - Uri
     /// - Server hostname
-    #[must_use]
     pub fn host(&self) -> &str {
         &self.host
     }
@@ -183,7 +181,6 @@ impl ConnectionInfo {
     /// remote_addr address of the request.
     ///
     /// Get remote_addr address from socket address
-    #[must_use]
     pub fn remote_addr(&self) -> Option<&str> {
         self.remote_addr.as_ref().map(String::as_ref)
     }
@@ -201,7 +198,6 @@ impl ConnectionInfo {
     /// address explicitly, use
     /// [`HttpRequest::peer_addr()`](super::web::HttpRequest::peer_addr()) instead.
     #[inline]
-    #[must_use]
     pub fn realip_remote_addr(&self) -> Option<&str> {
         if let Some(ref r) = self.realip_remote_addr {
             Some(r)
