@@ -17,9 +17,8 @@ use crate::{
     dev::insert_slash,
     guard::Guard,
     info::ConnectionInfo,
-    request::HttpRequest,
     rmap::ResourceMap,
-    Error, HttpResponse,
+    Error, HttpRequest, HttpResponse,
 };
 
 pub trait HttpServiceFactory {
@@ -78,6 +77,12 @@ impl ServiceRequest {
     #[inline]
     pub fn into_parts(self) -> (HttpRequest, Payload) {
         (self.req, self.payload)
+    }
+
+    /// Get mutable access to inner `HttpRequest` and `Payload`
+    #[inline]
+    pub fn parts_mut(&mut self) -> (&mut HttpRequest, &mut Payload) {
+        (&mut self.req, &mut self.payload)
     }
 
     /// Construct request from parts.

@@ -43,7 +43,6 @@ pub use crate::types::*;
 /// the exposed `Params` object:
 ///
 /// ```
-/// # extern crate actix_web;
 /// use actix_web::{web, App, HttpResponse};
 ///
 /// let app = App::new().service(
