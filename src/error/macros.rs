@@ -1,6 +1,4 @@
-#[macro_export]
-#[doc(hidden)]
-macro_rules! __downcast_get_type_id {
+macro_rules! downcast_get_type_id {
     () => {
         /// A helper method to get the type ID of the type
         /// this trait is implemented on.
@@ -30,10 +28,8 @@ macro_rules! __downcast_get_type_id {
     };
 }
 
-//Generate implementation for dyn $name
-#[doc(hidden)]
-#[macro_export]
-macro_rules! __downcast_dyn {
+// Generate implementation for dyn $name
+macro_rules! downcast_dyn {
     ($name:ident) => {
         /// A struct with a private constructor, for use with
         /// `__private_get_type_id__`. Its single field is private,
@@ -80,15 +76,17 @@ macro_rules! __downcast_dyn {
     };
 }
 
+pub(crate) use {downcast_dyn, downcast_get_type_id};
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::upper_case_acronyms)]
 
     trait MB {
-        __downcast_get_type_id!();
+        downcast_get_type_id!();
     }
 
-    __downcast_dyn!(MB);
+    downcast_dyn!(MB);
 
     impl MB for String {}
     impl MB for () {}

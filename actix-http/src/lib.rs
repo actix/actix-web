@@ -27,9 +27,6 @@
 #[macro_use]
 extern crate log;
 
-#[macro_use]
-mod macros;
-
 pub mod body;
 mod builder;
 pub mod client;
