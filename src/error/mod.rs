@@ -18,6 +18,7 @@ mod response_error;
 pub use self::error::Error;
 pub use self::internal::*;
 pub use self::response_error::ResponseError;
+pub(crate) use macros::{downcast_dyn, downcast_get_type_id};
 
 /// A convenience [`Result`](std::result::Result) for Actix Web operations.
 ///

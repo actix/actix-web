@@ -879,7 +879,7 @@ async fn test_brotli_encoding_large_openssl() {
     assert_eq!(bytes, Bytes::from(data));
 }
 
-#[cfg(all(feature = "rustls", feature = "openssl"))]
+#[cfg(feature = "rustls")]
 mod plus_rustls {
     use std::io::BufReader;
 

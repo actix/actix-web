@@ -1,6 +1,6 @@
 use super::{EntityTag, IF_NONE_MATCH};
 
-crate::__define_common_header! {
+crate::http::header::common_header! {
     /// `If-None-Match` header, defined in
     /// [RFC7232](https://tools.ietf.org/html/rfc7232#section-3.2)
     ///
@@ -55,11 +55,11 @@ crate::__define_common_header! {
     (IfNoneMatch, IF_NONE_MATCH) => {Any / (EntityTag)+}
 
     test_if_none_match {
-        crate::__common_header_test!(test1, vec![b"\"xyzzy\""]);
-        crate::__common_header_test!(test2, vec![b"W/\"xyzzy\""]);
-        crate::__common_header_test!(test3, vec![b"\"xyzzy\", \"r2d2xxxx\", \"c3piozzzz\""]);
-        crate::__common_header_test!(test4, vec![b"W/\"xyzzy\", W/\"r2d2xxxx\", W/\"c3piozzzz\""]);
-        crate::__common_header_test!(test5, vec![b"*"]);
+        crate::http::header::common_header_test!(test1, vec![b"\"xyzzy\""]);
+        crate::http::header::common_header_test!(test2, vec![b"W/\"xyzzy\""]);
+        crate::http::header::common_header_test!(test3, vec![b"\"xyzzy\", \"r2d2xxxx\", \"c3piozzzz\""]);
+        crate::http::header::common_header_test!(test4, vec![b"W/\"xyzzy\", W/\"r2d2xxxx\", W/\"c3piozzzz\""]);
+        crate::http::header::common_header_test!(test5, vec![b"*"]);
     }
 }
 
