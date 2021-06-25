@@ -361,7 +361,7 @@ impl Drop for HttpRequest {
 /// # Examples
 /// ```
 /// use actix_web::{web, App, HttpRequest};
-/// use serde_derive::Deserialize;
+/// use serde::Deserialize;
 ///
 /// /// extract `Thing` from request
 /// async fn index(req: HttpRequest) -> String {

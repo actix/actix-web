@@ -169,47 +169,52 @@ where
         self
     }
 
-    /// Provide resource specific data. This method allows to add extractor
-    /// configuration or specific state available via `Data<T>` extractor.
-    /// Provided data is available for all routes registered for the current resource.
-    /// Resource data overrides data registered by `App::data()` method.
-    ///
-    /// ```
-    /// use actix_web::{web, App, FromRequest};
-    ///
-    /// /// extract text data from request
-    /// async fn index(body: String) -> String {
-    ///     format!("Body {}!", body)
-    /// }
-    ///
-    /// fn main() {
-    ///     let app = App::new().service(
-    ///         web::resource("/index.html")
-    ///           // limit size of the payload
-    ///           .data(String::configure(|cfg| {
-    ///                cfg.limit(4096)
-    ///           }))
-    ///           .route(
-    ///               web::get()
-    ///                  // register handler
-    ///                  .to(index)
-    ///           ));
-    /// }
-    /// ```
-    #[deprecated(since = "4.0.0", note = "Use `.app_data(Data::new(val))` instead.")]
-    pub fn data<U: 'static>(self, data: U) -> Self {
-        self.app_data(Data::new(data))
-    }
-
     /// Add resource data.
     ///
-    /// Data of different types from parent contexts will still be accessible.
+    /// Data of different types from parent contexts will still be accessible. Any `Data<T>` types
+    /// set here can be extracted in handlers using the `Data<T>` extractor.
+    ///
+    /// # Examples
+    /// ```
+    /// use std::cell::Cell;
+    /// use actix_web::{web, App, HttpRequest, HttpResponse, Responder};
+    ///
+    /// struct MyData {
+    ///     count: std::cell::Cell<usize>,
+    /// }
+    ///
+    /// async fn handler(req: HttpRequest, counter: web::Data<MyData>) -> impl Responder {
+    ///     // note this cannot use the Data<T> extractor because it was not added with it
+    ///     let incr = *req.app_data::<usize>().unwrap();
+    ///     assert_eq!(incr, 3);
+    ///
+    ///     // update counter using other value from app data
+    ///     counter.count.set(counter.count.get() + incr);
+    ///
+    ///     HttpResponse::Ok().body(counter.count.get().to_string())
+    /// }
+    ///
+    /// let app = App::new().service(
+    ///     web::resource("/")
+    ///         .app_data(3usize)
+    ///         .app_data(web::Data::new(MyData { count: Default::default() }))
+    ///         .route(web::get().to(handler))
+    /// );
+    /// ```
     pub fn app_data<U: 'static>(mut self, data: U) -> Self {
         self.app_data
             .get_or_insert_with(Extensions::new)
             .insert(data);
 
         self
+    }
+
+    /// Add resource data after wrapping in `Data<T>`.
+    ///
+    /// Deprecated in favor of [`app_data`](Self::app_data).
+    #[deprecated(since = "4.0.0", note = "Use `.app_data(Data::new(val))` instead.")]
+    pub fn data<U: 'static>(self, data: U) -> Self {
+        self.app_data(Data::new(data))
     }
 
     /// Register a new route and add handler. This route matches all requests.
@@ -227,7 +232,6 @@ where
     /// This is shortcut for:
     ///
     /// ```
-    /// # extern crate actix_web;
     /// # use actix_web::*;
     /// # fn index(req: HttpRequest) -> HttpResponse { unimplemented!() }
     /// App::new().service(web::resource("/").route(web::route().to(index)));
@@ -695,7 +699,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::NO_CONTENT);
     }
 
-    // allow deprecated App::data
+    // allow deprecated `{App, Resource}::data`
     #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_data() {
@@ -729,7 +733,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    // allow deprecated App::data
+    // allow deprecated `{App, Resource}::data`
     #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_data_default_service() {

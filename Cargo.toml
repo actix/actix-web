@@ -113,7 +113,6 @@ flate2 = "1.0.13"
 zstd = "0.7"
 rand = "0.8"
 rcgen = "0.8"
-serde_derive = "1.0"
 tls-openssl = { package = "openssl", version = "0.10.9" }
 tls-rustls = { package = "rustls", version = "0.19.0" }
 

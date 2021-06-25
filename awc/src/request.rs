@@ -480,6 +480,7 @@ impl ClientRequest {
         // supported, so we cannot guess Accept-Encoding HTTP header.
         if slf.response_decompress {
             // Set Accept-Encoding with compression algorithm awc is built with.
+            #[allow(clippy::vec_init_then_push)]
             #[cfg(feature = "__compress")]
             let accept_encoding = {
                 let mut encoding = vec![];
@@ -498,7 +499,11 @@ impl ClientRequest {
                 #[cfg(feature = "compress-zstd")]
                 encoding.push("zstd");
 
-                assert!(!encoding.is_empty(), "encoding cannot be empty unless __compress feature has been explictily enabled.");
+                assert!(
+                    !encoding.is_empty(),
+                    "encoding can not be empty unless __compress feature has been explicitly enabled"
+                );
+
                 encoding.join(", ")
             };
 

@@ -5,7 +5,7 @@ use std::{future::Future, rc::Rc};
 use actix_http::http::Method;
 use actix_service::{
     boxed::{self, BoxService, BoxServiceFactory},
-    Service, ServiceFactory,
+    Service, ServiceFactory, ServiceFactoryExt,
 };
 use futures_core::future::LocalBoxFuture;
 
@@ -130,9 +130,10 @@ impl Route {
 
     /// Set handler function, use request extractors for parameters.
     ///
+    /// # Examples
     /// ```
     /// use actix_web::{web, http, App};
-    /// use serde_derive::Deserialize;
+    /// use serde::Deserialize;
     ///
     /// #[derive(Deserialize)]
     /// struct Info {
@@ -156,7 +157,7 @@ impl Route {
     ///
     /// ```
     /// # use std::collections::HashMap;
-    /// # use serde_derive::Deserialize;
+    /// # use serde::Deserialize;
     /// use actix_web::{web, App};
     ///
     /// #[derive(Deserialize)]
@@ -186,6 +187,53 @@ impl Route {
         self.service = boxed::factory(HandlerService::new(handler));
         self
     }
+
+    /// Set raw service to be constructed and called as the request handler.
+    ///
+    /// # Examples
+    /// ```
+    /// # use std::convert::Infallible;
+    /// # use futures_util::future::LocalBoxFuture;
+    /// # use actix_web::{*, dev::*, http::header};
+    /// struct HelloWorld;
+    ///
+    /// impl Service<ServiceRequest> for HelloWorld {
+    ///     type Response = ServiceResponse;
+    ///     type Error = Infallible;
+    ///     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
+    ///
+    ///     always_ready!();
+    ///
+    ///     fn call(&self, req: ServiceRequest) -> Self::Future {
+    ///         let (req, _) = req.into_parts();
+    ///
+    ///         let res = HttpResponse::Ok()
+    ///             .insert_header(header::ContentType::plaintext())
+    ///             .body("Hello world!");
+    ///
+    ///         Box::pin(async move { Ok(ServiceResponse::new(req, res)) })
+    ///     }
+    /// }
+    ///
+    /// App::new().route(
+    ///     "/",
+    ///     web::get().service(fn_factory(|| async { Ok(HelloWorld) })),
+    /// );
+    /// ```
+    pub fn service<S, E>(mut self, service_factory: S) -> Self
+    where
+        S: ServiceFactory<
+                ServiceRequest,
+                Response = ServiceResponse,
+                Error = E,
+                InitError = (),
+                Config = (),
+            > + 'static,
+        E: Into<Error> + 'static,
+    {
+        self.service = boxed::factory(service_factory.map_err(Into::into));
+        self
+    }
 }
 
 #[cfg(test)]
@@ -194,9 +242,12 @@ mod tests {
 
     use actix_rt::time::sleep;
     use bytes::Bytes;
-    use serde_derive::Serialize;
+    use futures_core::future::LocalBoxFuture;
+    use serde::Serialize;
 
-    use crate::http::{Method, StatusCode};
+    use crate::dev::{always_ready, fn_factory, fn_service, Service};
+    use crate::http::{header, Method, StatusCode};
+    use crate::service::{ServiceRequest, ServiceResponse};
     use crate::test::{call_service, init_service, read_body, TestRequest};
     use crate::{error, web, App, HttpResponse};
 
@@ -269,5 +320,66 @@ mod tests {
 
         let body = read_body(resp).await;
         assert_eq!(body, Bytes::from_static(b"{\"name\":\"test\"}"));
+    }
+
+    #[actix_rt::test]
+    async fn test_service_handler() {
+        struct HelloWorld;
+
+        impl Service<ServiceRequest> for HelloWorld {
+            type Response = ServiceResponse;
+            type Error = crate::Error;
+            type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
+
+            always_ready!();
+
+            fn call(&self, req: ServiceRequest) -> Self::Future {
+                let (req, _) = req.into_parts();
+
+                let res = HttpResponse::Ok()
+                    .insert_header(header::ContentType::plaintext())
+                    .body("Hello world!");
+
+                Box::pin(async move { Ok(ServiceResponse::new(req, res)) })
+            }
+        }
+
+        let srv = init_service(
+            App::new()
+                .route(
+                    "/hello",
+                    web::get().service(fn_factory(|| async { Ok(HelloWorld) })),
+                )
+                .route(
+                    "/bye",
+                    web::get().service(fn_factory(|| async {
+                        Ok::<_, ()>(fn_service(|req: ServiceRequest| async {
+                            let (req, _) = req.into_parts();
+
+                            let res = HttpResponse::Ok()
+                                .insert_header(header::ContentType::plaintext())
+                                .body("Goodbye, and thanks for all the fish!");
+
+                            Ok::<_, Infallible>(ServiceResponse::new(req, res))
+                        }))
+                    })),
+                ),
+        )
+        .await;
+
+        let req = TestRequest::get().uri("/hello").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = read_body(resp).await;
+        assert_eq!(body, Bytes::from_static(b"Hello world!"));
+
+        let req = TestRequest::get().uri("/bye").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = read_body(resp).await;
+        assert_eq!(
+            body,
+            Bytes::from_static(b"Goodbye, and thanks for all the fish!")
+        );
     }
 }
