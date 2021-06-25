@@ -57,6 +57,10 @@ impl ResponseError for serde::de::value::Error {
     }
 }
 
+impl ResponseError for serde_json::Error {}
+
+impl ResponseError for serde_urlencoded::ser::Error {}
+
 impl ResponseError for std::str::Utf8Error {
     fn status_code(&self) -> StatusCode {
         StatusCode::BAD_REQUEST
