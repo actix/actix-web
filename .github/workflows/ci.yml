@@ -48,7 +48,6 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: generate-lockfile
-
       - name: Cache Dependencies
         uses: Swatinem/rust-cache@v1.2.0
 
@@ -96,7 +95,6 @@ jobs:
         run: |
           cargo install cargo-tarpaulin --vers "^0.13"
           cargo tarpaulin --out Xml --verbose
-
       - name: Upload to Codecov
         if: >
           matrix.target.os == 'ubuntu-latest'

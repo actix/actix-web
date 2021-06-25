@@ -10,6 +10,7 @@
 ### Changed
 * Change compression algorithm features flags. [#2250]
 * Deprecate `App::data` and `App::data_factory`. [#2271]
+* Smarter extraction of `ConnectionInfo` parts. [#2282]
 
 ### Fixed
 * Scope and Resource middleware can access data items set on their own layer. [#2288]
@@ -19,6 +20,7 @@
 [#2271]: https://github.com/actix/actix-web/pull/2271
 [#2262]: https://github.com/actix/actix-web/pull/2262
 [#2263]: https://github.com/actix/actix-web/pull/2263
+[#2282]: https://github.com/actix/actix-web/pull/2282
 [#2288]: https://github.com/actix/actix-web/pull/2288
 
 

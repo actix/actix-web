@@ -144,6 +144,11 @@ impl AppConfig {
     pub fn local_addr(&self) -> SocketAddr {
         self.addr
     }
+
+    #[cfg(test)]
+    pub(crate) fn set_host(&mut self, host: &str) {
+        self.host = host.to_owned();
+    }
 }
 
 impl Default for AppConfig {
