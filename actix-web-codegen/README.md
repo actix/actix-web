@@ -9,12 +9,11 @@
 <br />
 [![dependency status](https://deps.rs/crate/actix-web-codegen/0.5.0-beta.3/status.svg)](https://deps.rs/crate/actix-web-codegen/0.5.0-beta.3)
 [![Download](https://img.shields.io/crates/d/actix-web-codegen.svg)](https://crates.io/crates/actix-web-codegen)
-[![Join the chat at https://gitter.im/actix/actix](https://badges.gitter.im/actix/actix.svg)](https://gitter.im/actix/actix?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Chat on Discord](https://img.shields.io/discord/771444961383153695?label=chat&logo=discord)](https://discord.gg/NWpN5mmg3x)
 
 ## Documentation & Resources
 
 - [API Documentation](https://docs.rs/actix-web-codegen)
-- [Chat on Gitter](https://gitter.im/actix/actix-web)
 - Minimum supported Rust version: 1.46 or later.
 
 ## Compile Testing

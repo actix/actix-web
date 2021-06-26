@@ -9,9 +9,9 @@
 <br />
 [![dependency status](https://deps.rs/crate/actix-multipart/0.4.0-beta.5/status.svg)](https://deps.rs/crate/actix-multipart/0.4.0-beta.5)
 [![Download](https://img.shields.io/crates/d/actix-multipart.svg)](https://crates.io/crates/actix-multipart)
+[![Chat on Discord](https://img.shields.io/discord/771444961383153695?label=chat&logo=discord)](https://discord.gg/NWpN5mmg3x)
 
 ## Documentation & Resources
 
 - [API Documentation](https://docs.rs/actix-multipart)
-- [Chat on Gitter](https://gitter.im/actix/actix-web)
 - Minimum Supported Rust Version (MSRV): 1.46.0
