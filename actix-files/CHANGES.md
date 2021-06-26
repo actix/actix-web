@@ -1,9 +1,14 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 0.6.0-beta.6 - 2021-06-26
 * Added `Files::path_filter()`. [#2274]
+* `Files::show_files_listing()` can now be used with `Files::index_file()` to show files listing as a fallback when the index file is not found. [#2228]
 
 [#2274]: https://github.com/actix/actix-web/pull/2274
+[#2228]: https://github.com/actix/actix-web/pull/2228
 
 
 ## 0.6.0-beta.5 - 2021-06-17
@@ -11,13 +16,11 @@
 * For symbolic links, `Content-Disposition` header no longer shows the filename of the original file. [#2156]
 * `Files::redirect_to_slash_directory()` now works as expected when used with `Files::show_files_listing()`. [#2225]
 * `application/{javascript, json, wasm}` mime type now have `inline` disposition by default. [#2257]
-* `Files::show_files_listing()` can now be used with `Files::index_file()` to show files listing as a fallback when the index file is not found. [#2228]
 
 [#2135]: https://github.com/actix/actix-web/pull/2135
 [#2156]: https://github.com/actix/actix-web/pull/2156
 [#2225]: https://github.com/actix/actix-web/pull/2225
 [#2257]: https://github.com/actix/actix-web/pull/2257
-[#2228]: https://github.com/actix/actix-web/pull/2228
 
 
 ## 0.6.0-beta.4 - 2021-04-02
