@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 4.0.0-beta.6 - 2021-06-26
 * Update `actix` to `0.12`. [#2277]
 
 [#2277]: https://github.com/actix/actix-web/pull/2277
