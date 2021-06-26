@@ -55,7 +55,7 @@ __compress = []
 [dependencies]
 actix-codec = "0.4.0"
 actix-service = "2.0.0"
-actix-http = "3.0.0-beta.7"
+actix-http = "3.0.0-beta.8"
 actix-rt = { version = "2.1", default-features = false }
 
 base64 = "0.13"
@@ -78,7 +78,7 @@ tls-rustls = { version = "0.19.0", package = "rustls", optional = true, features
 
 [dev-dependencies]
 actix-web = { version = "4.0.0-beta.7", features = ["openssl"] }
-actix-http = { version = "3.0.0-beta.7", features = ["openssl"] }
+actix-http = { version = "3.0.0-beta.8", features = ["openssl"] }
 actix-http-test = { version = "3.0.0-beta.4", features = ["openssl"] }
 actix-utils = "3.0.0"
 actix-server = "2.0.0-beta.3"

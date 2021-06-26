@@ -20,7 +20,7 @@ openssl = ["tls-openssl", "actix-http/openssl"]
 
 [dependencies]
 actix-codec = "0.4.0"
-actix-http = "3.0.0-beta.7"
+actix-http = "3.0.0-beta.8"
 actix-http-test = { version = "3.0.0-beta.4", features = [] }
 actix-service = "2.0.0"
 actix-utils = "3.0.0"
