@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 4.0.0-beta.8 - 2021-06-26
 ### Added
 * Add `ServiceRequest::parts_mut`. [#2177]
 * Add extractors for `Uri` and `Method`. [#2263]
@@ -11,7 +14,6 @@
 * Change compression algorithm features flags. [#2250]
 * Deprecate `App::data` and `App::data_factory`. [#2271]
 * Smarter extraction of `ConnectionInfo` parts. [#2282]
-
 
 ### Fixed
 * Scope and Resource middleware can access data items set on their own layer. [#2288]
