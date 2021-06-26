@@ -9,7 +9,7 @@
 <br />
 [![dependency status](https://deps.rs/crate/actix-http/3.0.0-beta.8/status.svg)](https://deps.rs/crate/actix-http/3.0.0-beta.8)
 [![Download](https://img.shields.io/crates/d/actix-http.svg)](https://crates.io/crates/actix-http)
-[![Join the chat at https://gitter.im/actix/actix](https://badges.gitter.im/actix/actix.svg)](https://gitter.im/actix/actix?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Chat on Discord](https://img.shields.io/discord/771444961383153695?label=chat&logo=discord)](https://discord.gg/NWpN5mmg3x)
 
 ## Documentation & Resources
 
