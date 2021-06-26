@@ -613,6 +613,11 @@ impl TestRequest {
         let req = self.to_request();
         call_service(app, req).await
     }
+
+    #[cfg(test)]
+    pub fn set_server_hostname(&mut self, host: &str) {
+        self.config.set_host(host)
+    }
 }
 
 #[cfg(test)]
