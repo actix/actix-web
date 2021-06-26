@@ -1,15 +1,8 @@
 blank_issues_enabled: true
 contact_links:
-  - name: GitHub Discussions
-    url: https://github.com/actix/actix-web/discussions
-    about: Actix Web Q&A
-  - name: Gitter chat (actix-web)
-    url: https://gitter.im/actix/actix-web
-    about: Actix Web Q&A
-  - name: Gitter chat (actix)
-    url: https://gitter.im/actix/actix
-    about: Actix (actor framework) Q&A
   - name: Actix Discord
     url: https://discord.gg/NWpN5mmg3x
     about: Actix developer discussion and community chat
-
+  - name: GitHub Discussions
+    url: https://github.com/actix/actix-web/discussions
+    about: Actix Web Q&A
