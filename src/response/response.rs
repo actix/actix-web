@@ -132,7 +132,10 @@ impl<B> HttpResponse<B> {
     pub fn del_cookie(&mut self, name: &str) -> usize {
         let headers = self.headers_mut();
 
-        let vals: Vec<HeaderValue> = headers.get_all(header::SET_COOKIE).cloned().collect();
+        let vals: Vec<HeaderValue> = headers
+            .get_all(header::SET_COOKIE)
+            .map(|v| v.to_owned())
+            .collect();
 
         headers.remove(header::SET_COOKIE);
 

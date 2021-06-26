@@ -282,7 +282,7 @@ impl HttpRequest {
         if let Ok(cookies) = self.cookies() {
             for cookie in cookies.iter() {
                 if cookie.name() == name {
-                    return Some(cookie.clone());
+                    return Some(cookie.to_owned());
                 }
             }
         }
