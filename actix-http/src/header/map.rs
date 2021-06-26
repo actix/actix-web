@@ -249,7 +249,7 @@ impl HeaderMap {
     /// assert!(map.get("INVALID HEADER NAME").is_none());
     /// ```
     pub fn get(&self, key: impl AsHeaderName) -> Option<&HeaderValue> {
-        self.get_value(key).map(|val| val.first())
+        self.get_value(key).map(Value::first)
     }
 
     /// Returns a mutable reference to the _first_ value associated a header name.
@@ -280,8 +280,8 @@ impl HeaderMap {
     /// ```
     pub fn get_mut(&mut self, key: impl AsHeaderName) -> Option<&mut HeaderValue> {
         match key.try_as_name(super::as_name::Seal).ok()? {
-            Cow::Borrowed(name) => self.inner.get_mut(name).map(|v| v.first_mut()),
-            Cow::Owned(name) => self.inner.get_mut(&name).map(|v| v.first_mut()),
+            Cow::Borrowed(name) => self.inner.get_mut(name).map(Value::first_mut),
+            Cow::Owned(name) => self.inner.get_mut(&name).map(Value::first_mut),
         }
     }
 

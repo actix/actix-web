@@ -168,14 +168,13 @@ where
 
                 if let Err(e) = send.send_data(bytes, false) {
                     return Err(e.into());
-                } else {
-                    if !b.is_empty() {
-                        send.reserve_capacity(b.len());
-                    } else {
-                        buf = None;
-                    }
-                    continue;
                 }
+                if !b.is_empty() {
+                    send.reserve_capacity(b.len());
+                } else {
+                    buf = None;
+                }
+                continue;
             }
             Some(Err(e)) => return Err(e.into()),
         }

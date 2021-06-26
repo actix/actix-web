@@ -1,6 +1,7 @@
 //! Basic binary and string payload extractors.
 
 use std::{
+    borrow::Cow,
     future::Future,
     pin::Pin,
     str,
@@ -190,7 +191,7 @@ fn bytes_to_string(body: Bytes, encoding: &'static Encoding) -> Result<String, E
     } else {
         Ok(encoding
             .decode_without_bom_handling_and_without_replacement(&body)
-            .map(|s| s.into_owned())
+            .map(Cow::into_owned)
             .ok_or_else(|| ErrorBadRequest("Can not decode body"))?)
     }
 }

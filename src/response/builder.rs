@@ -406,7 +406,7 @@ impl HttpResponseBuilder {
             return None;
         }
 
-        self.res.as_mut().map(|res| res.head_mut())
+        self.res.as_mut().map(Response::head_mut)
     }
 }
 

@@ -292,15 +292,15 @@ where
                     let c = cfg.lock().unwrap();
                     let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
 
-                    let svc = HttpService::build()
+                    let mut svc = HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_timeout(c.client_timeout)
                         .local_addr(addr);
 
-                    let svc = if let Some(handler) = on_connect_fn.clone() {
-                        svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
-                    } else {
-                        svc
+                    if let Some(handler) = on_connect_fn.clone() {
+                        svc = svc.on_connect_ext(move |io: &_, ext: _| {
+                            (handler)(io as &dyn Any, ext)
+                        })
                     };
 
                     let fac = factory()
@@ -461,17 +461,15 @@ where
             }
         }
 
-        if !success {
-            if let Some(e) = err.take() {
-                Err(e)
-            } else {
-                Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    "Can not bind to address.",
-                ))
-            }
-        } else {
+        if success {
             Ok(sockets)
+        } else if let Some(e) = err.take() {
+            Err(e)
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::Other,
+                "Can not bind to address.",
+            ))
         }
     }
 
@@ -537,15 +535,14 @@ where
             );
 
             fn_service(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) }).and_then({
-                let svc = HttpService::build()
+                let mut svc = HttpService::build()
                     .keep_alive(c.keep_alive)
                     .client_timeout(c.client_timeout);
 
-                let svc = if let Some(handler) = on_connect_fn.clone() {
-                    svc.on_connect_ext(move |io: &_, ext: _| (&*handler)(io as &dyn Any, ext))
-                } else {
-                    svc
-                };
+                if let Some(handler) = on_connect_fn.clone() {
+                    svc = svc
+                        .on_connect_ext(move |io: &_, ext: _| (&*handler)(io as &dyn Any, ext));
+                }
 
                 let fac = factory()
                     .into_factory()

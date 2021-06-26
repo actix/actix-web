@@ -152,15 +152,16 @@ impl RequestHead {
 
     /// Connection upgrade status
     pub fn upgrade(&self) -> bool {
-        if let Some(hdr) = self.headers().get(header::CONNECTION) {
-            if let Ok(s) = hdr.to_str() {
-                s.to_ascii_lowercase().contains("upgrade")
-            } else {
-                false
-            }
-        } else {
-            false
-        }
+        self.headers()
+            .get(header::CONNECTION)
+            .map(|hdr| {
+                if let Ok(s) = hdr.to_str() {
+                    s.to_ascii_lowercase().contains("upgrade")
+                } else {
+                    false
+                }
+            })
+            .unwrap_or(false)
     }
 
     #[inline]
@@ -308,13 +309,11 @@ impl ResponseHead {
     /// Get custom reason for the response
     #[inline]
     pub fn reason(&self) -> &str {
-        if let Some(reason) = self.reason {
-            reason
-        } else {
+        self.reason.unwrap_or_else(|| {
             self.status
                 .canonical_reason()
                 .unwrap_or("<unknown status code>")
-        }
+        })
     }
 
     #[inline]
@@ -356,7 +355,7 @@ pub struct Message<T: Head> {
 impl<T: Head> Message<T> {
     /// Get new message from the pool of objects
     pub fn new() -> Self {
-        T::with_pool(|p| p.get_message())
+        T::with_pool(MessagePool::get_message)
     }
 }
 

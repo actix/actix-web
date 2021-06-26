@@ -410,41 +410,33 @@ impl ContentDisposition {
 
     /// Return the value of *name* if exists.
     pub fn get_name(&self) -> Option<&str> {
-        self.parameters.iter().filter_map(|p| p.as_name()).next()
+        self.parameters.iter().find_map(DispositionParam::as_name)
     }
 
     /// Return the value of *filename* if exists.
     pub fn get_filename(&self) -> Option<&str> {
         self.parameters
             .iter()
-            .filter_map(|p| p.as_filename())
-            .next()
+            .find_map(DispositionParam::as_filename)
     }
 
     /// Return the value of *filename\** if exists.
     pub fn get_filename_ext(&self) -> Option<&ExtendedValue> {
         self.parameters
             .iter()
-            .filter_map(|p| p.as_filename_ext())
-            .next()
+            .find_map(DispositionParam::as_filename_ext)
     }
 
     /// Return the value of the parameter which the `name` matches.
     pub fn get_unknown(&self, name: impl AsRef<str>) -> Option<&str> {
         let name = name.as_ref();
-        self.parameters
-            .iter()
-            .filter_map(|p| p.as_unknown(name))
-            .next()
+        self.parameters.iter().find_map(|p| p.as_unknown(name))
     }
 
     /// Return the value of the extended parameter which the `name` matches.
     pub fn get_unknown_ext(&self, name: impl AsRef<str>) -> Option<&ExtendedValue> {
         let name = name.as_ref();
-        self.parameters
-            .iter()
-            .filter_map(|p| p.as_unknown_ext(name))
-            .next()
+        self.parameters.iter().find_map(|p| p.as_unknown_ext(name))
     }
 }
 

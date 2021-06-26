@@ -486,7 +486,9 @@ impl ClientRequest {
                 let mut encoding = vec![];
 
                 #[cfg(feature = "compress-brotli")]
-                encoding.push("br");
+                {
+                    encoding.push("br");
+                }
 
                 #[cfg(feature = "compress-gzip")]
                 {

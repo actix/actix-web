@@ -125,7 +125,7 @@ impl fmt::Display for Error {
 
 impl StdError for Error {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        self.inner.cause.as_ref().map(|err| err.as_ref())
+        self.inner.cause.as_ref().map(Box::as_ref)
     }
 }
 

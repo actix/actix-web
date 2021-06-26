@@ -1,6 +1,7 @@
 //! For URL encoded form helper documentation, see [`Form`].
 
 use std::{
+    borrow::Cow,
     fmt,
     future::Future,
     ops,
@@ -384,7 +385,7 @@ where
                 } else {
                     let body = encoding
                         .decode_without_bom_handling_and_without_replacement(&body)
-                        .map(|s| s.into_owned())
+                        .map(Cow::into_owned)
                         .ok_or(UrlencodedError::Encoding)?;
 
                     serde_urlencoded::from_str::<T>(&body).map_err(UrlencodedError::Parse)

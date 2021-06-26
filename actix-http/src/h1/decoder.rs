@@ -102,7 +102,7 @@ pub(crate) trait MessageType: Sized {
                     }
                     // transfer-encoding
                     header::TRANSFER_ENCODING => {
-                        if let Ok(s) = value.to_str().map(|s| s.trim()) {
+                        if let Ok(s) = value.to_str().map(str::trim) {
                             chunked = s.eq_ignore_ascii_case("chunked");
                         } else {
                             return Err(ParseError::Header);
@@ -110,7 +110,7 @@ pub(crate) trait MessageType: Sized {
                     }
                     // connection keep-alive state
                     header::CONNECTION => {
-                        ka = if let Ok(conn) = value.to_str().map(|conn| conn.trim()) {
+                        ka = if let Ok(conn) = value.to_str().map(str::trim) {
                             if conn.eq_ignore_ascii_case("keep-alive") {
                                 Some(ConnectionType::KeepAlive)
                             } else if conn.eq_ignore_ascii_case("close") {
@@ -125,7 +125,7 @@ pub(crate) trait MessageType: Sized {
                         };
                     }
                     header::UPGRADE => {
-                        if let Ok(val) = value.to_str().map(|val| val.trim()) {
+                        if let Ok(val) = value.to_str().map(str::trim) {
                             if val.eq_ignore_ascii_case("websocket") {
                                 has_upgrade_websocket = true;
                             }

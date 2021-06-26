@@ -186,8 +186,7 @@ impl Inner {
         if self
             .task
             .as_ref()
-            .map(|w| !cx.waker().will_wake(w))
-            .unwrap_or(true)
+            .map_or(true, |w| !cx.waker().will_wake(w))
         {
             self.task = Some(cx.waker().clone());
         }
@@ -199,8 +198,7 @@ impl Inner {
         if self
             .io_task
             .as_ref()
-            .map(|w| !cx.waker().will_wake(w))
-            .unwrap_or(true)
+            .map_or(true, |w| !cx.waker().will_wake(w))
         {
             self.io_task = Some(cx.waker().clone());
         }

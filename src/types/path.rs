@@ -103,8 +103,7 @@ where
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let error_handler = req
             .app_data::<Self::Config>()
-            .map(|c| c.ehandler.clone())
-            .unwrap_or(None);
+            .and_then(|c| c.ehandler.clone());
 
         ready(
             de::Deserialize::deserialize(PathDeserializer::new(req.match_info()))

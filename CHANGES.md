@@ -12,6 +12,7 @@
 * Deprecate `App::data` and `App::data_factory`. [#2271]
 * Smarter extraction of `ConnectionInfo` parts. [#2282]
 
+
 ### Fixed
 * Scope and Resource middleware can access data items set on their own layer. [#2288]
 

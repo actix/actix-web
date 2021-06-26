@@ -152,8 +152,8 @@ impl ServiceConfig {
         }
     }
 
-    #[inline]
     /// Return keep-alive timer delay is configured.
+    #[inline]
     pub fn keep_alive_timer(&self) -> Option<Sleep> {
         self.keep_alive().map(|ka| sleep_until(self.now() + ka))
     }
@@ -365,11 +365,11 @@ mod tests {
         let clone3 = service.clone();
 
         drop(clone1);
-        assert_eq!(false, notify_on_drop::is_dropped());
+        assert!(!notify_on_drop::is_dropped());
         drop(clone2);
-        assert_eq!(false, notify_on_drop::is_dropped());
+        assert!(!notify_on_drop::is_dropped());
         drop(clone3);
-        assert_eq!(false, notify_on_drop::is_dropped());
+        assert!(!notify_on_drop::is_dropped());
 
         drop(service);
         assert!(notify_on_drop::is_dropped());

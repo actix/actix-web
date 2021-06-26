@@ -465,7 +465,7 @@ impl Service<ServiceRequest> for ResourceService {
     actix_service::always_ready!();
 
     fn call(&self, mut req: ServiceRequest) -> Self::Future {
-        for route in self.routes.iter() {
+        for route in &self.routes {
             if route.check(&mut req) {
                 return route.call(req);
             }
