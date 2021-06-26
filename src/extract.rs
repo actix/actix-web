@@ -16,11 +16,8 @@ use crate::{dev::Payload, Error, HttpRequest};
 ///
 /// An extractor can be customized by injecting the corresponding configuration with one of:
 ///
-/// - [`App::data()`](`crate::App::data`)
 /// - [`App::app_data()`](`crate::App::app_data`)
-/// - [`Scope::data()`](`crate::Scope::data`)
 /// - [`Scope::app_data()`](`crate::Scope::app_data`)
-/// - [`Resource::data()`](`crate::Resource::data`)
 /// - [`Resource::app_data()`](`crate::Resource::app_data`)
 ///
 /// Here are some built-in extractors and their corresponding configuration.

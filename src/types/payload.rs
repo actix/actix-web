@@ -201,7 +201,7 @@ fn bytes_to_string(body: Bytes, encoding: &'static Encoding) -> Result<String, E
 /// By default, the payload size limit is 256kB and there is no mime type condition.
 ///
 /// To use this, add an instance of it to your [`app`](crate::App), [`scope`](crate::Scope)
-/// or [`resource`](crate::Resource) through the associated `.app_data()` or `.data()` method.
+/// or [`resource`](crate::Resource) through the associated `.app_data()` method.
 #[derive(Clone)]
 pub struct PayloadConfig {
     limit: usize,
