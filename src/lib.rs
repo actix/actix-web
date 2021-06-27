@@ -73,6 +73,7 @@ mod app;
 mod app_service;
 mod config;
 mod data;
+pub mod dev;
 pub mod error;
 mod extract;
 pub mod guard;
@@ -115,109 +116,3 @@ pub use crate::scope::Scope;
 pub use crate::server::HttpServer;
 // TODO: is exposing the error directly really needed
 pub use crate::types::{Either, EitherExtractError};
-
-pub mod dev {
-    //! The `actix-web` prelude for library developers
-    //!
-    //! The purpose of this module is to alleviate imports of many common actix
-    //! traits by adding a glob import to the top of actix heavy modules:
-    //!
-    //! ```
-    //! # #![allow(unused_imports)]
-    //! use actix_web::dev::*;
-    //! ```
-
-    pub use crate::config::{AppConfig, AppService};
-    #[doc(hidden)]
-    pub use crate::handler::Handler;
-    pub use crate::info::{ConnectionInfo, PeerAddr};
-    pub use crate::rmap::ResourceMap;
-    pub use crate::service::{HttpServiceFactory, ServiceRequest, ServiceResponse, WebService};
-
-    pub use crate::types::form::UrlEncoded;
-    pub use crate::types::json::JsonBody;
-    pub use crate::types::readlines::Readlines;
-
-    pub use actix_http::body::{
-        AnyBody, Body, BodySize, MessageBody, ResponseBody, SizedStream,
-    };
-
-    #[cfg(feature = "__compress")]
-    pub use actix_http::encoding::Decoder as Decompress;
-    pub use actix_http::ResponseBuilder as BaseHttpResponseBuilder;
-    pub use actix_http::{Extensions, Payload, PayloadStream, RequestHead, ResponseHead};
-    pub use actix_router::{Path, ResourceDef, ResourcePath, Url};
-    pub use actix_server::Server;
-    pub use actix_service::{
-        always_ready, fn_factory, fn_service, forward_ready, Service, Transform,
-    };
-
-    pub(crate) fn insert_slash(mut patterns: Vec<String>) -> Vec<String> {
-        for path in &mut patterns {
-            if !path.is_empty() && !path.starts_with('/') {
-                path.insert(0, '/');
-            };
-        }
-        patterns
-    }
-
-    use crate::http::header::ContentEncoding;
-    use actix_http::{Response, ResponseBuilder};
-
-    struct Enc(ContentEncoding);
-
-    /// Helper trait that allows to set specific encoding for response.
-    pub trait BodyEncoding {
-        /// Get content encoding
-        fn get_encoding(&self) -> Option<ContentEncoding>;
-
-        /// Set content encoding
-        ///
-        /// Must be used with [`crate::middleware::Compress`] to take effect.
-        fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self;
-    }
-
-    impl BodyEncoding for ResponseBuilder {
-        fn get_encoding(&self) -> Option<ContentEncoding> {
-            self.extensions().get::<Enc>().map(|enc| enc.0)
-        }
-
-        fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
-            self.extensions_mut().insert(Enc(encoding));
-            self
-        }
-    }
-
-    impl<B> BodyEncoding for Response<B> {
-        fn get_encoding(&self) -> Option<ContentEncoding> {
-            self.extensions().get::<Enc>().map(|enc| enc.0)
-        }
-
-        fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
-            self.extensions_mut().insert(Enc(encoding));
-            self
-        }
-    }
-
-    impl BodyEncoding for crate::HttpResponseBuilder {
-        fn get_encoding(&self) -> Option<ContentEncoding> {
-            self.extensions().get::<Enc>().map(|enc| enc.0)
-        }
-
-        fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
-            self.extensions_mut().insert(Enc(encoding));
-            self
-        }
-    }
-
-    impl<B> BodyEncoding for crate::HttpResponse<B> {
-        fn get_encoding(&self) -> Option<ContentEncoding> {
-            self.extensions().get::<Enc>().map(|enc| enc.0)
-        }
-
-        fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
-            self.extensions_mut().insert(Enc(encoding));
-            self
-        }
-    }
-}
