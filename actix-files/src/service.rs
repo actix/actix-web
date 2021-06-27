@@ -13,7 +13,7 @@ use futures_core::future::LocalBoxFuture;
 
 use crate::{
     named, Directory, DirectoryRenderer, FilesError, HttpService, MimeOverride, NamedFile,
-    PathBufWrap,
+    PathBufWrap, PathFilter,
 };
 
 /// Assembled file serving service.
@@ -25,6 +25,7 @@ pub struct FilesService {
     pub(crate) default: Option<HttpService>,
     pub(crate) renderer: Rc<DirectoryRenderer>,
     pub(crate) mime_override: Option<Rc<MimeOverride>>,
+    pub(crate) path_filter: Option<Rc<PathFilter>>,
     pub(crate) file_flags: named::Flags,
     pub(crate) guards: Option<Rc<dyn Guard>>,
     pub(crate) hidden_files: bool,
@@ -82,6 +83,18 @@ impl Service<ServiceRequest> for FilesService {
                 Err(e) => return Box::pin(ok(req.error_response(e))),
             };
 
+        if let Some(filter) = &self.path_filter {
+            if !filter(real_path.as_ref(), req.head()) {
+                if let Some(ref default) = self.default {
+                    return Box::pin(default.call(req));
+                } else {
+                    return Box::pin(ok(
+                        req.into_response(actix_web::HttpResponse::NotFound().finish())
+                    ));
+                }
+            }
+        }
+
         // full file path
         let path = self.directory.join(&real_path);
         if let Err(err) = path.canonicalize() {
@@ -102,26 +115,20 @@ impl Service<ServiceRequest> for FilesService {
                 )));
             }
 
-            if let Some(ref redir_index) = self.index {
-                let path = path.join(redir_index);
-
-                match NamedFile::open(path) {
-                    Ok(mut named_file) => {
-                        if let Some(ref mime_override) = self.mime_override {
-                            let new_disposition =
-                                mime_override(&named_file.content_type.type_());
-                            named_file.content_disposition.disposition = new_disposition;
-                        }
-                        named_file.flags = self.file_flags;
-
-                        let (req, _) = req.into_parts();
-                        let res = named_file.into_response(&req);
-                        Box::pin(ok(ServiceResponse::new(req, res)))
-                    }
-                    Err(err) => self.handle_err(err, req),
+            let serve_named_file = |req: ServiceRequest, mut named_file: NamedFile| {
+                if let Some(ref mime_override) = self.mime_override {
+                    let new_disposition = mime_override(&named_file.content_type.type_());
+                    named_file.content_disposition.disposition = new_disposition;
                 }
-            } else if self.show_index {
-                let dir = Directory::new(self.directory.clone(), path);
+                named_file.flags = self.file_flags;
+
+                let (req, _) = req.into_parts();
+                let res = named_file.into_response(&req);
+                Box::pin(ok(ServiceResponse::new(req, res)))
+            };
+
+            let show_index = |req: ServiceRequest| {
+                let dir = Directory::new(self.directory.clone(), path.clone());
 
                 let (req, _) = req.into_parts();
                 let x = (self.renderer)(&dir, &req);
@@ -130,11 +137,19 @@ impl Service<ServiceRequest> for FilesService {
                     Ok(resp) => ok(resp),
                     Err(err) => ok(ServiceResponse::from_err(err, req)),
                 })
-            } else {
-                Box::pin(ok(ServiceResponse::from_err(
+            };
+
+            match self.index {
+                Some(ref index) => match NamedFile::open(path.join(index)) {
+                    Ok(named_file) => serve_named_file(req, named_file),
+                    Err(_) if self.show_index => show_index(req),
+                    Err(err) => self.handle_err(err, req),
+                },
+                None if self.show_index => show_index(req),
+                _ => Box::pin(ok(ServiceResponse::from_err(
                     FilesError::IsDirectory,
                     req.into_parts().0,
-                )))
+                ))),
             }
         } else {
             match NamedFile::open(path) {

@@ -120,6 +120,11 @@ impl NamedFile {
 
             let disposition = match ct.type_() {
                 mime::IMAGE | mime::TEXT | mime::VIDEO => DispositionType::Inline,
+                mime::APPLICATION => match ct.subtype() {
+                    mime::JAVASCRIPT | mime::JSON => DispositionType::Inline,
+                    name if name == "wasm" => DispositionType::Inline,
+                    _ => DispositionType::Attachment,
+                },
                 _ => DispositionType::Attachment,
             };
 
@@ -213,9 +218,11 @@ impl NamedFile {
 
     /// Set the Content-Disposition for serving this file. This allows
     /// changing the inline/attachment disposition as well as the filename
-    /// sent to the peer. By default the disposition is `inline` for text,
-    /// image, and video content types, and `attachment` otherwise, and
-    /// the filename is taken from the path provided in the `open` method
+    /// sent to the peer.
+    ///
+    /// By default the disposition is `inline` for `text/*`, `image/*`, `video/*` and
+    /// `application/{javascript, json, wasm}` mime types, and `attachment` otherwise,
+    /// and the filename is taken from the path provided in the `open` method
     /// after converting it to UTF-8 using.
     /// [`std::ffi::OsStr::to_string_lossy`]
     #[inline]
@@ -235,6 +242,8 @@ impl NamedFile {
     }
 
     /// Set content encoding for serving this file
+    ///
+    /// Must be used with [`actix_web::middleware::Compress`] to take effect.
     #[inline]
     pub fn set_content_encoding(mut self, enc: ContentEncoding) -> Self {
         self.encoding = Some(enc);
@@ -346,8 +355,8 @@ impl NamedFile {
         } else if let (Some(ref m), Some(header::IfUnmodifiedSince(ref since))) =
             (last_modified, req.get_header())
         {
-            let t1: SystemTime = m.clone().into();
-            let t2: SystemTime = since.clone().into();
+            let t1: SystemTime = (*m).into();
+            let t2: SystemTime = (*since).into();
 
             match (t1.duration_since(UNIX_EPOCH), t2.duration_since(UNIX_EPOCH)) {
                 (Ok(t1), Ok(t2)) => t1.as_secs() > t2.as_secs(),
@@ -365,8 +374,8 @@ impl NamedFile {
         } else if let (Some(ref m), Some(header::IfModifiedSince(ref since))) =
             (last_modified, req.get_header())
         {
-            let t1: SystemTime = m.clone().into();
-            let t2: SystemTime = since.clone().into();
+            let t1: SystemTime = (*m).into();
+            let t2: SystemTime = (*since).into();
 
             match (t1.duration_since(UNIX_EPOCH), t2.duration_since(UNIX_EPOCH)) {
                 (Ok(t1), Ok(t2)) => t1.as_secs() <= t2.as_secs(),

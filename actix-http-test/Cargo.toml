@@ -35,7 +35,7 @@ actix-tls = "3.0.0-beta.5"
 actix-utils = "3.0.0"
 actix-rt = "2.2"
 actix-server = "2.0.0-beta.3"
-awc = { version = "3.0.0-beta.5", default-features = false }
+awc = { version = "3.0.0-beta.7", default-features = false }
 
 base64 = "0.13"
 bytes = "1"
@@ -51,5 +51,5 @@ time = { version = "0.2.23", default-features = false, features = ["std"] }
 tls-openssl = { version = "0.10.9", package = "openssl", optional = true }
 
 [dev-dependencies]
-actix-web = { version = "4.0.0-beta.6", default-features = false, features = ["cookies"] }
-actix-http = "3.0.0-beta.6"
+actix-web = { version = "4.0.0-beta.8", default-features = false, features = ["cookies"] }
+actix-http = "3.0.0-beta.8"

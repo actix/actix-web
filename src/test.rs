@@ -613,6 +613,11 @@ impl TestRequest {
         let req = self.to_request();
         call_service(app, req).await
     }
+
+    #[cfg(test)]
+    pub fn set_server_hostname(&mut self, host: &str) {
+        self.config.set_host(host)
+    }
 }
 
 #[cfg(test)]
@@ -839,6 +844,8 @@ mod tests {
         assert!(res.status().is_success());
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_server_data() {
         async fn handler(data: web::Data<usize>) -> impl Responder {

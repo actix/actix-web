@@ -1,6 +1,7 @@
 //! For URL encoded form helper documentation, see [`Form`].
 
 use std::{
+    borrow::Cow,
     fmt,
     future::Future,
     ops,
@@ -16,7 +17,7 @@ use futures_core::{future::LocalBoxFuture, ready};
 use futures_util::{FutureExt as _, StreamExt as _};
 use serde::{de::DeserializeOwned, Serialize};
 
-#[cfg(feature = "compress")]
+#[cfg(feature = "__compress")]
 use crate::dev::Decompress;
 use crate::{
     error::UrlencodedError, extract::FromRequest, http::header::CONTENT_LENGTH, web, Error,
@@ -80,6 +81,10 @@ use crate::{
 ///     })
 /// }
 /// ```
+///
+/// # Panics
+/// URL encoded forms consist of unordered `key=value` pairs, therefore they cannot be decoded into
+/// any type which depends upon data ordering (eg. tuples). Trying to do so will result in a panic.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct Form<T>(pub T);
 
@@ -180,7 +185,7 @@ impl<T: Serialize> Responder for Form<T> {
             Ok(body) => HttpResponse::Ok()
                 .content_type(mime::APPLICATION_WWW_FORM_URLENCODED)
                 .body(body),
-            Err(err) => HttpResponse::from_error(UrlencodedError::Serialize(err).into()),
+            Err(err) => HttpResponse::from_error(UrlencodedError::Serialize(err)),
         }
     }
 }
@@ -259,9 +264,9 @@ impl Default for FormConfig {
 /// - content type is not `application/x-www-form-urlencoded`
 /// - content length is greater than [limit](UrlEncoded::limit())
 pub struct UrlEncoded<T> {
-    #[cfg(feature = "compress")]
+    #[cfg(feature = "__compress")]
     stream: Option<Decompress<Payload>>,
-    #[cfg(not(feature = "compress"))]
+    #[cfg(not(feature = "__compress"))]
     stream: Option<Payload>,
 
     limit: usize,
@@ -297,10 +302,15 @@ impl<T> UrlEncoded<T> {
             }
         };
 
-        #[cfg(feature = "compress")]
-        let payload = Decompress::from_headers(payload.take(), req.headers());
-        #[cfg(not(feature = "compress"))]
-        let payload = payload.take();
+        let payload = {
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "__compress")] {
+                    Decompress::from_headers(payload.take(), req.headers())
+                } else {
+                    payload.take()
+                }
+            }
+        };
 
         UrlEncoded {
             encoding,
@@ -379,7 +389,7 @@ where
                 } else {
                     let body = encoding
                         .decode_without_bom_handling_and_without_replacement(&body)
-                        .map(|s| s.into_owned())
+                        .map(Cow::into_owned)
                         .ok_or(UrlencodedError::Encoding)?;
 
                     serde_urlencoded::from_str::<T>(&body).map_err(UrlencodedError::Parse)

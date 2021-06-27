@@ -81,7 +81,9 @@ where
                                 let _ = this.body.take();
                             }
                             let framed = this.framed.as_mut().as_pin_mut().unwrap();
-                            framed.write(Message::Chunk(item))?;
+                            framed.write(Message::Chunk(item)).map_err(|err| {
+                                Error::new_send_response().with_cause(err)
+                            })?;
                         }
                         Poll::Pending => body_ready = false,
                     }
@@ -92,7 +94,10 @@ where
 
             // flush write buffer
             if !framed.is_write_buf_empty() {
-                match framed.flush(cx)? {
+                match framed
+                    .flush(cx)
+                    .map_err(|err| Error::new_send_response().with_cause(err))?
+                {
                     Poll::Ready(_) => {
                         if body_ready {
                             continue;
@@ -106,7 +111,9 @@ where
 
             // send response
             if let Some(res) = this.res.take() {
-                framed.write(res)?;
+                framed
+                    .write(res)
+                    .map_err(|err| Error::new_send_response().with_cause(err))?;
                 continue;
             }
 

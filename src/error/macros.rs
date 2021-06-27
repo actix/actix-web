@@ -1,5 +1,3 @@
-#[macro_export]
-#[doc(hidden)]
 macro_rules! downcast_get_type_id {
     () => {
         /// A helper method to get the type ID of the type
@@ -20,10 +18,8 @@ macro_rules! downcast_get_type_id {
         /// safe code cannot obtain a `PrivateHelper` instance by
         /// delegating to an existing implementation of `__private_get_type_id__`
         #[doc(hidden)]
-        fn __private_get_type_id__(
-            &self,
-            _: PrivateHelper,
-        ) -> (std::any::TypeId, PrivateHelper)
+        #[allow(dead_code)]
+        fn __private_get_type_id__(&self, _: PrivateHelper) -> (std::any::TypeId, PrivateHelper)
         where
             Self: 'static,
         {
@@ -32,19 +28,19 @@ macro_rules! downcast_get_type_id {
     };
 }
 
-//Generate implementation for dyn $name
-#[doc(hidden)]
-#[macro_export]
-macro_rules! downcast {
+// Generate implementation for dyn $name
+macro_rules! downcast_dyn {
     ($name:ident) => {
         /// A struct with a private constructor, for use with
         /// `__private_get_type_id__`. Its single field is private,
         /// ensuring that it can only be constructed from this module
         #[doc(hidden)]
+        #[allow(dead_code)]
         pub struct PrivateHelper(());
 
         impl dyn $name + 'static {
             /// Downcasts generic body to a specific type.
+            #[allow(dead_code)]
             pub fn downcast_ref<T: $name + 'static>(&self) -> Option<&T> {
                 if self.__private_get_type_id__(PrivateHelper(())).0
                     == std::any::TypeId::of::<T>()
@@ -61,6 +57,7 @@ macro_rules! downcast {
             }
 
             /// Downcasts a generic body to a mutable specific type.
+            #[allow(dead_code)]
             pub fn downcast_mut<T: $name + 'static>(&mut self) -> Option<&mut T> {
                 if self.__private_get_type_id__(PrivateHelper(())).0
                     == std::any::TypeId::of::<T>()
@@ -70,9 +67,7 @@ macro_rules! downcast {
                     // it requires returning a private type. We can therefore
                     // rely on the returned `TypeId`, which ensures that this
                     // case is correct.
-                    unsafe {
-                        Some(&mut *(self as *const dyn $name as *const T as *mut T))
-                    }
+                    unsafe { Some(&mut *(self as *const dyn $name as *const T as *mut T)) }
                 } else {
                     None
                 }
@@ -80,6 +75,8 @@ macro_rules! downcast {
         }
     };
 }
+
+pub(crate) use {downcast_dyn, downcast_get_type_id};
 
 #[cfg(test)]
 mod tests {
@@ -89,7 +86,7 @@ mod tests {
         downcast_get_type_id!();
     }
 
-    downcast!(MB);
+    downcast_dyn!(MB);
 
     impl MB for String {}
     impl MB for () {}

@@ -118,8 +118,7 @@ where
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let error_handler = req
             .app_data::<QueryConfig>()
-            .map(|c| c.err_handler.clone())
-            .unwrap_or(None);
+            .and_then(|c| c.err_handler.clone());
 
         serde_urlencoded::from_str::<T>(req.query_string())
             .map(|val| ok(Query(val)))
@@ -266,7 +265,7 @@ mod tests {
         let req = TestRequest::with_uri("/name/user1/")
             .app_data(QueryConfig::default().error_handler(|e, _| {
                 let resp = HttpResponse::UnprocessableEntity().finish();
-                InternalError::from_response(e, resp.into()).into()
+                InternalError::from_response(e, resp).into()
             }))
             .to_srv_request();
 

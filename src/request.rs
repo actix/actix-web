@@ -7,7 +7,7 @@ use std::{
 
 use actix_http::{
     http::{HeaderMap, Method, Uri, Version},
-    Error, Extensions, HttpMessage, Message, Payload, RequestHead,
+    Extensions, HttpMessage, Message, Payload, RequestHead,
 };
 use actix_router::{Path, Url};
 use actix_utils::future::{ok, Ready};
@@ -17,7 +17,7 @@ use smallvec::SmallVec;
 
 use crate::{
     app_service::AppInitServiceState, config::AppConfig, error::UrlGenerationError,
-    extract::FromRequest, info::ConnectionInfo, rmap::ResourceMap,
+    info::ConnectionInfo, rmap::ResourceMap, Error, FromRequest,
 };
 
 #[cfg(feature = "cookies")]
@@ -59,18 +59,6 @@ impl HttpRequest {
                 app_data: data,
             }),
         }
-    }
-
-    #[doc(hidden)]
-    pub fn __priv_test_new(
-        path: Path<Url>,
-        head: Message<RequestHead>,
-        rmap: Rc<ResourceMap>,
-        config: AppConfig,
-        app_data: Rc<Extensions>,
-    ) -> HttpRequest {
-        let app_state = AppInitServiceState::new(rmap, config);
-        Self::new(path, head, app_state, app_data)
     }
 }
 
@@ -123,11 +111,7 @@ impl HttpRequest {
     /// E.g., id=10
     #[inline]
     pub fn query_string(&self) -> &str {
-        if let Some(query) = self.uri().query().as_ref() {
-            query
-        } else {
-            ""
-        }
+        self.uri().query().unwrap_or_default()
     }
 
     /// Get a reference to the Path parameters.
@@ -356,11 +340,10 @@ impl Drop for HttpRequest {
 
 /// It is possible to get `HttpRequest` as an extractor handler parameter
 ///
-/// ## Example
-///
+/// # Examples
 /// ```
 /// use actix_web::{web, App, HttpRequest};
-/// use serde_derive::Deserialize;
+/// use serde::Deserialize;
 ///
 /// /// extract `Thing` from request
 /// async fn index(req: HttpRequest) -> String {
@@ -723,6 +706,8 @@ mod tests {
         assert_eq!(body, Bytes::from_static(b"1"));
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_extensions_dropped() {
         struct Tracker {

@@ -2,6 +2,7 @@
 
 use std::{
     cell::{Ref, RefMut},
+    error::Error as StdError,
     fmt,
     future::Future,
     pin::Pin,
@@ -13,7 +14,7 @@ use bytes::Bytes;
 use futures_core::Stream;
 
 use crate::{
-    body::{Body, BodyStream},
+    body::{AnyBody, BodyStream},
     error::{Error, HttpError},
     header::{self, IntoHeaderPair, IntoHeaderValue},
     message::{BoxedResponseHead, ConnectionType, ResponseHead},
@@ -235,9 +236,9 @@ impl ResponseBuilder {
     ///
     /// This `ResponseBuilder` will be left in a useless state.
     #[inline]
-    pub fn body<B: Into<Body>>(&mut self, body: B) -> Response<Body> {
+    pub fn body<B: Into<AnyBody>>(&mut self, body: B) -> Response<AnyBody> {
         self.message_body(body.into())
-            .unwrap_or_else(Response::from_error)
+            .unwrap_or_else(Response::from)
     }
 
     /// Generate response with a body.
@@ -245,7 +246,7 @@ impl ResponseBuilder {
     /// This `ResponseBuilder` will be left in a useless state.
     pub fn message_body<B>(&mut self, body: B) -> Result<Response<B>, Error> {
         if let Some(err) = self.err.take() {
-            return Err(err.into());
+            return Err(Error::new_http().with_cause(err));
         }
 
         let head = self.head.take().expect("cannot reuse response builder");
@@ -256,20 +257,20 @@ impl ResponseBuilder {
     ///
     /// This `ResponseBuilder` will be left in a useless state.
     #[inline]
-    pub fn streaming<S, E>(&mut self, stream: S) -> Response<Body>
+    pub fn streaming<S, E>(&mut self, stream: S) -> Response<AnyBody>
     where
-        S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
-        E: Into<Error> + 'static,
+        S: Stream<Item = Result<Bytes, E>> + 'static,
+        E: Into<Box<dyn StdError>> + 'static,
     {
-        self.body(Body::from_message(BodyStream::new(stream)))
+        self.body(AnyBody::from_message(BodyStream::new(stream)))
     }
 
     /// Generate response with an empty body.
     ///
     /// This `ResponseBuilder` will be left in a useless state.
     #[inline]
-    pub fn finish(&mut self) -> Response<Body> {
-        self.body(Body::Empty)
+    pub fn finish(&mut self) -> Response<AnyBody> {
+        self.body(AnyBody::Empty)
     }
 
     /// Create an owned `ResponseBuilder`, leaving the original in a useless state.
@@ -327,7 +328,7 @@ impl<'a> From<&'a ResponseHead> for ResponseBuilder {
 }
 
 impl Future for ResponseBuilder {
-    type Output = Result<Response<Body>, Error>;
+    type Output = Result<Response<AnyBody>, Error>;
 
     fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
         Poll::Ready(Ok(self.finish()))

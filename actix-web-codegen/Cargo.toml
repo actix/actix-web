@@ -1,6 +1,6 @@
 [package]
 name = "actix-web-codegen"
-version = "0.5.0-beta.2"
+version = "0.5.0-beta.3"
 description = "Routing and runtime macros for Actix Web"
 readme = "README.md"
 homepage = "https://actix.rs"
@@ -20,9 +20,9 @@ proc-macro2 = "1"
 
 [dev-dependencies]
 actix-rt = "2.2"
-actix-test = "0.1.0-beta.2"
+actix-test = "0.1.0-beta.3"
 actix-utils = "3.0.0"
-actix-web = "4.0.0-beta.6"
+actix-web = "4.0.0-beta.8"
 
 futures-core = { version = "0.3.7", default-features = false, features = ["alloc"] }
 trybuild = "1"

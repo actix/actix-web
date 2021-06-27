@@ -12,6 +12,19 @@
 
 * The `type Config` of `FromRequest` was removed.
 
+* Feature flag `compress` has been split into its supported algorithm (brotli, gzip, zstd).
+  By default all compression algorithms are enabled.
+  To select algorithm you want to include with `middleware::Compress` use following flags:
+  - `compress-brotli`
+  - `compress-gzip`
+  - `compress-zstd`
+  If you have set in your `Cargo.toml` dedicated `actix-web` features and you still want
+  to have compression enabled. Please change features selection like bellow:
+
+  Before: `"compress"`
+  After: `"compress-brotli", "compress-gzip", "compress-zstd"`
+
+
 ## 3.0.0
 
 * The return type for `ServiceRequest::app_data::<T>()` was changed from returning a `Data<T>` to

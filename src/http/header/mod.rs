@@ -84,4 +84,8 @@ mod if_none_match;
 mod if_range;
 mod if_unmodified_since;
 mod last_modified;
+
 mod macros;
+#[cfg(test)]
+pub(crate) use macros::common_header_test;
+pub(crate) use macros::{common_header, common_header_deref, common_header_test_module};

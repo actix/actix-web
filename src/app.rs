@@ -43,13 +43,14 @@ impl App<AppEntry, Body> {
     /// Create application builder. Application can be configured with a builder-like pattern.
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
-        let fref = Rc::new(RefCell::new(None));
+        let factory_ref = Rc::new(RefCell::new(None));
+
         App {
-            endpoint: AppEntry::new(fref.clone()),
+            endpoint: AppEntry::new(factory_ref.clone()),
             data_factories: Vec::new(),
             services: Vec::new(),
             default: None,
-            factory_ref: fref,
+            factory_ref,
             external: Vec::new(),
             extensions: Extensions::new(),
             _phantom: PhantomData,
@@ -68,43 +69,83 @@ where
         InitError = (),
     >,
 {
-    /// Set application data. Application data could be accessed
-    /// by using `Data<T>` extractor where `T` is data type.
+    /// Set application (root level) data.
     ///
-    /// **Note**: HTTP server accepts an application factory rather than
-    /// an application instance. Http server constructs an application
-    /// instance for each thread, thus application data must be constructed
-    /// multiple times. If you want to share data between different
-    /// threads, a shared object should be used, e.g. `Arc`. Internally `Data` type
-    /// uses `Arc` so data could be created outside of app factory and clones could
-    /// be stored via `App::app_data()` method.
+    /// Application data stored with `App::app_data()` method is available through the
+    /// [`HttpRequest::app_data`](crate::HttpRequest::app_data) method at runtime.
+    ///
+    /// # [`Data<T>`]
+    /// Any [`Data<T>`] type added here can utilize it's extractor implementation in handlers.
+    /// Types not wrapped in `Data<T>` cannot use this extractor. See [its docs](Data<T>) for more
+    /// about its usage and patterns.
     ///
     /// ```
     /// use std::cell::Cell;
-    /// use actix_web::{web, App, HttpResponse, Responder};
+    /// use actix_web::{web, App, HttpRequest, HttpResponse, Responder};
     ///
     /// struct MyData {
-    ///     counter: Cell<usize>,
+    ///     count: std::cell::Cell<usize>,
     /// }
     ///
-    /// async fn index(data: web::Data<MyData>) -> impl Responder {
-    ///     data.counter.set(data.counter.get() + 1);
-    ///     HttpResponse::Ok()
+    /// async fn handler(req: HttpRequest, counter: web::Data<MyData>) -> impl Responder {
+    ///     // note this cannot use the Data<T> extractor because it was not added with it
+    ///     let incr = *req.app_data::<usize>().unwrap();
+    ///     assert_eq!(incr, 3);
+    ///
+    ///     // update counter using other value from app data
+    ///     counter.count.set(counter.count.get() + incr);
+    ///
+    ///     HttpResponse::Ok().body(counter.count.get().to_string())
     /// }
     ///
-    /// let app = App::new()
-    ///     .data(MyData{ counter: Cell::new(0) })
-    ///     .service(
-    ///         web::resource("/index.html").route(
-    ///             web::get().to(index)));
+    /// let app = App::new().service(
+    ///     web::resource("/")
+    ///         .app_data(3usize)
+    ///         .app_data(web::Data::new(MyData { count: Default::default() }))
+    ///         .route(web::get().to(handler))
+    /// );
     /// ```
+    ///
+    /// # Shared Mutable State
+    /// [`HttpServer::new`](crate::HttpServer::new) accepts an application factory rather than an
+    /// application instance; the factory closure is called on each worker thread independently.
+    /// Therefore, if you want to share a data object between different workers, a shareable object
+    /// needs to be created first, outside the `HttpServer::new` closure and cloned into it.
+    /// [`Data<T>`] is an example of such a sharable object.
+    ///
+    /// ```ignore
+    /// let counter = web::Data::new(AppStateWithCounter {
+    ///     counter: Mutex::new(0),
+    /// });
+    ///
+    /// HttpServer::new(move || {
+    ///     // move counter object into the closure and clone for each worker
+    ///
+    ///     App::new()
+    ///         .app_data(counter.clone())
+    ///         .route("/", web::get().to(handler))
+    /// })
+    /// ```
+    pub fn app_data<U: 'static>(mut self, ext: U) -> Self {
+        self.extensions.insert(ext);
+        self
+    }
+
+    /// Add application (root) data after wrapping in `Data<T>`.
+    ///
+    /// Deprecated in favor of [`app_data`](Self::app_data).
+    #[deprecated(since = "4.0.0", note = "Use `.app_data(Data::new(val))` instead.")]
     pub fn data<U: 'static>(self, data: U) -> Self {
         self.app_data(Data::new(data))
     }
 
-    /// Set application data factory. This function is
-    /// similar to `.data()` but it accepts data factory. Data object get
-    /// constructed asynchronously during application initialization.
+    /// Add application data factory. This function is similar to `.data()` but it accepts a
+    /// "data factory". Data values are constructed asynchronously during application
+    /// initialization, before the server starts accepting requests.
+    #[deprecated(
+        since = "4.0.0",
+        note = "Construct data value before starting server and use `.app_data(Data::new(val))` instead."
+    )]
     pub fn data_factory<F, Out, D, E>(mut self, data: F) -> Self
     where
         F: Fn() -> Out + 'static,
@@ -130,18 +171,6 @@ where
             }
             .boxed_local()
         }));
-        self
-    }
-
-    /// Set application level arbitrary data item.
-    ///
-    /// Application data stored with `App::app_data()` method is available
-    /// via `HttpRequest::app_data()` method at runtime.
-    ///
-    /// This method could be used for storing `Data<T>` as well, in that case
-    /// data could be accessed by using `Data<T>` extractor.
-    pub fn app_data<U: 'static>(mut self, ext: U) -> Self {
-        self.extensions.insert(ext);
         self
     }
 
@@ -518,6 +547,8 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::CREATED);
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_data_factory() {
         let srv = init_service(
@@ -541,6 +572,8 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_data_factory_errors() {
         let srv = try_init_service(

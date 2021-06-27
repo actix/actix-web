@@ -1,7 +1,6 @@
 //! Actix Web is a powerful, pragmatic, and extremely fast web framework for Rust.
 //!
-//! ## Example
-//!
+//! # Examples
 //! ```no_run
 //! use actix_web::{get, web, App, HttpServer, Responder};
 //!
@@ -20,13 +19,12 @@
 //! }
 //! ```
 //!
-//! ## Documentation & Community Resources
-//!
+//! # Documentation & Community Resources
 //! In addition to this API documentation, several other resources are available:
 //!
 //! * [Website & User Guide](https://actix.rs/)
 //! * [Examples Repository](https://github.com/actix/examples)
-//! * [Community Chat on Gitter](https://gitter.im/actix/actix-web)
+//! * [Community Chat on Discord](https://discord.gg/NWpN5mmg3x)
 //!
 //! To get started navigating the API docs, you may consider looking at the following pages first:
 //!
@@ -43,13 +41,12 @@
 //!   structs represent HTTP requests and responses and expose methods for creating, inspecting,
 //!   and otherwise utilizing them.
 //!
-//! ## Features
-//!
+//! # Features
 //! * Supports *HTTP/1.x* and *HTTP/2*
 //! * Streaming and pipelining
 //! * Keep-alive and slow requests handling
 //! * Client/server [WebSockets](https://actix.rs/docs/websockets/) support
-//! * Transparent content compression/decompression (br, gzip, deflate)
+//! * Transparent content compression/decompression (br, gzip, deflate, zstd)
 //! * Powerful [request routing](https://actix.rs/docs/url-dispatch/)
 //! * Multipart streams
 //! * Static assets
@@ -58,10 +55,11 @@
 //! * Includes an async [HTTP client](https://docs.rs/awc/)
 //! * Runs on stable Rust 1.46+
 //!
-//! ## Crate Features
-//!
-//! * `compress` - content encoding compression support (enabled by default)
+//! # Crate Features
 //! * `cookies` - cookies support (enabled by default)
+//! * `compress-brotli` - brotli content encoding compression support (enabled by default)
+//! * `compress-gzip` - gzip and deflate content encoding compression support (enabled by default)
+//! * `compress-zstd` - zstd content encoding compression support (enabled by default)
 //! * `openssl` - HTTPS support via `openssl` crate, supports `HTTP/2`
 //! * `rustls` - HTTPS support via `rustls` crate, supports `HTTP/2`
 //! * `secure-cookies` - secure cookies support
@@ -75,10 +73,12 @@ mod app;
 mod app_service;
 mod config;
 mod data;
+pub mod dev;
 pub mod error;
 mod extract;
 pub mod guard;
 mod handler;
+mod helpers;
 pub mod http;
 mod info;
 pub mod middleware;
@@ -97,7 +97,7 @@ pub(crate) mod types;
 pub mod web;
 
 pub use actix_http::Response as BaseHttpResponse;
-pub use actix_http::{body, Error, HttpMessage, ResponseError};
+pub use actix_http::{body, HttpMessage};
 #[doc(inline)]
 pub use actix_rt as rt;
 pub use actix_web_codegen::*;
@@ -105,7 +105,7 @@ pub use actix_web_codegen::*;
 pub use cookie;
 
 pub use crate::app::App;
-pub use crate::error::Result;
+pub use crate::error::{Error, ResponseError, Result};
 pub use crate::extract::FromRequest;
 pub use crate::request::HttpRequest;
 pub use crate::resource::Resource;
@@ -116,102 +116,3 @@ pub use crate::scope::Scope;
 pub use crate::server::HttpServer;
 // TODO: is exposing the error directly really needed
 pub use crate::types::{Either, EitherExtractError};
-
-pub mod dev {
-    //! The `actix-web` prelude for library developers
-    //!
-    //! The purpose of this module is to alleviate imports of many common actix
-    //! traits by adding a glob import to the top of actix heavy modules:
-    //!
-    //! ```
-    //! # #![allow(unused_imports)]
-    //! use actix_web::dev::*;
-    //! ```
-
-    pub use crate::config::{AppConfig, AppService};
-    #[doc(hidden)]
-    pub use crate::handler::Handler;
-    pub use crate::info::ConnectionInfo;
-    pub use crate::rmap::ResourceMap;
-    pub use crate::service::{HttpServiceFactory, ServiceRequest, ServiceResponse, WebService};
-
-    pub use crate::types::form::UrlEncoded;
-    pub use crate::types::json::JsonBody;
-    pub use crate::types::readlines::Readlines;
-
-    pub use actix_http::body::{Body, BodySize, MessageBody, ResponseBody, SizedStream};
-    #[cfg(feature = "compress")]
-    pub use actix_http::encoding::Decoder as Decompress;
-    pub use actix_http::ResponseBuilder as BaseHttpResponseBuilder;
-    pub use actix_http::{Extensions, Payload, PayloadStream, RequestHead, ResponseHead};
-    pub use actix_router::{Path, ResourceDef, ResourcePath, Url};
-    pub use actix_server::Server;
-    pub use actix_service::{always_ready, forward_ready, Service, Transform};
-
-    pub(crate) fn insert_slash(mut patterns: Vec<String>) -> Vec<String> {
-        for path in &mut patterns {
-            if !path.is_empty() && !path.starts_with('/') {
-                path.insert(0, '/');
-            };
-        }
-        patterns
-    }
-
-    use crate::http::header::ContentEncoding;
-    use actix_http::{Response, ResponseBuilder};
-
-    struct Enc(ContentEncoding);
-
-    /// Helper trait that allows to set specific encoding for response.
-    pub trait BodyEncoding {
-        /// Get content encoding
-        fn get_encoding(&self) -> Option<ContentEncoding>;
-
-        /// Set content encoding
-        fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self;
-    }
-
-    impl BodyEncoding for ResponseBuilder {
-        fn get_encoding(&self) -> Option<ContentEncoding> {
-            self.extensions().get::<Enc>().map(|enc| enc.0)
-        }
-
-        fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
-            self.extensions_mut().insert(Enc(encoding));
-            self
-        }
-    }
-
-    impl<B> BodyEncoding for Response<B> {
-        fn get_encoding(&self) -> Option<ContentEncoding> {
-            self.extensions().get::<Enc>().map(|enc| enc.0)
-        }
-
-        fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
-            self.extensions_mut().insert(Enc(encoding));
-            self
-        }
-    }
-
-    impl BodyEncoding for crate::HttpResponseBuilder {
-        fn get_encoding(&self) -> Option<ContentEncoding> {
-            self.extensions().get::<Enc>().map(|enc| enc.0)
-        }
-
-        fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
-            self.extensions_mut().insert(Enc(encoding));
-            self
-        }
-    }
-
-    impl<B> BodyEncoding for crate::HttpResponse<B> {
-        fn get_encoding(&self) -> Option<ContentEncoding> {
-            self.extensions().get::<Enc>().map(|enc| enc.0)
-        }
-
-        fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
-            self.extensions_mut().insert(Enc(encoding));
-            self
-        }
-    }
-}

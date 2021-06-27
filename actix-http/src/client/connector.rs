@@ -85,7 +85,7 @@ impl Connector<()> {
         use bytes::{BufMut, BytesMut};
 
         let mut alpn = BytesMut::with_capacity(20);
-        for proto in protocols.iter() {
+        for proto in &protocols {
             alpn.put_u8(proto.len() as u8);
             alpn.put(proto.as_slice());
         }
@@ -290,8 +290,7 @@ where
                         let h2 = sock
                             .ssl()
                             .selected_alpn_protocol()
-                            .map(|protos| protos.windows(2).any(|w| w == H2))
-                            .unwrap_or(false);
+                            .map_or(false, |protos| protos.windows(2).any(|w| w == H2));
                         if h2 {
                             (Box::new(sock), Protocol::Http2)
                         } else {
@@ -325,8 +324,7 @@ where
                             .get_ref()
                             .1
                             .get_alpn_protocol()
-                            .map(|protos| protos.windows(2).any(|w| w == H2))
-                            .unwrap_or(false);
+                            .map_or(false, |protos| protos.windows(2).any(|w| w == H2));
                         if h2 {
                             (Box::new(sock), Protocol::Http2)
                         } else {

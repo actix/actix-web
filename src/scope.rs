@@ -1,28 +1,23 @@
-use std::cell::RefCell;
-use std::fmt;
-use std::future::Future;
-use std::rc::Rc;
+use std::{cell::RefCell, fmt, future::Future, mem, rc::Rc};
 
 use actix_http::Extensions;
 use actix_router::{ResourceDef, Router};
-use actix_service::boxed::{self, BoxService, BoxServiceFactory};
 use actix_service::{
-    apply, apply_fn_factory, IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt,
-    Transform,
+    apply, apply_fn_factory,
+    boxed::{self, BoxService, BoxServiceFactory},
+    IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt, Transform,
 };
 use futures_core::future::LocalBoxFuture;
 use futures_util::future::join_all;
 
-use crate::config::ServiceConfig;
-use crate::data::Data;
-use crate::dev::{AppService, HttpServiceFactory};
-use crate::error::Error;
-use crate::guard::Guard;
-use crate::resource::Resource;
-use crate::rmap::ResourceMap;
-use crate::route::Route;
-use crate::service::{
-    AppServiceFactory, ServiceFactoryWrapper, ServiceRequest, ServiceResponse,
+use crate::{
+    config::ServiceConfig,
+    data::Data,
+    dev::{AppService, HttpServiceFactory},
+    guard::Guard,
+    rmap::ResourceMap,
+    service::{AppServiceFactory, ServiceFactoryWrapper, ServiceRequest, ServiceResponse},
+    Error, Resource, Route,
 };
 
 type Guards = Vec<Box<dyn Guard>>;
@@ -71,16 +66,17 @@ pub struct Scope<T = ScopeEndpoint> {
 impl Scope {
     /// Create a new scope
     pub fn new(path: &str) -> Scope {
-        let fref = Rc::new(RefCell::new(None));
+        let factory_ref = Rc::new(RefCell::new(None));
+
         Scope {
-            endpoint: ScopeEndpoint::new(fref.clone()),
+            endpoint: ScopeEndpoint::new(Rc::clone(&factory_ref)),
             rdef: path.to_string(),
             app_data: None,
             guards: Vec::new(),
             services: Vec::new(),
             default: None,
             external: Vec::new(),
-            factory_ref: fref,
+            factory_ref,
         }
     }
 }
@@ -120,39 +116,38 @@ where
         self
     }
 
-    /// Set or override application data. Application data could be accessed
-    /// by using `Data<T>` extractor where `T` is data type.
-    ///
-    /// ```
-    /// use std::cell::Cell;
-    /// use actix_web::{web, App, HttpResponse, Responder};
-    ///
-    /// struct MyData {
-    ///     counter: Cell<usize>,
-    /// }
-    ///
-    /// async fn index(data: web::Data<MyData>) -> impl Responder {
-    ///     data.counter.set(data.counter.get() + 1);
-    ///     HttpResponse::Ok()
-    /// }
-    ///
-    /// fn main() {
-    ///     let app = App::new().service(
-    ///         web::scope("/app")
-    ///             .data(MyData{ counter: Cell::new(0) })
-    ///             .service(
-    ///                 web::resource("/index.html").route(
-    ///                     web::get().to(index)))
-    ///     );
-    /// }
-    /// ```
-    pub fn data<U: 'static>(self, data: U) -> Self {
-        self.app_data(Data::new(data))
-    }
-
     /// Add scope data.
     ///
-    /// Data of different types from parent contexts will still be accessible.
+    /// Data of different types from parent contexts will still be accessible. Any `Data<T>` types
+    /// set here can be extracted in handlers using the `Data<T>` extractor.
+    ///
+    /// # Examples
+    /// ```
+    /// use std::cell::Cell;
+    /// use actix_web::{web, App, HttpRequest, HttpResponse, Responder};
+    ///
+    /// struct MyData {
+    ///     count: std::cell::Cell<usize>,
+    /// }
+    ///
+    /// async fn handler(req: HttpRequest, counter: web::Data<MyData>) -> impl Responder {
+    ///     // note this cannot use the Data<T> extractor because it was not added with it
+    ///     let incr = *req.app_data::<usize>().unwrap();
+    ///     assert_eq!(incr, 3);
+    ///
+    ///     // update counter using other value from app data
+    ///     counter.count.set(counter.count.get() + incr);
+    ///
+    ///     HttpResponse::Ok().body(counter.count.get().to_string())
+    /// }
+    ///
+    /// let app = App::new().service(
+    ///     web::scope("/app")
+    ///         .app_data(3usize)
+    ///         .app_data(web::Data::new(MyData { count: Default::default() }))
+    ///         .route("/", web::get().to(handler))
+    /// );
+    /// ```
     pub fn app_data<U: 'static>(mut self, data: U) -> Self {
         self.app_data
             .get_or_insert_with(Extensions::new)
@@ -161,15 +156,20 @@ where
         self
     }
 
-    /// Run external configuration as part of the scope building
-    /// process
+    /// Add scope data after wrapping in `Data<T>`.
     ///
-    /// This function is useful for moving parts of configuration to a
-    /// different module or even library. For example,
-    /// some of the resource's configuration could be moved to different module.
+    /// Deprecated in favor of [`app_data`](Self::app_data).
+    #[deprecated(since = "4.0.0", note = "Use `.app_data(Data::new(val))` instead.")]
+    pub fn data<U: 'static>(self, data: U) -> Self {
+        self.app_data(Data::new(data))
+    }
+
+    /// Run external configuration as part of the scope building process.
+    ///
+    /// This function is useful for moving parts of configuration to a different module or library.
+    /// For example, some of the resource's configuration could be moved to different module.
     ///
     /// ```
-    /// # extern crate actix_web;
     /// use actix_web::{web, middleware, App, HttpResponse};
     ///
     /// // this function could be located in different module
@@ -190,18 +190,21 @@ where
     ///         .route("/index.html", web::get().to(|| HttpResponse::Ok()));
     /// }
     /// ```
-    pub fn configure<F>(mut self, f: F) -> Self
+    pub fn configure<F>(mut self, cfg_fn: F) -> Self
     where
         F: FnOnce(&mut ServiceConfig),
     {
         let mut cfg = ServiceConfig::new();
-        f(&mut cfg);
+        cfg_fn(&mut cfg);
+
         self.services.extend(cfg.services);
         self.external.extend(cfg.external);
 
+        // TODO: add Extensions::is_empty check and conditionally insert data
         self.app_data
             .get_or_insert_with(Extensions::new)
             .extend(cfg.app_data);
+
         self
     }
 
@@ -418,13 +421,12 @@ where
         let mut rmap = ResourceMap::new(ResourceDef::root_prefix(&self.rdef));
 
         // external resources
-        for mut rdef in std::mem::take(&mut self.external) {
+        for mut rdef in mem::take(&mut self.external) {
             rmap.add(&mut rdef, None);
         }
 
         // complete scope pipeline creation
         *self.factory_ref.borrow_mut() = Some(ScopeFactory {
-            app_data: self.app_data.take().map(Rc::new),
             default,
             services: cfg
                 .into_services()
@@ -446,18 +448,28 @@ where
             Some(self.guards)
         };
 
+        let scope_data = self.app_data.map(Rc::new);
+
+        // wraps endpoint service (including middleware) call and injects app data for this scope
+        let endpoint = apply_fn_factory(self.endpoint, move |mut req: ServiceRequest, srv| {
+            if let Some(ref data) = scope_data {
+                req.add_data_container(Rc::clone(data));
+            }
+
+            srv.call(req)
+        });
+
         // register final service
         config.register_service(
             ResourceDef::root_prefix(&self.rdef),
             guards,
-            self.endpoint,
+            endpoint,
             Some(Rc::new(rmap)),
         )
     }
 }
 
 pub struct ScopeFactory {
-    app_data: Option<Rc<Extensions>>,
     services: Rc<[(ResourceDef, HttpNewService, RefCell<Option<Guards>>)]>,
     default: Rc<HttpNewService>,
 }
@@ -485,8 +497,6 @@ impl ServiceFactory<ServiceRequest> for ScopeFactory {
             }
         }));
 
-        let app_data = self.app_data.clone();
-
         Box::pin(async move {
             let default = default_fut.await?;
 
@@ -502,17 +512,12 @@ impl ServiceFactory<ServiceRequest> for ScopeFactory {
                 })
                 .finish();
 
-            Ok(ScopeService {
-                app_data,
-                router,
-                default,
-            })
+            Ok(ScopeService { router, default })
         })
     }
 }
 
 pub struct ScopeService {
-    app_data: Option<Rc<Extensions>>,
     router: Router<HttpService, Vec<Box<dyn Guard>>>,
     default: HttpService,
 }
@@ -535,10 +540,6 @@ impl Service<ServiceRequest> for ScopeService {
             }
             true
         });
-
-        if let Some(ref app_data) = self.app_data {
-            req.add_data_container(app_data.clone());
-        }
 
         if let Some((srv, _info)) = res {
             srv.call(req)
@@ -578,12 +579,15 @@ mod tests {
     use actix_utils::future::ok;
     use bytes::Bytes;
 
-    use crate::dev::Body;
-    use crate::http::{header, HeaderValue, Method, StatusCode};
-    use crate::middleware::DefaultHeaders;
-    use crate::service::ServiceRequest;
-    use crate::test::{call_service, init_service, read_body, TestRequest};
-    use crate::{guard, web, App, HttpRequest, HttpResponse};
+    use crate::{
+        dev::Body,
+        guard,
+        http::{header, HeaderValue, Method, StatusCode},
+        middleware::DefaultHeaders,
+        service::{ServiceRequest, ServiceResponse},
+        test::{call_service, init_service, read_body, TestRequest},
+        web, App, HttpMessage, HttpRequest, HttpResponse,
+    };
 
     #[actix_rt::test]
     async fn test_scope() {
@@ -915,10 +919,7 @@ mod tests {
     async fn test_default_resource_propagation() {
         let srv = init_service(
             App::new()
-                .service(
-                    web::scope("/app1")
-                        .default_service(web::resource("").to(HttpResponse::BadRequest)),
-                )
+                .service(web::scope("/app1").default_service(web::to(HttpResponse::BadRequest)))
                 .service(web::scope("/app2"))
                 .default_service(|r: ServiceRequest| {
                     ok(r.into_response(HttpResponse::MethodNotAllowed()))
@@ -991,6 +992,43 @@ mod tests {
     }
 
     #[actix_rt::test]
+    async fn test_middleware_app_data() {
+        let srv = init_service(
+            App::new().service(
+                web::scope("app")
+                    .app_data(1usize)
+                    .wrap_fn(|req, srv| {
+                        assert_eq!(req.app_data::<usize>(), Some(&1usize));
+                        req.extensions_mut().insert(1usize);
+                        srv.call(req)
+                    })
+                    .route("/test", web::get().to(HttpResponse::Ok))
+                    .default_service(|req: ServiceRequest| async move {
+                        let (req, _) = req.into_parts();
+
+                        assert_eq!(req.extensions().get::<usize>(), Some(&1));
+
+                        Ok(ServiceResponse::new(
+                            req,
+                            HttpResponse::BadRequest().finish(),
+                        ))
+                    }),
+            ),
+        )
+        .await;
+
+        let req = TestRequest::with_uri("/app/test").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/app/default").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
+    // allow deprecated {App, Scope}::data
+    #[allow(deprecated)]
+    #[actix_rt::test]
     async fn test_override_data() {
         let srv = init_service(App::new().data(1usize).service(
             web::scope("app").data(10usize).route(
@@ -1008,6 +1046,8 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
+    // allow deprecated `{App, Scope}::data`
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_override_data_default_service() {
         let srv = init_service(App::new().data(1usize).service(

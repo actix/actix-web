@@ -13,7 +13,6 @@ use actix_http::{
     body::{MessageBody, ResponseBody},
     encoding::Encoder,
     http::header::{ContentEncoding, ACCEPT_ENCODING},
-    Error,
 };
 use actix_service::{Service, Transform};
 use actix_utils::future::{ok, Ready};
@@ -23,6 +22,7 @@ use pin_project::pin_project;
 use crate::{
     dev::BodyEncoding,
     service::{ServiceRequest, ServiceResponse},
+    Error,
 };
 
 /// Middleware for compressing response payloads.
@@ -200,8 +200,7 @@ impl AcceptEncoding {
         let mut encodings = raw
             .replace(' ', "")
             .split(',')
-            .map(|l| AcceptEncoding::new(l))
-            .flatten()
+            .filter_map(|l| AcceptEncoding::new(l))
             .collect::<Vec<_>>();
 
         encodings.sort();

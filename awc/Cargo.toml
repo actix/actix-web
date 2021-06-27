@@ -1,6 +1,6 @@
 [package]
 name = "awc"
-version = "3.0.0-beta.5"
+version = "3.0.0-beta.7"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
     "fakeshadow <24548779@qq.com>",
@@ -24,10 +24,10 @@ path = "src/lib.rs"
 
 [package.metadata.docs.rs]
 # features that docs.rs will build with
-features = ["openssl", "rustls", "compress", "cookies"]
+features = ["openssl", "rustls", "compress-brotli", "compress-gzip", "compress-zstd", "cookies"]
 
 [features]
-default = ["compress", "cookies"]
+default = ["compress-brotli", "compress-gzip", "compress-zstd", "cookies"]
 
 # openssl
 openssl = ["tls-openssl", "actix-http/openssl"]
@@ -35,8 +35,12 @@ openssl = ["tls-openssl", "actix-http/openssl"]
 # rustls
 rustls = ["tls-rustls", "actix-http/rustls"]
 
-# content-encoding support
-compress = ["actix-http/compress"]
+# Brotli algorithm content-encoding support
+compress-brotli = ["actix-http/compress-brotli", "__compress"]
+# Gzip and deflate algorithms content-encoding support
+compress-gzip = ["actix-http/compress-gzip", "__compress"]
+# Zstd algorithm content-encoding support
+compress-zstd = ["actix-http/compress-zstd", "__compress"]
 
 # cookie parsing and cookie jar
 cookies = ["cookie"]
@@ -44,14 +48,19 @@ cookies = ["cookie"]
 # trust-dns as dns resolver
 trust-dns = ["actix-http/trust-dns"]
 
+# Internal (PRIVATE!) features used to aid testing and cheking feature status.
+# Don't rely on these whatsoever. They may disappear at anytime.
+__compress = []
+
 [dependencies]
 actix-codec = "0.4.0"
 actix-service = "2.0.0"
-actix-http = "3.0.0-beta.6"
+actix-http = "3.0.0-beta.8"
 actix-rt = { version = "2.1", default-features = false }
 
 base64 = "0.13"
 bytes = "1"
+cfg-if = "1"
 cookie = { version = "0.15", features = ["percent-encode"], optional = true }
 derive_more = "0.99.5"
 futures-core = { version = "0.3.7", default-features = false }
@@ -68,13 +77,13 @@ tls-openssl = { version = "0.10.9", package = "openssl", optional = true }
 tls-rustls = { version = "0.19.0", package = "rustls", optional = true, features = ["dangerous_configuration"] }
 
 [dev-dependencies]
-actix-web = { version = "4.0.0-beta.6", features = ["openssl"] }
-actix-http = { version = "3.0.0-beta.6", features = ["openssl"] }
+actix-web = { version = "4.0.0-beta.8", features = ["openssl"] }
+actix-http = { version = "3.0.0-beta.8", features = ["openssl"] }
 actix-http-test = { version = "3.0.0-beta.4", features = ["openssl"] }
 actix-utils = "3.0.0"
 actix-server = "2.0.0-beta.3"
 actix-tls = { version = "3.0.0-beta.5", features = ["openssl", "rustls"] }
-actix-test = { version = "0.1.0-beta.2", features = ["openssl", "rustls"] }
+actix-test = { version = "0.1.0-beta.3", features = ["openssl", "rustls"] }
 
 brotli2 = "0.3.2"
 env_logger = "0.8"

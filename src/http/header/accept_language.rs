@@ -2,7 +2,7 @@ use language_tags::LanguageTag;
 
 use super::{QualityItem, ACCEPT_LANGUAGE};
 
-crate::__define_common_header! {
+crate::http::header::common_header! {
     /// `Accept-Language` header, defined in
     /// [RFC7231](http://tools.ietf.org/html/rfc7231#section-5.3.5)
     ///
@@ -53,9 +53,9 @@ crate::__define_common_header! {
 
     test_accept_language {
         // From the RFC
-        crate::__common_header_test!(test1, vec![b"da, en-gb;q=0.8, en;q=0.7"]);
+        crate::http::header::common_header_test!(test1, vec![b"da, en-gb;q=0.8, en;q=0.7"]);
         // Own test
-        crate::__common_header_test!(
+        crate::http::header::common_header_test!(
             test2, vec![b"en-US, en; q=0.5, fr"],
             Some(AcceptLanguage(vec![
                 qitem("en-US".parse().unwrap()),
