@@ -250,7 +250,6 @@ where
 impl FromRequest for Uri {
     type Error = Infallible;
     type Future = Ready<Result<Self, Self::Error>>;
-    type Config = ();
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         ok(req.uri().clone())
@@ -272,7 +271,6 @@ impl FromRequest for Uri {
 impl FromRequest for Method {
     type Error = Infallible;
     type Future = Ready<Result<Self, Self::Error>>;
-    type Config = ();
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         ok(req.method().clone())
