@@ -295,6 +295,7 @@ where
                     let mut svc = HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_timeout(c.client_timeout)
+                        .client_disconnect(c.client_shutdown)
                         .local_addr(addr);
 
                     if let Some(handler) = on_connect_fn.clone() {
@@ -352,7 +353,8 @@ where
                     let svc = HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_timeout(c.client_timeout)
-                        .client_disconnect(c.client_shutdown);
+                        .client_disconnect(c.client_shutdown)
+                        .local_addr(addr);
 
                     let svc = if let Some(handler) = on_connect_fn.clone() {
                         svc.on_connect_ext(move |io: &_, ext: _| {
@@ -537,7 +539,9 @@ where
             fn_service(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) }).and_then({
                 let mut svc = HttpService::build()
                     .keep_alive(c.keep_alive)
-                    .client_timeout(c.client_timeout);
+                    .client_timeout(c.client_timeout)
+                    .client_disconnect(c.client_shutdown)
+                    .local_addr(addr);
 
                 if let Some(handler) = on_connect_fn.clone() {
                     svc = svc
@@ -568,6 +572,7 @@ where
         let factory = self.factory.clone();
         let socket_addr =
             net::SocketAddr::new(net::IpAddr::V4(net::Ipv4Addr::new(127, 0, 0, 1)), 8080);
+
         self.sockets.push(Socket {
             scheme: "http",
             addr: socket_addr,
@@ -592,6 +597,8 @@ where
                     HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_timeout(c.client_timeout)
+                        .client_disconnect(c.client_shutdown)
+                        .local_addr(socket_addr)
                         .finish(map_config(fac, move |_| config.clone())),
                 )
             },

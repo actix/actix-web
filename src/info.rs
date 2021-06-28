@@ -135,7 +135,7 @@ impl ConnectionInfo {
             .or_else(|| first_header_value(req, &*X_FORWARDED_HOST))
             .or_else(|| req.headers.get(&header::HOST)?.to_str().ok())
             .or_else(|| req.uri.authority().map(Authority::as_str))
-            .unwrap_or(cfg.host())
+            .unwrap_or_else(|| cfg.host())
             .to_owned();
 
         let realip_remote_addr = realip_remote_addr
