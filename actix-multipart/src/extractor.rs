@@ -1,21 +1,22 @@
 //! Multipart payload support
+
+use actix_utils::future::{ready, Ready};
 use actix_web::{dev::Payload, Error, FromRequest, HttpRequest};
-use futures_util::future::{ok, Ready};
 
 use crate::server::Multipart;
 
-/// Get request's payload as multipart stream
+/// Get request's payload as multipart stream.
 ///
 /// Content-type: multipart/form-data;
 ///
 /// ## Server example
 ///
-/// ```rust
-/// use futures_util::stream::{Stream, StreamExt};
+/// ```
 /// use actix_web::{web, HttpResponse, Error};
-/// use actix_multipart as mp;
+/// use actix_multipart::Multipart;
+/// use futures_util::stream::StreamExt as _;
 ///
-/// async fn index(mut payload: mp::Multipart) -> Result<HttpResponse, Error> {
+/// async fn index(mut payload: Multipart) -> Result<HttpResponse, Error> {
 ///     // iterate over multipart stream
 ///     while let Some(item) = payload.next().await {
 ///            let mut field = item?;
@@ -25,9 +26,9 @@ use crate::server::Multipart;
 ///                println!("-- CHUNK: \n{:?}", std::str::from_utf8(&chunk?));
 ///            }
 ///     }
+///
 ///     Ok(HttpResponse::Ok().into())
 /// }
-/// # fn main() {}
 /// ```
 impl FromRequest for Multipart {
     type Error = Error;
@@ -36,9 +37,9 @@ impl FromRequest for Multipart {
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-        ok(match Multipart::boundary(req.headers()) {
+        ready(Ok(match Multipart::boundary(req.headers()) {
             Ok(boundary) => Multipart::from_boundary(boundary, payload.take()),
             Err(err) => Multipart::from_error(err),
-        })
+        }))
     }
 }

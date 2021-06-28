@@ -9,7 +9,7 @@ use actix_web::test::{init_service, ok_service, TestRequest};
 
 /// Criterion Benchmark for async Service
 /// Should be used from within criterion group:
-/// ```rust,ignore
+/// ```ignore
 /// let mut criterion: ::criterion::Criterion<_> =
 ///     ::criterion::Criterion::default().configure_from_args();
 /// bench_async_service(&mut criterion, ok_service(), "async_service_direct");
@@ -51,9 +51,8 @@ where
                     fut.await.unwrap();
                 }
             });
-            let elapsed = start.elapsed();
             // check that at least first request succeeded
-            elapsed
+            start.elapsed()
         })
     });
 }
@@ -93,9 +92,8 @@ fn async_web_service(c: &mut Criterion) {
                     fut.await.unwrap();
                 }
             });
-            let elapsed = start.elapsed();
             // check that at least first request succeeded
-            elapsed
+            start.elapsed()
         })
     });
 }

@@ -177,7 +177,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use futures_util::stream::StreamExt;
+    use futures_util::stream::StreamExt as _;
 
     use super::*;
     use crate::test::TestRequest;

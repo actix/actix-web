@@ -15,14 +15,18 @@ use actix::{
     SpawnHandle,
 };
 use actix_codec::{Decoder, Encoder};
-use actix_http::ws::{hash_key, Codec};
 pub use actix_http::ws::{
     CloseCode, CloseReason, Frame, HandshakeError, Message, ProtocolError,
 };
-use actix_web::dev::HttpResponseBuilder;
-use actix_web::error::{Error, PayloadError};
-use actix_web::http::{header, Method, StatusCode};
-use actix_web::{HttpRequest, HttpResponse};
+use actix_http::{
+    http::HeaderValue,
+    ws::{hash_key, Codec},
+};
+use actix_web::{
+    error::{Error, PayloadError},
+    http::{header, Method, StatusCode},
+    HttpRequest, HttpResponse, HttpResponseBuilder,
+};
 use bytes::{Bytes, BytesMut};
 use bytestring::ByteString;
 use futures_core::Stream;
@@ -162,7 +166,11 @@ pub fn handshake_with_protocols(
 
     let mut response = HttpResponse::build(StatusCode::SWITCHING_PROTOCOLS)
         .upgrade("websocket")
-        .insert_header((header::SEC_WEBSOCKET_ACCEPT, key))
+        .insert_header((
+            header::SEC_WEBSOCKET_ACCEPT,
+            // key is known to be header value safe ascii
+            HeaderValue::from_bytes(&key).unwrap(),
+        ))
         .take();
 
     if let Some(protocol) = protocol {
@@ -204,14 +212,14 @@ where
 {
     fn spawn<F>(&mut self, fut: F) -> SpawnHandle
     where
-        F: ActorFuture<Output = (), Actor = A> + 'static,
+        F: ActorFuture<A, Output = ()> + 'static,
     {
         self.inner.spawn(fut)
     }
 
     fn wait<F>(&mut self, fut: F)
     where
-        F: ActorFuture<Output = (), Actor = A> + 'static,
+        F: ActorFuture<A, Output = ()> + 'static,
     {
         self.inner.wait(fut)
     }
@@ -488,7 +496,6 @@ where
 
         if !*this.closed {
             loop {
-                this = self.as_mut().project();
                 match Pin::new(&mut this.stream).poll_next(cx) {
                     Poll::Ready(Some(Ok(chunk))) => {
                         this.buf.extend_from_slice(&chunk[..]);

@@ -193,21 +193,69 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::super::encoding::*;
     use super::*;
+
+    // copy of encoding from actix-web headers
+    #[derive(Clone, PartialEq, Debug)]
+    pub enum Encoding {
+        Chunked,
+        Brotli,
+        Gzip,
+        Deflate,
+        Compress,
+        Identity,
+        Trailers,
+        EncodingExt(String),
+    }
+
+    impl fmt::Display for Encoding {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            use Encoding::*;
+            f.write_str(match *self {
+                Chunked => "chunked",
+                Brotli => "br",
+                Gzip => "gzip",
+                Deflate => "deflate",
+                Compress => "compress",
+                Identity => "identity",
+                Trailers => "trailers",
+                EncodingExt(ref s) => s.as_ref(),
+            })
+        }
+    }
+
+    impl str::FromStr for Encoding {
+        type Err = crate::error::ParseError;
+        fn from_str(s: &str) -> Result<Encoding, crate::error::ParseError> {
+            use Encoding::*;
+            match s {
+                "chunked" => Ok(Chunked),
+                "br" => Ok(Brotli),
+                "deflate" => Ok(Deflate),
+                "gzip" => Ok(Gzip),
+                "compress" => Ok(Compress),
+                "identity" => Ok(Identity),
+                "trailers" => Ok(Trailers),
+                _ => Ok(EncodingExt(s.to_owned())),
+            }
+        }
+    }
 
     #[test]
     fn test_quality_item_fmt_q_1() {
+        use Encoding::*;
         let x = qitem(Chunked);
         assert_eq!(format!("{}", x), "chunked");
     }
     #[test]
     fn test_quality_item_fmt_q_0001() {
+        use Encoding::*;
         let x = QualityItem::new(Chunked, Quality(1));
         assert_eq!(format!("{}", x), "chunked; q=0.001");
     }
     #[test]
     fn test_quality_item_fmt_q_05() {
+        use Encoding::*;
         // Custom value
         let x = QualityItem {
             item: EncodingExt("identity".to_owned()),
@@ -218,6 +266,7 @@ mod tests {
 
     #[test]
     fn test_quality_item_fmt_q_0() {
+        use Encoding::*;
         // Custom value
         let x = QualityItem {
             item: EncodingExt("identity".to_owned()),
@@ -228,6 +277,7 @@ mod tests {
 
     #[test]
     fn test_quality_item_from_str1() {
+        use Encoding::*;
         let x: Result<QualityItem<Encoding>, _> = "chunked".parse();
         assert_eq!(
             x.unwrap(),
@@ -237,8 +287,10 @@ mod tests {
             }
         );
     }
+
     #[test]
     fn test_quality_item_from_str2() {
+        use Encoding::*;
         let x: Result<QualityItem<Encoding>, _> = "chunked; q=1".parse();
         assert_eq!(
             x.unwrap(),
@@ -248,8 +300,10 @@ mod tests {
             }
         );
     }
+
     #[test]
     fn test_quality_item_from_str3() {
+        use Encoding::*;
         let x: Result<QualityItem<Encoding>, _> = "gzip; q=0.5".parse();
         assert_eq!(
             x.unwrap(),
@@ -259,8 +313,10 @@ mod tests {
             }
         );
     }
+
     #[test]
     fn test_quality_item_from_str4() {
+        use Encoding::*;
         let x: Result<QualityItem<Encoding>, _> = "gzip; q=0.273".parse();
         assert_eq!(
             x.unwrap(),
@@ -270,16 +326,19 @@ mod tests {
             }
         );
     }
+
     #[test]
     fn test_quality_item_from_str5() {
         let x: Result<QualityItem<Encoding>, _> = "gzip; q=0.2739999".parse();
         assert!(x.is_err());
     }
+
     #[test]
     fn test_quality_item_from_str6() {
         let x: Result<QualityItem<Encoding>, _> = "gzip; q=2".parse();
         assert!(x.is_err());
     }
+
     #[test]
     fn test_quality_item_ordering() {
         let x: QualityItem<Encoding> = "gzip; q=0.5".parse().ok().unwrap();

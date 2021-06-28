@@ -1,5 +1,6 @@
 use std::{
     collections::VecDeque,
+    error::Error as StdError,
     fmt,
     future::Future,
     io, mem, net,
@@ -17,18 +18,19 @@ use futures_core::ready;
 use log::{error, trace};
 use pin_project::pin_project;
 
-use crate::body::{Body, BodySize, MessageBody, ResponseBody};
-use crate::config::ServiceConfig;
-use crate::error::{DispatchError, Error};
-use crate::error::{ParseError, PayloadError};
-use crate::request::Request;
-use crate::response::Response;
-use crate::service::HttpFlow;
-use crate::OnConnectData;
+use crate::{
+    body::{AnyBody, BodySize, MessageBody},
+    config::ServiceConfig,
+    error::{DispatchError, ParseError, PayloadError},
+    service::HttpFlow,
+    OnConnectData, Request, Response, StatusCode,
+};
 
-use super::codec::Codec;
-use super::payload::{Payload, PayloadSender, PayloadStatus};
-use super::{Message, MessageType};
+use super::{
+    codec::Codec,
+    payload::{Payload, PayloadSender, PayloadStatus},
+    Message, MessageType,
+};
 
 const LW_BUFFER_SIZE: usize = 1024;
 const HW_BUFFER_SIZE: usize = 1024 * 8;
@@ -49,10 +51,14 @@ bitflags! {
 pub struct Dispatcher<T, S, B, X, U>
 where
     S: Service<Request>,
-    S::Error: Into<Error>,
+    S::Error: Into<Response<AnyBody>>,
+
     B: MessageBody,
+    B::Error: Into<Box<dyn StdError>>,
+
     X: Service<Request, Response = Request>,
-    X::Error: Into<Error>,
+    X::Error: Into<Response<AnyBody>>,
+
     U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
@@ -67,10 +73,14 @@ where
 enum DispatcherState<T, S, B, X, U>
 where
     S: Service<Request>,
-    S::Error: Into<Error>,
+    S::Error: Into<Response<AnyBody>>,
+
     B: MessageBody,
+    B::Error: Into<Box<dyn StdError>>,
+
     X: Service<Request, Response = Request>,
-    X::Error: Into<Error>,
+    X::Error: Into<Response<AnyBody>>,
+
     U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
@@ -82,10 +92,14 @@ where
 struct InnerDispatcher<T, S, B, X, U>
 where
     S: Service<Request>,
-    S::Error: Into<Error>,
+    S::Error: Into<Response<AnyBody>>,
+
     B: MessageBody,
+    B::Error: Into<Box<dyn StdError>>,
+
     X: Service<Request, Response = Request>,
-    X::Error: Into<Error>,
+    X::Error: Into<Response<AnyBody>>,
+
     U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
@@ -121,19 +135,25 @@ enum State<S, B, X>
 where
     S: Service<Request>,
     X: Service<Request, Response = Request>,
+
     B: MessageBody,
+    B::Error: Into<Box<dyn StdError>>,
 {
     None,
     ExpectCall(#[pin] X::Future),
     ServiceCall(#[pin] S::Future),
-    SendPayload(#[pin] ResponseBody<B>),
+    SendPayload(#[pin] B),
+    SendErrorPayload(#[pin] AnyBody),
 }
 
 impl<S, B, X> State<S, B, X>
 where
     S: Service<Request>,
+
     X: Service<Request, Response = Request>,
+
     B: MessageBody,
+    B::Error: Into<Box<dyn StdError>>,
 {
     fn is_empty(&self) -> bool {
         matches!(self, State::None)
@@ -149,12 +169,17 @@ enum PollResponse {
 impl<T, S, B, X, U> Dispatcher<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
+
     S: Service<Request>,
-    S::Error: Into<Error>,
+    S::Error: Into<Response<AnyBody>>,
     S::Response: Into<Response<B>>,
+
     B: MessageBody,
+    B::Error: Into<Box<dyn StdError>>,
+
     X: Service<Request, Response = Request>,
-    X::Error: Into<Error>,
+    X::Error: Into<Response<AnyBody>>,
+
     U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
@@ -205,12 +230,17 @@ where
 impl<T, S, B, X, U> InnerDispatcher<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
+
     S: Service<Request>,
-    S::Error: Into<Error>,
+    S::Error: Into<Response<AnyBody>>,
     S::Response: Into<Response<B>>,
+
     B: MessageBody,
+    B::Error: Into<Box<dyn StdError>>,
+
     X: Service<Request, Response = Request>,
-    X::Error: Into<Error>,
+    X::Error: Into<Response<AnyBody>>,
+
     U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
@@ -267,11 +297,11 @@ where
         io.poll_flush(cx)
     }
 
-    fn send_response(
+    fn send_response_inner(
         self: Pin<&mut Self>,
         message: Response<()>,
-        body: ResponseBody<B>,
-    ) -> Result<(), DispatchError> {
+        body: &impl MessageBody,
+    ) -> Result<BodySize, DispatchError> {
         let size = body.size();
         let mut this = self.project();
         this.codec
@@ -284,10 +314,35 @@ where
             })?;
 
         this.flags.set(Flags::KEEPALIVE, this.codec.keepalive());
-        match size {
-            BodySize::None | BodySize::Empty => this.state.set(State::None),
-            _ => this.state.set(State::SendPayload(body)),
+
+        Ok(size)
+    }
+
+    fn send_response(
+        mut self: Pin<&mut Self>,
+        message: Response<()>,
+        body: B,
+    ) -> Result<(), DispatchError> {
+        let size = self.as_mut().send_response_inner(message, &body)?;
+        let state = match size {
+            BodySize::None | BodySize::Empty => State::None,
+            _ => State::SendPayload(body),
         };
+        self.project().state.set(state);
+        Ok(())
+    }
+
+    fn send_error_response(
+        mut self: Pin<&mut Self>,
+        message: Response<()>,
+        body: AnyBody,
+    ) -> Result<(), DispatchError> {
+        let size = self.as_mut().send_response_inner(message, &body)?;
+        let state = match size {
+            BodySize::None | BodySize::Empty => State::None,
+            _ => State::SendErrorPayload(body),
+        };
+        self.project().state.set(state);
         Ok(())
     }
 
@@ -325,8 +380,7 @@ where
                         // send_response would update InnerDispatcher state to SendPayload or
                         // None(If response body is empty).
                         // continue loop to poll it.
-                        self.as_mut()
-                            .send_response(res, ResponseBody::Other(Body::Empty))?;
+                        self.as_mut().send_error_response(res, AnyBody::Empty)?;
                     }
 
                     // return with upgrade request and poll it exclusively.
@@ -346,9 +400,9 @@ where
 
                     // send service call error as response
                     Poll::Ready(Err(err)) => {
-                        let res: Response = err.into().into();
+                        let res: Response<AnyBody> = err.into();
                         let (res, body) = res.replace_body(());
-                        self.as_mut().send_response(res, body.into_body())?;
+                        self.as_mut().send_error_response(res, body)?;
                     }
 
                     // service call pending and could be waiting for more chunk messages.
@@ -385,7 +439,42 @@ where
                             }
 
                             Poll::Ready(Some(Err(err))) => {
-                                return Err(DispatchError::Service(err))
+                                return Err(DispatchError::Body(err.into()))
+                            }
+
+                            Poll::Pending => return Ok(PollResponse::DoNothing),
+                        }
+                    }
+                    // buffer is beyond max size.
+                    // return and try to write the whole buffer to io stream.
+                    return Ok(PollResponse::DrainWriteBuf);
+                }
+
+                StateProj::SendErrorPayload(mut stream) => {
+                    // TODO: de-dupe impl with SendPayload
+
+                    // keep populate writer buffer until buffer size limit hit,
+                    // get blocked or finished.
+                    while this.write_buf.len() < super::payload::MAX_BUFFER_SIZE {
+                        match stream.as_mut().poll_next(cx) {
+                            Poll::Ready(Some(Ok(item))) => {
+                                this.codec.encode(
+                                    Message::Chunk(Some(item)),
+                                    &mut this.write_buf,
+                                )?;
+                            }
+
+                            Poll::Ready(None) => {
+                                this.codec
+                                    .encode(Message::Chunk(None), &mut this.write_buf)?;
+                                // payload stream finished.
+                                // set state to None and handle next message
+                                this.state.set(State::None);
+                                continue 'res;
+                            }
+
+                            Poll::Ready(Some(Err(err))) => {
+                                return Err(DispatchError::Service(err.into()))
                             }
 
                             Poll::Pending => return Ok(PollResponse::DoNothing),
@@ -405,12 +494,14 @@ where
                         let fut = this.flow.service.call(req);
                         this.state.set(State::ServiceCall(fut));
                     }
+
                     // send expect error as response
                     Poll::Ready(Err(err)) => {
-                        let res: Response = err.into().into();
+                        let res: Response<AnyBody> = err.into();
                         let (res, body) = res.replace_body(());
-                        self.as_mut().send_response(res, body.into_body())?;
+                        self.as_mut().send_error_response(res, body)?;
                     }
+
                     // expect must be solved before progress can be made.
                     Poll::Pending => return Ok(PollResponse::DoNothing),
                 },
@@ -424,14 +515,13 @@ where
         cx: &mut Context<'_>,
     ) -> Result<(), DispatchError> {
         // Handle `EXPECT: 100-Continue` header
+        let mut this = self.as_mut().project();
         if req.head().expect() {
             // set dispatcher state so the future is pinned.
-            let mut this = self.as_mut().project();
             let task = this.flow.expect.call(req);
             this.state.set(State::ExpectCall(task));
         } else {
             // the same as above.
-            let mut this = self.as_mut().project();
             let task = this.flow.service.call(req);
             this.state.set(State::ServiceCall(task));
         };
@@ -456,10 +546,9 @@ where
                         // to notify the dispatcher a new state is set and the outer loop
                         // should be continue.
                         Poll::Ready(Err(err)) => {
-                            let err = err.into();
-                            let res: Response = err.into();
+                            let res: Response<AnyBody> = err.into();
                             let (res, body) = res.replace_body(());
-                            return self.send_response(res, body.into_body());
+                            return self.send_error_response(res, body);
                         }
                     }
                 }
@@ -477,9 +566,9 @@ where
                         Poll::Pending => Ok(()),
                         // see the comment on ExpectCall state branch's Ready(Err(err)).
                         Poll::Ready(Err(err)) => {
-                            let res: Response = err.into().into();
+                            let res: Response<AnyBody> = err.into();
                             let (res, body) = res.replace_body(());
-                            self.send_response(res, body.into_body())
+                            self.send_error_response(res, body)
                         }
                     };
                 }
@@ -563,7 +652,7 @@ where
                                 );
                                 this.flags.insert(Flags::READ_DISCONNECT);
                                 this.messages.push_back(DispatcherMessage::Error(
-                                    Response::InternalServerError().finish().drop_body(),
+                                    Response::internal_server_error().drop_body(),
                                 ));
                                 *this.error = Some(DispatchError::InternalError);
                                 break;
@@ -576,7 +665,7 @@ where
                                 error!("Internal server error: unexpected eof");
                                 this.flags.insert(Flags::READ_DISCONNECT);
                                 this.messages.push_back(DispatcherMessage::Error(
-                                    Response::InternalServerError().finish().drop_body(),
+                                    Response::internal_server_error().drop_body(),
                                 ));
                                 *this.error = Some(DispatchError::InternalError);
                                 break;
@@ -599,7 +688,10 @@ where
                     }
                     // Requests overflow buffer size should be responded with 431
                     this.messages.push_back(DispatcherMessage::Error(
-                        Response::RequestHeaderFieldsTooLarge().finish().drop_body(),
+                        Response::with_body(
+                            StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
+                            (),
+                        ),
                     ));
                     this.flags.insert(Flags::READ_DISCONNECT);
                     *this.error = Some(ParseError::TooLarge.into());
@@ -612,7 +704,7 @@ where
 
                     // Malformed requests should be responded with 400
                     this.messages.push_back(DispatcherMessage::Error(
-                        Response::BadRequest().finish().drop_body(),
+                        Response::bad_request().drop_body(),
                     ));
                     this.flags.insert(Flags::READ_DISCONNECT);
                     *this.error = Some(err.into());
@@ -648,11 +740,6 @@ where
                         // go into Some<Pin<&mut Sleep>> branch
                         this.ka_timer.set(Some(sleep_until(deadline)));
                         return self.poll_keepalive(cx);
-                    } else {
-                        this.flags.insert(Flags::READ_DISCONNECT);
-                        if let Some(mut payload) = this.payload.take() {
-                            payload.set_error(PayloadError::Incomplete(None));
-                        }
                     }
                 }
             }
@@ -662,7 +749,7 @@ where
                     // got timeout during shutdown, drop connection
                     if this.flags.contains(Flags::SHUTDOWN) {
                         return Err(DispatchError::DisconnectTimeout);
-                    // exceed deadline. check for any outstanding tasks
+                        // exceed deadline. check for any outstanding tasks
                     } else if timer.deadline() >= *this.ka_expire {
                         // have no task at hand.
                         if this.state.is_empty() && this.write_buf.is_empty() {
@@ -682,28 +769,23 @@ where
                                 }
                             } else {
                                 // timeout on first request (slow request) return 408
-                                if !this.flags.contains(Flags::STARTED) {
-                                    trace!("Slow request timeout");
-                                    let _ = self.as_mut().send_response(
-                                        Response::RequestTimeout().finish().drop_body(),
-                                        ResponseBody::Other(Body::Empty),
-                                    );
-                                    this = self.project();
-                                } else {
-                                    trace!("Keep-alive connection timeout");
-                                }
+                                trace!("Slow request timeout");
+                                let _ = self.as_mut().send_error_response(
+                                    Response::with_body(StatusCode::REQUEST_TIMEOUT, ()),
+                                    AnyBody::Empty,
+                                );
+                                this = self.project();
                                 this.flags.insert(Flags::STARTED | Flags::SHUTDOWN);
-                                this.state.set(State::None);
                             }
-                        // still have unfinished task. try to reset and register keep-alive.
+                            // still have unfinished task. try to reset and register keep-alive.
                         } else if let Some(deadline) =
                             this.codec.config().keep_alive_expire()
                         {
                             timer.as_mut().reset(deadline);
                             let _ = timer.poll(cx);
                         }
-                    // timer resolved but still have not met the keep-alive expire deadline.
-                    // reset and register for later wakeup.
+                        // timer resolved but still have not met the keep-alive expire deadline.
+                        // reset and register for later wakeup.
                     } else {
                         timer.as_mut().reset(*this.ka_expire);
                         let _ = timer.poll(cx);
@@ -825,12 +907,17 @@ where
 impl<T, S, B, X, U> Future for Dispatcher<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
+
     S: Service<Request>,
-    S::Error: Into<Error>,
+    S::Error: Into<Response<AnyBody>>,
     S::Response: Into<Response<B>>,
+
     B: MessageBody,
+    B::Error: Into<Box<dyn StdError>>,
+
     X: Service<Request, Response = Request>,
-    X::Error: Into<Error>,
+    X::Error: Into<Response<AnyBody>>,
+
     U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
@@ -951,14 +1038,17 @@ mod tests {
     use std::str;
 
     use actix_service::fn_service;
-    use futures_util::future::{lazy, ready};
+    use actix_utils::future::{ready, Ready};
+    use bytes::Bytes;
+    use futures_util::future::lazy;
 
     use super::*;
-    use crate::test::TestBuffer;
-    use crate::{error::Error, KeepAlive};
     use crate::{
+        error::Error,
         h1::{ExpectHandler, UpgradeHandler},
-        test::TestSeqBuffer,
+        http::Method,
+        test::{TestBuffer, TestSeqBuffer},
+        HttpMessage, KeepAlive,
     };
 
     fn find_slice(haystack: &[u8], needle: &[u8], from: usize) -> Option<usize> {
@@ -977,19 +1067,23 @@ mod tests {
         }
     }
 
-    fn ok_service() -> impl Service<Request, Response = Response, Error = Error> {
-        fn_service(|_req: Request| ready(Ok::<_, Error>(Response::Ok().finish())))
+    fn ok_service() -> impl Service<Request, Response = Response<AnyBody>, Error = Error>
+    {
+        fn_service(|_req: Request| ready(Ok::<_, Error>(Response::ok())))
     }
 
-    fn echo_path_service() -> impl Service<Request, Response = Response, Error = Error> {
+    fn echo_path_service(
+    ) -> impl Service<Request, Response = Response<AnyBody>, Error = Error> {
         fn_service(|req: Request| {
             let path = req.path().as_bytes();
-            ready(Ok::<_, Error>(Response::Ok().body(Body::from_slice(path))))
+            ready(Ok::<_, Error>(
+                Response::ok().set_body(AnyBody::from_slice(path)),
+            ))
         })
     }
 
-    fn echo_payload_service() -> impl Service<Request, Response = Response, Error = Error>
-    {
+    fn echo_payload_service(
+    ) -> impl Service<Request, Response = Response<Bytes>, Error = Error> {
         fn_service(|mut req: Request| {
             Box::pin(async move {
                 use futures_util::stream::StreamExt as _;
@@ -1000,7 +1094,7 @@ mod tests {
                     body.extend_from_slice(chunk.unwrap().chunk())
                 }
 
-                Ok::<_, Error>(Response::Ok().body(body))
+                Ok::<_, Error>(Response::ok().set_body(body.freeze()))
             })
         })
     }
@@ -1282,14 +1376,30 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_upgrade() {
+        struct TestUpgrade;
+
+        impl<T> Service<(Request, Framed<T, Codec>)> for TestUpgrade {
+            type Response = ();
+            type Error = Error;
+            type Future = Ready<Result<Self::Response, Self::Error>>;
+
+            actix_service::always_ready!();
+
+            fn call(&self, (req, _framed): (Request, Framed<T, Codec>)) -> Self::Future {
+                assert_eq!(req.method(), Method::GET);
+                assert!(req.upgrade());
+                assert_eq!(req.headers().get("upgrade").unwrap(), "websocket");
+                ready(Ok(()))
+            }
+        }
+
         lazy(|cx| {
             let mut buf = TestSeqBuffer::empty();
             let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
 
-            let services =
-                HttpFlow::new(ok_service(), ExpectHandler, Some(UpgradeHandler));
+            let services = HttpFlow::new(ok_service(), ExpectHandler, Some(TestUpgrade));
 
-            let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+            let h1 = Dispatcher::<_, _, _, _, TestUpgrade>::new(
                 buf.clone(),
                 cfg,
                 services,

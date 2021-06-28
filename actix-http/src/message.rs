@@ -1,12 +1,15 @@
-use std::cell::{Ref, RefCell, RefMut};
-use std::net;
-use std::rc::Rc;
+use std::{
+    cell::{Ref, RefCell, RefMut},
+    net,
+    rc::Rc,
+};
 
 use bitflags::bitflags;
 
-use crate::extensions::Extensions;
-use crate::header::HeaderMap;
-use crate::http::{header, Method, StatusCode, Uri, Version};
+use crate::{
+    header::{self, HeaderMap},
+    Extensions, Method, StatusCode, Uri, Version,
+};
 
 /// Represents various types of connection
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -149,15 +152,16 @@ impl RequestHead {
 
     /// Connection upgrade status
     pub fn upgrade(&self) -> bool {
-        if let Some(hdr) = self.headers().get(header::CONNECTION) {
-            if let Ok(s) = hdr.to_str() {
-                s.to_ascii_lowercase().contains("upgrade")
-            } else {
-                false
-            }
-        } else {
-            false
-        }
+        self.headers()
+            .get(header::CONNECTION)
+            .map(|hdr| {
+                if let Ok(s) = hdr.to_str() {
+                    s.to_ascii_lowercase().contains("upgrade")
+                } else {
+                    false
+                }
+            })
+            .unwrap_or(false)
     }
 
     #[inline]
@@ -290,14 +294,14 @@ impl ResponseHead {
         }
     }
 
-    #[inline]
     /// Check if keep-alive is enabled
+    #[inline]
     pub fn keep_alive(&self) -> bool {
         self.connection_type() == ConnectionType::KeepAlive
     }
 
-    #[inline]
     /// Check upgrade status of this message
+    #[inline]
     pub fn upgrade(&self) -> bool {
         self.connection_type() == ConnectionType::Upgrade
     }
@@ -305,13 +309,11 @@ impl ResponseHead {
     /// Get custom reason for the response
     #[inline]
     pub fn reason(&self) -> &str {
-        if let Some(reason) = self.reason {
-            reason
-        } else {
+        self.reason.unwrap_or_else(|| {
             self.status
                 .canonical_reason()
                 .unwrap_or("<unknown status code>")
-        }
+        })
     }
 
     #[inline]
@@ -345,15 +347,15 @@ impl ResponseHead {
 }
 
 pub struct Message<T: Head> {
-    // Rc here should not be cloned by anyone.
-    // It's used to reuse allocation of T and no shared ownership is allowed.
+    /// Rc here should not be cloned by anyone.
+    /// It's used to reuse allocation of T and no shared ownership is allowed.
     head: Rc<T>,
 }
 
 impl<T: Head> Message<T> {
     /// Get new message from the pool of objects
     pub fn new() -> Self {
-        T::with_pool(|p| p.get_message())
+        T::with_pool(MessagePool::get_message)
     }
 }
 
@@ -385,12 +387,6 @@ impl BoxedResponseHead {
     /// Get new message from the pool of objects
     pub fn new(status: StatusCode) -> Self {
         RESPONSE_POOL.with(|p| p.get_message(status))
-    }
-
-    pub(crate) fn take(&mut self) -> Self {
-        BoxedResponseHead {
-            head: self.head.take(),
-        }
     }
 }
 

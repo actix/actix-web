@@ -3,7 +3,9 @@
 use std::task::{Context, Poll};
 
 use actix_service::{Service, Transform};
-use futures_util::future::{Either, FutureExt, LocalBoxFuture};
+use actix_utils::future::Either;
+use futures_core::future::LocalBoxFuture;
+use futures_util::future::FutureExt as _;
 
 /// Middleware for conditionally enabling other middleware.
 ///
@@ -12,7 +14,7 @@ use futures_util::future::{Either, FutureExt, LocalBoxFuture};
 /// middleware for a workaround.
 ///
 /// # Examples
-/// ```rust
+/// ```
 /// use actix_web::middleware::{Condition, NormalizePath};
 /// use actix_web::App;
 ///
@@ -85,8 +87,8 @@ where
 
     fn call(&self, req: Req) -> Self::Future {
         match self {
-            ConditionMiddleware::Enable(service) => Either::Left(service.call(req)),
-            ConditionMiddleware::Disable(service) => Either::Right(service.call(req)),
+            ConditionMiddleware::Enable(service) => Either::left(service.call(req)),
+            ConditionMiddleware::Disable(service) => Either::right(service.call(req)),
         }
     }
 }
@@ -94,7 +96,7 @@ where
 #[cfg(test)]
 mod tests {
     use actix_service::IntoService;
-    use futures_util::future::ok;
+    use actix_utils::future::ok;
 
     use super::*;
     use crate::{
@@ -106,6 +108,7 @@ mod tests {
         HttpResponse,
     };
 
+    #[allow(clippy::unnecessary_wraps)]
     fn render_500<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
         res.response_mut()
             .headers_mut()

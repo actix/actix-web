@@ -6,7 +6,7 @@ use std::convert::TryFrom;
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote, ToTokens, TokenStreamExt};
-use syn::{parse_macro_input, AttributeArgs, Ident, NestedMeta};
+use syn::{parse_macro_input, AttributeArgs, Ident, LitStr, NestedMeta};
 
 enum ResourceType {
     Async,
@@ -78,6 +78,7 @@ impl TryFrom<&syn::LitStr> for MethodType {
 
 struct Args {
     path: syn::LitStr,
+    resource_name: Option<syn::LitStr>,
     guards: Vec<Ident>,
     wrappers: Vec<syn::Type>,
     methods: HashSet<MethodType>,
@@ -86,6 +87,7 @@ struct Args {
 impl Args {
     fn new(args: AttributeArgs, method: Option<MethodType>) -> syn::Result<Self> {
         let mut path = None;
+        let mut resource_name = None;
         let mut guards = Vec::new();
         let mut wrappers = Vec::new();
         let mut methods = HashSet::new();
@@ -109,7 +111,16 @@ impl Args {
                     }
                 },
                 NestedMeta::Meta(syn::Meta::NameValue(nv)) => {
-                    if nv.path.is_ident("guard") {
+                    if nv.path.is_ident("name") {
+                        if let syn::Lit::Str(lit) = nv.lit {
+                            resource_name = Some(lit);
+                        } else {
+                            return Err(syn::Error::new_spanned(
+                                nv.lit,
+                                "Attribute name expects literal string!",
+                            ));
+                        }
+                    } else if nv.path.is_ident("guard") {
                         if let syn::Lit::Str(lit) = nv.lit {
                             guards.push(Ident::new(&lit.value(), Span::call_site()));
                         } else {
@@ -164,6 +175,7 @@ impl Args {
         }
         Ok(Args {
             path: path.unwrap(),
+            resource_name,
             guards,
             wrappers,
             methods,
@@ -176,6 +188,9 @@ pub struct Route {
     args: Args,
     ast: syn::ItemFn,
     resource_type: ResourceType,
+
+    /// The doc comment attributes to copy to generated struct, if any.
+    doc_attributes: Vec<syn::Attribute>,
 }
 
 fn guess_resource_type(typ: &syn::Type) -> ResourceType {
@@ -212,14 +227,25 @@ impl Route {
                 format!(
                     r#"invalid service definition, expected #[{}("<some path>")]"#,
                     method
-                        .map(|it| it.as_str())
-                        .unwrap_or("route")
+                        .map_or("route", |it| it.as_str())
                         .to_ascii_lowercase()
                 ),
             ));
         }
         let ast: syn::ItemFn = syn::parse(input)?;
         let name = ast.sig.ident.clone();
+
+        // Try and pull out the doc comments so that we can reapply them to the
+        // generated struct.
+        //
+        // Note that multi line doc comments are converted to multiple doc
+        // attributes.
+        let doc_attributes = ast
+            .attrs
+            .iter()
+            .filter(|attr| attr.path.is_ident("doc"))
+            .cloned()
+            .collect();
 
         let args = Args::new(args, method)?;
         if args.methods.is_empty() {
@@ -248,6 +274,7 @@ impl Route {
             args,
             ast,
             resource_type,
+            doc_attributes,
         })
     }
 }
@@ -260,13 +287,17 @@ impl ToTokens for Route {
             args:
                 Args {
                     path,
+                    resource_name,
                     guards,
                     wrappers,
                     methods,
                 },
             resource_type,
+            doc_attributes,
         } = self;
-        let resource_name = name.to_string();
+        let resource_name = resource_name
+            .as_ref()
+            .map_or_else(|| name.to_string(), LitStr::value);
         let method_guards = {
             let mut others = methods.iter();
             // unwrapping since length is checked to be at least one
@@ -287,6 +318,7 @@ impl ToTokens for Route {
         };
 
         let stream = quote! {
+            #(#doc_attributes)*
             #[allow(non_camel_case_types, missing_docs)]
             pub struct #name;
 

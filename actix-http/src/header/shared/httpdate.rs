@@ -1,18 +1,20 @@
-use std::fmt::{self, Display};
-use std::io::Write;
-use std::str::FromStr;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    fmt,
+    io::Write,
+    str::FromStr,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use bytes::buf::BufMut;
 use bytes::BytesMut;
 use http::header::{HeaderValue, InvalidHeaderValue};
-use time::{offset, OffsetDateTime, PrimitiveDateTime};
+use time::{OffsetDateTime, PrimitiveDateTime, UtcOffset};
 
 use crate::error::ParseError;
 use crate::header::IntoHeaderValue;
 use crate::time_parser;
 
-/// A timestamp with HTTP formatting and parsing
+/// A timestamp with HTTP formatting and parsing.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct HttpDate(OffsetDateTime);
 
@@ -27,15 +29,9 @@ impl FromStr for HttpDate {
     }
 }
 
-impl Display for HttpDate {
+impl fmt::Display for HttpDate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self.0.format("%a, %d %b %Y %H:%M:%S GMT"), f)
-    }
-}
-
-impl From<OffsetDateTime> for HttpDate {
-    fn from(dt: OffsetDateTime) -> HttpDate {
-        HttpDate(dt)
     }
 }
 
@@ -54,7 +50,7 @@ impl IntoHeaderValue for HttpDate {
             wrt,
             "{}",
             self.0
-                .to_offset(offset!(UTC))
+                .to_offset(UtcOffset::UTC)
                 .format("%a, %d %b %Y %H:%M:%S GMT")
         )
         .unwrap();

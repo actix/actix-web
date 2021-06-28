@@ -20,8 +20,7 @@ use futures_core::{ready, Stream};
 use serde::de::DeserializeOwned;
 
 #[cfg(feature = "cookies")]
-use actix_http::{cookie::Cookie, error::CookieParseError};
-
+use crate::cookie::{Cookie, ParseError as CookieParseError};
 use crate::error::JsonPayloadError;
 
 /// Client Response
@@ -79,24 +78,6 @@ impl<S> HttpMessage for ClientResponse<S> {
 
     fn extensions_mut(&self) -> RefMut<'_, Extensions> {
         self.head.extensions_mut()
-    }
-
-    /// Load request cookies.
-    #[cfg(feature = "cookies")]
-    fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
-        struct Cookies(Vec<Cookie<'static>>);
-
-        if self.extensions().get::<Cookies>().is_none() {
-            let mut cookies = Vec::new();
-            for hdr in self.headers().get_all(&header::SET_COOKIE) {
-                let s = std::str::from_utf8(hdr.as_bytes()).map_err(CookieParseError::from)?;
-                cookies.push(Cookie::parse_encoded(s)?.into_owned());
-            }
-            self.extensions_mut().insert(Cookies(cookies));
-        }
-        Ok(Ref::map(self.extensions(), |ext| {
-            &ext.get::<Cookies>().unwrap().0
-        }))
     }
 }
 
@@ -180,6 +161,37 @@ impl<S> ClientResponse<S> {
         self.timeout = ResponseTimeout::Disabled(timeout);
         self
     }
+
+    /// Load request cookies.
+    #[cfg(feature = "cookies")]
+    pub fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
+        struct Cookies(Vec<Cookie<'static>>);
+
+        if self.extensions().get::<Cookies>().is_none() {
+            let mut cookies = Vec::new();
+            for hdr in self.headers().get_all(&header::SET_COOKIE) {
+                let s = std::str::from_utf8(hdr.as_bytes()).map_err(CookieParseError::from)?;
+                cookies.push(Cookie::parse_encoded(s)?.into_owned());
+            }
+            self.extensions_mut().insert(Cookies(cookies));
+        }
+        Ok(Ref::map(self.extensions(), |ext| {
+            &ext.get::<Cookies>().unwrap().0
+        }))
+    }
+
+    /// Return request cookie.
+    #[cfg(feature = "cookies")]
+    pub fn cookie(&self, name: &str) -> Option<Cookie<'static>> {
+        if let Ok(cookies) = self.cookies() {
+            for cookie in cookies.iter() {
+                if cookie.name() == name {
+                    return Some(cookie.to_owned());
+                }
+            }
+        }
+        None
+    }
 }
 
 impl<S> ClientResponse<S>
@@ -228,12 +240,13 @@ impl<S> fmt::Debug for ClientResponse<S> {
     }
 }
 
+const DEFAULT_BODY_LIMIT: usize = 2 * 1024 * 1024;
+
 /// Future that resolves to a complete HTTP message body.
 pub struct MessageBody<S> {
     length: Option<usize>,
-    err: Option<PayloadError>,
     timeout: ResponseTimeout,
-    fut: Option<ReadBody<S>>,
+    body: Result<ReadBody<S>, Option<PayloadError>>,
 }
 
 impl<S> MessageBody<S>
@@ -242,41 +255,38 @@ where
 {
     /// Create `MessageBody` for request.
     pub fn new(res: &mut ClientResponse<S>) -> MessageBody<S> {
-        let mut len = None;
-        if let Some(l) = res.headers().get(&header::CONTENT_LENGTH) {
-            if let Ok(s) = l.to_str() {
-                if let Ok(l) = s.parse::<usize>() {
-                    len = Some(l)
-                } else {
-                    return Self::err(PayloadError::UnknownLength);
+        let length = match res.headers().get(&header::CONTENT_LENGTH) {
+            Some(value) => {
+                let len = value.to_str().ok().and_then(|s| s.parse::<usize>().ok());
+
+                match len {
+                    None => return Self::err(PayloadError::UnknownLength),
+                    len => len,
                 }
-            } else {
-                return Self::err(PayloadError::UnknownLength);
             }
-        }
+            None => None,
+        };
 
         MessageBody {
-            length: len,
-            err: None,
+            length,
             timeout: std::mem::take(&mut res.timeout),
-            fut: Some(ReadBody::new(res.take_payload(), 262_144)),
+            body: Ok(ReadBody::new(res.take_payload(), DEFAULT_BODY_LIMIT)),
         }
     }
 
-    /// Change max size of payload. By default max size is 256kB
+    /// Change max size of payload. By default max size is 2048kB
     pub fn limit(mut self, limit: usize) -> Self {
-        if let Some(ref mut fut) = self.fut {
-            fut.limit = limit;
+        if let Ok(ref mut body) = self.body {
+            body.limit = limit;
         }
         self
     }
 
     fn err(e: PayloadError) -> Self {
         MessageBody {
-            fut: None,
-            err: Some(e),
             length: None,
             timeout: ResponseTimeout::default(),
+            body: Err(Some(e)),
         }
     }
 }
@@ -290,19 +300,20 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
 
-        if let Some(err) = this.err.take() {
-            return Poll::Ready(Err(err));
-        }
+        match this.body {
+            Err(ref mut err) => Poll::Ready(Err(err.take().unwrap())),
+            Ok(ref mut body) => {
+                if let Some(len) = this.length.take() {
+                    if len > body.limit {
+                        return Poll::Ready(Err(PayloadError::Overflow));
+                    }
+                }
 
-        if let Some(len) = this.length.take() {
-            if len > this.fut.as_ref().unwrap().limit {
-                return Poll::Ready(Err(PayloadError::Overflow));
+                this.timeout.poll_timeout(cx)?;
+
+                Pin::new(body).poll(cx)
             }
         }
-
-        this.timeout.poll_timeout(cx)?;
-
-        Pin::new(&mut this.fut.as_mut().unwrap()).poll(cx)
     }
 }
 
@@ -415,7 +426,7 @@ impl<S> ReadBody<S> {
     fn new(stream: Payload<S>, limit: usize) -> Self {
         Self {
             stream,
-            buf: BytesMut::with_capacity(std::cmp::min(limit, 32768)),
+            buf: BytesMut::new(),
             limit,
         }
     }
@@ -430,20 +441,14 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
 
-        loop {
-            return match Pin::new(&mut this.stream).poll_next(cx)? {
-                Poll::Ready(Some(chunk)) => {
-                    if (this.buf.len() + chunk.len()) > this.limit {
-                        Poll::Ready(Err(PayloadError::Overflow))
-                    } else {
-                        this.buf.extend_from_slice(&chunk);
-                        continue;
-                    }
-                }
-                Poll::Ready(None) => Poll::Ready(Ok(this.buf.split().freeze())),
-                Poll::Pending => Poll::Pending,
-            };
+        while let Some(chunk) = ready!(Pin::new(&mut this.stream).poll_next(cx)?) {
+            if (this.buf.len() + chunk.len()) > this.limit {
+                return Poll::Ready(Err(PayloadError::Overflow));
+            }
+            this.buf.extend_from_slice(&chunk);
         }
+
+        Poll::Ready(Ok(this.buf.split().freeze()))
     }
 }
 
@@ -456,13 +461,13 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_body() {
-        let mut req = TestResponse::with_header(header::CONTENT_LENGTH, "xxxx").finish();
+        let mut req = TestResponse::with_header((header::CONTENT_LENGTH, "xxxx")).finish();
         match req.body().await.err().unwrap() {
             PayloadError::UnknownLength => {}
             _ => unreachable!("error"),
         }
 
-        let mut req = TestResponse::with_header(header::CONTENT_LENGTH, "1000000").finish();
+        let mut req = TestResponse::with_header((header::CONTENT_LENGTH, "10000000")).finish();
         match req.body().await.err().unwrap() {
             PayloadError::Overflow => {}
             _ => unreachable!("error"),
@@ -492,9 +497,7 @@ mod tests {
             JsonPayloadError::Payload(PayloadError::Overflow) => {
                 matches!(other, JsonPayloadError::Payload(PayloadError::Overflow))
             }
-            JsonPayloadError::ContentType => {
-                matches!(other, JsonPayloadError::ContentType)
-            }
+            JsonPayloadError::ContentType => matches!(other, JsonPayloadError::ContentType),
             _ => false,
         }
     }
@@ -506,23 +509,23 @@ mod tests {
         assert!(json_eq(json.err().unwrap(), JsonPayloadError::ContentType));
 
         let mut req = TestResponse::default()
-            .header(
+            .insert_header((
                 header::CONTENT_TYPE,
                 header::HeaderValue::from_static("application/text"),
-            )
+            ))
             .finish();
         let json = JsonBody::<_, MyObject>::new(&mut req).await;
         assert!(json_eq(json.err().unwrap(), JsonPayloadError::ContentType));
 
         let mut req = TestResponse::default()
-            .header(
+            .insert_header((
                 header::CONTENT_TYPE,
                 header::HeaderValue::from_static("application/json"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::CONTENT_LENGTH,
                 header::HeaderValue::from_static("10000"),
-            )
+            ))
             .finish();
 
         let json = JsonBody::<_, MyObject>::new(&mut req).limit(100).await;
@@ -532,14 +535,14 @@ mod tests {
         ));
 
         let mut req = TestResponse::default()
-            .header(
+            .insert_header((
                 header::CONTENT_TYPE,
                 header::HeaderValue::from_static("application/json"),
-            )
-            .header(
+            ))
+            .insert_header((
                 header::CONTENT_LENGTH,
                 header::HeaderValue::from_static("16"),
-            )
+            ))
             .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
             .finish();
 

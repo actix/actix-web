@@ -1,10 +1,100 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 4.0.0-beta.8 - 2021-06-26
+### Added
+* Add `ServiceRequest::parts_mut`. [#2177]
+* Add extractors for `Uri` and `Method`. [#2263]
+* Add extractors for `ConnectionInfo` and `PeerAddr`. [#2263]
+* Add `Route::service` for using hand-written services as handlers. [#2262]
+
+### Changed
+* Change compression algorithm features flags. [#2250]
+* Deprecate `App::data` and `App::data_factory`. [#2271]
+* Smarter extraction of `ConnectionInfo` parts. [#2282]
+
+### Fixed
+* Scope and Resource middleware can access data items set on their own layer. [#2288]
+
+[#2177]: https://github.com/actix/actix-web/pull/2177
+[#2250]: https://github.com/actix/actix-web/pull/2250
+[#2271]: https://github.com/actix/actix-web/pull/2271
+[#2262]: https://github.com/actix/actix-web/pull/2262
+[#2263]: https://github.com/actix/actix-web/pull/2263
+[#2282]: https://github.com/actix/actix-web/pull/2282
+[#2288]: https://github.com/actix/actix-web/pull/2288
+
+
+## 4.0.0-beta.7 - 2021-06-17
+### Added
+* `HttpServer::worker_max_blocking_threads` for setting block thread pool. [#2200]
+
+### Changed
+* Adjusted default JSON payload limit to 2MB (from 32kb) and included size and limits in the `JsonPayloadError::Overflow` error variant. [#2162]
+[#2162]: (https://github.com/actix/actix-web/pull/2162)
+* `ServiceResponse::error_response` now uses body type of `Body`. [#2201]
+* `ServiceResponse::checked_expr` now returns a `Result`. [#2201]
+* Update `language-tags` to `0.3`.
+* `ServiceResponse::take_body`. [#2201]
+* `ServiceResponse::map_body` closure receives and returns `B` instead of `ResponseBody<B>` types. [#2201]
+* All error trait bounds in server service builders have changed from `Into<Error>` to `Into<Response<AnyBody>>`. [#2253]
+* All error trait bounds in message body and stream impls changed from `Into<Error>` to `Into<Box<dyn std::error::Error>>`. [#2253]
+* `HttpServer::{listen_rustls(), bind_rustls()}` now honor the ALPN protocols in the configuation parameter. [#2226]
+* `middleware::normalize` now will not try to normalize URIs with no valid path [#2246]
+
+### Removed
+* `HttpResponse::take_body` and old `HttpResponse::into_body` method that casted body type. [#2201]
+
+[#2200]: https://github.com/actix/actix-web/pull/2200
+[#2201]: https://github.com/actix/actix-web/pull/2201
+[#2253]: https://github.com/actix/actix-web/pull/2253
+[#2246]: https://github.com/actix/actix-web/pull/2246
+
+
+## 4.0.0-beta.6 - 2021-04-17
+### Added
+* `HttpResponse` and `HttpResponseBuilder` structs. [#2065]
+
+### Changed
+* Most error types are now marked `#[non_exhaustive]`. [#2148]
+* Methods on `ContentDisposition` that took `T: AsRef<str>` now take `impl AsRef<str>`.
+
+[#2065]: https://github.com/actix/actix-web/pull/2065
+[#2148]: https://github.com/actix/actix-web/pull/2148
+
+
+## 4.0.0-beta.5 - 2021-04-02
+### Added
+* `Header` extractor for extracting common HTTP headers in handlers. [#2094]
+* Added `TestServer::client_headers` method. [#2097]
+
+### Fixed
+* Double ampersand in Logger format is escaped correctly. [#2067]
+
+### Changed
+* `CustomResponder` would return error as `HttpResponse` when `CustomResponder::with_header` failed
+  instead of skipping. (Only the first error is kept when multiple error occur) [#2093]
+
+### Removed
+* The `client` mod was removed. Clients should now use `awc` directly.
+  [871ca5e4](https://github.com/actix/actix-web/commit/871ca5e4ae2bdc22d1ea02701c2992fa8d04aed7)
+* Integration testing was moved to new `actix-test` crate. Namely these items from the `test`
+  module: `TestServer`, `TestServerConfig`, `start`, `start_with`, and `unused_addr`. [#2112]
+
+[#2067]: https://github.com/actix/actix-web/pull/2067
+[#2093]: https://github.com/actix/actix-web/pull/2093
+[#2094]: https://github.com/actix/actix-web/pull/2094
+[#2097]: https://github.com/actix/actix-web/pull/2097
+[#2112]: https://github.com/actix/actix-web/pull/2112
+
+
+## 4.0.0-beta.4 - 2021-03-09
 ### Changed
 * Feature `cookies` is now optional and enabled by default. [#1981]
-* `JsonBody::new` returns a default limit of 32kB to be consistent with `JsonConfig` and the
-  default behaviour of the `web::Json<T>` extractor. [#2010] 
+* `JsonBody::new` returns a default limit of 32kB to be consistent with `JsonConfig` and the default
+  behaviour of the `web::Json<T>` extractor. [#2010]
 
 [#1981]: https://github.com/actix/actix-web/pull/1981
 [#2010]: https://github.com/actix/actix-web/pull/2010
@@ -168,7 +258,7 @@
 
 ## 3.0.0-beta.4 - 2020-09-09
 ### Added
-* `middleware::NormalizePath` now has configurable behaviour for either always having a trailing
+* `middleware::NormalizePath` now has configurable behavior for either always having a trailing 
   slash, or as the new addition, always trimming trailing slashes. [#1639]
 
 ### Changed
@@ -496,7 +586,7 @@
 
 ## [1.0.0-rc] - 2019-05-18
 
-### Add
+### Added
 
 * Add `Query<T>::from_query()` to extract parameters from a query string. #846
 * `QueryConfig`, similar to `JsonConfig` for customizing error handling of query extractors.
@@ -512,7 +602,7 @@
 
 ## [1.0.0-beta.4] - 2019-05-12
 
-### Add
+### Added
 
 * Allow to set/override app data on scope level
 
@@ -538,7 +628,7 @@
 
 * CORS handling without headers #702
 
-* Allow to construct `Data` instances to avoid double `Arc` for `Send + Sync` types.
+* Allow constructing `Data` instances to avoid double `Arc` for `Send + Sync` types.
 
 ### Fixed
 
@@ -602,7 +692,7 @@
 
 ### Changed
 
-* Allow to use any service as default service.
+* Allow using any service as default service.
 
 * Remove generic type for request payload, always use default.
 
@@ -665,13 +755,13 @@
 
 ### Added
 
-* rustls support
+* Rustls support
 
 ### Changed
 
-* use forked cookie
+* Use forked cookie
 
-* multipart::Field renamed to MultipartField
+* Multipart::Field renamed to MultipartField
 
 ## [1.0.0-alpha.1] - 2019-03-28
 

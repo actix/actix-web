@@ -1,30 +1,25 @@
 use std::{
     any::Any,
-    cmp, fmt, io,
+    cmp,
+    error::Error as StdError,
+    fmt, io,
     marker::PhantomData,
     net,
     sync::{Arc, Mutex},
 };
 
-use actix_http::{
-    body::MessageBody, Error, Extensions, HttpService, KeepAlive, Request, Response,
-};
+use actix_http::{body::MessageBody, Extensions, HttpService, KeepAlive, Request, Response};
 use actix_server::{Server, ServerBuilder};
-use actix_service::{map_config, IntoServiceFactory, Service, ServiceFactory};
-
-#[cfg(unix)]
-use actix_http::Protocol;
-#[cfg(unix)]
-use actix_service::pipeline_factory;
-#[cfg(unix)]
-use futures_util::future::ok;
+use actix_service::{
+    map_config, IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt as _,
+};
 
 #[cfg(feature = "openssl")]
 use actix_tls::accept::openssl::{AlpnError, SslAcceptor, SslAcceptorBuilder};
 #[cfg(feature = "rustls")]
 use actix_tls::accept::rustls::ServerConfig as RustlsServerConfig;
 
-use crate::config::AppConfig;
+use crate::{config::AppConfig, Error};
 
 struct Socket {
     scheme: &'static str,
@@ -42,7 +37,7 @@ struct Config {
 ///
 /// Create new HTTP server with application factory.
 ///
-/// ```rust,no_run
+/// ```no_run
 /// use actix_web::{web, App, HttpResponse, HttpServer};
 ///
 /// #[actix_rt::main]
@@ -78,13 +73,17 @@ impl<F, I, S, B> HttpServer<F, I, S, B>
 where
     F: Fn() -> I + Send + Clone + 'static,
     I: IntoServiceFactory<S, Request>,
+
     S: ServiceFactory<Request, Config = AppConfig> + 'static,
+    // S::Future: 'static,
     S::Error: Into<Error> + 'static,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
     S::Service: 'static,
+    // S::Service: 'static,
     B: MessageBody + 'static,
+    B::Error: Into<Box<dyn StdError>>,
 {
     /// Create new HTTP server with application factory
     pub fn new(factory: F) -> Self {
@@ -174,6 +173,16 @@ where
     pub fn max_connection_rate(self, num: usize) -> Self {
         #[cfg(any(feature = "rustls", feature = "openssl"))]
         actix_tls::accept::max_concurrent_tls_connect(num);
+        self
+    }
+
+    /// Set max number of threads for each worker's blocking task thread pool.
+    ///
+    /// One thread pool is set up **per worker**; not shared across workers.
+    ///
+    /// By default set to 512 / workers.
+    pub fn worker_max_blocking_threads(mut self, num: usize) -> Self {
+        self.builder = self.builder.worker_max_blocking_threads(num);
         self
     }
 
@@ -283,19 +292,23 @@ where
                     let c = cfg.lock().unwrap();
                     let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
 
-                    let svc = HttpService::build()
+                    let mut svc = HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_timeout(c.client_timeout)
                         .local_addr(addr);
 
-                    let svc = if let Some(handler) = on_connect_fn.clone() {
-                        svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
-                    } else {
-                        svc
+                    if let Some(handler) = on_connect_fn.clone() {
+                        svc = svc.on_connect_ext(move |io: &_, ext: _| {
+                            (handler)(io as &dyn Any, ext)
+                        })
                     };
 
-                    svc.finish(map_config(factory(), move |_| {
-                        AppConfig::new(false, addr, host.clone())
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
+
+                    svc.finish(map_config(fac, move |_| {
+                        AppConfig::new(false, host.clone(), addr)
                     }))
                     .tcp()
                 })?;
@@ -349,18 +362,23 @@ where
                         svc
                     };
 
-                    svc.finish(map_config(factory(), move |_| {
-                        AppConfig::new(true, addr, host.clone())
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
+
+                    svc.finish(map_config(fac, move |_| {
+                        AppConfig::new(true, host.clone(), addr)
                     }))
                     .openssl(acceptor.clone())
                 })?;
+
         Ok(self)
     }
 
     #[cfg(feature = "rustls")]
     /// Use listener for accepting incoming tls connection requests
     ///
-    /// This method sets alpn protocols to "h2" and "http/1.1"
+    /// This method prepends alpn protocols "h2" and "http/1.1" to configured ones
     pub fn listen_rustls(
         self,
         lst: net::TcpListener,
@@ -402,11 +420,16 @@ where
                         svc
                     };
 
-                    svc.finish(map_config(factory(), move |_| {
-                        AppConfig::new(true, addr, host.clone())
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
+
+                    svc.finish(map_config(fac, move |_| {
+                        AppConfig::new(true, host.clone(), addr)
                     }))
                     .rustls(config.clone())
                 })?;
+
         Ok(self)
     }
 
@@ -438,17 +461,15 @@ where
             }
         }
 
-        if !success {
-            if let Some(e) = err.take() {
-                Err(e)
-            } else {
-                Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    "Can not bind to address.",
-                ))
-            }
-        } else {
+        if success {
             Ok(sockets)
+        } else if let Some(e) = err.take() {
+            Err(e)
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::Other,
+                "Can not bind to address.",
+            ))
         }
     }
 
@@ -473,7 +494,7 @@ where
     #[cfg(feature = "rustls")]
     /// Start listening for incoming tls connections.
     ///
-    /// This method sets alpn protocols to "h2" and "http/1.1"
+    /// This method prepends alpn protocols "h2" and "http/1.1" to configured ones
     pub fn bind_rustls<A: net::ToSocketAddrs>(
         mut self,
         addr: A,
@@ -489,7 +510,9 @@ where
     #[cfg(unix)]
     /// Start listening for unix domain (UDS) connections on existing listener.
     pub fn listen_uds(mut self, lst: std::os::unix::net::UnixListener) -> io::Result<Self> {
+        use actix_http::Protocol;
         use actix_rt::net::UnixStream;
+        use actix_service::{fn_service, ServiceFactoryExt as _};
 
         let cfg = self.config.clone();
         let factory = self.factory.clone();
@@ -507,22 +530,25 @@ where
             let c = cfg.lock().unwrap();
             let config = AppConfig::new(
                 false,
-                socket_addr,
                 c.host.clone().unwrap_or_else(|| format!("{}", socket_addr)),
+                socket_addr,
             );
 
-            pipeline_factory(|io: UnixStream| ok((io, Protocol::Http1, None))).and_then({
-                let svc = HttpService::build()
+            fn_service(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) }).and_then({
+                let mut svc = HttpService::build()
                     .keep_alive(c.keep_alive)
                     .client_timeout(c.client_timeout);
 
-                let svc = if let Some(handler) = on_connect_fn.clone() {
-                    svc.on_connect_ext(move |io: &_, ext: _| (&*handler)(io as &dyn Any, ext))
-                } else {
-                    svc
-                };
+                if let Some(handler) = on_connect_fn.clone() {
+                    svc = svc
+                        .on_connect_ext(move |io: &_, ext: _| (&*handler)(io as &dyn Any, ext));
+                }
 
-                svc.finish(map_config(factory(), move |_| config.clone()))
+                let fac = factory()
+                    .into_factory()
+                    .map_err(|err| err.into().error_response());
+
+                svc.finish(map_config(fac, move |_| config.clone()))
             })
         })?;
         Ok(self)
@@ -534,7 +560,9 @@ where
     where
         A: AsRef<std::path::Path>,
     {
+        use actix_http::Protocol;
         use actix_rt::net::UnixStream;
+        use actix_service::{fn_service, ServiceFactoryExt as _};
 
         let cfg = self.config.clone();
         let factory = self.factory.clone();
@@ -552,17 +580,23 @@ where
                 let c = cfg.lock().unwrap();
                 let config = AppConfig::new(
                     false,
-                    socket_addr,
                     c.host.clone().unwrap_or_else(|| format!("{}", socket_addr)),
+                    socket_addr,
                 );
-                pipeline_factory(|io: UnixStream| ok((io, Protocol::Http1, None))).and_then(
+
+                let fac = factory()
+                    .into_factory()
+                    .map_err(|err| err.into().error_response());
+
+                fn_service(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) }).and_then(
                     HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_timeout(c.client_timeout)
-                        .finish(map_config(factory(), move |_| config.clone())),
+                        .finish(map_config(fac, move |_| config.clone())),
                 )
             },
         )?;
+
         Ok(self)
     }
 }
@@ -587,7 +621,7 @@ where
     /// This methods panics if no socket address can be bound or an `Actix` system is not yet
     /// configured.
     ///
-    /// ```rust,no_run
+    /// ```no_run
     /// use std::io;
     /// use actix_web::{web, App, HttpResponse, HttpServer};
     ///
@@ -606,17 +640,14 @@ where
 
 fn create_tcp_listener(addr: net::SocketAddr, backlog: u32) -> io::Result<net::TcpListener> {
     use socket2::{Domain, Protocol, Socket, Type};
-    let domain = match addr {
-        net::SocketAddr::V4(_) => Domain::ipv4(),
-        net::SocketAddr::V6(_) => Domain::ipv6(),
-    };
-    let socket = Socket::new(domain, Type::stream(), Some(Protocol::tcp()))?;
+    let domain = Domain::for_address(addr);
+    let socket = Socket::new(domain, Type::STREAM, Some(Protocol::TCP))?;
     socket.set_reuse_address(true)?;
     socket.bind(&addr.into())?;
     // clamp backlog to max u32 that fits in i32 range
     let backlog = cmp::min(backlog, i32::MAX as u32) as i32;
     socket.listen(backlog)?;
-    Ok(socket.into_tcp_listener())
+    Ok(net::TcpListener::from(socket))
 }
 
 #[cfg(feature = "openssl")]

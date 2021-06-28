@@ -102,7 +102,7 @@ pub(crate) trait MessageType: Sized {
                     }
                     // transfer-encoding
                     header::TRANSFER_ENCODING => {
-                        if let Ok(s) = value.to_str().map(|s| s.trim()) {
+                        if let Ok(s) = value.to_str().map(str::trim) {
                             chunked = s.eq_ignore_ascii_case("chunked");
                         } else {
                             return Err(ParseError::Header);
@@ -110,7 +110,7 @@ pub(crate) trait MessageType: Sized {
                     }
                     // connection keep-alive state
                     header::CONNECTION => {
-                        ka = if let Ok(conn) = value.to_str().map(|conn| conn.trim()) {
+                        ka = if let Ok(conn) = value.to_str().map(str::trim) {
                             if conn.eq_ignore_ascii_case("keep-alive") {
                                 Some(ConnectionType::KeepAlive)
                             } else if conn.eq_ignore_ascii_case("close") {
@@ -125,7 +125,7 @@ pub(crate) trait MessageType: Sized {
                         };
                     }
                     header::UPGRADE => {
-                        if let Ok(val) = value.to_str().map(|val| val.trim()) {
+                        if let Ok(val) = value.to_str().map(str::trim) {
                             if val.eq_ignore_ascii_case("websocket") {
                                 has_upgrade_websocket = true;
                             }
@@ -1213,8 +1213,9 @@ mod tests {
     #[test]
     fn test_parse_chunked_payload_chunk_extension() {
         let mut buf = BytesMut::from(
-            &"GET /test HTTP/1.1\r\n\
-              transfer-encoding: chunked\r\n\r\n"[..],
+            "GET /test HTTP/1.1\r\n\
+            transfer-encoding: chunked\r\n\
+            \r\n",
         );
 
         let mut reader = MessageDecoder::<Request>::default();
@@ -1233,7 +1234,7 @@ mod tests {
 
     #[test]
     fn test_response_http10_read_until_eof() {
-        let mut buf = BytesMut::from(&"HTTP/1.0 200 Ok\r\n\r\ntest data"[..]);
+        let mut buf = BytesMut::from("HTTP/1.0 200 Ok\r\n\r\ntest data");
 
         let mut reader = MessageDecoder::<ResponseHead>::default();
         let (_msg, pl) = reader.decode(&mut buf).unwrap().unwrap();

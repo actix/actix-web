@@ -1,12 +1,11 @@
-use std::future::Future;
-use std::time::Instant;
+use std::{future::Future, time::Instant};
 
-use actix_http::Response;
+use actix_utils::future::{ready, Ready};
 use actix_web::http::StatusCode;
 use actix_web::test::TestRequest;
 use actix_web::{error, Error, HttpRequest, HttpResponse, Responder};
 use criterion::{criterion_group, criterion_main, Criterion};
-use futures_util::future::{ready, Either, Ready};
+use futures_util::future::{join_all, Either};
 
 // responder simulate the old responder trait.
 trait FutureResponder {
@@ -24,11 +23,11 @@ struct StringResponder(String);
 
 impl FutureResponder for StringResponder {
     type Error = Error;
-    type Future = Ready<Result<Response, Self::Error>>;
+    type Future = Ready<Result<HttpResponse, Self::Error>>;
 
     fn future_respond_to(self, _: &HttpRequest) -> Self::Future {
         // this is default builder for string response in both new and old responder trait.
-        ready(Ok(Response::build(StatusCode::OK)
+        ready(Ok(HttpResponse::build(StatusCode::OK)
             .content_type("text/plain; charset=utf-8")
             .body(self.0)))
     }
@@ -37,7 +36,7 @@ impl FutureResponder for StringResponder {
 impl<T> FutureResponder for OptionResponder<T>
 where
     T: FutureResponder,
-    T::Future: Future<Output = Result<Response, Error>>,
+    T::Future: Future<Output = Result<HttpResponse, Error>>,
 {
     type Error = Error;
     type Future = Either<T::Future, Ready<Result<HttpResponse, Self::Error>>>;
@@ -52,7 +51,7 @@ where
 
 impl Responder for StringResponder {
     fn respond_to(self, _: &HttpRequest) -> HttpResponse {
-        Response::build(StatusCode::OK)
+        HttpResponse::build(StatusCode::OK)
             .content_type("text/plain; charset=utf-8")
             .body(self.0)
     }
@@ -62,7 +61,7 @@ impl<T: Responder> Responder for OptionResponder<T> {
     fn respond_to(self, req: &HttpRequest) -> HttpResponse {
         match self.0 {
             Some(t) => t.respond_to(req),
-            None => Response::from_error(error::ErrorInternalServerError("err")),
+            None => HttpResponse::from_error(error::ErrorInternalServerError("err")),
         }
     }
 }
@@ -79,7 +78,7 @@ fn future_responder(c: &mut Criterion) {
                     .await
             });
 
-            let futs = futures_util::future::join_all(futs);
+            let futs = join_all(futs);
 
             let start = Instant::now();
 

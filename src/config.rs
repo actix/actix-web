@@ -62,6 +62,8 @@ impl AppService {
         (self.config, self.services)
     }
 
+    /// Clones inner config and default service, returning new `AppService` with empty service list
+    /// marked as non-root.
     pub(crate) fn clone_config(&self) -> Self {
         AppService {
             config: self.config.clone(),
@@ -71,12 +73,12 @@ impl AppService {
         }
     }
 
-    /// Service configuration
+    /// Returns reference to configuration.
     pub fn config(&self) -> &AppConfig {
         &self.config
     }
 
-    /// Default resource
+    /// Returns default handler factory.
     pub fn default_service(&self) -> Rc<HttpNewService> {
         self.default.clone()
     }
@@ -92,9 +94,9 @@ impl AppService {
         F: IntoServiceFactory<S, ServiceRequest>,
         S: ServiceFactory<
                 ServiceRequest,
-                Config = (),
                 Response = ServiceResponse,
                 Error = Error,
+                Config = (),
                 InitError = (),
             > + 'static,
     {
@@ -103,8 +105,8 @@ impl AppService {
     }
 }
 
-/// Application connection config
-#[derive(Clone)]
+/// Application connection config.
+#[derive(Debug, Clone)]
 pub struct AppConfig {
     secure: bool,
     host: String,
@@ -112,8 +114,14 @@ pub struct AppConfig {
 }
 
 impl AppConfig {
-    pub(crate) fn new(secure: bool, addr: SocketAddr, host: String) -> Self {
-        AppConfig { secure, addr, host }
+    pub(crate) fn new(secure: bool, host: String, addr: SocketAddr) -> Self {
+        AppConfig { secure, host, addr }
+    }
+
+    /// Needed in actix-test crate. Semver exempt.
+    #[doc(hidden)]
+    pub fn __priv_test_new(secure: bool, host: String, addr: SocketAddr) -> Self {
+        AppConfig::new(secure, host, addr)
     }
 
     /// Server host name.
@@ -136,14 +144,19 @@ impl AppConfig {
     pub fn local_addr(&self) -> SocketAddr {
         self.addr
     }
+
+    #[cfg(test)]
+    pub(crate) fn set_host(&mut self, host: &str) {
+        self.host = host.to_owned();
+    }
 }
 
 impl Default for AppConfig {
     fn default() -> Self {
         AppConfig::new(
             false,
-            "127.0.0.1:8080".parse().unwrap(),
             "localhost:8080".to_owned(),
+            "127.0.0.1:8080".parse().unwrap(),
         )
     }
 }
@@ -186,6 +199,7 @@ impl ServiceConfig {
     /// Add shared app data item.
     ///
     /// Counterpart to [`App::data()`](crate::App::data).
+    #[deprecated(since = "4.0.0", note = "Use `.app_data(Data::new(val))` instead.")]
     pub fn data<U: 'static>(&mut self, data: U) -> &mut Self {
         self.app_data(Data::new(data));
         self
@@ -251,6 +265,8 @@ mod tests {
     use crate::test::{call_service, init_service, read_body, TestRequest};
     use crate::{web, App, HttpRequest, HttpResponse};
 
+    // allow deprecated `ServiceConfig::data`
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_data() {
         let cfg = |cfg: &mut ServiceConfig| {

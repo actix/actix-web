@@ -10,19 +10,19 @@ use std::{
 };
 
 use actix_http::{
-    body::MessageBody,
+    body::{MessageBody, ResponseBody},
     encoding::Encoder,
     http::header::{ContentEncoding, ACCEPT_ENCODING},
-    Error,
 };
 use actix_service::{Service, Transform};
+use actix_utils::future::{ok, Ready};
 use futures_core::ready;
-use futures_util::future::{ok, Ready};
 use pin_project::pin_project;
 
 use crate::{
     dev::BodyEncoding,
     service::{ServiceRequest, ServiceResponse},
+    Error,
 };
 
 /// Middleware for compressing response payloads.
@@ -31,7 +31,7 @@ use crate::{
 /// encoding to `ContentEncoding::Identity`.
 ///
 /// # Examples
-/// ```rust
+/// ```
 /// use actix_web::{web, middleware, App, HttpResponse};
 ///
 /// let app = App::new()
@@ -59,7 +59,7 @@ where
     B: MessageBody,
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
-    type Response = ServiceResponse<Encoder<B>>;
+    type Response = ServiceResponse<ResponseBody<Encoder<B>>>;
     type Error = Error;
     type Transform = CompressMiddleware<S>;
     type InitError = ();
@@ -83,7 +83,7 @@ where
     B: MessageBody,
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
-    type Response = ServiceResponse<Encoder<B>>;
+    type Response = ServiceResponse<ResponseBody<Encoder<B>>>;
     type Error = Error;
     type Future = CompressResponse<S, B>;
 
@@ -127,7 +127,7 @@ where
     B: MessageBody,
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
-    type Output = Result<ServiceResponse<Encoder<B>>, Error>;
+    type Output = Result<ServiceResponse<ResponseBody<Encoder<B>>>, Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
@@ -140,9 +140,9 @@ where
                     *this.encoding
                 };
 
-                Poll::Ready(Ok(
-                    resp.map_body(move |head, body| Encoder::response(enc, head, body))
-                ))
+                Poll::Ready(Ok(resp.map_body(move |head, body| {
+                    Encoder::response(enc, head, ResponseBody::Body(body))
+                })))
             }
             Err(e) => Poll::Ready(Err(e)),
         }
@@ -197,22 +197,22 @@ impl AcceptEncoding {
 
     /// Parse a raw Accept-Encoding header value into an ordered list.
     pub fn parse(raw: &str, encoding: ContentEncoding) -> ContentEncoding {
-        let mut encodings: Vec<_> = raw
+        let mut encodings = raw
             .replace(' ', "")
             .split(',')
-            .map(|l| AcceptEncoding::new(l))
-            .collect();
+            .filter_map(|l| AcceptEncoding::new(l))
+            .collect::<Vec<_>>();
+
         encodings.sort();
 
         for enc in encodings {
-            if let Some(enc) = enc {
-                if encoding == ContentEncoding::Auto {
-                    return enc.encoding;
-                } else if encoding == enc.encoding {
-                    return encoding;
-                }
+            if encoding == ContentEncoding::Auto {
+                return enc.encoding;
+            } else if encoding == enc.encoding {
+                return encoding;
             }
         }
+
         ContentEncoding::Identity
     }
 }

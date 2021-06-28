@@ -1,4 +1,4 @@
-//! Multipart payload support
+//! Multipart response payload support.
 
 use std::cell::{Cell, RefCell, RefMut};
 use std::convert::TryFrom;
@@ -8,12 +8,12 @@ use std::rc::Rc;
 use std::task::{Context, Poll};
 use std::{cmp, fmt};
 
-use bytes::{Bytes, BytesMut};
-use futures_util::stream::{LocalBoxStream, Stream, StreamExt};
-
-use actix_utils::task::LocalWaker;
 use actix_web::error::{ParseError, PayloadError};
 use actix_web::http::header::{self, ContentDisposition, HeaderMap, HeaderName, HeaderValue};
+use bytes::{Bytes, BytesMut};
+use futures_core::stream::{LocalBoxStream, Stream};
+use futures_util::stream::StreamExt as _;
+use local_waker::LocalWaker;
 
 use crate::error::MultipartError;
 
@@ -804,12 +804,13 @@ mod tests {
     use super::*;
 
     use actix_http::h1::Payload;
-    use actix_utils::mpsc;
     use actix_web::http::header::{DispositionParam, DispositionType};
     use actix_web::test::TestRequest;
     use actix_web::FromRequest;
     use bytes::Bytes;
     use futures_util::future::lazy;
+    use tokio::sync::mpsc;
+    use tokio_stream::wrappers::UnboundedReceiverStream;
 
     #[actix_rt::test]
     async fn test_boundary() {
@@ -855,13 +856,17 @@ mod tests {
     }
 
     fn create_stream() -> (
-        mpsc::Sender<Result<Bytes, PayloadError>>,
+        mpsc::UnboundedSender<Result<Bytes, PayloadError>>,
         impl Stream<Item = Result<Bytes, PayloadError>>,
     ) {
-        let (tx, rx) = mpsc::channel();
+        let (tx, rx) = mpsc::unbounded_channel();
 
-        (tx, rx.map(|res| res.map_err(|_| panic!())))
+        (
+            tx,
+            UnboundedReceiverStream::new(rx).map(|res| res.map_err(|_| panic!())),
+        )
     }
+
     // Stream that returns from a Bytes, one char at a time and Pending every other poll()
     struct SlowStream {
         bytes: Bytes,
@@ -889,9 +894,11 @@ mod tests {
                 cx.waker().wake_by_ref();
                 return Poll::Pending;
             }
+
             if this.pos == this.bytes.len() {
                 return Poll::Ready(None);
             }
+
             let res = Poll::Ready(Some(Ok(this.bytes.slice(this.pos..(this.pos + 1)))));
             this.pos += 1;
             this.ready = false;
