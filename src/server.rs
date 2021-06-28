@@ -525,10 +525,11 @@ where
             addr: socket_addr,
         });
 
-        let addr = format!("actix-web-service-{:?}", lst.local_addr()?);
+        let addr = lst.local_addr()?;
+        let name = format!("actix-web-service-{:?}", addr);
         let on_connect_fn = self.on_connect_fn.clone();
 
-        self.builder = self.builder.listen_uds(addr, lst, move || {
+        self.builder = self.builder.listen_uds(name, lst, move || {
             let c = cfg.lock().unwrap();
             let config = AppConfig::new(
                 false,
@@ -540,8 +541,7 @@ where
                 let mut svc = HttpService::build()
                     .keep_alive(c.keep_alive)
                     .client_timeout(c.client_timeout)
-                    .client_disconnect(c.client_shutdown)
-                    .local_addr(addr);
+                    .client_disconnect(c.client_shutdown);
 
                 if let Some(handler) = on_connect_fn.clone() {
                     svc = svc
