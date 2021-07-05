@@ -96,8 +96,10 @@ pub mod test;
 pub(crate) mod types;
 pub mod web;
 
+pub use actix_service::ServiceFactory;
+
 pub use actix_http::Response as BaseHttpResponse;
-pub use actix_http::{body, HttpMessage};
+pub use actix_http::{body, HttpMessage, Request};
 #[doc(inline)]
 pub use actix_rt as rt;
 pub use actix_web_codegen::*;
@@ -105,6 +107,7 @@ pub use actix_web_codegen::*;
 pub use cookie;
 
 pub use crate::app::App;
+pub use crate::app_service::AppEntry;
 pub use crate::error::{Error, ResponseError, Result};
 pub use crate::extract::FromRequest;
 pub use crate::request::HttpRequest;
