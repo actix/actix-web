@@ -85,10 +85,12 @@ where
                 let max_redirect_times = self.max_redirect_times;
 
                 // backup the uri and method for reuse schema and authority.
-                let (uri, method) = match head {
-                    RequestHeadType::Owned(ref head) => (head.uri.clone(), head.method.clone()),
+                let (uri, method, headers) = match head {
+                    RequestHeadType::Owned(ref head) => {
+                        (head.uri.clone(), head.method.clone(), head.headers.clone())
+                    }
                     RequestHeadType::Rc(ref head, ..) => {
-                        (head.uri.clone(), head.method.clone())
+                        (head.uri.clone(), head.method.clone(), head.headers.clone())
                     }
                 };
 
@@ -104,6 +106,7 @@ where
                     max_redirect_times,
                     uri: Some(uri),
                     method: Some(method),
+                    headers: Some(headers),
                     body: body_opt,
                     addr,
                     connector: Some(connector),
@@ -127,6 +130,7 @@ pin_project_lite::pin_project! {
             max_redirect_times: u8,
             uri: Option<Uri>,
             method: Option<Method>,
+            headers: Option<header::HeaderMap>,
             body: Option<Bytes>,
             addr: Option<SocketAddr>,
             connector: Option<Rc<S>>
@@ -148,6 +152,7 @@ where
                 max_redirect_times,
                 uri,
                 method,
+                headers,
                 body,
                 addr,
                 connector,
@@ -174,10 +179,13 @@ where
                         let connector = connector.take();
                         let mut max_redirect_times = *max_redirect_times;
 
+                        let headers = headers.take().unwrap();
+
                         // use a new request head.
                         let mut head = RequestHead::default();
                         head.uri = uri.clone();
                         head.method = method.clone();
+                        head.headers = headers.clone();
 
                         let head = RequestHeadType::Owned(head);
 
@@ -194,6 +202,7 @@ where
                             max_redirect_times,
                             uri: Some(uri),
                             method: Some(method),
+                            headers: Some(headers),
                             // body is dropped on 301,302,303
                             body: None,
                             addr,
@@ -222,10 +231,13 @@ where
                         let connector = connector.take();
                         let mut max_redirect_times = *max_redirect_times;
 
+                        let headers = headers.take().unwrap();
+
                         // use a new request head.
                         let mut head = RequestHead::default();
                         head.uri = uri.clone();
                         head.method = method.clone();
+                        head.headers = headers.clone();
 
                         let head = RequestHeadType::Owned(head);
 
@@ -241,6 +253,7 @@ where
                             max_redirect_times,
                             uri: Some(uri),
                             method: Some(method),
+                            headers: Some(headers),
                             body,
                             addr,
                             connector,
@@ -283,9 +296,10 @@ fn rebuild_uri(res: &ClientResponse, org_uri: Uri) -> Result<Uri, SendRequestErr
 
 #[cfg(test)]
 mod tests {
-    use actix_web::{web, App, Error, HttpResponse};
+    use actix_web::{web, App, Error, HttpRequest, HttpResponse};
 
     use super::*;
+    use crate::http::HeaderValue;
     use crate::ClientBuilder;
 
     #[actix_rt::test]
@@ -346,5 +360,62 @@ mod tests {
         let res = client.get(srv.url("/")).send().await.unwrap();
 
         assert_eq!(res.status().as_u16(), 302);
+    }
+
+    #[actix_rt::test]
+    async fn test_redirect_headers() {
+        let srv = actix_test::start(|| {
+            async fn root(req: HttpRequest) -> HttpResponse {
+                if req
+                    .headers()
+                    .get("custom")
+                    .unwrap_or(&HeaderValue::from_str("").unwrap())
+                    == "value"
+                {
+                    HttpResponse::Found()
+                        .append_header(("location", "/test"))
+                        .finish()
+                } else {
+                    HttpResponse::InternalServerError().finish()
+                }
+            }
+
+            async fn test(req: HttpRequest) -> HttpResponse {
+                if req
+                    .headers()
+                    .get("custom")
+                    .unwrap_or(&HeaderValue::from_str("").unwrap())
+                    == "value"
+                {
+                    HttpResponse::Ok().finish()
+                } else {
+                    HttpResponse::InternalServerError().finish()
+                }
+            }
+
+            App::new()
+                .service(web::resource("/").route(web::to(root)))
+                .service(web::resource("/test").route(web::to(test)))
+        });
+
+        let client = ClientBuilder::new()
+            .header("custom", "value")
+            .disable_redirects()
+            .finish();
+        let res = client.get(srv.url("/")).send().await.unwrap();
+        assert_eq!(res.status().as_u16(), 302);
+
+        let client = ClientBuilder::new().header("custom", "value").finish();
+        let res = client.get(srv.url("/")).send().await.unwrap();
+        assert_eq!(res.status().as_u16(), 200);
+
+        let client = ClientBuilder::new().finish();
+        let res = client
+            .get(srv.url("/"))
+            .insert_header(("custom", "value"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(res.status().as_u16(), 200);
     }
 }
