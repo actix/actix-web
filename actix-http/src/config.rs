@@ -354,7 +354,7 @@ mod tests {
         // Ensure the task will drop eventually
         let mut times = 0;
         while !notify_on_drop::is_dropped() {
-            sleep(Duartion::from_millis(100)).await;
+            sleep(Duration::from_millis(100)).await;
             times += 1;
             assert!(times < 10, "Timeout waiting for task drop");
         }
@@ -383,7 +383,7 @@ mod tests {
         // Ensure the task will drop eventually
         let mut times = 0;
         while !notify_on_drop::is_dropped() {
-            sleep(Duartion::from_millis(100)).await;
+            sleep(Duration::from_millis(100)).await;
             times += 1;
             assert!(times < 10, "Timeout waiting for task drop");
         }
