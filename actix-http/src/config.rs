@@ -350,7 +350,14 @@ mod tests {
         assert_ne!(buf1, buf2);
 
         drop(settings);
-        assert!(notify_on_drop::is_dropped());
+
+        // Ensure the task will drop eventually
+        let mut times = 0;
+        while !notify_on_drop::is_dropped() {
+            sleep(Duartion::from_millis(100)).await;
+            times += 1;
+            assert!(times < 10, "Timeout waiting for task drop");
+        }
     }
 
     #[actix_rt::test]
@@ -372,7 +379,14 @@ mod tests {
         assert!(!notify_on_drop::is_dropped());
 
         drop(service);
-        assert!(notify_on_drop::is_dropped());
+
+        // Ensure the task will drop eventually
+        let mut times = 0;
+        while !notify_on_drop::is_dropped() {
+            sleep(Duartion::from_millis(100)).await;
+            times += 1;
+            assert!(times < 10, "Timeout waiting for task drop");
+        }
     }
 
     #[test]
