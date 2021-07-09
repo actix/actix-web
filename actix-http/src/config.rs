@@ -326,7 +326,7 @@ mod notify_on_drop {
 mod tests {
     use super::*;
 
-    use actix_rt::task::yield_now;
+    use actix_rt::{task::yield_now, time::sleep};
 
     #[actix_rt::test]
     async fn test_date_service_update() {
