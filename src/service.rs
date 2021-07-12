@@ -59,7 +59,7 @@ where
     }
 }
 
-/// An HTTP request wrapper.
+/// A service level request wrapper.
 ///
 /// Allows mutable access to request's internal structures.
 pub struct ServiceRequest {
@@ -325,7 +325,7 @@ impl fmt::Debug for ServiceRequest {
     }
 }
 
-/// An HTTP response wrapper.
+/// A service level response wrapper.
 pub struct ServiceResponse<B = AnyBody> {
     request: HttpRequest,
     response: HttpResponse<B>,
