@@ -104,6 +104,8 @@ impl ServiceConfig {
     }
 
     /// Returns the local address that this server is bound to.
+    ///
+    /// Returns `None` for connections via UDS (Unix Domain Socket).
     #[inline]
     pub fn local_addr(&self) -> Option<net::SocketAddr> {
         self.0.local_addr

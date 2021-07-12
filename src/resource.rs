@@ -15,7 +15,7 @@ use futures_util::future::join_all;
 
 use crate::{
     data::Data,
-    dev::{insert_slash, AppService, HttpServiceFactory, ResourceDef},
+    dev::{insert_leading_slash, AppService, HttpServiceFactory, ResourceDef},
     guard::Guard,
     handler::Handler,
     responder::Responder,
@@ -391,7 +391,7 @@ where
         };
 
         let mut rdef = if config.is_root() || !self.rdef.is_empty() {
-            ResourceDef::new(insert_slash(self.rdef.clone()))
+            ResourceDef::new(insert_leading_slash(self.rdef.clone()))
         } else {
             ResourceDef::new(self.rdef.clone())
         };
