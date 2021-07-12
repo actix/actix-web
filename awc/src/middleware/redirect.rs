@@ -104,7 +104,7 @@ where
                 RedirectServiceFuture::Client {
                     fut,
                     max_redirect_times,
-                    uri: Some(uri),
+                    uri: Some(uri.clone()),
                     method: Some(method),
                     headers: Some(headers),
                     body: body_opt,
@@ -133,7 +133,7 @@ pin_project_lite::pin_project! {
             headers: Option<header::HeaderMap>,
             body: Option<Bytes>,
             addr: Option<SocketAddr>,
-            connector: Option<Rc<S>>
+            connector: Option<Rc<S>>,
         }
     }
 }
@@ -158,89 +158,64 @@ where
                 connector,
             } => match ready!(fut.poll(cx))? {
                 ConnectResponse::Client(res) => match res.head().status {
-                    StatusCode::MOVED_PERMANENTLY
+                    status @ (StatusCode::MOVED_PERMANENTLY
                     | StatusCode::FOUND
                     | StatusCode::SEE_OTHER
+                    | StatusCode::TEMPORARY_REDIRECT
+                    | StatusCode::PERMANENT_REDIRECT)
                         if *max_redirect_times > 0 =>
                     {
-                        let org_uri = uri.take().unwrap();
-                        // rebuild uri from the location header value.
-                        let uri = rebuild_uri(&res, org_uri)?;
+                        let is_redirect = match status {
+                             StatusCode::TEMPORARY_REDIRECT | StatusCode::PERMANENT_REDIRECT => true,
+                             _ => false
+                         };
 
-                        // reset method
-                        let method = method.take().unwrap();
-                        let method = match method {
-                            Method::GET | Method::HEAD => method,
-                            _ => Method::GET,
-                        };
+                        let prev_uri = uri.take().unwrap();
+
+                        // rebuild uri from the location header value.
+                        let next_uri = build_next_uri(&res, &prev_uri)?;
 
                         // take ownership of states that could be reused
+                        let body = body.take();
                         let addr = addr.take();
                         let connector = connector.take();
-                        let mut max_redirect_times = *max_redirect_times;
 
-                        let headers = headers.take().unwrap();
-
-                        // use a new request head.
-                        let mut head = RequestHead::default();
-                        head.uri = uri.clone();
-                        head.method = method.clone();
-                        head.headers = headers.clone();
-
-                        let head = RequestHeadType::Owned(head);
-
-                        max_redirect_times -= 1;
-
-                        let fut = connector
-                            .as_ref()
-                            .unwrap()
-                            // remove body
-                            .call(ConnectRequest::Client(head, Body::None, addr));
-
-                        self.set(RedirectServiceFuture::Client {
-                            fut,
-                            max_redirect_times,
-                            uri: Some(uri),
-                            method: Some(method),
-                            headers: Some(headers),
-                            // body is dropped on 301,302,303
-                            body: None,
-                            addr,
-                            connector,
-                        });
-
-                        self.poll(cx)
-                    }
-                    StatusCode::TEMPORARY_REDIRECT | StatusCode::PERMANENT_REDIRECT
-                        if *max_redirect_times > 0 =>
-                    {
-                        let org_uri = uri.take().unwrap();
-                        // rebuild uri from the location header value.
-                        let uri = rebuild_uri(&res, org_uri)?;
-
-                        // try to reuse body
-                        let body = body.take();
-                        let body_new = match body {
-                            Some(ref bytes) => Body::Bytes(bytes.clone()),
-                            // TODO: should this be Body::Empty or Body::None.
-                            _ => Body::Empty,
+                        // reset method
+                        let method = if is_redirect {
+                            let method = method.take().unwrap();
+                            match method {
+                                Method::GET | Method::HEAD => method,
+                                _ => Method::GET,
+                            }
+                        } else {
+                            method.take().unwrap()
                         };
 
-                        let addr = addr.take();
-                        let method = method.take().unwrap();
-                        let connector = connector.take();
-                        let mut max_redirect_times = *max_redirect_times;
+                        let body_new = if is_redirect {
+                            // try to reuse body
+                            match body {
+                                Some(ref bytes) => Body::Bytes(bytes.clone()),
+                                // TODO: should this be Body::Empty or Body::None.
+                                _ => Body::Empty,
+                            }
+                        } else {
+                            // remove body
+                            Body::None
+                        };
 
-                        let headers = headers.take().unwrap();
+                        let mut headers = headers.take().unwrap();
+
+                        remove_sensitive_headers(&mut headers, &prev_uri, &next_uri);
 
                         // use a new request head.
                         let mut head = RequestHead::default();
-                        head.uri = uri.clone();
+                        head.uri = next_uri.clone();
                         head.method = method.clone();
                         head.headers = headers.clone();
 
                         let head = RequestHeadType::Owned(head);
 
+                        let mut max_redirect_times = *max_redirect_times;
                         max_redirect_times -= 1;
 
                         let fut = connector
@@ -251,10 +226,11 @@ where
                         self.set(RedirectServiceFuture::Client {
                             fut,
                             max_redirect_times,
-                            uri: Some(uri),
+                            uri: Some(next_uri),
                             method: Some(method),
                             headers: Some(headers),
-                            body,
+                            // body is dropped on 301,302,303
+                            body: None,
                             addr,
                             connector,
                         });
@@ -269,7 +245,7 @@ where
     }
 }
 
-fn rebuild_uri(res: &ClientResponse, org_uri: Uri) -> Result<Uri, SendRequestError> {
+fn build_next_uri(res: &ClientResponse, prev_uri: &Uri) -> Result<Uri, SendRequestError> {
     let uri = res
         .headers()
         .get(header::LOCATION)
@@ -279,8 +255,8 @@ fn rebuild_uri(res: &ClientResponse, org_uri: Uri) -> Result<Uri, SendRequestErr
                 .map_err(|e| SendRequestError::Url(InvalidUrl::HttpError(e.into())))?;
             if uri.scheme().is_none() || uri.authority().is_none() {
                 let uri = Uri::builder()
-                    .scheme(org_uri.scheme().cloned().unwrap())
-                    .authority(org_uri.authority().cloned().unwrap())
+                    .scheme(prev_uri.scheme().cloned().unwrap())
+                    .authority(prev_uri.authority().cloned().unwrap())
                     .path_and_query(value.as_bytes())
                     .build()?;
                 Ok::<_, SendRequestError>(uri)
@@ -292,6 +268,17 @@ fn rebuild_uri(res: &ClientResponse, org_uri: Uri) -> Result<Uri, SendRequestErr
         .ok_or(SendRequestError::Url(InvalidUrl::MissingScheme))??;
 
     Ok(uri)
+}
+
+fn remove_sensitive_headers(headers: &mut header::HeaderMap, prev_uri: &Uri, next_uri: &Uri) {
+    if next_uri.host() != prev_uri.host()
+        || next_uri.port() != prev_uri.port()
+        || next_uri.scheme() != prev_uri.scheme() {
+        headers.remove(header::AUTHORIZATION);
+        headers.remove(header::WWW_AUTHENTICATE);
+        headers.remove(header::COOKIE);
+        headers.remove(header::PROXY_AUTHORIZATION);
+    }
 }
 
 #[cfg(test)]
@@ -416,6 +403,85 @@ mod tests {
             .send()
             .await
             .unwrap();
+        assert_eq!(res.status().as_u16(), 200);
+    }
+
+    #[actix_rt::test]
+    async fn test_redirect_cross_origin_headers() {
+        // defining two services to have two different origins
+        let srv2 = actix_test::start(|| {
+            async fn root(req: HttpRequest) -> HttpResponse {
+                if req.headers()
+                    .get(header::AUTHORIZATION)
+                    .is_none()
+                {
+                    HttpResponse::Ok().finish()
+                } else {
+                    HttpResponse::InternalServerError().finish()
+                }
+            }
+
+            App::new()
+                .service(web::resource("/").route(web::to(root)))
+        });
+        let srv2_port: u16 = srv2.addr().port();
+
+        let srv1 = actix_test::start(move || {
+            async fn root(req: HttpRequest) -> HttpResponse {
+                let port = *req.app_data::<u16>().unwrap();
+                if req
+                    .headers()
+                    .get(header::AUTHORIZATION)
+                    .is_some()
+                {
+                    HttpResponse::Found()
+                        .append_header(("location", format!("http://localhost:{}/", port).as_str()))
+                        .finish()
+                } else {
+                    HttpResponse::InternalServerError().finish()
+                }
+            }
+
+            async fn test1(req: HttpRequest) -> HttpResponse {
+                if req
+                    .headers()
+                    .get(header::AUTHORIZATION)
+                    .is_some()
+                {
+                    HttpResponse::Found()
+                        .append_header(("location", "/test2"))
+                        .finish()
+                } else {
+                    HttpResponse::InternalServerError().finish()
+                }
+            }
+
+            async fn test2(req: HttpRequest) -> HttpResponse {
+                if req.headers()
+                    .get(header::AUTHORIZATION)
+                    .is_some()
+                {
+                    HttpResponse::Ok().finish()
+                } else {
+                    HttpResponse::InternalServerError().finish()
+                }
+            }
+
+            App::new()
+                .app_data(srv2_port)
+                .service(web::resource("/").route(web::to(root)))
+                .service(web::resource("/test1").route(web::to(test1)))
+                .service(web::resource("/test2").route(web::to(test2)))
+        });
+
+        // send a request to different origins, http://srv1/ then http://srv2/. So it should remove the header
+        let client = ClientBuilder::new().header(header::AUTHORIZATION, "auth_key_value").finish();
+        let res = client.get(srv1.url("/")).send().await.unwrap();
+        assert_eq!(res.status().as_u16(), 200);
+
+        // send a request to same origin, http://srv1/test1 then http://srv1/test2. So it should NOT remove any header
+        let client = ClientBuilder::new().header(header::AUTHORIZATION, "auth_key_value").finish();
+        let res = client.get(srv1.url("/test1")).send().await.unwrap();
         assert_eq!(res.status().as_u16(), 200);
     }
 }
