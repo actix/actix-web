@@ -24,26 +24,26 @@ use {
 
 use crate::{error::Error, HttpResponseBuilder};
 
-/// An HTTP Response
+/// An outgoing response.
 pub struct HttpResponse<B = AnyBody> {
     res: Response<B>,
     pub(crate) error: Option<Error>,
 }
 
 impl HttpResponse<AnyBody> {
-    /// Create HTTP response builder with specific status.
-    #[inline]
-    pub fn build(status: StatusCode) -> HttpResponseBuilder {
-        HttpResponseBuilder::new(status)
-    }
-
-    /// Create a response.
+    /// Constructs a response.
     #[inline]
     pub fn new(status: StatusCode) -> Self {
         Self {
             res: Response::new(status),
             error: None,
         }
+    }
+
+    /// Constructs a response builder with specific HTTP status.
+    #[inline]
+    pub fn build(status: StatusCode) -> HttpResponseBuilder {
+        HttpResponseBuilder::new(status)
     }
 
     /// Create an error response.
