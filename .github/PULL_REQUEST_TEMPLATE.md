@@ -8,7 +8,7 @@ PR_TYPE
 
 
 ## PR Checklist
-<!-- Check your PR fulfills the following items. ->>
+<!-- Check your PR fulfills the following items. -->
 <!-- For draft PRs check the boxes as you complete them. -->
 
 - [ ] Tests for the changes have been added / updated.
