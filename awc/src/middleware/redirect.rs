@@ -158,7 +158,9 @@ where
                 connector,
             } => match ready!(fut.poll(cx))? {
                 ConnectResponse::Client(res) => match res.head().status {
-                    status @ (StatusCode::MOVED_PERMANENTLY
+                    status
+                    @
+                    (StatusCode::MOVED_PERMANENTLY
                     | StatusCode::FOUND
                     | StatusCode::SEE_OTHER
                     | StatusCode::TEMPORARY_REDIRECT
@@ -166,9 +168,11 @@ where
                         if *max_redirect_times > 0 =>
                     {
                         let is_redirect = match status {
-                             StatusCode::TEMPORARY_REDIRECT | StatusCode::PERMANENT_REDIRECT => true,
-                             _ => false
-                         };
+                            StatusCode::TEMPORARY_REDIRECT | StatusCode::PERMANENT_REDIRECT => {
+                                true
+                            }
+                            _ => false,
+                        };
 
                         let prev_uri = uri.take().unwrap();
 
@@ -273,7 +277,8 @@ fn build_next_uri(res: &ClientResponse, prev_uri: &Uri) -> Result<Uri, SendReque
 fn remove_sensitive_headers(headers: &mut header::HeaderMap, prev_uri: &Uri, next_uri: &Uri) {
     if next_uri.host() != prev_uri.host()
         || next_uri.port() != prev_uri.port()
-        || next_uri.scheme() != prev_uri.scheme() {
+        || next_uri.scheme() != prev_uri.scheme()
+    {
         headers.remove(header::AUTHORIZATION);
         headers.remove(header::WWW_AUTHENTICATE);
         headers.remove(header::COOKIE);
@@ -411,31 +416,26 @@ mod tests {
         // defining two services to have two different origins
         let srv2 = actix_test::start(|| {
             async fn root(req: HttpRequest) -> HttpResponse {
-                if req.headers()
-                    .get(header::AUTHORIZATION)
-                    .is_none()
-                {
+                if req.headers().get(header::AUTHORIZATION).is_none() {
                     HttpResponse::Ok().finish()
                 } else {
                     HttpResponse::InternalServerError().finish()
                 }
             }
 
-            App::new()
-                .service(web::resource("/").route(web::to(root)))
+            App::new().service(web::resource("/").route(web::to(root)))
         });
         let srv2_port: u16 = srv2.addr().port();
 
         let srv1 = actix_test::start(move || {
             async fn root(req: HttpRequest) -> HttpResponse {
                 let port = *req.app_data::<u16>().unwrap();
-                if req
-                    .headers()
-                    .get(header::AUTHORIZATION)
-                    .is_some()
-                {
+                if req.headers().get(header::AUTHORIZATION).is_some() {
                     HttpResponse::Found()
-                        .append_header(("location", format!("http://localhost:{}/", port).as_str()))
+                        .append_header((
+                            "location",
+                            format!("http://localhost:{}/", port).as_str(),
+                        ))
                         .finish()
                 } else {
                     HttpResponse::InternalServerError().finish()
@@ -443,11 +443,7 @@ mod tests {
             }
 
             async fn test1(req: HttpRequest) -> HttpResponse {
-                if req
-                    .headers()
-                    .get(header::AUTHORIZATION)
-                    .is_some()
-                {
+                if req.headers().get(header::AUTHORIZATION).is_some() {
                     HttpResponse::Found()
                         .append_header(("location", "/test2"))
                         .finish()
@@ -457,10 +453,7 @@ mod tests {
             }
 
             async fn test2(req: HttpRequest) -> HttpResponse {
-                if req.headers()
-                    .get(header::AUTHORIZATION)
-                    .is_some()
-                {
+                if req.headers().get(header::AUTHORIZATION).is_some() {
                     HttpResponse::Ok().finish()
                 } else {
                     HttpResponse::InternalServerError().finish()
@@ -475,12 +468,16 @@ mod tests {
         });
 
         // send a request to different origins, http://srv1/ then http://srv2/. So it should remove the header
-        let client = ClientBuilder::new().header(header::AUTHORIZATION, "auth_key_value").finish();
+        let client = ClientBuilder::new()
+            .header(header::AUTHORIZATION, "auth_key_value")
+            .finish();
         let res = client.get(srv1.url("/")).send().await.unwrap();
         assert_eq!(res.status().as_u16(), 200);
 
         // send a request to same origin, http://srv1/test1 then http://srv1/test2. So it should NOT remove any header
-        let client = ClientBuilder::new().header(header::AUTHORIZATION, "auth_key_value").finish();
+        let client = ClientBuilder::new()
+            .header(header::AUTHORIZATION, "auth_key_value")
+            .finish();
         let res = client.get(srv1.url("/test1")).send().await.unwrap();
         assert_eq!(res.status().as_u16(), 200);
     }
