@@ -174,21 +174,20 @@ where
                         let next_uri = build_next_uri(&res, &prev_uri)?;
 
                         // take ownership of states that could be reused
-                        let body = body.take();
                         let addr = addr.take();
                         let connector = connector.take();
 
                         // reset method
                         let method = if is_redirect {
-                            let method = method.take().unwrap();
-                            match method {
+                            method.take().unwrap()
+                        } else {
+                            match method.take().unwrap() {
                                 Method::GET | Method::HEAD => method,
                                 _ => Method::GET,
                             }
-                        } else {
-                            method.take().unwrap()
                         };
 
+                        let mut body = body.take();
                         let body_new = if is_redirect {
                             // try to reuse body
                             match body {
@@ -197,6 +196,7 @@ where
                                 _ => Body::Empty,
                             }
                         } else {
+                            body = None;
                             // remove body
                             Body::None
                         };
@@ -227,8 +227,7 @@ where
                             uri: Some(next_uri),
                             method: Some(method),
                             headers: Some(headers),
-                            // body is dropped on 301,302,303
-                            body: None,
+                            body,
                             addr,
                             connector,
                         });
@@ -273,9 +272,8 @@ fn remove_sensitive_headers(headers: &mut header::HeaderMap, prev_uri: &Uri, nex
         || next_uri.port() != prev_uri.port()
         || next_uri.scheme() != prev_uri.scheme()
     {
-        headers.remove(header::AUTHORIZATION);
-        headers.remove(header::WWW_AUTHENTICATE);
         headers.remove(header::COOKIE);
+        headers.remove(header::AUTHORIZATION);
         headers.remove(header::PROXY_AUTHORIZATION);
     }
 }
