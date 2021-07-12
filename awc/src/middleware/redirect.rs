@@ -286,6 +286,7 @@ mod tests {
     use super::*;
     use crate::http::HeaderValue;
     use crate::ClientBuilder;
+    use std::str::FromStr;
 
     #[actix_rt::test]
     async fn test_basic_redirect() {
@@ -345,6 +346,81 @@ mod tests {
         let res = client.get(srv.url("/")).send().await.unwrap();
 
         assert_eq!(res.status().as_u16(), 302);
+    }
+
+    #[actix_rt::test]
+    async fn test_redirect_status_kind_307_308() {
+        let srv = actix_test::start(|| {
+            async fn root() -> HttpResponse {
+                HttpResponse::TemporaryRedirect()
+                    .append_header(("location", "/test"))
+                    .finish()
+            }
+
+            async fn test(req: HttpRequest, bytes: Bytes) -> HttpResponse {
+                let body = String::from_utf8(bytes.to_vec()).unwrap();
+                if req.method() == Method::POST && body.len() > 0 {
+                    HttpResponse::Ok().finish()
+                } else {
+                    HttpResponse::InternalServerError().finish()
+                }
+            }
+
+            App::new()
+                .service(web::resource("/").route(web::to(root)))
+                .service(web::resource("/test").route(web::to(test)))
+        });
+
+        let client = ClientBuilder::new().finish();
+        let res = client
+            .post(srv.url("/"))
+            .send_body(Body::from_slice("Hello".as_bytes()))
+            .await
+            .unwrap();
+        assert_eq!(res.status().as_u16(), 200);
+    }
+
+    #[actix_rt::test]
+    async fn test_redirect_status_kind_301_302_303() {
+        let srv = actix_test::start(|| {
+            async fn root() -> HttpResponse {
+                HttpResponse::Found()
+                    .append_header(("location", "/test"))
+                    .finish()
+            }
+
+            async fn test(req: HttpRequest, bytes: Bytes) -> HttpResponse {
+                let body = String::from_utf8(bytes.to_vec()).unwrap();
+
+                if (req.method() == Method::GET || req.method() == Method::HEAD)
+                    && body.len() == 0
+                {
+                    HttpResponse::Ok().finish()
+                } else {
+                    HttpResponse::InternalServerError().finish()
+                }
+            }
+
+            App::new()
+                .service(web::resource("/").route(web::to(root)))
+                .service(web::resource("/test").route(web::to(test)))
+        });
+
+        let client = ClientBuilder::new().finish();
+        let res = client
+            .post(srv.url("/"))
+            .send_body(Body::from_slice("Hello".as_bytes()))
+            .await
+            .unwrap();
+        assert_eq!(res.status().as_u16(), 200);
+
+        let client = ClientBuilder::new().finish();
+        let res = client
+            .head(srv.url("/"))
+            .send_body(Body::from_slice("Hello".as_bytes()))
+            .await
+            .unwrap();
+        assert_eq!(res.status().as_u16(), 200);
     }
 
     #[actix_rt::test]
@@ -473,5 +549,58 @@ mod tests {
             .finish();
         let res = client.get(srv1.url("/test1")).send().await.unwrap();
         assert_eq!(res.status().as_u16(), 200);
+    }
+
+    #[actix_rt::test]
+    async fn test_remove_sensitive_headers() {
+        fn gen_headers() -> header::HeaderMap {
+            let mut headers = header::HeaderMap::new();
+            headers.insert(header::USER_AGENT, HeaderValue::from_str("value").unwrap());
+            headers.insert(
+                header::AUTHORIZATION,
+                HeaderValue::from_str("value").unwrap(),
+            );
+            headers.insert(
+                header::PROXY_AUTHORIZATION,
+                HeaderValue::from_str("value").unwrap(),
+            );
+            headers.insert(header::COOKIE, HeaderValue::from_str("value").unwrap());
+            headers
+        }
+
+        // Same origin
+        let prev_uri = Uri::from_str("https://host/path1").unwrap();
+        let next_uri = Uri::from_str("https://host/path2").unwrap();
+        let mut headers = gen_headers();
+        remove_sensitive_headers(&mut headers, &prev_uri, &next_uri);
+        assert_eq!(headers.len(), 4);
+
+        // different schema
+        let prev_uri = Uri::from_str("http://host/").unwrap();
+        let next_uri = Uri::from_str("https://host/").unwrap();
+        let mut headers = gen_headers();
+        remove_sensitive_headers(&mut headers, &prev_uri, &next_uri);
+        assert_eq!(headers.len(), 1);
+
+        // different host
+        let prev_uri = Uri::from_str("https://host1/").unwrap();
+        let next_uri = Uri::from_str("https://host2/").unwrap();
+        let mut headers = gen_headers();
+        remove_sensitive_headers(&mut headers, &prev_uri, &next_uri);
+        assert_eq!(headers.len(), 1);
+
+        // different port
+        let prev_uri = Uri::from_str("https://host:12/").unwrap();
+        let next_uri = Uri::from_str("https://host:23/").unwrap();
+        let mut headers = gen_headers();
+        remove_sensitive_headers(&mut headers, &prev_uri, &next_uri);
+        assert_eq!(headers.len(), 1);
+
+        // different everything!
+        let prev_uri = Uri::from_str("http://host1:12/path1").unwrap();
+        let next_uri = Uri::from_str("https://host2:23/path2").unwrap();
+        let mut headers = gen_headers();
+        remove_sensitive_headers(&mut headers, &prev_uri, &next_uri);
+        assert_eq!(headers.len(), 1);
     }
 }
