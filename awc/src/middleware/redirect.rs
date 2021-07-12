@@ -357,8 +357,7 @@ mod tests {
                     .finish()
             }
 
-            async fn test(req: HttpRequest, bytes: Bytes) -> HttpResponse {
-                let body = String::from_utf8(bytes.to_vec()).unwrap();
+            async fn test(req: HttpRequest, body: Bytes) -> HttpResponse {
                 if req.method() == Method::POST && !body.is_empty() {
                     HttpResponse::Ok().finish()
                 } else {
@@ -385,9 +384,7 @@ mod tests {
                     .finish()
             }
 
-            async fn test(req: HttpRequest, bytes: Bytes) -> HttpResponse {
-                let body = String::from_utf8(bytes.to_vec()).unwrap();
-
+            async fn test(req: HttpRequest, body: Bytes) -> HttpResponse {
                 if (req.method() == Method::GET || req.method() == Method::HEAD)
                     && body.is_empty()
                 {
