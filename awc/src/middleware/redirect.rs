@@ -181,7 +181,8 @@ where
                         let method = if is_redirect {
                             method.take().unwrap()
                         } else {
-                            match method.take().unwrap() {
+                            let method = method.take().unwrap();
+                            match method {
                                 Method::GET | Method::HEAD => method,
                                 _ => Method::GET,
                             }
