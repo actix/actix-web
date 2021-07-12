@@ -158,21 +158,15 @@ where
                 connector,
             } => match ready!(fut.poll(cx))? {
                 ConnectResponse::Client(res) => match res.head().status {
-                    status
-                    @
-                    (StatusCode::MOVED_PERMANENTLY
+                    StatusCode::MOVED_PERMANENTLY
                     | StatusCode::FOUND
                     | StatusCode::SEE_OTHER
                     | StatusCode::TEMPORARY_REDIRECT
-                    | StatusCode::PERMANENT_REDIRECT)
+                    | StatusCode::PERMANENT_REDIRECT
                         if *max_redirect_times > 0 =>
                     {
-                        let is_redirect = match status {
-                            StatusCode::TEMPORARY_REDIRECT | StatusCode::PERMANENT_REDIRECT => {
-                                true
-                            }
-                            _ => false,
-                        };
+                        let is_redirect = res.head().status == StatusCode::TEMPORARY_REDIRECT
+                            || res.head().status == StatusCode::PERMANENT_REDIRECT;
 
                         let prev_uri = uri.take().unwrap();
 
