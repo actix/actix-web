@@ -65,10 +65,10 @@ fn first_header_value<'a>(req: &'a RequestHead, name: &'_ HeaderName) -> Option<
 /// [rfc7239-63]: https://datatracker.ietf.org/doc/html/rfc7239#section-6.3
 #[derive(Debug, Clone, Default)]
 pub struct ConnectionInfo {
-    scheme: String,
     host: String,
-    realip_remote_addr: Option<String>,
+    scheme: String,
     remote_addr: Option<String>,
+    realip_remote_addr: Option<String>,
 }
 
 impl ConnectionInfo {
@@ -145,9 +145,9 @@ impl ConnectionInfo {
         let remote_addr = req.peer_addr.map(|addr| addr.to_string());
 
         ConnectionInfo {
-            remote_addr,
-            scheme,
             host,
+            scheme,
+            remote_addr,
             realip_remote_addr,
         }
     }

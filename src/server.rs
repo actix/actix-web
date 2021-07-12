@@ -558,8 +558,8 @@ where
         Ok(self)
     }
 
-    #[cfg(unix)]
     /// Start listening for incoming unix domain connections.
+    #[cfg(unix)]
     pub fn bind_uds<A>(mut self, addr: A) -> io::Result<Self>
     where
         A: AsRef<std::path::Path>,
@@ -598,7 +598,6 @@ where
                         .keep_alive(c.keep_alive)
                         .client_timeout(c.client_timeout)
                         .client_disconnect(c.client_shutdown)
-                        .local_addr(socket_addr)
                         .finish(map_config(fac, move |_| config.clone())),
                 )
             },
