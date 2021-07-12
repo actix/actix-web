@@ -107,10 +107,10 @@ where
     /// It will receive a `&std::any::Any`, which contains underlying connection type and an
     /// [Extensions] container so that request-local data can be passed to middleware and handlers.
     ///
-    /// For example:
-    /// - `actix_tls::openssl::SslStream<actix_web::rt::net::TcpStream>` when using openssl.
+    /// # Connection Types
+    /// - `actix_web::rt::net::TcpStream` when no TLS layer is used.
     /// - `actix_tls::rustls::TlsStream<actix_web::rt::net::TcpStream>` when using rustls.
-    /// - `actix_web::rt::net::TcpStream` when no encryption is used.
+    /// - `actix_tls::openssl::SslStream<actix_web::rt::net::TcpStream>` when using openssl.
     ///
     /// See `on_connect` example for additional details.
     pub fn on_connect<CB>(self, f: CB) -> HttpServer<F, I, S, B>

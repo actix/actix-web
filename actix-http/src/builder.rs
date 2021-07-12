@@ -3,14 +3,7 @@ use std::{error::Error as StdError, fmt, marker::PhantomData, net, rc::Rc};
 use actix_codec::Framed;
 use actix_service::{IntoServiceFactory, Service, ServiceFactory};
 
-use crate::{
-    body::{AnyBody, MessageBody},
-    config::{KeepAlive, ServiceConfig},
-    h1::{self, ExpectHandler, H1Service, UpgradeHandler},
-    h2::H2Service,
-    service::HttpService,
-    ConnectCallback, Extensions, Request, Response,
-};
+use crate::{ConnectCallback, Extensions, Request, Response, body::{AnyBody, MessageBody}, config::{KeepAlive, ServiceConfig}, h1::{self, ExpectHandler, H1Service, UpgradeHandler}, h2::H2Service, service::HttpService};
 
 /// A HTTP service builder
 ///
