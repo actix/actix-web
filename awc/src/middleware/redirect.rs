@@ -104,7 +104,7 @@ where
                 RedirectServiceFuture::Client {
                     fut,
                     max_redirect_times,
-                    uri: Some(uri.clone()),
+                    uri: Some(uri),
                     method: Some(method),
                     headers: Some(headers),
                     body: body_opt,
@@ -359,7 +359,7 @@ mod tests {
 
             async fn test(req: HttpRequest, bytes: Bytes) -> HttpResponse {
                 let body = String::from_utf8(bytes.to_vec()).unwrap();
-                if req.method() == Method::POST && body.len() > 0 {
+                if req.method() == Method::POST && !body.is_empty() {
                     HttpResponse::Ok().finish()
                 } else {
                     HttpResponse::InternalServerError().finish()
@@ -372,11 +372,7 @@ mod tests {
         });
 
         let client = ClientBuilder::new().finish();
-        let res = client
-            .post(srv.url("/"))
-            .send_body(Body::from_slice("Hello".as_bytes()))
-            .await
-            .unwrap();
+        let res = client.post(srv.url("/")).send_body("Hello").await.unwrap();
         assert_eq!(res.status().as_u16(), 200);
     }
 
@@ -393,7 +389,7 @@ mod tests {
                 let body = String::from_utf8(bytes.to_vec()).unwrap();
 
                 if (req.method() == Method::GET || req.method() == Method::HEAD)
-                    && body.len() == 0
+                    && body.is_empty()
                 {
                     HttpResponse::Ok().finish()
                 } else {
@@ -407,19 +403,10 @@ mod tests {
         });
 
         let client = ClientBuilder::new().finish();
-        let res = client
-            .post(srv.url("/"))
-            .send_body(Body::from_slice("Hello".as_bytes()))
-            .await
-            .unwrap();
+        let res = client.post(srv.url("/")).send_body("Hello").await.unwrap();
         assert_eq!(res.status().as_u16(), 200);
 
-        let client = ClientBuilder::new().finish();
-        let res = client
-            .head(srv.url("/"))
-            .send_body(Body::from_slice("Hello".as_bytes()))
-            .await
-            .unwrap();
+        let res = client.head(srv.url("/")).send().await.unwrap();
         assert_eq!(res.status().as_u16(), 200);
     }
 
@@ -544,9 +531,6 @@ mod tests {
         assert_eq!(res.status().as_u16(), 200);
 
         // send a request to same origin, http://srv1/test1 then http://srv1/test2. So it should NOT remove any header
-        let client = ClientBuilder::new()
-            .header(header::AUTHORIZATION, "auth_key_value")
-            .finish();
         let res = client.get(srv1.url("/test1")).send().await.unwrap();
         assert_eq!(res.status().as_u16(), 200);
     }
