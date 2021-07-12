@@ -15,7 +15,7 @@ use crate::{
     HttpMessage,
 };
 
-/// Request
+/// An HTTP request.
 pub struct Request<P = PayloadStream> {
     pub(crate) payload: Payload<P>,
     pub(crate) head: Message<RequestHead>,

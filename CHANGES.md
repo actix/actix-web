@@ -1,6 +1,11 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+* Re-export actix-http `Request` and `Response` in `dev` module. [#????]
+* Re-export actix-service `ServiceFactory` in `dev` module. [#????]
+
+[#????]: https://github.com/actix/actix-web/pull/????
 
 
 ## 4.0.0-beta.8 - 2021-06-26

@@ -1,13 +1,7 @@
-//! Lower level `actix-web` types.
+//! Lower-level types and re-exports.
 //!
-//! Most users will not have to interact with the types in this module,
-//! but it is useful as a glob import for those writing middleware, developing libraries,
-//! or interacting with the service API directly:
-//!
-//! ```
-//! # #![allow(unused_imports)]
-//! use actix_web::dev::*;
-//! ```
+//! Most users will not have to interact with the types in this module, but it is useful for those
+//! writing extractors, middleware and libraries, or interacting with the service API directly.
 
 pub use crate::config::{AppConfig, AppService};
 #[doc(hidden)]
@@ -24,26 +18,25 @@ pub use actix_http::body::{AnyBody, Body, BodySize, MessageBody, ResponseBody, S
 
 #[cfg(feature = "__compress")]
 pub use actix_http::encoding::Decoder as Decompress;
-pub use actix_http::ResponseBuilder as BaseHttpResponseBuilder;
 pub use actix_http::{Extensions, Payload, PayloadStream, RequestHead, ResponseHead};
 pub use actix_router::{Path, ResourceDef, ResourcePath, Url};
 pub use actix_server::Server;
 pub use actix_service::{
-    always_ready, fn_factory, fn_service, forward_ready, Service, Transform,
+    always_ready, fn_factory, fn_service, forward_ready, Service, ServiceFactory, Transform,
 };
 
-pub(crate) fn insert_slash(mut patterns: Vec<String>) -> Vec<String> {
+use crate::http::header::ContentEncoding;
+use actix_http::{Response, ResponseBuilder};
+
+pub(crate) fn insert_leading_slash(mut patterns: Vec<String>) -> Vec<String> {
     for path in &mut patterns {
         if !path.is_empty() && !path.starts_with('/') {
             path.insert(0, '/');
         };
     }
+
     patterns
 }
-
-use crate::http::header::ContentEncoding;
-use actix_http::{Response, ResponseBuilder};
-
 struct Enc(ContentEncoding);
 
 /// Helper trait that allows to set specific encoding for response.

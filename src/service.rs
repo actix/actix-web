@@ -14,7 +14,7 @@ use cookie::{Cookie, ParseError as CookieParseError};
 
 use crate::{
     config::{AppConfig, AppService},
-    dev::insert_slash,
+    dev::insert_leading_slash,
     guard::Guard,
     info::ConnectionInfo,
     rmap::ResourceMap,
@@ -59,9 +59,9 @@ where
     }
 }
 
-/// An service http request
+/// An HTTP request wrapper.
 ///
-/// ServiceRequest allows mutable access to request's internal structures
+/// Allows mutable access to request's internal structures.
 pub struct ServiceRequest {
     req: HttpRequest,
     payload: Payload,
@@ -325,6 +325,7 @@ impl fmt::Debug for ServiceRequest {
     }
 }
 
+/// An HTTP response wrapper.
 pub struct ServiceResponse<B = AnyBody> {
     request: HttpRequest,
     response: HttpResponse<B>,
@@ -550,7 +551,7 @@ where
         };
 
         let mut rdef = if config.is_root() || !self.rdef.is_empty() {
-            ResourceDef::new(insert_slash(self.rdef))
+            ResourceDef::new(insert_leading_slash(self.rdef))
         } else {
             ResourceDef::new(self.rdef)
         };

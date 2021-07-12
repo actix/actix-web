@@ -23,10 +23,10 @@ use crate::{
 #[cfg(feature = "cookies")]
 struct Cookies(Vec<Cookie<'static>>);
 
+/// An incoming request.
 #[derive(Clone)]
-/// An HTTP Request
 pub struct HttpRequest {
-    /// # Panics
+    /// # Invariant
     /// `Rc<HttpRequestInner>` is used exclusively and NO `Weak<HttpRequestInner>`
     /// is allowed anywhere in the code. Weak pointer is purposely ignored when
     /// doing `Rc`'s ref counter check. Expect panics if this invariant is violated.
