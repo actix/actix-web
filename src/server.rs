@@ -106,8 +106,9 @@ where
     }
 
     /// Sets function that will be called once before each connection is handled.
-    /// It will receive a `&std::any::Any`, which contains underlying connection type and an
-    /// [Extensions] container so that request-local data can be passed to middleware and handlers.
+    /// It will receive a `&std::any::Any`, which contains underlying connection type and a
+    /// [CloneableExtensions] container so that request-local data can be passed to middleware
+    /// and handlers.
     ///
     /// # Connection Types
     /// - `actix_web::rt::net::TcpStream` when no TLS layer is used.
