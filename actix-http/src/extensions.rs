@@ -1,7 +1,6 @@
 use std::{
     any::{Any, TypeId},
     fmt, mem,
-    rc::Rc,
 };
 
 use ahash::AHashMap;
@@ -13,7 +12,7 @@ use ahash::AHashMap;
 pub struct Extensions {
     /// Use FxHasher with a std HashMap with for faster
     /// lookups on the small `TypeId` (u64 equivalent) keys.
-    map: AHashMap<TypeId, Rc<dyn Any>>,
+    map: AHashMap<TypeId, Box<dyn Any>>,
 }
 
 impl Extensions {
@@ -39,8 +38,8 @@ impl Extensions {
     /// ```
     pub fn insert<T: 'static>(&mut self, val: T) -> Option<T> {
         self.map
-            .insert(TypeId::of::<T>(), Rc::new(val))
-            .and_then(downcast_rc)
+            .insert(TypeId::of::<T>(), Box::new(val))
+            .and_then(downcast_owned)
     }
 
     /// Check if map contains an item of a given type.
@@ -71,19 +70,19 @@ impl Extensions {
             .and_then(|boxed| boxed.downcast_ref())
     }
 
-    // /// Get a mutable reference to an item of a given type.
-    // ///
-    // /// ```
-    // /// # use actix_http::Extensions;
-    // /// let mut map = Extensions::new();
-    // /// map.insert(1u32);
-    // /// assert_eq!(map.get_mut::<u32>(), Some(&mut 1u32));
-    // /// ```
-    // pub fn get_mut<T: 'static>(&mut self) -> Option<&mut T> {
-    //     self.map
-    //         .get_mut(&TypeId::of::<T>())
-    //         .and_then(|boxed| boxed.downcast_mut())
-    // }
+    /// Get a mutable reference to an item of a given type.
+    ///
+    /// ```
+    /// # use actix_http::Extensions;
+    /// let mut map = Extensions::new();
+    /// map.insert(1u32);
+    /// assert_eq!(map.get_mut::<u32>(), Some(&mut 1u32));
+    /// ```
+    pub fn get_mut<T: 'static>(&mut self) -> Option<&mut T> {
+        self.map
+            .get_mut(&TypeId::of::<T>())
+            .and_then(|boxed| boxed.downcast_mut())
+    }
 
     /// Remove an item from the map of a given type.
     ///
@@ -100,7 +99,7 @@ impl Extensions {
     /// assert!(!map.contains::<u32>());
     /// ```
     pub fn remove<T: 'static>(&mut self) -> Option<T> {
-        self.map.remove(&TypeId::of::<T>()).and_then(downcast_rc)
+        self.map.remove(&TypeId::of::<T>()).and_then(downcast_owned)
     }
 
     /// Clear the `Extensions` of all inserted extensions.
@@ -131,9 +130,9 @@ impl Extensions {
     }
 
     /// Sets (or overrides) items from cloneable extensions map into this map.
-    pub(crate) fn clone_from(&mut self, other: &Self) {
+    pub(crate) fn clone_from(&mut self, other: &CloneableExtensions) {
         for (k, val) in &other.map {
-            self.map.insert(*k, Rc::clone(val));
+            self.map.insert(*k, (**val).clone_to_any());
         }
     }
 }
@@ -148,48 +147,86 @@ fn downcast_owned<T: 'static>(boxed: Box<dyn Any>) -> Option<T> {
     boxed.downcast().ok().map(|boxed| *boxed)
 }
 
-fn downcast_rc<T: 'static>(boxed: Rc<dyn Any>) -> Option<T> {
-    boxed
-        .downcast()
-        .ok()
-        .and_then(|boxed| Rc::try_unwrap(boxed).ok())
+// fn downcast_rc<T: 'static>(boxed: Rc<dyn Any>) -> Option<T> {
+//     boxed
+//         .downcast()
+//         .ok()
+//         .and_then(|boxed| Rc::try_unwrap(boxed).ok())
+// }
+
+#[doc(hidden)]
+pub trait CloneToAny {
+    /// Clone `self` into a new `Box<Any>` object.
+    fn clone_to_any(&self) -> Box<dyn Any>;
+
+    /// Clone `self` into a new `Box<CloneAny>` object.
+    fn clone_to_clone_any(&self) -> Box<dyn CloneAny>;
 }
 
-// /// A type map for request extensions.
-// ///
-// /// All entries into this map must be owned types (or static references).
-// #[derive(Default)]
-// pub struct CloneableExtensions {
-//     /// Use FxHasher with a std HashMap with for faster
-//     /// lookups on the small `TypeId` (u64 equivalent) keys.
-//     map: AHashMap<TypeId, Rc<dyn Any>>,
-// }
+impl<T: Clone + Any> CloneToAny for T {
+    #[inline]
+    fn clone_to_any(&self) -> Box<dyn Any> {
+        Box::new(self.clone())
+    }
 
-// impl CloneableExtensions {
-//     pub(crate) fn priv_clone(&self) -> CloneableExtensions {
-//         Self {
-//             map: self.map.clone(),
-//         }
-//     }
+    #[inline]
+    fn clone_to_clone_any(&self) -> Box<dyn CloneAny> {
+        Box::new(self.clone())
+    }
+}
 
-//     /// Insert an item into the map.
-//     ///
-//     /// If an item of this type was already stored, it will be replaced and returned.
-//     ///
-//     /// ```
-//     /// # use actix_http::Extensions;
-//     /// let mut map = Extensions::new();
-//     /// assert_eq!(map.insert(""), None);
-//     /// assert_eq!(map.insert(1u32), None);
-//     /// assert_eq!(map.insert(2u32), Some(1u32));
-//     /// assert_eq!(*map.get::<u32>().unwrap(), 2u32);
-//     /// ```
-//     pub fn insert<T: Clone + 'static>(&mut self, val: T) -> Option<T> {
-//         self.map
-//             .insert(TypeId::of::<T>(), Rc::new(val))
-//             .and_then(downcast_rc)
-//     }
-// }
+/// An [`Any`] trait with an additional [`Clone`] requirement.
+pub trait CloneAny: Any + CloneToAny {}
+impl<T: Any + Clone> CloneAny for T {}
+
+impl Clone for Box<dyn CloneAny> {
+    fn clone(&self) -> Self {
+        (**self).clone_to_clone_any()
+    }
+}
+
+trait UncheckedAnyExt {
+    #[inline]
+    unsafe fn downcast_unchecked<T: 'static>(self: Box<Self>) -> Box<T> {
+        Box::from_raw(Box::into_raw(self) as *mut T)
+    }
+}
+
+impl UncheckedAnyExt for dyn CloneAny {}
+
+fn downcast_cloneable<T: 'static>(boxed: Box<dyn CloneAny>) -> T {
+    *unsafe { UncheckedAnyExt::downcast_unchecked::<T>(boxed) }
+}
+
+/// A type map for request extensions.
+///
+/// All entries into this map must be owned types (or static references).
+#[derive(Default)]
+pub struct CloneableExtensions {
+    /// Use FxHasher with a std HashMap with for faster
+    /// lookups on the small `TypeId` (u64 equivalent) keys.
+    map: AHashMap<TypeId, Box<dyn CloneAny>>,
+}
+
+impl CloneableExtensions {
+    /// Insert an item into the map.
+    ///
+    /// If an item of this type was already stored, it will be replaced and returned.
+    ///
+    /// ```
+    /// # use actix_http::Extensions;
+    /// let mut map = Extensions::new();
+    /// assert_eq!(map.insert(""), None);
+    /// assert_eq!(map.insert(1u32), None);
+    /// assert_eq!(map.insert(2u32), Some(1u32));
+    /// assert_eq!(*map.get::<u32>().unwrap(), 2u32);
+    /// ```
+    pub fn insert<T: CloneAny + 'static>(&mut self, val: T) -> Option<T> {
+        self.map
+            .insert(TypeId::of::<T>(), Box::new(val))
+            .and_then(downcast_cloneable)
+    }
+}
 
 #[cfg(test)]
 mod tests {

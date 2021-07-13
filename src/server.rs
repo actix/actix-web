@@ -8,7 +8,9 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use actix_http::{body::MessageBody, Extensions, HttpService, KeepAlive, Request, Response};
+use actix_http::{
+    body::MessageBody, CloneableExtensions, HttpService, KeepAlive, Request, Response,
+};
 use actix_server::{Server, ServerBuilder};
 use actix_service::{
     map_config, IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt as _,
@@ -65,7 +67,7 @@ where
     backlog: u32,
     sockets: Vec<Socket>,
     builder: ServerBuilder,
-    on_connect_fn: Option<Arc<dyn Fn(&dyn Any, &mut Extensions) + Send + Sync>>,
+    on_connect_fn: Option<Arc<dyn Fn(&dyn Any, &mut CloneableExtensions) + Send + Sync>>,
     _phantom: PhantomData<(S, B)>,
 }
 
@@ -115,7 +117,7 @@ where
     /// See `on_connect` example for additional details.
     pub fn on_connect<CB>(self, f: CB) -> HttpServer<F, I, S, B>
     where
-        CB: Fn(&dyn Any, &mut Extensions) + Send + Sync + 'static,
+        CB: Fn(&dyn Any, &mut CloneableExtensions) + Send + Sync + 'static,
     {
         HttpServer {
             factory: self.factory,

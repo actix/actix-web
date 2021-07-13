@@ -54,6 +54,7 @@ bitflags = "1.2"
 bytes = "1"
 bytestring = "1"
 derive_more = "0.99.5"
+dyn-clone = "1"
 encoding_rs = "0.8"
 futures-core = { version = "0.3.7", default-features = false, features = ["alloc"] }
 futures-util = { version = "0.3.7", default-features = false, features = ["alloc", "sink"] }
