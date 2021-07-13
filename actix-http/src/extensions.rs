@@ -1,6 +1,6 @@
 use std::{
     any::{Any, TypeId},
-    fmt, mem,
+    fmt,
 };
 
 use ahash::AHashMap;
@@ -124,11 +124,6 @@ impl Extensions {
         self.map.extend(other.map);
     }
 
-    /// Sets (or overrides) items from `other` into this map.
-    pub(crate) fn drain_from(&mut self, other: &mut Self) {
-        self.map.extend(mem::take(&mut other.map));
-    }
-
     /// Sets (or overrides) items from cloneable extensions map into this map.
     pub(crate) fn clone_from(&mut self, other: &CloneableExtensions) {
         for (k, val) in &other.map {
@@ -146,13 +141,6 @@ impl fmt::Debug for Extensions {
 fn downcast_owned<T: 'static>(boxed: Box<dyn Any>) -> Option<T> {
     boxed.downcast().ok().map(|boxed| *boxed)
 }
-
-// fn downcast_rc<T: 'static>(boxed: Rc<dyn Any>) -> Option<T> {
-//     boxed
-//         .downcast()
-//         .ok()
-//         .and_then(|boxed| Rc::try_unwrap(boxed).ok())
-// }
 
 #[doc(hidden)]
 pub trait CloneToAny {
