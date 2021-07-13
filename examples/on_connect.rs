@@ -6,8 +6,8 @@
 
 use std::{any::Any, io, net::SocketAddr};
 
-use actix_web::{rt::net::TcpStream, web, App, HttpServer};
 use actix_http::CloneableExtensions;
+use actix_web::{rt::net::TcpStream, web, App, HttpServer};
 
 #[derive(Debug, Clone)]
 struct ConnectionInfo {
