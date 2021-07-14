@@ -404,7 +404,7 @@ mod tests {
         more_ext.insert(3usize);
         more_ext.insert(NonCopy { num: 8 });
 
-        ext.clone_from(&mut more_ext);
+        ext.clone_from(&more_ext);
 
         assert_eq!(ext.get::<isize>(), Some(&3isize));
         assert_eq!(ext.get::<usize>(), Some(&3usize));
@@ -419,7 +419,7 @@ mod tests {
     fn boxes_not_aliased() {
         let a: Box<dyn CloneAny> = Box::new(42);
         let b = a.clone_to_clone_any();
-        assert_ne!(Box::into_raw(a), Box::into_raw(b));
+        assert_ne!(Box::into_raw(a) as *const (), Box::into_raw(b) as *const ());
 
         let a: Box<dyn CloneAny> = Box::new(42);
         let b = a.clone_to_any();
