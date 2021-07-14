@@ -144,14 +144,24 @@ fn downcast_owned<T: 'static>(boxed: Box<dyn Any>) -> Option<T> {
 
 #[doc(hidden)]
 pub trait CloneToAny {
-    /// Clone `self` into a new `Box<Any>` object.
+    /// Cast `self` into an `Any` reference.
+    #[cfg(test)]
+    fn any_ref(&self) -> &dyn Any;
+
+    /// Clone `self` to a new `Box<Any>` object.
     fn clone_to_any(&self) -> Box<dyn Any>;
 
-    /// Clone `self` into a new `Box<CloneAny>` object.
+    /// Clone `self` to a new `Box<CloneAny>` object.
     fn clone_to_clone_any(&self) -> Box<dyn CloneAny>;
 }
 
 impl<T: Clone + Any> CloneToAny for T {
+    #[cfg(test)]
+    #[inline]
+    fn any_ref(&self) -> &dyn Any {
+        &*self
+    }
+
     #[inline]
     fn clone_to_any(&self) -> Box<dyn Any> {
         Box::new(self.clone())
@@ -164,7 +174,7 @@ impl<T: Clone + Any> CloneToAny for T {
 }
 
 /// An [`Any`] trait with an additional [`Clone`] requirement.
-pub trait CloneAny: Any + CloneToAny {}
+pub trait CloneAny: CloneToAny + Any {}
 impl<T: Any + Clone> CloneAny for T {}
 
 impl Clone for Box<dyn CloneAny> {
@@ -176,7 +186,7 @@ impl Clone for Box<dyn CloneAny> {
 
 trait UncheckedAnyExt {
     /// # Safety
-    /// TODO
+    /// Caller must ensure type `T` is true type.
     #[inline]
     unsafe fn downcast_unchecked<T: 'static>(self: Box<Self>) -> Box<T> {
         Box::from_raw(Box::into_raw(self) as *mut T)
@@ -187,13 +197,18 @@ impl UncheckedAnyExt for dyn CloneAny {}
 
 fn downcast_cloneable<T: 'static>(boxed: Box<dyn CloneAny>) -> T {
     // Safety:
-    // TODO
+    // Box is owned and `T` is known to be true type from map containing TypeId as key.
     *unsafe { UncheckedAnyExt::downcast_unchecked::<T>(boxed) }
 }
 
-/// A type map for request extensions.
+/// A type map for `on_connect` extensions.
 ///
-/// All entries into this map must be owned types (or static references).
+/// All entries into this map must be owned types and implement `Clone` trait.
+///
+/// Many requests can be processed for each connection but the `on_connect` will only be run once
+/// when the connection is opened. Therefore, items added to this special map type need to be cloned
+/// into the regular extensions map for each request. Most useful connection information types are
+/// cloneable already but you can use reference counted wrappers if not.
 #[derive(Default)]
 pub struct CloneableExtensions {
     /// Use FxHasher with a std HashMap with for faster
@@ -214,10 +229,17 @@ impl CloneableExtensions {
     /// assert_eq!(map.insert(2u32), Some(1u32));
     /// assert_eq!(*map.get::<u32>().unwrap(), 2u32);
     /// ```
-    pub fn insert<T: CloneAny + 'static>(&mut self, val: T) -> Option<T> {
+    pub fn insert<T: CloneAny>(&mut self, val: T) -> Option<T> {
         self.map
             .insert(TypeId::of::<T>(), Box::new(val))
             .and_then(downcast_cloneable)
+    }
+
+    #[cfg(test)]
+    fn get<T: CloneAny>(&self) -> Option<&T> {
+        self.map
+            .get(&TypeId::of::<T>())
+            .and_then(|boxed| boxed.as_ref().any_ref().downcast_ref())
     }
 }
 
@@ -260,6 +282,8 @@ mod tests {
 
     #[test]
     fn test_integers() {
+        static A: u32 = 8;
+
         let mut map = Extensions::new();
 
         map.insert::<i8>(8);
@@ -272,6 +296,7 @@ mod tests {
         map.insert::<u32>(32);
         map.insert::<u64>(64);
         map.insert::<u128>(128);
+        map.insert::<&'static u32>(&A);
         assert!(map.get::<i8>().is_some());
         assert!(map.get::<i16>().is_some());
         assert!(map.get::<i32>().is_some());
@@ -282,6 +307,7 @@ mod tests {
         assert!(map.get::<u32>().is_some());
         assert!(map.get::<u64>().is_some());
         assert!(map.get::<u128>().is_some());
+        assert!(map.get::<&'static u32>().is_some());
     }
 
     #[test]
@@ -361,26 +387,42 @@ mod tests {
         assert_eq!(extensions.get_mut(), Some(&mut 20u8));
     }
 
-    // #[test]
-    // fn test_drain_from() {
-    //     let mut ext = Extensions::new();
-    //     ext.insert(2isize);
+    #[test]
+    fn test_clone_from() {
+        #[derive(Clone)]
+        struct NonCopy {
+            num: u8,
+        }
 
-    //     let mut more_ext = Extensions::new();
+        let mut ext = Extensions::new();
+        ext.insert(2isize);
 
-    //     more_ext.insert(5isize);
-    //     more_ext.insert(5usize);
+        assert_eq!(ext.get::<isize>(), Some(&2isize));
 
-    //     assert_eq!(ext.get::<isize>(), Some(&2isize));
-    //     assert_eq!(ext.get::<usize>(), None);
-    //     assert_eq!(more_ext.get::<isize>(), Some(&5isize));
-    //     assert_eq!(more_ext.get::<usize>(), Some(&5usize));
+        let mut more_ext = CloneableExtensions::default();
+        more_ext.insert(3isize);
+        more_ext.insert(3usize);
+        more_ext.insert(NonCopy { num: 8 });
 
-    //     ext.drain_from(&mut more_ext);
+        ext.clone_from(&mut more_ext);
 
-    //     assert_eq!(ext.get::<isize>(), Some(&5isize));
-    //     assert_eq!(ext.get::<usize>(), Some(&5usize));
-    //     assert_eq!(more_ext.get::<isize>(), None);
-    //     assert_eq!(more_ext.get::<usize>(), None);
-    // }
+        assert_eq!(ext.get::<isize>(), Some(&3isize));
+        assert_eq!(ext.get::<usize>(), Some(&3usize));
+        assert_eq!(more_ext.get::<isize>(), Some(&3isize));
+        assert_eq!(more_ext.get::<usize>(), Some(&3usize));
+
+        assert!(ext.get::<NonCopy>().is_some());
+        assert!(more_ext.get::<NonCopy>().is_some());
+    }
+
+    #[test]
+    fn boxes_not_aliased() {
+        let a: Box<dyn CloneAny> = Box::new(42);
+        let b = a.clone_to_clone_any();
+        assert_ne!(Box::into_raw(a), Box::into_raw(b));
+
+        let a: Box<dyn CloneAny> = Box::new(42);
+        let b = a.clone_to_any();
+        assert_ne!(Box::into_raw(a) as *const (), Box::into_raw(b) as *const ());
+    }
 }
