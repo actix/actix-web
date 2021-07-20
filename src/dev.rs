@@ -28,11 +28,22 @@ pub use actix_service::{
 use crate::http::header::ContentEncoding;
 use actix_http::{Response, ResponseBuilder};
 
-pub(crate) fn insert_leading_slash(mut patterns: Vec<String>) -> Vec<String> {
-    for path in &mut patterns {
-        if !path.is_empty() && !path.starts_with('/') {
-            path.insert(0, '/');
-        };
+use actix_router::Patterns;
+
+pub(crate) fn ensure_leading_slash(mut patterns: Patterns) -> Patterns {
+    match &mut patterns {
+        Patterns::Single(pat) => {
+            if !pat.is_empty() && !pat.starts_with('/') {
+                pat.insert(0, '/');
+            };
+        }
+        Patterns::List(pats) => {
+            for pat in pats {
+                if !pat.is_empty() && !pat.starts_with('/') {
+                    pat.insert(0, '/');
+                };
+            }
+        }
     }
 
     patterns
