@@ -3,8 +3,10 @@
 ## Unreleased - 2021-xx-xx
 ### Added
 * Re-export actix-service `ServiceFactory` in `dev` module. [#2325]
+* Add `ServiceConfig::default_service`. [#2338]
 
 [#2325]: https://github.com/actix/actix-web/pull/2325
+[#2338]: https://github.com/actix/actix-web/pull/2338
 
 
 ## 4.0.0-beta.8 - 2021-06-26
@@ -169,7 +171,7 @@
 ### Removed
 * Public modules `middleware::{normalize, err_handlers}`. All necessary middleware structs are now
   exposed directly by the `middleware` module.
-* Remove `actix-threadpool` as dependency. `actix_threadpool::BlockingError` error type can be imported 
+* Remove `actix-threadpool` as dependency. `actix_threadpool::BlockingError` error type can be imported
   from `actix_web::error` module. [#1878]
 
 [#1812]: https://github.com/actix/actix-web/pull/1812
@@ -262,7 +264,7 @@
 
 ## 3.0.0-beta.4 - 2020-09-09
 ### Added
-* `middleware::NormalizePath` now has configurable behavior for either always having a trailing 
+* `middleware::NormalizePath` now has configurable behavior for either always having a trailing
   slash, or as the new addition, always trimming trailing slashes. [#1639]
 
 ### Changed
