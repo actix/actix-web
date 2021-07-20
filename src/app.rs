@@ -205,6 +205,10 @@ where
         self.services.extend(cfg.services);
         self.external.extend(cfg.external);
         self.extensions.extend(cfg.app_data);
+        if let Some(default) = cfg.default {
+            self.default = Some(default);
+        }
+
         self
     }
 

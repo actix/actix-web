@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use actix_http::Extensions;
 use actix_router::ResourceDef;
-use actix_service::{boxed, IntoServiceFactory, ServiceFactory};
+use actix_service::{boxed, IntoServiceFactory, ServiceFactory, ServiceFactoryExt};
 
 use crate::data::Data;
 use crate::error::Error;
@@ -185,6 +185,7 @@ pub struct ServiceConfig {
     pub(crate) services: Vec<Box<dyn AppServiceFactory>>,
     pub(crate) external: Vec<ResourceDef>,
     pub(crate) app_data: Extensions,
+    pub(crate) default: Option<Rc<HttpNewService>>,
 }
 
 impl ServiceConfig {
@@ -193,6 +194,7 @@ impl ServiceConfig {
             services: Vec::new(),
             external: Vec::new(),
             app_data: Extensions::new(),
+            default: None,
         }
     }
 
@@ -210,6 +212,28 @@ impl ServiceConfig {
     /// Counterpart to [`App::app_data()`](crate::App::app_data).
     pub fn app_data<U: 'static>(&mut self, ext: U) -> &mut Self {
         self.app_data.insert(ext);
+        self
+    }
+
+    /// Default service to be used if no matching resource could be found.
+    ///
+    /// Counterpart to [`App::default_service()`](crate::App::default_service).
+    pub fn default_service<F, U>(&mut self, f: F) -> &mut Self
+    where
+        F: IntoServiceFactory<U, ServiceRequest>,
+        U: ServiceFactory<
+                ServiceRequest,
+                Config = (),
+                Response = ServiceResponse,
+                Error = Error,
+            > + 'static,
+        U::InitError: std::fmt::Debug,
+    {
+        // create and configure default resource
+        self.default = Some(Rc::new(boxed::factory(f.into_factory().map_init_err(
+            |e| log::error!("Can not construct default service: {:?}", e),
+        ))));
+
         self
     }
 
@@ -339,6 +363,21 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         let body = read_body(resp).await;
         assert_eq!(body, Bytes::from_static(b"https://youtube.com/watch/12345"));
+    }
+
+    #[actix_rt::test]
+    async fn test_default_service() {
+        let srv = init_service(App::new().configure(|cfg| {
+            cfg.default_service(
+                web::get().to(|| HttpResponse::NotFound().body("four oh four")),
+            );
+        }))
+        .await;
+        let req = TestRequest::with_uri("/path/i/did/not-configure").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        let body = read_body(resp).await;
+        assert_eq!(body, Bytes::from_static(b"four oh four"));
     }
 
     #[actix_rt::test]
