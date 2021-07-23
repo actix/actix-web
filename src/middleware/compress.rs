@@ -10,9 +10,10 @@ use std::{
 };
 
 use actix_http::{
-    body::{AnyBody, ResponseBody},
+    body::{MessageBody, ResponseBody},
     encoding::Encoder,
     http::header::{ContentEncoding, ACCEPT_ENCODING},
+    StatusCode,
 };
 use actix_service::{Service, Transform};
 use actix_utils::future::{ok, Either, Ready};
@@ -54,11 +55,12 @@ impl Default for Compress {
     }
 }
 
-impl<S> Transform<S, ServiceRequest> for Compress
+impl<S, B> Transform<S, ServiceRequest> for Compress
 where
-    S: Service<ServiceRequest, Response = ServiceResponse<AnyBody>, Error = Error>,
+    B: MessageBody + From<String>,
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
-    type Response = ServiceResponse<ResponseBody<Encoder<AnyBody>>>;
+    type Response = ServiceResponse<ResponseBody<Encoder<B>>>;
     type Error = Error;
     type Transform = CompressMiddleware<S>;
     type InitError = ();
@@ -77,13 +79,39 @@ pub struct CompressMiddleware<S> {
     encoding: ContentEncoding,
 }
 
-impl<S> Service<ServiceRequest> for CompressMiddleware<S>
+fn supported_algorithm_names() -> String {
+    let mut encoding = vec![];
+
+    #[cfg(feature = "compress-brotli")]
+    {
+        encoding.push("br");
+    }
+
+    #[cfg(feature = "compress-gzip")]
+    {
+        encoding.push("gzip");
+        encoding.push("deflate");
+    }
+
+    #[cfg(feature = "compress-zstd")]
+    encoding.push("zstd");
+
+    assert!(
+        !encoding.is_empty(),
+        "encoding can not be empty unless __compress feature has been explicitly enabled"
+    );
+
+    encoding.join(", ")
+}
+
+impl<S, B> Service<ServiceRequest> for CompressMiddleware<S>
 where
-    S: Service<ServiceRequest, Response = ServiceResponse<AnyBody>, Error = Error>,
+    B: MessageBody + From<String>,
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
-    type Response = ServiceResponse<ResponseBody<Encoder<AnyBody>>>;
+    type Response = ServiceResponse<ResponseBody<Encoder<B>>>;
     type Error = Error;
-    type Future = Either<CompressResponse<S>, Ready<Result<Self::Response, Self::Error>>>;
+    type Future = Either<CompressResponse<S, B>, Ready<Result<Self::Response, Self::Error>>>;
 
     actix_service::forward_ready!(service);
 
@@ -113,7 +141,10 @@ where
 
             // There is an HTTP header but we cannot match what client as asked for
             Some(Err(_)) => {
-                let res = HttpResponse::NotAcceptable().finish();
+                let res = HttpResponse::with_body(
+                    StatusCode::NOT_ACCEPTABLE,
+                    supported_algorithm_names().into(),
+                );
                 let enc = ContentEncoding::Identity;
 
                 Either::right(ok(req.into_response(res.map_body(move |head, body| {
@@ -125,21 +156,22 @@ where
 }
 
 #[pin_project]
-pub struct CompressResponse<S>
+pub struct CompressResponse<S, B>
 where
     S: Service<ServiceRequest>,
 {
     #[pin]
     fut: S::Future,
     encoding: ContentEncoding,
-    _phantom: PhantomData<AnyBody>,
+    _phantom: PhantomData<B>,
 }
 
-impl<S> Future for CompressResponse<S>
+impl<S, B> Future for CompressResponse<S, B>
 where
-    S: Service<ServiceRequest, Response = ServiceResponse<AnyBody>, Error = Error>,
+    B: MessageBody,
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
-    type Output = Result<ServiceResponse<ResponseBody<Encoder<AnyBody>>>, Error>;
+    type Output = Result<ServiceResponse<ResponseBody<Encoder<B>>>, Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
