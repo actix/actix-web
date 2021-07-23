@@ -16,6 +16,8 @@
 ### Fixed
 * Potential HTTP request smuggling vulnerabilities. [RUSTSEC-2021-0081](https://github.com/rustsec/advisory-db/pull/977)
 
+### Changed
+* Fix quality parse error in Accept-Encoding HTTP header. [#2344]
 
 ## 3.0.0-beta.8 - 2021-06-26
 ### Changed
