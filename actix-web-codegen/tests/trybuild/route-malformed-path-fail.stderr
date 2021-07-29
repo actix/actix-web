@@ -1,0 +1,5 @@
+error: Unknown attribute.
+ --> $DIR/route-malformed-path-fail.rs:3:17
+  |
+3 | #[get("/one/{", other)]
+  |                 ^^^^^
