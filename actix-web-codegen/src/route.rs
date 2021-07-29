@@ -3,6 +3,7 @@ extern crate proc_macro;
 use std::collections::HashSet;
 use std::convert::TryFrom;
 
+use actix_router::ResourceDef;
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote, ToTokens, TokenStreamExt};
@@ -113,6 +114,7 @@ impl Args {
                 NestedMeta::Meta(syn::Meta::NameValue(nv)) => {
                     if nv.path.is_ident("name") {
                         if let syn::Lit::Str(lit) = nv.lit {
+                            let _ = ResourceDef::new(lit.value());
                             resource_name = Some(lit);
                         } else {
                             return Err(syn::Error::new_spanned(
