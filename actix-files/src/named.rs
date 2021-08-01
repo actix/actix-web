@@ -8,7 +8,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use std::os::unix::fs::MetadataExt;
 
 use actix_web::{
-    dev::{BodyEncoding, SizedStream},
+    dev::{Body, BodyEncoding, SizedStream},
     http::{
         header::{
             self, Charset, ContentDisposition, DispositionParam, DispositionType,
@@ -421,7 +421,7 @@ impl NamedFile {
         if precondition_failed {
             return Ok(resp.status(StatusCode::PRECONDITION_FAILED).finish());
         } else if not_modified {
-            return Ok(resp.status(StatusCode::NOT_MODIFIED).finish());
+            return Ok(resp.status(StatusCode::NOT_MODIFIED).body(Body::None));
         }
 
         let reader = ChunkedReadFile {
