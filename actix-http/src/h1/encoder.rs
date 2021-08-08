@@ -81,6 +81,7 @@ pub(crate) trait MessageType: Sized {
         match length {
             BodySize::Stream => {
                 if chunked {
+                    skip_len = true;
                     if camel_case {
                         dst.put_slice(b"\r\nTransfer-Encoding: chunked\r\n")
                     } else {
