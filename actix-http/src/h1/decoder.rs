@@ -67,6 +67,7 @@ pub(crate) trait MessageType: Sized {
         let mut has_upgrade_websocket = false;
         let mut expect = false;
         let mut chunked = false;
+        let mut seen_te = false;
         let mut content_length = None;
 
         {
@@ -85,8 +86,17 @@ pub(crate) trait MessageType: Sized {
                 };
 
                 match name {
-                    header::CONTENT_LENGTH => {
-                        if let Ok(s) = value.to_str() {
+                    header::CONTENT_LENGTH if content_length.is_some() => {
+                        debug!("multiple Content-Length");
+                        return Err(ParseError::Header);
+                    }
+
+                    header::CONTENT_LENGTH => match value.to_str() {
+                        Ok(s) if s.trim().starts_with("+") => {
+                            debug!("illegal Content-Length: {:?}", s);
+                            return Err(ParseError::Header);
+                        }
+                        Ok(s) => {
                             if let Ok(len) = s.parse::<u64>() {
                                 if len != 0 {
                                     content_length = Some(len);
@@ -95,15 +105,31 @@ pub(crate) trait MessageType: Sized {
                                 debug!("illegal Content-Length: {:?}", s);
                                 return Err(ParseError::Header);
                             }
-                        } else {
+                        }
+                        Err(_) => {
                             debug!("illegal Content-Length: {:?}", value);
                             return Err(ParseError::Header);
                         }
-                    }
+                    },
+
                     // transfer-encoding
+                    header::TRANSFER_ENCODING if seen_te => {
+                        debug!("multiple Transfer-Encoding not allowed");
+                        return Err(ParseError::Header);
+                    }
+
                     header::TRANSFER_ENCODING => {
+                        seen_te = true;
+
                         if let Ok(s) = value.to_str().map(|s| s.trim()) {
-                            chunked = s.eq_ignore_ascii_case("chunked");
+                            if s.eq_ignore_ascii_case("chunked") {
+                                chunked = true;
+                            } else if s.eq_ignore_ascii_case("identity") {
+                                // allow silently since multiple TE headers are already checked
+                            } else {
+                                debug!("illegal Transfer-Encoding: {:?}", s);
+                                return Err(ParseError::Header);
+                            }
                         } else {
                             return Err(ParseError::Header);
                         }
@@ -510,19 +536,11 @@ impl ChunkedState {
         size: &mut u64,
     ) -> Poll<Result<ChunkedState, io::Error>> {
         let radix = 16;
-        match byte!(rdr) {
-            b @ b'0'..=b'9' => {
-                *size *= radix;
-                *size += u64::from(b - b'0');
-            }
-            b @ b'a'..=b'f' => {
-                *size *= radix;
-                *size += u64::from(b + 10 - b'a');
-            }
-            b @ b'A'..=b'F' => {
-                *size *= radix;
-                *size += u64::from(b + 10 - b'A');
-            }
+
+        let rem = match byte!(rdr) {
+            b @ b'0'..=b'9' => b - b'0',
+            b @ b'a'..=b'f' => b + 10 - b'a',
+            b @ b'A'..=b'F' => b + 10 - b'A',
             b'\t' | b' ' => return Poll::Ready(Ok(ChunkedState::SizeLws)),
             b';' => return Poll::Ready(Ok(ChunkedState::Extension)),
             b'\r' => return Poll::Ready(Ok(ChunkedState::SizeLf)),
@@ -532,8 +550,23 @@ impl ChunkedState {
                     "Invalid chunk size line: Invalid Size",
                 )));
             }
+        };
+
+        match size.checked_mul(radix) {
+            Some(n) => {
+                *size = n as u64;
+                *size += rem as u64;
+
+                Poll::Ready(Ok(ChunkedState::Size))
+            }
+            None => {
+                debug!("chunk size would overflow");
+                Poll::Ready(Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "Invalid chunk size line: Invalid Size",
+                )))
+            }
         }
-        Poll::Ready(Ok(ChunkedState::Size))
     }
 
     fn read_size_lws(rdr: &mut BytesMut) -> Poll<Result<ChunkedState, io::Error>> {
@@ -552,6 +585,11 @@ impl ChunkedState {
     fn read_extension(rdr: &mut BytesMut) -> Poll<Result<ChunkedState, io::Error>> {
         match byte!(rdr) {
             b'\r' => Poll::Ready(Ok(ChunkedState::SizeLf)),
+            // strictly 0x20 (space) should be disallowed but we don't parse quoted strings here
+            0x00..=0x08 | 0x0a..=0x1f | 0x7f => Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Invalid character in chunk extension",
+            ))),
             _ => Poll::Ready(Ok(ChunkedState::Extension)), // no supported extensions
         }
     }
@@ -977,13 +1015,7 @@ mod tests {
             "GET /test HTTP/1.1\r\n\
              transfer-encoding: chnked\r\n\r\n",
         );
-        let req = parse_ready!(&mut buf);
-
-        if let Ok(val) = req.chunked() {
-            assert!(!val);
-        } else {
-            unreachable!("Error");
-        }
+        expect_parse_err!(&mut buf);
     }
 
     #[test]
