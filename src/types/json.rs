@@ -146,12 +146,13 @@ where
         let config = JsonConfig::from_req(req);
 
         let limit = config.limit;
+        let require_content_type = config.require_content_type;
         let ctype = config.content_type.as_deref();
         let err_handler = config.err_handler.clone();
 
         JsonExtractFut {
             req: Some(req.clone()),
-            fut: JsonBody::new(req, payload, ctype).limit(limit),
+            fut: JsonBody::new(req, payload, ctype, require_content_type).limit(limit),
             err_handler,
         }
     }
@@ -237,6 +238,7 @@ pub struct JsonConfig {
     limit: usize,
     err_handler: JsonErrorHandler,
     content_type: Option<Arc<dyn Fn(mime::Mime) -> bool + Send + Sync>>,
+    require_content_type: bool,
 }
 
 impl JsonConfig {
@@ -264,6 +266,12 @@ impl JsonConfig {
         self
     }
 
+    /// Allows requets without any `Content-Type` header to be parsed as Json.
+    pub fn require_content_type(mut self, require_content_type: bool) -> Self {
+        self.require_content_type = require_content_type;
+        self
+    }
+
     /// Extract payload config from app data. Check both `T` and `Data<T>`, in that order, and fall
     /// back to the default payload config.
     fn from_req(req: &HttpRequest) -> &Self {
@@ -280,6 +288,7 @@ const DEFAULT_CONFIG: JsonConfig = JsonConfig {
     limit: DEFAULT_LIMIT,
     err_handler: None,
     content_type: None,
+    require_content_type: true,
 };
 
 impl Default for JsonConfig {
@@ -321,17 +330,18 @@ where
         req: &HttpRequest,
         payload: &mut Payload,
         ctype: Option<&(dyn Fn(mime::Mime) -> bool + Send + Sync)>,
+        require_content_type: bool,
     ) -> Self {
         // check content-type
-        let json = if let Ok(Some(mime)) = req.mime_type() {
+        let has_valid_content_type = if let Ok(Some(mime)) = req.mime_type() {
             mime.subtype() == mime::JSON
                 || mime.suffix() == Some(mime::JSON)
                 || ctype.map_or(false, |predicate| predicate(mime))
         } else {
-            false
+            !require_content_type
         };
 
-        if !json {
+        if !has_valid_content_type {
             return JsonBody::Error(Some(JsonPayloadError::ContentType));
         }
 
@@ -581,7 +591,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_json_body() {
         let (req, mut pl) = TestRequest::default().to_http_parts();
-        let json = JsonBody::<MyObject>::new(&req, &mut pl, None).await;
+        let json = JsonBody::<MyObject>::new(&req, &mut pl, None, false).await;
         assert!(json_eq(json.err().unwrap(), JsonPayloadError::ContentType));
 
         let (req, mut pl) = TestRequest::default()
@@ -590,7 +600,7 @@ mod tests {
                 header::HeaderValue::from_static("application/text"),
             ))
             .to_http_parts();
-        let json = JsonBody::<MyObject>::new(&req, &mut pl, None).await;
+        let json = JsonBody::<MyObject>::new(&req, &mut pl, None, false).await;
         assert!(json_eq(json.err().unwrap(), JsonPayloadError::ContentType));
 
         let (req, mut pl) = TestRequest::default()
@@ -604,7 +614,7 @@ mod tests {
             ))
             .to_http_parts();
 
-        let json = JsonBody::<MyObject>::new(&req, &mut pl, None)
+        let json = JsonBody::<MyObject>::new(&req, &mut pl, None, false)
             .limit(100)
             .await;
         assert!(json_eq(
@@ -623,7 +633,7 @@ mod tests {
             .set_payload(Bytes::from_static(&[0u8; 1000]))
             .to_http_parts();
 
-        let json = JsonBody::<MyObject>::new(&req, &mut pl, None)
+        let json = JsonBody::<MyObject>::new(&req, &mut pl, None, false)
             .limit(100)
             .await;
 
@@ -644,7 +654,7 @@ mod tests {
             .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
             .to_http_parts();
 
-        let json = JsonBody::<MyObject>::new(&req, &mut pl, None).await;
+        let json = JsonBody::<MyObject>::new(&req, &mut pl, None, false).await;
         assert_eq!(
             json.ok().unwrap(),
             MyObject {
@@ -712,6 +722,21 @@ mod tests {
 
         let s = Json::<MyObject>::from_request(&req, &mut pl).await;
         assert!(s.is_err())
+    }
+
+    #[actix_rt::test]
+    async fn test_json_with_no_content_type() {
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((
+                header::CONTENT_LENGTH,
+                header::HeaderValue::from_static("16"),
+            ))
+            .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
+            .app_data(JsonConfig::default().require_content_type(false))
+            .to_http_parts();
+
+        let s = Json::<MyObject>::from_request(&req, &mut pl).await;
+        assert!(s.is_ok())
     }
 
     #[actix_rt::test]
