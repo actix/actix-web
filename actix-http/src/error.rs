@@ -194,7 +194,7 @@ pub enum ParseError {
     #[display(fmt = "IO error: {}", _0)]
     Io(io::Error),
 
-    /// Parsing a field as string failed
+    /// Parsing a field as string failed.
     #[display(fmt = "UTF8 error: {}", _0)]
     Utf8(Utf8Error),
 }

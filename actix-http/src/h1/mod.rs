@@ -1,4 +1,5 @@
 //! HTTP/1 protocol implementation.
+
 use bytes::{Bytes, BytesMut};
 
 mod client;
@@ -10,6 +11,7 @@ mod expect;
 mod payload;
 mod service;
 mod upgrade;
+mod chunked;
 mod utils;
 
 pub use self::client::{ClientCodec, ClientPayloadCodec};
