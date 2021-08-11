@@ -23,10 +23,10 @@ use crate::{
 #[cfg(feature = "cookies")]
 struct Cookies(Vec<Cookie<'static>>);
 
+/// An incoming request.
 #[derive(Clone)]
-/// An HTTP Request
 pub struct HttpRequest {
-    /// # Panics
+    /// # Invariant
     /// `Rc<HttpRequestInner>` is used exclusively and NO `Weak<HttpRequestInner>`
     /// is allowed anywhere in the code. Weak pointer is purposely ignored when
     /// doing `Rc`'s ref counter check. Expect panics if this invariant is violated.
@@ -509,7 +509,7 @@ mod tests {
     #[test]
     fn test_url_for() {
         let mut res = ResourceDef::new("/user/{name}.{ext}");
-        *res.name_mut() = "index".to_string();
+        res.set_name("index");
 
         let mut rmap = ResourceMap::new(ResourceDef::new(""));
         rmap.add(&mut res, None);
@@ -539,7 +539,7 @@ mod tests {
     #[test]
     fn test_url_for_static() {
         let mut rdef = ResourceDef::new("/index.html");
-        *rdef.name_mut() = "index".to_string();
+        rdef.set_name("index");
 
         let mut rmap = ResourceMap::new(ResourceDef::new(""));
         rmap.add(&mut rdef, None);
@@ -560,7 +560,7 @@ mod tests {
     #[test]
     fn test_match_name() {
         let mut rdef = ResourceDef::new("/index.html");
-        *rdef.name_mut() = "index".to_string();
+        rdef.set_name("index");
 
         let mut rmap = ResourceMap::new(ResourceDef::new(""));
         rmap.add(&mut rdef, None);
@@ -579,7 +579,7 @@ mod tests {
     fn test_url_for_external() {
         let mut rdef = ResourceDef::new("https://youtube.com/watch/{video_id}");
 
-        *rdef.name_mut() = "youtube".to_string();
+        rdef.set_name("youtube");
 
         let mut rmap = ResourceMap::new(ResourceDef::new(""));
         rmap.add(&mut rdef, None);

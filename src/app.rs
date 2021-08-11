@@ -334,7 +334,7 @@ where
         U: AsRef<str>,
     {
         let mut rdef = ResourceDef::new(url.as_ref());
-        *rdef.name_mut() = name.as_ref().to_string();
+        rdef.set_name(name.as_ref());
         self.external.push(rdef);
         self
     }

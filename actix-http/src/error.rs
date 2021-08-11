@@ -55,6 +55,8 @@ impl Error {
         Self::new(Kind::Io)
     }
 
+    // used in encoder behind feature flag so ignore unused warning
+    #[allow(unused)]
     pub(crate) fn new_encoder() -> Self {
         Self::new(Kind::Encoder)
     }

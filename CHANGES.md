@@ -1,6 +1,10 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+* Re-export actix-service `ServiceFactory` in `dev` module. [#2325]
+
+[#2325]: https://github.com/actix/actix-web/pull/2325
 
 
 ## 4.0.0-beta.8 - 2021-06-26

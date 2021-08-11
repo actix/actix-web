@@ -1,10 +1,10 @@
 //! Essentials helper functions and types for application registration.
 
-use actix_http::http::Method;
-use actix_router::IntoPattern;
 use std::future::Future;
 
+use actix_http::http::Method;
 pub use actix_http::Response as HttpResponse;
+use actix_router::IntoPatterns;
 pub use bytes::{Buf, BufMut, Bytes, BytesMut};
 
 use crate::error::BlockingError;
@@ -51,7 +51,7 @@ pub use crate::types::*;
 ///         .route(web::head().to(|| HttpResponse::MethodNotAllowed()))
 /// );
 /// ```
-pub fn resource<T: IntoPattern>(path: T) -> Resource {
+pub fn resource<T: IntoPatterns>(path: T) -> Resource {
     Resource::new(path)
 }
 
@@ -268,7 +268,7 @@ where
 ///         .finish(my_service)
 /// );
 /// ```
-pub fn service<T: IntoPattern>(path: T) -> WebService {
+pub fn service<T: IntoPatterns>(path: T) -> WebService {
     WebService::new(path)
 }
 
