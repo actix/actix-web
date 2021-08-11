@@ -1,7 +1,6 @@
 use std::{io, task::Poll};
 
 use bytes::{Buf as _, Bytes, BytesMut};
-use log::trace;
 
 macro_rules! byte (
     ($rdr:ident) => ({
@@ -79,15 +78,17 @@ impl ChunkedState {
 
                 Poll::Ready(Ok(ChunkedState::Size))
             }
-            None => Poll::Ready(Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Invalid chunk size line: Size is too big",
-            ))),
+            None => {
+                log::debug!("chunk size would overflow u64");
+                Poll::Ready(Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "Invalid chunk size line: Size is too big",
+                )))
+            }
         }
     }
 
     fn read_size_lws(rdr: &mut BytesMut) -> Poll<Result<ChunkedState, io::Error>> {
-        trace!("read_size_lws");
         match byte!(rdr) {
             // LWS can follow the chunk size, but no more digits can come
             b'\t' | b' ' => Poll::Ready(Ok(ChunkedState::SizeLws)),
@@ -129,7 +130,7 @@ impl ChunkedState {
         rem: &mut u64,
         buf: &mut Option<Bytes>,
     ) -> Poll<Result<ChunkedState, io::Error>> {
-        trace!("Chunked read, remaining={:?}", rem);
+        log::trace!("Chunked read, remaining={:?}", rem);
 
         let len = rdr.len() as u64;
         if len == 0 {
