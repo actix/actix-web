@@ -3,9 +3,9 @@
 > HTTP primitives for the Actix ecosystem.
 
 [![crates.io](https://img.shields.io/crates/v/actix-http?label=latest)](https://crates.io/crates/actix-http)
-[![Documentation](https://docs.rs/actix-http/badge.svg?version=2.2.0)](https://docs.rs/actix-http/2.2.0)
+[![Documentation](https://docs.rs/actix-http/badge.svg?version=2.2.1)](https://docs.rs/actix-http/2.2.1)
 ![Apache 2.0 or MIT licensed](https://img.shields.io/crates/l/actix-http)
-[![Dependency Status](https://deps.rs/crate/actix-http/2.2.0/status.svg)](https://deps.rs/crate/actix-http/2.2.0)
+[![Dependency Status](https://deps.rs/crate/actix-http/2.2.1/status.svg)](https://deps.rs/crate/actix-http/2.2.1)
 [![Join the chat at https://gitter.im/actix/actix-web](https://badges.gitter.im/actix/actix-web.svg)](https://gitter.im/actix/actix-web?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 ## Documentation & Resources
