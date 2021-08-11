@@ -2,6 +2,7 @@
 
 use bytes::{Bytes, BytesMut};
 
+mod chunked;
 mod client;
 mod codec;
 mod decoder;
@@ -11,7 +12,6 @@ mod expect;
 mod payload;
 mod service;
 mod upgrade;
-mod chunked;
 mod utils;
 
 pub use self::client::{ClientCodec, ClientPayloadCodec};
