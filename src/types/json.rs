@@ -266,7 +266,7 @@ impl JsonConfig {
         self
     }
 
-    /// Allows requets without any `Content-Type` header to be parsed as Json.
+    /// Sets whether or not the request must have a `Content-Type` header to be parsed.
     pub fn require_content_type(mut self, require_content_type: bool) -> Self {
         self.require_content_type = require_content_type;
         self
@@ -591,7 +591,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_json_body() {
         let (req, mut pl) = TestRequest::default().to_http_parts();
-        let json = JsonBody::<MyObject>::new(&req, &mut pl, None, false).await;
+        let json = JsonBody::<MyObject>::new(&req, &mut pl, None, true).await;
         assert!(json_eq(json.err().unwrap(), JsonPayloadError::ContentType));
 
         let (req, mut pl) = TestRequest::default()
@@ -600,7 +600,7 @@ mod tests {
                 header::HeaderValue::from_static("application/text"),
             ))
             .to_http_parts();
-        let json = JsonBody::<MyObject>::new(&req, &mut pl, None, false).await;
+        let json = JsonBody::<MyObject>::new(&req, &mut pl, None, true).await;
         assert!(json_eq(json.err().unwrap(), JsonPayloadError::ContentType));
 
         let (req, mut pl) = TestRequest::default()
@@ -614,7 +614,7 @@ mod tests {
             ))
             .to_http_parts();
 
-        let json = JsonBody::<MyObject>::new(&req, &mut pl, None, false)
+        let json = JsonBody::<MyObject>::new(&req, &mut pl, None, true)
             .limit(100)
             .await;
         assert!(json_eq(
@@ -633,7 +633,7 @@ mod tests {
             .set_payload(Bytes::from_static(&[0u8; 1000]))
             .to_http_parts();
 
-        let json = JsonBody::<MyObject>::new(&req, &mut pl, None, false)
+        let json = JsonBody::<MyObject>::new(&req, &mut pl, None, true)
             .limit(100)
             .await;
 
@@ -654,7 +654,7 @@ mod tests {
             .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
             .to_http_parts();
 
-        let json = JsonBody::<MyObject>::new(&req, &mut pl, None, false).await;
+        let json = JsonBody::<MyObject>::new(&req, &mut pl, None, true).await;
         assert_eq!(
             json.ok().unwrap(),
             MyObject {
