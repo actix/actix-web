@@ -92,7 +92,7 @@ pub(crate) trait MessageType: Sized {
                     }
 
                     header::CONTENT_LENGTH => match value.to_str() {
-                        Ok(s) if s.trim().starts_with("+") => {
+                        Ok(s) if s.trim().starts_with('+') => {
                             debug!("illegal Content-Length: {:?}", s);
                             return Err(ParseError::Header);
                         }
