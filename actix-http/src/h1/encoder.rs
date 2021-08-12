@@ -175,7 +175,7 @@ pub(crate) trait MessageType: Sized {
                 unsafe {
                     if camel_case {
                         // use Camel-Case headers
-                        write_camel_case(k, from_raw_parts_mut(buf, k_len));
+                        write_camel_case(k, buf, k_len);
                     } else {
                         write_data(k, buf, k_len);
                     }
@@ -473,15 +473,22 @@ impl TransferEncoding {
 }
 
 /// # Safety
-/// Callers must ensure that the given length matches given value length.
+/// Callers must ensure that the given `len` matches the given `value` length and that `buf` is
+/// valid for writes of at least `len` bytes.
 unsafe fn write_data(value: &[u8], buf: *mut u8, len: usize) {
     debug_assert_eq!(value.len(), len);
     copy_nonoverlapping(value.as_ptr(), buf, len);
 }
 
-fn write_camel_case(value: &[u8], buffer: &mut [u8]) {
+/// # Safety
+/// Callers must ensure that the given `len` matches the given `value` length and that `buf` is
+/// valid for writes of at least `len` bytes.
+unsafe fn write_camel_case(value: &[u8], buf: *mut u8, len: usize) {
     // first copy entire (potentially wrong) slice to output
-    buffer[..value.len()].copy_from_slice(value);
+    write_data(value, buf, len);
+
+    // SAFETY: We just initialized the buffer with `value`
+    let buffer = from_raw_parts_mut(buf, len);
 
     let mut iter = value.iter();
 

@@ -2,6 +2,10 @@
 
 ## Unreleased - 2021-xx-xx
 
+### Fixed
+* Remove slice creation pointing to potential uninitialized data on h1 encoder. [#2364]
+
+[#2364]: https://github.com/actix/actix-web/pull/2364
 
 ## 3.0.0-beta.8 - 2021-08-09
 ### Fixed
