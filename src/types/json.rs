@@ -425,7 +425,7 @@ where
                         }
                     }
                     None => {
-                        let json = serde_json::from_slice::<T>(&buf)
+                        let json = serde_json::from_slice::<T>(buf)
                             .map_err(JsonPayloadError::Deserialize)?;
                         return Poll::Ready(Ok(json));
                     }

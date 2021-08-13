@@ -276,7 +276,7 @@ impl ResourceDef {
                 let mut pattern_data = Vec::new();
 
                 for pattern in &patterns {
-                    match ResourceDef::parse(&pattern, false, true) {
+                    match ResourceDef::parse(pattern, false, true) {
                         (PatternType::Dynamic(re, names), _) => {
                             re_set.push(re.as_str().to_owned());
                             pattern_data.push((re, names));
@@ -790,7 +790,7 @@ impl ResourceDef {
                     profile_section!(pattern_dynamic_extract_captures);
 
                     for (no, name) in names.iter().enumerate() {
-                        if let Some(m) = captures.name(&name) {
+                        if let Some(m) = captures.name(name) {
                             segments[no] = PathItem::Segment(m.start() as u16, m.end() as u16);
                         } else {
                             log::error!(
@@ -820,7 +820,7 @@ impl ResourceDef {
                 };
 
                 for (no, name) in names.iter().enumerate() {
-                    if let Some(m) = captures.name(&name) {
+                    if let Some(m) = captures.name(name) {
                         segments[no] = PathItem::Segment(m.start() as u16, m.end() as u16);
                     } else {
                         log::error!("Dynamic path match but not all segments found: {}", name);
