@@ -9,12 +9,13 @@
 * Remove slice creation pointing to potential uninitialized data on h1 encoder. [#2364]
 * Remove `Into<Error>` bound on `Encoder` body types. [#2375]
 * Fix quality parse error in Accept-Encoding header. [#2344]
+* Avoid possibility of dispatcher getting stuck while backpressuring io. [#2369]
 
 [#2364]: https://github.com/actix/actix-web/pull/2364
 [#2375]: https://github.com/actix/actix-web/pull/2375
 [#2344]: https://github.com/actix/actix-web/pull/2344
 [#2377]: https://github.com/actix/actix-web/pull/2377
-
+[#2369]: https://github.com/actix/actix-web/pull/2369
 
 ## 3.0.0-beta.8 - 2021-08-09
 ### Fixed
