@@ -146,13 +146,13 @@ where
         let config = JsonConfig::from_req(req);
 
         let limit = config.limit;
-        let require_content_type = config.require_content_type;
+        let content_type_required = config.content_type_required;
         let ctype = config.content_type.as_deref();
         let err_handler = config.err_handler.clone();
 
         JsonExtractFut {
             req: Some(req.clone()),
-            fut: JsonBody::new(req, payload, ctype, require_content_type).limit(limit),
+            fut: JsonBody::new(req, payload, ctype, content_type_required).limit(limit),
             err_handler,
         }
     }
@@ -238,7 +238,7 @@ pub struct JsonConfig {
     limit: usize,
     err_handler: JsonErrorHandler,
     content_type: Option<Arc<dyn Fn(mime::Mime) -> bool + Send + Sync>>,
-    require_content_type: bool,
+    content_type_required: bool,
 }
 
 impl JsonConfig {
@@ -267,8 +267,8 @@ impl JsonConfig {
     }
 
     /// Sets whether or not the request must have a `Content-Type` header to be parsed.
-    pub fn require_content_type(mut self, require_content_type: bool) -> Self {
-        self.require_content_type = require_content_type;
+    pub fn content_type_required(mut self, content_type_required: bool) -> Self {
+        self.content_type_required = content_type_required;
         self
     }
 
@@ -288,7 +288,7 @@ const DEFAULT_CONFIG: JsonConfig = JsonConfig {
     limit: DEFAULT_LIMIT,
     err_handler: None,
     content_type: None,
-    require_content_type: true,
+    content_type_required: true,
 };
 
 impl Default for JsonConfig {
@@ -330,7 +330,7 @@ where
         req: &HttpRequest,
         payload: &mut Payload,
         ctype: Option<&(dyn Fn(mime::Mime) -> bool + Send + Sync)>,
-        require_content_type: bool,
+        content_type_required: bool,
     ) -> Self {
         // check content-type
         let has_valid_content_type = if let Ok(Some(mime)) = req.mime_type() {
@@ -338,7 +338,7 @@ where
                 || mime.suffix() == Some(mime::JSON)
                 || ctype.map_or(false, |predicate| predicate(mime))
         } else {
-            !require_content_type
+            !content_type_required
         };
 
         if !has_valid_content_type {
@@ -732,7 +732,7 @@ mod tests {
                 header::HeaderValue::from_static("16"),
             ))
             .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
-            .app_data(JsonConfig::default().require_content_type(false))
+            .app_data(JsonConfig::default().content_type_required(false))
             .to_http_parts();
 
         let s = Json::<MyObject>::from_request(&req, &mut pl).await;
