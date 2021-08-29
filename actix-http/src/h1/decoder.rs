@@ -1,4 +1,4 @@
-use std::{convert::TryFrom, io, marker::PhantomData, task::Poll};
+use std::{convert::TryFrom, io, marker::PhantomData, mem::MaybeUninit, task::Poll};
 
 use actix_codec::Decoder;
 use bytes::{Bytes, BytesMut};
@@ -212,10 +212,17 @@ impl MessageType for Request {
         let mut headers: [HeaderIndex; MAX_HEADERS] = EMPTY_HEADER_INDEX_ARRAY;
 
         let (len, method, uri, ver, h_len) = {
-            let mut parsed: [httparse::Header<'_>; MAX_HEADERS] = EMPTY_HEADER_ARRAY;
+            // SAFETY:
+            // Create an uninitialized array of `MaybeUninit`. The `assume_init` is
+            // safe because the type we are claiming to have initialized here is a
+            // bunch of `MaybeUninit`s, which do not require initialization.
+            let mut parsed = unsafe {
+                MaybeUninit::<[MaybeUninit<httparse::Header<'_>>; MAX_HEADERS]>::uninit()
+                    .assume_init()
+            };
 
-            let mut req = httparse::Request::new(&mut parsed);
-            match req.parse(src)? {
+            let mut req = httparse::Request::new(&mut []);
+            match req.parse_with_uninit_headers(src, &mut parsed)? {
                 httparse::Status::Complete(len) => {
                     let method = Method::from_bytes(req.method.unwrap().as_bytes())
                         .map_err(|_| ParseError::Method)?;
