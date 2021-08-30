@@ -967,7 +967,10 @@ impl ResourceDef {
                 _ => false,
             })
             .unwrap_or_else(|| {
-                panic!(r#"pattern "{}" contains malformed dynamic segment"#, pattern)
+                panic!(
+                    r#"pattern "{}" contains malformed dynamic segment"#,
+                    pattern
+                )
             });
 
         let (mut param, mut unprocessed) = pattern.split_at(close_idx + 1);
