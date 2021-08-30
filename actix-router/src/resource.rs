@@ -104,11 +104,11 @@ const REGEX_FLAGS: &str = "(?s-m)";
 ///
 ///
 /// # Prefix Resources
-/// A prefix resource is defined as pattern that can match just the start of a path.
+/// A prefix resource is defined as pattern that can match just the start of a path, up to a
+/// segment boundary.
 ///
-/// Prefix patterns with a trailing slash may have a weird, though correct, behavior.
-/// They basically define and require an empty segment to match.
-/// Examples are given below.
+/// Prefix patterns with a trailing slash may have an unexpected, though correct, behavior.
+/// They define and therefore require an empty segment in order to match. Examples are given below.
 ///
 /// Empty pattern matches any path as a prefix.
 ///
@@ -140,7 +140,7 @@ const REGEX_FLAGS: &str = "(?s-m)";
 /// `{name:regex}`. For example, `/user/{id:\d+}` will only match paths where the user ID
 /// is numeric.
 ///
-/// The regex could pontentially match multiple segments. If this is not wanted, then care must be
+/// The regex could potentially match multiple segments. If this is not wanted, then care must be
 /// taken to avoid matching a slash `/`. It is guaranteed, however, that the match ends at a
 /// segment boundary; the pattern `r"(/|$)` is always appended to the regex.
 ///
@@ -1104,10 +1104,12 @@ impl ResourceDef {
         let mut re = format!("({})", re);
 
         // Ensure the match ends at a segment boundary
-        if !is_prefix && !has_tail_segment {
-            re.push('$');
-        } else if is_prefix && !has_tail_segment {
-            re.push_str(r"(/|$)");
+        if !has_tail_segment {
+            if is_prefix {
+                re.push_str(r"(/|$)");
+            } else {
+                re.push('$');
+            }
         }
 
         let re = match Regex::new(&re) {
