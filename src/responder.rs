@@ -270,7 +270,7 @@ pub(crate) mod tests {
     impl BodyTest for Body {
         fn bin_ref(&self) -> &[u8] {
             match self {
-                Body::Bytes(ref bin) => &bin,
+                Body::Bytes(ref bin) => bin,
                 _ => unreachable!("bug in test impl"),
             }
         }
@@ -283,11 +283,11 @@ pub(crate) mod tests {
         fn bin_ref(&self) -> &[u8] {
             match self {
                 ResponseBody::Body(ref b) => match b {
-                    Body::Bytes(ref bin) => &bin,
+                    Body::Bytes(ref bin) => bin,
                     _ => unreachable!("bug in test impl"),
                 },
                 ResponseBody::Other(ref b) => match b {
-                    Body::Bytes(ref bin) => &bin,
+                    Body::Bytes(ref bin) => bin,
                     _ => unreachable!("bug in test impl"),
                 },
             }
