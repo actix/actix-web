@@ -5,11 +5,14 @@
 * Disallow prefix routes with tail segments. [#379]
 * Enforce path separators on dynamic prefixes. [#378]
 * Improve malformed path error message. [#384]
+* Prefix segments now always end with with a segment delimiter or end-of-input. [#2355]
+* Prefix segments with trailing slashes define a trailing empty segment. [#2355]
 
 [#378]: https://github.com/actix/actix-net/pull/378
 [#379]: https://github.com/actix/actix-net/pull/379
 [#380]: https://github.com/actix/actix-net/pull/380
 [#384]: https://github.com/actix/actix-net/pull/384
+[#2355]: https://github.com/actix/actix-web/pull/2355
 
 
 ## 0.5.0-beta.1 - 2021-07-20
