@@ -1179,7 +1179,7 @@ mod tests {
         let req = TestRequest::with_uri("/a//b/").to_request();
         let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::CREATED);
-        
+
         let req = TestRequest::with_uri("/a//b//").to_request();
         let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::ACCEPTED);
@@ -1206,11 +1206,11 @@ mod tests {
         let req = TestRequest::with_uri("/a/b/c").to_request();
         let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
-        
+
         let req = TestRequest::with_uri("/a/b").to_request();
         let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::CREATED);
-        
+
         let req = TestRequest::with_uri("/a/b/").to_request();
         let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::ACCEPTED);
