@@ -184,7 +184,7 @@ impl HttpRequest {
         U: IntoIterator<Item = I>,
         I: AsRef<str>,
     {
-        self.resource_map().url_for(&self, name, elements)
+        self.resource_map().url_for(self, name, elements)
     }
 
     /// Generate url for named resource
@@ -199,7 +199,7 @@ impl HttpRequest {
     #[inline]
     /// Get a reference to a `ResourceMap` of current application.
     pub fn resource_map(&self) -> &ResourceMap {
-        &self.app_state().rmap()
+        self.app_state().rmap()
     }
 
     /// Peer socket address.
@@ -509,7 +509,7 @@ mod tests {
     #[test]
     fn test_url_for() {
         let mut res = ResourceDef::new("/user/{name}.{ext}");
-        *res.name_mut() = "index".to_string();
+        res.set_name("index");
 
         let mut rmap = ResourceMap::new(ResourceDef::new(""));
         rmap.add(&mut res, None);
@@ -539,7 +539,7 @@ mod tests {
     #[test]
     fn test_url_for_static() {
         let mut rdef = ResourceDef::new("/index.html");
-        *rdef.name_mut() = "index".to_string();
+        rdef.set_name("index");
 
         let mut rmap = ResourceMap::new(ResourceDef::new(""));
         rmap.add(&mut rdef, None);
@@ -560,7 +560,7 @@ mod tests {
     #[test]
     fn test_match_name() {
         let mut rdef = ResourceDef::new("/index.html");
-        *rdef.name_mut() = "index".to_string();
+        rdef.set_name("index");
 
         let mut rmap = ResourceMap::new(ResourceDef::new(""));
         rmap.add(&mut rdef, None);
@@ -579,7 +579,7 @@ mod tests {
     fn test_url_for_external() {
         let mut rdef = ResourceDef::new("https://youtube.com/watch/{video_id}");
 
-        *rdef.name_mut() = "youtube".to_string();
+        rdef.set_name("youtube");
 
         let mut rmap = ResourceMap::new(ResourceDef::new(""));
         rmap.add(&mut rdef, None);

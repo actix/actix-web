@@ -10,6 +10,7 @@ digraph {
         "web-actors"
         "web-codegen"
         "http-test"
+        "router"
 
         { rank=same; "multipart" "web-actors" "http-test" };
         { rank=same; "files" "awc" "web" };
@@ -36,7 +37,7 @@ digraph {
     "rt" -> { "macros" }
 
     { rank=same; "utils" "codec" };
-    { rank=same; "rt" "macros" "service" "router" };
+    { rank=same; "rt" "macros" "service" };
 
     // actix
 
