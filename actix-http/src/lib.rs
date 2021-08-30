@@ -14,7 +14,7 @@
 //! [rustls]: https://crates.io/crates/rustls
 //! [trust-dns]: https://crates.io/crates/trust-dns
 
-#![deny(rust_2018_idioms, nonstandard_style)]
+#![deny(rust_2018_idioms, nonstandard_style, clippy::uninit_assumed_init)]
 #![allow(
     clippy::type_complexity,
     clippy::too_many_arguments,

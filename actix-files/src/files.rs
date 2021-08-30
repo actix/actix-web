@@ -106,7 +106,7 @@ impl Files {
         };
 
         Files {
-            path: mount_path.to_owned(),
+            path: mount_path.trim_end_matches('/').to_owned(),
             directory: dir,
             index: None,
             show_index: false,
