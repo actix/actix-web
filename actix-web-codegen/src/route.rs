@@ -102,6 +102,7 @@ impl Args {
             match arg {
                 NestedMeta::Lit(syn::Lit::Str(lit)) => match path {
                     None => {
+                        let _ = ResourceDef::new(lit.value());
                         path = Some(lit);
                     }
                     _ => {
@@ -114,7 +115,6 @@ impl Args {
                 NestedMeta::Meta(syn::Meta::NameValue(nv)) => {
                     if nv.path.is_ident("name") {
                         if let syn::Lit::Str(lit) = nv.lit {
-                            let _ = ResourceDef::new(lit.value());
                             resource_name = Some(lit);
                         } else {
                             return Err(syn::Error::new_spanned(
