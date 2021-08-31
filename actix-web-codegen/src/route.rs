@@ -3,6 +3,7 @@ extern crate proc_macro;
 use std::collections::HashSet;
 use std::convert::TryFrom;
 
+use actix_router::ResourceDef;
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote, ToTokens, TokenStreamExt};
@@ -101,6 +102,7 @@ impl Args {
             match arg {
                 NestedMeta::Lit(syn::Lit::Str(lit)) => match path {
                     None => {
+                        let _ = ResourceDef::new(lit.value());
                         path = Some(lit);
                     }
                     _ => {

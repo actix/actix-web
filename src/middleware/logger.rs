@@ -341,7 +341,6 @@ where
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         let this = self.project();
 
-        // TODO: MSRV 1.51: poll_map_err
         match ready!(this.body.poll_next(cx)) {
             Some(Ok(chunk)) => {
                 *this.size += chunk.len();
@@ -553,7 +552,7 @@ impl FormatText {
                 *self = FormatText::Str(s.to_string());
             }
             FormatText::RemoteAddr => {
-                let s = if let Some(ref peer) = req.connection_info().remote_addr() {
+                let s = if let Some(peer) = req.connection_info().remote_addr() {
                     FormatText::Str((*peer).to_string())
                 } else {
                     FormatText::Str("-".to_string())
