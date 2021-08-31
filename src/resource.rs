@@ -4,7 +4,7 @@ use std::future::Future;
 use std::rc::Rc;
 
 use actix_http::Extensions;
-use actix_router::IntoPattern;
+use actix_router::{IntoPatterns, Patterns};
 use actix_service::boxed::{self, BoxService, BoxServiceFactory};
 use actix_service::{
     apply, apply_fn_factory, fn_service, IntoServiceFactory, Service, ServiceFactory,
@@ -15,7 +15,7 @@ use futures_util::future::join_all;
 
 use crate::{
     data::Data,
-    dev::{insert_slash, AppService, HttpServiceFactory, ResourceDef},
+    dev::{ensure_leading_slash, AppService, HttpServiceFactory, ResourceDef},
     guard::Guard,
     handler::Handler,
     responder::Responder,
@@ -51,7 +51,7 @@ type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Err
 /// Default behavior could be overridden with `default_resource()` method.
 pub struct Resource<T = ResourceEndpoint> {
     endpoint: T,
-    rdef: Vec<String>,
+    rdef: Patterns,
     name: Option<String>,
     routes: Vec<Route>,
     app_data: Option<Extensions>,
@@ -61,7 +61,7 @@ pub struct Resource<T = ResourceEndpoint> {
 }
 
 impl Resource {
-    pub fn new<T: IntoPattern>(path: T) -> Resource {
+    pub fn new<T: IntoPatterns>(path: T) -> Resource {
         let fref = Rc::new(RefCell::new(None));
 
         Resource {
@@ -391,13 +391,13 @@ where
         };
 
         let mut rdef = if config.is_root() || !self.rdef.is_empty() {
-            ResourceDef::new(insert_slash(self.rdef.clone()))
+            ResourceDef::new(ensure_leading_slash(self.rdef.clone()))
         } else {
             ResourceDef::new(self.rdef.clone())
         };
 
         if let Some(ref name) = self.name {
-            *rdef.name_mut() = name.clone();
+            rdef.set_name(name);
         }
 
         *self.factory_ref.borrow_mut() = Some(ResourceFactory {

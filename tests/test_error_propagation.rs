@@ -23,7 +23,7 @@ impl std::fmt::Display for MyError {
 
 #[get("/test")]
 async fn test() -> Result<actix_web::HttpResponse, actix_web::error::Error> {
-    return Err(MyError.into());
+    Err(MyError.into())
 }
 
 #[derive(Clone)]

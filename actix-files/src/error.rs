@@ -21,6 +21,7 @@ impl ResponseError for FilesError {
     }
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Display, Debug, PartialEq)]
 pub enum UriSegmentError {
     /// The segment started with the wrapped invalid character.

@@ -5,8 +5,8 @@
   routes defined with trailing slashes will become inaccessible when
   using `NormalizePath::default()`.
   
-  Before: `#[get("/test/")`  
-  After: `#[get("/test")`  
+  Before: `#[get("/test/")]`  
+  After:  `#[get("/test")]`  
 
   Alternatively, explicitly require trailing slashes: `NormalizePath::new(TrailingSlash::Always)`.
 

@@ -29,9 +29,8 @@ impl ResourceMap {
     pub fn add(&mut self, pattern: &mut ResourceDef, nested: Option<Rc<ResourceMap>>) {
         pattern.set_id(self.patterns.len() as u16);
         self.patterns.push((pattern.clone(), nested));
-        if !pattern.name().is_empty() {
-            self.named
-                .insert(pattern.name().to_string(), pattern.clone());
+        if let Some(name) = pattern.name() {
+            self.named.insert(name.to_owned(), pattern.clone());
         }
     }
 
@@ -83,10 +82,10 @@ impl ResourceMap {
 
         for (pattern, rmap) in &self.patterns {
             if let Some(ref rmap) = rmap {
-                if let Some(plen) = pattern.is_prefix_match(path) {
-                    return rmap.has_resource(&path[plen..]);
+                if let Some(pat_len) = pattern.find_match(path) {
+                    return rmap.has_resource(&path[pat_len..]);
                 }
-            } else if pattern.is_match(path) || pattern.pattern() == "" && path == "/" {
+            } else if pattern.is_match(path) || pattern.pattern() == Some("") && path == "/" {
                 return true;
             }
         }
@@ -100,14 +99,11 @@ impl ResourceMap {
 
         for (pattern, rmap) in &self.patterns {
             if let Some(ref rmap) = rmap {
-                if let Some(plen) = pattern.is_prefix_match(path) {
+                if let Some(plen) = pattern.find_match(path) {
                     return rmap.match_name(&path[plen..]);
                 }
             } else if pattern.is_match(path) {
-                return match pattern.name() {
-                    "" => None,
-                    s => Some(s),
-                };
+                return pattern.name();
             }
         }
 
@@ -136,8 +132,9 @@ impl ResourceMap {
     fn traverse_resource_pattern(&self, remaining: &str) -> String {
         for (pattern, rmap) in &self.patterns {
             if let Some(ref rmap) = rmap {
-                if let Some(prefix_len) = pattern.is_prefix_match(remaining) {
-                    let prefix = pattern.pattern().to_owned();
+                if let Some(prefix_len) = pattern.find_match(remaining) {
+                    // TODO: think about unwrap_or
+                    let prefix = pattern.pattern().unwrap_or("").to_owned();
 
                     return [
                         prefix,
@@ -146,7 +143,8 @@ impl ResourceMap {
                     .concat();
                 }
             } else if pattern.is_match(remaining) {
-                return pattern.pattern().to_owned();
+                // TODO: think about unwrap_or
+                return pattern.pattern().unwrap_or("").to_owned();
             }
         }
 
@@ -181,10 +179,15 @@ impl ResourceMap {
         I: AsRef<str>,
     {
         if let Some(pattern) = self.named.get(name) {
-            if pattern.pattern().starts_with('/') {
+            if pattern
+                .pattern()
+                .map(|pat| pat.starts_with('/'))
+                .unwrap_or(false)
+            {
                 self.fill_root(path, elements)?;
             }
-            if pattern.resource_path(path, elements) {
+
+            if pattern.resource_path_from_iter(path, elements) {
                 Ok(Some(()))
             } else {
                 Err(UrlGenerationError::NotEnoughElements)
@@ -213,7 +216,8 @@ impl ResourceMap {
         if let Some(ref parent) = self.parent.borrow().upgrade() {
             parent.fill_root(path, elements)?;
         }
-        if self.root.resource_path(path, elements) {
+
+        if self.root.resource_path_from_iter(path, elements) {
             Ok(())
         } else {
             Err(UrlGenerationError::NotEnoughElements)
@@ -233,7 +237,7 @@ impl ResourceMap {
         if let Some(ref parent) = self.parent.borrow().upgrade() {
             if let Some(pattern) = parent.named.get(name) {
                 self.fill_root(path, elements)?;
-                if pattern.resource_path(path, elements) {
+                if pattern.resource_path_from_iter(path, elements) {
                     Ok(Some(()))
                 } else {
                     Err(UrlGenerationError::NotEnoughElements)
@@ -329,7 +333,7 @@ mod tests {
         let mut root = ResourceMap::new(ResourceDef::root_prefix(""));
 
         let mut rdef = ResourceDef::new("/info");
-        *rdef.name_mut() = "root_info".to_owned();
+        rdef.set_name("root_info");
         root.add(&mut rdef, None);
 
         let mut user_map = ResourceMap::new(ResourceDef::root_prefix(""));
@@ -337,7 +341,7 @@ mod tests {
         user_map.add(&mut rdef, None);
 
         let mut rdef = ResourceDef::new("/post/{post_id}");
-        *rdef.name_mut() = "user_post".to_owned();
+        rdef.set_name("user_post");
         user_map.add(&mut rdef, None);
 
         root.add(

@@ -65,10 +65,10 @@ fn first_header_value<'a>(req: &'a RequestHead, name: &'_ HeaderName) -> Option<
 /// [rfc7239-63]: https://datatracker.ietf.org/doc/html/rfc7239#section-6.3
 #[derive(Debug, Clone, Default)]
 pub struct ConnectionInfo {
-    scheme: String,
     host: String,
-    realip_remote_addr: Option<String>,
+    scheme: String,
     remote_addr: Option<String>,
+    realip_remote_addr: Option<String>,
 }
 
 impl ConnectionInfo {
@@ -135,7 +135,7 @@ impl ConnectionInfo {
             .or_else(|| first_header_value(req, &*X_FORWARDED_HOST))
             .or_else(|| req.headers.get(&header::HOST)?.to_str().ok())
             .or_else(|| req.uri.authority().map(Authority::as_str))
-            .unwrap_or(cfg.host())
+            .unwrap_or_else(|| cfg.host())
             .to_owned();
 
         let realip_remote_addr = realip_remote_addr
@@ -145,9 +145,9 @@ impl ConnectionInfo {
         let remote_addr = req.peer_addr.map(|addr| addr.to_string());
 
         ConnectionInfo {
-            remote_addr,
-            scheme,
             host,
+            scheme,
+            remote_addr,
             realip_remote_addr,
         }
     }

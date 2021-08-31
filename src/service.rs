@@ -7,14 +7,14 @@ use actix_http::{
     http::{HeaderMap, Method, StatusCode, Uri, Version},
     Extensions, HttpMessage, Payload, PayloadStream, RequestHead, Response, ResponseHead,
 };
-use actix_router::{IntoPattern, Path, Resource, ResourceDef, Url};
+use actix_router::{IntoPatterns, Path, Patterns, Resource, ResourceDef, Url};
 use actix_service::{IntoServiceFactory, ServiceFactory};
 #[cfg(feature = "cookies")]
 use cookie::{Cookie, ParseError as CookieParseError};
 
 use crate::{
     config::{AppConfig, AppService},
-    dev::insert_slash,
+    dev::ensure_leading_slash,
     guard::Guard,
     info::ConnectionInfo,
     rmap::ResourceMap,
@@ -59,9 +59,9 @@ where
     }
 }
 
-/// An service http request
+/// A service level request wrapper.
 ///
-/// ServiceRequest allows mutable access to request's internal structures
+/// Allows mutable access to request's internal structures.
 pub struct ServiceRequest {
     req: HttpRequest,
     payload: Payload,
@@ -117,7 +117,7 @@ impl ServiceRequest {
     /// This method returns reference to the request head
     #[inline]
     pub fn head(&self) -> &RequestHead {
-        &self.req.head()
+        self.req.head()
     }
 
     /// This method returns reference to the request head
@@ -212,14 +212,14 @@ impl ServiceRequest {
         self.req.match_pattern()
     }
 
-    #[inline]
     /// Get a mutable reference to the Path parameters.
+    #[inline]
     pub fn match_info_mut(&mut self) -> &mut Path<Url> {
         self.req.match_info_mut()
     }
 
-    #[inline]
     /// Get a reference to a `ResourceMap` of current application.
+    #[inline]
     pub fn resource_map(&self) -> &ResourceMap {
         self.req.resource_map()
     }
@@ -325,6 +325,7 @@ impl fmt::Debug for ServiceRequest {
     }
 }
 
+/// A service level response wrapper.
 pub struct ServiceResponse<B = AnyBody> {
     request: HttpRequest,
     response: HttpResponse<B>,
@@ -458,14 +459,14 @@ where
 }
 
 pub struct WebService {
-    rdef: Vec<String>,
+    rdef: Patterns,
     name: Option<String>,
     guards: Vec<Box<dyn Guard>>,
 }
 
 impl WebService {
     /// Create new `WebService` instance.
-    pub fn new<T: IntoPattern>(path: T) -> Self {
+    pub fn new<T: IntoPatterns>(path: T) -> Self {
         WebService {
             rdef: path.patterns(),
             name: None,
@@ -527,7 +528,7 @@ impl WebService {
 
 struct WebServiceImpl<T> {
     srv: T,
-    rdef: Vec<String>,
+    rdef: Patterns,
     name: Option<String>,
     guards: Vec<Box<dyn Guard>>,
 }
@@ -550,13 +551,15 @@ where
         };
 
         let mut rdef = if config.is_root() || !self.rdef.is_empty() {
-            ResourceDef::new(insert_slash(self.rdef))
+            ResourceDef::new(ensure_leading_slash(self.rdef))
         } else {
             ResourceDef::new(self.rdef)
         };
+
         if let Some(ref name) = self.name {
-            *rdef.name_mut() = name.clone();
+            rdef.set_name(name);
         }
+
         config.register_service(rdef, guards, self.srv, None)
     }
 }

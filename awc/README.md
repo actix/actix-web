@@ -12,7 +12,7 @@
 
 - [API Documentation](https://docs.rs/awc)
 - [Example Project](https://github.com/actix/examples/tree/HEAD/security/awc_https)
-- Minimum Supported Rust Version (MSRV): 1.46.0
+- Minimum Supported Rust Version (MSRV): 1.51.0
 
 ## Example
 

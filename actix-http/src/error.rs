@@ -55,6 +55,8 @@ impl Error {
         Self::new(Kind::Io)
     }
 
+    // used in encoder behind feature flag so ignore unused warning
+    #[allow(unused)]
     pub(crate) fn new_encoder() -> Self {
         Self::new(Kind::Encoder)
     }
@@ -194,7 +196,7 @@ pub enum ParseError {
     #[display(fmt = "IO error: {}", _0)]
     Io(io::Error),
 
-    /// Parsing a field as string failed
+    /// Parsing a field as string failed.
     #[display(fmt = "UTF8 error: {}", _0)]
     Utf8(Utf8Error),
 }

@@ -25,6 +25,7 @@ name = "actix_web"
 path = "src/lib.rs"
 
 [workspace]
+resolver = "2"
 members = [
     ".",
     "awc",
@@ -35,6 +36,7 @@ members = [
     "actix-web-codegen",
     "actix-http-test",
     "actix-test",
+    "actix-router",
 ]
 # enable when MSRV is 1.51+
 # resolver = "2"
@@ -68,7 +70,7 @@ __compress = []
 [dependencies]
 actix-codec = "0.4.0"
 actix-macros = "0.2.1"
-actix-router = "0.2.7"
+actix-router = "0.5.0-beta.1"
 actix-rt = "2.2"
 actix-server = "2.0.0-beta.3"
 actix-service = "2.0.0"
@@ -76,7 +78,7 @@ actix-utils = "3.0.0"
 actix-tls = { version = "3.0.0-beta.5", default-features = false, optional = true }
 
 actix-web-codegen = "0.5.0-beta.2"
-actix-http = "3.0.0-beta.8"
+actix-http = "3.0.0-beta.9"
 
 ahash = "0.7"
 bytes = "1"
@@ -127,6 +129,7 @@ actix-files = { path = "actix-files" }
 actix-http = { path = "actix-http" }
 actix-http-test = { path = "actix-http-test" }
 actix-multipart = { path = "actix-multipart" }
+actix-router = { path = "actix-router" }
 actix-test = { path = "actix-test" }
 actix-web = { path = "." }
 actix-web-actors = { path = "actix-web-actors" }

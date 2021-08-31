@@ -530,7 +530,7 @@ impl Service<ServiceRequest> for ScopeService {
     actix_service::always_ready!();
 
     fn call(&self, mut req: ServiceRequest) -> Self::Future {
-        let res = self.router.recognize_checked(&mut req, |req, guards| {
+        let res = self.router.recognize_fn(&mut req, |req, guards| {
             if let Some(ref guards) = guards {
                 for f in guards {
                     if !f.check(req.head()) {
@@ -1152,5 +1152,71 @@ mod tests {
             body,
             Bytes::from_static(b"http://localhost:8080/a/b/c/12345")
         );
+    }
+
+    #[actix_rt::test]
+    async fn dynamic_scopes() {
+        let srv = init_service(
+            App::new().service(
+                web::scope("/{a}/").service(
+                    web::scope("/{b}/")
+                        .route("", web::get().to(|_: HttpRequest| HttpResponse::Created()))
+                        .route(
+                            "/",
+                            web::get().to(|_: HttpRequest| HttpResponse::Accepted()),
+                        )
+                        .route("/{c}", web::get().to(|_: HttpRequest| HttpResponse::Ok())),
+                ),
+            ),
+        )
+        .await;
+
+        // note the unintuitive behavior with trailing slashes on scopes with dynamic segments
+        let req = TestRequest::with_uri("/a//b//c").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/a//b/").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::CREATED);
+
+        let req = TestRequest::with_uri("/a//b//").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::ACCEPTED);
+
+        let req = TestRequest::with_uri("/a//b//c/d").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+
+        let srv = init_service(
+            App::new().service(
+                web::scope("/{a}").service(
+                    web::scope("/{b}")
+                        .route("", web::get().to(|_: HttpRequest| HttpResponse::Created()))
+                        .route(
+                            "/",
+                            web::get().to(|_: HttpRequest| HttpResponse::Accepted()),
+                        )
+                        .route("/{c}", web::get().to(|_: HttpRequest| HttpResponse::Ok())),
+                ),
+            ),
+        )
+        .await;
+
+        let req = TestRequest::with_uri("/a/b/c").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/a/b").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::CREATED);
+
+        let req = TestRequest::with_uri("/a/b/").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::ACCEPTED);
+
+        let req = TestRequest::with_uri("/a/b/c/d").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 }

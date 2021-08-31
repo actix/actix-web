@@ -1,6 +1,18 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Changes
+* Minimum supported Rust version (MSRV) is now 1.51.
+
+### Fixed
+* Remove slice creation pointing to potential uninitialized data on h1 encoder. [#2364]
+
+[#2364]: https://github.com/actix/actix-web/pull/2364
+
+
+## 3.0.0-beta.8 - 2021-08-09
+### Fixed
+* Potential HTTP request smuggling vulnerabilities. [RUSTSEC-2021-0081](https://github.com/rustsec/advisory-db/pull/977)
 
 
 ## 3.0.0-beta.8 - 2021-06-26
@@ -208,6 +220,11 @@
 [#1857]: https://github.com/actix/actix-web/pull/1857
 [#1864]: https://github.com/actix/actix-web/pull/1864
 [#1878]: https://github.com/actix/actix-web/pull/1878
+
+
+## 2.2.1 - 2021-08-09
+### Fixed
+* Potential HTTP request smuggling vulnerabilities. [RUSTSEC-2021-0081](https://github.com/rustsec/advisory-db/pull/977)
 
 
 ## 2.2.0 - 2020-11-25

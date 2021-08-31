@@ -684,7 +684,7 @@ impl<'a> Iterator for Iter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         // handle in-progress multi value lists first
-        if let Some((ref name, ref mut vals)) = self.multi_inner {
+        if let Some((name, ref mut vals)) = self.multi_inner {
             match vals.get(self.multi_idx) {
                 Some(val) => {
                     self.multi_idx += 1;
