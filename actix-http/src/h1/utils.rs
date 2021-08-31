@@ -65,7 +65,9 @@ where
                     let next =
                         match this.body.as_mut().as_pin_mut().unwrap().poll_next(cx) {
                             Poll::Ready(Some(Ok(item))) => Poll::Ready(Some(item)),
-                            Poll::Ready(Some(Err(err))) => return Poll::Ready(Err(err.into())),
+                            Poll::Ready(Some(Err(err))) => {
+                                return Poll::Ready(Err(err.into()))
+                            }
                             Poll::Ready(None) => Poll::Ready(None),
                             Poll::Pending => Poll::Pending,
                         };

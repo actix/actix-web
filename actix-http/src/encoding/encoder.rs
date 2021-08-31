@@ -29,7 +29,7 @@ use crate::{
         header::{ContentEncoding, CONTENT_ENCODING},
         HeaderValue, StatusCode,
     },
-    Error, ResponseHead,
+    ResponseHead,
 };
 
 use super::Writer;
@@ -107,7 +107,6 @@ enum EncoderBody<B> {
 impl<B> MessageBody for EncoderBody<B>
 where
     B: MessageBody,
-    B::Error: Into<Error>,
 {
     type Error = EncoderError<B::Error>;
 
@@ -142,7 +141,6 @@ where
 impl<B> MessageBody for Encoder<B>
 where
     B: MessageBody,
-    B::Error: Into<Error>,
 {
     type Error = EncoderError<B::Error>;
 
