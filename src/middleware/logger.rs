@@ -341,7 +341,6 @@ where
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         let this = self.project();
 
-        // TODO: MSRV 1.51: poll_map_err
         match ready!(this.body.poll_next(cx)) {
             Some(Ok(chunk)) => {
                 *this.size += chunk.len();

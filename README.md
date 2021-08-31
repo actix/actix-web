@@ -7,7 +7,7 @@
 
 [![crates.io](https://img.shields.io/crates/v/actix-web?label=latest)](https://crates.io/crates/actix-web)
 [![Documentation](https://docs.rs/actix-web/badge.svg?version=4.0.0-beta.8)](https://docs.rs/actix-web/4.0.0-beta.8)
-[![Version](https://img.shields.io/badge/rustc-1.46+-ab6000.svg)](https://blog.rust-lang.org/2020/03/12/Rust-1.46.html)
+[![Version](https://img.shields.io/badge/rustc-1.51+-ab6000.svg)](https://blog.rust-lang.org/2020/03/12/Rust-1.51.html)
 ![MIT or Apache 2.0 licensed](https://img.shields.io/crates/l/actix-web.svg)
 [![Dependency Status](https://deps.rs/crate/actix-web/4.0.0-beta.8/status.svg)](https://deps.rs/crate/actix-web/4.0.0-beta.8)
 <br />
@@ -32,7 +32,7 @@
 * SSL support using OpenSSL or Rustls
 * Middlewares ([Logger, Session, CORS, etc](https://actix.rs/docs/middleware/))
 * Includes an async [HTTP client](https://docs.rs/awc/)
-* Runs on stable Rust 1.46+
+* Runs on stable Rust 1.51+
 
 ## Documentation
 

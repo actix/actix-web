@@ -7,6 +7,7 @@
 * Improve malformed path error message. [#384]
 * Prefix segments now always end with with a segment delimiter or end-of-input. [#2355]
 * Prefix segments with trailing slashes define a trailing empty segment. [#2355]
+* Minimum supported Rust version (MSRV) is now 1.51.
 
 [#378]: https://github.com/actix/actix-net/pull/378
 [#379]: https://github.com/actix/actix-net/pull/379
