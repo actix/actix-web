@@ -72,14 +72,13 @@ impl ResourceMap {
     pub(crate) fn finish(self: &Rc<Self>) {
         for node in self.nodes.iter().flatten() {
             node.parent.replace(Rc::downgrade(self));
-            Self::finish(node);
+            ResourceMap::finish(node);
         }
     }
 
     /// Generate url for named resource
     ///
-    /// Check [`HttpRequest::url_for()`](../struct.HttpRequest.html#method.
-    /// url_for) for detailed information.
+    /// Check [`HttpRequest::url_for`] for detailed information.
     pub fn url_for<U, I>(
         &self,
         req: &HttpRequest,
@@ -96,15 +95,10 @@ impl ResourceMap {
             .named
             .get(name)
             .ok_or(UrlGenerationError::ResourceNotFound)?
-            .fold_parents(String::new(), |mut acc, node| {
-                if node
-                    .pattern
+            .root_rmap_fn(String::with_capacity(24), |mut acc, node| {
+                node.pattern
                     .resource_path_from_iter(&mut acc, &mut elements)
-                {
-                    Some(acc)
-                } else {
-                    None
-                }
+                    .then(|| acc)
             })
             .ok_or(UrlGenerationError::NotEnoughElements)?;
 
@@ -134,11 +128,13 @@ impl ResourceMap {
     /// Returns the full resource pattern matched against a path or None if no full match
     /// is possible.
     pub fn match_pattern(&self, path: &str) -> Option<String> {
-        self.find_matching_node(path)?
-            .fold_parents(String::new(), |mut acc, node| {
+        self.find_matching_node(path)?.root_rmap_fn(
+            String::with_capacity(24),
+            |mut acc, node| {
                 acc.push_str(node.pattern.pattern()?);
                 Some(acc)
-            })
+            },
+        )
     }
 
     fn find_matching_node(&self, path: &str) -> Option<&ResourceMap> {
@@ -153,6 +149,7 @@ impl ResourceMap {
         let path = &path[matched_len..];
 
         Some(match &self.nodes {
+            // find first sub-node to match remaining path
             Some(nodes) => nodes
                 .iter()
                 .filter_map(|node| node._find_matching_node(path))
@@ -164,20 +161,21 @@ impl ResourceMap {
         })
     }
 
-    /// Folds the parents from the root of the tree to self.
-    fn fold_parents<F, B>(&self, init: B, mut f: F) -> Option<B>
+    /// Find `self`'s highest ancestor and then run `F`, providing `B`, in that rmap context.
+    fn root_rmap_fn<F, B>(&self, init: B, mut f: F) -> Option<B>
     where
         F: FnMut(B, &ResourceMap) -> Option<B>,
     {
-        self._fold_parents(init, &mut f)
+        self._root_rmap_fn(init, &mut f)
     }
 
-    fn _fold_parents<F, B>(&self, init: B, f: &mut F) -> Option<B>
+    /// Run `F`, providing `B`, if `self` is top-level resource map, else recurse to parent map.
+    fn _root_rmap_fn<F, B>(&self, init: B, f: &mut F) -> Option<B>
     where
         F: FnMut(B, &ResourceMap) -> Option<B>,
     {
         let data = match self.parent.borrow().upgrade() {
-            Some(ref parent) => parent._fold_parents(init, f)?,
+            Some(ref parent) => parent._root_rmap_fn(init, f)?,
             None => init,
         };
 
@@ -373,5 +371,74 @@ mod tests {
         assert!(rmap.has_resource("/user/u2"));
         assert!(rmap.has_resource("/user/u3"));
         assert!(!rmap.has_resource("/user/u4"));
+    }
+
+    #[test]
+    fn url_for() {
+        let mut root = ResourceMap::new(ResourceDef::prefix(""));
+
+        let mut user_scope_rdef = ResourceDef::prefix("/user");
+        let mut user_scope_map = ResourceMap::new(user_scope_rdef.clone());
+
+        let mut user_rdef = ResourceDef::new("/{user_id}");
+        let mut user_map = ResourceMap::new(user_rdef.clone());
+
+        let mut post_rdef = ResourceDef::new("/post/{sub_id}");
+        post_rdef.set_name("post");
+
+        user_map.add(&mut post_rdef, None);
+        user_scope_map.add(&mut user_rdef, Some(Rc::new(user_map)));
+        root.add(&mut user_scope_rdef, Some(Rc::new(user_scope_map)));
+
+        let rmap = Rc::new(root);
+        ResourceMap::finish(&rmap);
+
+        let mut req = crate::test::TestRequest::default();
+        req.set_server_hostname("localhost:8888");
+        let req = req.to_http_request();
+
+        let url = rmap
+            .url_for(&req, "post", &["u123", "foobar"])
+            .unwrap()
+            .to_string();
+        assert_eq!(url, "http://localhost:8888/user/u123/post/foobar");
+
+        assert!(rmap.url_for(&req, "missing", &["u123"]).is_err());
+    }
+
+    #[test]
+    fn external_resource_with_no_name() {
+        let mut root = ResourceMap::new(ResourceDef::prefix(""));
+
+        let mut rdef = ResourceDef::new("https://duck.com/{query}");
+        root.add(&mut rdef, None);
+
+        let rmap = Rc::new(root);
+        ResourceMap::finish(&rmap);
+
+        assert!(!rmap.has_resource("https://duck.com/abc"));
+    }
+
+    #[test]
+    fn external_resource_with_name() {
+        let mut root = ResourceMap::new(ResourceDef::prefix(""));
+
+        let mut rdef = ResourceDef::new("https://duck.com/{query}");
+        rdef.set_name("duck");
+        root.add(&mut rdef, None);
+
+        let rmap = Rc::new(root);
+        ResourceMap::finish(&rmap);
+
+        assert!(!rmap.has_resource("https://duck.com/abc"));
+
+        let mut req = crate::test::TestRequest::default();
+        req.set_server_hostname("localhost:8888");
+        let req = req.to_http_request();
+
+        assert_eq!(
+            rmap.url_for(&req, "duck", &["abcd"]).unwrap().to_string(),
+            "https://duck.com/abcd"
+        );
     }
 }
