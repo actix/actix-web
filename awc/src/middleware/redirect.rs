@@ -370,8 +370,7 @@ mod tests {
                 .service(web::resource("/test").route(web::to(test)))
         });
 
-        let client = ClientBuilder::new().finish();
-        let res = client.post(srv.url("/")).send_body("Hello").await.unwrap();
+        let res = srv.post("/").send_body("Hello").await.unwrap();
         assert_eq!(res.status().as_u16(), 200);
     }
 
