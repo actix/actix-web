@@ -426,7 +426,7 @@ impl ResourceDef {
     /// assert_eq!(resource.pattern().unwrap(), "/user/{id}");
     ///
     /// let mut resource = ResourceDef::new(["/profile", "/user/{id}"]);
-    /// assert!(resource.pattern().is_none());
+    /// assert_eq!(resource.pattern(), Some("/profile"));
     pub fn pattern(&self) -> Option<&str> {
         match &self.patterns {
             Patterns::Single(pattern) => Some(pattern.as_str()),
