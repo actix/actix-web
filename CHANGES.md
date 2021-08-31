@@ -5,13 +5,11 @@
 * Re-export actix-service `ServiceFactory` in `dev` module. [#2325]
 
 ### Changes
+* Fix quality parse error in Accept-Encoding HTTP header. [#2344]
 * Minimum supported Rust version (MSRV) is now 1.51.
 
 [#2325]: https://github.com/actix/actix-web/pull/2325
-
-### Changed
-* Fix quality parse error in Accept-Encoding HTTP header. [#2344]
-
+[#2344]: https://github.com/actix/actix-web/pull/2344
 
 ## 4.0.0-beta.8 - 2021-06-26
 ### Added
