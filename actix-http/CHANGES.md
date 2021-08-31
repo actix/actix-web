@@ -3,6 +3,7 @@
 ## Unreleased - 2021-xx-xx
 ### Changes
 * Minimum supported Rust version (MSRV) is now 1.51.
+* Remove `Into<Error>` bound on `Encoder` body types.
 
 ### Fixed
 * Remove slice creation pointing to potential uninitialized data on h1 encoder. [#2364]
