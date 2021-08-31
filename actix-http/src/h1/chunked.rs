@@ -40,7 +40,7 @@ impl ChunkedState {
             Size => ChunkedState::read_size(body, size),
             SizeLws => ChunkedState::read_size_lws(body),
             Extension => ChunkedState::read_extension(body),
-            SizeLf => ChunkedState::read_size_lf(body, size),
+            SizeLf => ChunkedState::read_size_lf(body, *size),
             Body => ChunkedState::read_body(body, size, buf),
             BodyCr => ChunkedState::read_body_cr(body),
             BodyLf => ChunkedState::read_body_lf(body),
@@ -113,11 +113,11 @@ impl ChunkedState {
     }
     fn read_size_lf(
         rdr: &mut BytesMut,
-        size: &mut u64,
+        size: u64,
     ) -> Poll<Result<ChunkedState, io::Error>> {
         match byte!(rdr) {
-            b'\n' if *size > 0 => Poll::Ready(Ok(ChunkedState::Body)),
-            b'\n' if *size == 0 => Poll::Ready(Ok(ChunkedState::EndCr)),
+            b'\n' if size > 0 => Poll::Ready(Ok(ChunkedState::Body)),
+            b'\n' if size == 0 => Poll::Ready(Ok(ChunkedState::EndCr)),
             _ => Poll::Ready(Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "Invalid chunk size LF",

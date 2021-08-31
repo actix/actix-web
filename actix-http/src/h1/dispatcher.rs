@@ -1060,7 +1060,7 @@ mod tests {
     fn stabilize_date_header(payload: &mut [u8]) {
         let mut from = 0;
 
-        while let Some(pos) = find_slice(&payload, b"date", from) {
+        while let Some(pos) = find_slice(payload, b"date", from) {
             payload[(from + pos)..(from + pos + 35)]
                 .copy_from_slice(b"date: Thu, 01 Jan 1970 12:34:56 UTC");
             from += 35;
