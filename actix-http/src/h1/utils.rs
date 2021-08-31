@@ -63,12 +63,9 @@ where
                         .is_write_buf_full()
                 {
                     let next =
-                        // TODO: MSRV 1.51: poll_map_err
                         match this.body.as_mut().as_pin_mut().unwrap().poll_next(cx) {
                             Poll::Ready(Some(Ok(item))) => Poll::Ready(Some(item)),
-                            Poll::Ready(Some(Err(err))) => {
-                                return Poll::Ready(Err(err.into()))
-                            }
+                            Poll::Ready(Some(Err(err))) => return Poll::Ready(Err(err.into())),
                             Poll::Ready(None) => Poll::Ready(None),
                             Poll::Pending => Poll::Pending,
                         };

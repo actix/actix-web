@@ -24,6 +24,7 @@ name = "actix_web"
 path = "src/lib.rs"
 
 [workspace]
+resolver = "2"
 members = [
     ".",
     "awc",
