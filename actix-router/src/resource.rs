@@ -31,13 +31,13 @@ const REGEX_FLAGS: &str = "(?s-m)";
 /// # Pattern Format and Matching Behavior
 ///
 /// Resource pattern is defined as a string of zero or more _segments_ where each segment is
-/// preceeded by a slash `/`.
+/// preceded by a slash `/`.
 ///
 /// This means that pattern string __must__ either be empty or begin with a slash (`/`).
 /// This also implies that a trailing slash in pattern defines an empty segment.
 /// For example, the pattern `"/user/"` has two segments: `["user", ""]`
 ///
-/// A key point to undertand is that `ResourceDef` matches segments, not strings.
+/// A key point to underhand is that `ResourceDef` matches segments, not strings.
 /// It matches segments individually.
 /// For example, the pattern `/user/` is not considered a prefix for the path `/user/123/456`,
 /// because the second segment doesn't match: `["user", ""]` vs `["user", "123", "456"]`.
@@ -279,7 +279,6 @@ impl ResourceDef {
     /// ```
     pub fn new<T: IntoPatterns>(paths: T) -> Self {
         profile_method!(new);
-
         Self::new2(paths, false)
     }
 
@@ -308,7 +307,6 @@ impl ResourceDef {
     /// ```
     pub fn prefix<T: IntoPatterns>(paths: T) -> Self {
         profile_method!(prefix);
-
         ResourceDef::new2(paths, true)
     }
 
@@ -334,7 +332,6 @@ impl ResourceDef {
     /// ```
     pub fn root_prefix(path: &str) -> Self {
         profile_method!(root_prefix);
-
         ResourceDef::prefix(insert_slash(path).into_owned())
     }
 
@@ -418,9 +415,9 @@ impl ResourceDef {
 
     /// Returns the pattern string that generated the resource definition.
     ///
-    /// If definition is constructed with multiple patterns, first pattern is returned.
-    /// If it is zero-length then `None`.
-    /// See [`patterns_iter`][Self::pattern_iter].
+    /// If definition is constructed with multiple patterns, the first pattern is returned. To get
+    /// all patterns, use [`patterns_iter`][Self::pattern_iter]. If resource has 0 patterns,
+    /// returns `None`.
     ///
     /// # Examples
     /// ```
@@ -813,7 +810,8 @@ impl ResourceDef {
     ///
     /// Returns `true` on success.
     ///
-    /// For multi-pattern resources, first pattern is used.
+    /// For multi-pattern resources, the first pattern is used under the assumption that it would be
+    /// equivalent to any other choice.
     ///
     /// # Examples
     /// ```
@@ -838,7 +836,8 @@ impl ResourceDef {
     ///
     /// Returns `true` on success.
     ///
-    /// For multi-pattern resources, first pattern is used.
+    /// For multi-pattern resources, the first pattern is used under the assumption that it would be
+    /// equivalent to any other choice.
     ///
     /// # Examples
     /// ```
@@ -873,14 +872,19 @@ impl ResourceDef {
         let rem = path.strip_prefix(pattern)?;
 
         match self.is_prefix {
+            // resource is not a prefix so an exact match is needed
             false if rem.is_empty() => Some(pattern.len()),
+
+            // resource is a prefix so rem should start with a path delimiter
             true if rem.is_empty() || rem.starts_with('/') => Some(pattern.len()),
+
+            // otherwise, no match
             _ => None,
         }
     }
 
     fn new2<T: IntoPatterns>(paths: T, is_prefix: bool) -> Self {
-        profile_method!(new);
+        profile_method!(new2);
 
         let patterns = paths.patterns();
         let (pat_type, segments) = match &patterns {
@@ -899,7 +903,7 @@ impl ResourceDef {
                 let mut segments = None;
 
                 for pattern in patterns {
-                    match ResourceDef::parse(&pattern, is_prefix, true) {
+                    match ResourceDef::parse(pattern, is_prefix, true) {
                         (PatternType::Dynamic(re, names), segs) => {
                             re_set.push(re.as_str().to_owned());
                             pattern_data.push((re, names));
@@ -910,7 +914,7 @@ impl ResourceDef {
                 }
 
                 let pattern_re_set = RegexSet::new(re_set).unwrap();
-                let segments = segments.unwrap_or_else(|| Vec::new());
+                let segments = segments.unwrap_or_else(Vec::new);
 
                 (
                     PatternType::DynamicSet(pattern_re_set, pattern_data),
@@ -1349,7 +1353,7 @@ mod tests {
 
         assert_eq!(re.find_match("/u/abc"), Some(6));
         assert_eq!(re.find_match("/u/abc/123"), Some(6));
-        assert_eq!(re.find_match("s/user/profile"), None);
+        assert_eq!(re.find_match("/s/user/profile"), None);
 
         assert_eq!(re.find_match("/123"), Some(4));
         assert_eq!(re.find_match("/123/456"), Some(4));
