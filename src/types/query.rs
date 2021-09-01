@@ -82,6 +82,7 @@ impl<T> Query<T> {
         T: de::DeserializeOwned,
     {
         if cfg!(feature = "beautify-errors") {
+            println!("with beautified errors!");
             let deserializer = serde_urlencoded::Deserializer::new(parse(query_str.as_bytes()));
             serde_path_to_error::deserialize(deserializer).map_err(|e| {
                 let field = e.path().to_string();
@@ -134,6 +135,36 @@ where
             .app_data::<Self::Config>()
             .and_then(|c| c.err_handler.clone());
 
+        if cfg!(feature = "beautify-errors") {
+            println!("with beautified errors!");
+            let deserializer =
+                serde_urlencoded::Deserializer::new(parse(req.query_string().as_bytes()));
+            return serde_path_to_error::deserialize(deserializer)
+                .map(|val| ok(Query(val)))
+                .unwrap_or_else(move |e| {
+                    let field = e.path().to_string();
+                    let original = e.inner().to_string();
+                    let e = <serde::de::value::Error as serde::de::Error>::custom(format!(
+                        "{}: {}",
+                        field, original,
+                    ));
+                    let e = QueryPayloadError::Deserialize(e);
+
+                    log::debug!(
+                        "Failed during Query extractor deserialization. \
+                     Request path: {:?}",
+                        req.path()
+                    );
+
+                    let e = if let Some(error_handler) = error_handler {
+                        (error_handler)(e, req)
+                    } else {
+                        e.into()
+                    };
+
+                    err(e)
+                });
+        }
         serde_urlencoded::from_str::<T>(req.query_string())
             .map(|val| ok(Query(val)))
             .unwrap_or_else(move |e| {
