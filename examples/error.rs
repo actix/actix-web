@@ -11,8 +11,8 @@ async fn optional_query_params(maybe_qs: Option<Query<OptionalFilters>>) -> Stri
 }
 
 #[get("/mandatory")]
-async fn mandatory_query_params(maybe_qs: Query<MandatoryFilters>) -> String {
-    format!("you asked for the mandatory query params: {:#?}", maybe_qs)
+async fn mandatory_query_params(qs: Query<MandatoryFilters>) -> String {
+    format!("you asked for the mandatory query params: {:#?}", qs)
 }
 
 #[post("/optional")]
@@ -28,12 +28,12 @@ async fn optional_payload(
 
 #[post("/mandatory")]
 async fn mandatory_payload(
-    maybe_qs: Query<MandatoryFilters>,
-    maybe_payload: Json<OptionalPayload>,
+    qs: Query<MandatoryFilters>,
+    payload: Json<OptionalPayload>,
 ) -> String {
     format!(
         "you asked for the mandatory query params: {:#?} and mandatory body: {:#?}",
-        maybe_qs, maybe_payload
+        qs, payload
     )
 }
 
