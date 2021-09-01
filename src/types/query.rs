@@ -3,7 +3,7 @@
 use std::{fmt, ops, sync::Arc};
 
 use actix_utils::future::{err, ok, Ready};
-use serde::de::DeserializeOwned;
+use serde::de;
 
 #[cfg(feature = "beautify-errors")]
 use crate::web::map_deserialize_error;
@@ -73,7 +73,8 @@ impl<T> Query<T> {
     }
 }
 
-impl<T: DeserializeOwned> Query<T> {
+#[cfg(not(feature = "beautify-errors"))]
+impl<T: de::DeserializeOwned> Query<T> {
     /// Deserialize a `T` from the URL encoded query parameter string.
     ///
     /// ```
@@ -105,11 +106,9 @@ impl<T> Query<T> {
         let qs = serde_path_to_error::deserialize(deserializer)
             .map(Self)
             .map_err(|e| {
-                QueryPayloadError::Deserialize(
-                    <serde::de::value::Error as serde::de::Error>::custom(
-                        map_deserialize_error(&e.path().to_string(), &e.inner().to_string()),
-                    ),
-                )
+                QueryPayloadError::Deserialize(<de::value::Error as de::Error>::custom(
+                    map_deserialize_error(&e.path().to_string(), &e.inner().to_string()),
+                ))
             })?;
         Ok(qs)
     }
@@ -137,7 +136,7 @@ impl<T: fmt::Display> fmt::Display for Query<T> {
 
 #[cfg(not(feature = "beautify-errors"))]
 /// See [here](#usage) for example of usage as an extractor.
-impl<T: DeserializeOwned> FromRequest for Query<T> {
+impl<T: de::DeserializeOwned> FromRequest for Query<T> {
     type Error = Error;
     type Future = Ready<Result<Self, Error>>;
     type Config = QueryConfig;
@@ -191,11 +190,10 @@ where
         return serde_path_to_error::deserialize(deserializer)
             .map(|val| ok(Query(val)))
             .unwrap_or_else(move |e| {
-                let e = QueryPayloadError::Deserialize(
-                    <serde::de::value::Error as serde::de::Error>::custom(
+                let e =
+                    QueryPayloadError::Deserialize(<de::value::Error as de::Error>::custom(
                         map_deserialize_error(&e.path().to_string(), &e.inner().to_string()),
-                    ),
-                );
+                    ));
 
                 log::debug!(
                     "Failed during Query extractor deserialization. \
