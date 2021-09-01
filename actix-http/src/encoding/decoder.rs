@@ -80,7 +80,7 @@ where
         let encoding = headers
             .get(&CONTENT_ENCODING)
             .and_then(|val| val.to_str().ok())
-            .map(ContentEncoding::from)
+            .and_then(|x| x.parse().ok())
             .unwrap_or(ContentEncoding::Identity);
 
         Self::new(stream, encoding)

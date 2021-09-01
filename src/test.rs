@@ -56,7 +56,7 @@ pub fn default_service(
 /// async fn test_init_service() {
 ///     let app = test::init_service(
 ///         App::new()
-///             .service(web::resource("/test").to(|| async { HttpResponse::Ok() }))
+///             .service(web::resource("/test").to(|| async { "OK" }))
 ///     ).await;
 ///
 ///     // Create request object
