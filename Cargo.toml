@@ -17,7 +17,7 @@ edition = "2018"
 
 [package.metadata.docs.rs]
 # features that docs.rs will build with
-features = ["openssl", "rustls", "compress-brotli", "compress-gzip", "compress-zstd", "cookies", "secure-cookies"]
+features = ["openssl", "rustls", "compress-brotli", "compress-gzip", "compress-zstd", "cookies", "secure-cookies", "beautify-errors"]
 
 [lib]
 name = "actix_web"
