@@ -14,7 +14,6 @@ use bytes::BytesMut;
 use futures_core::{ready, stream::Stream as _};
 use serde::{de::DeserializeOwned, Serialize};
 
-
 use actix_http::Payload;
 
 #[cfg(feature = "__compress")]
@@ -435,11 +434,10 @@ where
                                 |e| {
                                     let field = e.path().to_string();
                                     let original = e.inner().to_string();
-                                    let e = <serde_json::error::Error as serde::de::Error>::custom(format!(
-                                        "{}: {}",
-                                        field,
-                                        original,
-                                    ));
+                                    let e =
+                                        <serde_json::error::Error as serde::de::Error>::custom(
+                                            format!("{}: {}", field, original,),
+                                        );
                                     JsonPayloadError::Deserialize(e)
                                 },
                             )?

@@ -4,6 +4,7 @@ use std::{fmt, ops, sync::Arc};
 
 use actix_utils::future::{err, ok, Ready};
 use serde::de;
+use url::form_urlencoded::parse;
 
 use crate::{dev::Payload, error::QueryPayloadError, Error, FromRequest, HttpRequest};
 
@@ -80,6 +81,18 @@ impl<T> Query<T> {
     where
         T: de::DeserializeOwned,
     {
+        if cfg!(feature = "beautify-errors") {
+            let deserializer = serde_urlencoded::Deserializer::new(parse(query_str.as_bytes()));
+            serde_path_to_error::deserialize(deserializer).map_err(|e| {
+                let field = e.path().to_string();
+                let original = e.inner().to_string();
+                let e = <serde::de::value::Error as serde::de::Error>::custom(format!(
+                    "{}: {}",
+                    field, original,
+                ));
+                QueryPayloadError::Deserialize(e)
+            })?
+        }
         serde_urlencoded::from_str::<T>(query_str)
             .map(Self)
             .map_err(QueryPayloadError::Deserialize)
