@@ -1,4 +1,8 @@
-use actix_web::{App, HttpServer, get, post, middleware, web::{Json, Query}};
+use actix_web::{
+    get, middleware, post,
+    web::{Json, Query},
+    App, HttpServer,
+};
 use serde::Deserialize;
 
 #[get("/optional")]
@@ -12,13 +16,25 @@ async fn mandatory_query_params(maybe_qs: Query<MandatoryFilters>) -> String {
 }
 
 #[post("/optional")]
-async fn optional_payload(maybe_qs: Option<Query<OptionalFilters>>, maybe_payload: Option<Json<OptionalPayload>>) -> String {
-    format!("you asked for the optional query params: {:#?} and optional body: {:#?}", maybe_qs, maybe_payload)
+async fn optional_payload(
+    maybe_qs: Option<Query<OptionalFilters>>,
+    maybe_payload: Option<Json<OptionalPayload>>,
+) -> String {
+    format!(
+        "you asked for the optional query params: {:#?} and optional body: {:#?}",
+        maybe_qs, maybe_payload
+    )
 }
 
 #[post("/mandatory")]
-async fn mandatory_payload(maybe_qs: Query<MandatoryFilters>, maybe_payload: Json<OptionalPayload>) -> String {
-    format!("you asked for the mandatory query params: {:#?} and mandatory body: {:#?}", maybe_qs, maybe_payload)
+async fn mandatory_payload(
+    maybe_qs: Query<MandatoryFilters>,
+    maybe_payload: Json<OptionalPayload>,
+) -> String {
+    format!(
+        "you asked for the mandatory query params: {:#?} and mandatory body: {:#?}",
+        maybe_qs, maybe_payload
+    )
 }
 
 #[actix_web::main]
