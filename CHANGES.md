@@ -3,6 +3,7 @@
 ## Unreleased - 2021-xx-xx
 ### Added
 * Re-export actix-service `ServiceFactory` in `dev` module. [#2325]
+* Re-export rustls. [#2054]
 
 ### Changed
 * Minimum supported Rust version (MSRV) is now 1.51.
@@ -13,7 +14,7 @@
 
 [#2325]: https://github.com/actix/actix-web/pull/2325
 [#2344]: https://github.com/actix/actix-web/pull/2344
-
+[#2054]: https://github.com/actix/actix-web/issues/2054
 
 ## 4.0.0-beta.8 - 2021-06-26
 ### Added
