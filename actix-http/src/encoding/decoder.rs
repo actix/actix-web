@@ -1,7 +1,6 @@
 //! Stream decoders.
 
 use std::{
-    convert::TryFrom,
     future::Future,
     io::{self, Write as _},
     pin::Pin,
@@ -81,7 +80,7 @@ where
         let encoding = headers
             .get(&CONTENT_ENCODING)
             .and_then(|val| val.to_str().ok())
-            .and_then(|x| ContentEncoding::try_from(x).ok())
+            .and_then(|x| x.parse().ok())
             .unwrap_or(ContentEncoding::Identity);
 
         Self::new(stream, encoding)
