@@ -18,6 +18,7 @@ use actix_http::{
 use actix_service::{Service, Transform};
 use actix_utils::future::{ok, Either, Ready};
 use futures_core::ready;
+use once_cell::sync::Lazy;
 use pin_project::pin_project;
 
 use crate::{
@@ -57,7 +58,7 @@ impl Default for Compress {
 
 impl<S, B> Transform<S, ServiceRequest> for Compress
 where
-    B: MessageBody + From<String>,
+    B: MessageBody,
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
     type Response = ServiceResponse<ResponseBody<Encoder<B>>>;
@@ -79,7 +80,7 @@ pub struct CompressMiddleware<S> {
     encoding: ContentEncoding,
 }
 
-fn supported_algorithm_names() -> String {
+static SUPPORTED_ALGORITHM_NAMES: Lazy<String> = Lazy::new(|| {
     let mut encoding = vec![];
 
     #[cfg(feature = "compress-brotli")]
@@ -98,16 +99,16 @@ fn supported_algorithm_names() -> String {
 
     assert!(
         !encoding.is_empty(),
-        "encoding can not be empty unless __compress feature has been explicitly enabled"
+        "encoding can not be empty unless __compress feature has been explicitly enabled by itself"
     );
 
     encoding.join(", ")
-}
+});
 
 impl<S, B> Service<ServiceRequest> for CompressMiddleware<S>
 where
-    B: MessageBody + From<String>,
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    B: MessageBody,
 {
     type Response = ServiceResponse<ResponseBody<Encoder<B>>>;
     type Error = Error;
@@ -143,12 +144,12 @@ where
             Some(Err(_)) => {
                 let res = HttpResponse::with_body(
                     StatusCode::NOT_ACCEPTABLE,
-                    supported_algorithm_names().into(),
+                    SUPPORTED_ALGORITHM_NAMES.as_str(),
                 );
                 let enc = ContentEncoding::Identity;
 
                 Either::right(ok(req.into_response(res.map_body(move |head, body| {
-                    Encoder::response(enc, head, ResponseBody::Body(body))
+                    Encoder::response(enc, head, ResponseBody::Other(body.into()))
                 }))))
             }
         }
@@ -195,6 +196,7 @@ where
 
 struct AcceptEncoding {
     encoding: ContentEncoding,
+    // TODO: use Quality or QualityItem<ContentEncoding>
     quality: f64,
 }
 
@@ -221,17 +223,17 @@ impl PartialOrd for AcceptEncoding {
 
 impl PartialEq for AcceptEncoding {
     fn eq(&self, other: &AcceptEncoding) -> bool {
-        self.quality == other.quality && self.encoding == other.encoding
+        self.encoding == other.encoding && self.quality == other.quality
     }
 }
 
-/// Parse qfactor from HTTP header
+/// Parse q-factor from quality strings.
 ///
-/// If parse fail, then fallback to default value which is 1
-/// More details available here: https://developer.mozilla.org/en-US/docs/Glossary/Quality_values
+/// If parse fail, then fallback to default value which is 1.
+/// More details available here: <https://developer.mozilla.org/en-US/docs/Glossary/Quality_values>
 fn parse_quality(parts: &[&str]) -> f64 {
     for part in parts {
-        if part.starts_with("q=") {
+        if part.trim().starts_with("q=") {
             return part[2..].parse().unwrap_or(1.0);
         }
     }
@@ -241,9 +243,8 @@ fn parse_quality(parts: &[&str]) -> f64 {
 
 #[derive(Debug, PartialEq, Eq)]
 enum AcceptEncodingError {
-    /// This error occurs when client only support compressed response
-    /// and server do not have any algorithm that match client accepted
-    /// algorithms
+    /// This error occurs when client only support compressed response and server do not have any
+    /// algorithm that match client accepted algorithms.
     CompressionAlgorithmMismatch,
 }
 
@@ -262,11 +263,12 @@ impl AcceptEncoding {
         if quality <= 0.0 || quality > 1.0 {
             return None;
         }
+
         Some(AcceptEncoding { encoding, quality })
     }
 
-    /// Parse a raw Accept-Encoding header value into an ordered list
-    /// then return the best match based on middleware configuration.
+    /// Parse a raw Accept-Encoding header value into an ordered list then return the best match
+    /// based on middleware configuration.
     pub fn try_parse(
         raw: &str,
         encoding: ContentEncoding,
@@ -285,8 +287,9 @@ impl AcceptEncoding {
             }
         }
 
-        // Special case if user cannot accept uncompressed data
+        // Special case if user cannot accept uncompressed data.
         // See: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept-Encoding
+        // TODO: account for whitespace
         if raw.contains("*;q=0") || raw.contains("identity;q=0") {
             return Err(AcceptEncodingError::CompressionAlgorithmMismatch);
         }
@@ -356,7 +359,7 @@ mod tests {
 
     #[test]
     fn test_parse_compression_required() {
-        // Check we fallback to identity if there is an unsuported compression algorithm
+        // Check we fallback to identity if there is an unsupported compression algorithm
         assert_parse_eq!("compress", ContentEncoding::Identity);
 
         // User do not want any compression

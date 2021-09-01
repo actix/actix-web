@@ -53,7 +53,7 @@ mod tests {
         #[cfg(feature = "__compress")]
         {
             let _ = App::new().wrap(Compress::default()).wrap(Logger::default());
-            // let _ = App::new().wrap(Logger::default()).wrap(Compress::default());
+            let _ = App::new().wrap(Logger::default()).wrap(Compress::default());
             let _ = App::new().wrap(Compat::new(Compress::default()));
             let _ = App::new().wrap(Condition::new(true, Compat::new(Compress::default())));
         }

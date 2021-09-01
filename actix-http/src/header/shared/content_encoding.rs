@@ -51,7 +51,7 @@ impl ContentEncoding {
         matches!(self, ContentEncoding::Identity | ContentEncoding::Auto)
     }
 
-    /// Convert content encoding to string
+    /// Convert content encoding to string.
     #[inline]
     pub fn as_str(self) -> &'static str {
         match self {
@@ -74,14 +74,6 @@ impl FromStr for ContentEncoding {
     type Err = ContentEncodingParseError;
 
     fn from_str(val: &str) -> Result<Self, Self::Err> {
-        Self::try_from(val)
-    }
-}
-
-impl TryFrom<&str> for ContentEncoding {
-    type Error = ContentEncodingParseError;
-
-    fn try_from(val: &str) -> Result<Self, Self::Error> {
         let val = val.trim();
 
         if val.eq_ignore_ascii_case("br") {
@@ -95,6 +87,14 @@ impl TryFrom<&str> for ContentEncoding {
         } else {
             Err(ContentEncodingParseError)
         }
+    }
+}
+
+impl TryFrom<&str> for ContentEncoding {
+    type Error = ContentEncodingParseError;
+
+    fn try_from(val: &str) -> Result<Self, Self::Error> {
+        val.parse()
     }
 }
 
