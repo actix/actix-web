@@ -1,4 +1,4 @@
-use std::{convert::Infallible, str::FromStr};
+use std::{convert::TryFrom, error, fmt, str::FromStr};
 
 use http::header::InvalidHeaderValue;
 
@@ -7,6 +7,20 @@ use crate::{
     header::{self, from_one_raw_str, Header, HeaderName, HeaderValue, IntoHeaderValue},
     HttpMessage,
 };
+
+/// Error return when a content encoding is unknown.
+///
+/// Example: 'compress'
+#[derive(Debug)]
+pub struct ContentEncodingParseError;
+
+impl fmt::Display for ContentEncodingParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Unsupported content encoding")
+    }
+}
+
+impl error::Error for ContentEncodingParseError {}
 
 /// Represents a supported content encoding.
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -37,7 +51,7 @@ impl ContentEncoding {
         matches!(self, ContentEncoding::Identity | ContentEncoding::Auto)
     }
 
-    /// Convert content encoding to string
+    /// Convert content encoding to string.
     #[inline]
     pub fn as_str(self) -> &'static str {
         match self {
@@ -46,18 +60,6 @@ impl ContentEncoding {
             ContentEncoding::Deflate => "deflate",
             ContentEncoding::Zstd => "zstd",
             ContentEncoding::Identity | ContentEncoding::Auto => "identity",
-        }
-    }
-
-    /// Default Q-factor (quality) value.
-    #[inline]
-    pub fn quality(self) -> f64 {
-        match self {
-            ContentEncoding::Br => 1.1,
-            ContentEncoding::Gzip => 1.0,
-            ContentEncoding::Deflate => 0.9,
-            ContentEncoding::Identity | ContentEncoding::Auto => 0.1,
-            ContentEncoding::Zstd => 0.0,
         }
     }
 }
@@ -69,28 +71,30 @@ impl Default for ContentEncoding {
 }
 
 impl FromStr for ContentEncoding {
-    type Err = Infallible;
+    type Err = ContentEncodingParseError;
 
     fn from_str(val: &str) -> Result<Self, Self::Err> {
-        Ok(Self::from(val))
-    }
-}
-
-impl From<&str> for ContentEncoding {
-    fn from(val: &str) -> ContentEncoding {
         let val = val.trim();
 
         if val.eq_ignore_ascii_case("br") {
-            ContentEncoding::Br
+            Ok(ContentEncoding::Br)
         } else if val.eq_ignore_ascii_case("gzip") {
-            ContentEncoding::Gzip
+            Ok(ContentEncoding::Gzip)
         } else if val.eq_ignore_ascii_case("deflate") {
-            ContentEncoding::Deflate
+            Ok(ContentEncoding::Deflate)
         } else if val.eq_ignore_ascii_case("zstd") {
-            ContentEncoding::Zstd
+            Ok(ContentEncoding::Zstd)
         } else {
-            ContentEncoding::default()
+            Err(ContentEncodingParseError)
         }
+    }
+}
+
+impl TryFrom<&str> for ContentEncoding {
+    type Error = ContentEncodingParseError;
+
+    fn try_from(val: &str) -> Result<Self, Self::Error> {
+        val.parse()
     }
 }
 
