@@ -41,7 +41,7 @@ members = [
 # resolver = "2"
 
 [features]
-default = ["compress-brotli", "compress-gzip", "compress-zstd", "cookies", "beautify-errors"]
+default = ["compress-brotli", "compress-gzip", "compress-zstd", "cookies"]
 
 # Brotli algorithm content-encoding support
 compress-brotli = ["actix-http/compress-brotli", "__compress"]
