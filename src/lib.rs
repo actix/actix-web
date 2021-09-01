@@ -103,6 +103,8 @@ pub use actix_rt as rt;
 pub use actix_web_codegen::*;
 #[cfg(feature = "cookies")]
 pub use cookie;
+#[cfg(feature = "rustls")]
+pub use actix_tls::rustls;
 
 pub use crate::app::App;
 pub use crate::error::{Error, ResponseError, Result};
