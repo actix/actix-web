@@ -6,9 +6,9 @@ use actix_utils::future::{err, ok, Ready};
 use serde::de;
 
 #[cfg(feature = "beautify-errors")]
-use url::form_urlencoded::parse;
-#[cfg(feature = "beautify-errors")]
 use crate::web::map_deserialize_error;
+#[cfg(feature = "beautify-errors")]
+use url::form_urlencoded::parse;
 
 use crate::{dev::Payload, error::QueryPayloadError, Error, FromRequest, HttpRequest};
 
@@ -104,15 +104,14 @@ impl<T> Query<T> {
     {
         let deserializer = serde_urlencoded::Deserializer::new(parse(query_str.as_bytes()));
         let qs = serde_path_to_error::deserialize(deserializer)
-        .map(Self)
-        .map_err(|e| {
-            QueryPayloadError::Deserialize(
-                <serde::de::value::Error as serde::de::Error>::custom(map_deserialize_error(
-                    &e.path().to_string(),
-                    &e.inner().to_string(),
-                )),
-            )
-        })?;
+            .map(Self)
+            .map_err(|e| {
+                QueryPayloadError::Deserialize(
+                    <serde::de::value::Error as serde::de::Error>::custom(
+                        map_deserialize_error(&e.path().to_string(), &e.inner().to_string()),
+                    ),
+                )
+            })?;
         Ok(qs)
     }
 }
