@@ -49,6 +49,7 @@ compress-brotli = ["actix-http/compress-brotli", "__compress"]
 compress-gzip = ["actix-http/compress-gzip", "__compress"]
 # Zstd algorithm content-encoding support
 compress-zstd = ["actix-http/compress-zstd", "__compress"]
+
 # change errors to display field
 beautify-errors = ["serde_path_to_error"]
 

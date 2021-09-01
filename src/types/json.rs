@@ -18,13 +18,16 @@ use actix_http::Payload;
 
 #[cfg(feature = "__compress")]
 use crate::dev::Decompress;
+
+#[cfg(feature = "beautify-errors")]
+use crate::web::map_deserialize_error;
+
 use crate::{
     error::{Error, JsonPayloadError},
     extract::FromRequest,
     http::header::CONTENT_LENGTH,
     request::HttpRequest,
-    web::{self, map_deserialize_error},
-    HttpMessage, HttpResponse, Responder,
+    web, HttpMessage, HttpResponse, Responder,
 };
 
 /// JSON extractor and responder.
@@ -425,7 +428,14 @@ where
                             buf.extend_from_slice(&chunk);
                         }
                     }
-                    None if cfg!(feature = "beautify-errors") => {
+                    #[cfg(not(feature = "beautify-errors"))]
+                    None => {
+                        let json = serde_json::from_slice::<T>(buf)
+                            .map_err(JsonPayloadError::Deserialize)?;
+                        return Poll::Ready(Ok(json));
+                    }
+                    #[cfg(feature = "beautify-errors")]
+                    None => {
                         let mut deserializer = serde_json::Deserializer::from_slice(buf);
                         let json = serde_path_to_error::deserialize(&mut deserializer)
                             .map_err(|e| {
@@ -438,11 +448,6 @@ where
                                     ),
                                 )
                             })?;
-                        return Poll::Ready(Ok(json));
-                    }
-                    None => {
-                        let json = serde_json::from_slice::<T>(buf)
-                            .map_err(JsonPayloadError::Deserialize)?;
                         return Poll::Ready(Ok(json));
                     }
                 }
