@@ -6,7 +6,10 @@ use actix_utils::future::{err, ok, Ready};
 use serde::de;
 use url::form_urlencoded::parse;
 
-use crate::{dev::Payload, error::QueryPayloadError, Error, FromRequest, HttpRequest};
+use crate::{
+    dev::Payload, error::QueryPayloadError, web::map_deserialize_error, Error, FromRequest,
+    HttpRequest,
+};
 
 /// Extract typed information from the request's query.
 ///
@@ -84,13 +87,11 @@ impl<T> Query<T> {
         if cfg!(feature = "beautify-errors") {
             let deserializer = serde_urlencoded::Deserializer::new(parse(query_str.as_bytes()));
             serde_path_to_error::deserialize(deserializer).map_err(|e| {
-                let field = e.path().to_string();
-                let original = e.inner().to_string();
-                let e = <serde::de::value::Error as serde::de::Error>::custom(format!(
-                    "{}: {}",
-                    field, original,
-                ));
-                QueryPayloadError::Deserialize(e)
+                QueryPayloadError::Deserialize(
+                    <serde::de::value::Error as serde::de::Error>::custom(
+                        map_deserialize_error(&e.path().to_string(), &e.inner().to_string()),
+                    ),
+                )
             })?
         }
         serde_urlencoded::from_str::<T>(query_str)
@@ -140,13 +141,14 @@ where
             return serde_path_to_error::deserialize(deserializer)
                 .map(|val| ok(Query(val)))
                 .unwrap_or_else(move |e| {
-                    let field = e.path().to_string();
-                    let original = e.inner().to_string();
-                    let e = <serde::de::value::Error as serde::de::Error>::custom(format!(
-                        "{}: {}",
-                        field, original,
-                    ));
-                    let e = QueryPayloadError::Deserialize(e);
+                    let e = QueryPayloadError::Deserialize(
+                        <serde::de::value::Error as serde::de::Error>::custom(
+                            map_deserialize_error(
+                                &e.path().to_string(),
+                                &e.inner().to_string(),
+                            ),
+                        ),
+                    );
 
                     log::debug!(
                         "Failed during Query extractor deserialization. \
