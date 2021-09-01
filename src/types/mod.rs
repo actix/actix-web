@@ -18,3 +18,11 @@ pub use self::path::{Path, PathConfig};
 pub use self::payload::{Payload, PayloadConfig};
 pub use self::query::{Query, QueryConfig};
 pub use self::readlines::Readlines;
+
+#[cfg(feature = "beautify-errors")]
+pub fn map_deserialize_error(field: &str, original: &str) -> String {
+    if field == "." {
+        return original.to_string();
+    }
+    format!("'{}': {}", field, original)
+}
