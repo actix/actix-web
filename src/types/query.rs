@@ -82,7 +82,6 @@ impl<T> Query<T> {
         T: de::DeserializeOwned,
     {
         if cfg!(feature = "beautify-errors") {
-            println!("with beautified errors!");
             let deserializer = serde_urlencoded::Deserializer::new(parse(query_str.as_bytes()));
             serde_path_to_error::deserialize(deserializer).map_err(|e| {
                 let field = e.path().to_string();
@@ -136,7 +135,6 @@ where
             .and_then(|c| c.err_handler.clone());
 
         if cfg!(feature = "beautify-errors") {
-            println!("with beautified errors!");
             let deserializer =
                 serde_urlencoded::Deserializer::new(parse(req.query_string().as_bytes()));
             return serde_path_to_error::deserialize(deserializer)
