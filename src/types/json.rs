@@ -411,41 +411,42 @@ where
                 buf,
                 payload,
                 ..
-            } => {
-                loop {
-                    let res = ready!(Pin::new(&mut *payload).poll_next(cx));
-                    match res {
-                        Some(chunk) => {
-                            let chunk = chunk?;
-                            let buf_len = buf.len() + chunk.len();
-                            if buf_len > *limit {
-                                return Poll::Ready(Err(JsonPayloadError::Overflow {
-                                    limit: *limit,
-                                }));
-                            } else {
-                                buf.extend_from_slice(&chunk);
-                            }
-                        }
-                        None => {
-                            let json = if !cfg!(feature = "beautify-errors") {
-                                serde_json::from_slice::<T>(buf)
-                                    .map_err(JsonPayloadError::Deserialize)?
-                            } else {
-                                let mut deserializer =
-                                    serde_json::Deserializer::from_slice(buf);
-                                serde_path_to_error::deserialize(&mut deserializer).map_err(
-                                |e| {
-                                    JsonPayloadError::Deserialize(<serde_json::error::Error as serde::de::Error>::custom(
-                                      map_deserialize_error(&e.path().to_string(), &e.inner().to_string()),
-                                  ))
-                                },
-                            )?
-                            };
-                            return Poll::Ready(Ok(json));
+            } => loop {
+                let res = ready!(Pin::new(&mut *payload).poll_next(cx));
+                match res {
+                    Some(chunk) => {
+                        let chunk = chunk?;
+                        let buf_len = buf.len() + chunk.len();
+                        if buf_len > *limit {
+                            return Poll::Ready(Err(JsonPayloadError::Overflow {
+                                limit: *limit,
+                            }));
+                        } else {
+                            buf.extend_from_slice(&chunk);
                         }
                     }
+                    None if cfg!(feature = "beautify-errors") => {
+                        let mut deserializer = serde_json::Deserializer::from_slice(buf);
+                        let json = serde_path_to_error::deserialize(&mut deserializer)
+                            .map_err(|e| {
+                                JsonPayloadError::Deserialize(
+                                    <serde_json::error::Error as serde::de::Error>::custom(
+                                        map_deserialize_error(
+                                            &e.path().to_string(),
+                                            &e.inner().to_string(),
+                                        ),
+                                    ),
+                                )
+                            })?;
+                        return Poll::Ready(Ok(json));
+                    }
+                    None => {
+                        let json = serde_json::from_slice::<T>(buf)
+                            .map_err(JsonPayloadError::Deserialize)?;
+                        return Poll::Ready(Ok(json));
+                    }
                 }
-            }
+            },
             JsonBody::Error(e) => Poll::Ready(Err(e.take().unwrap())),
         }
     }
