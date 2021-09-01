@@ -30,7 +30,7 @@ use crate::{
 ///
 /// # Extractor
 /// To extract typed data from a request body, the inner type `T` must implement the
-/// [`serde::Deserialize`] trait.
+/// [`DeserializeOwned`] trait.
 ///
 /// Use [`FormConfig`] to configure extraction process.
 ///

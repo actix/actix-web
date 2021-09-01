@@ -41,9 +41,9 @@ type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Err
 /// fn main() {
 ///     let app = App::new().service(
 ///         web::scope("/{project_id}/")
-///             .service(web::resource("/path1").to(|| async { HttpResponse::Ok() }))
+///             .service(web::resource("/path1").to(|| async { "OK" }))
 ///             .service(web::resource("/path2").route(web::get().to(|| HttpResponse::Ok())))
-///             .service(web::resource("/path3").route(web::head().to(|| HttpResponse::MethodNotAllowed())))
+///             .service(web::resource("/path3").route(web::head().to(HttpResponse::MethodNotAllowed)))
 ///     );
 /// }
 /// ```
