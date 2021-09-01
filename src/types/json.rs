@@ -18,6 +18,10 @@ use actix_http::Payload;
 
 #[cfg(feature = "__compress")]
 use crate::dev::Decompress;
+
+#[cfg(feature = "beautify-errors")]
+use crate::web::map_deserialize_error;
+
 use crate::{
     error::{Error, JsonPayloadError},
     extract::FromRequest,
@@ -406,9 +410,26 @@ impl<T: DeserializeOwned + 'static> Future for JsonBody<T> {
                             buf.extend_from_slice(&chunk);
                         }
                     }
+                    #[cfg(not(feature = "beautify-errors"))]
                     None => {
                         let json = serde_json::from_slice::<T>(buf)
                             .map_err(JsonPayloadError::Deserialize)?;
+                        return Poll::Ready(Ok(json));
+                    }
+                    #[cfg(feature = "beautify-errors")]
+                    None => {
+                        let mut deserializer = serde_json::Deserializer::from_slice(buf);
+                        let json = serde_path_to_error::deserialize(&mut deserializer)
+                            .map_err(|e| {
+                                JsonPayloadError::Deserialize(
+                                    <serde_json::error::Error as serde::de::Error>::custom(
+                                        map_deserialize_error(
+                                            &e.path().to_string(),
+                                            &e.inner().to_string(),
+                                        ),
+                                    ),
+                                )
+                            })?;
                         return Poll::Ready(Ok(json));
                     }
                 }
