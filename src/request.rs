@@ -511,7 +511,7 @@ mod tests {
         let mut res = ResourceDef::new("/user/{name}.{ext}");
         res.set_name("index");
 
-        let mut rmap = ResourceMap::new(ResourceDef::new(""));
+        let mut rmap = ResourceMap::new(ResourceDef::prefix(""));
         rmap.add(&mut res, None);
         assert!(rmap.has_resource("/user/test.html"));
         assert!(!rmap.has_resource("/test/unknown"));
@@ -541,7 +541,7 @@ mod tests {
         let mut rdef = ResourceDef::new("/index.html");
         rdef.set_name("index");
 
-        let mut rmap = ResourceMap::new(ResourceDef::new(""));
+        let mut rmap = ResourceMap::new(ResourceDef::prefix(""));
         rmap.add(&mut rdef, None);
 
         assert!(rmap.has_resource("/index.html"));
@@ -562,7 +562,7 @@ mod tests {
         let mut rdef = ResourceDef::new("/index.html");
         rdef.set_name("index");
 
-        let mut rmap = ResourceMap::new(ResourceDef::new(""));
+        let mut rmap = ResourceMap::new(ResourceDef::prefix(""));
         rmap.add(&mut rdef, None);
 
         assert!(rmap.has_resource("/index.html"));
@@ -581,9 +581,8 @@ mod tests {
 
         rdef.set_name("youtube");
 
-        let mut rmap = ResourceMap::new(ResourceDef::new(""));
+        let mut rmap = ResourceMap::new(ResourceDef::prefix(""));
         rmap.add(&mut rdef, None);
-        assert!(rmap.has_resource("https://youtube.com/watch/unknown"));
 
         let req = TestRequest::default().rmap(rmap).to_http_request();
         let url = req.url_for("youtube", &["oHg5SJYRHA0"]);
