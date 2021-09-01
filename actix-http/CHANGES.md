@@ -1,15 +1,19 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
-### Changes
+### Changed
+* `ContentEncoding` is now marked `#[non_exhaustive]`. [#2377]
 * Minimum supported Rust version (MSRV) is now 1.51.
 
 ### Fixed
 * Remove slice creation pointing to potential uninitialized data on h1 encoder. [#2364]
 * Remove `Into<Error>` bound on `Encoder` body types. [#2375]
+* Fix quality parse error in Accept-Encoding header. [#2344]
 
 [#2364]: https://github.com/actix/actix-web/pull/2364
 [#2375]: https://github.com/actix/actix-web/pull/2375
+[#2344]: https://github.com/actix/actix-web/pull/2344
+[#2377]: https://github.com/actix/actix-web/pull/2377
 
 
 ## 3.0.0-beta.8 - 2021-08-09
