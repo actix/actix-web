@@ -1,5 +1,6 @@
-use std::{convert::TryFrom, error, fmt, str::FromStr};
+use std::{convert::TryFrom, str::FromStr};
 
+use derive_more::{Display, Error};
 use http::header::InvalidHeaderValue;
 
 use crate::{
@@ -11,19 +12,13 @@ use crate::{
 /// Error return when a content encoding is unknown.
 ///
 /// Example: 'compress'
-#[derive(Debug)]
+#[derive(Debug, Display, Error)]
+#[display(fmt = "unsupported content encoding")]
 pub struct ContentEncodingParseError;
 
-impl fmt::Display for ContentEncodingParseError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Unsupported content encoding")
-    }
-}
-
-impl error::Error for ContentEncodingParseError {}
-
 /// Represents a supported content encoding.
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
 pub enum ContentEncoding {
     /// Automatically select encoding based on encoding negotiation.
     Auto,

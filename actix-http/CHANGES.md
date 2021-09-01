@@ -18,6 +18,7 @@
 ### Fixed
 * Potential HTTP request smuggling vulnerabilities. [RUSTSEC-2021-0081](https://github.com/rustsec/advisory-db/pull/977)
 
+
 ## 3.0.0-beta.8 - 2021-06-26
 ### Changed
 * Change compression algorithm features flags. [#2250]
