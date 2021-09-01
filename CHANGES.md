@@ -4,10 +4,15 @@
 ### Added
 * Re-export actix-service `ServiceFactory` in `dev` module. [#2325]
 
-### Changes
+### Changed
 * Minimum supported Rust version (MSRV) is now 1.51.
+* Compress middleware will return 406 Not Acceptable when no content encoding is acceptable to the client. [#2344]
+
+### Fixed
+* Fix quality parse error in Accept-Encoding header. [#2344]
 
 [#2325]: https://github.com/actix/actix-web/pull/2325
+[#2344]: https://github.com/actix/actix-web/pull/2344
 
 
 ## 4.0.0-beta.8 - 2021-06-26
