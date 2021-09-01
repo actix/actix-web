@@ -14,6 +14,7 @@ use bytes::BytesMut;
 use futures_core::{ready, stream::Stream as _};
 use serde::{de::DeserializeOwned, Serialize};
 
+
 use actix_http::Payload;
 
 #[cfg(feature = "__compress")]
@@ -425,8 +426,24 @@ where
                         }
                     }
                     None => {
-                        let json = serde_json::from_slice::<T>(buf)
-                            .map_err(JsonPayloadError::Deserialize)?;
+                        let json = if !cfg!(feature = "beautify-errors") {
+                            serde_json::from_slice::<T>(buf)
+                                .map_err(JsonPayloadError::Deserialize)?
+                        } else {
+                            let mut deserializer = serde_json::Deserializer::from_slice(buf);
+                            serde_path_to_error::deserialize(&mut deserializer).map_err(
+                                |e| {
+                                    let field = e.path().to_string();
+                                    let original = e.inner().to_string();
+                                    let e = <serde_json::error::Error as serde::de::Error>::custom(format!(
+                                        "{}: {}",
+                                        field,
+                                        original,
+                                    ));
+                                    JsonPayloadError::Deserialize(e)
+                                },
+                            )?
+                        };
                         return Poll::Ready(Ok(json));
                     }
                 }
