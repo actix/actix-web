@@ -26,7 +26,7 @@ pub use actix_service::{
 };
 
 use crate::http::header::ContentEncoding;
-use actix_http::{Response, ResponseBuilder};
+use actix_http::ResponseBuilder;
 
 use actix_router::Patterns;
 
