@@ -6,16 +6,16 @@
 
 ### Changed
 * Compress middleware will return 406 Not Acceptable when no content encoding is acceptable to the client. [#2344]
-* Move `BaseHttpResponse` to `dev::Response`. [#????]
+* Move `BaseHttpResponse` to `dev::Response`. [#2379]
 * Minimum supported Rust version (MSRV) is now 1.51.
 
 ### Fixed
 * Fix quality parse error in Accept-Encoding header. [#2344]
-* Re-export correct type at `web::HttpResponse`. [#????]
+* Re-export correct type at `web::HttpResponse`. [#2379]
 
 [#2325]: https://github.com/actix/actix-web/pull/2325
 [#2344]: https://github.com/actix/actix-web/pull/2344
-[#????]: https://github.com/actix/actix-web/pull/????
+[#2379]: https://github.com/actix/actix-web/pull/2379
 
 
 ## 4.0.0-beta.8 - 2021-06-26
