@@ -80,10 +80,10 @@ pub fn route() -> Route {
 macro_rules! method_route {
     ($method_fn:ident, $method_const:ident) => {
         paste::paste! {
-            #[doc = "Creates a new route with `" $method_const "` method guard."]
+            #[doc = " Creates a new route with `" $method_const "` method guard."]
             ///
             /// # Examples
-            #[doc = "In this example, one `" $method_const " /{project_id}` route is set up:"]
+            #[doc = " In this example, one `" $method_const " /{project_id}` route is set up:"]
             /// ```
             /// use actix_web::{web, App, HttpResponse};
             ///

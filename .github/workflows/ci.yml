@@ -24,6 +24,8 @@ jobs:
     runs-on: ${{ matrix.target.os }}
 
     env:
+      CI: 1
+      CARGO_INCREMENTAL: 0
       VCPKGRS_DYNAMIC: 1
 
     steps:

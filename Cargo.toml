@@ -118,6 +118,10 @@ rcgen = "0.8"
 tls-openssl = { package = "openssl", version = "0.10.9" }
 tls-rustls = { package = "rustls", version = "0.19.0" }
 
+[profile.dev]
+# Disabling debug info speeds up builds a bunch and we don't rely on it for debugging that much.
+debug = 0
+
 [profile.release]
 lto = true
 opt-level = 3
