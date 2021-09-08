@@ -1,7 +1,7 @@
 use super::{QualityItem, CONTENT_LANGUAGE};
 use language_tags::LanguageTag;
 
-crate::__define_common_header! {
+crate::http::header::common_header! {
     /// `Content-Language` header, defined in
     /// [RFC7231](https://tools.ietf.org/html/rfc7231#section-3.1.3.2)
     ///
@@ -24,35 +24,33 @@ crate::__define_common_header! {
     /// # Examples
     ///
     /// ```
-    /// use language_tags::langtag;
     /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{ContentLanguage, qitem};
+    /// use actix_web::http::header::{ContentLanguage, LanguageTag, qitem};
     ///
     /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     ContentLanguage(vec![
-    ///         qitem(langtag!(en)),
+    ///         qitem(LanguageTag::parse("en").unwrap()),
     ///     ])
     /// );
     /// ```
     ///
     /// ```
-    /// use language_tags::langtag;
     /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{ContentLanguage, qitem};
+    /// use actix_web::http::header::{ContentLanguage, LanguageTag, qitem};
     ///
     /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     ContentLanguage(vec![
-    ///         qitem(langtag!(da)),
-    ///         qitem(langtag!(en;;;GB)),
+    ///         qitem(LanguageTag::parse("da").unwrap()),
+    ///         qitem(LanguageTag::parse("en-GB").unwrap()),
     ///     ])
     /// );
     /// ```
     (ContentLanguage, CONTENT_LANGUAGE) => (QualityItem<LanguageTag>)+
 
     test_content_language {
-        crate::__common_header_test!(test1, vec![b"da"]);
-        crate::__common_header_test!(test2, vec![b"mi, en"]);
+        crate::http::header::common_header_test!(test1, vec![b"da"]);
+        crate::http::header::common_header_test!(test2, vec![b"mi, en"]);
     }
 }

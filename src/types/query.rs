@@ -3,14 +3,14 @@
 use std::{fmt, ops, sync::Arc};
 
 use actix_utils::future::{err, ok, Ready};
-use serde::de;
+use serde::de::DeserializeOwned;
 
 use crate::{dev::Payload, error::QueryPayloadError, Error, FromRequest, HttpRequest};
 
 /// Extract typed information from the request's query.
 ///
 /// To extract typed data from the URL query string, the inner type `T` must implement the
-/// [`serde::Deserialize`] trait.
+/// [`DeserializeOwned`] trait.
 ///
 /// Use [`QueryConfig`] to configure extraction process.
 ///
@@ -46,18 +46,18 @@ use crate::{dev::Payload, error::QueryPayloadError, Error, FromRequest, HttpRequ
 /// // To access the entire underlying query struct, use `.into_inner()`.
 /// #[get("/debug1")]
 /// async fn debug1(info: web::Query<AuthRequest>) -> String {
-///     dbg!("Authorization object={:?}", info.into_inner());
+///     dbg!("Authorization object = {:?}", info.into_inner());
 ///     "OK".to_string()
 /// }
 ///
-/// // Or use `.0`, which is equivalent to `.into_inner()`.
+/// // Or use destructuring, which is equivalent to `.into_inner()`.
 /// #[get("/debug2")]
-/// async fn debug2(info: web::Query<AuthRequest>) -> String {
-///     dbg!("Authorization object={:?}", info.0);
+/// async fn debug2(web::Query(info): web::Query<AuthRequest>) -> String {
+///     dbg!("Authorization object = {:?}", info);
 ///     "OK".to_string()
 /// }
 /// ```
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Query<T>(pub T);
 
 impl<T> Query<T> {
@@ -65,8 +65,10 @@ impl<T> Query<T> {
     pub fn into_inner(self) -> T {
         self.0
     }
+}
 
-    /// Deserialize `T` from a URL encoded query parameter string.
+impl<T: DeserializeOwned> Query<T> {
+    /// Deserialize a `T` from the URL encoded query parameter string.
     ///
     /// ```
     /// # use std::collections::HashMap;
@@ -76,10 +78,7 @@ impl<T> Query<T> {
     /// assert_eq!(numbers.get("two"), Some(&2));
     /// assert!(numbers.get("three").is_none());
     /// ```
-    pub fn from_query(query_str: &str) -> Result<Self, QueryPayloadError>
-    where
-        T: de::DeserializeOwned,
-    {
+    pub fn from_query(query_str: &str) -> Result<Self, QueryPayloadError> {
         serde_urlencoded::from_str::<T>(query_str)
             .map(Self)
             .map_err(QueryPayloadError::Deserialize)
@@ -107,10 +106,7 @@ impl<T: fmt::Display> fmt::Display for Query<T> {
 }
 
 /// See [here](#usage) for example of usage as an extractor.
-impl<T> FromRequest for Query<T>
-where
-    T: de::DeserializeOwned,
-{
+impl<T: DeserializeOwned> FromRequest for Query<T> {
     type Error = Error;
     type Future = Ready<Result<Self, Error>>;
     type Config = QueryConfig;
@@ -119,8 +115,7 @@ where
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let error_handler = req
             .app_data::<Self::Config>()
-            .map(|c| c.err_handler.clone())
-            .unwrap_or(None);
+            .and_then(|c| c.err_handler.clone());
 
         serde_urlencoded::from_str::<T>(req.query_string())
             .map(|val| ok(Query(val)))
@@ -166,7 +161,7 @@ where
 /// let query_cfg = web::QueryConfig::default()
 ///     // use custom error handler
 ///     .error_handler(|err, req| {
-///         error::InternalError::from_response(err, HttpResponse::Conflict().into()).into()
+///         error::InternalError::from_response(err, HttpResponse::Conflict().finish()).into()
 ///     });
 ///
 /// App::new()
@@ -214,10 +209,10 @@ mod tests {
     #[actix_rt::test]
     async fn test_service_request_extract() {
         let req = TestRequest::with_uri("/name/user1/").to_srv_request();
-        assert!(Query::<Id>::from_query(&req.query_string()).is_err());
+        assert!(Query::<Id>::from_query(req.query_string()).is_err());
 
         let req = TestRequest::with_uri("/name/user1/?id=test").to_srv_request();
-        let mut s = Query::<Id>::from_query(&req.query_string()).unwrap();
+        let mut s = Query::<Id>::from_query(req.query_string()).unwrap();
 
         assert_eq!(s.id, "test");
         assert_eq!(
@@ -267,7 +262,7 @@ mod tests {
         let req = TestRequest::with_uri("/name/user1/")
             .app_data(QueryConfig::default().error_handler(|e, _| {
                 let resp = HttpResponse::UnprocessableEntity().finish();
-                InternalError::from_response(e, resp.into()).into()
+                InternalError::from_response(e, resp).into()
             }))
             .to_srv_request();
 

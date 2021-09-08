@@ -29,10 +29,11 @@ use openssl::{
     x509::X509,
 };
 use rand::{distributions::Alphanumeric, Rng};
+use zstd::stream::{read::Decoder as ZstdDecoder, write::Encoder as ZstdEncoder};
 
 use actix_web::dev::BodyEncoding;
 use actix_web::middleware::{Compress, NormalizePath, TrailingSlash};
-use actix_web::{dev, web, App, Error, HttpResponse};
+use actix_web::{web, App, Error, HttpResponse};
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \
@@ -160,9 +161,7 @@ async fn test_body_gzip2() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
             .wrap(Compress::new(ContentEncoding::Gzip))
-            .service(web::resource("/").route(web::to(|| {
-                HttpResponse::Ok().body(STR).into_body::<dev::Body>()
-            })))
+            .service(web::resource("/").route(web::to(|| HttpResponse::Ok().body(STR))))
     });
 
     let mut response = srv
@@ -479,6 +478,125 @@ async fn test_body_brotli() {
 }
 
 #[actix_rt::test]
+async fn test_body_zstd() {
+    let srv = actix_test::start_with(actix_test::config().h1(), || {
+        App::new()
+            .wrap(Compress::new(ContentEncoding::Zstd))
+            .service(web::resource("/").route(web::to(move || HttpResponse::Ok().body(STR))))
+    });
+
+    // client request
+    let mut response = srv
+        .get("/")
+        .append_header((ACCEPT_ENCODING, "zstd"))
+        .no_decompress()
+        .send()
+        .await
+        .unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = response.body().await.unwrap();
+
+    // decode
+    let mut e = ZstdDecoder::new(&bytes[..]).unwrap();
+    let mut dec = Vec::new();
+    e.read_to_end(&mut dec).unwrap();
+    assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
+}
+
+#[actix_rt::test]
+async fn test_body_zstd_streaming() {
+    let srv = actix_test::start_with(actix_test::config().h1(), || {
+        App::new()
+            .wrap(Compress::new(ContentEncoding::Zstd))
+            .service(web::resource("/").route(web::to(move || {
+                HttpResponse::Ok()
+                    .streaming(TestBody::new(Bytes::from_static(STR.as_ref()), 24))
+            })))
+    });
+
+    // client request
+    let mut response = srv
+        .get("/")
+        .append_header((ACCEPT_ENCODING, "zstd"))
+        .no_decompress()
+        .send()
+        .await
+        .unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = response.body().await.unwrap();
+
+    // decode
+    let mut e = ZstdDecoder::new(&bytes[..]).unwrap();
+    let mut dec = Vec::new();
+    e.read_to_end(&mut dec).unwrap();
+    assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
+}
+
+#[actix_rt::test]
+async fn test_zstd_encoding() {
+    let srv = actix_test::start_with(actix_test::config().h1(), || {
+        App::new().service(
+            web::resource("/").route(web::to(move |body: Bytes| HttpResponse::Ok().body(body))),
+        )
+    });
+
+    let mut e = ZstdEncoder::new(Vec::new(), 5).unwrap();
+    e.write_all(STR.as_ref()).unwrap();
+    let enc = e.finish().unwrap();
+
+    // client request
+    let request = srv
+        .post("/")
+        .append_header((CONTENT_ENCODING, "zstd"))
+        .send_body(enc.clone());
+    let mut response = request.await.unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = response.body().await.unwrap();
+    assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+}
+
+#[actix_rt::test]
+async fn test_zstd_encoding_large() {
+    let data = rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(320_000)
+        .map(char::from)
+        .collect::<String>();
+
+    let srv = actix_test::start_with(actix_test::config().h1(), || {
+        App::new().service(
+            web::resource("/")
+                .app_data(web::PayloadConfig::new(320_000))
+                .route(web::to(move |body: Bytes| {
+                    HttpResponse::Ok().streaming(TestBody::new(body, 10240))
+                })),
+        )
+    });
+
+    let mut e = ZstdEncoder::new(Vec::new(), 5).unwrap();
+    e.write_all(data.as_ref()).unwrap();
+    let enc = e.finish().unwrap();
+
+    // client request
+    let request = srv
+        .post("/")
+        .append_header((CONTENT_ENCODING, "zstd"))
+        .send_body(enc.clone());
+    let mut response = request.await.unwrap();
+    assert!(response.status().is_success());
+
+    // read response
+    let bytes = response.body().limit(320_000).await.unwrap();
+    assert_eq!(bytes, Bytes::from(data));
+}
+
+#[actix_rt::test]
 async fn test_encoding() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().wrap(Compress::default()).service(
@@ -761,7 +879,7 @@ async fn test_brotli_encoding_large_openssl() {
     assert_eq!(bytes, Bytes::from(data));
 }
 
-#[cfg(all(feature = "rustls", feature = "openssl"))]
+#[cfg(feature = "rustls")]
 mod plus_rustls {
     use std::io::BufReader;
 
@@ -903,13 +1021,15 @@ async fn test_normalize() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
             .wrap(NormalizePath::new(TrailingSlash::Trim))
-            .service(web::resource("/one").route(web::to(|| HttpResponse::Ok().finish())))
+            .service(web::resource("/one").route(web::to(HttpResponse::Ok)))
     });
 
     let response = srv.get("/one/").send().await.unwrap();
     assert!(response.status().is_success());
 }
 
+// allow deprecated App::data
+#[allow(deprecated)]
 #[actix_rt::test]
 async fn test_data_drop() {
     use std::sync::{
@@ -956,4 +1076,23 @@ async fn test_data_drop() {
     srv.stop().await;
 
     assert_eq!(num.load(Ordering::SeqCst), 0);
+}
+
+#[actix_rt::test]
+async fn test_accept_encoding_no_match() {
+    let srv = actix_test::start_with(actix_test::config().h1(), || {
+        App::new()
+            .wrap(Compress::default())
+            .service(web::resource("/").route(web::to(move || HttpResponse::Ok().finish())))
+    });
+
+    let response = srv
+        .get("/")
+        .append_header((ACCEPT_ENCODING, "compress, identity;q=0"))
+        .no_decompress()
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status().as_u16(), 406);
 }

@@ -2,24 +2,23 @@ use std::cell::{Ref, RefMut};
 use std::rc::Rc;
 use std::{fmt, net};
 
-use actix_http::body::{Body, MessageBody, ResponseBody};
-use actix_http::http::{HeaderMap, Method, StatusCode, Uri, Version};
 use actix_http::{
-    Error, Extensions, HttpMessage, Payload, PayloadStream, RequestHead, Response, ResponseHead,
+    body::{AnyBody, MessageBody},
+    http::{HeaderMap, Method, StatusCode, Uri, Version},
+    Extensions, HttpMessage, Payload, PayloadStream, RequestHead, Response, ResponseHead,
 };
-use actix_router::{IntoPattern, Path, Resource, ResourceDef, Url};
+use actix_router::{IntoPatterns, Path, Patterns, Resource, ResourceDef, Url};
 use actix_service::{IntoServiceFactory, ServiceFactory};
 #[cfg(feature = "cookies")]
 use cookie::{Cookie, ParseError as CookieParseError};
 
-use crate::dev::insert_slash;
-use crate::guard::Guard;
-use crate::info::ConnectionInfo;
-use crate::request::HttpRequest;
-use crate::rmap::ResourceMap;
 use crate::{
     config::{AppConfig, AppService},
-    HttpResponse,
+    dev::ensure_leading_slash,
+    guard::Guard,
+    info::ConnectionInfo,
+    rmap::ResourceMap,
+    Error, HttpRequest, HttpResponse,
 };
 
 pub trait HttpServiceFactory {
@@ -60,9 +59,9 @@ where
     }
 }
 
-/// An service http request
+/// A service level request wrapper.
 ///
-/// ServiceRequest allows mutable access to request's internal structures
+/// Allows mutable access to request's internal structures.
 pub struct ServiceRequest {
     req: HttpRequest,
     payload: Payload,
@@ -74,16 +73,16 @@ impl ServiceRequest {
         Self { req, payload }
     }
 
-    /// Construct service request.
-    #[doc(hidden)]
-    pub fn __priv_test_new(req: HttpRequest, payload: Payload) -> Self {
-        Self::new(req, payload)
-    }
-
     /// Deconstruct request into parts
     #[inline]
     pub fn into_parts(self) -> (HttpRequest, Payload) {
         (self.req, self.payload)
+    }
+
+    /// Get mutable access to inner `HttpRequest` and `Payload`
+    #[inline]
+    pub fn parts_mut(&mut self) -> (&mut HttpRequest, &mut Payload) {
+        (&mut self.req, &mut self.payload)
     }
 
     /// Construct request from parts.
@@ -110,15 +109,15 @@ impl ServiceRequest {
 
     /// Create service response for error
     #[inline]
-    pub fn error_response<B, E: Into<Error>>(self, err: E) -> ServiceResponse<B> {
+    pub fn error_response<E: Into<Error>>(self, err: E) -> ServiceResponse {
         let res = HttpResponse::from_error(err.into());
-        ServiceResponse::new(self.req, res.into_body())
+        ServiceResponse::new(self.req, res)
     }
 
     /// This method returns reference to the request head
     #[inline]
     pub fn head(&self) -> &RequestHead {
-        &self.req.head()
+        self.req.head()
     }
 
     /// This method returns reference to the request head
@@ -168,11 +167,7 @@ impl ServiceRequest {
     /// E.g., id=10
     #[inline]
     pub fn query_string(&self) -> &str {
-        if let Some(query) = self.uri().query().as_ref() {
-            query
-        } else {
-            ""
-        }
+        self.uri().query().unwrap_or_default()
     }
 
     /// Peer socket address.
@@ -217,14 +212,14 @@ impl ServiceRequest {
         self.req.match_pattern()
     }
 
-    #[inline]
     /// Get a mutable reference to the Path parameters.
+    #[inline]
     pub fn match_info_mut(&mut self) -> &mut Path<Url> {
         self.req.match_info_mut()
     }
 
-    #[inline]
     /// Get a reference to a `ResourceMap` of current application.
+    #[inline]
     pub fn resource_map(&self) -> &ResourceMap {
         self.req.resource_map()
     }
@@ -330,9 +325,18 @@ impl fmt::Debug for ServiceRequest {
     }
 }
 
-pub struct ServiceResponse<B = Body> {
+/// A service level response wrapper.
+pub struct ServiceResponse<B = AnyBody> {
     request: HttpRequest,
     response: HttpResponse<B>,
+}
+
+impl ServiceResponse<AnyBody> {
+    /// Create service response from the error
+    pub fn from_err<E: Into<Error>>(err: E, request: HttpRequest) -> Self {
+        let response = HttpResponse::from_error(err);
+        ServiceResponse { request, response }
+    }
 }
 
 impl<B> ServiceResponse<B> {
@@ -341,16 +345,10 @@ impl<B> ServiceResponse<B> {
         ServiceResponse { request, response }
     }
 
-    /// Create service response from the error
-    pub fn from_err<E: Into<Error>>(err: E, request: HttpRequest) -> Self {
-        let response = HttpResponse::from_error(err.into()).into_body();
-        ServiceResponse { request, response }
-    }
-
     /// Create service response for error
     #[inline]
-    pub fn error_response<E: Into<Error>>(self, err: E) -> Self {
-        Self::from_err(err, self.request)
+    pub fn error_response<E: Into<Error>>(self, err: E) -> ServiceResponse {
+        ServiceResponse::from_err(err, self.request)
     }
 
     /// Create service response
@@ -396,23 +394,18 @@ impl<B> ServiceResponse<B> {
     }
 
     /// Execute closure and in case of error convert it to response.
-    pub fn checked_expr<F, E>(mut self, f: F) -> Self
+    pub fn checked_expr<F, E>(mut self, f: F) -> Result<Self, Error>
     where
         F: FnOnce(&mut Self) -> Result<(), E>,
         E: Into<Error>,
     {
-        match f(&mut self) {
-            Ok(_) => self,
-            Err(err) => {
-                let res = HttpResponse::from_error(err.into());
-                ServiceResponse::new(self.request, res.into_body())
-            }
-        }
+        f(&mut self).map_err(Into::into)?;
+        Ok(self)
     }
 
     /// Extract response body
-    pub fn take_body(&mut self) -> ResponseBody<B> {
-        self.response.take_body()
+    pub fn into_body(self) -> B {
+        self.response.into_body()
     }
 }
 
@@ -420,7 +413,7 @@ impl<B> ServiceResponse<B> {
     /// Set a new body
     pub fn map_body<F, B2>(self, f: F) -> ServiceResponse<B2>
     where
-        F: FnOnce(&mut ResponseHead, ResponseBody<B>) -> ResponseBody<B2>,
+        F: FnOnce(&mut ResponseHead, B) -> B2,
     {
         let response = self.response.map_body(f);
 
@@ -443,7 +436,11 @@ impl<B> From<ServiceResponse<B>> for Response<B> {
     }
 }
 
-impl<B: MessageBody> fmt::Debug for ServiceResponse<B> {
+impl<B> fmt::Debug for ServiceResponse<B>
+where
+    B: MessageBody,
+    B::Error: Into<Error>,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res = writeln!(
             f,
@@ -462,14 +459,14 @@ impl<B: MessageBody> fmt::Debug for ServiceResponse<B> {
 }
 
 pub struct WebService {
-    rdef: Vec<String>,
+    rdef: Patterns,
     name: Option<String>,
     guards: Vec<Box<dyn Guard>>,
 }
 
 impl WebService {
     /// Create new `WebService` instance.
-    pub fn new<T: IntoPattern>(path: T) -> Self {
+    pub fn new<T: IntoPatterns>(path: T) -> Self {
         WebService {
             rdef: path.patterns(),
             name: None,
@@ -479,7 +476,7 @@ impl WebService {
 
     /// Set service name.
     ///
-    /// Name is used for url generation.
+    /// Name is used for URL generation.
     pub fn name(mut self, name: &str) -> Self {
         self.name = Some(name.to_string());
         self
@@ -531,7 +528,7 @@ impl WebService {
 
 struct WebServiceImpl<T> {
     srv: T,
-    rdef: Vec<String>,
+    rdef: Patterns,
     name: Option<String>,
     guards: Vec<Box<dyn Guard>>,
 }
@@ -554,13 +551,15 @@ where
         };
 
         let mut rdef = if config.is_root() || !self.rdef.is_empty() {
-            ResourceDef::new(insert_slash(self.rdef))
+            ResourceDef::new(ensure_leading_slash(self.rdef))
         } else {
             ResourceDef::new(self.rdef)
         };
+
         if let Some(ref name) = self.name {
-            *rdef.name_mut() = name.clone();
+            rdef.set_name(name);
         }
+
         config.register_service(rdef, guards, self.srv, None)
     }
 }
@@ -654,6 +653,8 @@ mod tests {
         assert_eq!(resp.status(), http::StatusCode::NOT_FOUND);
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_service_data() {
         let srv =

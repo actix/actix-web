@@ -3,10 +3,11 @@ extern crate proc_macro;
 use std::collections::HashSet;
 use std::convert::TryFrom;
 
+use actix_router::ResourceDef;
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote, ToTokens, TokenStreamExt};
-use syn::{parse_macro_input, AttributeArgs, Ident, NestedMeta};
+use syn::{parse_macro_input, AttributeArgs, Ident, LitStr, NestedMeta};
 
 enum ResourceType {
     Async,
@@ -101,6 +102,7 @@ impl Args {
             match arg {
                 NestedMeta::Lit(syn::Lit::Str(lit)) => match path {
                     None => {
+                        let _ = ResourceDef::new(lit.value());
                         path = Some(lit);
                     }
                     _ => {
@@ -227,8 +229,7 @@ impl Route {
                 format!(
                     r#"invalid service definition, expected #[{}("<some path>")]"#,
                     method
-                        .map(|it| it.as_str())
-                        .unwrap_or("route")
+                        .map_or("route", |it| it.as_str())
                         .to_ascii_lowercase()
                 ),
             ));
@@ -298,7 +299,7 @@ impl ToTokens for Route {
         } = self;
         let resource_name = resource_name
             .as_ref()
-            .map_or_else(|| name.to_string(), |n| n.value());
+            .map_or_else(|| name.to_string(), LitStr::value);
         let method_guards = {
             let mut others = methods.iter();
             // unwrapping since length is checked to be at least one

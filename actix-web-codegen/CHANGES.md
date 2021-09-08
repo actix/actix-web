@@ -1,6 +1,14 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+* In routing macros, paths are now validated at compile time. [#2350]
+* Minimum supported Rust version (MSRV) is now 1.51.
+
+[#2350]: https://github.com/actix/actix-web/pull/2350
+
+
+## 0.5.0-beta.3 - 2021-06-17
+* No notable changes.
 
 
 ## 0.5.0-beta.2 - 2021-03-09

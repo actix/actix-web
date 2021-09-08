@@ -11,7 +11,6 @@ use bytes::{Bytes, BytesMut};
 use futures_core::{ready, Stream};
 use futures_util::SinkExt as _;
 
-use crate::error::PayloadError;
 use crate::h1;
 use crate::http::{
     header::{HeaderMap, IntoHeaderValue, EXPECT, HOST},
@@ -19,6 +18,7 @@ use crate::http::{
 };
 use crate::message::{RequestHeadType, ResponseHead};
 use crate::payload::Payload;
+use crate::{error::PayloadError, Error};
 
 use super::connection::{ConnectionIo, H1Connection};
 use super::error::{ConnectError, SendRequestError};
@@ -32,6 +32,7 @@ pub(crate) async fn send_request<Io, B>(
 where
     Io: ConnectionIo,
     B: MessageBody,
+    B::Error: Into<Error>,
 {
     // set request host header
     if !head.as_ref().headers.contains_key(HOST)
@@ -154,6 +155,7 @@ pub(crate) async fn send_body<Io, B>(
 where
     Io: ConnectionIo,
     B: MessageBody,
+    B::Error: Into<Error>,
 {
     actix_rt::pin!(body);
 
@@ -161,9 +163,10 @@ where
     while !eof {
         while !eof && !framed.as_ref().is_write_buf_full() {
             match poll_fn(|cx| body.as_mut().poll_next(cx)).await {
-                Some(result) => {
-                    framed.as_mut().write(h1::Message::Chunk(Some(result?)))?;
+                Some(Ok(chunk)) => {
+                    framed.as_mut().write(h1::Message::Chunk(Some(chunk)))?;
                 }
+                Some(Err(err)) => return Err(err.into().into()),
                 None => {
                     eof = true;
                     framed.as_mut().write(h1::Message::Chunk(None))?;

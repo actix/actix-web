@@ -3,18 +3,14 @@ use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use actix_http::Error;
 use actix_service::{Service, ServiceFactory};
 use actix_utils::future::{ready, Ready};
 use futures_core::ready;
 use pin_project::pin_project;
 
 use crate::{
-    extract::FromRequest,
-    request::HttpRequest,
-    responder::Responder,
-    response::HttpResponse,
     service::{ServiceRequest, ServiceResponse},
+    Error, FromRequest, HttpRequest, HttpResponse, Responder,
 };
 
 /// A request handler is an async function that accepts zero or more parameters that can be

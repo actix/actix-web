@@ -21,11 +21,10 @@ use regex::{Regex, RegexSet};
 use time::OffsetDateTime;
 
 use crate::{
-    dev::{BodySize, MessageBody, ResponseBody},
-    error::{Error, Result},
+    dev::{BodySize, MessageBody},
     http::{HeaderName, StatusCode},
     service::{ServiceRequest, ServiceResponse},
-    HttpResponse,
+    Error, HttpResponse, Result,
 };
 
 /// Middleware for logging request and response summaries to the terminal.
@@ -290,13 +289,11 @@ where
         let time = *this.time;
         let format = this.format.take();
 
-        Poll::Ready(Ok(res.map_body(move |_, body| {
-            ResponseBody::Body(StreamLog {
-                body,
-                time,
-                format,
-                size: 0,
-            })
+        Poll::Ready(Ok(res.map_body(move |_, body| StreamLog {
+            body,
+            time,
+            format,
+            size: 0,
         })))
     }
 }
@@ -306,7 +303,7 @@ use pin_project::{pin_project, pinned_drop};
 #[pin_project(PinnedDrop)]
 pub struct StreamLog<B> {
     #[pin]
-    body: ResponseBody<B>,
+    body: B,
     format: Option<Format>,
     size: usize,
     time: OffsetDateTime,
@@ -327,7 +324,13 @@ impl<B> PinnedDrop for StreamLog<B> {
     }
 }
 
-impl<B: MessageBody> MessageBody for StreamLog<B> {
+impl<B> MessageBody for StreamLog<B>
+where
+    B: MessageBody,
+    B::Error: Into<Error>,
+{
+    type Error = Error;
+
     fn size(&self) -> BodySize {
         self.body.size()
     }
@@ -335,14 +338,16 @@ impl<B: MessageBody> MessageBody for StreamLog<B> {
     fn poll_next(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<Bytes, Error>>> {
+    ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         let this = self.project();
-        match this.body.poll_next(cx) {
-            Poll::Ready(Some(Ok(chunk))) => {
+
+        match ready!(this.body.poll_next(cx)) {
+            Some(Ok(chunk)) => {
                 *this.size += chunk.len();
                 Poll::Ready(Some(Ok(chunk)))
             }
-            val => val,
+            Some(Err(err)) => Poll::Ready(Some(Err(err.into()))),
+            None => Poll::Ready(None),
         }
     }
 }
@@ -547,7 +552,7 @@ impl FormatText {
                 *self = FormatText::Str(s.to_string());
             }
             FormatText::RemoteAddr => {
-                let s = if let Some(ref peer) = req.connection_info().remote_addr() {
+                let s = if let Some(peer) = req.connection_info().remote_addr() {
                     FormatText::Str((*peer).to_string())
                 } else {
                     FormatText::Str("-".to_string())

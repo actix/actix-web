@@ -1,8 +1,7 @@
-use std::{borrow::Cow, fmt};
+use std::borrow::Cow;
 
 use actix_http::{
     body::Body,
-    error::InternalError,
     http::{header::IntoHeaderPair, Error as HttpError, HeaderMap, StatusCode},
 };
 use bytes::{Bytes, BytesMut};
@@ -227,15 +226,6 @@ impl<T: Responder> Responder for CustomResponder<T> {
     }
 }
 
-impl<T> Responder for InternalError<T>
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
-        HttpResponse::from_error(self.into())
-    }
-}
-
 #[cfg(test)]
 pub(crate) mod tests {
     use actix_service::Service;
@@ -264,7 +254,7 @@ pub(crate) mod tests {
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         match resp.response().body() {
-            ResponseBody::Body(Body::Bytes(ref b)) => {
+            Body::Bytes(ref b) => {
                 let bytes = b.clone();
                 assert_eq!(bytes, Bytes::from_static(b"some"));
             }
@@ -277,16 +267,28 @@ pub(crate) mod tests {
         fn body(&self) -> &Body;
     }
 
+    impl BodyTest for Body {
+        fn bin_ref(&self) -> &[u8] {
+            match self {
+                Body::Bytes(ref bin) => bin,
+                _ => unreachable!("bug in test impl"),
+            }
+        }
+        fn body(&self) -> &Body {
+            self
+        }
+    }
+
     impl BodyTest for ResponseBody<Body> {
         fn bin_ref(&self) -> &[u8] {
             match self {
                 ResponseBody::Body(ref b) => match b {
-                    Body::Bytes(ref bin) => &bin,
-                    _ => panic!(),
+                    Body::Bytes(ref bin) => bin,
+                    _ => unreachable!("bug in test impl"),
                 },
                 ResponseBody::Other(ref b) => match b {
-                    Body::Bytes(ref bin) => &bin,
-                    _ => panic!(),
+                    Body::Bytes(ref bin) => bin,
+                    _ => unreachable!("bug in test impl"),
                 },
             }
         }

@@ -27,7 +27,9 @@ pub(crate) fn write_status_line<B: BufMut>(version: Version, n: u16, buf: &mut B
     buf.put_u8(b' ');
 }
 
-/// NOTE: bytes object has to contain enough space
+/// Write out content length header.
+///
+/// Buffer must to contain enough space or be implicitly extendable.
 pub fn write_content_length<B: BufMut>(n: u64, buf: &mut B) {
     if n == 0 {
         buf.put_slice(b"\r\ncontent-length: 0\r\n");
@@ -41,9 +43,15 @@ pub fn write_content_length<B: BufMut>(n: u64, buf: &mut B) {
     buf.put_slice(b"\r\n");
 }
 
-pub(crate) struct Writer<'a, B>(pub &'a mut B);
+/// An `io::Write`r that only requires mutable reference and assumes that there is space available
+/// in the buffer for every write operation or that it can be extended implicitly (like
+/// `bytes::BytesMut`, for example).
+///
+/// This is slightly faster (~10%) than `bytes::buf::Writer` in such cases because it does not
+/// perform a remaining length check before writing.
+pub(crate) struct MutWriter<'a, B>(pub(crate) &'a mut B);
 
-impl<'a, B> io::Write for Writer<'a, B>
+impl<'a, B> io::Write for MutWriter<'a, B>
 where
     B: BufMut,
 {

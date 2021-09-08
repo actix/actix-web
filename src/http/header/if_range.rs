@@ -113,7 +113,7 @@ mod test_if_range {
     use crate::http::header::*;
     use std::str;
 
-    crate::__common_header_test!(test1, vec![b"Sat, 29 Oct 1994 19:43:31 GMT"]);
-    crate::__common_header_test!(test2, vec![b"\"abc\""]);
-    crate::__common_header_test!(test3, vec![b"this-is-invalid"], None::<IfRange>);
+    crate::http::header::common_header_test!(test1, vec![b"Sat, 29 Oct 1994 19:43:31 GMT"]);
+    crate::http::header::common_header_test!(test2, vec![b"\"abc\""]);
+    crate::http::header::common_header_test!(test3, vec![b"this-is-invalid"], None::<IfRange>);
 }

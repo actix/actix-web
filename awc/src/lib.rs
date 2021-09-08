@@ -1,7 +1,6 @@
 //! `awc` is a HTTP and WebSocket client library built on the Actix ecosystem.
 //!
-//! ## Making a GET request
-//!
+//! # Making a GET request
 //! ```no_run
 //! # #[actix_rt::main]
 //! # async fn main() -> Result<(), awc::error::SendRequestError> {
@@ -16,10 +15,8 @@
 //! # }
 //! ```
 //!
-//! ## Making POST requests
-//!
-//! ### Raw body contents
-//!
+//! # Making POST requests
+//! ## Raw body contents
 //! ```no_run
 //! # #[actix_rt::main]
 //! # async fn main() -> Result<(), awc::error::SendRequestError> {
@@ -31,8 +28,7 @@
 //! # }
 //! ```
 //!
-//! ### Forms
-//!
+//! ## Forms
 //! ```no_run
 //! # #[actix_rt::main]
 //! # async fn main() -> Result<(), awc::error::SendRequestError> {
@@ -46,8 +42,7 @@
 //! # }
 //! ```
 //!
-//! ### JSON
-//!
+//! ## JSON
 //! ```no_run
 //! # #[actix_rt::main]
 //! # async fn main() -> Result<(), awc::error::SendRequestError> {
@@ -64,8 +59,24 @@
 //! # }
 //! ```
 //!
-//! ## WebSocket support
+//! # Response Compression
+//! All [official][iana-encodings] and common content encoding codecs are supported, optionally.
 //!
+//! The `Accept-Encoding` header will automatically be populated with enabled codecs and added to
+//! outgoing requests, allowing servers to select their `Content-Encoding` accordingly.
+//!
+//! Feature flags enable these codecs according to the table below. By default, all `compress-*`
+//! features are enabled.
+//!
+//! | Feature           | Codecs        |
+//! | ----------------- | ------------- |
+//! | `compress-brotli` | brotli        |
+//! | `compress-gzip`   | gzip, deflate |
+//! | `compress-zstd`   | zstd          |
+//!
+//! [iana-encodings]: https://www.iana.org/assignments/http-parameters/http-parameters.xhtml#content-coding
+//!
+//! # WebSocket support
 //! ```no_run
 //! # #[actix_rt::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -128,8 +139,10 @@ pub use self::sender::SendClientRequest;
 
 /// An asynchronous HTTP and WebSocket client.
 ///
-/// ## Examples
+/// You should take care to create, at most, one `Client` per thread. Otherwise, expect higher CPU
+/// and memory usage.
 ///
+/// # Examples
 /// ```
 /// use awc::Client;
 ///
@@ -137,10 +150,10 @@ pub use self::sender::SendClientRequest;
 /// async fn main() {
 ///     let mut client = Client::default();
 ///
-///     let res = client.get("http://www.rust-lang.org") // <- Create request builder
-///         .insert_header(("User-Agent", "Actix-web"))
-///         .send()                             // <- Send HTTP request
-///         .await;                             // <- send request and wait for response
+///     let res = client.get("http://www.rust-lang.org")
+///         .insert_header(("User-Agent", "my-app/1.2"))
+///         .send()
+///         .await;
 ///
 ///      println!("Response: {:?}", res);
 /// }

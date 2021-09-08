@@ -4,13 +4,14 @@ use std::{borrow::Cow, net::SocketAddr, rc::Rc};
 
 pub use actix_http::test::TestBuffer;
 use actix_http::{
+    body,
     http::{header::IntoHeaderPair, Method, StatusCode, Uri, Version},
     test::TestRequest as HttpTestRequest,
     Extensions, Request,
 };
 use actix_router::{Path, ResourceDef, Url};
 use actix_service::{IntoService, IntoServiceFactory, Service, ServiceFactory};
-use actix_utils::future::ok;
+use actix_utils::future::{ok, poll_fn};
 use futures_core::Stream;
 use futures_util::StreamExt as _;
 use serde::{de::DeserializeOwned, Serialize};
@@ -55,7 +56,7 @@ pub fn default_service(
 /// async fn test_init_service() {
 ///     let app = test::init_service(
 ///         App::new()
-///             .service(web::resource("/test").to(|| async { HttpResponse::Ok() }))
+///             .service(web::resource("/test").to(|| async { "OK" }))
 ///     ).await;
 ///
 ///     // Create request object
@@ -151,17 +152,19 @@ pub async fn read_response<S, B>(app: &S, req: Request) -> Bytes
 where
     S: Service<Request, Response = ServiceResponse<B>, Error = Error>,
     B: MessageBody + Unpin,
+    B::Error: Into<Error>,
 {
-    let mut resp = app
+    let resp = app
         .call(req)
         .await
         .unwrap_or_else(|e| panic!("read_response failed at application call: {}", e));
 
-    let mut body = resp.take_body();
+    let body = resp.into_body();
     let mut bytes = BytesMut::new();
 
-    while let Some(item) = body.next().await {
-        bytes.extend_from_slice(&item.unwrap());
+    actix_rt::pin!(body);
+    while let Some(item) = poll_fn(|cx| body.as_mut().poll_next(cx)).await {
+        bytes.extend_from_slice(&item.map_err(Into::into).unwrap());
     }
 
     bytes.freeze()
@@ -193,15 +196,19 @@ where
 ///     assert_eq!(result, Bytes::from_static(b"welcome!"));
 /// }
 /// ```
-pub async fn read_body<B>(mut res: ServiceResponse<B>) -> Bytes
+pub async fn read_body<B>(res: ServiceResponse<B>) -> Bytes
 where
     B: MessageBody + Unpin,
+    B::Error: Into<Error>,
 {
-    let mut body = res.take_body();
+    let body = res.into_body();
     let mut bytes = BytesMut::new();
-    while let Some(item) = body.next().await {
-        bytes.extend_from_slice(&item.unwrap());
+
+    actix_rt::pin!(body);
+    while let Some(item) = poll_fn(|cx| body.as_mut().poll_next(cx)).await {
+        bytes.extend_from_slice(&item.map_err(Into::into).unwrap());
     }
+
     bytes.freeze()
 }
 
@@ -245,6 +252,7 @@ where
 pub async fn read_body_json<T, B>(res: ServiceResponse<B>) -> T
 where
     B: MessageBody + Unpin,
+    B::Error: Into<Error>,
     T: DeserializeOwned,
 {
     let body = read_body(res).await;
@@ -266,6 +274,14 @@ where
         data.extend_from_slice(&item?);
     }
     Ok(data.freeze())
+}
+
+pub async fn load_body<B>(body: B) -> Result<Bytes, Error>
+where
+    B: MessageBody + Unpin,
+    B::Error: Into<Error>,
+{
+    body::to_bytes(body).await.map_err(Into::into)
 }
 
 /// Helper function that returns a deserialized response body of a TestRequest
@@ -306,6 +322,7 @@ pub async fn read_response_json<S, B, T>(app: &S, req: Request) -> T
 where
     S: Service<Request, Response = ServiceResponse<B>, Error = Error>,
     B: MessageBody + Unpin,
+    B::Error: Into<Error>,
     T: DeserializeOwned,
 {
     let body = read_response(app, req).await;
@@ -600,6 +617,11 @@ impl TestRequest {
         let req = self.to_request();
         call_service(app, req).await
     }
+
+    #[cfg(test)]
+    pub fn set_server_hostname(&mut self, host: &str) {
+        self.config.set_host(host)
+    }
 }
 
 #[cfg(test)]
@@ -826,6 +848,8 @@ mod tests {
         assert!(res.status().is_success());
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_server_data() {
         async fn handler(data: web::Data<usize>) -> impl Responder {

@@ -1,10 +1,10 @@
 //! # References
 //!
-//! "The Content-Disposition Header Field" https://www.ietf.org/rfc/rfc2183.txt
-//! "The Content-Disposition Header Field in the Hypertext Transfer Protocol (HTTP)" https://www.ietf.org/rfc/rfc6266.txt
-//! "Returning Values from Forms: multipart/form-data" https://www.ietf.org/rfc/rfc7578.txt
-//! Browser conformance tests at: http://greenbytes.de/tech/tc2231/
-//! IANA assignment: http://www.iana.org/assignments/cont-disp/cont-disp.xhtml
+//! "The Content-Disposition Header Field" <https://www.ietf.org/rfc/rfc2183.txt>
+//! "The Content-Disposition Header Field in the Hypertext Transfer Protocol (HTTP)" <https://www.ietf.org/rfc/rfc6266.txt>
+//! "Returning Values from Forms: multipart/form-data" <https://www.ietf.org/rfc/rfc7578.txt>
+//! Browser conformance tests at: <http://greenbytes.de/tech/tc2231/>
+//! IANA assignment: <http://www.iana.org/assignments/cont-disp/cont-disp.xhtml>
 
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -410,41 +410,33 @@ impl ContentDisposition {
 
     /// Return the value of *name* if exists.
     pub fn get_name(&self) -> Option<&str> {
-        self.parameters.iter().filter_map(|p| p.as_name()).next()
+        self.parameters.iter().find_map(DispositionParam::as_name)
     }
 
     /// Return the value of *filename* if exists.
     pub fn get_filename(&self) -> Option<&str> {
         self.parameters
             .iter()
-            .filter_map(|p| p.as_filename())
-            .next()
+            .find_map(DispositionParam::as_filename)
     }
 
     /// Return the value of *filename\** if exists.
     pub fn get_filename_ext(&self) -> Option<&ExtendedValue> {
         self.parameters
             .iter()
-            .filter_map(|p| p.as_filename_ext())
-            .next()
+            .find_map(DispositionParam::as_filename_ext)
     }
 
     /// Return the value of the parameter which the `name` matches.
     pub fn get_unknown(&self, name: impl AsRef<str>) -> Option<&str> {
         let name = name.as_ref();
-        self.parameters
-            .iter()
-            .filter_map(|p| p.as_unknown(name))
-            .next()
+        self.parameters.iter().find_map(|p| p.as_unknown(name))
     }
 
     /// Return the value of the extended parameter which the `name` matches.
     pub fn get_unknown_ext(&self, name: impl AsRef<str>) -> Option<&ExtendedValue> {
         let name = name.as_ref();
-        self.parameters
-            .iter()
-            .filter_map(|p| p.as_unknown_ext(name))
-            .next()
+        self.parameters.iter().find_map(|p| p.as_unknown_ext(name))
     }
 }
 
@@ -465,7 +457,7 @@ impl Header for ContentDisposition {
 
     fn parse<T: crate::HttpMessage>(msg: &T) -> Result<Self, crate::error::ParseError> {
         if let Some(h) = msg.headers().get(&Self::name()) {
-            Self::from_raw(&h)
+            Self::from_raw(h)
         } else {
             Err(crate::error::ParseError::Header)
         }

@@ -7,7 +7,7 @@ use std::{
 
 use actix_http::{
     http::{HeaderMap, Method, Uri, Version},
-    Error, Extensions, HttpMessage, Message, Payload, RequestHead,
+    Extensions, HttpMessage, Message, Payload, RequestHead,
 };
 use actix_router::{Path, Url};
 use actix_utils::future::{ok, Ready};
@@ -17,16 +17,16 @@ use smallvec::SmallVec;
 
 use crate::{
     app_service::AppInitServiceState, config::AppConfig, error::UrlGenerationError,
-    extract::FromRequest, info::ConnectionInfo, rmap::ResourceMap,
+    info::ConnectionInfo, rmap::ResourceMap, Error, FromRequest,
 };
 
 #[cfg(feature = "cookies")]
 struct Cookies(Vec<Cookie<'static>>);
 
+/// An incoming request.
 #[derive(Clone)]
-/// An HTTP Request
 pub struct HttpRequest {
-    /// # Panics
+    /// # Invariant
     /// `Rc<HttpRequestInner>` is used exclusively and NO `Weak<HttpRequestInner>`
     /// is allowed anywhere in the code. Weak pointer is purposely ignored when
     /// doing `Rc`'s ref counter check. Expect panics if this invariant is violated.
@@ -59,18 +59,6 @@ impl HttpRequest {
                 app_data: data,
             }),
         }
-    }
-
-    #[doc(hidden)]
-    pub fn __priv_test_new(
-        path: Path<Url>,
-        head: Message<RequestHead>,
-        rmap: Rc<ResourceMap>,
-        config: AppConfig,
-        app_data: Rc<Extensions>,
-    ) -> HttpRequest {
-        let app_state = AppInitServiceState::new(rmap, config);
-        Self::new(path, head, app_state, app_data)
     }
 }
 
@@ -123,11 +111,7 @@ impl HttpRequest {
     /// E.g., id=10
     #[inline]
     pub fn query_string(&self) -> &str {
-        if let Some(query) = self.uri().query().as_ref() {
-            query
-        } else {
-            ""
-        }
+        self.uri().query().unwrap_or_default()
     }
 
     /// Get a reference to the Path parameters.
@@ -200,7 +184,7 @@ impl HttpRequest {
         U: IntoIterator<Item = I>,
         I: AsRef<str>,
     {
-        self.resource_map().url_for(&self, name, elements)
+        self.resource_map().url_for(self, name, elements)
     }
 
     /// Generate url for named resource
@@ -215,7 +199,7 @@ impl HttpRequest {
     #[inline]
     /// Get a reference to a `ResourceMap` of current application.
     pub fn resource_map(&self) -> &ResourceMap {
-        &self.app_state().rmap()
+        self.app_state().rmap()
     }
 
     /// Peer socket address.
@@ -356,11 +340,10 @@ impl Drop for HttpRequest {
 
 /// It is possible to get `HttpRequest` as an extractor handler parameter
 ///
-/// ## Example
-///
+/// # Examples
 /// ```
 /// use actix_web::{web, App, HttpRequest};
-/// use serde_derive::Deserialize;
+/// use serde::Deserialize;
 ///
 /// /// extract `Thing` from request
 /// async fn index(req: HttpRequest) -> String {
@@ -526,9 +509,9 @@ mod tests {
     #[test]
     fn test_url_for() {
         let mut res = ResourceDef::new("/user/{name}.{ext}");
-        *res.name_mut() = "index".to_string();
+        res.set_name("index");
 
-        let mut rmap = ResourceMap::new(ResourceDef::new(""));
+        let mut rmap = ResourceMap::new(ResourceDef::prefix(""));
         rmap.add(&mut res, None);
         assert!(rmap.has_resource("/user/test.html"));
         assert!(!rmap.has_resource("/test/unknown"));
@@ -556,9 +539,9 @@ mod tests {
     #[test]
     fn test_url_for_static() {
         let mut rdef = ResourceDef::new("/index.html");
-        *rdef.name_mut() = "index".to_string();
+        rdef.set_name("index");
 
-        let mut rmap = ResourceMap::new(ResourceDef::new(""));
+        let mut rmap = ResourceMap::new(ResourceDef::prefix(""));
         rmap.add(&mut rdef, None);
 
         assert!(rmap.has_resource("/index.html"));
@@ -577,9 +560,9 @@ mod tests {
     #[test]
     fn test_match_name() {
         let mut rdef = ResourceDef::new("/index.html");
-        *rdef.name_mut() = "index".to_string();
+        rdef.set_name("index");
 
-        let mut rmap = ResourceMap::new(ResourceDef::new(""));
+        let mut rmap = ResourceMap::new(ResourceDef::prefix(""));
         rmap.add(&mut rdef, None);
 
         assert!(rmap.has_resource("/index.html"));
@@ -596,11 +579,10 @@ mod tests {
     fn test_url_for_external() {
         let mut rdef = ResourceDef::new("https://youtube.com/watch/{video_id}");
 
-        *rdef.name_mut() = "youtube".to_string();
+        rdef.set_name("youtube");
 
-        let mut rmap = ResourceMap::new(ResourceDef::new(""));
+        let mut rmap = ResourceMap::new(ResourceDef::prefix(""));
         rmap.add(&mut rdef, None);
-        assert!(rmap.has_resource("https://youtube.com/watch/unknown"));
 
         let req = TestRequest::default().rmap(rmap).to_http_request();
         let url = req.url_for("youtube", &["oHg5SJYRHA0"]);
@@ -724,6 +706,8 @@ mod tests {
         assert_eq!(body, Bytes::from_static(b"1"));
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_extensions_dropped() {
         struct Tracker {

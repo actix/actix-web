@@ -1,20 +1,24 @@
 //! Basic binary and string payload extractors.
 
 use std::{
+    borrow::Cow,
     future::Future,
     pin::Pin,
     str,
     task::{Context, Poll},
 };
 
-use actix_http::error::{ErrorBadRequest, PayloadError};
+use actix_http::error::PayloadError;
 use actix_utils::future::{ready, Either, Ready};
 use bytes::{Bytes, BytesMut};
 use encoding_rs::{Encoding, UTF_8};
 use futures_core::{ready, stream::Stream};
 use mime::Mime;
 
-use crate::{dev, http::header, web, Error, FromRequest, HttpMessage, HttpRequest};
+use crate::{
+    dev, error::ErrorBadRequest, http::header, web, Error, FromRequest, HttpMessage,
+    HttpRequest,
+};
 
 /// Extract a request's raw payload stream.
 ///
@@ -187,7 +191,7 @@ fn bytes_to_string(body: Bytes, encoding: &'static Encoding) -> Result<String, E
     } else {
         Ok(encoding
             .decode_without_bom_handling_and_without_replacement(&body)
-            .map(|s| s.into_owned())
+            .map(Cow::into_owned)
             .ok_or_else(|| ErrorBadRequest("Can not decode body"))?)
     }
 }
@@ -279,9 +283,9 @@ impl Default for PayloadConfig {
 pub struct HttpMessageBody {
     limit: usize,
     length: Option<usize>,
-    #[cfg(feature = "compress")]
+    #[cfg(feature = "__compress")]
     stream: dev::Decompress<dev::Payload>,
-    #[cfg(not(feature = "compress"))]
+    #[cfg(not(feature = "__compress"))]
     stream: dev::Payload,
     buf: BytesMut,
     err: Option<PayloadError>,
@@ -309,10 +313,15 @@ impl HttpMessageBody {
             }
         }
 
-        #[cfg(feature = "compress")]
-        let stream = dev::Decompress::from_headers(payload.take(), req.headers());
-        #[cfg(not(feature = "compress"))]
-        let stream = payload.take();
+        let stream = {
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "__compress")] {
+                    dev::Decompress::from_headers(payload.take(), req.headers())
+                } else {
+                    payload.take()
+                }
+            }
+        };
 
         HttpMessageBody {
             stream,
@@ -390,6 +399,8 @@ mod tests {
         assert!(cfg.check_mimetype(&req).is_ok());
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_config_recall_locations() {
         async fn bytes_handler(_: Bytes) -> impl Responder {

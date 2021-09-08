@@ -1,19 +1,80 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Changed
+* `ContentEncoding` is now marked `#[non_exhaustive]`. [#2377]
+* Minimum supported Rust version (MSRV) is now 1.51.
+
+### Fixed
+* Remove slice creation pointing to potential uninitialized data on h1 encoder. [#2364]
+* Remove `Into<Error>` bound on `Encoder` body types. [#2375]
+* Fix quality parse error in Accept-Encoding header. [#2344]
+
+[#2364]: https://github.com/actix/actix-web/pull/2364
+[#2375]: https://github.com/actix/actix-web/pull/2375
+[#2344]: https://github.com/actix/actix-web/pull/2344
+[#2377]: https://github.com/actix/actix-web/pull/2377
+
+
+## 3.0.0-beta.8 - 2021-08-09
+### Fixed
+* Potential HTTP request smuggling vulnerabilities. [RUSTSEC-2021-0081](https://github.com/rustsec/advisory-db/pull/977)
+
+
+## 3.0.0-beta.8 - 2021-06-26
+### Changed
+* Change compression algorithm features flags. [#2250]
+
+### Removed
+* `downcast` and `downcast_get_type_id` macros. [#2291]
+
+[#2291]: https://github.com/actix/actix-web/pull/2291
+[#2250]: https://github.com/actix/actix-web/pull/2250
+
+
+## 3.0.0-beta.7 - 2021-06-17
 ### Added
+* Alias `body::Body` as `body::AnyBody`. [#2215]
+* `BoxAnyBody`: a boxed message body with boxed errors. [#2183]
 * Re-export `http` crate's `Error` type as `error::HttpError`. [#2171]
 * Re-export `StatusCode`, `Method`, `Version` and `Uri` at the crate root. [#2171]
 * Re-export `ContentEncoding` and `ConnectionType` at the crate root. [#2171]
+* `Response::into_body` that consumes response and returns body type. [#2201]
+* `impl Default` for `Response`. [#2201]
+* Add zstd support for `ContentEncoding`. [#2244]
 
 ### Changed
+* The `MessageBody` trait now has an associated `Error` type. [#2183]
+* All error trait bounds in server service builders have changed from `Into<Error>` to `Into<Response<AnyBody>>`. [#2253]
+* All error trait bounds in message body and stream impls changed from `Into<Error>` to `Into<Box<dyn std::error::Error>>`. [#2253]
+* Places in `Response` where `ResponseBody<B>` was received or returned now simply use `B`. [#2201]
 * `header` mod is now public. [#2171]
 * `uri` mod is now public. [#2171]
+* Update `language-tags` to `0.3`.
+* Reduce the level from `error` to `debug` for the log line that is emitted when a `500 Internal Server Error` is built using `HttpResponse::from_error`. [#2201]
+* `ResponseBuilder::message_body` now returns a `Result`. [#2201]
+* Remove `Unpin` bound on `ResponseBuilder::streaming`. [#2253]
+* `HttpServer::{listen_rustls(), bind_rustls()}` now honor the ALPN protocols in the configuation parameter. [#2226]
 
 ### Removed
 * Stop re-exporting `http` crate's `HeaderMap` types in addition to ours. [#2171]
+* Down-casting for `MessageBody` types. [#2183]
+* `error::Result` alias. [#2201]
+* Error field from `Response` and `Response::error`. [#2205]
+* `impl Future` for `Response`. [#2201]
+* `Response::take_body` and old `Response::into_body` method that casted body type. [#2201]
+* `InternalError` and all the error types it constructed. [#2215]
+* Conversion (`impl Into`) of `Response<Body>` and `ResponseBuilder` to `Error`. [#2215]
 
 [#2171]: https://github.com/actix/actix-web/pull/2171
+[#2183]: https://github.com/actix/actix-web/pull/2183
+[#2196]: https://github.com/actix/actix-web/pull/2196
+[#2201]: https://github.com/actix/actix-web/pull/2201
+[#2205]: https://github.com/actix/actix-web/pull/2205
+[#2215]: https://github.com/actix/actix-web/pull/2215
+[#2253]: https://github.com/actix/actix-web/pull/2253
+[#2244]: https://github.com/actix/actix-web/pull/2244
+
 
 
 ## 3.0.0-beta.6 - 2021-04-17
@@ -165,6 +226,11 @@
 [#1857]: https://github.com/actix/actix-web/pull/1857
 [#1864]: https://github.com/actix/actix-web/pull/1864
 [#1878]: https://github.com/actix/actix-web/pull/1878
+
+
+## 2.2.1 - 2021-08-09
+### Fixed
+* Potential HTTP request smuggling vulnerabilities. [RUSTSEC-2021-0081](https://github.com/rustsec/advisory-db/pull/977)
 
 
 ## 2.2.0 - 2020-11-25

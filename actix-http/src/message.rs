@@ -152,15 +152,16 @@ impl RequestHead {
 
     /// Connection upgrade status
     pub fn upgrade(&self) -> bool {
-        if let Some(hdr) = self.headers().get(header::CONNECTION) {
-            if let Ok(s) = hdr.to_str() {
-                s.to_ascii_lowercase().contains("upgrade")
-            } else {
-                false
-            }
-        } else {
-            false
-        }
+        self.headers()
+            .get(header::CONNECTION)
+            .map(|hdr| {
+                if let Ok(s) = hdr.to_str() {
+                    s.to_ascii_lowercase().contains("upgrade")
+                } else {
+                    false
+                }
+            })
+            .unwrap_or(false)
     }
 
     #[inline]
@@ -208,7 +209,7 @@ impl RequestHeadType {
 impl AsRef<RequestHead> for RequestHeadType {
     fn as_ref(&self) -> &RequestHead {
         match self {
-            RequestHeadType::Owned(head) => &head,
+            RequestHeadType::Owned(head) => head,
             RequestHeadType::Rc(head, _) => head.as_ref(),
         }
     }
@@ -293,14 +294,14 @@ impl ResponseHead {
         }
     }
 
-    #[inline]
     /// Check if keep-alive is enabled
+    #[inline]
     pub fn keep_alive(&self) -> bool {
         self.connection_type() == ConnectionType::KeepAlive
     }
 
-    #[inline]
     /// Check upgrade status of this message
+    #[inline]
     pub fn upgrade(&self) -> bool {
         self.connection_type() == ConnectionType::Upgrade
     }
@@ -308,13 +309,11 @@ impl ResponseHead {
     /// Get custom reason for the response
     #[inline]
     pub fn reason(&self) -> &str {
-        if let Some(reason) = self.reason {
-            reason
-        } else {
+        self.reason.unwrap_or_else(|| {
             self.status
                 .canonical_reason()
                 .unwrap_or("<unknown status code>")
-        }
+        })
     }
 
     #[inline]
@@ -356,7 +355,7 @@ pub struct Message<T: Head> {
 impl<T: Head> Message<T> {
     /// Get new message from the pool of objects
     pub fn new() -> Self {
-        T::with_pool(|p| p.get_message())
+        T::with_pool(MessagePool::get_message)
     }
 }
 
@@ -364,7 +363,7 @@ impl<T: Head> std::ops::Deref for Message<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        &self.head.as_ref()
+        self.head.as_ref()
     }
 }
 
@@ -388,12 +387,6 @@ impl BoxedResponseHead {
     /// Get new message from the pool of objects
     pub fn new(status: StatusCode) -> Self {
         RESPONSE_POOL.with(|p| p.get_message(status))
-    }
-
-    pub(crate) fn take(&mut self) -> Self {
-        BoxedResponseHead {
-            head: self.head.take(),
-        }
     }
 }
 

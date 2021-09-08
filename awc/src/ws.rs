@@ -517,7 +517,7 @@ mod tests {
             "test-origin"
         );
         assert_eq!(req.max_size, 100);
-        assert_eq!(req.server_mode, true);
+        assert!(req.server_mode);
         assert_eq!(req.protocols, Some("v1,v2".to_string()));
         assert_eq!(
             req.head.headers.get(header::CONTENT_TYPE).unwrap(),

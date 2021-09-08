@@ -6,14 +6,15 @@ use std::{cmp, io};
 
 use bytes::{BufMut, BytesMut};
 
-use crate::body::BodySize;
-use crate::config::ServiceConfig;
-use crate::header::{map::Value, HeaderName};
-use crate::helpers;
-use crate::http::header::{CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
-use crate::http::{HeaderMap, StatusCode, Version};
-use crate::message::{ConnectionType, RequestHeadType};
-use crate::response::Response;
+use crate::{
+    body::BodySize,
+    config::ServiceConfig,
+    header::{map::Value, HeaderMap, HeaderName},
+    header::{CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING},
+    helpers,
+    message::{ConnectionType, RequestHeadType},
+    Response, StatusCode, Version,
+};
 
 const AVERAGE_HEADER_SIZE: usize = 30;
 
@@ -80,6 +81,7 @@ pub(crate) trait MessageType: Sized {
         match length {
             BodySize::Stream => {
                 if chunked {
+                    skip_len = true;
                     if camel_case {
                         dst.put_slice(b"\r\nTransfer-Encoding: chunked\r\n")
                     } else {
@@ -173,7 +175,7 @@ pub(crate) trait MessageType: Sized {
                 unsafe {
                     if camel_case {
                         // use Camel-Case headers
-                        write_camel_case(k, from_raw_parts_mut(buf, k_len));
+                        write_camel_case(k, buf, k_len);
                     } else {
                         write_data(k, buf, k_len);
                     }
@@ -287,7 +289,7 @@ impl MessageType for RequestHeadType {
         let head = self.as_ref();
         dst.reserve(256 + head.headers.len() * AVERAGE_HEADER_SIZE);
         write!(
-            helpers::Writer(dst),
+            helpers::MutWriter(dst),
             "{} {} {}",
             head.method,
             head.uri.path_and_query().map(|u| u.as_str()).unwrap_or("/"),
@@ -420,7 +422,7 @@ impl TransferEncoding {
                     *eof = true;
                     buf.extend_from_slice(b"0\r\n\r\n");
                 } else {
-                    writeln!(helpers::Writer(buf), "{:X}\r", msg.len())
+                    writeln!(helpers::MutWriter(buf), "{:X}\r", msg.len())
                         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
                     buf.reserve(msg.len() + 2);
@@ -471,15 +473,22 @@ impl TransferEncoding {
 }
 
 /// # Safety
-/// Callers must ensure that the given length matches given value length.
+/// Callers must ensure that the given `len` matches the given `value` length and that `buf` is
+/// valid for writes of at least `len` bytes.
 unsafe fn write_data(value: &[u8], buf: *mut u8, len: usize) {
     debug_assert_eq!(value.len(), len);
     copy_nonoverlapping(value.as_ptr(), buf, len);
 }
 
-fn write_camel_case(value: &[u8], buffer: &mut [u8]) {
+/// # Safety
+/// Callers must ensure that the given `len` matches the given `value` length and that `buf` is
+/// valid for writes of at least `len` bytes.
+unsafe fn write_camel_case(value: &[u8], buf: *mut u8, len: usize) {
     // first copy entire (potentially wrong) slice to output
-    buffer[..value.len()].copy_from_slice(value);
+    write_data(value, buf, len);
+
+    // SAFETY: We just initialized the buffer with `value`
+    let buffer = from_raw_parts_mut(buf, len);
 
     let mut iter = value.iter();
 
@@ -630,8 +639,7 @@ mod tests {
     async fn test_no_content_length() {
         let mut bytes = BytesMut::with_capacity(2048);
 
-        let mut res: Response<()> =
-            Response::new(StatusCode::SWITCHING_PROTOCOLS).into_body::<()>();
+        let mut res = Response::with_body(StatusCode::SWITCHING_PROTOCOLS, ());
         res.headers_mut().insert(DATE, HeaderValue::from_static(""));
         res.headers_mut()
             .insert(CONTENT_LENGTH, HeaderValue::from_static("0"));

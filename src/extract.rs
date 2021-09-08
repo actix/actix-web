@@ -1,12 +1,14 @@
 //! Request extractors
 
 use std::{
+    convert::Infallible,
     future::Future,
     pin::Pin,
     task::{Context, Poll},
 };
 
-use actix_utils::future::{ready, Ready};
+use actix_http::http::{Method, Uri};
+use actix_utils::future::{ok, Ready};
 use futures_core::ready;
 
 use crate::{dev::Payload, Error, HttpRequest};
@@ -47,13 +49,12 @@ pub trait FromRequest: Sized {
 ///
 /// If the FromRequest for T fails, return None rather than returning an error response
 ///
-/// ## Example
-///
+/// # Examples
 /// ```
 /// use actix_web::{web, dev, App, Error, HttpRequest, FromRequest};
 /// use actix_web::error::ErrorBadRequest;
 /// use futures_util::future::{ok, err, Ready};
-/// use serde_derive::Deserialize;
+/// use serde::Deserialize;
 /// use rand;
 ///
 /// #[derive(Debug, Deserialize)]
@@ -139,13 +140,12 @@ where
 ///
 /// If the `FromRequest` for T fails, inject Err into handler rather than returning an error response
 ///
-/// ## Example
-///
+/// # Examples
 /// ```
 /// use actix_web::{web, dev, App, Result, Error, HttpRequest, FromRequest};
 /// use actix_web::error::ErrorBadRequest;
 /// use futures_util::future::{ok, err, Ready};
-/// use serde_derive::Deserialize;
+/// use serde::Deserialize;
 /// use rand;
 ///
 /// #[derive(Debug, Deserialize)]
@@ -218,14 +218,58 @@ where
     }
 }
 
+/// Extract the request's URI.
+///
+/// # Examples
+/// ```
+/// use actix_web::{http::Uri, web, App, Responder};
+///
+/// async fn handler(uri: Uri) -> impl Responder {
+///     format!("Requested path: {}", uri.path())
+/// }
+///
+/// let app = App::new().default_service(web::to(handler));
+/// ```
+impl FromRequest for Uri {
+    type Error = Infallible;
+    type Future = Ready<Result<Self, Self::Error>>;
+    type Config = ();
+
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        ok(req.uri().clone())
+    }
+}
+
+/// Extract the request's method.
+///
+/// # Examples
+/// ```
+/// use actix_web::{http::Method, web, App, Responder};
+///
+/// async fn handler(method: Method) -> impl Responder {
+///     format!("Request method: {}", method)
+/// }
+///
+/// let app = App::new().default_service(web::to(handler));
+/// ```
+impl FromRequest for Method {
+    type Error = Infallible;
+    type Future = Ready<Result<Self, Self::Error>>;
+    type Config = ();
+
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        ok(req.method().clone())
+    }
+}
+
 #[doc(hidden)]
 impl FromRequest for () {
-    type Error = Error;
-    type Future = Ready<Result<(), Error>>;
+    type Error = Infallible;
+    type Future = Ready<Result<Self, Self::Error>>;
     type Config = ();
 
     fn from_request(_: &HttpRequest, _: &mut Payload) -> Self::Future {
-        ready(Ok(()))
+        ok(())
     }
 }
 
@@ -332,7 +376,7 @@ mod m {
 mod tests {
     use actix_http::http::header;
     use bytes::Bytes;
-    use serde_derive::Deserialize;
+    use serde::Deserialize;
 
     use super::*;
     use crate::test::TestRequest;
@@ -412,5 +456,19 @@ mod tests {
             .await
             .unwrap();
         assert!(r.is_err());
+    }
+
+    #[actix_rt::test]
+    async fn test_uri() {
+        let req = TestRequest::default().uri("/foo/bar").to_http_request();
+        let uri = Uri::extract(&req).await.unwrap();
+        assert_eq!(uri.path(), "/foo/bar");
+    }
+
+    #[actix_rt::test]
+    async fn test_method() {
+        let req = TestRequest::default().method(Method::GET).to_http_request();
+        let method = Method::extract(&req).await.unwrap();
+        assert_eq!(method, Method::GET);
     }
 }

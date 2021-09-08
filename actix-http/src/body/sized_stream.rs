@@ -1,4 +1,5 @@
 use std::{
+    error::Error as StdError,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -7,15 +8,13 @@ use bytes::Bytes;
 use futures_core::{ready, Stream};
 use pin_project_lite::pin_project;
 
-use crate::error::Error;
-
 use super::{BodySize, MessageBody};
 
 pin_project! {
     /// Known sized streaming response wrapper.
     ///
-    /// This body implementation should be used if total size of stream is known. Data get sent as is
-    /// without using transfer encoding.
+    /// This body implementation should be used if total size of stream is known. Data is sent as-is
+    /// without using chunked transfer encoding.
     pub struct SizedStream<S> {
         size: u64,
         #[pin]
@@ -23,19 +22,23 @@ pin_project! {
     }
 }
 
-impl<S> SizedStream<S>
+impl<S, E> SizedStream<S>
 where
-    S: Stream<Item = Result<Bytes, Error>>,
+    S: Stream<Item = Result<Bytes, E>>,
+    E: Into<Box<dyn StdError>> + 'static,
 {
     pub fn new(size: u64, stream: S) -> Self {
         SizedStream { size, stream }
     }
 }
 
-impl<S> MessageBody for SizedStream<S>
+impl<S, E> MessageBody for SizedStream<S>
 where
-    S: Stream<Item = Result<Bytes, Error>>,
+    S: Stream<Item = Result<Bytes, E>>,
+    E: Into<Box<dyn StdError>> + 'static,
 {
+    type Error = E;
+
     fn size(&self) -> BodySize {
         BodySize::Sized(self.size as u64)
     }
@@ -48,7 +51,7 @@ where
     fn poll_next(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<Bytes, Error>>> {
+    ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         loop {
             let stream = self.as_mut().project().stream;
 
@@ -64,6 +67,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::convert::Infallible;
+
     use actix_rt::pin;
     use actix_utils::future::poll_fn;
     use futures_util::stream;
@@ -75,7 +80,11 @@ mod tests {
     async fn skips_empty_chunks() {
         let body = SizedStream::new(
             2,
-            stream::iter(["1", "", "2"].iter().map(|&v| Ok(Bytes::from(v)))),
+            stream::iter(
+                ["1", "", "2"]
+                    .iter()
+                    .map(|&v| Ok::<_, Infallible>(Bytes::from(v))),
+            ),
         );
 
         pin!(body);
@@ -101,7 +110,11 @@ mod tests {
     async fn read_to_bytes() {
         let body = SizedStream::new(
             2,
-            stream::iter(["1", "", "2"].iter().map(|&v| Ok(Bytes::from(v)))),
+            stream::iter(
+                ["1", "", "2"]
+                    .iter()
+                    .map(|&v| Ok::<_, Infallible>(Bytes::from(v))),
+            ),
         );
 
         assert_eq!(to_bytes(body).await.ok(), Some(Bytes::from("12")));

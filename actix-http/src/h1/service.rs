@@ -1,7 +1,11 @@
-use std::marker::PhantomData;
-use std::rc::Rc;
-use std::task::{Context, Poll};
-use std::{fmt, net};
+use std::{
+    error::Error as StdError,
+    fmt,
+    marker::PhantomData,
+    net,
+    rc::Rc,
+    task::{Context, Poll},
+};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_rt::net::TcpStream;
@@ -11,17 +15,15 @@ use actix_service::{
 use actix_utils::future::ready;
 use futures_core::future::LocalBoxFuture;
 
-use crate::body::MessageBody;
-use crate::config::ServiceConfig;
-use crate::error::{DispatchError, Error};
-use crate::request::Request;
-use crate::response::Response;
-use crate::service::HttpServiceHandler;
-use crate::{ConnectCallback, OnConnectData};
+use crate::{
+    body::{AnyBody, MessageBody},
+    config::ServiceConfig,
+    error::DispatchError,
+    service::HttpServiceHandler,
+    ConnectCallback, OnConnectData, Request, Response,
+};
 
-use super::codec::Codec;
-use super::dispatcher::Dispatcher;
-use super::{ExpectHandler, UpgradeHandler};
+use super::{codec::Codec, dispatcher::Dispatcher, ExpectHandler, UpgradeHandler};
 
 /// `ServiceFactory` implementation for HTTP1 transport
 pub struct H1Service<T, S, B, X = ExpectHandler, U = UpgradeHandler> {
@@ -36,7 +38,7 @@ pub struct H1Service<T, S, B, X = ExpectHandler, U = UpgradeHandler> {
 impl<T, S, B> H1Service<T, S, B>
 where
     S: ServiceFactory<Request, Config = ()>,
-    S::Error: Into<Error>,
+    S::Error: Into<Response<AnyBody>>,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody,
@@ -61,17 +63,21 @@ impl<S, B, X, U> H1Service<TcpStream, S, B, X, U>
 where
     S: ServiceFactory<Request, Config = ()>,
     S::Future: 'static,
-    S::Error: Into<Error>,
+    S::Error: Into<Response<AnyBody>>,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
+
     B: MessageBody,
+    B::Error: Into<Box<dyn StdError>>,
+
     X: ServiceFactory<Request, Config = (), Response = Request>,
     X::Future: 'static,
-    X::Error: Into<Error>,
+    X::Error: Into<Response<AnyBody>>,
     X::InitError: fmt::Debug,
+
     U: ServiceFactory<(Request, Framed<TcpStream, Codec>), Config = (), Response = ()>,
     U::Future: 'static,
-    U::Error: fmt::Display + Into<Error>,
+    U::Error: fmt::Display + Into<Response<AnyBody>>,
     U::InitError: fmt::Debug,
 {
     /// Create simple tcp stream service
@@ -106,21 +112,25 @@ mod openssl {
     where
         S: ServiceFactory<Request, Config = ()>,
         S::Future: 'static,
-        S::Error: Into<Error>,
+        S::Error: Into<Response<AnyBody>>,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>>,
+
         B: MessageBody,
+        B::Error: Into<Box<dyn StdError>>,
+
         X: ServiceFactory<Request, Config = (), Response = Request>,
         X::Future: 'static,
-        X::Error: Into<Error>,
+        X::Error: Into<Response<AnyBody>>,
         X::InitError: fmt::Debug,
+
         U: ServiceFactory<
             (Request, Framed<TlsStream<TcpStream>, Codec>),
             Config = (),
             Response = (),
         >,
         U::Future: 'static,
-        U::Error: fmt::Display + Into<Error>,
+        U::Error: fmt::Display + Into<Response<AnyBody>>,
         U::InitError: fmt::Debug,
     {
         /// Create openssl based service
@@ -162,21 +172,25 @@ mod rustls {
     where
         S: ServiceFactory<Request, Config = ()>,
         S::Future: 'static,
-        S::Error: Into<Error>,
+        S::Error: Into<Response<AnyBody>>,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>>,
+
         B: MessageBody,
+        B::Error: Into<Box<dyn StdError>>,
+
         X: ServiceFactory<Request, Config = (), Response = Request>,
         X::Future: 'static,
-        X::Error: Into<Error>,
+        X::Error: Into<Response<AnyBody>>,
         X::InitError: fmt::Debug,
+
         U: ServiceFactory<
             (Request, Framed<TlsStream<TcpStream>, Codec>),
             Config = (),
             Response = (),
         >,
         U::Future: 'static,
-        U::Error: fmt::Display + Into<Error>,
+        U::Error: fmt::Display + Into<Response<AnyBody>>,
         U::InitError: fmt::Debug,
     {
         /// Create rustls based service
@@ -205,7 +219,7 @@ mod rustls {
 impl<T, S, B, X, U> H1Service<T, S, B, X, U>
 where
     S: ServiceFactory<Request, Config = ()>,
-    S::Error: Into<Error>,
+    S::Error: Into<Response<AnyBody>>,
     S::Response: Into<Response<B>>,
     S::InitError: fmt::Debug,
     B: MessageBody,
@@ -213,7 +227,7 @@ where
     pub fn expect<X1>(self, expect: X1) -> H1Service<T, S, B, X1, U>
     where
         X1: ServiceFactory<Request, Response = Request>,
-        X1::Error: Into<Error>,
+        X1::Error: Into<Response<AnyBody>>,
         X1::InitError: fmt::Debug,
     {
         H1Service {
@@ -253,19 +267,24 @@ impl<T, S, B, X, U> ServiceFactory<(T, Option<net::SocketAddr>)>
     for H1Service<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin + 'static,
+
     S: ServiceFactory<Request, Config = ()>,
     S::Future: 'static,
-    S::Error: Into<Error>,
+    S::Error: Into<Response<AnyBody>>,
     S::Response: Into<Response<B>>,
     S::InitError: fmt::Debug,
+
     B: MessageBody,
+    B::Error: Into<Box<dyn StdError>>,
+
     X: ServiceFactory<Request, Config = (), Response = Request>,
     X::Future: 'static,
-    X::Error: Into<Error>,
+    X::Error: Into<Response<AnyBody>>,
     X::InitError: fmt::Debug,
+
     U: ServiceFactory<(Request, Framed<T, Codec>), Config = (), Response = ()>,
     U::Future: 'static,
-    U::Error: fmt::Display + Into<Error>,
+    U::Error: fmt::Display + Into<Response<AnyBody>>,
     U::InitError: fmt::Debug,
 {
     type Response = ();
@@ -319,14 +338,19 @@ impl<T, S, B, X, U> Service<(T, Option<net::SocketAddr>)>
     for HttpServiceHandler<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
+
     S: Service<Request>,
-    S::Error: Into<Error>,
+    S::Error: Into<Response<AnyBody>>,
     S::Response: Into<Response<B>>,
+
     B: MessageBody,
+    B::Error: Into<Box<dyn StdError>>,
+
     X: Service<Request, Response = Request>,
-    X::Error: Into<Error>,
+    X::Error: Into<Response<AnyBody>>,
+
     U: Service<(Request, Framed<T, Codec>), Response = ()>,
-    U::Error: fmt::Display + Into<Error>,
+    U::Error: fmt::Display + Into<Response<AnyBody>>,
 {
     type Response = ();
     type Error = DispatchError;

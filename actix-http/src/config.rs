@@ -104,6 +104,8 @@ impl ServiceConfig {
     }
 
     /// Returns the local address that this server is bound to.
+    ///
+    /// Returns `None` for connections via UDS (Unix Domain Socket).
     #[inline]
     pub fn local_addr(&self) -> Option<net::SocketAddr> {
         self.0.local_addr
@@ -152,8 +154,8 @@ impl ServiceConfig {
         }
     }
 
-    #[inline]
     /// Return keep-alive timer delay is configured.
+    #[inline]
     pub fn keep_alive_timer(&self) -> Option<Sleep> {
         self.keep_alive().map(|ka| sleep_until(self.now() + ka))
     }
@@ -326,7 +328,7 @@ mod notify_on_drop {
 mod tests {
     use super::*;
 
-    use actix_rt::task::yield_now;
+    use actix_rt::{task::yield_now, time::sleep};
 
     #[actix_rt::test]
     async fn test_date_service_update() {
@@ -350,7 +352,14 @@ mod tests {
         assert_ne!(buf1, buf2);
 
         drop(settings);
-        assert!(notify_on_drop::is_dropped());
+
+        // Ensure the task will drop eventually
+        let mut times = 0;
+        while !notify_on_drop::is_dropped() {
+            sleep(Duration::from_millis(100)).await;
+            times += 1;
+            assert!(times < 10, "Timeout waiting for task drop");
+        }
     }
 
     #[actix_rt::test]
@@ -365,14 +374,21 @@ mod tests {
         let clone3 = service.clone();
 
         drop(clone1);
-        assert_eq!(false, notify_on_drop::is_dropped());
+        assert!(!notify_on_drop::is_dropped());
         drop(clone2);
-        assert_eq!(false, notify_on_drop::is_dropped());
+        assert!(!notify_on_drop::is_dropped());
         drop(clone3);
-        assert_eq!(false, notify_on_drop::is_dropped());
+        assert!(!notify_on_drop::is_dropped());
 
         drop(service);
-        assert!(notify_on_drop::is_dropped());
+
+        // Ensure the task will drop eventually
+        let mut times = 0;
+        while !notify_on_drop::is_dropped() {
+            sleep(Duration::from_millis(100)).await;
+            times += 1;
+            assert!(times < 10, "Timeout waiting for task drop");
+        }
     }
 
     #[test]

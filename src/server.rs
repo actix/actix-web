@@ -1,23 +1,25 @@
 use std::{
     any::Any,
-    cmp, fmt, io,
+    cmp,
+    error::Error as StdError,
+    fmt, io,
     marker::PhantomData,
     net,
     sync::{Arc, Mutex},
 };
 
-use actix_http::{
-    body::MessageBody, Error, Extensions, HttpService, KeepAlive, Request, Response,
-};
+use actix_http::{body::MessageBody, Extensions, HttpService, KeepAlive, Request, Response};
 use actix_server::{Server, ServerBuilder};
-use actix_service::{map_config, IntoServiceFactory, Service, ServiceFactory};
+use actix_service::{
+    map_config, IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt as _,
+};
 
 #[cfg(feature = "openssl")]
 use actix_tls::accept::openssl::{AlpnError, SslAcceptor, SslAcceptorBuilder};
 #[cfg(feature = "rustls")]
 use actix_tls::accept::rustls::ServerConfig as RustlsServerConfig;
 
-use crate::config::AppConfig;
+use crate::{config::AppConfig, Error};
 
 struct Socket {
     scheme: &'static str,
@@ -81,6 +83,7 @@ where
     S::Service: 'static,
     // S::Service: 'static,
     B: MessageBody + 'static,
+    B::Error: Into<Box<dyn StdError>>,
 {
     /// Create new HTTP server with application factory
     pub fn new(factory: F) -> Self {
@@ -170,6 +173,16 @@ where
     pub fn max_connection_rate(self, num: usize) -> Self {
         #[cfg(any(feature = "rustls", feature = "openssl"))]
         actix_tls::accept::max_concurrent_tls_connect(num);
+        self
+    }
+
+    /// Set max number of threads for each worker's blocking task thread pool.
+    ///
+    /// One thread pool is set up **per worker**; not shared across workers.
+    ///
+    /// By default set to 512 / workers.
+    pub fn worker_max_blocking_threads(mut self, num: usize) -> Self {
+        self.builder = self.builder.worker_max_blocking_threads(num);
         self
     }
 
@@ -279,18 +292,23 @@ where
                     let c = cfg.lock().unwrap();
                     let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
 
-                    let svc = HttpService::build()
+                    let mut svc = HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_timeout(c.client_timeout)
+                        .client_disconnect(c.client_shutdown)
                         .local_addr(addr);
 
-                    let svc = if let Some(handler) = on_connect_fn.clone() {
-                        svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
-                    } else {
-                        svc
+                    if let Some(handler) = on_connect_fn.clone() {
+                        svc = svc.on_connect_ext(move |io: &_, ext: _| {
+                            (handler)(io as &dyn Any, ext)
+                        })
                     };
 
-                    svc.finish(map_config(factory(), move |_| {
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
+
+                    svc.finish(map_config(fac, move |_| {
                         AppConfig::new(false, host.clone(), addr)
                     }))
                     .tcp()
@@ -335,7 +353,8 @@ where
                     let svc = HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_timeout(c.client_timeout)
-                        .client_disconnect(c.client_shutdown);
+                        .client_disconnect(c.client_shutdown)
+                        .local_addr(addr);
 
                     let svc = if let Some(handler) = on_connect_fn.clone() {
                         svc.on_connect_ext(move |io: &_, ext: _| {
@@ -345,7 +364,11 @@ where
                         svc
                     };
 
-                    svc.finish(map_config(factory(), move |_| {
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
+
+                    svc.finish(map_config(fac, move |_| {
                         AppConfig::new(true, host.clone(), addr)
                     }))
                     .openssl(acceptor.clone())
@@ -357,7 +380,7 @@ where
     #[cfg(feature = "rustls")]
     /// Use listener for accepting incoming tls connection requests
     ///
-    /// This method sets alpn protocols to "h2" and "http/1.1"
+    /// This method prepends alpn protocols "h2" and "http/1.1" to configured ones
     pub fn listen_rustls(
         self,
         lst: net::TcpListener,
@@ -399,7 +422,11 @@ where
                         svc
                     };
 
-                    svc.finish(map_config(factory(), move |_| {
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
+
+                    svc.finish(map_config(fac, move |_| {
                         AppConfig::new(true, host.clone(), addr)
                     }))
                     .rustls(config.clone())
@@ -436,17 +463,15 @@ where
             }
         }
 
-        if !success {
-            if let Some(e) = err.take() {
-                Err(e)
-            } else {
-                Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    "Can not bind to address.",
-                ))
-            }
-        } else {
+        if success {
             Ok(sockets)
+        } else if let Some(e) = err.take() {
+            Err(e)
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::Other,
+                "Can not bind to address.",
+            ))
         }
     }
 
@@ -471,7 +496,7 @@ where
     #[cfg(feature = "rustls")]
     /// Start listening for incoming tls connections.
     ///
-    /// This method sets alpn protocols to "h2" and "http/1.1"
+    /// This method prepends alpn protocols "h2" and "http/1.1" to configured ones
     pub fn bind_rustls<A: net::ToSocketAddrs>(
         mut self,
         addr: A,
@@ -500,10 +525,11 @@ where
             addr: socket_addr,
         });
 
-        let addr = format!("actix-web-service-{:?}", lst.local_addr()?);
+        let addr = lst.local_addr()?;
+        let name = format!("actix-web-service-{:?}", addr);
         let on_connect_fn = self.on_connect_fn.clone();
 
-        self.builder = self.builder.listen_uds(addr, lst, move || {
+        self.builder = self.builder.listen_uds(name, lst, move || {
             let c = cfg.lock().unwrap();
             let config = AppConfig::new(
                 false,
@@ -512,24 +538,28 @@ where
             );
 
             fn_service(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) }).and_then({
-                let svc = HttpService::build()
+                let mut svc = HttpService::build()
                     .keep_alive(c.keep_alive)
-                    .client_timeout(c.client_timeout);
+                    .client_timeout(c.client_timeout)
+                    .client_disconnect(c.client_shutdown);
 
-                let svc = if let Some(handler) = on_connect_fn.clone() {
-                    svc.on_connect_ext(move |io: &_, ext: _| (&*handler)(io as &dyn Any, ext))
-                } else {
-                    svc
-                };
+                if let Some(handler) = on_connect_fn.clone() {
+                    svc = svc
+                        .on_connect_ext(move |io: &_, ext: _| (&*handler)(io as &dyn Any, ext));
+                }
 
-                svc.finish(map_config(factory(), move |_| config.clone()))
+                let fac = factory()
+                    .into_factory()
+                    .map_err(|err| err.into().error_response());
+
+                svc.finish(map_config(fac, move |_| config.clone()))
             })
         })?;
         Ok(self)
     }
 
-    #[cfg(unix)]
     /// Start listening for incoming unix domain connections.
+    #[cfg(unix)]
     pub fn bind_uds<A>(mut self, addr: A) -> io::Result<Self>
     where
         A: AsRef<std::path::Path>,
@@ -542,6 +572,7 @@ where
         let factory = self.factory.clone();
         let socket_addr =
             net::SocketAddr::new(net::IpAddr::V4(net::Ipv4Addr::new(127, 0, 0, 1)), 8080);
+
         self.sockets.push(Socket {
             scheme: "http",
             addr: socket_addr,
@@ -557,14 +588,21 @@ where
                     c.host.clone().unwrap_or_else(|| format!("{}", socket_addr)),
                     socket_addr,
                 );
+
+                let fac = factory()
+                    .into_factory()
+                    .map_err(|err| err.into().error_response());
+
                 fn_service(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) }).and_then(
                     HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_timeout(c.client_timeout)
-                        .finish(map_config(factory(), move |_| config.clone())),
+                        .client_disconnect(c.client_shutdown)
+                        .finish(map_config(fac, move |_| config.clone())),
                 )
             },
         )?;
+
         Ok(self)
     }
 }

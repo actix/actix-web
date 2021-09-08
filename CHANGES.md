@@ -1,6 +1,71 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+* Re-export actix-service `ServiceFactory` in `dev` module. [#2325]
+
+### Changed
+* Compress middleware will return 406 Not Acceptable when no content encoding is acceptable to the client. [#2344]
+* Move `BaseHttpResponse` to `dev::Response`. [#2379]
+* Minimum supported Rust version (MSRV) is now 1.51.
+
+### Fixed
+* Fix quality parse error in Accept-Encoding header. [#2344]
+* Re-export correct type at `web::HttpResponse`. [#2379]
+
+[#2325]: https://github.com/actix/actix-web/pull/2325
+[#2344]: https://github.com/actix/actix-web/pull/2344
+[#2379]: https://github.com/actix/actix-web/pull/2379
+
+
+## 4.0.0-beta.8 - 2021-06-26
+### Added
+* Add `ServiceRequest::parts_mut`. [#2177]
+* Add extractors for `Uri` and `Method`. [#2263]
+* Add extractors for `ConnectionInfo` and `PeerAddr`. [#2263]
+* Add `Route::service` for using hand-written services as handlers. [#2262]
+
+### Changed
+* Change compression algorithm features flags. [#2250]
+* Deprecate `App::data` and `App::data_factory`. [#2271]
+* Smarter extraction of `ConnectionInfo` parts. [#2282]
+
+### Fixed
+* Scope and Resource middleware can access data items set on their own layer. [#2288]
+
+[#2177]: https://github.com/actix/actix-web/pull/2177
+[#2250]: https://github.com/actix/actix-web/pull/2250
+[#2271]: https://github.com/actix/actix-web/pull/2271
+[#2262]: https://github.com/actix/actix-web/pull/2262
+[#2263]: https://github.com/actix/actix-web/pull/2263
+[#2282]: https://github.com/actix/actix-web/pull/2282
+[#2288]: https://github.com/actix/actix-web/pull/2288
+
+
+## 4.0.0-beta.7 - 2021-06-17
+### Added
+* `HttpServer::worker_max_blocking_threads` for setting block thread pool. [#2200]
+
+### Changed
+* Adjusted default JSON payload limit to 2MB (from 32kb) and included size and limits in the `JsonPayloadError::Overflow` error variant. [#2162]
+[#2162]: (https://github.com/actix/actix-web/pull/2162)
+* `ServiceResponse::error_response` now uses body type of `Body`. [#2201]
+* `ServiceResponse::checked_expr` now returns a `Result`. [#2201]
+* Update `language-tags` to `0.3`.
+* `ServiceResponse::take_body`. [#2201]
+* `ServiceResponse::map_body` closure receives and returns `B` instead of `ResponseBody<B>` types. [#2201]
+* All error trait bounds in server service builders have changed from `Into<Error>` to `Into<Response<AnyBody>>`. [#2253]
+* All error trait bounds in message body and stream impls changed from `Into<Error>` to `Into<Box<dyn std::error::Error>>`. [#2253]
+* `HttpServer::{listen_rustls(), bind_rustls()}` now honor the ALPN protocols in the configuation parameter. [#2226]
+* `middleware::normalize` now will not try to normalize URIs with no valid path [#2246]
+
+### Removed
+* `HttpResponse::take_body` and old `HttpResponse::into_body` method that casted body type. [#2201]
+
+[#2200]: https://github.com/actix/actix-web/pull/2200
+[#2201]: https://github.com/actix/actix-web/pull/2201
+[#2253]: https://github.com/actix/actix-web/pull/2253
+[#2246]: https://github.com/actix/actix-web/pull/2246
 
 
 ## 4.0.0-beta.6 - 2021-04-17

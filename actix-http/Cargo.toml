@@ -1,13 +1,11 @@
 [package]
 name = "actix-http"
-version = "3.0.0-beta.6"
+version = "3.0.0-beta.9"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "HTTP primitives for the Actix ecosystem"
-readme = "README.md"
 keywords = ["actix", "http", "framework", "async", "futures"]
 homepage = "https://actix.rs"
-repository = "https://github.com/actix/actix-web.git"
-documentation = "https://docs.rs/actix-http/"
+repository = "https://github.com/actix/actix-web"
 categories = ["network-programming", "asynchronous",
               "web-programming::http-server",
               "web-programming::websocket"]
@@ -16,7 +14,7 @@ edition = "2018"
 
 [package.metadata.docs.rs]
 # features that docs.rs will build with
-features = ["openssl", "rustls", "compress"]
+features = ["openssl", "rustls", "compress-brotli", "compress-gzip", "compress-zstd"]
 
 [lib]
 name = "actix_http"
@@ -32,14 +30,20 @@ openssl = ["actix-tls/openssl"]
 rustls = ["actix-tls/rustls"]
 
 # enable compression support
-compress = ["flate2", "brotli2"]
+compress-brotli = ["brotli2", "__compress"]
+compress-gzip = ["flate2", "__compress"]
+compress-zstd = ["zstd", "__compress"]
 
 # trust-dns as client dns resolver
 trust-dns = ["trust-dns-resolver"]
 
+# Internal (PRIVATE!) features used to aid testing and cheking feature status.
+# Don't rely on these whatsoever. They may disappear at anytime.
+__compress = []
+
 [dependencies]
 actix-service = "2.0.0"
-actix-codec = "0.4.0-beta.1"
+actix-codec = "0.4.0"
 actix-utils = "3.0.0"
 actix-rt = "2.2"
 actix-tls = { version = "3.0.0-beta.5", features = ["accept", "connect"] }
@@ -55,14 +59,13 @@ futures-core = { version = "0.3.7", default-features = false, features = ["alloc
 futures-util = { version = "0.3.7", default-features = false, features = ["alloc", "sink"] }
 h2 = "0.3.1"
 http = "0.2.2"
-httparse = "1.3"
+httparse = "1.5.1"
 itoa = "0.4"
-language-tags = "0.2"
+language-tags = "0.3"
 local-channel = "0.1"
 once_cell = "1.5"
 log = "0.4"
 mime = "0.3"
-paste = "1"
 percent-encoding = "2.1"
 pin-project = "1.0.0"
 pin-project-lite = "0.2"
@@ -70,13 +73,14 @@ rand = "0.8"
 regex = "1.3"
 serde = "1.0"
 sha-1 = "0.9"
-smallvec = "1.6"
+smallvec = "1.6.1"
 time = { version = "0.2.23", default-features = false, features = ["std"] }
 tokio = { version = "1.2", features = ["sync"] }
 
 # compression
 brotli2 = { version="0.3.2", optional = true }
 flate2 = { version = "1.0.13", optional = true }
+zstd = { version = "0.7", optional = true }
 
 trust-dns-resolver = { version = "0.20.0", optional = true }
 
@@ -84,13 +88,15 @@ trust-dns-resolver = { version = "0.20.0", optional = true }
 actix-server = "2.0.0-beta.3"
 actix-http-test = { version = "3.0.0-beta.4", features = ["openssl"] }
 actix-tls = { version = "3.0.0-beta.5", features = ["openssl"] }
-criterion = "0.3"
+async-stream = "0.3"
+criterion = { version = "0.3", features = ["html_reports"] }
 env_logger = "0.8"
 rcgen = "0.8"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tls-openssl = { version = "0.10", package = "openssl" }
 tls-rustls = { version = "0.19", package = "rustls" }
+webpki = { version = "0.21.0" }
 
 [[example]]
 name = "ws"

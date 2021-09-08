@@ -2,12 +2,15 @@
 
 use std::{fmt, ops, sync::Arc};
 
-use actix_http::error::{Error, ErrorNotFound};
 use actix_router::PathDeserializer;
 use actix_utils::future::{ready, Ready};
 use serde::de;
 
-use crate::{dev::Payload, error::PathError, FromRequest, HttpRequest};
+use crate::{
+    dev::Payload,
+    error::{Error, ErrorNotFound, PathError},
+    FromRequest, HttpRequest,
+};
 
 /// Extract typed data from request path segments.
 ///
@@ -100,8 +103,7 @@ where
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let error_handler = req
             .app_data::<Self::Config>()
-            .map(|c| c.ehandler.clone())
-            .unwrap_or(None);
+            .and_then(|c| c.ehandler.clone());
 
         ready(
             de::Deserialize::deserialize(PathDeserializer::new(req.match_info()))
@@ -207,7 +209,7 @@ mod tests {
         let resource = ResourceDef::new("/{value}/");
 
         let mut req = TestRequest::with_uri("/32/").to_srv_request();
-        resource.match_path(req.match_info_mut());
+        resource.capture_match_info(req.match_info_mut());
 
         let (req, mut pl) = req.into_parts();
         assert_eq!(*Path::<i8>::from_request(&req, &mut pl).await.unwrap(), 32);
@@ -219,7 +221,7 @@ mod tests {
         let resource = ResourceDef::new("/{key}/{value}/");
 
         let mut req = TestRequest::with_uri("/name/user1/?id=test").to_srv_request();
-        resource.match_path(req.match_info_mut());
+        resource.capture_match_info(req.match_info_mut());
 
         let (req, mut pl) = req.into_parts();
         let (Path(res),) = <(Path<(String, String)>,)>::from_request(&req, &mut pl)
@@ -245,7 +247,7 @@ mod tests {
         let mut req = TestRequest::with_uri("/name/user1/?id=test").to_srv_request();
 
         let resource = ResourceDef::new("/{key}/{value}/");
-        resource.match_path(req.match_info_mut());
+        resource.capture_match_info(req.match_info_mut());
 
         let (req, mut pl) = req.into_parts();
         let mut s = Path::<MyStruct>::from_request(&req, &mut pl).await.unwrap();
@@ -268,7 +270,7 @@ mod tests {
 
         let mut req = TestRequest::with_uri("/name/32/").to_srv_request();
         let resource = ResourceDef::new("/{key}/{value}/");
-        resource.match_path(req.match_info_mut());
+        resource.capture_match_info(req.match_info_mut());
 
         let (req, mut pl) = req.into_parts();
         let s = Path::<Test2>::from_request(&req, &mut pl).await.unwrap();
@@ -292,11 +294,8 @@ mod tests {
     async fn test_custom_err_handler() {
         let (req, mut pl) = TestRequest::with_uri("/name/user1/")
             .app_data(PathConfig::default().error_handler(|err, _| {
-                error::InternalError::from_response(
-                    err,
-                    HttpResponse::Conflict().finish().into(),
-                )
-                .into()
+                error::InternalError::from_response(err, HttpResponse::Conflict().finish())
+                    .into()
             }))
             .to_http_parts();
 
