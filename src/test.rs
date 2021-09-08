@@ -470,7 +470,15 @@ impl TestRequest {
         self
     }
 
-    /// Set request path pattern parameter
+    /// Set request path pattern parameter.
+    ///
+    /// # Examples
+    /// ```
+    /// use actix_web::test::TestRequest;
+    ///
+    /// let req = TestRequest::default().param("foo", "bar");
+    /// let req = TestRequest::default().param("foo".to_owned(), "bar".to_owned());
+    /// ```
     pub fn param(
         mut self,
         name: impl Into<Cow<'static, str>>,
@@ -480,13 +488,13 @@ impl TestRequest {
         self
     }
 
-    /// Set peer addr
+    /// Set peer addr.
     pub fn peer_addr(mut self, addr: SocketAddr) -> Self {
         self.peer_addr = Some(addr);
         self
     }
 
-    /// Set request payload
+    /// Set request payload.
     pub fn set_payload<B: Into<Bytes>>(mut self, data: B) -> Self {
         self.req.set_payload(data);
         self
