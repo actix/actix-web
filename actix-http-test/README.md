@@ -3,11 +3,11 @@
 > Various helpers for Actix applications to use during testing.
 
 [![crates.io](https://img.shields.io/crates/v/actix-http-test?label=latest)](https://crates.io/crates/actix-http-test)
-[![Documentation](https://docs.rs/actix-http-test/badge.svg?version=3.0.0-beta.6)](https://docs.rs/actix-http-test/3.0.0-beta.6)
+[![Documentation](https://docs.rs/actix-http-test/badge.svg?version=3.0.0-beta.5)](https://docs.rs/actix-http-test/3.0.0-beta.5)
 [![Version](https://img.shields.io/badge/rustc-1.51+-ab6000.svg)](https://blog.rust-lang.org/2020/03/12/Rust-1.51.html)
 ![MIT or Apache 2.0 licensed](https://img.shields.io/crates/l/actix-http-test)
 <br>
-[![Dependency Status](https://deps.rs/crate/actix-http-test/3.0.0-beta.6/status.svg)](https://deps.rs/crate/actix-http-test/3.0.0-beta.6)
+[![Dependency Status](https://deps.rs/crate/actix-http-test/3.0.0-beta.5/status.svg)](https://deps.rs/crate/actix-http-test/3.0.0-beta.5)
 [![Download](https://img.shields.io/crates/d/actix-http-test.svg)](https://crates.io/crates/actix-http-test)
 [![Chat on Discord](https://img.shields.io/discord/771444961383153695?label=chat&logo=discord)](https://discord.gg/NWpN5mmg3x)
 
