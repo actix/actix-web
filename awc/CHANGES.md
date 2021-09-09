@@ -1,10 +1,14 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 3.0.0-beta.8 - 2021-09-09
 ### Changed
 * Send headers within the redirect requests. [#2310]
 
 [#2310]: https://github.com/actix/actix-web/pull/2310
+
 
 ## 3.0.0-beta.7 - 2021-06-26
 ### Changed

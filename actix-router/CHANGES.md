@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 0.5.0-beta.2 - 2021-09-09
 * Introduce `ResourceDef::join`. [#380]
 * Disallow prefix routes with tail segments. [#379]
 * Enforce path separators on dynamic prefixes. [#378]

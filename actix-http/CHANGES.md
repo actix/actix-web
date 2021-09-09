@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 3.0.0-beta.10 - 2021-09-09
 ### Changed
 * `ContentEncoding` is now marked `#[non_exhaustive]`. [#2377]
 * Minimum supported Rust version (MSRV) is now 1.51.
@@ -16,7 +19,7 @@
 [#2377]: https://github.com/actix/actix-web/pull/2377
 
 
-## 3.0.0-beta.8 - 2021-08-09
+## 3.0.0-beta.9 - 2021-08-09
 ### Fixed
 * Potential HTTP request smuggling vulnerabilities. [RUSTSEC-2021-0081](https://github.com/rustsec/advisory-db/pull/977)
 

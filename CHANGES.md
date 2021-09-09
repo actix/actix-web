@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 4.0.0-beta.9 - 2021-09-09
 ### Added
 * Re-export actix-service `ServiceFactory` in `dev` module. [#2325]
 
