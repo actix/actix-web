@@ -1,6 +1,6 @@
 [package]
 name = "actix-files"
-version = "0.6.0-beta.6"
+version = "0.6.0-beta.7"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Static file serving for Actix Web"
 keywords = ["actix", "http", "async", "futures"]
