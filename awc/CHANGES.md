@@ -9,6 +9,7 @@
 
 [#2310]: https://github.com/actix/actix-web/pull/2310
 
+
 ## 3.0.0-beta.7 - 2021-06-26
 ### Changed
 * Change compression algorithm features flags. [#2250]
