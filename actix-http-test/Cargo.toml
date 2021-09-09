@@ -1,18 +1,18 @@
 [package]
 name = "actix-http-test"
-version = "3.0.0-beta.4"
+version = "3.0.0-beta.6"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Various helpers for Actix applications to use during testing"
-readme = "README.md"
 keywords = ["http", "web", "framework", "async", "futures"]
 homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-web.git"
-documentation = "https://docs.rs/actix-http-test/"
-categories = ["network-programming", "asynchronous",
-              "web-programming::http-server",
-              "web-programming::websocket"]
+categories = [
+    "network-programming",
+    "asynchronous",
+    "web-programming::http-server",
+    "web-programming::websocket",
+]
 license = "MIT OR Apache-2.0"
-exclude = [".gitignore", ".cargo/config"]
 edition = "2018"
 
 [package.metadata.docs.rs]
