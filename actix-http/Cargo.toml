@@ -60,6 +60,7 @@ futures-util = { version = "0.3.7", default-features = false, features = ["alloc
 h2 = "0.3.1"
 http = "0.2.2"
 httparse = "1.5.1"
+httpdate = "1.0.1"
 itoa = "0.4"
 language-tags = "0.3"
 local-channel = "0.1"
@@ -74,7 +75,6 @@ regex = "1.3"
 serde = "1.0"
 sha-1 = "0.9"
 smallvec = "1.6.1"
-time = { version = "0.2.23", default-features = false, features = ["std"] }
 tokio = { version = "1.2", features = ["sync"] }
 
 # compression
