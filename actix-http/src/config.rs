@@ -1,18 +1,19 @@
-use std::cell::Cell;
-use std::fmt::Write;
-use std::rc::Rc;
-use std::time::Duration;
-use std::{fmt, net};
+use std::{
+    cell::Cell,
+    fmt::{self, Write},
+    net,
+    rc::Rc,
+    time::{Duration, SystemTime},
+};
 
 use actix_rt::{
     task::JoinHandle,
     time::{interval, sleep_until, Instant, Sleep},
 };
 use bytes::BytesMut;
-use time::OffsetDateTime;
 
 /// "Sun, 06 Nov 1994 08:49:37 GMT".len()
-const DATE_VALUE_LENGTH: usize = 29;
+pub(crate) const DATE_VALUE_LENGTH: usize = 29;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 /// Server keep-alive setting
@@ -206,12 +207,7 @@ impl Date {
 
     fn update(&mut self) {
         self.pos = 0;
-        write!(
-            self,
-            "{}",
-            OffsetDateTime::now_utc().format("%a, %d %b %Y %H:%M:%S GMT")
-        )
-        .unwrap();
+        write!(self, "{}", httpdate::fmt_http_date(SystemTime::now())).unwrap();
     }
 }
 
@@ -269,11 +265,11 @@ impl DateService {
 }
 
 // TODO: move to a util module for testing all spawn handle drop style tasks.
-#[cfg(test)]
 /// Test Module for checking the drop state of certain async tasks that are spawned
 /// with `actix_rt::spawn`
 ///
 /// The target task must explicitly generate `NotifyOnDrop` when spawn the task
+#[cfg(test)]
 mod notify_on_drop {
     use std::cell::RefCell;
 
@@ -283,9 +279,8 @@ mod notify_on_drop {
 
     /// Check if the spawned task is dropped.
     ///
-    /// # Panic:
-    ///
-    /// When there was no `NotifyOnDrop` instance on current thread
+    /// # Panics
+    /// Panics when there was no `NotifyOnDrop` instance on current thread.
     pub(crate) fn is_dropped() -> bool {
         NOTIFY_DROPPED.with(|bool| {
             bool.borrow()

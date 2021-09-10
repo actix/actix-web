@@ -1077,3 +1077,22 @@ async fn test_data_drop() {
 
     assert_eq!(num.load(Ordering::SeqCst), 0);
 }
+
+#[actix_rt::test]
+async fn test_accept_encoding_no_match() {
+    let srv = actix_test::start_with(actix_test::config().h1(), || {
+        App::new()
+            .wrap(Compress::default())
+            .service(web::resource("/").route(web::to(move || HttpResponse::Ok().finish())))
+    });
+
+    let response = srv
+        .get("/")
+        .append_header((ACCEPT_ENCODING, "compress, identity;q=0"))
+        .no_decompress()
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status().as_u16(), 406);
+}

@@ -1,6 +1,6 @@
 //! Various helpers for Actix applications to use during testing.
 
-use std::{net::SocketAddr, rc::Rc};
+use std::{borrow::Cow, net::SocketAddr, rc::Rc};
 
 pub use actix_http::test::TestBuffer;
 use actix_http::{
@@ -56,7 +56,7 @@ pub fn default_service(
 /// async fn test_init_service() {
 ///     let app = test::init_service(
 ///         App::new()
-///             .service(web::resource("/test").to(|| async { HttpResponse::Ok() }))
+///             .service(web::resource("/test").to(|| async { "OK" }))
 ///     ).await;
 ///
 ///     // Create request object
@@ -470,19 +470,31 @@ impl TestRequest {
         self
     }
 
-    /// Set request path pattern parameter
-    pub fn param(mut self, name: &'static str, value: &'static str) -> Self {
+    /// Set request path pattern parameter.
+    ///
+    /// # Examples
+    /// ```
+    /// use actix_web::test::TestRequest;
+    ///
+    /// let req = TestRequest::default().param("foo", "bar");
+    /// let req = TestRequest::default().param("foo".to_owned(), "bar".to_owned());
+    /// ```
+    pub fn param(
+        mut self,
+        name: impl Into<Cow<'static, str>>,
+        value: impl Into<Cow<'static, str>>,
+    ) -> Self {
         self.path.add_static(name, value);
         self
     }
 
-    /// Set peer addr
+    /// Set peer addr.
     pub fn peer_addr(mut self, addr: SocketAddr) -> Self {
         self.peer_addr = Some(addr);
         self
     }
 
-    /// Set request payload
+    /// Set request payload.
     pub fn set_payload<B: Into<Bytes>>(mut self, data: B) -> Self {
         self.req.set_payload(data);
         self

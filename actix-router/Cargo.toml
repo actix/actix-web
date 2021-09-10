@@ -1,6 +1,6 @@
 [package]
 name = "actix-router"
-version = "0.5.0-beta.1"
+version = "0.5.0-beta.2"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
     "Ali MJ Al-Nasrawy <alimjalnasrawy@gmail.com>",
@@ -8,7 +8,7 @@ authors = [
 ]
 description = "Resource path matching and router"
 keywords = ["actix", "router", "routing"]
-repository = "https://github.com/actix/actix-net.git"
+repository = "https://github.com/actix/actix-web.git"
 license = "MIT OR Apache-2.0"
 edition = "2018"
 

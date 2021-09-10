@@ -79,7 +79,7 @@ where
             .into_iter()
             .for_each(|mut srv| srv.register(&mut config));
 
-        let mut rmap = ResourceMap::new(ResourceDef::new(""));
+        let mut rmap = ResourceMap::new(ResourceDef::prefix(""));
 
         let (config, services) = config.into_services();
 
@@ -104,7 +104,7 @@ where
 
         // complete ResourceMap tree creation
         let rmap = Rc::new(rmap);
-        rmap.finish(rmap.clone());
+        ResourceMap::finish(&rmap);
 
         // construct all async data factory futures
         let factory_futs = join_all(self.async_data_factories.iter().map(|f| f()));

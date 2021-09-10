@@ -1,12 +1,18 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 0.5.0-beta.2 - 2021-09-09
 * Introduce `ResourceDef::join`. [#380]
 * Disallow prefix routes with tail segments. [#379]
 * Enforce path separators on dynamic prefixes. [#378]
 * Improve malformed path error message. [#384]
 * Prefix segments now always end with with a segment delimiter or end-of-input. [#2355]
 * Prefix segments with trailing slashes define a trailing empty segment. [#2355]
+* Support multi-pattern prefixes and joins. [#2356]
+* `ResourceDef::pattern` now returns the first pattern in multi-pattern resources. [#2356]
+* Support `build_resource_path` on multi-pattern resources. [#2356]
 * Minimum supported Rust version (MSRV) is now 1.51.
 
 [#378]: https://github.com/actix/actix-net/pull/378
@@ -14,6 +20,7 @@
 [#380]: https://github.com/actix/actix-net/pull/380
 [#384]: https://github.com/actix/actix-net/pull/384
 [#2355]: https://github.com/actix/actix-web/pull/2355
+[#2356]: https://github.com/actix/actix-web/pull/2356
 
 
 ## 0.5.0-beta.1 - 2021-07-20
