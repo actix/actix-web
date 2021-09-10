@@ -44,7 +44,6 @@ mod request;
 mod response;
 mod response_builder;
 mod service;
-mod time_parser;
 
 pub mod error;
 pub mod h1;
