@@ -18,7 +18,7 @@ use bytes::Bytes;
 use futures_core::ready;
 use log::{debug, warn};
 use regex::{Regex, RegexSet};
-use time::{OffsetDateTime, format_description::well_known::Rfc3339};
+use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 use crate::{
     dev::{BodySize, MessageBody},
