@@ -18,7 +18,7 @@ use bytes::Bytes;
 use futures_core::ready;
 use log::{debug, warn};
 use regex::{Regex, RegexSet};
-use time::OffsetDateTime;
+use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 use crate::{
     dev::{BodySize, MessageBody},
@@ -538,7 +538,7 @@ impl FormatText {
                 };
             }
             FormatText::UrlPath => *self = FormatText::Str(req.path().to_string()),
-            FormatText::RequestTime => *self = FormatText::Str(now.format("%Y-%m-%dT%H:%M:%S")),
+            FormatText::RequestTime => *self = FormatText::Str(now.format(&Rfc3339).unwrap()),
             FormatText::RequestHeader(ref name) => {
                 let s = if let Some(val) = req.headers().get(name) {
                     if let Ok(s) = val.to_str() {
@@ -767,7 +767,7 @@ mod tests {
             Ok(())
         };
         let s = format!("{}", FormatDisplay(&render));
-        assert!(s.contains(&now.format("%Y-%m-%dT%H:%M:%S")));
+        assert!(s.contains(&now.format(&Rfc3339).unwrap()));
     }
 
     #[actix_rt::test]
