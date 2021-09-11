@@ -18,7 +18,8 @@ fn bench_write_camel_case(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::new("New", i), bts, |b, bts| {
             b.iter(|| {
                 let mut buf = black_box([0; 24]);
-                _new::write_camel_case(black_box(bts), &mut buf)
+                let len = black_box(bts.len());
+                _new::write_camel_case(black_box(bts), buf.as_mut_ptr(), len)
             });
         });
     }
@@ -30,9 +31,12 @@ criterion_group!(benches, bench_write_camel_case);
 criterion_main!(benches);
 
 mod _new {
-    pub fn write_camel_case(value: &[u8], buffer: &mut [u8]) {
+    pub fn write_camel_case(value: &[u8], buf: *mut u8, len: usize) {
         // first copy entire (potentially wrong) slice to output
-        buffer[..value.len()].copy_from_slice(value);
+        let buffer = unsafe {
+            std::ptr::copy_nonoverlapping(value.as_ptr(), buf, len);
+            std::slice::from_raw_parts_mut(buf, len)
+        };
 
         let mut iter = value.iter();
 

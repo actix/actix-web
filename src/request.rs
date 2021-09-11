@@ -184,7 +184,7 @@ impl HttpRequest {
         U: IntoIterator<Item = I>,
         I: AsRef<str>,
     {
-        self.resource_map().url_for(&self, name, elements)
+        self.resource_map().url_for(self, name, elements)
     }
 
     /// Generate url for named resource
@@ -199,7 +199,7 @@ impl HttpRequest {
     #[inline]
     /// Get a reference to a `ResourceMap` of current application.
     pub fn resource_map(&self) -> &ResourceMap {
-        &self.app_state().rmap()
+        self.app_state().rmap()
     }
 
     /// Peer socket address.
@@ -358,7 +358,6 @@ impl Drop for HttpRequest {
 /// }
 /// ```
 impl FromRequest for HttpRequest {
-    type Config = ();
     type Error = Error;
     type Future = Ready<Result<Self, Error>>;
 
@@ -511,7 +510,7 @@ mod tests {
         let mut res = ResourceDef::new("/user/{name}.{ext}");
         res.set_name("index");
 
-        let mut rmap = ResourceMap::new(ResourceDef::new(""));
+        let mut rmap = ResourceMap::new(ResourceDef::prefix(""));
         rmap.add(&mut res, None);
         assert!(rmap.has_resource("/user/test.html"));
         assert!(!rmap.has_resource("/test/unknown"));
@@ -541,7 +540,7 @@ mod tests {
         let mut rdef = ResourceDef::new("/index.html");
         rdef.set_name("index");
 
-        let mut rmap = ResourceMap::new(ResourceDef::new(""));
+        let mut rmap = ResourceMap::new(ResourceDef::prefix(""));
         rmap.add(&mut rdef, None);
 
         assert!(rmap.has_resource("/index.html"));
@@ -562,7 +561,7 @@ mod tests {
         let mut rdef = ResourceDef::new("/index.html");
         rdef.set_name("index");
 
-        let mut rmap = ResourceMap::new(ResourceDef::new(""));
+        let mut rmap = ResourceMap::new(ResourceDef::prefix(""));
         rmap.add(&mut rdef, None);
 
         assert!(rmap.has_resource("/index.html"));
@@ -581,9 +580,8 @@ mod tests {
 
         rdef.set_name("youtube");
 
-        let mut rmap = ResourceMap::new(ResourceDef::new(""));
+        let mut rmap = ResourceMap::new(ResourceDef::prefix(""));
         rmap.add(&mut rdef, None);
-        assert!(rmap.has_resource("https://youtube.com/watch/unknown"));
 
         let req = TestRequest::default().rmap(rmap).to_http_request();
         let url = req.url_for("youtube", &["oHg5SJYRHA0"]);

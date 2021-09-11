@@ -1,6 +1,6 @@
 [package]
 name = "awc"
-version = "3.0.0-beta.7"
+version = "3.0.0-beta.8"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
     "fakeshadow <24548779@qq.com>",
@@ -55,7 +55,7 @@ __compress = []
 [dependencies]
 actix-codec = "0.4.0"
 actix-service = "2.0.0"
-actix-http = "3.0.0-beta.8"
+actix-http = "3.0.0-beta.10"
 actix-rt = { version = "2.1", default-features = false }
 
 base64 = "0.13"
@@ -77,9 +77,9 @@ tls-openssl = { version = "0.10.9", package = "openssl", optional = true }
 tls-rustls = { version = "0.19.0", package = "rustls", optional = true, features = ["dangerous_configuration"] }
 
 [dev-dependencies]
-actix-web = { version = "4.0.0-beta.8", features = ["openssl"] }
-actix-http = { version = "3.0.0-beta.8", features = ["openssl"] }
-actix-http-test = { version = "3.0.0-beta.4", features = ["openssl"] }
+actix-web = { version = "4.0.0-beta.9", features = ["openssl"] }
+actix-http = { version = "3.0.0-beta.10", features = ["openssl"] }
+actix-http-test = { version = "3.0.0-beta.5", features = ["openssl"] }
 actix-utils = "3.0.0"
 actix-server = "2.0.0-beta.3"
 actix-tls = { version = "3.0.0-beta.5", features = ["openssl", "rustls"] }

@@ -3,6 +3,10 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 0.6.0-beta.7 - 2021-09-09
+* Minimum supported Rust version (MSRV) is now 1.51.
+
+
 ## 0.6.0-beta.6 - 2021-06-26
 * Added `Files::path_filter()`. [#2274]
 * `Files::show_files_listing()` can now be used with `Files::index_file()` to show files listing as a fallback when the index file is not found. [#2228]

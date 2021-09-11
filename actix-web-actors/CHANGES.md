@@ -3,6 +3,10 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 4.0.0-beta.7 - 2021-09-09
+* Minimum supported Rust version (MSRV) is now 1.51.
+
+
 ## 4.0.0-beta.6 - 2021-06-26
 * Update `actix` to `0.12`. [#2277]
 

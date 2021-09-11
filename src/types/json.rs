@@ -97,19 +97,13 @@ impl<T> ops::DerefMut for Json<T> {
     }
 }
 
-impl<T> fmt::Display for Json<T>
-where
-    T: fmt::Display,
-{
+impl<T: fmt::Display> fmt::Display for Json<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self.0, f)
     }
 }
 
-impl<T> Serialize for Json<T>
-where
-    T: Serialize,
-{
+impl<T: Serialize> Serialize for Json<T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -133,13 +127,9 @@ impl<T: Serialize> Responder for Json<T> {
 }
 
 /// See [here](#extractor) for example of usage as an extractor.
-impl<T> FromRequest for Json<T>
-where
-    T: DeserializeOwned + 'static,
-{
+impl<T: DeserializeOwned + 'static> FromRequest for Json<T> {
     type Error = Error;
     type Future = JsonExtractFut<T>;
-    type Config = JsonConfig;
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
@@ -167,10 +157,7 @@ pub struct JsonExtractFut<T> {
     err_handler: JsonErrorHandler,
 }
 
-impl<T> Future for JsonExtractFut<T>
-where
-    T: DeserializeOwned + 'static,
-{
+impl<T: DeserializeOwned + 'static> Future for JsonExtractFut<T> {
     type Output = Result<Json<T>, Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -320,10 +307,7 @@ pub enum JsonBody<T> {
 
 impl<T> Unpin for JsonBody<T> {}
 
-impl<T> JsonBody<T>
-where
-    T: DeserializeOwned + 'static,
-{
+impl<T: DeserializeOwned> JsonBody<T> {
     /// Create a new future to decode a JSON request payload.
     #[allow(clippy::borrow_interior_mutable_const)]
     pub fn new(
@@ -405,10 +389,7 @@ where
     }
 }
 
-impl<T> Future for JsonBody<T>
-where
-    T: DeserializeOwned + 'static,
-{
+impl<T: DeserializeOwned + 'static> Future for JsonBody<T> {
     type Output = Result<T, JsonPayloadError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -435,7 +416,7 @@ where
                         }
                     }
                     None => {
-                        let json = serde_json::from_slice::<T>(&buf)
+                        let json = serde_json::from_slice::<T>(buf)
                             .map_err(JsonPayloadError::Deserialize)?;
                         return Poll::Ready(Ok(json));
                     }

@@ -117,7 +117,7 @@ impl ServiceRequest {
     /// This method returns reference to the request head
     #[inline]
     pub fn head(&self) -> &RequestHead {
-        &self.req.head()
+        self.req.head()
     }
 
     /// This method returns reference to the request head
@@ -476,7 +476,7 @@ impl WebService {
 
     /// Set service name.
     ///
-    /// Name is used for url generation.
+    /// Name is used for URL generation.
     pub fn name(mut self, name: &str) -> Self {
         self.name = Some(name.to_string());
         self

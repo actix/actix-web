@@ -53,7 +53,7 @@
 //! * SSL support using OpenSSL or Rustls
 //! * Middlewares ([Logger, Session, CORS, etc](https://actix.rs/docs/middleware/))
 //! * Includes an async [HTTP client](https://docs.rs/awc/)
-//! * Runs on stable Rust 1.46+
+//! * Runs on stable Rust 1.51+
 //!
 //! # Crate Features
 //! * `cookies` - cookies support (enabled by default)
@@ -96,7 +96,6 @@ pub mod test;
 pub(crate) mod types;
 pub mod web;
 
-pub use actix_http::Response as BaseHttpResponse;
 pub use actix_http::{body, HttpMessage};
 #[doc(inline)]
 pub use actix_rt as rt;
