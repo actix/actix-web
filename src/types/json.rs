@@ -34,7 +34,7 @@ use crate::{
 /// To extract typed data from a request body, the inner type `T` must implement the
 /// [`serde::Deserialize`] trait.
 ///
-/// Use [`JsonConfig`] to configure extraction process.
+/// Use [`JsonConfig`] to configure extraction options.
 ///
 /// ```
 /// use actix_web::{post, web, App};
