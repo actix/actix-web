@@ -127,7 +127,7 @@ impl<T: Serialize> Responder for Json<T> {
 }
 
 /// See [here](#extractor) for example of usage as an extractor.
-impl<T: DeserializeOwned + 'static> FromRequest for Json<T> {
+impl<T: DeserializeOwned> FromRequest for Json<T> {
     type Error = Error;
     type Future = JsonExtractFut<T>;
 
@@ -136,12 +136,13 @@ impl<T: DeserializeOwned + 'static> FromRequest for Json<T> {
         let config = JsonConfig::from_req(req);
 
         let limit = config.limit;
-        let ctype = config.content_type.as_deref();
+        let ctype_required = config.content_type_required;
+        let ctype_fn = config.content_type.as_deref();
         let err_handler = config.err_handler.clone();
 
         JsonExtractFut {
             req: Some(req.clone()),
-            fut: JsonBody::new(req, payload, ctype).limit(limit),
+            fut: JsonBody::new(req, payload, ctype_fn, ctype_required).limit(limit),
             err_handler,
         }
     }
@@ -156,7 +157,7 @@ pub struct JsonExtractFut<T> {
     err_handler: JsonErrorHandler,
 }
 
-impl<T: DeserializeOwned + 'static> Future for JsonExtractFut<T> {
+impl<T: DeserializeOwned> Future for JsonExtractFut<T> {
     type Output = Result<Json<T>, Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -224,6 +225,7 @@ pub struct JsonConfig {
     limit: usize,
     err_handler: JsonErrorHandler,
     content_type: Option<Arc<dyn Fn(mime::Mime) -> bool + Send + Sync>>,
+    content_type_required: bool,
 }
 
 impl JsonConfig {
@@ -251,6 +253,12 @@ impl JsonConfig {
         self
     }
 
+    /// Sets whether or not the request must have a `Content-Type` header to be parsed.
+    pub fn content_type_required(mut self, content_type_required: bool) -> Self {
+        self.content_type_required = content_type_required;
+        self
+    }
+
     /// Extract payload config from app data. Check both `T` and `Data<T>`, in that order, and fall
     /// back to the default payload config.
     fn from_req(req: &HttpRequest) -> &Self {
@@ -267,6 +275,7 @@ const DEFAULT_CONFIG: JsonConfig = JsonConfig {
     limit: DEFAULT_LIMIT,
     err_handler: None,
     content_type: None,
+    content_type_required: true,
 };
 
 impl Default for JsonConfig {
@@ -277,15 +286,18 @@ impl Default for JsonConfig {
 
 /// Future that resolves to some `T` when parsed from a JSON payload.
 ///
-/// Form can be deserialized from any type `T` that implements [`serde::Deserialize`].
+/// Can deserialize any type `T` that implements [`Deserialize`][serde::Deserialize].
 ///
 /// Returns error if:
-/// - content type is not `application/json`
-/// - content length is greater than [limit](JsonBody::limit())
+/// - `Content-Type` is not `application/json` when `ctype_required` (passed to [`new`][Self::new])
+///   is `true`.
+/// - `Content-Length` is greater than [limit](JsonBody::limit()).
+/// - The payload, when consumed, is not valid JSON.
 pub enum JsonBody<T> {
     Error(Option<JsonPayloadError>),
     Body {
         limit: usize,
+        /// Length as reported by `Content-Length` header, if present.
         length: Option<usize>,
         #[cfg(feature = "__compress")]
         payload: Decompress<Payload>,
@@ -304,18 +316,21 @@ impl<T: DeserializeOwned> JsonBody<T> {
     pub fn new(
         req: &HttpRequest,
         payload: &mut Payload,
-        ctype: Option<&(dyn Fn(mime::Mime) -> bool + Send + Sync)>,
+        ctype_fn: Option<&(dyn Fn(mime::Mime) -> bool + Send + Sync)>,
+        ctype_required: bool,
     ) -> Self {
         // check content-type
-        let json = if let Ok(Some(mime)) = req.mime_type() {
+        let can_parse_json = if let Ok(Some(mime)) = req.mime_type() {
             mime.subtype() == mime::JSON
                 || mime.suffix() == Some(mime::JSON)
-                || ctype.map_or(false, |predicate| predicate(mime))
+                || ctype_fn.map_or(false, |predicate| predicate(mime))
         } else {
-            false
+            // if `ctype_required` is false, assume payload is
+            // json even when content-type header is missing
+            !ctype_required
         };
 
-        if !json {
+        if !can_parse_json {
             return JsonBody::Error(Some(JsonPayloadError::ContentType));
         }
 
@@ -325,7 +340,7 @@ impl<T: DeserializeOwned> JsonBody<T> {
             .and_then(|l| l.to_str().ok())
             .and_then(|s| s.parse::<usize>().ok());
 
-        // Notice the content_length is not checked against limit of json config here.
+        // Notice the content-length is not checked against limit of json config here.
         // As the internal usage always call JsonBody::limit after JsonBody::new.
         // And limit check to return an error variant of JsonBody happens there.
 
@@ -379,7 +394,7 @@ impl<T: DeserializeOwned> JsonBody<T> {
     }
 }
 
-impl<T: DeserializeOwned + 'static> Future for JsonBody<T> {
+impl<T: DeserializeOwned> Future for JsonBody<T> {
     type Output = Result<T, JsonPayloadError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -562,7 +577,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_json_body() {
         let (req, mut pl) = TestRequest::default().to_http_parts();
-        let json = JsonBody::<MyObject>::new(&req, &mut pl, None).await;
+        let json = JsonBody::<MyObject>::new(&req, &mut pl, None, true).await;
         assert!(json_eq(json.err().unwrap(), JsonPayloadError::ContentType));
 
         let (req, mut pl) = TestRequest::default()
@@ -571,7 +586,7 @@ mod tests {
                 header::HeaderValue::from_static("application/text"),
             ))
             .to_http_parts();
-        let json = JsonBody::<MyObject>::new(&req, &mut pl, None).await;
+        let json = JsonBody::<MyObject>::new(&req, &mut pl, None, true).await;
         assert!(json_eq(json.err().unwrap(), JsonPayloadError::ContentType));
 
         let (req, mut pl) = TestRequest::default()
@@ -585,7 +600,7 @@ mod tests {
             ))
             .to_http_parts();
 
-        let json = JsonBody::<MyObject>::new(&req, &mut pl, None)
+        let json = JsonBody::<MyObject>::new(&req, &mut pl, None, true)
             .limit(100)
             .await;
         assert!(json_eq(
@@ -604,7 +619,7 @@ mod tests {
             .set_payload(Bytes::from_static(&[0u8; 1000]))
             .to_http_parts();
 
-        let json = JsonBody::<MyObject>::new(&req, &mut pl, None)
+        let json = JsonBody::<MyObject>::new(&req, &mut pl, None, true)
             .limit(100)
             .await;
 
@@ -625,7 +640,7 @@ mod tests {
             .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
             .to_http_parts();
 
-        let json = JsonBody::<MyObject>::new(&req, &mut pl, None).await;
+        let json = JsonBody::<MyObject>::new(&req, &mut pl, None, true).await;
         assert_eq!(
             json.ok().unwrap(),
             MyObject {
@@ -693,6 +708,21 @@ mod tests {
 
         let s = Json::<MyObject>::from_request(&req, &mut pl).await;
         assert!(s.is_err())
+    }
+
+    #[actix_rt::test]
+    async fn test_json_with_no_content_type() {
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((
+                header::CONTENT_LENGTH,
+                header::HeaderValue::from_static("16"),
+            ))
+            .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
+            .app_data(JsonConfig::default().content_type_required(false))
+            .to_http_parts();
+
+        let s = Json::<MyObject>::from_request(&req, &mut pl).await;
+        assert!(s.is_ok())
     }
 
     #[actix_rt::test]

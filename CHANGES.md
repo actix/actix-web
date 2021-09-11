@@ -1,12 +1,16 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+* Option to allow `Json` extractor to work without a `Content-Length` header present. [#2362]
+
 ### Changed
 * Associated type `FromRequest::Config` was removed. [#2233]
-* Inner field made private on `web::Payload`. [#????]
+* Inner field made private on `web::Payload`. [#2384]
 
 [#2233]: https://github.com/actix/actix-web/pull/2233
-[#????]: https://github.com/actix/actix-web/pull/????
+[#2362]: https://github.com/actix/actix-web/pull/2362
+[#2384]: https://github.com/actix/actix-web/pull/2384
 
 
 ## 4.0.0-beta.9 - 2021-09-09
