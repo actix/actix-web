@@ -43,10 +43,11 @@ use crate::{
 ///     Ok(format!("Request Body Bytes:\n{:?}", bytes))
 /// }
 /// ```
-pub struct Payload(pub crate::dev::Payload);
+pub struct Payload(crate::dev::Payload);
 
 impl Payload {
     /// Unwrap to inner Payload type.
+    #[inline]
     pub fn into_inner(self) -> crate::dev::Payload {
         self.0
     }
