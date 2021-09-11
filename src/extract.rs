@@ -13,28 +13,37 @@ use futures_core::ready;
 
 use crate::{dev::Payload, Error, HttpRequest};
 
-/// A type that implements [`FromRequest`] is called an **extractor** and can extract data
-/// from the request. Examples of types that implement this trait are [`Json`], [`Form`], [`Path`].
+/// A type that implements [`FromRequest`] is called an **extractor** and can extract data from
+/// the request. Some types that implement this trait are: [`Json`], [`Header`], and [`Path`].
 ///
+/// # Configuration
 /// An extractor can be customized by injecting the corresponding configuration with one of:
 ///
-/// - [`App::app_data()`](`crate::App::app_data`)
-/// - [`Scope::app_data()`](`crate::Scope::app_data`)
-/// - [`Resource::app_data()`](`crate::Resource::app_data`)
+/// - [`App::app_data()`][crate::App::app_data]
+/// - [`Scope::app_data()`][crate::Scope::app_data]
+/// - [`Resource::app_data()`][crate::Resource::app_data]
 ///
 /// Here are some built-in extractors and their corresponding configuration.
 /// Please refer to the respective documentation for details.
 ///
 /// | Extractor   | Configuration     |
 /// |-------------|-------------------|
+/// | [`Header`]  | _None_            |
+/// | [`Path`]    | [`PathConfig`]    |
 /// | [`Json`]    | [`JsonConfig`]    |
 /// | [`Form`]    | [`FormConfig`]    |
-/// | [`Path`]    | [`PathConfig`]    |
 /// | [`Query`]   | [`QueryConfig`]   |
-/// | [`Payload`] | [`PayloadConfig`] |
-/// | [`String`]  | [`PayloadConfig`] |
 /// | [`Bytes`]   | [`PayloadConfig`] |
+/// | [`String`]  | [`PayloadConfig`] |
+/// | [`Payload`] | [`PayloadConfig`] |
 ///
+/// # Implementing An Extractor
+/// To reduce duplicate code in handlers where extracting certain parts of a request has a common
+/// structure, you can implement `FromRequest` for your own types.
+///
+/// Note that the request payload can only be consumed by one extractor.
+///
+/// [`Header`]: crate::web::Header
 /// [`Json`]: crate::web::Json
 /// [`JsonConfig`]: crate::web::JsonConfig
 /// [`Form`]: crate::web::Form
@@ -47,7 +56,8 @@ use crate::{dev::Payload, Error, HttpRequest};
 /// [`PayloadConfig`]: crate::web::PayloadConfig
 /// [`String`]: FromRequest#impl-FromRequest-for-String
 /// [`Bytes`]: crate::web::Bytes#impl-FromRequest
-#[cfg_attr(docsrs, doc(alias = "Extractor"))]
+/// [`Either`]: crate::web::Either
+#[doc(alias = "extract", alias = "extractor")]
 pub trait FromRequest: Sized {
     /// The associated error which can be returned.
     type Error: Into<Error>;
