@@ -1,10 +1,14 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+* Option to allow `Json` extractor to work without a `Content-Length` header present. [#2362]
+
 ### Changed
 * Asscociated type `FromRequest::Config` was removed. [#2233]
 
 [#2233]: https://github.com/actix/actix-web/pull/2233
+[#2362]: https://github.com/actix/actix-web/pull/2362
 
 ## 4.0.0-beta.9 - 2021-09-09
 ### Added

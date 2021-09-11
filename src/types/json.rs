@@ -127,7 +127,7 @@ impl<T: Serialize> Responder for Json<T> {
 }
 
 /// See [here](#extractor) for example of usage as an extractor.
-impl<T: DeserializeOwned + 'static> FromRequest for Json<T> {
+impl<T: DeserializeOwned> FromRequest for Json<T> {
     type Error = Error;
     type Future = JsonExtractFut<T>;
 
@@ -136,13 +136,13 @@ impl<T: DeserializeOwned + 'static> FromRequest for Json<T> {
         let config = JsonConfig::from_req(req);
 
         let limit = config.limit;
-        let content_type_required = config.content_type_required;
-        let ctype = config.content_type.as_deref();
+        let ctype_required = config.content_type_required;
+        let ctype_fn = config.content_type.as_deref();
         let err_handler = config.err_handler.clone();
 
         JsonExtractFut {
             req: Some(req.clone()),
-            fut: JsonBody::new(req, payload, ctype, content_type_required).limit(limit),
+            fut: JsonBody::new(req, payload, ctype_fn, ctype_required).limit(limit),
             err_handler,
         }
     }
@@ -157,7 +157,7 @@ pub struct JsonExtractFut<T> {
     err_handler: JsonErrorHandler,
 }
 
-impl<T: DeserializeOwned + 'static> Future for JsonExtractFut<T> {
+impl<T: DeserializeOwned> Future for JsonExtractFut<T> {
     type Output = Result<Json<T>, Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -286,15 +286,18 @@ impl Default for JsonConfig {
 
 /// Future that resolves to some `T` when parsed from a JSON payload.
 ///
-/// Form can be deserialized from any type `T` that implements [`serde::Deserialize`].
+/// Can deserialize any type `T` that implements [`Deserialize`][serde::Deserialize].
 ///
 /// Returns error if:
-/// - content type is not `application/json`
-/// - content length is greater than [limit](JsonBody::limit())
+/// - `Content-Type` is not `application/json` when `ctype_required` (passed to [`new`][Self::new])
+///   is `true`.
+/// - `Content-Length` is greater than [limit](JsonBody::limit()).
+/// - The payload, when consumed, is not valid JSON.
 pub enum JsonBody<T> {
     Error(Option<JsonPayloadError>),
     Body {
         limit: usize,
+        /// Length as reported by `Content-Length` header, if present.
         length: Option<usize>,
         #[cfg(feature = "__compress")]
         payload: Decompress<Payload>,
@@ -313,19 +316,21 @@ impl<T: DeserializeOwned> JsonBody<T> {
     pub fn new(
         req: &HttpRequest,
         payload: &mut Payload,
-        ctype: Option<&(dyn Fn(mime::Mime) -> bool + Send + Sync)>,
-        content_type_required: bool,
+        ctype_fn: Option<&(dyn Fn(mime::Mime) -> bool + Send + Sync)>,
+        ctype_required: bool,
     ) -> Self {
         // check content-type
-        let has_valid_content_type = if let Ok(Some(mime)) = req.mime_type() {
+        let can_parse_json = if let Ok(Some(mime)) = req.mime_type() {
             mime.subtype() == mime::JSON
                 || mime.suffix() == Some(mime::JSON)
-                || ctype.map_or(false, |predicate| predicate(mime))
+                || ctype_fn.map_or(false, |predicate| predicate(mime))
         } else {
-            !content_type_required
+            // if `ctype_required` is false, assume payload is
+            // json even when content-type header is missing
+            !ctype_required
         };
 
-        if !has_valid_content_type {
+        if !can_parse_json {
             return JsonBody::Error(Some(JsonPayloadError::ContentType));
         }
 
@@ -335,7 +340,7 @@ impl<T: DeserializeOwned> JsonBody<T> {
             .and_then(|l| l.to_str().ok())
             .and_then(|s| s.parse::<usize>().ok());
 
-        // Notice the content_length is not checked against limit of json config here.
+        // Notice the content-length is not checked against limit of json config here.
         // As the internal usage always call JsonBody::limit after JsonBody::new.
         // And limit check to return an error variant of JsonBody happens there.
 
@@ -389,7 +394,7 @@ impl<T: DeserializeOwned> JsonBody<T> {
     }
 }
 
-impl<T: DeserializeOwned + 'static> Future for JsonBody<T> {
+impl<T: DeserializeOwned> Future for JsonBody<T> {
     type Output = Result<T, JsonPayloadError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
