@@ -1,7 +1,10 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Changed
+* Asscociated type `FromRequest::Config` was removed. [#2233]
 
+[#2233]: https://github.com/actix/actix-web/pull/2233
 
 ## 4.0.0-beta.9 - 2021-09-09
 ### Added

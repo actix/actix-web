@@ -130,7 +130,6 @@ impl<T: Serialize> Responder for Json<T> {
 impl<T: DeserializeOwned + 'static> FromRequest for Json<T> {
     type Error = Error;
     type Future = JsonExtractFut<T>;
-    type Config = JsonConfig;
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
