@@ -14,7 +14,7 @@ use crate::{
 
 /// Extract typed data from request path segments.
 ///
-/// Use [`PathConfig`] to configure extraction process.
+/// Use [`PathConfig`] to configure extraction option.
 ///
 /// # Examples
 /// ```
