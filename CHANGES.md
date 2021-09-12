@@ -2,7 +2,7 @@
 
 ## Unreleased - 2021-xx-xx
 ### Added
-* Option to allow `Json` extractor to work without a `Content-Length` header present. [#2362]
+* Option to allow `Json` extractor to work without a `Content-Type` header present. [#2362]
 
 ### Changed
 * Associated type `FromRequest::Config` was removed. [#2233]
