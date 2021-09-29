@@ -8,6 +8,10 @@ mod logger;
 mod normalize;
 
 pub use self::compat::Compat;
+pub use self::condition::conditionally;
+pub use self::condition::futurally;
+pub use self::condition::optionally;
+pub use self::condition::optionally_fut;
 pub use self::condition::Condition;
 pub use self::default_headers::DefaultHeaders;
 pub use self::err_handlers::{ErrorHandlerResponse, ErrorHandlers};
@@ -25,6 +29,7 @@ mod tests {
     use crate::{http::StatusCode, App};
 
     use super::*;
+    use crate::middleware::conditionally;
 
     #[test]
     fn common_combinations() {
@@ -32,7 +37,7 @@ mod tests {
 
         let _ = App::new()
             .wrap(Compat::new(Logger::default()))
-            .wrap(Condition::new(true, DefaultHeaders::new()))
+            .wrap(conditionally(true, DefaultHeaders::new()))
             .wrap(DefaultHeaders::new().header("X-Test2", "X-Value2"))
             .wrap(ErrorHandlers::new().handler(StatusCode::FORBIDDEN, |res| {
                 Ok(ErrorHandlerResponse::Response(res))
@@ -47,7 +52,7 @@ mod tests {
                 Ok(ErrorHandlerResponse::Response(res))
             }))
             .wrap(DefaultHeaders::new().header("X-Test2", "X-Value2"))
-            .wrap(Condition::new(true, DefaultHeaders::new()))
+            .wrap(conditionally(true, DefaultHeaders::new()))
             .wrap(Compat::new(Logger::default()));
 
         #[cfg(feature = "__compress")]
@@ -55,7 +60,7 @@ mod tests {
             let _ = App::new().wrap(Compress::default()).wrap(Logger::default());
             let _ = App::new().wrap(Logger::default()).wrap(Compress::default());
             let _ = App::new().wrap(Compat::new(Compress::default()));
-            let _ = App::new().wrap(Condition::new(true, Compat::new(Compress::default())));
+            let _ = App::new().wrap(conditionally(true, Compat::new(Compress::default())));
         }
     }
 }

@@ -139,7 +139,7 @@ mod tests {
 
     use crate::dev::ServiceRequest;
     use crate::http::StatusCode;
-    use crate::middleware::{self, Condition, Logger};
+    use crate::middleware::{self, conditionally, Condition, Logger};
     use crate::test::{call_service, init_service, TestRequest};
     use crate::{web, App, HttpResponse};
 
@@ -199,7 +199,7 @@ mod tests {
 
         let logger = Logger::default();
 
-        let mw = Condition::new(true, Compat::new(logger))
+        let mw = conditionally(true, Compat::new(logger))
             .new_transform(srv.into_service())
             .await
             .unwrap();
