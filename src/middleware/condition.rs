@@ -31,7 +31,7 @@ use std::sync::Mutex;
 ///     .wrap(conditionally(enable_normalize, NormalizePath::default()))
 ///     .wrap(optionally(config_opt, |mode| NormalizePath::new(mode)))
 ///     .wrap(optionally_fut(config_opt_future, |mode| NormalizePath::new(mode)))
-///     .wrap(Condition::new(future));
+///     .wrap(futurally(future));
 /// ```
 
 pub struct Condition<T, F>(Rc<Mutex<F>>)
