@@ -116,6 +116,12 @@ impl<T: Responder> Responder for (T, StatusCode) {
     }
 }
 
+impl Responder for () {
+    fn respond_to(self, req: &HttpRequest) -> HttpResponse {
+        HttpResponse::new(StatusCode::NO_CONTENT)
+    }
+}
+
 macro_rules! impl_responder {
     ($res: ty, $ct: path) => {
         impl Responder for $res {

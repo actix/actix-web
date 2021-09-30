@@ -3,6 +3,7 @@
 ## Unreleased - 2021-xx-xx
 ### Added
 * Option to allow `Json` extractor to work without a `Content-Type` header present. [#2362]
+* Implemented responder for `()` to respond with `204 No Content`
 
 ### Changed
 * Associated type `FromRequest::Config` was removed. [#2233]
