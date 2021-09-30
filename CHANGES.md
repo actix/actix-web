@@ -3,10 +3,12 @@
 ## Unreleased - 2021-xx-xx
 ### Added
 * Option to allow `Json` extractor to work without a `Content-Type` header present. [#2362]
+* New construction possiblity for the `Condition` middleware using `middleware::conditionally`, `middleware::optionally`, `middleware::optionally_fut`, `middleware::futurally`
 
 ### Changed
 * Associated type `FromRequest::Config` was removed. [#2233]
 * Inner field made private on `web::Payload`. [#2384]
+* `middleware::Condition::new` was deprecated in favour of `middleware::conditionally` 
 
 [#2233]: https://github.com/actix/actix-web/pull/2233
 [#2362]: https://github.com/actix/actix-web/pull/2362
