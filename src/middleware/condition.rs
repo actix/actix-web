@@ -18,7 +18,7 @@ use std::sync::Mutex;
 ///
 /// # Examples
 /// ```
-/// use actix_web::middleware::{Condition, NormalizePath, TrailingSlash, conditionally, optionally, optionally_fut};
+/// use actix_web::middleware::{Condition, NormalizePath, TrailingSlash, conditionally, optionally, optionally_fut, futurally};
 /// use actix_web::App;
 /// use std::future::ready;
 ///
@@ -37,6 +37,13 @@ use std::sync::Mutex;
 pub struct Condition<T, F>(Rc<Mutex<F>>)
 where
     F: Future<Output = Option<T>> + Unpin + 'static;
+
+impl<T> Condition<T, Ready<Option<T>>> {
+    #[deprecated(since = "4.0.0", note = "Use middleware::conditionally instead")]
+    pub fn new(enable: bool, transformer: T) -> Self {
+        conditionally(enable, transformer)
+    }
+}
 
 pub fn futurally<T, F>(transformer: F) -> Condition<T, F>
 where

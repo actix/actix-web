@@ -8,7 +8,7 @@
 ### Changed
 * Associated type `FromRequest::Config` was removed. [#2233]
 * Inner field made private on `web::Payload`. [#2384]
-* `middleware::Condition::new` was removed in favour of `middleware::conditionally` 
+* `middleware::Condition::new` was deprecated in favour of `middleware::conditionally` 
 
 [#2233]: https://github.com/actix/actix-web/pull/2233
 [#2362]: https://github.com/actix/actix-web/pull/2362
