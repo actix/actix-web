@@ -203,15 +203,25 @@ where
         MessageBody::new(self)
     }
 
-    /// Loads and parse `application/json` encoded body.
-    /// Return `JsonBody<T>` future. It resolves to a `T` value.
+    /// Loads and parses `application/json` encoded body.
+    /// Returns a s`JsonBody<T>` future. It resolves to a `T` value.
     ///
     /// Returns error:
     ///
     /// * content type is not `application/json`
     /// * content length is greater than 256k
     pub fn json<T: DeserializeOwned>(&mut self) -> JsonBody<S, T> {
-        JsonBody::new(self)
+        JsonBody::new(self, true)
+    }
+
+    /// Loads and parses `application/json` encoded body.
+    /// Returns a `JsonBody<T>` future. It resolves to a `T` value.
+    ///
+    /// Returns error:
+    ///
+    /// * content length is greater than 256k
+    pub fn json_with_content_type_unchecked<T: DeserializeOwned>(&mut self) -> JsonBody<S, T> {
+        JsonBody::new(self, false)
     }
 }
 
@@ -337,14 +347,17 @@ where
     U: DeserializeOwned,
 {
     /// Create `JsonBody` for request.
-    pub fn new(res: &mut ClientResponse<S>) -> Self {
-        // check content-type
-        let json = if let Ok(Some(mime)) = res.mime_type() {
-            mime.subtype() == mime::JSON || mime.suffix() == Some(mime::JSON)
-        } else {
-            false
+    pub fn new(res: &mut ClientResponse<S>, check_content_type: bool) -> Self {
+        // Create a function to check content-type
+        let json = || {
+            if let Ok(Some(mime)) = res.mime_type() {
+                mime.subtype() == mime::JSON || mime.suffix() == Some(mime::JSON)
+            } else {
+                false
+            }
         };
-        if !json {
+
+        if check_content_type && !json() {
             return JsonBody {
                 length: None,
                 fut: None,
