@@ -1,7 +1,8 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
-
+### Added
+* awc::ClientResponse::json_with_content_type_unchecked function
 
 ## 3.0.0-beta.8 - 2021-09-09
 ### Changed
