@@ -209,7 +209,7 @@ impl RequestHeadType {
 impl AsRef<RequestHead> for RequestHeadType {
     fn as_ref(&self) -> &RequestHead {
         match self {
-            RequestHeadType::Owned(head) => &head,
+            RequestHeadType::Owned(head) => head,
             RequestHeadType::Rc(head, _) => head.as_ref(),
         }
     }
@@ -363,7 +363,7 @@ impl<T: Head> std::ops::Deref for Message<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        &self.head.as_ref()
+        self.head.as_ref()
     }
 }
 

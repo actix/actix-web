@@ -187,7 +187,6 @@ where
 {
     type Error = EitherExtractError<L::Error, R::Error>;
     type Future = EitherExtractFut<L, R>;
-    type Config = ();
 
     fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
         EitherExtractFut {
@@ -253,7 +252,7 @@ where
                         Ok(bytes) => {
                             let fallback = bytes.clone();
                             let left =
-                                L::from_request(&this.req, &mut payload_from_bytes(bytes));
+                                L::from_request(this.req, &mut payload_from_bytes(bytes));
                             EitherExtractState::Left { left, fallback }
                         }
                         Err(err) => break Err(EitherExtractError::Bytes(err)),
@@ -265,7 +264,7 @@ where
                         Ok(extracted) => break Ok(Either::Left(extracted)),
                         Err(left_err) => {
                             let right = R::from_request(
-                                &this.req,
+                                this.req,
                                 &mut payload_from_bytes(mem::take(fallback)),
                             );
                             EitherExtractState::Right {

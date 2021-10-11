@@ -2,11 +2,37 @@
 
 ## Unreleased - 2021-xx-xx
 ### Added
-* Re-export actix-service `ServiceFactory` in `dev` module. [#2325]
+* Option to allow `Json` extractor to work without a `Content-Type` header present. [#2362]
 * Add `ServiceConfig::default_service`. [#2338]
 
-[#2325]: https://github.com/actix/actix-web/pull/2325
+### Changed
+* Associated type `FromRequest::Config` was removed. [#2233]
+* Inner field made private on `web::Payload`. [#2384]
+
+[#2233]: https://github.com/actix/actix-web/pull/2233
+[#2362]: https://github.com/actix/actix-web/pull/2362
+[#2384]: https://github.com/actix/actix-web/pull/2384
 [#2338]: https://github.com/actix/actix-web/pull/2338
+
+
+## 4.0.0-beta.9 - 2021-09-09
+### Added
+* Re-export actix-service `ServiceFactory` in `dev` module. [#2325]
+
+### Changed
+* Compress middleware will return 406 Not Acceptable when no content encoding is acceptable to the client. [#2344]
+* Move `BaseHttpResponse` to `dev::Response`. [#2379]
+* Enable `TestRequest::param` to accept more than just static strings. [#2172]
+* Minimum supported Rust version (MSRV) is now 1.51.
+
+### Fixed
+* Fix quality parse error in Accept-Encoding header. [#2344]
+* Re-export correct type at `web::HttpResponse`. [#2379]
+
+[#2172]: https://github.com/actix/actix-web/pull/2172
+[#2325]: https://github.com/actix/actix-web/pull/2325
+[#2344]: https://github.com/actix/actix-web/pull/2344
+[#2379]: https://github.com/actix/actix-web/pull/2379
 
 
 ## 4.0.0-beta.8 - 2021-06-26

@@ -183,6 +183,7 @@ async fn test_chunked_payload() {
             Some(caps) => caps.get(1).unwrap().as_str().parse().unwrap(),
             None => panic!("Failed to find size in HTTP Response: {}", data),
         };
+
         size
     };
 
