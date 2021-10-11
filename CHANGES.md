@@ -8,9 +8,13 @@
 * Associated type `FromRequest::Config` was removed. [#2233]
 * Inner field made private on `web::Payload`. [#2384]
 
+### Removed
+* `ServiceResponse::checked_expr` was a legacy and just removed. [#2401]
+
 [#2233]: https://github.com/actix/actix-web/pull/2233
 [#2362]: https://github.com/actix/actix-web/pull/2362
 [#2384]: https://github.com/actix/actix-web/pull/2384
+[#2401]: https://github.com/actix/actix-web/pull/2401
 
 
 ## 4.0.0-beta.9 - 2021-09-09
