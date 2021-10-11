@@ -96,7 +96,6 @@ pub mod test;
 pub(crate) mod types;
 pub mod web;
 
-pub use actix_http::Response as BaseHttpResponse;
 pub use actix_http::{body, HttpMessage};
 #[doc(inline)]
 pub use actix_rt as rt;

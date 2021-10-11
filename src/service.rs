@@ -466,7 +466,7 @@ impl WebService {
 
     /// Set service name.
     ///
-    /// Name is used for url generation.
+    /// Name is used for URL generation.
     pub fn name(mut self, name: &str) -> Self {
         self.name = Some(name.to_string());
         self

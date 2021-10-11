@@ -7,8 +7,7 @@
 #[cfg(feature = "openssl")]
 extern crate tls_openssl as openssl;
 
-use std::sync::mpsc;
-use std::{net, thread, time};
+use std::{net, sync::mpsc, thread, time::Duration};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_rt::{net::TcpStream, System};
@@ -95,15 +94,15 @@ pub async fn test_server_with_addr<F: ServiceFactory<TcpStream>>(
                     .set_alpn_protos(b"\x02h2\x08http/1.1")
                     .map_err(|e| log::error!("Can not set alpn protocol: {:?}", e));
                 Connector::new()
-                    .conn_lifetime(time::Duration::from_secs(0))
-                    .timeout(time::Duration::from_millis(30000))
+                    .conn_lifetime(Duration::from_secs(0))
+                    .timeout(Duration::from_millis(30000))
                     .ssl(builder.build())
             }
             #[cfg(not(feature = "openssl"))]
             {
                 Connector::new()
-                    .conn_lifetime(time::Duration::from_secs(0))
-                    .timeout(time::Duration::from_millis(30000))
+                    .conn_lifetime(Duration::from_secs(0))
+                    .timeout(Duration::from_millis(30000))
             }
         };
 
