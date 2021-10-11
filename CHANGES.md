@@ -12,11 +12,11 @@
 * Fix quality parse error in Accept-Encoding header. [#2344]
 
 ### Removed
-* `ServiceResponse::checked_expr` was a legacy and just removed. [#11111]
+* `ServiceResponse::checked_expr` was a legacy and just removed. [#2401]
 
 [#2325]: https://github.com/actix/actix-web/pull/2325
 [#2344]: https://github.com/actix/actix-web/pull/2344
-[#11111]: https://github.com/actix/actix-web/pull/11111
+[#2401]: https://github.com/actix/actix-web/pull/2401
 
 
 ## 4.0.0-beta.8 - 2021-06-26
