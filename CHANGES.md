@@ -31,8 +31,6 @@
 * Fix quality parse error in Accept-Encoding header. [#2344]
 * Re-export correct type at `web::HttpResponse`. [#2379]
 
-[#2325]: https://github.com/actix/actix-web/pull/2325
-[#2344]: https://github.com/actix/actix-web/pull/2344
 [#2172]: https://github.com/actix/actix-web/pull/2172
 [#2325]: https://github.com/actix/actix-web/pull/2325
 [#2344]: https://github.com/actix/actix-web/pull/2344
