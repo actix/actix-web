@@ -393,16 +393,6 @@ impl<B> ServiceResponse<B> {
         self.response.headers_mut()
     }
 
-    /// Execute closure and in case of error convert it to response.
-    pub fn checked_expr<F, E>(mut self, f: F) -> Result<Self, Error>
-    where
-        F: FnOnce(&mut Self) -> Result<(), E>,
-        E: Into<Error>,
-    {
-        f(&mut self).map_err(Into::into)?;
-        Ok(self)
-    }
-
     /// Extract response body
     pub fn into_body(self) -> B {
         self.response.into_body()
