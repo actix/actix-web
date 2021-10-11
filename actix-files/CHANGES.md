@@ -1,7 +1,7 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
-
+* Replace `askama_escape` with `v_htmlescape`
 
 ## 0.6.0-beta.7 - 2021-09-09
 * Minimum supported Rust version (MSRV) is now 1.51.

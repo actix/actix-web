@@ -20,7 +20,6 @@ actix-http = "3.0.0-beta.10"
 actix-service = "2.0.0"
 actix-utils = "3.0.0"
 
-askama_escape = "0.10"
 bitflags = "1"
 bytes = "1"
 futures-core = { version = "0.3.7", default-features = false, features = ["alloc"] }
@@ -30,6 +29,7 @@ log = "0.4"
 mime = "0.3"
 mime_guess = "2.0.1"
 percent-encoding = "2.1"
+v_htmlescape = "0.14"
 
 [dev-dependencies]
 actix-rt = "2.2"
