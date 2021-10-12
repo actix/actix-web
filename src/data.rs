@@ -75,7 +75,9 @@ impl<T> Data<T> {
     pub fn new(state: T) -> Data<T> {
         Data(Arc::new(state))
     }
+}
 
+impl<T: ?Sized> Data<T> {
     /// Get reference to inner app data.
     pub fn get_ref(&self) -> &T {
         self.0.as_ref()
