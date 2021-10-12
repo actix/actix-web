@@ -7,6 +7,7 @@
 ### Changed
 * Associated type `FromRequest::Config` was removed. [#2233]
 * Inner field made private on `web::Payload`. [#2384]
+* `Data::into_inner` and `Data::get_ref` no longer require T: Sized. [#2403]
 
 ### Removed
 * `ServiceResponse::checked_expr` was a legacy and just removed. [#2401]
