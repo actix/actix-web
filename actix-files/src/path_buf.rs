@@ -24,6 +24,10 @@ impl PathBufWrap {
     pub fn parse_path(path: &str, hidden_files: bool) -> Result<Self, UriSegmentError> {
         let mut buf = PathBuf::new();
 
+        let path = percent_encoding::percent_decode_str(path)
+            .decode_utf8()
+            .map_err(|_| UriSegmentError::NotValidUtf8)?;
+
         for segment in path.split('/') {
             if segment == ".." {
                 buf.pop();

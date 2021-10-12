@@ -77,13 +77,11 @@ impl Service<ServiceRequest> for FilesService {
             )));
         }
 
-        let path_decoded =
-            percent_encoding::percent_decode_str(req.match_info().path()).decode_utf8_lossy();
-
-        let real_path = match PathBufWrap::parse_path(&path_decoded, self.hidden_files) {
-            Ok(item) => item,
-            Err(e) => return Box::pin(ok(req.error_response(e))),
-        };
+        let real_path =
+            match PathBufWrap::parse_path(req.match_info().path(), self.hidden_files) {
+                Ok(item) => item,
+                Err(e) => return Box::pin(ok(req.error_response(e))),
+            };
 
         if let Some(filter) = &self.path_filter {
             if !filter(real_path.as_ref(), req.head()) {
