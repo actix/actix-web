@@ -214,7 +214,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_named_file_non_ascii_file_name() {
-        let file = crate::named::File::open("Cargo.toml").unwrap();
+        let file = crate::named::File::open("Cargo.toml").await.unwrap();
 
         let mut file = NamedFile::from_file(file, "貨物.toml").unwrap();
         {
@@ -650,6 +650,42 @@ mod tests {
 
         let bytes = test::read_body(resp).await;
         assert!(format!("{:?}", bytes).contains("/tests/test.png"));
+    }
+
+    // TODO: reduce duplicate test between features.
+    #[cfg(feature = "io-uring")]
+    #[test]
+    fn test_static_files_io_uring() {
+        tokio_uring::start(async {
+            let srv = test::init_service(
+                App::new().service(Files::new("/", ".").show_files_listing()),
+            )
+            .await;
+            let req = TestRequest::with_uri("/missing").to_request();
+
+            let resp = test::call_service(&srv, req).await;
+            assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+
+            let srv = test::init_service(App::new().service(Files::new("/", "."))).await;
+
+            let req = TestRequest::default().to_request();
+            let resp = test::call_service(&srv, req).await;
+            assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+
+            let srv = test::init_service(
+                App::new().service(Files::new("/", ".").show_files_listing()),
+            )
+            .await;
+            let req = TestRequest::with_uri("/tests").to_request();
+            let resp = test::call_service(&srv, req).await;
+            assert_eq!(
+                resp.headers().get(header::CONTENT_TYPE).unwrap(),
+                "text/html; charset=utf-8"
+            );
+
+            let bytes = test::read_body(resp).await;
+            assert!(format!("{:?}", bytes).contains("/tests/test.png"));
+        })
     }
 
     #[actix_rt::test]
