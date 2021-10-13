@@ -62,7 +62,7 @@ type PathFilter = dyn Fn(&Path, &RequestHead) -> bool;
 #[cfg(test)]
 mod tests {
     use std::{
-        fs::{self, File},
+        fs::{self},
         ops::Add,
         time::{Duration, SystemTime},
     };
@@ -82,6 +82,8 @@ mod tests {
     };
 
     use super::*;
+
+    use crate::named::File;
 
     #[actix_rt::test]
     async fn test_file_extension_to_mime() {
@@ -212,9 +214,9 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_named_file_non_ascii_file_name() {
-        let mut file =
-            NamedFile::from_file(crate::named::File::open("Cargo.toml").unwrap(), "貨物.toml")
-                .unwrap();
+        let file = crate::named::File::open("Cargo.toml").unwrap();
+
+        let mut file = NamedFile::from_file(file, "貨物.toml").unwrap();
         {
             file.file();
             let _f: &File = &file;
