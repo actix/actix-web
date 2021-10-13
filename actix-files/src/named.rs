@@ -1,11 +1,16 @@
+use std::{
+    fmt,
+    fs::Metadata,
+    io,
+    ops::{Deref, DerefMut},
+    path::{Path, PathBuf},
+    time::{SystemTime, UNIX_EPOCH},
+};
+
 use actix_service::{Service, ServiceFactory};
-use actix_utils::future::{ok, ready, Ready};
+use actix_utils::future::{ok, Ready};
 use actix_web::dev::{AppService, HttpServiceFactory, ResourceDef};
-use std::fs::{File, Metadata};
-use std::io;
-use std::ops::{Deref, DerefMut};
-use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use futures_core::future::LocalBoxFuture;
 
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
@@ -65,7 +70,6 @@ impl Default for Flags {
 ///     NamedFile::open("./static/index.html")
 /// }
 /// ```
-#[derive(Debug)]
 pub struct NamedFile {
     path: PathBuf,
     file: File,
@@ -77,6 +81,37 @@ pub struct NamedFile {
     pub(crate) content_disposition: header::ContentDisposition,
     pub(crate) encoding: Option<ContentEncoding>,
 }
+
+impl fmt::Debug for NamedFile {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("NamedFile")
+            .field("path", &self.path)
+            .field(
+                "file",
+                #[cfg(feature = "io-uring")]
+                {
+                    &"File"
+                },
+                #[cfg(not(feature = "io-uring"))]
+                {
+                    &self.file
+                },
+            )
+            .field("modified", &self.modified)
+            .field("md", &self.md)
+            .field("flags", &self.flags)
+            .field("status_code", &self.status_code)
+            .field("content_type", &self.content_type)
+            .field("content_disposition", &self.content_disposition)
+            .field("encoding", &self.encoding)
+            .finish()
+    }
+}
+
+#[cfg(not(feature = "io-uring"))]
+pub(crate) use std::fs::File;
+#[cfg(feature = "io-uring")]
+pub(crate) use tokio_uring::fs::File;
 
 impl NamedFile {
     /// Creates an instance from a previously opened file.
@@ -147,7 +182,26 @@ impl NamedFile {
             (ct, cd)
         };
 
-        let md = file.metadata()?;
+        let md = {
+            #[cfg(not(feature = "io-uring"))]
+            {
+                file.metadata()?
+            }
+
+            #[cfg(feature = "io-uring")]
+            {
+                use std::os::unix::prelude::{AsRawFd, FromRawFd};
+
+                let fd = file.as_raw_fd();
+
+                // SAFETY: fd is borrowed and lives longer than the unsafe block.
+                unsafe {
+                    let fs = std::fs::File::from_raw_fd(fd);
+                    fs.metadata()?
+                }
+            }
+        };
+
         let modified = md.modified().ok();
         let encoding = None;
 
@@ -174,7 +228,43 @@ impl NamedFile {
     /// let file = NamedFile::open("foo.txt");
     /// ```
     pub fn open<P: AsRef<Path>>(path: P) -> io::Result<NamedFile> {
-        Self::from_file(File::open(&path)?, path)
+        #[cfg(not(feature = "io-uring"))]
+        {
+            let file = File::open(&path)?;
+            Self::from_file(file, path)
+        }
+
+        #[cfg(feature = "io-uring")]
+        {
+            tokio::runtime::Handle::current().block_on(Self::open_async(path))
+        }
+    }
+
+    /// Attempts to open a file asynchronously in read-only mode.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use actix_files::NamedFile;
+    ///
+    /// # async fn open() {
+    /// let file = NamedFile::open_async("foo.txt").await.unwrap();
+    /// # }
+    /// ```
+    pub async fn open_async<P: AsRef<Path>>(path: P) -> io::Result<NamedFile> {
+        let file = {
+            #[cfg(not(feature = "io-uring"))]
+            {
+                File::open(&path)?
+            }
+
+            #[cfg(feature = "io-uring")]
+            {
+                File::open(&path).await?
+            }
+        };
+
+        Self::from_file(file, path)
     }
 
     /// Returns reference to the underlying `File` object.
@@ -456,20 +546,6 @@ impl NamedFile {
     }
 }
 
-impl Deref for NamedFile {
-    type Target = File;
-
-    fn deref(&self) -> &File {
-        &self.file
-    }
-}
-
-impl DerefMut for NamedFile {
-    fn deref_mut(&mut self) -> &mut File {
-        &mut self.file
-    }
-}
-
 /// Returns true if `req` has no `If-Match` header or one which matches `etag`.
 fn any_match(etag: Option<&header::EntityTag>, req: &HttpRequest) -> bool {
     match req.get_header::<header::IfMatch>() {
@@ -510,6 +586,20 @@ fn none_match(etag: Option<&header::EntityTag>, req: &HttpRequest) -> bool {
     }
 }
 
+impl Deref for NamedFile {
+    type Target = File;
+
+    fn deref(&self) -> &File {
+        &self.file
+    }
+}
+
+impl DerefMut for NamedFile {
+    fn deref_mut(&mut self) -> &mut File {
+        &mut self.file
+    }
+}
+
 impl Responder for NamedFile {
     fn respond_to(self, req: &HttpRequest) -> HttpResponse {
         self.into_response(req)
@@ -540,18 +630,19 @@ pub struct NamedFileService {
 impl Service<ServiceRequest> for NamedFileService {
     type Response = ServiceResponse;
     type Error = Error;
-    type Future = Ready<Result<Self::Response, Self::Error>>;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
     actix_service::always_ready!();
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let (req, _) = req.into_parts();
-        ready(
-            NamedFile::open(&self.path)
-                .map_err(|e| e.into())
-                .map(|f| f.into_response(&req))
-                .map(|res| ServiceResponse::new(req, res)),
-        )
+
+        let path = self.path.clone();
+        Box::pin(async move {
+            let file = NamedFile::open_async(path).await?;
+            let res = file.into_response(&req);
+            Ok(ServiceResponse::new(req, res))
+        })
     }
 }
 

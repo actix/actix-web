@@ -1,18 +1,29 @@
 use std::{
-    cmp, fmt,
-    fs::File,
-    future::Future,
-    io::{self, Read, Seek},
+    cmp, fmt, io,
     pin::Pin,
     task::{Context, Poll},
 };
 
-use actix_web::{
-    error::{BlockingError, Error},
-    rt::task::{spawn_blocking, JoinHandle},
-};
+use actix_web::error::Error;
 use bytes::Bytes;
 use futures_core::{ready, Stream};
+
+use super::named::File;
+
+#[cfg(not(feature = "io-uring"))]
+use {
+    actix_web::{
+        error::BlockingError,
+        rt::task::{spawn_blocking, JoinHandle},
+    },
+    std::{
+        future::Future,
+        io::{Read, Seek},
+    },
+};
+
+#[cfg(feature = "io-uring")]
+use futures_core::future::LocalBoxFuture;
 
 #[doc(hidden)]
 /// A helper created from a `std::fs::File` which reads the file
@@ -26,7 +37,10 @@ pub struct ChunkedReadFile {
 
 enum ChunkedReadFileState {
     File(Option<File>),
+    #[cfg(not(feature = "io-uring"))]
     Future(JoinHandle<Result<(File, Bytes), io::Error>>),
+    #[cfg(feature = "io-uring")]
+    Future(LocalBoxFuture<'static, Result<(File, Bytes), io::Error>>),
 }
 
 impl ChunkedReadFile {
@@ -60,32 +74,72 @@ impl Stream for ChunkedReadFile {
                 if size == counter {
                     Poll::Ready(None)
                 } else {
-                    let mut file = file
-                        .take()
-                        .expect("ChunkedReadFile polled after completion");
+                    let max_bytes = cmp::min(size.saturating_sub(counter), 65_536) as usize;
 
-                    let fut = spawn_blocking(move || {
-                        let max_bytes = cmp::min(size.saturating_sub(counter), 65_536) as usize;
+                    let fut = {
+                        #[cfg(not(feature = "io-uring"))]
+                        {
+                            let mut file = file
+                                .take()
+                                .expect("ChunkedReadFile polled after completion");
 
-                        let mut buf = Vec::with_capacity(max_bytes);
-                        file.seek(io::SeekFrom::Start(offset))?;
+                            spawn_blocking(move || {
+                                let mut buf = Vec::with_capacity(max_bytes);
 
-                        let n_bytes =
-                            file.by_ref().take(max_bytes as u64).read_to_end(&mut buf)?;
+                                file.seek(io::SeekFrom::Start(offset))?;
 
-                        if n_bytes == 0 {
-                            return Err(io::ErrorKind::UnexpectedEof.into());
+                                let n_bytes = file
+                                    .by_ref()
+                                    .take(max_bytes as u64)
+                                    .read_to_end(&mut buf)?;
+
+                                if n_bytes == 0 {
+                                    return Err(io::ErrorKind::UnexpectedEof.into());
+                                }
+
+                                Ok((file, Bytes::from(buf)))
+                            })
                         }
+                        #[cfg(feature = "io-uring")]
+                        {
+                            let file = file
+                                .take()
+                                .expect("ChunkedReadFile polled after completion");
+                            Box::pin(async move {
+                                let buf = Vec::with_capacity(max_bytes);
 
-                        Ok((file, Bytes::from(buf)))
-                    });
+                                let (res, mut buf) = file.read_at(buf, offset).await;
+                                let n_bytes = res?;
+
+                                if n_bytes == 0 {
+                                    return Err(io::ErrorKind::UnexpectedEof.into());
+                                }
+
+                                let _ = buf.split_off(n_bytes);
+
+                                Ok((file, Bytes::from(buf)))
+                            })
+                        }
+                    };
+
                     this.state = ChunkedReadFileState::Future(fut);
+
                     self.poll_next(cx)
                 }
             }
             ChunkedReadFileState::Future(ref mut fut) => {
-                let (file, bytes) =
-                    ready!(Pin::new(fut).poll(cx)).map_err(|_| BlockingError)??;
+                let (file, bytes) = {
+                    #[cfg(not(feature = "io-uring"))]
+                    {
+                        ready!(Pin::new(fut).poll(cx)).map_err(|_| BlockingError)??
+                    }
+
+                    #[cfg(feature = "io-uring")]
+                    {
+                        ready!(fut.as_mut().poll(cx))?
+                    }
+                };
+
                 this.state = ChunkedReadFileState::File(Some(file));
 
                 this.offset += bytes.len() as u64;

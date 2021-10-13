@@ -213,7 +213,8 @@ mod tests {
     #[actix_rt::test]
     async fn test_named_file_non_ascii_file_name() {
         let mut file =
-            NamedFile::from_file(File::open("Cargo.toml").unwrap(), "貨物.toml").unwrap();
+            NamedFile::from_file(crate::named::File::open("Cargo.toml").unwrap(), "貨物.toml")
+                .unwrap();
         {
             file.file();
             let _f: &File = &file;

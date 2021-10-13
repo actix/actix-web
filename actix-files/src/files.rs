@@ -6,7 +6,6 @@ use std::{
 };
 
 use actix_service::{boxed, IntoServiceFactory, ServiceFactory, ServiceFactoryExt};
-use actix_utils::future::ok;
 use actix_web::{
     dev::{
         AppService, HttpServiceFactory, RequestHead, ResourceDef, ServiceRequest,
@@ -20,8 +19,9 @@ use actix_web::{
 use futures_core::future::LocalBoxFuture;
 
 use crate::{
-    directory_listing, named, Directory, DirectoryRenderer, FilesService, HttpNewService,
-    MimeOverride, PathFilter,
+    directory_listing, named,
+    service::{FilesService, FilesServiceInner},
+    Directory, DirectoryRenderer, HttpNewService, MimeOverride, PathFilter,
 };
 
 /// Static files handling service.
@@ -353,7 +353,7 @@ impl ServiceFactory<ServiceRequest> for Files {
     type Future = LocalBoxFuture<'static, Result<Self::Service, Self::InitError>>;
 
     fn new_service(&self, _: ()) -> Self::Future {
-        let mut srv = FilesService {
+        let mut inner = FilesServiceInner {
             directory: self.directory.clone(),
             index: self.index.clone(),
             show_index: self.show_index,
@@ -372,14 +372,14 @@ impl ServiceFactory<ServiceRequest> for Files {
             Box::pin(async {
                 match fut.await {
                     Ok(default) => {
-                        srv.default = Some(default);
-                        Ok(srv)
+                        inner.default = Some(default);
+                        Ok(FilesService(Rc::new(inner)))
                     }
                     Err(_) => Err(()),
                 }
             })
         } else {
-            Box::pin(ok(srv))
+            Box::pin(async move { Ok(FilesService(Rc::new(inner))) })
         }
     }
 }
