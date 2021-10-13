@@ -214,7 +214,17 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_named_file_non_ascii_file_name() {
-        let file = crate::named::File::open("Cargo.toml").await.unwrap();
+        let file = {
+            #[cfg(feature = "io-uring")]
+            {
+                crate::named::File::open("Cargo.toml").await.unwrap()
+            }
+
+            #[cfg(not(feature = "io-uring"))]
+            {
+                crate::named::File::open("Cargo.toml").unwrap()
+            }
+        };
 
         let mut file = NamedFile::from_file(file, "貨物.toml").unwrap();
         {
