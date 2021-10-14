@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+* Improve error recovery potential when macro input is invalid. [#2410]
+
+[#2410]: https://github.com/actix/actix-web/pull/2410
 
 
 ## 0.5.0-beta.4 - 2021-09-09
