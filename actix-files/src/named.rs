@@ -28,7 +28,6 @@ use actix_web::{
 use bitflags::bitflags;
 use mime_guess::from_path;
 
-use crate::ChunkedReadFile;
 use crate::{encoding::equiv_utf8_text, range::HttpRange};
 
 bitflags! {
@@ -424,7 +423,7 @@ impl NamedFile {
                 res.encoding(current_encoding);
             }
 
-            let reader = ChunkedReadFile::new(self.md.len(), 0, self.file);
+            let reader = super::chunked::new_chunked_read(self.md.len(), 0, self.file);
 
             return res.streaming(reader);
         }
@@ -538,7 +537,7 @@ impl NamedFile {
             return resp.status(StatusCode::NOT_MODIFIED).finish();
         }
 
-        let reader = ChunkedReadFile::new(length, offset, self.file);
+        let reader = super::chunked::new_chunked_read(length, offset, self.file);
 
         if offset != 0 || length != self.md.len() {
             resp.status(StatusCode::PARTIAL_CONTENT);
