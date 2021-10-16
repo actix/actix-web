@@ -349,8 +349,21 @@ pub(crate) fn with_method(
     input: TokenStream,
 ) -> TokenStream {
     let args = parse_macro_input!(args as syn::AttributeArgs);
-    match Route::new(args, input, method) {
+    match Route::new(args, input.clone(), method) {
         Ok(route) => route.into_token_stream().into(),
-        Err(err) => err.to_compile_error().into(),
+        // on parse err, make IDEs happy; see fn docs
+        Err(err) => input_and_compile_error(input, err),
     }
+}
+
+/// Converts the error to a token stream and appends it to the original input.
+///
+/// Returning the original input in addition to the error is good for IDEs which can gracefully
+/// recover and show more precise errors within the macro body.
+///
+/// See <https://github.com/rust-analyzer/rust-analyzer/issues/10468> for more info.
+fn input_and_compile_error(mut item: TokenStream, err: syn::Error) -> TokenStream {
+    let compile_err = TokenStream::from(err.to_compile_error());
+    item.extend(compile_err);
+    return item;
 }
