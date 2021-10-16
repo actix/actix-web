@@ -92,25 +92,23 @@ fn chunked_read_file_callback(
 }
 
 #[cfg(feature = "io-uring")]
-fn chunked_read_file_callback(
+async fn chunked_read_file_callback(
     file: File,
     offset: u64,
     max_bytes: usize,
-) -> impl Future<Output = io::Result<(File, Bytes)>> {
-    async move {
-        let buf = Vec::with_capacity(max_bytes);
+) -> io::Result<(File, Bytes)> {
+    let buf = Vec::with_capacity(max_bytes);
 
-        let (res, mut buf) = file.read_at(buf, offset).await;
-        let n_bytes = res?;
+    let (res, mut buf) = file.read_at(buf, offset).await;
+    let n_bytes = res?;
 
-        if n_bytes == 0 {
-            return Err(io::ErrorKind::UnexpectedEof.into());
-        }
-
-        let _ = buf.split_off(n_bytes);
-
-        Ok((file, Bytes::from(buf)))
+    if n_bytes == 0 {
+        return Err(io::ErrorKind::UnexpectedEof.into());
     }
+
+    let _ = buf.split_off(n_bytes);
+
+    Ok((file, Bytes::from(buf)))
 }
 
 #[cfg(feature = "io-uring")]
