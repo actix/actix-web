@@ -15,7 +15,7 @@ name = "actix_files"
 path = "src/lib.rs"
 
 [features]
-io-uring = ["actix-web/io-uring", "tokio", "tokio-uring"]
+io-uring = ["actix-web/io-uring", "tokio-uring"]
 
 [dependencies]
 actix-web = { version = "4.0.0-beta.9", default-features = false }
@@ -35,7 +35,6 @@ mime_guess = "2.0.1"
 percent-encoding = "2.1"
 pin-project-lite = "0.2.7"
 
-tokio = { version = "1", optional = true }
 tokio-uring = { version = "0.1", optional = true }
 
 [dev-dependencies]

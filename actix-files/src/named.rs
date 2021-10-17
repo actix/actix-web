@@ -219,6 +219,7 @@ impl NamedFile {
         })
     }
 
+    #[cfg(not(feature = "io-uring"))]
     /// Attempts to open a file in read-only mode.
     ///
     /// # Examples
@@ -229,16 +230,8 @@ impl NamedFile {
     /// let file = NamedFile::open("foo.txt");
     /// ```
     pub fn open<P: AsRef<Path>>(path: P) -> io::Result<NamedFile> {
-        #[cfg(not(feature = "io-uring"))]
-        {
-            let file = File::open(&path)?;
-            Self::from_file(file, path)
-        }
-
-        #[cfg(feature = "io-uring")]
-        {
-            tokio::runtime::Handle::current().block_on(Self::open_async(path))
-        }
+        let file = File::open(&path)?;
+        Self::from_file(file, path)
     }
 
     /// Attempts to open a file asynchronously in read-only mode.

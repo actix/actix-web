@@ -98,9 +98,9 @@ async fn chunked_read_file_callback(
         let n_bytes = file.by_ref().take(max_bytes as u64).read_to_end(&mut buf)?;
 
         if n_bytes == 0 {
-            Err(io::ErrorKind::UnexpectedEof.into())
+            Err(io::Error::from(io::ErrorKind::UnexpectedEof))
         } else {
-            Ok::<_, io::Error>((file, Bytes::from(buf)))
+            Ok((file, Bytes::from(buf)))
         }
     })
     .await

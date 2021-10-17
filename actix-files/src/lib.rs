@@ -102,7 +102,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_if_modified_since_without_if_none_match() {
-        let file = NamedFile::open("Cargo.toml").unwrap();
+        let file = NamedFile::open_async("Cargo.toml").await.unwrap();
         let since = header::HttpDate::from(SystemTime::now().add(Duration::from_secs(60)));
 
         let req = TestRequest::default()
@@ -114,7 +114,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_if_modified_since_without_if_none_match_same() {
-        let file = NamedFile::open("Cargo.toml").unwrap();
+        let file = NamedFile::open_async("Cargo.toml").await.unwrap();
         let since = file.last_modified().unwrap();
 
         let req = TestRequest::default()
@@ -126,7 +126,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_if_modified_since_with_if_none_match() {
-        let file = NamedFile::open("Cargo.toml").unwrap();
+        let file = NamedFile::open_async("Cargo.toml").await.unwrap();
         let since = header::HttpDate::from(SystemTime::now().add(Duration::from_secs(60)));
 
         let req = TestRequest::default()
@@ -139,7 +139,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_if_unmodified_since() {
-        let file = NamedFile::open("Cargo.toml").unwrap();
+        let file = NamedFile::open_async("Cargo.toml").await.unwrap();
         let since = file.last_modified().unwrap();
 
         let req = TestRequest::default()
@@ -151,7 +151,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_if_unmodified_since_failed() {
-        let file = NamedFile::open("Cargo.toml").unwrap();
+        let file = NamedFile::open_async("Cargo.toml").await.unwrap();
         let since = header::HttpDate::from(SystemTime::UNIX_EPOCH);
 
         let req = TestRequest::default()
@@ -163,8 +163,8 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_named_file_text() {
-        assert!(NamedFile::open("test--").is_err());
-        let mut file = NamedFile::open("Cargo.toml").unwrap();
+        assert!(NamedFile::open_async("test--").await.is_err());
+        let mut file = NamedFile::open_async("Cargo.toml").await.unwrap();
         {
             file.file();
             let _f: &File = &file;
@@ -187,8 +187,8 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_named_file_content_disposition() {
-        assert!(NamedFile::open("test--").is_err());
-        let mut file = NamedFile::open("Cargo.toml").unwrap();
+        assert!(NamedFile::open_async("test--").await.is_err());
+        let mut file = NamedFile::open_async("Cargo.toml").await.unwrap();
         {
             file.file();
             let _f: &File = &file;
@@ -204,7 +204,8 @@ mod tests {
             "inline; filename=\"Cargo.toml\""
         );
 
-        let file = NamedFile::open("Cargo.toml")
+        let file = NamedFile::open_async("Cargo.toml")
+            .await
             .unwrap()
             .disable_content_disposition();
         let req = TestRequest::default().to_http_request();
@@ -249,7 +250,8 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_named_file_set_content_type() {
-        let mut file = NamedFile::open("Cargo.toml")
+        let mut file = NamedFile::open_async("Cargo.toml")
+            .await
             .unwrap()
             .set_content_type(mime::TEXT_XML);
         {
@@ -274,7 +276,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_named_file_image() {
-        let mut file = NamedFile::open("tests/test.png").unwrap();
+        let mut file = NamedFile::open_async("tests/test.png").await.unwrap();
         {
             file.file();
             let _f: &File = &file;
@@ -297,7 +299,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_named_file_javascript() {
-        let file = NamedFile::open("tests/test.js").unwrap();
+        let file = NamedFile::open_async("tests/test.js").await.unwrap();
 
         let req = TestRequest::default().to_http_request();
         let resp = file.respond_to(&req).await.unwrap();
@@ -317,7 +319,8 @@ mod tests {
             disposition: DispositionType::Attachment,
             parameters: vec![DispositionParam::Filename(String::from("test.png"))],
         };
-        let mut file = NamedFile::open("tests/test.png")
+        let mut file = NamedFile::open_async("tests/test.png")
+            .await
             .unwrap()
             .set_content_disposition(cd);
         {
@@ -342,7 +345,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_named_file_binary() {
-        let mut file = NamedFile::open("tests/test.binary").unwrap();
+        let mut file = NamedFile::open_async("tests/test.binary").await.unwrap();
         {
             file.file();
             let _f: &File = &file;
@@ -365,7 +368,8 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_named_file_status_code_text() {
-        let mut file = NamedFile::open("Cargo.toml")
+        let mut file = NamedFile::open_async("Cargo.toml")
+            .await
             .unwrap()
             .set_status_code(StatusCode::NOT_FOUND);
         {
@@ -581,7 +585,8 @@ mod tests {
     async fn test_named_file_content_encoding() {
         let srv = test::init_service(App::new().wrap(Compress::default()).service(
             web::resource("/").to(|| async {
-                NamedFile::open("Cargo.toml")
+                NamedFile::open_async("Cargo.toml")
+                    .await
                     .unwrap()
                     .set_content_encoding(header::ContentEncoding::Identity)
             }),
@@ -601,7 +606,8 @@ mod tests {
     async fn test_named_file_content_encoding_gzip() {
         let srv = test::init_service(App::new().wrap(Compress::default()).service(
             web::resource("/").to(|| async {
-                NamedFile::open("Cargo.toml")
+                NamedFile::open_async("Cargo.toml")
+                    .await
                     .unwrap()
                     .set_content_encoding(header::ContentEncoding::Gzip)
             }),
@@ -627,7 +633,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_named_file_allowed_method() {
         let req = TestRequest::default().method(Method::GET).to_http_request();
-        let file = NamedFile::open("Cargo.toml").unwrap();
+        let file = NamedFile::open_async("Cargo.toml").await.unwrap();
         let resp = file.respond_to(&req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
     }
@@ -838,9 +844,8 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_serve_named_file() {
-        let srv =
-            test::init_service(App::new().service(NamedFile::open("Cargo.toml").unwrap()))
-                .await;
+        let factory = NamedFile::open_async("Cargo.toml").await.unwrap();
+        let srv = test::init_service(App::new().service(factory)).await;
 
         let req = TestRequest::get().uri("/Cargo.toml").to_request();
         let res = test::call_service(&srv, req).await;
@@ -857,11 +862,9 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_serve_named_file_prefix() {
-        let srv = test::init_service(
-            App::new()
-                .service(web::scope("/test").service(NamedFile::open("Cargo.toml").unwrap())),
-        )
-        .await;
+        let factory = NamedFile::open_async("Cargo.toml").await.unwrap();
+        let srv =
+            test::init_service(App::new().service(web::scope("/test").service(factory))).await;
 
         let req = TestRequest::get().uri("/test/Cargo.toml").to_request();
         let res = test::call_service(&srv, req).await;
@@ -878,10 +881,8 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_named_file_default_service() {
-        let srv = test::init_service(
-            App::new().default_service(NamedFile::open("Cargo.toml").unwrap()),
-        )
-        .await;
+        let factory = NamedFile::open_async("Cargo.toml").await.unwrap();
+        let srv = test::init_service(App::new().default_service(factory)).await;
 
         for route in ["/foobar", "/baz", "/"].iter() {
             let req = TestRequest::get().uri(route).to_request();
@@ -896,8 +897,9 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_default_handler_named_file() {
+        let factory = NamedFile::open_async("Cargo.toml").await.unwrap();
         let st = Files::new("/", ".")
-            .default_handler(NamedFile::open("Cargo.toml").unwrap())
+            .default_handler(factory)
             .new_service(())
             .await
             .unwrap();
