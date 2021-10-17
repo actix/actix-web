@@ -52,9 +52,9 @@ impl Default for Flags {
 /// use actix_web::App;
 /// use actix_files::NamedFile;
 ///
-/// # fn run() -> Result<(), Box<dyn std::error::Error>> {
-/// let app = App::new()
-///     .service(NamedFile::open("./static/index.html")?);
+/// # async fn run() -> Result<(), Box<dyn std::error::Error>> {
+/// let file = NamedFile::open_async("./static/index.html").await?;
+/// let app = App::new().service(file);
 /// # Ok(())
 /// # }
 /// ```
@@ -120,7 +120,7 @@ impl NamedFile {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use actix_files::NamedFile;
     /// use std::io::{self, Write};
     /// use std::env;
