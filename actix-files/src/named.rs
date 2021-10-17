@@ -66,7 +66,7 @@ impl Default for Flags {
 ///
 /// #[get("/")]
 /// async fn index() -> impl Responder {
-///     NamedFile::open("./static/index.html")
+///     NamedFile::open_async("./static/index.html").await
 /// }
 /// ```
 pub struct NamedFile {
@@ -275,8 +275,8 @@ impl NamedFile {
     /// # use std::io;
     /// use actix_files::NamedFile;
     ///
-    /// # fn path() -> io::Result<()> {
-    /// let file = NamedFile::open("test.txt")?;
+    /// # async fn path() -> io::Result<()> {
+    /// let file = NamedFile::open_async("test.txt").await?;
     /// assert_eq!(file.path().as_os_str(), "foo.txt");
     /// # Ok(())
     /// # }
