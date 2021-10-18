@@ -13,4 +13,6 @@ fn compile_macros() {
     t.compile_fail("tests/trybuild/route-malformed-path-fail.rs");
 
     t.pass("tests/trybuild/docstring-ok.rs");
+
+    t.pass("tests/trybuild/test-runtime.rs");
 }

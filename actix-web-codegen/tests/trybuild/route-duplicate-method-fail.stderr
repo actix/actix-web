@@ -4,8 +4,8 @@ error: HTTP method defined more than once: `GET`
 3 | #[route("/", method="GET", method="GET")]
   |                                   ^^^^^
 
-error[E0277]: the trait bound `fn() -> impl std::future::Future {index}: HttpServiceFactory` is not satisfied
+error[E0425]: cannot find value `index` in this scope
   --> $DIR/route-duplicate-method-fail.rs:12:55
    |
 12 |     let srv = actix_test::start(|| App::new().service(index));
-   |                                                       ^^^^^ the trait `HttpServiceFactory` is not implemented for `fn() -> impl std::future::Future {index}`
+   |                                                       ^^^^^ not found in this scope

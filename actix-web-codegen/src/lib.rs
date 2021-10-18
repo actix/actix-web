@@ -59,6 +59,7 @@
 #![recursion_limit = "512"]
 
 use proc_macro::TokenStream;
+use quote::quote;
 
 mod route;
 
@@ -157,23 +158,40 @@ method_macro! {
 }
 
 /// Marks async main function as the actix system entry-point.
-///
-/// # Actix Web Re-export
-/// This macro can be applied with `#[actix_web::main]` when used in Actix Web applications.
-///
+
 /// # Examples
 /// ```
-/// #[actix_web_codegen::main]
+/// #[actix_web::main]
 /// async fn main() {
 ///     async { println!("Hello world"); }.await
 /// }
 /// ```
 #[proc_macro_attribute]
 pub fn main(_: TokenStream, item: TokenStream) -> TokenStream {
-    use quote::quote;
-    let input = syn::parse_macro_input!(item as syn::ItemFn);
+    let input = proc_macro2::TokenStream::from(item);
+
     (quote! {
         #[actix_web::rt::main(system = "::actix_web::rt::System")]
+        #input
+    })
+    .into()
+}
+
+/// Marks async test functions to use the actix system entry-point.
+///
+/// # Examples
+/// ```
+/// #[actix_web::test_rt]
+/// async fn test() {
+///     assert_eq!(async { "Hello world" }.await, "Hello world");
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn test_rt(_: TokenStream, item: TokenStream) -> TokenStream {
+    let input = proc_macro2::TokenStream::from(item);
+
+    (quote! {
+        #[actix_web::rt::test(system = "::actix_web::rt::System")]
         #input
     })
     .into()

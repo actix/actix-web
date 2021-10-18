@@ -256,7 +256,7 @@ async fn test_auto_async() {
     assert!(response.status().is_success());
 }
 
-#[actix_rt::test]
+#[actix_web::test_rt]
 async fn test_wrap() {
     let srv = actix_test::start(|| App::new().service(get_wrap));
 
