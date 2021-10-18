@@ -21,7 +21,6 @@ io-uring = ["actix-web/io-uring", "tokio-uring"]
 actix-web = { version = "4.0.0-beta.9", default-features = false }
 actix-http = "3.0.0-beta.10"
 actix-service = "2.0.0"
-actix-utils = "3.0.0"
 
 askama_escape = "0.10"
 bitflags = "1"

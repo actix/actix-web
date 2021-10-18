@@ -8,7 +8,6 @@ use std::{
 };
 
 use actix_service::{Service, ServiceFactory};
-use actix_utils::future::{ok, Ready};
 use actix_web::dev::{AppService, HttpServiceFactory, ResourceDef};
 use futures_core::future::LocalBoxFuture;
 
@@ -604,14 +603,16 @@ impl ServiceFactory<ServiceRequest> for NamedFile {
     type Response = ServiceResponse;
     type Error = Error;
     type Config = ();
-    type InitError = ();
     type Service = NamedFileService;
-    type Future = Ready<Result<Self::Service, ()>>;
+    type InitError = ();
+    type Future = LocalBoxFuture<'static, Result<Self::Service, Self::InitError>>;
 
     fn new_service(&self, _: ()) -> Self::Future {
-        ok(NamedFileService {
+        let service = NamedFileService {
             path: self.path.clone(),
-        })
+        };
+
+        Box::pin(async move { Ok(service) })
     }
 }
 
