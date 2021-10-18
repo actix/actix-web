@@ -68,7 +68,6 @@ mod tests {
     };
 
     use actix_service::ServiceFactory;
-    use actix_utils::future::ok;
     use actix_web::{
         guard,
         http::{
@@ -724,8 +723,8 @@ mod tests {
     #[actix_rt::test]
     async fn test_default_handler_file_missing() {
         let st = Files::new("/", ".")
-            .default_handler(|req: ServiceRequest| {
-                ok(req.into_response(HttpResponse::Ok().body("default content")))
+            .default_handler(|req: ServiceRequest| async {
+                Ok(req.into_response(HttpResponse::Ok().body("default content")))
             })
             .new_service(())
             .await
@@ -941,8 +940,8 @@ mod tests {
     #[actix_rt::test]
     async fn test_default_handler_filter() {
         let st = Files::new("/", ".")
-            .default_handler(|req: ServiceRequest| {
-                ok(req.into_response(HttpResponse::Ok().body("default content")))
+            .default_handler(|req: ServiceRequest| async {
+                Ok(req.into_response(HttpResponse::Ok().body("default content")))
             })
             .path_filter(|path, _| path.extension() == Some("png".as_ref()))
             .new_service(())
