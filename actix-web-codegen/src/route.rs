@@ -349,13 +349,14 @@ pub(crate) fn with_method(
 
     let ast = match syn::parse::<syn::ItemFn>(input.clone()) {
         Ok(ast) => ast,
-        // on parse err, make IDEs happy; see fn docs
+        // on parse error, make IDEs happy; see fn docs
         Err(err) => return input_and_compile_error(input, err),
     };
 
     match Route::new(args, ast, method) {
         Ok(route) => route.into_token_stream().into(),
-        Err(err) => err.into_compile_error().into(),
+        // on macro related error, make IDEs happy; see fn docs
+        Err(err) => input_and_compile_error(input, err),
     }
 }
 
