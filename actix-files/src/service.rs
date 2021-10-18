@@ -77,6 +77,14 @@ impl FilesService {
         let res = named_file.into_response(&req);
         ServiceResponse::new(req, res)
     }
+
+    fn show_index(&self, req: ServiceRequest, path: PathBuf) -> ServiceResponse {
+        let dir = Directory::new(self.directory.clone(), path);
+
+        let (req, _) = req.into_parts();
+
+        (self.renderer)(&dir, &req).unwrap_or_else(|e| ServiceResponse::from_err(e, req))
+    }
 }
 
 impl fmt::Debug for FilesService {
@@ -150,35 +158,23 @@ impl Service<ServiceRequest> for FilesService {
                     ));
                 }
 
-                let show_index = |req: ServiceRequest| {
-                    let dir = Directory::new(this.directory.clone(), path.clone());
-
-                    let (req, _) = req.into_parts();
-                    let x = (this.renderer)(&dir, &req);
-
-                    match x {
-                        Ok(resp) => Ok(resp),
-                        Err(err) => Ok(ServiceResponse::from_err(err, req)),
-                    }
-                };
-
                 match this.index {
                     Some(ref index) => {
-                        let path = path.join(index);
-                        match NamedFile::open_async(path).await {
+                        let named_path = path.join(index);
+                        match NamedFile::open_async(named_path).await {
                             Ok(named_file) => Ok(this.serve_named_file(req, named_file)),
-                            Err(_) if this.show_index => show_index(req),
+                            Err(_) if this.show_index => Ok(this.show_index(req, path)),
                             Err(err) => this.handle_err(err, req).await,
                         }
                     }
-                    None if this.show_index => show_index(req),
+                    None if this.show_index => Ok(this.show_index(req, path)),
                     _ => Ok(ServiceResponse::from_err(
                         FilesError::IsDirectory,
                         req.into_parts().0,
                     )),
                 }
             } else {
-                match NamedFile::open_async(path).await {
+                match NamedFile::open_async(&path).await {
                     Ok(mut named_file) => {
                         if let Some(ref mime_override) = this.mime_override {
                             let new_disposition =
