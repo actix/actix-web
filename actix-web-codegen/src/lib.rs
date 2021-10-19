@@ -168,31 +168,31 @@ method_macro! {
 /// ```
 #[proc_macro_attribute]
 pub fn main(_: TokenStream, item: TokenStream) -> TokenStream {
-    let input = proc_macro2::TokenStream::from(item);
-
-    (quote! {
-        #[actix_web::rt::main(system = "::actix_web::rt::System")]
-        #input
+    let mut output: TokenStream = (quote! {
+        #[::actix_web::rt::main(system = "::actix_web::rt::System")]
     })
-    .into()
+    .into();
+
+    output.extend(item);
+    output
 }
 
 /// Marks async test functions to use the actix system entry-point.
 ///
 /// # Examples
 /// ```
-/// #[actix_web::test_rt]
+/// #[actix_web::test]
 /// async fn test() {
 ///     assert_eq!(async { "Hello world" }.await, "Hello world");
 /// }
 /// ```
 #[proc_macro_attribute]
-pub fn test_rt(_: TokenStream, item: TokenStream) -> TokenStream {
-    let input = proc_macro2::TokenStream::from(item);
-
-    (quote! {
-        #[actix_web::rt::test(system = "::actix_web::rt::System")]
-        #input
+pub fn test(_: TokenStream, item: TokenStream) -> TokenStream {
+    let mut output: TokenStream = (quote! {
+        #[::actix_web::rt::test(system = "::actix_web::rt::System")]
     })
-    .into()
+    .into();
+
+    output.extend(item);
+    output
 }

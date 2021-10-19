@@ -20,6 +20,7 @@ const AVERAGE_HEADER_SIZE: usize = 30;
 
 #[derive(Debug)]
 pub(crate) struct MessageEncoder<T: MessageType> {
+    #[allow(dead_code)]
     pub length: BodySize,
     pub te: TransferEncoding,
     _phantom: PhantomData<T>,

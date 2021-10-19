@@ -186,6 +186,7 @@ where
                 let mut conn = None;
 
                 // check if there is idle connection for given key.
+                #[allow(clippy::must_not_suspend)]
                 let mut map = inner.available.borrow_mut();
 
                 if let Some(conns) = map.get_mut(&key) {

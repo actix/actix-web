@@ -1,4 +1,4 @@
-#[actix_web::test_rt]
+#[actix_web::test]
 async fn my_test() {
     assert!(async { 1 }.await, 1);
 }
