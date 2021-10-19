@@ -314,8 +314,7 @@ mod rustls {
                 .map_err(TlsError::Tls)
                 .map_init_err(|_| panic!())
                 .and_then(|io: TlsStream<TcpStream>| async {
-                    let proto = if let Some(protos) = io.get_ref().1.alpn_protocol()
-                    {
+                    let proto = if let Some(protos) = io.get_ref().1.alpn_protocol() {
                         if protos.windows(2).any(|window| window == b"h2") {
                             Protocol::Http2
                         } else {
