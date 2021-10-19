@@ -38,8 +38,6 @@ members = [
     "actix-test",
     "actix-router",
 ]
-# enable when MSRV is 1.51+
-# resolver = "2"
 
 [features]
 default = ["compress-brotli", "compress-gzip", "compress-zstd", "cookies"]
