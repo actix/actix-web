@@ -2,11 +2,12 @@
 name = "actix-web-codegen"
 version = "0.5.0-beta.4"
 description = "Routing and runtime macros for Actix Web"
-readme = "README.md"
 homepage = "https://actix.rs"
-repository = "https://github.com/actix/actix-web"
-documentation = "https://docs.rs/actix-web-codegen"
-authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
+repository = "https://github.com/actix/actix-web.git"
+authors = [
+    "Nikolay Kim <fafhrd91@gmail.com>",
+    "Rob Ede <robjtede@icloud.com>",
+]
 license = "MIT OR Apache-2.0"
 edition = "2018"
 
@@ -21,7 +22,7 @@ actix-router = "0.5.0-beta.2"
 
 [dev-dependencies]
 actix-rt = "2.2"
-actix-macros = "0.2.2"
+actix-macros = "0.2.3"
 actix-test = "0.1.0-beta.3"
 actix-utils = "3.0.0"
 actix-web = "4.0.0-beta.9"
