@@ -167,7 +167,7 @@ impl<T: DeserializeOwned> FromRequest for Query<T> {
 ///     .app_data(query_cfg)
 ///     .service(index);
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct QueryConfig {
     err_handler: Option<Arc<dyn Fn(QueryPayloadError, &HttpRequest) -> Error + Send + Sync>>,
 }
@@ -180,12 +180,6 @@ impl QueryConfig {
     {
         self.err_handler = Some(Arc::new(f));
         self
-    }
-}
-
-impl Default for QueryConfig {
-    fn default() -> Self {
-        QueryConfig { err_handler: None }
     }
 }
 
