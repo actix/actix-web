@@ -314,7 +314,7 @@ where
                 const H2: &[u8] = b"h2";
 
                 use actix_tls::connect::ssl::rustls::{
-                    RustlsConnector, Session, TlsStream,
+                    RustlsConnector, TlsStream,
                 };
 
                 impl<Io: ConnectionIo> IntoConnectionIo for TcpConnection<Uri, TlsStream<Io>> {
@@ -323,7 +323,7 @@ where
                         let h2 = sock
                             .get_ref()
                             .1
-                            .get_alpn_protocol()
+                            .alpn_protocol()
                             .map_or(false, |protos| protos.windows(2).any(|w| w == H2));
                         if h2 {
                             (Box::new(sock), Protocol::Http2)
