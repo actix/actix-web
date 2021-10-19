@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+* Updated rustls to v0.20. [#2414]
+
+[#2414]: https://github.com/actix/actix-web/pull/2414
 
 
 ## 3.0.0-beta.8 - 2021-09-09

@@ -9,7 +9,7 @@
 * Inner field made private on `web::Payload`. [#2384]
 * `Data::into_inner` and `Data::get_ref` no longer require T: Sized. [#2403]
 * Minimum supported Rust version (MSRV) is now 1.52.
-* Updated `rustls` to `0.20.0` and `actix-tls` to `3.0.0-beta.6`
+* Updated rustls to v0.20. [#2414]
 
 ### Removed
 * `ServiceResponse::checked_expr` was a legacy and just removed. [#2401]
@@ -18,6 +18,7 @@
 [#2362]: https://github.com/actix/actix-web/pull/2362
 [#2384]: https://github.com/actix/actix-web/pull/2384
 [#2401]: https://github.com/actix/actix-web/pull/2401
+[#2414]: https://github.com/actix/actix-web/pull/2414
 
 
 ## 4.0.0-beta.9 - 2021-09-09
