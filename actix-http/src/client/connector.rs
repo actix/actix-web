@@ -28,18 +28,13 @@ use super::pool::ConnectionPool;
 use super::Connect;
 use super::Protocol;
 
-#[cfg(feature = "openssl")]
-use actix_tls::connect::ssl::openssl::SslConnector as OpensslConnector;
-#[cfg(feature = "rustls")]
-use actix_tls::connect::ssl::rustls::ClientConfig;
-
 enum SslConnector {
     #[allow(dead_code)]
     None,
     #[cfg(feature = "openssl")]
-    Openssl(OpensslConnector),
+    Openssl(actix_tls::connect::ssl::openssl::SslConnector),
     #[cfg(feature = "rustls")]
-    Rustls(std::sync::Arc<ClientConfig>),
+    Rustls(std::sync::Arc<actix_tls::connect::ssl::rustls::ClientConfig>),
 }
 
 /// Manages HTTP client network connectivity.
@@ -78,10 +73,25 @@ impl Connector<()> {
         }
     }
 
-    // Build Ssl connector with openssl, based on supplied alpn protocols
-    #[cfg(feature = "openssl")]
+    /// Provides an empty TLS connector when no TLS feature is enabled.
+    #[cfg(not(any(feature = "openssl", feature = "rustls")))]
+    fn build_ssl(_: Vec<Vec<u8>>) -> SslConnector {
+        SslConnector::None
+    }
+
+    /// Provides an empty TLS connector when no TLS feature is enabled.
+    #[cfg(all(feature = "openssl", feature = "rustls"))]
+    fn build_ssl(_: Vec<Vec<u8>>) -> SslConnector {
+        compile_error!("openssl and rustls features are mutually exclusive");
+        panic!("openssl and rustls features are mutually exclusive");
+    }
+
+    // Build TLS connector with openssl, based on supplied alpn protocols
+    #[cfg(all(feature = "openssl", not(feature = "rustls")))]
     fn build_ssl(protocols: Vec<Vec<u8>>) -> SslConnector {
-        use actix_tls::connect::ssl::openssl::SslMethod;
+        use actix_tls::connect::tls::openssl::{
+            SslConnector as OpensslConnector, SslMethod,
+        };
         use bytes::{BufMut, BytesMut};
 
         let mut alpn = BytesMut::with_capacity(20);
@@ -91,27 +101,26 @@ impl Connector<()> {
         }
 
         let mut ssl = OpensslConnector::builder(SslMethod::tls()).unwrap();
-        let _ = ssl
-            .set_alpn_protos(&alpn)
-            .map_err(|e| error!("Can not set alpn protocol: {:?}", e));
+        if let Err(err) = ssl.set_alpn_protos(&alpn) {
+            error!("Can not set ALPN protocol: {:?}", err);
+        }
+
         SslConnector::Openssl(ssl.build())
     }
 
-    // Build Ssl connector with rustls, based on supplied alpn protocols
-    #[cfg(all(not(feature = "openssl"), feature = "rustls"))]
+    // Build TLS connector with rustls, based on supplied alpn protocols
+    #[cfg(all(feature = "rustls", not(feature = "openssl")))]
     fn build_ssl(protocols: Vec<Vec<u8>>) -> SslConnector {
-        let mut config = ClientConfig::new();
-        config.set_protocols(&protocols);
-        config.root_store.add_server_trust_anchors(
-            &actix_tls::connect::ssl::rustls::TLS_SERVER_ROOTS,
-        );
-        SslConnector::Rustls(std::sync::Arc::new(config))
-    }
+        use actix_tls::connect::tls::rustls::{webpki_roots_cert_store, ClientConfig};
 
-    // ssl turned off, provides empty ssl connector
-    #[cfg(not(any(feature = "openssl", feature = "rustls")))]
-    fn build_ssl(_: Vec<Vec<u8>>) -> SslConnector {
-        SslConnector::None
+        let mut config = ClientConfig::builder()
+            .with_safe_defaults()
+            .with_root_certificates(webpki_roots_cert_store())
+            .with_no_client_auth();
+
+        config.alpn_protocols = protocols;
+
+        SslConnector::Rustls(std::sync::Arc::new(config))
     }
 }
 
@@ -167,14 +176,20 @@ where
 
     #[cfg(feature = "openssl")]
     /// Use custom `SslConnector` instance.
-    pub fn ssl(mut self, connector: OpensslConnector) -> Self {
+    pub fn ssl(
+        mut self,
+        connector: actix_tls::connect::ssl::openssl::SslConnector,
+    ) -> Self {
         self.ssl = SslConnector::Openssl(connector);
         self
     }
 
     #[cfg(feature = "rustls")]
     /// Use custom `SslConnector` instance.
-    pub fn rustls(mut self, connector: std::sync::Arc<ClientConfig>) -> Self {
+    pub fn rustls(
+        mut self,
+        connector: std::sync::Arc<actix_tls::connect::ssl::rustls::ClientConfig>,
+    ) -> Self {
         self.ssl = SslConnector::Rustls(connector);
         self
     }

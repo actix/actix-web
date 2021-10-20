@@ -88,6 +88,38 @@ jobs:
           cargo install cargo-cache --version 0.6.3 --no-default-features --features ci-autoclean
           cargo-cache
 
+  ci_feature_powerset_check:
+    name: coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install stable
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable-x86_64-unknown-linux-gnu
+          profile: minimal
+          override: true
+
+      - name: Generate Cargo.lock
+        uses: actions-rs/cargo@v1
+        with: { command: generate-lockfile }
+      - name: Cache Dependencies
+        uses: Swatinem/rust-cache@v1.2.0
+
+      - name: Install cargo-hack
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-hack
+
+      - name: check feature combinations
+        # if: github.ref == 'refs/heads/master'
+        uses: actions-rs/cargo@v1
+        run: |
+          cargo ci-feature-powerset-check-openssl
+          cargo ci-feature-powerset-check-rustls
+
   coverage:
     name: coverage
     runs-on: ubuntu-latest
@@ -116,7 +148,6 @@ jobs:
         if: github.ref == 'refs/heads/master'
         uses: codecov/codecov-action@v1
         with: { file: cobertura.xml }
-
 
   rustdoc:
     name: rustdoc

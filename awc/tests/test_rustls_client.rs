@@ -14,6 +14,7 @@ use std::{
 use actix_http::HttpService;
 use actix_http_test::test_server;
 use actix_service::{fn_service, map_config, ServiceFactoryExt};
+use actix_tls::connect::tls::rustls::webpki_roots_cert_store;
 use actix_utils::future::ok;
 use actix_web::{dev::AppConfig, http::Version, web, App, HttpResponse};
 use rustls::{
@@ -22,7 +23,6 @@ use rustls::{
     ServerName,
 };
 use rustls_pemfile::{certs, pkcs8_private_keys};
-use webpki_roots::TLS_SERVER_ROOTS;
 
 fn tls_config() -> ServerConfig {
     let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()]).unwrap();
@@ -89,20 +89,9 @@ async fn test_connection_reuse_h2() {
     })
     .await;
 
-    let mut root_certs = RootCertStore::empty();
-    for cert in TLS_SERVER_ROOTS.0 {
-        let cert = OwnedTrustAnchor::from_subject_spki_name_constraints(
-            cert.subject,
-            cert.spki,
-            cert.name_constraints,
-        );
-        let certs = vec![cert].into_iter();
-        root_certs.add_server_trust_anchors(certs);
-    }
-
     let mut config = ClientConfig::builder()
         .with_safe_defaults()
-        .with_root_certificates(root_certs)
+        .with_root_certificates(webpki_roots_cert_store())
         .with_no_client_auth();
 
     let protos = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
