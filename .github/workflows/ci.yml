@@ -116,7 +116,7 @@ jobs:
       - name: check feature combinations
         # if: github.ref == 'refs/heads/master'
         uses: actions-rs/cargo@v1
-        with: { command: ci-feature-powerset-check-both }
+        with: { command: ci-feature-powerset-check-all }
 
   coverage:
     name: coverage
