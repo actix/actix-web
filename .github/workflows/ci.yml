@@ -115,10 +115,8 @@ jobs:
 
       - name: check feature combinations
         # if: github.ref == 'refs/heads/master'
-        run: |
-          cargo ci-feature-powerset-check-no-tls
-          cargo ci-feature-powerset-check-openssl
-          cargo ci-feature-powerset-check-rustls
+        uses: actions-rs/cargo@v1
+        with: { command: ci-feature-powerset-check-both }
 
   coverage:
     name: coverage

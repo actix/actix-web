@@ -79,14 +79,24 @@ impl Connector<()> {
         SslConnector::None
     }
 
-    /// Provides an empty TLS connector when no TLS feature is enabled.
-    #[cfg(all(feature = "openssl", feature = "rustls"))]
-    fn build_ssl(_: Vec<Vec<u8>>) -> SslConnector {
-        compile_error!("openssl and rustls features are mutually exclusive");
-        panic!("openssl and rustls features are mutually exclusive");
+    /// Build TLS connector with rustls, based on supplied ALPN protocols
+    ///
+    /// Note that if both `openssl` and `rustls` features are enabled, rustls will be used.
+    #[cfg(feature = "rustls")]
+    fn build_ssl(protocols: Vec<Vec<u8>>) -> SslConnector {
+        use actix_tls::connect::tls::rustls::{webpki_roots_cert_store, ClientConfig};
+
+        let mut config = ClientConfig::builder()
+            .with_safe_defaults()
+            .with_root_certificates(webpki_roots_cert_store())
+            .with_no_client_auth();
+
+        config.alpn_protocols = protocols;
+
+        SslConnector::Rustls(std::sync::Arc::new(config))
     }
 
-    // Build TLS connector with openssl, based on supplied alpn protocols
+    /// Build TLS connector with openssl, based on supplied ALPN protocols
     #[cfg(all(feature = "openssl", not(feature = "rustls")))]
     fn build_ssl(protocols: Vec<Vec<u8>>) -> SslConnector {
         use actix_tls::connect::tls::openssl::{
@@ -106,21 +116,6 @@ impl Connector<()> {
         }
 
         SslConnector::Openssl(ssl.build())
-    }
-
-    // Build TLS connector with rustls, based on supplied alpn protocols
-    #[cfg(all(feature = "rustls", not(feature = "openssl")))]
-    fn build_ssl(protocols: Vec<Vec<u8>>) -> SslConnector {
-        use actix_tls::connect::tls::rustls::{webpki_roots_cert_store, ClientConfig};
-
-        let mut config = ClientConfig::builder()
-            .with_safe_defaults()
-            .with_root_certificates(webpki_roots_cert_store())
-            .with_no_client_auth();
-
-        config.alpn_protocols = protocols;
-
-        SslConnector::Rustls(std::sync::Arc::new(config))
     }
 }
 

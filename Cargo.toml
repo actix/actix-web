@@ -68,15 +68,15 @@ __compress = []
 [dependencies]
 actix-codec = "0.4.0"
 actix-macros = "0.2.3"
-actix-router = "0.5.0-beta.2"
 actix-rt = "2.2"
 actix-server = "2.0.0-beta.3"
 actix-service = "2.0.0"
 actix-utils = "3.0.0"
 actix-tls = { version = "3.0.0-beta.7", default-features = false, optional = true }
 
-actix-web-codegen = "0.5.0-beta.5"
 actix-http = "3.0.0-beta.11"
+actix-router = "0.5.0-beta.2"
+actix-web-codegen = "0.5.0-beta.5"
 
 ahash = "0.7"
 bytes = "1"
