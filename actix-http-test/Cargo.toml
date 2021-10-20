@@ -51,4 +51,4 @@ tls-openssl = { version = "0.10.9", package = "openssl", optional = true }
 
 [dev-dependencies]
 actix-web = { version = "4.0.0-beta.9", default-features = false, features = ["cookies"] }
-actix-http = "3.0.0-beta.10"
+actix-http = "3.0.0-beta.11"
