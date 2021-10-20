@@ -4,7 +4,7 @@
 
 [![crates.io](https://img.shields.io/crates/v/actix-http-test?label=latest)](https://crates.io/crates/actix-http-test)
 [![Documentation](https://docs.rs/actix-http-test/badge.svg?version=3.0.0-beta.5)](https://docs.rs/actix-http-test/3.0.0-beta.5)
-[![Version](https://img.shields.io/badge/rustc-1.51+-ab6000.svg)](https://blog.rust-lang.org/2020/03/12/Rust-1.51.html)
+[![Version](https://img.shields.io/badge/rustc-1.52+-ab6000.svg)](https://blog.rust-lang.org/2021/05/06/Rust-1.52.0.html)
 ![MIT or Apache 2.0 licensed](https://img.shields.io/crates/l/actix-http-test)
 <br>
 [![Dependency Status](https://deps.rs/crate/actix-http-test/3.0.0-beta.5/status.svg)](https://deps.rs/crate/actix-http-test/3.0.0-beta.5)
@@ -14,4 +14,4 @@
 ## Documentation & Resources
 
 - [API Documentation](https://docs.rs/actix-http-test)
-- Minimum Supported Rust Version (MSRV): 1.51.0
+- Minimum Supported Rust Version (MSRV): 1.52

@@ -276,7 +276,7 @@ impl AcceptEncoding {
         let mut encodings = raw
             .replace(' ', "")
             .split(',')
-            .filter_map(|l| AcceptEncoding::new(l))
+            .filter_map(AcceptEncoding::new)
             .collect::<Vec<_>>();
 
         encodings.sort();

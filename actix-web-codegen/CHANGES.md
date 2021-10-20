@@ -2,8 +2,11 @@
 
 ## Unreleased - 2021-xx-xx
 * Improve error recovery potential when macro input is invalid. [#2410]
+* Add `#[actix_web::test]` macro for setting up tests with a runtime. [#2409]
+* Minimum supported Rust version (MSRV) is now 1.52.
 
 [#2410]: https://github.com/actix/actix-web/pull/2410
+[#2409]: https://github.com/actix/actix-web/pull/2409
 
 
 ## 0.5.0-beta.4 - 2021-09-09

@@ -84,7 +84,7 @@ mod tests {
 
     use crate::named::File;
 
-    #[actix_rt::test]
+    #[actix_web::test]
     async fn test_file_extension_to_mime() {
         let m = file_extension_to_mime("");
         assert_eq!(m, mime::APPLICATION_OCTET_STREAM);

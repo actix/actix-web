@@ -4,7 +4,7 @@
 
 [![crates.io](https://img.shields.io/crates/v/actix-web-codegen?label=latest)](https://crates.io/crates/actix-web-codegen)
 [![Documentation](https://docs.rs/actix-web-codegen/badge.svg?version=0.5.0-beta.4)](https://docs.rs/actix-web-codegen/0.5.0-beta.4)
-[![Version](https://img.shields.io/badge/rustc-1.51+-ab6000.svg)](https://blog.rust-lang.org/2020/03/12/Rust-1.51.html)
+[![Version](https://img.shields.io/badge/rustc-1.52+-ab6000.svg)](https://blog.rust-lang.org/2021/05/06/Rust-1.52.0.html)
 ![License](https://img.shields.io/crates/l/actix-web-codegen.svg)
 <br />
 [![dependency status](https://deps.rs/crate/actix-web-codegen/0.5.0-beta.4/status.svg)](https://deps.rs/crate/actix-web-codegen/0.5.0-beta.4)
@@ -14,7 +14,7 @@
 ## Documentation & Resources
 
 - [API Documentation](https://docs.rs/actix-web-codegen)
-- Minimum supported Rust version: 1.51 or later.
+- Minimum Supported Rust Version (MSRV): 1.52
 
 ## Compile Testing
 
