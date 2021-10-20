@@ -26,9 +26,20 @@ jobs:
     env:
       CI: 1
       CARGO_INCREMENTAL: 0
+      VCPKGRS_DYNAMIC: 1
 
     steps:
       - uses: actions/checkout@v2
+
+      # install OpenSSL on Windows
+      # TODO: GitHub actions docs state that OpenSSL is
+      # already installed on these Windows machines somewhere
+      - name: Set vcpkg root
+        if: matrix.target.triple == 'x86_64-pc-windows-msvc'
+        run: echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Install OpenSSL
+        if: matrix.target.triple == 'x86_64-pc-windows-msvc'
+        run: vcpkg install openssl:x64-windows
 
       - name: Install ${{ matrix.version }}
         uses: actions-rs/toolchain@v1

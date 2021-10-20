@@ -6,6 +6,7 @@
 ## 4.0.0-beta.10 - 2021-10-20
 ### Added
 * Option to allow `Json` extractor to work without a `Content-Type` header present. [#2362]
+* `#[actix_web::test]` macro for setting up tests with a runtime. [#2409]
 
 ### Changed
 * Associated type `FromRequest::Config` was removed. [#2233]
@@ -21,6 +22,7 @@
 [#2362]: https://github.com/actix/actix-web/pull/2362
 [#2384]: https://github.com/actix/actix-web/pull/2384
 [#2401]: https://github.com/actix/actix-web/pull/2401
+[#2409]: https://github.com/actix/actix-web/pull/2409
 [#2414]: https://github.com/actix/actix-web/pull/2414
 
 
