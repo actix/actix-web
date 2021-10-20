@@ -100,11 +100,24 @@ impl Connector<()> {
     // Build Ssl connector with rustls, based on supplied alpn protocols
     #[cfg(all(not(feature = "openssl"), feature = "rustls"))]
     fn build_ssl(protocols: Vec<Vec<u8>>) -> SslConnector {
-        let mut config = ClientConfig::new();
-        config.set_protocols(&protocols);
-        config.root_store.add_server_trust_anchors(
-            &actix_tls::connect::ssl::rustls::TLS_SERVER_ROOTS,
-        );
+        let anchors = &actix_tls::connect::ssl::rustls::TLS_SERVER_ROOTS;
+        let mut config = ClientConfig::builder()
+            .with_safe_defaults()
+            .with_root_certificates(tls_rustls::RootCertStore {
+                roots: anchors
+                    .0
+                    .into_iter()
+                    .map(|anchor| {
+                        tls_rustls::OwnedTrustAnchor::from_subject_spki_name_constraints(
+                            anchor.subject,
+                            anchor.spki,
+                            anchor.name_constraints,
+                        )
+                    })
+                    .collect(),
+            })
+            .with_no_client_auth();
+        config.alpn_protocols = protocols;
         SslConnector::Rustls(std::sync::Arc::new(config))
     }
 
