@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 4.0.0-beta.10 - 2021-10-20
 ### Added
 * Option to allow `Json` extractor to work without a `Content-Type` header present. [#2362]
 

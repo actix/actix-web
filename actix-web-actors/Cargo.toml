@@ -17,7 +17,7 @@ path = "src/lib.rs"
 actix = { version = "0.12.0", default-features = false }
 actix-codec = "0.4.0"
 actix-http = "3.0.0-beta.10"
-actix-web = { version = "4.0.0-beta.9", default-features = false }
+actix-web = { version = "4.0.0-beta.10", default-features = false }
 
 bytes = "1"
 bytestring = "1"
