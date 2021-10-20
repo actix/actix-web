@@ -263,7 +263,7 @@ mod openssl {
 mod rustls {
     use std::io;
 
-    use actix_tls::accept::rustls::{Acceptor, ServerConfig, Session, TlsStream};
+    use actix_tls::accept::rustls::{Acceptor, ServerConfig, TlsStream};
     use actix_tls::accept::TlsError;
 
     use super::*;
@@ -308,14 +308,13 @@ mod rustls {
         > {
             let mut protos = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
             protos.extend_from_slice(&config.alpn_protocols);
-            config.set_protocols(&protos);
+            config.alpn_protocols = protos;
 
             Acceptor::new(config)
                 .map_err(TlsError::Tls)
                 .map_init_err(|_| panic!())
                 .and_then(|io: TlsStream<TcpStream>| async {
-                    let proto = if let Some(protos) = io.get_ref().1.get_alpn_protocol()
-                    {
+                    let proto = if let Some(protos) = io.get_ref().1.alpn_protocol() {
                         if protos.windows(2).any(|window| window == b"h2") {
                             Protocol::Http2
                         } else {

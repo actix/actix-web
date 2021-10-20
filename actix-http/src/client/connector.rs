@@ -313,18 +313,15 @@ where
             SslConnector::Rustls(tls) => {
                 const H2: &[u8] = b"h2";
 
-                use actix_tls::connect::ssl::rustls::{
-                    RustlsConnector, Session, TlsStream,
-                };
+                use actix_tls::connect::ssl::rustls::{RustlsConnector, TlsStream};
 
                 impl<Io: ConnectionIo> IntoConnectionIo for TcpConnection<Uri, TlsStream<Io>> {
                     fn into_connection_io(self) -> (Box<dyn ConnectionIo>, Protocol) {
                         let sock = self.into_parts().0;
-                        let h2 = sock
-                            .get_ref()
-                            .1
-                            .get_alpn_protocol()
-                            .map_or(false, |protos| protos.windows(2).any(|w| w == H2));
+                        let h2 =
+                            sock.get_ref().1.alpn_protocol().map_or(false, |protos| {
+                                protos.windows(2).any(|w| w == H2)
+                            });
                         if h2 {
                             (Box::new(sock), Protocol::Http2)
                         } else {
