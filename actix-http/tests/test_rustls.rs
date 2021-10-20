@@ -20,7 +20,7 @@ use actix_http::{
 };
 use actix_http_test::test_server;
 use actix_service::{fn_factory_with_config, fn_service};
-use actix_tls::connect::ssl::rustls::TLS_SERVER_ROOTS;
+use actix_tls::connect::tls::rustls::webpki_roots_cert_store;
 use actix_utils::future::{err, ok};
 use bytes::{Bytes, BytesMut};
 use derive_more::{Display, Error};
@@ -74,20 +74,9 @@ pub fn get_negotiated_alpn_protocol(
     addr: SocketAddr,
     client_alpn_protocol: &[u8],
 ) -> Option<Vec<u8>> {
-    let mut root_certs = RootCertStore::empty();
-    for cert in TLS_SERVER_ROOTS.0 {
-        let cert = OwnedTrustAnchor::from_subject_spki_name_constraints(
-            cert.subject,
-            cert.spki,
-            cert.name_constraints,
-        );
-        let certs = vec![cert].into_iter();
-        root_certs.add_server_trust_anchors(certs);
-    }
-
     let mut config = rustls::ClientConfig::builder()
         .with_safe_defaults()
-        .with_root_certificates(root_certs)
+        .with_root_certificates(webpki_roots_cert_store())
         .with_no_client_auth();
 
     config.alpn_protocols.push(client_alpn_protocol.to_vec());
