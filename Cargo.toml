@@ -111,7 +111,7 @@ brotli2 = "0.3.2"
 criterion = { version = "0.3", features = ["html_reports"] }
 env_logger = "0.8"
 flate2 = "1.0.13"
-zstd = "0.7"
+futures-util = { version = "0.3.7", default-features = false, features = ["std"] }
 rand = "0.8"
 rcgen = "0.8"
 rustls-pemfile = "0.2"
@@ -119,6 +119,7 @@ tls-openssl = { package = "openssl", version = "0.10.9" }
 tls-rustls = { package = "rustls", version = "0.20.0" }
 webpki = "0.22"
 webpki-roots = "0.22"
+zstd = "0.7"
 
 [profile.dev]
 # Disabling debug info speeds up builds a bunch and we don't rely on it for debugging that much.
