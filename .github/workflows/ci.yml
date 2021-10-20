@@ -115,8 +115,8 @@ jobs:
 
       - name: check feature combinations
         # if: github.ref == 'refs/heads/master'
-        uses: actions-rs/cargo@v1
         run: |
+          cargo ci-feature-powerset-check-no-tls
           cargo ci-feature-powerset-check-openssl
           cargo ci-feature-powerset-check-rustls
 
