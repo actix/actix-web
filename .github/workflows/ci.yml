@@ -89,7 +89,7 @@ jobs:
           cargo-cache
 
   ci_feature_powerset_check:
-    name: coverage
+    name: Verify Feature Combinations
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
