@@ -58,11 +58,16 @@ fn tls_config() -> RustlsServerConfig {
         .collect();
     let mut keys = pkcs8_private_keys(key_file).unwrap();
 
-    RustlsServerConfig::builder()
+    let mut config = RustlsServerConfig::builder()
         .with_safe_defaults()
         .with_no_client_auth()
         .with_single_cert(cert_chain, PrivateKey(keys.remove(0)))
-        .unwrap()
+        .unwrap();
+
+    config.alpn_protocols.push(HTTP1_1_ALPN_PROTOCOL.to_vec());
+    config.alpn_protocols.push(H2_ALPN_PROTOCOL.to_vec());
+
+    config
 }
 
 pub fn get_negotiated_alpn_protocol(
