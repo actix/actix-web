@@ -5,10 +5,13 @@ authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "HTTP primitives for the Actix ecosystem"
 keywords = ["actix", "http", "framework", "async", "futures"]
 homepage = "https://actix.rs"
-repository = "https://github.com/actix/actix-web"
-categories = ["network-programming", "asynchronous",
-              "web-programming::http-server",
-              "web-programming::websocket"]
+repository = "https://github.com/actix/actix-web.git"
+categories = [
+    "network-programming",
+    "asynchronous",
+    "web-programming::http-server",
+    "web-programming::websocket",
+]
 license = "MIT OR Apache-2.0"
 edition = "2018"
 

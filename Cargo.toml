@@ -61,7 +61,7 @@ openssl = ["actix-http/openssl", "actix-tls/accept", "actix-tls/openssl"]
 # rustls
 rustls = ["actix-http/rustls", "actix-tls/accept", "actix-tls/rustls"]
 
-# Internal (PRIVATE!) features used to aid testing and cheking feature status.
+# Internal (PRIVATE!) features used to aid testing and checking feature status.
 # Don't rely on these whatsoever. They may disappear at anytime.
 __compress = []
 
@@ -75,7 +75,7 @@ actix-service = "2.0.0"
 actix-utils = "3.0.0"
 actix-tls = { version = "3.0.0-beta.6", default-features = false, optional = true }
 
-actix-web-codegen = "0.5.0-beta.4"
+actix-web-codegen = "0.5.0-beta.5"
 actix-http = "3.0.0-beta.11"
 
 ahash = "0.7"
