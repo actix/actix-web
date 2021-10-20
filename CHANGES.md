@@ -16,12 +16,13 @@
 * Minimum supported Rust version (MSRV) is now 1.52.
 
 ### Removed
-* `ServiceResponse::checked_expr` was a legacy and just removed. [#2401]
+* Useless `ServiceResponse::checked_expr` method. [#2401]
 
 [#2233]: https://github.com/actix/actix-web/pull/2233
 [#2362]: https://github.com/actix/actix-web/pull/2362
 [#2384]: https://github.com/actix/actix-web/pull/2384
 [#2401]: https://github.com/actix/actix-web/pull/2401
+[#2403]: https://github.com/actix/actix-web/pull/2403
 [#2409]: https://github.com/actix/actix-web/pull/2409
 [#2414]: https://github.com/actix/actix-web/pull/2414
 
