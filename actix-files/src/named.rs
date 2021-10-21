@@ -195,9 +195,9 @@ impl NamedFile {
                 // SAFETY: fd is borrowed and lives longer than the unsafe block.
                 unsafe {
                     let fs = std::fs::File::from_raw_fd(fd);
-                    let md = fs.metadata()?;
+                    let res = fs.metadata();
                     std::mem::forget(fs);
-                    md
+                    res?
                 }
             }
         };

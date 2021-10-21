@@ -96,7 +96,7 @@ impl fmt::Debug for FilesService {
 impl Service<ServiceRequest> for FilesService {
     type Response = ServiceResponse;
     type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<ServiceResponse, Error>>;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
     actix_service::always_ready!();
 
