@@ -8,6 +8,14 @@ use futures_core::future::LocalBoxFuture;
 
 /// Middleware for boxing another middleware's output. It would do type earse for the final middleware service
 /// and reduce type complexity for potential faster compile time in exchange for extra overhead at runtime.
+///
+/// # Examples
+/// ```
+/// use actix_web::middleware::{Logger, Boxed};
+/// use actix_web::App;
+///
+/// let app = App::new().wrap(Boxed::new(Logger::default()));
+/// ```
 pub struct Boxed<T> {
     transform: T,
 }
@@ -29,7 +37,7 @@ where
 {
     type Response = T::Response;
     type Error = T::Error;
-    type Transform = BoxedMiddleware<Req, T::Response, T::Error>;
+    type Transform = BoxService<Req, T::Response, T::Error>;
     type InitError = T::InitError;
     type Future = LocalBoxFuture<'static, Result<Self::Transform, Self::InitError>>;
 
@@ -37,26 +45,8 @@ where
         let fut = self.transform.new_transform(service);
         Box::pin(async move {
             let service = fut.await?;
-            Ok(BoxedMiddleware {
-                service: boxed::service(service),
-            })
+            Ok(boxed::service(service))
         })
-    }
-}
-
-pub struct BoxedMiddleware<Req, Res, Err> {
-    service: BoxService<Req, Res, Err>,
-}
-
-impl<Req, Res, Err> Service<Req> for BoxedMiddleware<Req, Res, Err> {
-    type Response = Res;
-    type Error = Err;
-    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
-
-    actix_service::forward_ready!(service);
-
-    fn call(&self, req: Req) -> Self::Future {
-        self.service.call(req)
     }
 }
 
