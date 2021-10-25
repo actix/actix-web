@@ -4,13 +4,11 @@ use std::net::IpAddr;
 use std::rc::Rc;
 use std::time::Duration;
 
-use actix_http::{
-    client::{Connector, ConnectorService, TcpConnect, TcpConnectError, TcpConnection},
-    http::{self, header, Error as HttpError, HeaderMap, HeaderName, Uri},
-};
+use actix_http::http::{self, header, Error as HttpError, HeaderMap, HeaderName, Uri};
 use actix_rt::net::{ActixStream, TcpStream};
 use actix_service::{boxed, Service};
 
+use crate::client::{Connector, ConnectorService, TcpConnect, TcpConnectError, TcpConnection};
 use crate::connect::DefaultConnector;
 use crate::error::SendRequestError;
 use crate::middleware::{NestTransform, Redirect, Transform};

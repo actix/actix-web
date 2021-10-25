@@ -5,24 +5,25 @@ use std::{
 };
 
 use actix_codec::Framed;
+use actix_http::{
+    body::{BodySize, MessageBody},
+    error::PayloadError,
+    h1,
+    http::{
+        header::{HeaderMap, IntoHeaderValue, EXPECT, HOST},
+        StatusCode,
+    },
+    Error, Payload, RequestHeadType, ResponseHead,
+};
 use actix_utils::future::poll_fn;
 use bytes::buf::BufMut;
 use bytes::{Bytes, BytesMut};
 use futures_core::{ready, Stream};
 use futures_util::SinkExt as _;
-
-use crate::h1;
-use crate::http::{
-    header::{HeaderMap, IntoHeaderValue, EXPECT, HOST},
-    StatusCode,
-};
-use crate::message::{RequestHeadType, ResponseHead};
-use crate::payload::Payload;
-use crate::{error::PayloadError, Error};
+use pin_project_lite::pin_project;
 
 use super::connection::{ConnectionIo, H1Connection};
 use super::error::{ConnectError, SendRequestError};
-use crate::body::{BodySize, MessageBody};
 
 pub(crate) async fn send_request<Io, B>(
     io: H1Connection<Io>,
@@ -194,10 +195,11 @@ where
     Ok(())
 }
 
-#[pin_project::pin_project]
-pub(crate) struct PlStream<Io: ConnectionIo> {
-    #[pin]
-    framed: Framed<H1Connection<Io>, h1::ClientPayloadCodec>,
+pin_project! {
+    pub(crate) struct PlStream<Io: ConnectionIo> {
+        #[pin]
+        framed: Framed<H1Connection<Io>, h1::ClientPayloadCodec>,
+    }
 }
 
 impl<Io: ConnectionIo> PlStream<Io> {
@@ -211,10 +213,7 @@ impl<Io: ConnectionIo> PlStream<Io> {
 impl<Io: ConnectionIo> Stream for PlStream<Io> {
     type Item = Result<Bytes, PayloadError>;
 
-    fn poll_next(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
 
         match ready!(this.framed.as_mut().next_item(cx)?) {
