@@ -9,7 +9,6 @@ use std::{
 
 use actix_http::{
     body::Body,
-    client::{InvalidUrl, SendRequestError},
     http::{header, Method, StatusCode, Uri},
     RequestHead, RequestHeadType,
 };
@@ -19,6 +18,7 @@ use futures_core::ready;
 
 use super::Transform;
 
+use crate::client::{InvalidUrl, SendRequestError};
 use crate::connect::{ConnectRequest, ConnectResponse};
 use crate::ClientResponse;
 

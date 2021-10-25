@@ -14,22 +14,20 @@ use std::{
 };
 
 use actix_codec::{AsyncRead, AsyncWrite, ReadBuf};
+use actix_http::Protocol;
 use actix_rt::time::{sleep, Sleep};
 use actix_service::Service;
 use ahash::AHashMap;
 use futures_core::future::LocalBoxFuture;
 use http::uri::Authority;
-use pin_project::pin_project;
+use pin_project_lite::pin_project;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 use super::config::ConnectorConfig;
-use super::connection::{
-    ConnectionInnerType, ConnectionIo, ConnectionType, H2ConnectionInner,
-};
+use super::connection::{ConnectionInnerType, ConnectionIo, ConnectionType, H2ConnectionInner};
 use super::error::ConnectError;
 use super::h2proto::handshake;
 use super::Connect;
-use super::Protocol;
 
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub struct Key {
@@ -152,9 +150,7 @@ where
 
 impl<S, Io> Service<Connect> for ConnectionPool<S, Io>
 where
-    S: Service<Connect, Response = (Io, Protocol), Error = ConnectError>
-        + Clone
-        + 'static,
+    S: Service<Connect, Response = (Io, Protocol), Error = ConnectError> + Clone + 'static,
     Io: ConnectionIo,
 {
     type Response = ConnectionType<Io>;
@@ -195,8 +191,8 @@ where
                         let config = &inner.config;
                         let idle_dur = now - c.used;
                         let age = now - c.created;
-                        let conn_ineligible = idle_dur > config.conn_keep_alive
-                            || age > config.conn_lifetime;
+                        let conn_ineligible =
+                            idle_dur > config.conn_keep_alive || age > config.conn_lifetime;
 
                         if conn_ineligible {
                             // drop connections that are too old
@@ -231,9 +227,7 @@ where
 
             // match the connection and spawn new one if did not get anything.
             match conn {
-                Some(conn) => {
-                    Ok(ConnectionType::from_pool(conn.conn, conn.created, acquired))
-                }
+                Some(conn) => Ok(ConnectionType::from_pool(conn.conn, conn.created, acquired)),
                 None => {
                     let (io, proto) = connector.call(req).await?;
 
@@ -284,9 +278,7 @@ where
         let mut read_buf = ReadBuf::new(&mut buf);
 
         let state = match Pin::new(&mut this.io).poll_read(cx, &mut read_buf) {
-            Poll::Ready(Ok(())) if !read_buf.filled().is_empty() => {
-                ConnectionState::Tainted
-            }
+            Poll::Ready(Ok(())) if !read_buf.filled().is_empty() => ConnectionState::Tainted,
 
             Poll::Pending => ConnectionState::Live,
             _ => ConnectionState::Skip,
@@ -302,11 +294,13 @@ struct PooledConnection<Io> {
     created: Instant,
 }
 
-#[pin_project]
-struct CloseConnection<Io> {
-    io: Io,
-    #[pin]
-    timeout: Sleep,
+pin_project! {
+    #[project = CloseConnectionProj]
+    struct CloseConnection<Io> {
+        io: Io,
+        #[pin]
+        timeout: Sleep,
+    }
 }
 
 impl<Io> CloseConnection<Io>
@@ -413,17 +407,11 @@ mod test {
             unimplemented!()
         }
 
-        fn poll_flush(
-            self: Pin<&mut Self>,
-            _: &mut Context<'_>,
-        ) -> Poll<io::Result<()>> {
+        fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
             unimplemented!()
         }
 
-        fn poll_shutdown(
-            self: Pin<&mut Self>,
-            _: &mut Context<'_>,
-        ) -> Poll<io::Result<()>> {
+        fn poll_shutdown(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
             Poll::Ready(Ok(()))
         }
     }

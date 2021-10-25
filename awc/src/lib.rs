@@ -104,22 +104,8 @@
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 
-use std::{convert::TryFrom, rc::Rc, time::Duration};
-
-#[cfg(feature = "cookies")]
-pub use cookie;
-
-pub use actix_http::{client::Connector, http};
-
-use actix_http::{
-    client::{TcpConnect, TcpConnectError, TcpConnection},
-    http::{Error as HttpError, HeaderMap, Method, Uri},
-    RequestHead,
-};
-use actix_rt::net::TcpStream;
-use actix_service::Service;
-
 mod builder;
+mod client;
 mod connect;
 pub mod error;
 mod frozen;
@@ -130,12 +116,28 @@ mod sender;
 pub mod test;
 pub mod ws;
 
+pub use actix_http::http;
+#[cfg(feature = "cookies")]
+pub use cookie;
+
 pub use self::builder::ClientBuilder;
+pub use self::client::Connector;
 pub use self::connect::{BoxConnectorService, BoxedSocket, ConnectRequest, ConnectResponse};
 pub use self::frozen::{FrozenClientRequest, FrozenSendBuilder};
 pub use self::request::ClientRequest;
 pub use self::response::{ClientResponse, JsonBody, MessageBody};
 pub use self::sender::SendClientRequest;
+
+use std::{convert::TryFrom, rc::Rc, time::Duration};
+
+use actix_http::{
+    http::{Error as HttpError, HeaderMap, Method, Uri},
+    RequestHead,
+};
+use actix_rt::net::TcpStream;
+use actix_service::Service;
+
+use self::client::{TcpConnect, TcpConnectError, TcpConnection};
 
 /// An asynchronous HTTP and WebSocket client.
 ///
