@@ -8,6 +8,7 @@ use std::{
     time::Duration,
 };
 
+use actix_http::Protocol;
 use actix_rt::{
     net::{ActixStream, TcpStream},
     time::{sleep, Sleep},
@@ -19,14 +20,13 @@ use actix_tls::connect::{
 };
 use futures_core::{future::LocalBoxFuture, ready};
 use http::Uri;
-use pin_project::pin_project;
+use pin_project_lite::pin_project;
 
 use super::config::ConnectorConfig;
 use super::connection::{Connection, ConnectionIo};
 use super::error::ConnectError;
 use super::pool::ConnectionPool;
 use super::Connect;
-use super::Protocol;
 
 enum SslConnector {
     #[allow(dead_code)]
@@ -99,9 +99,7 @@ impl Connector<()> {
     /// Build TLS connector with openssl, based on supplied ALPN protocols
     #[cfg(all(feature = "openssl", not(feature = "rustls")))]
     fn build_ssl(protocols: Vec<Vec<u8>>) -> SslConnector {
-        use actix_tls::connect::tls::openssl::{
-            SslConnector as OpensslConnector, SslMethod,
-        };
+        use actix_tls::connect::tls::openssl::{SslConnector as OpensslConnector, SslMethod};
         use bytes::{BufMut, BytesMut};
 
         let mut alpn = BytesMut::with_capacity(20);
@@ -112,7 +110,7 @@ impl Connector<()> {
 
         let mut ssl = OpensslConnector::builder(SslMethod::tls()).unwrap();
         if let Err(err) = ssl.set_alpn_protos(&alpn) {
-            error!("Can not set ALPN protocol: {:?}", err);
+            log::error!("Can not set ALPN protocol: {:?}", err);
         }
 
         SslConnector::Openssl(ssl.build())
@@ -148,11 +146,8 @@ where
     // This remap is to hide ActixStream's trait methods. They are not meant to be called
     // from user code.
     Io: ActixStream + fmt::Debug + 'static,
-    S: Service<
-            TcpConnect<Uri>,
-            Response = TcpConnection<Uri, Io>,
-            Error = TcpConnectError,
-        > + Clone
+    S: Service<TcpConnect<Uri>, Response = TcpConnection<Uri, Io>, Error = TcpConnectError>
+        + Clone
         + 'static,
 {
     /// Tcp connection timeout, i.e. max time to connect to remote host including dns name
@@ -171,10 +166,7 @@ where
 
     #[cfg(feature = "openssl")]
     /// Use custom `SslConnector` instance.
-    pub fn ssl(
-        mut self,
-        connector: actix_tls::connect::ssl::openssl::SslConnector,
-    ) -> Self {
+    pub fn ssl(mut self, connector: actix_tls::connect::ssl::openssl::SslConnector) -> Self {
         self.ssl = SslConnector::Openssl(connector);
         self
     }
@@ -328,10 +320,11 @@ where
                 impl<Io: ConnectionIo> IntoConnectionIo for TcpConnection<Uri, TlsStream<Io>> {
                     fn into_connection_io(self) -> (Box<dyn ConnectionIo>, Protocol) {
                         let sock = self.into_parts().0;
-                        let h2 =
-                            sock.get_ref().1.alpn_protocol().map_or(false, |protos| {
-                                protos.windows(2).any(|w| w == H2)
-                            });
+                        let h2 = sock
+                            .get_ref()
+                            .1
+                            .alpn_protocol()
+                            .map_or(false, |protos| protos.windows(2).any(|w| w == H2));
                         if h2 {
                             (Box::new(sock), Protocol::Http2)
                         } else {
@@ -357,8 +350,8 @@ where
         let tcp_pool = ConnectionPool::new(tcp_service, tcp_config);
 
         let tls_config = self.config;
-        let tls_pool = tls_service
-            .map(move |tls_service| ConnectionPool::new(tls_service, tls_config));
+        let tls_pool =
+            tls_service.map(move |tls_service| ConnectionPool::new(tls_service, tls_config));
 
         ConnectorServicePriv { tcp_pool, tls_pool }
     }
@@ -389,10 +382,12 @@ where
     }
 }
 
-#[pin_project]
-pub struct TcpConnectorFuture<Fut> {
-    #[pin]
-    fut: Fut,
+pin_project! {
+    #[project = TcpConnectorFutureProj]
+    pub struct TcpConnectorFuture<Fut> {
+        #[pin]
+        fut: Fut,
+    }
 }
 
 impl<Fut, Io> Future for TcpConnectorFuture<Fut>
@@ -451,23 +446,25 @@ where
     }
 }
 
-#[pin_project(project = TlsConnectorProj)]
-#[allow(clippy::large_enum_variant)]
-enum TlsConnectorFuture<S, Fut1, Fut2> {
-    TcpConnect {
-        #[pin]
-        fut: Fut1,
-        tls_service: Option<S>,
-        timeout: Duration,
-    },
-    TlsConnect {
-        #[pin]
-        fut: Fut2,
-        #[pin]
-        timeout: Sleep,
-    },
-}
+pin_project! {
+    #[project = TlsConnectorProj]
+    #[allow(clippy::large_enum_variant)]
+    enum TlsConnectorFuture<S, Fut1, Fut2> {
+        TcpConnect {
+            #[pin]
+            fut: Fut1,
+            tls_service: Option<S>,
+            timeout: Duration,
+        },
+        TlsConnect {
+            #[pin]
+            fut: Fut2,
+            #[pin]
+            timeout: Sleep,
+        },
+    }
 
+}
 /// helper trait for generic over different TlsStream types between tls crates.
 trait IntoConnectionIo {
     fn into_connection_io(self) -> (Box<dyn ConnectionIo>, Protocol);
@@ -475,12 +472,7 @@ trait IntoConnectionIo {
 
 impl<S, Io, Fut1, Fut2, Res> Future for TlsConnectorFuture<S, Fut1, Fut2>
 where
-    S: Service<
-        TcpConnection<Uri, Io>,
-        Response = Res,
-        Error = std::io::Error,
-        Future = Fut2,
-    >,
+    S: Service<TcpConnection<Uri, Io>, Response = Res, Error = std::io::Error, Future = Fut2>,
     S::Response: IntoConnectionIo,
     Fut1: Future<Output = Result<TcpConnection<Uri, Io>, ConnectError>>,
     Fut2: Future<Output = Result<S::Response, S::Error>>,
@@ -522,11 +514,7 @@ pub struct TcpConnectorInnerService<S: Clone> {
 }
 
 impl<S: Clone> TcpConnectorInnerService<S> {
-    fn new(
-        service: S,
-        timeout: Duration,
-        local_address: Option<std::net::IpAddr>,
-    ) -> Self {
+    fn new(service: S, timeout: Duration, local_address: Option<std::net::IpAddr>) -> Self {
         Self {
             service,
             timeout,
@@ -537,11 +525,8 @@ impl<S: Clone> TcpConnectorInnerService<S> {
 
 impl<S, Io> Service<Connect> for TcpConnectorInnerService<S>
 where
-    S: Service<
-            TcpConnect<Uri>,
-            Response = TcpConnection<Uri, Io>,
-            Error = TcpConnectError,
-        > + Clone
+    S: Service<TcpConnect<Uri>, Response = TcpConnection<Uri, Io>, Error = TcpConnectError>
+        + Clone
         + 'static,
 {
     type Response = S::Response;
@@ -564,12 +549,14 @@ where
     }
 }
 
-#[pin_project]
-pub struct TcpConnectorInnerFuture<Fut> {
-    #[pin]
-    fut: Fut,
-    #[pin]
-    timeout: Sleep,
+pin_project! {
+    #[project = TcpConnectorInnerFutureProj]
+    pub struct TcpConnectorInnerFuture<Fut> {
+        #[pin]
+        fut: Fut,
+        #[pin]
+        timeout: Sleep,
+    }
 }
 
 impl<Fut, Io> Future for TcpConnectorInnerFuture<Fut>
@@ -618,12 +605,8 @@ where
 
 impl<S1, S2, Io1, Io2> Service<Connect> for ConnectorServicePriv<S1, S2, Io1, Io2>
 where
-    S1: Service<Connect, Response = (Io1, Protocol), Error = ConnectError>
-        + Clone
-        + 'static,
-    S2: Service<Connect, Response = (Io2, Protocol), Error = ConnectError>
-        + Clone
-        + 'static,
+    S1: Service<Connect, Response = (Io1, Protocol), Error = ConnectError> + Clone + 'static,
+    S2: Service<Connect, Response = (Io2, Protocol), Error = ConnectError> + Clone + 'static,
     Io1: ConnectionIo,
     Io2: ConnectionIo,
 {
@@ -643,38 +626,46 @@ where
         match req.uri.scheme_str() {
             Some("https") | Some("wss") => match self.tls_pool {
                 None => ConnectorServiceFuture::SslIsNotSupported,
-                Some(ref pool) => ConnectorServiceFuture::Tls(pool.call(req)),
+                Some(ref pool) => ConnectorServiceFuture::Tls {
+                    fut: pool.call(req),
+                },
             },
-            _ => ConnectorServiceFuture::Tcp(self.tcp_pool.call(req)),
+            _ => ConnectorServiceFuture::Tcp {
+                fut: self.tcp_pool.call(req),
+            },
         }
     }
 }
 
-#[pin_project(project = ConnectorServiceProj)]
-pub enum ConnectorServiceFuture<S1, S2, Io1, Io2>
-where
-    S1: Service<Connect, Response = (Io1, Protocol), Error = ConnectError>
-        + Clone
-        + 'static,
-    S2: Service<Connect, Response = (Io2, Protocol), Error = ConnectError>
-        + Clone
-        + 'static,
-    Io1: ConnectionIo,
-    Io2: ConnectionIo,
-{
-    Tcp(#[pin] <ConnectionPool<S1, Io1> as Service<Connect>>::Future),
-    Tls(#[pin] <ConnectionPool<S2, Io2> as Service<Connect>>::Future),
-    SslIsNotSupported,
+pin_project! {
+    #[project = ConnectorServiceFutureProj]
+    pub enum ConnectorServiceFuture<S1, S2, Io1, Io2>
+    where
+        S1: Service<Connect, Response = (Io1, Protocol), Error = ConnectError>,
+        S1: Clone,
+        S1: 'static,
+        S2: Service<Connect, Response = (Io2, Protocol), Error = ConnectError>,
+        S2: Clone,
+        S2: 'static,
+        Io1: ConnectionIo,
+        Io2: ConnectionIo,
+    {
+        Tcp {
+            #[pin]
+            fut: <ConnectionPool<S1, Io1> as Service<Connect>>::Future
+        },
+        Tls {
+            #[pin]
+            fut:  <ConnectionPool<S2, Io2> as Service<Connect>>::Future
+        },
+        SslIsNotSupported
+    }
 }
 
 impl<S1, S2, Io1, Io2> Future for ConnectorServiceFuture<S1, S2, Io1, Io2>
 where
-    S1: Service<Connect, Response = (Io1, Protocol), Error = ConnectError>
-        + Clone
-        + 'static,
-    S2: Service<Connect, Response = (Io2, Protocol), Error = ConnectError>
-        + Clone
-        + 'static,
+    S1: Service<Connect, Response = (Io1, Protocol), Error = ConnectError> + Clone + 'static,
+    S2: Service<Connect, Response = (Io2, Protocol), Error = ConnectError> + Clone + 'static,
     Io1: ConnectionIo,
     Io2: ConnectionIo,
 {
@@ -682,9 +673,9 @@ where
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.project() {
-            ConnectorServiceProj::Tcp(fut) => fut.poll(cx).map_ok(Connection::Tcp),
-            ConnectorServiceProj::Tls(fut) => fut.poll(cx).map_ok(Connection::Tls),
-            ConnectorServiceProj::SslIsNotSupported => {
+            ConnectorServiceFutureProj::Tcp { fut } => fut.poll(cx).map_ok(Connection::Tcp),
+            ConnectorServiceFutureProj::Tls { fut } => fut.poll(cx).map_ok(Connection::Tls),
+            ConnectorServiceFutureProj::SslIsNotSupported => {
                 Poll::Ready(Err(ConnectError::SslIsNotSupported))
             }
         }

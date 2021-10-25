@@ -22,10 +22,10 @@ edition = "2018"
 default = []
 
 # rustls
-rustls = ["tls-rustls", "actix-http/rustls"]
+rustls = ["tls-rustls", "actix-http/rustls", "awc/rustls"]
 
 # openssl
-openssl = ["tls-openssl", "actix-http/openssl"]
+openssl = ["tls-openssl", "actix-http/openssl", "awc/openssl"]
 
 [dependencies]
 actix-codec = "0.4.0"

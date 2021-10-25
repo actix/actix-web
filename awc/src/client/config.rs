@@ -1,5 +1,4 @@
-use std::net::IpAddr;
-use std::time::Duration;
+use std::{net::IpAddr, time::Duration};
 
 const DEFAULT_H2_CONN_WINDOW: u32 = 1024 * 1024 * 2; // 2MB
 const DEFAULT_H2_STREAM_WINDOW: u32 = 1024 * 1024; // 1MB

@@ -8,13 +8,12 @@ use h2::{
 };
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, TRANSFER_ENCODING};
 use http::{request::Request, Method, Version};
+use log::trace;
 
-use crate::{
+use actix_http::{
     body::{BodySize, MessageBody},
     header::HeaderMap,
-    message::{RequestHeadType, ResponseHead},
-    payload::Payload,
-    Error,
+    Error, Payload, RequestHeadType, ResponseHead,
 };
 
 use super::{
@@ -131,10 +130,7 @@ where
     Ok((head, payload))
 }
 
-async fn send_body<B>(
-    body: B,
-    mut send: SendStream<Bytes>,
-) -> Result<(), SendRequestError>
+async fn send_body<B>(body: B, mut send: SendStream<Bytes>) -> Result<(), SendRequestError>
 where
     B: MessageBody,
     B::Error: Into<Error>,
@@ -184,8 +180,7 @@ where
 pub(crate) fn handshake<Io: ConnectionIo>(
     io: Io,
     config: &ConnectorConfig,
-) -> impl Future<Output = Result<(SendRequest<Bytes>, Connection<Io, Bytes>), h2::Error>>
-{
+) -> impl Future<Output = Result<(SendRequest<Bytes>, Connection<Io, Bytes>), h2::Error>> {
     let mut builder = Builder::new();
     builder
         .initial_window_size(config.stream_window_size)
