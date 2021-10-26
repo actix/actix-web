@@ -27,10 +27,10 @@ path = "src/lib.rs"
 default = []
 
 # openssl
-openssl = ["actix-tls/openssl"]
+openssl = ["actix-tls/accept", "actix-tls/openssl"]
 
 # rustls support
-rustls = ["actix-tls/rustls"]
+rustls = ["actix-tls/accept", "actix-tls/rustls"]
 
 # enable compression support
 compress-brotli = ["brotli2", "__compress"]
@@ -46,7 +46,6 @@ actix-service = "2.0.0"
 actix-codec = "0.4.0"
 actix-utils = "3.0.0"
 actix-rt = "2.2"
-actix-tls = { version = "3.0.0-beta.7", features = ["accept"] }
 
 ahash = "0.7"
 base64 = "0.13"
@@ -73,6 +72,9 @@ rand = "0.8"
 sha-1 = "0.9"
 smallvec = "1.6.1"
 tokio = { version = "1.2", features = ["sync"] }
+
+# tls
+actix-tls = { version = "3.0.0-beta.7", default-features = false, optional = true }
 
 # compression
 brotli2 = { version="0.3.2", optional = true }
