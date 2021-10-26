@@ -52,7 +52,7 @@ pub fn default_service(
 /// use actix_service::Service;
 /// use actix_web::{test, web, App, HttpResponse, http::StatusCode};
 ///
-/// #[actix_rt::test]
+/// #[actix_web::test]
 /// async fn test_init_service() {
 ///     let app = test::init_service(
 ///         App::new()
@@ -98,7 +98,7 @@ where
 /// ```
 /// use actix_web::{test, web, App, HttpResponse, http::StatusCode};
 ///
-/// #[actix_rt::test]
+/// #[actix_web::test]
 /// async fn test_response() {
 ///     let app = test::init_service(
 ///         App::new()
@@ -129,7 +129,7 @@ where
 /// use actix_web::{test, web, App, HttpResponse, http::header};
 /// use bytes::Bytes;
 ///
-/// #[actix_rt::test]
+/// #[actix_web::test]
 /// async fn test_index() {
 ///     let app = test::init_service(
 ///         App::new().service(
@@ -176,7 +176,7 @@ where
 /// use actix_web::{test, web, App, HttpResponse, http::header};
 /// use bytes::Bytes;
 ///
-/// #[actix_rt::test]
+/// #[actix_web::test]
 /// async fn test_index() {
 ///     let app = test::init_service(
 ///         App::new().service(
@@ -224,7 +224,7 @@ where
 ///     name: String,
 /// }
 ///
-/// #[actix_rt::test]
+/// #[actix_web::test]
 /// async fn test_post_person() {
 ///     let app = test::init_service(
 ///         App::new().service(
@@ -296,7 +296,7 @@ where
 ///     name: String
 /// }
 ///
-/// #[actix_rt::test]
+/// #[actix_web::test]
 /// async fn test_add_person() {
 ///     let app = test::init_service(
 ///         App::new().service(
@@ -356,8 +356,8 @@ where
 ///     }
 /// }
 ///
-/// #[test]
-/// fn test_index() {
+/// #[actix_web::test]
+/// async fn test_index() {
 ///     let req = test::TestRequest::default().insert_header("content-type", "text/plain")
 ///         .to_http_request();
 ///

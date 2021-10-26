@@ -29,7 +29,6 @@ extern crate log;
 
 pub mod body;
 mod builder;
-pub mod client;
 mod config;
 
 #[cfg(feature = "__compress")]
@@ -103,13 +102,8 @@ type ConnectCallback<IO> = dyn Fn(&IO, &mut Extensions);
 ///
 /// # Implementation Details
 /// Uses Option to reduce necessary allocations when merging with request extensions.
+#[derive(Default)]
 pub(crate) struct OnConnectData(Option<Extensions>);
-
-impl Default for OnConnectData {
-    fn default() -> Self {
-        Self(None)
-    }
-}
 
 impl OnConnectData {
     /// Construct by calling the on-connect callback with the underlying transport I/O.

@@ -303,9 +303,9 @@ where
         body: &impl MessageBody,
     ) -> Result<BodySize, DispatchError> {
         let size = body.size();
-        let mut this = self.project();
+        let this = self.project();
         this.codec
-            .encode(Message::Item((message, size)), &mut this.write_buf)
+            .encode(Message::Item((message, size)), this.write_buf)
             .map_err(|err| {
                 if let Some(mut payload) = this.payload.take() {
                     payload.set_error(PayloadError::Incomplete(None));
@@ -425,13 +425,13 @@ where
                             Poll::Ready(Some(Ok(item))) => {
                                 this.codec.encode(
                                     Message::Chunk(Some(item)),
-                                    &mut this.write_buf,
+                                    this.write_buf,
                                 )?;
                             }
 
                             Poll::Ready(None) => {
                                 this.codec
-                                    .encode(Message::Chunk(None), &mut this.write_buf)?;
+                                    .encode(Message::Chunk(None), this.write_buf)?;
                                 // payload stream finished.
                                 // set state to None and handle next message
                                 this.state.set(State::None);
@@ -460,13 +460,13 @@ where
                             Poll::Ready(Some(Ok(item))) => {
                                 this.codec.encode(
                                     Message::Chunk(Some(item)),
-                                    &mut this.write_buf,
+                                    this.write_buf,
                                 )?;
                             }
 
                             Poll::Ready(None) => {
                                 this.codec
-                                    .encode(Message::Chunk(None), &mut this.write_buf)?;
+                                    .encode(Message::Chunk(None), this.write_buf)?;
                                 // payload stream finished.
                                 // set state to None and handle next message
                                 this.state.set(State::None);
@@ -592,7 +592,7 @@ where
         let mut updated = false;
         let mut this = self.as_mut().project();
         loop {
-            match this.codec.decode(&mut this.read_buf) {
+            match this.codec.decode(this.read_buf) {
                 Ok(Some(msg)) => {
                     updated = true;
                     this.flags.insert(Flags::STARTED);

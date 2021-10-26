@@ -1,6 +1,19 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Removed
+* `client` module. [#2425]
+* `trust-dns` feature. [#2425]
+
+[#2425]: https://github.com/actix/actix-web/pull/2425
+
+
+## 3.0.0-beta.11 - 2021-10-20
+### Changed
+* Updated rustls to v0.20. [#2414]
+* Minimum supported Rust version (MSRV) is now 1.52.
+
+[#2414]: https://github.com/actix/actix-web/pull/2414
 
 
 ## 3.0.0-beta.10 - 2021-09-09

@@ -36,7 +36,7 @@ use socket2::{Domain, Protocol, Socket, Type};
 ///     Ok(HttpResponse::Ok().into())
 /// }
 ///
-/// #[actix_rt::test]
+/// #[actix_web::test]
 /// async fn test_example() {
 ///     let mut srv = TestServer::start(
 ///         || HttpService::new(

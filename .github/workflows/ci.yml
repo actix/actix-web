@@ -14,9 +14,9 @@ jobs:
         target:
           - { name: Linux, os: ubuntu-latest, triple: x86_64-unknown-linux-gnu }
           - { name: macOS, os: macos-latest, triple: x86_64-apple-darwin }
-          - { name: Windows, os: windows-latest, triple: x86_64-pc-windows-msvc }
+          - { name: Windows, os: windows-2022, triple: x86_64-pc-windows-msvc }
         version:
-          - 1.51.0 # MSRV
+          - 1.52.0 # MSRV
           - stable
           - nightly
 
@@ -32,6 +32,8 @@ jobs:
       - uses: actions/checkout@v2
 
       # install OpenSSL on Windows
+      # TODO: GitHub actions docs state that OpenSSL is
+      # already installed on these Windows machines somewhere
       - name: Set vcpkg root
         if: matrix.target.triple == 'x86_64-pc-windows-msvc'
         run: echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
@@ -48,8 +50,7 @@ jobs:
 
       - name: Generate Cargo.lock
         uses: actions-rs/cargo@v1
-        with:
-          command: generate-lockfile
+        with: { command: generate-lockfile }
       - name: Cache Dependencies
         uses: Swatinem/rust-cache@v1.2.0
 
@@ -82,32 +83,73 @@ jobs:
           command: ci-test
           args: --skip=test_reading_deflate_encoding_large_random_rustls
 
-      - name: Generate coverage file
-        if: >
-          matrix.target.os == 'ubuntu-latest'
-          && matrix.version == 'stable'
-          && github.ref == 'refs/heads/master'
-        run: |
-          cargo install cargo-tarpaulin --vers "^0.13"
-          cargo tarpaulin --out Xml --verbose
-      - name: Upload to Codecov
-        if: >
-          matrix.target.os == 'ubuntu-latest'
-          && matrix.version == 'stable'
-          && github.ref == 'refs/heads/master'
-        uses: codecov/codecov-action@v1
-        with:
-          file: cobertura.xml
-
       - name: Clear the cargo caches
         run: |
           cargo install cargo-cache --version 0.6.3 --no-default-features --features ci-autoclean
           cargo-cache
 
+  ci_feature_powerset_check:
+    name: Verify Feature Combinations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install stable
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable-x86_64-unknown-linux-gnu
+          profile: minimal
+          override: true
+
+      - name: Generate Cargo.lock
+        uses: actions-rs/cargo@v1
+        with: { command: generate-lockfile }
+      - name: Cache Dependencies
+        uses: Swatinem/rust-cache@v1.2.0
+
+      - name: Install cargo-hack
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-hack
+
+      - name: check feature combinations
+        # if: github.ref == 'refs/heads/master'
+        uses: actions-rs/cargo@v1
+        with: { command: ci-feature-powerset-check-all }
+
+  coverage:
+    name: coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install stable
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable-x86_64-unknown-linux-gnu
+          profile: minimal
+          override: true
+
+      - name: Generate Cargo.lock
+        uses: actions-rs/cargo@v1
+        with: { command: generate-lockfile }
+      - name: Cache Dependencies
+        uses: Swatinem/rust-cache@v1.2.0
+
+      - name: Generate coverage file
+        if: github.ref == 'refs/heads/master'
+        run: |
+          cargo install cargo-tarpaulin --vers "^0.13"
+          cargo tarpaulin --out Xml --verbose
+      - name: Upload to Codecov
+        if: github.ref == 'refs/heads/master'
+        uses: codecov/codecov-action@v1
+        with: { file: cobertura.xml }
+
   rustdoc:
     name: rustdoc
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v2
 

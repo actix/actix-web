@@ -3,7 +3,7 @@
 extern crate tls_rustls as rustls;
 
 use std::{
-    convert::Infallible,
+    convert::{Infallible, TryFrom},
     io::{self, BufReader, Write},
     net::{SocketAddr, TcpStream as StdTcpStream},
     sync::Arc,
@@ -20,16 +20,17 @@ use actix_http::{
 };
 use actix_http_test::test_server;
 use actix_service::{fn_factory_with_config, fn_service};
+use actix_tls::connect::tls::rustls::webpki_roots_cert_store;
 use actix_utils::future::{err, ok};
 use bytes::{Bytes, BytesMut};
 use derive_more::{Display, Error};
 use futures_core::Stream;
 use futures_util::stream::{once, StreamExt as _};
 use rustls::{
-    internal::pemfile::{certs, pkcs8_private_keys},
-    NoClientAuth, ServerConfig as RustlsServerConfig, Session,
+    Certificate, OwnedTrustAnchor, PrivateKey, RootCertStore,
+    ServerConfig as RustlsServerConfig, ServerName,
 };
-use webpki::DNSNameRef;
+use rustls_pemfile::{certs, pkcs8_private_keys};
 
 async fn load_body<S>(mut stream: S) -> Result<BytesMut, PayloadError>
 where
@@ -47,13 +48,24 @@ fn tls_config() -> RustlsServerConfig {
     let cert_file = cert.serialize_pem().unwrap();
     let key_file = cert.serialize_private_key_pem();
 
-    let mut config = RustlsServerConfig::new(NoClientAuth::new());
     let cert_file = &mut BufReader::new(cert_file.as_bytes());
     let key_file = &mut BufReader::new(key_file.as_bytes());
 
-    let cert_chain = certs(cert_file).unwrap();
+    let cert_chain = certs(cert_file)
+        .unwrap()
+        .into_iter()
+        .map(Certificate)
+        .collect();
     let mut keys = pkcs8_private_keys(key_file).unwrap();
-    config.set_single_cert(cert_chain, keys.remove(0)).unwrap();
+
+    let mut config = RustlsServerConfig::builder()
+        .with_safe_defaults()
+        .with_no_client_auth()
+        .with_single_cert(cert_chain, PrivateKey(keys.remove(0)))
+        .unwrap();
+
+    config.alpn_protocols.push(HTTP1_1_ALPN_PROTOCOL.to_vec());
+    config.alpn_protocols.push(H2_ALPN_PROTOCOL.to_vec());
 
     config
 }
@@ -62,19 +74,28 @@ pub fn get_negotiated_alpn_protocol(
     addr: SocketAddr,
     client_alpn_protocol: &[u8],
 ) -> Option<Vec<u8>> {
-    let mut config = rustls::ClientConfig::new();
+    let mut config = rustls::ClientConfig::builder()
+        .with_safe_defaults()
+        .with_root_certificates(webpki_roots_cert_store())
+        .with_no_client_auth();
+
     config.alpn_protocols.push(client_alpn_protocol.to_vec());
-    let mut sess = rustls::ClientSession::new(
-        &Arc::new(config),
-        DNSNameRef::try_from_ascii_str("localhost").unwrap(),
-    );
+
+    let mut sess = rustls::ClientConnection::new(
+        Arc::new(config),
+        ServerName::try_from("localhost").unwrap(),
+    )
+    .unwrap();
+
     let mut sock = StdTcpStream::connect(addr).unwrap();
     let mut stream = rustls::Stream::new(&mut sess, &mut sock);
+
     // The handshake will fails because the client will not be able to verify the server
     // certificate, but it doesn't matter here as we are just interested in the negotiated ALPN
     // protocol
     let _ = stream.flush();
-    sess.get_alpn_protocol().map(|proto| proto.to_vec())
+
+    sess.alpn_protocol().map(|proto| proto.to_vec())
 }
 
 #[actix_rt::test]

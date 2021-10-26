@@ -2,11 +2,12 @@ use std::{error::Error as StdError, fmt, io};
 
 use derive_more::{Display, From};
 
+use actix_http::{
+    error::{Error, ParseError},
+    http::Error as HttpError,
+};
 #[cfg(feature = "openssl")]
 use actix_tls::accept::openssl::SslError;
-
-use crate::error::{Error, ParseError};
-use crate::http::Error as HttpError;
 
 /// A set of errors that can occur while connecting to an HTTP host
 #[derive(Debug, Display, From)]

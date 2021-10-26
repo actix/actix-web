@@ -25,8 +25,8 @@ pub fn apply_mask_fast32(buf: &mut [u8], mask: [u8; 4]) {
     //
     // un aligned prefix and suffix would be mask/unmask per byte.
     // proper aligned middle slice goes into fast path and operates on 4-byte blocks.
-    let (mut prefix, words, mut suffix) = unsafe { buf.align_to_mut::<u32>() };
-    apply_mask_fallback(&mut prefix, mask);
+    let (prefix, words, suffix) = unsafe { buf.align_to_mut::<u32>() };
+    apply_mask_fallback(prefix, mask);
     let head = prefix.len() & 3;
     let mask_u32 = if head > 0 {
         if cfg!(target_endian = "big") {
@@ -40,7 +40,7 @@ pub fn apply_mask_fast32(buf: &mut [u8], mask: [u8; 4]) {
     for word in words.iter_mut() {
         *word ^= mask_u32;
     }
-    apply_mask_fallback(&mut suffix, mask_u32.to_ne_bytes());
+    apply_mask_fallback(suffix, mask_u32.to_ne_bytes());
 }
 
 #[cfg(test)]

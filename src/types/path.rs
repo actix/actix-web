@@ -102,7 +102,7 @@ where
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let error_handler = req
             .app_data::<PathConfig>()
-            .and_then(|c| c.ehandler.clone());
+            .and_then(|c| c.err_handler.clone());
 
         ready(
             de::Deserialize::deserialize(PathDeserializer::new(req.match_info()))
@@ -158,9 +158,9 @@ where
 ///     );
 /// }
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct PathConfig {
-    ehandler: Option<Arc<dyn Fn(PathError, &HttpRequest) -> Error + Send + Sync>>,
+    err_handler: Option<Arc<dyn Fn(PathError, &HttpRequest) -> Error + Send + Sync>>,
 }
 
 impl PathConfig {
@@ -169,14 +169,8 @@ impl PathConfig {
     where
         F: Fn(PathError, &HttpRequest) -> Error + Send + Sync + 'static,
     {
-        self.ehandler = Some(Arc::new(f));
+        self.err_handler = Some(Arc::new(f));
         self
-    }
-}
-
-impl Default for PathConfig {
-    fn default() -> Self {
-        PathConfig { ehandler: None }
     }
 }
 
