@@ -1,8 +1,8 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
-### Added 
-* `ContentType::html_utf8`, a constructor to easily create a `Content-Type: text/html; charset=utf-8` header;
+### Changed
+* `ContentType::html` now returns `Content-Type: text/html; charset=utf-8` instead of `Content-Type: text/html`.
 
 
 ## 4.0.0-beta.10 - 2021-10-20
