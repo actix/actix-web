@@ -75,7 +75,9 @@ impl<T> Data<T> {
     pub fn new(state: T) -> Data<T> {
         Data(Arc::new(state))
     }
+}
 
+impl<T: ?Sized> Data<T> {
     /// Get reference to inner app data.
     pub fn get_ref(&self) -> &T {
         self.0.as_ref()
@@ -303,5 +305,39 @@ mod tests {
         let dyn_arc: Arc<dyn TestTrait> = Arc::new(A {});
         let data_arc = Data::from(dyn_arc);
         assert_eq!(data_arc_box.get_num(), data_arc.get_num())
+    }
+
+    #[actix_rt::test]
+    async fn test_dyn_data_into_arc() {
+        trait TestTrait {
+            fn get_num(&self) -> i32;
+        }
+        struct A {}
+        impl TestTrait for A {
+            fn get_num(&self) -> i32 {
+                42
+            }
+        }
+        let dyn_arc: Arc<dyn TestTrait> = Arc::new(A {});
+        let data_arc = Data::from(dyn_arc);
+        let arc_from_data = data_arc.clone().into_inner();
+        assert_eq!(data_arc.get_num(), arc_from_data.get_num())
+    }
+
+    #[actix_rt::test]
+    async fn test_get_ref_from_dyn_data() {
+        trait TestTrait {
+            fn get_num(&self) -> i32;
+        }
+        struct A {}
+        impl TestTrait for A {
+            fn get_num(&self) -> i32 {
+                42
+            }
+        }
+        let dyn_arc: Arc<dyn TestTrait> = Arc::new(A {});
+        let data_arc = Data::from(dyn_arc);
+        let ref_data = data_arc.get_ref();
+        assert_eq!(data_arc.get_num(), ref_data.get_num())
     }
 }

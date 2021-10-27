@@ -883,27 +883,31 @@ async fn test_brotli_encoding_large_openssl() {
 mod plus_rustls {
     use std::io::BufReader;
 
-    use rustls::{
-        internal::pemfile::{certs, pkcs8_private_keys},
-        NoClientAuth, ServerConfig as RustlsServerConfig,
-    };
+    use rustls::{Certificate, PrivateKey, ServerConfig as RustlsServerConfig};
+    use rustls_pemfile::{certs, pkcs8_private_keys};
 
     use super::*;
 
-    fn rustls_config() -> RustlsServerConfig {
+    fn tls_config() -> RustlsServerConfig {
         let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()]).unwrap();
         let cert_file = cert.serialize_pem().unwrap();
         let key_file = cert.serialize_private_key_pem();
 
-        let mut config = RustlsServerConfig::new(NoClientAuth::new());
         let cert_file = &mut BufReader::new(cert_file.as_bytes());
         let key_file = &mut BufReader::new(key_file.as_bytes());
 
-        let cert_chain = certs(cert_file).unwrap();
+        let cert_chain = certs(cert_file)
+            .unwrap()
+            .into_iter()
+            .map(Certificate)
+            .collect();
         let mut keys = pkcs8_private_keys(key_file).unwrap();
-        config.set_single_cert(cert_chain, keys.remove(0)).unwrap();
 
-        config
+        RustlsServerConfig::builder()
+            .with_safe_defaults()
+            .with_no_client_auth()
+            .with_single_cert(cert_chain, PrivateKey(keys.remove(0)))
+            .unwrap()
     }
 
     #[actix_rt::test]
@@ -914,7 +918,7 @@ mod plus_rustls {
             .map(char::from)
             .collect::<String>();
 
-        let srv = actix_test::start_with(actix_test::config().rustls(rustls_config()), || {
+        let srv = actix_test::start_with(actix_test::config().rustls(tls_config()), || {
             App::new().service(web::resource("/").route(web::to(|bytes: Bytes| {
                 HttpResponse::Ok()
                     .encoding(actix_web::http::ContentEncoding::Identity)

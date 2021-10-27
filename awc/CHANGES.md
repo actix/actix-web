@@ -3,6 +3,12 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 3.0.0-beta.9 - 2021-10-20
+* Updated rustls to v0.20. [#2414]
+
+[#2414]: https://github.com/actix/actix-web/pull/2414
+
+
 ## 3.0.0-beta.8 - 2021-09-09
 ### Changed
 * Send headers within the redirect requests. [#2310]

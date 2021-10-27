@@ -394,9 +394,7 @@ impl ResourceDef {
     pub fn set_name(&mut self, name: impl Into<String>) {
         let name = name.into();
 
-        if name.is_empty() {
-            panic!("resource name should not be empty");
-        }
+        assert!(!name.is_empty(), "resource name should not be empty");
 
         self.name = Some(name)
     }
@@ -978,9 +976,7 @@ impl ResourceDef {
 
         let (name, pattern) = match param.find(':') {
             Some(idx) => {
-                if tail {
-                    panic!("custom regex is not supported for tail match");
-                }
+                assert!(!tail, "custom regex is not supported for tail match");
 
                 let (name, pattern) = param.split_at(idx);
                 (name, &pattern[1..])
@@ -1087,12 +1083,12 @@ impl ResourceDef {
             re.push_str(&escape(unprocessed));
         }
 
-        if dyn_segment_count > MAX_DYNAMIC_SEGMENTS {
-            panic!(
-                "Only {} dynamic segments are allowed, provided: {}",
-                MAX_DYNAMIC_SEGMENTS, dyn_segment_count
-            );
-        }
+        assert!(
+            dyn_segment_count <= MAX_DYNAMIC_SEGMENTS,
+            "Only {} dynamic segments are allowed, provided: {}",
+            MAX_DYNAMIC_SEGMENTS,
+            dyn_segment_count
+        );
 
         // Store the pattern in capture group #1 to have context info outside it
         let mut re = format!("({})", re);

@@ -6,8 +6,9 @@ use crate::{IntoPatterns, Resource, ResourceDef, ResourcePath};
 pub struct ResourceId(pub u16);
 
 /// Information about current resource
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone)]
 pub struct ResourceInfo {
+    #[allow(dead_code)]
     resource: ResourceId,
 }
 

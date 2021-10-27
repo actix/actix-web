@@ -177,7 +177,7 @@ mod rustls {
         > {
             let mut protos = vec![b"h2".to_vec()];
             protos.extend_from_slice(&config.alpn_protocols);
-            config.set_protocols(&protos);
+            config.alpn_protocols = protos;
 
             Acceptor::new(config)
                 .map_err(TlsError::Tls)
