@@ -114,12 +114,20 @@ impl HttpRequest {
         self.uri().query().unwrap_or_default()
     }
 
-    /// Get a reference to the Path parameters.
+    /// Get a reference to url parameters container
     ///
-    /// Params is a container for url parameters.
-    /// A variable segment is specified in the form `{identifier}`,
+    /// A url parameter is specified in the form `{identifier}`,
     /// where the identifier can be used later in a request handler to
-    /// access the matched value for that segment.
+    /// access the matched value for that parameter.
+    ///
+    ///
+    /// # Percent Enconding and Url Paramters
+    ///
+    /// Because each url paramter is able to capture multiple path segments,
+    /// both `["%2F", "%25"]` found in the request uri are not decoded into `["/", "%"]`
+    /// in order to preserve path segment boundaries.
+    /// If a url paramter is expected to contain these characters, then it is on the user to decode them.
+    ///
     #[inline]
     pub fn match_info(&self) -> &Path<Url> {
         &self.inner.path
@@ -162,6 +170,14 @@ impl HttpRequest {
     }
 
     /// Generate url for named resource
+    ///
+    /// This substitutes in sequence all url parameters that appear in the resource itself
+    /// and in parent [scopes](crate::web::scope), if any.
+    ///
+    /// It is worth noting that the characters `['/', '%']` are not escaped and therefore a single
+    /// url parameter may expand into multiple path segments and `elements`
+    /// can be percent-encoded beforehand without worrying about double encoding.
+    /// Any other character that is not valid in url ath context is escaped using percent-encoding.
     ///
     /// ```
     /// # use actix_web::{web, App, HttpRequest, HttpResponse};

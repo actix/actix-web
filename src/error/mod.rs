@@ -33,8 +33,8 @@ pub enum UrlGenerationError {
     #[display(fmt = "Resource not found")]
     ResourceNotFound,
 
-    /// Not all path pattern covered
-    #[display(fmt = "Not all path pattern covered")]
+    /// Not all url paramters covered
+    #[display(fmt = "Not all url parameters covered")]
     NotEnoughElements,
 
     /// URL parse error
