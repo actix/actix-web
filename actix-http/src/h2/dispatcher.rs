@@ -10,11 +10,15 @@ use std::{
 };
 
 use actix_codec::{AsyncRead, AsyncWrite};
+use actix_rt::time::Sleep;
 use actix_service::Service;
 use actix_utils::future::poll_fn;
 use bytes::{Bytes, BytesMut};
 use futures_core::ready;
-use h2::server::{Connection, SendResponse};
+use h2::{
+    server::{Connection, SendResponse},
+    Ping, PingPong,
+};
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
 use log::{error, trace};
 use pin_project_lite::pin_project;
@@ -36,27 +40,44 @@ pin_project! {
         on_connect_data: OnConnectData,
         config: ServiceConfig,
         peer_addr: Option<net::SocketAddr>,
-        _phantom: PhantomData<B>,
+        ping_pong: Option<H2PingPong>,
+        _phantom: PhantomData<B>
     }
 }
 
-impl<T, S, B, X, U> Dispatcher<T, S, B, X, U> {
+impl<T, S, B, X, U> Dispatcher<T, S, B, X, U>
+where
+    T: AsyncRead + AsyncWrite + Unpin,
+{
     pub(crate) fn new(
         flow: Rc<HttpFlow<S, X, U>>,
-        connection: Connection<T, Bytes>,
+        mut connection: Connection<T, Bytes>,
         on_connect_data: OnConnectData,
         config: ServiceConfig,
         peer_addr: Option<net::SocketAddr>,
     ) -> Self {
+        let ping_pong = config.keep_alive_timer().map(|timer| H2PingPong {
+            timer: Box::pin(timer),
+            on_flight: false,
+            ping_pong: connection.ping_pong().unwrap(),
+        });
+
         Self {
             flow,
             config,
             peer_addr,
             connection,
             on_connect_data,
+            ping_pong,
             _phantom: PhantomData,
         }
     }
+}
+
+struct H2PingPong {
+    timer: Pin<Box<Sleep>>,
+    on_flight: bool,
+    ping_pong: PingPong,
 }
 
 impl<T, S, B, X, U> Future for Dispatcher<T, S, B, X, U>
@@ -77,54 +98,92 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
 
-        while let Some((req, tx)) =
-            ready!(Pin::new(&mut this.connection).poll_accept(cx)?)
-        {
-            let (parts, body) = req.into_parts();
-            let pl = crate::h2::Payload::new(body);
-            let pl = Payload::<crate::payload::PayloadStream>::H2(pl);
-            let mut req = Request::with_payload(pl);
+        loop {
+            match Pin::new(&mut this.connection).poll_accept(cx)? {
+                Poll::Ready(Some((req, tx))) => {
+                    let (parts, body) = req.into_parts();
+                    let pl = crate::h2::Payload::new(body);
+                    let pl = Payload::<crate::payload::PayloadStream>::H2(pl);
+                    let mut req = Request::with_payload(pl);
 
-            let head = req.head_mut();
-            head.uri = parts.uri;
-            head.method = parts.method;
-            head.version = parts.version;
-            head.headers = parts.headers.into();
-            head.peer_addr = this.peer_addr;
+                    let head = req.head_mut();
+                    head.uri = parts.uri;
+                    head.method = parts.method;
+                    head.version = parts.version;
+                    head.headers = parts.headers.into();
+                    head.peer_addr = this.peer_addr;
 
-            // merge on_connect_ext data into request extensions
-            this.on_connect_data.merge_into(&mut req);
+                    // merge on_connect_ext data into request extensions
+                    this.on_connect_data.merge_into(&mut req);
 
-            let fut = this.flow.service.call(req);
-            let config = this.config.clone();
+                    let fut = this.flow.service.call(req);
+                    let config = this.config.clone();
 
-            // multiplex request handling with spawn task
-            actix_rt::spawn(async move {
-                // resolve service call and send response.
-                let res = match fut.await {
-                    Ok(res) => handle_response(res.into(), tx, config).await,
-                    Err(err) => {
-                        let res: Response<AnyBody> = err.into();
-                        handle_response(res, tx, config).await
-                    }
-                };
+                    // multiplex request handling with spawn task
+                    actix_rt::spawn(async move {
+                        // resolve service call and send response.
+                        let res = match fut.await {
+                            Ok(res) => handle_response(res.into(), tx, config).await,
+                            Err(err) => {
+                                let res: Response<AnyBody> = err.into();
+                                handle_response(res, tx, config).await
+                            }
+                        };
 
-                // log error.
-                if let Err(err) = res {
-                    match err {
-                        DispatchError::SendResponse(err) => {
-                            trace!("Error sending HTTP/2 response: {:?}", err)
+                        // log error.
+                        if let Err(err) = res {
+                            match err {
+                                DispatchError::SendResponse(err) => {
+                                    trace!("Error sending HTTP/2 response: {:?}", err)
+                                }
+                                DispatchError::SendData(err) => warn!("{:?}", err),
+                                DispatchError::ResponseBody(err) => {
+                                    error!("Response payload stream error: {:?}", err)
+                                }
+                            }
                         }
-                        DispatchError::SendData(err) => warn!("{:?}", err),
-                        DispatchError::ResponseBody(err) => {
-                            error!("Response payload stream error: {:?}", err)
-                        }
-                    }
+                    });
                 }
-            });
-        }
+                Poll::Ready(None) => return Poll::Ready(Ok(())),
+                Poll::Pending => match this.ping_pong.as_mut() {
+                    Some(ping_pong) => loop {
+                        if ping_pong.on_flight {
+                            // When have on flight ping pong. poll pong and and keep alive timer.
+                            // on success pong received update keep alive timer to determine the next timing of
+                            // ping pong.
+                            match ping_pong.ping_pong.poll_pong(cx)? {
+                                Poll::Ready(_) => {
+                                    ping_pong.on_flight = false;
 
-        Poll::Ready(Ok(()))
+                                    let dead_line =
+                                        this.config.keep_alive_expire().unwrap();
+                                    ping_pong.timer.as_mut().reset(dead_line);
+                                }
+                                Poll::Pending => {
+                                    return ping_pong
+                                        .timer
+                                        .as_mut()
+                                        .poll(cx)
+                                        .map(|_| Ok(()))
+                                }
+                            }
+                        } else {
+                            // When there is no on flight ping pong. keep alive timer is used to wait for next
+                            // timing of ping pong. Therefore at this point it serves as an interval instead.
+                            ready!(ping_pong.timer.as_mut().poll(cx));
+
+                            ping_pong.ping_pong.send_ping(Ping::opaque())?;
+
+                            let dead_line = this.config.keep_alive_expire().unwrap();
+                            ping_pong.timer.as_mut().reset(dead_line);
+
+                            ping_pong.on_flight = true;
+                        }
+                    },
+                    None => return Poll::Pending,
+                },
+            }
+        }
     }
 }
 
