@@ -58,7 +58,7 @@ where
     ) -> Self {
         let ping_pong = config.keep_alive_timer().map(|timer| H2PingPong {
             timer: Box::pin(timer),
-            on_flight: true,
+            on_flight: false,
             ping_pong: connection.ping_pong().unwrap(),
         });
 
