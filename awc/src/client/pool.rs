@@ -19,6 +19,7 @@ use actix_rt::time::{sleep, Sleep};
 use actix_service::Service;
 use ahash::AHashMap;
 use futures_core::future::LocalBoxFuture;
+use futures_util::FutureExt;
 use http::uri::Authority;
 use pin_project_lite::pin_project;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
@@ -201,7 +202,7 @@ where
                             // check if the connection is still usable
                             if let ConnectionInnerType::H1(ref mut io) = c.conn {
                                 let check = ConnectionCheckFuture { io };
-                                match check.await {
+                                match check.now_or_never().expect("ConnectionCheckFuture must never yield with Poll::Pending.") {
                                     ConnectionState::Tainted => {
                                         inner.close(c.conn);
                                         continue;
