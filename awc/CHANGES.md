@@ -1,7 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
-
+* Reexport ConnectionIo
+* Bump `actix-codec` version to 0.4.1
+[#2436]: https://github.com/actix/actix-web/pull/2436
 
 ## 3.0.0-beta.9 - 2021-10-20
 * Updated rustls to v0.20. [#2414]
