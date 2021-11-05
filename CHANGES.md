@@ -1,8 +1,15 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 4.0.0-beta.11 - 2021-11-05
 ### Changed
-* `ContentType::html` now returns `Content-Type: text/html; charset=utf-8` instead of `Content-Type: text/html`.
+* `ContentType::html` now returns `Content-Type: text/html; charset=utf-8` instead of `Content-Type: text/html`. [#2423]
+* Update actix-server to `2.0.0-beta.7`. [#2435]
+
+[#2423]: https://github.com/actix/actix-web/pull/2423
+[#2435]: https://github.com/actix/actix-web/pull/2435
 
 
 ## 4.0.0-beta.10 - 2021-10-20
