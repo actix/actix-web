@@ -1,11 +1,15 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Changed
+* Add keep alive to h2 through ping-pong. [#2433]
+
 ### Removed
 * `client` module. [#2425]
 * `trust-dns` feature. [#2425]
 
 [#2425]: https://github.com/actix/actix-web/pull/2425
+[#2433]: https://github.com/actix/actix-web/pull/2433
 
 
 ## 3.0.0-beta.11 - 2021-10-20

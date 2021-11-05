@@ -58,7 +58,7 @@ where
     ) -> Self {
         let ping_pong = config.keep_alive_timer().map(|timer| H2PingPong {
             timer: Box::pin(timer),
-            on_flight: false,
+            in_flight: false,
             ping_pong: connection.ping_pong().unwrap(),
         });
 
@@ -76,7 +76,7 @@ where
 
 struct H2PingPong {
     timer: Pin<Box<Sleep>>,
-    on_flight: bool,
+    in_flight: bool,
     ping_pong: PingPong,
 }
 
@@ -147,13 +147,13 @@ where
                 Poll::Ready(None) => return Poll::Ready(Ok(())),
                 Poll::Pending => match this.ping_pong.as_mut() {
                     Some(ping_pong) => loop {
-                        if ping_pong.on_flight {
-                            // When have on flight ping pong. poll pong and and keep alive timer.
-                            // on success pong received update keep alive timer to determine the next timing of
-                            // ping pong.
+                        if ping_pong.in_flight {
+                            // When ping-pong is in-flight, poll pong and and keep alive timer
+                            // on success pong received and update keep alive timer to determine the
+                            // next timing of ping-pong.
                             match ping_pong.ping_pong.poll_pong(cx)? {
                                 Poll::Ready(_) => {
-                                    ping_pong.on_flight = false;
+                                    ping_pong.in_flight = false;
 
                                     let dead_line =
                                         this.config.keep_alive_expire().unwrap();
@@ -168,8 +168,9 @@ where
                                 }
                             }
                         } else {
-                            // When there is no on flight ping pong. keep alive timer is used to wait for next
-                            // timing of ping pong. Therefore at this point it serves as an interval instead.
+                            // When there is no in-flight ping-pong, keep alive timer is used to
+                            // wait for next timing of ping-pong. Therefore, at this point it serves
+                            // as an interval instead.
                             ready!(ping_pong.timer.as_mut().poll(cx));
 
                             ping_pong.ping_pong.send_ping(Ping::opaque())?;
@@ -177,7 +178,7 @@ where
                             let dead_line = this.config.keep_alive_expire().unwrap();
                             ping_pong.timer.as_mut().reset(dead_line);
 
-                            ping_pong.on_flight = true;
+                            ping_pong.in_flight = true;
                         }
                     },
                     None => return Poll::Pending,
