@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+* Update actix-server to `2.0.0-beta.7`. [#2435]
+
+[#2435]: https://github.com/actix/actix-web/pull/2435
 
 
 ## 0.1.0-beta.5 - 2021-10-20
