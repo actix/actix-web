@@ -53,7 +53,7 @@ trust-dns = ["trust-dns-resolver"]
 __compress = []
 
 [dependencies]
-actix-codec = "0.4.0"
+actix-codec = "0.4.1"
 actix-service = "2.0.0"
 actix-http = "3.0.0-beta.11"
 actix-rt = { version = "2.1", default-features = false }

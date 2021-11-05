@@ -121,7 +121,7 @@ pub use actix_http::http;
 pub use cookie;
 
 pub use self::builder::ClientBuilder;
-pub use self::client::Connector;
+pub use self::client::{ConnectionIo, Connector};
 pub use self::connect::{BoxConnectorService, BoxedSocket, ConnectRequest, ConnectResponse};
 pub use self::frozen::{FrozenClientRequest, FrozenSendBuilder};
 pub use self::request::ClientRequest;
