@@ -69,7 +69,7 @@ __compress = []
 actix-codec = "0.4.0"
 actix-macros = "0.2.3"
 actix-rt = "2.4"
-actix-server = "2.0.0-beta.7"
+actix-server = "2.0.0-beta.8"
 actix-service = "2.0.0"
 actix-utils = "3.0.0"
 actix-tls = { version = "3.0.0-beta.7", default-features = false, optional = true }

@@ -4,7 +4,7 @@
 
 
 ## 3.0.0-beta.6 - 2021-11-05
-* Update actix-server to `2.0.0-beta.7`. [#2435]
+* Update actix-server to `2.0.0-beta.8`. [#2435]
 * Minimum supported Rust version (MSRV) is now 1.52.
 
 [#2435]: https://github.com/actix/actix-web/pull/2435
