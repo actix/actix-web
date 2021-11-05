@@ -26,10 +26,7 @@ use bytes::{Bytes, BytesMut};
 use derive_more::{Display, Error};
 use futures_core::Stream;
 use futures_util::stream::{once, StreamExt as _};
-use rustls::{
-    Certificate, OwnedTrustAnchor, PrivateKey, RootCertStore,
-    ServerConfig as RustlsServerConfig, ServerName,
-};
+use rustls::{Certificate, PrivateKey, ServerConfig as RustlsServerConfig, ServerName};
 use rustls_pemfile::{certs, pkcs8_private_keys};
 
 async fn load_body<S>(mut stream: S) -> Result<BytesMut, PayloadError>
@@ -81,21 +78,21 @@ pub fn get_negotiated_alpn_protocol(
 
     config.alpn_protocols.push(client_alpn_protocol.to_vec());
 
-    let mut sess = rustls::ClientConnection::new(
+    let mut session = rustls::ClientConnection::new(
         Arc::new(config),
         ServerName::try_from("localhost").unwrap(),
     )
     .unwrap();
 
     let mut sock = StdTcpStream::connect(addr).unwrap();
-    let mut stream = rustls::Stream::new(&mut sess, &mut sock);
+    let mut stream = rustls::Stream::new(&mut session, &mut sock);
 
     // The handshake will fails because the client will not be able to verify the server
-    // certificate, but it doesn't matter here as we are just interested in the negotiated ALPN
-    // protocol
+    // certificate, but it doesn't matter here as we are just interested in the negotiated
+    // ALPN protocol
     let _ = stream.flush();
 
-    sess.alpn_protocol().map(|proto| proto.to_vec())
+    session.alpn_protocol().map(|proto| proto.to_vec())
 }
 
 #[actix_rt::test]

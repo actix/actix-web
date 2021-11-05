@@ -68,8 +68,8 @@ __compress = []
 [dependencies]
 actix-codec = "0.4.0"
 actix-macros = "0.2.3"
-actix-rt = "2.2"
-actix-server = "2.0.0-beta.3"
+actix-rt = "2.4"
+actix-server = "2.0.0-beta.7"
 actix-service = "2.0.0"
 actix-utils = "3.0.0"
 actix-tls = { version = "3.0.0-beta.7", default-features = false, optional = true }
@@ -117,6 +117,7 @@ rcgen = "0.8"
 rustls-pemfile = "0.2"
 tls-openssl = { package = "openssl", version = "0.10.9" }
 tls-rustls = { package = "rustls", version = "0.20.0" }
+tokio = { version = "1.5.1", features = ["rt-multi-thread", "macros"] }
 zstd = "0.7"
 
 [profile.dev]

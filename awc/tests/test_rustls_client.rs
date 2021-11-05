@@ -19,8 +19,7 @@ use actix_utils::future::ok;
 use actix_web::{dev::AppConfig, http::Version, web, App, HttpResponse};
 use rustls::{
     client::{ServerCertVerified, ServerCertVerifier},
-    Certificate, ClientConfig, OwnedTrustAnchor, PrivateKey, RootCertStore, ServerConfig,
-    ServerName,
+    Certificate, ClientConfig, PrivateKey, ServerConfig, ServerName,
 };
 use rustls_pemfile::{certs, pkcs8_private_keys};
 
@@ -94,8 +93,8 @@ async fn test_connection_reuse_h2() {
         .with_root_certificates(webpki_roots_cert_store())
         .with_no_client_auth();
 
-    let protos = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
-    config.alpn_protocols = protos;
+    let protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+    config.alpn_protocols = protocols;
 
     // disable TLS verification
     config

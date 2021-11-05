@@ -16,7 +16,7 @@ async fn no_params() -> &'static str {
     "Hello world!\r\n"
 }
 
-#[actix_web::main]
+#[tokio::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 

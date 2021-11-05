@@ -159,7 +159,7 @@ where
     ///
     /// By default max connections is set to a 25k.
     pub fn max_connections(mut self, num: usize) -> Self {
-        self.builder = self.builder.maxconn(num);
+        self.builder = self.builder.max_concurrent_connections(num);
         self
     }
 

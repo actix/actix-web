@@ -506,7 +506,7 @@ impl TestServer {
 
     /// Gracefully stop HTTP server.
     pub async fn stop(self) {
-        self.server.stop(true).await;
+        self.server.handle().stop(true).await;
         self.system.stop();
         rt::time::sleep(time::Duration::from_millis(100)).await;
     }

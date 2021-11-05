@@ -61,7 +61,7 @@ async fn test_start() {
     }
 
     // stop
-    let _ = srv.stop(false);
+    let _ = srv.handle().stop(false);
 
     thread::sleep(Duration::from_millis(100));
     let _ = sys.stop();
@@ -88,8 +88,8 @@ fn ssl_acceptor() -> openssl::ssl::SslAcceptorBuilder {
     builder
 }
 
-#[actix_rt::test]
 #[cfg(feature = "openssl")]
+#[actix_rt::test]
 async fn test_start_ssl() {
     use actix_web::HttpRequest;
 
@@ -142,7 +142,8 @@ async fn test_start_ssl() {
     assert!(response.status().is_success());
 
     // stop
-    let _ = srv.stop(false);
+    let _ = srv.handle().stop(false);
+    let _ = srv.await;
 
     thread::sleep(Duration::from_millis(100));
     let _ = sys.stop();
