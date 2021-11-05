@@ -3,7 +3,7 @@
 ## Unreleased - 2021-xx-xx
 ### Changed
 * `ContentType::html` now returns `Content-Type: text/html; charset=utf-8` instead of `Content-Type: text/html`.
-
+* Updated `actix-codec` to v0.4.1 [#2436]
 
 ## 4.0.0-beta.10 - 2021-10-20
 ### Added

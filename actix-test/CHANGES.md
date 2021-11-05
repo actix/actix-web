@@ -1,7 +1,8 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
-
+* Updated `actix-codec` to v0.4.1 
+[#2436]: https://github.com/actix/actix-web/pull/2436
 
 ## 0.1.0-beta.5 - 2021-10-20
 * Updated rustls to v0.20. [#2414]

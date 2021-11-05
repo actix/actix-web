@@ -2,7 +2,8 @@
 
 ## Unreleased - 2021-xx-xx
 * Minimum supported Rust version (MSRV) is now 1.52.
-
+* Updated `actix-codec` to v0.4.1 
+[#2436]: https://github.com/actix/actix-web/pull/2436
 
 ## 4.0.0-beta.7 - 2021-09-09
 * Minimum supported Rust version (MSRV) is now 1.51.
