@@ -137,7 +137,7 @@ impl<T: ?Sized + 'static> FromRequest for Data<T> {
                 type_name::<T>(),
             );
             err(ErrorInternalServerError(
-                "App data is not configured, to configure use App::data()",
+                "App data is not configured, to configure construct it with web::Data::new() and pass it to App::app_data()",
             ))
         }
     }

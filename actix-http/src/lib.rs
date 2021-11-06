@@ -29,7 +29,6 @@ extern crate log;
 
 pub mod body;
 mod builder;
-pub mod client;
 mod config;
 
 #[cfg(feature = "__compress")]
