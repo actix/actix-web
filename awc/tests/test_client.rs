@@ -795,17 +795,15 @@ async fn client_unread_response() {
     let lst = std::net::TcpListener::bind(addr).unwrap();
 
     std::thread::spawn(move || {
-        for stream in lst.incoming() {
-            let mut stream = stream.unwrap();
-            let mut b = [0; 1000];
-            let _ = stream.read(&mut b).unwrap();
-            let _ = stream.write_all(
-                b"HTTP/1.1 200 OK\r\n\
+        let (mut stream, _) = lst.accept().unwrap();
+        let mut b = [0; 1000];
+        let _ = stream.read(&mut b).unwrap();
+        let _ = stream.write_all(
+            b"HTTP/1.1 200 OK\r\n\
                 connection: close\r\n\
                 \r\n\
                 welcome!",
-            );
-        }
+        );
     });
 
     // client request
