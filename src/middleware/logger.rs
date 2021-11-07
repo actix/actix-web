@@ -275,9 +275,7 @@ where
         };
 
         if let Some(error) = res.response().error() {
-            if res.response().head().status != StatusCode::INTERNAL_SERVER_ERROR {
-                debug!("Error in response: {:?}", error);
-            }
+            debug!("Error in response: {:?}", error);
         }
 
         if let Some(ref mut format) = this.format {
