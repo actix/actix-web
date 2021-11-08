@@ -279,7 +279,65 @@ where
         };
 
         let tls_service = match self.ssl {
-            SslConnector::None => None,
+            SslConnector::None => {
+                #[cfg(not(feature = "dangerous"))]
+                {
+                    None
+                }
+                #[cfg(feature = "dangerous")]
+                {
+                    /*
+                        With dangerous feature enabled Connector would use a NoOp Tls connection service that
+                        pass through plain TCP as Tls connection.
+
+                        The Protocol version of this fake Tls connection is set to be HTTP2.
+                    */
+
+                    impl IntoConnectionIo for TcpConnection<Uri, Box<dyn ConnectionIo>> {
+                        fn into_connection_io(self) -> (Box<dyn ConnectionIo>, Protocol) {
+                            let io = self.into_parts().0;
+                            (io, Protocol::Http2)
+                        }
+                    }
+
+                    #[derive(Clone)]
+                    struct NoOpTlsConnectorService;
+
+                    use actix_tls::connect::Connection;
+                    use std::{
+                        future::{ready, Ready},
+                        io,
+                    };
+
+                    impl<T, U> Service<Connection<T, U>> for NoOpTlsConnectorService
+                    where
+                        U: ActixStream + 'static,
+                    {
+                        type Response = Connection<T, Box<dyn ConnectionIo>>;
+                        type Error = io::Error;
+                        type Future = Ready<Result<Self::Response, Self::Error>>;
+
+                        actix_service::always_ready!();
+
+                        fn call(&self, connection: Connection<T, U>) -> Self::Future {
+                            let (io, connection) = connection.replace_io(());
+                            let (_, connection) = connection.replace_io(Box::new(io) as _);
+
+                            ready(Ok(connection))
+                        }
+                    }
+
+                    let handshake_timeout = self.config.handshake_timeout;
+
+                    let tls_service = TlsConnectorService {
+                        tcp_service: tcp_service_inner,
+                        tls_service: NoOpTlsConnectorService,
+                        timeout: handshake_timeout,
+                    };
+
+                    Some(actix_service::boxed::rc_service(tls_service))
+                }
+            }
             #[cfg(feature = "openssl")]
             SslConnector::Openssl(tls) => {
                 const H2: &[u8] = b"h2";
