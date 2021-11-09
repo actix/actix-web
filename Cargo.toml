@@ -66,7 +66,7 @@ rustls = ["actix-http/rustls", "actix-tls/accept", "actix-tls/rustls"]
 __compress = []
 
 # io-uring feature only avaiable for linux OS.
-io-uring = ["actix-rt/io-uring", "actix-server/io-uring"]
+io-uring = ["actix-server/io-uring"]
 
 [dependencies]
 actix-codec = "0.4.0"
