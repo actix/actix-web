@@ -22,7 +22,7 @@ use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 use crate::{
     dev::{BodySize, MessageBody},
-    http::{HeaderName, StatusCode},
+    http::HeaderName,
     service::{ServiceRequest, ServiceResponse},
     Error, HttpResponse, Result,
 };
@@ -275,9 +275,7 @@ where
         };
 
         if let Some(error) = res.response().error() {
-            if res.response().head().status != StatusCode::INTERNAL_SERVER_ERROR {
-                debug!("Error in response: {:?}", error);
-            }
+            debug!("Error in response: {:?}", error);
         }
 
         if let Some(ref mut format) = this.format {
