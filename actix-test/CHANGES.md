@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 0.1.0-beta.6 - 2021-11-15
 * No significant changes from `0.1.0-beta.5`.
 
 
