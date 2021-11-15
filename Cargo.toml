@@ -69,7 +69,7 @@ __compress = []
 actix-codec = "0.4.0"
 actix-macros = "0.2.3"
 actix-rt = "2.2"
-actix-server = "2.0.0-beta.3"
+actix-server = "2.0.0-beta.8"
 actix-service = "2.0.0"
 actix-utils = "3.0.0"
 actix-tls = { version = "3.0.0-beta.7", default-features = false, optional = true }
@@ -117,6 +117,7 @@ rcgen = "0.8"
 rustls-pemfile = "0.2"
 tls-openssl = { package = "openssl", version = "0.10.9" }
 tls-rustls = { package = "rustls", version = "0.20.0" }
+tokio = { version = "1.2", features = ["time"] }
 zstd = "0.7"
 
 [profile.dev]
@@ -139,6 +140,8 @@ actix-web = { path = "." }
 actix-web-actors = { path = "actix-web-actors" }
 actix-web-codegen = { path = "actix-web-codegen" }
 awc = { path = "awc" }
+
+actix-server = { path = "../actix-net/actix-server" }
 
 [[test]]
 name = "test_server"

@@ -30,7 +30,7 @@ serde = "1"
 [dev-dependencies]
 criterion = { version = "0.3", features = ["html_reports"] }
 firestorm = { version = "0.4", features = ["enable_system_time"] }
-http = "0.2.3"
+http = "0.2.5"
 serde = { version = "1", features = ["derive"] }
 
 [[bench]]

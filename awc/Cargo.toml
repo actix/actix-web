@@ -68,7 +68,7 @@ derive_more = "0.99.5"
 futures-core = { version = "0.3.7", default-features = false }
 futures-util = { version = "0.3.7", default-features = false }
 h2 = "0.3"
-http = "0.2"
+http = "0.2.5"
 itoa = "0.4"
 log =" 0.4"
 mime = "0.3"
@@ -92,7 +92,7 @@ actix-web = { version = "4.0.0-beta.10", features = ["openssl"] }
 actix-http = { version = "3.0.0-beta.11", features = ["openssl"] }
 actix-http-test = { version = "3.0.0-beta.5", features = ["openssl"] }
 actix-utils = "3.0.0"
-actix-server = "2.0.0-beta.3"
+actix-server = "2.0.0-beta.8"
 actix-tls = { version = "3.0.0-beta.7", features = ["openssl", "rustls"] }
 actix-test = { version = "0.1.0-beta.5", features = ["openssl", "rustls"] }
 

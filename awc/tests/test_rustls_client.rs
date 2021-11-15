@@ -19,8 +19,7 @@ use actix_utils::future::ok;
 use actix_web::{dev::AppConfig, http::Version, web, App, HttpResponse};
 use rustls::{
     client::{ServerCertVerified, ServerCertVerifier},
-    Certificate, ClientConfig, OwnedTrustAnchor, PrivateKey, RootCertStore, ServerConfig,
-    ServerName,
+    Certificate, ClientConfig, PrivateKey, ServerConfig, ServerName,
 };
 use rustls_pemfile::{certs, pkcs8_private_keys};
 

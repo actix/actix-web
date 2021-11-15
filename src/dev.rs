@@ -20,7 +20,7 @@ pub use actix_http::body::{AnyBody, Body, BodySize, MessageBody, ResponseBody, S
 pub use actix_http::encoding::Decoder as Decompress;
 pub use actix_http::{Extensions, Payload, PayloadStream, RequestHead, Response, ResponseHead};
 pub use actix_router::{Path, ResourceDef, ResourcePath, Url};
-pub use actix_server::Server;
+pub use actix_server::{Server, ServerHandle};
 pub use actix_service::{
     always_ready, fn_factory, fn_service, forward_ready, Service, ServiceFactory, Transform,
 };

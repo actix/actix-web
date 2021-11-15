@@ -57,7 +57,7 @@ encoding_rs = "0.8"
 futures-core = { version = "0.3.7", default-features = false, features = ["alloc"] }
 futures-util = { version = "0.3.7", default-features = false, features = ["alloc", "sink"] }
 h2 = "0.3.1"
-http = "0.2.2"
+http = "0.2.5"
 httparse = "1.5.1"
 httpdate = "1.0.1"
 itoa = "0.4"
@@ -82,7 +82,7 @@ flate2 = { version = "1.0.13", optional = true }
 zstd = { version = "0.7", optional = true }
 
 [dev-dependencies]
-actix-server = "2.0.0-beta.3"
+actix-server = "2.0.0-beta.8"
 actix-http-test = { version = "3.0.0-beta.5", features = ["openssl"] }
 actix-tls = { version = "3.0.0-beta.7", features = ["openssl"] }
 async-stream = "0.3"
@@ -95,6 +95,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tls-openssl = { package = "openssl", version = "0.10.9" }
 tls-rustls = { package = "rustls", version = "0.20.0" }
+tokio = { version = "1.2", features = ["sync", "rt-multi-thread", "macros"] }
 
 [[example]]
 name = "ws"

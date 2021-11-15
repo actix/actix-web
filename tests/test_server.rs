@@ -1030,6 +1030,8 @@ async fn test_normalize() {
 
     let response = srv.get("/one/").send().await.unwrap();
     assert!(response.status().is_success());
+
+    srv.stop().await
 }
 
 // allow deprecated App::data

@@ -13,7 +13,7 @@ async fn h2_ping_pong() -> io::Result<()> {
 
     let join = std::thread::spawn(move || {
         actix_rt::System::new().block_on(async move {
-            let handle = Server::build()
+            let srv = Server::build()
                 .disable_signals()
                 .workers(1)
                 .listen("h2_ping_pong", lst, || {
@@ -24,9 +24,9 @@ async fn h2_ping_pong() -> io::Result<()> {
                 })?
                 .run();
 
-            tx.send(handle.clone()).unwrap();
+            tx.send(srv.handle().clone()).unwrap();
 
-            handle.await
+            srv.await
         })
     });
 
