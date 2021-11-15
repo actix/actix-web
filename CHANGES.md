@@ -23,7 +23,7 @@
 ### Changed
 * Associated type `FromRequest::Config` was removed. [#2233]
 * Inner field made private on `web::Payload`. [#2384]
-* `Data::into_inner` and `Data::get_ref` no longer require T: Sized. [#2403]
+* `Data::into_inner` and `Data::get_ref` no longer requires `T: Sized`. [#2403]
 * Updated rustls to v0.20. [#2414]
 * Minimum supported Rust version (MSRV) is now 1.52.
 
