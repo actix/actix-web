@@ -8,6 +8,7 @@ use std::{any::Any, io, net::SocketAddr};
 
 use actix_web::{dev::Extensions, rt::net::TcpStream, web, App, HttpServer};
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 struct ConnectionInfo {
     bind: SocketAddr,

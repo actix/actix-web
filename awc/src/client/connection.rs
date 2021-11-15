@@ -173,6 +173,7 @@ impl H2ConnectionInner {
 /// Cancel spawned connection task on drop.
 impl Drop for H2ConnectionInner {
     fn drop(&mut self) {
+        // TODO: this can end up sending extraneous requests; see if there is a better way to handle
         if self
             .sender
             .send_request(http::Request::new(()), true)
@@ -183,8 +184,8 @@ impl Drop for H2ConnectionInner {
     }
 }
 
+/// Unified connection type cover HTTP/1 Plain/TLS and HTTP/2 protocols.
 #[allow(dead_code)]
-/// Unified connection type cover Http1 Plain/Tls and Http2 protocols
 pub enum Connection<A, B = Box<dyn ConnectionIo>>
 where
     A: ConnectionIo,
