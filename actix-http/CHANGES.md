@@ -1,11 +1,15 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Changed
+* Update `actix-server` to `2.0.0-beta.9`. [#2442]
+
 ### Removed
 * `client` module. [#2425]
 * `trust-dns` feature. [#2425]
 
 [#2425]: https://github.com/actix/actix-web/pull/2425
+[#2442]: https://github.com/actix/actix-web/pull/2442
 
 
 ## 3.0.0-beta.11 - 2021-10-20

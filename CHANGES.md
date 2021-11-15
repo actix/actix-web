@@ -1,8 +1,15 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+* Re-export `dev::ServerHandle` from `actix-server`. [#2442]
+
 ### Changed
-* `ContentType::html` now returns `Content-Type: text/html; charset=utf-8` instead of `Content-Type: text/html`.
+* `ContentType::html` now produces `text/html; charset=utf-8` instead of `text/html`. [#2423]
+* Update `actix-server` to `2.0.0-beta.9`. [#2442]
+
+[#2423]: https://github.com/actix/actix-web/pull/2423
+[#2442]: https://github.com/actix/actix-web/pull/2442
 
 
 ## 4.0.0-beta.10 - 2021-10-20
