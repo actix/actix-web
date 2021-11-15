@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 3.0.0-beta.12 - 2021-11-15
 ### Changed
 * Update `actix-server` to `2.0.0-beta.9`. [#2442]
 
