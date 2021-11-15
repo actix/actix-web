@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 3.0.0-beta.6 - 2021-11-15
 * `TestServer::stop` is now async and will wait for the server and system to shutdown. [#2442]
 * Update `actix-server` to `2.0.0-beta.9`. [#2442]
 * Minimum supported Rust version (MSRV) is now 1.52.
