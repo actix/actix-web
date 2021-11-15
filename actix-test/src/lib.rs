@@ -288,7 +288,7 @@ where
             .send((System::current(), srv.handle(), local_addr))
             .unwrap();
 
-        //
+        // drive server loop
         sys.block_on(srv).unwrap();
 
         // start system event loop
