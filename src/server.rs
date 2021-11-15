@@ -159,7 +159,7 @@ where
     ///
     /// By default max connections is set to a 25k.
     pub fn max_connections(mut self, num: usize) -> Self {
-        self.builder = self.builder.maxconn(num);
+        self.builder = self.builder.max_concurrent_connections(num);
         self
     }
 
@@ -233,7 +233,7 @@ where
         self
     }
 
-    /// Stop actix system.
+    /// Stop Actix `System` after server shutdown.
     pub fn system_exit(mut self) -> Self {
         self.builder = self.builder.system_exit();
         self

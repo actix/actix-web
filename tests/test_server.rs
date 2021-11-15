@@ -127,6 +127,8 @@ async fn test_body() {
     // read response
     let bytes = response.body().await.unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+
+    srv.stop().await;
 }
 
 #[actix_rt::test]
@@ -154,6 +156,8 @@ async fn test_body_gzip() {
     let mut dec = Vec::new();
     e.read_to_end(&mut dec).unwrap();
     assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
+
+    srv.stop().await;
 }
 
 #[actix_rt::test]
@@ -181,6 +185,8 @@ async fn test_body_gzip2() {
     let mut dec = Vec::new();
     e.read_to_end(&mut dec).unwrap();
     assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
+
+    srv.stop().await;
 }
 
 #[actix_rt::test]
@@ -241,6 +247,8 @@ async fn test_body_encoding_override() {
     e.write_all(bytes.as_ref()).unwrap();
     let dec = e.finish().unwrap();
     assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
+
+    srv.stop().await;
 }
 
 #[actix_rt::test]
@@ -275,6 +283,8 @@ async fn test_body_gzip_large() {
     let mut dec = Vec::new();
     e.read_to_end(&mut dec).unwrap();
     assert_eq!(Bytes::from(dec), Bytes::from(data));
+
+    srv.stop().await;
 }
 
 #[actix_rt::test]
@@ -314,6 +324,8 @@ async fn test_body_gzip_large_random() {
     e.read_to_end(&mut dec).unwrap();
     assert_eq!(dec.len(), data.len());
     assert_eq!(Bytes::from(dec), Bytes::from(data));
+
+    srv.stop().await;
 }
 
 #[actix_rt::test]
@@ -348,6 +360,8 @@ async fn test_body_chunked_implicit() {
     let mut dec = Vec::new();
     e.read_to_end(&mut dec).unwrap();
     assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
+
+    srv.stop().await;
 }
 
 #[actix_rt::test]
@@ -380,6 +394,8 @@ async fn test_body_br_streaming() {
     let dec = e.finish().unwrap();
     println!("T: {:?}", Bytes::copy_from_slice(&dec));
     assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
+
+    srv.stop().await;
 }
 
 #[actix_rt::test]
@@ -401,6 +417,8 @@ async fn test_head_binary() {
     // read response
     let bytes = response.body().await.unwrap();
     assert!(bytes.is_empty());
+
+    srv.stop().await;
 }
 
 #[actix_rt::test]
@@ -420,6 +438,8 @@ async fn test_no_chunking() {
     // read response
     let bytes = response.body().await.unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+
+    srv.stop().await;
 }
 
 #[actix_rt::test]
@@ -447,6 +467,8 @@ async fn test_body_deflate() {
     e.write_all(bytes.as_ref()).unwrap();
     let dec = e.finish().unwrap();
     assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
+
+    srv.stop().await;
 }
 
 #[actix_rt::test]
@@ -475,6 +497,8 @@ async fn test_body_brotli() {
     e.write_all(bytes.as_ref()).unwrap();
     let dec = e.finish().unwrap();
     assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
+
+    srv.stop().await;
 }
 
 #[actix_rt::test]
@@ -503,6 +527,8 @@ async fn test_body_zstd() {
     let mut dec = Vec::new();
     e.read_to_end(&mut dec).unwrap();
     assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
+
+    srv.stop().await;
 }
 
 #[actix_rt::test]
@@ -534,6 +560,8 @@ async fn test_body_zstd_streaming() {
     let mut dec = Vec::new();
     e.read_to_end(&mut dec).unwrap();
     assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
+
+    srv.stop().await;
 }
 
 #[actix_rt::test]
@@ -559,6 +587,8 @@ async fn test_zstd_encoding() {
     // read response
     let bytes = response.body().await.unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+
+    srv.stop().await;
 }
 
 #[actix_rt::test]
@@ -594,6 +624,8 @@ async fn test_zstd_encoding_large() {
     // read response
     let bytes = response.body().limit(320_000).await.unwrap();
     assert_eq!(bytes, Bytes::from(data));
+
+    srv.stop().await;
 }
 
 #[actix_rt::test]
@@ -619,6 +651,8 @@ async fn test_encoding() {
     // read response
     let bytes = response.body().await.unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+
+    srv.stop().await;
 }
 
 #[actix_rt::test]
@@ -644,6 +678,8 @@ async fn test_gzip_encoding() {
     // read response
     let bytes = response.body().await.unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+
+    srv.stop().await;
 }
 
 #[actix_rt::test]
@@ -670,6 +706,8 @@ async fn test_gzip_encoding_large() {
     // read response
     let bytes = response.body().await.unwrap();
     assert_eq!(bytes, Bytes::from(data));
+
+    srv.stop().await;
 }
 
 #[actix_rt::test]
@@ -702,6 +740,8 @@ async fn test_reading_gzip_encoding_large_random() {
     let bytes = response.body().await.unwrap();
     assert_eq!(bytes.len(), data.len());
     assert_eq!(bytes, Bytes::from(data));
+
+    srv.stop().await;
 }
 
 #[actix_rt::test]
@@ -727,6 +767,8 @@ async fn test_reading_deflate_encoding() {
     // read response
     let bytes = response.body().await.unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+
+    srv.stop().await;
 }
 
 #[actix_rt::test]
@@ -753,6 +795,8 @@ async fn test_reading_deflate_encoding_large() {
     // read response
     let bytes = response.body().await.unwrap();
     assert_eq!(bytes, Bytes::from(data));
+
+    srv.stop().await;
 }
 
 #[actix_rt::test]
@@ -785,6 +829,8 @@ async fn test_reading_deflate_encoding_large_random() {
     let bytes = response.body().await.unwrap();
     assert_eq!(bytes.len(), data.len());
     assert_eq!(bytes, Bytes::from(data));
+
+    srv.stop().await;
 }
 
 #[actix_rt::test]
@@ -810,6 +856,8 @@ async fn test_brotli_encoding() {
     // read response
     let bytes = response.body().await.unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+
+    srv.stop().await;
 }
 
 #[actix_rt::test]
@@ -845,6 +893,8 @@ async fn test_brotli_encoding_large() {
     // read response
     let bytes = response.body().limit(320_000).await.unwrap();
     assert_eq!(bytes, Bytes::from(data));
+
+    srv.stop().await;
 }
 
 #[cfg(feature = "openssl")]
@@ -861,9 +911,9 @@ async fn test_brotli_encoding_large_openssl() {
         });
 
     // body
-    let mut e = BrotliEncoder::new(Vec::new(), 3);
-    e.write_all(data.as_ref()).unwrap();
-    let enc = e.finish().unwrap();
+    let mut enc = BrotliEncoder::new(Vec::new(), 3);
+    enc.write_all(data.as_ref()).unwrap();
+    let enc = enc.finish().unwrap();
 
     // client request
     let mut response = srv
@@ -877,6 +927,8 @@ async fn test_brotli_encoding_large_openssl() {
     // read response
     let bytes = response.body().await.unwrap();
     assert_eq!(bytes, Bytes::from(data));
+
+    srv.stop().await;
 }
 
 #[cfg(feature = "rustls")]
@@ -944,6 +996,8 @@ mod plus_rustls {
         let bytes = response.body().await.unwrap();
         assert_eq!(bytes.len(), data.len());
         assert_eq!(bytes, Bytes::from(data));
+
+        srv.stop().await;
     }
 }
 
@@ -998,6 +1052,8 @@ async fn test_server_cookies() {
         assert_eq!(cookies[0], second_cookie);
         assert_eq!(cookies[1], first_cookie);
     }
+
+    srv.stop().await;
 }
 
 #[actix_rt::test]
@@ -1018,6 +1074,8 @@ async fn test_slow_request() {
     let mut data = String::new();
     let _ = stream.read_to_string(&mut data);
     assert!(data.starts_with("HTTP/1.1 408 Request Timeout"));
+
+    srv.stop().await;
 }
 
 #[actix_rt::test]
@@ -1030,6 +1088,8 @@ async fn test_normalize() {
 
     let response = srv.get("/one/").send().await.unwrap();
     assert!(response.status().is_success());
+
+    srv.stop().await
 }
 
 // allow deprecated App::data
@@ -1099,4 +1159,6 @@ async fn test_accept_encoding_no_match() {
         .unwrap();
 
     assert_eq!(response.status().as_u16(), 406);
+
+    srv.stop().await;
 }

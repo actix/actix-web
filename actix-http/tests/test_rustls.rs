@@ -26,10 +26,7 @@ use bytes::{Bytes, BytesMut};
 use derive_more::{Display, Error};
 use futures_core::Stream;
 use futures_util::stream::{once, StreamExt as _};
-use rustls::{
-    Certificate, OwnedTrustAnchor, PrivateKey, RootCertStore,
-    ServerConfig as RustlsServerConfig, ServerName,
-};
+use rustls::{Certificate, PrivateKey, ServerConfig as RustlsServerConfig, ServerName};
 use rustls_pemfile::{certs, pkcs8_private_keys};
 
 async fn load_body<S>(mut stream: S) -> Result<BytesMut, PayloadError>

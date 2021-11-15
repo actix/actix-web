@@ -31,7 +31,7 @@ extern crate tls_openssl as openssl;
 #[cfg(feature = "rustls")]
 extern crate tls_rustls as rustls;
 
-use std::{error::Error as StdError, fmt, net, sync::mpsc, thread, time};
+use std::{error::Error as StdError, fmt, net, thread, time::Duration};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 pub use actix_http::test::TestBuffer;
@@ -41,8 +41,9 @@ use actix_http::{
 };
 use actix_service::{map_config, IntoServiceFactory, ServiceFactory, ServiceFactoryExt as _};
 use actix_web::{
-    dev::{AppConfig, MessageBody, Server, Service},
-    rt, web, Error,
+    dev::{AppConfig, MessageBody, Server, ServerHandle, Service},
+    rt::{self, System},
+    web, Error,
 };
 use awc::{error::PayloadError, Client, ClientRequest, ClientResponse, Connector};
 use futures_core::Stream;
@@ -52,6 +53,7 @@ pub use actix_web::test::{
     call_service, default_service, init_service, load_stream, ok_service, read_body,
     read_body_json, read_response, read_response_json, TestRequest,
 };
+use tokio::sync::mpsc;
 
 /// Start default [`TestServer`].
 ///
@@ -128,7 +130,11 @@ where
     B: MessageBody + 'static,
     B::Error: Into<Box<dyn StdError>>,
 {
-    let (tx, rx) = mpsc::channel();
+    // for sending handles and server info back from the spawned thread
+    let (started_tx, started_rx) = std::sync::mpsc::channel();
+
+    // for signaling the shutdown of spawned server and system
+    let (thread_stop_tx, thread_stop_rx) = mpsc::channel(1);
 
     let tls = match cfg.stream {
         StreamType::Tcp => false,
@@ -138,7 +144,7 @@ where
         StreamType::Rustls(_) => true,
     };
 
-    // run server in separate thread
+    // run server in separate orphaned thread
     thread::spawn(move || {
         let sys = rt::System::new();
         let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -146,7 +152,7 @@ where
         let factory = factory.clone();
         let srv_cfg = cfg.clone();
         let timeout = cfg.client_timeout;
-        let builder = Server::build().workers(1).disable_signals();
+        let builder = Server::build().workers(1).disable_signals().system_exit();
 
         let srv = match srv_cfg.stream {
             StreamType::Tcp => match srv_cfg.tp {
@@ -275,17 +281,25 @@ where
                 }),
             },
         }
-        .unwrap();
+        .expect("test server could not be created");
 
-        sys.block_on(async {
-            let srv = srv.run();
-            tx.send((rt::System::current(), srv, local_addr)).unwrap();
-        });
+        let srv = srv.run();
+        started_tx
+            .send((System::current(), srv.handle(), local_addr))
+            .unwrap();
 
-        sys.run()
+        // drive server loop
+        sys.block_on(srv).unwrap();
+
+        // start system event loop
+        sys.run().unwrap();
+
+        // notify TestServer that server and system have shut down
+        // all thread managed resources should be dropped at this point
+        let _ = thread_stop_tx.send(());
     });
 
-    let (system, server, addr) = rx.recv().unwrap();
+    let (system, server, addr) = started_rx.recv().unwrap();
 
     let client = {
         let connector = {
@@ -299,15 +313,15 @@ where
                     .set_alpn_protos(b"\x02h2\x08http/1.1")
                     .map_err(|e| log::error!("Can not set alpn protocol: {:?}", e));
                 Connector::new()
-                    .conn_lifetime(time::Duration::from_secs(0))
-                    .timeout(time::Duration::from_millis(30000))
+                    .conn_lifetime(Duration::from_secs(0))
+                    .timeout(Duration::from_millis(30000))
                     .ssl(builder.build())
             }
             #[cfg(not(feature = "openssl"))]
             {
                 Connector::new()
-                    .conn_lifetime(time::Duration::from_secs(0))
-                    .timeout(time::Duration::from_millis(30000))
+                    .conn_lifetime(Duration::from_secs(0))
+                    .timeout(Duration::from_millis(30000))
             }
         };
 
@@ -315,11 +329,12 @@ where
     };
 
     TestServer {
-        addr,
+        server,
+        thread_stop_rx,
         client,
         system,
+        addr,
         tls,
-        server,
     }
 }
 
@@ -405,11 +420,12 @@ impl TestServerConfig {
 ///
 /// See [`start`] for usage example.
 pub struct TestServer {
-    addr: net::SocketAddr,
+    server: ServerHandle,
+    thread_stop_rx: mpsc::Receiver<()>,
     client: awc::Client,
     system: rt::System,
+    addr: net::SocketAddr,
     tls: bool,
-    server: Server,
 }
 
 impl TestServer {
@@ -505,15 +521,30 @@ impl TestServer {
     }
 
     /// Gracefully stop HTTP server.
-    pub async fn stop(self) {
+    ///
+    /// Waits for spawned `Server` and `System` to shutdown gracefully.
+    pub async fn stop(mut self) {
+        // signal server to stop
         self.server.stop(true).await;
+
+        // also signal system to stop
+        // though this is handled by `ServerBuilder::exit_system` too
         self.system.stop();
-        rt::time::sleep(time::Duration::from_millis(100)).await;
+
+        // wait for thread to be stopped but don't care about result
+        let _ = self.thread_stop_rx.recv().await;
     }
 }
 
 impl Drop for TestServer {
     fn drop(&mut self) {
-        self.system.stop()
+        // calls in this Drop impl should be enough to shut down the server, system, and thread
+        // without needing to await anything
+
+        // signal server to stop
+        let _ = self.server.stop(true);
+
+        // signal system to stop
+        self.system.stop();
     }
 }

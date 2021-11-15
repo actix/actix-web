@@ -3,6 +3,9 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 3.0.0-beta.10 - 2021-11-15
+
+
 ## 3.0.0-beta.9 - 2021-10-20
 * Updated rustls to v0.20. [#2414]
 
