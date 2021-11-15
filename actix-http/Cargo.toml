@@ -71,7 +71,6 @@ pin-project-lite = "0.2"
 rand = "0.8"
 sha-1 = "0.9"
 smallvec = "1.6.1"
-tokio = { version = "1.2", features = ["sync"] }
 
 # tls
 actix-tls = { version = "3.0.0-beta.7", default-features = false, optional = true }
@@ -95,7 +94,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tls-openssl = { package = "openssl", version = "0.10.9" }
 tls-rustls = { package = "rustls", version = "0.20.0" }
-tokio = { version = "1.2", features = ["sync", "rt-multi-thread", "macros"] }
+tokio = { version = "1.2", features = ["net", "rt"] }
 
 [[example]]
 name = "ws"

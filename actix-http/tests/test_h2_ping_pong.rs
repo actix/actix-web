@@ -24,7 +24,7 @@ async fn h2_ping_pong() -> io::Result<()> {
                 })?
                 .run();
 
-            tx.send(srv.handle().clone()).unwrap();
+            tx.send(srv.handle()).unwrap();
 
             srv.await
         })

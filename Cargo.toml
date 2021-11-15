@@ -117,7 +117,6 @@ rcgen = "0.8"
 rustls-pemfile = "0.2"
 tls-openssl = { package = "openssl", version = "0.10.9" }
 tls-rustls = { package = "rustls", version = "0.20.0" }
-tokio = { version = "1.2", features = ["time"] }
 zstd = "0.7"
 
 [profile.dev]
