@@ -117,7 +117,7 @@ rcgen = "0.8"
 rustls-pemfile = "0.2"
 tls-openssl = { package = "openssl", version = "0.10.9" }
 tls-rustls = { package = "rustls", version = "0.20.0" }
-zstd = "0.7"
+zstd = "0.9"
 
 [profile.dev]
 # Disabling debug info speeds up builds a bunch and we don't rely on it for debugging that much.

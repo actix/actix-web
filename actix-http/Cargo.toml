@@ -78,7 +78,7 @@ actix-tls = { version = "3.0.0-beta.7", default-features = false, optional = tru
 # compression
 brotli2 = { version="0.3.2", optional = true }
 flate2 = { version = "1.0.13", optional = true }
-zstd = { version = "0.7", optional = true }
+zstd = { version = "0.9", optional = true }
 
 [dev-dependencies]
 actix-server = "2.0.0-beta.9"
