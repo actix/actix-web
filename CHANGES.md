@@ -1,6 +1,10 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Fixed
+* Relax `Unpin` bound on `S` (stream) parameter of `HttpResponseBuilder::streaming`. [#????]
+
+[#2423]: https://github.com/actix/actix-web/pull/2423
 
 
 ## 4.0.0-beta.11 - 2021-11-15

@@ -108,10 +108,10 @@ mod tests {
         assert_eq!(Body::from(b"test".as_ref()).size(), BodySize::Sized(4));
         assert_eq!(Body::from(b"test".as_ref()).get_ref(), b"test");
         assert_eq!(
-            Body::from_slice(b"test".as_ref()).size(),
+            Body::copy_from_slice(b"test".as_ref()).size(),
             BodySize::Sized(4)
         );
-        assert_eq!(Body::from_slice(b"test".as_ref()).get_ref(), b"test");
+        assert_eq!(Body::copy_from_slice(b"test".as_ref()).get_ref(), b"test");
         let sb = Bytes::from(&b"test"[..]);
         pin!(sb);
 

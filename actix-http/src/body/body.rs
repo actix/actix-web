@@ -17,15 +17,15 @@ pub type Body = AnyBody;
 
 /// Represents various types of HTTP message body.
 #[derive(Clone)]
-pub enum AnyBody<S = BoxBody> {
+pub enum AnyBody<B = BoxBody> {
     /// Empty response. `Content-Length` header is not set.
     None,
 
     /// Specific response body.
     Bytes(Bytes),
 
-    /// Generic message body.
-    Stream(S),
+    /// Generic / Other message body.
+    Body(B),
 }
 
 impl AnyBody {
@@ -40,10 +40,18 @@ impl AnyBody {
         B: MessageBody + 'static,
         B::Error: Into<Box<dyn StdError + 'static>>,
     {
-        Self::Stream(BoxBody::from_body(body))
+        Self::Body(BoxBody::from_body(body))
     }
 
-    /// Create body from slice (copy)
+    /// Constructs new `AnyBody` instance from a slice of bytes by copying it.
+    ///
+    /// If your bytes container is owned, it may be cheaper to use a `From` impl.
+    pub fn copy_from_slice(s: &[u8]) -> Self {
+        Self::Bytes(Bytes::copy_from_slice(s))
+    }
+
+    #[doc(hidden)]
+    #[deprecated(since = "4.0.0", note = "Renamed to `copy_from_slice`.")]
     pub fn from_slice(s: &[u8]) -> Self {
         Self::Bytes(Bytes::copy_from_slice(s))
     }
@@ -56,22 +64,22 @@ where
 {
     /// Create body from generic message body.
     pub fn new(body: B) -> Self {
-        Self::Stream(body)
+        Self::Body(body)
     }
 
     pub fn into_boxed(self) -> AnyBody {
         match self {
             AnyBody::None => AnyBody::new_boxed(()),
             AnyBody::Bytes(body) => AnyBody::new_boxed(body),
-            AnyBody::Stream(body) => AnyBody::new_boxed(body),
+            AnyBody::Body(body) => AnyBody::new_boxed(body),
         }
     }
 }
 
-impl<S> MessageBody for AnyBody<S>
+impl<B> MessageBody for AnyBody<B>
 where
-    S: MessageBody + Unpin,
-    S::Error: StdError + 'static,
+    B: MessageBody + Unpin,
+    B::Error: StdError + 'static,
 {
     type Error = Error;
 
@@ -79,7 +87,7 @@ where
         match self {
             AnyBody::None => BodySize::None,
             AnyBody::Bytes(ref bin) => BodySize::Sized(bin.len() as u64),
-            AnyBody::Stream(ref body) => body.size(),
+            AnyBody::Body(ref body) => body.size(),
         }
     }
 
@@ -98,7 +106,7 @@ where
                 }
             }
 
-            AnyBody::Stream(body) => Pin::new(body)
+            AnyBody::Body(body) => Pin::new(body)
                 .poll_next(cx)
                 .map_err(|err| Error::new_body().with_cause(err)),
         }
@@ -113,7 +121,7 @@ impl PartialEq for AnyBody {
                 AnyBody::Bytes(ref b2) => b == b2,
                 _ => false,
             },
-            AnyBody::Stream(_) => false,
+            AnyBody::Body(_) => false,
         }
     }
 }
@@ -123,7 +131,7 @@ impl<S: fmt::Debug> fmt::Debug for AnyBody<S> {
         match *self {
             AnyBody::None => write!(f, "AnyBody::None"),
             AnyBody::Bytes(ref bytes) => write!(f, "AnyBody::Bytes({:?})", bytes),
-            AnyBody::Stream(ref stream) => write!(f, "AnyBody::Message({:?})", stream),
+            AnyBody::Body(ref stream) => write!(f, "AnyBody::Message({:?})", stream),
         }
     }
 }
@@ -252,12 +260,25 @@ mod tests {
     use static_assertions::{assert_impl_all, assert_not_impl_all};
 
     use super::*;
+    use crate::body::to_bytes;
 
     assert_impl_all!(AnyBody<()>: MessageBody, fmt::Debug, Send, Sync);
+    assert_impl_all!(AnyBody<AnyBody<()>>: MessageBody, fmt::Debug, Send, Sync);
     assert_impl_all!(AnyBody<Bytes>: MessageBody, fmt::Debug, Send, Sync);
     assert_impl_all!(AnyBody: MessageBody, fmt::Debug);
     assert_impl_all!(BoxBody: MessageBody, fmt::Debug);
 
     assert_not_impl_all!(AnyBody: Send, Sync);
     assert_not_impl_all!(BoxBody: Send, Sync);
+
+    #[actix_rt::test]
+    async fn nested_boxed_body() {
+        let body = AnyBody::copy_from_slice(&[1, 2, 3]);
+        let boxed_body = BoxBody::from_body(BoxBody::from_body(body));
+
+        assert_eq!(
+            to_bytes(boxed_body).await.unwrap(),
+            Bytes::from(vec![1, 2, 3]),
+        );
+    }
 }

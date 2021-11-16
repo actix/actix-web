@@ -68,7 +68,7 @@ impl<B: MessageBody> Encoder<B> {
                         return ResponseBody::Other(Body::Bytes(buf));
                     }
                 }
-                Body::Stream(stream) => EncoderBody::BoxedStream(stream),
+                Body::Body(stream) => EncoderBody::BoxedStream(stream),
             },
             ResponseBody::Body(stream) => EncoderBody::Stream(stream),
         };
