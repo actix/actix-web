@@ -33,7 +33,7 @@ pub use self::sized_stream::SizedStream;
 /// use bytes::Bytes;
 ///
 /// # async fn test_to_bytes() {
-/// let body = Body::Empty;
+/// let body = Body::None;
 /// let bytes = to_bytes(body).await.unwrap();
 /// assert!(bytes.is_empty());
 ///

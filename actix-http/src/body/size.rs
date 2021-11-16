@@ -25,7 +25,6 @@ impl BodySize {
     /// ```
     /// # use actix_http::body::BodySize;
     /// assert!(BodySize::None.is_eof());
-    /// assert!(BodySize::Empty.is_eof());
     /// assert!(BodySize::Sized(0).is_eof());
     ///
     /// assert!(!BodySize::Sized(64).is_eof());

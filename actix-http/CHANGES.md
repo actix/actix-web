@@ -2,16 +2,16 @@
 
 ## Unreleased - 2021-xx-xx
 ### Added
-* `AnyBody::empty` for quickly creating an empty body. [???]
+* `AnyBody::empty` for quickly creating an empty body. [#2446]
 
 ### Changed
-* Rename `AnyBody::{Message => Stream}`. [#????]
+* Rename `AnyBody::{Message => Stream}`. [#2446]
 
 ### Removed
-* `AnyBody::Empty`; an empty body can now only be represented as a zero-length `Bytes` variant. [#????]
-* `BodySize::Empty`; an empty body can now only be represented as a `Sized(0)` variant. [#????]
+* `AnyBody::Empty`; an empty body can now only be represented as a zero-length `Bytes` variant. [#2446]
+* `BodySize::Empty`; an empty body can now only be represented as a `Sized(0)` variant. [#2446]
 
-[#????]: https://github.com/actix/actix-web/pull/????
+[#2446]: https://github.com/actix/actix-web/pull/2446
 
 
 ## 3.0.0-beta.12 - 2021-11-15
