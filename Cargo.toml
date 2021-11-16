@@ -66,7 +66,7 @@ rustls = ["actix-http/rustls", "actix-tls/accept", "actix-tls/rustls"]
 __compress = []
 
 [dependencies]
-actix-codec = "0.4.0"
+actix-codec = "0.4.1"
 actix-macros = "0.2.3"
 actix-rt = "2.2"
 actix-server = "2.0.0-beta.9"
