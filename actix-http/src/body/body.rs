@@ -69,9 +69,9 @@ where
 
     pub fn into_boxed(self) -> AnyBody {
         match self {
-            AnyBody::None => AnyBody::new_boxed(()),
-            AnyBody::Bytes(body) => AnyBody::new_boxed(body),
-            AnyBody::Body(body) => AnyBody::new_boxed(body),
+            Self::None => AnyBody::None,
+            Self::Bytes(bytes) => AnyBody::Bytes(bytes),
+            Self::Body(body) => AnyBody::new_boxed(body),
         }
     }
 }
