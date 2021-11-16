@@ -325,7 +325,7 @@ where
     ) -> Result<(), DispatchError> {
         let size = self.as_mut().send_response_inner(message, &body)?;
         let state = match size {
-            BodySize::None | BodySize::Empty => State::None,
+            BodySize::None | BodySize::Sized(0) => State::None,
             _ => State::SendPayload(body),
         };
         self.project().state.set(state);
@@ -339,7 +339,7 @@ where
     ) -> Result<(), DispatchError> {
         let size = self.as_mut().send_response_inner(message, &body)?;
         let state = match size {
-            BodySize::None | BodySize::Empty => State::None,
+            BodySize::None | BodySize::Sized(0) => State::None,
             _ => State::SendErrorPayload(body),
         };
         self.project().state.set(state);

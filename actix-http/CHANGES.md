@@ -9,6 +9,7 @@
 
 ### Removed
 * `AnyBody::Empty`; an empty body can now only be represented as a zero-length `Bytes` variant. [#????]
+* `BodySize::Empty`; an empty body can now only be represented as a `Sized(0)` variant. [#????]
 
 [#????]: https://github.com/actix/actix-web/pull/????
 

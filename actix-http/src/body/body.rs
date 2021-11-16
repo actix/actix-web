@@ -54,7 +54,6 @@ impl MessageBody for AnyBody {
     fn size(&self) -> BodySize {
         match self {
             AnyBody::None => BodySize::None,
-            AnyBody::Bytes(ref bin) if bin.is_empty() => BodySize::Empty,
             AnyBody::Bytes(ref bin) => BodySize::Sized(bin.len() as u64),
             AnyBody::Stream(ref body) => body.size(),
         }

@@ -285,9 +285,11 @@ fn prepare_response(
 
     let _ = match size {
         BodySize::None | BodySize::Stream => None,
-        BodySize::Empty => res
+
+        BodySize::Sized(0) => res
             .headers_mut()
             .insert(CONTENT_LENGTH, HeaderValue::from_static("0")),
+
         BodySize::Sized(len) => {
             let mut buf = itoa::Buffer::new();
 
