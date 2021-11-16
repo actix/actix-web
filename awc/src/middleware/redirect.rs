@@ -194,7 +194,7 @@ where
                             match body {
                                 Some(ref bytes) => Body::Bytes(bytes.clone()),
                                 // TODO: should this be Body::Empty or Body::None.
-                                _ => Body::Empty,
+                                _ => Body::empty(),
                             }
                         } else {
                             body = None;

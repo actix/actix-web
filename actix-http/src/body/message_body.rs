@@ -31,7 +31,7 @@ impl MessageBody for () {
     type Error = Infallible;
 
     fn size(&self) -> BodySize {
-        BodySize::Empty
+        BodySize::Sized(0)
     }
 
     fn poll_next(

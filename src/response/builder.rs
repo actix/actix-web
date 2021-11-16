@@ -387,7 +387,7 @@ impl HttpResponseBuilder {
     /// `HttpResponseBuilder` can not be used after this call.
     #[inline]
     pub fn finish(&mut self) -> HttpResponse {
-        self.body(AnyBody::Empty)
+        self.body(AnyBody::empty())
     }
 
     /// This method construct new `HttpResponseBuilder`
@@ -475,7 +475,7 @@ mod tests {
     fn test_content_type() {
         let resp = HttpResponseBuilder::new(StatusCode::OK)
             .content_type("text/plain")
-            .body(Body::Empty);
+            .body(Body::empty());
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "text/plain")
     }
 

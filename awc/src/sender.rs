@@ -297,7 +297,7 @@ impl RequestSender {
         timeout: Option<Duration>,
         config: &ClientConfig,
     ) -> SendClientRequest {
-        self.send_body(addr, response_decompress, timeout, config, Body::Empty)
+        self.send_body(addr, response_decompress, timeout, config, Body::empty())
     }
 
     fn set_header_if_none<V>(&mut self, key: HeaderName, value: V) -> Result<(), HttpError>

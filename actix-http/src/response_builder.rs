@@ -270,7 +270,7 @@ impl ResponseBuilder {
     /// This `ResponseBuilder` will be left in a useless state.
     #[inline]
     pub fn finish(&mut self) -> Response<AnyBody> {
-        self.body(AnyBody::Empty)
+        self.body(AnyBody::empty())
     }
 
     /// Create an owned `ResponseBuilder`, leaving the original in a useless state.
@@ -390,7 +390,7 @@ mod tests {
     fn test_content_type() {
         let resp = Response::build(StatusCode::OK)
             .content_type("text/plain")
-            .body(Body::Empty);
+            .body(Body::empty());
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "text/plain")
     }
 

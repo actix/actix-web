@@ -93,13 +93,10 @@ pub(crate) trait MessageType: Sized {
                     dst.put_slice(b"\r\n");
                 }
             }
-            BodySize::Empty => {
-                if camel_case {
-                    dst.put_slice(b"\r\nContent-Length: 0\r\n");
-                } else {
-                    dst.put_slice(b"\r\ncontent-length: 0\r\n");
-                }
+            BodySize::Sized(0) if camel_case => {
+                dst.put_slice(b"\r\nContent-Length: 0\r\n")
             }
+            BodySize::Sized(0) => dst.put_slice(b"\r\ncontent-length: 0\r\n"),
             BodySize::Sized(len) => helpers::write_content_length(len, dst),
             BodySize::None => dst.put_slice(b"\r\n"),
         }
@@ -336,7 +333,7 @@ impl<T: MessageType> MessageEncoder<T> {
         // transfer encoding
         if !head {
             self.te = match length {
-                BodySize::Empty => TransferEncoding::empty(),
+                BodySize::Sized(0) => TransferEncoding::empty(),
                 BodySize::Sized(len) => TransferEncoding::length(len),
                 BodySize::Stream => {
                     if message.chunked() && !stream {
@@ -553,7 +550,7 @@ mod tests {
         let _ = head.encode_headers(
             &mut bytes,
             Version::HTTP_11,
-            BodySize::Empty,
+            BodySize::Sized(0),
             ConnectionType::Close,
             &ServiceConfig::default(),
         );
@@ -624,7 +621,7 @@ mod tests {
         let _ = head.encode_headers(
             &mut bytes,
             Version::HTTP_11,
-            BodySize::Empty,
+            BodySize::Sized(0),
             ConnectionType::Close,
             &ServiceConfig::default(),
         );

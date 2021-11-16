@@ -33,7 +33,7 @@ pub use self::sized_stream::SizedStream;
 /// use bytes::Bytes;
 ///
 /// # async fn test_to_bytes() {
-/// let body = Body::Empty;
+/// let body = Body::None;
 /// let bytes = to_bytes(body).await.unwrap();
 /// assert!(bytes.is_empty());
 ///
@@ -44,8 +44,9 @@ pub use self::sized_stream::SizedStream;
 /// ```
 pub async fn to_bytes<B: MessageBody>(body: B) -> Result<Bytes, B::Error> {
     let cap = match body.size() {
-        BodySize::None | BodySize::Empty | BodySize::Sized(0) => return Ok(Bytes::new()),
+        BodySize::None | BodySize::Sized(0) => return Ok(Bytes::new()),
         BodySize::Sized(size) => size as usize,
+        // good enough first guess for chunk size
         BodySize::Stream => 32_768,
     };
 
@@ -184,7 +185,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_unit() {
-        assert_eq!(().size(), BodySize::Empty);
+        assert_eq!(().size(), BodySize::Sized(0));
         assert!(poll_fn(|cx| Pin::new(&mut ()).poll_next(cx))
             .await
             .is_none());
@@ -194,11 +195,11 @@ mod tests {
     async fn test_box_and_pin() {
         let val = Box::new(());
         pin!(val);
-        assert_eq!(val.size(), BodySize::Empty);
+        assert_eq!(val.size(), BodySize::Sized(0));
         assert!(poll_fn(|cx| val.as_mut().poll_next(cx)).await.is_none());
 
         let mut val = Box::pin(());
-        assert_eq!(val.size(), BodySize::Empty);
+        assert_eq!(val.size(), BodySize::Sized(0));
         assert!(poll_fn(|cx| val.as_mut().poll_next(cx)).await.is_none());
     }
 
@@ -214,7 +215,6 @@ mod tests {
     #[actix_rt::test]
     async fn test_body_debug() {
         assert!(format!("{:?}", Body::None).contains("Body::None"));
-        assert!(format!("{:?}", Body::Empty).contains("Body::Empty"));
         assert!(format!("{:?}", Body::Bytes(Bytes::from_static(b"1"))).contains('1'));
     }
 
@@ -252,7 +252,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_to_bytes() {
-        let body = Body::Empty;
+        let body = Body::empty();
         let bytes = to_bytes(body).await.unwrap();
         assert!(bytes.is_empty());
 
