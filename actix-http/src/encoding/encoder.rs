@@ -24,7 +24,7 @@ use flate2::write::{GzEncoder, ZlibEncoder};
 use zstd::stream::write::Encoder as ZstdEncoder;
 
 use crate::{
-    body::{Body, BodySize, BoxAnyBody, MessageBody, ResponseBody},
+    body::{AnyBody, BodySize, MessageBody},
     http::{
         header::{ContentEncoding, CONTENT_ENCODING},
         HeaderValue, StatusCode,
@@ -50,8 +50,8 @@ impl<B: MessageBody> Encoder<B> {
     pub fn response(
         encoding: ContentEncoding,
         head: &mut ResponseHead,
-        body: ResponseBody<B>,
-    ) -> ResponseBody<Encoder<B>> {
+        body: AnyBody<B>,
+    ) -> AnyBody<Encoder<B>> {
         let can_encode = !(head.headers().contains_key(&CONTENT_ENCODING)
             || head.status == StatusCode::SWITCHING_PROTOCOLS
             || head.status == StatusCode::NO_CONTENT
@@ -59,18 +59,15 @@ impl<B: MessageBody> Encoder<B> {
             || encoding == ContentEncoding::Auto);
 
         let body = match body {
-            ResponseBody::Other(b) => match b {
-                Body::None => return ResponseBody::Other(Body::None),
-                Body::Bytes(buf) => {
-                    if can_encode {
-                        EncoderBody::Bytes(buf)
-                    } else {
-                        return ResponseBody::Other(Body::Bytes(buf));
-                    }
+            AnyBody::None => return AnyBody::None,
+            AnyBody::Bytes(buf) => {
+                if can_encode {
+                    EncoderBody::Bytes(buf)
+                } else {
+                    return AnyBody::Bytes(buf);
                 }
-                Body::Stream(stream) => EncoderBody::BoxedStream(stream),
-            },
-            ResponseBody::Body(stream) => EncoderBody::Stream(stream),
+            }
+            AnyBody::Body(body) => EncoderBody::Stream(body),
         };
 
         if can_encode {
@@ -78,7 +75,8 @@ impl<B: MessageBody> Encoder<B> {
             if let Some(enc) = ContentEncoder::encoder(encoding) {
                 update_head(encoding, head);
                 head.no_chunking(false);
-                return ResponseBody::Body(Encoder {
+
+                return AnyBody::Body(Encoder {
                     body,
                     eof: false,
                     fut: None,
@@ -87,7 +85,7 @@ impl<B: MessageBody> Encoder<B> {
             }
         }
 
-        ResponseBody::Body(Encoder {
+        AnyBody::Body(Encoder {
             body,
             eof: false,
             fut: None,
@@ -100,7 +98,6 @@ impl<B: MessageBody> Encoder<B> {
 enum EncoderBody<B> {
     Bytes(Bytes),
     Stream(#[pin] B),
-    BoxedStream(BoxAnyBody),
 }
 
 impl<B> MessageBody for EncoderBody<B>
@@ -113,7 +110,6 @@ where
         match self {
             EncoderBody::Bytes(ref b) => b.size(),
             EncoderBody::Stream(ref b) => b.size(),
-            EncoderBody::BoxedStream(ref b) => b.size(),
         }
     }
 
@@ -130,9 +126,6 @@ where
                 }
             }
             EncoderBodyProj::Stream(b) => b.poll_next(cx).map_err(EncoderError::Body),
-            EncoderBodyProj::BoxedStream(ref mut b) => {
-                b.as_pin_mut().poll_next(cx).map_err(EncoderError::Boxed)
-            }
         }
     }
 }
@@ -348,9 +341,6 @@ pub enum EncoderError<E> {
     #[display(fmt = "body")]
     Body(E),
 
-    #[display(fmt = "boxed")]
-    Boxed(Box<dyn StdError>),
-
     #[display(fmt = "blocking")]
     Blocking(BlockingError),
 
@@ -362,7 +352,6 @@ impl<E: StdError + 'static> StdError for EncoderError<E> {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
             EncoderError::Body(err) => Some(err),
-            EncoderError::Boxed(err) => Some(&**err),
             EncoderError::Blocking(err) => Some(err),
             EncoderError::Io(err) => Some(err),
         }

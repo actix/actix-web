@@ -1077,7 +1077,7 @@ mod tests {
         fn_service(|req: Request| {
             let path = req.path().as_bytes();
             ready(Ok::<_, Error>(
-                Response::ok().set_body(AnyBody::from_slice(path)),
+                Response::ok().set_body(AnyBody::copy_from_slice(path)),
             ))
         })
     }

@@ -75,9 +75,21 @@ mod tests {
     use derive_more::{Display, Error};
     use futures_core::ready;
     use futures_util::{stream, FutureExt as _};
+    use static_assertions::{assert_impl_all, assert_not_impl_all};
 
     use super::*;
     use crate::body::to_bytes;
+
+    assert_impl_all!(BodyStream<stream::Empty<Result<Bytes, crate::Error>>>: MessageBody);
+    assert_impl_all!(BodyStream<stream::Empty<Result<Bytes, &'static str>>>: MessageBody);
+    assert_impl_all!(BodyStream<stream::Repeat<Result<Bytes, &'static str>>>: MessageBody);
+    assert_impl_all!(BodyStream<stream::Empty<Result<Bytes, Infallible>>>: MessageBody);
+    assert_impl_all!(BodyStream<stream::Repeat<Result<Bytes, Infallible>>>: MessageBody);
+
+    assert_not_impl_all!(BodyStream<stream::Empty<Bytes>>: MessageBody);
+    assert_not_impl_all!(BodyStream<stream::Repeat<Bytes>>: MessageBody);
+    // crate::Error is not Clone
+    assert_not_impl_all!(BodyStream<stream::Repeat<Result<Bytes, crate::Error>>>: MessageBody);
 
     #[actix_rt::test]
     async fn skips_empty_chunks() {
@@ -122,6 +134,30 @@ mod tests {
     async fn stream_immediate_error() {
         let body = BodyStream::new(stream::once(async { Err(StreamErr) }));
         assert!(matches!(to_bytes(body).await, Err(StreamErr)));
+    }
+
+    #[actix_rt::test]
+    async fn stream_string_error() {
+        // `&'static str` does not impl `Error`
+        // but it does impl `Into<Box<dyn Error>>`
+
+        let body = BodyStream::new(stream::once(async { Err("stringy error") }));
+        assert!(matches!(to_bytes(body).await, Err("stringy error")));
+    }
+
+    #[actix_rt::test]
+    async fn stream_boxed_error() {
+        // `Box<dyn Error>` does not impl `Error`
+        // but it does impl `Into<Box<dyn Error>>`
+
+        let body = BodyStream::new(stream::once(async {
+            Err(Box::<dyn StdError>::from("stringy error"))
+        }));
+
+        assert_eq!(
+            to_bytes(body).await.unwrap_err().to_string(),
+            "stringy error"
+        );
     }
 
     #[actix_rt::test]

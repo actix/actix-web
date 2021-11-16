@@ -11,15 +11,13 @@ use futures_core::ready;
 mod body;
 mod body_stream;
 mod message_body;
-mod response_body;
 mod size;
 mod sized_stream;
 
-pub use self::body::{AnyBody, Body, BoxAnyBody};
+pub use self::body::{AnyBody, Body, BoxBody};
 pub use self::body_stream::BodyStream;
 pub use self::message_body::MessageBody;
 pub(crate) use self::message_body::MessageBodyMapErr;
-pub use self::response_body::ResponseBody;
 pub use self::size::BodySize;
 pub use self::sized_stream::SizedStream;
 
@@ -108,10 +106,10 @@ mod tests {
         assert_eq!(Body::from(b"test".as_ref()).size(), BodySize::Sized(4));
         assert_eq!(Body::from(b"test".as_ref()).get_ref(), b"test");
         assert_eq!(
-            Body::from_slice(b"test".as_ref()).size(),
+            Body::copy_from_slice(b"test".as_ref()).size(),
             BodySize::Sized(4)
         );
-        assert_eq!(Body::from_slice(b"test".as_ref()).get_ref(), b"test");
+        assert_eq!(Body::copy_from_slice(b"test".as_ref()).get_ref(), b"test");
         let sb = Bytes::from(&b"test"[..]);
         pin!(sb);
 
