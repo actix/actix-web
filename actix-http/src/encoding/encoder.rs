@@ -61,7 +61,6 @@ impl<B: MessageBody> Encoder<B> {
         let body = match body {
             ResponseBody::Other(b) => match b {
                 Body::None => return ResponseBody::Other(Body::None),
-                Body::Empty => return ResponseBody::Other(Body::Empty),
                 Body::Bytes(buf) => {
                     if can_encode {
                         EncoderBody::Bytes(buf)

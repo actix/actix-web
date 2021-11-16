@@ -87,13 +87,12 @@ impl HttpResponse {
 
 #[cfg(test)]
 mod tests {
-    use crate::dev::Body;
     use crate::http::StatusCode;
     use crate::HttpResponse;
 
     #[test]
     fn test_build() {
-        let resp = HttpResponse::Ok().body(Body::Empty);
+        let resp = HttpResponse::Ok().finish();
         assert_eq!(resp.status(), StatusCode::OK);
     }
 }

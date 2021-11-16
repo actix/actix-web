@@ -380,7 +380,7 @@ where
                         // send_response would update InnerDispatcher state to SendPayload or
                         // None(If response body is empty).
                         // continue loop to poll it.
-                        self.as_mut().send_error_response(res, AnyBody::Empty)?;
+                        self.as_mut().send_error_response(res, AnyBody::empty())?;
                     }
 
                     // return with upgrade request and poll it exclusively.
@@ -772,7 +772,7 @@ where
                                 trace!("Slow request timeout");
                                 let _ = self.as_mut().send_error_response(
                                     Response::with_body(StatusCode::REQUEST_TIMEOUT, ()),
-                                    AnyBody::Empty,
+                                    AnyBody::empty(),
                                 );
                                 this = self.project();
                                 this.flags.insert(Flags::STARTED | Flags::SHUTDOWN);

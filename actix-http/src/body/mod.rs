@@ -214,7 +214,6 @@ mod tests {
     #[actix_rt::test]
     async fn test_body_debug() {
         assert!(format!("{:?}", Body::None).contains("Body::None"));
-        assert!(format!("{:?}", Body::Empty).contains("Body::Empty"));
         assert!(format!("{:?}", Body::Bytes(Bytes::from_static(b"1"))).contains('1'));
     }
 
@@ -252,7 +251,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_to_bytes() {
-        let body = Body::Empty;
+        let body = Body::empty();
         let bytes = to_bytes(body).await.unwrap();
         assert!(bytes.is_empty());
 

@@ -20,9 +20,6 @@ pub enum AnyBody {
     /// Empty response. `Content-Length` header is not set.
     None,
 
-    /// Zero sized response body. `Content-Length` header is set to `0`.
-    Empty,
-
     /// Specific response body.
     Bytes(Bytes),
 
@@ -31,6 +28,11 @@ pub enum AnyBody {
 }
 
 impl AnyBody {
+    /// Constructs a new, empty body.
+    pub fn empty() -> Self {
+        Self::Bytes(Bytes::new())
+    }
+
     /// Create body from slice (copy)
     pub fn from_slice(s: &[u8]) -> Self {
         Self::Bytes(Bytes::copy_from_slice(s))
@@ -52,7 +54,7 @@ impl MessageBody for AnyBody {
     fn size(&self) -> BodySize {
         match self {
             AnyBody::None => BodySize::None,
-            AnyBody::Empty => BodySize::Empty,
+            AnyBody::Bytes(ref bin) if bin.is_empty() => BodySize::Empty,
             AnyBody::Bytes(ref bin) => BodySize::Sized(bin.len() as u64),
             AnyBody::Stream(ref body) => body.size(),
         }
@@ -64,7 +66,6 @@ impl MessageBody for AnyBody {
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         match self.get_mut() {
             AnyBody::None => Poll::Ready(None),
-            AnyBody::Empty => Poll::Ready(None),
             AnyBody::Bytes(ref mut bin) => {
                 let len = bin.len();
                 if len == 0 {
@@ -86,7 +87,6 @@ impl PartialEq for AnyBody {
     fn eq(&self, other: &Body) -> bool {
         match *self {
             AnyBody::None => matches!(*other, AnyBody::None),
-            AnyBody::Empty => matches!(*other, AnyBody::Empty),
             AnyBody::Bytes(ref b) => match *other {
                 AnyBody::Bytes(ref b2) => b == b2,
                 _ => false,
@@ -100,7 +100,6 @@ impl fmt::Debug for AnyBody {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             AnyBody::None => write!(f, "AnyBody::None"),
-            AnyBody::Empty => write!(f, "AnyBody::Empty"),
             AnyBody::Bytes(ref b) => write!(f, "AnyBody::Bytes({:?})", b),
             AnyBody::Stream(_) => write!(f, "AnyBody::Message(_)"),
         }
