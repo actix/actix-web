@@ -8,6 +8,7 @@ use std::{
 
 use bytes::{Bytes, BytesMut};
 use futures_core::Stream;
+use pin_project::pin_project;
 
 use crate::error::Error;
 
@@ -16,16 +17,17 @@ use super::{BodySize, BodyStream, MessageBody, MessageBodyMapErr, SizedStream};
 pub type Body = AnyBody;
 
 /// Represents various types of HTTP message body.
+#[pin_project(project = AnyBodyProj)]
 #[derive(Clone)]
 pub enum AnyBody<B = BoxBody> {
     /// Empty response. `Content-Length` header is not set.
     None,
 
-    /// Specific response body.
+    /// Complete, in-memory response body.
     Bytes(Bytes),
 
     /// Generic / Other message body.
-    Body(B),
+    Body(#[pin] B),
 }
 
 impl AnyBody {
@@ -78,7 +80,7 @@ where
 
 impl<B> MessageBody for AnyBody<B>
 where
-    B: MessageBody + Unpin,
+    B: MessageBody,
     B::Error: Into<Box<dyn StdError>> + 'static,
 {
     type Error = Error;
@@ -95,9 +97,9 @@ where
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
-        match self.get_mut() {
-            AnyBody::None => Poll::Ready(None),
-            AnyBody::Bytes(ref mut bin) => {
+        match self.project() {
+            AnyBodyProj::None => Poll::Ready(None),
+            AnyBodyProj::Bytes(bin) => {
                 let len = bin.len();
                 if len == 0 {
                     Poll::Ready(None)
@@ -106,7 +108,7 @@ where
                 }
             }
 
-            AnyBody::Body(body) => Pin::new(body)
+            AnyBodyProj::Body(body) => body
                 .poll_next(cx)
                 .map_err(|err| Error::new_body().with_cause(err)),
         }
@@ -257,19 +259,40 @@ impl MessageBody for BoxBody {
 
 #[cfg(test)]
 mod tests {
+    use std::marker::PhantomPinned;
+
     use static_assertions::{assert_impl_all, assert_not_impl_all};
 
     use super::*;
     use crate::body::to_bytes;
 
-    assert_impl_all!(AnyBody<()>: MessageBody, fmt::Debug, Send, Sync);
-    assert_impl_all!(AnyBody<AnyBody<()>>: MessageBody, fmt::Debug, Send, Sync);
-    assert_impl_all!(AnyBody<Bytes>: MessageBody, fmt::Debug, Send, Sync);
-    assert_impl_all!(AnyBody: MessageBody, fmt::Debug);
-    assert_impl_all!(BoxBody: MessageBody, fmt::Debug);
+    struct PinType(PhantomPinned);
 
-    assert_not_impl_all!(AnyBody: Send, Sync);
-    assert_not_impl_all!(BoxBody: Send, Sync);
+    impl MessageBody for PinType {
+        type Error = crate::Error;
+
+        fn size(&self) -> BodySize {
+            unimplemented!()
+        }
+
+        fn poll_next(
+            self: Pin<&mut Self>,
+            _cx: &mut Context<'_>,
+        ) -> Poll<Option<Result<Bytes, Self::Error>>> {
+            unimplemented!()
+        }
+    }
+
+    assert_impl_all!(AnyBody<()>: MessageBody, fmt::Debug, Send, Sync, Unpin);
+    assert_impl_all!(AnyBody<AnyBody<()>>: MessageBody, fmt::Debug, Send, Sync, Unpin);
+    assert_impl_all!(AnyBody<Bytes>: MessageBody, fmt::Debug, Send, Sync, Unpin);
+    assert_impl_all!(AnyBody: MessageBody, fmt::Debug, Unpin);
+    assert_impl_all!(BoxBody: MessageBody, fmt::Debug, Unpin);
+    assert_impl_all!(AnyBody<PinType>: MessageBody);
+
+    assert_not_impl_all!(AnyBody: Send, Sync, Unpin);
+    assert_not_impl_all!(BoxBody: Send, Sync, Unpin);
+    assert_not_impl_all!(AnyBody<PinType>: Send, Sync, Unpin);
 
     #[actix_rt::test]
     async fn nested_boxed_body() {
