@@ -4,6 +4,7 @@
 
 
 ## 3.0.0-beta.10 - 2021-11-15
+* No significant changes from `3.0.0-beta.9`.
 
 
 ## 3.0.0-beta.9 - 2021-10-20

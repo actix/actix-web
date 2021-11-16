@@ -195,6 +195,7 @@ mod tests {
     use super::*;
 
     // copy of encoding from actix-web headers
+    #[allow(clippy::enum_variant_names)] // allow Encoding prefix on EncodingExt
     #[derive(Clone, PartialEq, Debug)]
     pub enum Encoding {
         Chunked,

@@ -28,7 +28,7 @@ impl Response<AnyBody> {
     pub fn new(status: StatusCode) -> Self {
         Response {
             head: BoxedResponseHead::new(status),
-            body: AnyBody::Empty,
+            body: AnyBody::empty(),
         }
     }
 

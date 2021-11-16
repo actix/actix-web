@@ -5,7 +5,7 @@ use futures_core::Stream;
 use serde::Serialize;
 
 use actix_http::{
-    body::Body,
+    body::AnyBody,
     http::{
         header::{self, IntoHeaderPair},
         ConnectionType, Error as HttpError, HeaderMap, HeaderValue, Method, Uri, Version,
@@ -350,7 +350,7 @@ impl ClientRequest {
     /// Complete request construction and send body.
     pub fn send_body<B>(self, body: B) -> SendClientRequest
     where
-        B: Into<Body>,
+        B: Into<AnyBody>,
     {
         let slf = match self.prep_for_sending() {
             Ok(slf) => slf,

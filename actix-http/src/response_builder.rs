@@ -262,7 +262,7 @@ impl ResponseBuilder {
         S: Stream<Item = Result<Bytes, E>> + 'static,
         E: Into<Box<dyn StdError>> + 'static,
     {
-        self.body(AnyBody::from_message(BodyStream::new(stream)))
+        self.body(AnyBody::new_boxed(BodyStream::new(stream)))
     }
 
     /// Generate response with an empty body.
@@ -270,7 +270,7 @@ impl ResponseBuilder {
     /// This `ResponseBuilder` will be left in a useless state.
     #[inline]
     pub fn finish(&mut self) -> Response<AnyBody> {
-        self.body(AnyBody::Empty)
+        self.body(AnyBody::empty())
     }
 
     /// Create an owned `ResponseBuilder`, leaving the original in a useless state.
@@ -357,7 +357,7 @@ impl fmt::Debug for ResponseBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::body::Body;
+    use crate::body::AnyBody;
     use crate::http::header::{HeaderName, HeaderValue, CONTENT_TYPE};
 
     #[test]
@@ -390,13 +390,13 @@ mod tests {
     fn test_content_type() {
         let resp = Response::build(StatusCode::OK)
             .content_type("text/plain")
-            .body(Body::Empty);
+            .body(AnyBody::empty());
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "text/plain")
     }
 
     #[test]
     fn test_into_builder() {
-        let mut resp: Response<Body> = "test".into();
+        let mut resp: Response<AnyBody> = "test".into();
         assert_eq!(resp.status(), StatusCode::OK);
 
         resp.headers_mut().insert(

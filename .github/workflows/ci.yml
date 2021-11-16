@@ -141,7 +141,7 @@ jobs:
         if: github.ref == 'refs/heads/master'
         run: |
           cargo install cargo-tarpaulin --vers "^0.13"
-          cargo tarpaulin --out Xml --verbose
+          cargo tarpaulin --workspace --features=rustls,openssl --out Xml --verbose
       - name: Upload to Codecov
         if: github.ref == 'refs/heads/master'
         uses: codecov/codecov-action@v1

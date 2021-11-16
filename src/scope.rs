@@ -580,7 +580,7 @@ mod tests {
     use bytes::Bytes;
 
     use crate::{
-        dev::Body,
+        dev::AnyBody,
         guard,
         http::{header, HeaderValue, Method, StatusCode},
         middleware::DefaultHeaders,
@@ -752,7 +752,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
 
         match resp.response().body() {
-            Body::Bytes(ref b) => {
+            AnyBody::Bytes(ref b) => {
                 let bytes = b.clone();
                 assert_eq!(bytes, Bytes::from_static(b"project: project1"));
             }
@@ -853,7 +853,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::CREATED);
 
         match resp.response().body() {
-            Body::Bytes(ref b) => {
+            AnyBody::Bytes(ref b) => {
                 let bytes = b.clone();
                 assert_eq!(bytes, Bytes::from_static(b"project: project_1"));
             }
@@ -881,7 +881,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::CREATED);
 
         match resp.response().body() {
-            Body::Bytes(ref b) => {
+            AnyBody::Bytes(ref b) => {
                 let bytes = b.clone();
                 assert_eq!(bytes, Bytes::from_static(b"project: test - 1"));
             }

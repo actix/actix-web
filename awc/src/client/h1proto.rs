@@ -70,7 +70,7 @@ where
     // RFC: https://tools.ietf.org/html/rfc7231#section-5.1.1
     let is_expect = if head.as_ref().headers.contains_key(EXPECT) {
         match body.size() {
-            BodySize::None | BodySize::Empty | BodySize::Sized(0) => {
+            BodySize::None | BodySize::Sized(0) => {
                 let keep_alive = framed.codec_ref().keepalive();
                 framed.io_mut().on_release(keep_alive);
 
@@ -104,7 +104,7 @@ where
     if do_send {
         // send request body
         match body.size() {
-            BodySize::None | BodySize::Empty | BodySize::Sized(0) => {}
+            BodySize::None | BodySize::Sized(0) => {}
             _ => send_body(body, pin_framed.as_mut()).await?,
         };
 

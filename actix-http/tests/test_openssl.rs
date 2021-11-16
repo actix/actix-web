@@ -5,7 +5,7 @@ extern crate tls_openssl as openssl;
 use std::{convert::Infallible, io};
 
 use actix_http::{
-    body::{AnyBody, Body, SizedStream},
+    body::{AnyBody, SizedStream},
     error::PayloadError,
     http::{
         header::{self, HeaderValue},
@@ -409,7 +409,7 @@ impl From<BadRequest> for Response<AnyBody> {
 async fn test_h2_service_error() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|_| err::<Response<Body>, _>(BadRequest))
+            .h2(|_| err::<Response<AnyBody>, _>(BadRequest))
             .openssl(tls_config())
             .map_err(|_| ())
     })

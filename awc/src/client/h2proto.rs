@@ -36,10 +36,7 @@ where
 
     let head_req = head.as_ref().method == Method::HEAD;
     let length = body.size();
-    let eof = matches!(
-        length,
-        BodySize::None | BodySize::Empty | BodySize::Sized(0)
-    );
+    let eof = matches!(length, BodySize::None | BodySize::Sized(0));
 
     let mut req = Request::new(());
     *req.uri_mut() = head.as_ref().uri.clone();
@@ -52,13 +49,11 @@ where
     // Content length
     let _ = match length {
         BodySize::None => None,
-        BodySize::Stream => {
-            skip_len = false;
-            None
-        }
-        BodySize::Empty => req
+
+        BodySize::Sized(0) => req
             .headers_mut()
             .insert(CONTENT_LENGTH, HeaderValue::from_static("0")),
+
         BodySize::Sized(len) => {
             let mut buf = itoa::Buffer::new();
 
@@ -66,6 +61,11 @@ where
                 CONTENT_LENGTH,
                 HeaderValue::from_str(buf.format(len)).unwrap(),
             )
+        }
+
+        BodySize::Stream => {
+            skip_len = false;
+            None
         }
     };
 

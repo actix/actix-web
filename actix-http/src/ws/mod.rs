@@ -210,7 +210,6 @@ pub fn handshake_response(req: &RequestHead) -> ResponseBuilder {
 
     Response::build(StatusCode::SWITCHING_PROTOCOLS)
         .upgrade("websocket")
-        .insert_header((header::TRANSFER_ENCODING, "chunked"))
         .insert_header((
             header::SEC_WEBSOCKET_ACCEPT,
             // key is known to be header value safe ascii

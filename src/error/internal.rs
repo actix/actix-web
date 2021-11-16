@@ -1,6 +1,6 @@
 use std::{cell::RefCell, fmt, io::Write as _};
 
-use actix_http::{body::Body, header, StatusCode};
+use actix_http::{body::AnyBody, header, StatusCode};
 use bytes::{BufMut as _, BytesMut};
 
 use crate::{Error, HttpRequest, HttpResponse, Responder, ResponseError};
@@ -88,7 +88,7 @@ where
                     header::CONTENT_TYPE,
                     header::HeaderValue::from_static("text/plain; charset=utf-8"),
                 );
-                res.set_body(Body::from(buf.into_inner()))
+                res.set_body(AnyBody::from(buf.into_inner()))
             }
 
             InternalErrorType::Response(ref resp) => {

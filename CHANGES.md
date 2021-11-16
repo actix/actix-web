@@ -1,6 +1,16 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Changed
+* Compress middleware's response type is now `AnyBody<Encoder<B>>`. [#2448]
+
+### Fixed
+* Relax `Unpin` bound on `S` (stream) parameter of `HttpResponseBuilder::streaming`. [#2448]
+
+### Removed
+* `dev::ResponseBody` re-export; is function is replaced by the new `dev::AnyBody` enum. [#2446]
+
+[#2423]: https://github.com/actix/actix-web/pull/2423
 
 
 ## 4.0.0-beta.11 - 2021-11-15
@@ -23,7 +33,7 @@
 ### Changed
 * Associated type `FromRequest::Config` was removed. [#2233]
 * Inner field made private on `web::Payload`. [#2384]
-* `Data::into_inner` and `Data::get_ref` no longer require T: Sized. [#2403]
+* `Data::into_inner` and `Data::get_ref` no longer requires `T: Sized`. [#2403]
 * Updated rustls to v0.20. [#2414]
 * Minimum supported Rust version (MSRV) is now 1.52.
 

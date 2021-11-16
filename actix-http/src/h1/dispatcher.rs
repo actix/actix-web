@@ -325,7 +325,7 @@ where
     ) -> Result<(), DispatchError> {
         let size = self.as_mut().send_response_inner(message, &body)?;
         let state = match size {
-            BodySize::None | BodySize::Empty => State::None,
+            BodySize::None | BodySize::Sized(0) => State::None,
             _ => State::SendPayload(body),
         };
         self.project().state.set(state);
@@ -339,7 +339,7 @@ where
     ) -> Result<(), DispatchError> {
         let size = self.as_mut().send_response_inner(message, &body)?;
         let state = match size {
-            BodySize::None | BodySize::Empty => State::None,
+            BodySize::None | BodySize::Sized(0) => State::None,
             _ => State::SendErrorPayload(body),
         };
         self.project().state.set(state);
@@ -380,7 +380,7 @@ where
                         // send_response would update InnerDispatcher state to SendPayload or
                         // None(If response body is empty).
                         // continue loop to poll it.
-                        self.as_mut().send_error_response(res, AnyBody::Empty)?;
+                        self.as_mut().send_error_response(res, AnyBody::empty())?;
                     }
 
                     // return with upgrade request and poll it exclusively.
@@ -772,7 +772,7 @@ where
                                 trace!("Slow request timeout");
                                 let _ = self.as_mut().send_error_response(
                                     Response::with_body(StatusCode::REQUEST_TIMEOUT, ()),
-                                    AnyBody::Empty,
+                                    AnyBody::empty(),
                                 );
                                 this = self.project();
                                 this.flags.insert(Flags::STARTED | Flags::SHUTDOWN);
@@ -1077,7 +1077,7 @@ mod tests {
         fn_service(|req: Request| {
             let path = req.path().as_bytes();
             ready(Ok::<_, Error>(
-                Response::ok().set_body(AnyBody::from_slice(path)),
+                Response::ok().set_body(AnyBody::copy_from_slice(path)),
             ))
         })
     }
