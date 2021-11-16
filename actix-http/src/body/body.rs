@@ -79,7 +79,7 @@ where
 impl<B> MessageBody for AnyBody<B>
 where
     B: MessageBody + Unpin,
-    B::Error: StdError + 'static,
+    B::Error: Into<Box<dyn StdError>> + 'static,
 {
     type Error = Error;
 
@@ -192,7 +192,7 @@ impl From<BytesMut> for AnyBody {
 impl<S, E> From<SizedStream<S>> for AnyBody
 where
     S: Stream<Item = Result<Bytes, E>> + 'static,
-    E: StdError + 'static,
+    E: Into<Box<dyn StdError>> + 'static,
 {
     fn from(stream: SizedStream<S>) -> Body {
         AnyBody::new_boxed(stream)
@@ -202,7 +202,7 @@ where
 impl<S, E> From<BodyStream<S>> for AnyBody
 where
     S: Stream<Item = Result<Bytes, E>> + 'static,
-    E: StdError + 'static,
+    E: Into<Box<dyn StdError>> + 'static,
 {
     fn from(stream: BodyStream<S>) -> Body {
         AnyBody::new_boxed(stream)
