@@ -1,6 +1,10 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Changed
+* Rename `AnyBody::{Message => Stream}`. [#????]
+
+[#????]: https://github.com/actix/actix-web/pull/????
 
 
 ## 3.0.0-beta.12 - 2021-11-15

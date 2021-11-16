@@ -27,7 +27,7 @@ pub enum AnyBody {
     Bytes(Bytes),
 
     /// Generic message body.
-    Message(BoxAnyBody),
+    Stream(BoxAnyBody),
 }
 
 impl AnyBody {
@@ -42,7 +42,7 @@ impl AnyBody {
         B: MessageBody + 'static,
         B::Error: Into<Box<dyn StdError + 'static>>,
     {
-        Self::Message(BoxAnyBody::from_body(body))
+        Self::Stream(BoxAnyBody::from_body(body))
     }
 }
 
@@ -54,7 +54,7 @@ impl MessageBody for AnyBody {
             AnyBody::None => BodySize::None,
             AnyBody::Empty => BodySize::Empty,
             AnyBody::Bytes(ref bin) => BodySize::Sized(bin.len() as u64),
-            AnyBody::Message(ref body) => body.size(),
+            AnyBody::Stream(ref body) => body.size(),
         }
     }
 
@@ -74,7 +74,7 @@ impl MessageBody for AnyBody {
                 }
             }
 
-            AnyBody::Message(body) => body
+            AnyBody::Stream(body) => body
                 .as_pin_mut()
                 .poll_next(cx)
                 .map_err(|err| Error::new_body().with_cause(err)),
@@ -91,7 +91,7 @@ impl PartialEq for AnyBody {
                 AnyBody::Bytes(ref b2) => b == b2,
                 _ => false,
             },
-            AnyBody::Message(_) => false,
+            AnyBody::Stream(_) => false,
         }
     }
 }
@@ -102,7 +102,7 @@ impl fmt::Debug for AnyBody {
             AnyBody::None => write!(f, "AnyBody::None"),
             AnyBody::Empty => write!(f, "AnyBody::Empty"),
             AnyBody::Bytes(ref b) => write!(f, "AnyBody::Bytes({:?})", b),
-            AnyBody::Message(_) => write!(f, "AnyBody::Message(_)"),
+            AnyBody::Stream(_) => write!(f, "AnyBody::Message(_)"),
         }
     }
 }
