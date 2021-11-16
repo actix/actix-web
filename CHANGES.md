@@ -1,8 +1,11 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Changed
+* Compress middleware's response type is now `AnyBody<Encoder<B>>`. [#2448]
+
 ### Fixed
-* Relax `Unpin` bound on `S` (stream) parameter of `HttpResponseBuilder::streaming`. [#????]
+* Relax `Unpin` bound on `S` (stream) parameter of `HttpResponseBuilder::streaming`. [#2448]
 
 [#2423]: https://github.com/actix/actix-web/pull/2423
 

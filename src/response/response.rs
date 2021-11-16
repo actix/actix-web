@@ -227,6 +227,9 @@ impl<B> HttpResponse<B> {
         }
     }
 
+    // TODO: into_body equivalent
+    // TODO: into_boxed_body
+
     /// Extract response body
     pub fn into_body(self) -> B {
         self.res.into_body()

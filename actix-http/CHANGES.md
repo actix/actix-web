@@ -3,19 +3,21 @@
 ## Unreleased - 2021-xx-xx
 ### Added
 * `AnyBody::empty` for quickly creating an empty body. [#2446]
-* `impl Clone` for `AnyBody<S> where S: Clone`. [#????]
-* `AnyBody::into_boxed` for quickly converting to a type-erased, boxed body type. [#????]
+* `impl Clone` for `AnyBody<S> where S: Clone`. [#2448]
+* `AnyBody::into_boxed` for quickly converting to a type-erased, boxed body type. [#2448]
 
 ### Changed
 * Rename `AnyBody::{Message => Body}`. [#2446]
-* Rename `AnyBody::{from_message => new_boxed}`. [#????]
-* Rename `AnyBody::{from_slice => copy_from_slice}`. [#????]
-* Rename `BoxAnyBody` to `BoxBody` [#????]
-* Change representation of `AnyBody` to include a type parameter in `Body` variant. Defaults to `BoxBody`. [#????]
+* Rename `AnyBody::{from_message => new_boxed}`. [#2448]
+* Rename `AnyBody::{from_slice => copy_from_slice}`. [#2448]
+* Rename `BoxAnyBody` to `BoxBody` [#2448]
+* Change representation of `AnyBody` to include a type parameter in `Body` variant. Defaults to `BoxBody`. [#2448]
+* `Encoder::response` now returns `AnyBody<Encoder<B>>`. [#2448]
 
 ### Removed
 * `AnyBody::Empty`; an empty body can now only be represented as a zero-length `Bytes` variant. [#2446]
 * `BodySize::Empty`; an empty body can now only be represented as a `Sized(0)` variant. [#2446]
+* `EncoderError::Boxed`; it is no longer required. [#2446]
 
 [#2446]: https://github.com/actix/actix-web/pull/2446
 
