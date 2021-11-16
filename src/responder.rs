@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use actix_http::{
-    body::Body,
+    body::AnyBody,
     http::{header::IntoHeaderPair, Error as HttpError, HeaderMap, StatusCode},
 };
 use bytes::{Bytes, BytesMut};
@@ -65,7 +65,7 @@ impl Responder for HttpResponse {
     }
 }
 
-impl Responder for actix_http::Response<Body> {
+impl Responder for actix_http::Response<AnyBody> {
     #[inline]
     fn respond_to(self, _: &HttpRequest) -> HttpResponse {
         HttpResponse::from(self)
@@ -254,7 +254,7 @@ pub(crate) mod tests {
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         match resp.response().body() {
-            Body::Bytes(ref b) => {
+            AnyBody::Bytes(ref b) => {
                 let bytes = b.clone();
                 assert_eq!(bytes, Bytes::from_static(b"some"));
             }
@@ -267,14 +267,14 @@ pub(crate) mod tests {
         fn body(&self) -> &AnyBody;
     }
 
-    impl BodyTest for Body {
+    impl BodyTest for AnyBody {
         fn bin_ref(&self) -> &[u8] {
             match self {
                 AnyBody::Bytes(ref bin) => bin,
                 _ => unreachable!("bug in test impl"),
             }
         }
-        fn body(&self) -> &Body {
+        fn body(&self) -> &AnyBody {
             self
         }
     }

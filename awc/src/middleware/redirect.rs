@@ -8,7 +8,7 @@ use std::{
 };
 
 use actix_http::{
-    body::Body,
+    body::AnyBody,
     http::{header, Method, StatusCode, Uri},
     RequestHead, RequestHeadType,
 };
@@ -95,7 +95,7 @@ where
                 };
 
                 let body_opt = match body {
-                    Body::Bytes(ref b) => Some(b.clone()),
+                    AnyBody::Bytes(ref b) => Some(b.clone()),
                     _ => None,
                 };
 
@@ -192,14 +192,14 @@ where
                         let body_new = if is_redirect {
                             // try to reuse body
                             match body {
-                                Some(ref bytes) => Body::Bytes(bytes.clone()),
-                                // TODO: should this be Body::Empty or Body::None.
-                                _ => Body::empty(),
+                                Some(ref bytes) => AnyBody::Bytes(bytes.clone()),
+                                // TODO: should this be AnyBody::Empty or AnyBody::None.
+                                _ => AnyBody::empty(),
                             }
                         } else {
                             body = None;
                             // remove body
-                            Body::None
+                            AnyBody::None
                         };
 
                         let mut headers = headers.take().unwrap();

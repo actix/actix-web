@@ -14,6 +14,7 @@ pub use crate::types::form::UrlEncoded;
 pub use crate::types::json::JsonBody;
 pub use crate::types::readlines::Readlines;
 
+#[allow(deprecated)]
 pub use actix_http::body::{AnyBody, Body, BodySize, MessageBody, SizedStream};
 
 #[cfg(feature = "__compress")]

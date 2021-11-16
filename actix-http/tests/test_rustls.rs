@@ -10,7 +10,7 @@ use std::{
 };
 
 use actix_http::{
-    body::{AnyBody, Body, SizedStream},
+    body::{AnyBody, SizedStream},
     error::PayloadError,
     http::{
         header::{self, HeaderName, HeaderValue},
@@ -477,7 +477,7 @@ impl From<BadRequest> for Response<AnyBody> {
 async fn test_h2_service_error() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|_| err::<Response<Body>, _>(BadRequest))
+            .h2(|_| err::<Response<AnyBody>, _>(BadRequest))
             .rustls(tls_config())
     })
     .await;
@@ -494,7 +494,7 @@ async fn test_h2_service_error() {
 async fn test_h1_service_error() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h1(|_| err::<Response<Body>, _>(BadRequest))
+            .h1(|_| err::<Response<AnyBody>, _>(BadRequest))
             .rustls(tls_config())
     })
     .await;

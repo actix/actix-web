@@ -6,7 +6,7 @@ use std::{
 };
 
 use actix_http::{
-    body::{AnyBody, Body, SizedStream},
+    body::{AnyBody, SizedStream},
     header, http, Error, HttpMessage, HttpService, KeepAlive, Request, Response,
     StatusCode,
 };
@@ -724,7 +724,7 @@ impl From<BadRequest> for Response<AnyBody> {
 async fn test_h1_service_error() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .h1(|_| err::<Response<Body>, _>(BadRequest))
+            .h1(|_| err::<Response<AnyBody>, _>(BadRequest))
             .tcp()
     })
     .await;

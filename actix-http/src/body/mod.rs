@@ -14,6 +14,7 @@ mod message_body;
 mod size;
 mod sized_stream;
 
+#[allow(deprecated)]
 pub use self::body::{AnyBody, Body, BoxBody};
 pub use self::body_stream::BodyStream;
 pub use self::message_body::MessageBody;
@@ -76,10 +77,10 @@ mod tests {
 
     use super::*;
 
-    impl Body {
+    impl AnyBody {
         pub(crate) fn get_ref(&self) -> &[u8] {
             match *self {
-                Body::Bytes(ref bin) => bin,
+                AnyBody::Bytes(ref bin) => bin,
                 _ => panic!(),
             }
         }
@@ -87,9 +88,9 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_static_str() {
-        assert_eq!(Body::from("").size(), BodySize::Sized(0));
-        assert_eq!(Body::from("test").size(), BodySize::Sized(4));
-        assert_eq!(Body::from("test").get_ref(), b"test");
+        assert_eq!(AnyBody::from("").size(), BodySize::Sized(0));
+        assert_eq!(AnyBody::from("test").size(), BodySize::Sized(4));
+        assert_eq!(AnyBody::from("test").get_ref(), b"test");
 
         assert_eq!("test".size(), BodySize::Sized(4));
         assert_eq!(
@@ -103,13 +104,16 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_static_bytes() {
-        assert_eq!(Body::from(b"test".as_ref()).size(), BodySize::Sized(4));
-        assert_eq!(Body::from(b"test".as_ref()).get_ref(), b"test");
+        assert_eq!(AnyBody::from(b"test".as_ref()).size(), BodySize::Sized(4));
+        assert_eq!(AnyBody::from(b"test".as_ref()).get_ref(), b"test");
         assert_eq!(
-            Body::copy_from_slice(b"test".as_ref()).size(),
+            AnyBody::copy_from_slice(b"test".as_ref()).size(),
             BodySize::Sized(4)
         );
-        assert_eq!(Body::copy_from_slice(b"test".as_ref()).get_ref(), b"test");
+        assert_eq!(
+            AnyBody::copy_from_slice(b"test".as_ref()).get_ref(),
+            b"test"
+        );
         let sb = Bytes::from(&b"test"[..]);
         pin!(sb);
 
@@ -122,8 +126,8 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_vec() {
-        assert_eq!(Body::from(Vec::from("test")).size(), BodySize::Sized(4));
-        assert_eq!(Body::from(Vec::from("test")).get_ref(), b"test");
+        assert_eq!(AnyBody::from(Vec::from("test")).size(), BodySize::Sized(4));
+        assert_eq!(AnyBody::from(Vec::from("test")).get_ref(), b"test");
         let test_vec = Vec::from("test");
         pin!(test_vec);
 
@@ -140,8 +144,8 @@ mod tests {
     #[actix_rt::test]
     async fn test_bytes() {
         let b = Bytes::from("test");
-        assert_eq!(Body::from(b.clone()).size(), BodySize::Sized(4));
-        assert_eq!(Body::from(b.clone()).get_ref(), b"test");
+        assert_eq!(AnyBody::from(b.clone()).size(), BodySize::Sized(4));
+        assert_eq!(AnyBody::from(b.clone()).get_ref(), b"test");
         pin!(b);
 
         assert_eq!(b.size(), BodySize::Sized(4));
@@ -154,8 +158,8 @@ mod tests {
     #[actix_rt::test]
     async fn test_bytes_mut() {
         let b = BytesMut::from("test");
-        assert_eq!(Body::from(b.clone()).size(), BodySize::Sized(4));
-        assert_eq!(Body::from(b.clone()).get_ref(), b"test");
+        assert_eq!(AnyBody::from(b.clone()).size(), BodySize::Sized(4));
+        assert_eq!(AnyBody::from(b.clone()).get_ref(), b"test");
         pin!(b);
 
         assert_eq!(b.size(), BodySize::Sized(4));
@@ -168,10 +172,10 @@ mod tests {
     #[actix_rt::test]
     async fn test_string() {
         let b = "test".to_owned();
-        assert_eq!(Body::from(b.clone()).size(), BodySize::Sized(4));
-        assert_eq!(Body::from(b.clone()).get_ref(), b"test");
-        assert_eq!(Body::from(&b).size(), BodySize::Sized(4));
-        assert_eq!(Body::from(&b).get_ref(), b"test");
+        assert_eq!(AnyBody::from(b.clone()).size(), BodySize::Sized(4));
+        assert_eq!(AnyBody::from(b.clone()).get_ref(), b"test");
+        assert_eq!(AnyBody::from(&b).size(), BodySize::Sized(4));
+        assert_eq!(AnyBody::from(&b).get_ref(), b"test");
         pin!(b);
 
         assert_eq!(b.size(), BodySize::Sized(4));
@@ -204,29 +208,33 @@ mod tests {
     #[actix_rt::test]
     async fn test_body_eq() {
         assert!(
-            Body::Bytes(Bytes::from_static(b"1"))
-                == Body::Bytes(Bytes::from_static(b"1"))
+            AnyBody::Bytes(Bytes::from_static(b"1"))
+                == AnyBody::Bytes(Bytes::from_static(b"1"))
         );
-        assert!(Body::Bytes(Bytes::from_static(b"1")) != Body::None);
+        assert!(AnyBody::Bytes(Bytes::from_static(b"1")) != AnyBody::None);
     }
 
     #[actix_rt::test]
     async fn test_body_debug() {
-        assert!(format!("{:?}", Body::None).contains("Body::None"));
-        assert!(format!("{:?}", Body::Bytes(Bytes::from_static(b"1"))).contains('1'));
+        assert!(format!("{:?}", AnyBody::<BoxBody>::None).contains("Body::None"));
+        assert!(format!("{:?}", AnyBody::from(Bytes::from_static(b"1"))).contains('1'));
     }
 
     #[actix_rt::test]
     async fn test_serde_json() {
         use serde_json::{json, Value};
         assert_eq!(
-            Body::from(serde_json::to_vec(&Value::String("test".to_owned())).unwrap())
-                .size(),
+            AnyBody::from(
+                serde_json::to_vec(&Value::String("test".to_owned())).unwrap()
+            )
+            .size(),
             BodySize::Sized(6)
         );
         assert_eq!(
-            Body::from(serde_json::to_vec(&json!({"test-key":"test-value"})).unwrap())
-                .size(),
+            AnyBody::from(
+                serde_json::to_vec(&json!({"test-key":"test-value"})).unwrap()
+            )
+            .size(),
             BodySize::Sized(25)
         );
     }
@@ -250,11 +258,11 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_to_bytes() {
-        let body = Body::empty();
+        let body = AnyBody::empty();
         let bytes = to_bytes(body).await.unwrap();
         assert!(bytes.is_empty());
 
-        let body = Body::Bytes(Bytes::from_static(b"123"));
+        let body = AnyBody::copy_from_slice(b"123");
         let bytes = to_bytes(body).await.unwrap();
         assert_eq!(bytes, b"123"[..]);
     }

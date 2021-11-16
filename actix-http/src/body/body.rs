@@ -14,6 +14,7 @@ use crate::error::Error;
 
 use super::{BodySize, BodyStream, MessageBody, MessageBodyMapErr, SizedStream};
 
+#[deprecated(since = "4.0.0", note = "Renamed to `AnyBody`.")]
 pub type Body = AnyBody;
 
 /// Represents various types of HTTP message body.
@@ -116,7 +117,7 @@ where
 }
 
 impl PartialEq for AnyBody {
-    fn eq(&self, other: &Body) -> bool {
+    fn eq(&self, other: &AnyBody) -> bool {
         match *self {
             AnyBody::None => matches!(*other, AnyBody::None),
             AnyBody::Bytes(ref b) => match *other {
@@ -139,37 +140,37 @@ impl<S: fmt::Debug> fmt::Debug for AnyBody<S> {
 }
 
 impl From<&'static str> for AnyBody {
-    fn from(string: &'static str) -> Body {
+    fn from(string: &'static str) -> AnyBody {
         AnyBody::Bytes(Bytes::from_static(string.as_ref()))
     }
 }
 
 impl From<&'static [u8]> for AnyBody {
-    fn from(bytes: &'static [u8]) -> Body {
+    fn from(bytes: &'static [u8]) -> AnyBody {
         AnyBody::Bytes(Bytes::from_static(bytes))
     }
 }
 
 impl From<Vec<u8>> for AnyBody {
-    fn from(vec: Vec<u8>) -> Body {
+    fn from(vec: Vec<u8>) -> AnyBody {
         AnyBody::Bytes(Bytes::from(vec))
     }
 }
 
 impl From<String> for AnyBody {
-    fn from(string: String) -> Body {
+    fn from(string: String) -> AnyBody {
         string.into_bytes().into()
     }
 }
 
 impl From<&'_ String> for AnyBody {
-    fn from(string: &String) -> Body {
+    fn from(string: &String) -> AnyBody {
         AnyBody::Bytes(Bytes::copy_from_slice(AsRef::<[u8]>::as_ref(&string)))
     }
 }
 
 impl From<Cow<'_, str>> for AnyBody {
-    fn from(string: Cow<'_, str>) -> Body {
+    fn from(string: Cow<'_, str>) -> AnyBody {
         match string {
             Cow::Owned(s) => AnyBody::from(s),
             Cow::Borrowed(s) => {
@@ -180,14 +181,24 @@ impl From<Cow<'_, str>> for AnyBody {
 }
 
 impl From<Bytes> for AnyBody {
-    fn from(bytes: Bytes) -> Body {
+    fn from(bytes: Bytes) -> Self {
         AnyBody::Bytes(bytes)
     }
 }
 
 impl From<BytesMut> for AnyBody {
-    fn from(bytes: BytesMut) -> Body {
+    fn from(bytes: BytesMut) -> Self {
         AnyBody::Bytes(bytes.freeze())
+    }
+}
+
+impl<S, E> From<SizedStream<S>> for AnyBody<SizedStream<S>>
+where
+    S: Stream<Item = Result<Bytes, E>> + 'static,
+    E: Into<Box<dyn StdError>> + 'static,
+{
+    fn from(stream: SizedStream<S>) -> Self {
+        AnyBody::new(stream)
     }
 }
 
@@ -196,8 +207,18 @@ where
     S: Stream<Item = Result<Bytes, E>> + 'static,
     E: Into<Box<dyn StdError>> + 'static,
 {
-    fn from(stream: SizedStream<S>) -> Body {
+    fn from(stream: SizedStream<S>) -> Self {
         AnyBody::new_boxed(stream)
+    }
+}
+
+impl<S, E> From<BodyStream<S>> for AnyBody<BodyStream<S>>
+where
+    S: Stream<Item = Result<Bytes, E>> + 'static,
+    E: Into<Box<dyn StdError>> + 'static,
+{
+    fn from(stream: BodyStream<S>) -> Self {
+        AnyBody::new(stream)
     }
 }
 
@@ -206,7 +227,7 @@ where
     S: Stream<Item = Result<Bytes, E>> + 'static,
     E: Into<Box<dyn StdError>> + 'static,
 {
-    fn from(stream: BodyStream<S>) -> Body {
+    fn from(stream: BodyStream<S>) -> Self {
         AnyBody::new_boxed(stream)
     }
 }

@@ -4,7 +4,7 @@ use std::future::Future;
 use std::marker::PhantomData;
 use std::rc::Rc;
 
-use actix_http::body::{Body, MessageBody};
+use actix_http::body::{AnyBody, MessageBody};
 use actix_http::{Extensions, Request};
 use actix_service::boxed::{self, BoxServiceFactory};
 use actix_service::{
@@ -39,7 +39,7 @@ pub struct App<T, B> {
     _phantom: PhantomData<B>,
 }
 
-impl App<AppEntry, Body> {
+impl App<AppEntry, AnyBody> {
     /// Create application builder. Application can be configured with a builder-like pattern.
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {

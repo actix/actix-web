@@ -200,7 +200,7 @@ async fn test_body_encoding_override() {
                     .body(STR)
             })))
             .service(web::resource("/raw").route(web::to(|| {
-                let body = actix_web::dev::Body::Bytes(STR.into());
+                let body = actix_web::dev::AnyBody::Bytes(STR.into());
                 let mut response =
                     HttpResponse::with_body(actix_web::http::StatusCode::OK, body);
 

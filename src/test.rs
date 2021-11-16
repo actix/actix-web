@@ -22,7 +22,7 @@ use crate::{
     app_service::AppInitServiceState,
     config::AppConfig,
     data::Data,
-    dev::{Body, MessageBody, Payload},
+    dev::{AnyBody, MessageBody, Payload},
     http::header::ContentType,
     rmap::ResourceMap,
     service::{ServiceRequest, ServiceResponse},
@@ -32,14 +32,14 @@ use crate::{
 
 /// Create service that always responds with `HttpResponse::Ok()` and no body.
 pub fn ok_service(
-) -> impl Service<ServiceRequest, Response = ServiceResponse<Body>, Error = Error> {
+) -> impl Service<ServiceRequest, Response = ServiceResponse<AnyBody>, Error = Error> {
     default_service(StatusCode::OK)
 }
 
 /// Create service that always responds with given status code and no body.
 pub fn default_service(
     status_code: StatusCode,
-) -> impl Service<ServiceRequest, Response = ServiceResponse<Body>, Error = Error> {
+) -> impl Service<ServiceRequest, Response = ServiceResponse<AnyBody>, Error = Error> {
     (move |req: ServiceRequest| {
         ok(req.into_response(HttpResponseBuilder::new(status_code).finish()))
     })

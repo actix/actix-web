@@ -436,7 +436,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        dev::Body,
+        dev::AnyBody,
         http::{
             header::{self, HeaderValue, CONTENT_TYPE},
             StatusCode,
@@ -475,7 +475,7 @@ mod tests {
     fn test_content_type() {
         let resp = HttpResponseBuilder::new(StatusCode::OK)
             .content_type("text/plain")
-            .body(Body::empty());
+            .body(AnyBody::empty());
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "text/plain")
     }
 
