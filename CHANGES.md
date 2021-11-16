@@ -7,6 +7,9 @@
 ### Fixed
 * Relax `Unpin` bound on `S` (stream) parameter of `HttpResponseBuilder::streaming`. [#2448]
 
+### Removed
+* `dev::ResponseBody` re-export; is function is replaced by the new `dev::AnyBody` enum. [#2446]
+
 [#2423]: https://github.com/actix/actix-web/pull/2423
 
 
