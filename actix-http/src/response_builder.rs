@@ -262,7 +262,7 @@ impl ResponseBuilder {
         S: Stream<Item = Result<Bytes, E>> + 'static,
         E: Into<Box<dyn StdError>> + 'static,
     {
-        self.body(AnyBody::from_message(BodyStream::new(stream)))
+        self.body(AnyBody::new_boxed(BodyStream::new(stream)))
     }
 
     /// Generate response with an empty body.

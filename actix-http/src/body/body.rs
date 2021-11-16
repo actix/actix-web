@@ -16,7 +16,8 @@ use super::{BodySize, BodyStream, MessageBody, MessageBodyMapErr, SizedStream};
 pub type Body = AnyBody;
 
 /// Represents various types of HTTP message body.
-pub enum AnyBody {
+#[derive(Clone)]
+pub enum AnyBody<S = BoxBody> {
     /// Empty response. `Content-Length` header is not set.
     None,
 
@@ -24,7 +25,7 @@ pub enum AnyBody {
     Bytes(Bytes),
 
     /// Generic message body.
-    Stream(BoxAnyBody),
+    Stream(S),
 }
 
 impl AnyBody {
@@ -33,22 +34,45 @@ impl AnyBody {
         Self::Bytes(Bytes::new())
     }
 
-    /// Create body from slice (copy)
-    pub fn from_slice(s: &[u8]) -> Self {
-        Self::Bytes(Bytes::copy_from_slice(s))
-    }
-
-    /// Create body from generic message body.
-    pub fn from_message<B>(body: B) -> Self
+    /// Create boxed body from generic message body.
+    pub fn new_boxed<B>(body: B) -> Self
     where
         B: MessageBody + 'static,
         B::Error: Into<Box<dyn StdError + 'static>>,
     {
-        Self::Stream(BoxAnyBody::from_body(body))
+        Self::Stream(BoxBody::from_body(body))
+    }
+
+    /// Create body from slice (copy)
+    pub fn from_slice(s: &[u8]) -> Self {
+        Self::Bytes(Bytes::copy_from_slice(s))
     }
 }
 
-impl MessageBody for AnyBody {
+impl<B> AnyBody<B>
+where
+    B: MessageBody + 'static,
+    B::Error: Into<Box<dyn StdError + 'static>>,
+{
+    /// Create body from generic message body.
+    pub fn new(body: B) -> Self {
+        Self::Stream(body)
+    }
+
+    pub fn into_boxed(self) -> AnyBody {
+        match self {
+            AnyBody::None => AnyBody::new_boxed(()),
+            AnyBody::Bytes(body) => AnyBody::new_boxed(body),
+            AnyBody::Stream(body) => AnyBody::new_boxed(body),
+        }
+    }
+}
+
+impl<S> MessageBody for AnyBody<S>
+where
+    S: MessageBody + Unpin,
+    S::Error: StdError + 'static,
+{
     type Error = Error;
 
     fn size(&self) -> BodySize {
@@ -74,8 +98,7 @@ impl MessageBody for AnyBody {
                 }
             }
 
-            AnyBody::Stream(body) => body
-                .as_pin_mut()
+            AnyBody::Stream(body) => Pin::new(body)
                 .poll_next(cx)
                 .map_err(|err| Error::new_body().with_cause(err)),
         }
@@ -95,25 +118,25 @@ impl PartialEq for AnyBody {
     }
 }
 
-impl fmt::Debug for AnyBody {
+impl<S: fmt::Debug> fmt::Debug for AnyBody<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             AnyBody::None => write!(f, "AnyBody::None"),
-            AnyBody::Bytes(ref b) => write!(f, "AnyBody::Bytes({:?})", b),
-            AnyBody::Stream(_) => write!(f, "AnyBody::Message(_)"),
+            AnyBody::Bytes(ref bytes) => write!(f, "AnyBody::Bytes({:?})", bytes),
+            AnyBody::Stream(ref stream) => write!(f, "AnyBody::Message({:?})", stream),
         }
     }
 }
 
 impl From<&'static str> for AnyBody {
-    fn from(s: &'static str) -> Body {
-        AnyBody::Bytes(Bytes::from_static(s.as_ref()))
+    fn from(string: &'static str) -> Body {
+        AnyBody::Bytes(Bytes::from_static(string.as_ref()))
     }
 }
 
 impl From<&'static [u8]> for AnyBody {
-    fn from(s: &'static [u8]) -> Body {
-        AnyBody::Bytes(Bytes::from_static(s))
+    fn from(bytes: &'static [u8]) -> Body {
+        AnyBody::Bytes(Bytes::from_static(bytes))
     }
 }
 
@@ -124,20 +147,20 @@ impl From<Vec<u8>> for AnyBody {
 }
 
 impl From<String> for AnyBody {
-    fn from(s: String) -> Body {
-        s.into_bytes().into()
+    fn from(string: String) -> Body {
+        string.into_bytes().into()
     }
 }
 
 impl From<&'_ String> for AnyBody {
-    fn from(s: &String) -> Body {
-        AnyBody::Bytes(Bytes::copy_from_slice(AsRef::<[u8]>::as_ref(&s)))
+    fn from(string: &String) -> Body {
+        AnyBody::Bytes(Bytes::copy_from_slice(AsRef::<[u8]>::as_ref(&string)))
     }
 }
 
 impl From<Cow<'_, str>> for AnyBody {
-    fn from(s: Cow<'_, str>) -> Body {
-        match s {
+    fn from(string: Cow<'_, str>) -> Body {
+        match string {
             Cow::Owned(s) => AnyBody::from(s),
             Cow::Borrowed(s) => {
                 AnyBody::Bytes(Bytes::copy_from_slice(AsRef::<[u8]>::as_ref(s)))
@@ -147,41 +170,41 @@ impl From<Cow<'_, str>> for AnyBody {
 }
 
 impl From<Bytes> for AnyBody {
-    fn from(s: Bytes) -> Body {
-        AnyBody::Bytes(s)
+    fn from(bytes: Bytes) -> Body {
+        AnyBody::Bytes(bytes)
     }
 }
 
 impl From<BytesMut> for AnyBody {
-    fn from(s: BytesMut) -> Body {
-        AnyBody::Bytes(s.freeze())
+    fn from(bytes: BytesMut) -> Body {
+        AnyBody::Bytes(bytes.freeze())
     }
 }
 
 impl<S, E> From<SizedStream<S>> for AnyBody
 where
     S: Stream<Item = Result<Bytes, E>> + 'static,
-    E: Into<Box<dyn StdError>> + 'static,
+    E: StdError + 'static,
 {
-    fn from(s: SizedStream<S>) -> Body {
-        AnyBody::from_message(s)
+    fn from(stream: SizedStream<S>) -> Body {
+        AnyBody::new_boxed(stream)
     }
 }
 
 impl<S, E> From<BodyStream<S>> for AnyBody
 where
     S: Stream<Item = Result<Bytes, E>> + 'static,
-    E: Into<Box<dyn StdError>> + 'static,
+    E: StdError + 'static,
 {
-    fn from(s: BodyStream<S>) -> Body {
-        AnyBody::from_message(s)
+    fn from(stream: BodyStream<S>) -> Body {
+        AnyBody::new_boxed(stream)
     }
 }
 
 /// A boxed message body with boxed errors.
-pub struct BoxAnyBody(Pin<Box<dyn MessageBody<Error = Box<dyn StdError + 'static>>>>);
+pub struct BoxBody(Pin<Box<dyn MessageBody<Error = Box<dyn StdError>>>>);
 
-impl BoxAnyBody {
+impl BoxBody {
     /// Boxes a `MessageBody` and any errors it generates.
     pub fn from_body<B>(body: B) -> Self
     where
@@ -195,18 +218,18 @@ impl BoxAnyBody {
     /// Returns a mutable pinned reference to the inner message body type.
     pub fn as_pin_mut(
         &mut self,
-    ) -> Pin<&mut (dyn MessageBody<Error = Box<dyn StdError + 'static>>)> {
+    ) -> Pin<&mut (dyn MessageBody<Error = Box<dyn StdError>>)> {
         self.0.as_mut()
     }
 }
 
-impl fmt::Debug for BoxAnyBody {
+impl fmt::Debug for BoxBody {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("BoxAnyBody(dyn MessageBody)")
     }
 }
 
-impl MessageBody for BoxAnyBody {
+impl MessageBody for BoxBody {
     type Error = Error;
 
     fn size(&self) -> BodySize {
@@ -222,4 +245,19 @@ impl MessageBody for BoxAnyBody {
             .poll_next(cx)
             .map_err(|err| Error::new_body().with_cause(err))
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use static_assertions::{assert_impl_all, assert_not_impl_all};
+
+    use super::*;
+
+    assert_impl_all!(AnyBody<()>: MessageBody, fmt::Debug, Send, Sync);
+    assert_impl_all!(AnyBody<Bytes>: MessageBody, fmt::Debug, Send, Sync);
+    assert_impl_all!(AnyBody: MessageBody, fmt::Debug);
+    assert_impl_all!(BoxBody: MessageBody, fmt::Debug);
+
+    assert_not_impl_all!(AnyBody: Send, Sync);
+    assert_not_impl_all!(BoxBody: Send, Sync);
 }

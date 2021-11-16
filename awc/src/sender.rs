@@ -9,7 +9,7 @@ use std::{
 };
 
 use actix_http::{
-    body::{Body, BodyStream},
+    body::{AnyBody, Body, BodyStream},
     http::{
         header::{self, HeaderMap, HeaderName, IntoHeaderValue},
         Error as HttpError,
@@ -286,7 +286,7 @@ impl RequestSender {
             response_decompress,
             timeout,
             config,
-            Body::from_message(BodyStream::new(stream)),
+            AnyBody::new_boxed(BodyStream::new(stream)),
         )
     }
 

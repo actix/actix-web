@@ -24,7 +24,7 @@ use flate2::write::{GzEncoder, ZlibEncoder};
 use zstd::stream::write::Encoder as ZstdEncoder;
 
 use crate::{
-    body::{Body, BodySize, BoxAnyBody, MessageBody, ResponseBody},
+    body::{Body, BodySize, BoxBody, MessageBody, ResponseBody},
     http::{
         header::{ContentEncoding, CONTENT_ENCODING},
         HeaderValue, StatusCode,
@@ -100,7 +100,7 @@ impl<B: MessageBody> Encoder<B> {
 enum EncoderBody<B> {
     Bytes(Bytes),
     Stream(#[pin] B),
-    BoxedStream(BoxAnyBody),
+    BoxedStream(BoxBody),
 }
 
 impl<B> MessageBody for EncoderBody<B>

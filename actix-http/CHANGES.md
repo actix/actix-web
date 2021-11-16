@@ -3,9 +3,14 @@
 ## Unreleased - 2021-xx-xx
 ### Added
 * `AnyBody::empty` for quickly creating an empty body. [#2446]
+* `impl Clone` for `AnyBody<S> where S: Clone`. [#????]
+* `AnyBody::into_boxed` for quickly converting to a type-erased, boxed body type. [#????]
 
 ### Changed
 * Rename `AnyBody::{Message => Stream}`. [#2446]
+* Rename `AnyBody::{from_message => new_boxed}`. [#????]
+* Rename `BoxAnyBody` to `BoxBody` [#????]
+* Change representation of `AnyBody` to include a type parameter in `Stream` variant. Defaults to `BoxBody`. [#????]
 
 ### Removed
 * `AnyBody::Empty`; an empty body can now only be represented as a zero-length `Bytes` variant. [#2446]

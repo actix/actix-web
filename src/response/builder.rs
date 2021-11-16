@@ -354,10 +354,10 @@ impl HttpResponseBuilder {
     #[inline]
     pub fn streaming<S, E>(&mut self, stream: S) -> HttpResponse
     where
-        S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
+        S: Stream<Item = Result<Bytes, E>> + 'static,
         E: Into<Box<dyn StdError>> + 'static,
     {
-        self.body(AnyBody::from_message(BodyStream::new(stream)))
+        self.body(AnyBody::new_boxed(BodyStream::new(stream)))
     }
 
     /// Set a json body and generate `Response`
