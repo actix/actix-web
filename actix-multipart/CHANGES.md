@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+* Ensure the Content-Disposition header is included in every part of a multipart message. [#????]
+
+[#????]: https://github.com/actix/actix-web/pull/????
 
 
 ## 0.4.0-beta.7 - 2021-10-20
