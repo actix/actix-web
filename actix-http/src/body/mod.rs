@@ -86,6 +86,7 @@ mod tests {
         }
     }
 
+    /// AnyBody alias because rustc does not (can not?) infer the default type parameter.
     type TestBody = AnyBody;
 
     #[actix_rt::test]
