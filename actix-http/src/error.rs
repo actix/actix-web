@@ -66,7 +66,7 @@ impl Error {
     }
 }
 
-impl From<Error> for Response<AnyBody> {
+impl<B> From<Error> for Response<AnyBody<B>> {
     fn from(err: Error) -> Self {
         let status_code = match err.inner.kind {
             Kind::Parse => StatusCode::BAD_REQUEST,

@@ -139,56 +139,56 @@ impl<S: fmt::Debug> fmt::Debug for AnyBody<S> {
     }
 }
 
-impl From<&'static str> for AnyBody {
-    fn from(string: &'static str) -> AnyBody {
-        AnyBody::Bytes(Bytes::from_static(string.as_ref()))
+impl<B> From<&'static str> for AnyBody<B> {
+    fn from(string: &'static str) -> Self {
+        Self::Bytes(Bytes::from_static(string.as_ref()))
     }
 }
 
-impl From<&'static [u8]> for AnyBody {
-    fn from(bytes: &'static [u8]) -> AnyBody {
-        AnyBody::Bytes(Bytes::from_static(bytes))
+impl<B> From<&'static [u8]> for AnyBody<B> {
+    fn from(bytes: &'static [u8]) -> Self {
+        Self::Bytes(Bytes::from_static(bytes))
     }
 }
 
-impl From<Vec<u8>> for AnyBody {
-    fn from(vec: Vec<u8>) -> AnyBody {
-        AnyBody::Bytes(Bytes::from(vec))
+impl<B> From<Vec<u8>> for AnyBody<B> {
+    fn from(vec: Vec<u8>) -> Self {
+        Self::Bytes(Bytes::from(vec))
     }
 }
 
-impl From<String> for AnyBody {
-    fn from(string: String) -> AnyBody {
-        string.into_bytes().into()
+impl<B> From<String> for AnyBody<B> {
+    fn from(string: String) -> Self {
+        Self::Bytes(Bytes::from(string))
     }
 }
 
-impl From<&'_ String> for AnyBody {
-    fn from(string: &String) -> AnyBody {
-        AnyBody::Bytes(Bytes::copy_from_slice(AsRef::<[u8]>::as_ref(&string)))
+impl<B> From<&'_ String> for AnyBody<B> {
+    fn from(string: &String) -> Self {
+        Self::Bytes(Bytes::copy_from_slice(AsRef::<[u8]>::as_ref(&string)))
     }
 }
 
-impl From<Cow<'_, str>> for AnyBody {
-    fn from(string: Cow<'_, str>) -> AnyBody {
+impl<B> From<Cow<'_, str>> for AnyBody<B> {
+    fn from(string: Cow<'_, str>) -> Self {
         match string {
-            Cow::Owned(s) => AnyBody::from(s),
+            Cow::Owned(s) => Self::from(s),
             Cow::Borrowed(s) => {
-                AnyBody::Bytes(Bytes::copy_from_slice(AsRef::<[u8]>::as_ref(s)))
+                Self::Bytes(Bytes::copy_from_slice(AsRef::<[u8]>::as_ref(s)))
             }
         }
     }
 }
 
-impl From<Bytes> for AnyBody {
+impl<B> From<Bytes> for AnyBody<B> {
     fn from(bytes: Bytes) -> Self {
-        AnyBody::Bytes(bytes)
+        Self::Bytes(bytes)
     }
 }
 
-impl From<BytesMut> for AnyBody {
+impl<B> From<BytesMut> for AnyBody<B> {
     fn from(bytes: BytesMut) -> Self {
-        AnyBody::Bytes(bytes.freeze())
+        Self::Bytes(bytes.freeze())
     }
 }
 
