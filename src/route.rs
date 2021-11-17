@@ -1,6 +1,6 @@
 #![allow(clippy::rc_buffer)] // inner value is mutated before being shared (`Rc::get_mut`)
 
-use std::{future::Future, rc::Rc};
+use std::rc::Rc;
 
 use actix_http::http::Method;
 use actix_service::{
@@ -10,10 +10,11 @@ use actix_service::{
 use futures_core::future::LocalBoxFuture;
 
 use crate::{
+    extract::FromRequestX,
     guard::{self, Guard},
     handler::{handler_service, Handler},
     service::{ServiceRequest, ServiceResponse},
-    Error, FromRequest, HttpResponse, Responder,
+    Error, HttpResponse,
 };
 
 /// Resource route definition
@@ -175,12 +176,10 @@ impl Route {
     ///     );
     /// }
     /// ```
-    pub fn to<F, T, R>(mut self, handler: F) -> Self
+    pub fn to<F, T>(mut self, handler: F) -> Self
     where
-        F: Handler<T, R>,
-        T: FromRequest + 'static,
-        R: Future + 'static,
-        R::Output: Responder + 'static,
+        F: for<'a> Handler<'a, T>,
+        T: for<'a> FromRequestX<'a>,
     {
         self.service = handler_service(handler);
         self

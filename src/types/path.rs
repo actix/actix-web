@@ -9,7 +9,7 @@ use serde::de;
 use crate::{
     dev::Payload,
     error::{Error, ErrorNotFound, PathError},
-    FromRequest, HttpRequest,
+    FromRequestX, HttpRequest,
 };
 
 /// Extract typed data from request path segments.
@@ -91,15 +91,16 @@ impl<T: fmt::Display> fmt::Display for Path<T> {
 }
 
 /// See [here](#usage) for example of usage as an extractor.
-impl<T> FromRequest for Path<T>
+impl<'a, T> FromRequestX<'a> for Path<T>
 where
-    T: de::DeserializeOwned,
+    T: de::Deserialize<'a>,
 {
+    type Output = Self;
     type Error = Error;
-    type Future = Ready<Result<Self, Self::Error>>;
+    type Future = Ready<Result<Self::Output, Self::Error>>;
 
     #[inline]
-    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+    fn from_request(req: &'a HttpRequest, _: &mut Payload) -> Self::Future {
         let error_handler = req
             .app_data::<PathConfig>()
             .and_then(|c| c.err_handler.clone());
@@ -266,6 +267,7 @@ mod tests {
         resource.capture_match_info(req.match_info_mut());
 
         let (req, mut pl) = req.into_parts();
+
         let s = Path::<Test2>::from_request(&req, &mut pl).await.unwrap();
         assert_eq!(s.as_ref().key, "name");
         assert_eq!(s.value, 32);

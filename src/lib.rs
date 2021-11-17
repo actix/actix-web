@@ -105,7 +105,7 @@ pub use cookie;
 
 pub use crate::app::App;
 pub use crate::error::{Error, ResponseError, Result};
-pub use crate::extract::FromRequest;
+pub use crate::extract::{FromRequest, FromRequestX};
 pub use crate::request::HttpRequest;
 pub use crate::resource::Resource;
 pub use crate::responder::Responder;
