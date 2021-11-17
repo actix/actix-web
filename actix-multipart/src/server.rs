@@ -1,15 +1,20 @@
 //! Multipart response payload support.
 
-use std::cell::{Cell, RefCell, RefMut};
-use std::convert::TryFrom;
-use std::marker::PhantomData;
-use std::pin::Pin;
-use std::rc::Rc;
-use std::task::{Context, Poll};
-use std::{cmp, fmt};
+use std::{
+    cell::{Cell, RefCell, RefMut},
+    cmp,
+    convert::TryFrom,
+    fmt,
+    marker::PhantomData,
+    pin::Pin,
+    rc::Rc,
+    task::{Context, Poll},
+};
 
-use actix_web::error::{ParseError, PayloadError};
-use actix_web::http::header::{self, ContentDisposition, HeaderMap, HeaderName, HeaderValue};
+use actix_web::{
+    error::{ParseError, PayloadError},
+    http::header::{self, ContentDisposition, HeaderMap, HeaderName, HeaderValue},
+};
 use bytes::{Bytes, BytesMut};
 use futures_core::stream::{LocalBoxStream, Stream};
 use futures_util::stream::StreamExt as _;
@@ -40,10 +45,13 @@ enum InnerMultipartItem {
 enum InnerState {
     /// Stream eof
     Eof,
+
     /// Skip data until first boundary
     FirstBoundary,
+
     /// Reading boundary
     Boundary,
+
     /// Reading Headers,
     Headers,
 }
@@ -332,31 +340,55 @@ impl InnerMultipart {
                 return Poll::Pending;
             };
 
-            // content type
-            let mut mt = mime::APPLICATION_OCTET_STREAM;
-            if let Some(content_type) = headers.get(&header::CONTENT_TYPE) {
-                if let Ok(content_type) = content_type.to_str() {
-                    if let Ok(ct) = content_type.parse::<mime::Mime>() {
-                        mt = ct;
-                    }
-                }
-            }
+            // According to [RFC 7578](https://tools.ietf.org/html/rfc7578#section-4.2) a
+            // Content-Disposition header must always be present and set to "form-data".
+
+            let content_disposition = headers
+                .get(&header::CONTENT_DISPOSITION)
+                .and_then(|cd| ContentDisposition::from_raw(cd).ok())
+                .filter(|content_disposition| {
+                    let is_form_data =
+                        content_disposition.disposition == header::DispositionType::FormData;
+
+                    let has_field_name = content_disposition
+                        .parameters
+                        .iter()
+                        .any(|param| matches!(param, header::DispositionParam::Name(_)));
+
+                    is_form_data && has_field_name
+                });
+
+            let cd = if let Some(content_disposition) = content_disposition {
+                content_disposition
+            } else {
+                return Poll::Ready(Some(Err(MultipartError::NoContentDisposition)));
+            };
+
+            let ct: mime::Mime = headers
+                .get(&header::CONTENT_TYPE)
+                .and_then(|ct| ct.to_str().ok())
+                .and_then(|ct| ct.parse().ok())
+                .unwrap_or(mime::APPLICATION_OCTET_STREAM);
 
             self.state = InnerState::Boundary;
 
-            // nested multipart stream
-            if mt.type_() == mime::MULTIPART {
-                Poll::Ready(Some(Err(MultipartError::Nested)))
-            } else {
-                let field = Rc::new(RefCell::new(InnerField::new(
-                    self.payload.clone(),
-                    self.boundary.clone(),
-                    &headers,
-                )?));
-                self.item = InnerMultipartItem::Field(Rc::clone(&field));
-
-                Poll::Ready(Some(Ok(Field::new(safety.clone(cx), headers, mt, field))))
+            // nested multipart stream is not supported
+            if ct.type_() == mime::MULTIPART {
+                return Poll::Ready(Some(Err(MultipartError::Nested)));
             }
+
+            let field =
+                InnerField::new_in_rc(self.payload.clone(), self.boundary.clone(), &headers)?;
+
+            self.item = InnerMultipartItem::Field(Rc::clone(&field));
+
+            Poll::Ready(Some(Ok(Field::new(
+                safety.clone(cx),
+                headers,
+                ct,
+                cd,
+                field,
+            ))))
         }
     }
 }
@@ -371,6 +403,7 @@ impl Drop for InnerMultipart {
 /// A single field in a multipart stream
 pub struct Field {
     ct: mime::Mime,
+    cd: ContentDisposition,
     headers: HeaderMap,
     inner: Rc<RefCell<InnerField>>,
     safety: Safety,
@@ -381,35 +414,51 @@ impl Field {
         safety: Safety,
         headers: HeaderMap,
         ct: mime::Mime,
+        cd: ContentDisposition,
         inner: Rc<RefCell<InnerField>>,
     ) -> Self {
         Field {
             ct,
+            cd,
             headers,
             inner,
             safety,
         }
     }
 
-    /// Get a map of headers
+    /// Returns a reference to the field's header map.
     pub fn headers(&self) -> &HeaderMap {
         &self.headers
     }
 
-    /// Get the content type of the field
+    /// Returns a reference to the field's content (mime) type.
     pub fn content_type(&self) -> &mime::Mime {
         &self.ct
     }
 
-    /// Get the content disposition of the field, if it exists
-    pub fn content_disposition(&self) -> Option<ContentDisposition> {
-        // RFC 7578: 'Each part MUST contain a Content-Disposition header field
-        // where the disposition type is "form-data".'
-        if let Some(content_disposition) = self.headers.get(&header::CONTENT_DISPOSITION) {
-            ContentDisposition::from_raw(content_disposition).ok()
-        } else {
-            None
-        }
+    /// Returns the field's Content-Disposition.
+    ///
+    /// Per [RFC 7578 §4.2]: 'Each part MUST contain a Content-Disposition header field where the
+    /// disposition type is "form-data". The Content-Disposition header field MUST also contain an
+    /// additional parameter of "name"; the value of the "name" parameter is the original field name
+    /// from the form.'
+    ///
+    /// This crate validates that it exists before returning a `Field`. As such, it is safe to
+    /// unwrap `.content_disposition().get_name()`. The [name](Self::name) method is provided as
+    /// a convenience.
+    ///
+    /// [RFC 7578 §4.2]: https://datatracker.ietf.org/doc/html/rfc7578#section-4.2
+    pub fn content_disposition(&self) -> &ContentDisposition {
+        &self.cd
+    }
+
+    /// Returns the field's name.
+    ///
+    /// See [content_disposition] regarding guarantees about
+    pub fn name(&self) -> &str {
+        self.content_disposition()
+            .get_name()
+            .expect("field name should be guaranteed to exist in multipart form-data")
     }
 }
 
@@ -451,20 +500,23 @@ struct InnerField {
 }
 
 impl InnerField {
+    fn new_in_rc(
+        payload: PayloadRef,
+        boundary: String,
+        headers: &HeaderMap,
+    ) -> Result<Rc<RefCell<InnerField>>, PayloadError> {
+        Self::new(payload, boundary, headers).map(|this| Rc::new(RefCell::new(this)))
+    }
+
     fn new(
         payload: PayloadRef,
         boundary: String,
         headers: &HeaderMap,
     ) -> Result<InnerField, PayloadError> {
         let len = if let Some(len) = headers.get(&header::CONTENT_LENGTH) {
-            if let Ok(s) = len.to_str() {
-                if let Ok(len) = s.parse::<u64>() {
-                    Some(len)
-                } else {
-                    return Err(PayloadError::Incomplete(None));
-                }
-            } else {
-                return Err(PayloadError::Incomplete(None));
+            match len.to_str().ok().and_then(|len| len.parse::<u64>().ok()) {
+                Some(len) => Some(len),
+                None => return Err(PayloadError::Incomplete(None)),
             }
         } else {
             None
@@ -658,9 +710,8 @@ impl Clone for PayloadRef {
     }
 }
 
-/// Counter. It tracks of number of clones of payloads and give access to
-/// payload only to top most task panics if Safety get destroyed and it not top
-/// most task.
+/// Counter. It tracks of number of clones of payloads and give access to payload only to top most
+/// task panics if Safety get destroyed and it not top most task.
 #[derive(Debug)]
 struct Safety {
     task: LocalWaker,
@@ -707,11 +758,12 @@ impl Drop for Safety {
         if Rc::strong_count(&self.payload) != self.level {
             self.clean.set(true);
         }
+
         self.task.wake();
     }
 }
 
-/// Payload buffer
+/// Payload buffer.
 struct PayloadBuffer {
     eof: bool,
     buf: BytesMut,
@@ -719,7 +771,7 @@ struct PayloadBuffer {
 }
 
 impl PayloadBuffer {
-    /// Create new `PayloadBuffer` instance
+    /// Constructs new `PayloadBuffer` instance.
     fn new<S>(stream: S) -> Self
     where
         S: Stream<Item = Result<Bytes, PayloadError>> + 'static,
@@ -767,7 +819,7 @@ impl PayloadBuffer {
     }
 
     /// Read until specified ending
-    pub fn read_until(&mut self, line: &[u8]) -> Result<Option<Bytes>, MultipartError> {
+    fn read_until(&mut self, line: &[u8]) -> Result<Option<Bytes>, MultipartError> {
         let res = twoway::find_bytes(&self.buf, line)
             .map(|idx| self.buf.split_to(idx + line.len()).freeze());
 
@@ -779,12 +831,12 @@ impl PayloadBuffer {
     }
 
     /// Read bytes until new line delimiter
-    pub fn readline(&mut self) -> Result<Option<Bytes>, MultipartError> {
+    fn readline(&mut self) -> Result<Option<Bytes>, MultipartError> {
         self.read_until(b"\n")
     }
 
     /// Read bytes until new line delimiter or eof
-    pub fn readline_or_eof(&mut self) -> Result<Option<Bytes>, MultipartError> {
+    fn readline_or_eof(&mut self) -> Result<Option<Bytes>, MultipartError> {
         match self.readline() {
             Err(MultipartError::Incomplete) if self.eof => Ok(Some(self.buf.split().freeze())),
             line => line,
@@ -792,7 +844,7 @@ impl PayloadBuffer {
     }
 
     /// Put unprocessed data back to the buffer
-    pub fn unprocessed(&mut self, data: Bytes) {
+    fn unprocessed(&mut self, data: Bytes) {
         let buf = BytesMut::from(data.as_ref());
         let buf = std::mem::replace(&mut self.buf, buf);
         self.buf.extend_from_slice(&buf);
@@ -914,6 +966,7 @@ mod tests {
              Content-Type: text/plain; charset=utf-8\r\nContent-Length: 4\r\n\r\n\
              test\r\n\
              --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+             Content-Disposition: form-data; name=\"file\"; filename=\"fn.txt\"\r\n\
              Content-Type: text/plain; charset=utf-8\r\nContent-Length: 4\r\n\r\n\
              data\r\n\
              --abbc761f78ff4d7cb7573b5a23f96ef0--\r\n",
@@ -965,7 +1018,7 @@ mod tests {
         let mut multipart = Multipart::new(&headers, payload);
         match multipart.next().await {
             Some(Ok(mut field)) => {
-                let cd = field.content_disposition().unwrap();
+                let cd = field.content_disposition();
                 assert_eq!(cd.disposition, DispositionType::FormData);
                 assert_eq!(cd.parameters[0], DispositionParam::Name("file".into()));
 
@@ -1027,7 +1080,7 @@ mod tests {
         let mut multipart = Multipart::new(&headers, payload);
         match multipart.next().await.unwrap() {
             Ok(mut field) => {
-                let cd = field.content_disposition().unwrap();
+                let cd = field.content_disposition();
                 assert_eq!(cd.disposition, DispositionType::FormData);
                 assert_eq!(cd.parameters[0], DispositionParam::Name("file".into()));
 
@@ -1181,5 +1234,60 @@ mod tests {
             actix_web::dev::Payload::H1(_) => {} //expected
             _ => unreachable!(),
         }
+    }
+
+    #[actix_rt::test]
+    async fn no_content_disposition() {
+        let bytes = Bytes::from(
+            "testasdadsad\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+             Content-Type: text/plain; charset=utf-8\r\nContent-Length: 4\r\n\r\n\
+             test\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0\r\n",
+        );
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static(
+                "multipart/mixed; boundary=\"abbc761f78ff4d7cb7573b5a23f96ef0\"",
+            ),
+        );
+        let payload = SlowStream::new(bytes);
+
+        let mut multipart = Multipart::new(&headers, payload);
+        let res = multipart.next().await.unwrap();
+        assert!(res.is_err());
+        assert!(matches!(
+            res.unwrap_err(),
+            MultipartError::NoContentDisposition,
+        ));
+    }
+
+    #[actix_rt::test]
+    async fn no_name_in_content_disposition() {
+        let bytes = Bytes::from(
+            "testasdadsad\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+             Content-Disposition: form-data; filename=\"fn.txt\"\r\n\
+             Content-Type: text/plain; charset=utf-8\r\nContent-Length: 4\r\n\r\n\
+             test\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0\r\n",
+        );
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static(
+                "multipart/mixed; boundary=\"abbc761f78ff4d7cb7573b5a23f96ef0\"",
+            ),
+        );
+        let payload = SlowStream::new(bytes);
+
+        let mut multipart = Multipart::new(&headers, payload);
+        let res = multipart.next().await.unwrap();
+        assert!(res.is_err());
+        assert!(matches!(
+            res.unwrap_err(),
+            MultipartError::NoContentDisposition,
+        ));
     }
 }

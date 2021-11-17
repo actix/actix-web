@@ -1,6 +1,14 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+* Ensure a correct Content-Disposition header is included in every part of a multipart message. [#2451]
+* Added `MultipartError::NoContentDisposition` variant. [#2451]
+* Since Content-Disposition is now ensured, `Field::content_disposition` is now infallible. [#2451]
+* Added `Field::name` method for getting the field name. [#2451]
+* `MultipartError` now marks variants with inner errors as the source. [#2451]
+* `MultipartError` is now marked as non-exhaustive. [#2451]
+
+[#2451]: https://github.com/actix/actix-web/pull/2451
 
 
 ## 0.4.0-beta.7 - 2021-10-20
