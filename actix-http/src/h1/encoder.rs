@@ -78,8 +78,8 @@ pub(crate) trait MessageType: Sized {
                 }
 
                 StatusCode::NOT_MODIFIED => {
-                    // don't skip content-length header for not modified responses
-                    // see https://datatracker.ietf.org/doc/html/rfc7232#section-4.1
+                    // 304 responses should never have a body but should retain a manually set
+                    // content-length header see https://tools.ietf.org/html/rfc7232#section-4.1
                     skip_len = false;
                     length = BodySize::None;
                 }
