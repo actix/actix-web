@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+* Fix 304 Not Modified responses to omit the Content-Length header, as per the spec. [#????]
+
+[#????]: https://github.com/actix/actix-web/pull/????
 
 
 ## 0.6.0-beta.8 - 2021-10-20

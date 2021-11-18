@@ -759,3 +759,90 @@ async fn test_h1_on_connect() {
 
     srv.stop().await;
 }
+
+/// Tests compliance with 304 Not Modified spec in RFC 7232 §4.1.
+/// https://datatracker.ietf.org/doc/html/rfc7232#section-4.1
+#[actix_rt::test]
+async fn test_not_modified_spec_h1() {
+    // TODO: this test needing a few seconds to complete reveals some weirdness with either the
+    // dispatcher or the client, though similar hangs occur on other tests in this file, only
+    // succeeding, it seems, because of the keepalive timer
+
+    static CL: header::HeaderName = header::CONTENT_LENGTH;
+
+    let mut srv = test_server(|| {
+        HttpService::build()
+            .h1(|req: Request| {
+                let res: Response<AnyBody> = match req.path() {
+                    // with no content-length
+                    "/none" => {
+                        Response::with_body(StatusCode::NOT_MODIFIED, AnyBody::None)
+                    }
+
+                    // with no content-length
+                    "/body" => Response::with_body(
+                        StatusCode::NOT_MODIFIED,
+                        AnyBody::from("1234"),
+                    ),
+
+                    // with manual content-length header and specific None body
+                    "/cl-none" => {
+                        let mut res =
+                            Response::with_body(StatusCode::NOT_MODIFIED, AnyBody::None);
+                        res.headers_mut()
+                            .insert(CL.clone(), header::HeaderValue::from_static("24"));
+                        res
+                    }
+
+                    // with manual content-length header and ignore-able body
+                    "/cl-body" => {
+                        let mut res = Response::with_body(
+                            StatusCode::NOT_MODIFIED,
+                            AnyBody::from("1234"),
+                        );
+                        res.headers_mut()
+                            .insert(CL.clone(), header::HeaderValue::from_static("4"));
+                        res
+                    }
+
+                    _ => panic!("unknown route"),
+                };
+
+                ok::<_, Infallible>(res)
+            })
+            .tcp()
+    })
+    .await;
+
+    let res = srv.get("/none").send().await.unwrap();
+    assert_eq!(res.status(), http::StatusCode::NOT_MODIFIED);
+    assert_eq!(res.headers().get(&CL), None);
+    assert!(srv.load_body(res).await.unwrap().is_empty());
+
+    let res = srv.get("/body").send().await.unwrap();
+    assert_eq!(res.status(), http::StatusCode::NOT_MODIFIED);
+    assert_eq!(res.headers().get(&CL), None);
+    assert!(srv.load_body(res).await.unwrap().is_empty());
+
+    let res = srv.get("/cl-none").send().await.unwrap();
+    assert_eq!(res.status(), http::StatusCode::NOT_MODIFIED);
+    assert_eq!(
+        res.headers().get(&CL),
+        Some(&header::HeaderValue::from_static("24")),
+    );
+    assert!(srv.load_body(res).await.unwrap().is_empty());
+
+    let res = srv.get("/cl-body").send().await.unwrap();
+    assert_eq!(res.status(), http::StatusCode::NOT_MODIFIED);
+    assert_eq!(
+        res.headers().get(&CL),
+        Some(&header::HeaderValue::from_static("4")),
+    );
+    // server does not prevent payload from being sent but clients will likely choose not to read it
+    // TODO: this is probably a bug
+    assert!(!srv.load_body(res).await.unwrap().is_empty());
+
+    // TODO: add stream response tests
+
+    srv.stop().await;
+}
