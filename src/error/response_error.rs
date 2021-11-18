@@ -9,7 +9,7 @@ use std::{
 use actix_http::{body::AnyBody, header, Response, StatusCode};
 use bytes::BytesMut;
 
-use crate::{__downcast_dyn, __downcast_get_type_id};
+use crate::error::{downcast_dyn, downcast_get_type_id};
 use crate::{helpers, HttpResponse};
 
 /// Errors that can generate responses.
@@ -41,10 +41,10 @@ pub trait ResponseError: fmt::Debug + fmt::Display {
         res.set_body(AnyBody::from(buf))
     }
 
-    __downcast_get_type_id!();
+    downcast_get_type_id!();
 }
 
-__downcast_dyn!(ResponseError);
+downcast_dyn!(ResponseError);
 
 impl ResponseError for Box<dyn StdError + 'static> {}
 
@@ -56,6 +56,10 @@ impl ResponseError for serde::de::value::Error {
         StatusCode::BAD_REQUEST
     }
 }
+
+impl ResponseError for serde_json::Error {}
+
+impl ResponseError for serde_urlencoded::ser::Error {}
 
 impl ResponseError for std::str::Utf8Error {
     fn status_code(&self) -> StatusCode {

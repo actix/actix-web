@@ -303,9 +303,9 @@ where
         body: &impl MessageBody,
     ) -> Result<BodySize, DispatchError> {
         let size = body.size();
-        let mut this = self.project();
+        let this = self.project();
         this.codec
-            .encode(Message::Item((message, size)), &mut this.write_buf)
+            .encode(Message::Item((message, size)), this.write_buf)
             .map_err(|err| {
                 if let Some(mut payload) = this.payload.take() {
                     payload.set_error(PayloadError::Incomplete(None));
@@ -325,7 +325,7 @@ where
     ) -> Result<(), DispatchError> {
         let size = self.as_mut().send_response_inner(message, &body)?;
         let state = match size {
-            BodySize::None | BodySize::Empty => State::None,
+            BodySize::None | BodySize::Sized(0) => State::None,
             _ => State::SendPayload(body),
         };
         self.project().state.set(state);
@@ -339,7 +339,7 @@ where
     ) -> Result<(), DispatchError> {
         let size = self.as_mut().send_response_inner(message, &body)?;
         let state = match size {
-            BodySize::None | BodySize::Empty => State::None,
+            BodySize::None | BodySize::Sized(0) => State::None,
             _ => State::SendErrorPayload(body),
         };
         self.project().state.set(state);
@@ -380,7 +380,7 @@ where
                         // send_response would update InnerDispatcher state to SendPayload or
                         // None(If response body is empty).
                         // continue loop to poll it.
-                        self.as_mut().send_error_response(res, AnyBody::Empty)?;
+                        self.as_mut().send_error_response(res, AnyBody::empty())?;
                     }
 
                     // return with upgrade request and poll it exclusively.
@@ -425,13 +425,13 @@ where
                             Poll::Ready(Some(Ok(item))) => {
                                 this.codec.encode(
                                     Message::Chunk(Some(item)),
-                                    &mut this.write_buf,
+                                    this.write_buf,
                                 )?;
                             }
 
                             Poll::Ready(None) => {
                                 this.codec
-                                    .encode(Message::Chunk(None), &mut this.write_buf)?;
+                                    .encode(Message::Chunk(None), this.write_buf)?;
                                 // payload stream finished.
                                 // set state to None and handle next message
                                 this.state.set(State::None);
@@ -460,13 +460,13 @@ where
                             Poll::Ready(Some(Ok(item))) => {
                                 this.codec.encode(
                                     Message::Chunk(Some(item)),
-                                    &mut this.write_buf,
+                                    this.write_buf,
                                 )?;
                             }
 
                             Poll::Ready(None) => {
                                 this.codec
-                                    .encode(Message::Chunk(None), &mut this.write_buf)?;
+                                    .encode(Message::Chunk(None), this.write_buf)?;
                                 // payload stream finished.
                                 // set state to None and handle next message
                                 this.state.set(State::None);
@@ -515,14 +515,13 @@ where
         cx: &mut Context<'_>,
     ) -> Result<(), DispatchError> {
         // Handle `EXPECT: 100-Continue` header
+        let mut this = self.as_mut().project();
         if req.head().expect() {
             // set dispatcher state so the future is pinned.
-            let mut this = self.as_mut().project();
             let task = this.flow.expect.call(req);
             this.state.set(State::ExpectCall(task));
         } else {
             // the same as above.
-            let mut this = self.as_mut().project();
             let task = this.flow.service.call(req);
             this.state.set(State::ServiceCall(task));
         };
@@ -593,7 +592,7 @@ where
         let mut updated = false;
         let mut this = self.as_mut().project();
         loop {
-            match this.codec.decode(&mut this.read_buf) {
+            match this.codec.decode(this.read_buf) {
                 Ok(Some(msg)) => {
                     updated = true;
                     this.flags.insert(Flags::STARTED);
@@ -773,7 +772,7 @@ where
                                 trace!("Slow request timeout");
                                 let _ = self.as_mut().send_error_response(
                                     Response::with_body(StatusCode::REQUEST_TIMEOUT, ()),
-                                    AnyBody::Empty,
+                                    AnyBody::empty(),
                                 );
                                 this = self.project();
                                 this.flags.insert(Flags::STARTED | Flags::SHUTDOWN);
@@ -1061,7 +1060,7 @@ mod tests {
     fn stabilize_date_header(payload: &mut [u8]) {
         let mut from = 0;
 
-        while let Some(pos) = find_slice(&payload, b"date", from) {
+        while let Some(pos) = find_slice(payload, b"date", from) {
             payload[(from + pos)..(from + pos + 35)]
                 .copy_from_slice(b"date: Thu, 01 Jan 1970 12:34:56 UTC");
             from += 35;
@@ -1078,7 +1077,7 @@ mod tests {
         fn_service(|req: Request| {
             let path = req.path().as_bytes();
             ready(Ok::<_, Error>(
-                Response::ok().set_body(AnyBody::from_slice(path)),
+                Response::ok().set_body(AnyBody::copy_from_slice(path)),
             ))
         })
     }

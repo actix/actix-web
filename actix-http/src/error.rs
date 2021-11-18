@@ -5,10 +5,7 @@ use std::{error::Error as StdError, fmt, io, str::Utf8Error, string::FromUtf8Err
 use derive_more::{Display, Error, From};
 use http::{uri::InvalidUri, StatusCode};
 
-use crate::{
-    body::{AnyBody, Body},
-    ws, Response,
-};
+use crate::{body::AnyBody, ws, Response};
 
 pub use http::Error as HttpError;
 
@@ -27,6 +24,11 @@ impl Error {
         Self {
             inner: Box::new(ErrorInner { kind, cause: None }),
         }
+    }
+
+    pub(crate) fn with_cause(mut self, cause: impl Into<Box<dyn StdError>>) -> Self {
+        self.inner.cause = Some(cause.into());
+        self
     }
 
     pub(crate) fn new_http() -> Self {
@@ -49,12 +51,12 @@ impl Error {
         Self::new(Kind::SendResponse)
     }
 
-    // TODO: remove allow
-    #[allow(dead_code)]
+    #[allow(unused)] // reserved for future use (TODO: remove allow when being used)
     pub(crate) fn new_io() -> Self {
         Self::new(Kind::Io)
     }
 
+    #[allow(unused)] // used in encoder behind feature flag so ignore unused warning
     pub(crate) fn new_encoder() -> Self {
         Self::new(Kind::Encoder)
     }
@@ -62,26 +64,21 @@ impl Error {
     pub(crate) fn new_ws() -> Self {
         Self::new(Kind::Ws)
     }
-
-    pub(crate) fn with_cause(mut self, cause: impl Into<Box<dyn StdError>>) -> Self {
-        self.inner.cause = Some(cause.into());
-        self
-    }
 }
 
-impl From<Error> for Response<AnyBody> {
+impl<B> From<Error> for Response<AnyBody<B>> {
     fn from(err: Error) -> Self {
         let status_code = match err.inner.kind {
             Kind::Parse => StatusCode::BAD_REQUEST,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
-        Response::new(status_code).set_body(Body::from(err.to_string()))
+        Response::new(status_code).set_body(AnyBody::from(err.to_string()))
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Display)]
-pub enum Kind {
+pub(crate) enum Kind {
     #[display(fmt = "error processing HTTP")]
     Http,
 
@@ -125,7 +122,7 @@ impl fmt::Display for Error {
 
 impl StdError for Error {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        self.inner.cause.as_ref().map(|err| err.as_ref())
+        self.inner.cause.as_ref().map(Box::as_ref)
     }
 }
 
@@ -194,7 +191,7 @@ pub enum ParseError {
     #[display(fmt = "IO error: {}", _0)]
     Io(io::Error),
 
-    /// Parsing a field as string failed
+    /// Parsing a field as string failed.
     #[display(fmt = "UTF8 error: {}", _0)]
     Utf8(Utf8Error),
 }

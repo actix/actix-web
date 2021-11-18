@@ -1,23 +1,64 @@
 //! Request extractors
 
 use std::{
+    convert::Infallible,
     future::Future,
     pin::Pin,
     task::{Context, Poll},
 };
 
-use actix_utils::future::{ready, Ready};
+use actix_http::http::{Method, Uri};
+use actix_utils::future::{ok, Ready};
 use futures_core::ready;
 
 use crate::{dev::Payload, Error, HttpRequest};
 
-/// Trait implemented by types that can be extracted from request.
+/// A type that implements [`FromRequest`] is called an **extractor** and can extract data from
+/// the request. Some types that implement this trait are: [`Json`], [`Header`], and [`Path`].
 ///
-/// Types that implement this trait can be used with `Route` handlers.
+/// # Configuration
+/// An extractor can be customized by injecting the corresponding configuration with one of:
+///
+/// - [`App::app_data()`][crate::App::app_data]
+/// - [`Scope::app_data()`][crate::Scope::app_data]
+/// - [`Resource::app_data()`][crate::Resource::app_data]
+///
+/// Here are some built-in extractors and their corresponding configuration.
+/// Please refer to the respective documentation for details.
+///
+/// | Extractor   | Configuration     |
+/// |-------------|-------------------|
+/// | [`Header`]  | _None_            |
+/// | [`Path`]    | [`PathConfig`]    |
+/// | [`Json`]    | [`JsonConfig`]    |
+/// | [`Form`]    | [`FormConfig`]    |
+/// | [`Query`]   | [`QueryConfig`]   |
+/// | [`Bytes`]   | [`PayloadConfig`] |
+/// | [`String`]  | [`PayloadConfig`] |
+/// | [`Payload`] | [`PayloadConfig`] |
+///
+/// # Implementing An Extractor
+/// To reduce duplicate code in handlers where extracting certain parts of a request has a common
+/// structure, you can implement `FromRequest` for your own types.
+///
+/// Note that the request payload can only be consumed by one extractor.
+///
+/// [`Header`]: crate::web::Header
+/// [`Json`]: crate::web::Json
+/// [`JsonConfig`]: crate::web::JsonConfig
+/// [`Form`]: crate::web::Form
+/// [`FormConfig`]: crate::web::FormConfig
+/// [`Path`]: crate::web::Path
+/// [`PathConfig`]: crate::web::PathConfig
+/// [`Query`]: crate::web::Query
+/// [`QueryConfig`]: crate::web::QueryConfig
+/// [`Payload`]: crate::web::Payload
+/// [`PayloadConfig`]: crate::web::PayloadConfig
+/// [`String`]: FromRequest#impl-FromRequest-for-String
+/// [`Bytes`]: crate::web::Bytes#impl-FromRequest
+/// [`Either`]: crate::web::Either
+#[doc(alias = "extract", alias = "extractor")]
 pub trait FromRequest: Sized {
-    /// Configuration for this extractor.
-    type Config: Default + 'static;
-
     /// The associated error which can be returned.
     type Error: Into<Error>;
 
@@ -33,14 +74,6 @@ pub trait FromRequest: Sized {
     fn extract(req: &HttpRequest) -> Self::Future {
         Self::from_request(req, &mut Payload::None)
     }
-
-    /// Create and configure config instance.
-    fn configure<F>(f: F) -> Self::Config
-    where
-        F: FnOnce(Self::Config) -> Self::Config,
-    {
-        f(Self::Config::default())
-    }
 }
 
 /// Optionally extract a field from the request
@@ -52,7 +85,7 @@ pub trait FromRequest: Sized {
 /// use actix_web::{web, dev, App, Error, HttpRequest, FromRequest};
 /// use actix_web::error::ErrorBadRequest;
 /// use futures_util::future::{ok, err, Ready};
-/// use serde_derive::Deserialize;
+/// use serde::Deserialize;
 /// use rand;
 ///
 /// #[derive(Debug, Deserialize)]
@@ -63,7 +96,6 @@ pub trait FromRequest: Sized {
 /// impl FromRequest for Thing {
 ///     type Error = Error;
 ///     type Future = Ready<Result<Self, Self::Error>>;
-///     type Config = ();
 ///
 ///     fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
 ///         if rand::random() {
@@ -98,7 +130,6 @@ where
 {
     type Error = Error;
     type Future = FromRequestOptFuture<T::Future>;
-    type Config = T::Config;
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
@@ -143,7 +174,7 @@ where
 /// use actix_web::{web, dev, App, Result, Error, HttpRequest, FromRequest};
 /// use actix_web::error::ErrorBadRequest;
 /// use futures_util::future::{ok, err, Ready};
-/// use serde_derive::Deserialize;
+/// use serde::Deserialize;
 /// use rand;
 ///
 /// #[derive(Debug, Deserialize)]
@@ -154,7 +185,6 @@ where
 /// impl FromRequest for Thing {
 ///     type Error = Error;
 ///     type Future = Ready<Result<Thing, Error>>;
-///     type Config = ();
 ///
 ///     fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
 ///         if rand::random() {
@@ -187,7 +217,6 @@ where
 {
     type Error = Error;
     type Future = FromRequestResFuture<T::Future>;
-    type Config = T::Config;
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
@@ -216,14 +245,55 @@ where
     }
 }
 
+/// Extract the request's URI.
+///
+/// # Examples
+/// ```
+/// use actix_web::{http::Uri, web, App, Responder};
+///
+/// async fn handler(uri: Uri) -> impl Responder {
+///     format!("Requested path: {}", uri.path())
+/// }
+///
+/// let app = App::new().default_service(web::to(handler));
+/// ```
+impl FromRequest for Uri {
+    type Error = Infallible;
+    type Future = Ready<Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        ok(req.uri().clone())
+    }
+}
+
+/// Extract the request's method.
+///
+/// # Examples
+/// ```
+/// use actix_web::{http::Method, web, App, Responder};
+///
+/// async fn handler(method: Method) -> impl Responder {
+///     format!("Request method: {}", method)
+/// }
+///
+/// let app = App::new().default_service(web::to(handler));
+/// ```
+impl FromRequest for Method {
+    type Error = Infallible;
+    type Future = Ready<Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        ok(req.method().clone())
+    }
+}
+
 #[doc(hidden)]
 impl FromRequest for () {
-    type Error = Error;
-    type Future = Ready<Result<(), Error>>;
-    type Config = ();
+    type Error = Infallible;
+    type Future = Ready<Result<Self, Self::Error>>;
 
     fn from_request(_: &HttpRequest, _: &mut Payload) -> Self::Future {
-        ready(Ok(()))
+        ok(())
     }
 }
 
@@ -260,7 +330,6 @@ macro_rules! tuple_from_req ({$fut_type:ident, $(($n:tt, $T:ident)),+} => {
         {
             type Error = Error;
             type Future = $fut_type<$($T),+>;
-            type Config = ($($T::Config),+);
 
             fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
                 $fut_type {
@@ -330,7 +399,7 @@ mod m {
 mod tests {
     use actix_http::http::header;
     use bytes::Bytes;
-    use serde_derive::Deserialize;
+    use serde::Deserialize;
 
     use super::*;
     use crate::test::TestRequest;
@@ -410,5 +479,19 @@ mod tests {
             .await
             .unwrap();
         assert!(r.is_err());
+    }
+
+    #[actix_rt::test]
+    async fn test_uri() {
+        let req = TestRequest::default().uri("/foo/bar").to_http_request();
+        let uri = Uri::extract(&req).await.unwrap();
+        assert_eq!(uri.path(), "/foo/bar");
+    }
+
+    #[actix_rt::test]
+    async fn test_method() {
+        let req = TestRequest::default().method(Method::GET).to_http_request();
+        let method = Method::extract(&req).await.unwrap();
+        assert_eq!(method, Method::GET);
     }
 }

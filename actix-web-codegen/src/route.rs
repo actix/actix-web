@@ -3,10 +3,11 @@ extern crate proc_macro;
 use std::collections::HashSet;
 use std::convert::TryFrom;
 
+use actix_router::ResourceDef;
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote, ToTokens, TokenStreamExt};
-use syn::{parse_macro_input, AttributeArgs, Ident, NestedMeta};
+use syn::{parse_macro_input, AttributeArgs, Ident, LitStr, NestedMeta};
 
 enum ResourceType {
     Async,
@@ -101,6 +102,7 @@ impl Args {
             match arg {
                 NestedMeta::Lit(syn::Lit::Str(lit)) => match path {
                     None => {
+                        let _ = ResourceDef::new(lit.value());
                         path = Some(lit);
                     }
                     _ => {
@@ -218,7 +220,7 @@ fn guess_resource_type(typ: &syn::Type) -> ResourceType {
 impl Route {
     pub fn new(
         args: AttributeArgs,
-        input: TokenStream,
+        ast: syn::ItemFn,
         method: Option<MethodType>,
     ) -> syn::Result<Self> {
         if args.is_empty() {
@@ -227,20 +229,16 @@ impl Route {
                 format!(
                     r#"invalid service definition, expected #[{}("<some path>")]"#,
                     method
-                        .map(|it| it.as_str())
-                        .unwrap_or("route")
+                        .map_or("route", |it| it.as_str())
                         .to_ascii_lowercase()
                 ),
             ));
         }
-        let ast: syn::ItemFn = syn::parse(input)?;
+
         let name = ast.sig.ident.clone();
 
-        // Try and pull out the doc comments so that we can reapply them to the
-        // generated struct.
-        //
-        // Note that multi line doc comments are converted to multiple doc
-        // attributes.
+        // Try and pull out the doc comments so that we can reapply them to the generated struct.
+        // Note that multi line doc comments are converted to multiple doc attributes.
         let doc_attributes = ast
             .attrs
             .iter()
@@ -298,7 +296,7 @@ impl ToTokens for Route {
         } = self;
         let resource_name = resource_name
             .as_ref()
-            .map_or_else(|| name.to_string(), |n| n.value());
+            .map_or_else(|| name.to_string(), LitStr::value);
         let method_guards = {
             let mut others = methods.iter();
             // unwrapping since length is checked to be at least one
@@ -348,8 +346,28 @@ pub(crate) fn with_method(
     input: TokenStream,
 ) -> TokenStream {
     let args = parse_macro_input!(args as syn::AttributeArgs);
-    match Route::new(args, input, method) {
+
+    let ast = match syn::parse::<syn::ItemFn>(input.clone()) {
+        Ok(ast) => ast,
+        // on parse error, make IDEs happy; see fn docs
+        Err(err) => return input_and_compile_error(input, err),
+    };
+
+    match Route::new(args, ast, method) {
         Ok(route) => route.into_token_stream().into(),
-        Err(err) => err.to_compile_error().into(),
+        // on macro related error, make IDEs happy; see fn docs
+        Err(err) => input_and_compile_error(input, err),
     }
+}
+
+/// Converts the error to a token stream and appends it to the original input.
+///
+/// Returning the original input in addition to the error is good for IDEs which can gracefully
+/// recover and show more precise errors within the macro body.
+///
+/// See <https://github.com/rust-analyzer/rust-analyzer/issues/10468> for more info.
+fn input_and_compile_error(mut item: TokenStream, err: syn::Error) -> TokenStream {
+    let compile_err = TokenStream::from(err.to_compile_error());
+    item.extend(compile_err);
+    item
 }

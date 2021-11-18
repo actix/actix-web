@@ -11,8 +11,6 @@ use bytes::{Bytes, BytesMut};
 use futures_core::ready;
 use pin_project_lite::pin_project;
 
-use crate::error::Error;
-
 use super::BodySize;
 
 /// An interface for response bodies.
@@ -33,7 +31,7 @@ impl MessageBody for () {
     type Error = Infallible;
 
     fn size(&self) -> BodySize {
-        BodySize::Empty
+        BodySize::Sized(0)
     }
 
     fn poll_next(
@@ -47,7 +45,6 @@ impl MessageBody for () {
 impl<B> MessageBody for Box<B>
 where
     B: MessageBody + Unpin,
-    B::Error: Into<Error>,
 {
     type Error = B::Error;
 
@@ -66,7 +63,6 @@ where
 impl<B> MessageBody for Pin<Box<B>>
 where
     B: MessageBody,
-    B::Error: Into<Error>,
 {
     type Error = B::Error;
 

@@ -5,24 +5,25 @@ use std::{
 };
 
 use actix_codec::Framed;
+use actix_http::{
+    body::{BodySize, MessageBody},
+    error::PayloadError,
+    h1,
+    http::{
+        header::{HeaderMap, IntoHeaderValue, EXPECT, HOST},
+        StatusCode,
+    },
+    Error, Payload, RequestHeadType, ResponseHead,
+};
 use actix_utils::future::poll_fn;
 use bytes::buf::BufMut;
 use bytes::{Bytes, BytesMut};
 use futures_core::{ready, Stream};
 use futures_util::SinkExt as _;
-
-use crate::h1;
-use crate::http::{
-    header::{HeaderMap, IntoHeaderValue, EXPECT, HOST},
-    StatusCode,
-};
-use crate::message::{RequestHeadType, ResponseHead};
-use crate::payload::Payload;
-use crate::{error::PayloadError, Error};
+use pin_project_lite::pin_project;
 
 use super::connection::{ConnectionIo, H1Connection};
 use super::error::{ConnectError, SendRequestError};
-use crate::body::{BodySize, MessageBody};
 
 pub(crate) async fn send_request<Io, B>(
     io: H1Connection<Io>,
@@ -69,7 +70,7 @@ where
     // RFC: https://tools.ietf.org/html/rfc7231#section-5.1.1
     let is_expect = if head.as_ref().headers.contains_key(EXPECT) {
         match body.size() {
-            BodySize::None | BodySize::Empty | BodySize::Sized(0) => {
+            BodySize::None | BodySize::Sized(0) => {
                 let keep_alive = framed.codec_ref().keepalive();
                 framed.io_mut().on_release(keep_alive);
 
@@ -103,7 +104,7 @@ where
     if do_send {
         // send request body
         match body.size() {
-            BodySize::None | BodySize::Empty | BodySize::Sized(0) => {}
+            BodySize::None | BodySize::Sized(0) => {}
             _ => send_body(body, pin_framed.as_mut()).await?,
         };
 
@@ -194,10 +195,11 @@ where
     Ok(())
 }
 
-#[pin_project::pin_project]
-pub(crate) struct PlStream<Io: ConnectionIo> {
-    #[pin]
-    framed: Framed<H1Connection<Io>, h1::ClientPayloadCodec>,
+pin_project! {
+    pub(crate) struct PlStream<Io: ConnectionIo> {
+        #[pin]
+        framed: Framed<H1Connection<Io>, h1::ClientPayloadCodec>,
+    }
 }
 
 impl<Io: ConnectionIo> PlStream<Io> {
@@ -211,10 +213,7 @@ impl<Io: ConnectionIo> PlStream<Io> {
 impl<Io: ConnectionIo> Stream for PlStream<Io> {
     type Item = Result<Bytes, PayloadError>;
 
-    fn poll_next(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
 
         match ready!(this.framed.as_mut().next_item(cx)?) {

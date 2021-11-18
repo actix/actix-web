@@ -1,6 +1,7 @@
 //! Basic binary and string payload extractors.
 
 use std::{
+    borrow::Cow,
     future::Future,
     pin::Pin,
     str,
@@ -42,10 +43,11 @@ use crate::{
 ///     Ok(format!("Request Body Bytes:\n{:?}", bytes))
 /// }
 /// ```
-pub struct Payload(pub crate::dev::Payload);
+pub struct Payload(crate::dev::Payload);
 
 impl Payload {
     /// Unwrap to inner Payload type.
+    #[inline]
     pub fn into_inner(self) -> crate::dev::Payload {
         self.0
     }
@@ -62,7 +64,6 @@ impl Stream for Payload {
 
 /// See [here](#usage) for example of usage as an extractor.
 impl FromRequest for Payload {
-    type Config = PayloadConfig;
     type Error = Error;
     type Future = Ready<Result<Payload, Error>>;
 
@@ -89,7 +90,6 @@ impl FromRequest for Payload {
 /// }
 /// ```
 impl FromRequest for Bytes {
-    type Config = PayloadConfig;
     type Error = Error;
     type Future = Either<BytesExtractFut, Ready<Result<Bytes, Error>>>;
 
@@ -125,8 +125,7 @@ impl<'a> Future for BytesExtractFut {
 ///
 /// Text extractor automatically decode body according to the request's charset.
 ///
-/// [**PayloadConfig**](PayloadConfig) allows to configure
-/// extraction process.
+/// Use [`PayloadConfig`] to configure extraction process.
 ///
 /// # Examples
 /// ```
@@ -138,7 +137,6 @@ impl<'a> Future for BytesExtractFut {
 ///     format!("Body {}!", text)
 /// }
 impl FromRequest for String {
-    type Config = PayloadConfig;
     type Error = Error;
     type Future = Either<StringExtractFut, Ready<Result<String, Error>>>;
 
@@ -190,21 +188,22 @@ fn bytes_to_string(body: Bytes, encoding: &'static Encoding) -> Result<String, E
     } else {
         Ok(encoding
             .decode_without_bom_handling_and_without_replacement(&body)
-            .map(|s| s.into_owned())
+            .map(Cow::into_owned)
             .ok_or_else(|| ErrorBadRequest("Can not decode body"))?)
     }
 }
 
 /// Configuration for request payloads.
 ///
-/// Applies to the built-in `Bytes` and `String` extractors. Note that the `Payload` extractor does
-/// not automatically check conformance with this configuration to allow more flexibility when
-/// building extractors on top of `Payload`.
+/// Applies to the built-in [`Bytes`] and [`String`] extractors.
+/// Note that the [`Payload`] extractor does not automatically check
+/// conformance with this configuration to allow more flexibility when
+/// building extractors on top of [`Payload`].
 ///
 /// By default, the payload size limit is 256kB and there is no mime type condition.
 ///
-/// To use this, add an instance of it to your app or service through one of the
-/// `.app_data()` methods.
+/// To use this, add an instance of it to your [`app`](crate::App), [`scope`](crate::Scope)
+/// or [`resource`](crate::Resource) through the associated `.app_data()` method.
 #[derive(Clone)]
 pub struct PayloadConfig {
     limit: usize,
@@ -398,6 +397,8 @@ mod tests {
         assert!(cfg.check_mimetype(&req).is_ok());
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_config_recall_locations() {
         async fn bytes_handler(_: Bytes) -> impl Responder {

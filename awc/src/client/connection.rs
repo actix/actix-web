@@ -12,10 +12,9 @@ use bytes::Bytes;
 use futures_core::future::LocalBoxFuture;
 use h2::client::SendRequest;
 
-use crate::h1::ClientCodec;
-use crate::message::{RequestHeadType, ResponseHead};
-use crate::payload::Payload;
-use crate::{body::MessageBody, Error};
+use actix_http::{
+    body::MessageBody, h1::ClientCodec, Error, Payload, RequestHeadType, ResponseHead,
+};
 
 use super::error::SendRequestError;
 use super::pool::Acquired;
@@ -174,6 +173,7 @@ impl H2ConnectionInner {
 /// Cancel spawned connection task on drop.
 impl Drop for H2ConnectionInner {
     fn drop(&mut self) {
+        // TODO: this can end up sending extraneous requests; see if there is a better way to handle
         if self
             .sender
             .send_request(http::Request::new(()), true)
@@ -184,8 +184,8 @@ impl Drop for H2ConnectionInner {
     }
 }
 
+/// Unified connection type cover HTTP/1 Plain/TLS and HTTP/2 protocols.
 #[allow(dead_code)]
-/// Unified connection type cover Http1 Plain/Tls and Http2 protocols
 pub enum Connection<A, B = Box<dyn ConnectionIo>>
 where
     A: ConnectionIo,
@@ -219,11 +219,7 @@ impl<Io: ConnectionIo> ConnectionType<Io> {
         }
     }
 
-    pub(super) fn from_h1(
-        io: Io,
-        created: time::Instant,
-        acquired: Acquired<Io>,
-    ) -> Self {
+    pub(super) fn from_h1(io: Io, created: time::Instant, acquired: Acquired<Io>) -> Self {
         Self::H1(H1Connection {
             io: Some(io),
             created,
@@ -271,9 +267,7 @@ where
                 Connection::Tls(ConnectionType::H2(conn)) => {
                     h2proto::send_request(conn, head.into(), body).await
                 }
-                _ => unreachable!(
-                    "Plain Tcp connection can be used only in Http1 protocol"
-                ),
+                _ => unreachable!("Plain Tcp connection can be used only in Http1 protocol"),
             }
         })
     }
@@ -301,9 +295,7 @@ where
                     Err(SendRequestError::TunnelNotSupported)
                 }
                 Connection::Tcp(ConnectionType::H2(_)) => {
-                    unreachable!(
-                        "Plain Tcp connection can be used only in Http1 protocol"
-                    )
+                    unreachable!("Plain Tcp connection can be used only in Http1 protocol")
                 }
             }
         })
@@ -321,12 +313,8 @@ where
         buf: &mut ReadBuf<'_>,
     ) -> Poll<io::Result<()>> {
         match self.get_mut() {
-            Connection::Tcp(ConnectionType::H1(conn)) => {
-                Pin::new(conn).poll_read(cx, buf)
-            }
-            Connection::Tls(ConnectionType::H1(conn)) => {
-                Pin::new(conn).poll_read(cx, buf)
-            }
+            Connection::Tcp(ConnectionType::H1(conn)) => Pin::new(conn).poll_read(cx, buf),
+            Connection::Tls(ConnectionType::H1(conn)) => Pin::new(conn).poll_read(cx, buf),
             _ => unreachable!("H2Connection can not impl AsyncRead trait"),
         }
     }
@@ -345,12 +333,8 @@ where
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
         match self.get_mut() {
-            Connection::Tcp(ConnectionType::H1(conn)) => {
-                Pin::new(conn).poll_write(cx, buf)
-            }
-            Connection::Tls(ConnectionType::H1(conn)) => {
-                Pin::new(conn).poll_write(cx, buf)
-            }
+            Connection::Tcp(ConnectionType::H1(conn)) => Pin::new(conn).poll_write(cx, buf),
+            Connection::Tls(ConnectionType::H1(conn)) => Pin::new(conn).poll_write(cx, buf),
             _ => unreachable!(H2_UNREACHABLE_WRITE),
         }
     }
@@ -363,17 +347,10 @@ where
         }
     }
 
-    fn poll_shutdown(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<io::Result<()>> {
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         match self.get_mut() {
-            Connection::Tcp(ConnectionType::H1(conn)) => {
-                Pin::new(conn).poll_shutdown(cx)
-            }
-            Connection::Tls(ConnectionType::H1(conn)) => {
-                Pin::new(conn).poll_shutdown(cx)
-            }
+            Connection::Tcp(ConnectionType::H1(conn)) => Pin::new(conn).poll_shutdown(cx),
+            Connection::Tls(ConnectionType::H1(conn)) => Pin::new(conn).poll_shutdown(cx),
             _ => unreachable!(H2_UNREACHABLE_WRITE),
         }
     }

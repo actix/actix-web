@@ -17,7 +17,6 @@ pub use actix_tls::connect::{
 pub use self::connection::{Connection, ConnectionIo};
 pub use self::connector::{Connector, ConnectorService};
 pub use self::error::{ConnectError, FreezeRequestError, InvalidUrl, SendRequestError};
-pub use crate::Protocol;
 
 #[derive(Clone)]
 pub struct Connect {

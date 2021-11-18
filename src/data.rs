@@ -36,6 +36,11 @@ pub(crate) type FnDataFactory =
 /// If route data is not set for a handler, using `Data<T>` extractor would cause *Internal
 /// Server Error* response.
 ///
+// TODO: document `dyn T` functionality through converting an Arc
+// TODO: note equivalence of req.app_data<Data<T>> and Data<T> extractor
+// TODO: note that data must be inserted using Data<T> in order to extract it
+///
+/// # Examples
 /// ```
 /// use std::sync::Mutex;
 /// use actix_web::{web, App, HttpResponse, Responder};
@@ -70,7 +75,9 @@ impl<T> Data<T> {
     pub fn new(state: T) -> Data<T> {
         Data(Arc::new(state))
     }
+}
 
+impl<T: ?Sized> Data<T> {
     /// Get reference to inner app data.
     pub fn get_ref(&self) -> &T {
         self.0.as_ref()
@@ -115,7 +122,6 @@ where
 }
 
 impl<T: ?Sized + 'static> FromRequest for Data<T> {
-    type Config = ();
     type Error = Error;
     type Future = Ready<Result<Self, Error>>;
 
@@ -131,7 +137,7 @@ impl<T: ?Sized + 'static> FromRequest for Data<T> {
                 type_name::<T>(),
             );
             err(ErrorInternalServerError(
-                "App data is not configured, to configure use App::data()",
+                "App data is not configured, to configure construct it with web::Data::new() and pass it to App::app_data()",
             ))
         }
     }
@@ -154,6 +160,8 @@ mod tests {
         web, App, HttpResponse,
     };
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_data_extractor() {
         let srv = init_service(App::new().data("TEST".to_string()).service(
@@ -221,6 +229,8 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_route_data_extractor() {
         let srv = init_service(
@@ -250,6 +260,8 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_override_data() {
         let srv =
@@ -293,5 +305,39 @@ mod tests {
         let dyn_arc: Arc<dyn TestTrait> = Arc::new(A {});
         let data_arc = Data::from(dyn_arc);
         assert_eq!(data_arc_box.get_num(), data_arc.get_num())
+    }
+
+    #[actix_rt::test]
+    async fn test_dyn_data_into_arc() {
+        trait TestTrait {
+            fn get_num(&self) -> i32;
+        }
+        struct A {}
+        impl TestTrait for A {
+            fn get_num(&self) -> i32 {
+                42
+            }
+        }
+        let dyn_arc: Arc<dyn TestTrait> = Arc::new(A {});
+        let data_arc = Data::from(dyn_arc);
+        let arc_from_data = data_arc.clone().into_inner();
+        assert_eq!(data_arc.get_num(), arc_from_data.get_num())
+    }
+
+    #[actix_rt::test]
+    async fn test_get_ref_from_dyn_data() {
+        trait TestTrait {
+            fn get_num(&self) -> i32;
+        }
+        struct A {}
+        impl TestTrait for A {
+            fn get_num(&self) -> i32 {
+                42
+            }
+        }
+        let dyn_arc: Arc<dyn TestTrait> = Arc::new(A {});
+        let data_arc = Data::from(dyn_arc);
+        let ref_data = data_arc.get_ref();
+        assert_eq!(data_arc.get_num(), ref_data.get_num())
     }
 }

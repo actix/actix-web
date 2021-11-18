@@ -8,16 +8,14 @@ use std::{
 
 use actix_codec::Framed;
 use actix_http::{
-    body::Body,
-    client::{
-        Connect as ClientConnect, ConnectError, Connection, ConnectionIo, SendRequestError,
-    },
-    h1::ClientCodec,
-    Payload, RequestHead, RequestHeadType, ResponseHead,
+    body::AnyBody, h1::ClientCodec, Payload, RequestHead, RequestHeadType, ResponseHead,
 };
 use actix_service::Service;
 use futures_core::{future::LocalBoxFuture, ready};
 
+use crate::client::{
+    Connect as ClientConnect, ConnectError, Connection, ConnectionIo, SendRequestError,
+};
 use crate::response::ClientResponse;
 
 pub type BoxConnectorService = Rc<
@@ -32,7 +30,7 @@ pub type BoxConnectorService = Rc<
 pub type BoxedSocket = Box<dyn ConnectionIo>;
 
 pub enum ConnectRequest {
-    Client(RequestHeadType, Body, Option<net::SocketAddr>),
+    Client(RequestHeadType, AnyBody, Option<net::SocketAddr>),
     Tunnel(RequestHead, Option<net::SocketAddr>),
 }
 

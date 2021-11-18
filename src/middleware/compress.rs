@@ -2,27 +2,30 @@
 
 use std::{
     cmp,
+    convert::TryFrom,
     future::Future,
     marker::PhantomData,
     pin::Pin,
-    str::FromStr,
     task::{Context, Poll},
 };
 
 use actix_http::{
-    body::{MessageBody, ResponseBody},
+    body::{AnyBody, MessageBody},
     encoding::Encoder,
     http::header::{ContentEncoding, ACCEPT_ENCODING},
+    StatusCode,
 };
 use actix_service::{Service, Transform};
-use actix_utils::future::{ok, Ready};
+use actix_utils::future::{ok, Either, Ready};
+use bytes::Bytes;
 use futures_core::ready;
+use once_cell::sync::Lazy;
 use pin_project::pin_project;
 
 use crate::{
     dev::BodyEncoding,
     service::{ServiceRequest, ServiceResponse},
-    Error,
+    Error, HttpResponse,
 };
 
 /// Middleware for compressing response payloads.
@@ -59,7 +62,7 @@ where
     B: MessageBody,
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
-    type Response = ServiceResponse<ResponseBody<Encoder<B>>>;
+    type Response = ServiceResponse<AnyBody<Encoder<B>>>;
     type Error = Error;
     type Transform = CompressMiddleware<S>;
     type InitError = ();
@@ -78,34 +81,82 @@ pub struct CompressMiddleware<S> {
     encoding: ContentEncoding,
 }
 
+static SUPPORTED_ALGORITHM_NAMES: Lazy<String> = Lazy::new(|| {
+    let mut encoding = vec![];
+
+    #[cfg(feature = "compress-brotli")]
+    {
+        encoding.push("br");
+    }
+
+    #[cfg(feature = "compress-gzip")]
+    {
+        encoding.push("gzip");
+        encoding.push("deflate");
+    }
+
+    #[cfg(feature = "compress-zstd")]
+    encoding.push("zstd");
+
+    assert!(
+        !encoding.is_empty(),
+        "encoding can not be empty unless __compress feature has been explicitly enabled by itself"
+    );
+
+    encoding.join(", ")
+});
+
 impl<S, B> Service<ServiceRequest> for CompressMiddleware<S>
 where
-    B: MessageBody,
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    B: MessageBody,
 {
-    type Response = ServiceResponse<ResponseBody<Encoder<B>>>;
+    type Response = ServiceResponse<AnyBody<Encoder<B>>>;
     type Error = Error;
-    type Future = CompressResponse<S, B>;
+    type Future = Either<CompressResponse<S, B>, Ready<Result<Self::Response, Self::Error>>>;
 
     actix_service::forward_ready!(service);
 
     #[allow(clippy::borrow_interior_mutable_const)]
     fn call(&self, req: ServiceRequest) -> Self::Future {
         // negotiate content-encoding
-        let encoding = if let Some(val) = req.headers().get(&ACCEPT_ENCODING) {
-            if let Ok(enc) = val.to_str() {
-                AcceptEncoding::parse(enc, self.encoding)
-            } else {
-                ContentEncoding::Identity
-            }
-        } else {
-            ContentEncoding::Identity
-        };
+        let encoding_result = req
+            .headers()
+            .get(&ACCEPT_ENCODING)
+            .and_then(|val| val.to_str().ok())
+            .map(|enc| AcceptEncoding::try_parse(enc, self.encoding));
 
-        CompressResponse {
-            encoding,
-            fut: self.service.call(req),
-            _phantom: PhantomData,
+        match encoding_result {
+            // Missing header => fallback to identity
+            None => Either::left(CompressResponse {
+                encoding: ContentEncoding::Identity,
+                fut: self.service.call(req),
+                _phantom: PhantomData,
+            }),
+
+            // Valid encoding
+            Some(Ok(encoding)) => Either::left(CompressResponse {
+                encoding,
+                fut: self.service.call(req),
+                _phantom: PhantomData,
+            }),
+
+            // There is an HTTP header but we cannot match what client as asked for
+            Some(Err(_)) => {
+                let res = HttpResponse::new(StatusCode::NOT_ACCEPTABLE);
+
+                let res: HttpResponse<AnyBody<Encoder<B>>> = res.map_body(move |head, _| {
+                    let body_bytes = Bytes::from(SUPPORTED_ALGORITHM_NAMES.as_bytes());
+
+                    Encoder::response(
+                        ContentEncoding::Identity,
+                        head,
+                        AnyBody::Bytes(body_bytes),
+                    )
+                });
+
+                Either::right(ok(req.into_response(res)))
+            }
         }
     }
 }
@@ -114,7 +165,6 @@ where
 pub struct CompressResponse<S, B>
 where
     S: Service<ServiceRequest>,
-    B: MessageBody,
 {
     #[pin]
     fut: S::Future,
@@ -127,7 +177,7 @@ where
     B: MessageBody,
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
-    type Output = Result<ServiceResponse<ResponseBody<Encoder<B>>>, Error>;
+    type Output = Result<ServiceResponse<AnyBody<Encoder<B>>>, Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
@@ -141,7 +191,7 @@ where
                 };
 
                 Poll::Ready(Ok(resp.map_body(move |head, body| {
-                    Encoder::response(enc, head, ResponseBody::Body(body))
+                    Encoder::response(enc, head, AnyBody::Body(body))
                 })))
             }
             Err(e) => Poll::Ready(Err(e)),
@@ -151,6 +201,7 @@ where
 
 struct AcceptEncoding {
     encoding: ContentEncoding,
+    // TODO: use Quality or QualityItem<ContentEncoding>
     quality: f64,
 }
 
@@ -177,8 +228,29 @@ impl PartialOrd for AcceptEncoding {
 
 impl PartialEq for AcceptEncoding {
     fn eq(&self, other: &AcceptEncoding) -> bool {
-        self.quality == other.quality
+        self.encoding == other.encoding && self.quality == other.quality
     }
+}
+
+/// Parse q-factor from quality strings.
+///
+/// If parse fail, then fallback to default value which is 1.
+/// More details available here: <https://developer.mozilla.org/en-US/docs/Glossary/Quality_values>
+fn parse_quality(parts: &[&str]) -> f64 {
+    for part in parts {
+        if part.trim().starts_with("q=") {
+            return part[2..].parse().unwrap_or(1.0);
+        }
+    }
+
+    1.0
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum AcceptEncodingError {
+    /// This error occurs when client only support compressed response and server do not have any
+    /// algorithm that match client accepted algorithms.
+    CompressionAlgorithmMismatch,
 }
 
 impl AcceptEncoding {
@@ -186,34 +258,119 @@ impl AcceptEncoding {
         let parts: Vec<&str> = tag.split(';').collect();
         let encoding = match parts.len() {
             0 => return None,
-            _ => ContentEncoding::from(parts[0]),
+            _ => match ContentEncoding::try_from(parts[0]) {
+                Err(_) => return None,
+                Ok(x) => x,
+            },
         };
-        let quality = match parts.len() {
-            1 => encoding.quality(),
-            _ => f64::from_str(parts[1]).unwrap_or(0.0),
-        };
+
+        let quality = parse_quality(&parts[1..]);
+        if quality <= 0.0 || quality > 1.0 {
+            return None;
+        }
+
         Some(AcceptEncoding { encoding, quality })
     }
 
-    /// Parse a raw Accept-Encoding header value into an ordered list.
-    pub fn parse(raw: &str, encoding: ContentEncoding) -> ContentEncoding {
+    /// Parse a raw Accept-Encoding header value into an ordered list then return the best match
+    /// based on middleware configuration.
+    pub fn try_parse(
+        raw: &str,
+        encoding: ContentEncoding,
+    ) -> Result<ContentEncoding, AcceptEncodingError> {
         let mut encodings = raw
             .replace(' ', "")
             .split(',')
-            .map(|l| AcceptEncoding::new(l))
-            .flatten()
+            .filter_map(AcceptEncoding::new)
             .collect::<Vec<_>>();
 
         encodings.sort();
 
         for enc in encodings {
-            if encoding == ContentEncoding::Auto {
-                return enc.encoding;
-            } else if encoding == enc.encoding {
-                return encoding;
+            if encoding == ContentEncoding::Auto || encoding == enc.encoding {
+                return Ok(enc.encoding);
             }
         }
 
-        ContentEncoding::Identity
+        // Special case if user cannot accept uncompressed data.
+        // See: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept-Encoding
+        // TODO: account for whitespace
+        if raw.contains("*;q=0") || raw.contains("identity;q=0") {
+            return Err(AcceptEncodingError::CompressionAlgorithmMismatch);
+        }
+
+        Ok(ContentEncoding::Identity)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    macro_rules! assert_parse_eq {
+        ($raw:expr, $result:expr) => {
+            assert_eq!(
+                AcceptEncoding::try_parse($raw, ContentEncoding::Auto),
+                Ok($result)
+            );
+        };
+    }
+
+    macro_rules! assert_parse_fail {
+        ($raw:expr) => {
+            assert!(AcceptEncoding::try_parse($raw, ContentEncoding::Auto).is_err());
+        };
+    }
+
+    #[test]
+    fn test_parse_encoding() {
+        // Test simple case
+        assert_parse_eq!("br", ContentEncoding::Br);
+        assert_parse_eq!("gzip", ContentEncoding::Gzip);
+        assert_parse_eq!("deflate", ContentEncoding::Deflate);
+        assert_parse_eq!("zstd", ContentEncoding::Zstd);
+
+        // Test space, trim, missing values
+        assert_parse_eq!("br,,,,", ContentEncoding::Br);
+        assert_parse_eq!("gzip  ,   br,   zstd", ContentEncoding::Gzip);
+
+        // Test float number parsing
+        assert_parse_eq!("br;q=1  ,", ContentEncoding::Br);
+        assert_parse_eq!("br;q=1.0  ,   br", ContentEncoding::Br);
+
+        // Test wildcard
+        assert_parse_eq!("*", ContentEncoding::Identity);
+        assert_parse_eq!("*;q=1.0", ContentEncoding::Identity);
+    }
+
+    #[test]
+    fn test_parse_encoding_qfactor_ordering() {
+        assert_parse_eq!("gzip, br, zstd", ContentEncoding::Gzip);
+        assert_parse_eq!("zstd, br, gzip", ContentEncoding::Zstd);
+
+        assert_parse_eq!("gzip;q=0.4, br;q=0.6", ContentEncoding::Br);
+        assert_parse_eq!("gzip;q=0.8, br;q=0.4", ContentEncoding::Gzip);
+    }
+
+    #[test]
+    fn test_parse_encoding_qfactor_invalid() {
+        // Out of range
+        assert_parse_eq!("gzip;q=-5.0", ContentEncoding::Identity);
+        assert_parse_eq!("gzip;q=5.0", ContentEncoding::Identity);
+
+        // Disabled
+        assert_parse_eq!("gzip;q=0", ContentEncoding::Identity);
+    }
+
+    #[test]
+    fn test_parse_compression_required() {
+        // Check we fallback to identity if there is an unsupported compression algorithm
+        assert_parse_eq!("compress", ContentEncoding::Identity);
+
+        // User do not want any compression
+        assert_parse_fail!("compress, identity;q=0");
+        assert_parse_fail!("compress, identity;q=0.0");
+        assert_parse_fail!("compress, *;q=0");
+        assert_parse_fail!("compress, *;q=0.0");
     }
 }

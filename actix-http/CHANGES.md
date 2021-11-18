@@ -1,9 +1,77 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+* `body::AnyBody::empty` for quickly creating an empty body. [#2446]
+* `impl Clone` for `body::AnyBody<S> where S: Clone`. [#2448]
+* `body::AnyBody::into_boxed` for quickly converting to a type-erased, boxed body type. [#2448]
+
+### Changed
+* Rename `body::AnyBody::{Message => Body}`. [#2446]
+* Rename `body::AnyBody::{from_message => new_boxed}`. [#2448]
+* Rename `body::AnyBody::{from_slice => copy_from_slice}`. [#2448]
+* Rename `body::{BoxAnyBody => BoxBody}`. [#2448]
+* Change representation of `AnyBody` to include a type parameter in `Body` variant. Defaults to `BoxBody`. [#2448]
+* `Encoder::response` now returns `AnyBody<Encoder<B>>`. [#2448]
+
+### Removed
+* `body::AnyBody::Empty`; an empty body can now only be represented as a zero-length `Bytes` variant. [#2446]
+* `body::BodySize::Empty`; an empty body can now only be represented as a `Sized(0)` variant. [#2446]
+* `EncoderError::Boxed`; it is no longer required. [#2446]
+* `body::ResponseBody`; is function is replaced by the new `body::AnyBody` enum. [#2446]
+
+[#2446]: https://github.com/actix/actix-web/pull/2446
+
+
+## 3.0.0-beta.12 - 2021-11-15
+### Changed
+* Update `actix-server` to `2.0.0-beta.9`. [#2442]
+
+### Removed
+* `client` module. [#2425]
+* `trust-dns` feature. [#2425]
+
+[#2425]: https://github.com/actix/actix-web/pull/2425
+[#2442]: https://github.com/actix/actix-web/pull/2442
+
+
+## 3.0.0-beta.11 - 2021-10-20
+### Changed
+* Updated rustls to v0.20. [#2414]
+* Minimum supported Rust version (MSRV) is now 1.52.
+
+[#2414]: https://github.com/actix/actix-web/pull/2414
+
+
+## 3.0.0-beta.10 - 2021-09-09
+### Changed
+* `ContentEncoding` is now marked `#[non_exhaustive]`. [#2377]
+* Minimum supported Rust version (MSRV) is now 1.51.
+
+### Fixed
+* Remove slice creation pointing to potential uninitialized data on h1 encoder. [#2364]
+* Remove `Into<Error>` bound on `Encoder` body types. [#2375]
+* Fix quality parse error in Accept-Encoding header. [#2344]
+
+[#2364]: https://github.com/actix/actix-web/pull/2364
+[#2375]: https://github.com/actix/actix-web/pull/2375
+[#2344]: https://github.com/actix/actix-web/pull/2344
+[#2377]: https://github.com/actix/actix-web/pull/2377
+
+
+## 3.0.0-beta.9 - 2021-08-09
+### Fixed
+* Potential HTTP request smuggling vulnerabilities. [RUSTSEC-2021-0081](https://github.com/rustsec/advisory-db/pull/977)
+
+
+## 3.0.0-beta.8 - 2021-06-26
 ### Changed
 * Change compression algorithm features flags. [#2250]
 
+### Removed
+* `downcast` and `downcast_get_type_id` macros. [#2291]
+
+[#2291]: https://github.com/actix/actix-web/pull/2291
 [#2250]: https://github.com/actix/actix-web/pull/2250
 
 
@@ -201,6 +269,11 @@
 [#1857]: https://github.com/actix/actix-web/pull/1857
 [#1864]: https://github.com/actix/actix-web/pull/1864
 [#1878]: https://github.com/actix/actix-web/pull/1878
+
+
+## 2.2.1 - 2021-08-09
+### Fixed
+* Potential HTTP request smuggling vulnerabilities. [RUSTSEC-2021-0081](https://github.com/rustsec/advisory-db/pull/977)
 
 
 ## 2.2.0 - 2020-11-25

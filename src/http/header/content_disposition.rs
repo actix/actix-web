@@ -1,10 +1,10 @@
 //! # References
 //!
-//! "The Content-Disposition Header Field" https://www.ietf.org/rfc/rfc2183.txt
-//! "The Content-Disposition Header Field in the Hypertext Transfer Protocol (HTTP)" https://www.ietf.org/rfc/rfc6266.txt
-//! "Returning Values from Forms: multipart/form-data" https://www.ietf.org/rfc/rfc7578.txt
-//! Browser conformance tests at: http://greenbytes.de/tech/tc2231/
-//! IANA assignment: http://www.iana.org/assignments/cont-disp/cont-disp.xhtml
+//! "The Content-Disposition Header Field" <https://www.ietf.org/rfc/rfc2183.txt>
+//! "The Content-Disposition Header Field in the Hypertext Transfer Protocol (HTTP)" <https://www.ietf.org/rfc/rfc6266.txt>
+//! "Returning Values from Forms: multipart/form-data" <https://www.ietf.org/rfc/rfc7578.txt>
+//! Browser conformance tests at: <http://greenbytes.de/tech/tc2231/>
+//! IANA assignment: <http://www.iana.org/assignments/cont-disp/cont-disp.xhtml>
 
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -34,15 +34,18 @@ fn split_once_and_trim(haystack: &str, needle: char) -> (&str, &str) {
 /// The implied disposition of the content of the HTTP body.
 #[derive(Clone, Debug, PartialEq)]
 pub enum DispositionType {
-    /// Inline implies default processing
+    /// Inline implies default processing.
     Inline,
+
     /// Attachment implies that the recipient should prompt the user to save the response locally,
     /// rather than process it normally (as per its media type).
     Attachment,
-    /// Used in *multipart/form-data* as defined in
-    /// [RFC7578](https://tools.ietf.org/html/rfc7578) to carry the field name and the file name.
+
+    /// Used in *multipart/form-data* as defined in [RFC7578](https://tools.ietf.org/html/rfc7578)
+    /// to carry the field name and optional filename.
     FormData,
-    /// Extension type. Should be handled by recipients the same way as Attachment
+
+    /// Extension type. Should be handled by recipients the same way as Attachment.
     Ext(String),
 }
 
@@ -76,6 +79,7 @@ pub enum DispositionParam {
     /// For [`DispositionType::FormData`] (i.e. *multipart/form-data*), the name of an field from
     /// the form.
     Name(String),
+
     /// A plain file name.
     ///
     /// It is [not supposed](https://tools.ietf.org/html/rfc6266#appendix-D) to contain any
@@ -83,14 +87,17 @@ pub enum DispositionParam {
     /// [`FilenameExt`](DispositionParam::FilenameExt) with charset UTF-8 may be used instead
     /// in case there are Unicode characters in file names.
     Filename(String),
+
     /// An extended file name. It must not exist for `ContentType::Formdata` according to
     /// [RFC7578 Section 4.2](https://tools.ietf.org/html/rfc7578#section-4.2).
     FilenameExt(ExtendedValue),
+
     /// An unrecognized regular parameter as defined in
     /// [RFC5987](https://tools.ietf.org/html/rfc5987) as *reg-parameter*, in
     /// [RFC6266](https://tools.ietf.org/html/rfc6266) as *token "=" value*. Recipients should
     /// ignore unrecognizable parameters.
     Unknown(String, String),
+
     /// An unrecognized extended parameter as defined in
     /// [RFC5987](https://tools.ietf.org/html/rfc5987) as *ext-parameter*, in
     /// [RFC6266](https://tools.ietf.org/html/rfc6266) as *ext-token "=" ext-value*. The single
@@ -205,7 +212,6 @@ impl DispositionParam {
 /// itself, *Content-Disposition* has no effect.
 ///
 /// # ABNF
-
 /// ```text
 /// content-disposition = "Content-Disposition" ":"
 ///                       disposition-type *( ";" disposition-parm )
@@ -289,10 +295,12 @@ impl DispositionParam {
 /// If "filename" parameter is supplied, do not use the file name blindly, check and possibly
 /// change to match local file system conventions if applicable, and do not use directory path
 /// information that may be present. See [RFC2183](https://tools.ietf.org/html/rfc2183#section-2.3).
+// TODO: private fields and use smallvec
 #[derive(Clone, Debug, PartialEq)]
 pub struct ContentDisposition {
     /// The disposition type
     pub disposition: DispositionType,
+
     /// Disposition parameters
     pub parameters: Vec<DispositionParam>,
 }
@@ -410,41 +418,33 @@ impl ContentDisposition {
 
     /// Return the value of *name* if exists.
     pub fn get_name(&self) -> Option<&str> {
-        self.parameters.iter().filter_map(|p| p.as_name()).next()
+        self.parameters.iter().find_map(DispositionParam::as_name)
     }
 
     /// Return the value of *filename* if exists.
     pub fn get_filename(&self) -> Option<&str> {
         self.parameters
             .iter()
-            .filter_map(|p| p.as_filename())
-            .next()
+            .find_map(DispositionParam::as_filename)
     }
 
     /// Return the value of *filename\** if exists.
     pub fn get_filename_ext(&self) -> Option<&ExtendedValue> {
         self.parameters
             .iter()
-            .filter_map(|p| p.as_filename_ext())
-            .next()
+            .find_map(DispositionParam::as_filename_ext)
     }
 
     /// Return the value of the parameter which the `name` matches.
     pub fn get_unknown(&self, name: impl AsRef<str>) -> Option<&str> {
         let name = name.as_ref();
-        self.parameters
-            .iter()
-            .filter_map(|p| p.as_unknown(name))
-            .next()
+        self.parameters.iter().find_map(|p| p.as_unknown(name))
     }
 
     /// Return the value of the extended parameter which the `name` matches.
     pub fn get_unknown_ext(&self, name: impl AsRef<str>) -> Option<&ExtendedValue> {
         let name = name.as_ref();
-        self.parameters
-            .iter()
-            .filter_map(|p| p.as_unknown_ext(name))
-            .next()
+        self.parameters.iter().find_map(|p| p.as_unknown_ext(name))
     }
 }
 
@@ -465,7 +465,7 @@ impl Header for ContentDisposition {
 
     fn parse<T: crate::HttpMessage>(msg: &T) -> Result<Self, crate::error::ParseError> {
         if let Some(h) = msg.headers().get(&Self::name()) {
-            Self::from_raw(&h)
+            Self::from_raw(h)
         } else {
             Err(crate::error::ParseError::Header)
         }
@@ -517,22 +517,28 @@ impl fmt::Display for DispositionParam {
         //
         //
         // See also comments in test_from_raw_unnecessary_percent_decode.
+
         static RE: Lazy<Regex> =
             Lazy::new(|| Regex::new("[\x00-\x08\x10-\x1F\x7F\"\\\\]").unwrap());
+
         match self {
             DispositionParam::Name(ref value) => write!(f, "name={}", value),
+
             DispositionParam::Filename(ref value) => {
                 write!(f, "filename=\"{}\"", RE.replace_all(value, "\\$0").as_ref())
             }
+
             DispositionParam::Unknown(ref name, ref value) => write!(
                 f,
                 "{}=\"{}\"",
                 name,
                 &RE.replace_all(value, "\\$0").as_ref()
             ),
+
             DispositionParam::FilenameExt(ref ext_value) => {
                 write!(f, "filename*={}", ext_value)
             }
+
             DispositionParam::UnknownExt(ref name, ref ext_value) => {
                 write!(f, "{}*={}", name, ext_value)
             }

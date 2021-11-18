@@ -16,11 +16,12 @@
 
 use actix_service::boxed::{BoxService, BoxServiceFactory};
 use actix_web::{
-    dev::{ServiceRequest, ServiceResponse},
+    dev::{RequestHead, ServiceRequest, ServiceResponse},
     error::Error,
     http::header::DispositionType,
 };
 use mime_guess::from_ext;
+use std::path::Path;
 
 mod chunked;
 mod directory;
@@ -56,6 +57,8 @@ pub fn file_extension_to_mime(ext: &str) -> mime::Mime {
 
 type MimeOverride = dyn Fn(&mime::Name<'_>) -> DispositionType;
 
+type PathFilter = dyn Fn(&Path, &RequestHead) -> bool;
+
 #[cfg(test)]
 mod tests {
     use std::{
@@ -80,7 +83,7 @@ mod tests {
 
     use super::*;
 
-    #[actix_rt::test]
+    #[actix_web::test]
     async fn test_file_extension_to_mime() {
         let m = file_extension_to_mime("");
         assert_eq!(m, mime::APPLICATION_OCTET_STREAM);
@@ -900,5 +903,41 @@ mod tests {
         );
         let bytes = test::read_body(resp).await;
         assert!(format!("{:?}", bytes).contains("/tests/test.png"));
+    }
+
+    #[actix_rt::test]
+    async fn test_path_filter() {
+        // prevent searching subdirectories
+        let st = Files::new("/", ".")
+            .path_filter(|path, _| path.components().count() == 1)
+            .new_service(())
+            .await
+            .unwrap();
+
+        let req = TestRequest::with_uri("/Cargo.toml").to_srv_request();
+        let resp = test::call_service(&st, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/src/lib.rs").to_srv_request();
+        let resp = test::call_service(&st, req).await;
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[actix_rt::test]
+    async fn test_default_handler_filter() {
+        let st = Files::new("/", ".")
+            .default_handler(|req: ServiceRequest| {
+                ok(req.into_response(HttpResponse::Ok().body("default content")))
+            })
+            .path_filter(|path, _| path.extension() == Some("png".as_ref()))
+            .new_service(())
+            .await
+            .unwrap();
+        let req = TestRequest::with_uri("/Cargo.toml").to_srv_request();
+        let resp = test::call_service(&st, req).await;
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = test::read_body(resp).await;
+        assert_eq!(bytes, web::Bytes::from_static(b"default content"));
     }
 }

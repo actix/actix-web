@@ -9,7 +9,7 @@ use std::{
 };
 
 use actix_http::{
-    body::{Body, BodyStream},
+    body::{AnyBody, BodyStream},
     http::{
         header::{self, HeaderMap, HeaderName, IntoHeaderValue},
         Error as HttpError,
@@ -196,7 +196,7 @@ impl RequestSender {
         body: B,
     ) -> SendClientRequest
     where
-        B: Into<Body>,
+        B: Into<AnyBody>,
     {
         let req = match self {
             RequestSender::Owned(head) => {
@@ -236,7 +236,7 @@ impl RequestSender {
             response_decompress,
             timeout,
             config,
-            Body::Bytes(Bytes::from(body)),
+            AnyBody::Bytes(Bytes::from(body)),
         )
     }
 
@@ -265,7 +265,7 @@ impl RequestSender {
             response_decompress,
             timeout,
             config,
-            Body::Bytes(Bytes::from(body)),
+            AnyBody::Bytes(Bytes::from(body)),
         )
     }
 
@@ -286,7 +286,7 @@ impl RequestSender {
             response_decompress,
             timeout,
             config,
-            Body::from_message(BodyStream::new(stream)),
+            AnyBody::new_boxed(BodyStream::new(stream)),
         )
     }
 
@@ -297,7 +297,7 @@ impl RequestSender {
         timeout: Option<Duration>,
         config: &ClientConfig,
     ) -> SendClientRequest {
-        self.send_body(addr, response_decompress, timeout, config, Body::Empty)
+        self.send_body(addr, response_decompress, timeout, config, AnyBody::empty())
     }
 
     fn set_header_if_none<V>(&mut self, key: HeaderName, value: V) -> Result<(), HttpError>

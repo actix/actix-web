@@ -159,7 +159,7 @@ where
     ///
     /// By default max connections is set to a 25k.
     pub fn max_connections(mut self, num: usize) -> Self {
-        self.builder = self.builder.maxconn(num);
+        self.builder = self.builder.max_concurrent_connections(num);
         self
     }
 
@@ -233,7 +233,7 @@ where
         self
     }
 
-    /// Stop actix system.
+    /// Stop Actix `System` after server shutdown.
     pub fn system_exit(mut self) -> Self {
         self.builder = self.builder.system_exit();
         self
@@ -292,15 +292,16 @@ where
                     let c = cfg.lock().unwrap();
                     let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
 
-                    let svc = HttpService::build()
+                    let mut svc = HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_timeout(c.client_timeout)
+                        .client_disconnect(c.client_shutdown)
                         .local_addr(addr);
 
-                    let svc = if let Some(handler) = on_connect_fn.clone() {
-                        svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
-                    } else {
-                        svc
+                    if let Some(handler) = on_connect_fn.clone() {
+                        svc = svc.on_connect_ext(move |io: &_, ext: _| {
+                            (handler)(io as &dyn Any, ext)
+                        })
                     };
 
                     let fac = factory()
@@ -352,7 +353,8 @@ where
                     let svc = HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_timeout(c.client_timeout)
-                        .client_disconnect(c.client_shutdown);
+                        .client_disconnect(c.client_shutdown)
+                        .local_addr(addr);
 
                     let svc = if let Some(handler) = on_connect_fn.clone() {
                         svc.on_connect_ext(move |io: &_, ext: _| {
@@ -461,17 +463,15 @@ where
             }
         }
 
-        if !success {
-            if let Some(e) = err.take() {
-                Err(e)
-            } else {
-                Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    "Can not bind to address.",
-                ))
-            }
-        } else {
+        if success {
             Ok(sockets)
+        } else if let Some(e) = err.take() {
+            Err(e)
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::Other,
+                "Can not bind to address.",
+            ))
         }
     }
 
@@ -525,10 +525,11 @@ where
             addr: socket_addr,
         });
 
-        let addr = format!("actix-web-service-{:?}", lst.local_addr()?);
+        let addr = lst.local_addr()?;
+        let name = format!("actix-web-service-{:?}", addr);
         let on_connect_fn = self.on_connect_fn.clone();
 
-        self.builder = self.builder.listen_uds(addr, lst, move || {
+        self.builder = self.builder.listen_uds(name, lst, move || {
             let c = cfg.lock().unwrap();
             let config = AppConfig::new(
                 false,
@@ -537,15 +538,15 @@ where
             );
 
             fn_service(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) }).and_then({
-                let svc = HttpService::build()
+                let mut svc = HttpService::build()
                     .keep_alive(c.keep_alive)
-                    .client_timeout(c.client_timeout);
+                    .client_timeout(c.client_timeout)
+                    .client_disconnect(c.client_shutdown);
 
-                let svc = if let Some(handler) = on_connect_fn.clone() {
-                    svc.on_connect_ext(move |io: &_, ext: _| (&*handler)(io as &dyn Any, ext))
-                } else {
-                    svc
-                };
+                if let Some(handler) = on_connect_fn.clone() {
+                    svc = svc
+                        .on_connect_ext(move |io: &_, ext: _| (&*handler)(io as &dyn Any, ext));
+                }
 
                 let fac = factory()
                     .into_factory()
@@ -557,8 +558,8 @@ where
         Ok(self)
     }
 
-    #[cfg(unix)]
     /// Start listening for incoming unix domain connections.
+    #[cfg(unix)]
     pub fn bind_uds<A>(mut self, addr: A) -> io::Result<Self>
     where
         A: AsRef<std::path::Path>,
@@ -571,6 +572,7 @@ where
         let factory = self.factory.clone();
         let socket_addr =
             net::SocketAddr::new(net::IpAddr::V4(net::Ipv4Addr::new(127, 0, 0, 1)), 8080);
+
         self.sockets.push(Socket {
             scheme: "http",
             addr: socket_addr,
@@ -595,6 +597,7 @@ where
                     HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_timeout(c.client_timeout)
+                        .client_disconnect(c.client_shutdown)
                         .finish(map_config(fac, move |_| config.clone())),
                 )
             },

@@ -51,9 +51,8 @@ where
                     fut.await.unwrap();
                 }
             });
-            let elapsed = start.elapsed();
             // check that at least first request succeeded
-            elapsed
+            start.elapsed()
         })
     });
 }
@@ -93,9 +92,8 @@ fn async_web_service(c: &mut Criterion) {
                     fut.await.unwrap();
                 }
             });
-            let elapsed = start.elapsed();
             // check that at least first request succeeded
-            elapsed
+            start.elapsed()
         })
     });
 }

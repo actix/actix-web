@@ -5,7 +5,7 @@ use futures_core::Stream;
 use serde::Serialize;
 
 use actix_http::{
-    body::Body,
+    body::AnyBody,
     http::{
         header::{self, IntoHeaderPair},
         ConnectionType, Error as HttpError, HeaderMap, HeaderValue, Method, Uri, Version,
@@ -350,7 +350,7 @@ impl ClientRequest {
     /// Complete request construction and send body.
     pub fn send_body<B>(self, body: B) -> SendClientRequest
     where
-        B: Into<Body>,
+        B: Into<AnyBody>,
     {
         let slf = match self.prep_for_sending() {
             Ok(slf) => slf,
@@ -480,12 +480,15 @@ impl ClientRequest {
         // supported, so we cannot guess Accept-Encoding HTTP header.
         if slf.response_decompress {
             // Set Accept-Encoding with compression algorithm awc is built with.
+            #[allow(clippy::vec_init_then_push)]
             #[cfg(feature = "__compress")]
             let accept_encoding = {
                 let mut encoding = vec![];
 
                 #[cfg(feature = "compress-brotli")]
-                encoding.push("br");
+                {
+                    encoding.push("br");
+                }
 
                 #[cfg(feature = "compress-gzip")]
                 {
@@ -496,7 +499,11 @@ impl ClientRequest {
                 #[cfg(feature = "compress-zstd")]
                 encoding.push("zstd");
 
-                assert!(!encoding.is_empty(), "encoding cannot be empty unless __compress feature has been explictily enabled.");
+                assert!(
+                    !encoding.is_empty(),
+                    "encoding can not be empty unless __compress feature has been explicitly enabled"
+                );
+
                 encoding.join(", ")
             };
 

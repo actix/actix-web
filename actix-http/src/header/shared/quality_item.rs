@@ -1,10 +1,13 @@
 use std::{
     cmp,
     convert::{TryFrom, TryInto},
-    fmt, str,
+    fmt,
+    str::{self, FromStr},
 };
 
 use derive_more::{Display, Error};
+
+use crate::error::ParseError;
 
 const MAX_QUALITY: u16 = 1000;
 const MAX_FLOAT_QUALITY: f32 = 1.0;
@@ -113,12 +116,12 @@ impl<T: fmt::Display> fmt::Display for QualityItem<T> {
     }
 }
 
-impl<T: str::FromStr> str::FromStr for QualityItem<T> {
-    type Err = crate::error::ParseError;
+impl<T: FromStr> FromStr for QualityItem<T> {
+    type Err = ParseError;
 
-    fn from_str(qitem_str: &str) -> Result<QualityItem<T>, crate::error::ParseError> {
+    fn from_str(qitem_str: &str) -> Result<Self, Self::Err> {
         if !qitem_str.is_ascii() {
-            return Err(crate::error::ParseError::Header);
+            return Err(ParseError::Header);
         }
 
         // Set defaults used if parsing fails.
@@ -139,7 +142,7 @@ impl<T: str::FromStr> str::FromStr for QualityItem<T> {
             if parts[0].len() < 2 {
                 // Can't possibly be an attribute since an attribute needs at least a name followed
                 // by an equals sign. And bare identifiers are forbidden.
-                return Err(crate::error::ParseError::Header);
+                return Err(ParseError::Header);
             }
 
             let start = &parts[0][0..2];
@@ -148,25 +151,21 @@ impl<T: str::FromStr> str::FromStr for QualityItem<T> {
                 let q_val = &parts[0][2..];
                 if q_val.len() > 5 {
                     // longer than 5 indicates an over-precise q-factor
-                    return Err(crate::error::ParseError::Header);
+                    return Err(ParseError::Header);
                 }
 
-                let q_value = q_val
-                    .parse::<f32>()
-                    .map_err(|_| crate::error::ParseError::Header)?;
+                let q_value = q_val.parse::<f32>().map_err(|_| ParseError::Header)?;
 
                 if (0f32..=1f32).contains(&q_value) {
                     quality = q_value;
                     raw_item = parts[1];
                 } else {
-                    return Err(crate::error::ParseError::Header);
+                    return Err(ParseError::Header);
                 }
             }
         }
 
-        let item = raw_item
-            .parse::<T>()
-            .map_err(|_| crate::error::ParseError::Header)?;
+        let item = raw_item.parse::<T>().map_err(|_| ParseError::Header)?;
 
         // we already checked above that the quality is within range
         Ok(QualityItem::new(item, Quality::from_f32(quality)))
@@ -196,6 +195,7 @@ mod tests {
     use super::*;
 
     // copy of encoding from actix-web headers
+    #[allow(clippy::enum_variant_names)] // allow Encoding prefix on EncodingExt
     #[derive(Clone, PartialEq, Debug)]
     pub enum Encoding {
         Chunked,
@@ -224,7 +224,7 @@ mod tests {
         }
     }
 
-    impl str::FromStr for Encoding {
+    impl FromStr for Encoding {
         type Err = crate::error::ParseError;
         fn from_str(s: &str) -> Result<Encoding, crate::error::ParseError> {
             use Encoding::*;

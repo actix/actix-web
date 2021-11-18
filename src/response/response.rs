@@ -8,7 +8,7 @@ use std::{
 };
 
 use actix_http::{
-    body::{AnyBody, Body, MessageBody},
+    body::{AnyBody, MessageBody},
     http::{header::HeaderMap, StatusCode},
     Extensions, Response, ResponseHead,
 };
@@ -24,20 +24,14 @@ use {
 
 use crate::{error::Error, HttpResponseBuilder};
 
-/// An HTTP Response
+/// An outgoing response.
 pub struct HttpResponse<B = AnyBody> {
     res: Response<B>,
     pub(crate) error: Option<Error>,
 }
 
 impl HttpResponse<AnyBody> {
-    /// Create HTTP response builder with specific status.
-    #[inline]
-    pub fn build(status: StatusCode) -> HttpResponseBuilder {
-        HttpResponseBuilder::new(status)
-    }
-
-    /// Create a response.
+    /// Constructs a response.
     #[inline]
     pub fn new(status: StatusCode) -> Self {
         Self {
@@ -46,10 +40,19 @@ impl HttpResponse<AnyBody> {
         }
     }
 
+    /// Constructs a response builder with specific HTTP status.
+    #[inline]
+    pub fn build(status: StatusCode) -> HttpResponseBuilder {
+        HttpResponseBuilder::new(status)
+    }
+
     /// Create an error response.
     #[inline]
     pub fn from_error(error: impl Into<Error>) -> Self {
-        error.into().as_response_error().error_response()
+        let error = error.into();
+        let mut response = error.as_response_error().error_response();
+        response.error = Some(error);
+        response
     }
 }
 
@@ -224,6 +227,9 @@ impl<B> HttpResponse<B> {
         }
     }
 
+    // TODO: into_body equivalent
+    // TODO: into_boxed_body
+
     /// Extract response body
     pub fn into_body(self) -> B {
         self.res.into_body()
@@ -267,14 +273,14 @@ impl<B> From<HttpResponse<B>> for Response<B> {
     }
 }
 
-// Future is only implemented for Body payload type because it's the most useful for making simple
-// handlers without async blocks. Making it generic over all MessageBody types requires a future
-// impl on Response which would cause it's body field to be, undesirably, Option<B>.
+// Future is only implemented for AnyBody payload type because it's the most useful for making
+// simple handlers without async blocks. Making it generic over all MessageBody types requires a
+// future impl on Response which would cause it's body field to be, undesirably, Option<B>.
 //
 // This impl is not particularly efficient due to the Response construction and should probably
 // not be invoked if performance is important. Prefer an async fn/block in such cases.
-impl Future for HttpResponse<Body> {
-    type Output = Result<Response<Body>, Error>;
+impl Future for HttpResponse<AnyBody> {
+    type Output = Result<Response<AnyBody>, Error>;
 
     fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
         if let Some(err) = self.error.take() {

@@ -8,13 +8,12 @@ use h2::{
 };
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, TRANSFER_ENCODING};
 use http::{request::Request, Method, Version};
+use log::trace;
 
-use crate::{
+use actix_http::{
     body::{BodySize, MessageBody},
     header::HeaderMap,
-    message::{RequestHeadType, ResponseHead},
-    payload::Payload,
-    Error,
+    Error, Payload, RequestHeadType, ResponseHead,
 };
 
 use super::{
@@ -37,10 +36,7 @@ where
 
     let head_req = head.as_ref().method == Method::HEAD;
     let length = body.size();
-    let eof = matches!(
-        length,
-        BodySize::None | BodySize::Empty | BodySize::Sized(0)
-    );
+    let eof = matches!(length, BodySize::None | BodySize::Sized(0));
 
     let mut req = Request::new(());
     *req.uri_mut() = head.as_ref().uri.clone();
@@ -53,13 +49,11 @@ where
     // Content length
     let _ = match length {
         BodySize::None => None,
-        BodySize::Stream => {
-            skip_len = false;
-            None
-        }
-        BodySize::Empty => req
+
+        BodySize::Sized(0) => req
             .headers_mut()
             .insert(CONTENT_LENGTH, HeaderValue::from_static("0")),
+
         BodySize::Sized(len) => {
             let mut buf = itoa::Buffer::new();
 
@@ -67,6 +61,11 @@ where
                 CONTENT_LENGTH,
                 HeaderValue::from_str(buf.format(len)).unwrap(),
             )
+        }
+
+        BodySize::Stream => {
+            skip_len = false;
+            None
         }
     };
 
@@ -131,10 +130,7 @@ where
     Ok((head, payload))
 }
 
-async fn send_body<B>(
-    body: B,
-    mut send: SendStream<Bytes>,
-) -> Result<(), SendRequestError>
+async fn send_body<B>(body: B, mut send: SendStream<Bytes>) -> Result<(), SendRequestError>
 where
     B: MessageBody,
     B::Error: Into<Error>,
@@ -168,14 +164,13 @@ where
 
                 if let Err(e) = send.send_data(bytes, false) {
                     return Err(e.into());
-                } else {
-                    if !b.is_empty() {
-                        send.reserve_capacity(b.len());
-                    } else {
-                        buf = None;
-                    }
-                    continue;
                 }
+                if !b.is_empty() {
+                    send.reserve_capacity(b.len());
+                } else {
+                    buf = None;
+                }
+                continue;
             }
             Some(Err(e)) => return Err(e.into()),
         }
@@ -185,8 +180,7 @@ where
 pub(crate) fn handshake<Io: ConnectionIo>(
     io: Io,
     config: &ConnectorConfig,
-) -> impl Future<Output = Result<(SendRequest<Bytes>, Connection<Io, Bytes>), h2::Error>>
-{
+) -> impl Future<Output = Result<(SendRequest<Bytes>, Connection<Io, Bytes>), h2::Error>> {
     let mut builder = Builder::new();
     builder
         .initial_window_size(config.stream_window_size)

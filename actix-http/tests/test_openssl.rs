@@ -5,10 +5,10 @@ extern crate tls_openssl as openssl;
 use std::{convert::Infallible, io};
 
 use actix_http::{
-    body::{AnyBody, Body, SizedStream},
+    body::{AnyBody, SizedStream},
     error::PayloadError,
     http::{
-        header::{self, HeaderName, HeaderValue},
+        header::{self, HeaderValue},
         Method, StatusCode, Version,
     },
     Error, HttpMessage, HttpService, Request, Response,
@@ -143,38 +143,25 @@ async fn test_h2_content_length() {
     })
     .await;
 
-    let header = HeaderName::from_static("content-length");
-    let value = HeaderValue::from_static("0");
+    static VALUE: HeaderValue = HeaderValue::from_static("0");
 
     {
-        for &i in &[0] {
-            let req = srv
-                .request(Method::HEAD, srv.surl(&format!("/{}", i)))
-                .send();
-            let _response = req.await.expect_err("should timeout on recv 1xx frame");
-            // assert_eq!(response.headers().get(&header), None);
+        let req = srv.request(Method::HEAD, srv.surl("/0")).send();
+        req.await.expect_err("should timeout on recv 1xx frame");
 
-            let req = srv
-                .request(Method::GET, srv.surl(&format!("/{}", i)))
-                .send();
-            let _response = req.await.expect_err("should timeout on recv 1xx frame");
-            // assert_eq!(response.headers().get(&header), None);
-        }
+        let req = srv.request(Method::GET, srv.surl("/0")).send();
+        req.await.expect_err("should timeout on recv 1xx frame");
 
-        for &i in &[1] {
-            let req = srv
-                .request(Method::GET, srv.surl(&format!("/{}", i)))
-                .send();
-            let response = req.await.unwrap();
-            assert_eq!(response.headers().get(&header), None);
-        }
+        let req = srv.request(Method::GET, srv.surl("/1")).send();
+        let response = req.await.unwrap();
+        assert!(response.headers().get("content-length").is_none());
 
         for &i in &[2, 3] {
             let req = srv
                 .request(Method::GET, srv.surl(&format!("/{}", i)))
                 .send();
             let response = req.await.unwrap();
-            assert_eq!(response.headers().get(&header), Some(&value));
+            assert_eq!(response.headers().get("content-length"), Some(&VALUE));
         }
     }
 }
@@ -422,7 +409,7 @@ impl From<BadRequest> for Response<AnyBody> {
 async fn test_h2_service_error() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|_| err::<Response<Body>, _>(BadRequest))
+            .h2(|_| err::<Response<AnyBody>, _>(BadRequest))
             .openssl(tls_config())
             .map_err(|_| ())
     })

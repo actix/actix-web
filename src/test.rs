@@ -1,6 +1,6 @@
 //! Various helpers for Actix applications to use during testing.
 
-use std::{net::SocketAddr, rc::Rc};
+use std::{borrow::Cow, net::SocketAddr, rc::Rc};
 
 pub use actix_http::test::TestBuffer;
 use actix_http::{
@@ -22,7 +22,7 @@ use crate::{
     app_service::AppInitServiceState,
     config::AppConfig,
     data::Data,
-    dev::{Body, MessageBody, Payload},
+    dev::{AnyBody, MessageBody, Payload},
     http::header::ContentType,
     rmap::ResourceMap,
     service::{ServiceRequest, ServiceResponse},
@@ -32,14 +32,14 @@ use crate::{
 
 /// Create service that always responds with `HttpResponse::Ok()` and no body.
 pub fn ok_service(
-) -> impl Service<ServiceRequest, Response = ServiceResponse<Body>, Error = Error> {
+) -> impl Service<ServiceRequest, Response = ServiceResponse<AnyBody>, Error = Error> {
     default_service(StatusCode::OK)
 }
 
 /// Create service that always responds with given status code and no body.
 pub fn default_service(
     status_code: StatusCode,
-) -> impl Service<ServiceRequest, Response = ServiceResponse<Body>, Error = Error> {
+) -> impl Service<ServiceRequest, Response = ServiceResponse<AnyBody>, Error = Error> {
     (move |req: ServiceRequest| {
         ok(req.into_response(HttpResponseBuilder::new(status_code).finish()))
     })
@@ -52,11 +52,11 @@ pub fn default_service(
 /// use actix_service::Service;
 /// use actix_web::{test, web, App, HttpResponse, http::StatusCode};
 ///
-/// #[actix_rt::test]
+/// #[actix_web::test]
 /// async fn test_init_service() {
 ///     let app = test::init_service(
 ///         App::new()
-///             .service(web::resource("/test").to(|| async { HttpResponse::Ok() }))
+///             .service(web::resource("/test").to(|| async { "OK" }))
 ///     ).await;
 ///
 ///     // Create request object
@@ -98,7 +98,7 @@ where
 /// ```
 /// use actix_web::{test, web, App, HttpResponse, http::StatusCode};
 ///
-/// #[actix_rt::test]
+/// #[actix_web::test]
 /// async fn test_response() {
 ///     let app = test::init_service(
 ///         App::new()
@@ -129,7 +129,7 @@ where
 /// use actix_web::{test, web, App, HttpResponse, http::header};
 /// use bytes::Bytes;
 ///
-/// #[actix_rt::test]
+/// #[actix_web::test]
 /// async fn test_index() {
 ///     let app = test::init_service(
 ///         App::new().service(
@@ -176,7 +176,7 @@ where
 /// use actix_web::{test, web, App, HttpResponse, http::header};
 /// use bytes::Bytes;
 ///
-/// #[actix_rt::test]
+/// #[actix_web::test]
 /// async fn test_index() {
 ///     let app = test::init_service(
 ///         App::new().service(
@@ -224,7 +224,7 @@ where
 ///     name: String,
 /// }
 ///
-/// #[actix_rt::test]
+/// #[actix_web::test]
 /// async fn test_post_person() {
 ///     let app = test::init_service(
 ///         App::new().service(
@@ -296,7 +296,7 @@ where
 ///     name: String
 /// }
 ///
-/// #[actix_rt::test]
+/// #[actix_web::test]
 /// async fn test_add_person() {
 ///     let app = test::init_service(
 ///         App::new().service(
@@ -356,8 +356,8 @@ where
 ///     }
 /// }
 ///
-/// #[test]
-/// fn test_index() {
+/// #[actix_web::test]
+/// async fn test_index() {
 ///     let req = test::TestRequest::default().insert_header("content-type", "text/plain")
 ///         .to_http_request();
 ///
@@ -470,19 +470,31 @@ impl TestRequest {
         self
     }
 
-    /// Set request path pattern parameter
-    pub fn param(mut self, name: &'static str, value: &'static str) -> Self {
+    /// Set request path pattern parameter.
+    ///
+    /// # Examples
+    /// ```
+    /// use actix_web::test::TestRequest;
+    ///
+    /// let req = TestRequest::default().param("foo", "bar");
+    /// let req = TestRequest::default().param("foo".to_owned(), "bar".to_owned());
+    /// ```
+    pub fn param(
+        mut self,
+        name: impl Into<Cow<'static, str>>,
+        value: impl Into<Cow<'static, str>>,
+    ) -> Self {
         self.path.add_static(name, value);
         self
     }
 
-    /// Set peer addr
+    /// Set peer addr.
     pub fn peer_addr(mut self, addr: SocketAddr) -> Self {
         self.peer_addr = Some(addr);
         self
     }
 
-    /// Set request payload
+    /// Set request payload.
     pub fn set_payload<B: Into<Bytes>>(mut self, data: B) -> Self {
         self.req.set_payload(data);
         self
@@ -612,6 +624,11 @@ impl TestRequest {
     {
         let req = self.to_request();
         call_service(app, req).await
+    }
+
+    #[cfg(test)]
+    pub fn set_server_hostname(&mut self, host: &str) {
+        self.config.set_host(host)
     }
 }
 
@@ -839,6 +856,8 @@ mod tests {
         assert!(res.status().is_success());
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_server_data() {
         async fn handler(data: web::Data<usize>) -> impl Responder {

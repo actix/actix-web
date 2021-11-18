@@ -354,10 +354,10 @@ impl HttpResponseBuilder {
     #[inline]
     pub fn streaming<S, E>(&mut self, stream: S) -> HttpResponse
     where
-        S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
+        S: Stream<Item = Result<Bytes, E>> + 'static,
         E: Into<Box<dyn StdError>> + 'static,
     {
-        self.body(AnyBody::from_message(BodyStream::new(stream)))
+        self.body(AnyBody::new_boxed(BodyStream::new(stream)))
     }
 
     /// Set a json body and generate `Response`
@@ -387,7 +387,7 @@ impl HttpResponseBuilder {
     /// `HttpResponseBuilder` can not be used after this call.
     #[inline]
     pub fn finish(&mut self) -> HttpResponse {
-        self.body(AnyBody::Empty)
+        self.body(AnyBody::empty())
     }
 
     /// This method construct new `HttpResponseBuilder`
@@ -406,7 +406,7 @@ impl HttpResponseBuilder {
             return None;
         }
 
-        self.res.as_mut().map(|res| res.head_mut())
+        self.res.as_mut().map(Response::head_mut)
     }
 }
 
@@ -436,7 +436,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        dev::Body,
+        dev::AnyBody,
         http::{
             header::{self, HeaderValue, CONTENT_TYPE},
             StatusCode,
@@ -475,7 +475,7 @@ mod tests {
     fn test_content_type() {
         let resp = HttpResponseBuilder::new(StatusCode::OK)
             .content_type("text/plain")
-            .body(Body::Empty);
+            .body(AnyBody::empty());
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "text/plain")
     }
 

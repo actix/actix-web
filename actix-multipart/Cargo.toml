@@ -1,13 +1,11 @@
 [package]
 name = "actix-multipart"
-version = "0.4.0-beta.5"
+version = "0.4.0-beta.7"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Multipart form support for Actix Web"
-readme = "README.md"
 keywords = ["http", "web", "framework", "async", "futures"]
 homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-web.git"
-documentation = "https://docs.rs/actix-multipart"
 license = "MIT OR Apache-2.0"
 edition = "2018"
 
@@ -16,7 +14,7 @@ name = "actix_multipart"
 path = "src/lib.rs"
 
 [dependencies]
-actix-web = { version = "4.0.0-beta.7", default-features = false }
+actix-web = { version = "4.0.0-beta.11", default-features = false }
 actix-utils = "3.0.0"
 
 bytes = "1"
@@ -31,6 +29,6 @@ twoway = "0.2"
 
 [dev-dependencies]
 actix-rt = "2.2"
-actix-http = "3.0.0-beta.7"
+actix-http = "3.0.0-beta.12"
 tokio = { version = "1", features = ["sync"] }
 tokio-stream = "0.1"

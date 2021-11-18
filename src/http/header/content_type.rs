@@ -1,7 +1,7 @@
 use super::CONTENT_TYPE;
 use mime::Mime;
 
-crate::__define_common_header! {
+crate::http::header::common_header! {
     /// `Content-Type` header, defined in
     /// [RFC7231](http://tools.ietf.org/html/rfc7231#section-3.1.1.5)
     ///
@@ -52,7 +52,7 @@ crate::__define_common_header! {
     (ContentType, CONTENT_TYPE) => [Mime]
 
     test_content_type {
-        crate::__common_header_test!(
+        crate::http::header::common_header_test!(
             test1,
             vec![b"text/html"],
             Some(HeaderField(mime::TEXT_HTML)));
@@ -60,52 +60,53 @@ crate::__define_common_header! {
 }
 
 impl ContentType {
-    /// A constructor  to easily create a `Content-Type: application/json`
+    /// A constructor to easily create a `Content-Type: application/json`
     /// header.
     #[inline]
     pub fn json() -> ContentType {
         ContentType(mime::APPLICATION_JSON)
     }
 
-    /// A constructor  to easily create a `Content-Type: text/plain;
+    /// A constructor to easily create a `Content-Type: text/plain;
     /// charset=utf-8` header.
     #[inline]
     pub fn plaintext() -> ContentType {
         ContentType(mime::TEXT_PLAIN_UTF_8)
     }
 
-    /// A constructor  to easily create a `Content-Type: text/html` header.
+    /// A constructor to easily create a `Content-Type: text/html; charset=utf-8`
+    /// header.
     #[inline]
     pub fn html() -> ContentType {
-        ContentType(mime::TEXT_HTML)
+        ContentType(mime::TEXT_HTML_UTF_8)
     }
 
-    /// A constructor  to easily create a `Content-Type: text/xml` header.
+    /// A constructor to easily create a `Content-Type: text/xml` header.
     #[inline]
     pub fn xml() -> ContentType {
         ContentType(mime::TEXT_XML)
     }
 
-    /// A constructor  to easily create a `Content-Type:
+    /// A constructor to easily create a `Content-Type:
     /// application/www-form-url-encoded` header.
     #[inline]
     pub fn form_url_encoded() -> ContentType {
         ContentType(mime::APPLICATION_WWW_FORM_URLENCODED)
     }
 
-    /// A constructor  to easily create a `Content-Type: image/jpeg` header.
+    /// A constructor to easily create a `Content-Type: image/jpeg` header.
     #[inline]
     pub fn jpeg() -> ContentType {
         ContentType(mime::IMAGE_JPEG)
     }
 
-    /// A constructor  to easily create a `Content-Type: image/png` header.
+    /// A constructor to easily create a `Content-Type: image/png` header.
     #[inline]
     pub fn png() -> ContentType {
         ContentType(mime::IMAGE_PNG)
     }
 
-    /// A constructor  to easily create a `Content-Type:
+    /// A constructor to easily create a `Content-Type:
     /// application/octet-stream` header.
     #[inline]
     pub fn octet_stream() -> ContentType {

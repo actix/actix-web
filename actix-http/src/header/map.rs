@@ -249,7 +249,7 @@ impl HeaderMap {
     /// assert!(map.get("INVALID HEADER NAME").is_none());
     /// ```
     pub fn get(&self, key: impl AsHeaderName) -> Option<&HeaderValue> {
-        self.get_value(key).map(|val| val.first())
+        self.get_value(key).map(Value::first)
     }
 
     /// Returns a mutable reference to the _first_ value associated a header name.
@@ -280,8 +280,8 @@ impl HeaderMap {
     /// ```
     pub fn get_mut(&mut self, key: impl AsHeaderName) -> Option<&mut HeaderValue> {
         match key.try_as_name(super::as_name::Seal).ok()? {
-            Cow::Borrowed(name) => self.inner.get_mut(name).map(|v| v.first_mut()),
-            Cow::Owned(name) => self.inner.get_mut(&name).map(|v| v.first_mut()),
+            Cow::Borrowed(name) => self.inner.get_mut(name).map(Value::first_mut),
+            Cow::Owned(name) => self.inner.get_mut(&name).map(Value::first_mut),
         }
     }
 
@@ -684,7 +684,7 @@ impl<'a> Iterator for Iter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         // handle in-progress multi value lists first
-        if let Some((ref name, ref mut vals)) = self.multi_inner {
+        if let Some((name, ref mut vals)) = self.multi_inner {
             match vals.get(self.multi_idx) {
                 Some(val) => {
                     self.multi_idx += 1;

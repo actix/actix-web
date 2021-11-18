@@ -11,15 +11,14 @@ use futures_core::ready;
 mod body;
 mod body_stream;
 mod message_body;
-mod response_body;
 mod size;
 mod sized_stream;
 
-pub use self::body::{AnyBody, Body, BoxAnyBody};
+#[allow(deprecated)]
+pub use self::body::{AnyBody, Body, BoxBody};
 pub use self::body_stream::BodyStream;
 pub use self::message_body::MessageBody;
 pub(crate) use self::message_body::MessageBodyMapErr;
-pub use self::response_body::ResponseBody;
 pub use self::size::BodySize;
 pub use self::sized_stream::SizedStream;
 
@@ -33,7 +32,7 @@ pub use self::sized_stream::SizedStream;
 /// use bytes::Bytes;
 ///
 /// # async fn test_to_bytes() {
-/// let body = Body::Empty;
+/// let body = Body::None;
 /// let bytes = to_bytes(body).await.unwrap();
 /// assert!(bytes.is_empty());
 ///
@@ -44,8 +43,9 @@ pub use self::sized_stream::SizedStream;
 /// ```
 pub async fn to_bytes<B: MessageBody>(body: B) -> Result<Bytes, B::Error> {
     let cap = match body.size() {
-        BodySize::None | BodySize::Empty | BodySize::Sized(0) => return Ok(Bytes::new()),
+        BodySize::None | BodySize::Sized(0) => return Ok(Bytes::new()),
         BodySize::Sized(size) => size as usize,
+        // good enough first guess for chunk size
         BodySize::Stream => 32_768,
     };
 
@@ -77,20 +77,23 @@ mod tests {
 
     use super::*;
 
-    impl Body {
+    impl AnyBody {
         pub(crate) fn get_ref(&self) -> &[u8] {
             match *self {
-                Body::Bytes(ref bin) => &bin,
+                AnyBody::Bytes(ref bin) => bin,
                 _ => panic!(),
             }
         }
     }
 
+    /// AnyBody alias because rustc does not (can not?) infer the default type parameter.
+    type TestBody = AnyBody;
+
     #[actix_rt::test]
     async fn test_static_str() {
-        assert_eq!(Body::from("").size(), BodySize::Sized(0));
-        assert_eq!(Body::from("test").size(), BodySize::Sized(4));
-        assert_eq!(Body::from("test").get_ref(), b"test");
+        assert_eq!(TestBody::from("").size(), BodySize::Sized(0));
+        assert_eq!(TestBody::from("test").size(), BodySize::Sized(4));
+        assert_eq!(TestBody::from("test").get_ref(), b"test");
 
         assert_eq!("test".size(), BodySize::Sized(4));
         assert_eq!(
@@ -104,13 +107,16 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_static_bytes() {
-        assert_eq!(Body::from(b"test".as_ref()).size(), BodySize::Sized(4));
-        assert_eq!(Body::from(b"test".as_ref()).get_ref(), b"test");
+        assert_eq!(TestBody::from(b"test".as_ref()).size(), BodySize::Sized(4));
+        assert_eq!(TestBody::from(b"test".as_ref()).get_ref(), b"test");
         assert_eq!(
-            Body::from_slice(b"test".as_ref()).size(),
+            TestBody::copy_from_slice(b"test".as_ref()).size(),
             BodySize::Sized(4)
         );
-        assert_eq!(Body::from_slice(b"test".as_ref()).get_ref(), b"test");
+        assert_eq!(
+            TestBody::copy_from_slice(b"test".as_ref()).get_ref(),
+            b"test"
+        );
         let sb = Bytes::from(&b"test"[..]);
         pin!(sb);
 
@@ -123,8 +129,8 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_vec() {
-        assert_eq!(Body::from(Vec::from("test")).size(), BodySize::Sized(4));
-        assert_eq!(Body::from(Vec::from("test")).get_ref(), b"test");
+        assert_eq!(TestBody::from(Vec::from("test")).size(), BodySize::Sized(4));
+        assert_eq!(TestBody::from(Vec::from("test")).get_ref(), b"test");
         let test_vec = Vec::from("test");
         pin!(test_vec);
 
@@ -141,8 +147,8 @@ mod tests {
     #[actix_rt::test]
     async fn test_bytes() {
         let b = Bytes::from("test");
-        assert_eq!(Body::from(b.clone()).size(), BodySize::Sized(4));
-        assert_eq!(Body::from(b.clone()).get_ref(), b"test");
+        assert_eq!(TestBody::from(b.clone()).size(), BodySize::Sized(4));
+        assert_eq!(TestBody::from(b.clone()).get_ref(), b"test");
         pin!(b);
 
         assert_eq!(b.size(), BodySize::Sized(4));
@@ -155,8 +161,8 @@ mod tests {
     #[actix_rt::test]
     async fn test_bytes_mut() {
         let b = BytesMut::from("test");
-        assert_eq!(Body::from(b.clone()).size(), BodySize::Sized(4));
-        assert_eq!(Body::from(b.clone()).get_ref(), b"test");
+        assert_eq!(TestBody::from(b.clone()).size(), BodySize::Sized(4));
+        assert_eq!(TestBody::from(b.clone()).get_ref(), b"test");
         pin!(b);
 
         assert_eq!(b.size(), BodySize::Sized(4));
@@ -169,10 +175,10 @@ mod tests {
     #[actix_rt::test]
     async fn test_string() {
         let b = "test".to_owned();
-        assert_eq!(Body::from(b.clone()).size(), BodySize::Sized(4));
-        assert_eq!(Body::from(b.clone()).get_ref(), b"test");
-        assert_eq!(Body::from(&b).size(), BodySize::Sized(4));
-        assert_eq!(Body::from(&b).get_ref(), b"test");
+        assert_eq!(TestBody::from(b.clone()).size(), BodySize::Sized(4));
+        assert_eq!(TestBody::from(b.clone()).get_ref(), b"test");
+        assert_eq!(TestBody::from(&b).size(), BodySize::Sized(4));
+        assert_eq!(TestBody::from(&b).get_ref(), b"test");
         pin!(b);
 
         assert_eq!(b.size(), BodySize::Sized(4));
@@ -184,7 +190,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_unit() {
-        assert_eq!(().size(), BodySize::Empty);
+        assert_eq!(().size(), BodySize::Sized(0));
         assert!(poll_fn(|cx| Pin::new(&mut ()).poll_next(cx))
             .await
             .is_none());
@@ -194,41 +200,44 @@ mod tests {
     async fn test_box_and_pin() {
         let val = Box::new(());
         pin!(val);
-        assert_eq!(val.size(), BodySize::Empty);
+        assert_eq!(val.size(), BodySize::Sized(0));
         assert!(poll_fn(|cx| val.as_mut().poll_next(cx)).await.is_none());
 
         let mut val = Box::pin(());
-        assert_eq!(val.size(), BodySize::Empty);
+        assert_eq!(val.size(), BodySize::Sized(0));
         assert!(poll_fn(|cx| val.as_mut().poll_next(cx)).await.is_none());
     }
 
     #[actix_rt::test]
     async fn test_body_eq() {
         assert!(
-            Body::Bytes(Bytes::from_static(b"1"))
-                == Body::Bytes(Bytes::from_static(b"1"))
+            AnyBody::Bytes(Bytes::from_static(b"1"))
+                == AnyBody::Bytes(Bytes::from_static(b"1"))
         );
-        assert!(Body::Bytes(Bytes::from_static(b"1")) != Body::None);
+        assert!(AnyBody::Bytes(Bytes::from_static(b"1")) != AnyBody::None);
     }
 
     #[actix_rt::test]
     async fn test_body_debug() {
-        assert!(format!("{:?}", Body::None).contains("Body::None"));
-        assert!(format!("{:?}", Body::Empty).contains("Body::Empty"));
-        assert!(format!("{:?}", Body::Bytes(Bytes::from_static(b"1"))).contains('1'));
+        assert!(format!("{:?}", TestBody::None).contains("Body::None"));
+        assert!(format!("{:?}", TestBody::from(Bytes::from_static(b"1"))).contains('1'));
     }
 
     #[actix_rt::test]
     async fn test_serde_json() {
         use serde_json::{json, Value};
         assert_eq!(
-            Body::from(serde_json::to_vec(&Value::String("test".to_owned())).unwrap())
-                .size(),
+            TestBody::from(
+                serde_json::to_vec(&Value::String("test".to_owned())).unwrap()
+            )
+            .size(),
             BodySize::Sized(6)
         );
         assert_eq!(
-            Body::from(serde_json::to_vec(&json!({"test-key":"test-value"})).unwrap())
-                .size(),
+            TestBody::from(
+                serde_json::to_vec(&json!({"test-key":"test-value"})).unwrap()
+            )
+            .size(),
             BodySize::Sized(25)
         );
     }
@@ -252,11 +261,11 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_to_bytes() {
-        let body = Body::Empty;
+        let body = AnyBody::empty();
         let bytes = to_bytes(body).await.unwrap();
         assert!(bytes.is_empty());
 
-        let body = Body::Bytes(Bytes::from_static(b"123"));
+        let body = AnyBody::copy_from_slice(b"123");
         let bytes = to_bytes(body).await.unwrap();
         assert_eq!(bytes, b"123"[..]);
     }

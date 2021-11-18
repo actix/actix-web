@@ -1,6 +1,26 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 3.0.0-beta.10 - 2021-11-15
+* No significant changes from `3.0.0-beta.9`.
+
+
+## 3.0.0-beta.9 - 2021-10-20
+* Updated rustls to v0.20. [#2414]
+
+[#2414]: https://github.com/actix/actix-web/pull/2414
+
+
+## 3.0.0-beta.8 - 2021-09-09
+### Changed
+* Send headers within the redirect requests. [#2310]
+
+[#2310]: https://github.com/actix/actix-web/pull/2310
+
+
+## 3.0.0-beta.7 - 2021-06-26
 ### Changed
 * Change compression algorithm features flags. [#2250]
 

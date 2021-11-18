@@ -8,7 +8,7 @@ use actix_web::{
     App,
 };
 
-#[actix_rt::test]
+#[actix_web::test]
 async fn test_utf8_file_contents() {
     // use default ISO-8859-1 encoding
     let srv = test::init_service(App::new().service(Files::new("/", "./tests"))).await;

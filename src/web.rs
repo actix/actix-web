@@ -1,49 +1,40 @@
 //! Essentials helper functions and types for application registration.
 
-use actix_http::http::Method;
-use actix_router::IntoPattern;
 use std::future::Future;
 
-pub use actix_http::Response as HttpResponse;
+use actix_http::http::Method;
+use actix_router::IntoPatterns;
 pub use bytes::{Buf, BufMut, Bytes, BytesMut};
 
-use crate::error::BlockingError;
-use crate::extract::FromRequest;
-use crate::handler::Handler;
-use crate::resource::Resource;
-use crate::responder::Responder;
-use crate::route::Route;
-use crate::scope::Scope;
-use crate::service::WebService;
+use crate::{
+    error::BlockingError, extract::FromRequest, handler::Handler, resource::Resource,
+    responder::Responder, route::Route, scope::Scope, service::WebService,
+};
 
 pub use crate::config::ServiceConfig;
 pub use crate::data::Data;
 pub use crate::request::HttpRequest;
 pub use crate::request_data::ReqData;
+pub use crate::response::HttpResponse;
 pub use crate::types::*;
 
-/// Create resource for a specific path.
+/// Creates a new resource for a specific path.
 ///
-/// Resources may have variable path segments. For example, a
-/// resource with the path `/a/{name}/c` would match all incoming
-/// requests with paths such as `/a/b/c`, `/a/1/c`, or `/a/etc/c`.
+/// Resources may have dynamic path segments. For example, a resource with the path `/a/{name}/c`
+/// would match all incoming requests with paths such as `/a/b/c`, `/a/1/c`, or `/a/etc/c`.
 ///
-/// A variable segment is specified in the form `{identifier}`,
-/// where the identifier can be used later in a request handler to
-/// access the matched value for that segment. This is done by
-/// looking up the identifier in the `Params` object returned by
-/// `HttpRequest.match_info()` method.
+/// A dynamic segment is specified in the form `{identifier}`, where the identifier can be used
+/// later in a request handler to access the matched value for that segment. This is done by looking
+/// up the identifier in the `Path` object returned by [`HttpRequest.match_info()`] method.
 ///
 /// By default, each segment matches the regular expression `[^{}/]+`.
 ///
 /// You can also specify a custom regex in the form `{identifier:regex}`:
 ///
-/// For instance, to route `GET`-requests on any route matching
-/// `/users/{userid}/{friend}` and store `userid` and `friend` in
-/// the exposed `Params` object:
+/// For instance, to route `GET`-requests on any route matching `/users/{userid}/{friend}` and store
+/// `userid` and `friend` in the exposed `Path` object:
 ///
 /// ```
-/// # extern crate actix_web;
 /// use actix_web::{web, App, HttpResponse};
 ///
 /// let app = App::new().service(
@@ -52,14 +43,20 @@ pub use crate::types::*;
 ///         .route(web::head().to(|| HttpResponse::MethodNotAllowed()))
 /// );
 /// ```
-pub fn resource<T: IntoPattern>(path: T) -> Resource {
+pub fn resource<T: IntoPatterns>(path: T) -> Resource {
     Resource::new(path)
 }
 
-/// Configure scope for common root path.
+/// Creates scope for common path prefix.
 ///
-/// Scopes collect multiple paths under a common path prefix.
-/// Scope path can contain variable path segments as resources.
+/// Scopes collect multiple paths under a common path prefix. The scope's path can contain dynamic
+/// path segments.
+///
+/// # Examples
+/// In this example, three routes are set up (and will handle any method):
+///  * `/{project_id}/path1`
+///  * `/{project_id}/path2`
+///  * `/{project_id}/path3`
 ///
 /// ```
 /// use actix_web::{web, App, HttpResponse};
@@ -71,148 +68,50 @@ pub fn resource<T: IntoPattern>(path: T) -> Resource {
 ///         .service(web::resource("/path3").to(|| HttpResponse::MethodNotAllowed()))
 /// );
 /// ```
-///
-/// In the above example, three routes get added:
-///  * /{project_id}/path1
-///  * /{project_id}/path2
-///  * /{project_id}/path3
-///
 pub fn scope(path: &str) -> Scope {
     Scope::new(path)
 }
 
-/// Create *route* without configuration.
+/// Creates a new un-configured route.
 pub fn route() -> Route {
     Route::new()
 }
 
-/// Create *route* with `GET` method guard.
-///
-/// ```
-/// use actix_web::{web, App, HttpResponse};
-///
-/// let app = App::new().service(
-///     web::resource("/{project_id}")
-///        .route(web::get().to(|| HttpResponse::Ok()))
-/// );
-/// ```
-///
-/// In the above example, one `GET` route gets added:
-///  * /{project_id}
-///
-pub fn get() -> Route {
-    method(Method::GET)
+macro_rules! method_route {
+    ($method_fn:ident, $method_const:ident) => {
+        paste::paste! {
+            #[doc = " Creates a new route with `" $method_const "` method guard."]
+            ///
+            /// # Examples
+            #[doc = " In this example, one `" $method_const " /{project_id}` route is set up:"]
+            /// ```
+            /// use actix_web::{web, App, HttpResponse};
+            ///
+            /// let app = App::new().service(
+            ///     web::resource("/{project_id}")
+            #[doc = "         .route(web::" $method_fn "().to(|| HttpResponse::Ok()))"]
+            ///
+            /// );
+            /// ```
+            pub fn $method_fn() -> Route {
+                method(Method::$method_const)
+            }
+        }
+    };
 }
 
-/// Create *route* with `POST` method guard.
-///
-/// ```
-/// use actix_web::{web, App, HttpResponse};
-///
-/// let app = App::new().service(
-///     web::resource("/{project_id}")
-///         .route(web::post().to(|| HttpResponse::Ok()))
-/// );
-/// ```
-///
-/// In the above example, one `POST` route gets added:
-///  * /{project_id}
-///
-pub fn post() -> Route {
-    method(Method::POST)
-}
+method_route!(get, GET);
+method_route!(post, POST);
+method_route!(put, PUT);
+method_route!(patch, PATCH);
+method_route!(delete, DELETE);
+method_route!(head, HEAD);
+method_route!(trace, TRACE);
 
-/// Create *route* with `PUT` method guard.
+/// Creates a new route with specified method guard.
 ///
-/// ```
-/// use actix_web::{web, App, HttpResponse};
-///
-/// let app = App::new().service(
-///     web::resource("/{project_id}")
-///         .route(web::put().to(|| HttpResponse::Ok()))
-/// );
-/// ```
-///
-/// In the above example, one `PUT` route gets added:
-///  * /{project_id}
-///
-pub fn put() -> Route {
-    method(Method::PUT)
-}
-
-/// Create *route* with `PATCH` method guard.
-///
-/// ```
-/// use actix_web::{web, App, HttpResponse};
-///
-/// let app = App::new().service(
-///     web::resource("/{project_id}")
-///         .route(web::patch().to(|| HttpResponse::Ok()))
-/// );
-/// ```
-///
-/// In the above example, one `PATCH` route gets added:
-///  * /{project_id}
-///
-pub fn patch() -> Route {
-    method(Method::PATCH)
-}
-
-/// Create *route* with `DELETE` method guard.
-///
-/// ```
-/// use actix_web::{web, App, HttpResponse};
-///
-/// let app = App::new().service(
-///     web::resource("/{project_id}")
-///         .route(web::delete().to(|| HttpResponse::Ok()))
-/// );
-/// ```
-///
-/// In the above example, one `DELETE` route gets added:
-///  * /{project_id}
-///
-pub fn delete() -> Route {
-    method(Method::DELETE)
-}
-
-/// Create *route* with `HEAD` method guard.
-///
-/// ```
-/// use actix_web::{web, App, HttpResponse};
-///
-/// let app = App::new().service(
-///     web::resource("/{project_id}")
-///         .route(web::head().to(|| HttpResponse::Ok()))
-/// );
-/// ```
-///
-/// In the above example, one `HEAD` route gets added:
-///  * /{project_id}
-///
-pub fn head() -> Route {
-    method(Method::HEAD)
-}
-
-/// Create *route* with `TRACE` method guard.
-///
-/// ```
-/// use actix_web::{web, App, HttpResponse};
-///
-/// let app = App::new().service(
-///     web::resource("/{project_id}")
-///         .route(web::trace().to(|| HttpResponse::Ok()))
-/// );
-/// ```
-///
-/// In the above example, one `HEAD` route gets added:
-///  * /{project_id}
-///
-pub fn trace() -> Route {
-    method(Method::TRACE)
-}
-
-/// Create *route* and add method guard.
+/// # Examples
+/// In this example, one `GET /{project_id}` route is set up:
 ///
 /// ```
 /// use actix_web::{web, http, App, HttpResponse};
@@ -222,15 +121,11 @@ pub fn trace() -> Route {
 ///         .route(web::method(http::Method::GET).to(|| HttpResponse::Ok()))
 /// );
 /// ```
-///
-/// In the above example, one `GET` route gets added:
-///  * /{project_id}
-///
 pub fn method(method: Method) -> Route {
     Route::new().method(method)
 }
 
-/// Create a new route and add handler.
+/// Creates a new any-method route with handler.
 ///
 /// ```
 /// use actix_web::{web, App, HttpResponse, Responder};
@@ -254,7 +149,7 @@ where
     Route::new().to(handler)
 }
 
-/// Create raw service for a specific path.
+/// Creates a raw service for a specific path.
 ///
 /// ```
 /// use actix_web::{dev, web, guard, App, Error, HttpResponse};
@@ -269,12 +164,12 @@ where
 ///         .finish(my_service)
 /// );
 /// ```
-pub fn service<T: IntoPattern>(path: T) -> WebService {
+pub fn service<T: IntoPatterns>(path: T) -> WebService {
     WebService::new(path)
 }
 
-/// Execute blocking function on a thread pool, returns future that resolves
-/// to result of the function execution.
+/// Executes blocking function on a thread pool, returns future that resolves to result of the
+/// function execution.
 pub fn block<F, R>(f: F) -> impl Future<Output = Result<R, BlockingError>>
 where
     F: FnOnce() -> R + Send + 'static,

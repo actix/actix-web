@@ -1,16 +1,13 @@
 use std::future::Future;
-use std::marker::PhantomData;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 
-use actix_service::{Service, ServiceFactory};
-use actix_utils::future::{ready, Ready};
-use futures_core::ready;
-use pin_project::pin_project;
+use actix_service::{
+    boxed::{self, BoxServiceFactory},
+    fn_service,
+};
 
 use crate::{
     service::{ServiceRequest, ServiceResponse},
-    Error, FromRequest, HttpRequest, HttpResponse, Responder,
+    Error, FromRequest, HttpResponse, Responder,
 };
 
 /// A request handler is an async function that accepts zero or more parameters that can be
@@ -27,139 +24,26 @@ where
     fn call(&self, param: T) -> R;
 }
 
-#[doc(hidden)]
-/// Extract arguments from request, run factory function and make response.
-pub struct HandlerService<F, T, R>
+pub fn handler_service<F, T, R>(
+    handler: F,
+) -> BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>
 where
     F: Handler<T, R>,
     T: FromRequest,
     R: Future,
     R::Output: Responder,
 {
-    hnd: F,
-    _phantom: PhantomData<(T, R)>,
-}
-
-impl<F, T, R> HandlerService<F, T, R>
-where
-    F: Handler<T, R>,
-    T: FromRequest,
-    R: Future,
-    R::Output: Responder,
-{
-    pub fn new(hnd: F) -> Self {
-        Self {
-            hnd,
-            _phantom: PhantomData,
+    boxed::factory(fn_service(move |req: ServiceRequest| {
+        let handler = handler.clone();
+        async move {
+            let (req, mut payload) = req.into_parts();
+            let res = match T::from_request(&req, &mut payload).await {
+                Err(err) => HttpResponse::from_error(err),
+                Ok(data) => handler.call(data).await.respond_to(&req),
+            };
+            Ok(ServiceResponse::new(req, res))
         }
-    }
-}
-
-impl<F, T, R> Clone for HandlerService<F, T, R>
-where
-    F: Handler<T, R>,
-    T: FromRequest,
-    R: Future,
-    R::Output: Responder,
-{
-    fn clone(&self) -> Self {
-        Self {
-            hnd: self.hnd.clone(),
-            _phantom: PhantomData,
-        }
-    }
-}
-
-impl<F, T, R> ServiceFactory<ServiceRequest> for HandlerService<F, T, R>
-where
-    F: Handler<T, R>,
-    T: FromRequest,
-    R: Future,
-    R::Output: Responder,
-{
-    type Response = ServiceResponse;
-    type Error = Error;
-    type Config = ();
-    type Service = Self;
-    type InitError = ();
-    type Future = Ready<Result<Self::Service, ()>>;
-
-    fn new_service(&self, _: ()) -> Self::Future {
-        ready(Ok(self.clone()))
-    }
-}
-
-/// HandlerService is both it's ServiceFactory and Service Type.
-impl<F, T, R> Service<ServiceRequest> for HandlerService<F, T, R>
-where
-    F: Handler<T, R>,
-    T: FromRequest,
-    R: Future,
-    R::Output: Responder,
-{
-    type Response = ServiceResponse;
-    type Error = Error;
-    type Future = HandlerServiceFuture<F, T, R>;
-
-    actix_service::always_ready!();
-
-    fn call(&self, req: ServiceRequest) -> Self::Future {
-        let (req, mut payload) = req.into_parts();
-        let fut = T::from_request(&req, &mut payload);
-        HandlerServiceFuture::Extract(fut, Some(req), self.hnd.clone())
-    }
-}
-
-#[doc(hidden)]
-#[pin_project(project = HandlerProj)]
-pub enum HandlerServiceFuture<F, T, R>
-where
-    F: Handler<T, R>,
-    T: FromRequest,
-    R: Future,
-    R::Output: Responder,
-{
-    Extract(#[pin] T::Future, Option<HttpRequest>, F),
-    Handle(#[pin] R, Option<HttpRequest>),
-}
-
-impl<F, T, R> Future for HandlerServiceFuture<F, T, R>
-where
-    F: Handler<T, R>,
-    T: FromRequest,
-    R: Future,
-    R::Output: Responder,
-{
-    // Error type in this future is a placeholder type.
-    // all instances of error must be converted to ServiceResponse and return in Ok.
-    type Output = Result<ServiceResponse, Error>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        loop {
-            match self.as_mut().project() {
-                HandlerProj::Extract(fut, req, handle) => {
-                    match ready!(fut.poll(cx)) {
-                        Ok(item) => {
-                            let fut = handle.call(item);
-                            let state = HandlerServiceFuture::Handle(fut, req.take());
-                            self.as_mut().set(state);
-                        }
-                        Err(err) => {
-                            let req = req.take().unwrap();
-                            let res = HttpResponse::from_error(err.into());
-                            return Poll::Ready(Ok(ServiceResponse::new(req, res)));
-                        }
-                    };
-                }
-                HandlerProj::Handle(fut, req) => {
-                    let res = ready!(fut.poll(cx));
-                    let req = req.take().unwrap();
-                    let res = res.respond_to(&req);
-                    return Poll::Ready(Ok(ServiceResponse::new(req, res)));
-                }
-            }
-        }
-    }
+    }))
 }
 
 /// FromRequest trait impl for tuples

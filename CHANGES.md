@@ -2,9 +2,95 @@
 
 ## Unreleased - 2021-xx-xx
 ### Changed
-* Change compression algorithm features flags. [#2250]
+* Compress middleware's response type is now `AnyBody<Encoder<B>>`. [#2448]
 
+### Fixed
+* Relax `Unpin` bound on `S` (stream) parameter of `HttpResponseBuilder::streaming`. [#2448]
+
+### Removed
+* `dev::ResponseBody` re-export; is function is replaced by the new `dev::AnyBody` enum. [#2446]
+
+[#2423]: https://github.com/actix/actix-web/pull/2423
+
+
+## 4.0.0-beta.11 - 2021-11-15
+### Added
+* Re-export `dev::ServerHandle` from `actix-server`. [#2442]
+
+### Changed
+* `ContentType::html` now produces `text/html; charset=utf-8` instead of `text/html`. [#2423]
+* Update `actix-server` to `2.0.0-beta.9`. [#2442]
+
+[#2423]: https://github.com/actix/actix-web/pull/2423
+[#2442]: https://github.com/actix/actix-web/pull/2442
+
+
+## 4.0.0-beta.10 - 2021-10-20
+### Added
+* Option to allow `Json` extractor to work without a `Content-Type` header present. [#2362]
+* `#[actix_web::test]` macro for setting up tests with a runtime. [#2409]
+
+### Changed
+* Associated type `FromRequest::Config` was removed. [#2233]
+* Inner field made private on `web::Payload`. [#2384]
+* `Data::into_inner` and `Data::get_ref` no longer requires `T: Sized`. [#2403]
+* Updated rustls to v0.20. [#2414]
+* Minimum supported Rust version (MSRV) is now 1.52.
+
+### Removed
+* Useless `ServiceResponse::checked_expr` method. [#2401]
+
+[#2233]: https://github.com/actix/actix-web/pull/2233
+[#2362]: https://github.com/actix/actix-web/pull/2362
+[#2384]: https://github.com/actix/actix-web/pull/2384
+[#2401]: https://github.com/actix/actix-web/pull/2401
+[#2403]: https://github.com/actix/actix-web/pull/2403
+[#2409]: https://github.com/actix/actix-web/pull/2409
+[#2414]: https://github.com/actix/actix-web/pull/2414
+
+
+## 4.0.0-beta.9 - 2021-09-09
+### Added
+* Re-export actix-service `ServiceFactory` in `dev` module. [#2325]
+
+### Changed
+* Compress middleware will return 406 Not Acceptable when no content encoding is acceptable to the client. [#2344]
+* Move `BaseHttpResponse` to `dev::Response`. [#2379]
+* Enable `TestRequest::param` to accept more than just static strings. [#2172]
+* Minimum supported Rust version (MSRV) is now 1.51.
+
+### Fixed
+* Fix quality parse error in Accept-Encoding header. [#2344]
+* Re-export correct type at `web::HttpResponse`. [#2379]
+
+[#2172]: https://github.com/actix/actix-web/pull/2172
+[#2325]: https://github.com/actix/actix-web/pull/2325
+[#2344]: https://github.com/actix/actix-web/pull/2344
+[#2379]: https://github.com/actix/actix-web/pull/2379
+
+
+## 4.0.0-beta.8 - 2021-06-26
+### Added
+* Add `ServiceRequest::parts_mut`. [#2177]
+* Add extractors for `Uri` and `Method`. [#2263]
+* Add extractors for `ConnectionInfo` and `PeerAddr`. [#2263]
+* Add `Route::service` for using hand-written services as handlers. [#2262]
+
+### Changed
+* Change compression algorithm features flags. [#2250]
+* Deprecate `App::data` and `App::data_factory`. [#2271]
+* Smarter extraction of `ConnectionInfo` parts. [#2282]
+
+### Fixed
+* Scope and Resource middleware can access data items set on their own layer. [#2288]
+
+[#2177]: https://github.com/actix/actix-web/pull/2177
 [#2250]: https://github.com/actix/actix-web/pull/2250
+[#2271]: https://github.com/actix/actix-web/pull/2271
+[#2262]: https://github.com/actix/actix-web/pull/2262
+[#2263]: https://github.com/actix/actix-web/pull/2263
+[#2282]: https://github.com/actix/actix-web/pull/2282
+[#2288]: https://github.com/actix/actix-web/pull/2288
 
 
 ## 4.0.0-beta.7 - 2021-06-17
