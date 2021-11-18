@@ -56,7 +56,7 @@ pub(crate) trait MessageType: Sized {
         dst: &mut BytesMut,
         version: Version,
         mut length: BodySize,
-        ctype: ConnectionType,
+        conn_type: ConnectionType,
         config: &ServiceConfig,
     ) -> io::Result<()> {
         let chunked = self.chunked();
@@ -71,7 +71,7 @@ pub(crate) trait MessageType: Sized {
                 | StatusCode::PROCESSING
                 | StatusCode::NO_CONTENT => {
                     // skip content-length and transfer-encoding headers
-                    // See https://tools.ietf.org/html/rfc7230#section-3.3.1
+                    // see https://tools.ietf.org/html/rfc7230#section-3.3.1
                     // and https://tools.ietf.org/html/rfc7230#section-3.3.2
                     skip_len = true;
                     length = BodySize::None
@@ -79,6 +79,7 @@ pub(crate) trait MessageType: Sized {
                 _ => {}
             }
         }
+
         match length {
             BodySize::Stream => {
                 if chunked {
@@ -102,7 +103,7 @@ pub(crate) trait MessageType: Sized {
         }
 
         // Connection
-        match ctype {
+        match conn_type {
             ConnectionType::Upgrade => dst.put_slice(b"connection: upgrade\r\n"),
             ConnectionType::KeepAlive if version < Version::HTTP_11 => {
                 if camel_case {
@@ -327,7 +328,7 @@ impl<T: MessageType> MessageEncoder<T> {
         stream: bool,
         version: Version,
         length: BodySize,
-        ctype: ConnectionType,
+        conn_type: ConnectionType,
         config: &ServiceConfig,
     ) -> io::Result<()> {
         // transfer encoding
@@ -349,7 +350,7 @@ impl<T: MessageType> MessageEncoder<T> {
         }
 
         message.encode_status(dst)?;
-        message.encode_headers(dst, version, length, ctype, config)
+        message.encode_headers(dst, version, length, conn_type, config)
     }
 }
 
@@ -363,10 +364,12 @@ pub(crate) struct TransferEncoding {
 enum TransferEncodingKind {
     /// An Encoder for when Transfer-Encoding includes `chunked`.
     Chunked(bool),
+
     /// An Encoder for when Content-Length is set.
     ///
     /// Enforces that the body is not longer than the Content-Length header.
     Length(u64),
+
     /// An Encoder for when Content-Length is not known.
     ///
     /// Application decides when to stop writing.

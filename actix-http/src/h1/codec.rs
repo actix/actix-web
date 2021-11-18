@@ -29,7 +29,7 @@ pub struct Codec {
     decoder: decoder::MessageDecoder<Request>,
     payload: Option<PayloadDecoder>,
     version: Version,
-    ctype: ConnectionType,
+    conn_type: ConnectionType,
 
     // encoder part
     flags: Flags,
@@ -65,7 +65,7 @@ impl Codec {
             decoder: decoder::MessageDecoder::default(),
             payload: None,
             version: Version::HTTP_11,
-            ctype: ConnectionType::Close,
+            conn_type: ConnectionType::Close,
             encoder: encoder::MessageEncoder::default(),
         }
     }
@@ -73,13 +73,13 @@ impl Codec {
     /// Check if request is upgrade.
     #[inline]
     pub fn upgrade(&self) -> bool {
-        self.ctype == ConnectionType::Upgrade
+        self.conn_type == ConnectionType::Upgrade
     }
 
     /// Check if last response is keep-alive.
     #[inline]
     pub fn keepalive(&self) -> bool {
-        self.ctype == ConnectionType::KeepAlive
+        self.conn_type == ConnectionType::KeepAlive
     }
 
     /// Check if keep-alive enabled on server level.
@@ -124,11 +124,11 @@ impl Decoder for Codec {
             let head = req.head();
             self.flags.set(Flags::HEAD, head.method == Method::HEAD);
             self.version = head.version;
-            self.ctype = head.connection_type();
-            if self.ctype == ConnectionType::KeepAlive
+            self.conn_type = head.connection_type();
+            if self.conn_type == ConnectionType::KeepAlive
                 && !self.flags.contains(Flags::KEEPALIVE_ENABLED)
             {
-                self.ctype = ConnectionType::Close
+                self.conn_type = ConnectionType::Close
             }
             match payload {
                 PayloadType::None => self.payload = None,
@@ -159,14 +159,14 @@ impl Encoder<Message<(Response<()>, BodySize)>> for Codec {
                 res.head_mut().version = self.version;
 
                 // connection status
-                self.ctype = if let Some(ct) = res.head().ctype() {
+                self.conn_type = if let Some(ct) = res.head().conn_type() {
                     if ct == ConnectionType::KeepAlive {
-                        self.ctype
+                        self.conn_type
                     } else {
                         ct
                     }
                 } else {
-                    self.ctype
+                    self.conn_type
                 };
 
                 // encode message
@@ -177,10 +177,9 @@ impl Encoder<Message<(Response<()>, BodySize)>> for Codec {
                     self.flags.contains(Flags::STREAM),
                     self.version,
                     length,
-                    self.ctype,
+                    self.conn_type,
                     &self.config,
                 )?;
-                // self.headers_size = (dst.len() - len) as u32;
             }
             Message::Chunk(Some(bytes)) => {
                 self.encoder.encode_chunk(bytes.as_ref(), dst)?;
@@ -189,6 +188,7 @@ impl Encoder<Message<(Response<()>, BodySize)>> for Codec {
                 self.encoder.encode_eof(dst)?;
             }
         }
+
         Ok(())
     }
 }

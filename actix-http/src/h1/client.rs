@@ -120,7 +120,7 @@ impl Decoder for ClientCodec {
         debug_assert!(!self.inner.payload.is_some(), "Payload decoder is set");
 
         if let Some((req, payload)) = self.inner.decoder.decode(src)? {
-            if let Some(ctype) = req.ctype() {
+            if let Some(ctype) = req.conn_type() {
                 // do not use peer's keep-alive
                 self.inner.ctype = if ctype == ConnectionType::KeepAlive {
                     self.inner.ctype

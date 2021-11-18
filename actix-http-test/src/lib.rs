@@ -273,12 +273,12 @@ impl TestServer {
         self.client.headers()
     }
 
-    /// Gracefully stop HTTP server.
+    /// Stop HTTP server.
     ///
-    /// Waits for spawned `Server` and `System` to shutdown gracefully.
+    /// Waits for spawned `Server` and `System` to force shutdown.
     pub async fn stop(&mut self) {
         // signal server to stop
-        self.server.stop(true).await;
+        self.server.stop(false).await;
 
         // also signal system to stop
         // though this is handled by `ServerBuilder::exit_system` too
