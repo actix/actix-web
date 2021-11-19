@@ -1,17 +1,22 @@
-use actix_service::{Service, ServiceFactory};
-use actix_utils::future::{ok, ready, Ready};
-use actix_web::dev::{AppService, HttpServiceFactory, ResourceDef};
-use std::fs::{File, Metadata};
-use std::io;
-use std::ops::{Deref, DerefMut};
-use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    fs::{File, Metadata},
+    io,
+    ops::{Deref, DerefMut},
+    path::{Path, PathBuf},
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 
+use actix_http::body::AnyBody;
+use actix_service::{Service, ServiceFactory};
+use actix_utils::future::{ok, ready, Ready};
 use actix_web::{
-    dev::{BodyEncoding, ServiceRequest, ServiceResponse, SizedStream},
+    dev::{
+        AppService, BodyEncoding, HttpServiceFactory, ResourceDef, ServiceRequest,
+        ServiceResponse, SizedStream,
+    },
     http::{
         header::{
             self, Charset, ContentDisposition, DispositionParam, DispositionType, ExtendedValue,
@@ -443,7 +448,7 @@ impl NamedFile {
         if precondition_failed {
             return resp.status(StatusCode::PRECONDITION_FAILED).finish();
         } else if not_modified {
-            return resp.status(StatusCode::NOT_MODIFIED).finish();
+            return resp.status(StatusCode::NOT_MODIFIED).body(AnyBody::None);
         }
 
         let reader = ChunkedReadFile::new(length, offset, self.file);

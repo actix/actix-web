@@ -317,7 +317,7 @@ impl ResponseHead {
     }
 
     #[inline]
-    pub(crate) fn ctype(&self) -> Option<ConnectionType> {
+    pub(crate) fn conn_type(&self) -> Option<ConnectionType> {
         if self.flags.contains(Flags::CLOSE) {
             Some(ConnectionType::Close)
         } else if self.flags.contains(Flags::KEEP_ALIVE) {
