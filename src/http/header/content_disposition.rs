@@ -34,15 +34,18 @@ fn split_once_and_trim(haystack: &str, needle: char) -> (&str, &str) {
 /// The implied disposition of the content of the HTTP body.
 #[derive(Clone, Debug, PartialEq)]
 pub enum DispositionType {
-    /// Inline implies default processing
+    /// Inline implies default processing.
     Inline,
+
     /// Attachment implies that the recipient should prompt the user to save the response locally,
     /// rather than process it normally (as per its media type).
     Attachment,
-    /// Used in *multipart/form-data* as defined in
-    /// [RFC7578](https://tools.ietf.org/html/rfc7578) to carry the field name and the file name.
+
+    /// Used in *multipart/form-data* as defined in [RFC7578](https://tools.ietf.org/html/rfc7578)
+    /// to carry the field name and optional filename.
     FormData,
-    /// Extension type. Should be handled by recipients the same way as Attachment
+
+    /// Extension type. Should be handled by recipients the same way as Attachment.
     Ext(String),
 }
 
@@ -76,6 +79,7 @@ pub enum DispositionParam {
     /// For [`DispositionType::FormData`] (i.e. *multipart/form-data*), the name of an field from
     /// the form.
     Name(String),
+
     /// A plain file name.
     ///
     /// It is [not supposed](https://tools.ietf.org/html/rfc6266#appendix-D) to contain any
@@ -83,14 +87,17 @@ pub enum DispositionParam {
     /// [`FilenameExt`](DispositionParam::FilenameExt) with charset UTF-8 may be used instead
     /// in case there are Unicode characters in file names.
     Filename(String),
+
     /// An extended file name. It must not exist for `ContentType::Formdata` according to
     /// [RFC7578 Section 4.2](https://tools.ietf.org/html/rfc7578#section-4.2).
     FilenameExt(ExtendedValue),
+
     /// An unrecognized regular parameter as defined in
     /// [RFC5987](https://tools.ietf.org/html/rfc5987) as *reg-parameter*, in
     /// [RFC6266](https://tools.ietf.org/html/rfc6266) as *token "=" value*. Recipients should
     /// ignore unrecognizable parameters.
     Unknown(String, String),
+
     /// An unrecognized extended parameter as defined in
     /// [RFC5987](https://tools.ietf.org/html/rfc5987) as *ext-parameter*, in
     /// [RFC6266](https://tools.ietf.org/html/rfc6266) as *ext-token "=" ext-value*. The single
@@ -205,7 +212,6 @@ impl DispositionParam {
 /// itself, *Content-Disposition* has no effect.
 ///
 /// # ABNF
-
 /// ```text
 /// content-disposition = "Content-Disposition" ":"
 ///                       disposition-type *( ";" disposition-parm )
@@ -289,10 +295,12 @@ impl DispositionParam {
 /// If "filename" parameter is supplied, do not use the file name blindly, check and possibly
 /// change to match local file system conventions if applicable, and do not use directory path
 /// information that may be present. See [RFC2183](https://tools.ietf.org/html/rfc2183#section-2.3).
+// TODO: private fields and use smallvec
 #[derive(Clone, Debug, PartialEq)]
 pub struct ContentDisposition {
     /// The disposition type
     pub disposition: DispositionType,
+
     /// Disposition parameters
     pub parameters: Vec<DispositionParam>,
 }
@@ -509,22 +517,28 @@ impl fmt::Display for DispositionParam {
         //
         //
         // See also comments in test_from_raw_unnecessary_percent_decode.
+
         static RE: Lazy<Regex> =
             Lazy::new(|| Regex::new("[\x00-\x08\x10-\x1F\x7F\"\\\\]").unwrap());
+
         match self {
             DispositionParam::Name(ref value) => write!(f, "name={}", value),
+
             DispositionParam::Filename(ref value) => {
                 write!(f, "filename=\"{}\"", RE.replace_all(value, "\\$0").as_ref())
             }
+
             DispositionParam::Unknown(ref name, ref value) => write!(
                 f,
                 "{}=\"{}\"",
                 name,
                 &RE.replace_all(value, "\\$0").as_ref()
             ),
+
             DispositionParam::FilenameExt(ref ext_value) => {
                 write!(f, "filename*={}", ext_value)
             }
+
             DispositionParam::UnknownExt(ref name, ref ext_value) => {
                 write!(f, "{}*={}", name, ext_value)
             }

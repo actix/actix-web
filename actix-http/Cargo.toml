@@ -78,7 +78,7 @@ actix-tls = { version = "3.0.0-beta.7", default-features = false, optional = tru
 # compression
 brotli2 = { version="0.3.2", optional = true }
 flate2 = { version = "1.0.13", optional = true }
-zstd = { version = "0.7", optional = true }
+zstd = { version = "0.9", optional = true }
 
 [dev-dependencies]
 actix-server = "2.0.0-beta.9"
@@ -86,7 +86,7 @@ actix-http-test = { version = "3.0.0-beta.6", features = ["openssl"] }
 actix-tls = { version = "3.0.0-beta.7", features = ["openssl"] }
 async-stream = "0.3"
 criterion = { version = "0.3", features = ["html_reports"] }
-env_logger = "0.8"
+env_logger = "0.9"
 rcgen = "0.8"
 regex = "1.3"
 rustls-pemfile = "0.2"
