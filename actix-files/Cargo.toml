@@ -15,7 +15,7 @@ name = "actix_files"
 path = "src/lib.rs"
 
 [features]
-io-uring = ["actix-web/io-uring", "tokio-uring"]
+experimental-io-uring = ["actix-web/experimental-io-uring", "tokio-uring"]
 
 [dependencies]
 actix-web = { version = "4.0.0-beta.11", default-features = false }

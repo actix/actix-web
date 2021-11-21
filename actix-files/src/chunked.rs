@@ -27,7 +27,7 @@ pin_project! {
     }
 }
 
-#[cfg(not(feature = "io-uring"))]
+#[cfg(not(feature = "experimental-io-uring"))]
 pin_project! {
     #[project = ChunkedReadFileStateProj]
     #[project_replace = ChunkedReadFileStateProjReplace]
@@ -42,7 +42,7 @@ pin_project! {
     }
 }
 
-#[cfg(feature = "io-uring")]
+#[cfg(feature = "experimental-io-uring")]
 pin_project! {
     #[project = ChunkedReadFileStateProj]
     #[project_replace = ChunkedReadFileStateProjReplace]
@@ -71,9 +71,9 @@ pub(crate) fn new_chunked_read(
     ChunkedReadFile {
         size,
         offset,
-        #[cfg(not(feature = "io-uring"))]
+        #[cfg(not(feature = "experimental-io-uring"))]
         state: ChunkedReadFileState::File { file: Some(file) },
-        #[cfg(feature = "io-uring")]
+        #[cfg(feature = "experimental-io-uring")]
         state: ChunkedReadFileState::File {
             file: Some((file, BytesMut::new())),
         },
@@ -82,7 +82,7 @@ pub(crate) fn new_chunked_read(
     }
 }
 
-#[cfg(not(feature = "io-uring"))]
+#[cfg(not(feature = "experimental-io-uring"))]
 async fn chunked_read_file_callback(
     mut file: File,
     offset: u64,
@@ -109,7 +109,7 @@ async fn chunked_read_file_callback(
     Ok(res)
 }
 
-#[cfg(feature = "io-uring")]
+#[cfg(feature = "experimental-io-uring")]
 async fn chunked_read_file_callback(
     file: File,
     offset: u64,
@@ -129,7 +129,7 @@ async fn chunked_read_file_callback(
     Ok((file, bytes, bytes_mut))
 }
 
-#[cfg(feature = "io-uring")]
+#[cfg(feature = "experimental-io-uring")]
 impl<F, Fut> Stream for ChunkedReadFile<F, Fut>
 where
     F: Fn(File, u64, usize, BytesMut) -> Fut,
@@ -178,7 +178,7 @@ where
     }
 }
 
-#[cfg(not(feature = "io-uring"))]
+#[cfg(not(feature = "experimental-io-uring"))]
 impl<F, Fut> Stream for ChunkedReadFile<F, Fut>
 where
     F: Fn(File, u64, usize) -> Fut,
@@ -226,12 +226,12 @@ where
     }
 }
 
-#[cfg(feature = "io-uring")]
+#[cfg(feature = "experimental-io-uring")]
 use bytes_mut::BytesMut;
 
 // TODO: remove new type and use bytes::BytesMut directly
 #[doc(hidden)]
-#[cfg(feature = "io-uring")]
+#[cfg(feature = "experimental-io-uring")]
 mod bytes_mut {
     use std::ops::{Deref, DerefMut};
 

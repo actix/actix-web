@@ -88,11 +88,11 @@ impl fmt::Debug for NamedFile {
             .field("path", &self.path)
             .field(
                 "file",
-                #[cfg(feature = "io-uring")]
+                #[cfg(feature = "experimental-io-uring")]
                 {
                     &"File"
                 },
-                #[cfg(not(feature = "io-uring"))]
+                #[cfg(not(feature = "experimental-io-uring"))]
                 {
                     &self.file
                 },
@@ -108,9 +108,9 @@ impl fmt::Debug for NamedFile {
     }
 }
 
-#[cfg(not(feature = "io-uring"))]
+#[cfg(not(feature = "experimental-io-uring"))]
 pub(crate) use std::fs::File;
-#[cfg(feature = "io-uring")]
+#[cfg(feature = "experimental-io-uring")]
 pub(crate) use tokio_uring::fs::File;
 
 impl NamedFile {
@@ -183,12 +183,12 @@ impl NamedFile {
         };
 
         let md = {
-            #[cfg(not(feature = "io-uring"))]
+            #[cfg(not(feature = "experimental-io-uring"))]
             {
                 file.metadata()?
             }
 
-            #[cfg(feature = "io-uring")]
+            #[cfg(feature = "experimental-io-uring")]
             {
                 use std::os::unix::prelude::{AsRawFd, FromRawFd};
 
@@ -220,7 +220,7 @@ impl NamedFile {
         })
     }
 
-    #[cfg(not(feature = "io-uring"))]
+    #[cfg(not(feature = "experimental-io-uring"))]
     /// Attempts to open a file in read-only mode.
     ///
     /// # Examples
@@ -248,12 +248,12 @@ impl NamedFile {
     /// ```
     pub async fn open_async<P: AsRef<Path>>(path: P) -> io::Result<NamedFile> {
         let file = {
-            #[cfg(not(feature = "io-uring"))]
+            #[cfg(not(feature = "experimental-io-uring"))]
             {
                 File::open(&path)?
             }
 
-            #[cfg(feature = "io-uring")]
+            #[cfg(feature = "experimental-io-uring")]
             {
                 File::open(&path).await?
             }

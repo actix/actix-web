@@ -215,12 +215,12 @@ mod tests {
     #[actix_rt::test]
     async fn test_named_file_non_ascii_file_name() {
         let file = {
-            #[cfg(feature = "io-uring")]
+            #[cfg(feature = "experimental-io-uring")]
             {
                 crate::named::File::open("Cargo.toml").await.unwrap()
             }
 
-            #[cfg(not(feature = "io-uring"))]
+            #[cfg(not(feature = "experimental-io-uring"))]
             {
                 crate::named::File::open("Cargo.toml").unwrap()
             }
