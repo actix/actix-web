@@ -28,15 +28,15 @@ pub use self::sized_stream::SizedStream;
 ///
 /// # Examples
 /// ```
-/// use actix_http::body::{Body, to_bytes};
+/// use actix_http::body::{AnyBody, to_bytes};
 /// use bytes::Bytes;
 ///
 /// # async fn test_to_bytes() {
-/// let body = Body::None;
+/// let body = AnyBody::None;
 /// let bytes = to_bytes(body).await.unwrap();
 /// assert!(bytes.is_empty());
 ///
-/// let body = Body::Bytes(Bytes::from_static(b"123"));
+/// let body = AnyBody::Bytes(Bytes::from_static(b"123"));
 /// let bytes = to_bytes(body).await.unwrap();
 /// assert_eq!(bytes, b"123"[..]);
 /// # }
