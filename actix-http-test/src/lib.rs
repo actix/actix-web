@@ -66,25 +66,24 @@ pub async fn test_server_with_addr<F: ServiceFactory<TcpStream>>(
 
     // run server in separate thread
     thread::spawn(move || {
-        let sys = System::new();
-        let local_addr = tcp.local_addr().unwrap();
+        System::new().block_on(async move {
+            let local_addr = tcp.local_addr().unwrap();
 
-        let srv = Server::build()
-            .workers(1)
-            .disable_signals()
-            .listen("test", tcp, factory)
-            .expect("test server could not be created");
+            let srv = Server::build()
+                .workers(1)
+                .disable_signals()
+                .system_exit()
+                .listen("test", tcp, factory)
+                .expect("test server could not be created");
 
-        let srv = srv.run();
-        started_tx
-            .send((System::current(), srv.handle(), local_addr))
-            .unwrap();
+            let srv = srv.run();
+            started_tx
+                .send((System::current(), srv.handle(), local_addr))
+                .unwrap();
 
-        // drive server loop
-        sys.block_on(srv).unwrap();
-
-        // start system event loop
-        sys.run().unwrap();
+            // drive server loop
+            srv.await.unwrap();
+        });
 
         // notify TestServer that server and system have shut down
         // all thread managed resources should be dropped at this point
