@@ -62,26 +62,33 @@ jobs:
 
       - name: check minimal
         uses: actions-rs/cargo@v1
-        with: { command: ci-min }
-
-      - name: check minimal + tests
-        uses: actions-rs/cargo@v1
-        with: { command: ci-min-test }
+        with: { command: ci-check-min }
 
       - name: check default
         uses: actions-rs/cargo@v1
-        with: { command: ci-default }
-      
-      - name: check full
-        uses: actions-rs/cargo@v1
-        with: { command: ci-full }
+        with: { command: ci-check-default }
 
       - name: tests
         uses: actions-rs/cargo@v1
         timeout-minutes: 60
-        with:
-          command: ci-test
-          args: --skip=test_reading_deflate_encoding_large_random_rustls
+        run: |
+          cargo test -p=actix-router --all-features
+          cargo test -p=actix-http --all-features
+          cargo test -p=actix-web --features=rustls,openssl --skip=test_reading_deflate_encoding_large_random_rustls
+          cargo test -p=actix-web-codegen --all-features
+          cargo test -p=awc --all-features
+          cargo test -p=actix-http-test --all-features
+          cargo test -p=actix-test --all-features
+          cargo test -p=actix-files
+          cargo test -p=actix-multipart --all-features
+          cargo test -p=actix-web-actors --all-features
+
+      - name: tests (io-uring)
+        if: matrix.target.os == 'ubuntu-latest'
+        uses: actions-rs/cargo@v1
+        timeout-minutes: 60
+        run: |
+          cargo test -p=actix-files --all-features
 
       - name: Clear the cargo caches
         run: |
@@ -114,9 +121,12 @@ jobs:
           args: cargo-hack
 
       - name: check feature combinations
-        # if: github.ref == 'refs/heads/master'
         uses: actions-rs/cargo@v1
-        with: { command: ci-feature-powerset-check-all }
+        with: { command: ci-check-all-feature-powerset }
+      
+      - name: check feature combinations
+        uses: actions-rs/cargo@v1
+        with: { command: ci-check-all-feature-powerset-linux }
 
   coverage:
     name: coverage
@@ -166,11 +176,11 @@ jobs:
       - name: Cache Dependencies
         uses: Swatinem/rust-cache@v1.3.0
 
-      - name: Install cargo-hack
-        uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: cargo-hack
+      # - name: Install cargo-hack
+      #   uses: actions-rs/cargo@v1
+      #   with:
+      #     command: install
+      #     args: cargo-hack
 
       - name: doc tests
         uses: actions-rs/cargo@v1
