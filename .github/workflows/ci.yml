@@ -85,10 +85,12 @@ jobs:
 
       - name: tests (io-uring)
         if: matrix.target.os == 'ubuntu-latest'
-        uses: actions-rs/cargo@v1
         timeout-minutes: 60
-        run: |
-          cargo test -p=actix-files --all-features
+        run: >
+          sudo bash -c "ulimit -Sl 512
+          && ulimit -Hl 512
+          && PATH=$PATH:/usr/share/rust/.cargo/bin
+          && RUSTUP_TOOLCHAIN=${{ matrix.version }} cargo test -p=actix-files --all-features"
 
       - name: Clear the cargo caches
         run: |
