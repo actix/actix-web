@@ -20,8 +20,10 @@ pub(crate) const DATE_VALUE_LENGTH: usize = 29;
 pub enum KeepAlive {
     /// Keep alive in seconds
     Timeout(usize),
+
     /// Rely on OS to shutdown tcp connection
     Os,
+
     /// Disabled
     Disabled,
 }

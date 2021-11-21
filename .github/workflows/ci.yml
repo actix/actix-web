@@ -69,7 +69,6 @@ jobs:
         with: { command: ci-check-default }
 
       - name: tests
-        uses: actions-rs/cargo@v1
         timeout-minutes: 60
         run: |
           cargo test -p=actix-router --all-features

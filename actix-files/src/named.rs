@@ -7,15 +7,16 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use actix_service::{Service, ServiceFactory};
-use actix_web::dev::{AppService, HttpServiceFactory, ResourceDef};
-use futures_core::future::LocalBoxFuture;
-
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 
+use actix_http::body::AnyBody;
+use actix_service::{Service, ServiceFactory};
 use actix_web::{
-    dev::{BodyEncoding, ServiceRequest, ServiceResponse, SizedStream},
+    dev::{
+        AppService, BodyEncoding, HttpServiceFactory, ResourceDef, ServiceRequest,
+        ServiceResponse, SizedStream,
+    },
     http::{
         header::{
             self, Charset, ContentDisposition, DispositionParam, DispositionType, ExtendedValue,
@@ -25,6 +26,7 @@ use actix_web::{
     Error, HttpMessage, HttpRequest, HttpResponse, Responder,
 };
 use bitflags::bitflags;
+use futures_core::future::LocalBoxFuture;
 use mime_guess::from_path;
 
 use crate::{encoding::equiv_utf8_text, range::HttpRange};
@@ -526,7 +528,7 @@ impl NamedFile {
         if precondition_failed {
             return resp.status(StatusCode::PRECONDITION_FAILED).finish();
         } else if not_modified {
-            return resp.status(StatusCode::NOT_MODIFIED).finish();
+            return resp.status(StatusCode::NOT_MODIFIED).body(AnyBody::None);
         }
 
         let reader = super::chunked::new_chunked_read(length, offset, self.file);

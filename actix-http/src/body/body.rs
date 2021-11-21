@@ -32,6 +32,8 @@ pub enum AnyBody<B = BoxBody> {
 }
 
 impl AnyBody {
+    // TODO: a None body constructor
+
     /// Constructs a new, empty body.
     pub fn empty() -> Self {
         Self::Bytes(Bytes::new())
