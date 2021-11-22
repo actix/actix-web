@@ -55,7 +55,7 @@ __compress = []
 # Enable dangerous feature for testing and local network usage:
 # - HTTP/2 over TCP(No Tls).
 # DO NOT enable this over any internet use case.
-dangerous = []
+dangerous-h2c = []
 
 [dependencies]
 actix-codec = "0.4.1"

@@ -280,18 +280,18 @@ where
 
         let tls_service = match self.ssl {
             SslConnector::None => {
-                #[cfg(not(feature = "dangerous"))]
+                #[cfg(not(feature = "dangerous-h2c"))]
                 {
                     None
                 }
-                #[cfg(feature = "dangerous")]
+                #[cfg(feature = "dangerous-h2c")]
                 {
-                    /*
-                        With dangerous feature enabled Connector would use a NoOp Tls connection service that
-                        pass through plain TCP as Tls connection.
+                    use std::{
+                        future::{ready, Ready},
+                        io,
+                    };
 
-                        The Protocol version of this fake Tls connection is set to be HTTP2.
-                    */
+                    use actix_tls::connect::Connection;
 
                     impl IntoConnectionIo for TcpConnection<Uri, Box<dyn ConnectionIo>> {
                         fn into_connection_io(self) -> (Box<dyn ConnectionIo>, Protocol) {
@@ -300,14 +300,12 @@ where
                         }
                     }
 
+                    /// With the `dangerous-h2c` feature enabled, this connector uses a no-op TLS
+                    /// connection service that passes through plain TCP as a TLS connection.
+                    ///
+                    /// The protocol version of this fake TLS connection is set to be HTTP/2.
                     #[derive(Clone)]
                     struct NoOpTlsConnectorService;
-
-                    use actix_tls::connect::Connection;
-                    use std::{
-                        future::{ready, Ready},
-                        io,
-                    };
 
                     impl<T, U> Service<Connection<T, U>> for NoOpTlsConnectorService
                     where

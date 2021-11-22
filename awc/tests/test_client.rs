@@ -1,19 +1,25 @@
-use std::collections::HashMap;
-use std::io::{Read, Write};
-use std::net::{IpAddr, Ipv4Addr};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
+use std::{
+    collections::HashMap,
+    io::{Read, Write},
+    net::{IpAddr, Ipv4Addr},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
 
 use actix_utils::future::ok;
-use brotli2::write::BrotliEncoder;
 use bytes::Bytes;
 use cookie::Cookie;
-use flate2::read::GzDecoder;
-use flate2::write::GzEncoder;
-use flate2::Compression;
 use futures_util::stream;
 use rand::Rng;
+
+#[cfg(feature = "compress-brotli")]
+use brotli2::write::BrotliEncoder;
+
+#[cfg(feature = "compress-gzip")]
+use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 
 use actix_http::{
     http::{self, StatusCode},
@@ -24,7 +30,6 @@ use actix_service::{fn_service, map_config, ServiceFactoryExt as _};
 use actix_web::{
     dev::{AppConfig, BodyEncoding},
     http::header,
-    middleware::Compress,
     web, App, Error, HttpRequest, HttpResponse,
 };
 use awc::error::{JsonPayloadError, PayloadError, SendRequestError};
@@ -463,11 +468,12 @@ async fn test_with_query_parameter() {
     assert!(res.status().is_success());
 }
 
+#[cfg(feature = "compress-gzip")]
 #[actix_rt::test]
 async fn test_no_decompress() {
     let srv = actix_test::start(|| {
         App::new()
-            .wrap(Compress::default())
+            .wrap(actix_web::middleware::Compress::default())
             .service(web::resource("/").route(web::to(|| {
                 let mut res = HttpResponse::Ok().body(STR);
                 res.encoding(header::ContentEncoding::Gzip);
@@ -507,6 +513,7 @@ async fn test_no_decompress() {
     assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
 }
 
+#[cfg(feature = "compress-gzip")]
 #[actix_rt::test]
 async fn test_client_gzip_encoding() {
     let srv = actix_test::start(|| {
@@ -530,6 +537,7 @@ async fn test_client_gzip_encoding() {
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
+#[cfg(feature = "compress-gzip")]
 #[actix_rt::test]
 async fn test_client_gzip_encoding_large() {
     let srv = actix_test::start(|| {
@@ -553,6 +561,7 @@ async fn test_client_gzip_encoding_large() {
     assert_eq!(bytes, Bytes::from(STR.repeat(10)));
 }
 
+#[cfg(feature = "compress-gzip")]
 #[actix_rt::test]
 async fn test_client_gzip_encoding_large_random() {
     let data = rand::thread_rng()
@@ -581,6 +590,7 @@ async fn test_client_gzip_encoding_large_random() {
     assert_eq!(bytes, Bytes::from(data));
 }
 
+#[cfg(feature = "compress-brotli")]
 #[actix_rt::test]
 async fn test_client_brotli_encoding() {
     let srv = actix_test::start(|| {
@@ -603,6 +613,7 @@ async fn test_client_brotli_encoding() {
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
+#[cfg(feature = "compress-brotli")]
 #[actix_rt::test]
 async fn test_client_brotli_encoding_large_random() {
     let data = rand::thread_rng()
