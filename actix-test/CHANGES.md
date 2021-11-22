@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 0.1.0-beta.7 - 2021-11-22
 * Fix compatibility with experimental `io-uring` feature of `actix-rt`. [#2408]
 
 [#2408]: https://github.com/actix/actix-web/pull/2408
