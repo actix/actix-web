@@ -2,7 +2,11 @@
 
 ## Unreleased - 2021-xx-xx
 * Add crate feature `experimental-io-uring`, enabling async file I/O to be utilized. This feature is only available on Linux OSes with recent kernel versions. This feature is semver-exempt. [#2408]
+* Add `NamedFile::open_async`. [#2408]
 * Fix 304 Not Modified responses to omit the Content-Length header, as per the spec. [#2453]
+* The `Responder` impl for `NamedFile` now has a boxed future associated type. [#2408]
+* The `Service` impl for `NamedFileService` now has a boxed future associated type. [#2408]
+* Add `impl Clone` for `FilesService`. [#2408]
 
 [#2408]: https://github.com/actix/actix-web/pull/2408
 [#2453]: https://github.com/actix/actix-web/pull/2453

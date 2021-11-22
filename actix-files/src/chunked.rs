@@ -14,9 +14,8 @@ use pin_project_lite::pin_project;
 use super::named::File;
 
 pin_project! {
+    /// Adapter to read a `std::file::File` in chunks.
     #[doc(hidden)]
-    /// A helper created from a `std::fs::File` which reads the file
-    /// chunk-by-chunk on a `ThreadPool`.
     pub struct ChunkedReadFile<F, Fut> {
         size: u64,
         offset: u64,
@@ -32,13 +31,8 @@ pin_project! {
     #[project = ChunkedReadFileStateProj]
     #[project_replace = ChunkedReadFileStateProjReplace]
     enum ChunkedReadFileState<Fut> {
-        File {
-            file: Option<File>,
-        },
-        Future {
-            #[pin]
-            fut: Fut
-        }
+        File { file: Option<File>, },
+        Future { #[pin] fut: Fut },
     }
 }
 
@@ -47,13 +41,8 @@ pin_project! {
     #[project = ChunkedReadFileStateProj]
     #[project_replace = ChunkedReadFileStateProjReplace]
     enum ChunkedReadFileState<Fut> {
-        File {
-            file: Option<(File, BytesMut)>,
-        },
-        Future {
-            #[pin]
-            fut: Fut
-        }
+        File { file: Option<(File, BytesMut)> },
+        Future { #[pin] fut: Fut },
     }
 }
 
@@ -88,7 +77,7 @@ async fn chunked_read_file_callback(
     offset: u64,
     max_bytes: usize,
 ) -> Result<(File, Bytes), Error> {
-    use io::{Read, Seek};
+    use io::{Read as _, Seek as _};
 
     let res = actix_web::rt::task::spawn_blocking(move || {
         let mut buf = Vec::with_capacity(max_bytes);
@@ -117,6 +106,7 @@ async fn chunked_read_file_callback(
     mut bytes_mut: BytesMut,
 ) -> io::Result<(File, Bytes, BytesMut)> {
     bytes_mut.reserve(max_bytes);
+
     let (res, mut bytes_mut) = file.read_at(bytes_mut, offset).await;
     let n_bytes = res?;
 

@@ -17,7 +17,7 @@ use crate::{
 
 /// Assembled file serving service.
 #[derive(Clone)]
-pub struct FilesService(pub Rc<FilesServiceInner>);
+pub struct FilesService(pub(crate) Rc<FilesServiceInner>);
 
 impl Deref for FilesService {
     type Target = FilesServiceInner;

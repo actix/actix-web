@@ -90,7 +90,7 @@ impl fmt::Debug for NamedFile {
                 "file",
                 #[cfg(feature = "experimental-io-uring")]
                 {
-                    &"File"
+                    &"tokio_uring::File"
                 },
                 #[cfg(not(feature = "experimental-io-uring"))]
                 {
@@ -120,7 +120,6 @@ impl NamedFile {
     /// `ContentDisposition` headers.
     ///
     /// # Examples
-    ///
     /// ```ignore
     /// use actix_files::NamedFile;
     /// use std::io::{self, Write};
@@ -194,12 +193,14 @@ impl NamedFile {
 
                 let fd = file.as_raw_fd();
 
-                // SAFETY: fd is borrowed and lives longer than the unsafe block.
+                // SAFETY: fd is borrowed and lives longer than the unsafe block
                 unsafe {
-                    let fs = std::fs::File::from_raw_fd(fd);
-                    let res = fs.metadata();
-                    std::mem::forget(fs);
-                    res?
+                    let file = std::fs::File::from_raw_fd(fd);
+                    let md = file.metadata();
+                    // SAFETY: forget the fd before exiting block in success or error case but don't
+                    // run destructor (that would close file handle)
+                    std::mem::forget(file);
+                    md?
                 }
             }
         };
@@ -224,10 +225,8 @@ impl NamedFile {
     /// Attempts to open a file in read-only mode.
     ///
     /// # Examples
-    ///
     /// ```
     /// use actix_files::NamedFile;
-    ///
     /// let file = NamedFile::open("foo.txt");
     /// ```
     pub fn open<P: AsRef<Path>>(path: P) -> io::Result<NamedFile> {
@@ -237,11 +236,12 @@ impl NamedFile {
 
     /// Attempts to open a file asynchronously in read-only mode.
     ///
-    /// # Examples
+    /// When the `experimental-io-uring` crate feature is enabled, this will be async.
+    /// Otherwise, it will be just like [`open`][Self::open].
     ///
+    /// # Examples
     /// ```
     /// use actix_files::NamedFile;
-    ///
     /// # async fn open() {
     /// let file = NamedFile::open_async("foo.txt").await.unwrap();
     /// # }
@@ -271,7 +271,6 @@ impl NamedFile {
     /// Retrieve the path of this file.
     ///
     /// # Examples
-    ///
     /// ```
     /// # use std::io;
     /// use actix_files::NamedFile;
@@ -584,13 +583,13 @@ fn none_match(etag: Option<&header::EntityTag>, req: &HttpRequest) -> bool {
 impl Deref for NamedFile {
     type Target = File;
 
-    fn deref(&self) -> &File {
+    fn deref(&self) -> &Self::Target {
         &self.file
     }
 }
 
 impl DerefMut for NamedFile {
-    fn deref_mut(&mut self) -> &mut File {
+    fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.file
     }
 }

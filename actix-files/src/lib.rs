@@ -33,12 +33,12 @@ mod path_buf;
 mod range;
 mod service;
 
-pub use crate::chunked::ChunkedReadFile;
-pub use crate::directory::Directory;
-pub use crate::files::Files;
-pub use crate::named::NamedFile;
-pub use crate::range::HttpRange;
-pub use crate::service::FilesService;
+pub use self::chunked::ChunkedReadFile;
+pub use self::directory::Directory;
+pub use self::files::Files;
+pub use self::named::NamedFile;
+pub use self::range::HttpRange;
+pub use self::service::FilesService;
 
 use self::directory::{directory_listing, DirectoryRenderer};
 use self::error::FilesError;
@@ -81,7 +81,6 @@ mod tests {
     };
 
     use super::*;
-
     use crate::named::File;
 
     #[actix_web::test]
