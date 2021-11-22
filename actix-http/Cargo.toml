@@ -82,7 +82,7 @@ zstd = { version = "0.9", optional = true }
 
 [dev-dependencies]
 actix-server = "2.0.0-beta.9"
-actix-http-test = { version = "3.0.0-beta.6", features = ["openssl"] }
+actix-http-test = { version = "3.0.0-beta.7", features = ["openssl"] }
 actix-tls = { version = "3.0.0-beta.9", features = ["openssl"] }
 async-stream = "0.3"
 criterion = { version = "0.3", features = ["html_reports"] }
