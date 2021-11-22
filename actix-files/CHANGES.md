@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 0.6.0-beta.9 - 2021-11-22
 * Add crate feature `experimental-io-uring`, enabling async file I/O to be utilized. This feature is only available on Linux OSes with recent kernel versions. This feature is semver-exempt. [#2408]
 * Add `NamedFile::open_async`. [#2408]
 * Fix 304 Not Modified responses to omit the Content-Length header, as per the spec. [#2453]
