@@ -195,9 +195,11 @@ where
 
 #[cfg(feature = "openssl")]
 mod openssl {
-    use actix_service::ServiceFactoryExt;
-    use actix_tls::accept::openssl::{Acceptor, SslAcceptor, SslError, TlsStream};
-    use actix_tls::accept::TlsError;
+    use actix_service::ServiceFactoryExt as _;
+    use actix_tls::accept::{
+        openssl::{Acceptor, SslAcceptor, SslError, TlsStream},
+        TlsError,
+    };
 
     use super::*;
 
@@ -227,7 +229,7 @@ mod openssl {
         U::Error: fmt::Display + Into<Response<AnyBody>>,
         U::InitError: fmt::Debug,
     {
-        /// Create openssl based service
+        /// Create OpenSSL based service.
         pub fn openssl(
             self,
             acceptor: SslAcceptor,
@@ -239,9 +241,11 @@ mod openssl {
             InitError = (),
         > {
             Acceptor::new(acceptor)
-                .map_err(TlsError::Tls)
-                .map_init_err(|_| panic!())
-                .and_then(|io: TlsStream<TcpStream>| async {
+                .map_init_err(|_| {
+                    unreachable!("TLS acceptor service factory does not error on init")
+                })
+                .map_err(TlsError::into_service_error)
+                .map(|io: TlsStream<TcpStream>| {
                     let proto = if let Some(protos) = io.ssl().selected_alpn_protocol() {
                         if protos.windows(2).any(|window| window == b"h2") {
                             Protocol::Http2
@@ -251,8 +255,9 @@ mod openssl {
                     } else {
                         Protocol::Http1
                     };
+
                     let peer_addr = io.get_ref().peer_addr().ok();
-                    Ok((io, proto, peer_addr))
+                    (io, proto, peer_addr)
                 })
                 .and_then(self.map_err(TlsError::Service))
         }
@@ -263,11 +268,13 @@ mod openssl {
 mod rustls {
     use std::io;
 
-    use actix_tls::accept::rustls::{Acceptor, ServerConfig, TlsStream};
-    use actix_tls::accept::TlsError;
+    use actix_service::ServiceFactoryExt as _;
+    use actix_tls::accept::{
+        rustls::{Acceptor, ServerConfig, TlsStream},
+        TlsError,
+    };
 
     use super::*;
-    use actix_service::ServiceFactoryExt;
 
     impl<S, B, X, U> HttpService<TlsStream<TcpStream>, S, B, X, U>
     where
@@ -295,7 +302,7 @@ mod rustls {
         U::Error: fmt::Display + Into<Response<AnyBody>>,
         U::InitError: fmt::Debug,
     {
-        /// Create rustls based service
+        /// Create Rustls based service.
         pub fn rustls(
             self,
             mut config: ServerConfig,
@@ -311,8 +318,10 @@ mod rustls {
             config.alpn_protocols = protos;
 
             Acceptor::new(config)
-                .map_err(TlsError::Tls)
-                .map_init_err(|_| panic!())
+                .map_init_err(|_| {
+                    unreachable!("TLS acceptor service factory does not error on init")
+                })
+                .map_err(TlsError::into_service_error)
                 .and_then(|io: TlsStream<TcpStream>| async {
                     let proto = if let Some(protos) = io.get_ref().1.alpn_protocol() {
                         if protos.windows(2).any(|window| window == b"h2") {

@@ -3,6 +3,7 @@
 ## Unreleased - 2021-xx-xx
 ### Added
 * `body::AnyBody::empty` for quickly creating an empty body. [#2446]
+* `body::AnyBody::none` for quickly creating a "none" body. [#2456]
 * `impl Clone` for `body::AnyBody<S> where S: Clone`. [#2448]
 * `body::AnyBody::into_boxed` for quickly converting to a type-erased, boxed body type. [#2448]
 
@@ -21,6 +22,7 @@
 * `body::ResponseBody`; is function is replaced by the new `body::AnyBody` enum. [#2446]
 
 [#2446]: https://github.com/actix/actix-web/pull/2446
+[#2456]: https://github.com/actix/actix-web/pull/2456
 
 
 ## 3.0.0-beta.12 - 2021-11-15
