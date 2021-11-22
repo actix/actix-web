@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 0.4.0-beta.8 - 2021-11-22
 * Ensure a correct Content-Disposition header is included in every part of a multipart message. [#2451]
 * Added `MultipartError::NoContentDisposition` variant. [#2451]
 * Since Content-Disposition is now ensured, `Field::content_disposition` is now infallible. [#2451]

@@ -1,6 +1,6 @@
 [package]
 name = "actix-multipart"
-version = "0.4.0-beta.7"
+version = "0.4.0-beta.8"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Multipart form support for Actix Web"
 keywords = ["http", "web", "framework", "async", "futures"]
