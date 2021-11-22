@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 3.0.0-beta.13 - 2021-11-22
 ### Added
 * `body::AnyBody::empty` for quickly creating an empty body. [#2446]
 * `body::AnyBody::none` for quickly creating a "none" body. [#2456]
