@@ -67,9 +67,9 @@ impl Connector<()> {
             > + Clone,
     > {
         Connector {
-            ssl: Self::build_ssl(vec![b"h2".to_vec(), b"http/1.1".to_vec()]),
             connector: new_connector(resolver::resolver()),
             config: ConnectorConfig::default(),
+            ssl: Self::build_ssl(vec![b"h2".to_vec(), b"http/1.1".to_vec()]),
         }
     }
 
@@ -189,7 +189,7 @@ where
             http::Version::HTTP_11 => vec![b"http/1.1".to_vec()],
             http::Version::HTTP_2 => vec![b"h2".to_vec(), b"http/1.1".to_vec()],
             _ => {
-                unimplemented!("actix-http:client: supported versions http/1.1, http/2")
+                unimplemented!("actix-http client only supports versions http/1.1 & http/2")
             }
         };
         self.ssl = Connector::build_ssl(versions);
@@ -814,5 +814,44 @@ mod resolver {
                 }
             }
         })
+    }
+}
+
+#[cfg(feature = "dangerous-h2c")]
+#[cfg(test)]
+mod tests {
+    use std::convert::Infallible;
+
+    use actix_http::{HttpService, Request, Response, Version};
+    use actix_http_test::test_server;
+    use actix_service::ServiceFactoryExt as _;
+
+    use super::*;
+    use crate::Client;
+
+    #[actix_rt::test]
+    async fn h2c_connector() {
+        let mut srv = test_server(|| {
+            HttpService::build()
+                .h2(|_req: Request| async { Ok::<_, Infallible>(Response::ok()) })
+                .tcp()
+                .map_err(|_| ())
+        })
+        .await;
+
+        let connector = Connector {
+            connector: new_connector(resolver::resolver()),
+            config: ConnectorConfig::default(),
+            ssl: SslConnector::None,
+        };
+
+        let client = Client::builder().connector(connector).finish();
+
+        let request = client.get(srv.surl("/")).send();
+        let response = request.await.unwrap();
+        assert!(response.status().is_success());
+        assert_eq!(response.version(), Version::HTTP_2);
+
+        srv.stop().await;
     }
 }
