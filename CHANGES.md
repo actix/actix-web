@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 4.0.0-beta.12 - 2021-11-22
 ### Changed
 * Compress middleware's response type is now `AnyBody<Encoder<B>>`. [#2448]
 
@@ -10,7 +13,8 @@
 ### Removed
 * `dev::ResponseBody` re-export; is function is replaced by the new `dev::AnyBody` enum. [#2446]
 
-[#2423]: https://github.com/actix/actix-web/pull/2423
+[#2446]: https://github.com/actix/actix-web/pull/2446
+[#2448]: https://github.com/actix/actix-web/pull/2448
 
 
 ## 4.0.0-beta.11 - 2021-11-15

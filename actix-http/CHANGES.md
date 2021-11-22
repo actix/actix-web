@@ -25,6 +25,7 @@
 * `body::ResponseBody`; is function is replaced by the new `body::AnyBody` enum. [#2446]
 
 [#2446]: https://github.com/actix/actix-web/pull/2446
+[#2448]: https://github.com/actix/actix-web/pull/2448
 [#2456]: https://github.com/actix/actix-web/pull/2456
 
 
