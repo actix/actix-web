@@ -14,11 +14,13 @@ edition = "2018"
 name = "actix_files"
 path = "src/lib.rs"
 
+[features]
+experimental-io-uring = ["actix-web/experimental-io-uring", "tokio-uring"]
+
 [dependencies]
 actix-web = { version = "4.0.0-beta.11", default-features = false }
 actix-http = "3.0.0-beta.12"
 actix-service = "2.0.0"
-actix-utils = "3.0.0"
 
 askama_escape = "0.10"
 bitflags = "1"
@@ -30,6 +32,9 @@ log = "0.4"
 mime = "0.3"
 mime_guess = "2.0.1"
 percent-encoding = "2.1"
+pin-project-lite = "0.2.7"
+
+tokio-uring = { version = "0.1", optional = true }
 
 [dev-dependencies]
 actix-rt = "2.2"

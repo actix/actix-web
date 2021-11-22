@@ -82,7 +82,8 @@ pub struct CompressMiddleware<S> {
 }
 
 static SUPPORTED_ALGORITHM_NAMES: Lazy<String> = Lazy::new(|| {
-    let mut encoding = vec![];
+    #[allow(unused_mut)] // only unused when no compress features enabled
+    let mut encoding: Vec<&str> = vec![];
 
     #[cfg(feature = "compress-brotli")]
     {

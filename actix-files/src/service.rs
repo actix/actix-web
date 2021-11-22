@@ -1,7 +1,6 @@
-use std::{fmt, io, path::PathBuf, rc::Rc};
+use std::{fmt, io, ops::Deref, path::PathBuf, rc::Rc};
 
 use actix_service::Service;
-use actix_utils::future::ok;
 use actix_web::{
     dev::{ServiceRequest, ServiceResponse},
     error::Error,
@@ -17,7 +16,18 @@ use crate::{
 };
 
 /// Assembled file serving service.
-pub struct FilesService {
+#[derive(Clone)]
+pub struct FilesService(pub(crate) Rc<FilesServiceInner>);
+
+impl Deref for FilesService {
+    type Target = FilesServiceInner;
+
+    fn deref(&self) -> &Self::Target {
+        &*self.0
+    }
+}
+
+pub struct FilesServiceInner {
     pub(crate) directory: PathBuf,
     pub(crate) index: Option<String>,
     pub(crate) show_index: bool,
@@ -31,19 +41,49 @@ pub struct FilesService {
     pub(crate) hidden_files: bool,
 }
 
+impl fmt::Debug for FilesServiceInner {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("FilesServiceInner")
+    }
+}
+
 impl FilesService {
-    fn handle_err(
+    async fn handle_err(
         &self,
         err: io::Error,
         req: ServiceRequest,
-    ) -> LocalBoxFuture<'static, Result<ServiceResponse, Error>> {
+    ) -> Result<ServiceResponse, Error> {
         log::debug!("error handling {}: {}", req.path(), err);
 
         if let Some(ref default) = self.default {
-            Box::pin(default.call(req))
+            default.call(req).await
         } else {
-            Box::pin(ok(req.error_response(err)))
+            Ok(req.error_response(err))
         }
+    }
+
+    fn serve_named_file(
+        &self,
+        req: ServiceRequest,
+        mut named_file: NamedFile,
+    ) -> ServiceResponse {
+        if let Some(ref mime_override) = self.mime_override {
+            let new_disposition = mime_override(&named_file.content_type.type_());
+            named_file.content_disposition.disposition = new_disposition;
+        }
+        named_file.flags = self.file_flags;
+
+        let (req, _) = req.into_parts();
+        let res = named_file.into_response(&req);
+        ServiceResponse::new(req, res)
+    }
+
+    fn show_index(&self, req: ServiceRequest, path: PathBuf) -> ServiceResponse {
+        let dir = Directory::new(self.directory.clone(), path);
+
+        let (req, _) = req.into_parts();
+
+        (self.renderer)(&dir, &req).unwrap_or_else(|e| ServiceResponse::from_err(e, req))
     }
 }
 
@@ -56,7 +96,7 @@ impl fmt::Debug for FilesService {
 impl Service<ServiceRequest> for FilesService {
     type Response = ServiceResponse;
     type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<ServiceResponse, Error>>;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
     actix_service::always_ready!();
 
@@ -69,103 +109,87 @@ impl Service<ServiceRequest> for FilesService {
             matches!(*req.method(), Method::HEAD | Method::GET)
         };
 
-        if !is_method_valid {
-            return Box::pin(ok(req.into_response(
-                actix_web::HttpResponse::MethodNotAllowed()
-                    .insert_header(header::ContentType(mime::TEXT_PLAIN_UTF_8))
-                    .body("Request did not meet this resource's requirements."),
-            )));
-        }
+        let this = self.clone();
 
-        let real_path =
-            match PathBufWrap::parse_path(req.match_info().path(), self.hidden_files) {
-                Ok(item) => item,
-                Err(e) => return Box::pin(ok(req.error_response(e))),
-            };
+        Box::pin(async move {
+            if !is_method_valid {
+                return Ok(req.into_response(
+                    actix_web::HttpResponse::MethodNotAllowed()
+                        .insert_header(header::ContentType(mime::TEXT_PLAIN_UTF_8))
+                        .body("Request did not meet this resource's requirements."),
+                ));
+            }
 
-        if let Some(filter) = &self.path_filter {
-            if !filter(real_path.as_ref(), req.head()) {
-                if let Some(ref default) = self.default {
-                    return Box::pin(default.call(req));
-                } else {
-                    return Box::pin(ok(
-                        req.into_response(actix_web::HttpResponse::NotFound().finish())
+            let real_path =
+                match PathBufWrap::parse_path(req.match_info().path(), this.hidden_files) {
+                    Ok(item) => item,
+                    Err(e) => return Ok(req.error_response(e)),
+                };
+
+            if let Some(filter) = &this.path_filter {
+                if !filter(real_path.as_ref(), req.head()) {
+                    if let Some(ref default) = this.default {
+                        return default.call(req).await;
+                    } else {
+                        return Ok(
+                            req.into_response(actix_web::HttpResponse::NotFound().finish())
+                        );
+                    }
+                }
+            }
+
+            // full file path
+            let path = this.directory.join(&real_path);
+            if let Err(err) = path.canonicalize() {
+                return this.handle_err(err, req).await;
+            }
+
+            if path.is_dir() {
+                if this.redirect_to_slash
+                    && !req.path().ends_with('/')
+                    && (this.index.is_some() || this.show_index)
+                {
+                    let redirect_to = format!("{}/", req.path());
+
+                    return Ok(req.into_response(
+                        HttpResponse::Found()
+                            .insert_header((header::LOCATION, redirect_to))
+                            .finish(),
                     ));
                 }
-            }
-        }
 
-        // full file path
-        let path = self.directory.join(&real_path);
-        if let Err(err) = path.canonicalize() {
-            return Box::pin(self.handle_err(err, req));
-        }
-
-        if path.is_dir() {
-            if self.redirect_to_slash
-                && !req.path().ends_with('/')
-                && (self.index.is_some() || self.show_index)
-            {
-                let redirect_to = format!("{}/", req.path());
-
-                return Box::pin(ok(req.into_response(
-                    HttpResponse::Found()
-                        .insert_header((header::LOCATION, redirect_to))
-                        .finish(),
-                )));
-            }
-
-            let serve_named_file = |req: ServiceRequest, mut named_file: NamedFile| {
-                if let Some(ref mime_override) = self.mime_override {
-                    let new_disposition = mime_override(&named_file.content_type.type_());
-                    named_file.content_disposition.disposition = new_disposition;
-                }
-                named_file.flags = self.file_flags;
-
-                let (req, _) = req.into_parts();
-                let res = named_file.into_response(&req);
-                Box::pin(ok(ServiceResponse::new(req, res)))
-            };
-
-            let show_index = |req: ServiceRequest| {
-                let dir = Directory::new(self.directory.clone(), path.clone());
-
-                let (req, _) = req.into_parts();
-                let x = (self.renderer)(&dir, &req);
-
-                Box::pin(match x {
-                    Ok(resp) => ok(resp),
-                    Err(err) => ok(ServiceResponse::from_err(err, req)),
-                })
-            };
-
-            match self.index {
-                Some(ref index) => match NamedFile::open(path.join(index)) {
-                    Ok(named_file) => serve_named_file(req, named_file),
-                    Err(_) if self.show_index => show_index(req),
-                    Err(err) => self.handle_err(err, req),
-                },
-                None if self.show_index => show_index(req),
-                _ => Box::pin(ok(ServiceResponse::from_err(
-                    FilesError::IsDirectory,
-                    req.into_parts().0,
-                ))),
-            }
-        } else {
-            match NamedFile::open(path) {
-                Ok(mut named_file) => {
-                    if let Some(ref mime_override) = self.mime_override {
-                        let new_disposition = mime_override(&named_file.content_type.type_());
-                        named_file.content_disposition.disposition = new_disposition;
+                match this.index {
+                    Some(ref index) => {
+                        let named_path = path.join(index);
+                        match NamedFile::open_async(named_path).await {
+                            Ok(named_file) => Ok(this.serve_named_file(req, named_file)),
+                            Err(_) if this.show_index => Ok(this.show_index(req, path)),
+                            Err(err) => this.handle_err(err, req).await,
+                        }
                     }
-                    named_file.flags = self.file_flags;
-
-                    let (req, _) = req.into_parts();
-                    let res = named_file.into_response(&req);
-                    Box::pin(ok(ServiceResponse::new(req, res)))
+                    None if this.show_index => Ok(this.show_index(req, path)),
+                    _ => Ok(ServiceResponse::from_err(
+                        FilesError::IsDirectory,
+                        req.into_parts().0,
+                    )),
                 }
-                Err(err) => self.handle_err(err, req),
+            } else {
+                match NamedFile::open_async(&path).await {
+                    Ok(mut named_file) => {
+                        if let Some(ref mime_override) = this.mime_override {
+                            let new_disposition =
+                                mime_override(&named_file.content_type.type_());
+                            named_file.content_disposition.disposition = new_disposition;
+                        }
+                        named_file.flags = this.file_flags;
+
+                        let (req, _) = req.into_parts();
+                        let res = named_file.into_response(&req);
+                        Ok(ServiceResponse::new(req, res))
+                    }
+                    Err(err) => this.handle_err(err, req).await,
+                }
             }
-        }
+        })
     }
 }

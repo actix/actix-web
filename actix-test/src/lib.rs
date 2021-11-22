@@ -146,156 +146,183 @@ where
 
     // run server in separate orphaned thread
     thread::spawn(move || {
-        let sys = rt::System::new();
-        let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
-        let local_addr = tcp.local_addr().unwrap();
-        let factory = factory.clone();
-        let srv_cfg = cfg.clone();
-        let timeout = cfg.client_timeout;
-        let builder = Server::build().workers(1).disable_signals().system_exit();
+        rt::System::new().block_on(async move {
+            let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
+            let local_addr = tcp.local_addr().unwrap();
+            let factory = factory.clone();
+            let srv_cfg = cfg.clone();
+            let timeout = cfg.client_timeout;
 
-        let srv = match srv_cfg.stream {
-            StreamType::Tcp => match srv_cfg.tp {
-                HttpVer::Http1 => builder.listen("test", tcp, move || {
-                    let app_cfg =
-                        AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+            let builder = Server::build().workers(1).disable_signals().system_exit();
 
-                    let fac = factory()
-                        .into_factory()
-                        .map_err(|err| err.into().error_response());
+            let srv = match srv_cfg.stream {
+                StreamType::Tcp => match srv_cfg.tp {
+                    HttpVer::Http1 => builder.listen("test", tcp, move || {
+                        let app_cfg = AppConfig::__priv_test_new(
+                            false,
+                            local_addr.to_string(),
+                            local_addr,
+                        );
 
-                    HttpService::build()
-                        .client_timeout(timeout)
-                        .h1(map_config(fac, move |_| app_cfg.clone()))
-                        .tcp()
-                }),
-                HttpVer::Http2 => builder.listen("test", tcp, move || {
-                    let app_cfg =
-                        AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+                        let fac = factory()
+                            .into_factory()
+                            .map_err(|err| err.into().error_response());
 
-                    let fac = factory()
-                        .into_factory()
-                        .map_err(|err| err.into().error_response());
+                        HttpService::build()
+                            .client_timeout(timeout)
+                            .h1(map_config(fac, move |_| app_cfg.clone()))
+                            .tcp()
+                    }),
+                    HttpVer::Http2 => builder.listen("test", tcp, move || {
+                        let app_cfg = AppConfig::__priv_test_new(
+                            false,
+                            local_addr.to_string(),
+                            local_addr,
+                        );
 
-                    HttpService::build()
-                        .client_timeout(timeout)
-                        .h2(map_config(fac, move |_| app_cfg.clone()))
-                        .tcp()
-                }),
-                HttpVer::Both => builder.listen("test", tcp, move || {
-                    let app_cfg =
-                        AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+                        let fac = factory()
+                            .into_factory()
+                            .map_err(|err| err.into().error_response());
 
-                    let fac = factory()
-                        .into_factory()
-                        .map_err(|err| err.into().error_response());
+                        HttpService::build()
+                            .client_timeout(timeout)
+                            .h2(map_config(fac, move |_| app_cfg.clone()))
+                            .tcp()
+                    }),
+                    HttpVer::Both => builder.listen("test", tcp, move || {
+                        let app_cfg = AppConfig::__priv_test_new(
+                            false,
+                            local_addr.to_string(),
+                            local_addr,
+                        );
 
-                    HttpService::build()
-                        .client_timeout(timeout)
-                        .finish(map_config(fac, move |_| app_cfg.clone()))
-                        .tcp()
-                }),
-            },
-            #[cfg(feature = "openssl")]
-            StreamType::Openssl(acceptor) => match cfg.tp {
-                HttpVer::Http1 => builder.listen("test", tcp, move || {
-                    let app_cfg =
-                        AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+                        let fac = factory()
+                            .into_factory()
+                            .map_err(|err| err.into().error_response());
 
-                    let fac = factory()
-                        .into_factory()
-                        .map_err(|err| err.into().error_response());
+                        HttpService::build()
+                            .client_timeout(timeout)
+                            .finish(map_config(fac, move |_| app_cfg.clone()))
+                            .tcp()
+                    }),
+                },
+                #[cfg(feature = "openssl")]
+                StreamType::Openssl(acceptor) => match cfg.tp {
+                    HttpVer::Http1 => builder.listen("test", tcp, move || {
+                        let app_cfg = AppConfig::__priv_test_new(
+                            false,
+                            local_addr.to_string(),
+                            local_addr,
+                        );
 
-                    HttpService::build()
-                        .client_timeout(timeout)
-                        .h1(map_config(fac, move |_| app_cfg.clone()))
-                        .openssl(acceptor.clone())
-                }),
-                HttpVer::Http2 => builder.listen("test", tcp, move || {
-                    let app_cfg =
-                        AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+                        let fac = factory()
+                            .into_factory()
+                            .map_err(|err| err.into().error_response());
 
-                    let fac = factory()
-                        .into_factory()
-                        .map_err(|err| err.into().error_response());
+                        HttpService::build()
+                            .client_timeout(timeout)
+                            .h1(map_config(fac, move |_| app_cfg.clone()))
+                            .openssl(acceptor.clone())
+                    }),
+                    HttpVer::Http2 => builder.listen("test", tcp, move || {
+                        let app_cfg = AppConfig::__priv_test_new(
+                            false,
+                            local_addr.to_string(),
+                            local_addr,
+                        );
 
-                    HttpService::build()
-                        .client_timeout(timeout)
-                        .h2(map_config(fac, move |_| app_cfg.clone()))
-                        .openssl(acceptor.clone())
-                }),
-                HttpVer::Both => builder.listen("test", tcp, move || {
-                    let app_cfg =
-                        AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+                        let fac = factory()
+                            .into_factory()
+                            .map_err(|err| err.into().error_response());
 
-                    let fac = factory()
-                        .into_factory()
-                        .map_err(|err| err.into().error_response());
+                        HttpService::build()
+                            .client_timeout(timeout)
+                            .h2(map_config(fac, move |_| app_cfg.clone()))
+                            .openssl(acceptor.clone())
+                    }),
+                    HttpVer::Both => builder.listen("test", tcp, move || {
+                        let app_cfg = AppConfig::__priv_test_new(
+                            false,
+                            local_addr.to_string(),
+                            local_addr,
+                        );
 
-                    HttpService::build()
-                        .client_timeout(timeout)
-                        .finish(map_config(fac, move |_| app_cfg.clone()))
-                        .openssl(acceptor.clone())
-                }),
-            },
-            #[cfg(feature = "rustls")]
-            StreamType::Rustls(config) => match cfg.tp {
-                HttpVer::Http1 => builder.listen("test", tcp, move || {
-                    let app_cfg =
-                        AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+                        let fac = factory()
+                            .into_factory()
+                            .map_err(|err| err.into().error_response());
 
-                    let fac = factory()
-                        .into_factory()
-                        .map_err(|err| err.into().error_response());
+                        HttpService::build()
+                            .client_timeout(timeout)
+                            .finish(map_config(fac, move |_| app_cfg.clone()))
+                            .openssl(acceptor.clone())
+                    }),
+                },
+                #[cfg(feature = "rustls")]
+                StreamType::Rustls(config) => match cfg.tp {
+                    HttpVer::Http1 => builder.listen("test", tcp, move || {
+                        let app_cfg = AppConfig::__priv_test_new(
+                            false,
+                            local_addr.to_string(),
+                            local_addr,
+                        );
 
-                    HttpService::build()
-                        .client_timeout(timeout)
-                        .h1(map_config(fac, move |_| app_cfg.clone()))
-                        .rustls(config.clone())
-                }),
-                HttpVer::Http2 => builder.listen("test", tcp, move || {
-                    let app_cfg =
-                        AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+                        let fac = factory()
+                            .into_factory()
+                            .map_err(|err| err.into().error_response());
 
-                    let fac = factory()
-                        .into_factory()
-                        .map_err(|err| err.into().error_response());
+                        HttpService::build()
+                            .client_timeout(timeout)
+                            .h1(map_config(fac, move |_| app_cfg.clone()))
+                            .rustls(config.clone())
+                    }),
+                    HttpVer::Http2 => builder.listen("test", tcp, move || {
+                        let app_cfg = AppConfig::__priv_test_new(
+                            false,
+                            local_addr.to_string(),
+                            local_addr,
+                        );
 
-                    HttpService::build()
-                        .client_timeout(timeout)
-                        .h2(map_config(fac, move |_| app_cfg.clone()))
-                        .rustls(config.clone())
-                }),
-                HttpVer::Both => builder.listen("test", tcp, move || {
-                    let app_cfg =
-                        AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+                        let fac = factory()
+                            .into_factory()
+                            .map_err(|err| err.into().error_response());
 
-                    let fac = factory()
-                        .into_factory()
-                        .map_err(|err| err.into().error_response());
+                        HttpService::build()
+                            .client_timeout(timeout)
+                            .h2(map_config(fac, move |_| app_cfg.clone()))
+                            .rustls(config.clone())
+                    }),
+                    HttpVer::Both => builder.listen("test", tcp, move || {
+                        let app_cfg = AppConfig::__priv_test_new(
+                            false,
+                            local_addr.to_string(),
+                            local_addr,
+                        );
 
-                    HttpService::build()
-                        .client_timeout(timeout)
-                        .finish(map_config(fac, move |_| app_cfg.clone()))
-                        .rustls(config.clone())
-                }),
-            },
-        }
-        .expect("test server could not be created");
+                        let fac = factory()
+                            .into_factory()
+                            .map_err(|err| err.into().error_response());
 
-        let srv = srv.run();
-        started_tx
-            .send((System::current(), srv.handle(), local_addr))
-            .unwrap();
+                        HttpService::build()
+                            .client_timeout(timeout)
+                            .finish(map_config(fac, move |_| app_cfg.clone()))
+                            .rustls(config.clone())
+                    }),
+                },
+            }
+            .expect("test server could not be created");
 
-        // drive server loop
-        sys.block_on(srv).unwrap();
+            let srv = srv.run();
+            started_tx
+                .send((System::current(), srv.handle(), local_addr))
+                .unwrap();
 
-        // start system event loop
-        sys.run().unwrap();
+            // drive server loop
+            srv.await.unwrap();
 
-        // notify TestServer that server and system have shut down
-        // all thread managed resources should be dropped at this point
+            // notify TestServer that server and system have shut down
+            // all thread managed resources should be dropped at this point
+        });
+
         let _ = thread_stop_tx.send(());
     });
 
