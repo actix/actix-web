@@ -21,16 +21,15 @@ use http::Method;
 use socket2::{Domain, Protocol, Socket, Type};
 use tokio::sync::mpsc;
 
-/// Start test server
+/// Start test server.
 ///
-/// `TestServer` is very simple test server that simplify process of writing
-/// integration tests cases for actix web applications.
+/// `TestServer` is very simple test server that simplify process of writing integration tests cases
+/// for HTTP applications.
 ///
 /// # Examples
-///
-/// ```
+/// ```no_run
 /// use actix_http::HttpService;
-/// use actix_http_test::TestServer;
+/// use actix_http_test::test_server;
 /// use actix_web::{web, App, HttpResponse, Error};
 ///
 /// async fn my_handler() -> Result<HttpResponse, Error> {
@@ -39,10 +38,9 @@ use tokio::sync::mpsc;
 ///
 /// #[actix_web::test]
 /// async fn test_example() {
-///     let mut srv = TestServer::start(
-///         || HttpService::new(
-///             App::new().service(
-///                 web::resource("/").to(my_handler))
+///     let mut srv = TestServer::start(||
+///         HttpService::new(
+///             App::new().service(web::resource("/").to(my_handler))
 ///         )
 ///     );
 ///

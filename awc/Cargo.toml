@@ -52,6 +52,11 @@ trust-dns = ["trust-dns-resolver"]
 # Don't rely on these whatsoever. They may disappear at anytime.
 __compress = []
 
+# Enable dangerous feature for testing and local network usage:
+# - HTTP/2 over TCP(No Tls).
+# DO NOT enable this over any internet use case.
+dangerous-h2c = []
+
 [dependencies]
 actix-codec = "0.4.1"
 actix-service = "2.0.0"

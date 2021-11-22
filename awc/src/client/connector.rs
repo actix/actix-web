@@ -67,9 +67,9 @@ impl Connector<()> {
             > + Clone,
     > {
         Connector {
-            ssl: Self::build_ssl(vec![b"h2".to_vec(), b"http/1.1".to_vec()]),
             connector: new_connector(resolver::resolver()),
             config: ConnectorConfig::default(),
+            ssl: Self::build_ssl(vec![b"h2".to_vec(), b"http/1.1".to_vec()]),
         }
     }
 
@@ -189,7 +189,7 @@ where
             http::Version::HTTP_11 => vec![b"http/1.1".to_vec()],
             http::Version::HTTP_2 => vec![b"h2".to_vec(), b"http/1.1".to_vec()],
             _ => {
-                unimplemented!("actix-http:client: supported versions http/1.1, http/2")
+                unimplemented!("actix-http client only supports versions http/1.1 & http/2")
             }
         };
         self.ssl = Connector::build_ssl(versions);
@@ -279,7 +279,63 @@ where
         };
 
         let tls_service = match self.ssl {
-            SslConnector::None => None,
+            SslConnector::None => {
+                #[cfg(not(feature = "dangerous-h2c"))]
+                {
+                    None
+                }
+                #[cfg(feature = "dangerous-h2c")]
+                {
+                    use std::{
+                        future::{ready, Ready},
+                        io,
+                    };
+
+                    use actix_tls::connect::Connection;
+
+                    impl IntoConnectionIo for TcpConnection<Uri, Box<dyn ConnectionIo>> {
+                        fn into_connection_io(self) -> (Box<dyn ConnectionIo>, Protocol) {
+                            let io = self.into_parts().0;
+                            (io, Protocol::Http2)
+                        }
+                    }
+
+                    /// With the `dangerous-h2c` feature enabled, this connector uses a no-op TLS
+                    /// connection service that passes through plain TCP as a TLS connection.
+                    ///
+                    /// The protocol version of this fake TLS connection is set to be HTTP/2.
+                    #[derive(Clone)]
+                    struct NoOpTlsConnectorService;
+
+                    impl<T, U> Service<Connection<T, U>> for NoOpTlsConnectorService
+                    where
+                        U: ActixStream + 'static,
+                    {
+                        type Response = Connection<T, Box<dyn ConnectionIo>>;
+                        type Error = io::Error;
+                        type Future = Ready<Result<Self::Response, Self::Error>>;
+
+                        actix_service::always_ready!();
+
+                        fn call(&self, connection: Connection<T, U>) -> Self::Future {
+                            let (io, connection) = connection.replace_io(());
+                            let (_, connection) = connection.replace_io(Box::new(io) as _);
+
+                            ready(Ok(connection))
+                        }
+                    }
+
+                    let handshake_timeout = self.config.handshake_timeout;
+
+                    let tls_service = TlsConnectorService {
+                        tcp_service: tcp_service_inner,
+                        tls_service: NoOpTlsConnectorService,
+                        timeout: handshake_timeout,
+                    };
+
+                    Some(actix_service::boxed::rc_service(tls_service))
+                }
+            }
             #[cfg(feature = "openssl")]
             SslConnector::Openssl(tls) => {
                 const H2: &[u8] = b"h2";
@@ -758,5 +814,44 @@ mod resolver {
                 }
             }
         })
+    }
+}
+
+#[cfg(feature = "dangerous-h2c")]
+#[cfg(test)]
+mod tests {
+    use std::convert::Infallible;
+
+    use actix_http::{HttpService, Request, Response, Version};
+    use actix_http_test::test_server;
+    use actix_service::ServiceFactoryExt as _;
+
+    use super::*;
+    use crate::Client;
+
+    #[actix_rt::test]
+    async fn h2c_connector() {
+        let mut srv = test_server(|| {
+            HttpService::build()
+                .h2(|_req: Request| async { Ok::<_, Infallible>(Response::ok()) })
+                .tcp()
+                .map_err(|_| ())
+        })
+        .await;
+
+        let connector = Connector {
+            connector: new_connector(resolver::resolver()),
+            config: ConnectorConfig::default(),
+            ssl: SslConnector::None,
+        };
+
+        let client = Client::builder().connector(connector).finish();
+
+        let request = client.get(srv.surl("/")).send();
+        let response = request.await.unwrap();
+        assert!(response.status().is_success());
+        assert_eq!(response.version(), Version::HTTP_2);
+
+        srv.stop().await;
     }
 }

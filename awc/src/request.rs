@@ -115,10 +115,10 @@ impl ClientRequest {
         &self.head.method
     }
 
-    #[doc(hidden)]
     /// Set HTTP version of this request.
     ///
     /// By default requests's HTTP version depends on network stream
+    #[doc(hidden)]
     #[inline]
     pub fn version(mut self, version: Version) -> Self {
         self.head.version = version;
