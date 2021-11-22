@@ -32,9 +32,12 @@ pub enum AnyBody<B = BoxBody> {
 }
 
 impl AnyBody {
-    // TODO: a None body constructor
+    /// Constructs a "body" representing an empty response.
+    pub fn none() -> Self {
+        Self::None
+    }
 
-    /// Constructs a new, empty body.
+    /// Constructs a new, 0-length body.
     pub fn empty() -> Self {
         Self::Bytes(Bytes::new())
     }

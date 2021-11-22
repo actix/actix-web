@@ -32,11 +32,11 @@ pub use self::sized_stream::SizedStream;
 /// use bytes::Bytes;
 ///
 /// # async fn test_to_bytes() {
-/// let body = AnyBody::None;
+/// let body = AnyBody::none();
 /// let bytes = to_bytes(body).await.unwrap();
 /// assert!(bytes.is_empty());
 ///
-/// let body = AnyBody::Bytes(Bytes::from_static(b"123"));
+/// let body = AnyBody::copy_from_slice(b"123");
 /// let bytes = to_bytes(body).await.unwrap();
 /// assert_eq!(bytes, b"123"[..]);
 /// # }
@@ -75,7 +75,7 @@ mod tests {
     use actix_utils::future::poll_fn;
     use bytes::{Bytes, BytesMut};
 
-    use super::*;
+    use super::{to_bytes, AnyBody as TestAnyBody, BodySize, MessageBody as _};
 
     impl AnyBody {
         pub(crate) fn get_ref(&self) -> &[u8] {
@@ -87,13 +87,13 @@ mod tests {
     }
 
     /// AnyBody alias because rustc does not (can not?) infer the default type parameter.
-    type TestBody = AnyBody;
+    type AnyBody = TestAnyBody;
 
     #[actix_rt::test]
     async fn test_static_str() {
-        assert_eq!(TestBody::from("").size(), BodySize::Sized(0));
-        assert_eq!(TestBody::from("test").size(), BodySize::Sized(4));
-        assert_eq!(TestBody::from("test").get_ref(), b"test");
+        assert_eq!(AnyBody::from("").size(), BodySize::Sized(0));
+        assert_eq!(AnyBody::from("test").size(), BodySize::Sized(4));
+        assert_eq!(AnyBody::from("test").get_ref(), b"test");
 
         assert_eq!("test".size(), BodySize::Sized(4));
         assert_eq!(
@@ -107,14 +107,14 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_static_bytes() {
-        assert_eq!(TestBody::from(b"test".as_ref()).size(), BodySize::Sized(4));
-        assert_eq!(TestBody::from(b"test".as_ref()).get_ref(), b"test");
+        assert_eq!(AnyBody::from(b"test".as_ref()).size(), BodySize::Sized(4));
+        assert_eq!(AnyBody::from(b"test".as_ref()).get_ref(), b"test");
         assert_eq!(
-            TestBody::copy_from_slice(b"test".as_ref()).size(),
+            AnyBody::copy_from_slice(b"test".as_ref()).size(),
             BodySize::Sized(4)
         );
         assert_eq!(
-            TestBody::copy_from_slice(b"test".as_ref()).get_ref(),
+            AnyBody::copy_from_slice(b"test".as_ref()).get_ref(),
             b"test"
         );
         let sb = Bytes::from(&b"test"[..]);
@@ -129,8 +129,8 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_vec() {
-        assert_eq!(TestBody::from(Vec::from("test")).size(), BodySize::Sized(4));
-        assert_eq!(TestBody::from(Vec::from("test")).get_ref(), b"test");
+        assert_eq!(AnyBody::from(Vec::from("test")).size(), BodySize::Sized(4));
+        assert_eq!(AnyBody::from(Vec::from("test")).get_ref(), b"test");
         let test_vec = Vec::from("test");
         pin!(test_vec);
 
@@ -147,8 +147,8 @@ mod tests {
     #[actix_rt::test]
     async fn test_bytes() {
         let b = Bytes::from("test");
-        assert_eq!(TestBody::from(b.clone()).size(), BodySize::Sized(4));
-        assert_eq!(TestBody::from(b.clone()).get_ref(), b"test");
+        assert_eq!(AnyBody::from(b.clone()).size(), BodySize::Sized(4));
+        assert_eq!(AnyBody::from(b.clone()).get_ref(), b"test");
         pin!(b);
 
         assert_eq!(b.size(), BodySize::Sized(4));
@@ -161,8 +161,8 @@ mod tests {
     #[actix_rt::test]
     async fn test_bytes_mut() {
         let b = BytesMut::from("test");
-        assert_eq!(TestBody::from(b.clone()).size(), BodySize::Sized(4));
-        assert_eq!(TestBody::from(b.clone()).get_ref(), b"test");
+        assert_eq!(AnyBody::from(b.clone()).size(), BodySize::Sized(4));
+        assert_eq!(AnyBody::from(b.clone()).get_ref(), b"test");
         pin!(b);
 
         assert_eq!(b.size(), BodySize::Sized(4));
@@ -175,10 +175,10 @@ mod tests {
     #[actix_rt::test]
     async fn test_string() {
         let b = "test".to_owned();
-        assert_eq!(TestBody::from(b.clone()).size(), BodySize::Sized(4));
-        assert_eq!(TestBody::from(b.clone()).get_ref(), b"test");
-        assert_eq!(TestBody::from(&b).size(), BodySize::Sized(4));
-        assert_eq!(TestBody::from(&b).get_ref(), b"test");
+        assert_eq!(AnyBody::from(b.clone()).size(), BodySize::Sized(4));
+        assert_eq!(AnyBody::from(b.clone()).get_ref(), b"test");
+        assert_eq!(AnyBody::from(&b).size(), BodySize::Sized(4));
+        assert_eq!(AnyBody::from(&b).get_ref(), b"test");
         pin!(b);
 
         assert_eq!(b.size(), BodySize::Sized(4));
@@ -219,22 +219,22 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_body_debug() {
-        assert!(format!("{:?}", TestBody::None).contains("Body::None"));
-        assert!(format!("{:?}", TestBody::from(Bytes::from_static(b"1"))).contains('1'));
+        assert!(format!("{:?}", AnyBody::None).contains("Body::None"));
+        assert!(format!("{:?}", AnyBody::from(Bytes::from_static(b"1"))).contains('1'));
     }
 
     #[actix_rt::test]
     async fn test_serde_json() {
         use serde_json::{json, Value};
         assert_eq!(
-            TestBody::from(
+            AnyBody::from(
                 serde_json::to_vec(&Value::String("test".to_owned())).unwrap()
             )
             .size(),
             BodySize::Sized(6)
         );
         assert_eq!(
-            TestBody::from(
+            AnyBody::from(
                 serde_json::to_vec(&json!({"test-key":"test-value"})).unwrap()
             )
             .size(),
