@@ -1772,6 +1772,12 @@ mod tests {
 
     #[test]
     #[should_panic]
+    fn duplicate_segment_name() {
+        ResourceDef::new("/user/{id}/post/{id}");
+    }
+
+    #[test]
+    #[should_panic]
     fn invalid_dynamic_segment_delimiter() {
         ResourceDef::new("/user/{username");
     }
