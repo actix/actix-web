@@ -159,7 +159,7 @@ jobs:
         with: { file: cobertura.xml }
 
   rustdoc:
-    name: rustdoc
+    name: doc tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -176,12 +176,6 @@ jobs:
         with: { command: generate-lockfile }
       - name: Cache Dependencies
         uses: Swatinem/rust-cache@v1.3.0
-
-      # - name: Install cargo-hack
-      #   uses: actions-rs/cargo@v1
-      #   with:
-      #     command: install
-      #     args: cargo-hack
 
       - name: doc tests
         uses: actions-rs/cargo@v1

@@ -1,18 +1,16 @@
-use std::convert::TryFrom;
-use std::fmt;
-use std::net::IpAddr;
-use std::rc::Rc;
-use std::time::Duration;
+use std::{convert::TryFrom, fmt, net::IpAddr, rc::Rc, time::Duration};
 
 use actix_http::http::{self, header, Error as HttpError, HeaderMap, HeaderName, Uri};
 use actix_rt::net::{ActixStream, TcpStream};
 use actix_service::{boxed, Service};
 
-use crate::client::{Connector, ConnectorService, TcpConnect, TcpConnectError, TcpConnection};
-use crate::connect::DefaultConnector;
-use crate::error::SendRequestError;
-use crate::middleware::{NestTransform, Redirect, Transform};
-use crate::{Client, ClientConfig, ConnectRequest, ConnectResponse};
+use crate::{
+    client::{Connector, ConnectorService, TcpConnect, TcpConnectError, TcpConnection},
+    connect::DefaultConnector,
+    error::SendRequestError,
+    middleware::{NestTransform, Redirect, Transform},
+    Client, ClientConfig, ConnectRequest, ConnectResponse,
+};
 
 /// An HTTP Client builder
 ///
