@@ -11,14 +11,17 @@ use futures_core::ready;
 mod body;
 mod body_stream;
 mod boxed;
+mod either;
 mod message_body;
 mod size;
 mod sized_stream;
 
+pub use self::body::AnyBody;
 #[allow(deprecated)]
-pub use self::body::{AnyBody, Body, BoxBody};
+pub use self::body::Body;
 pub use self::body_stream::BodyStream;
 pub use self::boxed::BoxBody;
+pub use self::either::EitherBody;
 pub use self::message_body::MessageBody;
 pub(crate) use self::message_body::MessageBodyMapErr;
 pub use self::size::BodySize;

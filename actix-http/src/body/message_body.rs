@@ -27,6 +27,21 @@ pub trait MessageBody {
     ) -> Poll<Option<Result<Bytes, Self::Error>>>;
 }
 
+impl MessageBody for Infallible {
+    type Error = Infallible;
+
+    fn size(&self) -> BodySize {
+        match *self {}
+    }
+
+    fn poll_next(
+        self: Pin<&mut Self>,
+        _: &mut Context<'_>,
+    ) -> Poll<Option<Result<Bytes, Self::Error>>> {
+        match *self {}
+    }
+}
+
 impl MessageBody for () {
     type Error = Infallible;
 
