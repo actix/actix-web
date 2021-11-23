@@ -3,9 +3,11 @@
 ## Unreleased - 2021-xx-xx
 ### Added
 * Add timeout for canceling HTTP/2 server side connection handshake. Default to 5 seconds. [#2483]
-* HTTP/2 handshake timeout can be configured with `ServiceConfig::client_timeout`. [#2483] 
+* HTTP/2 handshake timeout can be configured with `ServiceConfig::client_timeout`. [#2483]
+* Rename `body::BoxBody::{from_body => new}`. [#????]
 
 [#2483]: https://github.com/actix/actix-web/pull/2483
+[#????]: https://github.com/actix/actix-web/pull/????
 
 ## 3.0.0-beta.14 - 2021-11-30
 ### Changed

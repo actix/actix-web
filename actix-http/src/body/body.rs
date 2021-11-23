@@ -14,6 +14,7 @@ use crate::error::Error;
 
 use super::{BodySize, BodyStream, MessageBody, MessageBodyMapErr, SizedStream};
 
+/// (Deprecated) Represents various types of HTTP message body.
 #[deprecated(since = "4.0.0", note = "Renamed to `AnyBody`.")]
 pub type Body = AnyBody;
 
@@ -48,7 +49,7 @@ impl AnyBody {
         B: MessageBody + 'static,
         B::Error: Into<Box<dyn StdError + 'static>>,
     {
-        Self::Body(BoxBody::from_body(body))
+        Self::Body(BoxBody::new(body))
     }
 
     /// Constructs new `AnyBody` instance from a slice of bytes by copying it.
@@ -242,7 +243,7 @@ pub struct BoxBody(Pin<Box<dyn MessageBody<Error = Box<dyn StdError>>>>);
 
 impl BoxBody {
     /// Boxes a `MessageBody` and any errors it generates.
-    pub fn from_body<B>(body: B) -> Self
+    pub fn new<B>(body: B) -> Self
     where
         B: MessageBody + 'static,
         B::Error: Into<Box<dyn StdError + 'static>>,
@@ -323,7 +324,7 @@ mod tests {
     #[actix_rt::test]
     async fn nested_boxed_body() {
         let body = AnyBody::copy_from_slice(&[1, 2, 3]);
-        let boxed_body = BoxBody::from_body(BoxBody::from_body(body));
+        let boxed_body = BoxBody::new(BoxBody::new(body));
 
         assert_eq!(
             to_bytes(boxed_body).await.unwrap(),
