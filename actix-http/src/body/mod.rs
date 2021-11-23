@@ -10,6 +10,7 @@ use futures_core::ready;
 #[allow(clippy::module_inception)]
 mod body;
 mod body_stream;
+mod boxed;
 mod message_body;
 mod size;
 mod sized_stream;
@@ -17,6 +18,7 @@ mod sized_stream;
 #[allow(deprecated)]
 pub use self::body::{AnyBody, Body, BoxBody};
 pub use self::body_stream::BodyStream;
+pub use self::boxed::BoxBody;
 pub use self::message_body::MessageBody;
 pub(crate) use self::message_body::MessageBodyMapErr;
 pub use self::size::BodySize;
