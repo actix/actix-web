@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::{fmt, net};
 
 use actix_http::{
-    body::{AnyBody, BoxBody, MessageBody},
+    body::{AnyBody, MessageBody},
     http::{HeaderMap, Method, StatusCode, Uri, Version},
     Extensions, HttpMessage, Payload, PayloadStream, RequestHead, Response, ResponseHead,
 };

@@ -1,5 +1,6 @@
 use std::{
     cell::{Ref, RefMut},
+    error::Error as StdError,
     fmt,
     future::Future,
     mem,
@@ -8,7 +9,7 @@ use std::{
 };
 
 use actix_http::{
-    body::{AnyBody, MessageBody},
+    body::{AnyBody, BoxBody, MessageBody},
     http::{header::HeaderMap, StatusCode},
     Extensions, Response, ResponseHead,
 };
@@ -229,7 +230,7 @@ impl<B> HttpResponse<B> {
 
     // TODO: into_body equivalent
 
-    pub(crate) fn into_boxed_body(self) -> HttpResponse<BoxBody>
+    pub fn into_boxed_body(self) -> HttpResponse<BoxBody>
     where
         B: MessageBody + 'static,
         B::Error: Into<Box<dyn StdError + 'static>>,
