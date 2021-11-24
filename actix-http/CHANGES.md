@@ -5,6 +5,7 @@
 * Add timeout for canceling HTTP/2 server side connection handshake. Default to 5 seconds. [#2483]
 * HTTP/2 handshake timeout can be configured with `ServiceConfig::client_timeout`. [#2483]
 * Rename `body::BoxBody::{from_body => new}`. [#????]
+* `Response::into_boxed_body`. [#????]
 * `body::EitherBody` enum. [#????]
 
 ### Changed

@@ -228,7 +228,14 @@ impl<B> HttpResponse<B> {
     }
 
     // TODO: into_body equivalent
-    // TODO: into_boxed_body
+
+    pub(crate) fn into_boxed_body(self) -> HttpResponse<BoxBody>
+    where
+        B: MessageBody + 'static,
+        B::Error: Into<Box<dyn StdError + 'static>>,
+    {
+        self.map_body(|_, body| BoxBody::new(body))
+    }
 
     /// Extract response body
     pub fn into_body(self) -> B {
