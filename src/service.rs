@@ -24,8 +24,8 @@ use crate::{
     Error, HttpRequest, HttpResponse,
 };
 
-pub(crate) type HttpService = BoxService<ServiceRequest, ServiceResponse, Error>;
-pub(crate) type HttpServiceFactory =
+pub(crate) type BoxedHttpService = BoxService<ServiceRequest, ServiceResponse, Error>;
+pub(crate) type BoxedHttpServiceFactory =
     BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
 
 pub trait HttpServiceFactory {

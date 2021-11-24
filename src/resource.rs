@@ -14,12 +14,15 @@ use futures_util::future::join_all;
 
 use crate::{
     data::Data,
-    dev::{ensure_leading_slash, AppService, HttpServiceFactory, ResourceDef},
+    dev::{ensure_leading_slash, AppService, ResourceDef},
     guard::Guard,
     handler::Handler,
     responder::Responder,
     route::{Route, RouteService},
-    service::{HttpService, HttpServiceFactory, ServiceRequest, ServiceResponse},
+    service::{
+        BoxedHttpService, BoxedHttpServiceFactory, HttpServiceFactory, ServiceRequest,
+        ServiceResponse,
+    },
     Error, FromRequest, HttpResponse,
 };
 
@@ -52,7 +55,7 @@ pub struct Resource<T = ResourceEndpoint> {
     routes: Vec<Route>,
     app_data: Option<Extensions>,
     guards: Vec<Box<dyn Guard>>,
-    default: HttpServiceFactory,
+    default: BoxedHttpServiceFactory,
     factory_ref: Rc<RefCell<Option<ResourceFactory>>>,
 }
 
@@ -418,7 +421,7 @@ where
 
 pub struct ResourceFactory {
     routes: Vec<Route>,
-    default: HttpServiceFactory,
+    default: BoxedHttpServiceFactory,
 }
 
 impl ServiceFactory<ServiceRequest> for ResourceFactory {
@@ -450,7 +453,7 @@ impl ServiceFactory<ServiceRequest> for ResourceFactory {
 
 pub struct ResourceService {
     routes: Vec<RouteService>,
-    default: HttpService,
+    default: BoxedHttpService,
 }
 
 impl Service<ServiceRequest> for ResourceService {

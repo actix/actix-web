@@ -13,7 +13,8 @@ use crate::{
     request::{HttpRequest, HttpRequestPool},
     rmap::ResourceMap,
     service::{
-        AppServiceFactory, HttpService, HttpServiceFactory, ServiceRequest, ServiceResponse,
+        AppServiceFactory, BoxedHttpService, BoxedHttpServiceFactory, ServiceRequest,
+        ServiceResponse,
     },
     Error, HttpResponse,
 };
@@ -36,7 +37,7 @@ where
     pub(crate) extensions: RefCell<Option<Extensions>>,
     pub(crate) async_data_factories: Rc<[FnDataFactory]>,
     pub(crate) services: Rc<RefCell<Vec<Box<dyn AppServiceFactory>>>>,
-    pub(crate) default: Option<Rc<HttpServiceFactory>>,
+    pub(crate) default: Option<Rc<BoxedHttpServiceFactory>>,
     pub(crate) factory_ref: Rc<RefCell<Option<AppRoutingFactory>>>,
     pub(crate) external: RefCell<Vec<ResourceDef>>,
 }
@@ -227,8 +228,14 @@ where
 }
 
 pub struct AppRoutingFactory {
-    services: Rc<[(ResourceDef, HttpServiceFactory, RefCell<Option<Guards>>)]>,
-    default: Rc<HttpServiceFactory>,
+    services: Rc<
+        [(
+            ResourceDef,
+            BoxedHttpServiceFactory,
+            RefCell<Option<Guards>>,
+        )],
+    >,
+    default: Rc<BoxedHttpServiceFactory>,
 }
 
 impl ServiceFactory<ServiceRequest> for AppRoutingFactory {
@@ -276,8 +283,8 @@ impl ServiceFactory<ServiceRequest> for AppRoutingFactory {
 
 /// The Actix Web router default entry point.
 pub struct AppRouting {
-    router: Router<HttpService, Guards>,
-    default: HttpService,
+    router: Router<BoxedHttpService, Guards>,
+    default: BoxedHttpService,
 }
 
 impl Service<ServiceRequest> for AppRouting {

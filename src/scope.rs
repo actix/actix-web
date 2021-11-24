@@ -12,12 +12,12 @@ use futures_util::future::join_all;
 use crate::{
     config::ServiceConfig,
     data::Data,
-    dev::{AppService, HttpServiceFactory},
+    dev::AppService,
     guard::Guard,
     rmap::ResourceMap,
     service::{
-        AppServiceFactory, HttpService, HttpServiceFactory, ServiceFactoryWrapper,
-        ServiceRequest, ServiceResponse,
+        AppServiceFactory, BoxedHttpService, BoxedHttpServiceFactory, HttpServiceFactory,
+        ServiceFactoryWrapper, ServiceRequest, ServiceResponse,
     },
     Error, Resource, Route,
 };
@@ -58,7 +58,7 @@ pub struct Scope<T = ScopeEndpoint> {
     app_data: Option<Extensions>,
     services: Vec<Box<dyn AppServiceFactory>>,
     guards: Vec<Box<dyn Guard>>,
-    default: Option<Rc<HttpServiceFactory>>,
+    default: Option<Rc<BoxedHttpServiceFactory>>,
     external: Vec<ResourceDef>,
     factory_ref: Rc<RefCell<Option<ScopeFactory>>>,
 }
@@ -470,8 +470,14 @@ where
 }
 
 pub struct ScopeFactory {
-    services: Rc<[(ResourceDef, HttpServiceFactory, RefCell<Option<Guards>>)]>,
-    default: Rc<HttpServiceFactory>,
+    services: Rc<
+        [(
+            ResourceDef,
+            BoxedHttpServiceFactory,
+            RefCell<Option<Guards>>,
+        )],
+    >,
+    default: Rc<BoxedHttpServiceFactory>,
 }
 
 impl ServiceFactory<ServiceRequest> for ScopeFactory {
@@ -518,8 +524,8 @@ impl ServiceFactory<ServiceRequest> for ScopeFactory {
 }
 
 pub struct ScopeService {
-    router: Router<HttpService, Vec<Box<dyn Guard>>>,
-    default: HttpService,
+    router: Router<BoxedHttpService, Vec<Box<dyn Guard>>>,
+    default: BoxedHttpService,
 }
 
 impl Service<ServiceRequest> for ScopeService {
