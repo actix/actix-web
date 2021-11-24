@@ -88,7 +88,7 @@ impl Charset {
             Iso_8859_8_E => "ISO-8859-8-E",
             Iso_8859_8_I => "ISO-8859-8-I",
             Gb2312 => "GB2312",
-            Big5 => "big5",
+            Big5 => "Big5",
             Koi8_R => "KOI8-R",
             Ext(ref s) => s,
         }
@@ -128,7 +128,7 @@ impl FromStr for Charset {
             "ISO-8859-8-E" => Iso_8859_8_E,
             "ISO-8859-8-I" => Iso_8859_8_I,
             "GB2312" => Gb2312,
-            "big5" => Big5,
+            "BIG5" => Big5,
             "KOI8-R" => Koi8_R,
             s => Ext(s.to_owned()),
         })
