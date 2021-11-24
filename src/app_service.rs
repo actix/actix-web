@@ -2,10 +2,7 @@ use std::{cell::RefCell, mem, rc::Rc};
 
 use actix_http::{Extensions, Request};
 use actix_router::{Path, ResourceDef, Router, Url};
-use actix_service::{
-    boxed::{self, BoxService, BoxServiceFactory},
-    fn_service, Service, ServiceFactory,
-};
+use actix_service::{boxed, fn_service, Service, ServiceFactory};
 use futures_core::future::LocalBoxFuture;
 use futures_util::future::join_all;
 
@@ -15,13 +12,13 @@ use crate::{
     guard::Guard,
     request::{HttpRequest, HttpRequestPool},
     rmap::ResourceMap,
-    service::{AppServiceFactory, ServiceRequest, ServiceResponse},
+    service::{
+        AppServiceFactory, HttpService, HttpServiceFactory, ServiceRequest, ServiceResponse,
+    },
     Error, HttpResponse,
 };
 
 type Guards = Vec<Box<dyn Guard>>;
-type HttpService = BoxService<ServiceRequest, ServiceResponse, Error>;
-type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
 
 /// Service factory to convert `Request` to a `ServiceRequest<S>`.
 /// It also executes data factories.
@@ -39,7 +36,7 @@ where
     pub(crate) extensions: RefCell<Option<Extensions>>,
     pub(crate) async_data_factories: Rc<[FnDataFactory]>,
     pub(crate) services: Rc<RefCell<Vec<Box<dyn AppServiceFactory>>>>,
-    pub(crate) default: Option<Rc<HttpNewService>>,
+    pub(crate) default: Option<Rc<HttpServiceFactory>>,
     pub(crate) factory_ref: Rc<RefCell<Option<AppRoutingFactory>>>,
     pub(crate) external: RefCell<Vec<ResourceDef>>,
 }
@@ -230,8 +227,8 @@ where
 }
 
 pub struct AppRoutingFactory {
-    services: Rc<[(ResourceDef, HttpNewService, RefCell<Option<Guards>>)]>,
-    default: Rc<HttpNewService>,
+    services: Rc<[(ResourceDef, HttpServiceFactory, RefCell<Option<Guards>>)]>,
+    default: Rc<HttpServiceFactory>,
 }
 
 impl ServiceFactory<ServiceRequest> for AppRoutingFactory {

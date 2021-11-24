@@ -3,12 +3,15 @@ use std::rc::Rc;
 use std::{fmt, net};
 
 use actix_http::{
-    body::{AnyBody, MessageBody},
+    body::{AnyBody, BoxBody, MessageBody},
     http::{HeaderMap, Method, StatusCode, Uri, Version},
     Extensions, HttpMessage, Payload, PayloadStream, RequestHead, Response, ResponseHead,
 };
 use actix_router::{IntoPatterns, Path, Patterns, Resource, ResourceDef, Url};
-use actix_service::{IntoServiceFactory, ServiceFactory};
+use actix_service::{
+    boxed::{BoxService, BoxServiceFactory},
+    IntoServiceFactory, ServiceFactory,
+};
 #[cfg(feature = "cookies")]
 use cookie::{Cookie, ParseError as CookieParseError};
 
@@ -20,6 +23,10 @@ use crate::{
     rmap::ResourceMap,
     Error, HttpRequest, HttpResponse,
 };
+
+pub(crate) type HttpService = BoxService<ServiceRequest, ServiceResponse, Error>;
+pub(crate) type HttpServiceFactory =
+    BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
 
 pub trait HttpServiceFactory {
     fn register(self, config: &mut AppService);

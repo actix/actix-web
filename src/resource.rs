@@ -5,9 +5,8 @@ use std::rc::Rc;
 
 use actix_http::Extensions;
 use actix_router::{IntoPatterns, Patterns};
-use actix_service::boxed::{self, BoxService, BoxServiceFactory};
 use actix_service::{
-    apply, apply_fn_factory, fn_service, IntoServiceFactory, Service, ServiceFactory,
+    apply, apply_fn_factory, boxed, fn_service, IntoServiceFactory, Service, ServiceFactory,
     ServiceFactoryExt, Transform,
 };
 use futures_core::future::LocalBoxFuture;
@@ -20,12 +19,9 @@ use crate::{
     handler::Handler,
     responder::Responder,
     route::{Route, RouteService},
-    service::{ServiceRequest, ServiceResponse},
+    service::{HttpService, HttpServiceFactory, ServiceRequest, ServiceResponse},
     Error, FromRequest, HttpResponse,
 };
-
-type HttpService = BoxService<ServiceRequest, ServiceResponse, Error>;
-type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
 
 /// *Resource* is an entry in resources table which corresponds to requested URL.
 ///
@@ -56,7 +52,7 @@ pub struct Resource<T = ResourceEndpoint> {
     routes: Vec<Route>,
     app_data: Option<Extensions>,
     guards: Vec<Box<dyn Guard>>,
-    default: HttpNewService,
+    default: HttpServiceFactory,
     factory_ref: Rc<RefCell<Option<ResourceFactory>>>,
 }
 
@@ -422,7 +418,7 @@ where
 
 pub struct ResourceFactory {
     routes: Vec<Route>,
-    default: HttpNewService,
+    default: HttpServiceFactory,
 }
 
 impl ServiceFactory<ServiceRequest> for ResourceFactory {

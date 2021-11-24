@@ -3,9 +3,8 @@ use std::{cell::RefCell, fmt, future::Future, mem, rc::Rc};
 use actix_http::Extensions;
 use actix_router::{ResourceDef, Router};
 use actix_service::{
-    apply, apply_fn_factory,
-    boxed::{self, BoxService, BoxServiceFactory},
-    IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt, Transform,
+    apply, apply_fn_factory, boxed, IntoServiceFactory, Service, ServiceFactory,
+    ServiceFactoryExt, Transform,
 };
 use futures_core::future::LocalBoxFuture;
 use futures_util::future::join_all;
@@ -16,13 +15,14 @@ use crate::{
     dev::{AppService, HttpServiceFactory},
     guard::Guard,
     rmap::ResourceMap,
-    service::{AppServiceFactory, ServiceFactoryWrapper, ServiceRequest, ServiceResponse},
+    service::{
+        AppServiceFactory, HttpService, HttpServiceFactory, ServiceFactoryWrapper,
+        ServiceRequest, ServiceResponse,
+    },
     Error, Resource, Route,
 };
 
 type Guards = Vec<Box<dyn Guard>>;
-type HttpService = BoxService<ServiceRequest, ServiceResponse, Error>;
-type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
 
 /// Resources scope.
 ///
@@ -58,7 +58,7 @@ pub struct Scope<T = ScopeEndpoint> {
     app_data: Option<Extensions>,
     services: Vec<Box<dyn AppServiceFactory>>,
     guards: Vec<Box<dyn Guard>>,
-    default: Option<Rc<HttpNewService>>,
+    default: Option<Rc<HttpServiceFactory>>,
     external: Vec<ResourceDef>,
     factory_ref: Rc<RefCell<Option<ScopeFactory>>>,
 }
@@ -470,8 +470,8 @@ where
 }
 
 pub struct ScopeFactory {
-    services: Rc<[(ResourceDef, HttpNewService, RefCell<Option<Guards>>)]>,
-    default: Rc<HttpNewService>,
+    services: Rc<[(ResourceDef, HttpServiceFactory, RefCell<Option<Guards>>)]>,
+    default: Rc<HttpServiceFactory>,
 }
 
 impl ServiceFactory<ServiceRequest> for ScopeFactory {

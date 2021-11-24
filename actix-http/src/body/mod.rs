@@ -30,9 +30,9 @@ mod tests {
     use actix_utils::future::poll_fn;
     use bytes::{Bytes, BytesMut};
 
-    use super::{to_bytes, AnyBody as TestAnyBody, BodySize, MessageBody as _};
+    use super::{AnyBody as TestAnyBody, *};
 
-    impl AnyBody {
+    impl TestAnyBody {
         pub(crate) fn get_ref(&self) -> &[u8] {
             match *self {
                 AnyBody::Bytes(ref bin) => bin,
