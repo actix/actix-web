@@ -70,7 +70,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn nested_boxed_body() {
-        let body = Bytes::from(&[1, 2, 3]);
+        let body = Bytes::from_static(&[1, 2, 3]);
         let boxed_body = BoxBody::new(BoxBody::new(body));
 
         assert_eq!(

@@ -78,6 +78,6 @@ mod tests {
 
     #[test]
     fn either_body_works() {
-        EitherBody::left(());
+        let body = EitherBody::new(());
     }
 }

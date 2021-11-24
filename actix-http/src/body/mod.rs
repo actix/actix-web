@@ -1,12 +1,5 @@
 //! Traits and structures to aid consuming and writing HTTP payloads.
 
-use std::task::Poll;
-
-use actix_rt::pin;
-use actix_utils::future::poll_fn;
-use bytes::{Bytes, BytesMut};
-use futures_core::ready;
-
 #[allow(clippy::module_inception)]
 mod body;
 mod body_stream;
@@ -15,6 +8,7 @@ mod either;
 mod message_body;
 mod size;
 mod sized_stream;
+mod utils;
 
 pub use self::body::AnyBody;
 #[allow(deprecated)]
@@ -26,51 +20,7 @@ pub use self::message_body::MessageBody;
 pub(crate) use self::message_body::MessageBodyMapErr;
 pub use self::size::BodySize;
 pub use self::sized_stream::SizedStream;
-
-/// Collects the body produced by a `MessageBody` implementation into `Bytes`.
-///
-/// Any errors produced by the body stream are returned immediately.
-///
-/// # Examples
-/// ```
-/// use actix_http::body::{AnyBody, to_bytes};
-/// use bytes::Bytes;
-///
-/// # async fn test_to_bytes() {
-/// let body = AnyBody::none();
-/// let bytes = to_bytes(body).await.unwrap();
-/// assert!(bytes.is_empty());
-///
-/// let body = AnyBody::copy_from_slice(b"123");
-/// let bytes = to_bytes(body).await.unwrap();
-/// assert_eq!(bytes, b"123"[..]);
-/// # }
-/// ```
-pub async fn to_bytes<B: MessageBody>(body: B) -> Result<Bytes, B::Error> {
-    let cap = match body.size() {
-        BodySize::None | BodySize::Sized(0) => return Ok(Bytes::new()),
-        BodySize::Sized(size) => size as usize,
-        // good enough first guess for chunk size
-        BodySize::Stream => 32_768,
-    };
-
-    let mut buf = BytesMut::with_capacity(cap);
-
-    pin!(body);
-
-    poll_fn(|cx| loop {
-        let body = body.as_mut();
-
-        match ready!(body.poll_next(cx)) {
-            Some(Ok(bytes)) => buf.extend_from_slice(&*bytes),
-            None => return Poll::Ready(Ok(())),
-            Some(Err(err)) => return Poll::Ready(Err(err)),
-        }
-    })
-    .await?;
-
-    Ok(buf.freeze())
-}
+pub use self::utils::to_bytes;
 
 #[cfg(test)]
 mod tests {
@@ -262,16 +212,5 @@ mod tests {
         assert_eq!(body, "hello cast!");
         let not_body = resp_body.downcast_ref::<()>();
         assert!(not_body.is_none());
-    }
-
-    #[actix_rt::test]
-    async fn test_to_bytes() {
-        let body = AnyBody::empty();
-        let bytes = to_bytes(body).await.unwrap();
-        assert!(bytes.is_empty());
-
-        let body = AnyBody::copy_from_slice(b"123");
-        let bytes = to_bytes(body).await.unwrap();
-        assert_eq!(bytes, b"123"[..]);
     }
 }
