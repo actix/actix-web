@@ -76,6 +76,38 @@ pub trait FromRequest: Sized {
     }
 }
 
+pub trait FromRequestX<'a>: Sized {
+    /// Must be Self unless the extractor borrows request.
+    type Output;
+
+    /// The associated error which can be returned.
+    // TODO Consider adding 'static bound
+    type Error: Into<Error>;
+
+    /// Future that resolves to a Self.
+    type Future: Future<Output = Result<Self::Output, Self::Error>>;
+
+    /// Create a Self from request parts asynchronously.
+    fn from_request(req: &'a HttpRequest, payload: &mut Payload) -> Self::Future;
+
+    /// Create a Self from request head asynchronously.
+    ///
+    /// This method is short for `T::from_request(req, &mut Payload::None)`.
+    fn extract(req: &'a HttpRequest) -> Self::Future {
+        Self::from_request(req, &mut Payload::None)
+    }
+}
+
+impl<'a, T: FromRequest> FromRequestX<'a> for T {
+    type Output = Self;
+    type Error = <Self as FromRequest>::Error;
+    type Future = <Self as FromRequest>::Future;
+
+    fn from_request(req: &'a HttpRequest, payload: &mut Payload) -> Self::Future {
+        Self::from_request(req, payload)
+    }
+}
+
 /// Optionally extract a field from the request
 ///
 /// If the FromRequest for T fails, return None rather than returning an error response
@@ -123,16 +155,16 @@ pub trait FromRequest: Sized {
 ///     );
 /// }
 /// ```
-impl<T: 'static> FromRequest for Option<T>
+impl<'a, T> FromRequestX<'a> for Option<T>
 where
-    T: FromRequest,
-    T::Future: 'static,
+    T: FromRequestX<'a>,
 {
+    type Output = Option<T::Output>;
     type Error = Error;
     type Future = FromRequestOptFuture<T::Future>;
 
     #[inline]
-    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+    fn from_request(req: &'a HttpRequest, payload: &mut Payload) -> Self::Future {
         FromRequestOptFuture {
             fut: T::from_request(req, payload),
         }
@@ -209,6 +241,7 @@ where
 ///     );
 /// }
 /// ```
+// TODO
 impl<T> FromRequest for Result<T, T::Error>
 where
     T: FromRequest + 'static,
@@ -266,6 +299,26 @@ impl FromRequest for Uri {
     }
 }
 
+impl<'a> FromRequestX<'a> for &Uri {
+    type Output = &'a Uri;
+    type Error = Infallible;
+    type Future = Ready<Result<Self::Output, Self::Error>>;
+
+    fn from_request(req: &'a HttpRequest, _: &mut Payload) -> Self::Future {
+        ok(req.uri())
+    }
+}
+
+impl<'a> FromRequestX<'a> for &HttpRequest {
+    type Output = &'a HttpRequest;
+    type Error = Infallible;
+    type Future = Ready<Result<Self::Output, Self::Error>>;
+
+    fn from_request(req: &'a HttpRequest, _: &mut Payload) -> Self::Future {
+        ok(req)
+    }
+}
+
 /// Extract the request's method.
 ///
 /// # Examples
@@ -318,38 +371,41 @@ macro_rules! tuple_from_req ({$fut_type:ident, $(($n:tt, $T:ident)),+} => {
         // redundant imports
         use super::*;
 
+        use std::marker::PhantomData;
+
         /// A helper struct to allow us to pin-project through
         /// to individual fields
         #[pin_project::pin_project]
-        struct FutWrapper<$($T: FromRequest),+>($(#[pin] $T::Future),+);
+        struct FutWrapper<'a, $($T: FromRequestX<'a>),+>($(#[pin] $T::Future,)+ PhantomData<&'a ()>);
 
         /// FromRequest implementation for tuple
         #[doc(hidden)]
         #[allow(unused_parens)]
-        impl<$($T: FromRequest + 'static),+> FromRequest for ($($T,)+)
+        impl<'a, $($T: FromRequestX<'a>),+> FromRequestX<'a> for ($($T,)+)
         {
+            type Output = ($($T::Output,)+);
             type Error = Error;
-            type Future = $fut_type<$($T),+>;
+            type Future = $fut_type<'a, $($T),+>;
 
-            fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+            fn from_request(req: &'a HttpRequest, payload: &mut Payload) -> Self::Future {
                 $fut_type {
-                    items: <($(Option<$T>,)+)>::default(),
-                    futs: FutWrapper($($T::from_request(req, payload),)+),
+                    items: <($(Option<$T::Output>,)+)>::default(),
+                    futs: FutWrapper($($T::from_request(req, payload),)+ PhantomData),
                 }
             }
         }
 
         #[doc(hidden)]
         #[pin_project::pin_project]
-        pub struct $fut_type<$($T: FromRequest),+> {
-            items: ($(Option<$T>,)+),
+        pub struct $fut_type<'a, $($T: FromRequestX<'a>),+> {
+            items: ($(Option<$T::Output>,)+),
             #[pin]
-            futs: FutWrapper<$($T,)+>,
+            futs: FutWrapper<'a, $($T,)+>,
         }
 
-        impl<$($T: FromRequest),+> Future for $fut_type<$($T),+>
+        impl<'a, $($T: FromRequestX<'a>),+> Future for $fut_type<'a, $($T),+>
         {
-            type Output = Result<($($T,)+), Error>;
+            type Output = Result<($($T::Output,)+), Error>;
 
             fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
                 let mut this = self.project();
@@ -404,6 +460,9 @@ mod tests {
     use super::*;
     use crate::test::TestRequest;
     use crate::types::{Form, FormConfig};
+
+    // shadow
+    trait FromRequest {}
 
     #[derive(Deserialize, Debug, PartialEq)]
     struct Info {

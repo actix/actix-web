@@ -7,8 +7,8 @@ use actix_router::IntoPatterns;
 pub use bytes::{Buf, BufMut, Bytes, BytesMut};
 
 use crate::{
-    error::BlockingError, extract::FromRequest, handler::Handler, resource::Resource,
-    responder::Responder, route::Route, scope::Scope, service::WebService,
+    error::BlockingError, extract::FromRequestX, handler::Handler, resource::Resource,
+    route::Route, scope::Scope, service::WebService,
 };
 
 pub use crate::config::ServiceConfig;
@@ -139,12 +139,10 @@ pub fn method(method: Method) -> Route {
 ///         web::to(index))
 /// );
 /// ```
-pub fn to<F, I, R>(handler: F) -> Route
+pub fn to<F, I>(handler: F) -> Route
 where
-    F: Handler<I, R>,
-    I: FromRequest + 'static,
-    R: Future + 'static,
-    R::Output: Responder + 'static,
+    F: for<'a> Handler<'a, I>,
+    I: for<'a> FromRequestX<'a>,
 {
     Route::new().to(handler)
 }

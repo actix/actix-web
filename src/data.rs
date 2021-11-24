@@ -6,8 +6,8 @@ use futures_core::future::LocalBoxFuture;
 use serde::Serialize;
 
 use crate::{
-    dev::Payload, error::ErrorInternalServerError, extract::FromRequest, request::HttpRequest,
-    Error,
+    dev::Payload, error::ErrorInternalServerError, request::HttpRequest, Error, FromRequest,
+    FromRequestX,
 };
 
 /// Data factory.
@@ -143,6 +143,29 @@ impl<T: ?Sized + 'static> FromRequest for Data<T> {
     }
 }
 
+impl<'a, T: ?Sized + 'static> FromRequestX<'a> for &Data<T> {
+    type Output = &'a Data<T>;
+    type Error = Error;
+    type Future = Ready<Result<Self::Output, Error>>;
+
+    #[inline]
+    fn from_request(req: &'a HttpRequest, _: &mut Payload) -> Self::Future {
+        if let Some(st) = req.app_data::<Data<T>>() {
+            ok(st)
+        } else {
+            log::debug!(
+                "Failed to construct App-level Data extractor. \
+                 Request path: {:?} (type: {})",
+                req.path(),
+                type_name::<T>(),
+            );
+            err(ErrorInternalServerError(
+                "App data is not configured, to configure construct it with web::Data::new() and pass it to App::app_data()",
+            ))
+        }
+    }
+}
+
 impl<T: ?Sized + 'static> DataFactory for Data<T> {
     fn create(&self, extensions: &mut Extensions) -> bool {
         extensions.insert(Data(self.0.clone()));
@@ -159,6 +182,9 @@ mod tests {
         test::{init_service, TestRequest},
         web, App, HttpResponse,
     };
+
+    // shadow
+    trait FromRequest {}
 
     // allow deprecated App::data
     #[allow(deprecated)]
