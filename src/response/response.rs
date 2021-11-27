@@ -9,7 +9,7 @@ use std::{
 };
 
 use actix_http::{
-    body::{AnyBody, BoxBody, MessageBody},
+    body::{BoxBody, MessageBody},
     http::{header::HeaderMap, StatusCode},
     Extensions, Response, ResponseHead,
 };
@@ -26,12 +26,12 @@ use {
 use crate::{error::Error, HttpResponseBuilder};
 
 /// An outgoing response.
-pub struct HttpResponse<B = AnyBody> {
+pub struct HttpResponse<B = BoxBody> {
     res: Response<B>,
     pub(crate) error: Option<Error>,
 }
 
-impl HttpResponse<AnyBody> {
+impl HttpResponse<BoxBody> {
     /// Constructs a response.
     #[inline]
     pub fn new(status: StatusCode) -> Self {
@@ -228,9 +228,9 @@ impl<B> HttpResponse<B> {
         }
     }
 
-    // TODO: into_body equivalent
+    // TODO: old into_body equivalent, maybe
 
-    pub fn into_boxed_body(self) -> HttpResponse<BoxBody>
+    pub fn map_into_boxed_body(self) -> HttpResponse<BoxBody>
     where
         B: MessageBody + 'static,
         B::Error: Into<Box<dyn StdError + 'static>>,
@@ -281,14 +281,14 @@ impl<B> From<HttpResponse<B>> for Response<B> {
     }
 }
 
-// Future is only implemented for AnyBody payload type because it's the most useful for making
+// Future is only implemented for BoxBody payload type because it's the most useful for making
 // simple handlers without async blocks. Making it generic over all MessageBody types requires a
 // future impl on Response which would cause it's body field to be, undesirably, Option<B>.
 //
 // This impl is not particularly efficient due to the Response construction and should probably
 // not be invoked if performance is important. Prefer an async fn/block in such cases.
-impl Future for HttpResponse<AnyBody> {
-    type Output = Result<Response<AnyBody>, Error>;
+impl Future for HttpResponse<BoxBody> {
+    type Output = Result<Response<BoxBody>, Error>;
 
     fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
         if let Some(err) = self.error.take() {

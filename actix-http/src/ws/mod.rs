@@ -8,9 +8,9 @@ use std::io;
 use derive_more::{Display, Error, From};
 use http::{header, Method, StatusCode};
 
+use crate::body::BoxBody;
 use crate::{
-    body::AnyBody, header::HeaderValue, message::RequestHead, response::Response,
-    ResponseBuilder,
+    header::HeaderValue, message::RequestHead, response::Response, ResponseBuilder,
 };
 
 mod codec;
@@ -69,7 +69,7 @@ pub enum ProtocolError {
 }
 
 /// WebSocket handshake errors
-#[derive(Debug, PartialEq, Display, Error)]
+#[derive(Debug, Clone, Copy, PartialEq, Display, Error)]
 pub enum HandshakeError {
     /// Only get method is allowed.
     #[display(fmt = "Method not allowed.")]
@@ -96,8 +96,8 @@ pub enum HandshakeError {
     BadWebsocketKey,
 }
 
-impl From<&HandshakeError> for Response<AnyBody> {
-    fn from(err: &HandshakeError) -> Self {
+impl From<HandshakeError> for Response<BoxBody> {
+    fn from(err: HandshakeError) -> Self {
         match err {
             HandshakeError::GetMethodRequired => {
                 let mut res = Response::new(StatusCode::METHOD_NOT_ALLOWED);
@@ -139,9 +139,9 @@ impl From<&HandshakeError> for Response<AnyBody> {
     }
 }
 
-impl From<HandshakeError> for Response<AnyBody> {
-    fn from(err: HandshakeError) -> Self {
-        (&err).into()
+impl From<&HandshakeError> for Response<BoxBody> {
+    fn from(err: &HandshakeError) -> Self {
+        (*err).into()
     }
 }
 
@@ -220,9 +220,10 @@ pub fn handshake_response(req: &RequestHead) -> ResponseBuilder {
 
 #[cfg(test)]
 mod tests {
+    use crate::{header, Method};
+
     use super::*;
-    use crate::{body::AnyBody, test::TestRequest};
-    use http::{header, Method};
+    use crate::test::TestRequest;
 
     #[test]
     fn test_handshake() {
@@ -336,17 +337,17 @@ mod tests {
 
     #[test]
     fn test_ws_error_http_response() {
-        let resp: Response<AnyBody> = HandshakeError::GetMethodRequired.into();
+        let resp: Response<BoxBody> = HandshakeError::GetMethodRequired.into();
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
-        let resp: Response<AnyBody> = HandshakeError::NoWebsocketUpgrade.into();
+        let resp: Response<BoxBody> = HandshakeError::NoWebsocketUpgrade.into();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let resp: Response<AnyBody> = HandshakeError::NoConnectionUpgrade.into();
+        let resp: Response<BoxBody> = HandshakeError::NoConnectionUpgrade.into();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let resp: Response<AnyBody> = HandshakeError::NoVersionHeader.into();
+        let resp: Response<BoxBody> = HandshakeError::NoVersionHeader.into();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let resp: Response<AnyBody> = HandshakeError::UnsupportedVersion.into();
+        let resp: Response<BoxBody> = HandshakeError::UnsupportedVersion.into();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let resp: Response<AnyBody> = HandshakeError::BadWebsocketKey.into();
+        let resp: Response<BoxBody> = HandshakeError::BadWebsocketKey.into();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 }

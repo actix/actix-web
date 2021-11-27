@@ -4,6 +4,7 @@
 ### Added
 * Methods on `AcceptLanguage`: `ranked` and `preference`. [#2480]
 * `AcceptEncoding` typed header. [#2482]
+* `HttpResponse::map_into_boxed_body`. [#????]
 
 ### Changed
 * Rename `Accept::{mime_precedence => ranked}`. [#2480]
@@ -13,6 +14,7 @@
 * Accept wildcard `*` items in `AcceptLanguage`. [#2480]
 * Typed headers containing lists that require one or more items now enforce this minimum. [#2482]
 
+[#????]: https://github.com/actix/actix-web/pull/????
 [#2480]: https://github.com/actix/actix-web/pull/2480
 [#2482]: https://github.com/actix/actix-web/pull/2482
 

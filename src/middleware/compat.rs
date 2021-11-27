@@ -7,7 +7,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use actix_http::body::{AnyBody, MessageBody};
+use actix_http::body::MessageBody;
 use actix_service::{Service, Transform};
 use futures_core::{future::LocalBoxFuture, ready};
 use pin_project_lite::pin_project;
@@ -126,7 +126,7 @@ where
     B::Error: Into<Box<dyn StdError + 'static>>,
 {
     fn map_body(self) -> ServiceResponse {
-        self.map_body(|_, body| AnyBody::new_boxed(body))
+        self.map_into_boxed_body()
     }
 }
 

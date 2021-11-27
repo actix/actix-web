@@ -586,12 +586,11 @@ mod tests {
     use bytes::Bytes;
 
     use crate::{
-        dev::AnyBody,
         guard,
         http::{header, HeaderValue, Method, StatusCode},
         middleware::DefaultHeaders,
         service::{ServiceRequest, ServiceResponse},
-        test::{call_service, init_service, read_body, TestRequest},
+        test::{assert_body_eq, call_service, init_service, read_body, TestRequest},
         web, App, HttpMessage, HttpRequest, HttpResponse,
     };
 
@@ -754,20 +753,13 @@ mod tests {
         .await;
 
         let req = TestRequest::with_uri("/ab-project1/path1").to_request();
-        let resp = srv.call(req).await.unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
-
-        match resp.response().body() {
-            AnyBody::Bytes(ref b) => {
-                let bytes = b.clone();
-                assert_eq!(bytes, Bytes::from_static(b"project: project1"));
-            }
-            _ => panic!(),
-        }
+        let res = srv.call(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_body_eq!(res, b"project: project1");
 
         let req = TestRequest::with_uri("/aa-project1/path1").to_request();
-        let resp = srv.call(req).await.unwrap();
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        let res = srv.call(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::NOT_FOUND);
     }
 
     #[actix_rt::test]
@@ -855,16 +847,9 @@ mod tests {
         .await;
 
         let req = TestRequest::with_uri("/app/project_1/path1").to_request();
-        let resp = srv.call(req).await.unwrap();
-        assert_eq!(resp.status(), StatusCode::CREATED);
-
-        match resp.response().body() {
-            AnyBody::Bytes(ref b) => {
-                let bytes = b.clone();
-                assert_eq!(bytes, Bytes::from_static(b"project: project_1"));
-            }
-            _ => panic!(),
-        }
+        let res = srv.call(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::CREATED);
+        assert_body_eq!(res, b"project: project_1");
     }
 
     #[actix_rt::test]
@@ -883,20 +868,13 @@ mod tests {
         .await;
 
         let req = TestRequest::with_uri("/app/test/1/path1").to_request();
-        let resp = srv.call(req).await.unwrap();
-        assert_eq!(resp.status(), StatusCode::CREATED);
-
-        match resp.response().body() {
-            AnyBody::Bytes(ref b) => {
-                let bytes = b.clone();
-                assert_eq!(bytes, Bytes::from_static(b"project: test - 1"));
-            }
-            _ => panic!(),
-        }
+        let res = srv.call(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::CREATED);
+        assert_body_eq!(res, b"project: test - 1");
 
         let req = TestRequest::with_uri("/app/test/1/path2").to_request();
-        let resp = srv.call(req).await.unwrap();
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        let res = srv.call(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::NOT_FOUND);
     }
 
     #[actix_rt::test]

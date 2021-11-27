@@ -34,7 +34,7 @@ impl BoxBody {
 
 impl fmt::Debug for BoxBody {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("BoxAnyBody(dyn MessageBody)")
+        f.write_str("BoxBody(dyn MessageBody)")
     }
 }
 

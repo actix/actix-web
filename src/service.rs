@@ -1,9 +1,12 @@
-use std::cell::{Ref, RefMut};
-use std::rc::Rc;
-use std::{fmt, net};
+use std::{
+    cell::{Ref, RefMut},
+    error::Error as StdError,
+    fmt, net,
+    rc::Rc,
+};
 
 use actix_http::{
-    body::{AnyBody, MessageBody},
+    body::{BoxBody, MessageBody},
     http::{HeaderMap, Method, StatusCode, Uri, Version},
     Extensions, HttpMessage, Payload, PayloadStream, RequestHead, Response, ResponseHead,
 };
@@ -333,12 +336,12 @@ impl fmt::Debug for ServiceRequest {
 }
 
 /// A service level response wrapper.
-pub struct ServiceResponse<B = AnyBody> {
+pub struct ServiceResponse<B = BoxBody> {
     request: HttpRequest,
     response: HttpResponse<B>,
 }
 
-impl ServiceResponse<AnyBody> {
+impl ServiceResponse<BoxBody> {
     /// Create service response from the error
     pub fn from_err<E: Into<Error>>(err: E, request: HttpRequest) -> Self {
         let response = HttpResponse::from_error(err);
@@ -418,6 +421,14 @@ impl<B> ServiceResponse<B> {
             response,
             request: self.request,
         }
+    }
+
+    pub fn map_into_boxed_body(self) -> ServiceResponse<BoxBody>
+    where
+        B: MessageBody + 'static,
+        B::Error: Into<Box<dyn StdError + 'static>>,
+    {
+        self.map_body(|_, body| BoxBody::new(body))
     }
 }
 

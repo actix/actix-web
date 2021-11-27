@@ -24,7 +24,7 @@ use log::{error, trace};
 use pin_project_lite::pin_project;
 
 use crate::{
-    body::{AnyBody, BodySize, MessageBody},
+    body::{BodySize, BoxBody, MessageBody},
     config::ServiceConfig,
     service::HttpFlow,
     OnConnectData, Payload, Request, Response, ResponseHead,
@@ -92,7 +92,7 @@ where
     T: AsyncRead + AsyncWrite + Unpin,
 
     S: Service<Request>,
-    S::Error: Into<Response<AnyBody>>,
+    S::Error: Into<Response<BoxBody>>,
     S::Future: 'static,
     S::Response: Into<Response<B>>,
 
@@ -132,7 +132,7 @@ where
                         let res = match fut.await {
                             Ok(res) => handle_response(res.into(), tx, config).await,
                             Err(err) => {
-                                let res: Response<AnyBody> = err.into();
+                                let res: Response<BoxBody> = err.into();
                                 handle_response(res, tx, config).await
                             }
                         };

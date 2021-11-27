@@ -1,7 +1,7 @@
 //! Lower-level types and re-exports.
 //!
 //! Most users will not have to interact with the types in this module, but it is useful for those
-//! writing extractors, middleware and libraries, or interacting with the service API directly.
+//! writing extractors, middleware, libraries, or interacting with the service API directly.
 
 pub use crate::config::{AppConfig, AppService};
 #[doc(hidden)]
@@ -17,8 +17,6 @@ pub use crate::types::readlines::Readlines;
 #[allow(deprecated)]
 pub use actix_http::body::{AnyBody, Body, BodySize, MessageBody, SizedStream};
 
-#[cfg(feature = "__compress")]
-pub use actix_http::encoding::Decoder as Decompress;
 pub use actix_http::{Extensions, Payload, PayloadStream, RequestHead, Response, ResponseHead};
 pub use actix_router::{Path, ResourceDef, ResourcePath, Url};
 pub use actix_server::{Server, ServerHandle};
@@ -26,8 +24,10 @@ pub use actix_service::{
     always_ready, fn_factory, fn_service, forward_ready, Service, ServiceFactory, Transform,
 };
 
+#[cfg(feature = "__compress")]
+pub use actix_http::encoding::Decoder as Decompress;
+
 use crate::http::header::ContentEncoding;
-use actix_http::ResponseBuilder;
 
 use actix_router::Patterns;
 
@@ -62,7 +62,7 @@ pub trait BodyEncoding {
     fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self;
 }
 
-impl BodyEncoding for ResponseBuilder {
+impl BodyEncoding for actix_http::ResponseBuilder {
     fn get_encoding(&self) -> Option<ContentEncoding> {
         self.extensions().get::<Enc>().map(|enc| enc.0)
     }
@@ -73,7 +73,7 @@ impl BodyEncoding for ResponseBuilder {
     }
 }
 
-impl<B> BodyEncoding for Response<B> {
+impl<B> BodyEncoding for actix_http::Response<B> {
     fn get_encoding(&self) -> Option<ContentEncoding> {
         self.extensions().get::<Enc>().map(|enc| enc.0)
     }

@@ -12,7 +12,7 @@ use actix_rt::task::{spawn_blocking, JoinHandle};
 use bytes::Bytes;
 use derive_more::Display;
 use futures_core::ready;
-use pin_project::pin_project;
+use pin_project_lite::pin_project;
 
 #[cfg(feature = "compress-brotli")]
 use brotli2::write::BrotliEncoder;
@@ -23,8 +23,10 @@ use flate2::write::{GzEncoder, ZlibEncoder};
 #[cfg(feature = "compress-zstd")]
 use zstd::stream::write::Encoder as ZstdEncoder;
 
+use super::Writer;
 use crate::{
-    body::{AnyBody, BodySize, MessageBody},
+    body::{BodySize, MessageBody},
+    error::BlockingError,
     http::{
         header::{ContentEncoding, CONTENT_ENCODING},
         HeaderValue, StatusCode,
@@ -32,72 +34,79 @@ use crate::{
     ResponseHead,
 };
 
-use super::Writer;
-use crate::error::BlockingError;
-
 const MAX_CHUNK_SIZE_ENCODE_IN_PLACE: usize = 1024;
 
-#[pin_project]
-pub struct Encoder<B> {
-    eof: bool,
-    #[pin]
-    body: EncoderBody<B>,
-    encoder: Option<ContentEncoder>,
-    fut: Option<JoinHandle<Result<ContentEncoder, io::Error>>>,
+pin_project! {
+    pub struct Encoder<B> {
+        #[pin]
+        body: EncoderBody<B>,
+        encoder: Option<ContentEncoder>,
+        fut: Option<JoinHandle<Result<ContentEncoder, io::Error>>>,
+        eof: bool,
+    }
 }
 
 impl<B: MessageBody> Encoder<B> {
+    fn none() -> Self {
+        Encoder {
+            body: EncoderBody::None,
+            encoder: None,
+            fut: None,
+            eof: true,
+        }
+    }
+
     pub fn response(
         encoding: ContentEncoding,
         head: &mut ResponseHead,
-        body: AnyBody<B>,
-    ) -> AnyBody<Encoder<B>> {
+        body: B,
+    ) -> Self {
         let can_encode = !(head.headers().contains_key(&CONTENT_ENCODING)
             || head.status == StatusCode::SWITCHING_PROTOCOLS
             || head.status == StatusCode::NO_CONTENT
             || encoding == ContentEncoding::Identity
             || encoding == ContentEncoding::Auto);
 
-        let body = match body {
-            AnyBody::None => return AnyBody::None,
-            AnyBody::Bytes(buf) => {
-                if can_encode {
-                    EncoderBody::Bytes(buf)
-                } else {
-                    return AnyBody::Bytes(buf);
-                }
-            }
-            AnyBody::Body(body) => EncoderBody::Stream(body),
-        };
+        match body.size() {
+            // no need to compress an empty body
+            BodySize::None => return Self::none(),
+
+            // we cannot assume that Sized is not a stream
+            BodySize::Sized(_) | BodySize::Stream => {}
+        }
 
         if can_encode {
-            // Modify response body only if encoder is not None
+            // Modify response body only if encoder is set
             if let Some(enc) = ContentEncoder::encoder(encoding) {
                 update_head(encoding, head);
                 head.no_chunking(false);
 
-                return AnyBody::Body(Encoder {
-                    body,
-                    eof: false,
-                    fut: None,
+                return Encoder {
+                    body: EncoderBody::Stream { body },
                     encoder: Some(enc),
-                });
+                    fut: None,
+                    eof: false,
+                };
             }
         }
 
-        AnyBody::Body(Encoder {
-            body,
-            eof: false,
-            fut: None,
+        Encoder {
+            body: EncoderBody::Stream { body },
             encoder: None,
-        })
+            fut: None,
+            eof: false,
+        }
     }
 }
 
-#[pin_project(project = EncoderBodyProj)]
-enum EncoderBody<B> {
-    Bytes(Bytes),
-    Stream(#[pin] B),
+pin_project! {
+    #[project = EncoderBodyProj]
+    enum EncoderBody<B> {
+        None,
+        // TODO: this variant is not used but RA can't see it because of macro wrapper
+        Bytes { bytes: Bytes },
+        Stream { #[pin] body: B },
+    }
 }
 
 impl<B> MessageBody for EncoderBody<B>
@@ -108,8 +117,9 @@ where
 
     fn size(&self) -> BodySize {
         match self {
-            EncoderBody::Bytes(ref b) => b.size(),
-            EncoderBody::Stream(ref b) => b.size(),
+            EncoderBody::None => BodySize::None,
+            EncoderBody::Bytes { bytes } => bytes.size(),
+            EncoderBody::Stream { body } => body.size(),
         }
     }
 
@@ -118,14 +128,19 @@ where
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         match self.project() {
-            EncoderBodyProj::Bytes(b) => {
-                if b.is_empty() {
+            EncoderBodyProj::None => Poll::Ready(None),
+
+            EncoderBodyProj::Bytes { bytes } => {
+                if bytes.is_empty() {
                     Poll::Ready(None)
                 } else {
-                    Poll::Ready(Some(Ok(std::mem::take(b))))
+                    Poll::Ready(Some(Ok(std::mem::take(bytes))))
                 }
             }
-            EncoderBodyProj::Stream(b) => b.poll_next(cx).map_err(EncoderError::Body),
+
+            EncoderBodyProj::Stream { body } => {
+                body.poll_next(cx).map_err(EncoderError::Body)
+            }
         }
     }
 }
@@ -197,6 +212,7 @@ where
                 None => {
                     if let Some(encoder) = this.encoder.take() {
                         let chunk = encoder.finish().map_err(EncoderError::Io)?;
+
                         if chunk.is_empty() {
                             return Poll::Ready(None);
                         } else {
@@ -222,12 +238,15 @@ fn update_head(encoding: ContentEncoding, head: &mut ResponseHead) {
 enum ContentEncoder {
     #[cfg(feature = "compress-gzip")]
     Deflate(ZlibEncoder<Writer>),
+
     #[cfg(feature = "compress-gzip")]
     Gzip(GzEncoder<Writer>),
+
     #[cfg(feature = "compress-brotli")]
     Br(BrotliEncoder<Writer>),
-    // We need explicit 'static lifetime here because ZstdEncoder need lifetime
-    // argument, and we use `spawn_blocking` in `Encoder::poll_next` that require `FnOnce() -> R + Send + 'static`
+
+    // Wwe need explicit 'static lifetime here because ZstdEncoder needs a lifetime argument and we
+    // use `spawn_blocking` in `Encoder::poll_next` that requires `FnOnce() -> R + Send + 'static`.
     #[cfg(feature = "compress-zstd")]
     Zstd(ZstdEncoder<'static, Writer>),
 }
@@ -240,20 +259,24 @@ impl ContentEncoder {
                 Writer::new(),
                 flate2::Compression::fast(),
             ))),
+
             #[cfg(feature = "compress-gzip")]
             ContentEncoding::Gzip => Some(ContentEncoder::Gzip(GzEncoder::new(
                 Writer::new(),
                 flate2::Compression::fast(),
             ))),
+
             #[cfg(feature = "compress-brotli")]
             ContentEncoding::Br => {
                 Some(ContentEncoder::Br(BrotliEncoder::new(Writer::new(), 3)))
             }
+
             #[cfg(feature = "compress-zstd")]
             ContentEncoding::Zstd => {
                 let encoder = ZstdEncoder::new(Writer::new(), 3).ok()?;
                 Some(ContentEncoder::Zstd(encoder))
             }
+
             _ => None,
         }
     }
@@ -263,10 +286,13 @@ impl ContentEncoder {
         match *self {
             #[cfg(feature = "compress-brotli")]
             ContentEncoder::Br(ref mut encoder) => encoder.get_mut().take(),
+
             #[cfg(feature = "compress-gzip")]
             ContentEncoder::Deflate(ref mut encoder) => encoder.get_mut().take(),
+
             #[cfg(feature = "compress-gzip")]
             ContentEncoder::Gzip(ref mut encoder) => encoder.get_mut().take(),
+
             #[cfg(feature = "compress-zstd")]
             ContentEncoder::Zstd(ref mut encoder) => encoder.get_mut().take(),
         }
@@ -279,16 +305,19 @@ impl ContentEncoder {
                 Ok(writer) => Ok(writer.buf.freeze()),
                 Err(err) => Err(err),
             },
+
             #[cfg(feature = "compress-gzip")]
             ContentEncoder::Gzip(encoder) => match encoder.finish() {
                 Ok(writer) => Ok(writer.buf.freeze()),
                 Err(err) => Err(err),
             },
+
             #[cfg(feature = "compress-gzip")]
             ContentEncoder::Deflate(encoder) => match encoder.finish() {
                 Ok(writer) => Ok(writer.buf.freeze()),
                 Err(err) => Err(err),
             },
+
             #[cfg(feature = "compress-zstd")]
             ContentEncoder::Zstd(encoder) => match encoder.finish() {
                 Ok(writer) => Ok(writer.buf.freeze()),
@@ -307,6 +336,7 @@ impl ContentEncoder {
                     Err(err)
                 }
             },
+
             #[cfg(feature = "compress-gzip")]
             ContentEncoder::Gzip(ref mut encoder) => match encoder.write_all(data) {
                 Ok(_) => Ok(()),
@@ -315,6 +345,7 @@ impl ContentEncoder {
                     Err(err)
                 }
             },
+
             #[cfg(feature = "compress-gzip")]
             ContentEncoder::Deflate(ref mut encoder) => match encoder.write_all(data) {
                 Ok(_) => Ok(()),
@@ -323,6 +354,7 @@ impl ContentEncoder {
                     Err(err)
                 }
             },
+
             #[cfg(feature = "compress-zstd")]
             ContentEncoder::Zstd(ref mut encoder) => match encoder.write_all(data) {
                 Ok(_) => Ok(()),

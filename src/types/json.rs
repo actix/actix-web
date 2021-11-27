@@ -444,7 +444,7 @@ mod tests {
             header::{self, CONTENT_LENGTH, CONTENT_TYPE},
             StatusCode,
         },
-        test::{load_body, TestRequest},
+        test::{assert_body_eq, load_body, TestRequest},
     };
 
     #[derive(Serialize, Deserialize, PartialEq, Debug)]
@@ -472,15 +472,13 @@ mod tests {
         let j = Json(MyObject {
             name: "test".to_string(),
         });
-        let resp = j.respond_to(&req);
-        assert_eq!(resp.status(), StatusCode::OK);
+        let res = j.respond_to(&req);
+        assert_eq!(res.status(), StatusCode::OK);
         assert_eq!(
-            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            res.headers().get(header::CONTENT_TYPE).unwrap(),
             header::HeaderValue::from_static("application/json")
         );
-
-        use crate::responder::tests::BodyTest;
-        assert_eq!(resp.body().bin_ref(), b"{\"name\":\"test\"}");
+        assert_body_eq!(res, b"{\"name\":\"test\"}");
     }
 
     #[actix_rt::test]

@@ -5,7 +5,7 @@ use std::{error::Error as StdError, fmt, io, str::Utf8Error, string::FromUtf8Err
 use derive_more::{Display, Error, From};
 use http::{uri::InvalidUri, StatusCode};
 
-use crate::{body::AnyBody, ws, Response};
+use crate::{body::BoxBody, ws, Response};
 
 pub use http::Error as HttpError;
 
@@ -66,14 +66,14 @@ impl Error {
     }
 }
 
-impl<B> From<Error> for Response<AnyBody<B>> {
+impl From<Error> for Response<BoxBody> {
     fn from(err: Error) -> Self {
         let status_code = match err.inner.kind {
             Kind::Parse => StatusCode::BAD_REQUEST,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
-        Response::new(status_code).set_body(AnyBody::from(err.to_string()))
+        Response::new(status_code).set_body(BoxBody::new(err.to_string()))
     }
 }
 
@@ -240,7 +240,7 @@ impl From<ParseError> for Error {
     }
 }
 
-impl From<ParseError> for Response<AnyBody> {
+impl From<ParseError> for Response<BoxBody> {
     fn from(err: ParseError) -> Self {
         Error::from(err).into()
     }
@@ -337,7 +337,7 @@ pub enum DispatchError {
     /// Service error
     // FIXME: display and error type
     #[display(fmt = "Service Error")]
-    Service(#[error(not(source))] Response<AnyBody>),
+    Service(#[error(not(source))] Response<BoxBody>),
 
     /// Body error
     // FIXME: display and error type
@@ -421,11 +421,11 @@ mod tests {
 
     #[test]
     fn test_into_response() {
-        let resp: Response<AnyBody> = ParseError::Incomplete.into();
+        let resp: Response<BoxBody> = ParseError::Incomplete.into();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
         let err: HttpError = StatusCode::from_u16(10000).err().unwrap().into();
-        let resp: Response<AnyBody> = Error::new_http().with_cause(err).into();
+        let resp: Response<BoxBody> = Error::new_http().with_cause(err).into();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
@@ -450,7 +450,7 @@ mod tests {
     fn test_error_http_response() {
         let orig = io::Error::new(io::ErrorKind::Other, "other");
         let err = Error::new_io().with_cause(orig);
-        let resp: Response<AnyBody> = err.into();
+        let resp: Response<BoxBody> = err.into();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 

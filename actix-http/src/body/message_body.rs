@@ -36,7 +36,7 @@ impl MessageBody for Infallible {
 
     fn poll_next(
         self: Pin<&mut Self>,
-        _: &mut Context<'_>,
+        _cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         match *self {}
     }
@@ -51,7 +51,7 @@ impl MessageBody for () {
 
     fn poll_next(
         self: Pin<&mut Self>,
-        _: &mut Context<'_>,
+        _cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         Poll::Ready(None)
     }
@@ -93,6 +93,27 @@ where
     }
 }
 
+impl MessageBody for &'static [u8] {
+    type Error = Infallible;
+
+    fn size(&self) -> BodySize {
+        BodySize::Sized(self.len() as u64)
+    }
+
+    fn poll_next(
+        self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Bytes, Self::Error>>> {
+        if self.is_empty() {
+            Poll::Ready(None)
+        } else {
+            let bytes = mem::take(self.get_mut());
+            let bytes = Bytes::from_static(bytes);
+            Poll::Ready(Some(Ok(bytes)))
+        }
+    }
+}
+
 impl MessageBody for Bytes {
     type Error = Infallible;
 
@@ -102,15 +123,35 @@ impl MessageBody for Bytes {
 
     fn poll_next(
         self: Pin<&mut Self>,
-        _: &mut Context<'_>,
+        _cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         if self.is_empty() {
             Poll::Ready(None)
         } else {
-            Poll::Ready(Some(Ok(mem::take(self.get_mut()))))
+            let bytes = mem::take(self.get_mut());
+            Poll::Ready(Some(Ok(bytes)))
         }
     }
 }
+
+// impl<'a> MessageBody for &'a Bytes {
+//     type Error = Infallible;
+
+//     fn size(&self) -> BodySize {
+//         BodySize::Sized(self.len() as u64)
+//     }
+
+//     fn poll_next(
+//         self: Pin<&mut Self>,
+//         _cx: &mut Context<'_>,
+//     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
+//         if self.is_empty() {
+//             Poll::Ready(None)
+//         } else {
+//             Poll::Ready(Some(Ok(self.clone())))
+//         }
+//     }
+// }
 
 impl MessageBody for BytesMut {
     type Error = Infallible;
@@ -121,7 +162,7 @@ impl MessageBody for BytesMut {
 
     fn poll_next(
         self: Pin<&mut Self>,
-        _: &mut Context<'_>,
+        _cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         if self.is_empty() {
             Poll::Ready(None)
@@ -130,6 +171,25 @@ impl MessageBody for BytesMut {
         }
     }
 }
+
+// impl<'a> MessageBody for &'a BytesMut {
+//     type Error = Infallible;
+
+//     fn size(&self) -> BodySize {
+//         BodySize::Sized(self.len() as u64)
+//     }
+
+//     fn poll_next(
+//         self: Pin<&mut Self>,
+//         _cx: &mut Context<'_>,
+//     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
+//         if self.is_empty() {
+//             Poll::Ready(None)
+//         } else {
+//             Poll::Ready(Some(Ok(self.clone().freeze())))
+//         }
+//     }
+// }
 
 impl MessageBody for &'static str {
     type Error = Infallible;
@@ -140,14 +200,14 @@ impl MessageBody for &'static str {
 
     fn poll_next(
         self: Pin<&mut Self>,
-        _: &mut Context<'_>,
+        _cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         if self.is_empty() {
             Poll::Ready(None)
         } else {
-            Poll::Ready(Some(Ok(Bytes::from_static(
-                mem::take(self.get_mut()).as_ref(),
-            ))))
+            let string = mem::take(self.get_mut());
+            let bytes = Bytes::from_static(string.as_bytes());
+            Poll::Ready(Some(Ok(bytes)))
         }
     }
 }
@@ -161,7 +221,7 @@ impl MessageBody for Vec<u8> {
 
     fn poll_next(
         self: Pin<&mut Self>,
-        _: &mut Context<'_>,
+        _cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         if self.is_empty() {
             Poll::Ready(None)
@@ -180,17 +240,73 @@ impl MessageBody for String {
 
     fn poll_next(
         self: Pin<&mut Self>,
-        _: &mut Context<'_>,
+        _cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         if self.is_empty() {
             Poll::Ready(None)
         } else {
-            Poll::Ready(Some(Ok(Bytes::from(
-                mem::take(self.get_mut()).into_bytes(),
-            ))))
+            Poll::Ready(Some(Ok(Bytes::from(mem::take(self.get_mut())))))
         }
     }
 }
+
+// impl<'a> MessageBody for &'a String {
+//     type Error = Infallible;
+
+//     fn size(&self) -> BodySize {
+//         BodySize::Sized(self.len() as u64)
+//     }
+
+//     fn poll_next(
+//         self: Pin<&mut Self>,
+//         _cx: &mut Context<'_>,
+//     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
+//         if self.is_empty() {
+//             Poll::Ready(None)
+//         } else {
+//             Poll::Ready(Some(Ok(Bytes::from(self.clone()))))
+//         }
+//     }
+// }
+
+// impl MessageBody for Cow<'_, str> {
+//     type Error = Infallible;
+
+//     fn size(&self) -> BodySize {
+//         BodySize::Sized(self.len() as u64)
+//     }
+
+//     fn poll_next(
+//         self: Pin<&mut Self>,
+//         cx: &mut Context<'_>,
+//     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
+//         if self.is_empty() {
+//             Poll::Ready(None)
+//         } else {
+//             let cow = Pin::into_inner(self);
+//             let mut string = cow.clone().into_owned();
+//             Pin::new(&mut string).poll_next(cx)
+//         }
+//     }
+// }
+
+impl MessageBody for bytestring::ByteString {
+    type Error = Infallible;
+
+    fn size(&self) -> BodySize {
+        BodySize::Sized(self.len() as u64)
+    }
+
+    fn poll_next(
+        self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Bytes, Self::Error>>> {
+        let string = mem::take(self.get_mut());
+        Poll::Ready(Some(Ok(string.into_bytes())))
+    }
+}
+
+// TODO: ensure consistent impls of MessageBody that always terminate
 
 pin_project! {
     pub(crate) struct MessageBodyMapErr<B, F> {

@@ -408,11 +408,14 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::http::{
-        header::{HeaderValue, CONTENT_LENGTH, CONTENT_TYPE},
-        StatusCode,
-    };
     use crate::test::TestRequest;
+    use crate::{
+        http::{
+            header::{HeaderValue, CONTENT_LENGTH, CONTENT_TYPE},
+            StatusCode,
+        },
+        test::assert_body_eq,
+    };
 
     #[derive(Deserialize, Serialize, Debug, PartialEq)]
     struct Info {
@@ -520,15 +523,13 @@ mod tests {
             hello: "world".to_string(),
             counter: 123,
         });
-        let resp = form.respond_to(&req);
-        assert_eq!(resp.status(), StatusCode::OK);
+        let res = form.respond_to(&req);
+        assert_eq!(res.status(), StatusCode::OK);
         assert_eq!(
-            resp.headers().get(CONTENT_TYPE).unwrap(),
+            res.headers().get(CONTENT_TYPE).unwrap(),
             HeaderValue::from_static("application/x-www-form-urlencoded")
         );
-
-        use crate::responder::tests::BodyTest;
-        assert_eq!(resp.body().bin_ref(), b"hello=world&counter=123");
+        assert_body_eq!(res, b"hello=world&counter=123");
     }
 
     #[actix_rt::test]

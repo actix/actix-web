@@ -10,11 +10,8 @@ use std::{
     task::{Context, Poll},
 };
 
-use bytes::Bytes;
-use futures_core::Stream;
-
 use crate::{
-    body::{AnyBody, BodyStream},
+    body::{BoxBody, EitherBody, MessageBody},
     error::{Error, HttpError},
     header::{self, IntoHeaderPair, IntoHeaderValue},
     message::{BoxedResponseHead, ConnectionType, ResponseHead},
@@ -235,10 +232,16 @@ impl ResponseBuilder {
     /// Generate response with a wrapped body.
     ///
     /// This `ResponseBuilder` will be left in a useless state.
-    #[inline]
-    pub fn body<B: Into<AnyBody>>(&mut self, body: B) -> Response<AnyBody> {
-        self.message_body(body.into())
-            .unwrap_or_else(Response::from)
+    pub fn body<B>(&mut self, body: B) -> Response<EitherBody<B>>
+    where
+        B: MessageBody + 'static,
+        B::Error: Into<Box<dyn StdError + 'static>>,
+    {
+        match self.message_body(body) {
+            Ok(res) => res.map_body(|_, body| EitherBody::left(body)),
+            // TODO: add error path
+            Err(err) => Response::from(err).map_body(|_, body| EitherBody::right(body)),
+        }
     }
 
     /// Generate response with a body.
@@ -253,24 +256,12 @@ impl ResponseBuilder {
         Ok(Response { head, body })
     }
 
-    /// Generate response with a streaming body.
-    ///
-    /// This `ResponseBuilder` will be left in a useless state.
-    #[inline]
-    pub fn streaming<S, E>(&mut self, stream: S) -> Response<AnyBody>
-    where
-        S: Stream<Item = Result<Bytes, E>> + 'static,
-        E: Into<Box<dyn StdError>> + 'static,
-    {
-        self.body(AnyBody::new_boxed(BodyStream::new(stream)))
-    }
-
     /// Generate response with an empty body.
     ///
     /// This `ResponseBuilder` will be left in a useless state.
     #[inline]
-    pub fn finish(&mut self) -> Response<AnyBody> {
-        self.body(AnyBody::empty())
+    pub fn finish(&mut self) -> Response<EitherBody<()>> {
+        self.body(())
     }
 
     /// Create an owned `ResponseBuilder`, leaving the original in a useless state.
@@ -328,10 +319,10 @@ impl<'a> From<&'a ResponseHead> for ResponseBuilder {
 }
 
 impl Future for ResponseBuilder {
-    type Output = Result<Response<AnyBody>, Error>;
+    type Output = Result<Response<BoxBody>, Error>;
 
     fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
-        Poll::Ready(Ok(self.finish()))
+        Poll::Ready(Ok(self.finish().map_into_boxed_body()))
     }
 }
 
@@ -396,7 +387,7 @@ mod tests {
 
     #[test]
     fn test_into_builder() {
-        let mut resp: Response<AnyBody> = "test".into();
+        let mut resp: Response<_> = "test".into();
         assert_eq!(resp.status(), StatusCode::OK);
 
         resp.headers_mut().insert(

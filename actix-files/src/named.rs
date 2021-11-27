@@ -527,7 +527,10 @@ impl NamedFile {
         if precondition_failed {
             return resp.status(StatusCode::PRECONDITION_FAILED).finish();
         } else if not_modified {
-            return resp.status(StatusCode::NOT_MODIFIED).body(AnyBody::None);
+            return resp
+                .status(StatusCode::NOT_MODIFIED)
+                .body(AnyBody::<()>::None)
+                .map_into_boxed_body();
         }
 
         let reader = super::chunked::new_chunked_read(length, offset, self.file);

@@ -18,7 +18,7 @@ use futures_core::{future::LocalBoxFuture, ready};
 use pin_project::pin_project;
 
 use crate::{
-    body::{AnyBody, MessageBody},
+    body::{BoxBody, MessageBody},
     builder::HttpServiceBuilder,
     config::{KeepAlive, ServiceConfig},
     error::DispatchError,
@@ -38,7 +38,7 @@ pub struct HttpService<T, S, B, X = h1::ExpectHandler, U = h1::UpgradeHandler> {
 impl<T, S, B> HttpService<T, S, B>
 where
     S: ServiceFactory<Request, Config = ()>,
-    S::Error: Into<Response<AnyBody>> + 'static,
+    S::Error: Into<Response<BoxBody>> + 'static,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
@@ -53,7 +53,7 @@ where
 impl<T, S, B> HttpService<T, S, B>
 where
     S: ServiceFactory<Request, Config = ()>,
-    S::Error: Into<Response<AnyBody>> + 'static,
+    S::Error: Into<Response<BoxBody>> + 'static,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
@@ -93,7 +93,7 @@ where
 impl<T, S, B, X, U> HttpService<T, S, B, X, U>
 where
     S: ServiceFactory<Request, Config = ()>,
-    S::Error: Into<Response<AnyBody>> + 'static,
+    S::Error: Into<Response<BoxBody>> + 'static,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
@@ -107,7 +107,7 @@ where
     pub fn expect<X1>(self, expect: X1) -> HttpService<T, S, B, X1, U>
     where
         X1: ServiceFactory<Request, Config = (), Response = Request>,
-        X1::Error: Into<Response<AnyBody>>,
+        X1::Error: Into<Response<BoxBody>>,
         X1::InitError: fmt::Debug,
     {
         HttpService {
@@ -151,7 +151,7 @@ impl<S, B, X, U> HttpService<TcpStream, S, B, X, U>
 where
     S: ServiceFactory<Request, Config = ()>,
     S::Future: 'static,
-    S::Error: Into<Response<AnyBody>> + 'static,
+    S::Error: Into<Response<BoxBody>> + 'static,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
@@ -161,7 +161,7 @@ where
 
     X: ServiceFactory<Request, Config = (), Response = Request>,
     X::Future: 'static,
-    X::Error: Into<Response<AnyBody>>,
+    X::Error: Into<Response<BoxBody>>,
     X::InitError: fmt::Debug,
 
     U: ServiceFactory<
@@ -170,7 +170,7 @@ where
         Response = (),
     >,
     U::Future: 'static,
-    U::Error: fmt::Display + Into<Response<AnyBody>>,
+    U::Error: fmt::Display + Into<Response<BoxBody>>,
     U::InitError: fmt::Debug,
 {
     /// Create simple tcp stream service
@@ -208,7 +208,7 @@ mod openssl {
     where
         S: ServiceFactory<Request, Config = ()>,
         S::Future: 'static,
-        S::Error: Into<Response<AnyBody>> + 'static,
+        S::Error: Into<Response<BoxBody>> + 'static,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>> + 'static,
         <S::Service as Service<Request>>::Future: 'static,
@@ -218,7 +218,7 @@ mod openssl {
 
         X: ServiceFactory<Request, Config = (), Response = Request>,
         X::Future: 'static,
-        X::Error: Into<Response<AnyBody>>,
+        X::Error: Into<Response<BoxBody>>,
         X::InitError: fmt::Debug,
 
         U: ServiceFactory<
@@ -227,7 +227,7 @@ mod openssl {
             Response = (),
         >,
         U::Future: 'static,
-        U::Error: fmt::Display + Into<Response<AnyBody>>,
+        U::Error: fmt::Display + Into<Response<BoxBody>>,
         U::InitError: fmt::Debug,
     {
         /// Create OpenSSL based service.
@@ -281,7 +281,7 @@ mod rustls {
     where
         S: ServiceFactory<Request, Config = ()>,
         S::Future: 'static,
-        S::Error: Into<Response<AnyBody>> + 'static,
+        S::Error: Into<Response<BoxBody>> + 'static,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>> + 'static,
         <S::Service as Service<Request>>::Future: 'static,
@@ -291,7 +291,7 @@ mod rustls {
 
         X: ServiceFactory<Request, Config = (), Response = Request>,
         X::Future: 'static,
-        X::Error: Into<Response<AnyBody>>,
+        X::Error: Into<Response<BoxBody>>,
         X::InitError: fmt::Debug,
 
         U: ServiceFactory<
@@ -300,7 +300,7 @@ mod rustls {
             Response = (),
         >,
         U::Future: 'static,
-        U::Error: fmt::Display + Into<Response<AnyBody>>,
+        U::Error: fmt::Display + Into<Response<BoxBody>>,
         U::InitError: fmt::Debug,
     {
         /// Create Rustls based service.
@@ -348,7 +348,7 @@ where
 
     S: ServiceFactory<Request, Config = ()>,
     S::Future: 'static,
-    S::Error: Into<Response<AnyBody>> + 'static,
+    S::Error: Into<Response<BoxBody>> + 'static,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
@@ -358,12 +358,12 @@ where
 
     X: ServiceFactory<Request, Config = (), Response = Request>,
     X::Future: 'static,
-    X::Error: Into<Response<AnyBody>>,
+    X::Error: Into<Response<BoxBody>>,
     X::InitError: fmt::Debug,
 
     U: ServiceFactory<(Request, Framed<T, h1::Codec>), Config = (), Response = ()>,
     U::Future: 'static,
-    U::Error: fmt::Display + Into<Response<AnyBody>>,
+    U::Error: fmt::Display + Into<Response<BoxBody>>,
     U::InitError: fmt::Debug,
 {
     type Response = ();
@@ -426,11 +426,11 @@ where
 impl<T, S, B, X, U> HttpServiceHandler<T, S, B, X, U>
 where
     S: Service<Request>,
-    S::Error: Into<Response<AnyBody>>,
+    S::Error: Into<Response<BoxBody>>,
     X: Service<Request>,
-    X::Error: Into<Response<AnyBody>>,
+    X::Error: Into<Response<BoxBody>>,
     U: Service<(Request, Framed<T, h1::Codec>)>,
-    U::Error: Into<Response<AnyBody>>,
+    U::Error: Into<Response<BoxBody>>,
 {
     pub(super) fn new(
         cfg: ServiceConfig,
@@ -450,7 +450,7 @@ where
     pub(super) fn _poll_ready(
         &self,
         cx: &mut Context<'_>,
-    ) -> Poll<Result<(), Response<AnyBody>>> {
+    ) -> Poll<Result<(), Response<BoxBody>>> {
         ready!(self.flow.expect.poll_ready(cx).map_err(Into::into))?;
 
         ready!(self.flow.service.poll_ready(cx).map_err(Into::into))?;
@@ -486,7 +486,7 @@ where
     T: AsyncRead + AsyncWrite + Unpin,
 
     S: Service<Request>,
-    S::Error: Into<Response<AnyBody>> + 'static,
+    S::Error: Into<Response<BoxBody>> + 'static,
     S::Future: 'static,
     S::Response: Into<Response<B>> + 'static,
 
@@ -494,10 +494,10 @@ where
     B::Error: Into<Box<dyn StdError>>,
 
     X: Service<Request, Response = Request>,
-    X::Error: Into<Response<AnyBody>>,
+    X::Error: Into<Response<BoxBody>>,
 
     U: Service<(Request, Framed<T, h1::Codec>), Response = ()>,
-    U::Error: fmt::Display + Into<Response<AnyBody>>,
+    U::Error: fmt::Display + Into<Response<BoxBody>>,
 {
     type Response = ();
     type Error = DispatchError;
@@ -550,13 +550,13 @@ where
 
     S: Service<Request>,
     S::Future: 'static,
-    S::Error: Into<Response<AnyBody>>,
+    S::Error: Into<Response<BoxBody>>,
 
     B: MessageBody,
     B::Error: Into<Box<dyn StdError>>,
 
     X: Service<Request, Response = Request>,
-    X::Error: Into<Response<AnyBody>>,
+    X::Error: Into<Response<BoxBody>>,
 
     U: Service<(Request, Framed<T, h1::Codec>), Response = ()>,
     U::Error: fmt::Display,
@@ -580,7 +580,7 @@ where
     T: AsyncRead + AsyncWrite + Unpin,
 
     S: Service<Request>,
-    S::Error: Into<Response<AnyBody>> + 'static,
+    S::Error: Into<Response<BoxBody>> + 'static,
     S::Future: 'static,
     S::Response: Into<Response<B>> + 'static,
 
@@ -588,7 +588,7 @@ where
     B::Error: Into<Box<dyn StdError>>,
 
     X: Service<Request, Response = Request>,
-    X::Error: Into<Response<AnyBody>>,
+    X::Error: Into<Response<BoxBody>>,
 
     U: Service<(Request, Framed<T, h1::Codec>), Response = ()>,
     U::Error: fmt::Display,
@@ -602,7 +602,7 @@ where
     T: AsyncRead + AsyncWrite + Unpin,
 
     S: Service<Request>,
-    S::Error: Into<Response<AnyBody>> + 'static,
+    S::Error: Into<Response<BoxBody>> + 'static,
     S::Future: 'static,
     S::Response: Into<Response<B>> + 'static,
 
@@ -610,7 +610,7 @@ where
     B::Error: Into<Box<dyn StdError>>,
 
     X: Service<Request, Response = Request>,
-    X::Error: Into<Response<AnyBody>>,
+    X::Error: Into<Response<BoxBody>>,
 
     U: Service<(Request, Framed<T, h1::Codec>), Response = ()>,
     U::Error: fmt::Display,

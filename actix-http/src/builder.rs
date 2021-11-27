@@ -4,7 +4,7 @@ use actix_codec::Framed;
 use actix_service::{IntoServiceFactory, Service, ServiceFactory};
 
 use crate::{
-    body::{AnyBody, MessageBody},
+    body::{BoxBody, MessageBody},
     config::{KeepAlive, ServiceConfig},
     h1::{self, ExpectHandler, H1Service, UpgradeHandler},
     h2::H2Service,
@@ -31,7 +31,7 @@ pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler> {
 impl<T, S> HttpServiceBuilder<T, S, ExpectHandler, UpgradeHandler>
 where
     S: ServiceFactory<Request, Config = ()>,
-    S::Error: Into<Response<AnyBody>> + 'static,
+    S::Error: Into<Response<BoxBody>> + 'static,
     S::InitError: fmt::Debug,
     <S::Service as Service<Request>>::Future: 'static,
 {
@@ -54,11 +54,11 @@ where
 impl<T, S, X, U> HttpServiceBuilder<T, S, X, U>
 where
     S: ServiceFactory<Request, Config = ()>,
-    S::Error: Into<Response<AnyBody>> + 'static,
+    S::Error: Into<Response<BoxBody>> + 'static,
     S::InitError: fmt::Debug,
     <S::Service as Service<Request>>::Future: 'static,
     X: ServiceFactory<Request, Config = (), Response = Request>,
-    X::Error: Into<Response<AnyBody>>,
+    X::Error: Into<Response<BoxBody>>,
     X::InitError: fmt::Debug,
     U: ServiceFactory<(Request, Framed<T, h1::Codec>), Config = (), Response = ()>,
     U::Error: fmt::Display,
@@ -120,7 +120,7 @@ where
     where
         F: IntoServiceFactory<X1, Request>,
         X1: ServiceFactory<Request, Config = (), Response = Request>,
-        X1::Error: Into<Response<AnyBody>>,
+        X1::Error: Into<Response<BoxBody>>,
         X1::InitError: fmt::Debug,
     {
         HttpServiceBuilder {
@@ -178,7 +178,7 @@ where
     where
         B: MessageBody,
         F: IntoServiceFactory<S, Request>,
-        S::Error: Into<Response<AnyBody>>,
+        S::Error: Into<Response<BoxBody>>,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>>,
     {
@@ -200,7 +200,7 @@ where
     pub fn h2<F, B>(self, service: F) -> H2Service<T, S, B>
     where
         F: IntoServiceFactory<S, Request>,
-        S::Error: Into<Response<AnyBody>> + 'static,
+        S::Error: Into<Response<BoxBody>> + 'static,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>> + 'static,
 
@@ -223,7 +223,7 @@ where
     pub fn finish<F, B>(self, service: F) -> HttpService<T, S, B, X, U>
     where
         F: IntoServiceFactory<S, Request>,
-        S::Error: Into<Response<AnyBody>> + 'static,
+        S::Error: Into<Response<BoxBody>> + 'static,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>> + 'static,
 

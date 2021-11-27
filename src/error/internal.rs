@@ -1,6 +1,10 @@
 use std::{cell::RefCell, fmt, io::Write as _};
 
-use actix_http::{body::AnyBody, header, StatusCode};
+use actix_http::{
+    body::BoxBody,
+    header::{self, IntoHeaderValue as _},
+    StatusCode,
+};
 use bytes::{BufMut as _, BytesMut};
 
 use crate::{Error, HttpRequest, HttpResponse, Responder, ResponseError};
@@ -84,11 +88,10 @@ where
                 let mut buf = BytesMut::new().writer();
                 let _ = write!(buf, "{}", self);
 
-                res.headers_mut().insert(
-                    header::CONTENT_TYPE,
-                    header::HeaderValue::from_static("text/plain; charset=utf-8"),
-                );
-                res.set_body(AnyBody::from(buf.into_inner()))
+                let mime = mime::TEXT_PLAIN_UTF_8.try_into_value().unwrap();
+                res.headers_mut().insert(header::CONTENT_TYPE, mime);
+
+                res.set_body(BoxBody::new(buf.into_inner()))
             }
 
             InternalErrorType::Response(ref resp) => {
