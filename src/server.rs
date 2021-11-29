@@ -656,8 +656,8 @@ fn create_tcp_listener(addr: net::SocketAddr, backlog: u32) -> io::Result<net::T
     Ok(net::TcpListener::from(socket))
 }
 
-#[cfg(feature = "openssl")]
 /// Configure `SslAcceptorBuilder` with custom server flags.
+#[cfg(feature = "openssl")]
 fn openssl_acceptor(mut builder: SslAcceptorBuilder) -> io::Result<SslAcceptor> {
     builder.set_alpn_select_callback(|_, protocols| {
         const H2: &[u8] = b"\x02h2";

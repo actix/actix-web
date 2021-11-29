@@ -13,7 +13,8 @@ use pin_project_lite::pin_project;
 
 use super::BodySize;
 
-/// An interface for response bodies.
+/// An interface types that can converted to bytes and used as response bodies.
+// TODO: examples
 pub trait MessageBody {
     type Error;
 

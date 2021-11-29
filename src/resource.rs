@@ -1,7 +1,4 @@
-use std::cell::RefCell;
-use std::fmt;
-use std::future::Future;
-use std::rc::Rc;
+use std::{cell::RefCell, error::Error as StdError, fmt, future::Future, rc::Rc};
 
 use actix_http::Extensions;
 use actix_router::{IntoPatterns, Patterns};
@@ -13,6 +10,7 @@ use futures_core::future::LocalBoxFuture;
 use futures_util::future::join_all;
 
 use crate::{
+    body::MessageBody,
     data::Data,
     dev::{ensure_leading_slash, AppService, ResourceDef},
     guard::Guard,
@@ -241,6 +239,9 @@ where
         I: FromRequest + 'static,
         R: Future + 'static,
         R::Output: Responder + 'static,
+        <R::Output as Responder>::Body: MessageBody + 'static,
+        <<R::Output as Responder>::Body as MessageBody>::Error:
+            Into<Box<dyn StdError + 'static>>,
     {
         self.routes.push(Route::new().to(handler));
         self

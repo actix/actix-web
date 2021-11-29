@@ -19,6 +19,7 @@ use actix_http::Payload;
 #[cfg(feature = "__compress")]
 use crate::dev::Decompress;
 use crate::{
+    body::EitherBody,
     error::{Error, JsonPayloadError},
     extract::FromRequest,
     http::header::CONTENT_LENGTH,
@@ -116,12 +117,22 @@ impl<T: Serialize> Serialize for Json<T> {
 ///
 /// If serialization failed
 impl<T: Serialize> Responder for Json<T> {
-    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
+    type Body = EitherBody<String>;
+
+    fn respond_to(self, _: &HttpRequest) -> HttpResponse<Self::Body> {
         match serde_json::to_string(&self.0) {
-            Ok(body) => HttpResponse::Ok()
+            Ok(body) => match HttpResponse::Ok()
                 .content_type(mime::APPLICATION_JSON)
-                .body(body),
-            Err(err) => HttpResponse::from_error(JsonPayloadError::Serialize(err)),
+                .message_body(body)
+            {
+                Ok(res) => res.map_body(|_, body| EitherBody::left(body)),
+                Err(err) => {
+                    HttpResponse::from_error(err).map_body(|_, body| EitherBody::right(body))
+                }
+            },
+
+            Err(err) => HttpResponse::from_error(JsonPayloadError::Serialize(err))
+                .map_body(|_, body| EitherBody::right(body)),
         }
     }
 }

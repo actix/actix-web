@@ -18,7 +18,7 @@ pub enum BodySize {
 }
 
 impl BodySize {
-    /// Returns true if size hint indicates no or empty body.
+    /// Returns true if size hint indicates omitted or empty body.
     ///
     /// Streams will return false because it cannot be known without reading the stream.
     ///

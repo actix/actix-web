@@ -6,8 +6,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use actix_web::error::Error;
-use bytes::Bytes;
+use actix_web::{error::Error, web::Bytes};
 use futures_core::{ready, Stream};
 use pin_project_lite::pin_project;
 

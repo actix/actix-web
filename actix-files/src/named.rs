@@ -13,6 +13,7 @@ use std::os::unix::fs::MetadataExt;
 use actix_http::body::AnyBody;
 use actix_service::{Service, ServiceFactory};
 use actix_web::{
+    body::BoxBody,
     dev::{
         AppService, BodyEncoding, HttpServiceFactory, ResourceDef, ServiceRequest,
         ServiceResponse, SizedStream,
@@ -394,7 +395,7 @@ impl NamedFile {
     }
 
     /// Creates an `HttpResponse` with file as a streaming body.
-    pub fn into_response(self, req: &HttpRequest) -> HttpResponse {
+    pub fn into_response(self, req: &HttpRequest) -> HttpResponse<BoxBody> {
         if self.status_code != StatusCode::OK {
             let mut res = HttpResponse::build(self.status_code);
 
@@ -598,7 +599,10 @@ impl DerefMut for NamedFile {
 }
 
 impl Responder for NamedFile {
-    fn respond_to(self, req: &HttpRequest) -> HttpResponse {
+    // TODO: can be improved
+    type Body = BoxBody;
+
+    fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
         self.into_response(req)
     }
 }

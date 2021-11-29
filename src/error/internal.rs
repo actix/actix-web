@@ -109,7 +109,9 @@ impl<T> Responder for InternalError<T>
 where
     T: fmt::Debug + fmt::Display + 'static,
 {
-    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
+    type Body = BoxBody;
+
+    fn respond_to(self, _: &HttpRequest) -> HttpResponse<Self::Body> {
         HttpResponse::from_error(self)
     }
 }

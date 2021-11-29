@@ -1,6 +1,7 @@
 //! For either helper, see [`Either`].
 
 use std::{
+    error::Error as StdError,
     future::Future,
     mem,
     pin::Pin,
@@ -12,7 +13,7 @@ use futures_core::ready;
 use pin_project_lite::pin_project;
 
 use crate::{
-    dev,
+    body, dev,
     web::{Form, Json},
     Error, FromRequest, HttpRequest, HttpResponse, Responder,
 };
@@ -144,12 +145,21 @@ impl<L, R> Either<L, R> {
 impl<L, R> Responder for Either<L, R>
 where
     L: Responder,
+    <L::Body as dev::MessageBody>::Error: Into<Box<dyn StdError + 'static>>,
     R: Responder,
+    <R::Body as dev::MessageBody>::Error: Into<Box<dyn StdError + 'static>>,
 {
-    fn respond_to(self, req: &HttpRequest) -> HttpResponse {
+    type Body = body::EitherBody<L::Body, R::Body>;
+
+    fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
         match self {
-            Either::Left(a) => a.respond_to(req),
-            Either::Right(b) => b.respond_to(req),
+            Either::Left(a) => a
+                .respond_to(req)
+                .map_body(|_, body| body::EitherBody::left(body)),
+
+            Either::Right(b) => b
+                .respond_to(req)
+                .map_body(|_, body| body::EitherBody::right(body)),
         }
     }
 }

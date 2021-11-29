@@ -306,7 +306,7 @@ impl HttpResponseBuilder {
             .extensions_mut()
     }
 
-    /// Set a body and generate `Response`.
+    /// Set a body and build the `HttpResponse`.
     ///
     /// `HttpResponseBuilder` can not be used after this call.
     pub fn body<B>(&mut self, body: B) -> HttpResponse<BoxBody>
@@ -320,7 +320,7 @@ impl HttpResponseBuilder {
         }
     }
 
-    /// Set a body and generate `Response`.
+    /// Set a body and build the `HttpResponse`.
     ///
     /// `HttpResponseBuilder` can not be used after this call.
     pub fn message_body<B>(&mut self, body: B) -> Result<HttpResponse<B>, Error> {
@@ -350,7 +350,7 @@ impl HttpResponseBuilder {
         Ok(res)
     }
 
-    /// Set a streaming body and generate `Response`.
+    /// Set a streaming body and build the `HttpResponse`.
     ///
     /// `HttpResponseBuilder` can not be used after this call.
     #[inline]
@@ -362,7 +362,7 @@ impl HttpResponseBuilder {
         self.body(BoxBody::new(BodyStream::new(stream)))
     }
 
-    /// Set a json body and generate `Response`
+    /// Set a JSON body and build the `HttpResponse`.
     ///
     /// `HttpResponseBuilder` can not be used after this call.
     pub fn json(&mut self, value: impl Serialize) -> HttpResponse {
@@ -384,7 +384,7 @@ impl HttpResponseBuilder {
         }
     }
 
-    /// Set an empty body and generate `Response`
+    /// Set an empty body and build the `HttpResponse`.
     ///
     /// `HttpResponseBuilder` can not be used after this call.
     #[inline]

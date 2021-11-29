@@ -6,6 +6,7 @@ use actix_service::{
 };
 
 use crate::{
+    body::EitherBody,
     service::{ServiceRequest, ServiceResponse},
     Error, FromRequest, HttpResponse, Responder,
 };
@@ -26,7 +27,13 @@ where
 
 pub fn handler_service<F, T, R>(
     handler: F,
-) -> BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>
+) -> BoxServiceFactory<
+    (),
+    ServiceRequest,
+    ServiceResponse<EitherBody<<R::Output as Responder>::Body>>,
+    Error,
+    (),
+>
 where
     F: Handler<T, R>,
     T: FromRequest,
@@ -35,12 +42,21 @@ where
 {
     boxed::factory(fn_service(move |req: ServiceRequest| {
         let handler = handler.clone();
+
         async move {
             let (req, mut payload) = req.into_parts();
             let res = match T::from_request(&req, &mut payload).await {
-                Err(err) => HttpResponse::from_error(err),
-                Ok(data) => handler.call(data).await.respond_to(&req),
+                Err(err) => {
+                    HttpResponse::from_error(err).map_body(|_, body| EitherBody::right(body))
+                }
+
+                Ok(data) => handler
+                    .call(data)
+                    .await
+                    .respond_to(&req)
+                    .map_body(|_, body| EitherBody::left(body)),
             };
+
             Ok(ServiceResponse::new(req, res))
         }
     }))

@@ -77,7 +77,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn either_body_works() {
-        let _body = EitherBody::new(());
+    fn type_parameter_inference() {
+        let _body: EitherBody<(), _> = EitherBody::new(());
+
+        let _body: EitherBody<_, ()> = EitherBody::left(());
+        let _body: EitherBody<(), _> = EitherBody::right(());
     }
 }

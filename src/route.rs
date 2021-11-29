@@ -1,6 +1,6 @@
 #![allow(clippy::rc_buffer)] // inner value is mutated before being shared (`Rc::get_mut`)
 
-use std::{future::Future, rc::Rc};
+use std::{error::Error as StdError, future::Future, mem, rc::Rc};
 
 use actix_http::http::Method;
 use actix_service::{
@@ -10,6 +10,7 @@ use actix_service::{
 use futures_core::future::LocalBoxFuture;
 
 use crate::{
+    body::MessageBody,
     guard::{self, Guard},
     handler::{handler_service, Handler},
     service::{ServiceRequest, ServiceResponse},
@@ -30,13 +31,16 @@ impl Route {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Route {
         Route {
-            service: handler_service(HttpResponse::NotFound),
+            // TODO: remove double boxing
+            service: boxed::factory(
+                handler_service(HttpResponse::NotFound).map(|res| res.map_into_boxed_body()),
+            ),
             guards: Rc::new(Vec::new()),
         }
     }
 
     pub(crate) fn take_guards(&mut self) -> Vec<Box<dyn Guard>> {
-        std::mem::take(Rc::get_mut(&mut self.guards).unwrap())
+        mem::take(Rc::get_mut(&mut self.guards).unwrap())
     }
 }
 
@@ -181,8 +185,13 @@ impl Route {
         T: FromRequest + 'static,
         R: Future + 'static,
         R::Output: Responder + 'static,
+        <R::Output as Responder>::Body: MessageBody + 'static,
+        <<R::Output as Responder>::Body as MessageBody>::Error:
+            Into<Box<dyn StdError + 'static>>,
     {
-        self.service = handler_service(handler);
+        // TODO: remove double boxing
+        self.service =
+            boxed::factory(handler_service(handler).map(|res| res.map_into_boxed_body()));
         self
     }
 
