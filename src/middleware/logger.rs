@@ -5,7 +5,7 @@ use std::{
     convert::TryFrom,
     env,
     fmt::{self, Display as _},
-    future::Future,
+    future::{ready, Future, Ready},
     marker::PhantomData,
     pin::Pin,
     rc::Rc,
@@ -13,10 +13,10 @@ use std::{
 };
 
 use actix_service::{Service, Transform};
-use actix_utils::future::{ok, Ready};
 use bytes::Bytes;
 use futures_core::ready;
 use log::{debug, warn};
+use pin_project_lite::pin_project;
 use regex::{Regex, RegexSet};
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
@@ -180,8 +180,8 @@ where
 {
     type Response = ServiceResponse<StreamLog<B>>;
     type Error = Error;
-    type InitError = ();
     type Transform = LoggerMiddleware<S>;
+    type InitError = ();
     type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
@@ -195,10 +195,10 @@ where
             }
         }
 
-        ok(LoggerMiddleware {
+        ready(Ok(LoggerMiddleware {
             service,
             inner: self.0.clone(),
-        })
+        }))
     }
 }
 
@@ -246,17 +246,18 @@ where
     }
 }
 
-#[pin_project::pin_project]
-pub struct LoggerResponse<S, B>
-where
-    B: MessageBody,
-    S: Service<ServiceRequest>,
-{
-    #[pin]
-    fut: S::Future,
-    time: OffsetDateTime,
-    format: Option<Format>,
-    _phantom: PhantomData<B>,
+pin_project! {
+    pub struct LoggerResponse<S, B>
+    where
+        B: MessageBody,
+        S: Service<ServiceRequest>,
+    {
+        #[pin]
+        fut: S::Future,
+        time: OffsetDateTime,
+        format: Option<Format>,
+        _phantom: PhantomData<B>,
+    }
 }
 
 impl<S, B> Future for LoggerResponse<S, B>
@@ -296,28 +297,25 @@ where
     }
 }
 
-use pin_project::{pin_project, pinned_drop};
-
-#[pin_project(PinnedDrop)]
-pub struct StreamLog<B> {
-    #[pin]
-    body: B,
-    format: Option<Format>,
-    size: usize,
-    time: OffsetDateTime,
-}
-
-#[pinned_drop]
-impl<B> PinnedDrop for StreamLog<B> {
-    fn drop(self: Pin<&mut Self>) {
-        if let Some(ref format) = self.format {
-            let render = |fmt: &mut fmt::Formatter<'_>| {
-                for unit in &format.0 {
-                    unit.render(fmt, self.size, self.time)?;
-                }
-                Ok(())
-            };
-            log::info!("{}", FormatDisplay(&render));
+pin_project! {
+    pub struct StreamLog<B> {
+        #[pin]
+        body: B,
+        format: Option<Format>,
+        size: usize,
+        time: OffsetDateTime,
+    }
+    impl<B> PinnedDrop for StreamLog<B> {
+        fn drop(this: Pin<&mut Self>) {
+            if let Some(ref format) = this.format {
+                let render = |fmt: &mut fmt::Formatter<'_>| {
+                    for unit in &format.0 {
+                        unit.render(fmt, this.size, this.time)?;
+                    }
+                    Ok(())
+                };
+                log::info!("{}", FormatDisplay(&render));
+            }
         }
     }
 }

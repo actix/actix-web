@@ -9,6 +9,7 @@ use std::{
 
 use bytes::Bytes;
 use futures_core::ready;
+use pin_project_lite::pin_project;
 
 use crate::{
     dev,
@@ -198,37 +199,40 @@ where
     }
 }
 
-#[pin_project::pin_project]
-pub struct EitherExtractFut<L, R>
-where
-    R: FromRequest,
-    L: FromRequest,
-{
-    req: HttpRequest,
-    #[pin]
-    state: EitherExtractState<L, R>,
+pin_project! {
+    pub struct EitherExtractFut<L, R>
+    where
+        R: FromRequest,
+        L: FromRequest,
+    {
+        req: HttpRequest,
+        #[pin]
+        state: EitherExtractState<L, R>,
+    }
 }
 
-#[pin_project::pin_project(project = EitherExtractProj)]
-pub enum EitherExtractState<L, R>
-where
-    L: FromRequest,
-    R: FromRequest,
-{
-    Bytes {
-        #[pin]
-        bytes: <Bytes as FromRequest>::Future,
-    },
-    Left {
-        #[pin]
-        left: L::Future,
-        fallback: Bytes,
-    },
-    Right {
-        #[pin]
-        right: R::Future,
-        left_err: Option<L::Error>,
-    },
+pin_project! {
+    #[project = EitherExtractProj]
+    pub enum EitherExtractState<L, R>
+    where
+        L: FromRequest,
+        R: FromRequest,
+    {
+        Bytes {
+            #[pin]
+            bytes: <Bytes as FromRequest>::Future,
+        },
+        Left {
+            #[pin]
+            left: L::Future,
+            fallback: Bytes,
+        },
+        Right {
+            #[pin]
+            right: R::Future,
+            left_err: Option<L::Error>,
+        },
+    }
 }
 
 impl<R, RF, RE, L, LF, LE> Future for EitherExtractFut<L, R>

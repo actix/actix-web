@@ -20,7 +20,7 @@ use actix_utils::future::{ok, Either, Ready};
 use bytes::Bytes;
 use futures_core::ready;
 use once_cell::sync::Lazy;
-use pin_project::pin_project;
+use pin_project_lite::pin_project;
 
 use crate::{
     dev::BodyEncoding,
@@ -162,15 +162,16 @@ where
     }
 }
 
-#[pin_project]
-pub struct CompressResponse<S, B>
-where
-    S: Service<ServiceRequest>,
-{
-    #[pin]
-    fut: S::Future,
-    encoding: ContentEncoding,
-    _phantom: PhantomData<B>,
+pin_project! {
+    pub struct CompressResponse<S, B>
+    where
+        S: Service<ServiceRequest>,
+    {
+        #[pin]
+        fut: S::Future,
+        encoding: ContentEncoding,
+        _phantom: PhantomData<B>,
+    }
 }
 
 impl<S, B> Future for CompressResponse<S, B>
