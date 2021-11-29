@@ -296,7 +296,7 @@ impl Future for HttpResponse<AnyBody> {
 
 #[cfg(feature = "cookies")]
 pub struct CookieIter<'a> {
-    iter: header::GetAll<'a>,
+    iter: header::map::GetAll<'a>,
 }
 
 #[cfg(feature = "cookies")]

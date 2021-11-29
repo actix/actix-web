@@ -1,3 +1,5 @@
+//! Header parsing utilities.
+
 use std::{fmt, str::FromStr};
 
 use super::HeaderValue;

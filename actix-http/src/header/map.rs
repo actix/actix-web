@@ -1,6 +1,6 @@
 //! A multi-value [`HeaderMap`] and its iterators.
 
-use std::{borrow::Cow, collections::hash_map, ops};
+use std::{borrow::Cow, collections::hash_map, iter, ops};
 
 use ahash::AHashMap;
 use http::header::{HeaderName, HeaderValue};
@@ -581,7 +581,8 @@ impl HeaderMap {
     }
 }
 
-/// Note that this implementation will clone a [HeaderName] for each value.
+/// Note that this implementation will clone a [HeaderName] for each value. Consider using
+/// [`drain`](Self::drain) to control header name cloning.
 impl IntoIterator for HeaderMap {
     type Item = (HeaderName, HeaderValue);
     type IntoIter = IntoIter;
@@ -602,7 +603,7 @@ impl<'a> IntoIterator for &'a HeaderMap {
     }
 }
 
-/// Iterator for references of [`HeaderValue`]s with the same associated [`HeaderName`].
+/// Iterator over borrowed values with the same associated name.
 ///
 /// See [`HeaderMap::get_all`].
 #[derive(Debug)]
@@ -644,10 +645,14 @@ impl<'a> Iterator for GetAll<'a> {
     }
 }
 
-/// Iterator for owned [`HeaderValue`]s with the same associated [`HeaderName`] returned from
-/// methods that remove or replace items.
+impl ExactSizeIterator for GetAll<'_> {}
+
+impl iter::FusedIterator for GetAll<'_> {}
+
+/// Iterator over removed, owned values with the same associated name.
 ///
-/// See [`HeaderMap::insert`] and [`HeaderMap::remove`].
+/// Returned from methods that remove or replace items. See [`HeaderMap::insert`]
+/// and [`HeaderMap::remove`].
 #[derive(Debug)]
 pub struct Removed {
     inner: Option<smallvec::IntoIter<[HeaderValue; 4]>>,
@@ -689,7 +694,11 @@ impl Iterator for Removed {
     }
 }
 
-/// Iterator over all [`HeaderName`]s in the map.
+impl ExactSizeIterator for Removed {}
+
+impl iter::FusedIterator for Removed {}
+
+/// Iterator over all names in the map.
 #[derive(Debug)]
 pub struct Keys<'a>(hash_map::Keys<'a, HeaderName, Value>);
 
@@ -707,6 +716,11 @@ impl<'a> Iterator for Keys<'a> {
     }
 }
 
+impl ExactSizeIterator for Keys<'_> {}
+
+impl iter::FusedIterator for Keys<'_> {}
+
+/// Iterator over borrowed name-value pairs.
 #[derive(Debug)]
 pub struct Iter<'a> {
     inner: hash_map::Iter<'a, HeaderName, Value>,
@@ -757,6 +771,10 @@ impl<'a> Iterator for Iter<'a> {
         (self.inner.size_hint().0, None)
     }
 }
+
+impl ExactSizeIterator for Iter<'_> {}
+
+impl iter::FusedIterator for Iter<'_> {}
 
 /// Iterator over drained name-value pairs.
 ///
@@ -809,6 +827,10 @@ impl<'a> Iterator for Drain<'a> {
     }
 }
 
+impl ExactSizeIterator for Drain<'_> {}
+
+impl iter::FusedIterator for Drain<'_> {}
+
 /// Iterator over owned name-value pairs.
 ///
 /// Implementation necessarily clones header names for each value.
@@ -859,11 +881,26 @@ impl Iterator for IntoIter {
     }
 }
 
+impl ExactSizeIterator for IntoIter {}
+
+impl iter::FusedIterator for IntoIter {}
+
 #[cfg(test)]
 mod tests {
+    use std::iter::FusedIterator;
+
     use http::header;
+    use static_assertions::assert_impl_all;
 
     use super::*;
+
+    assert_impl_all!(HeaderMap: IntoIterator);
+    assert_impl_all!(Keys<'_>: Iterator, ExactSizeIterator, FusedIterator);
+    assert_impl_all!(GetAll<'_>: Iterator, ExactSizeIterator, FusedIterator);
+    assert_impl_all!(Removed: Iterator, ExactSizeIterator, FusedIterator);
+    assert_impl_all!(Iter<'_>: Iterator, ExactSizeIterator, FusedIterator);
+    assert_impl_all!(IntoIter: Iterator, ExactSizeIterator, FusedIterator);
+    assert_impl_all!(Drain<'_>: Iterator, ExactSizeIterator, FusedIterator);
 
     #[test]
     fn create() {
@@ -1034,6 +1071,9 @@ mod tests {
         let mut vals = map.get_all(header::COOKIE);
         assert_eq!(vals.next().unwrap().as_bytes(), b"8");
         assert_eq!(vals.next().unwrap().as_bytes(), b"9");
+        assert!(vals.next().is_none());
+
+        // check for fused-ness
         assert!(vals.next().is_none());
     }
 
