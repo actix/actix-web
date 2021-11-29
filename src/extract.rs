@@ -10,6 +10,7 @@ use std::{
 use actix_http::http::{Method, Uri};
 use actix_utils::future::{ok, Ready};
 use futures_core::ready;
+use pin_project_lite::pin_project;
 
 use crate::{dev::Payload, Error, HttpRequest};
 
@@ -139,10 +140,11 @@ where
     }
 }
 
-#[pin_project::pin_project]
-pub struct FromRequestOptFuture<Fut> {
-    #[pin]
-    fut: Fut,
+pin_project! {
+    pub struct FromRequestOptFuture<Fut> {
+        #[pin]
+        fut: Fut,
+    }
 }
 
 impl<Fut, T, E> Future for FromRequestOptFuture<Fut>
@@ -226,10 +228,11 @@ where
     }
 }
 
-#[pin_project::pin_project]
-pub struct FromRequestResFuture<Fut> {
-    #[pin]
-    fut: Fut,
+pin_project! {
+    pub struct FromRequestResFuture<Fut> {
+        #[pin]
+        fut: Fut,
+    }
 }
 
 impl<Fut, T, E> Future for FromRequestResFuture<Fut>
@@ -297,102 +300,104 @@ impl FromRequest for () {
     }
 }
 
-macro_rules! tuple_from_req ({$fut_type:ident, $(($n:tt, $T:ident)),+} => {
-
-    // This module is a trick to get around the inability of
-    // `macro_rules!` macros to make new idents. We want to make
-    // a new `FutWrapper` struct for each distinct invocation of
-    // this macro. Ideally, we would name it something like
-    // `FutWrapper_$fut_type`, but this can't be done in a macro_rules
-    // macro.
-    //
-    // Instead, we put everything in a module named `$fut_type`, thus allowing
-    // us to use the name `FutWrapper` without worrying about conflicts.
-    // This macro only exists to generate trait impls for tuples - these
-    // are inherently global, so users don't have to care about this
-    // weird trick.
-    #[allow(non_snake_case)]
-    mod $fut_type {
-
-        // Bring everything into scope, so we don't need
-        // redundant imports
-        use super::*;
-
-        /// A helper struct to allow us to pin-project through
-        /// to individual fields
-        #[pin_project::pin_project]
-        struct FutWrapper<$($T: FromRequest),+>($(#[pin] $T::Future),+);
-
-        /// FromRequest implementation for tuple
-        #[doc(hidden)]
-        #[allow(unused_parens)]
-        impl<$($T: FromRequest + 'static),+> FromRequest for ($($T,)+)
-        {
-            type Error = Error;
-            type Future = $fut_type<$($T),+>;
-
-            fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-                $fut_type {
-                    items: <($(Option<$T>,)+)>::default(),
-                    futs: FutWrapper($($T::from_request(req, payload),)+),
-                }
-            }
-        }
-
-        #[doc(hidden)]
-        #[pin_project::pin_project]
-        pub struct $fut_type<$($T: FromRequest),+> {
-            items: ($(Option<$T>,)+),
-            #[pin]
-            futs: FutWrapper<$($T,)+>,
-        }
-
-        impl<$($T: FromRequest),+> Future for $fut_type<$($T),+>
-        {
-            type Output = Result<($($T,)+), Error>;
-
-            fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-                let mut this = self.project();
-
-                let mut ready = true;
-                $(
-                    if this.items.$n.is_none() {
-                        match this.futs.as_mut().project().$n.poll(cx) {
-                            Poll::Ready(Ok(item)) => {
-                                this.items.$n = Some(item);
-                            }
-                            Poll::Pending => ready = false,
-                            Poll::Ready(Err(e)) => return Poll::Ready(Err(e.into())),
-                        }
-                    }
-                )+
-
-                if ready {
-                    Poll::Ready(Ok(
-                        ($(this.items.$n.take().unwrap(),)+)
-                    ))
-                } else {
-                    Poll::Pending
-                }
-            }
-        }
-    }
-});
-
-#[rustfmt::skip]
-mod m {
+#[doc(hidden)]
+#[allow(non_snake_case)]
+mod tuple_from_req {
     use super::*;
 
-    tuple_from_req!(TupleFromRequest1, (0, A));
-    tuple_from_req!(TupleFromRequest2, (0, A), (1, B));
-    tuple_from_req!(TupleFromRequest3, (0, A), (1, B), (2, C));
-    tuple_from_req!(TupleFromRequest4, (0, A), (1, B), (2, C), (3, D));
-    tuple_from_req!(TupleFromRequest5, (0, A), (1, B), (2, C), (3, D), (4, E));
-    tuple_from_req!(TupleFromRequest6, (0, A), (1, B), (2, C), (3, D), (4, E), (5, F));
-    tuple_from_req!(TupleFromRequest7, (0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G));
-    tuple_from_req!(TupleFromRequest8, (0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H));
-    tuple_from_req!(TupleFromRequest9, (0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H), (8, I));
-    tuple_from_req!(TupleFromRequest10, (0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H), (8, I), (9, J));
+    macro_rules! tuple_from_req {
+        ($fut: ident; $($T: ident),*) => {
+            /// FromRequest implementation for tuple
+            #[allow(unused_parens)]
+            impl<$($T: FromRequest + 'static),+> FromRequest for ($($T,)+)
+            {
+                type Error = Error;
+                type Future = $fut<$($T),+>;
+
+                fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+                    $fut {
+                        $(
+                            $T: ExtractFuture::Future {
+                                fut: $T::from_request(req, payload)
+                            },
+                        )+
+                    }
+                }
+            }
+
+            pin_project! {
+                pub struct $fut<$($T: FromRequest),+> {
+                    $(
+                        #[pin]
+                        $T: ExtractFuture<$T::Future, $T>,
+                    )+
+                }
+            }
+
+            impl<$($T: FromRequest),+> Future for $fut<$($T),+>
+            {
+                type Output = Result<($($T,)+), Error>;
+
+                fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+                    let mut this = self.project();
+
+                    let mut ready = true;
+                    $(
+                        match this.$T.as_mut().project() {
+                            ExtractProj::Future { fut } => match fut.poll(cx) {
+                                Poll::Ready(Ok(output)) => {
+                                    let _ = this.$T.as_mut().project_replace(ExtractFuture::Done { output });
+                                },
+                                Poll::Ready(Err(e)) => return Poll::Ready(Err(e.into())),
+                                Poll::Pending => ready = false,
+                            },
+                            ExtractProj::Done { .. } => {},
+                            ExtractProj::Empty => unreachable!("FromRequest polled after finished"),
+                        }
+                    )+
+
+                    if ready {
+                        Poll::Ready(Ok(
+                            ($(
+                                match this.$T.project_replace(ExtractFuture::Empty) {
+                                    ExtractReplaceProj::Done { output } => output,
+                                    _ => unreachable!("FromRequest polled after finished"),
+                                },
+                            )+)
+                        ))
+                    } else {
+                        Poll::Pending
+                    }
+                }
+            }
+        };
+    }
+
+    pin_project! {
+        #[project = ExtractProj]
+        #[project_replace = ExtractReplaceProj]
+        enum ExtractFuture<Fut, Res> {
+            Future {
+                #[pin]
+                fut: Fut
+            },
+            Done {
+                output: Res,
+            },
+            Empty
+        }
+    }
+
+    tuple_from_req! { TupleFromRequest1; A }
+    tuple_from_req! { TupleFromRequest2; A, B }
+    tuple_from_req! { TupleFromRequest3; A, B, C }
+    tuple_from_req! { TupleFromRequest4; A, B, C, D }
+    tuple_from_req! { TupleFromRequest5; A, B, C, D, E }
+    tuple_from_req! { TupleFromRequest6; A, B, C, D, E, F }
+    tuple_from_req! { TupleFromRequest7; A, B, C, D, E, F, G }
+    tuple_from_req! { TupleFromRequest8; A, B, C, D, E, F, G, H }
+    tuple_from_req! { TupleFromRequest9; A, B, C, D, E, F, G, H, I }
+    tuple_from_req! { TupleFromRequest10; A, B, C, D, E, F, G, H, I, J }
 }
 
 #[cfg(test)]
@@ -493,5 +498,27 @@ mod tests {
         let req = TestRequest::default().method(Method::GET).to_http_request();
         let method = Method::extract(&req).await.unwrap();
         assert_eq!(method, Method::GET);
+    }
+
+    #[actix_rt::test]
+    async fn test_concurrent() {
+        let (req, mut pl) = TestRequest::default()
+            .uri("/foo/bar")
+            .method(Method::GET)
+            .insert_header((header::CONTENT_TYPE, "application/x-www-form-urlencoded"))
+            .insert_header((header::CONTENT_LENGTH, "11"))
+            .set_payload(Bytes::from_static(b"hello=world"))
+            .to_http_parts();
+        let (method, uri, form) = <(Method, Uri, Form<Info>)>::from_request(&req, &mut pl)
+            .await
+            .unwrap();
+        assert_eq!(method, Method::GET);
+        assert_eq!(uri.path(), "/foo/bar");
+        assert_eq!(
+            form,
+            Form(Info {
+                hello: "world".into()
+            })
+        );
     }
 }
