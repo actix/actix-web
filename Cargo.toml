@@ -97,6 +97,7 @@ log = "0.4"
 mime = "0.3"
 paste = "1"
 pin-project = "1.0.0"
+pin-project-lite = "0.2.7"
 regex = "1.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
