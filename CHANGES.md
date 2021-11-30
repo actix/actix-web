@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 4.0.0-beta.13 - 2021-11-30
 ### Changed
 * Update `actix-tls` to `3.0.0-rc.1`. [#2474]
 
