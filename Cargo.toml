@@ -152,14 +152,6 @@ awc = { path = "awc" }
 # actix-tls = { path = "../actix-net/actix-tls" }
 # actix-server = { path = "../actix-net/actix-server" }
 
-actix-service = { git = "https://github.com/actix/actix-net.git", tag = "tls-v3.0.0-rc.1" }
-actix-macros = { git = "https://github.com/actix/actix-net.git", tag = "tls-v3.0.0-rc.1" }
-actix-rt = { git = "https://github.com/actix/actix-net.git", tag = "tls-v3.0.0-rc.1" }
-actix-codec = { git = "https://github.com/actix/actix-net.git", tag = "tls-v3.0.0-rc.1" }
-actix-utils = { git = "https://github.com/actix/actix-net.git", tag = "tls-v3.0.0-rc.1" }
-actix-tls = { git = "https://github.com/actix/actix-net.git", tag = "tls-v3.0.0-rc.1" }
-actix-server = { git = "https://github.com/actix/actix-net.git", tag = "tls-v3.0.0-rc.1" }
-
 [[test]]
 name = "test_server"
 required-features = ["compress-brotli", "compress-gzip", "compress-zstd", "cookies"]
