@@ -125,14 +125,13 @@ impl<T: Serialize> Responder for Json<T> {
                 .content_type(mime::APPLICATION_JSON)
                 .message_body(body)
             {
-                Ok(res) => res.map_body(|_, body| EitherBody::left(body)),
-                Err(err) => {
-                    HttpResponse::from_error(err).map_body(|_, body| EitherBody::right(body))
-                }
+                Ok(res) => res.map_into_left_body(),
+                Err(err) => HttpResponse::from_error(err).map_into_right_body(),
             },
 
-            Err(err) => HttpResponse::from_error(JsonPayloadError::Serialize(err))
-                .map_body(|_, body| EitherBody::right(body)),
+            Err(err) => {
+                HttpResponse::from_error(JsonPayloadError::Serialize(err)).map_into_right_body()
+            }
         }
     }
 }

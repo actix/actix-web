@@ -152,13 +152,8 @@ where
 
     fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
         match self {
-            Either::Left(a) => a
-                .respond_to(req)
-                .map_body(|_, body| body::EitherBody::left(body)),
-
-            Either::Right(b) => b
-                .respond_to(req)
-                .map_body(|_, body| body::EitherBody::right(body)),
+            Either::Left(a) => a.respond_to(req).map_into_left_body(),
+            Either::Right(b) => b.respond_to(req).map_into_right_body(),
         }
     }
 }

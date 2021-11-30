@@ -189,14 +189,13 @@ impl<T: Serialize> Responder for Form<T> {
                 .content_type(mime::APPLICATION_WWW_FORM_URLENCODED)
                 .message_body(body)
             {
-                Ok(res) => res.map_body(|_, body| EitherBody::left(body)),
-                Err(err) => {
-                    HttpResponse::from_error(err).map_body(|_, body| EitherBody::right(body))
-                }
+                Ok(res) => res.map_into_left_body(),
+                Err(err) => HttpResponse::from_error(err).map_into_right_body(),
             },
 
-            Err(err) => HttpResponse::from_error(UrlencodedError::Serialize(err))
-                .map_body(|_, body| EitherBody::right(body)),
+            Err(err) => {
+                HttpResponse::from_error(UrlencodedError::Serialize(err)).map_into_right_body()
+            }
         }
     }
 }

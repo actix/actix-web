@@ -105,12 +105,8 @@ where
 
     fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
         match self {
-            Some(val) => val
-                .respond_to(req)
-                .map_body(|_, body| EitherBody::left(body)),
-
-            None => HttpResponse::new(StatusCode::NOT_FOUND)
-                .map_body(|_, body| EitherBody::right(body)),
+            Some(val) => val.respond_to(req).map_into_left_body(),
+            None => HttpResponse::new(StatusCode::NOT_FOUND).map_into_right_body(),
         }
     }
 }
@@ -125,13 +121,8 @@ where
 
     fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
         match self {
-            Ok(val) => val
-                .respond_to(req)
-                .map_body(|_, body| EitherBody::left(body)),
-
-            Err(err) => {
-                HttpResponse::from_error(err.into()).map_body(|_, body| EitherBody::right(body))
-            }
+            Ok(val) => val.respond_to(req).map_into_left_body(),
+            Err(err) => HttpResponse::from_error(err.into()).map_into_right_body(),
         }
     }
 }
@@ -278,7 +269,7 @@ where
             res.headers_mut().insert(k, v);
         }
 
-        res.map_body(|_, body| EitherBody::left(body))
+        res.map_into_left_body()
     }
 }
 
