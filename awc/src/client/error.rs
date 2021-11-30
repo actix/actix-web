@@ -7,7 +7,7 @@ use actix_http::{
     http::Error as HttpError,
 };
 #[cfg(feature = "openssl")]
-use actix_tls::accept::openssl::SslError;
+use actix_tls::accept::openssl::reexports::Error as OpenSslError;
 
 /// A set of errors that can occur while connecting to an HTTP host
 #[derive(Debug, Display, From)]
@@ -20,7 +20,7 @@ pub enum ConnectError {
     /// SSL error
     #[cfg(feature = "openssl")]
     #[display(fmt = "{}", _0)]
-    SslError(SslError),
+    SslError(OpenSslError),
 
     /// Failed to resolve the hostname
     #[display(fmt = "Failed resolving hostname: {}", _0)]

@@ -137,7 +137,7 @@ use actix_http::{
 use actix_rt::net::TcpStream;
 use actix_service::Service;
 
-use self::client::{TcpConnect, TcpConnectError, TcpConnection};
+use self::client::{ConnectInfo, TcpConnectError, TcpConnection};
 
 /// An asynchronous HTTP and WebSocket client.
 ///
@@ -186,7 +186,7 @@ impl Client {
     /// This function is equivalent of `ClientBuilder::new()`.
     pub fn builder() -> ClientBuilder<
         impl Service<
-                TcpConnect<Uri>,
+                ConnectInfo<Uri>,
                 Response = TcpConnection<Uri, TcpStream>,
                 Error = TcpConnectError,
             > + Clone,

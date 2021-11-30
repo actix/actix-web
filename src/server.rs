@@ -15,9 +15,9 @@ use actix_service::{
 };
 
 #[cfg(feature = "openssl")]
-use actix_tls::accept::openssl::{AlpnError, SslAcceptor, SslAcceptorBuilder};
+use actix_tls::accept::openssl::reexports::{AlpnError, SslAcceptor, SslAcceptorBuilder};
 #[cfg(feature = "rustls")]
-use actix_tls::accept::rustls::ServerConfig as RustlsServerConfig;
+use actix_tls::accept::rustls::reexports::ServerConfig as RustlsServerConfig;
 
 use crate::{config::AppConfig, Error};
 
@@ -108,11 +108,11 @@ where
     /// [Extensions] container so that request-local data can be passed to middleware and handlers.
     ///
     /// For example:
-    /// - `actix_tls::openssl::SslStream<actix_web::rt::net::TcpStream>` when using openssl.
-    /// - `actix_tls::rustls::TlsStream<actix_web::rt::net::TcpStream>` when using rustls.
+    /// - `actix_tls::accept::openssl::TlsStream<actix_web::rt::net::TcpStream>` when using openssl.
+    /// - `actix_tls::accept::rustls::TlsStream<actix_web::rt::net::TcpStream>` when using rustls.
     /// - `actix_web::rt::net::TcpStream` when no encryption is used.
     ///
-    /// See `on_connect` example for additional details.
+    /// See the `on_connect` example for additional details.
     pub fn on_connect<CB>(self, f: CB) -> HttpServer<F, I, S, B>
     where
         CB: Fn(&dyn Any, &mut Extensions) + Send + Sync + 'static,

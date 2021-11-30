@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "3.0.0-beta.13"
+version = "3.0.0-beta.14"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "HTTP primitives for the Actix ecosystem"
 keywords = ["actix", "http", "framework", "async", "futures"]
@@ -73,7 +73,7 @@ sha-1 = "0.9"
 smallvec = "1.6.1"
 
 # tls
-actix-tls = { version = "3.0.0-beta.9", default-features = false, optional = true }
+actix-tls = { version = "3.0.0-rc.1", default-features = false, optional = true }
 
 # compression
 brotli2 = { version="0.3.2", optional = true }
@@ -83,7 +83,7 @@ zstd = { version = "0.9", optional = true }
 [dev-dependencies]
 actix-server = "2.0.0-beta.9"
 actix-http-test = { version = "3.0.0-beta.7", features = ["openssl"] }
-actix-tls = { version = "3.0.0-beta.9", features = ["openssl"] }
+actix-tls = { version = "3.0.0-rc.1", features = ["openssl"] }
 async-stream = "0.3"
 criterion = { version = "0.3", features = ["html_reports"] }
 env_logger = "0.9"

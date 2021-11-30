@@ -5,7 +5,7 @@ use actix_rt::net::{ActixStream, TcpStream};
 use actix_service::{boxed, Service};
 
 use crate::{
-    client::{Connector, ConnectorService, TcpConnect, TcpConnectError, TcpConnection},
+    client::{ConnectInfo, Connector, ConnectorService, TcpConnectError, TcpConnection},
     connect::DefaultConnector,
     error::SendRequestError,
     middleware::{NestTransform, Redirect, Transform},
@@ -33,7 +33,7 @@ impl ClientBuilder {
     #[allow(clippy::new_ret_no_self)]
     pub fn new() -> ClientBuilder<
         impl Service<
-                TcpConnect<Uri>,
+                ConnectInfo<Uri>,
                 Response = TcpConnection<Uri, TcpStream>,
                 Error = TcpConnectError,
             > + Clone,
@@ -56,7 +56,7 @@ impl ClientBuilder {
 
 impl<S, Io, M> ClientBuilder<S, M>
 where
-    S: Service<TcpConnect<Uri>, Response = TcpConnection<Uri, Io>, Error = TcpConnectError>
+    S: Service<ConnectInfo<Uri>, Response = TcpConnection<Uri, Io>, Error = TcpConnectError>
         + Clone
         + 'static,
     Io: ActixStream + fmt::Debug + 'static,
@@ -65,7 +65,7 @@ where
     pub fn connector<S1, Io1>(self, connector: Connector<S1>) -> ClientBuilder<S1, M>
     where
         S1: Service<
-                TcpConnect<Uri>,
+                ConnectInfo<Uri>,
                 Response = TcpConnection<Uri, Io1>,
                 Error = TcpConnectError,
             > + Clone

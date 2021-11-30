@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "4.0.0-beta.12"
+version = "4.0.0-beta.13"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix Web is a powerful, pragmatic, and extremely fast web framework for Rust"
 keywords = ["actix", "http", "web", "framework", "async"]
@@ -75,9 +75,9 @@ actix-rt = "2.3"
 actix-server = "2.0.0-beta.9"
 actix-service = "2.0.0"
 actix-utils = "3.0.0"
-actix-tls = { version = "3.0.0-beta.9", default-features = false, optional = true }
+actix-tls = { version = "3.0.0-rc.1", default-features = false, optional = true }
 
-actix-http = "3.0.0-beta.13"
+actix-http = "3.0.0-beta.14"
 actix-router = "0.5.0-beta.2"
 actix-web-codegen = "0.5.0-beta.5"
 
@@ -142,6 +142,15 @@ actix-web = { path = "." }
 actix-web-actors = { path = "actix-web-actors" }
 actix-web-codegen = { path = "actix-web-codegen" }
 awc = { path = "awc" }
+
+# uncomment for quick testing against local actix-net repo
+# actix-service = { path = "../actix-net/actix-service" }
+# actix-macros = { path = "../actix-net/actix-macros" }
+# actix-rt = { path = "../actix-net/actix-rt" }
+# actix-codec = { path = "../actix-net/actix-codec" }
+# actix-utils = { path = "../actix-net/actix-utils" }
+# actix-tls = { path = "../actix-net/actix-tls" }
+# actix-server = { path = "../actix-net/actix-server" }
 
 [[test]]
 name = "test_server"
