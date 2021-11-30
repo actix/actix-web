@@ -103,8 +103,10 @@ pin_project! {
     #[project = EncoderBodyProj]
     enum EncoderBody<B> {
         None,
+
         // TODO: this variant is not used but RA can't see it because of macro wrapper
-        Bytes { bytes: Bytes },
+        Bytes { body: Bytes },
+
         Stream { #[pin] body: B },
     }
 }
@@ -113,12 +115,12 @@ impl<B> MessageBody for EncoderBody<B>
 where
     B: MessageBody,
 {
-    type Error = EncoderError<B::Error>;
+    type Error = EncoderError;
 
     fn size(&self) -> BodySize {
         match self {
             EncoderBody::None => BodySize::None,
-            EncoderBody::Bytes { bytes } => bytes.size(),
+            EncoderBody::Bytes { body } => body.size(),
             EncoderBody::Stream { body } => body.size(),
         }
     }
@@ -130,17 +132,16 @@ where
         match self.project() {
             EncoderBodyProj::None => Poll::Ready(None),
 
-            EncoderBodyProj::Bytes { bytes } => {
-                if bytes.is_empty() {
+            EncoderBodyProj::Bytes { body } => {
+                if body.is_empty() {
                     Poll::Ready(None)
                 } else {
-                    Poll::Ready(Some(Ok(std::mem::take(bytes))))
+                    Poll::Ready(Some(Ok(std::mem::take(body))))
                 }
             }
-
-            EncoderBodyProj::Stream { body } => {
-                body.poll_next(cx).map_err(EncoderError::Body)
-            }
+            EncoderBodyProj::Stream { body } => body
+                .poll_next(cx)
+                .map_err(|err| EncoderError::Body(err.into())),
         }
     }
 }
@@ -149,7 +150,7 @@ impl<B> MessageBody for Encoder<B>
 where
     B: MessageBody,
 {
-    type Error = EncoderError<B::Error>;
+    type Error = EncoderError;
 
     fn size(&self) -> BodySize {
         if self.encoder.is_none() {
@@ -369,9 +370,9 @@ impl ContentEncoder {
 
 #[derive(Debug, Display)]
 #[non_exhaustive]
-pub enum EncoderError<E> {
+pub enum EncoderError {
     #[display(fmt = "body")]
-    Body(E),
+    Body(Box<dyn StdError>),
 
     #[display(fmt = "blocking")]
     Blocking(BlockingError),
@@ -380,18 +381,18 @@ pub enum EncoderError<E> {
     Io(io::Error),
 }
 
-impl<E: StdError + 'static> StdError for EncoderError<E> {
+impl StdError for EncoderError {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
-            EncoderError::Body(err) => Some(err),
+            EncoderError::Body(err) => Some(&**err),
             EncoderError::Blocking(err) => Some(err),
             EncoderError::Io(err) => Some(err),
         }
     }
 }
 
-impl<E: StdError + 'static> From<EncoderError<E>> for crate::Error {
-    fn from(err: EncoderError<E>) -> Self {
+impl From<EncoderError> for crate::Error {
+    fn from(err: EncoderError) -> Self {
         crate::Error::new_encoder().with_cause(err)
     }
 }

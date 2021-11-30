@@ -1,7 +1,6 @@
 //! For either helper, see [`Either`].
 
 use std::{
-    error::Error as StdError,
     future::Future,
     mem,
     pin::Pin,
@@ -15,7 +14,7 @@ use pin_project_lite::pin_project;
 use crate::{
     body, dev,
     web::{Form, Json},
-    Error, FromRequest, HttpRequest, HttpResponse, Responder,
+    BoxError, Error, FromRequest, HttpRequest, HttpResponse, Responder,
 };
 
 /// Combines two extractor or responder types into a single type.
@@ -145,9 +144,9 @@ impl<L, R> Either<L, R> {
 impl<L, R> Responder for Either<L, R>
 where
     L: Responder,
-    <L::Body as dev::MessageBody>::Error: Into<Box<dyn StdError + 'static>>,
+    <L::Body as dev::MessageBody>::Error: Into<BoxError>,
     R: Responder,
-    <R::Body as dev::MessageBody>::Error: Into<Box<dyn StdError + 'static>>,
+    <R::Body as dev::MessageBody>::Error: Into<BoxError>,
 {
     type Body = body::EitherBody<L::Body, R::Body>;
 

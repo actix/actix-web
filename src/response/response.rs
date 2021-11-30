@@ -9,7 +9,7 @@ use std::{
 };
 
 use actix_http::{
-    body::{BoxBody, MessageBody},
+    body::{BoxBody, EitherBody, MessageBody},
     http::{header::HeaderMap, StatusCode},
     Extensions, Response, ResponseHead,
 };
@@ -228,7 +228,15 @@ impl<B> HttpResponse<B> {
         }
     }
 
-    // TODO: old into_body equivalent, maybe
+    // TODO: docs for the body map methods below
+
+    pub fn map_into_left_body<R>(self) -> HttpResponse<EitherBody<B, R>> {
+        self.map_body(|_, body| EitherBody::left(body))
+    }
+
+    pub fn map_into_right_body<L>(self) -> HttpResponse<EitherBody<L, B>> {
+        self.map_body(|_, body| EitherBody::right(body))
+    }
 
     pub fn map_into_boxed_body(self) -> HttpResponse<BoxBody>
     where

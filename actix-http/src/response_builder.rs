@@ -239,7 +239,6 @@ impl ResponseBuilder {
     {
         match self.message_body(body) {
             Ok(res) => res.map_body(|_, body| EitherBody::left(body)),
-            // TODO: add error path
             Err(err) => Response::from(err).map_body(|_, body| EitherBody::right(body)),
         }
     }

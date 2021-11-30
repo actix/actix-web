@@ -2,6 +2,7 @@
 
 use std::{
     convert::Infallible,
+    error::Error as StdError,
     mem,
     pin::Pin,
     task::{Context, Poll},
@@ -16,7 +17,7 @@ use super::BodySize;
 /// An interface types that can converted to bytes and used as response bodies.
 // TODO: examples
 pub trait MessageBody {
-    type Error;
+    type Error: Into<Box<dyn StdError>>;
 
     /// Body size hint.
     fn size(&self) -> BodySize;
@@ -135,25 +136,6 @@ impl MessageBody for Bytes {
     }
 }
 
-// impl<'a> MessageBody for &'a Bytes {
-//     type Error = Infallible;
-
-//     fn size(&self) -> BodySize {
-//         BodySize::Sized(self.len() as u64)
-//     }
-
-//     fn poll_next(
-//         self: Pin<&mut Self>,
-//         _cx: &mut Context<'_>,
-//     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
-//         if self.is_empty() {
-//             Poll::Ready(None)
-//         } else {
-//             Poll::Ready(Some(Ok(self.clone())))
-//         }
-//     }
-// }
-
 impl MessageBody for BytesMut {
     type Error = Infallible;
 
@@ -168,29 +150,31 @@ impl MessageBody for BytesMut {
         if self.is_empty() {
             Poll::Ready(None)
         } else {
-            Poll::Ready(Some(Ok(mem::take(self.get_mut()).freeze())))
+            let bytes = mem::take(self.get_mut()).freeze();
+            Poll::Ready(Some(Ok(bytes)))
         }
     }
 }
 
-// impl<'a> MessageBody for &'a BytesMut {
-//     type Error = Infallible;
+impl MessageBody for Vec<u8> {
+    type Error = Infallible;
 
-//     fn size(&self) -> BodySize {
-//         BodySize::Sized(self.len() as u64)
-//     }
+    fn size(&self) -> BodySize {
+        BodySize::Sized(self.len() as u64)
+    }
 
-//     fn poll_next(
-//         self: Pin<&mut Self>,
-//         _cx: &mut Context<'_>,
-//     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
-//         if self.is_empty() {
-//             Poll::Ready(None)
-//         } else {
-//             Poll::Ready(Some(Ok(self.clone().freeze())))
-//         }
-//     }
-// }
+    fn poll_next(
+        self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Bytes, Self::Error>>> {
+        if self.is_empty() {
+            Poll::Ready(None)
+        } else {
+            let bytes = mem::take(self.get_mut());
+            Poll::Ready(Some(Ok(Bytes::from(bytes))))
+        }
+    }
+}
 
 impl MessageBody for &'static str {
     type Error = Infallible;
@@ -213,25 +197,6 @@ impl MessageBody for &'static str {
     }
 }
 
-impl MessageBody for Vec<u8> {
-    type Error = Infallible;
-
-    fn size(&self) -> BodySize {
-        BodySize::Sized(self.len() as u64)
-    }
-
-    fn poll_next(
-        self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<Bytes, Self::Error>>> {
-        if self.is_empty() {
-            Poll::Ready(None)
-        } else {
-            Poll::Ready(Some(Ok(Bytes::from(mem::take(self.get_mut())))))
-        }
-    }
-}
-
 impl MessageBody for String {
     type Error = Infallible;
 
@@ -246,50 +211,11 @@ impl MessageBody for String {
         if self.is_empty() {
             Poll::Ready(None)
         } else {
-            Poll::Ready(Some(Ok(Bytes::from(mem::take(self.get_mut())))))
+            let string = mem::take(self.get_mut());
+            Poll::Ready(Some(Ok(Bytes::from(string))))
         }
     }
 }
-
-// impl<'a> MessageBody for &'a String {
-//     type Error = Infallible;
-
-//     fn size(&self) -> BodySize {
-//         BodySize::Sized(self.len() as u64)
-//     }
-
-//     fn poll_next(
-//         self: Pin<&mut Self>,
-//         _cx: &mut Context<'_>,
-//     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
-//         if self.is_empty() {
-//             Poll::Ready(None)
-//         } else {
-//             Poll::Ready(Some(Ok(Bytes::from(self.clone()))))
-//         }
-//     }
-// }
-
-// impl MessageBody for Cow<'_, str> {
-//     type Error = Infallible;
-
-//     fn size(&self) -> BodySize {
-//         BodySize::Sized(self.len() as u64)
-//     }
-
-//     fn poll_next(
-//         self: Pin<&mut Self>,
-//         cx: &mut Context<'_>,
-//     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
-//         if self.is_empty() {
-//             Poll::Ready(None)
-//         } else {
-//             let cow = Pin::into_inner(self);
-//             let mut string = cow.clone().into_owned();
-//             Pin::new(&mut string).poll_next(cx)
-//         }
-//     }
-// }
 
 impl MessageBody for bytestring::ByteString {
     type Error = Infallible;
@@ -306,8 +232,6 @@ impl MessageBody for bytestring::ByteString {
         Poll::Ready(Some(Ok(string.into_bytes())))
     }
 }
-
-// TODO: ensure consistent impls of MessageBody that always terminate
 
 pin_project! {
     pub(crate) struct MessageBodyMapErr<B, F> {
@@ -334,6 +258,7 @@ impl<B, F, E> MessageBody for MessageBodyMapErr<B, F>
 where
     B: MessageBody,
     F: FnOnce(B::Error) -> E,
+    E: Into<Box<dyn StdError>>,
 {
     type Error = E;
 

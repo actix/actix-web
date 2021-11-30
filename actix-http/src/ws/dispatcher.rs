@@ -4,17 +4,21 @@ use std::task::{Context, Poll};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_service::{IntoService, Service};
+use pin_project_lite::pin_project;
 
 use super::{Codec, Frame, Message};
 
-#[pin_project::pin_project]
-pub struct Dispatcher<S, T>
-where
-    S: Service<Frame, Response = Message> + 'static,
-    T: AsyncRead + AsyncWrite,
-{
-    #[pin]
-    inner: inner::Dispatcher<S, T, Codec, Message>,
+pin_project! {
+    pub struct Dispatcher<S, T>
+    where
+        S: Service<Frame, Response = Message>,
+        S: 'static,
+        T: AsyncRead,
+        T: AsyncWrite,
+    {
+        #[pin]
+        inner: inner::Dispatcher<S, T, Codec, Message>,
+    }
 }
 
 impl<S, T> Dispatcher<S, T>

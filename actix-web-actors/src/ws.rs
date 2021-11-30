@@ -30,6 +30,7 @@ use actix_web::{
 use bytes::{Bytes, BytesMut};
 use bytestring::ByteString;
 use futures_core::Stream;
+use pin_project_lite::pin_project;
 use tokio::sync::oneshot::Sender;
 
 /// Perform WebSocket handshake and start actor.
@@ -462,13 +463,14 @@ where
     }
 }
 
-#[pin_project::pin_project]
-struct WsStream<S> {
-    #[pin]
-    stream: S,
-    decoder: Codec,
-    buf: BytesMut,
-    closed: bool,
+pin_project! {
+    struct WsStream<S> {
+        #[pin]
+        stream: S,
+        decoder: Codec,
+        buf: BytesMut,
+        closed: bool,
+    }
 }
 
 impl<S> WsStream<S>

@@ -15,7 +15,7 @@ use actix_service::{
     fn_service, IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt as _,
 };
 use futures_core::{future::LocalBoxFuture, ready};
-use pin_project::pin_project;
+use pin_project_lite::pin_project;
 
 use crate::{
     body::{BoxBody, MessageBody},
@@ -519,23 +519,27 @@ where
 
         match proto {
             Protocol::Http2 => HttpServiceHandlerResponse {
-                state: State::H2Handshake(Some((
-                    h2::handshake_with_timeout(io, &self.cfg),
-                    self.cfg.clone(),
-                    self.flow.clone(),
-                    on_connect_data,
-                    peer_addr,
-                ))),
+                state: State::H2Handshake {
+                    handshake: Some((
+                        h2::handshake_with_timeout(io, &self.cfg),
+                        self.cfg.clone(),
+                        self.flow.clone(),
+                        on_connect_data,
+                        peer_addr,
+                    )),
+                },
             },
 
             Protocol::Http1 => HttpServiceHandlerResponse {
-                state: State::H1(h1::Dispatcher::new(
-                    io,
-                    self.cfg.clone(),
-                    self.flow.clone(),
-                    on_connect_data,
-                    peer_addr,
-                )),
+                state: State::H1 {
+                    dispatcher: h1::Dispatcher::new(
+                        io,
+                        self.cfg.clone(),
+                        self.flow.clone(),
+                        on_connect_data,
+                        peer_addr,
+                    ),
+                },
             },
 
             proto => unimplemented!("Unsupported HTTP version: {:?}.", proto),
@@ -543,58 +547,67 @@ where
     }
 }
 
-#[pin_project(project = StateProj)]
-enum State<T, S, B, X, U>
-where
-    T: AsyncRead + AsyncWrite + Unpin,
+pin_project! {
+    #[project = StateProj]
+    enum State<T, S, B, X, U>
+    where
+        T: AsyncRead,
+        T: AsyncWrite,
+        T: Unpin,
 
-    S: Service<Request>,
-    S::Future: 'static,
-    S::Error: Into<Response<BoxBody>>,
+        S: Service<Request>,
+        S::Future: 'static,
+        S::Error: Into<Response<BoxBody>>,
 
-    B: MessageBody,
-    B::Error: Into<Box<dyn StdError>>,
+        B: MessageBody,
+        B::Error: Into<Box<dyn StdError>>,
 
-    X: Service<Request, Response = Request>,
-    X::Error: Into<Response<BoxBody>>,
+        X: Service<Request, Response = Request>,
+        X::Error: Into<Response<BoxBody>>,
 
-    U: Service<(Request, Framed<T, h1::Codec>), Response = ()>,
-    U::Error: fmt::Display,
-{
-    H1(#[pin] h1::Dispatcher<T, S, B, X, U>),
-    H2(#[pin] h2::Dispatcher<T, S, B, X, U>),
-    H2Handshake(
-        Option<(
-            h2::HandshakeWithTimeout<T>,
-            ServiceConfig,
-            Rc<HttpFlow<S, X, U>>,
-            OnConnectData,
-            Option<net::SocketAddr>,
-        )>,
-    ),
+        U: Service<(Request, Framed<T, h1::Codec>), Response = ()>,
+        U::Error: fmt::Display,
+    {
+        H1 { #[pin] dispatcher: h1::Dispatcher<T, S, B, X, U> },
+        H2 { #[pin] dispatcher: h2::Dispatcher<T, S, B, X, U> },
+        H2Handshake {
+            handshake: Option<(
+                h2::HandshakeWithTimeout<T>,
+                ServiceConfig,
+                Rc<HttpFlow<S, X, U>>,
+                OnConnectData,
+                Option<net::SocketAddr>,
+            )>,
+        },
+    }
 }
 
-#[pin_project]
-pub struct HttpServiceHandlerResponse<T, S, B, X, U>
-where
-    T: AsyncRead + AsyncWrite + Unpin,
+pin_project! {
+    pub struct HttpServiceHandlerResponse<T, S, B, X, U>
+    where
+        T: AsyncRead,
+        T: AsyncWrite,
+        T: Unpin,
 
-    S: Service<Request>,
-    S::Error: Into<Response<BoxBody>> + 'static,
-    S::Future: 'static,
-    S::Response: Into<Response<B>> + 'static,
+        S: Service<Request>,
+        S::Error: Into<Response<BoxBody>>,
+        S::Error: 'static,
+        S::Future: 'static,
+        S::Response: Into<Response<B>>,
+        S::Response: 'static,
 
-    B: MessageBody,
-    B::Error: Into<Box<dyn StdError>>,
+        B: MessageBody,
+        B::Error: Into<Box<dyn StdError>>,
 
-    X: Service<Request, Response = Request>,
-    X::Error: Into<Response<BoxBody>>,
+        X: Service<Request, Response = Request>,
+        X::Error: Into<Response<BoxBody>>,
 
-    U: Service<(Request, Framed<T, h1::Codec>), Response = ()>,
-    U::Error: fmt::Display,
-{
-    #[pin]
-    state: State<T, S, B, X, U>,
+        U: Service<(Request, Framed<T, h1::Codec>), Response = ()>,
+        U::Error: fmt::Display,
+    {
+        #[pin]
+        state: State<T, S, B, X, U>,
+    }
 }
 
 impl<T, S, B, X, U> Future for HttpServiceHandlerResponse<T, S, B, X, U>
@@ -619,23 +632,24 @@ where
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.as_mut().project().state.project() {
-            StateProj::H1(disp) => disp.poll(cx),
-            StateProj::H2(disp) => disp.poll(cx),
-            StateProj::H2Handshake(data) => {
+            StateProj::H1 { dispatcher } => dispatcher.poll(cx),
+            StateProj::H2 { dispatcher } => dispatcher.poll(cx),
+            StateProj::H2Handshake { handshake: data } => {
                 match ready!(Pin::new(&mut data.as_mut().unwrap().0).poll(cx)) {
                     Ok((conn, timer)) => {
-                        let (_, cfg, srv, on_connect_data, peer_addr) =
+                        let (_, config, flow, on_connect_data, peer_addr) =
                             data.take().unwrap();
-                        self.as_mut().project().state.set(State::H2(
-                            h2::Dispatcher::new(
-                                srv,
+
+                        self.as_mut().project().state.set(State::H2 {
+                            dispatcher: h2::Dispatcher::new(
+                                flow,
                                 conn,
                                 on_connect_data,
-                                cfg,
+                                config,
                                 peer_addr,
                                 timer,
                             ),
-                        ));
+                        });
                         self.poll(cx)
                     }
                     Err(err) => {

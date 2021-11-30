@@ -1,11 +1,11 @@
 #![allow(clippy::rc_buffer)] // inner value is mutated before being shared (`Rc::get_mut`)
 
-use std::{error::Error as StdError, future::Future, mem, rc::Rc};
+use std::{future::Future, mem, rc::Rc};
 
 use actix_http::http::Method;
 use actix_service::{
-    boxed::{self, BoxService, BoxServiceFactory},
-    Service, ServiceFactory, ServiceFactoryExt,
+    boxed::{self, BoxService},
+    fn_service, Service, ServiceFactory, ServiceFactoryExt,
 };
 use futures_core::future::LocalBoxFuture;
 
@@ -13,8 +13,8 @@ use crate::{
     body::MessageBody,
     guard::{self, Guard},
     handler::{handler_service, Handler},
-    service::{ServiceRequest, ServiceResponse},
-    Error, FromRequest, HttpResponse, Responder,
+    service::{BoxedHttpServiceFactory, ServiceRequest, ServiceResponse},
+    BoxError, Error, FromRequest, HttpResponse, Responder,
 };
 
 /// Resource route definition
@@ -22,7 +22,7 @@ use crate::{
 /// Route uses builder-like pattern for configuration.
 /// If handler is not explicitly set, default *404 Not Found* handler is used.
 pub struct Route {
-    service: BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>,
+    service: BoxedHttpServiceFactory,
     guards: Rc<Vec<Box<dyn Guard>>>,
 }
 
@@ -31,10 +31,9 @@ impl Route {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Route {
         Route {
-            // TODO: remove double boxing
-            service: boxed::factory(
-                handler_service(HttpResponse::NotFound).map(|res| res.map_into_boxed_body()),
-            ),
+            service: boxed::factory(fn_service(|req: ServiceRequest| async {
+                Ok(req.into_response(HttpResponse::NotFound()))
+            })),
             guards: Rc::new(Vec::new()),
         }
     }
@@ -185,13 +184,10 @@ impl Route {
         T: FromRequest + 'static,
         R: Future + 'static,
         R::Output: Responder + 'static,
-        <R::Output as Responder>::Body: MessageBody + 'static,
-        <<R::Output as Responder>::Body as MessageBody>::Error:
-            Into<Box<dyn StdError + 'static>>,
+        <R::Output as Responder>::Body: MessageBody,
+        <<R::Output as Responder>::Body as MessageBody>::Error: Into<BoxError>,
     {
-        // TODO: remove double boxing
-        self.service =
-            boxed::factory(handler_service(handler).map(|res| res.map_into_boxed_body()));
+        self.service = handler_service(handler);
         self
     }
 

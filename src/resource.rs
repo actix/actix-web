@@ -1,4 +1,4 @@
-use std::{cell::RefCell, error::Error as StdError, fmt, future::Future, rc::Rc};
+use std::{cell::RefCell, fmt, future::Future, rc::Rc};
 
 use actix_http::Extensions;
 use actix_router::{IntoPatterns, Patterns};
@@ -21,7 +21,7 @@ use crate::{
         BoxedHttpService, BoxedHttpServiceFactory, HttpServiceFactory, ServiceRequest,
         ServiceResponse,
     },
-    Error, FromRequest, HttpResponse,
+    BoxError, Error, FromRequest, HttpResponse,
 };
 
 /// *Resource* is an entry in resources table which corresponds to requested URL.
@@ -239,9 +239,8 @@ where
         I: FromRequest + 'static,
         R: Future + 'static,
         R::Output: Responder + 'static,
-        <R::Output as Responder>::Body: MessageBody + 'static,
-        <<R::Output as Responder>::Body as MessageBody>::Error:
-            Into<Box<dyn StdError + 'static>>,
+        <R::Output as Responder>::Body: MessageBody,
+        <<R::Output as Responder>::Body as MessageBody>::Error: Into<BoxError>,
     {
         self.routes.push(Route::new().to(handler));
         self

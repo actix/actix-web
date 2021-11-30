@@ -1,4 +1,4 @@
-use std::error::Error as StdError;
+use std::borrow::Cow;
 
 use actix_http::{
     body::{BoxBody, EitherBody, MessageBody},
@@ -6,7 +6,7 @@ use actix_http::{
 };
 use bytes::{Bytes, BytesMut};
 
-use crate::{Error, HttpRequest, HttpResponse, HttpResponseBuilder};
+use crate::{BoxError, Error, HttpRequest, HttpResponse, HttpResponseBuilder};
 
 /// Trait implemented by types that can be converted to an HTTP response.
 ///
@@ -99,7 +99,7 @@ impl Responder for actix_http::ResponseBuilder {
 impl<T> Responder for Option<T>
 where
     T: Responder,
-    <T::Body as MessageBody>::Error: Into<Box<dyn StdError + 'static>>,
+    <T::Body as MessageBody>::Error: Into<BoxError>,
 {
     type Body = EitherBody<T::Body>;
 
@@ -118,7 +118,7 @@ where
 impl<T, E> Responder for Result<T, E>
 where
     T: Responder,
-    <T::Body as MessageBody>::Error: Into<Box<dyn StdError + 'static>>,
+    <T::Body as MessageBody>::Error: Into<BoxError>,
     E: Into<Error>,
 {
     type Body = EitherBody<T::Body>;
@@ -129,8 +129,8 @@ where
                 .respond_to(req)
                 .map_body(|_, body| EitherBody::left(body)),
 
-            Err(e) => {
-                HttpResponse::from_error(e.into()).map_body(|_, body| EitherBody::right(body))
+            Err(err) => {
+                HttpResponse::from_error(err.into()).map_body(|_, body| EitherBody::right(body))
             }
         }
     }
@@ -170,25 +170,22 @@ impl_responder_by_forward_into_base_response!(BytesMut);
 impl_responder_by_forward_into_base_response!(&'static str);
 impl_responder_by_forward_into_base_response!(String);
 
-// macro_rules! impl_responder {
-//     ($res:ty, $body:ty, $ct:path) => {
-//         impl Responder for $res {
-//             type Body = $body;
+macro_rules! impl_into_string_responder {
+    ($res:ty) => {
+        impl Responder for $res {
+            type Body = String;
 
-//             fn respond_to(self, _: &HttpRequest) -> HttpResponse<Self::Body> {
-//                 HttpResponse::Ok().content_type($ct).body(self)
-//             }
-//         }
-//     };
+            fn respond_to(self, _: &HttpRequest) -> HttpResponse<Self::Body> {
+                let string: String = self.into();
+                let res: actix_http::Response<_> = string.into();
+                res.into()
+            }
+        }
+    };
+}
 
-//     ($res:ty, $ct:path) => {
-//         impl_responder!($res, $res, $ct);
-//     };
-// }
-
-// impl_responder!(&'_ String, mime::TEXT_PLAIN_UTF_8);
-
-// impl_responder!(Cow<'_, str>, mime::TEXT_PLAIN_UTF_8);
+impl_into_string_responder!(&'_ String);
+impl_into_string_responder!(Cow<'_, str>);
 
 /// Allows overriding status code and headers for a responder.
 pub struct CustomResponder<T> {
@@ -257,7 +254,7 @@ impl<T: Responder> CustomResponder<T> {
 impl<T> Responder for CustomResponder<T>
 where
     T: Responder,
-    <T::Body as MessageBody>::Error: Into<Box<dyn StdError + 'static>>,
+    <T::Body as MessageBody>::Error: Into<BoxError>,
 {
     type Body = EitherBody<T::Body>;
 
@@ -265,7 +262,7 @@ where
         let headers = match self.headers {
             Ok(headers) => headers,
             Err(err) => {
-                return HttpResponse::from_error(Error::from(err))
+                return HttpResponse::from_error(err)
                     .map_body(|_, body| EitherBody::right(body))
             }
         };

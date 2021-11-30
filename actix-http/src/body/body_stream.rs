@@ -75,6 +75,7 @@ mod tests {
     use derive_more::{Display, Error};
     use futures_core::ready;
     use futures_util::{stream, FutureExt as _};
+    use pin_project_lite::pin_project;
     use static_assertions::{assert_impl_all, assert_not_impl_all};
 
     use super::*;
@@ -166,12 +167,14 @@ mod tests {
             BodyStream::new(stream::iter(vec![Ok(Bytes::from("1")), Err(StreamErr)]));
         assert!(matches!(to_bytes(body).await, Err(StreamErr)));
 
-        #[pin_project::pin_project(project = TimeDelayStreamProj)]
-        #[derive(Debug)]
-        enum TimeDelayStream {
-            Start,
-            Sleep(Pin<Box<Sleep>>),
-            Done,
+        pin_project! {
+            #[derive(Debug)]
+            #[project = TimeDelayStreamProj]
+            enum TimeDelayStream {
+                Start,
+                Sleep { delay: Pin<Box<Sleep>> },
+                Done,
+            }
         }
 
         impl Stream for TimeDelayStream {
@@ -184,12 +187,14 @@ mod tests {
                 match self.as_mut().get_mut() {
                     TimeDelayStream::Start => {
                         let sleep = sleep(Duration::from_millis(1));
-                        self.as_mut().set(TimeDelayStream::Sleep(Box::pin(sleep)));
+                        self.as_mut().set(TimeDelayStream::Sleep {
+                            delay: Box::pin(sleep),
+                        });
                         cx.waker().wake_by_ref();
                         Poll::Pending
                     }
 
-                    TimeDelayStream::Sleep(ref mut delay) => {
+                    TimeDelayStream::Sleep { ref mut delay } => {
                         ready!(delay.poll_unpin(cx));
                         self.set(TimeDelayStream::Done);
                         cx.waker().wake_by_ref();

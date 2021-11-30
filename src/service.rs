@@ -27,9 +27,9 @@ use crate::{
     Error, HttpRequest, HttpResponse,
 };
 
-pub(crate) type BoxedHttpService = BoxService<ServiceRequest, ServiceResponse, Error>;
+pub(crate) type BoxedHttpService = BoxService<ServiceRequest, ServiceResponse<BoxBody>, Error>;
 pub(crate) type BoxedHttpServiceFactory =
-    BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
+    BoxServiceFactory<(), ServiceRequest, ServiceResponse<BoxBody>, Error, ()>;
 
 pub trait HttpServiceFactory {
     fn register(self, config: &mut AppService);

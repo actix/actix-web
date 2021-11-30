@@ -15,7 +15,7 @@ use crate::{
     header::{self, IntoHeaderValue},
     http::{HeaderMap, StatusCode},
     message::{BoxedResponseHead, ResponseHead},
-    ResponseBuilder,
+    Error, ResponseBuilder,
 };
 
 /// An HTTP response.
@@ -233,21 +233,16 @@ impl<B: Default> Default for Response<B> {
     }
 }
 
-// TODO: fix this impl
-// impl<B, I, E> From<Result<I, E>> for Response<BoxBody>
-// where
-//     B: MessageBody + 'static,
-//     B::Error: Into<Box<dyn StdError + 'static>>,
-//     I: Into<Response<B>>,
-//     E: Into<Error>,
-// {
-//     fn from(res: Result<I, E>) -> Self {
-//         match res {
-//             Ok(val) => val.into(),
-//             Err(err) => err.into().into(),
-//         }
-//     }
-// }
+impl<I: Into<Response<BoxBody>>, E: Into<Error>> From<Result<I, E>>
+    for Response<BoxBody>
+{
+    fn from(res: Result<I, E>) -> Self {
+        match res {
+            Ok(val) => val.into(),
+            Err(err) => Response::from(err.into()),
+        }
+    }
+}
 
 impl From<ResponseBuilder> for Response<BoxBody> {
     fn from(mut builder: ResponseBuilder) -> Self {
@@ -288,12 +283,14 @@ impl From<String> for Response<String> {
     }
 }
 
-// TODO: was this is useful impl
-// impl<'a> From<&'a String> for Response<&'a String> {
-//     fn from(val: &'a String) -> Self {
-//          todo!()
-//     }
-// }
+impl From<&String> for Response<String> {
+    fn from(val: &String) -> Self {
+        let mut res = Response::with_body(StatusCode::OK, val.clone());
+        let mime = mime::TEXT_PLAIN_UTF_8.try_into_value().unwrap();
+        res.headers_mut().insert(header::CONTENT_TYPE, mime);
+        res
+    }
+}
 
 impl From<Bytes> for Response<Bytes> {
     fn from(val: Bytes) -> Self {
@@ -321,8 +318,6 @@ impl From<ByteString> for Response<ByteString> {
         res
     }
 }
-
-// TODO: impl into Response for ByteString
 
 #[cfg(test)]
 mod tests {
