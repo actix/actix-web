@@ -1,9 +1,8 @@
 //! For middleware documentation, see [`NormalizePath`].
 
-use std::future::{ready, Ready};
-
 use actix_http::http::{PathAndQuery, Uri};
 use actix_service::{Service, Transform};
+use actix_utils::future::{ready, Ready};
 use bytes::Bytes;
 use regex::Regex;
 

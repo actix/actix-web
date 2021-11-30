@@ -5,7 +5,7 @@ use std::{
     convert::TryFrom,
     env,
     fmt::{self, Display as _},
-    future::{ready, Future, Ready},
+    future::Future,
     marker::PhantomData,
     pin::Pin,
     rc::Rc,
@@ -13,6 +13,7 @@ use std::{
 };
 
 use actix_service::{Service, Transform};
+use actix_utils::future::{ready, Ready};
 use bytes::Bytes;
 use futures_core::ready;
 use log::{debug, warn};
