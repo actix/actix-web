@@ -236,7 +236,9 @@ impl RequestSender {
             response_decompress,
             timeout,
             config,
-            AnyBody::Bytes(Bytes::from(body)),
+            AnyBody::Bytes {
+                body: Bytes::from(body),
+            },
         )
     }
 
@@ -265,7 +267,9 @@ impl RequestSender {
             response_decompress,
             timeout,
             config,
-            AnyBody::Bytes(Bytes::from(body)),
+            AnyBody::Bytes {
+                body: Bytes::from(body),
+            },
         )
     }
 

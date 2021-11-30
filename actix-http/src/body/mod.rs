@@ -37,7 +37,7 @@ mod tests {
     impl TestAnyBody {
         pub(crate) fn get_ref(&self) -> &[u8] {
             match *self {
-                AnyBody::Bytes(ref bin) => bin,
+                AnyBody::Bytes { ref body } => body,
                 _ => panic!(),
             }
         }
@@ -168,10 +168,18 @@ mod tests {
     #[actix_rt::test]
     async fn test_body_eq() {
         assert!(
-            AnyBody::Bytes(Bytes::from_static(b"1"))
-                == AnyBody::Bytes(Bytes::from_static(b"1"))
+            AnyBody::Bytes {
+                body: Bytes::from_static(b"1")
+            } == AnyBody::Bytes {
+                body: Bytes::from_static(b"1")
+            }
         );
-        assert!(AnyBody::Bytes(Bytes::from_static(b"1")) != AnyBody::None);
+
+        assert!(
+            AnyBody::Bytes {
+                body: Bytes::from_static(b"1")
+            } != AnyBody::None
+        );
     }
 
     #[actix_rt::test]

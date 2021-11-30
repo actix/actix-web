@@ -8,7 +8,7 @@ use std::{
 
 use bytes::{Bytes, BytesMut};
 use futures_core::Stream;
-use pin_project::pin_project;
+use pin_project_lite::pin_project;
 
 use super::{BodySize, BodyStream, BoxBody, MessageBody, SizedStream};
 use crate::error::Error;
@@ -17,18 +17,20 @@ use crate::error::Error;
 #[deprecated(since = "4.0.0", note = "Renamed to `AnyBody`.")]
 pub type Body = AnyBody;
 
-/// Represents various types of HTTP message body.
-#[pin_project(project = AnyBodyProj)]
-#[derive(Clone)]
-pub enum AnyBody<B = BoxBody> {
-    /// Empty response. `Content-Length` header is not set.
-    None,
+pin_project! {
+    /// Represents various types of HTTP message body.
+    #[derive(Clone)]
+    #[project = AnyBodyProj]
+    pub enum AnyBody<B = BoxBody> {
+        /// Empty response. `Content-Length` header is not set.
+        None,
 
-    /// Complete, in-memory response body.
-    Bytes(Bytes),
+        /// Complete, in-memory response body.
+        Bytes { body: Bytes },
 
-    /// Generic / Other message body.
-    Body(#[pin] B),
+        /// Generic / Other message body.
+        Body { #[pin] body: B },
+    }
 }
 
 impl AnyBody {
@@ -39,7 +41,7 @@ impl AnyBody {
 
     /// Constructs a new, 0-length body.
     pub fn empty() -> Self {
-        Self::Bytes(Bytes::new())
+        Self::Bytes { body: Bytes::new() }
     }
 
     /// Create boxed body from generic message body.
@@ -48,27 +50,33 @@ impl AnyBody {
         B: MessageBody + 'static,
         B::Error: Into<Box<dyn StdError + 'static>>,
     {
-        Self::Body(BoxBody::new(body))
+        Self::Body {
+            body: BoxBody::new(body),
+        }
     }
 
     /// Constructs new `AnyBody` instance from a slice of bytes by copying it.
     ///
     /// If your bytes container is owned, it may be cheaper to use a `From` impl.
     pub fn copy_from_slice(s: &[u8]) -> Self {
-        Self::Bytes(Bytes::copy_from_slice(s))
+        Self::Bytes {
+            body: Bytes::copy_from_slice(s),
+        }
     }
 
     #[doc(hidden)]
     #[deprecated(since = "4.0.0", note = "Renamed to `copy_from_slice`.")]
     pub fn from_slice(s: &[u8]) -> Self {
-        Self::Bytes(Bytes::copy_from_slice(s))
+        Self::Bytes {
+            body: Bytes::copy_from_slice(s),
+        }
     }
 }
 
 impl<B> AnyBody<B> {
     /// Create body from generic message body.
     pub fn new(body: B) -> Self {
-        Self::Body(body)
+        Self::Body { body }
     }
 }
 
@@ -80,8 +88,8 @@ where
     pub fn into_boxed(self) -> AnyBody {
         match self {
             Self::None => AnyBody::None,
-            Self::Bytes(bytes) => AnyBody::Bytes(bytes),
-            Self::Body(body) => AnyBody::new_boxed(body),
+            Self::Bytes { body: bytes } => AnyBody::Bytes { body: bytes },
+            Self::Body { body } => AnyBody::new_boxed(body),
         }
     }
 }
@@ -96,8 +104,8 @@ where
     fn size(&self) -> BodySize {
         match self {
             AnyBody::None => BodySize::None,
-            AnyBody::Bytes(ref bin) => BodySize::Sized(bin.len() as u64),
-            AnyBody::Body(ref body) => body.size(),
+            AnyBody::Bytes { ref body } => BodySize::Sized(body.len() as u64),
+            AnyBody::Body { ref body } => body.size(),
         }
     }
 
@@ -107,16 +115,16 @@ where
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         match self.project() {
             AnyBodyProj::None => Poll::Ready(None),
-            AnyBodyProj::Bytes(bin) => {
-                let len = bin.len();
+            AnyBodyProj::Bytes { body } => {
+                let len = body.len();
                 if len == 0 {
                     Poll::Ready(None)
                 } else {
-                    Poll::Ready(Some(Ok(mem::take(bin))))
+                    Poll::Ready(Some(Ok(mem::take(body))))
                 }
             }
 
-            AnyBodyProj::Body(body) => body
+            AnyBodyProj::Body { body } => body
                 .poll_next(cx)
                 .map_err(|err| Error::new_body().with_cause(err)),
         }
@@ -125,13 +133,13 @@ where
 
 impl PartialEq for AnyBody {
     fn eq(&self, other: &AnyBody) -> bool {
-        match *self {
+        match self {
             AnyBody::None => matches!(*other, AnyBody::None),
-            AnyBody::Bytes(ref b) => match *other {
-                AnyBody::Bytes(ref b2) => b == b2,
+            AnyBody::Bytes { body } => match other {
+                AnyBody::Bytes { body: b2 } => body == b2,
                 _ => false,
             },
-            AnyBody::Body(_) => false,
+            AnyBody::Body { .. } => false,
         }
     }
 }
@@ -140,39 +148,49 @@ impl<S: fmt::Debug> fmt::Debug for AnyBody<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             AnyBody::None => write!(f, "AnyBody::None"),
-            AnyBody::Bytes(ref bytes) => write!(f, "AnyBody::Bytes({:?})", bytes),
-            AnyBody::Body(ref stream) => write!(f, "AnyBody::Message({:?})", stream),
+            AnyBody::Bytes { ref body } => write!(f, "AnyBody::Bytes({:?})", body),
+            AnyBody::Body { ref body } => write!(f, "AnyBody::Message({:?})", body),
         }
     }
 }
 
 impl<B> From<&'static str> for AnyBody<B> {
     fn from(string: &'static str) -> Self {
-        Self::Bytes(Bytes::from_static(string.as_ref()))
+        Self::Bytes {
+            body: Bytes::from_static(string.as_ref()),
+        }
     }
 }
 
 impl<B> From<&'static [u8]> for AnyBody<B> {
     fn from(bytes: &'static [u8]) -> Self {
-        Self::Bytes(Bytes::from_static(bytes))
+        Self::Bytes {
+            body: Bytes::from_static(bytes),
+        }
     }
 }
 
 impl<B> From<Vec<u8>> for AnyBody<B> {
     fn from(vec: Vec<u8>) -> Self {
-        Self::Bytes(Bytes::from(vec))
+        Self::Bytes {
+            body: Bytes::from(vec),
+        }
     }
 }
 
 impl<B> From<String> for AnyBody<B> {
     fn from(string: String) -> Self {
-        Self::Bytes(Bytes::from(string))
+        Self::Bytes {
+            body: Bytes::from(string),
+        }
     }
 }
 
 impl<B> From<&'_ String> for AnyBody<B> {
     fn from(string: &String) -> Self {
-        Self::Bytes(Bytes::copy_from_slice(AsRef::<[u8]>::as_ref(&string)))
+        Self::Bytes {
+            body: Bytes::copy_from_slice(AsRef::<[u8]>::as_ref(&string)),
+        }
     }
 }
 
@@ -180,22 +198,24 @@ impl<B> From<Cow<'_, str>> for AnyBody<B> {
     fn from(string: Cow<'_, str>) -> Self {
         match string {
             Cow::Owned(s) => Self::from(s),
-            Cow::Borrowed(s) => {
-                Self::Bytes(Bytes::copy_from_slice(AsRef::<[u8]>::as_ref(s)))
-            }
+            Cow::Borrowed(s) => Self::Bytes {
+                body: Bytes::copy_from_slice(AsRef::<[u8]>::as_ref(s)),
+            },
         }
     }
 }
 
 impl<B> From<Bytes> for AnyBody<B> {
     fn from(bytes: Bytes) -> Self {
-        Self::Bytes(bytes)
+        Self::Bytes { body: bytes }
     }
 }
 
 impl<B> From<BytesMut> for AnyBody<B> {
     fn from(bytes: BytesMut) -> Self {
-        Self::Bytes(bytes.freeze())
+        Self::Bytes {
+            body: bytes.freeze(),
+        }
     }
 }
 
