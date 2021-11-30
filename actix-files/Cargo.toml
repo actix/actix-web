@@ -24,7 +24,8 @@ experimental-io-uring = ["actix-web/experimental-io-uring", "tokio-uring"]
 [dependencies]
 actix-web = { version = "4.0.0-beta.11", default-features = false }
 actix-http = "3.0.0-beta.13"
-actix-service = "2.0.0"
+actix-service = "2"
+actix-utils = "3"
 
 askama_escape = "0.10"
 bitflags = "1"

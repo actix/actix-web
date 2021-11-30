@@ -1,9 +1,9 @@
 use std::{
-    future::{ready, Ready},
     path::{Path, PathBuf},
     str::FromStr,
 };
 
+use actix_utils::future::{ready, Ready};
 use actix_web::{dev::Payload, FromRequest, HttpRequest};
 
 use crate::error::UriSegmentError;

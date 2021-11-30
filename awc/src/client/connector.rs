@@ -286,12 +286,10 @@ where
                 }
                 #[cfg(feature = "dangerous-h2c")]
                 {
-                    use std::{
-                        future::{ready, Ready},
-                        io,
-                    };
+                    use std::io;
 
                     use actix_tls::connect::Connection;
+                    use actix_utils::future::{ready, Ready};
 
                     impl IntoConnectionIo for TcpConnection<Uri, Box<dyn ConnectionIo>> {
                         fn into_connection_io(self) -> (Box<dyn ConnectionIo>, Protocol) {
