@@ -2,9 +2,9 @@
 
 ## Unreleased - 2021-xx-xx
 ### Changed
-* Update `actix-tls` to `3.0.0-rc.1`. [#????]
+* Update `actix-tls` to `3.0.0-rc.1`. [#2474]
 
-[#????]: https://github.com/actix/actix-web/pull/????
+[#2474]: https://github.com/actix/actix-web/pull/2474
 
 
 ## 4.0.0-beta.12 - 2021-11-22

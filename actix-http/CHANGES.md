@@ -5,11 +5,11 @@
 * Guarantee ordering of `header::GetAll` iterator to be same as insertion order. [#2467]
 * Expose `header::map` module. [#2467]
 * Implement `ExactSizeIterator` and `FusedIterator` for all `HeaderMap` iterators. [#2470]
-* Update `actix-tls` to `3.0.0-rc.1`. [#????]
+* Update `actix-tls` to `3.0.0-rc.1`. [#2474]
 
 [#2467]: https://github.com/actix/actix-web/pull/2467
 [#2470]: https://github.com/actix/actix-web/pull/2470
-[#????]: https://github.com/actix/actix-web/pull/????
+[#2474]: https://github.com/actix/actix-web/pull/2474
 
 
 ## 3.0.0-beta.13 - 2021-11-22
