@@ -10,6 +10,7 @@ use std::{
 use actix_service::{Service, Transform};
 use ahash::AHashMap;
 use futures_core::{future::LocalBoxFuture, ready};
+use pin_project_lite::pin_project;
 
 use crate::{
     dev::{ServiceRequest, ServiceResponse},
@@ -130,19 +131,21 @@ where
     }
 }
 
-#[pin_project::pin_project(project = ErrorHandlersProj)]
-pub enum ErrorHandlersFuture<Fut, B>
-where
-    Fut: Future,
-{
-    ServiceFuture {
-        #[pin]
-        fut: Fut,
-        handlers: Handlers<B>,
-    },
-    HandlerFuture {
-        fut: LocalBoxFuture<'static, Fut::Output>,
-    },
+pin_project! {
+    #[project = ErrorHandlersProj]
+    pub enum ErrorHandlersFuture<Fut, B>
+    where
+        Fut: Future,
+    {
+        ServiceFuture {
+            #[pin]
+            fut: Fut,
+            handlers: Handlers<B>,
+        },
+        HandlerFuture {
+            fut: LocalBoxFuture<'static, Fut::Output>,
+        },
+    }
 }
 
 impl<Fut, B> Future for ErrorHandlersFuture<Fut, B>
