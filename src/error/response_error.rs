@@ -49,7 +49,7 @@ downcast_dyn!(ResponseError);
 impl ResponseError for Box<dyn StdError + 'static> {}
 
 #[cfg(feature = "openssl")]
-impl ResponseError for actix_tls::accept::openssl::SslError {}
+impl ResponseError for actix_tls::accept::openssl::reexports::Error {}
 
 impl ResponseError for serde::de::value::Error {
     fn status_code(&self) -> StatusCode {

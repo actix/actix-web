@@ -127,7 +127,7 @@ async fn test_timeout() {
     });
 
     let connector = awc::Connector::new()
-        .connector(actix_tls::connect::default_connector())
+        .connector(actix_tls::connect::ConnectorService::default())
         .timeout(Duration::from_secs(15));
 
     let client = awc::Client::builder()

@@ -14,7 +14,7 @@ use std::{
 use actix_http::HttpService;
 use actix_http_test::test_server;
 use actix_service::{fn_service, map_config, ServiceFactoryExt};
-use actix_tls::connect::tls::rustls::webpki_roots_cert_store;
+use actix_tls::connect::rustls::webpki_roots_cert_store;
 use actix_utils::future::ok;
 use actix_web::{dev::AppConfig, http::Version, web, App, HttpResponse};
 use rustls::{

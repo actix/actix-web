@@ -1,7 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+* Update `actix-tls` to `3.0.0-rc.1`. [#????]
 
+[#????]: https://github.com/actix/actix-web/pull/????
 
 ## 3.0.0-beta.7 - 2021-11-22
 * Fix compatibility with experimental `io-uring` feature of `actix-rt`. [#2408]

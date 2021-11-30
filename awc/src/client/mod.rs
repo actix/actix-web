@@ -11,7 +11,7 @@ mod h2proto;
 mod pool;
 
 pub use actix_tls::connect::{
-    Connect as TcpConnect, ConnectError as TcpConnectError, Connection as TcpConnection,
+    ConnectError as TcpConnectError, ConnectInfo, Connection as TcpConnection,
 };
 
 pub use self::connection::{Connection, ConnectionIo};

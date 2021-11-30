@@ -20,7 +20,7 @@ use actix_http::{
 };
 use actix_http_test::test_server;
 use actix_service::{fn_factory_with_config, fn_service};
-use actix_tls::connect::tls::rustls::webpki_roots_cert_store;
+use actix_tls::connect::rustls::webpki_roots_cert_store;
 use actix_utils::future::{err, ok};
 use bytes::{Bytes, BytesMut};
 use derive_more::{Display, Error};

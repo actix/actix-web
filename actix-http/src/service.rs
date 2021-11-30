@@ -197,7 +197,10 @@ where
 mod openssl {
     use actix_service::ServiceFactoryExt as _;
     use actix_tls::accept::{
-        openssl::{Acceptor, SslAcceptor, SslError, TlsStream},
+        openssl::{
+            reexports::{Error as SslError, SslAcceptor},
+            Acceptor, TlsStream,
+        },
         TlsError,
     };
 
@@ -270,7 +273,7 @@ mod rustls {
 
     use actix_service::ServiceFactoryExt as _;
     use actix_tls::accept::{
-        rustls::{Acceptor, ServerConfig, TlsStream},
+        rustls::{reexports::ServerConfig, Acceptor, TlsStream},
         TlsError,
     };
 

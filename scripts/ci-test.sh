@@ -1,0 +1,16 @@
+#!/bin/sh
+
+# run tests matching what CI does for non-linux feature sets
+
+set -x
+
+cargo test --lib --tests -p=actix-router --all-features
+cargo test --lib --tests -p=actix-http --all-features
+cargo test --lib --tests -p=actix-web --features=rustls,openssl -- --skip=test_reading_deflate_encoding_large_random_rustls
+cargo test --lib --tests -p=actix-web-codegen --all-features
+cargo test --lib --tests -p=awc --all-features
+cargo test --lib --tests -p=actix-http-test --all-features
+cargo test --lib --tests -p=actix-test --all-features
+cargo test --lib --tests -p=actix-files
+cargo test --lib --tests -p=actix-multipart --all-features
+cargo test --lib --tests -p=actix-web-actors --all-features
