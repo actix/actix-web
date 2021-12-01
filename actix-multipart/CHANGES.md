@@ -3,6 +3,12 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 0.4.0-beta.9 - 2021-12-01
+* Polling `Field` after dropping `Multipart` now fails immediately instead of hanging forever. [#2463]
+
+[#2463]: https://github.com/actix/actix-web/pull/2463
+
+
 ## 0.4.0-beta.8 - 2021-11-22
 * Ensure a correct Content-Disposition header is included in every part of a multipart message. [#2451]
 * Added `MultipartError::NoContentDisposition` variant. [#2451]
@@ -10,10 +16,8 @@
 * Added `Field::name` method for getting the field name. [#2451]
 * `MultipartError` now marks variants with inner errors as the source. [#2451]
 * `MultipartError` is now marked as non-exhaustive. [#2451]
-* Polling `Field` after dropping `Multipart` now fails immediately instead of hanging forever. [#2463]
 
 [#2451]: https://github.com/actix/actix-web/pull/2451
-[#2463]: https://github.com/actix/actix-web/pull/2463
 
 
 ## 0.4.0-beta.7 - 2021-10-20
