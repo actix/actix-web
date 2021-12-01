@@ -1,6 +1,17 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+* Methods on `AcceptLanguage`: `ranked` and `preference`. [#????]
+
+### Changed
+* Rename `Accept::{mime_precedence => ranked}`. [#????]
+* Rename `Accept::{mime_preference => preference}`. [#????]
+
+### Fixed
+* Accept wildcard `*` items in `AcceptLanguage`. [#????]
+
+[#????]: https://github.com/actix/actix-web/pull/????
 
 
 ## 4.0.0-beta.13 - 2021-11-30

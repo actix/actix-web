@@ -6,7 +6,7 @@ use super::{qitem, QualityItem};
 use crate::http::header;
 
 crate::http::header::common_header! {
-    /// `Accept` header, defined in [RFC7231](http://tools.ietf.org/html/rfc7231#section-5.3.2)
+    /// `Accept` header, defined in [RFC 7231](http://tools.ietf.org/html/rfc7231#section-5.3.2)
     ///
     /// The `Accept` header field can be used by user agents to specify
     /// response media types that are acceptable. Accept header fields can
@@ -79,7 +79,7 @@ crate::http::header::common_header! {
     /// ```
     (Accept, header::ACCEPT) => (QualityItem<Mime>)+
 
-    test_accept {
+    common_tests {
         // Tests from the RFC
          crate::http::header::common_header_test!(
             test1,
@@ -88,6 +88,7 @@ crate::http::header::common_header! {
                 QualityItem::new("audio/*".parse().unwrap(), q(200)),
                 qitem("audio/basic".parse().unwrap()),
                 ])));
+
         crate::http::header::common_header_test!(
             test2,
             vec![b"text/plain; q=0.5, text/html, text/x-dvi; q=0.8, text/x-c"],
@@ -99,6 +100,7 @@ crate::http::header::common_header! {
                     q(800)),
                 qitem("text/x-c".parse().unwrap()),
                 ])));
+
         // Custom tests
         crate::http::header::common_header_test!(
             test3,
@@ -154,7 +156,11 @@ impl Accept {
     /// [q-factor weighting] and specificity.
     ///
     /// [q-factor weighting]: https://tools.ietf.org/html/rfc7231#section-5.3.2
-    pub fn mime_precedence(&self) -> Vec<Mime> {
+    pub fn ranked(&self) -> Vec<Mime> {
+        if self.is_empty() {
+            return vec![];
+        }
+
         let mut types = self.0.clone();
 
         // use stable sort so items with equal q-factor and specificity retain listed order
@@ -204,9 +210,9 @@ impl Accept {
     /// Returns `None` if contained list is empty.
     ///
     /// [q-factor weighting]: https://tools.ietf.org/html/rfc7231#section-5.3.2
-    pub fn mime_preference(&self) -> Option<Mime> {
-        let types = self.mime_precedence();
-        types.first().cloned()
+    pub fn preference(&self) -> Option<Mime> {
+        // PERF: creating a sorted list is not necessary
+        self.ranked().into_iter().next()
     }
 }
 
@@ -216,12 +222,12 @@ mod tests {
     use crate::http::header::q;
 
     #[test]
-    fn test_mime_precedence() {
+    fn ranking_precedence() {
         let test = Accept(vec![]);
-        assert!(test.mime_precedence().is_empty());
+        assert!(test.ranked().is_empty());
 
         let test = Accept(vec![qitem(mime::APPLICATION_JSON)]);
-        assert_eq!(test.mime_precedence(), vec!(mime::APPLICATION_JSON));
+        assert_eq!(test.ranked(), vec!(mime::APPLICATION_JSON));
 
         let test = Accept(vec![
             qitem(mime::TEXT_HTML),
@@ -230,7 +236,7 @@ mod tests {
             QualityItem::new(mime::STAR_STAR, q(0.8)),
         ]);
         assert_eq!(
-            test.mime_precedence(),
+            test.ranked(),
             vec![
                 mime::TEXT_HTML,
                 "application/xhtml+xml".parse().unwrap(),
@@ -245,20 +251,20 @@ mod tests {
             qitem(mime::IMAGE_PNG),
         ]);
         assert_eq!(
-            test.mime_precedence(),
+            test.ranked(),
             vec![mime::IMAGE_PNG, mime::IMAGE_STAR, mime::STAR_STAR]
         );
     }
 
     #[test]
-    fn test_mime_preference() {
+    fn preference_selection() {
         let test = Accept(vec![
             qitem(mime::TEXT_HTML),
             "application/xhtml+xml".parse().unwrap(),
             QualityItem::new("application/xml".parse().unwrap(), q(0.9)),
             QualityItem::new(mime::STAR_STAR, q(0.8)),
         ]);
-        assert_eq!(test.mime_preference(), Some(mime::TEXT_HTML));
+        assert_eq!(test.preference(), Some(mime::TEXT_HTML));
 
         let test = Accept(vec![
             QualityItem::new("video/*".parse().unwrap(), q(0.8)),
@@ -267,6 +273,6 @@ mod tests {
             qitem(mime::IMAGE_SVG),
             QualityItem::new(mime::IMAGE_STAR, q(0.8)),
         ]);
-        assert_eq!(test.mime_preference(), Some(mime::IMAGE_PNG));
+        assert_eq!(test.preference(), Some(mime::IMAGE_PNG));
     }
 }
