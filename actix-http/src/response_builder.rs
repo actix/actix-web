@@ -2,7 +2,6 @@
 
 use std::{
     cell::{Ref, RefMut},
-    error::Error as StdError,
     fmt,
     future::Future,
     pin::Pin,
@@ -235,7 +234,6 @@ impl ResponseBuilder {
     pub fn body<B>(&mut self, body: B) -> Response<EitherBody<B>>
     where
         B: MessageBody + 'static,
-        B::Error: Into<Box<dyn StdError + 'static>>,
     {
         match self.message_body(body) {
             Ok(res) => res.map_body(|_, body| EitherBody::left(body)),

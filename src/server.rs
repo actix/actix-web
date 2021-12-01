@@ -1,8 +1,6 @@
 use std::{
     any::Any,
-    cmp,
-    error::Error as StdError,
-    fmt, io,
+    cmp, fmt, io,
     marker::PhantomData,
     net,
     sync::{Arc, Mutex},
@@ -75,15 +73,13 @@ where
     I: IntoServiceFactory<S, Request>,
 
     S: ServiceFactory<Request, Config = AppConfig> + 'static,
-    // S::Future: 'static,
     S::Error: Into<Error> + 'static,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
     S::Service: 'static,
-    // S::Service: 'static,
+
     B: MessageBody + 'static,
-    B::Error: Into<Box<dyn StdError>>,
 {
     /// Create new HTTP server with application factory
     pub fn new(factory: F) -> Self {

@@ -1,5 +1,4 @@
 use std::{
-    error::Error as StdError,
     fmt,
     marker::PhantomData,
     net,
@@ -68,7 +67,6 @@ where
     S::Response: Into<Response<B>>,
 
     B: MessageBody,
-    B::Error: Into<Box<dyn StdError>>,
 
     X: ServiceFactory<Request, Config = (), Response = Request>,
     X::Future: 'static,
@@ -119,7 +117,6 @@ mod openssl {
         S::Response: Into<Response<B>>,
 
         B: MessageBody,
-        B::Error: Into<Box<dyn StdError>>,
 
         X: ServiceFactory<Request, Config = (), Response = Request>,
         X::Future: 'static,
@@ -182,7 +179,6 @@ mod rustls {
         S::Response: Into<Response<B>>,
 
         B: MessageBody,
-        B::Error: Into<Box<dyn StdError>>,
 
         X: ServiceFactory<Request, Config = (), Response = Request>,
         X::Future: 'static,
@@ -282,7 +278,6 @@ where
     S::InitError: fmt::Debug,
 
     B: MessageBody,
-    B::Error: Into<Box<dyn StdError>>,
 
     X: ServiceFactory<Request, Config = (), Response = Request>,
     X::Future: 'static,
@@ -351,7 +346,6 @@ where
     S::Response: Into<Response<B>>,
 
     B: MessageBody,
-    B::Error: Into<Box<dyn StdError>>,
 
     X: Service<Request, Response = Request>,
     X::Error: Into<Response<BoxBody>>,

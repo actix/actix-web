@@ -2,7 +2,6 @@
 
 use std::{
     cell::{Ref, RefMut},
-    error::Error as StdError,
     fmt, str,
 };
 
@@ -194,7 +193,6 @@ impl<B> Response<B> {
     pub fn map_into_boxed_body(self) -> Response<BoxBody>
     where
         B: MessageBody + 'static,
-        B::Error: Into<Box<dyn StdError + 'static>>,
     {
         self.map_body(|_, body| BoxBody::new(body))
     }

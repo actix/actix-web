@@ -312,7 +312,6 @@ impl HttpResponseBuilder {
     pub fn body<B>(&mut self, body: B) -> HttpResponse<BoxBody>
     where
         B: MessageBody + 'static,
-        B::Error: Into<Box<dyn StdError + 'static>>,
     {
         match self.message_body(body) {
             Ok(res) => res.map_into_boxed_body(),

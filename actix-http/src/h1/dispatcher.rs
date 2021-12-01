@@ -1,6 +1,5 @@
 use std::{
     collections::VecDeque,
-    error::Error as StdError,
     fmt,
     future::Future,
     io, mem, net,
@@ -54,7 +53,6 @@ where
     S::Error: Into<Response<BoxBody>>,
 
     B: MessageBody,
-    B::Error: Into<Box<dyn StdError>>,
 
     X: Service<Request, Response = Request>,
     X::Error: Into<Response<BoxBody>>,
@@ -76,7 +74,6 @@ where
     S::Error: Into<Response<BoxBody>>,
 
     B: MessageBody,
-    B::Error: Into<Box<dyn StdError>>,
 
     X: Service<Request, Response = Request>,
     X::Error: Into<Response<BoxBody>>,
@@ -95,7 +92,6 @@ where
     S::Error: Into<Response<BoxBody>>,
 
     B: MessageBody,
-    B::Error: Into<Box<dyn StdError>>,
 
     X: Service<Request, Response = Request>,
     X::Error: Into<Response<BoxBody>>,
@@ -137,7 +133,6 @@ where
     X: Service<Request, Response = Request>,
 
     B: MessageBody,
-    B::Error: Into<Box<dyn StdError>>,
 {
     None,
     ExpectCall(#[pin] X::Future),
@@ -153,7 +148,6 @@ where
     X: Service<Request, Response = Request>,
 
     B: MessageBody,
-    B::Error: Into<Box<dyn StdError>>,
 {
     fn is_empty(&self) -> bool {
         matches!(self, State::None)
@@ -175,7 +169,6 @@ where
     S::Response: Into<Response<B>>,
 
     B: MessageBody,
-    B::Error: Into<Box<dyn StdError>>,
 
     X: Service<Request, Response = Request>,
     X::Error: Into<Response<BoxBody>>,
@@ -236,7 +229,6 @@ where
     S::Response: Into<Response<B>>,
 
     B: MessageBody,
-    B::Error: Into<Box<dyn StdError>>,
 
     X: Service<Request, Response = Request>,
     X::Error: Into<Response<BoxBody>>,
@@ -913,7 +905,6 @@ where
     S::Response: Into<Response<B>>,
 
     B: MessageBody,
-    B::Error: Into<Box<dyn StdError>>,
 
     X: Service<Request, Response = Request>,
     X::Error: Into<Response<BoxBody>>,

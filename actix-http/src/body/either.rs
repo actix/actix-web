@@ -1,5 +1,4 @@
 use std::{
-    error::Error as StdError,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -44,9 +43,7 @@ impl<L, R> EitherBody<L, R> {
 impl<L, R> MessageBody for EitherBody<L, R>
 where
     L: MessageBody + 'static,
-    L::Error: Into<Box<dyn StdError + 'static>>,
     R: MessageBody + 'static,
-    R::Error: Into<Box<dyn StdError + 'static>>,
 {
     type Error = Error;
 

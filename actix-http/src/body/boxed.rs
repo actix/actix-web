@@ -18,7 +18,6 @@ impl BoxBody {
     pub fn new<B>(body: B) -> Self
     where
         B: MessageBody + 'static,
-        B::Error: Into<Box<dyn StdError + 'static>>,
     {
         let body = MessageBodyMapErr::new(body, Into::into);
         Self(Box::pin(body))

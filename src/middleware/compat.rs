@@ -1,7 +1,6 @@
 //! For middleware documentation, see [`Compat`].
 
 use std::{
-    error::Error as StdError,
     future::Future,
     pin::Pin,
     task::{Context, Poll},
@@ -123,7 +122,6 @@ pub trait MapServiceResponseBody {
 impl<B> MapServiceResponseBody for ServiceResponse<B>
 where
     B: MessageBody + Unpin + 'static,
-    B::Error: Into<Box<dyn StdError + 'static>>,
 {
     fn map_body(self) -> ServiceResponse {
         self.map_into_boxed_body()

@@ -48,7 +48,6 @@ impl AnyBody {
     pub fn new_boxed<B>(body: B) -> Self
     where
         B: MessageBody + 'static,
-        B::Error: Into<Box<dyn StdError + 'static>>,
     {
         Self::Body {
             body: BoxBody::new(body),
@@ -83,7 +82,6 @@ impl<B> AnyBody<B> {
 impl<B> AnyBody<B>
 where
     B: MessageBody + 'static,
-    B::Error: Into<Box<dyn StdError + 'static>>,
 {
     pub fn into_boxed(self) -> AnyBody {
         match self {
@@ -97,7 +95,6 @@ where
 impl<B> MessageBody for AnyBody<B>
 where
     B: MessageBody,
-    B::Error: Into<Box<dyn StdError>> + 'static,
 {
     type Error = Error;
 

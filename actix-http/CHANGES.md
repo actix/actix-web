@@ -4,22 +4,20 @@
 ### Added
 * Add timeout for canceling HTTP/2 server side connection handshake. Default to 5 seconds. [#2483]
 * HTTP/2 handshake timeout can be configured with `ServiceConfig::client_timeout`. [#2483]
-* Rename `body::BoxBody::{from_body => new}`. [#????]
-* `Response::into_boxed_body`. [#????]
-* `Response::map_into_boxed_body`. [#????]
-* `body::EitherBody` enum. [#????]
-* `body::None` struct. [#????]
-* `impl Clone for ws::HandshakeError`. [#????]
+* `Response::map_into_boxed_body`. [#2468]
+* `body::EitherBody` enum. [#2468]
+* `body::None` struct. [#2468]
+* `impl Clone for ws::HandshakeError`. [#2468]
 
 ### Changed
-* Rename `body::BoxBody::{from_body => new}`. [#????]
-* Body type for `Responses` returned from `Response::{new, ok, etc...}` is now `BoxBody`. [#????]
+* Rename `body::BoxBody::{from_body => new}`. [#2468]
+* Body type for `Responses` returned from `Response::{new, ok, etc...}` is now `BoxBody`. [#2468]
 
 ### Removed
-* Remove unnecessary `MessageBody` bound on types passed to `body::AnyBody::new`. [#????]
+* Remove unnecessary `MessageBody` bound on types passed to `body::AnyBody::new`. [#2468]
 
 [#2483]: https://github.com/actix/actix-web/pull/2483
-[#????]: https://github.com/actix/actix-web/pull/????
+[#2468]: https://github.com/actix/actix-web/pull/2468
 
 
 ## 3.0.0-beta.14 - 2021-11-30
