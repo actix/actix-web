@@ -16,7 +16,7 @@ crate::http::header::common_header! {
     /// the representation data.
     ///
     /// # ABNF
-    /// ```text
+    /// ```plain
     /// If-None-Match = "*" / 1#entity-tag
     /// ```
     ///

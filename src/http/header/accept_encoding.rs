@@ -1,3 +1,5 @@
+// TODO: reinstate module
+
 use header::{Encoding, QualityItem};
 
 header! {
@@ -11,7 +13,7 @@ header! {
     /// preferred.
     ///
     /// # ABNF
-    /// ```text
+    /// ```plain
     /// Accept-Encoding  = #( codings [ weight ] )
     /// codings          = content-coding / "identity" / "*"
     /// ```
@@ -59,15 +61,17 @@ header! {
     ///     ])
     /// );
     /// ```
-    (AcceptEncoding, "Accept-Encoding") => (QualityItem<Encoding>)*
+    (AcceptEncoding, header::ACCEPT_ENCODING) => (QualityItem<Encoding>)*
 
     test_parse_and_format {
         // From the RFC
         crate::http::header::common_header_test!(test1, vec![b"compress, gzip"]);
         crate::http::header::common_header_test!(test2, vec![b""], Some(AcceptEncoding(vec![])));
         crate::http::header::common_header_test!(test3, vec![b"*"]);
+
         // Note: Removed quality 1 from gzip
         crate::http::header::common_header_test!(test4, vec![b"compress;q=0.5, gzip"]);
+
         // Note: Removed quality 1 from gzip
         crate::http::header::common_header_test!(test5, vec![b"gzip, identity; q=0.5, *;q=0"]);
     }

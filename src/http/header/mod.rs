@@ -44,7 +44,7 @@ mod macros;
 
 #[cfg(test)]
 pub(crate) use macros::common_header_test;
-pub(crate) use macros::{common_header, common_header_deref, common_header_test_module};
+pub(crate) use macros::{common_header, common_header_test_module};
 
 pub use self::accept_charset::AcceptCharset;
 //pub use self::accept_encoding::AcceptEncoding;

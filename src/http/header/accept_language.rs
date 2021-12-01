@@ -12,7 +12,7 @@ common_header! {
     /// ranges defined in [RFC 4647 §2.1](https://datatracker.ietf.org/doc/html/rfc4647#section-2.1).
     ///
     /// # ABNF
-    /// ```text
+    /// ```plain
     /// Accept-Language = 1#( language-range [ weight ] )
     /// language-range  = (1*8ALPHA *("-" 1*8alphanum)) / "*"
     /// alphanum        = ALPHA / DIGIT
@@ -54,7 +54,7 @@ common_header! {
     /// ```
     (AcceptLanguage, header::ACCEPT_LANGUAGE) => (QualityItem<AnyOrSome<LanguageTag>>)+
 
-    parse_and_fmt_tests {
+    test_parse_and_format {
         common_header_test!(
             example_from_rfc,
             vec![b"da, en-gb;q=0.8, en;q=0.7"]

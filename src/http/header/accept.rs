@@ -16,7 +16,7 @@ crate::http::header::common_header! {
     /// in-line image
     ///
     /// # ABNF
-    /// ```text
+    /// ```plain
     /// Accept = #( media-range [ accept-params ] )
     ///
     /// media-range    = ( "*/*"

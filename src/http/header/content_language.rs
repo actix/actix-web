@@ -1,7 +1,8 @@
-use super::{QualityItem, CONTENT_LANGUAGE};
 use language_tags::LanguageTag;
 
-crate::http::header::common_header! {
+use super::{common_header, QualityItem, CONTENT_LANGUAGE};
+
+common_header! {
     /// `Content-Language` header, defined
     /// in [RFC 7231 §3.1.3.2](https://datatracker.ietf.org/doc/html/rfc7231#section-3.1.3.2)
     ///
@@ -11,7 +12,7 @@ crate::http::header::common_header! {
     /// representation.
     ///
     /// # ABNF
-    /// ```text
+    /// ```plain
     /// Content-Language = 1#language-tag
     /// ```
     ///

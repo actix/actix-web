@@ -26,7 +26,7 @@ fn check_slice_validity(slice: &str) -> bool {
 /// `W/"xyzzy"`.
 ///
 /// # ABNF
-/// ```text
+/// ```plain
 /// entity-tag = [ weak ] opaque-tag
 /// weak       = %x57.2F ; "W/", case-sensitive
 /// opaque-tag = DQUOTE *etagc DQUOTE

@@ -15,7 +15,7 @@ crate::http::header::common_header! {
     /// prefixed by a weakness indicator.
     ///
     /// # ABNF
-    /// ```text
+    /// ```plain
     /// ETag       = entity-tag
     /// ```
     ///

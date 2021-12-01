@@ -220,7 +220,7 @@ impl DispositionParam {
 /// itself, *Content-Disposition* has no effect.
 ///
 /// # ABNF
-/// ```text
+/// ```plain
 /// content-disposition = "Content-Disposition" ":"
 ///                       disposition-type *( ";" disposition-parm )
 ///
