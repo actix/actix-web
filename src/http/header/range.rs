@@ -4,15 +4,14 @@ use std::str::FromStr;
 use super::parsing::from_one_raw_str;
 use super::{Header, Raw};
 
-/// `Range` header, defined in [RFC7233](https://tools.ietf.org/html/rfc7233#section-3.1)
+/// `Range` header, defined
+/// in [RFC 7233 §3.1](https://datatracker.ietf.org/doc/html/rfc7233#section-3.1)
 ///
-/// The "Range" header field on a GET request modifies the method
-/// semantics to request transfer of only one or more sub-ranges of the
-/// selected representation data, rather than the entire selected
+/// The "Range" header field on a GET request modifies the method semantics to request transfer of
+/// only one or more sub-ranges of the selected representation data, rather than the entire selected
 /// representation data.
 ///
 /// # ABNF
-///
 /// ```text
 /// Range =	byte-ranges-specifier / other-ranges-specifier
 /// other-ranges-specifier = other-range-unit "=" other-range-set
@@ -27,8 +26,7 @@ use super::{Header, Raw};
 /// last-byte-pos = 1*DIGIT
 /// ```
 ///
-/// # Example values
-///
+/// # Example Values
 /// * `bytes=1000-`
 /// * `bytes=-2000`
 /// * `bytes=0-1,30-40`
@@ -37,7 +35,6 @@ use super::{Header, Raw};
 /// * `custom_unit=xxx-yyy`
 ///
 /// # Examples
-///
 /// ```
 /// use hyper::header::{Headers, Range, ByteRangeSpec};
 ///
@@ -63,6 +60,7 @@ use super::{Header, Raw};
 pub enum Range {
     /// Byte range
     Bytes(Vec<ByteRangeSpec>),
+
     /// Custom range, with unit not registered at IANA
     /// (`other-range-unit`: String , `other-range-set`: String)
     Unregistered(String, String),
@@ -74,8 +72,10 @@ pub enum Range {
 pub enum ByteRangeSpec {
     /// Get all bytes between x and y ("x-y")
     FromTo(u64, u64),
+
     /// Get all bytes starting from x ("x-")
     AllFrom(u64),
+
     /// Get last x bytes ("-x")
     Last(u64),
 }
@@ -238,24 +238,12 @@ impl FromStr for ByteRangeSpec {
                 .or(Err(::Error::Header))
                 .map(ByteRangeSpec::AllFrom),
             (Some(start), Some(end)) => match (start.parse(), end.parse()) {
-                (Ok(start), Ok(end)) if start <= end => {
-                    Ok(ByteRangeSpec::FromTo(start, end))
-                }
+                (Ok(start), Ok(end)) if start <= end => Ok(ByteRangeSpec::FromTo(start, end)),
                 _ => Err(::Error::Header),
             },
             _ => Err(::Error::Header),
         }
     }
-}
-
-fn from_comma_delimited<T: FromStr>(s: &str) -> Vec<T> {
-    s.split(',')
-        .filter_map(|x| match x.trim() {
-            "" => None,
-            y => Some(y),
-        })
-        .filter_map(|x| x.parse().ok())
-        .collect()
 }
 
 impl Header for Range {
@@ -286,8 +274,7 @@ mod tests {
         assert_eq!(r2, r3);
 
         let r: Range = Header::parse_header(&"bytes=1-100,200-".into()).unwrap();
-        let r2: Range =
-            Header::parse_header(&"bytes= 1-100 , 101-xxx,  200- ".into()).unwrap();
+        let r2: Range = Header::parse_header(&"bytes= 1-100 , 101-xxx,  200- ".into()).unwrap();
         let r3 = Range::Bytes(vec![
             ByteRangeSpec::FromTo(1, 100),
             ByteRangeSpec::AllFrom(200),

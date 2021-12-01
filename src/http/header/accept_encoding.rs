@@ -1,8 +1,8 @@
 use header::{Encoding, QualityItem};
 
 header! {
-    /// `Accept-Encoding` header, defined in
-    /// [RFC7231](http://tools.ietf.org/html/rfc7231#section-5.3.4)
+    /// `Accept-Encoding` header, defined
+    /// in [RFC 7231](https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.4)
     ///
     /// The `Accept-Encoding` header field can be used by user agents to
     /// indicate what response content-codings are
@@ -11,13 +11,12 @@ header! {
     /// preferred.
     ///
     /// # ABNF
-    ///
     /// ```text
     /// Accept-Encoding  = #( codings [ weight ] )
     /// codings          = content-coding / "identity" / "*"
     /// ```
     ///
-    /// # Example values
+    /// # Example Values
     /// * `compress, gzip`
     /// * ``
     /// * `*`
@@ -62,7 +61,7 @@ header! {
     /// ```
     (AcceptEncoding, "Accept-Encoding") => (QualityItem<Encoding>)*
 
-    test_accept_encoding {
+    test_parse_and_format {
         // From the RFC
         crate::http::header::common_header_test!(test1, vec![b"compress, gzip"]);
         crate::http::header::common_header_test!(test2, vec![b""], Some(AcceptEncoding(vec![])));

@@ -1,9 +1,8 @@
-use std::fmt::{self, Display};
-use std::str::FromStr;
+use std::{fmt, str};
 
 use self::Charset::*;
 
-/// A Mime charset.
+/// A MIME character set.
 ///
 /// The string representation is normalized to upper case.
 ///
@@ -95,13 +94,13 @@ impl Charset {
     }
 }
 
-impl Display for Charset {
+impl fmt::Display for Charset {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.label())
     }
 }
 
-impl FromStr for Charset {
+impl str::FromStr for Charset {
     type Err = crate::Error;
 
     fn from_str(s: &str) -> Result<Charset, crate::Error> {

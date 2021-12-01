@@ -561,7 +561,6 @@ where
 /// The max number of services can be grouped together is 12.
 ///
 /// # Examples
-///
 /// ```
 /// use actix_web::{services, web, App};
 ///

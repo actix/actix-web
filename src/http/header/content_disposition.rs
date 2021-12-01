@@ -1,10 +1,14 @@
-//! # References
+//! The `Content-Disposition` header and associated types.
 //!
-//! "The Content-Disposition Header Field" <https://www.ietf.org/rfc/rfc2183.txt>
-//! "The Content-Disposition Header Field in the Hypertext Transfer Protocol (HTTP)" <https://www.ietf.org/rfc/rfc6266.txt>
-//! "Returning Values from Forms: multipart/form-data" <https://www.ietf.org/rfc/rfc7578.txt>
-//! Browser conformance tests at: <http://greenbytes.de/tech/tc2231/>
-//! IANA assignment: <http://www.iana.org/assignments/cont-disp/cont-disp.xhtml>
+//! # References
+//! - "The Content-Disposition Header Field":
+//!   <https://datatracker.ietf.org/doc/html/rfc2183>
+//! - "The Content-Disposition Header Field in the Hypertext Transfer Protocol (HTTP)":
+//!   <https://datatracker.ietf.org/doc/html/rfc6266>
+//! - "Returning Values from Forms: multipart/form-data":
+//!   <https://datatracker.ietf.org/doc/html/rfc7578>
+//! - Browser conformance tests at: <http://greenbytes.de/tech/tc2231/>
+//! - IANA assignment: <http://www.iana.org/assignments/cont-disp/cont-disp.xhtml>
 
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -41,8 +45,9 @@ pub enum DispositionType {
     /// rather than process it normally (as per its media type).
     Attachment,
 
-    /// Used in *multipart/form-data* as defined in [RFC7578](https://tools.ietf.org/html/rfc7578)
-    /// to carry the field name and optional filename.
+    /// Used in *multipart/form-data* as defined in
+    /// [RFC 7578](https://datatracker.ietf.org/doc/html/rfc7578) to carry the field name and
+    /// optional filename.
     FormData,
 
     /// Extension type. Should be handled by recipients the same way as Attachment.
@@ -82,26 +87,29 @@ pub enum DispositionParam {
 
     /// A plain file name.
     ///
-    /// It is [not supposed](https://tools.ietf.org/html/rfc6266#appendix-D) to contain any
-    /// non-ASCII characters when used in a *Content-Disposition* HTTP response header, where
+    /// It is [not supposed](https://datatracker.ietf.org/doc/html/rfc6266#appendix-D) to contain
+    /// any non-ASCII characters when used in a *Content-Disposition* HTTP response header, where
     /// [`FilenameExt`](DispositionParam::FilenameExt) with charset UTF-8 may be used instead
     /// in case there are Unicode characters in file names.
     Filename(String),
 
     /// An extended file name. It must not exist for `ContentType::Formdata` according to
-    /// [RFC7578 Section 4.2](https://tools.ietf.org/html/rfc7578#section-4.2).
+    /// [RFC 7578 §4.2](https://datatracker.ietf.org/doc/html/rfc7578#section-4.2).
     FilenameExt(ExtendedValue),
 
     /// An unrecognized regular parameter as defined in
-    /// [RFC5987](https://tools.ietf.org/html/rfc5987) as *reg-parameter*, in
-    /// [RFC6266](https://tools.ietf.org/html/rfc6266) as *token "=" value*. Recipients should
-    /// ignore unrecognizable parameters.
+    /// [RFC 5987 §3.2.1](https://datatracker.ietf.org/doc/html/rfc5987#section-3.2.1) as
+    /// `reg-parameter`, in
+    /// [RFC 6266 §4.1](https://datatracker.ietf.org/doc/html/rfc6266#section-4.1) as
+    /// `token "=" value`. Recipients should ignore unrecognizable parameters.
     Unknown(String, String),
 
     /// An unrecognized extended parameter as defined in
-    /// [RFC5987](https://tools.ietf.org/html/rfc5987) as *ext-parameter*, in
-    /// [RFC6266](https://tools.ietf.org/html/rfc6266) as *ext-token "=" ext-value*. The single
-    /// trailing asterisk is not included. Recipients should ignore unrecognizable parameters.
+    /// [RFC 5987 §3.2.1](https://datatracker.ietf.org/doc/html/rfc5987#section-3.2.1) as
+    /// `ext-parameter`, in
+    /// [RFC 6266 §4.1](https://datatracker.ietf.org/doc/html/rfc6266#section-4.1) as
+    /// `ext-token "=" ext-value`. The single trailing asterisk is not included. Recipients should
+    /// ignore unrecognizable parameters.
     UnknownExt(String, ExtendedValue),
 }
 
@@ -195,10 +203,10 @@ impl DispositionParam {
 }
 
 /// A *Content-Disposition* header. It is compatible to be used either as
-/// [a response header for the main body](https://mdn.io/Content-Disposition#As_a_response_header_for_the_main_body)
-/// as (re)defined in [RFC6266](https://tools.ietf.org/html/rfc6266), or as
+/// [a response header for the main body](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition#as_a_response_header_for_the_main_body)
+/// as (re)defined in [RFC 6266](https://tools.ietf.org/html/rfc6266), or as
 /// [a header for a multipart body](https://mdn.io/Content-Disposition#As_a_header_for_a_multipart_body)
-/// as (re)defined in [RFC7587](https://tools.ietf.org/html/rfc7578).
+/// as (re)defined in [RFC 7587](https://tools.ietf.org/html/rfc7578).
 ///
 /// In a regular HTTP response, the *Content-Disposition* response header is a header indicating if
 /// the content is expected to be displayed *inline* in the browser, that is, as a Web page or as
@@ -233,19 +241,17 @@ impl DispositionParam {
 /// ```
 ///
 /// # Note
+/// *filename* is [not supposed](https://datatracker.ietf.org/doc/html/rfc6266#appendix-D) to
+/// contain any non-ASCII characters when used in a *Content-Disposition* HTTP response header,
+/// where filename* with charset UTF-8 may be used instead in case there are Unicode characters in
+/// file names. Filename is [acceptable](https://datatracker.ietf.org/doc/html/rfc7578#section-4.2)
+/// to be UTF-8 encoded directly in a *Content-Disposition* header for
+/// *multipart/form-data*, though.
 ///
-/// filename is [not supposed](https://tools.ietf.org/html/rfc6266#appendix-D) to contain any
-/// non-ASCII characters when used in a *Content-Disposition* HTTP response header, where
-/// filename* with charset UTF-8 may be used instead in case there are Unicode characters in file
-/// names.
-/// filename is [acceptable](https://tools.ietf.org/html/rfc7578#section-4.2) to be UTF-8 encoded
-/// directly in a *Content-Disposition* header for *multipart/form-data*, though.
-///
-/// filename* [must not](https://tools.ietf.org/html/rfc7578#section-4.2) be used within
+/// *filename* [must not](https://datatracker.ietf.org/doc/html/rfc7578#section-4.2) be used within
 /// *multipart/form-data*.
 ///
-/// # Example
-///
+/// # Examples
 /// ```
 /// use actix_web::http::header::{
 ///     Charset, ContentDisposition, DispositionParam, DispositionType,
@@ -291,10 +297,9 @@ impl DispositionParam {
 /// ```
 ///
 /// # Security Note
-///
 /// If "filename" parameter is supplied, do not use the file name blindly, check and possibly
 /// change to match local file system conventions if applicable, and do not use directory path
-/// information that may be present. See [RFC2183](https://tools.ietf.org/html/rfc2183#section-2.3).
+/// information that may be present. See [RFC 2183](https://tools.ietf.org/html/rfc2183#section-2.3).
 // TODO: private fields and use smallvec
 #[derive(Clone, Debug, PartialEq)]
 pub struct ContentDisposition {
@@ -342,7 +347,7 @@ impl ContentDisposition {
             } else {
                 // regular parameters
                 let value = if left.starts_with('\"') {
-                    // quoted-string: defined in RFC6266 -> RFC2616 Section 3.6
+                    // quoted-string: defined in RFC 6266 -> RFC 2616 Section 3.6
                     let mut escaping = false;
                     let mut quoted_string = vec![];
                     let mut end = None;
@@ -393,22 +398,22 @@ impl ContentDisposition {
         Ok(cd)
     }
 
-    /// Returns `true` if it is [`Inline`](DispositionType::Inline).
+    /// Returns `true` if type is [`Inline`](DispositionType::Inline).
     pub fn is_inline(&self) -> bool {
         matches!(self.disposition, DispositionType::Inline)
     }
 
-    /// Returns `true` if it is [`Attachment`](DispositionType::Attachment).
+    /// Returns `true` if type is [`Attachment`](DispositionType::Attachment).
     pub fn is_attachment(&self) -> bool {
         matches!(self.disposition, DispositionType::Attachment)
     }
 
-    /// Returns `true` if it is [`FormData`](DispositionType::FormData).
+    /// Returns `true` if type is [`FormData`](DispositionType::FormData).
     pub fn is_form_data(&self) -> bool {
         matches!(self.disposition, DispositionType::FormData)
     }
 
-    /// Returns `true` if it is [`Ext`](DispositionType::Ext) and the `disp_type` matches.
+    /// Returns `true` if type is [`Ext`](DispositionType::Ext) and the `disp_type` matches.
     pub fn is_ext(&self, disp_type: impl AsRef<str>) -> bool {
         matches!(
             self.disposition,
@@ -487,7 +492,9 @@ impl fmt::Display for DispositionParam {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // All ASCII control characters (0-30, 127) including horizontal tab, double quote, and
         // backslash should be escaped in quoted-string (i.e. "foobar").
-        // Ref: RFC6266 S4.1 -> RFC2616 S3.6
+        //
+        // Ref: RFC 6266 §4.1 -> RFC 2616 §3.6
+        //
         // filename-parm  = "filename" "=" value
         // value          = token | quoted-string
         // quoted-string  = ( <"> *(qdtext | quoted-pair ) <"> )
@@ -501,7 +508,7 @@ impl fmt::Display for DispositionParam {
         // CTL            = <any US-ASCII control character
         //                  (octets 0 - 31) and DEL (127)>
         //
-        // Ref: RFC7578 S4.2 -> RFC2183 S2 -> RFC2045 S5.1
+        // Ref: RFC 7578 S4.2 -> RFC 2183 S2 -> RFC 2045 S5.1
         // parameter := attribute "=" value
         // attribute := token
         //              ; Matching of attributes
@@ -746,7 +753,7 @@ mod tests {
 
     #[test]
     fn from_raw_with_unicode() {
-        /* RFC7578 Section 4.2:
+        /* RFC 7578 Section 4.2:
         Some commonly deployed systems use multipart/form-data with file names directly encoded
         including octets outside the US-ASCII range. The encoding used for the file names is
         typically UTF-8, although HTML forms will use the charset associated with the form.
@@ -819,9 +826,9 @@ mod tests {
 
     #[test]
     fn test_from_raw_unnecessary_percent_decode() {
-        // In fact, RFC7578 (multipart/form-data) Section 2 and 4.2 suggests that filename with
+        // In fact, RFC 7578 (multipart/form-data) Section 2 and 4.2 suggests that filename with
         // non-ASCII characters MAY be percent-encoded.
-        // On the contrary, RFC6266 or other RFCs related to Content-Disposition response header
+        // On the contrary, RFC 6266 or other RFCs related to Content-Disposition response header
         // do not mention such percent-encoding.
         // So, it appears to be undecidable whether to percent-decode or not without
         // knowing the usage scenario (multipart/form-data v.s. HTTP response header) and

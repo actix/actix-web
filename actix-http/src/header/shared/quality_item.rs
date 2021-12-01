@@ -224,7 +224,7 @@ mod tests {
         }
     }
 
-    impl FromStr for Encoding {
+    impl str::FromStr for Encoding {
         type Err = crate::error::ParseError;
         fn from_str(s: &str) -> Result<Encoding, crate::error::ParseError> {
             use Encoding::*;

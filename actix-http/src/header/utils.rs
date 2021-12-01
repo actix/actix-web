@@ -13,8 +13,10 @@ where
     T: FromStr,
 {
     let mut result = Vec::new();
+
     for h in all {
         let s = h.to_str().map_err(|_| ParseError::Header)?;
+
         result.extend(
             s.split(',')
                 .filter_map(|x| match x.trim() {
