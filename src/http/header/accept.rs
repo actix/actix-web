@@ -6,7 +6,8 @@ use super::{qitem, QualityItem};
 use crate::http::header;
 
 crate::http::header::common_header! {
-    /// `Accept` header, defined in [RFC 7231](http://tools.ietf.org/html/rfc7231#section-5.3.2)
+    /// `Accept` header, defined
+    /// in [RFC 7231 §5.3.2](https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2)
     ///
     /// The `Accept` header field can be used by user agents to specify
     /// response media types that are acceptable. Accept header fields can
@@ -15,7 +16,6 @@ crate::http::header::common_header! {
     /// in-line image
     ///
     /// # ABNF
-    ///
     /// ```text
     /// Accept = #( media-range [ accept-params ] )
     ///
@@ -27,7 +27,7 @@ crate::http::header::common_header! {
     /// accept-ext = OWS ";" OWS token [ "=" ( token / quoted-string ) ]
     /// ```
     ///
-    /// # Example values
+    /// # Example Values
     /// * `audio/*; q=0.2, audio/basic`
     /// * `text/plain; q=0.5, text/html, text/x-dvi; q=0.8, text/x-c`
     ///
@@ -79,7 +79,7 @@ crate::http::header::common_header! {
     /// ```
     (Accept, header::ACCEPT) => (QualityItem<Mime>)+
 
-    common_tests {
+    test_parse_and_format {
         // Tests from the RFC
          crate::http::header::common_header_test!(
             test1,

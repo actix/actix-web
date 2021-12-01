@@ -2,8 +2,8 @@ use super::{QualityItem, CONTENT_LANGUAGE};
 use language_tags::LanguageTag;
 
 crate::http::header::common_header! {
-    /// `Content-Language` header, defined in
-    /// [RFC7231](https://tools.ietf.org/html/rfc7231#section-3.1.3.2)
+    /// `Content-Language` header, defined
+    /// in [RFC 7231 §3.1.3.2](https://datatracker.ietf.org/doc/html/rfc7231#section-3.1.3.2)
     ///
     /// The `Content-Language` header field describes the natural language(s)
     /// of the intended audience for the representation.  Note that this
@@ -11,18 +11,15 @@ crate::http::header::common_header! {
     /// representation.
     ///
     /// # ABNF
-    ///
     /// ```text
     /// Content-Language = 1#language-tag
     /// ```
     ///
-    /// # Example values
-    ///
+    /// # Example Values
     /// * `da`
     /// * `mi, en`
     ///
     /// # Examples
-    ///
     /// ```
     /// use actix_web::HttpResponse;
     /// use actix_web::http::header::{ContentLanguage, LanguageTag, qitem};
@@ -49,7 +46,7 @@ crate::http::header::common_header! {
     /// ```
     (ContentLanguage, CONTENT_LANGUAGE) => (QualityItem<LanguageTag>)+
 
-    test_content_language {
+    test_parse_and_format {
         crate::http::header::common_header_test!(test1, vec![b"da"]);
         crate::http::header::common_header_test!(test2, vec![b"mi, en"]);
     }

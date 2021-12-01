@@ -3,7 +3,9 @@ use std::{
     fmt,
 };
 
-/// Operation codes as part of RFC6455.
+/// Operation codes defined in [RFC 6455 §11.8].
+///
+/// [RFC 6455]: https://datatracker.ietf.org/doc/html/rfc6455#section-11.8
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum OpCode {
     /// Indicates a continuation frame of a fragmented message.
@@ -105,7 +107,7 @@ pub enum CloseCode {
     Abnormal,
 
     /// Indicates that an endpoint is terminating the connection because it has received data within
-    /// a message that was not consistent with the type of the message (e.g., non-UTF-8 \[RFC3629\]
+    /// a message that was not consistent with the type of the message (e.g., non-UTF-8 \[RFC 3629\]
     /// data within a text message).
     Invalid,
 

@@ -5,7 +5,8 @@ use super::{fmt_comma_delimited, from_comma_delimited, Header, IntoHeaderValue, 
 
 use crate::http::header;
 
-/// `Cache-Control` header, defined in [RFC7234](https://tools.ietf.org/html/rfc7234#section-5.2)
+/// `Cache-Control` header, defined
+/// in [RFC 7234 §5.2](https://datatracker.ietf.org/doc/html/rfc7234#section-5.2).
 ///
 /// The `Cache-Control` header field is used to specify directives for
 /// caches along the request/response chain.  Such cache directives are
@@ -13,13 +14,12 @@ use crate::http::header;
 /// not imply that the same directive is to be given in the response.
 ///
 /// # ABNF
-///
 /// ```text
 /// Cache-Control   = 1#cache-directive
 /// cache-directive = token [ "=" ( token / quoted-string ) ]
 /// ```
 ///
-/// # Example values
+/// # Example Values
 ///
 /// * `no-cache`
 /// * `private, community="UCI"`

@@ -2,8 +2,8 @@ use super::CONTENT_TYPE;
 use mime::Mime;
 
 crate::http::header::common_header! {
-    /// `Content-Type` header, defined in
-    /// [RFC7231](http://tools.ietf.org/html/rfc7231#section-3.1.1.5)
+    /// `Content-Type` header, defined
+    /// in [RFC 7231 §3.1.1.5](https://datatracker.ietf.org/doc/html/rfc7231#section-3.1.1.5)
     ///
     /// The `Content-Type` header field indicates the media type of the
     /// associated representation: either the representation enclosed in the
@@ -18,18 +18,15 @@ crate::http::header::common_header! {
     /// this is an issue, it's possible to implement `Header` on a custom struct.
     ///
     /// # ABNF
-    ///
     /// ```text
     /// Content-Type = media-type
     /// ```
     ///
-    /// # Example values
-    ///
+    /// # Example Values
     /// * `text/html; charset=utf-8`
     /// * `application/json`
     ///
     /// # Examples
-    ///
     /// ```
     /// use actix_web::HttpResponse;
     /// use actix_web::http::header::ContentType;
@@ -51,7 +48,7 @@ crate::http::header::common_header! {
     /// ```
     (ContentType, CONTENT_TYPE) => [Mime]
 
-    test_content_type {
+    test_parse_and_format {
         crate::http::header::common_header_test!(
             test1,
             vec![b"text/html"],
