@@ -29,26 +29,26 @@ common_header! {
     /// # Examples
     /// ```
     /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{AcceptLanguage, LanguageTag, qitem};
+    /// use actix_web::http::header::{AcceptLanguage, qitem};
     ///
     /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     AcceptLanguage(vec![
-    ///         qitem(LanguageTag::parse("en-US").unwrap())
+    ///         qitem("en-US".parse().unwrap())
     ///     ])
     /// );
     /// ```
     ///
     /// ```
     /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{AcceptLanguage, LanguageTag, QualityItem, q, qitem};
+    /// use actix_web::http::header::{AcceptLanguage, QualityItem, q, qitem};
     ///
     /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     AcceptLanguage(vec![
-    ///         qitem(LanguageTag::parse("da").unwrap()),
-    ///         QualityItem::new(LanguageTag::parse("en-GB").unwrap(), q(800)),
-    ///         QualityItem::new(LanguageTag::parse("en").unwrap(), q(700)),
+    ///         qitem("da".parse().unwrap()),
+    ///         QualityItem::new("en-GB".parse().unwrap(), q(800)),
+    ///         QualityItem::new("en".parse().unwrap(), q(700)),
     ///     ])
     /// );
     /// ```
