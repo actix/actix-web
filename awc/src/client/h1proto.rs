@@ -13,7 +13,7 @@ use actix_http::{
         header::{HeaderMap, IntoHeaderValue, EXPECT, HOST},
         StatusCode,
     },
-    Error, Payload, RequestHeadType, ResponseHead,
+    Payload, RequestHeadType, ResponseHead,
 };
 use actix_utils::future::poll_fn;
 use bytes::buf::BufMut;
@@ -21,6 +21,8 @@ use bytes::{Bytes, BytesMut};
 use futures_core::{ready, Stream};
 use futures_util::SinkExt as _;
 use pin_project_lite::pin_project;
+
+use crate::BoxError;
 
 use super::connection::{ConnectionIo, H1Connection};
 use super::error::{ConnectError, SendRequestError};
@@ -33,7 +35,7 @@ pub(crate) async fn send_request<Io, B>(
 where
     Io: ConnectionIo,
     B: MessageBody,
-    B::Error: Into<Error>,
+    B::Error: Into<BoxError>,
 {
     // set request host header
     if !head.as_ref().headers.contains_key(HOST)
@@ -155,7 +157,7 @@ pub(crate) async fn send_body<Io, B>(
 where
     Io: ConnectionIo,
     B: MessageBody,
-    B::Error: Into<Error>,
+    B::Error: Into<BoxError>,
 {
     actix_rt::pin!(body);
 
@@ -166,7 +168,7 @@ where
                 Some(Ok(chunk)) => {
                     framed.as_mut().write(h1::Message::Chunk(Some(chunk)))?;
                 }
-                Some(Err(err)) => return Err(err.into().into()),
+                Some(Err(err)) => return Err(SendRequestError::Body(err.into())),
                 None => {
                     eof = true;
                     framed.as_mut().write(h1::Message::Chunk(None))?;

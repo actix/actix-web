@@ -13,15 +13,15 @@ use super::{BodySize, MessageBody};
 ///
 /// # Examples
 /// ```
-/// use actix_http::body::{AnyBody, to_bytes};
+/// use actix_http::body::{self, to_bytes};
 /// use bytes::Bytes;
 ///
 /// # async fn test_to_bytes() {
-/// let body = AnyBody::none();
+/// let body = body::None::new();
 /// let bytes = to_bytes(body).await.unwrap();
 /// assert!(bytes.is_empty());
 ///
-/// let body = AnyBody::copy_from_slice(b"123");
+/// let body = Bytes::from_static(b"123");
 /// let bytes = to_bytes(body).await.unwrap();
 /// assert_eq!(bytes, b"123"[..]);
 /// # }

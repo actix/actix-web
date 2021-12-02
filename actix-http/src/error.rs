@@ -132,12 +132,6 @@ impl From<std::convert::Infallible> for Error {
     }
 }
 
-impl From<ws::ProtocolError> for Error {
-    fn from(err: ws::ProtocolError) -> Self {
-        Self::new_ws().with_cause(err)
-    }
-}
-
 impl From<HttpError> for Error {
     fn from(err: HttpError) -> Self {
         Self::new_http().with_cause(err)
@@ -146,6 +140,12 @@ impl From<HttpError> for Error {
 
 impl From<ws::HandshakeError> for Error {
     fn from(err: ws::HandshakeError) -> Self {
+        Self::new_ws().with_cause(err)
+    }
+}
+
+impl From<ws::ProtocolError> for Error {
+    fn from(err: ws::ProtocolError) -> Self {
         Self::new_ws().with_cause(err)
     }
 }

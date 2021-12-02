@@ -9,12 +9,12 @@ use std::{
 };
 
 use actix_http::{
-    body::{AnyBody, BodyStream},
+    body::BodyStream,
     http::{
         header::{self, HeaderMap, HeaderName, IntoHeaderValue},
         Error as HttpError,
     },
-    Error, RequestHead, RequestHeadType,
+    RequestHead, RequestHeadType,
 };
 use actix_rt::time::{sleep, Sleep};
 use bytes::Bytes;
@@ -26,6 +26,7 @@ use serde::Serialize;
 use actix_http::{encoding::Decoder, http::header::ContentEncoding, Payload, PayloadStream};
 
 use crate::{
+    any_body::AnyBody,
     error::{FreezeRequestError, InvalidUrl, SendRequestError},
     ClientConfig, ClientResponse, ConnectRequest, ConnectResponse,
 };
@@ -159,12 +160,6 @@ impl Future for SendClientRequest {
 impl From<SendRequestError> for SendClientRequest {
     fn from(e: SendRequestError) -> Self {
         SendClientRequest::Err(Some(e))
-    }
-}
-
-impl From<Error> for SendClientRequest {
-    fn from(e: Error) -> Self {
-        SendClientRequest::Err(Some(e.into()))
     }
 }
 

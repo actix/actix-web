@@ -5,7 +5,6 @@ use futures_core::Stream;
 use serde::Serialize;
 
 use actix_http::{
-    body::AnyBody,
     http::{
         header::{self, IntoHeaderPair},
         ConnectionType, Error as HttpError, HeaderMap, HeaderValue, Method, Uri, Version,
@@ -13,14 +12,16 @@ use actix_http::{
     RequestHead,
 };
 
-#[cfg(feature = "cookies")]
-use crate::cookie::{Cookie, CookieJar};
 use crate::{
+    any_body::AnyBody,
     error::{FreezeRequestError, InvalidUrl},
     frozen::FrozenClientRequest,
     sender::{PrepForSendingError, RequestSender, SendClientRequest},
     ClientConfig,
 };
+
+#[cfg(feature = "cookies")]
+use crate::cookie::{Cookie, CookieJar};
 
 /// An HTTP Client request builder
 ///

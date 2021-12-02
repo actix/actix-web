@@ -1,14 +1,14 @@
 use std::io;
 
 use actix_http::{
-    body::BoxBody, http::HeaderValue, http::StatusCode, Error, HttpService, Request,
+    body::MessageBody, http::HeaderValue, http::StatusCode, Error, HttpService, Request,
     Response,
 };
 use actix_server::Server;
 use bytes::BytesMut;
 use futures_util::StreamExt as _;
 
-async fn handle_request(mut req: Request) -> Result<Response<BoxBody>, Error> {
+async fn handle_request(mut req: Request) -> Result<Response<impl MessageBody>, Error> {
     let mut body = BytesMut::new();
     while let Some(item) = req.payload().next().await {
         body.extend_from_slice(&item?)
@@ -18,8 +18,7 @@ async fn handle_request(mut req: Request) -> Result<Response<BoxBody>, Error> {
 
     Ok(Response::build(StatusCode::OK)
         .insert_header(("x-head", HeaderValue::from_static("dummy value!")))
-        .body(body)
-        .map_into_boxed_body())
+        .body(body))
 }
 
 #[actix_rt::main]

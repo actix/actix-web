@@ -10,7 +10,7 @@ use std::{
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 
-use actix_http::body::AnyBody;
+use actix_http::body;
 use actix_service::{Service, ServiceFactory};
 use actix_web::{
     body::BoxBody,
@@ -530,7 +530,7 @@ impl NamedFile {
         } else if not_modified {
             return resp
                 .status(StatusCode::NOT_MODIFIED)
-                .body(AnyBody::<()>::None)
+                .body(body::None::new())
                 .map_into_boxed_body();
         }
 

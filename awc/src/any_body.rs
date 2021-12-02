@@ -10,12 +10,7 @@ use bytes::{Bytes, BytesMut};
 use futures_core::Stream;
 use pin_project_lite::pin_project;
 
-use super::{BodySize, BodyStream, BoxBody, MessageBody, SizedStream};
-use crate::error::Error;
-
-/// (Deprecated) Represents various types of HTTP message body.
-#[deprecated(since = "4.0.0", note = "Renamed to `AnyBody`.")]
-pub type Body = AnyBody;
+use actix_http::body::{BodySize, BodyStream, BoxBody, MessageBody, SizedStream};
 
 pin_project! {
     /// Represents various types of HTTP message body.
@@ -96,7 +91,7 @@ impl<B> MessageBody for AnyBody<B>
 where
     B: MessageBody,
 {
-    type Error = Error;
+    type Error = crate::BoxError;
 
     fn size(&self) -> BodySize {
         match self {
@@ -121,9 +116,7 @@ where
                 }
             }
 
-            AnyBodyProj::Body { body } => body
-                .poll_next(cx)
-                .map_err(|err| Error::new_body().with_cause(err)),
+            AnyBodyProj::Body { body } => body.poll_next(cx).map_err(|err| err.into()),
         }
     }
 }
@@ -267,7 +260,7 @@ mod tests {
     struct PinType(PhantomPinned);
 
     impl MessageBody for PinType {
-        type Error = crate::Error;
+        type Error = crate::BoxError;
 
         fn size(&self) -> BodySize {
             unimplemented!()

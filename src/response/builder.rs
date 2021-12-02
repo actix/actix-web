@@ -436,12 +436,9 @@ mod tests {
     use actix_http::body;
 
     use super::*;
-    use crate::{
-        dev::AnyBody,
-        http::{
-            header::{self, HeaderValue, CONTENT_TYPE},
-            StatusCode,
-        },
+    use crate::http::{
+        header::{self, HeaderValue, CONTENT_TYPE},
+        StatusCode,
     };
 
     #[test]
@@ -476,7 +473,7 @@ mod tests {
     fn test_content_type() {
         let resp = HttpResponseBuilder::new(StatusCode::OK)
             .content_type("text/plain")
-            .body(AnyBody::empty());
+            .body(Bytes::new());
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "text/plain")
     }
 

@@ -12,9 +12,9 @@ use bytes::Bytes;
 use futures_core::future::LocalBoxFuture;
 use h2::client::SendRequest;
 
-use actix_http::{
-    body::MessageBody, h1::ClientCodec, Error, Payload, RequestHeadType, ResponseHead,
-};
+use actix_http::{body::MessageBody, h1::ClientCodec, Payload, RequestHeadType, ResponseHead};
+
+use crate::BoxError;
 
 use super::error::SendRequestError;
 use super::pool::Acquired;
@@ -254,7 +254,7 @@ where
     where
         H: Into<RequestHeadType> + 'static,
         RB: MessageBody + 'static,
-        RB::Error: Into<Error>,
+        RB::Error: Into<BoxError>,
     {
         Box::pin(async move {
             match self {

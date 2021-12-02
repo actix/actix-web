@@ -344,8 +344,9 @@ impl fmt::Debug for ResponseBuilder {
 
 #[cfg(test)]
 mod tests {
+    use bytes::Bytes;
+
     use super::*;
-    use crate::body::AnyBody;
     use crate::http::header::{HeaderName, HeaderValue, CONTENT_TYPE};
 
     #[test]
@@ -378,7 +379,7 @@ mod tests {
     fn test_content_type() {
         let resp = Response::build(StatusCode::OK)
             .content_type("text/plain")
-            .body(AnyBody::empty());
+            .body(Bytes::new());
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "text/plain")
     }
 

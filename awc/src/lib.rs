@@ -104,6 +104,7 @@
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 
+mod any_body;
 mod builder;
 mod client;
 mod connect;
@@ -138,6 +139,8 @@ use actix_rt::net::TcpStream;
 use actix_service::Service;
 
 use self::client::{ConnectInfo, TcpConnectError, TcpConnection};
+
+pub(crate) type BoxError = Box<dyn std::error::Error>;
 
 /// An asynchronous HTTP and WebSocket client.
 ///

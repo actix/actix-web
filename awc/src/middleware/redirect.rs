@@ -8,7 +8,6 @@ use std::{
 };
 
 use actix_http::{
-    body::AnyBody,
     http::{header, Method, StatusCode, Uri},
     RequestHead, RequestHeadType,
 };
@@ -17,10 +16,12 @@ use bytes::Bytes;
 use futures_core::ready;
 
 use super::Transform;
-
-use crate::client::{InvalidUrl, SendRequestError};
-use crate::connect::{ConnectRequest, ConnectResponse};
-use crate::ClientResponse;
+use crate::{
+    any_body::AnyBody,
+    client::{InvalidUrl, SendRequestError},
+    connect::{ConnectRequest, ConnectResponse},
+    ClientResponse,
+};
 
 pub struct Redirect {
     max_redirect_times: u8,

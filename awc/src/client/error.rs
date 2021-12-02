@@ -2,12 +2,12 @@ use std::{error::Error as StdError, fmt, io};
 
 use derive_more::{Display, From};
 
-use actix_http::{
-    error::{Error, ParseError},
-    http::Error as HttpError,
-};
+use actix_http::{error::ParseError, http::Error as HttpError};
+
 #[cfg(feature = "openssl")]
-use actix_tls::accept::openssl::reexports::Error as OpenSslError;
+use actix_tls::accept::openssl::reexports::Error as OpensslError;
+
+use crate::BoxError;
 
 /// A set of errors that can occur while connecting to an HTTP host
 #[derive(Debug, Display, From)]
@@ -20,7 +20,7 @@ pub enum ConnectError {
     /// SSL error
     #[cfg(feature = "openssl")]
     #[display(fmt = "{}", _0)]
-    SslError(OpenSslError),
+    SslError(OpensslError),
 
     /// Failed to resolve the hostname
     #[display(fmt = "Failed resolving hostname: {}", _0)]
@@ -118,7 +118,7 @@ pub enum SendRequestError {
     TunnelNotSupported,
 
     /// Error sending request body
-    Body(Error),
+    Body(BoxError),
 
     /// Other errors that can occur after submitting a request.
     #[display(fmt = "{:?}: {}", _1, _0)]

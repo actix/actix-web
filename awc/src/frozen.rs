@@ -5,12 +5,12 @@ use futures_core::Stream;
 use serde::Serialize;
 
 use actix_http::{
-    body::AnyBody,
     http::{header::IntoHeaderValue, Error as HttpError, HeaderMap, HeaderName, Method, Uri},
     RequestHead,
 };
 
 use crate::{
+    any_body::AnyBody,
     sender::{RequestSender, SendClientRequest},
     ClientConfig,
 };

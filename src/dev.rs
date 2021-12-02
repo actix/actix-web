@@ -15,7 +15,7 @@ pub use crate::types::json::JsonBody;
 pub use crate::types::readlines::Readlines;
 
 #[allow(deprecated)]
-pub use actix_http::body::{AnyBody, Body, BodySize, MessageBody, SizedStream};
+pub use actix_http::body::{BodySize, MessageBody, SizedStream};
 
 pub use actix_http::{Extensions, Payload, PayloadStream, RequestHead, Response, ResponseHead};
 pub use actix_router::{Path, ResourceDef, ResourcePath, Url};
