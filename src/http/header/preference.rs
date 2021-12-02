@@ -20,12 +20,12 @@ pub enum Preference<T> {
 }
 
 impl<T> Preference<T> {
-    /// Returns true if the preference is the any/wildcard (`*`) value.
+    /// Returns true if preference is the any/wildcard (`*`) value.
     pub fn is_any(&self) -> bool {
         matches!(self, Self::Any)
     }
 
-    /// Returns true if variant is a specific item (`T`) variant.
+    /// Returns true if preference is the specific item (`T`) variant.
     pub fn is_specific(&self) -> bool {
         matches!(self, Self::Specific(_))
     }
