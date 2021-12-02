@@ -80,7 +80,6 @@ impl TryFrom<f32> for Quality {
 
 /// Represents an item with a quality value as defined
 /// in [RFC 7231 §5.3.1](https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.1).
-#[derive(Clone, PartialEq, Debug)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QualityItem<T> {
     /// The wrapped contents of the field.
