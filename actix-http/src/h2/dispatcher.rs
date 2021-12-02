@@ -10,7 +10,7 @@ use std::{
 };
 
 use actix_codec::{AsyncRead, AsyncWrite};
-use actix_rt::time::Sleep;
+use actix_rt::time::{sleep, Sleep};
 use actix_service::Service;
 use actix_utils::future::poll_fn;
 use bytes::{Bytes, BytesMut};
@@ -55,9 +55,16 @@ where
         on_connect_data: OnConnectData,
         config: ServiceConfig,
         peer_addr: Option<net::SocketAddr>,
+        timer: Option<Pin<Box<Sleep>>>,
     ) -> Self {
-        let ping_pong = config.keep_alive_timer().map(|timer| H2PingPong {
-            timer: Box::pin(timer),
+        let ping_pong = config.keep_alive().map(|dur| H2PingPong {
+            timer: timer
+                .map(|mut timer| {
+                    // reset timer if it's received from new function.
+                    timer.as_mut().reset(config.now() + dur);
+                    timer
+                })
+                .unwrap_or_else(|| Box::pin(sleep(dur))),
             on_flight: false,
             ping_pong: connection.ping_pong().unwrap(),
         });

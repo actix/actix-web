@@ -9,13 +9,11 @@ use std::{
     task::{Context, Poll},
 };
 
-use ::h2::server::{handshake as h2_handshake, Handshake as H2Handshake};
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_rt::net::TcpStream;
 use actix_service::{
     fn_service, IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt as _,
 };
-use bytes::Bytes;
 use futures_core::{future::LocalBoxFuture, ready};
 use pin_project::pin_project;
 
@@ -522,7 +520,7 @@ where
         match proto {
             Protocol::Http2 => HttpServiceHandlerResponse {
                 state: State::H2Handshake(Some((
-                    h2_handshake(io),
+                    h2::handshake_with_timeout(io, &self.cfg),
                     self.cfg.clone(),
                     self.flow.clone(),
                     on_connect_data,
@@ -567,7 +565,7 @@ where
     H2(#[pin] h2::Dispatcher<T, S, B, X, U>),
     H2Handshake(
         Option<(
-            H2Handshake<T, Bytes>,
+            h2::HandshakeWithTimeout<T>,
             ServiceConfig,
             Rc<HttpFlow<S, X, U>>,
             OnConnectData,
@@ -625,7 +623,7 @@ where
             StateProj::H2(disp) => disp.poll(cx),
             StateProj::H2Handshake(data) => {
                 match ready!(Pin::new(&mut data.as_mut().unwrap().0).poll(cx)) {
-                    Ok(conn) => {
+                    Ok((conn, timer)) => {
                         let (_, cfg, srv, on_connect_data, peer_addr) =
                             data.take().unwrap();
                         self.as_mut().project().state.set(State::H2(
@@ -635,13 +633,14 @@ where
                                 on_connect_data,
                                 cfg,
                                 peer_addr,
+                                timer,
                             ),
                         ));
                         self.poll(cx)
                     }
                     Err(err) => {
                         trace!("H2 handshake error: {}", err);
-                        Poll::Ready(Err(err.into()))
+                        Poll::Ready(Err(err))
                     }
                 }
             }
