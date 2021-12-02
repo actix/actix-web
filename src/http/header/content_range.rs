@@ -75,7 +75,7 @@ crate::http::header::common_header! {
 /// in [RFC 7233 §4.2](https://datatracker.ietf.org/doc/html/rfc7233#section-4.2)
 ///
 /// # ABNF
-/// ```text
+/// ```plain
 /// Content-Range       = byte-content-range
 ///                     / other-content-range
 ///
@@ -91,7 +91,7 @@ crate::http::header::common_header! {
 /// other-content-range = other-range-unit SP other-range-resp
 /// other-range-resp    = *CHAR
 /// ```
-#[derive(PartialEq, Clone, Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ContentRangeSpec {
     /// Byte range
     Bytes {

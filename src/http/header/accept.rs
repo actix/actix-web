@@ -16,7 +16,7 @@ crate::http::header::common_header! {
     /// in-line image
     ///
     /// # ABNF
-    /// ```text
+    /// ```plain
     /// Accept = #( media-range [ accept-params ] )
     ///
     /// media-range    = ( "*/*"
@@ -77,7 +77,7 @@ crate::http::header::common_header! {
     ///     ])
     /// );
     /// ```
-    (Accept, header::ACCEPT) => (QualityItem<Mime>)+
+    (Accept, header::ACCEPT) => (QualityItem<Mime>)*
 
     test_parse_and_format {
         // Tests from the RFC
@@ -88,6 +88,7 @@ crate::http::header::common_header! {
                 QualityItem::new("audio/*".parse().unwrap(), q(200)),
                 qitem("audio/basic".parse().unwrap()),
                 ])));
+
         crate::http::header::common_header_test!(
             test2,
             vec![b"text/plain; q=0.5, text/html, text/x-dvi; q=0.8, text/x-c"],
@@ -99,6 +100,7 @@ crate::http::header::common_header! {
                     q(800)),
                 qitem("text/x-c".parse().unwrap()),
                 ])));
+
         // Custom tests
         crate::http::header::common_header_test!(
             test3,
@@ -116,8 +118,9 @@ crate::http::header::common_header! {
 
         #[test]
         fn test_fuzzing1() {
-            use actix_http::test::TestRequest;
-            let req = TestRequest::default().insert_header((crate::http::header::ACCEPT, "chunk#;e")).finish();
+            let req = test::TestRequest::default()
+                .insert_header((header::ACCEPT, "chunk#;e"))
+                .finish();
             let header = Accept::parse(&req);
             assert!(header.is_ok());
         }
@@ -154,7 +157,11 @@ impl Accept {
     /// [q-factor weighting] and specificity.
     ///
     /// [q-factor weighting]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
-    pub fn mime_precedence(&self) -> Vec<Mime> {
+    pub fn ranked(&self) -> Vec<Mime> {
+        if self.is_empty() {
+            return vec![];
+        }
+
         let mut types = self.0.clone();
 
         // use stable sort so items with equal q-factor and specificity retain listed order
@@ -201,12 +208,29 @@ impl Accept {
     /// If no q-factors are provided, the first mime type is chosen. Note that items without
     /// q-factors are given the maximum preference value.
     ///
-    /// Returns `None` if contained list is empty.
+    /// As per the spec, will return [`Mime::STAR_STAR`] (indicating no preference) if the contained
+    /// list is empty.
     ///
     /// [q-factor weighting]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
-    pub fn mime_preference(&self) -> Option<Mime> {
-        let types = self.mime_precedence();
-        types.first().cloned()
+    pub fn preference(&self) -> Mime {
+        use actix_http::header::q;
+
+        let mut max_item = None;
+        let mut max_pref = q(0);
+
+        // uses manual max lookup loop since we want the first occurrence in the case of same
+        // preference but `Iterator::max_by_key` would give us the last occurrence
+
+        for pref in &self.0 {
+            // only change if strictly greater
+            // equal items, even while unsorted, still have higher preference if they appear first
+            if pref.quality > max_pref {
+                max_pref = pref.quality;
+                max_item = Some(pref.item.clone());
+            }
+        }
+
+        max_item.unwrap_or(mime::STAR_STAR)
     }
 }
 
@@ -216,12 +240,12 @@ mod tests {
     use crate::http::header::q;
 
     #[test]
-    fn test_mime_precedence() {
+    fn ranking_precedence() {
         let test = Accept(vec![]);
-        assert!(test.mime_precedence().is_empty());
+        assert!(test.ranked().is_empty());
 
         let test = Accept(vec![qitem(mime::APPLICATION_JSON)]);
-        assert_eq!(test.mime_precedence(), vec!(mime::APPLICATION_JSON));
+        assert_eq!(test.ranked(), vec!(mime::APPLICATION_JSON));
 
         let test = Accept(vec![
             qitem(mime::TEXT_HTML),
@@ -230,7 +254,7 @@ mod tests {
             QualityItem::new(mime::STAR_STAR, q(0.8)),
         ]);
         assert_eq!(
-            test.mime_precedence(),
+            test.ranked(),
             vec![
                 mime::TEXT_HTML,
                 "application/xhtml+xml".parse().unwrap(),
@@ -245,20 +269,20 @@ mod tests {
             qitem(mime::IMAGE_PNG),
         ]);
         assert_eq!(
-            test.mime_precedence(),
+            test.ranked(),
             vec![mime::IMAGE_PNG, mime::IMAGE_STAR, mime::STAR_STAR]
         );
     }
 
     #[test]
-    fn test_mime_preference() {
+    fn preference_selection() {
         let test = Accept(vec![
             qitem(mime::TEXT_HTML),
             "application/xhtml+xml".parse().unwrap(),
             QualityItem::new("application/xml".parse().unwrap(), q(0.9)),
             QualityItem::new(mime::STAR_STAR, q(0.8)),
         ]);
-        assert_eq!(test.mime_preference(), Some(mime::TEXT_HTML));
+        assert_eq!(test.preference(), mime::TEXT_HTML);
 
         let test = Accept(vec![
             QualityItem::new("video/*".parse().unwrap(), q(0.8)),
@@ -267,6 +291,6 @@ mod tests {
             qitem(mime::IMAGE_SVG),
             QualityItem::new(mime::IMAGE_STAR, q(0.8)),
         ]);
-        assert_eq!(test.mime_preference(), Some(mime::IMAGE_PNG));
+        assert_eq!(test.preference(), mime::IMAGE_PNG);
     }
 }

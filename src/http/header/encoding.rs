@@ -4,26 +4,33 @@ pub use self::Encoding::{
     Brotli, Chunked, Compress, Deflate, EncodingExt, Gzip, Identity, Trailers, Zstd,
 };
 
-/// A value to represent an encoding used in `Transfer-Encoding`
-/// or `Accept-Encoding` header.
-#[derive(Clone, PartialEq, Debug)]
+/// A value to represent an encoding used in `Transfer-Encoding` or `Accept-Encoding` header.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Encoding {
     /// The `chunked` encoding.
     Chunked,
+
     /// The `br` encoding.
     Brotli,
+
     /// The `gzip` encoding.
     Gzip,
+
     /// The `deflate` encoding.
     Deflate,
+
     /// The `compress` encoding.
     Compress,
+
     /// The `identity` encoding.
     Identity,
+
     /// The `trailers` encoding.
     Trailers,
+
     /// The `zstd` encoding.
     Zstd,
+
     /// Some other encoding that is less common, can be any String.
     EncodingExt(String),
 }

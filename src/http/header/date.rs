@@ -9,7 +9,7 @@ crate::http::header::common_header! {
     /// message was originated.
     ///
     /// # ABNF
-    /// ```text
+    /// ```plain
     /// Date = HTTP-date
     /// ```
     ///

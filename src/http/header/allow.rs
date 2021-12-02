@@ -12,7 +12,7 @@ crate::http::header::common_header! {
     /// with the resource.
     ///
     /// # ABNF
-    /// ```text
+    /// ```plain
     /// Allow = #method
     /// ```
     ///

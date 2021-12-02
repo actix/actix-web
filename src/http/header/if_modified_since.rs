@@ -11,7 +11,7 @@ crate::http::header::common_header! {
     /// data has not changed.
     ///
     /// # ABNF
-    /// ```text
+    /// ```plain
     /// If-Unmodified-Since = HTTP-date
     /// ```
     ///

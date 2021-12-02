@@ -14,3 +14,5 @@ cargo test --lib --tests -p=actix-test --all-features
 cargo test --lib --tests -p=actix-files
 cargo test --lib --tests -p=actix-multipart --all-features
 cargo test --lib --tests -p=actix-web-actors --all-features
+
+cargo test --workspace --doc

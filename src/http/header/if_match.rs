@@ -1,6 +1,6 @@
-use super::{EntityTag, IF_MATCH};
+use super::{common_header, EntityTag, IF_MATCH};
 
-crate::http::header::common_header! {
+common_header! {
     /// `If-Match` header, defined
     /// in [RFC 7232 §3.1](https://datatracker.ietf.org/doc/html/rfc7232#section-3.1)
     ///
@@ -17,7 +17,7 @@ crate::http::header::common_header! {
     /// there have been any changes to the representation data.
     ///
     /// # ABNF
-    /// ```text
+    /// ```plain
     /// If-Match = "*" / 1#entity-tag
     /// ```
     ///

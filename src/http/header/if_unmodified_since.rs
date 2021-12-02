@@ -11,7 +11,7 @@ crate::http::header::common_header! {
     /// the user agent does not have an entity-tag for the representation.
     ///
     /// # ABNF
-    /// ```text
+    /// ```plain
     /// If-Unmodified-Since = HTTP-date
     /// ```
     ///

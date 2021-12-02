@@ -10,7 +10,7 @@ crate::http::header::common_header! {
     /// conclusion of handling the request.
     ///
     /// # ABNF
-    /// ```text
+    /// ```plain
     /// Expires = HTTP-date
     /// ```
     ///

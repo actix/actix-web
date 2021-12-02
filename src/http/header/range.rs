@@ -1,8 +1,11 @@
-use std::fmt::{self, Display};
-use std::str::FromStr;
+// TODO: reinstate module
 
-use super::parsing::from_one_raw_str;
-use super::{Header, Raw};
+use std::{
+    fmt::{self, Display},
+    str::FromStr,
+};
+
+use super::{parsing::from_one_raw_str, Header, Raw};
 
 /// `Range` header, defined
 /// in [RFC 7233 §3.1](https://datatracker.ietf.org/doc/html/rfc7233#section-3.1)
@@ -12,7 +15,7 @@ use super::{Header, Raw};
 /// representation data.
 ///
 /// # ABNF
-/// ```text
+/// ```plain
 /// Range =	byte-ranges-specifier / other-ranges-specifier
 /// other-ranges-specifier = other-range-unit "=" other-range-set
 /// other-range-set = 1*VCHAR
