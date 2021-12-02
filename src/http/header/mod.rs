@@ -46,9 +46,9 @@ mod preference;
 pub(crate) use macros::common_header_test;
 pub(crate) use macros::{common_header, common_header_test_module};
 
-pub use self::accept_charset::AcceptCharset;
-//pub use self::accept_encoding::AcceptEncoding;
 pub use self::accept::Accept;
+pub use self::accept_charset::AcceptCharset;
+pub use self::accept_encoding::AcceptEncoding;
 pub use self::accept_language::AcceptLanguage;
 pub use self::allow::Allow;
 pub use self::cache_control::{CacheControl, CacheDirective};
