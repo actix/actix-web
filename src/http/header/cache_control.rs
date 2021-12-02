@@ -45,10 +45,13 @@ common_header! {
     ///     CacheDirective::Extension("foo".to_owned(), Some("bar".to_owned())),
     /// ]));
     /// ```
-
     (CacheControl, header::CACHE_CONTROL) => (CacheDirective)+
 
     test_parse_and_format {
+        common_header_test!(no_headers, vec![b""; 0], None);
+        common_header_test!(empty_header, vec![b""; 1], None);
+        common_header_test!(bad_syntax, vec![b"foo="], None);
+
         common_header_test!(
             multiple_headers,
             vec![&b"no-cache"[..], &b"private"[..]],
@@ -76,19 +79,14 @@ common_header! {
             ]))
         );
 
-        common_header_test!(bad_syntax, vec![b"foo="], None);
-
-        common_header_test!(empty_header, vec![b""], None);
-
         #[test]
         fn parse_quote_form() {
-            use actix_http::test::TestRequest;
-            let req = TestRequest::default()
+            let req = test::TestRequest::default()
                 .insert_header((header::CACHE_CONTROL, "max-age=\"200\""))
                 .finish();
-            let cache = Header::parse(&req);
+
             assert_eq!(
-                cache.ok(),
+                Header::parse(&req).ok(),
                 Some(CacheControl(vec![CacheDirective::MaxAge(200)]))
             )
         }

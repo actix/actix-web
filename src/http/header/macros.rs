@@ -9,7 +9,7 @@ macro_rules! common_header_test_module {
             use ::mime::*;
 
             use $crate::http::header::{self, *};
-            use super::$id as HeaderField;
+            use super::{$id as HeaderField, *};
 
             $($tf)*
         }
@@ -149,7 +149,7 @@ macro_rules! common_header {
             #[inline]
             fn parse<T: $crate::HttpMessage>(msg: &T) -> Result<Self, $crate::error::ParseError>{
                 let headers = msg.headers().get_all(Self::name());
-                println!("{:?}", &headers);
+
                 $crate::http::header::from_comma_delimited(headers)
                     .and_then(|items| {
                         if items.is_empty() {

@@ -17,9 +17,9 @@ use bytes::{Bytes, BytesMut};
 // - header parsing utils
 pub use actix_http::http::header::*;
 
-mod accept_charset;
-// mod accept_encoding;
 mod accept;
+mod accept_charset;
+mod accept_encoding;
 mod accept_language;
 mod allow;
 mod any_or_some;
