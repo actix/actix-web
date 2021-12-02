@@ -156,7 +156,7 @@ impl Accept {
     /// Returns a sorted list of mime types from highest to lowest preference, accounting for
     /// [q-factor weighting] and specificity.
     ///
-    /// [q-factor weighting]: https://tools.ietf.org/html/rfc7231#section-5.3.2
+    /// [q-factor weighting]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
     pub fn ranked(&self) -> Vec<Mime> {
         if self.is_empty() {
             return vec![];
@@ -208,12 +208,29 @@ impl Accept {
     /// If no q-factors are provided, the first mime type is chosen. Note that items without
     /// q-factors are given the maximum preference value.
     ///
-    /// Returns `None` if contained list is empty.
+    /// As per the spec, will return [`Mime::STAR_STAR`] (indicating no preference) if the contained
+    /// list is empty.
     ///
-    /// [q-factor weighting]: https://tools.ietf.org/html/rfc7231#section-5.3.2
-    pub fn preference(&self) -> Option<Mime> {
-        // PERF: creating a sorted list is not necessary
-        self.ranked().into_iter().next()
+    /// [q-factor weighting]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
+    pub fn preference(&self) -> Mime {
+        use actix_http::header::q;
+
+        let mut max_item = None;
+        let mut max_pref = q(0);
+
+        // uses manual max lookup loop since we want the first occurrence in the case of same
+        // preference but `Iterator::max_by_key` would give us the last occurrence
+
+        for pref in &self.0 {
+            // only change if strictly greater
+            // equal items, even while unsorted, still have higher preference if they appear first
+            if pref.quality > max_pref {
+                max_pref = pref.quality;
+                max_item = Some(pref.item.clone());
+            }
+        }
+
+        max_item.unwrap_or(mime::STAR_STAR)
     }
 }
 
@@ -265,7 +282,7 @@ mod tests {
             QualityItem::new("application/xml".parse().unwrap(), q(0.9)),
             QualityItem::new(mime::STAR_STAR, q(0.8)),
         ]);
-        assert_eq!(test.preference(), Some(mime::TEXT_HTML));
+        assert_eq!(test.preference(), mime::TEXT_HTML);
 
         let test = Accept(vec![
             QualityItem::new("video/*".parse().unwrap(), q(0.8)),
@@ -274,6 +291,6 @@ mod tests {
             qitem(mime::IMAGE_SVG),
             QualityItem::new(mime::IMAGE_STAR, q(0.8)),
         ]);
-        assert_eq!(test.preference(), Some(mime::IMAGE_PNG));
+        assert_eq!(test.preference(), mime::IMAGE_PNG);
     }
 }

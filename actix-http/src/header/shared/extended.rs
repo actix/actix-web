@@ -1,17 +1,17 @@
+// Originally from hyper v0.11.27 src/header/parsing.rs
+
 use std::{fmt, str::FromStr};
 
 use language_tags::LanguageTag;
 
 use crate::header::{Charset, HTTP_VALUE};
 
-// From hyper v0.11.27 src/header/parsing.rs
-
 /// The value part of an extended parameter consisting of three parts:
 /// - The REQUIRED character set name (`charset`).
 /// - The OPTIONAL language information (`language_tag`).
 /// - A character sequence representing the actual value (`value`), separated by single quotes.
 ///
-/// It is defined in [RFC 5987](https://tools.ietf.org/html/rfc5987#section-3.2).
+/// It is defined in [RFC 5987 §3.2](https://datatracker.ietf.org/doc/html/rfc5987#section-3.2).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ExtendedValue {
     /// The character set that is used to encode the `value` to a string.

@@ -96,7 +96,7 @@ impl ByteRangeSpec {
     /// simply ignore the range header and serve the full entity using a `200
     /// OK` status code.
     ///
-    /// This function closely follows [RFC 7233][1] section 2.1.
+    /// This function closely follows [RFC 7233 §2.1].
     /// As such, it considers ranges to be satisfiable if they meet the
     /// following conditions:
     ///
@@ -115,7 +115,7 @@ impl ByteRangeSpec {
     /// value of last-byte-pos with a value that is one less than the current
     /// length of the selected representation).
     ///
-    /// [1]: https://tools.ietf.org/html/rfc7233
+    /// [RFC 7233 §2.1]: https://datatracker.ietf.org/doc/html/rfc7233
     pub fn to_satisfiable_range(&self, full_length: u64) -> Option<(u64, u64)> {
         // If the full length is zero, there is no satisfiable end-inclusive range.
         if full_length == 0 {
