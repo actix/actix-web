@@ -15,9 +15,7 @@ use actix_service::{
     ServiceFactoryExt as _,
 };
 use actix_utils::future::ready;
-use bytes::Bytes;
 use futures_core::{future::LocalBoxFuture, ready};
-use h2::server::{handshake as h2_handshake, Handshake as H2Handshake};
 use log::error;
 
 use crate::{
@@ -28,7 +26,7 @@ use crate::{
     ConnectCallback, OnConnectData, Request, Response,
 };
 
-use super::dispatcher::Dispatcher;
+use super::{dispatcher::Dispatcher, handshake_with_timeout, HandshakeWithTimeout};
 
 /// `ServiceFactory` implementation for HTTP/2 transport
 pub struct H2Service<T, S, B> {
@@ -297,7 +295,7 @@ where
                 Some(self.cfg.clone()),
                 addr,
                 on_connect_data,
-                h2_handshake(io),
+                handshake_with_timeout(io, &self.cfg),
             ),
         }
     }
@@ -314,7 +312,7 @@ where
         Option<ServiceConfig>,
         Option<net::SocketAddr>,
         OnConnectData,
-        H2Handshake<T, Bytes>,
+        HandshakeWithTimeout<T>,
     ),
 }
 
@@ -352,7 +350,7 @@ where
                 ref mut on_connect_data,
                 ref mut handshake,
             ) => match ready!(Pin::new(handshake).poll(cx)) {
-                Ok(conn) => {
+                Ok((conn, timer)) => {
                     let on_connect_data = std::mem::take(on_connect_data);
                     self.state = State::Incoming(Dispatcher::new(
                         srv.take().unwrap(),
@@ -360,12 +358,13 @@ where
                         on_connect_data,
                         config.take().unwrap(),
                         *peer_addr,
+                        timer,
                     ));
                     self.poll(cx)
                 }
                 Err(err) => {
                     trace!("H2 handshake error: {}", err);
-                    Poll::Ready(Err(err.into()))
+                    Poll::Ready(Err(err))
                 }
             },
         }
