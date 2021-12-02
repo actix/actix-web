@@ -22,7 +22,6 @@ mod accept_charset;
 mod accept;
 mod accept_language;
 mod allow;
-mod any_or_some;
 mod cache_control;
 mod content_disposition;
 mod content_language;
@@ -40,6 +39,7 @@ mod if_range;
 mod if_unmodified_since;
 mod last_modified;
 mod macros;
+mod preference;
 // mod range;
 
 #[cfg(test)]
@@ -51,7 +51,6 @@ pub use self::accept_charset::AcceptCharset;
 pub use self::accept::Accept;
 pub use self::accept_language::AcceptLanguage;
 pub use self::allow::Allow;
-pub use self::any_or_some::AnyOrSome;
 pub use self::cache_control::{CacheControl, CacheDirective};
 pub use self::content_disposition::{ContentDisposition, DispositionParam, DispositionType};
 pub use self::content_language::ContentLanguage;
@@ -68,6 +67,7 @@ pub use self::if_none_match::IfNoneMatch;
 pub use self::if_range::IfRange;
 pub use self::if_unmodified_since::IfUnmodifiedSince;
 pub use self::last_modified::LastModified;
+pub use self::preference::Preference;
 //pub use self::range::{Range, ByteRangeSpec};
 
 /// Format writer ([`fmt::Write`]) for a [`BytesMut`].
