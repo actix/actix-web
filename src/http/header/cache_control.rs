@@ -19,7 +19,6 @@ common_header! {
     /// ```
     ///
     /// # Example Values
-    ///
     /// * `no-cache`
     /// * `private, community="UCI"`
     /// * `max-age=30`
