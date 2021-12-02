@@ -66,7 +66,7 @@ mod route;
 /// Creates resource handler, allowing multiple HTTP method guards.
 ///
 /// # Syntax
-/// ```text
+/// ```plain
 /// #[route("path", method="HTTP_METHOD"[, attributes])]
 /// ```
 ///
@@ -112,7 +112,7 @@ concat!("
 Creates route handler with `actix_web::guard::", stringify!($variant), "`.
 
 # Syntax
-```text
+```plain
 #[", stringify!($method), r#"("path"[, attributes])]
 ```
 

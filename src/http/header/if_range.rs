@@ -25,7 +25,7 @@ use crate::HttpMessage;
 /// in Range; otherwise, send me the entire representation.
 ///
 /// # ABNF
-/// ```text
+/// ```plain
 /// If-Range = entity-tag / HTTP-date
 /// ```
 ///
@@ -107,10 +107,11 @@ impl IntoHeaderValue for IfRange {
 }
 
 #[cfg(test)]
-mod test_if_range {
+mod test_parse_and_format {
+    use std::str;
+
     use super::IfRange as HeaderField;
     use crate::http::header::*;
-    use std::str;
 
     crate::http::header::common_header_test!(test1, vec![b"Sat, 29 Oct 1994 19:43:31 GMT"]);
     crate::http::header::common_header_test!(test2, vec![b"\"abc\""]);

@@ -31,7 +31,7 @@ pub struct ExtendedValue {
 ///
 /// ## ABNF
 ///
-/// ```text
+/// ```plain
 /// ext-value     = charset  "'" [ language ] "'" value-chars
 ///               ; like RFC 2231's <extended-initial-value>
 ///               ; (see [RFC 2231 §7])

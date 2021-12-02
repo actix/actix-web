@@ -12,7 +12,7 @@ crate::http::header::common_header! {
     /// those charsets.
     ///
     /// # ABNF
-    /// ```text
+    /// ```plain
     /// Accept-Charset = 1#( ( charset / "*" ) [ weight ] )
     /// ```
     ///

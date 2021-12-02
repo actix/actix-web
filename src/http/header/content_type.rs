@@ -18,7 +18,7 @@ crate::http::header::common_header! {
     /// this is an issue, it's possible to implement `Header` on a custom struct.
     ///
     /// # ABNF
-    /// ```text
+    /// ```plain
     /// Content-Type = media-type
     /// ```
     ///
@@ -110,5 +110,3 @@ impl ContentType {
         ContentType(mime::APPLICATION_OCTET_STREAM)
     }
 }
-
-impl Eq for ContentType {}

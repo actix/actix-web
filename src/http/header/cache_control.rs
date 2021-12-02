@@ -1,6 +1,8 @@
 use std::fmt::{self, Write};
 use std::str::FromStr;
 
+use derive_more::{Deref, DerefMut};
+
 use super::{fmt_comma_delimited, from_comma_delimited, Header, IntoHeaderValue, Writer};
 
 use crate::http::header;
@@ -14,7 +16,7 @@ use crate::http::header;
 /// not imply that the same directive is to be given in the response.
 ///
 /// # ABNF
-/// ```text
+/// ```plain
 /// Cache-Control   = 1#cache-directive
 /// cache-directive = token [ "=" ( token / quoted-string ) ]
 /// ```
@@ -46,10 +48,8 @@ use crate::http::header;
 ///     CacheDirective::Extension("foo".to_owned(), Some("bar".to_owned())),
 /// ]));
 /// ```
-#[derive(PartialEq, Clone, Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Deref, DerefMut)]
 pub struct CacheControl(pub Vec<CacheDirective>);
-
-crate::http::header::common_header_deref!(CacheControl => Vec<CacheDirective>);
 
 // TODO: this could just be the crate::http::header::common_header! macro
 impl Header for CacheControl {
@@ -88,7 +88,7 @@ impl IntoHeaderValue for CacheControl {
 }
 
 /// `CacheControl` contains a list of these directives.
-#[derive(PartialEq, Clone, Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CacheDirective {
     /// "no-cache"
     NoCache,

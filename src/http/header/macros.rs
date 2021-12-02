@@ -1,25 +1,3 @@
-// TODO: replace with derive_more impl
-macro_rules! common_header_deref {
-    ($from:ty => $to:ty) => {
-        impl ::core::ops::Deref for $from {
-            type Target = $to;
-
-            #[inline]
-            fn deref(&self) -> &Self::Target {
-                &self.0
-            }
-        }
-
-        impl ::core::ops::DerefMut for $from {
-            #[inline]
-            fn deref_mut(&mut self) -> &mut Self::Target {
-                &mut self.0
-            }
-        }
-    };
-}
-
-/// Sets up a test module with some useful imports for use with [`common_header_test!`].
 macro_rules! common_header_test_module {
     ($id:ident, $tm:ident{$($tf:item)*}) => {
         #[cfg(test)]
@@ -87,10 +65,6 @@ macro_rules! common_header_test {
             let val = HeaderField::parse(&req);
             let exp: Option<HeaderField> = $exp;
 
-            println!("req: {:?}", &req);
-            println!("val: {:?}", &val);
-            println!("exp: {:?}", &exp);
-
             // test parsing
             assert_eq!(val.ok(), exp);
 
@@ -114,17 +88,17 @@ macro_rules! common_header_test {
 
 macro_rules! common_header {
     // TODO: these docs are wrong, there's no $n or $nn
-    // $a:meta: Attributes associated with the header item (usually docs)
+    // $attrs:meta: Attributes associated with the header item (usually docs)
     // $id:ident: Identifier of the header
     // $n:expr: Lowercase name of the header
     // $nn:expr: Nice name of the header
 
     // List header, zero or more items
-    ($(#[$a:meta])*($id:ident, $name:expr) => ($item:ty)*) => {
-        $(#[$a])*
-        #[derive(Clone, Debug, PartialEq)]
+    ($(#[$attrs:meta])*($id:ident, $name:expr) => ($item:ty)*) => {
+        $(#[$attrs])*
+        #[derive(Debug, Clone, PartialEq, Eq, ::derive_more::Deref, ::derive_more::DerefMut)]
         pub struct $id(pub Vec<$item>);
-        crate::http::header::common_header_deref!($id => Vec<$item>);
+
         impl $crate::http::header::Header for $id {
             #[inline]
             fn name() -> $crate::http::header::HeaderName {
@@ -158,12 +132,10 @@ macro_rules! common_header {
     };
 
     // List header, one or more items
-    ($(#[$a:meta])*($id:ident, $name:expr) => ($item:ty)+) => {
-        $(#[$a])*
-        #[derive(Clone, Debug, PartialEq)]
+    ($(#[$attrs:meta])*($id:ident, $name:expr) => ($item:ty)+) => {
+        $(#[$attrs])*
+        #[derive(Debug, Clone, PartialEq, Eq, ::derive_more::Deref, ::derive_more::DerefMut)]
         pub struct $id(pub Vec<$item>);
-
-        crate::http::header::common_header_deref!($id => Vec<$item>);
 
         impl $crate::http::header::Header for $id {
             #[inline]
@@ -197,12 +169,10 @@ macro_rules! common_header {
     };
 
     // Single value header
-    ($(#[$a:meta])*($id:ident, $name:expr) => [$value:ty]) => {
-        $(#[$a])*
-        #[derive(Clone, Debug, PartialEq)]
+    ($(#[$attrs:meta])*($id:ident, $name:expr) => [$value:ty]) => {
+        $(#[$attrs])*
+        #[derive(Debug, Clone, PartialEq, Eq, ::derive_more::Deref, ::derive_more::DerefMut)]
         pub struct $id(pub $value);
-
-        crate::http::header::common_header_deref!($id => $value);
 
         impl $crate::http::header::Header for $id {
             #[inline]
@@ -234,8 +204,8 @@ macro_rules! common_header {
     };
 
     // List header, one or more items with "*" option
-    ($(#[$a:meta])*($id:ident, $name:expr) => {Any / ($item:ty)+}) => {
-        $(#[$a])*
+    ($(#[$attrs:meta])*($id:ident, $name:expr) => {Any / ($item:ty)+}) => {
+        $(#[$attrs])*
         #[derive(Clone, Debug, PartialEq)]
         pub enum $id {
             /// Any value is a match
@@ -291,32 +261,32 @@ macro_rules! common_header {
     };
 
     // optional test module
-    ($(#[$a:meta])*($id:ident, $name:expr) => ($item:ty)* $tm:ident{$($tf:item)*}) => {
+    ($(#[$attrs:meta])*($id:ident, $name:expr) => ($item:ty)* $tm:ident{$($tf:item)*}) => {
         crate::http::header::common_header! {
-            $(#[$a])*
+            $(#[$attrs])*
             ($id, $name) => ($item)*
         }
 
         crate::http::header::common_header_test_module! { $id, $tm { $($tf)* }}
     };
-    ($(#[$a:meta])*($id:ident, $n:expr) => ($item:ty)+ $tm:ident{$($tf:item)*}) => {
+    ($(#[$attrs:meta])*($id:ident, $n:expr) => ($item:ty)+ $tm:ident{$($tf:item)*}) => {
         crate::http::header::common_header! {
-            $(#[$a])*
+            $(#[$attrs])*
             ($id, $n) => ($item)+
         }
 
         crate::http::header::common_header_test_module! { $id, $tm { $($tf)* }}
     };
-    ($(#[$a:meta])*($id:ident, $name:expr) => [$item:ty] $tm:ident{$($tf:item)*}) => {
+    ($(#[$attrs:meta])*($id:ident, $name:expr) => [$item:ty] $tm:ident{$($tf:item)*}) => {
         crate::http::header::common_header! {
-            $(#[$a])* ($id, $name) => [$item]
+            $(#[$attrs])* ($id, $name) => [$item]
         }
 
         crate::http::header::common_header_test_module! { $id, $tm { $($tf)* }}
     };
-    ($(#[$a:meta])*($id:ident, $name:expr) => {Any / ($item:ty)+} $tm:ident{$($tf:item)*}) => {
+    ($(#[$attrs:meta])*($id:ident, $name:expr) => {Any / ($item:ty)+} $tm:ident{$($tf:item)*}) => {
         crate::http::header::common_header! {
-            $(#[$a])*
+            $(#[$attrs])*
             ($id, $name) => {Any / ($item)+}
         }
 
@@ -324,7 +294,7 @@ macro_rules! common_header {
     };
 }
 
-pub(crate) use {common_header, common_header_deref, common_header_test_module};
+pub(crate) use {common_header, common_header_test_module};
 
 #[cfg(test)]
 pub(crate) use common_header_test;
