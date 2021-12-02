@@ -3,8 +3,8 @@ use language_tags::LanguageTag;
 use super::{QualityItem, ACCEPT_LANGUAGE};
 
 crate::http::header::common_header! {
-    /// `Accept-Language` header, defined in
-    /// [RFC7231](http://tools.ietf.org/html/rfc7231#section-5.3.5)
+    /// `Accept-Language` header, defined
+    /// in [RFC 7231 §5.3.5](https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.5)
     ///
     /// The `Accept-Language` header field can be used by user agents to
     /// indicate the set of natural languages that are preferred in the

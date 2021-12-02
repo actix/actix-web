@@ -153,7 +153,7 @@ impl Accept {
     /// Returns a sorted list of mime types from highest to lowest preference, accounting for
     /// [q-factor weighting] and specificity.
     ///
-    /// [q-factor weighting]: https://tools.ietf.org/html/rfc7231#section-5.3.2
+    /// [q-factor weighting]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
     pub fn mime_precedence(&self) -> Vec<Mime> {
         let mut types = self.0.clone();
 
@@ -203,7 +203,7 @@ impl Accept {
     ///
     /// Returns `None` if contained list is empty.
     ///
-    /// [q-factor weighting]: https://tools.ietf.org/html/rfc7231#section-5.3.2
+    /// [q-factor weighting]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
     pub fn mime_preference(&self) -> Option<Mime> {
         let types = self.mime_precedence();
         types.first().cloned()

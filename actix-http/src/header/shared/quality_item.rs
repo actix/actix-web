@@ -26,8 +26,8 @@ const MAX_FLOAT_QUALITY: f32 = 1.0;
 /// a value between 0 and 1000 e.g. `Quality(532)` matches the quality
 /// `q=0.532`.
 ///
-/// [RFC7231 Section 5.3.1](https://tools.ietf.org/html/rfc7231#section-5.3.1)
-/// gives more information on quality values in HTTP header fields.
+/// [RFC 7231 §5.3.1](https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.1) gives more
+/// information on quality values in HTTP header fields.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Quality(u16);
 
@@ -79,8 +79,8 @@ impl TryFrom<f32> for Quality {
     }
 }
 
-/// Represents an item with a quality value as defined in
-/// [RFC7231](https://tools.ietf.org/html/rfc7231#section-5.3.1).
+/// Represents an item with a quality value as defined
+/// in [RFC 7231 §5.3.1](https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.1).
 #[derive(Clone, PartialEq, Debug)]
 pub struct QualityItem<T> {
     /// The actual contents of the field.

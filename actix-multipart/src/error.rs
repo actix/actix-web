@@ -10,7 +10,7 @@ use derive_more::{Display, Error, From};
 pub enum MultipartError {
     /// Content-Disposition header is not found or is not equal to "form-data".
     ///
-    /// According to [RFC 7578](https://tools.ietf.org/html/rfc7578#section-4.2) a
+    /// According to [RFC 7578 §4.2](https://datatracker.ietf.org/doc/html/rfc7578#section-4.2) a
     /// Content-Disposition header must always be present and equal to "form-data".
     #[display(fmt = "No Content-Disposition `form-data` header")]
     NoContentDisposition,

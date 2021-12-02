@@ -90,7 +90,7 @@ where
     for (key, value) in headers {
         match *key {
             // TODO: consider skipping other headers according to:
-            //       https://tools.ietf.org/html/rfc7540#section-8.1.2.2
+            //       https://datatracker.ietf.org/doc/html/rfc7540#section-8.1.2.2
             // omit HTTP/1.x only headers
             CONNECTION | TRANSFER_ENCODING => continue,
             CONTENT_LENGTH if skip_len => continue,
