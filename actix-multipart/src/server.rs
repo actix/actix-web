@@ -337,8 +337,8 @@ impl InnerMultipart {
                 return Poll::Pending;
             };
 
-            // According to [RFC 7578](https://tools.ietf.org/html/rfc7578#section-4.2) a
-            // Content-Disposition header must always be present and set to "form-data".
+            // According to RFC 7578 §4.2, a Content-Disposition header must always be present and
+            // set to "form-data".
 
             let content_disposition = headers
                 .get(&header::CONTENT_DISPOSITION)

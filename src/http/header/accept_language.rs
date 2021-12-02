@@ -4,6 +4,9 @@ use super::{common_header, AnyOrSome, QualityItem};
 use crate::http::header;
 
 common_header! {
+    /// `Accept-Language` header, defined
+    /// in [RFC 7231 §5.3.5](https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.5)
+    ///
     /// The `Accept-Language` header field can be used by user agents to indicate the set of natural
     /// languages that are preferred in the response.
     ///

@@ -71,7 +71,8 @@ crate::http::header::common_header! {
     }
 }
 
-/// Content-Range, described in [RFC 7233](https://tools.ietf.org/html/rfc7233#section-4.2)
+/// Content-Range header, defined
+/// in [RFC 7233 §4.2](https://datatracker.ietf.org/doc/html/rfc7233#section-4.2)
 ///
 /// # ABNF
 /// ```text

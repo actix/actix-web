@@ -71,15 +71,16 @@ pub(crate) trait MessageType: Sized {
                 | StatusCode::PROCESSING
                 | StatusCode::NO_CONTENT => {
                     // skip content-length and transfer-encoding headers
-                    // see https://tools.ietf.org/html/rfc7230#section-3.3.1
-                    // and https://tools.ietf.org/html/rfc7230#section-3.3.2
+                    // see https://datatracker.ietf.org/doc/html/rfc7230#section-3.3.1
+                    // and https://datatracker.ietf.org/doc/html/rfc7230#section-3.3.2
                     skip_len = true;
                     length = BodySize::None
                 }
 
                 StatusCode::NOT_MODIFIED => {
                     // 304 responses should never have a body but should retain a manually set
-                    // content-length header see https://tools.ietf.org/html/rfc7232#section-4.1
+                    // content-length header
+                    // see https://datatracker.ietf.org/doc/html/rfc7232#section-4.1
                     skip_len = false;
                     length = BodySize::None;
                 }

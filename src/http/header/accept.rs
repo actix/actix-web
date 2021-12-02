@@ -155,7 +155,7 @@ impl Accept {
     /// Returns a sorted list of mime types from highest to lowest preference, accounting for
     /// [q-factor weighting] and specificity.
     ///
-    /// [q-factor weighting]: https://tools.ietf.org/html/rfc7231#section-5.3.2
+    /// [q-factor weighting]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
     pub fn ranked(&self) -> Vec<Mime> {
         if self.is_empty() {
             return vec![];
@@ -209,7 +209,7 @@ impl Accept {
     ///
     /// Returns `None` if contained list is empty.
     ///
-    /// [q-factor weighting]: https://tools.ietf.org/html/rfc7231#section-5.3.2
+    /// [q-factor weighting]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
     pub fn preference(&self) -> Option<Mime> {
         // PERF: creating a sorted list is not necessary
         self.ranked().into_iter().next()

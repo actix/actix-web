@@ -59,7 +59,7 @@ where
 }
 
 /// Percent encode a sequence of bytes with a character set defined in
-/// <https://tools.ietf.org/html/rfc5987#section-3.2>
+/// <https://datatracker.ietf.org/doc/html/rfc5987#section-3.2>
 #[inline]
 pub fn http_percent_encode(f: &mut fmt::Formatter<'_>, bytes: &[u8]) -> fmt::Result {
     let encoded = percent_encoding::percent_encode(bytes, HTTP_VALUE);

@@ -222,7 +222,8 @@ impl<T: Into<String>> From<(CloseCode, T)> for CloseReason {
     }
 }
 
-/// The WebSocket GUID as stated in the spec. See <https://tools.ietf.org/html/rfc6455#section-1.3>.
+/// The WebSocket GUID as stated in the spec.
+/// See <https://datatracker.ietf.org/doc/html/rfc6455#section-1.3>.
 static WS_GUID: &[u8] = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
 /// Hashes the `Sec-WebSocket-Key` header according to the WebSocket spec.
