@@ -1,13 +1,14 @@
 macro_rules! common_header_test_module {
     ($id:ident, $tm:ident{$($tf:item)*}) => {
-        #[allow(unused_imports)]
         #[cfg(test)]
         mod $tm {
+            #![allow(unused_imports)]
+
             use std::str;
             use actix_http::http::Method;
             use mime::*;
             use $crate::http::header::*;
-            use super::$id as HeaderField;
+            use super::{$id as HeaderField, *};
             $($tf)*
         }
     }
@@ -50,7 +51,7 @@ macro_rules! common_header_test {
         }
     };
 
-    ($id:ident, $raw:expr, $typed:expr) => {
+    ($id:ident, $raw:expr, $exp:expr) => {
         #[test]
         fn $id() {
             use actix_http::test;
@@ -62,28 +63,31 @@ macro_rules! common_header_test {
             }
             let req = req.finish();
             let val = HeaderField::parse(&req);
-            let typed: Option<HeaderField> = $typed;
+            let exp: Option<HeaderField> = $typed;
 
-            // Test parsing
-            assert_eq!(val.ok(), typed);
+            // test parsing
+            assert_eq!(val.ok(), exp);
 
-            // Test formatting
-            if typed.is_some() {
+            // test formatting
+            if let Some(exp) = exp {
                 let raw = &($raw)[..];
                 let mut iter = raw.iter().map(|b| str::from_utf8(&b[..]).unwrap());
                 let mut joined = String::new();
-                joined.push_str(iter.next().unwrap());
-                for s in iter {
-                    joined.push_str(", ");
+                if let Some(s) = iter.next() {
                     joined.push_str(s);
+                    for s in iter {
+                        joined.push_str(", ");
+                        joined.push_str(s);
+                    }
                 }
-                assert_eq!(format!("{}", typed.unwrap()), joined);
+                assert_eq!(format!("{}", exp), joined);
             }
         }
     };
 }
 
 macro_rules! common_header {
+    // TODO: these docs are wrong, there's no $n or $nn
     // $attrs:meta: Attributes associated with the header item (usually docs)
     // $id:ident: Identifier of the header
     // $n:expr: Lowercase name of the header
@@ -102,7 +106,7 @@ macro_rules! common_header {
             }
 
             #[inline]
-            fn parse<T: $crate::HttpMessage>(msg: &T) -> Result<Self, $crate::error::ParseError> {
+            fn parse<M: $crate::HttpMessage>(msg: &M) -> Result<Self, $crate::error::ParseError> {
                 let headers = msg.headers().get_all(Self::name());
                 $crate::http::header::from_comma_delimited(headers).map($id)
             }
@@ -133,16 +137,13 @@ macro_rules! common_header {
         #[derive(Debug, Clone, PartialEq, Eq, ::derive_more::Deref, ::derive_more::DerefMut)]
         pub struct $id(pub Vec<$item>);
 
-
         impl $crate::http::header::Header for $id {
             #[inline]
             fn name() -> $crate::http::header::HeaderName {
                 $name
             }
             #[inline]
-            fn parse<T>(msg: &T) -> Result<Self, $crate::error::ParseError>
-                where T: $crate::HttpMessage
-            {
+            fn parse<M: $crate::HttpMessage>(msg: &M) -> Result<Self, $crate::error::ParseError> {
                 $crate::http::header::from_comma_delimited(
                     msg.headers().get_all(Self::name())).map($id)
             }
@@ -180,7 +181,7 @@ macro_rules! common_header {
             }
 
             #[inline]
-            fn parse<T: $crate::HttpMessage>(msg: &T) -> Result<Self, $crate::error::ParseError> {
+            fn parse<M: $crate::HttpMessage>(msg: &M) -> Result<Self, $crate::error::ParseError> {
                 let header = msg.headers().get(Self::name());
                 $crate::http::header::from_one_raw_str(header).map($id)
             }
@@ -220,7 +221,7 @@ macro_rules! common_header {
             }
 
             #[inline]
-            fn parse<T: $crate::HttpMessage>(msg: &T) -> Result<Self, $crate::error::ParseError> {
+            fn parse<M: $crate::HttpMessage>(msg: &M) -> Result<Self, $crate::error::ParseError> {
                 let is_any = msg
                     .headers()
                     .get(Self::name())
