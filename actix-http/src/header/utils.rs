@@ -84,6 +84,13 @@ mod tests {
         assert_eq!(res, vec![0; 0]);
 
         let headers = vec![
+            HeaderValue::from_static("1, 2"),
+            HeaderValue::from_static("3,4"),
+        ];
+        let res: Vec<usize> = from_comma_delimited(headers.iter()).unwrap();
+        assert_eq!(res, vec![1, 2, 3, 4]);
+
+        let headers = vec![
             HeaderValue::from_static(""),
             HeaderValue::from_static(","),
             HeaderValue::from_static("  "),

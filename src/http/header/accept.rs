@@ -118,8 +118,9 @@ crate::http::header::common_header! {
 
         #[test]
         fn test_fuzzing1() {
-            use actix_http::test::TestRequest;
-            let req = TestRequest::default().insert_header((crate::http::header::ACCEPT, "chunk#;e")).finish();
+            let req = test::TestRequest::default()
+                .insert_header((header::ACCEPT, "chunk#;e"))
+                .finish();
             let header = Accept::parse(&req);
             assert!(header.is_ok());
         }

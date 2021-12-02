@@ -3,6 +3,7 @@
 ## Unreleased - 2021-xx-xx
 ### Added
 * Methods on `AcceptLanguage`: `ranked` and `preference`. [#2480]
+* `AcceptEncoding` typed header. [#2482]
 
 ### Changed
 * Rename `Accept::{mime_precedence => ranked}`. [#2480]
@@ -10,8 +11,10 @@
 
 ### Fixed
 * Accept wildcard `*` items in `AcceptLanguage`. [#2480]
+* Typed headers containing lists that require one or more items now enforce this minimum. [#2482]
 
 [#2480]: https://github.com/actix/actix-web/pull/2480
+[#2482]: https://github.com/actix/actix-web/pull/2482
 
 
 ## 4.0.0-beta.13 - 2021-11-30
