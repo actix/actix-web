@@ -93,7 +93,7 @@ async fn h2_handshake_timeout() -> io::Result<()> {
                 .listen("h2_ping_pong", lst, || {
                     HttpService::build()
                         .keep_alive(30)
-                        // set first request timeout to 3 seconds.
+                        // set first request timeout to 5 seconds.
                         // this is the timeout used for http2 handshake.
                         .client_timeout(5000)
                         .h2(|_| async { Ok::<_, Error>(Response::ok()) })
