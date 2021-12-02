@@ -77,6 +77,7 @@ pub fn http_percent_encode(f: &mut fmt::Formatter<'_>, bytes: &[u8]) -> fmt::Res
 mod tests {
     use super::*;
 
+    #[test]
     fn comma_delimited_parsing() {
         let headers = vec![];
         let res: Vec<usize> = from_comma_delimited(headers.iter()).unwrap();
