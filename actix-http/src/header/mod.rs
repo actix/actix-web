@@ -55,7 +55,7 @@ pub trait Header: IntoHeaderValue {
     fn name() -> HeaderName;
 
     /// Parse a header
-    fn parse<T: HttpMessage>(msg: &T) -> Result<Self, ParseError>;
+    fn parse<M: HttpMessage>(msg: &M) -> Result<Self, ParseError>;
 }
 
 /// Convert `http::HeaderMap` to our `HeaderMap`.

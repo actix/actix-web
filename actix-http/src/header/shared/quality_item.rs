@@ -1,8 +1,7 @@
 use std::{
     cmp,
     convert::{TryFrom, TryInto},
-    fmt,
-    str::{self, FromStr},
+    fmt, str,
 };
 
 use derive_more::{Display, Error};
@@ -83,16 +82,17 @@ impl TryFrom<f32> for Quality {
 /// in [RFC 7231 §5.3.1](https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.1).
 #[derive(Clone, PartialEq, Debug)]
 pub struct QualityItem<T> {
-    /// The actual contents of the field.
+    /// The wrapped contents of the field.
     pub item: T,
+
     /// The quality (client or server preference) for the value.
     pub quality: Quality,
 }
 
 impl<T> QualityItem<T> {
-    /// Creates a new `QualityItem` from an item and a quality.
-    /// The item can be of any type.
-    /// The quality should be a value in the range [0, 1].
+    /// Constructs a new `QualityItem` from an item and a quality value.
+    ///
+    /// The item can be of any type. The quality should be a value in the range [0, 1].
     pub fn new(item: T, quality: Quality) -> QualityItem<T> {
         QualityItem { item, quality }
     }
@@ -116,7 +116,7 @@ impl<T: fmt::Display> fmt::Display for QualityItem<T> {
     }
 }
 
-impl<T: FromStr> FromStr for QualityItem<T> {
+impl<T: str::FromStr> str::FromStr for QualityItem<T> {
     type Err = ParseError;
 
     fn from_str(qitem_str: &str) -> Result<Self, Self::Err> {
@@ -128,6 +128,7 @@ impl<T: FromStr> FromStr for QualityItem<T> {
         let mut raw_item = qitem_str;
         let mut quality = 1f32;
 
+        // TODO: MSRV(1.52): use rsplit_once
         let parts: Vec<_> = qitem_str.rsplitn(2, ';').map(str::trim).collect();
 
         if parts.len() == 2 {
