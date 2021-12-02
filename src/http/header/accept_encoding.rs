@@ -40,7 +40,7 @@ common_header! {
     /// use actix_web::HttpResponse;
     /// use actix_web::http::header::{AcceptEncoding, Encoding, qitem};
     ///
-    /// let mut builder = HttpResponse::new();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     AcceptEncoding(vec![
     ///         qitem(Encoding::Chunked),
