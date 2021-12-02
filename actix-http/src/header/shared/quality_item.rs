@@ -27,7 +27,7 @@ const MAX_FLOAT_QUALITY: f32 = 1.0;
 ///
 /// [RFC 7231 §5.3.1](https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.1) gives more
 /// information on quality values in HTTP header fields.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Quality(u16);
 
 impl Quality {
