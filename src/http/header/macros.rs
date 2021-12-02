@@ -69,7 +69,7 @@ macro_rules! common_header_test {
             let req = req.finish();
             let val = HeaderField::parse(&req);
 
-            let typed: ::core::option::Option<HeaderField> = $exp;
+            let exp: ::core::option::Option<HeaderField> = $exp;
 
             // test parsing
             assert_eq!(val.ok(), exp);

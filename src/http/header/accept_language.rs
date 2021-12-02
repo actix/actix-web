@@ -67,11 +67,6 @@ common_header! {
             vec![b"da, en-gb;q=0.8, en;q=0.7"]
         );
 
-        common_header_test!(
-            empty_value,
-            vec![b""],
-            None
-        );
 
         common_header_test!(
             not_ordered_by_weight,
