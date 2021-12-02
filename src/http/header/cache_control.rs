@@ -1,89 +1,97 @@
-use std::fmt::{self, Write};
-use std::str::FromStr;
+use std::{fmt, str};
 
-use derive_more::{Deref, DerefMut};
-
-use super::{fmt_comma_delimited, from_comma_delimited, Header, IntoHeaderValue, Writer};
-
+use super::common_header;
 use crate::http::header;
 
-/// `Cache-Control` header, defined
-/// in [RFC 7234 §5.2](https://datatracker.ietf.org/doc/html/rfc7234#section-5.2).
-///
-/// The `Cache-Control` header field is used to specify directives for
-/// caches along the request/response chain.  Such cache directives are
-/// unidirectional in that the presence of a directive in a request does
-/// not imply that the same directive is to be given in the response.
-///
-/// # ABNF
-/// ```plain
-/// Cache-Control   = 1#cache-directive
-/// cache-directive = token [ "=" ( token / quoted-string ) ]
-/// ```
-///
-/// # Example Values
-///
-/// * `no-cache`
-/// * `private, community="UCI"`
-/// * `max-age=30`
-///
-/// # Examples
-/// ```
-/// use actix_web::HttpResponse;
-/// use actix_web::http::header::{CacheControl, CacheDirective};
-///
-/// let mut builder = HttpResponse::Ok();
-/// builder.insert_header(CacheControl(vec![CacheDirective::MaxAge(86400u32)]));
-/// ```
-///
-/// ```
-/// use actix_web::HttpResponse;
-/// use actix_web::http::header::{CacheControl, CacheDirective};
-///
-/// let mut builder = HttpResponse::Ok();
-/// builder.insert_header(CacheControl(vec![
-///     CacheDirective::NoCache,
-///     CacheDirective::Private,
-///     CacheDirective::MaxAge(360u32),
-///     CacheDirective::Extension("foo".to_owned(), Some("bar".to_owned())),
-/// ]));
-/// ```
-#[derive(Debug, Clone, PartialEq, Eq, Deref, DerefMut)]
-pub struct CacheControl(pub Vec<CacheDirective>);
+common_header! {
+    /// `Cache-Control` header, defined
+    /// in [RFC 7234 §5.2](https://datatracker.ietf.org/doc/html/rfc7234#section-5.2).
+    ///
+    /// The `Cache-Control` header field is used to specify directives for
+    /// caches along the request/response chain.  Such cache directives are
+    /// unidirectional in that the presence of a directive in a request does
+    /// not imply that the same directive is to be given in the response.
+    ///
+    /// # ABNF
+    /// ```text
+    /// Cache-Control   = 1#cache-directive
+    /// cache-directive = token [ "=" ( token / quoted-string ) ]
+    /// ```
+    ///
+    /// # Example Values
+    ///
+    /// * `no-cache`
+    /// * `private, community="UCI"`
+    /// * `max-age=30`
+    ///
+    /// # Examples
+    /// ```
+    /// use actix_web::HttpResponse;
+    /// use actix_web::http::header::{CacheControl, CacheDirective};
+    ///
+    /// let mut builder = HttpResponse::Ok();
+    /// builder.insert_header(CacheControl(vec![CacheDirective::MaxAge(86400u32)]));
+    /// ```
+    ///
+    /// ```
+    /// use actix_web::HttpResponse;
+    /// use actix_web::http::header::{CacheControl, CacheDirective};
+    ///
+    /// let mut builder = HttpResponse::Ok();
+    /// builder.insert_header(CacheControl(vec![
+    ///     CacheDirective::NoCache,
+    ///     CacheDirective::Private,
+    ///     CacheDirective::MaxAge(360u32),
+    ///     CacheDirective::Extension("foo".to_owned(), Some("bar".to_owned())),
+    /// ]));
+    /// ```
 
-// TODO: this could just be the crate::http::header::common_header! macro
-impl Header for CacheControl {
-    fn name() -> header::HeaderName {
-        header::CACHE_CONTROL
-    }
+    (CacheControl, header::CACHE_CONTROL) => (CacheDirective)+
 
-    #[inline]
-    fn parse<T>(msg: &T) -> Result<Self, crate::error::ParseError>
-    where
-        T: crate::HttpMessage,
-    {
-        let directives = from_comma_delimited(msg.headers().get_all(&Self::name()))?;
-        if !directives.is_empty() {
-            Ok(CacheControl(directives))
-        } else {
-            Err(crate::error::ParseError::Header)
+    test_parse_and_format {
+        common_header_test!(
+            multiple_headers,
+            vec![&b"no-cache"[..], &b"private"[..]],
+            Some(CacheControl(vec![
+                CacheDirective::NoCache,
+                CacheDirective::Private,
+            ]))
+        );
+
+        common_header_test!(
+            argument,
+            vec![b"max-age=100, private"],
+            Some(CacheControl(vec![
+                CacheDirective::MaxAge(100),
+                CacheDirective::Private,
+            ]))
+        );
+
+        common_header_test!(
+            extension,
+            vec![b"foo, bar=baz"],
+            Some(CacheControl(vec![
+                CacheDirective::Extension("foo".to_owned(), None),
+                CacheDirective::Extension("bar".to_owned(), Some("baz".to_owned())),
+            ]))
+        );
+
+        common_header_test!(bad_syntax, vec![b"foo="], None);
+
+        common_header_test!(empty_header, vec![b""], None);
+
+        #[test]
+        fn parse_quote_form() {
+            use actix_http::test::TestRequest;
+            let req = TestRequest::default()
+                .insert_header((header::CACHE_CONTROL, "max-age=\"200\""))
+                .finish();
+            let cache = Header::parse(&req);
+            assert_eq!(
+                cache.ok(),
+                Some(CacheControl(vec![CacheDirective::MaxAge(200)]))
+            )
         }
-    }
-}
-
-impl fmt::Display for CacheControl {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt_comma_delimited(f, &self.0[..])
-    }
-}
-
-impl IntoHeaderValue for CacheControl {
-    type Error = header::InvalidHeaderValue;
-
-    fn try_into_value(self) -> Result<header::HeaderValue, Self::Error> {
-        let mut writer = Writer::new();
-        let _ = write!(&mut writer, "{}", self);
-        header::HeaderValue::from_maybe_shared(writer.take())
     }
 }
 
@@ -126,38 +134,40 @@ pub enum CacheDirective {
 impl fmt::Display for CacheDirective {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use self::CacheDirective::*;
-        fmt::Display::fmt(
-            match *self {
-                NoCache => "no-cache",
-                NoStore => "no-store",
-                NoTransform => "no-transform",
-                OnlyIfCached => "only-if-cached",
 
-                MaxAge(secs) => return write!(f, "max-age={}", secs),
-                MaxStale(secs) => return write!(f, "max-stale={}", secs),
-                MinFresh(secs) => return write!(f, "min-fresh={}", secs),
+        let dir_str = match self {
+            NoCache => "no-cache",
+            NoStore => "no-store",
+            NoTransform => "no-transform",
+            OnlyIfCached => "only-if-cached",
 
-                MustRevalidate => "must-revalidate",
-                Public => "public",
-                Private => "private",
-                ProxyRevalidate => "proxy-revalidate",
-                SMaxAge(secs) => return write!(f, "s-maxage={}", secs),
+            MaxAge(secs) => return write!(f, "max-age={}", secs),
+            MaxStale(secs) => return write!(f, "max-stale={}", secs),
+            MinFresh(secs) => return write!(f, "min-fresh={}", secs),
 
-                Extension(ref name, None) => &name[..],
-                Extension(ref name, Some(ref arg)) => {
-                    return write!(f, "{}={}", name, arg);
-                }
-            },
-            f,
-        )
+            MustRevalidate => "must-revalidate",
+            Public => "public",
+            Private => "private",
+            ProxyRevalidate => "proxy-revalidate",
+            SMaxAge(secs) => return write!(f, "s-maxage={}", secs),
+
+            Extension(name, None) => name.as_str(),
+            Extension(name, Some(arg)) => return write!(f, "{}={}", name, arg),
+        };
+
+        f.write_str(dir_str)
     }
 }
 
-impl FromStr for CacheDirective {
-    type Err = Option<<u32 as FromStr>::Err>;
-    fn from_str(s: &str) -> Result<CacheDirective, Option<<u32 as FromStr>::Err>> {
+impl str::FromStr for CacheDirective {
+    type Err = Option<<u32 as str::FromStr>::Err>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         use self::CacheDirective::*;
+
         match s {
+            "" => Err(None),
+
             "no-cache" => Ok(NoCache),
             "no-store" => Ok(NoStore),
             "no-transform" => Ok(NoTransform),
@@ -166,7 +176,7 @@ impl FromStr for CacheDirective {
             "public" => Ok(Public),
             "private" => Ok(Private),
             "proxy-revalidate" => Ok(ProxyRevalidate),
-            "" => Err(None),
+
             _ => match s.find('=') {
                 Some(idx) if idx + 1 < s.len() => {
                     match (&s[..idx], (&s[idx + 1..]).trim_matches('"')) {
@@ -181,78 +191,5 @@ impl FromStr for CacheDirective {
                 None => Ok(Extension(s.to_owned(), None)),
             },
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::http::header::Header;
-    use actix_http::test::TestRequest;
-
-    #[test]
-    fn test_parse_multiple_headers() {
-        let req = TestRequest::default()
-            .insert_header((header::CACHE_CONTROL, "no-cache, private"))
-            .finish();
-        let cache = Header::parse(&req);
-        assert_eq!(
-            cache.ok(),
-            Some(CacheControl(vec![
-                CacheDirective::NoCache,
-                CacheDirective::Private,
-            ]))
-        )
-    }
-
-    #[test]
-    fn test_parse_argument() {
-        let req = TestRequest::default()
-            .insert_header((header::CACHE_CONTROL, "max-age=100, private"))
-            .finish();
-        let cache = Header::parse(&req);
-        assert_eq!(
-            cache.ok(),
-            Some(CacheControl(vec![
-                CacheDirective::MaxAge(100),
-                CacheDirective::Private,
-            ]))
-        )
-    }
-
-    #[test]
-    fn test_parse_quote_form() {
-        let req = TestRequest::default()
-            .insert_header((header::CACHE_CONTROL, "max-age=\"200\""))
-            .finish();
-        let cache = Header::parse(&req);
-        assert_eq!(
-            cache.ok(),
-            Some(CacheControl(vec![CacheDirective::MaxAge(200)]))
-        )
-    }
-
-    #[test]
-    fn test_parse_extension() {
-        let req = TestRequest::default()
-            .insert_header((header::CACHE_CONTROL, "foo, bar=baz"))
-            .finish();
-        let cache = Header::parse(&req);
-        assert_eq!(
-            cache.ok(),
-            Some(CacheControl(vec![
-                CacheDirective::Extension("foo".to_owned(), None),
-                CacheDirective::Extension("bar".to_owned(), Some("baz".to_owned())),
-            ]))
-        )
-    }
-
-    #[test]
-    fn test_parse_bad_syntax() {
-        let req = TestRequest::default()
-            .insert_header((header::CACHE_CONTROL, "foo="))
-            .finish();
-        let cache: Result<CacheControl, _> = Header::parse(&req);
-        assert_eq!(cache.ok(), None)
     }
 }

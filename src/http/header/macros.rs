@@ -3,11 +3,14 @@ macro_rules! common_header_test_module {
         #[allow(unused_imports)]
         #[cfg(test)]
         mod $tm {
-            use std::str;
-            use actix_http::http::Method;
-            use mime::*;
-            use $crate::http::header::*;
+            use ::core::str;
+
+            use ::actix_http::{http::Method, test};
+            use ::mime::*;
+
+            use $crate::http::header::{self, *};
             use super::$id as HeaderField;
+
             $($tf)*
         }
     }
@@ -18,22 +21,22 @@ macro_rules! common_header_test {
     ($id:ident, $raw:expr) => {
         #[test]
         fn $id() {
-            use actix_http::test;
+            use ::actix_http::test;
 
             let raw = $raw;
-            let a: Vec<Vec<u8>> = raw.iter().map(|x| x.to_vec()).collect();
+            let headers = raw.iter().map(|x| x.to_vec()).collect::<Vec<_>>();
 
             let mut req = test::TestRequest::default();
 
-            for item in a {
-                req = req.insert_header((HeaderField::name(), item)).take();
+            for item in headers {
+                req = req.append_header((HeaderField::name(), item)).take();
             }
 
             let req = req.finish();
             let value = HeaderField::parse(&req);
 
             let result = format!("{}", value.unwrap());
-            let expected = String::from_utf8(raw[0].to_vec()).unwrap();
+            let expected = ::std::string::String::from_utf8(raw[0].to_vec()).unwrap();
 
             let result_cmp: Vec<String> = result
                 .to_ascii_lowercase()
@@ -55,14 +58,17 @@ macro_rules! common_header_test {
         fn $id() {
             use actix_http::test;
 
-            let a: Vec<Vec<u8>> = $raw.iter().map(|x| x.to_vec()).collect();
+            let headers = $raw.iter().map(|x| x.to_vec()).collect::<Vec<_>>();
             let mut req = test::TestRequest::default();
-            for item in a {
-                req.insert_header((HeaderField::name(), item));
+
+            for item in headers {
+                req.append_header((HeaderField::name(), item));
             }
+
             let req = req.finish();
             let val = HeaderField::parse(&req);
-            let typed: Option<HeaderField> = $typed;
+
+            let typed: ::core::option::Option<HeaderField> = $typed;
 
             // Test parsing
             assert_eq!(val.ok(), typed);
@@ -118,6 +124,7 @@ macro_rules! common_header {
         impl $crate::http::header::IntoHeaderValue for $id {
             type Error = $crate::http::header::InvalidHeaderValue;
 
+            #[inline]
             fn try_into_value(self) -> Result<$crate::http::header::HeaderValue, Self::Error> {
                 use ::core::fmt::Write;
                 let mut writer = $crate::http::header::Writer::new();
@@ -133,18 +140,24 @@ macro_rules! common_header {
         #[derive(Debug, Clone, PartialEq, Eq, ::derive_more::Deref, ::derive_more::DerefMut)]
         pub struct $id(pub Vec<$item>);
 
-
         impl $crate::http::header::Header for $id {
             #[inline]
             fn name() -> $crate::http::header::HeaderName {
                 $name
             }
+
             #[inline]
-            fn parse<T>(msg: &T) -> Result<Self, $crate::error::ParseError>
-                where T: $crate::HttpMessage
-            {
-                $crate::http::header::from_comma_delimited(
-                    msg.headers().get_all(Self::name())).map($id)
+            fn parse<T: $crate::HttpMessage>(msg: &T) -> Result<Self, $crate::error::ParseError>{
+                let headers = msg.headers().get_all(Self::name());
+                println!("{:?}", &headers);
+                $crate::http::header::from_comma_delimited(headers)
+                    .and_then(|items| {
+                        if items.is_empty() {
+                            Err($crate::error::ParseError::Header)
+                        } else {
+                            Ok($id(items))
+                        }
+                    })
             }
         }
 
@@ -158,6 +171,7 @@ macro_rules! common_header {
         impl $crate::http::header::IntoHeaderValue for $id {
             type Error = $crate::http::header::InvalidHeaderValue;
 
+            #[inline]
             fn try_into_value(self) -> Result<$crate::http::header::HeaderValue, Self::Error> {
                 use ::core::fmt::Write;
                 let mut writer = $crate::http::header::Writer::new();
@@ -196,6 +210,7 @@ macro_rules! common_header {
         impl $crate::http::header::IntoHeaderValue for $id {
             type Error = $crate::http::header::InvalidHeaderValue;
 
+            #[inline]
             fn try_into_value(self) -> Result<$crate::http::header::HeaderValue, Self::Error> {
                 self.0.try_into_value()
             }
@@ -250,6 +265,7 @@ macro_rules! common_header {
         impl $crate::http::header::IntoHeaderValue for $id {
             type Error = $crate::http::header::InvalidHeaderValue;
 
+            #[inline]
             fn try_into_value(self) -> Result<$crate::http::header::HeaderValue, Self::Error> {
                 use ::core::fmt::Write;
                 let mut writer = $crate::http::header::Writer::new();

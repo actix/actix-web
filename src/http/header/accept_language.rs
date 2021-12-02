@@ -61,6 +61,12 @@ common_header! {
         );
 
         common_header_test!(
+            empty_value,
+            vec![b""],
+            None
+        );
+
+        common_header_test!(
             not_ordered_by_weight,
             vec![b"en-US, en; q=0.5, fr"],
             Some(AcceptLanguage(vec![

@@ -65,3 +65,18 @@ pub fn http_percent_encode(f: &mut fmt::Formatter<'_>, bytes: &[u8]) -> fmt::Res
     let encoded = percent_encoding::percent_encode(bytes, HTTP_VALUE);
     fmt::Display::fmt(&encoded, f)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_from_multiple_headers() {
+        let headers = vec![
+            HeaderValue::from_static("1, 2"),
+            HeaderValue::from_static("3,4"),
+        ];
+        let result = from_comma_delimited::<_, usize>(headers.iter()).unwrap();
+        assert_eq!(result, vec![1, 2, 3, 4]);
+    }
+}
