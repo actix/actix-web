@@ -51,7 +51,6 @@ pub use self::accept_charset::AcceptCharset;
 pub use self::accept::Accept;
 pub use self::accept_language::AcceptLanguage;
 pub use self::allow::Allow;
-pub use self::any_or_some::AnyOrSome;
 pub use self::cache_control::{CacheControl, CacheDirective};
 pub use self::content_disposition::{ContentDisposition, DispositionParam, DispositionType};
 pub use self::content_language::ContentLanguage;
