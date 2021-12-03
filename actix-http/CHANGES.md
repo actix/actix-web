@@ -15,6 +15,7 @@
 
 ### Removed
 * Remove unnecessary `MessageBody` bound on types passed to `body::AnyBody::new`. [#2468]
+* Move `body::AnyBody` to `awc`. Replaced with `EitherBody` and `BoxBody`. [#2468]
 
 [#2483]: https://github.com/actix/actix-web/pull/2483
 [#2468]: https://github.com/actix/actix-web/pull/2468
