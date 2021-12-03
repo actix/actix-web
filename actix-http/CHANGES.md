@@ -12,6 +12,7 @@
 ### Changed
 * Rename `body::BoxBody::{from_body => new}`. [#2468]
 * Body type for `Responses` returned from `Response::{new, ok, etc...}` is now `BoxBody`. [#2468]
+* The `Error` associated type on `MessageBody` type now requires `impl Error` (or similar). [#2468]
 
 ### Removed
 * Remove unnecessary `MessageBody` bound on types passed to `body::AnyBody::new`. [#2468]
