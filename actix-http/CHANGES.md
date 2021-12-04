@@ -9,6 +9,7 @@
 * `body::None` struct. [#2468]
 * Impl `MessageBody` for `bytestring::ByteString`. [#2468]
 * `impl Clone for ws::HandshakeError`. [#2468]
+* `#[must_use]` for `ws::Codec` to prevent subtle bugs. [#1920]
 
 ### Changed
 * Rename `body::BoxBody::{from_body => new}`. [#2468]
@@ -18,15 +19,18 @@
 * `From` implementations on error types now return a `Response<BoxBody>`. [#2468]
 * `ResponseBuilder::body(B)` now returns `Response<EitherBody<B>>`. [#2468]
 * `ResponseBuilder::finish()` now returns `Response<EitherBody<()>>`. [#2468]
+* `impl Copy` for `ws::Codec`. [#1920]
 
 ### Removed
 * `ResponseBuilder::streaming`. [#2468]
 * `impl Future` for `ResponseBuilder`. [#2468]
 * Remove unnecessary `MessageBody` bound on types passed to `body::AnyBody::new`. [#2468]
 * Move `body::AnyBody` to `awc`. Replaced with `EitherBody` and `BoxBody`. [#2468]
+* `impl Copy` for `ws::Codec`. [#1920]
 
 [#2483]: https://github.com/actix/actix-web/pull/2483
 [#2468]: https://github.com/actix/actix-web/pull/2468
+[#1920]: https://github.com/actix/actix-web/pull/1920
 
 
 ## 3.0.0-beta.14 - 2021-11-30

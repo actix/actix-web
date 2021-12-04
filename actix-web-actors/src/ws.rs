@@ -1,20 +1,24 @@
 //! Websocket integration.
 
-use std::future::Future;
-use std::io;
-use std::pin::Pin;
-use std::task::{Context, Poll};
-use std::{collections::VecDeque, convert::TryFrom};
-
-use actix::dev::{
-    AsyncContextParts, ContextFut, ContextParts, Envelope, Mailbox, StreamHandler, ToEnvelope,
+use std::{
+    collections::VecDeque,
+    convert::TryFrom,
+    future::Future,
+    io, mem,
+    pin::Pin,
+    task::{Context, Poll},
 };
-use actix::fut::ActorFuture;
+
 use actix::{
+    dev::{
+        AsyncContextParts, ContextFut, ContextParts, Envelope, Mailbox, StreamHandler,
+        ToEnvelope,
+    },
+    fut::ActorFuture,
     Actor, ActorContext, ActorState, Addr, AsyncContext, Handler, Message as ActixMessage,
     SpawnHandle,
 };
-use actix_codec::{Decoder, Encoder};
+use actix_codec::{Decoder as _, Encoder as _};
 pub use actix_http::ws::{
     CloseCode, CloseReason, Frame, HandshakeError, Message, ProtocolError,
 };
@@ -31,25 +35,25 @@ use bytes::{Bytes, BytesMut};
 use bytestring::ByteString;
 use futures_core::Stream;
 use pin_project_lite::pin_project;
-use tokio::sync::oneshot::Sender;
+use tokio::sync::oneshot;
 
-/// Builder for Websocket Session response.
+/// Builder for Websocket session response.
 ///
 /// # Examples
 ///
-/// Create a Websocket session response with default configs.
+/// Create a Websocket session response with default configuration.
 /// ```ignore
 /// WsResponseBuilder::new(WsActor, &req, stream).start()
 /// ```
 ///
-/// Create a Websocket session with a specific max frame size,
-/// a [`Codec`] or protocols.
+/// Create a Websocket session with a specific max frame size, [`Codec`], and protocols.
 /// ```ignore
-/// const MAX_FRAME_SIZE: usize = 10_000; // in bytes.
+/// const MAX_FRAME_SIZE: usize = 16_384; // 16KiB
+///
 /// ws::WsResponseBuilder::new(WsActor, &req, stream)
-///     .codec(Codec::new()) // optional
-///     .protocols(&["A", "B"]) // optional
-///     .frame_size(MAX_FRAME_SIZE) // optional
+///     .codec(Codec::new())
+///     .protocols(&["A", "B"])
+///     .frame_size(MAX_FRAME_SIZE)
 ///     .start()
 /// ```
 pub struct WsResponseBuilder<'a, A, T>
@@ -60,9 +64,9 @@ where
     actor: A,
     req: &'a HttpRequest,
     stream: T,
+    codec: Option<Codec>,
     protocols: Option<&'a [&'a str]>,
     frame_size: Option<usize>,
-    codec: Option<Codec>,
 }
 
 impl<'a, A, T> WsResponseBuilder<'a, A, T>
@@ -78,9 +82,9 @@ where
             actor,
             req,
             stream,
+            codec: None,
             protocols: None,
             frame_size: None,
-            codec: None,
         }
     }
 
@@ -90,7 +94,7 @@ where
         self
     }
 
-    /// Set the max frame size for each message.
+    /// Set the max frame size for each message (in bytes).
     ///
     /// **Note**: This will override any given [`Codec`]'s max frame size.
     pub fn frame_size(mut self, frame_size: usize) -> Self {
@@ -115,19 +119,21 @@ where
     fn set_frame_size(&mut self) {
         if let Some(frame_size) = self.frame_size {
             match &mut self.codec {
-                // Modify existing Codec's size.
                 Some(codec) => {
-                    codec.max_size(frame_size);
+                    // modify existing codec's max frame size
+                    let orig_codec = mem::take(codec);
+                    *codec = orig_codec.max_size(frame_size);
                 }
-                // Otherwise, create a new codec with the given size.
+
                 None => {
+                    // create a new codec with the given size
                     self.codec = Some(Codec::new().max_size(frame_size));
                 }
             }
         }
     }
 
-    /// Create a new Websocket context from a request, an actor, and a codec.
+    /// Create a new Websocket context from an actor, request stream, and codec.
     ///
     /// Returns a pair, where the first item is an addr for the created actor, and the second item
     /// is a stream intended to be set as part of the response
@@ -146,7 +152,7 @@ where
             inner: ContextParts::new(mb.sender_producer()),
             messages: VecDeque::new(),
         };
-        ctx.add_stream(WsStream::new(stream, codec));
+        ctx.add_stream(WsStream::new(stream, codec.clone()));
 
         let addr = ctx.address();
 
@@ -478,7 +484,7 @@ where
             inner: ContextParts::new(mb.sender_producer()),
             messages: VecDeque::new(),
         };
-        ctx.add_stream(WsStream::new(stream, codec));
+        ctx.add_stream(WsStream::new(stream, codec.clone()));
 
         WebsocketContextFut::new(ctx, actor, mb, codec)
     }
@@ -636,12 +642,13 @@ where
     M: ActixMessage + Send + 'static,
     M::Result: Send,
 {
-    fn pack(msg: M, tx: Option<Sender<M::Result>>) -> Envelope<A> {
+    fn pack(msg: M, tx: Option<oneshot::Sender<M::Result>>) -> Envelope<A> {
         Envelope::new(msg, tx)
     }
 }
 
 pin_project! {
+    #[derive(Debug)]
     struct WsStream<S> {
         #[pin]
         stream: S,
