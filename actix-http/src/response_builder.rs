@@ -2,15 +2,11 @@
 
 use std::{
     cell::{Ref, RefMut},
-    fmt,
-    future::Future,
-    pin::Pin,
-    str,
-    task::{Context, Poll},
+    fmt, str,
 };
 
 use crate::{
-    body::{BoxBody, EitherBody, MessageBody},
+    body::{EitherBody, MessageBody},
     error::{Error, HttpError},
     header::{self, IntoHeaderPair, IntoHeaderValue},
     message::{BoxedResponseHead, ConnectionType, ResponseHead},
@@ -315,14 +311,6 @@ impl<'a> From<&'a ResponseHead> for ResponseBuilder {
     }
 }
 
-impl Future for ResponseBuilder {
-    type Output = Result<Response<BoxBody>, Error>;
-
-    fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
-        Poll::Ready(Ok(self.finish().map_into_boxed_body()))
-    }
-}
-
 impl fmt::Debug for ResponseBuilder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let head = self.head.as_ref().unwrap();
@@ -372,7 +360,7 @@ mod tests {
     #[test]
     fn test_force_close() {
         let resp = Response::build(StatusCode::OK).force_close().finish();
-        assert!(!resp.keep_alive())
+        assert!(!resp.keep_alive());
     }
 
     #[test]
@@ -380,7 +368,15 @@ mod tests {
         let resp = Response::build(StatusCode::OK)
             .content_type("text/plain")
             .body(Bytes::new());
-        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "text/plain")
+        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "text/plain");
+
+        let resp = Response::build(StatusCode::OK)
+            .content_type(mime::APPLICATION_JAVASCRIPT_UTF_8)
+            .body(Bytes::new());
+        assert_eq!(
+            resp.headers().get(CONTENT_TYPE).unwrap(),
+            "application/javascript; charset=utf-8"
+        );
     }
 
     #[test]

@@ -17,6 +17,8 @@ use super::BodySize;
 /// An interface types that can converted to bytes and used as response bodies.
 // TODO: examples
 pub trait MessageBody {
+    // TODO: consider this bound to only fmt::Display since the error type is not really used
+    // and there is an impl for Into<Box<StdError>> on String
     type Error: Into<Box<dyn StdError>>;
 
     /// Body size hint.
@@ -35,10 +37,12 @@ mod foreign_impls {
     impl MessageBody for Infallible {
         type Error = Infallible;
 
+        #[inline]
         fn size(&self) -> BodySize {
             match *self {}
         }
 
+        #[inline]
         fn poll_next(
             self: Pin<&mut Self>,
             _cx: &mut Context<'_>,
@@ -50,10 +54,12 @@ mod foreign_impls {
     impl MessageBody for () {
         type Error = Infallible;
 
+        #[inline]
         fn size(&self) -> BodySize {
             BodySize::Sized(0)
         }
 
+        #[inline]
         fn poll_next(
             self: Pin<&mut Self>,
             _cx: &mut Context<'_>,
@@ -68,10 +74,12 @@ mod foreign_impls {
     {
         type Error = B::Error;
 
+        #[inline]
         fn size(&self) -> BodySize {
             self.as_ref().size()
         }
 
+        #[inline]
         fn poll_next(
             self: Pin<&mut Self>,
             cx: &mut Context<'_>,
@@ -86,10 +94,12 @@ mod foreign_impls {
     {
         type Error = B::Error;
 
+        #[inline]
         fn size(&self) -> BodySize {
             self.as_ref().size()
         }
 
+        #[inline]
         fn poll_next(
             mut self: Pin<&mut Self>,
             cx: &mut Context<'_>,

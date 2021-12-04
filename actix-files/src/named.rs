@@ -10,10 +10,9 @@ use std::{
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 
-use actix_http::body;
 use actix_service::{Service, ServiceFactory};
 use actix_web::{
-    body::BoxBody,
+    body::{self, BoxBody},
     dev::{
         AppService, BodyEncoding, HttpServiceFactory, ResourceDef, ServiceRequest,
         ServiceResponse, SizedStream,
@@ -113,6 +112,8 @@ impl fmt::Debug for NamedFile {
 pub(crate) use std::fs::File;
 #[cfg(feature = "experimental-io-uring")]
 pub(crate) use tokio_uring::fs::File;
+
+use super::chunked;
 
 impl NamedFile {
     /// Creates an instance from a previously opened file.
@@ -417,7 +418,7 @@ impl NamedFile {
                 res.encoding(current_encoding);
             }
 
-            let reader = super::chunked::new_chunked_read(self.md.len(), 0, self.file);
+            let reader = chunked::new_chunked_read(self.md.len(), 0, self.file);
 
             return res.streaming(reader);
         }
@@ -534,7 +535,7 @@ impl NamedFile {
                 .map_into_boxed_body();
         }
 
-        let reader = super::chunked::new_chunked_read(length, offset, self.file);
+        let reader = chunked::new_chunked_read(length, offset, self.file);
 
         if offset != 0 || length != self.md.len() {
             resp.status(StatusCode::PARTIAL_CONTENT);
@@ -599,7 +600,6 @@ impl DerefMut for NamedFile {
 }
 
 impl Responder for NamedFile {
-    // TODO: can be improved
     type Body = BoxBody;
 
     fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {

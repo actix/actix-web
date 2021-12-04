@@ -4,6 +4,7 @@
 ### Added
 * Methods on `AcceptLanguage`: `ranked` and `preference`. [#2480]
 * `AcceptEncoding` typed header. [#2482]
+* `HttpResponse::map_into_{left,right}_body`. [#2468]
 * `HttpResponse::map_into_boxed_body`. [#2468]
 
 ### Changed

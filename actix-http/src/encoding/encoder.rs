@@ -75,6 +75,9 @@ impl<B: MessageBody> Encoder<B> {
             BodySize::Sized(_) | BodySize::Stream => {}
         }
 
+        // TODO potentially some optimisation for single-chunk responses here by trying to read the
+        // payload eagerly, stopping after 2 polls if the first is a chunk and the second is None
+
         if can_encode {
             // Modify response body only if encoder is set
             if let Some(enc) = ContentEncoder::encoder(encoding) {
@@ -103,10 +106,6 @@ pin_project! {
     #[project = EncoderBodyProj]
     enum EncoderBody<B> {
         None,
-
-        // TODO: this variant is not used but RA can't see it because of macro wrapper
-        Bytes { body: Bytes },
-
         Stream { #[pin] body: B },
     }
 }
@@ -120,7 +119,6 @@ where
     fn size(&self) -> BodySize {
         match self {
             EncoderBody::None => BodySize::None,
-            EncoderBody::Bytes { body } => body.size(),
             EncoderBody::Stream { body } => body.size(),
         }
     }
@@ -132,13 +130,6 @@ where
         match self.project() {
             EncoderBodyProj::None => Poll::Ready(None),
 
-            EncoderBodyProj::Bytes { body } => {
-                if body.is_empty() {
-                    Poll::Ready(None)
-                } else {
-                    Poll::Ready(Some(Ok(std::mem::take(body))))
-                }
-            }
             EncoderBodyProj::Stream { body } => body
                 .poll_next(cx)
                 .map_err(|err| EncoderError::Body(err.into())),

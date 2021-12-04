@@ -1,4 +1,4 @@
-use std::{error::Error as StdError, fmt, io};
+use std::{fmt, io};
 
 use derive_more::{Display, From};
 
@@ -122,7 +122,7 @@ pub enum SendRequestError {
 
     /// Other errors that can occur after submitting a request.
     #[display(fmt = "{:?}: {}", _1, _0)]
-    Custom(Box<dyn StdError>, Box<dyn fmt::Debug>),
+    Custom(BoxError, Box<dyn fmt::Debug>),
 }
 
 impl std::error::Error for SendRequestError {}
@@ -141,7 +141,7 @@ pub enum FreezeRequestError {
 
     /// Other errors that can occur after submitting a request.
     #[display(fmt = "{:?}: {}", _1, _0)]
-    Custom(Box<dyn StdError>, Box<dyn fmt::Debug>),
+    Custom(BoxError, Box<dyn fmt::Debug>),
 }
 
 impl std::error::Error for FreezeRequestError {}

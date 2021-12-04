@@ -1,6 +1,5 @@
 use std::{
     borrow::Cow,
-    error::Error as StdError,
     fmt, mem,
     pin::Pin,
     task::{Context, Poll},
@@ -11,6 +10,8 @@ use futures_core::Stream;
 use pin_project_lite::pin_project;
 
 use actix_http::body::{BodySize, BodyStream, BoxBody, MessageBody, SizedStream};
+
+use crate::BoxError;
 
 pin_project! {
     /// Represents various types of HTTP message body.
@@ -209,40 +210,20 @@ impl<B> From<BytesMut> for AnyBody<B> {
     }
 }
 
-impl<S, E> From<SizedStream<S>> for AnyBody<SizedStream<S>>
-where
-    S: Stream<Item = Result<Bytes, E>> + 'static,
-    E: Into<Box<dyn StdError>> + 'static,
-{
-    fn from(stream: SizedStream<S>) -> Self {
-        AnyBody::new(stream)
-    }
-}
-
 impl<S, E> From<SizedStream<S>> for AnyBody
 where
     S: Stream<Item = Result<Bytes, E>> + 'static,
-    E: Into<Box<dyn StdError>> + 'static,
+    E: Into<BoxError> + 'static,
 {
     fn from(stream: SizedStream<S>) -> Self {
         AnyBody::new_boxed(stream)
     }
 }
 
-impl<S, E> From<BodyStream<S>> for AnyBody<BodyStream<S>>
-where
-    S: Stream<Item = Result<Bytes, E>> + 'static,
-    E: Into<Box<dyn StdError>> + 'static,
-{
-    fn from(stream: BodyStream<S>) -> Self {
-        AnyBody::new(stream)
-    }
-}
-
 impl<S, E> From<BodyStream<S>> for AnyBody
 where
     S: Stream<Item = Result<Bytes, E>> + 'static,
-    E: Into<Box<dyn StdError>> + 'static,
+    E: Into<BoxError> + 'static,
 {
     fn from(stream: BodyStream<S>) -> Self {
         AnyBody::new_boxed(stream)

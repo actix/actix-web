@@ -26,7 +26,7 @@ use cookie::{Cookie, CookieJar};
 
 use crate::{
     error::{Error, JsonPayloadError},
-    HttpResponse,
+    BoxError, HttpResponse,
 };
 
 /// An HTTP response builder.
@@ -356,7 +356,7 @@ impl HttpResponseBuilder {
     pub fn streaming<S, E>(&mut self, stream: S) -> HttpResponse
     where
         S: Stream<Item = Result<Bytes, E>> + 'static,
-        E: Into<Box<dyn StdError>> + 'static,
+        E: Into<BoxError> + 'static,
     {
         self.body(BoxBody::new(BodyStream::new(stream)))
     }

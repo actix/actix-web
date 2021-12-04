@@ -68,6 +68,7 @@ impl Error {
 
 impl From<Error> for Response<BoxBody> {
     fn from(err: Error) -> Self {
+        // TODO: more appropriate error status codes, usage assessment needed
         let status_code = match err.inner.kind {
             Kind::Parse => StatusCode::BAD_REQUEST,
             _ => StatusCode::INTERNAL_SERVER_ERROR,

@@ -20,6 +20,8 @@ pin_project! {
     }
 }
 
+// TODO: from_infallible method
+
 impl<S, E> BodyStream<S>
 where
     S: Stream<Item = Result<Bytes, E>>,

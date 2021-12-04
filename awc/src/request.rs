@@ -1,4 +1,4 @@
-use std::{convert::TryFrom, error::Error as StdError, fmt, net, rc::Rc, time::Duration};
+use std::{convert::TryFrom, fmt, net, rc::Rc, time::Duration};
 
 use bytes::Bytes;
 use futures_core::Stream;
@@ -17,7 +17,7 @@ use crate::{
     error::{FreezeRequestError, InvalidUrl},
     frozen::FrozenClientRequest,
     sender::{PrepForSendingError, RequestSender, SendClientRequest},
-    ClientConfig,
+    BoxError, ClientConfig,
 };
 
 #[cfg(feature = "cookies")]
@@ -405,7 +405,7 @@ impl ClientRequest {
     pub fn send_stream<S, E>(self, stream: S) -> SendClientRequest
     where
         S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
-        E: Into<Box<dyn StdError>> + 'static,
+        E: Into<BoxError> + 'static,
     {
         let slf = match self.prep_for_sending() {
             Ok(slf) => slf,

@@ -1035,7 +1035,6 @@ mod tests {
 
     use super::*;
     use crate::{
-        body::BoxBody,
         error::Error,
         h1::{ExpectHandler, UpgradeHandler},
         http::Method,
@@ -1059,13 +1058,15 @@ mod tests {
         }
     }
 
-    fn ok_service() -> impl Service<Request, Response = Response<BoxBody>, Error = Error>
+    fn ok_service(
+    ) -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error>
     {
         fn_service(|_req: Request| ready(Ok::<_, Error>(Response::ok())))
     }
 
     fn echo_path_service(
-    ) -> impl Service<Request, Response = Response<Bytes>, Error = Error> {
+    ) -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error>
+    {
         fn_service(|req: Request| {
             let path = req.path().as_bytes();
             ready(Ok::<_, Error>(

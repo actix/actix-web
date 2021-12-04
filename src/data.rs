@@ -284,7 +284,7 @@ mod tests {
     async fn test_data_from_arc() {
         let data_new = Data::new(String::from("test-123"));
         let data_from_arc = Data::from(Arc::new(String::from("test-123")));
-        assert_eq!(data_new.0, data_from_arc.0)
+        assert_eq!(data_new.0, data_from_arc.0);
     }
 
     #[actix_rt::test]
