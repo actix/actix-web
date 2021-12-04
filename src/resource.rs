@@ -1,31 +1,28 @@
-use std::cell::RefCell;
-use std::fmt;
-use std::future::Future;
-use std::rc::Rc;
+use std::{cell::RefCell, fmt, future::Future, rc::Rc};
 
 use actix_http::Extensions;
-use actix_router::IntoPattern;
-use actix_service::boxed::{self, BoxService, BoxServiceFactory};
+use actix_router::{IntoPatterns, Patterns};
 use actix_service::{
-    apply, apply_fn_factory, fn_service, IntoServiceFactory, Service, ServiceFactory,
+    apply, apply_fn_factory, boxed, fn_service, IntoServiceFactory, Service, ServiceFactory,
     ServiceFactoryExt, Transform,
 };
 use futures_core::future::LocalBoxFuture;
 use futures_util::future::join_all;
 
 use crate::{
+    body::MessageBody,
     data::Data,
-    dev::{insert_leading_slash, AppService, HttpServiceFactory, ResourceDef},
+    dev::{ensure_leading_slash, AppService, ResourceDef},
     guard::Guard,
     handler::Handler,
     responder::Responder,
     route::{Route, RouteService},
-    service::{ServiceRequest, ServiceResponse},
-    Error, FromRequest, HttpResponse,
+    service::{
+        BoxedHttpService, BoxedHttpServiceFactory, HttpServiceFactory, ServiceRequest,
+        ServiceResponse,
+    },
+    BoxError, Error, FromRequest, HttpResponse,
 };
-
-type HttpService = BoxService<ServiceRequest, ServiceResponse, Error>;
-type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
 
 /// *Resource* is an entry in resources table which corresponds to requested URL.
 ///
@@ -51,17 +48,17 @@ type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Err
 /// Default behavior could be overridden with `default_resource()` method.
 pub struct Resource<T = ResourceEndpoint> {
     endpoint: T,
-    rdef: Vec<String>,
+    rdef: Patterns,
     name: Option<String>,
     routes: Vec<Route>,
     app_data: Option<Extensions>,
     guards: Vec<Box<dyn Guard>>,
-    default: HttpNewService,
+    default: BoxedHttpServiceFactory,
     factory_ref: Rc<RefCell<Option<ResourceFactory>>>,
 }
 
 impl Resource {
-    pub fn new<T: IntoPattern>(path: T) -> Resource {
+    pub fn new<T: IntoPatterns>(path: T) -> Resource {
         let fref = Rc::new(RefCell::new(None));
 
         Resource {
@@ -242,6 +239,8 @@ where
         I: FromRequest + 'static,
         R: Future + 'static,
         R::Output: Responder + 'static,
+        <R::Output as Responder>::Body: MessageBody,
+        <<R::Output as Responder>::Body as MessageBody>::Error: Into<BoxError>,
     {
         self.routes.push(Route::new().to(handler));
         self
@@ -391,13 +390,13 @@ where
         };
 
         let mut rdef = if config.is_root() || !self.rdef.is_empty() {
-            ResourceDef::new(insert_leading_slash(self.rdef.clone()))
+            ResourceDef::new(ensure_leading_slash(self.rdef.clone()))
         } else {
             ResourceDef::new(self.rdef.clone())
         };
 
         if let Some(ref name) = self.name {
-            *rdef.name_mut() = name.clone();
+            rdef.set_name(name);
         }
 
         *self.factory_ref.borrow_mut() = Some(ResourceFactory {
@@ -422,7 +421,7 @@ where
 
 pub struct ResourceFactory {
     routes: Vec<Route>,
-    default: HttpNewService,
+    default: BoxedHttpServiceFactory,
 }
 
 impl ServiceFactory<ServiceRequest> for ResourceFactory {
@@ -454,7 +453,7 @@ impl ServiceFactory<ServiceRequest> for ResourceFactory {
 
 pub struct ResourceService {
     routes: Vec<RouteService>,
-    default: HttpService,
+    default: BoxedHttpService,
 }
 
 impl Service<ServiceRequest> for ResourceService {

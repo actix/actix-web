@@ -3,6 +3,26 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 0.6.0-beta.9 - 2021-11-22
+* Add crate feature `experimental-io-uring`, enabling async file I/O to be utilized. This feature is only available on Linux OSes with recent kernel versions. This feature is semver-exempt. [#2408]
+* Add `NamedFile::open_async`. [#2408]
+* Fix 304 Not Modified responses to omit the Content-Length header, as per the spec. [#2453]
+* The `Responder` impl for `NamedFile` now has a boxed future associated type. [#2408]
+* The `Service` impl for `NamedFileService` now has a boxed future associated type. [#2408]
+* Add `impl Clone` for `FilesService`. [#2408]
+
+[#2408]: https://github.com/actix/actix-web/pull/2408
+[#2453]: https://github.com/actix/actix-web/pull/2453
+
+
+## 0.6.0-beta.8 - 2021-10-20
+* Minimum supported Rust version (MSRV) is now 1.52.
+
+
+## 0.6.0-beta.7 - 2021-09-09
+* Minimum supported Rust version (MSRV) is now 1.51.
+
+
 ## 0.6.0-beta.6 - 2021-06-26
 * Added `Files::path_filter()`. [#2274]
 * `Files::show_files_listing()` can now be used with `Files::index_file()` to show files listing as a fallback when the index file is not found. [#2228]

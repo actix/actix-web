@@ -1,8 +1,11 @@
-use header::{Encoding, QualityItem};
+use actix_http::header::QualityItem;
 
-header! {
-    /// `Accept-Encoding` header, defined in
-    /// [RFC7231](http://tools.ietf.org/html/rfc7231#section-5.3.4)
+use super::{common_header, Encoding};
+use crate::http::header;
+
+common_header! {
+    /// `Accept-Encoding` header, defined
+    /// in [RFC 7231](https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.4)
     ///
     /// The `Accept-Encoding` header field can be used by user agents to
     /// indicate what response content-codings are
@@ -11,13 +14,12 @@ header! {
     /// preferred.
     ///
     /// # ABNF
-    ///
-    /// ```text
+    /// ```plain
     /// Accept-Encoding  = #( codings [ weight ] )
     /// codings          = content-coding / "identity" / "*"
     /// ```
     ///
-    /// # Example values
+    /// # Example Values
     /// * `compress, gzip`
     /// * ``
     /// * `*`
@@ -29,7 +31,7 @@ header! {
     /// use actix_web::HttpResponse;
     /// use actix_web::http::header::{AcceptEncoding, Encoding, qitem};
     ///
-    /// let mut builder = HttpResponse::new();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     AcceptEncoding(vec![qitem(Encoding::Chunked)])
     /// );
@@ -38,7 +40,7 @@ header! {
     /// use actix_web::HttpResponse;
     /// use actix_web::http::header::{AcceptEncoding, Encoding, qitem};
     ///
-    /// let mut builder = HttpResponse::new();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     AcceptEncoding(vec![
     ///         qitem(Encoding::Chunked),
@@ -51,7 +53,7 @@ header! {
     /// use actix_web::HttpResponse;
     /// use actix_web::http::header::{AcceptEncoding, Encoding, QualityItem, q, qitem};
     ///
-    /// let mut builder = HttpResponse::new();
+    /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     AcceptEncoding(vec![
     ///         qitem(Encoding::Chunked),
@@ -60,16 +62,18 @@ header! {
     ///     ])
     /// );
     /// ```
-    (AcceptEncoding, "Accept-Encoding") => (QualityItem<Encoding>)*
+    (AcceptEncoding, header::ACCEPT_ENCODING) => (QualityItem<Encoding>)*
 
-    test_accept_encoding {
+    test_parse_and_format {
         // From the RFC
-        crate::http::header::common_header_test!(test1, vec![b"compress, gzip"]);
-        crate::http::header::common_header_test!(test2, vec![b""], Some(AcceptEncoding(vec![])));
-        crate::http::header::common_header_test!(test3, vec![b"*"]);
+        common_header_test!(test1, vec![b"compress, gzip"]);
+        common_header_test!(test2, vec![b""], Some(AcceptEncoding(vec![])));
+        common_header_test!(test3, vec![b"*"]);
+
         // Note: Removed quality 1 from gzip
-        crate::http::header::common_header_test!(test4, vec![b"compress;q=0.5, gzip"]);
+        common_header_test!(test4, vec![b"compress;q=0.5, gzip"]);
+
         // Note: Removed quality 1 from gzip
-        crate::http::header::common_header_test!(test5, vec![b"gzip, identity; q=0.5, *;q=0"]);
+        common_header_test!(test5, vec![b"gzip, identity; q=0.5, *;q=0"]);
     }
 }

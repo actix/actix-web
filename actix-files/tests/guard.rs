@@ -7,7 +7,7 @@ use actix_web::{
 };
 use bytes::Bytes;
 
-#[actix_rt::test]
+#[actix_web::test]
 async fn test_guard_filter() {
     let srv = test::init_service(
         App::new()

@@ -14,7 +14,7 @@
 //! [rustls]: https://crates.io/crates/rustls
 //! [trust-dns]: https://crates.io/crates/trust-dns
 
-#![deny(rust_2018_idioms, nonstandard_style)]
+#![deny(rust_2018_idioms, nonstandard_style, clippy::uninit_assumed_init)]
 #![allow(
     clippy::type_complexity,
     clippy::too_many_arguments,
@@ -29,7 +29,6 @@ extern crate log;
 
 pub mod body;
 mod builder;
-pub mod client;
 mod config;
 
 #[cfg(feature = "__compress")]
@@ -44,7 +43,6 @@ mod request;
 mod response;
 mod response_builder;
 mod service;
-mod time_parser;
 
 pub mod error;
 pub mod h1;
@@ -104,13 +102,8 @@ type ConnectCallback<IO> = dyn Fn(&IO, &mut Extensions);
 ///
 /// # Implementation Details
 /// Uses Option to reduce necessary allocations when merging with request extensions.
+#[derive(Default)]
 pub(crate) struct OnConnectData(Option<Extensions>);
-
-impl Default for OnConnectData {
-    fn default() -> Self {
-        Self(None)
-    }
-}
 
 impl OnConnectData {
     /// Construct by calling the on-connect callback with the underlying transport I/O.

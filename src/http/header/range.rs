@@ -1,25 +1,25 @@
-use std::fmt::{self, Display, Write};
-use std::str::FromStr;
+use std::{
+    fmt::{self, Display, Write},
+    str::FromStr,
+};
+
+use actix_http::{error::ParseError, header, HttpMessage};
 
 use super::{
     from_one_raw_str, Header, HeaderName, HeaderValue, IntoHeaderValue, InvalidHeaderValue,
-    Writer,
+    Raw, Writer,
 };
-use actix_http::error::ParseError;
-use actix_http::header;
-use actix_http::HttpMessage;
 
-/// `Range` header, defined in [RFC7233](https://tools.ietf.org/html/rfc7233#section-3.1)
+/// `Range` header, defined
+/// in [RFC 7233 §3.1](https://datatracker.ietf.org/doc/html/rfc7233#section-3.1)
 ///
-/// The "Range" header field on a GET request modifies the method
-/// semantics to request transfer of only one or more sub-ranges of the
-/// selected representation data, rather than the entire selected
+/// The "Range" header field on a GET request modifies the method semantics to request transfer of
+/// only one or more sub-ranges of the selected representation data, rather than the entire selected
 /// representation data.
 ///
 /// # ABNF
-///
-/// ```text
-/// Range =	byte-ranges-specifier / other-ranges-specifier
+/// ```plain
+/// Range = byte-ranges-specifier / other-ranges-specifier
 /// other-ranges-specifier = other-range-unit "=" other-range-set
 /// other-range-set = 1*VCHAR
 ///
@@ -32,8 +32,7 @@ use actix_http::HttpMessage;
 /// last-byte-pos = 1*DIGIT
 /// ```
 ///
-/// # Example values
-///
+/// # Example Values
 /// * `bytes=1000-`
 /// * `bytes=-2000`
 /// * `bytes=0-1,30-40`
@@ -42,7 +41,6 @@ use actix_http::HttpMessage;
 /// * `custom_unit=xxx-yyy`
 ///
 /// # Examples
-///
 /// ```
 /// use actix_web::http::header::{Range, ByteRangeSpec};
 /// use actix_web::HttpResponse;
@@ -65,6 +63,7 @@ use actix_http::HttpMessage;
 pub enum Range {
     /// Byte range
     Bytes(Vec<ByteRangeSpec>),
+
     /// Custom range, with unit not registered at IANA
     /// (`other-range-unit`: String , `other-range-set`: String)
     Unregistered(String, String),
@@ -76,8 +75,10 @@ pub enum Range {
 pub enum ByteRangeSpec {
     /// Get all bytes between x and y ("x-y")
     FromTo(u64, u64),
+
     /// Get all bytes starting from x ("x-")
     AllFrom(u64),
+
     /// Get last x bytes ("-x")
     Last(u64),
 }
@@ -95,7 +96,7 @@ impl ByteRangeSpec {
     /// simply ignore the range header and serve the full entity using a `200
     /// OK` status code.
     ///
-    /// This function closely follows [RFC 7233][1] section 2.1.
+    /// This function closely follows [RFC 7233 §2.1].
     /// As such, it considers ranges to be satisfiable if they meet the
     /// following conditions:
     ///
@@ -114,7 +115,7 @@ impl ByteRangeSpec {
     /// value of last-byte-pos with a value that is one less than the current
     /// length of the selected representation).
     ///
-    /// [1]: https://tools.ietf.org/html/rfc7233
+    /// [RFC 7233 §2.1]: https://datatracker.ietf.org/doc/html/rfc7233
     pub fn to_satisfiable_range(&self, full_length: u64) -> Option<(u64, u64)> {
         // If the full length is zero, there is no satisfiable end-inclusive range.
         if full_length == 0 {
@@ -246,16 +247,6 @@ impl FromStr for ByteRangeSpec {
             _ => Err(ParseError::Header),
         }
     }
-}
-
-fn from_comma_delimited<T: FromStr>(s: &str) -> Vec<T> {
-    s.split(',')
-        .filter_map(|x| match x.trim() {
-            "" => None,
-            y => Some(y),
-        })
-        .filter_map(|x| x.parse().ok())
-        .collect()
 }
 
 impl Header for Range {

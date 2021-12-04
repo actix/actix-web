@@ -6,14 +6,15 @@ use std::{
 };
 
 use bytes::{Bytes, BytesMut};
+use bytestring::ByteString;
 
 use crate::{
-    body::{AnyBody, MessageBody},
-    error::Error,
+    body::{BoxBody, MessageBody},
     extensions::Extensions,
+    header::{self, IntoHeaderValue},
     http::{HeaderMap, StatusCode},
     message::{BoxedResponseHead, ResponseHead},
-    ResponseBuilder,
+    Error, ResponseBuilder,
 };
 
 /// An HTTP response.
@@ -22,13 +23,13 @@ pub struct Response<B> {
     pub(crate) body: B,
 }
 
-impl Response<AnyBody> {
+impl Response<BoxBody> {
     /// Constructs a new response with default body.
     #[inline]
     pub fn new(status: StatusCode) -> Self {
         Response {
             head: BoxedResponseHead::new(status),
-            body: AnyBody::Empty,
+            body: BoxBody::new(()),
         }
     }
 
@@ -189,6 +190,14 @@ impl<B> Response<B> {
         }
     }
 
+    #[inline]
+    pub fn map_into_boxed_body(self) -> Response<BoxBody>
+    where
+        B: MessageBody + 'static,
+    {
+        self.map_body(|_, body| BoxBody::new(body))
+    }
+
     /// Returns body, consuming this response.
     pub fn into_body(self) -> B {
         self.body
@@ -223,81 +232,99 @@ impl<B: Default> Default for Response<B> {
     }
 }
 
-impl<I: Into<Response<AnyBody>>, E: Into<Error>> From<Result<I, E>>
-    for Response<AnyBody>
+impl<I: Into<Response<BoxBody>>, E: Into<Error>> From<Result<I, E>>
+    for Response<BoxBody>
 {
     fn from(res: Result<I, E>) -> Self {
         match res {
             Ok(val) => val.into(),
-            Err(err) => err.into().into(),
+            Err(err) => Response::from(err.into()),
         }
     }
 }
 
-impl From<ResponseBuilder> for Response<AnyBody> {
+impl From<ResponseBuilder> for Response<BoxBody> {
     fn from(mut builder: ResponseBuilder) -> Self {
-        builder.finish()
+        builder.finish().map_into_boxed_body()
     }
 }
 
-impl From<std::convert::Infallible> for Response<AnyBody> {
+impl From<std::convert::Infallible> for Response<BoxBody> {
     fn from(val: std::convert::Infallible) -> Self {
         match val {}
     }
 }
 
-impl From<&'static str> for Response<AnyBody> {
+impl From<&'static str> for Response<&'static str> {
     fn from(val: &'static str) -> Self {
-        Response::build(StatusCode::OK)
-            .content_type(mime::TEXT_PLAIN_UTF_8)
-            .body(val)
+        let mut res = Response::with_body(StatusCode::OK, val);
+        let mime = mime::TEXT_PLAIN_UTF_8.try_into_value().unwrap();
+        res.headers_mut().insert(header::CONTENT_TYPE, mime);
+        res
     }
 }
 
-impl From<&'static [u8]> for Response<AnyBody> {
+impl From<&'static [u8]> for Response<&'static [u8]> {
     fn from(val: &'static [u8]) -> Self {
-        Response::build(StatusCode::OK)
-            .content_type(mime::APPLICATION_OCTET_STREAM)
-            .body(val)
+        let mut res = Response::with_body(StatusCode::OK, val);
+        let mime = mime::APPLICATION_OCTET_STREAM.try_into_value().unwrap();
+        res.headers_mut().insert(header::CONTENT_TYPE, mime);
+        res
     }
 }
 
-impl From<String> for Response<AnyBody> {
+impl From<String> for Response<String> {
     fn from(val: String) -> Self {
-        Response::build(StatusCode::OK)
-            .content_type(mime::TEXT_PLAIN_UTF_8)
-            .body(val)
+        let mut res = Response::with_body(StatusCode::OK, val);
+        let mime = mime::TEXT_PLAIN_UTF_8.try_into_value().unwrap();
+        res.headers_mut().insert(header::CONTENT_TYPE, mime);
+        res
     }
 }
 
-impl<'a> From<&'a String> for Response<AnyBody> {
-    fn from(val: &'a String) -> Self {
-        Response::build(StatusCode::OK)
-            .content_type(mime::TEXT_PLAIN_UTF_8)
-            .body(val)
+impl From<&String> for Response<String> {
+    fn from(val: &String) -> Self {
+        let mut res = Response::with_body(StatusCode::OK, val.clone());
+        let mime = mime::TEXT_PLAIN_UTF_8.try_into_value().unwrap();
+        res.headers_mut().insert(header::CONTENT_TYPE, mime);
+        res
     }
 }
 
-impl From<Bytes> for Response<AnyBody> {
+impl From<Bytes> for Response<Bytes> {
     fn from(val: Bytes) -> Self {
-        Response::build(StatusCode::OK)
-            .content_type(mime::APPLICATION_OCTET_STREAM)
-            .body(val)
+        let mut res = Response::with_body(StatusCode::OK, val);
+        let mime = mime::APPLICATION_OCTET_STREAM.try_into_value().unwrap();
+        res.headers_mut().insert(header::CONTENT_TYPE, mime);
+        res
     }
 }
 
-impl From<BytesMut> for Response<AnyBody> {
+impl From<BytesMut> for Response<BytesMut> {
     fn from(val: BytesMut) -> Self {
-        Response::build(StatusCode::OK)
-            .content_type(mime::APPLICATION_OCTET_STREAM)
-            .body(val)
+        let mut res = Response::with_body(StatusCode::OK, val);
+        let mime = mime::APPLICATION_OCTET_STREAM.try_into_value().unwrap();
+        res.headers_mut().insert(header::CONTENT_TYPE, mime);
+        res
+    }
+}
+
+impl From<ByteString> for Response<ByteString> {
+    fn from(val: ByteString) -> Self {
+        let mut res = Response::with_body(StatusCode::OK, val);
+        let mime = mime::TEXT_PLAIN_UTF_8.try_into_value().unwrap();
+        res.headers_mut().insert(header::CONTENT_TYPE, mime);
+        res
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::http::header::{HeaderValue, CONTENT_TYPE, COOKIE};
+    use crate::{
+        body::to_bytes,
+        http::header::{HeaderValue, CONTENT_TYPE, COOKIE},
+    };
 
     #[test]
     fn test_debug() {
@@ -309,73 +336,73 @@ mod tests {
         assert!(dbg.contains("Response"));
     }
 
-    #[test]
-    fn test_into_response() {
-        let resp: Response<AnyBody> = "test".into();
-        assert_eq!(resp.status(), StatusCode::OK);
+    #[actix_rt::test]
+    async fn test_into_response() {
+        let res = Response::from("test");
+        assert_eq!(res.status(), StatusCode::OK);
         assert_eq!(
-            resp.headers().get(CONTENT_TYPE).unwrap(),
+            res.headers().get(CONTENT_TYPE).unwrap(),
             HeaderValue::from_static("text/plain; charset=utf-8")
         );
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().get_ref(), b"test");
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(to_bytes(res.into_body()).await.unwrap(), &b"test"[..]);
 
-        let resp: Response<AnyBody> = b"test".as_ref().into();
-        assert_eq!(resp.status(), StatusCode::OK);
+        let res = Response::from(b"test".as_ref());
+        assert_eq!(res.status(), StatusCode::OK);
         assert_eq!(
-            resp.headers().get(CONTENT_TYPE).unwrap(),
+            res.headers().get(CONTENT_TYPE).unwrap(),
             HeaderValue::from_static("application/octet-stream")
         );
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().get_ref(), b"test");
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(to_bytes(res.into_body()).await.unwrap(), &b"test"[..]);
 
-        let resp: Response<AnyBody> = "test".to_owned().into();
-        assert_eq!(resp.status(), StatusCode::OK);
+        let res = Response::from("test".to_owned());
+        assert_eq!(res.status(), StatusCode::OK);
         assert_eq!(
-            resp.headers().get(CONTENT_TYPE).unwrap(),
+            res.headers().get(CONTENT_TYPE).unwrap(),
             HeaderValue::from_static("text/plain; charset=utf-8")
         );
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().get_ref(), b"test");
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(to_bytes(res.into_body()).await.unwrap(), &b"test"[..]);
 
-        let resp: Response<AnyBody> = (&"test".to_owned()).into();
-        assert_eq!(resp.status(), StatusCode::OK);
+        let res = Response::from("test".to_owned());
+        assert_eq!(res.status(), StatusCode::OK);
         assert_eq!(
-            resp.headers().get(CONTENT_TYPE).unwrap(),
+            res.headers().get(CONTENT_TYPE).unwrap(),
             HeaderValue::from_static("text/plain; charset=utf-8")
         );
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().get_ref(), b"test");
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(to_bytes(res.into_body()).await.unwrap(), &b"test"[..]);
 
         let b = Bytes::from_static(b"test");
-        let resp: Response<AnyBody> = b.into();
-        assert_eq!(resp.status(), StatusCode::OK);
+        let res = Response::from(b);
+        assert_eq!(res.status(), StatusCode::OK);
         assert_eq!(
-            resp.headers().get(CONTENT_TYPE).unwrap(),
+            res.headers().get(CONTENT_TYPE).unwrap(),
             HeaderValue::from_static("application/octet-stream")
         );
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().get_ref(), b"test");
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(to_bytes(res.into_body()).await.unwrap(), &b"test"[..]);
 
         let b = Bytes::from_static(b"test");
-        let resp: Response<AnyBody> = b.into();
-        assert_eq!(resp.status(), StatusCode::OK);
+        let res = Response::from(b);
+        assert_eq!(res.status(), StatusCode::OK);
         assert_eq!(
-            resp.headers().get(CONTENT_TYPE).unwrap(),
+            res.headers().get(CONTENT_TYPE).unwrap(),
             HeaderValue::from_static("application/octet-stream")
         );
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().get_ref(), b"test");
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(to_bytes(res.into_body()).await.unwrap(), &b"test"[..]);
 
         let b = BytesMut::from("test");
-        let resp: Response<AnyBody> = b.into();
-        assert_eq!(resp.status(), StatusCode::OK);
+        let res = Response::from(b);
+        assert_eq!(res.status(), StatusCode::OK);
         assert_eq!(
-            resp.headers().get(CONTENT_TYPE).unwrap(),
+            res.headers().get(CONTENT_TYPE).unwrap(),
             HeaderValue::from_static("application/octet-stream")
         );
 
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().get_ref(), b"test");
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(to_bytes(res.into_body()).await.unwrap(), &b"test"[..]);
     }
 }

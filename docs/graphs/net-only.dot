@@ -4,7 +4,7 @@ digraph {
     subgraph cluster_net {
         label="actix-net"
         "actix-codec" "actix-macros" "actix-rt" "actix-server" "actix-service"
-        "actix-tls" "actix-tracing" "actix-utils" "actix-router"
+        "actix-tls" "actix-tracing" "actix-utils"
     }
     
     subgraph cluster_other {
@@ -25,7 +25,6 @@ digraph {
     "actix-tls" -> { "tokio-util" }[color="#009900"]
     "actix-server" -> { "actix-service" "actix-rt" "actix-utils" "tokio" }
     "actix-rt" -> { "actix-macros" "tokio" }
-    "actix-router" -> { "bytestring" }
 
     "local-channel" -> { "local-waker" }
 

@@ -1,15 +1,17 @@
-use std::fmt::{self, Display, Write};
-use std::str::FromStr;
+use std::{
+    fmt::{self, Display, Write},
+    str::FromStr,
+};
 
 use super::{HeaderValue, IntoHeaderValue, InvalidHeaderValue, Writer, CONTENT_RANGE};
 use crate::error::ParseError;
 
 crate::http::header::common_header! {
-    /// `Content-Range` header, defined in
-    /// [RFC7233](http://tools.ietf.org/html/rfc7233#section-4.2)
+    /// `Content-Range` header, defined
+    /// in [RFC 7233 §4.2](https://datatracker.ietf.org/doc/html/rfc7233#section-4.2)
     (ContentRange, CONTENT_RANGE) => [ContentRangeSpec]
 
-    test_content_range {
+    test_parse_and_format {
         crate::http::header::common_header_test!(test_bytes,
             vec![b"bytes 0-499/500"],
             Some(ContentRange(ContentRangeSpec::Bytes {
@@ -69,11 +71,11 @@ crate::http::header::common_header! {
     }
 }
 
-/// Content-Range, described in [RFC7233](https://tools.ietf.org/html/rfc7233#section-4.2)
+/// Content-Range header, defined
+/// in [RFC 7233 §4.2](https://datatracker.ietf.org/doc/html/rfc7233#section-4.2)
 ///
 /// # ABNF
-///
-/// ```text
+/// ```plain
 /// Content-Range       = byte-content-range
 ///                     / other-content-range
 ///
@@ -89,7 +91,7 @@ crate::http::header::common_header! {
 /// other-content-range = other-range-unit SP other-range-resp
 /// other-range-resp    = *CHAR
 /// ```
-#[derive(PartialEq, Clone, Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ContentRangeSpec {
     /// Byte range
     Bytes {

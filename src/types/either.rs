@@ -9,9 +9,10 @@ use std::{
 
 use bytes::Bytes;
 use futures_core::ready;
+use pin_project_lite::pin_project;
 
 use crate::{
-    dev,
+    body, dev,
     web::{Form, Json},
     Error, FromRequest, HttpRequest, HttpResponse, Responder,
 };
@@ -145,10 +146,12 @@ where
     L: Responder,
     R: Responder,
 {
-    fn respond_to(self, req: &HttpRequest) -> HttpResponse {
+    type Body = body::EitherBody<L::Body, R::Body>;
+
+    fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
         match self {
-            Either::Left(a) => a.respond_to(req),
-            Either::Right(b) => b.respond_to(req),
+            Either::Left(a) => a.respond_to(req).map_into_left_body(),
+            Either::Right(b) => b.respond_to(req).map_into_right_body(),
         }
     }
 }
@@ -187,7 +190,6 @@ where
 {
     type Error = EitherExtractError<L::Error, R::Error>;
     type Future = EitherExtractFut<L, R>;
-    type Config = ();
 
     fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
         EitherExtractFut {
@@ -199,37 +201,40 @@ where
     }
 }
 
-#[pin_project::pin_project]
-pub struct EitherExtractFut<L, R>
-where
-    R: FromRequest,
-    L: FromRequest,
-{
-    req: HttpRequest,
-    #[pin]
-    state: EitherExtractState<L, R>,
+pin_project! {
+    pub struct EitherExtractFut<L, R>
+    where
+        R: FromRequest,
+        L: FromRequest,
+    {
+        req: HttpRequest,
+        #[pin]
+        state: EitherExtractState<L, R>,
+    }
 }
 
-#[pin_project::pin_project(project = EitherExtractProj)]
-pub enum EitherExtractState<L, R>
-where
-    L: FromRequest,
-    R: FromRequest,
-{
-    Bytes {
-        #[pin]
-        bytes: <Bytes as FromRequest>::Future,
-    },
-    Left {
-        #[pin]
-        left: L::Future,
-        fallback: Bytes,
-    },
-    Right {
-        #[pin]
-        right: R::Future,
-        left_err: Option<L::Error>,
-    },
+pin_project! {
+    #[project = EitherExtractProj]
+    pub enum EitherExtractState<L, R>
+    where
+        L: FromRequest,
+        R: FromRequest,
+    {
+        Bytes {
+            #[pin]
+            bytes: <Bytes as FromRequest>::Future,
+        },
+        Left {
+            #[pin]
+            left: L::Future,
+            fallback: Bytes,
+        },
+        Right {
+            #[pin]
+            right: R::Future,
+            left_err: Option<L::Error>,
+        },
+    }
 }
 
 impl<R, RF, RE, L, LF, LE> Future for EitherExtractFut<L, R>
@@ -253,7 +258,7 @@ where
                         Ok(bytes) => {
                             let fallback = bytes.clone();
                             let left =
-                                L::from_request(&this.req, &mut payload_from_bytes(bytes));
+                                L::from_request(this.req, &mut payload_from_bytes(bytes));
                             EitherExtractState::Left { left, fallback }
                         }
                         Err(err) => break Err(EitherExtractError::Bytes(err)),
@@ -265,7 +270,7 @@ where
                         Ok(extracted) => break Ok(Either::Left(extracted)),
                         Err(left_err) => {
                             let right = R::from_request(
-                                &this.req,
+                                this.req,
                                 &mut payload_from_bytes(mem::take(fallback)),
                             );
                             EitherExtractState::Right {

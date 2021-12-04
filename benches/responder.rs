@@ -1,9 +1,10 @@
 use std::{future::Future, time::Instant};
 
+use actix_http::body::BoxBody;
 use actix_utils::future::{ready, Ready};
-use actix_web::http::StatusCode;
-use actix_web::test::TestRequest;
-use actix_web::{error, Error, HttpRequest, HttpResponse, Responder};
+use actix_web::{
+    error, http::StatusCode, test::TestRequest, Error, HttpRequest, HttpResponse, Responder,
+};
 use criterion::{criterion_group, criterion_main, Criterion};
 use futures_util::future::{join_all, Either};
 
@@ -50,7 +51,9 @@ where
 }
 
 impl Responder for StringResponder {
-    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
+    type Body = BoxBody;
+
+    fn respond_to(self, _: &HttpRequest) -> HttpResponse<Self::Body> {
         HttpResponse::build(StatusCode::OK)
             .content_type("text/plain; charset=utf-8")
             .body(self.0)
@@ -58,9 +61,11 @@ impl Responder for StringResponder {
 }
 
 impl<T: Responder> Responder for OptionResponder<T> {
-    fn respond_to(self, req: &HttpRequest) -> HttpResponse {
+    type Body = BoxBody;
+
+    fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
         match self.0 {
-            Some(t) => t.respond_to(req),
+            Some(t) => t.respond_to(req).map_into_boxed_body(),
             None => HttpResponse::from_error(error::ErrorInternalServerError("err")),
         }
     }

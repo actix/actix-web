@@ -1,12 +1,13 @@
-use std::{error::Error as StdError, fmt, io};
+use std::{fmt, io};
 
 use derive_more::{Display, From};
 
-#[cfg(feature = "openssl")]
-use actix_tls::accept::openssl::SslError;
+use actix_http::{error::ParseError, http::Error as HttpError};
 
-use crate::error::{Error, ParseError};
-use crate::http::Error as HttpError;
+#[cfg(feature = "openssl")]
+use actix_tls::accept::openssl::reexports::Error as OpensslError;
+
+use crate::BoxError;
 
 /// A set of errors that can occur while connecting to an HTTP host
 #[derive(Debug, Display, From)]
@@ -19,7 +20,7 @@ pub enum ConnectError {
     /// SSL error
     #[cfg(feature = "openssl")]
     #[display(fmt = "{}", _0)]
-    SslError(SslError),
+    SslError(OpensslError),
 
     /// Failed to resolve the hostname
     #[display(fmt = "Failed resolving hostname: {}", _0)]
@@ -117,11 +118,11 @@ pub enum SendRequestError {
     TunnelNotSupported,
 
     /// Error sending request body
-    Body(Error),
+    Body(BoxError),
 
     /// Other errors that can occur after submitting a request.
     #[display(fmt = "{:?}: {}", _1, _0)]
-    Custom(Box<dyn StdError>, Box<dyn fmt::Debug>),
+    Custom(BoxError, Box<dyn fmt::Debug>),
 }
 
 impl std::error::Error for SendRequestError {}
@@ -140,7 +141,7 @@ pub enum FreezeRequestError {
 
     /// Other errors that can occur after submitting a request.
     #[display(fmt = "{:?}: {}", _1, _0)]
-    Custom(Box<dyn StdError>, Box<dyn fmt::Debug>),
+    Custom(BoxError, Box<dyn fmt::Debug>),
 }
 
 impl std::error::Error for FreezeRequestError {}

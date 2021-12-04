@@ -59,7 +59,7 @@ impl Default for TrailingSlash {
 ///
 /// # actix_web::rt::System::new().block_on(async {
 /// let app = App::new()
-///     .wrap(middleware::NormalizePath::default())
+///     .wrap(middleware::NormalizePath::trim())
 ///     .route("/test", web::get().to(|| async { "test" }))
 ///     .route("/unmatchable/", web::get().to(|| async { "unmatchable" }));
 ///
@@ -85,13 +85,31 @@ impl Default for TrailingSlash {
 /// assert_eq!(res.status(), StatusCode::NOT_FOUND);
 /// # })
 /// ```
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy)]
 pub struct NormalizePath(TrailingSlash);
+
+impl Default for NormalizePath {
+    fn default() -> Self {
+        log::warn!(
+            "`NormalizePath::default()` is deprecated. The default trailing slash behavior changed \
+            in v4 from `Always` to `Trim`. Update your call to `NormalizePath::new(...)`."
+        );
+
+        Self(TrailingSlash::Trim)
+    }
+}
 
 impl NormalizePath {
     /// Create new `NormalizePath` middleware with the specified trailing slash style.
     pub fn new(trailing_slash_style: TrailingSlash) -> Self {
-        NormalizePath(trailing_slash_style)
+        Self(trailing_slash_style)
+    }
+
+    /// Constructs a new `NormalizePath` middleware with [trim](TrailingSlash::Trim) semantics.
+    ///
+    /// Use this instead of `NormalizePath::default()` to avoid deprecation warning.
+    pub fn trim() -> Self {
+        Self::new(TrailingSlash::Trim)
     }
 }
 
