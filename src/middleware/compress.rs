@@ -10,7 +10,7 @@ use std::{
 };
 
 use actix_http::{
-    body::{BoxBody, EitherBody, MessageBody},
+    body::{EitherBody, MessageBody},
     encoding::Encoder,
     http::header::{ContentEncoding, ACCEPT_ENCODING},
     StatusCode,
