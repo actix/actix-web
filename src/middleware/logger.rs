@@ -22,7 +22,7 @@ use regex::{Regex, RegexSet};
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 use crate::{
-    dev::{BodySize, MessageBody},
+    body::{BodySize, MessageBody},
     http::HeaderName,
     service::{ServiceRequest, ServiceResponse},
     Error, HttpResponse, Result,

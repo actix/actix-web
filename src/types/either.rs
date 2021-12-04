@@ -12,7 +12,7 @@ use futures_core::ready;
 use pin_project_lite::pin_project;
 
 use crate::{
-    dev,
+    body, dev,
     web::{Form, Json},
     Error, FromRequest, HttpRequest, HttpResponse, Responder,
 };
@@ -146,10 +146,12 @@ where
     L: Responder,
     R: Responder,
 {
-    fn respond_to(self, req: &HttpRequest) -> HttpResponse {
+    type Body = body::EitherBody<L::Body, R::Body>;
+
+    fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
         match self {
-            Either::Left(a) => a.respond_to(req),
-            Either::Right(b) => b.respond_to(req),
+            Either::Left(a) => a.respond_to(req).map_into_left_body(),
+            Either::Right(b) => b.respond_to(req).map_into_right_body(),
         }
     }
 }

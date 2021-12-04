@@ -10,14 +10,13 @@ use std::{
 };
 
 use actix_http::{
-    body::{AnyBody, MessageBody},
+    body::{EitherBody, MessageBody},
     encoding::Encoder,
     http::header::{ContentEncoding, ACCEPT_ENCODING},
     StatusCode,
 };
 use actix_service::{Service, Transform};
 use actix_utils::future::{ok, Either, Ready};
-use bytes::Bytes;
 use futures_core::ready;
 use once_cell::sync::Lazy;
 use pin_project_lite::pin_project;
@@ -62,7 +61,7 @@ where
     B: MessageBody,
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
-    type Response = ServiceResponse<AnyBody<Encoder<B>>>;
+    type Response = ServiceResponse<EitherBody<Encoder<B>>>;
     type Error = Error;
     type Transform = CompressMiddleware<S>;
     type InitError = ();
@@ -112,7 +111,7 @@ where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     B: MessageBody,
 {
-    type Response = ServiceResponse<AnyBody<Encoder<B>>>;
+    type Response = ServiceResponse<EitherBody<Encoder<B>>>;
     type Error = Error;
     type Future = Either<CompressResponse<S, B>, Ready<Result<Self::Response, Self::Error>>>;
 
@@ -144,19 +143,15 @@ where
 
             // There is an HTTP header but we cannot match what client as asked for
             Some(Err(_)) => {
-                let res = HttpResponse::new(StatusCode::NOT_ACCEPTABLE);
+                let res = HttpResponse::with_body(
+                    StatusCode::NOT_ACCEPTABLE,
+                    SUPPORTED_ALGORITHM_NAMES.clone(),
+                );
 
-                let res: HttpResponse<AnyBody<Encoder<B>>> = res.map_body(move |head, _| {
-                    let body_bytes = Bytes::from(SUPPORTED_ALGORITHM_NAMES.as_bytes());
-
-                    Encoder::response(
-                        ContentEncoding::Identity,
-                        head,
-                        AnyBody::Bytes(body_bytes),
-                    )
-                });
-
-                Either::right(ok(req.into_response(res)))
+                Either::right(ok(req
+                    .into_response(res)
+                    .map_into_boxed_body()
+                    .map_into_right_body()))
             }
         }
     }
@@ -179,7 +174,7 @@ where
     B: MessageBody,
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
-    type Output = Result<ServiceResponse<AnyBody<Encoder<B>>>, Error>;
+    type Output = Result<ServiceResponse<EitherBody<Encoder<B>>>, Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
@@ -193,10 +188,11 @@ where
                 };
 
                 Poll::Ready(Ok(resp.map_body(move |head, body| {
-                    Encoder::response(enc, head, AnyBody::Body(body))
+                    EitherBody::left(Encoder::response(enc, head, body))
                 })))
             }
-            Err(e) => Poll::Ready(Err(e)),
+
+            Err(err) => Poll::Ready(Err(err)),
         }
     }
 }

@@ -1,37 +1,35 @@
-use std::cell::RefCell;
-use std::fmt;
-use std::future::Future;
-use std::marker::PhantomData;
-use std::rc::Rc;
+use std::{cell::RefCell, fmt, future::Future, marker::PhantomData, rc::Rc};
 
-use actix_http::body::{AnyBody, MessageBody};
-use actix_http::{Extensions, Request};
-use actix_service::boxed::{self, BoxServiceFactory};
+use actix_http::{
+    body::{BoxBody, MessageBody},
+    Extensions, Request,
+};
 use actix_service::{
-    apply, apply_fn_factory, IntoServiceFactory, ServiceFactory, ServiceFactoryExt, Transform,
+    apply, apply_fn_factory, boxed, IntoServiceFactory, ServiceFactory, ServiceFactoryExt,
+    Transform,
 };
 use futures_util::future::FutureExt as _;
 
-use crate::app_service::{AppEntry, AppInit, AppRoutingFactory};
-use crate::config::ServiceConfig;
-use crate::data::{Data, DataFactory, FnDataFactory};
-use crate::dev::ResourceDef;
-use crate::error::Error;
-use crate::resource::Resource;
-use crate::route::Route;
-use crate::service::{
-    AppServiceFactory, HttpServiceFactory, ServiceFactoryWrapper, ServiceRequest,
-    ServiceResponse,
+use crate::{
+    app_service::{AppEntry, AppInit, AppRoutingFactory},
+    config::ServiceConfig,
+    data::{Data, DataFactory, FnDataFactory},
+    dev::ResourceDef,
+    error::Error,
+    resource::Resource,
+    route::Route,
+    service::{
+        AppServiceFactory, BoxedHttpServiceFactory, HttpServiceFactory, ServiceFactoryWrapper,
+        ServiceRequest, ServiceResponse,
+    },
 };
-
-type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
 
 /// Application builder - structure that follows the builder pattern
 /// for building application instances.
 pub struct App<T, B> {
     endpoint: T,
     services: Vec<Box<dyn AppServiceFactory>>,
-    default: Option<Rc<HttpNewService>>,
+    default: Option<Rc<BoxedHttpServiceFactory>>,
     factory_ref: Rc<RefCell<Option<AppRoutingFactory>>>,
     data_factories: Vec<FnDataFactory>,
     external: Vec<ResourceDef>,
@@ -39,7 +37,7 @@ pub struct App<T, B> {
     _phantom: PhantomData<B>,
 }
 
-impl App<AppEntry, AnyBody> {
+impl App<AppEntry, BoxBody> {
     /// Create application builder. Application can be configured with a builder-like pattern.
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
@@ -287,7 +285,7 @@ where
     ///         );
     /// }
     /// ```
-    pub fn default_service<F, U>(mut self, f: F) -> Self
+    pub fn default_service<F, U>(mut self, svc: F) -> Self
     where
         F: IntoServiceFactory<U, ServiceRequest>,
         U: ServiceFactory<
@@ -298,10 +296,12 @@ where
             > + 'static,
         U::InitError: fmt::Debug,
     {
-        // create and configure default resource
-        self.default = Some(Rc::new(boxed::factory(f.into_factory().map_init_err(
-            |e| log::error!("Can not construct default service: {:?}", e),
-        ))));
+        let svc = svc
+            .into_factory()
+            .map(|res| res.map_into_boxed_body())
+            .map_init_err(|e| log::error!("Can not construct default service: {:?}", e));
+
+        self.default = Some(Rc::new(boxed::factory(svc)));
 
         self
     }

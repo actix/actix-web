@@ -5,7 +5,7 @@ extern crate tls_openssl as openssl;
 use std::{convert::Infallible, io};
 
 use actix_http::{
-    body::{AnyBody, SizedStream},
+    body::{BodyStream, BoxBody, SizedStream},
     error::PayloadError,
     http::{
         header::{self, HeaderValue},
@@ -348,7 +348,7 @@ async fn test_h2_body_chunked_explicit() {
                 ok::<_, Infallible>(
                     Response::build(StatusCode::OK)
                         .insert_header((header::TRANSFER_ENCODING, "chunked"))
-                        .streaming(body),
+                        .body(BodyStream::new(body)),
                 )
             })
             .openssl(tls_config())
@@ -399,9 +399,11 @@ async fn test_h2_response_http_error_handling() {
 #[display(fmt = "error")]
 struct BadRequest;
 
-impl From<BadRequest> for Response<AnyBody> {
+impl From<BadRequest> for Response<BoxBody> {
     fn from(err: BadRequest) -> Self {
-        Response::build(StatusCode::BAD_REQUEST).body(err.to_string())
+        Response::build(StatusCode::BAD_REQUEST)
+            .body(err.to_string())
+            .map_into_boxed_body()
     }
 }
 
@@ -409,7 +411,7 @@ impl From<BadRequest> for Response<AnyBody> {
 async fn test_h2_service_error() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|_| err::<Response<AnyBody>, _>(BadRequest))
+            .h2(|_| err::<Response<BoxBody>, _>(BadRequest))
             .openssl(tls_config())
             .map_err(|_| ())
     })

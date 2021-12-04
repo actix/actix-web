@@ -2,19 +2,11 @@
 
 use std::{
     cell::{Ref, RefMut},
-    error::Error as StdError,
-    fmt,
-    future::Future,
-    pin::Pin,
-    str,
-    task::{Context, Poll},
+    fmt, str,
 };
 
-use bytes::Bytes;
-use futures_core::Stream;
-
 use crate::{
-    body::{AnyBody, BodyStream},
+    body::{EitherBody, MessageBody},
     error::{Error, HttpError},
     header::{self, IntoHeaderPair, IntoHeaderValue},
     message::{BoxedResponseHead, ConnectionType, ResponseHead},
@@ -235,10 +227,14 @@ impl ResponseBuilder {
     /// Generate response with a wrapped body.
     ///
     /// This `ResponseBuilder` will be left in a useless state.
-    #[inline]
-    pub fn body<B: Into<AnyBody>>(&mut self, body: B) -> Response<AnyBody> {
-        self.message_body(body.into())
-            .unwrap_or_else(Response::from)
+    pub fn body<B>(&mut self, body: B) -> Response<EitherBody<B>>
+    where
+        B: MessageBody + 'static,
+    {
+        match self.message_body(body) {
+            Ok(res) => res.map_body(|_, body| EitherBody::left(body)),
+            Err(err) => Response::from(err).map_body(|_, body| EitherBody::right(body)),
+        }
     }
 
     /// Generate response with a body.
@@ -253,24 +249,12 @@ impl ResponseBuilder {
         Ok(Response { head, body })
     }
 
-    /// Generate response with a streaming body.
-    ///
-    /// This `ResponseBuilder` will be left in a useless state.
-    #[inline]
-    pub fn streaming<S, E>(&mut self, stream: S) -> Response<AnyBody>
-    where
-        S: Stream<Item = Result<Bytes, E>> + 'static,
-        E: Into<Box<dyn StdError>> + 'static,
-    {
-        self.body(AnyBody::new_boxed(BodyStream::new(stream)))
-    }
-
     /// Generate response with an empty body.
     ///
     /// This `ResponseBuilder` will be left in a useless state.
     #[inline]
-    pub fn finish(&mut self) -> Response<AnyBody> {
-        self.body(AnyBody::empty())
+    pub fn finish(&mut self) -> Response<EitherBody<()>> {
+        self.body(())
     }
 
     /// Create an owned `ResponseBuilder`, leaving the original in a useless state.
@@ -327,14 +311,6 @@ impl<'a> From<&'a ResponseHead> for ResponseBuilder {
     }
 }
 
-impl Future for ResponseBuilder {
-    type Output = Result<Response<AnyBody>, Error>;
-
-    fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
-        Poll::Ready(Ok(self.finish()))
-    }
-}
-
 impl fmt::Debug for ResponseBuilder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let head = self.head.as_ref().unwrap();
@@ -356,8 +332,9 @@ impl fmt::Debug for ResponseBuilder {
 
 #[cfg(test)]
 mod tests {
+    use bytes::Bytes;
+
     use super::*;
-    use crate::body::AnyBody;
     use crate::http::header::{HeaderName, HeaderValue, CONTENT_TYPE};
 
     #[test]
@@ -383,20 +360,28 @@ mod tests {
     #[test]
     fn test_force_close() {
         let resp = Response::build(StatusCode::OK).force_close().finish();
-        assert!(!resp.keep_alive())
+        assert!(!resp.keep_alive());
     }
 
     #[test]
     fn test_content_type() {
         let resp = Response::build(StatusCode::OK)
             .content_type("text/plain")
-            .body(AnyBody::empty());
-        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "text/plain")
+            .body(Bytes::new());
+        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "text/plain");
+
+        let resp = Response::build(StatusCode::OK)
+            .content_type(mime::APPLICATION_JAVASCRIPT_UTF_8)
+            .body(Bytes::new());
+        assert_eq!(
+            resp.headers().get(CONTENT_TYPE).unwrap(),
+            "application/javascript; charset=utf-8"
+        );
     }
 
     #[test]
     fn test_into_builder() {
-        let mut resp: Response<AnyBody> = "test".into();
+        let mut resp: Response<_> = "test".into();
         assert_eq!(resp.status(), StatusCode::OK);
 
         resp.headers_mut().insert(

@@ -8,7 +8,6 @@ use std::{
 };
 
 use actix_http::{
-    body::AnyBody,
     http::{header, Method, StatusCode, Uri},
     RequestHead, RequestHeadType,
 };
@@ -17,10 +16,12 @@ use bytes::Bytes;
 use futures_core::ready;
 
 use super::Transform;
-
-use crate::client::{InvalidUrl, SendRequestError};
-use crate::connect::{ConnectRequest, ConnectResponse};
-use crate::ClientResponse;
+use crate::{
+    any_body::AnyBody,
+    client::{InvalidUrl, SendRequestError},
+    connect::{ConnectRequest, ConnectResponse},
+    ClientResponse,
+};
 
 pub struct Redirect {
     max_redirect_times: u8,
@@ -95,7 +96,7 @@ where
                 };
 
                 let body_opt = match body {
-                    AnyBody::Bytes(ref b) => Some(b.clone()),
+                    AnyBody::Bytes { ref body } => Some(body.clone()),
                     _ => None,
                 };
 
@@ -192,7 +193,9 @@ where
                         let body_new = if is_redirect {
                             // try to reuse body
                             match body {
-                                Some(ref bytes) => AnyBody::Bytes(bytes.clone()),
+                                Some(ref bytes) => AnyBody::Bytes {
+                                    body: bytes.clone(),
+                                },
                                 // TODO: should this be AnyBody::Empty or AnyBody::None.
                                 _ => AnyBody::empty(),
                             }

@@ -32,6 +32,8 @@ where
     }
 }
 
+// TODO: from_infallible method
+
 impl<S, E> MessageBody for SizedStream<S>
 where
     S: Stream<Item = Result<Bytes, E>>,

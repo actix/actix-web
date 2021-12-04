@@ -78,7 +78,7 @@ async fn test_with_credentials() {
     match srv.ws().await {
         Ok(_) => panic!("WebSocket client without credentials should panic"),
         Err(awc::error::WsClientError::InvalidResponseStatus(status)) => {
-            assert_eq!(status, StatusCode::UNAUTHORIZED)
+            assert_eq!(status, StatusCode::UNAUTHORIZED);
         }
         Err(e) => panic!("Invalid error from WebSocket client: {}", e),
     }

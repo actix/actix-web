@@ -1,6 +1,6 @@
 use std::{error::Error as StdError, fmt};
 
-use actix_http::{body::AnyBody, Response};
+use actix_http::{body::BoxBody, Response};
 
 use crate::{HttpResponse, ResponseError};
 
@@ -69,8 +69,8 @@ impl<T: ResponseError + 'static> From<T> for Error {
     }
 }
 
-impl From<Error> for Response<AnyBody> {
-    fn from(err: Error) -> Response<AnyBody> {
+impl From<Error> for Response<BoxBody> {
+    fn from(err: Error) -> Response<BoxBody> {
         err.error_response().into()
     }
 }

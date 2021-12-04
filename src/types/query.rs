@@ -105,7 +105,7 @@ impl<T: fmt::Display> fmt::Display for Query<T> {
     }
 }
 
-/// See [here](#usage) for example of usage as an extractor.
+/// See [here](#Examples) for example of usage as an extractor.
 impl<T: DeserializeOwned> FromRequest for Query<T> {
     type Error = Error;
     type Future = Ready<Result<Self, Error>>;

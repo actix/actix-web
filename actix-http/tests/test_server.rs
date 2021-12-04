@@ -6,7 +6,7 @@ use std::{
 };
 
 use actix_http::{
-    body::{AnyBody, SizedStream},
+    body::{self, BodyStream, BoxBody, SizedStream},
     header, http, Error, HttpMessage, HttpService, KeepAlive, Request, Response,
     StatusCode,
 };
@@ -69,7 +69,7 @@ async fn test_h1_2() {
 #[display(fmt = "expect failed")]
 struct ExpectFailed;
 
-impl From<ExpectFailed> for Response<AnyBody> {
+impl From<ExpectFailed> for Response<BoxBody> {
     fn from(_: ExpectFailed) -> Self {
         Response::new(StatusCode::EXPECTATION_FAILED)
     }
@@ -622,7 +622,7 @@ async fn test_h1_body_chunked_explicit() {
                 ok::<_, Infallible>(
                     Response::build(StatusCode::OK)
                         .insert_header((header::TRANSFER_ENCODING, "chunked"))
-                        .streaming(body),
+                        .body(BodyStream::new(body)),
                 )
             })
             .tcp()
@@ -656,7 +656,9 @@ async fn test_h1_body_chunked_implicit() {
         HttpService::build()
             .h1(|_| {
                 let body = once(ok::<_, Error>(Bytes::from_static(STR.as_ref())));
-                ok::<_, Infallible>(Response::build(StatusCode::OK).streaming(body))
+                ok::<_, Infallible>(
+                    Response::build(StatusCode::OK).body(BodyStream::new(body)),
+                )
             })
             .tcp()
     })
@@ -714,9 +716,9 @@ async fn test_h1_response_http_error_handling() {
 #[display(fmt = "error")]
 struct BadRequest;
 
-impl From<BadRequest> for Response<AnyBody> {
+impl From<BadRequest> for Response<BoxBody> {
     fn from(_: BadRequest) -> Self {
-        Response::bad_request().set_body(AnyBody::from("error"))
+        Response::bad_request().set_body(BoxBody::new("error"))
     }
 }
 
@@ -724,7 +726,7 @@ impl From<BadRequest> for Response<AnyBody> {
 async fn test_h1_service_error() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .h1(|_| err::<Response<AnyBody>, _>(BadRequest))
+            .h1(|_| err::<Response<()>, _>(BadRequest))
             .tcp()
     })
     .await;
@@ -773,36 +775,35 @@ async fn test_not_modified_spec_h1() {
     let mut srv = test_server(|| {
         HttpService::build()
             .h1(|req: Request| {
-                let res: Response<AnyBody> = match req.path() {
+                let res: Response<BoxBody> = match req.path() {
                     // with no content-length
                     "/none" => {
-                        Response::with_body(StatusCode::NOT_MODIFIED, AnyBody::None)
+                        Response::with_body(StatusCode::NOT_MODIFIED, body::None::new())
+                            .map_into_boxed_body()
                     }
 
                     // with no content-length
-                    "/body" => Response::with_body(
-                        StatusCode::NOT_MODIFIED,
-                        AnyBody::from("1234"),
-                    ),
+                    "/body" => Response::with_body(StatusCode::NOT_MODIFIED, "1234")
+                        .map_into_boxed_body(),
 
                     // with manual content-length header and specific None body
                     "/cl-none" => {
-                        let mut res =
-                            Response::with_body(StatusCode::NOT_MODIFIED, AnyBody::None);
+                        let mut res = Response::with_body(
+                            StatusCode::NOT_MODIFIED,
+                            body::None::new(),
+                        );
                         res.headers_mut()
                             .insert(CL.clone(), header::HeaderValue::from_static("24"));
-                        res
+                        res.map_into_boxed_body()
                     }
 
                     // with manual content-length header and ignore-able body
                     "/cl-body" => {
-                        let mut res = Response::with_body(
-                            StatusCode::NOT_MODIFIED,
-                            AnyBody::from("1234"),
-                        );
+                        let mut res =
+                            Response::with_body(StatusCode::NOT_MODIFIED, "1234");
                         res.headers_mut()
                             .insert(CL.clone(), header::HeaderValue::from_static("4"));
-                        res
+                        res.map_into_boxed_body()
                     }
 
                     _ => panic!("unknown route"),

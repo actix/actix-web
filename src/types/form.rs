@@ -20,8 +20,9 @@ use serde::{de::DeserializeOwned, Serialize};
 #[cfg(feature = "__compress")]
 use crate::dev::Decompress;
 use crate::{
-    error::UrlencodedError, extract::FromRequest, http::header::CONTENT_LENGTH, web, Error,
-    HttpMessage, HttpRequest, HttpResponse, Responder,
+    body::EitherBody, error::UrlencodedError, extract::FromRequest,
+    http::header::CONTENT_LENGTH, web, Error, HttpMessage, HttpRequest, HttpResponse,
+    Responder,
 };
 
 /// URL encoded payload extractor and responder.
@@ -180,12 +181,21 @@ impl<T: fmt::Display> fmt::Display for Form<T> {
 
 /// See [here](#responder) for example of usage as a handler return type.
 impl<T: Serialize> Responder for Form<T> {
-    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
+    type Body = EitherBody<String>;
+
+    fn respond_to(self, _: &HttpRequest) -> HttpResponse<Self::Body> {
         match serde_urlencoded::to_string(&self.0) {
-            Ok(body) => HttpResponse::Ok()
+            Ok(body) => match HttpResponse::Ok()
                 .content_type(mime::APPLICATION_WWW_FORM_URLENCODED)
-                .body(body),
-            Err(err) => HttpResponse::from_error(UrlencodedError::Serialize(err)),
+                .message_body(body)
+            {
+                Ok(res) => res.map_into_left_body(),
+                Err(err) => HttpResponse::from_error(err).map_into_right_body(),
+            },
+
+            Err(err) => {
+                HttpResponse::from_error(UrlencodedError::Serialize(err)).map_into_right_body()
+            }
         }
     }
 }
@@ -408,11 +418,14 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::http::{
-        header::{HeaderValue, CONTENT_LENGTH, CONTENT_TYPE},
-        StatusCode,
-    };
     use crate::test::TestRequest;
+    use crate::{
+        http::{
+            header::{HeaderValue, CONTENT_LENGTH, CONTENT_TYPE},
+            StatusCode,
+        },
+        test::assert_body_eq,
+    };
 
     #[derive(Deserialize, Serialize, Debug, PartialEq)]
     struct Info {
@@ -520,15 +533,13 @@ mod tests {
             hello: "world".to_string(),
             counter: 123,
         });
-        let resp = form.respond_to(&req);
-        assert_eq!(resp.status(), StatusCode::OK);
+        let res = form.respond_to(&req);
+        assert_eq!(res.status(), StatusCode::OK);
         assert_eq!(
-            resp.headers().get(CONTENT_TYPE).unwrap(),
+            res.headers().get(CONTENT_TYPE).unwrap(),
             HeaderValue::from_static("application/x-www-form-urlencoded")
         );
-
-        use crate::responder::tests::BodyTest;
-        assert_eq!(resp.body().bin_ref(), b"hello=world&counter=123");
+        assert_body_eq!(res, b"hello=world&counter=123");
     }
 
     #[actix_rt::test]
