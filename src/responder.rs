@@ -252,10 +252,7 @@ where
     fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
         let headers = match self.headers {
             Ok(headers) => headers,
-            Err(err) => {
-                return HttpResponse::from_error(err)
-                    .map_body(|_, body| EitherBody::right(body))
-            }
+            Err(err) => return HttpResponse::from_error(err).map_into_right_body(),
         };
 
         let mut res = self.responder.respond_to(req);
@@ -344,41 +341,50 @@ pub(crate) mod tests {
             Bytes::from_static(b"test"),
         );
 
-        // let res = (&"test".to_string()).respond_to(&req);
-        // assert_eq!(res.status(), StatusCode::OK);
-        // assert_eq!(
-        //     res.headers().get(CONTENT_TYPE).unwrap(),
-        //     HeaderValue::from_static("text/plain; charset=utf-8")
-        // );
-        // assert_eq!(
-        //     to_bytes(res.into_body()).await.unwrap(),
-        //     Bytes::from_static(b"test"),
-        // );
+        let res = (&"test".to_string()).respond_to(&req);
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(
+            res.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("text/plain; charset=utf-8")
+        );
+        assert_eq!(
+            to_bytes(res.into_body()).await.unwrap(),
+            Bytes::from_static(b"test"),
+        );
 
-        // let s = String::from("test");
-        // let res = Cow::Borrowed(s.as_str()).respond_to(&req);
-        // assert_eq!(res.status(), StatusCode::OK);
-        // assert_eq!(res.body().bin_ref(), b"test");
-        // assert_eq!(
-        //     res.headers().get(CONTENT_TYPE).unwrap(),
-        //     HeaderValue::from_static("text/plain; charset=utf-8")
-        // );
+        let s = String::from("test");
+        let res = Cow::Borrowed(s.as_str()).respond_to(&req);
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(
+            res.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("text/plain; charset=utf-8")
+        );
+        assert_eq!(
+            to_bytes(res.into_body()).await.unwrap(),
+            Bytes::from_static(b"test"),
+        );
 
-        // let res = Cow::<'_, str>::Owned(s).respond_to(&req);
-        // assert_eq!(res.status(), StatusCode::OK);
-        // assert_eq!(res.body().bin_ref(), b"test");
-        // assert_eq!(
-        //     res.headers().get(CONTENT_TYPE).unwrap(),
-        //     HeaderValue::from_static("text/plain; charset=utf-8")
-        // );
+        let res = Cow::<'_, str>::Owned(s).respond_to(&req);
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(
+            res.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("text/plain; charset=utf-8")
+        );
+        assert_eq!(
+            to_bytes(res.into_body()).await.unwrap(),
+            Bytes::from_static(b"test"),
+        );
 
-        // let res = Cow::Borrowed("test").respond_to(&req);
-        // assert_eq!(res.status(), StatusCode::OK);
-        // assert_eq!(res.body().bin_ref(), b"test");
-        // assert_eq!(
-        //     res.headers().get(CONTENT_TYPE).unwrap(),
-        //     HeaderValue::from_static("text/plain; charset=utf-8")
-        // );
+        let res = Cow::Borrowed("test").respond_to(&req);
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(
+            res.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("text/plain; charset=utf-8")
+        );
+        assert_eq!(
+            to_bytes(res.into_body()).await.unwrap(),
+            Bytes::from_static(b"test"),
+        );
 
         let res = Bytes::from_static(b"test").respond_to(&req);
         assert_eq!(res.status(), StatusCode::OK);
