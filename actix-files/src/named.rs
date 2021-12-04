@@ -12,10 +12,10 @@ use std::os::unix::fs::MetadataExt;
 
 use actix_service::{Service, ServiceFactory};
 use actix_web::{
-    body::{self, BoxBody},
+    body::{self, BoxBody, SizedStream},
     dev::{
         AppService, BodyEncoding, HttpServiceFactory, ResourceDef, ServiceRequest,
-        ServiceResponse, SizedStream,
+        ServiceResponse,
     },
     http::{
         header::{
