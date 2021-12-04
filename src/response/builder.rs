@@ -1,7 +1,6 @@
 use std::{
     cell::{Ref, RefMut},
     convert::TryInto,
-    error::Error as StdError,
     future::Future,
     pin::Pin,
     task::{Context, Poll},

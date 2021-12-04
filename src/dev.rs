@@ -14,9 +14,6 @@ pub use crate::types::form::UrlEncoded;
 pub use crate::types::json::JsonBody;
 pub use crate::types::readlines::Readlines;
 
-#[allow(deprecated)]
-pub use actix_http::body::{BodySize, MessageBody, SizedStream};
-
 pub use actix_http::{Extensions, Payload, PayloadStream, RequestHead, Response, ResponseHead};
 pub use actix_router::{Path, ResourceDef, ResourcePath, Url};
 pub use actix_server::{Server, ServerHandle};
@@ -103,5 +100,42 @@ impl<B> BodyEncoding for crate::HttpResponse<B> {
     fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
         self.extensions_mut().insert(Enc(encoding));
         self
+    }
+}
+
+// pin_project_lite::pin_project! {
+#[derive(Debug)]
+pub enum AnyBody {
+    None,
+    Full { body: crate::web::Bytes },
+    Boxed { body: actix_http::body::BoxBody },
+}
+// }
+
+impl crate::body::MessageBody for AnyBody {
+    type Error = crate::BoxError;
+
+    /// Body size hint.
+    fn size(&self) -> crate::body::BodySize {
+        match self {
+            AnyBody::None => crate::body::BodySize::None,
+            AnyBody::Full { body } => body.size(),
+            AnyBody::Boxed { body } => body.size(),
+        }
+    }
+
+    /// Attempt to pull out the next chunk of body bytes.
+    fn poll_next(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Result<crate::web::Bytes, Self::Error>>> {
+        match self.get_mut() {
+            AnyBody::None => std::task::Poll::Ready(None),
+            AnyBody::Full { body } => {
+                let bytes = std::mem::take(body);
+                std::task::Poll::Ready(Some(Ok(bytes)))
+            }
+            AnyBody::Boxed { body } => body.as_pin_mut().poll_next(cx),
+        }
     }
 }

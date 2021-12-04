@@ -41,7 +41,8 @@ use actix_http::{
 };
 use actix_service::{map_config, IntoServiceFactory, ServiceFactory, ServiceFactoryExt as _};
 use actix_web::{
-    dev::{AppConfig, MessageBody, Server, ServerHandle, Service},
+    body::MessageBody,
+    dev::{AppConfig, Server, ServerHandle, Service},
     rt::{self, System},
     web, Error,
 };

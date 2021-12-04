@@ -208,7 +208,7 @@ impl Accept {
     /// If no q-factors are provided, the first mime type is chosen. Note that items without
     /// q-factors are given the maximum preference value.
     ///
-    /// As per the spec, will return [`Mime::STAR_STAR`] (indicating no preference) if the contained
+    /// As per the spec, will return [`mime::STAR_STAR`] (indicating no preference) if the contained
     /// list is empty.
     ///
     /// [q-factor weighting]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2

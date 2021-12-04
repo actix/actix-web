@@ -43,12 +43,12 @@ use crate::{
 ///     Ok(format!("Request Body Bytes:\n{:?}", bytes))
 /// }
 /// ```
-pub struct Payload(crate::dev::Payload);
+pub struct Payload(dev::Payload);
 
 impl Payload {
     /// Unwrap to inner Payload type.
     #[inline]
-    pub fn into_inner(self) -> crate::dev::Payload {
+    pub fn into_inner(self) -> dev::Payload {
         self.0
     }
 }
@@ -62,7 +62,7 @@ impl Stream for Payload {
     }
 }
 
-/// See [here](#usage) for example of usage as an extractor.
+/// See [here](#Examples) for example of usage as an extractor.
 impl FromRequest for Payload {
     type Error = Error;
     type Future = Ready<Result<Payload, Error>>;

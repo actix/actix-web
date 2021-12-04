@@ -1,5 +1,3 @@
-#![allow(clippy::rc_buffer)] // inner value is mutated before being shared (`Rc::get_mut`)
-
 use std::{future::Future, mem, rc::Rc};
 
 use actix_http::http::Method;
