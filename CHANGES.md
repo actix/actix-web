@@ -8,6 +8,7 @@
 ### Changed
 * Rename `Accept::{mime_precedence => ranked}`. [#2480]
 * Rename `Accept::{mime_preference => preference}`. [#2480]
+* Un-deprecate `App::data_factory`. [#????]
 
 ### Fixed
 * Accept wildcard `*` items in `AcceptLanguage`. [#2480]

@@ -142,10 +142,6 @@ where
     /// Add application data factory. This function is similar to `.data()` but it accepts a
     /// "data factory". Data values are constructed asynchronously during application
     /// initialization, before the server starts accepting requests.
-    #[deprecated(
-        since = "4.0.0",
-        note = "Construct data value before starting server and use `.app_data(Data::new(val))` instead."
-    )]
     pub fn data_factory<F, Out, D, E>(mut self, data: F) -> Self
     where
         F: Fn() -> Out + 'static,
