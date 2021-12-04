@@ -1,14 +1,12 @@
-name: Upload documentation
+name: Upload Documentation
 
 on:
   push:
-    branches:
-      - master
+    branches: [master]
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    if: github.repository == 'actix/actix-web'
 
     steps:
       - uses: actions/checkout@v2
@@ -20,14 +18,14 @@ jobs:
           profile: minimal
           override: true
 
-      - name: check build
+      - name: Build Docs
         uses: actions-rs/cargo@v1
         with:
           command: doc
-          args: --no-deps --workspace --all-features
+          args: --workspace --all-features --no-deps
 
       - name: Tweak HTML
-        run: echo "<meta http-equiv=refresh content=0;url=os_balloon/index.html>" > target/doc/index.html
+        run: echo '<meta http-equiv="refresh" content="0;url=actix_web/index.html">' > target/doc/index.html
 
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@3.7.1

@@ -17,8 +17,7 @@ use crate::service::{
 };
 
 type Guards = Vec<Box<dyn Guard>>;
-type HttpNewService =
-    boxed::BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
+type HttpNewService = boxed::BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
 
 /// Application configuration
 pub struct AppService {
@@ -63,6 +62,8 @@ impl AppService {
         (self.config, self.services)
     }
 
+    /// Clones inner config and default service, returning new `AppService` with empty service list
+    /// marked as non-root.
     pub(crate) fn clone_config(&self) -> Self {
         AppService {
             config: self.config.clone(),
@@ -72,12 +73,12 @@ impl AppService {
         }
     }
 
-    /// Service configuration
+    /// Returns reference to configuration.
     pub fn config(&self) -> &AppConfig {
         &self.config
     }
 
-    /// Default resource
+    /// Returns default handler factory.
     pub fn default_service(&self) -> Rc<HttpNewService> {
         self.default.clone()
     }
@@ -93,23 +94,19 @@ impl AppService {
         F: IntoServiceFactory<S, ServiceRequest>,
         S: ServiceFactory<
                 ServiceRequest,
-                Config = (),
                 Response = ServiceResponse,
                 Error = Error,
+                Config = (),
                 InitError = (),
             > + 'static,
     {
-        self.services.push((
-            rdef,
-            boxed::factory(factory.into_factory()),
-            guards,
-            nested,
-        ));
+        self.services
+            .push((rdef, boxed::factory(factory.into_factory()), guards, nested));
     }
 }
 
-/// Application connection config
-#[derive(Clone)]
+/// Application connection config.
+#[derive(Debug, Clone)]
 pub struct AppConfig {
     secure: bool,
     host: String,
@@ -117,8 +114,14 @@ pub struct AppConfig {
 }
 
 impl AppConfig {
-    pub(crate) fn new(secure: bool, addr: SocketAddr, host: String) -> Self {
-        AppConfig { secure, addr, host }
+    pub(crate) fn new(secure: bool, host: String, addr: SocketAddr) -> Self {
+        AppConfig { secure, host, addr }
+    }
+
+    /// Needed in actix-test crate. Semver exempt.
+    #[doc(hidden)]
+    pub fn __priv_test_new(secure: bool, host: String, addr: SocketAddr) -> Self {
+        AppConfig::new(secure, host, addr)
     }
 
     /// Server host name.
@@ -141,14 +144,19 @@ impl AppConfig {
     pub fn local_addr(&self) -> SocketAddr {
         self.addr
     }
+
+    #[cfg(test)]
+    pub(crate) fn set_host(&mut self, host: &str) {
+        self.host = host.to_owned();
+    }
 }
 
 impl Default for AppConfig {
     fn default() -> Self {
         AppConfig::new(
             false,
-            "127.0.0.1:8080".parse().unwrap(),
             "localhost:8080".to_owned(),
+            "127.0.0.1:8080".parse().unwrap(),
         )
     }
 }
@@ -191,6 +199,7 @@ impl ServiceConfig {
     /// Add shared app data item.
     ///
     /// Counterpart to [`App::data()`](crate::App::data).
+    #[deprecated(since = "4.0.0", note = "Use `.app_data(Data::new(val))` instead.")]
     pub fn data<U: 'static>(&mut self, data: U) -> &mut Self {
         self.app_data(Data::new(data));
         self
@@ -240,7 +249,7 @@ impl ServiceConfig {
         U: AsRef<str>,
     {
         let mut rdef = ResourceDef::new(url.as_ref());
-        *rdef.name_mut() = name.as_ref().to_string();
+        rdef.set_name(name.as_ref());
         self.external.push(rdef);
         self
     }
@@ -256,6 +265,8 @@ mod tests {
     use crate::test::{call_service, init_service, read_body, TestRequest};
     use crate::{web, App, HttpRequest, HttpResponse};
 
+    // allow deprecated `ServiceConfig::data`
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_data() {
         let cfg = |cfg: &mut ServiceConfig| {
@@ -263,12 +274,12 @@ mod tests {
             cfg.app_data(15u8);
         };
 
-        let mut srv = init_service(App::new().configure(cfg).service(
-            web::resource("/").to(|_: web::Data<usize>, req: HttpRequest| {
+        let srv = init_service(App::new().configure(cfg).service(web::resource("/").to(
+            |_: web::Data<usize>, req: HttpRequest| {
                 assert_eq!(*req.app_data::<u8>().unwrap(), 15u8);
                 HttpResponse::Ok()
-            }),
-        ))
+            },
+        )))
         .await;
         let req = TestRequest::default().to_request();
         let resp = srv.call(req).await.unwrap();
@@ -286,7 +297,7 @@ mod tests {
     //         });
     //     };
 
-    //     let mut srv =
+    //     let srv =
     //         init_service(App::new().configure(cfg).service(
     //             web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
     //         ));
@@ -297,7 +308,7 @@ mod tests {
     //     let cfg2 = |cfg: &mut ServiceConfig| {
     //         cfg.data_factory(|| Ok::<_, ()>(10u32));
     //     };
-    //     let mut srv = init_service(
+    //     let srv = init_service(
     //         App::new()
     //             .service(web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()))
     //             .configure(cfg2),
@@ -309,26 +320,22 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_external_resource() {
-        let mut srv = init_service(
+        let srv = init_service(
             App::new()
                 .configure(|cfg| {
-                    cfg.external_resource(
-                        "youtube",
-                        "https://youtube.com/watch/{video_id}",
-                    );
+                    cfg.external_resource("youtube", "https://youtube.com/watch/{video_id}");
                 })
                 .route(
                     "/test",
                     web::get().to(|req: HttpRequest| {
-                        HttpResponse::Ok().body(
-                            req.url_for("youtube", &["12345"]).unwrap().to_string(),
-                        )
+                        HttpResponse::Ok()
+                            .body(req.url_for("youtube", &["12345"]).unwrap().to_string())
                     }),
                 ),
         )
         .await;
         let req = TestRequest::with_uri("/test").to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
         let body = read_body(resp).await;
         assert_eq!(body, Bytes::from_static(b"https://youtube.com/watch/12345"));
@@ -336,24 +343,22 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_service() {
-        let mut srv = init_service(App::new().configure(|cfg| {
-            cfg.service(
-                web::resource("/test").route(web::get().to(HttpResponse::Created)),
-            )
-            .route("/index.html", web::get().to(HttpResponse::Ok));
+        let srv = init_service(App::new().configure(|cfg| {
+            cfg.service(web::resource("/test").route(web::get().to(HttpResponse::Created)))
+                .route("/index.html", web::get().to(HttpResponse::Ok));
         }))
         .await;
 
         let req = TestRequest::with_uri("/test")
             .method(Method::GET)
             .to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::CREATED);
 
         let req = TestRequest::with_uri("/index.html")
             .method(Method::GET)
             .to_request();
-        let resp = call_service(&mut srv, req).await;
+        let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
     }
 }

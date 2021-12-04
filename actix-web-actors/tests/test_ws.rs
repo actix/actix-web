@@ -1,6 +1,6 @@
 use actix::prelude::*;
 use actix_http::ws::Codec;
-use actix_web::{test, web, App, HttpRequest};
+use actix_web::{web, App, HttpRequest};
 use actix_web_actors::*;
 use bytes::Bytes;
 use futures_util::{SinkExt, StreamExt};
@@ -12,11 +12,7 @@ impl Actor for Ws {
 }
 
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Ws {
-    fn handle(
-        &mut self,
-        msg: Result<ws::Message, ws::ProtocolError>,
-        ctx: &mut Self::Context,
-    ) {
+    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match msg.unwrap() {
             ws::Message::Ping(msg) => ctx.pong(&msg),
             ws::Message::Text(text) => ctx.text(text),
@@ -30,7 +26,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Ws {
 const MAX_FRAME_SIZE: usize = 10_000;
 const DEFAULT_FRAME_SIZE: usize = 10;
 
-async fn common_test_code(mut srv: test::TestServer, frame_size: usize) {
+async fn common_test_code(mut srv: actix_test::TestServer, frame_size: usize) {
     // client service
     let mut framed = srv.ws().await.unwrap();
     framed.send(ws::Message::Text("text".into())).await.unwrap();
@@ -61,7 +57,7 @@ async fn common_test_code(mut srv: test::TestServer, frame_size: usize) {
 
 #[actix_rt::test]
 async fn test_builder() {
-    let srv = test::start(|| {
+    let srv = actix_test::start(|| {
         App::new().service(web::resource("/").to(
             |req: HttpRequest, stream: web::Payload| async move {
                 ws::WsResponseBuilder::new(Ws, &req, stream).start()
@@ -74,7 +70,7 @@ async fn test_builder() {
 
 #[actix_rt::test]
 async fn test_builder_with_frame_size() {
-    let srv = test::start(|| {
+    let srv = actix_test::start(|| {
         App::new().service(web::resource("/").to(
             |req: HttpRequest, stream: web::Payload| async move {
                 ws::WsResponseBuilder::new(Ws, &req, stream)
@@ -88,9 +84,8 @@ async fn test_builder_with_frame_size() {
 }
 
 #[actix_rt::test]
-#[should_panic]
 async fn test_builder_with_frame_size_exceeded() {
-    let mut srv = test::start(|| {
+    let mut srv = actix_test::start(|| {
         App::new().service(web::resource("/").to(
             |req: HttpRequest, stream: web::Payload| async move {
                 ws::WsResponseBuilder::new(Ws, &req, stream)
@@ -103,21 +98,16 @@ async fn test_builder_with_frame_size_exceeded() {
     // client service
     let mut framed = srv.ws().await.unwrap();
 
-    // Create a request with a frame size larger than expected. This should
-    // panic with '`Err` value: Overflow'.
+    // create a request with a frame size larger than expected
     let bytes = Bytes::from(vec![0; MAX_FRAME_SIZE + 1]);
-    framed
-        .send(ws::Message::Binary(bytes.clone()))
-        .await
-        .unwrap();
+    framed.send(ws::Message::Binary(bytes)).await.unwrap();
 
-    // try unwrapping to panic.
-    framed.next().await.unwrap().unwrap();
+    assert!(framed.next().await.is_none());
 }
 
 #[actix_rt::test]
 async fn test_builder_with_codec() {
-    let srv = test::start(|| {
+    let srv = actix_test::start(|| {
         App::new().service(web::resource("/").to(
             |req: HttpRequest, stream: web::Payload| async move {
                 ws::WsResponseBuilder::new(Ws, &req, stream)
@@ -132,7 +122,7 @@ async fn test_builder_with_codec() {
 
 #[actix_rt::test]
 async fn test_builder_with_protocols() {
-    let srv = test::start(|| {
+    let srv = actix_test::start(|| {
         App::new().service(web::resource("/").to(
             |req: HttpRequest, stream: web::Payload| async move {
                 ws::WsResponseBuilder::new(Ws, &req, stream)
@@ -147,7 +137,7 @@ async fn test_builder_with_protocols() {
 
 #[actix_rt::test]
 async fn test_builder_full() {
-    let srv = test::start(|| {
+    let srv = actix_test::start(|| {
         App::new().service(web::resource("/").to(
             |req: HttpRequest, stream: web::Payload| async move {
                 ws::WsResponseBuilder::new(Ws, &req, stream)
@@ -164,7 +154,7 @@ async fn test_builder_full() {
 
 #[actix_rt::test]
 async fn test_builder_with_codec_and_frame_size() {
-    let srv = test::start(|| {
+    let srv = actix_test::start(|| {
         App::new().service(web::resource("/").to(
             |req: HttpRequest, stream: web::Payload| async move {
                 ws::WsResponseBuilder::new(Ws, &req, stream)
@@ -180,11 +170,9 @@ async fn test_builder_with_codec_and_frame_size() {
 
 #[actix_rt::test]
 async fn test_simple() {
-    let srv = test::start(|| {
+    let srv = actix_test::start(|| {
         App::new().service(web::resource("/").to(
-            |req: HttpRequest, stream: web::Payload| async move {
-                ws::start(Ws, &req, stream)
-            },
+            |req: HttpRequest, stream: web::Payload| async move { ws::start(Ws, &req, stream) },
         ))
     });
 

@@ -10,11 +10,12 @@ use std::{
 use actix_service::{Service, Transform};
 use ahash::AHashMap;
 use futures_core::{future::LocalBoxFuture, ready};
+use pin_project_lite::pin_project;
 
 use crate::{
     dev::{ServiceRequest, ServiceResponse},
-    error::{Error, Result},
     http::StatusCode,
+    Error, Result,
 };
 
 /// Return type for [`ErrorHandlers`] custom handlers.
@@ -33,8 +34,8 @@ type ErrorHandler<B> = dyn Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse
 /// Register handlers with the `ErrorHandlers::handler()` method to register a custom error handler
 /// for a given status code. Handlers can modify existing responses or create completely new ones.
 ///
-/// # Usage
-/// ```rust
+/// # Examples
+/// ```
 /// use actix_web::middleware::{ErrorHandlers, ErrorHandlerResponse};
 /// use actix_web::{web, http, dev, App, HttpRequest, HttpResponse, Result};
 ///
@@ -123,26 +124,28 @@ where
 
     actix_service::forward_ready!(service);
 
-    fn call(&mut self, req: ServiceRequest) -> Self::Future {
+    fn call(&self, req: ServiceRequest) -> Self::Future {
         let handlers = self.handlers.clone();
         let fut = self.service.call(req);
         ErrorHandlersFuture::ServiceFuture { fut, handlers }
     }
 }
 
-#[pin_project::pin_project(project = ErrorHandlersProj)]
-pub enum ErrorHandlersFuture<Fut, B>
-where
-    Fut: Future,
-{
-    ServiceFuture {
-        #[pin]
-        fut: Fut,
-        handlers: Handlers<B>,
-    },
-    HandlerFuture {
-        fut: LocalBoxFuture<'static, Fut::Output>,
-    },
+pin_project! {
+    #[project = ErrorHandlersProj]
+    pub enum ErrorHandlersFuture<Fut, B>
+    where
+        Fut: Future,
+    {
+        ServiceFuture {
+            #[pin]
+            fut: Fut,
+            handlers: Handlers<B>,
+        },
+        HandlerFuture {
+            fut: LocalBoxFuture<'static, Fut::Output>,
+        },
+    }
 }
 
 impl<Fut, B> Future for ErrorHandlersFuture<Fut, B>
@@ -175,7 +178,8 @@ where
 #[cfg(test)]
 mod tests {
     use actix_service::IntoService;
-    use futures_util::future::{ok, FutureExt};
+    use actix_utils::future::ok;
+    use futures_util::future::FutureExt as _;
 
     use super::*;
     use crate::http::{header::CONTENT_TYPE, HeaderValue, StatusCode};
@@ -196,14 +200,13 @@ mod tests {
             ok(req.into_response(HttpResponse::InternalServerError().finish()))
         };
 
-        let mut mw = ErrorHandlers::new()
+        let mw = ErrorHandlers::new()
             .handler(StatusCode::INTERNAL_SERVER_ERROR, render_500)
             .new_transform(srv.into_service())
             .await
             .unwrap();
 
-        let resp =
-            test::call_service(&mut mw, TestRequest::default().to_srv_request()).await;
+        let resp = test::call_service(&mw, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
     }
 
@@ -223,14 +226,13 @@ mod tests {
             ok(req.into_response(HttpResponse::InternalServerError().finish()))
         };
 
-        let mut mw = ErrorHandlers::new()
+        let mw = ErrorHandlers::new()
             .handler(StatusCode::INTERNAL_SERVER_ERROR, render_500_async)
             .new_transform(srv.into_service())
             .await
             .unwrap();
 
-        let resp =
-            test::call_service(&mut mw, TestRequest::default().to_srv_request()).await;
+        let resp = test::call_service(&mw, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
     }
 }

@@ -3,6 +3,47 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 0.4.0-beta.9 - 2021-12-01
+* Polling `Field` after dropping `Multipart` now fails immediately instead of hanging forever. [#2463]
+
+[#2463]: https://github.com/actix/actix-web/pull/2463
+
+
+## 0.4.0-beta.8 - 2021-11-22
+* Ensure a correct Content-Disposition header is included in every part of a multipart message. [#2451]
+* Added `MultipartError::NoContentDisposition` variant. [#2451]
+* Since Content-Disposition is now ensured, `Field::content_disposition` is now infallible. [#2451]
+* Added `Field::name` method for getting the field name. [#2451]
+* `MultipartError` now marks variants with inner errors as the source. [#2451]
+* `MultipartError` is now marked as non-exhaustive. [#2451]
+
+[#2451]: https://github.com/actix/actix-web/pull/2451
+
+
+## 0.4.0-beta.7 - 2021-10-20
+* Minimum supported Rust version (MSRV) is now 1.52.
+
+
+## 0.4.0-beta.6 - 2021-09-09
+* Minimum supported Rust version (MSRV) is now 1.51.
+
+
+## 0.4.0-beta.5 - 2021-06-17
+* No notable changes.
+
+
+## 0.4.0-beta.4 - 2021-04-02
+* No notable changes.
+
+
+## 0.4.0-beta.3 - 2021-03-09
+* No notable changes.
+
+
+## 0.4.0-beta.2 - 2021-02-10
+* No notable changes.
+
+
 ## 0.4.0-beta.1 - 2021-01-07
 * Fix multipart consuming payload before header checks. [#1513]
 * Update `bytes` to `1.0`. [#1813]

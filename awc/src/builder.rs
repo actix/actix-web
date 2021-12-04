@@ -1,63 +1,89 @@
-use std::cell::RefCell;
-use std::convert::TryFrom;
-use std::fmt;
-use std::rc::Rc;
-use std::time::Duration;
+use std::{convert::TryFrom, fmt, net::IpAddr, rc::Rc, time::Duration};
 
-use actix_http::client::{Connect as HttpConnect, ConnectError, Connection, Connector};
-use actix_http::http::{self, header, Error as HttpError, HeaderMap, HeaderName};
-use actix_service::Service;
+use actix_http::http::{self, header, Error as HttpError, HeaderMap, HeaderName, Uri};
+use actix_rt::net::{ActixStream, TcpStream};
+use actix_service::{boxed, Service};
 
-use crate::connect::{Connect, ConnectorWrapper};
-use crate::{Client, ClientConfig};
+use crate::{
+    client::{ConnectInfo, Connector, ConnectorService, TcpConnectError, TcpConnection},
+    connect::DefaultConnector,
+    error::SendRequestError,
+    middleware::{NestTransform, Redirect, Transform},
+    Client, ClientConfig, ConnectRequest, ConnectResponse,
+};
 
 /// An HTTP Client builder
 ///
 /// This type can be used to construct an instance of `Client` through a
 /// builder-like pattern.
-pub struct ClientBuilder {
+pub struct ClientBuilder<S = (), M = ()> {
     default_headers: bool,
-    allow_redirects: bool,
-    max_redirects: usize,
     max_http_version: Option<http::Version>,
     stream_window_size: Option<u32>,
     conn_window_size: Option<u32>,
     headers: HeaderMap,
     timeout: Option<Duration>,
-    connector: Option<RefCell<Box<dyn Connect>>>,
-}
-
-impl Default for ClientBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
+    connector: Connector<S>,
+    middleware: M,
+    local_address: Option<IpAddr>,
+    max_redirects: u8,
 }
 
 impl ClientBuilder {
-    pub fn new() -> Self {
+    #[allow(clippy::new_ret_no_self)]
+    pub fn new() -> ClientBuilder<
+        impl Service<
+                ConnectInfo<Uri>,
+                Response = TcpConnection<Uri, TcpStream>,
+                Error = TcpConnectError,
+            > + Clone,
+        (),
+    > {
         ClientBuilder {
+            middleware: (),
             default_headers: true,
-            allow_redirects: true,
-            max_redirects: 10,
             headers: HeaderMap::new(),
             timeout: Some(Duration::from_secs(5)),
-            connector: None,
+            local_address: None,
+            connector: Connector::new(),
             max_http_version: None,
             stream_window_size: None,
             conn_window_size: None,
+            max_redirects: 10,
         }
     }
+}
 
+impl<S, Io, M> ClientBuilder<S, M>
+where
+    S: Service<ConnectInfo<Uri>, Response = TcpConnection<Uri, Io>, Error = TcpConnectError>
+        + Clone
+        + 'static,
+    Io: ActixStream + fmt::Debug + 'static,
+{
     /// Use custom connector service.
-    pub fn connector<T>(mut self, connector: T) -> Self
+    pub fn connector<S1, Io1>(self, connector: Connector<S1>) -> ClientBuilder<S1, M>
     where
-        T: Service<HttpConnect, Error = ConnectError> + 'static,
-        T::Response: Connection,
-        <T::Response as Connection>::Future: 'static,
-        T::Future: 'static,
+        S1: Service<
+                ConnectInfo<Uri>,
+                Response = TcpConnection<Uri, Io1>,
+                Error = TcpConnectError,
+            > + Clone
+            + 'static,
+        Io1: ActixStream + fmt::Debug + 'static,
     {
-        self.connector = Some(RefCell::new(Box::new(ConnectorWrapper(connector))));
-        self
+        ClientBuilder {
+            middleware: self.middleware,
+            default_headers: self.default_headers,
+            headers: self.headers,
+            timeout: self.timeout,
+            local_address: self.local_address,
+            connector,
+            max_http_version: self.max_http_version,
+            stream_window_size: self.stream_window_size,
+            conn_window_size: self.conn_window_size,
+            max_redirects: self.max_redirects,
+        }
     }
 
     /// Set request timeout
@@ -75,18 +101,33 @@ impl ClientBuilder {
         self
     }
 
+    /// Set local IP Address the connector would use for establishing connection.
+    pub fn local_address(mut self, addr: IpAddr) -> Self {
+        self.local_address = Some(addr);
+        self
+    }
+
+    /// Maximum supported HTTP major version.
+    ///
+    /// Supported versions are HTTP/1.1 and HTTP/2.
+    pub fn max_http_version(mut self, val: http::Version) -> Self {
+        self.max_http_version = Some(val);
+        self
+    }
+
     /// Do not follow redirects.
     ///
     /// Redirects are allowed by default.
     pub fn disable_redirects(mut self) -> Self {
-        self.allow_redirects = false;
+        self.max_redirects = 0;
         self
     }
 
-    /// Maximum supported http major version
-    /// Supported versions http/1.1, http/2
-    pub fn max_http_version(mut self, val: http::Version) -> Self {
-        self.max_http_version = Some(val);
+    /// Set max number of redirects.
+    ///
+    /// Max redirects is set to 10 by default.
+    pub fn max_redirects(mut self, num: u8) -> Self {
+        self.max_redirects = num;
         self
     }
 
@@ -105,14 +146,6 @@ impl ClientBuilder {
     /// The default value is 65,535 and is good for APIs, but not for big objects.
     pub fn initial_connection_window_size(mut self, size: u32) -> Self {
         self.conn_window_size = Some(size);
-        self
-    }
-
-    /// Set max number of redirects.
-    ///
-    /// Max redirects is set to 10 by default.
-    pub fn max_redirects(mut self, num: usize) -> Self {
-        self.max_redirects = num;
         self
     }
 
@@ -145,9 +178,9 @@ impl ClientBuilder {
     }
 
     /// Set client wide HTTP basic authorization header
-    pub fn basic_auth<U>(self, username: U, password: Option<&str>) -> Self
+    pub fn basic_auth<N>(self, username: N, password: Option<&str>) -> Self
     where
-        U: fmt::Display,
+        N: fmt::Display,
     {
         let auth = match password {
             Some(password) => format!("{}:{}", username, password),
@@ -167,31 +200,78 @@ impl ClientBuilder {
         self.header(header::AUTHORIZATION, format!("Bearer {}", token))
     }
 
-    /// Finish build process and create `Client` instance.
-    pub fn finish(self) -> Client {
-        let connector = if let Some(connector) = self.connector {
-            connector
-        } else {
-            let mut connector = Connector::new();
-            if let Some(val) = self.max_http_version {
-                connector = connector.max_http_version(val)
-            };
-            if let Some(val) = self.conn_window_size {
-                connector = connector.initial_connection_window_size(val)
-            };
-            if let Some(val) = self.stream_window_size {
-                connector = connector.initial_window_size(val)
-            };
-            RefCell::new(
-                Box::new(ConnectorWrapper(connector.finish())) as Box<dyn Connect>
-            )
-        };
-        let config = ClientConfig {
+    /// Registers middleware, in the form of a middleware component (type),
+    /// that runs during inbound and/or outbound processing in the request
+    /// life-cycle (request -> response), modifying request/response as
+    /// necessary, across all requests managed by the Client.
+    pub fn wrap<S1, M1>(
+        self,
+        mw: M1,
+    ) -> ClientBuilder<S, NestTransform<M, M1, S1, ConnectRequest>>
+    where
+        M: Transform<S1, ConnectRequest>,
+        M1: Transform<M::Transform, ConnectRequest>,
+    {
+        ClientBuilder {
+            middleware: NestTransform::new(self.middleware, mw),
+            default_headers: self.default_headers,
+            max_http_version: self.max_http_version,
+            stream_window_size: self.stream_window_size,
+            conn_window_size: self.conn_window_size,
             headers: self.headers,
             timeout: self.timeout,
-            connector,
+            connector: self.connector,
+            local_address: self.local_address,
+            max_redirects: self.max_redirects,
+        }
+    }
+
+    /// Finish build process and create `Client` instance.
+    pub fn finish(self) -> Client
+    where
+        M: Transform<DefaultConnector<ConnectorService<S, Io>>, ConnectRequest> + 'static,
+        M::Transform:
+            Service<ConnectRequest, Response = ConnectResponse, Error = SendRequestError>,
+    {
+        let redirect_time = self.max_redirects;
+
+        if redirect_time > 0 {
+            self.wrap(Redirect::new().max_redirect_times(redirect_time))
+                ._finish()
+        } else {
+            self._finish()
+        }
+    }
+
+    fn _finish(self) -> Client
+    where
+        M: Transform<DefaultConnector<ConnectorService<S, Io>>, ConnectRequest> + 'static,
+        M::Transform:
+            Service<ConnectRequest, Response = ConnectResponse, Error = SendRequestError>,
+    {
+        let mut connector = self.connector;
+
+        if let Some(val) = self.max_http_version {
+            connector = connector.max_http_version(val);
         };
-        Client(Rc::new(config))
+        if let Some(val) = self.conn_window_size {
+            connector = connector.initial_connection_window_size(val)
+        };
+        if let Some(val) = self.stream_window_size {
+            connector = connector.initial_window_size(val)
+        };
+        if let Some(val) = self.local_address {
+            connector = connector.local_address(val);
+        }
+
+        let connector = DefaultConnector::new(connector.finish());
+        let connector = boxed::rc_service(self.middleware.new_transform(connector));
+
+        Client(ClientConfig {
+            headers: Rc::new(self.headers),
+            timeout: self.timeout,
+            connector,
+        })
     }
 }
 

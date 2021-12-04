@@ -1,4 +1,6 @@
-use std::convert::TryFrom;
+//! [`IntoHeaderPair`] trait and implementations.
+
+use std::convert::TryFrom as _;
 
 use http::{
     header::{HeaderName, InvalidHeaderName, InvalidHeaderValue},
@@ -7,7 +9,10 @@ use http::{
 
 use super::{Header, IntoHeaderValue};
 
-/// Transforms structures into header K/V pairs for inserting into `HeaderMap`s.
+/// An interface for types that can be converted into a [`HeaderName`]/[`HeaderValue`] pair for
+/// insertion into a [`HeaderMap`].
+///
+/// [`HeaderMap`]: crate::http::HeaderMap
 pub trait IntoHeaderPair: Sized {
     type Error: Into<HttpError>;
 

@@ -3,13 +3,15 @@
 > Various helpers for Actix applications to use during testing.
 
 [![crates.io](https://img.shields.io/crates/v/actix-http-test?label=latest)](https://crates.io/crates/actix-http-test)
-[![Documentation](https://docs.rs/actix-http-test/badge.svg?version=2.1.0)](https://docs.rs/actix-http-test/2.1.0)
-![Apache 2.0 or MIT licensed](https://img.shields.io/crates/l/actix-http-test)
-[![Dependency Status](https://deps.rs/crate/actix-http-test/2.1.0/status.svg)](https://deps.rs/crate/actix-http-test/2.1.0)
-[![Join the chat at https://gitter.im/actix/actix-web](https://badges.gitter.im/actix/actix-web.svg)](https://gitter.im/actix/actix-web?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Documentation](https://docs.rs/actix-http-test/badge.svg?version=3.0.0-beta.8)](https://docs.rs/actix-http-test/3.0.0-beta.8)
+[![Version](https://img.shields.io/badge/rustc-1.52+-ab6000.svg)](https://blog.rust-lang.org/2021/05/06/Rust-1.52.0.html)
+![MIT or Apache 2.0 licensed](https://img.shields.io/crates/l/actix-http-test)
+<br>
+[![Dependency Status](https://deps.rs/crate/actix-http-test/3.0.0-beta.8/status.svg)](https://deps.rs/crate/actix-http-test/3.0.0-beta.8)
+[![Download](https://img.shields.io/crates/d/actix-http-test.svg)](https://crates.io/crates/actix-http-test)
+[![Chat on Discord](https://img.shields.io/discord/771444961383153695?label=chat&logo=discord)](https://discord.gg/NWpN5mmg3x)
 
 ## Documentation & Resources
 
 - [API Documentation](https://docs.rs/actix-http-test)
-- [Chat on Gitter](https://gitter.im/actix/actix-web)
-- Minimum Supported Rust Version (MSRV): 1.46.0
+- Minimum Supported Rust Version (MSRV): 1.52

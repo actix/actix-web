@@ -2,8 +2,35 @@
 
 ## Unreleased - 2021-xx-xx
 * Add `ws:WsResponseBuilder` for building web socket session response. [#1920]
+* Minimum supported Rust version (MSRV) is now 1.52.
 
 [#1920]: https://github.com/actix/actix-web/pull/1920
+
+
+## 4.0.0-beta.7 - 2021-09-09
+* Minimum supported Rust version (MSRV) is now 1.51.
+
+
+## 4.0.0-beta.6 - 2021-06-26
+* Update `actix` to `0.12`. [#2277]
+
+[#2277]: https://github.com/actix/actix-web/pull/2277
+
+
+## 4.0.0-beta.5 - 2021-06-17
+* No notable changes.
+
+
+## 4.0.0-beta.4 - 2021-04-02
+* No notable changes.
+
+
+## 4.0.0-beta.3 - 2021-03-09
+* No notable changes.
+
+
+## 4.0.0-beta.2 - 2021-02-10
+* No notable changes.
 
 
 ## 4.0.0-beta.1 - 2021-01-07

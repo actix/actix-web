@@ -12,7 +12,7 @@
 //! to store extra attributes on a request by using the `Extensions` container.
 //! Extensions containers are available via the `RequestHead::extensions()` method.
 //!
-//! ```rust
+//! ```
 //! use actix_web::{web, http, dev, guard, App, HttpResponse};
 //!
 //! fn main() {
@@ -26,6 +26,8 @@
 //! ```
 #![allow(non_snake_case)]
 use std::convert::TryFrom;
+use std::ops::Deref;
+use std::rc::Rc;
 
 use actix_http::http::{self, header, uri::Uri};
 use actix_http::RequestHead;
@@ -40,9 +42,15 @@ pub trait Guard {
     fn check(&self, request: &RequestHead) -> bool;
 }
 
+impl Guard for Rc<dyn Guard> {
+    fn check(&self, request: &RequestHead) -> bool {
+        self.deref().check(request)
+    }
+}
+
 /// Create guard object for supplied function.
 ///
-/// ```rust
+/// ```
 /// use actix_web::{guard, web, App, HttpResponse};
 ///
 /// fn main() {
@@ -85,7 +93,7 @@ where
 
 /// Return guard that matches if any of supplied guards.
 ///
-/// ```rust
+/// ```
 /// use actix_web::{web, guard, App, HttpResponse};
 ///
 /// fn main() {
@@ -124,7 +132,7 @@ impl Guard for AnyGuard {
 
 /// Return guard that matches if all of the supplied guards.
 ///
-/// ```rust
+/// ```
 /// use actix_web::{guard, web, App, HttpResponse};
 ///
 /// fn main() {
@@ -176,7 +184,7 @@ impl Guard for NotGuard {
     }
 }
 
-/// Http method guard
+/// HTTP method guard.
 #[doc(hidden)]
 pub struct MethodGuard(http::Method);
 
@@ -186,52 +194,52 @@ impl Guard for MethodGuard {
     }
 }
 
-/// Guard to match *GET* http method
+/// Guard to match *GET* HTTP method.
 pub fn Get() -> MethodGuard {
     MethodGuard(http::Method::GET)
 }
 
-/// Predicate to match *POST* http method
+/// Predicate to match *POST* HTTP method.
 pub fn Post() -> MethodGuard {
     MethodGuard(http::Method::POST)
 }
 
-/// Predicate to match *PUT* http method
+/// Predicate to match *PUT* HTTP method.
 pub fn Put() -> MethodGuard {
     MethodGuard(http::Method::PUT)
 }
 
-/// Predicate to match *DELETE* http method
+/// Predicate to match *DELETE* HTTP method.
 pub fn Delete() -> MethodGuard {
     MethodGuard(http::Method::DELETE)
 }
 
-/// Predicate to match *HEAD* http method
+/// Predicate to match *HEAD* HTTP method.
 pub fn Head() -> MethodGuard {
     MethodGuard(http::Method::HEAD)
 }
 
-/// Predicate to match *OPTIONS* http method
+/// Predicate to match *OPTIONS* HTTP method.
 pub fn Options() -> MethodGuard {
     MethodGuard(http::Method::OPTIONS)
 }
 
-/// Predicate to match *CONNECT* http method
+/// Predicate to match *CONNECT* HTTP method.
 pub fn Connect() -> MethodGuard {
     MethodGuard(http::Method::CONNECT)
 }
 
-/// Predicate to match *PATCH* http method
+/// Predicate to match *PATCH* HTTP method.
 pub fn Patch() -> MethodGuard {
     MethodGuard(http::Method::PATCH)
 }
 
-/// Predicate to match *TRACE* http method
+/// Predicate to match *TRACE* HTTP method.
 pub fn Trace() -> MethodGuard {
     MethodGuard(http::Method::TRACE)
 }
 
-/// Predicate to match specified http method
+/// Predicate to match specified HTTP method.
 pub fn Method(method: http::Method) -> MethodGuard {
     MethodGuard(method)
 }
@@ -259,7 +267,7 @@ impl Guard for HeaderGuard {
 
 /// Return predicate that matches if request contains specified Host name.
 ///
-/// ```rust
+/// ```
 /// use actix_web::{web, guard::Host, App, HttpResponse};
 ///
 /// fn main() {

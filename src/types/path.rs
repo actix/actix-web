@@ -2,25 +2,28 @@
 
 use std::{fmt, ops, sync::Arc};
 
-use actix_http::error::{Error, ErrorNotFound};
 use actix_router::PathDeserializer;
-use futures_util::future::{ready, Ready};
+use actix_utils::future::{ready, Ready};
 use serde::de;
 
-use crate::{dev::Payload, error::PathError, FromRequest, HttpRequest};
+use crate::{
+    dev::Payload,
+    error::{Error, ErrorNotFound, PathError},
+    FromRequest, HttpRequest,
+};
 
 /// Extract typed data from request path segments.
 ///
-/// Use [`PathConfig`] to configure extraction process.
+/// Use [`PathConfig`] to configure extraction option.
 ///
-/// # Usage
+/// # Examples
 /// ```
 /// use actix_web::{get, web};
 ///
 /// // extract path info from "/{name}/{count}/index.html" into tuple
 /// // {name}  - deserialize a String
 /// // {count} - deserialize a u32
-/// #[get("/")]
+/// #[get("/{name}/{count}/index.html")]
 /// async fn index(path: web::Path<(String, u32)>) -> String {
 ///     let (name, count) = path.into_inner();
 ///     format!("Welcome {}! {}", name, count)
@@ -40,12 +43,12 @@ use crate::{dev::Payload, error::PathError, FromRequest, HttpRequest};
 /// }
 ///
 /// // extract `Info` from a path using serde
-/// #[get("/")]
+/// #[get("/{name}")]
 /// async fn index(info: web::Path<Info>) -> String {
 ///     format!("Welcome {}!", info.name)
 /// }
 /// ```
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct Path<T>(T);
 
 impl<T> Path<T> {
@@ -81,48 +84,40 @@ impl<T> From<T> for Path<T> {
     }
 }
 
-impl<T: fmt::Debug> fmt::Debug for Path<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
-    }
-}
-
 impl<T: fmt::Display> fmt::Display for Path<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
     }
 }
 
-/// See [here](#usage) for example of usage as an extractor.
+/// See [here](#Examples) for example of usage as an extractor.
 impl<T> FromRequest for Path<T>
 where
     T: de::DeserializeOwned,
 {
     type Error = Error;
-    type Future = Ready<Result<Self, Error>>;
-    type Config = PathConfig;
+    type Future = Ready<Result<Self, Self::Error>>;
 
     #[inline]
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let error_handler = req
-            .app_data::<Self::Config>()
-            .map(|c| c.ehandler.clone())
-            .unwrap_or(None);
+            .app_data::<PathConfig>()
+            .and_then(|c| c.err_handler.clone());
 
         ready(
             de::Deserialize::deserialize(PathDeserializer::new(req.match_info()))
                 .map(Path)
-                .map_err(move |e| {
+                .map_err(move |err| {
                     log::debug!(
                         "Failed during Path extractor deserialization. \
                          Request path: {:?}",
                         req.path()
                     );
                     if let Some(error_handler) = error_handler {
-                        let e = PathError::Deserialize(e);
+                        let e = PathError::Deserialize(err);
                         (error_handler)(e, req)
                     } else {
-                        ErrorNotFound(e)
+                        ErrorNotFound(err)
                     }
                 }),
         )
@@ -155,7 +150,7 @@ where
 ///             .app_data(PathConfig::default().error_handler(|err, req| {
 ///                 error::InternalError::from_response(
 ///                     err,
-///                     HttpResponse::Conflict().finish(),
+///                     HttpResponse::Conflict().into(),
 ///                 )
 ///                 .into()
 ///             }))
@@ -163,9 +158,9 @@ where
 ///     );
 /// }
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct PathConfig {
-    ehandler: Option<Arc<dyn Fn(PathError, &HttpRequest) -> Error + Send + Sync>>,
+    err_handler: Option<Arc<dyn Fn(PathError, &HttpRequest) -> Error + Send + Sync>>,
 }
 
 impl PathConfig {
@@ -174,14 +169,8 @@ impl PathConfig {
     where
         F: Fn(PathError, &HttpRequest) -> Error + Send + Sync + 'static,
     {
-        self.ehandler = Some(Arc::new(f));
+        self.err_handler = Some(Arc::new(f));
         self
-    }
-}
-
-impl Default for PathConfig {
-    fn default() -> Self {
-        PathConfig { ehandler: None }
     }
 }
 
@@ -213,7 +202,7 @@ mod tests {
         let resource = ResourceDef::new("/{value}/");
 
         let mut req = TestRequest::with_uri("/32/").to_srv_request();
-        resource.match_path(req.match_info_mut());
+        resource.capture_match_info(req.match_info_mut());
 
         let (req, mut pl) = req.into_parts();
         assert_eq!(*Path::<i8>::from_request(&req, &mut pl).await.unwrap(), 32);
@@ -225,7 +214,7 @@ mod tests {
         let resource = ResourceDef::new("/{key}/{value}/");
 
         let mut req = TestRequest::with_uri("/name/user1/?id=test").to_srv_request();
-        resource.match_path(req.match_info_mut());
+        resource.capture_match_info(req.match_info_mut());
 
         let (req, mut pl) = req.into_parts();
         let (Path(res),) = <(Path<(String, String)>,)>::from_request(&req, &mut pl)
@@ -235,11 +224,9 @@ mod tests {
         assert_eq!(res.1, "user1");
 
         let (Path(a), Path(b)) =
-            <(Path<(String, String)>, Path<(String, String)>)>::from_request(
-                &req, &mut pl,
-            )
-            .await
-            .unwrap();
+            <(Path<(String, String)>, Path<(String, String)>)>::from_request(&req, &mut pl)
+                .await
+                .unwrap();
         assert_eq!(a.0, "name");
         assert_eq!(a.1, "user1");
         assert_eq!(b.0, "name");
@@ -253,7 +240,7 @@ mod tests {
         let mut req = TestRequest::with_uri("/name/user1/?id=test").to_srv_request();
 
         let resource = ResourceDef::new("/{key}/{value}/");
-        resource.match_path(req.match_info_mut());
+        resource.capture_match_info(req.match_info_mut());
 
         let (req, mut pl) = req.into_parts();
         let mut s = Path::<MyStruct>::from_request(&req, &mut pl).await.unwrap();
@@ -263,7 +250,7 @@ mod tests {
         assert_eq!(s.value, "user2");
         assert_eq!(
             format!("{}, {:?}", s, s),
-            "MyStruct(name, user2), MyStruct { key: \"name\", value: \"user2\" }"
+            "MyStruct(name, user2), Path(MyStruct { key: \"name\", value: \"user2\" })"
         );
         let s = s.into_inner();
         assert_eq!(s.value, "user2");
@@ -276,7 +263,7 @@ mod tests {
 
         let mut req = TestRequest::with_uri("/name/32/").to_srv_request();
         let resource = ResourceDef::new("/{key}/{value}/");
-        resource.match_path(req.match_info_mut());
+        resource.capture_match_info(req.match_info_mut());
 
         let (req, mut pl) = req.into_parts();
         let s = Path::<Test2>::from_request(&req, &mut pl).await.unwrap();
@@ -300,18 +287,15 @@ mod tests {
     async fn test_custom_err_handler() {
         let (req, mut pl) = TestRequest::with_uri("/name/user1/")
             .app_data(PathConfig::default().error_handler(|err, _| {
-                error::InternalError::from_response(
-                    err,
-                    HttpResponse::Conflict().finish(),
-                )
-                .into()
+                error::InternalError::from_response(err, HttpResponse::Conflict().finish())
+                    .into()
             }))
             .to_http_parts();
 
         let s = Path::<(usize,)>::from_request(&req, &mut pl)
             .await
             .unwrap_err();
-        let res: HttpResponse = s.into();
+        let res = HttpResponse::from_error(s);
 
         assert_eq!(res.status(), http::StatusCode::CONFLICT);
     }

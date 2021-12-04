@@ -29,17 +29,13 @@ async fn main() -> std::io::Result<()> {
             .service(no_params)
             .service(
                 web::resource("/resource2/index.html")
-                    .wrap(
-                        middleware::DefaultHeaders::new().header("X-Version-R2", "0.3"),
-                    )
-                    .default_service(
-                        web::route().to(|| HttpResponse::MethodNotAllowed()),
-                    )
+                    .wrap(middleware::DefaultHeaders::new().header("X-Version-R2", "0.3"))
+                    .default_service(web::route().to(HttpResponse::MethodNotAllowed))
                     .route(web::get().to(index_async)),
             )
             .service(web::resource("/test1.html").to(|| async { "Test\r\n" }))
     })
-    .bind("127.0.0.1:8080")?
+    .bind(("127.0.0.1", 8080))?
     .workers(1)
     .run()
     .await

@@ -1,10 +1,12 @@
-use std::convert::TryFrom;
+//! [`IntoHeaderValue`] trait and implementations.
+
+use std::convert::TryFrom as _;
 
 use bytes::Bytes;
 use http::{header::InvalidHeaderValue, Error as HttpError, HeaderValue};
 use mime::Mime;
 
-/// A trait for any object that can be Converted to a `HeaderValue`
+/// An interface for types that can be converted into a [`HeaderValue`].
 pub trait IntoHeaderValue: Sized {
     /// The type returned in the event of a conversion error.
     type Error: Into<HttpError>;
@@ -126,6 +128,6 @@ impl IntoHeaderValue for Mime {
 
     #[inline]
     fn try_into_value(self) -> Result<HeaderValue, Self::Error> {
-        HeaderValue::try_from(format!("{}", self))
+        HeaderValue::from_str(self.as_ref())
     }
 }

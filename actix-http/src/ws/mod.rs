@@ -1,6 +1,6 @@
-//! WebSocket protocol support.
+//! WebSocket protocol implementation.
 //!
-//! To setup a WebSocket, first do web socket handshake then on success convert `Payload` into a
+//! To setup a WebSocket, first perform the WebSocket handshake then on success convert `Payload` into a
 //! `WsStream` stream and then use `WsWriter` to communicate with the peer.
 
 use std::io;
@@ -8,9 +8,10 @@ use std::io;
 use derive_more::{Display, Error, From};
 use http::{header, Method, StatusCode};
 
-use crate::error::ResponseError;
-use crate::message::RequestHead;
-use crate::response::{Response, ResponseBuilder};
+use crate::body::BoxBody;
+use crate::{
+    header::HeaderValue, message::RequestHead, response::Response, ResponseBuilder,
+};
 
 mod codec;
 mod dispatcher;
@@ -24,7 +25,7 @@ pub use self::frame::Parser;
 pub use self::proto::{hash_key, CloseCode, CloseReason, OpCode};
 
 /// WebSocket protocol errors.
-#[derive(Debug, Display, From, Error)]
+#[derive(Debug, Display, Error, From)]
 pub enum ProtocolError {
     /// Received an unmasked frame from client.
     #[display(fmt = "Received an unmasked frame from client.")]
@@ -67,16 +68,14 @@ pub enum ProtocolError {
     Io(io::Error),
 }
 
-impl ResponseError for ProtocolError {}
-
 /// WebSocket handshake errors
-#[derive(PartialEq, Debug, Display)]
+#[derive(Debug, Clone, Copy, PartialEq, Display, Error)]
 pub enum HandshakeError {
     /// Only get method is allowed.
     #[display(fmt = "Method not allowed.")]
     GetMethodRequired,
 
-    /// Upgrade header if not set to websocket.
+    /// Upgrade header if not set to WebSocket.
     #[display(fmt = "WebSocket upgrade is expected.")]
     NoWebsocketUpgrade,
 
@@ -88,8 +87,8 @@ pub enum HandshakeError {
     #[display(fmt = "WebSocket version header is required.")]
     NoVersionHeader,
 
-    /// Unsupported websocket version.
-    #[display(fmt = "Unsupported version.")]
+    /// Unsupported WebSocket version.
+    #[display(fmt = "Unsupported WebSocket version.")]
     UnsupportedVersion,
 
     /// WebSocket key is not set or wrong.
@@ -97,50 +96,69 @@ pub enum HandshakeError {
     BadWebsocketKey,
 }
 
-impl ResponseError for HandshakeError {
-    fn error_response(&self) -> Response {
-        match self {
-            HandshakeError::GetMethodRequired => Response::MethodNotAllowed()
-                .insert_header((header::ALLOW, "GET"))
-                .finish(),
+impl From<HandshakeError> for Response<BoxBody> {
+    fn from(err: HandshakeError) -> Self {
+        match err {
+            HandshakeError::GetMethodRequired => {
+                let mut res = Response::new(StatusCode::METHOD_NOT_ALLOWED);
+                res.headers_mut()
+                    .insert(header::ALLOW, HeaderValue::from_static("GET"));
+                res
+            }
 
-            HandshakeError::NoWebsocketUpgrade => Response::BadRequest()
-                .reason("No WebSocket UPGRADE header found")
-                .finish(),
+            HandshakeError::NoWebsocketUpgrade => {
+                let mut res = Response::bad_request();
+                res.head_mut().reason = Some("No WebSocket Upgrade header found");
+                res
+            }
 
-            HandshakeError::NoConnectionUpgrade => Response::BadRequest()
-                .reason("No CONNECTION upgrade")
-                .finish(),
+            HandshakeError::NoConnectionUpgrade => {
+                let mut res = Response::bad_request();
+                res.head_mut().reason = Some("No Connection upgrade");
+                res
+            }
 
-            HandshakeError::NoVersionHeader => Response::BadRequest()
-                .reason("Websocket version header is required")
-                .finish(),
+            HandshakeError::NoVersionHeader => {
+                let mut res = Response::bad_request();
+                res.head_mut().reason = Some("WebSocket version header is required");
+                res
+            }
 
-            HandshakeError::UnsupportedVersion => Response::BadRequest()
-                .reason("Unsupported version")
-                .finish(),
+            HandshakeError::UnsupportedVersion => {
+                let mut res = Response::bad_request();
+                res.head_mut().reason = Some("Unsupported WebSocket version");
+                res
+            }
 
             HandshakeError::BadWebsocketKey => {
-                Response::BadRequest().reason("Handshake error").finish()
+                let mut res = Response::bad_request();
+                res.head_mut().reason = Some("Handshake error");
+                res
             }
         }
     }
 }
 
-/// Verify `WebSocket` handshake request and create handshake response.
+impl From<&HandshakeError> for Response<BoxBody> {
+    fn from(err: &HandshakeError) -> Self {
+        (*err).into()
+    }
+}
+
+/// Verify WebSocket handshake request and create handshake response.
 pub fn handshake(req: &RequestHead) -> Result<ResponseBuilder, HandshakeError> {
     verify_handshake(req)?;
     Ok(handshake_response(req))
 }
 
-/// Verify `WebSocket` handshake request.
+/// Verify WebSocket handshake request.
 pub fn verify_handshake(req: &RequestHead) -> Result<(), HandshakeError> {
     // WebSocket accepts only GET
     if req.method != Method::GET {
         return Err(HandshakeError::GetMethodRequired);
     }
 
-    // Check for "UPGRADE" to websocket header
+    // Check for "UPGRADE" to WebSocket header
     let has_hdr = if let Some(hdr) = req.headers().get(header::UPGRADE) {
         if let Ok(s) = hdr.to_str() {
             s.to_ascii_lowercase().contains("websocket")
@@ -181,7 +199,7 @@ pub fn verify_handshake(req: &RequestHead) -> Result<(), HandshakeError> {
     Ok(())
 }
 
-/// Create websocket handshake response
+/// Create WebSocket handshake response.
 ///
 /// This function returns handshake `Response`, ready to send to peer.
 pub fn handshake_response(req: &RequestHead) -> ResponseBuilder {
@@ -192,16 +210,20 @@ pub fn handshake_response(req: &RequestHead) -> ResponseBuilder {
 
     Response::build(StatusCode::SWITCHING_PROTOCOLS)
         .upgrade("websocket")
-        .insert_header((header::TRANSFER_ENCODING, "chunked"))
-        .insert_header((header::SEC_WEBSOCKET_ACCEPT, key))
+        .insert_header((
+            header::SEC_WEBSOCKET_ACCEPT,
+            // key is known to be header value safe ascii
+            HeaderValue::from_bytes(&key).unwrap(),
+        ))
         .take()
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::{header, Method};
+
     use super::*;
     use crate::test::TestRequest;
-    use http::{header, Method};
 
     #[test]
     fn test_handshake() {
@@ -314,18 +336,18 @@ mod tests {
     }
 
     #[test]
-    fn test_wserror_http_response() {
-        let resp: Response = HandshakeError::GetMethodRequired.error_response();
+    fn test_ws_error_http_response() {
+        let resp: Response<BoxBody> = HandshakeError::GetMethodRequired.into();
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
-        let resp: Response = HandshakeError::NoWebsocketUpgrade.error_response();
+        let resp: Response<BoxBody> = HandshakeError::NoWebsocketUpgrade.into();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let resp: Response = HandshakeError::NoConnectionUpgrade.error_response();
+        let resp: Response<BoxBody> = HandshakeError::NoConnectionUpgrade.into();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let resp: Response = HandshakeError::NoVersionHeader.error_response();
+        let resp: Response<BoxBody> = HandshakeError::NoVersionHeader.into();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let resp: Response = HandshakeError::UnsupportedVersion.error_response();
+        let resp: Response<BoxBody> = HandshakeError::UnsupportedVersion.into();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let resp: Response = HandshakeError::BadWebsocketKey.error_response();
+        let resp: Response<BoxBody> = HandshakeError::BadWebsocketKey.into();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 }

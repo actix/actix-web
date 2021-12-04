@@ -3,12 +3,27 @@
 * The default `NormalizePath` behavior now strips trailing slashes by default. This was
   previously documented to be the case in v3 but the behavior now matches. The effect is that
   routes defined with trailing slashes will become inaccessible when
-  using `NormalizePath::default()`.
+  using `NormalizePath::default()`. As such, calling `NormalizePath::default()` will log a warning.
+  It is advised that the `new` method be used instead.
   
-  Before: `#[get("/test/")`  
-  After: `#[get("/test")`  
+  Before: `#[get("/test/")]`  
+  After:  `#[get("/test")]`  
 
   Alternatively, explicitly require trailing slashes: `NormalizePath::new(TrailingSlash::Always)`.
+
+* The `type Config` of `FromRequest` was removed.
+
+* Feature flag `compress` has been split into its supported algorithm (brotli, gzip, zstd).
+  By default all compression algorithms are enabled.
+  To select algorithm you want to include with `middleware::Compress` use following flags:
+  - `compress-brotli`
+  - `compress-gzip`
+  - `compress-zstd`
+  If you have set in your `Cargo.toml` dedicated `actix-web` features and you still want
+  to have compression enabled. Please change features selection like bellow:
+
+  Before: `"compress"`
+  After: `"compress-brotli", "compress-gzip", "compress-zstd"`
 
 
 ## 3.0.0

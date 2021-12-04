@@ -3,7 +3,9 @@
 use std::task::{Context, Poll};
 
 use actix_service::{Service, Transform};
-use futures_util::future::{Either, FutureExt, LocalBoxFuture};
+use actix_utils::future::Either;
+use futures_core::future::LocalBoxFuture;
+use futures_util::future::FutureExt as _;
 
 /// Middleware for conditionally enabling other middleware.
 ///
@@ -11,8 +13,8 @@ use futures_util::future::{Either, FutureExt, LocalBoxFuture};
 /// control such middlewares like `Logger` or `Compress` directly. See the [`Compat`](super::Compat)
 /// middleware for a workaround.
 ///
-/// # Usage
-/// ```rust
+/// # Examples
+/// ```
 /// use actix_web::middleware::{Condition, NormalizePath};
 /// use actix_web::App;
 ///
@@ -76,17 +78,17 @@ where
     type Error = E::Error;
     type Future = Either<E::Future, D::Future>;
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         match self {
             ConditionMiddleware::Enable(service) => service.poll_ready(cx),
             ConditionMiddleware::Disable(service) => service.poll_ready(cx),
         }
     }
 
-    fn call(&mut self, req: Req) -> Self::Future {
+    fn call(&self, req: Req) -> Self::Future {
         match self {
-            ConditionMiddleware::Enable(service) => Either::Left(service.call(req)),
-            ConditionMiddleware::Disable(service) => Either::Right(service.call(req)),
+            ConditionMiddleware::Enable(service) => Either::left(service.call(req)),
+            ConditionMiddleware::Disable(service) => Either::right(service.call(req)),
         }
     }
 }
@@ -94,7 +96,7 @@ where
 #[cfg(test)]
 mod tests {
     use actix_service::IntoService;
-    use futures_util::future::ok;
+    use actix_utils::future::ok;
 
     use super::*;
     use crate::{
@@ -120,15 +122,13 @@ mod tests {
             ok(req.into_response(HttpResponse::InternalServerError().finish()))
         };
 
-        let mw =
-            ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, render_500);
+        let mw = ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, render_500);
 
-        let mut mw = Condition::new(true, mw)
+        let mw = Condition::new(true, mw)
             .new_transform(srv.into_service())
             .await
             .unwrap();
-        let resp =
-            test::call_service(&mut mw, TestRequest::default().to_srv_request()).await;
+        let resp = test::call_service(&mw, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
     }
 
@@ -138,16 +138,14 @@ mod tests {
             ok(req.into_response(HttpResponse::InternalServerError().finish()))
         };
 
-        let mw =
-            ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, render_500);
+        let mw = ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, render_500);
 
-        let mut mw = Condition::new(false, mw)
+        let mw = Condition::new(false, mw)
             .new_transform(srv.into_service())
             .await
             .unwrap();
 
-        let resp =
-            test::call_service(&mut mw, TestRequest::default().to_srv_request()).await;
+        let resp = test::call_service(&mw, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.headers().get(CONTENT_TYPE), None);
     }
 }

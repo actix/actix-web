@@ -120,7 +120,7 @@ impl Decoder for ClientCodec {
         debug_assert!(!self.inner.payload.is_some(), "Payload decoder is set");
 
         if let Some((req, payload)) = self.inner.decoder.decode(src)? {
-            if let Some(ctype) = req.ctype() {
+            if let Some(ctype) = req.conn_type() {
                 // do not use peer's keep-alive
                 self.inner.ctype = if ctype == ConnectionType::KeepAlive {
                     self.inner.ctype
@@ -220,18 +220,6 @@ impl Encoder<Message<(RequestHeadType, BodySize)>> for ClientCodec {
                 self.inner.encoder.encode_eof(dst)?;
             }
         }
-        Ok(())
-    }
-}
-
-pub struct Writer<'a>(pub &'a mut BytesMut);
-
-impl<'a> io::Write for Writer<'a> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.0.extend_from_slice(buf);
-        Ok(buf.len())
-    }
-    fn flush(&mut self) -> io::Result<()> {
         Ok(())
     }
 }

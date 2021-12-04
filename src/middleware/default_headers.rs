@@ -9,10 +9,9 @@ use std::{
     task::{Context, Poll},
 };
 
-use futures_util::{
-    future::{ready, Ready},
-    ready,
-};
+use actix_utils::future::{ready, Ready};
+use futures_core::ready;
+use pin_project_lite::pin_project;
 
 use crate::{
     dev::{Service, Transform},
@@ -28,8 +27,8 @@ use crate::{
 ///
 /// Headers with the same key that are already set in a response will *not* be overwritten.
 ///
-/// # Usage
-/// ```rust
+/// # Examples
+/// ```
 /// use actix_web::{web, http, middleware, App, HttpResponse};
 ///
 /// fn main() {
@@ -143,7 +142,7 @@ where
 
     actix_service::forward_ready!(service);
 
-    fn call(&mut self, req: ServiceRequest) -> Self::Future {
+    fn call(&self, req: ServiceRequest) -> Self::Future {
         let inner = self.inner.clone();
         let fut = self.service.call(req);
 
@@ -155,12 +154,13 @@ where
     }
 }
 
-#[pin_project::pin_project]
-pub struct DefaultHeaderFuture<S: Service<ServiceRequest>, B> {
-    #[pin]
-    fut: S::Future,
-    inner: Rc<Inner>,
-    _body: PhantomData<B>,
+pin_project! {
+    pub struct DefaultHeaderFuture<S: Service<ServiceRequest>, B> {
+        #[pin]
+        fut: S::Future,
+        inner: Rc<Inner>,
+        _body: PhantomData<B>,
+    }
 }
 
 impl<S, B> Future for DefaultHeaderFuture<S, B>
@@ -188,7 +188,7 @@ where
 #[cfg(test)]
 mod tests {
     use actix_service::IntoService;
-    use futures_util::future::ok;
+    use actix_utils::future::ok;
 
     use super::*;
     use crate::{
@@ -200,7 +200,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_default_headers() {
-        let mut mw = DefaultHeaders::new()
+        let mw = DefaultHeaders::new()
             .header(CONTENT_TYPE, "0001")
             .new_transform(ok_service())
             .await
@@ -218,7 +218,7 @@ mod tests {
                     .finish(),
             ))
         };
-        let mut mw = DefaultHeaders::new()
+        let mw = DefaultHeaders::new()
             .header(CONTENT_TYPE, "0001")
             .new_transform(srv.into_service())
             .await
@@ -229,9 +229,8 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_content_type() {
-        let srv =
-            |req: ServiceRequest| ok(req.into_response(HttpResponse::Ok().finish()));
-        let mut mw = DefaultHeaders::new()
+        let srv = |req: ServiceRequest| ok(req.into_response(HttpResponse::Ok().finish()));
+        let mw = DefaultHeaders::new()
             .add_content_type()
             .new_transform(srv.into_service())
             .await

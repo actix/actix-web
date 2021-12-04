@@ -2,12 +2,13 @@
 //! properties and pass them to a handler through request-local data.
 //!
 //! For an example of extracting a client TLS certificate, see:
-//! <https://github.com/actix/examples/tree/HEAD/rustls-client-cert>
+//! <https://github.com/actix/examples/tree/HEAD/security/rustls-client-cert>
 
 use std::{any::Any, io, net::SocketAddr};
 
 use actix_web::{dev::Extensions, rt::net::TcpStream, web, App, HttpServer};
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 struct ConnectionInfo {
     bind: SocketAddr,

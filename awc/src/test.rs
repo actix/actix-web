@@ -1,17 +1,17 @@
 //! Test helpers for actix http client to use during testing.
-use std::convert::TryFrom;
-
-use actix_http::cookie::{Cookie, CookieJar};
-use actix_http::http::header::{self, Header, HeaderValue, IntoHeaderValue};
-use actix_http::http::{Error as HttpError, HeaderName, StatusCode, Version};
+use actix_http::http::header::IntoHeaderPair;
+use actix_http::http::{StatusCode, Version};
 use actix_http::{h1, Payload, ResponseHead};
 use bytes::Bytes;
 
+#[cfg(feature = "cookies")]
+use crate::cookie::{Cookie, CookieJar};
 use crate::ClientResponse;
 
 /// Test `ClientResponse` builder
 pub struct TestResponse {
     head: ResponseHead,
+    #[cfg(feature = "cookies")]
     cookies: CookieJar,
     payload: Option<Payload>,
 }
@@ -20,6 +20,7 @@ impl Default for TestResponse {
     fn default() -> TestResponse {
         TestResponse {
             head: ResponseHead::new(StatusCode::OK),
+            #[cfg(feature = "cookies")]
             cookies: CookieJar::new(),
             payload: None,
         }
@@ -28,13 +29,11 @@ impl Default for TestResponse {
 
 impl TestResponse {
     /// Create TestResponse and set header
-    pub fn with_header<K, V>(key: K, value: V) -> Self
+    pub fn with_header<H>(header: H) -> Self
     where
-        HeaderName: TryFrom<K>,
-        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
-        V: IntoHeaderValue,
+        H: IntoHeaderPair,
     {
-        Self::default().header(key, value)
+        Self::default().insert_header(header)
     }
 
     /// Set HTTP version of this response
@@ -43,32 +42,32 @@ impl TestResponse {
         self
     }
 
-    /// Set a header
-    pub fn set<H: Header>(mut self, hdr: H) -> Self {
-        if let Ok(value) = hdr.try_into_value() {
-            self.head.headers.append(H::name(), value);
+    /// Insert a header
+    pub fn insert_header<H>(mut self, header: H) -> Self
+    where
+        H: IntoHeaderPair,
+    {
+        if let Ok((key, value)) = header.try_into_header_pair() {
+            self.head.headers.insert(key, value);
             return self;
         }
         panic!("Can not set header");
     }
 
     /// Append a header
-    pub fn header<K, V>(mut self, key: K, value: V) -> Self
+    pub fn append_header<H>(mut self, header: H) -> Self
     where
-        HeaderName: TryFrom<K>,
-        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
-        V: IntoHeaderValue,
+        H: IntoHeaderPair,
     {
-        if let Ok(key) = HeaderName::try_from(key) {
-            if let Ok(value) = value.try_into_value() {
-                self.head.headers.append(key, value);
-                return self;
-            }
+        if let Ok((key, value)) = header.try_into_header_pair() {
+            self.head.headers.append(key, value);
+            return self;
         }
         panic!("Can not create header");
     }
 
     /// Set cookie for this response
+    #[cfg(feature = "cookies")]
     pub fn cookie(mut self, cookie: Cookie<'_>) -> Self {
         self.cookies.add(cookie.into_owned());
         self
@@ -84,9 +83,14 @@ impl TestResponse {
 
     /// Complete response creation and generate `ClientResponse` instance
     pub fn finish(self) -> ClientResponse {
+        // allow unused mut when cookies feature is disabled
+        #[allow(unused_mut)]
         let mut head = self.head;
 
+        #[cfg(feature = "cookies")]
         for cookie in self.cookies.delta() {
+            use actix_http::http::header::{self, HeaderValue};
+
             head.headers.insert(
                 header::SET_COOKIE,
                 HeaderValue::from_str(&cookie.encoded().to_string()).unwrap(),
@@ -105,6 +109,8 @@ impl TestResponse {
 mod tests {
     use std::time::SystemTime;
 
+    use actix_http::http::header::HttpDate;
+
     use super::*;
     use crate::{cookie, http::header};
 
@@ -112,7 +118,7 @@ mod tests {
     fn test_basics() {
         let res = TestResponse::default()
             .version(Version::HTTP_2)
-            .set(header::Date(SystemTime::now().into()))
+            .insert_header((header::DATE, HttpDate::from(SystemTime::now())))
             .cookie(cookie::Cookie::build("name", "value").finish())
             .finish();
         assert!(res.headers().contains_key(header::SET_COOKIE));

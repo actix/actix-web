@@ -3,6 +3,44 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 3.0.0-beta.8 - 2021-11-30
+* Update `actix-tls` to `3.0.0-rc.1`. [#2474]
+
+[#2474]: https://github.com/actix/actix-web/pull/2474
+
+
+## 3.0.0-beta.7 - 2021-11-22
+* Fix compatibility with experimental `io-uring` feature of `actix-rt`. [#2408]
+
+[#2408]: https://github.com/actix/actix-web/pull/2408
+
+
+## 3.0.0-beta.6 - 2021-11-15
+* `TestServer::stop` is now async and will wait for the server and system to shutdown. [#2442]
+* Update `actix-server` to `2.0.0-beta.9`. [#2442]
+* Minimum supported Rust version (MSRV) is now 1.52.
+
+[#2442]: https://github.com/actix/actix-web/pull/2442
+
+
+## 3.0.0-beta.5 - 2021-09-09
+* Minimum supported Rust version (MSRV) is now 1.51.
+
+
+## 3.0.0-beta.4 - 2021-04-02
+* Added `TestServer::client_headers` method. [#2097]
+
+[#2097]: https://github.com/actix/actix-web/pull/2097
+
+
+## 3.0.0-beta.3 - 2021-03-09
+* No notable changes.
+
+
+## 3.0.0-beta.2 - 2021-02-10
+* No notable changes.
+
+
 ## 3.0.0-beta.1 - 2021-01-07
 * Update `bytes` to `1.0`. [#1813]
 

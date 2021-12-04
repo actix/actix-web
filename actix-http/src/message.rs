@@ -1,20 +1,25 @@
-use std::cell::{Ref, RefCell, RefMut};
-use std::net;
-use std::rc::Rc;
+use std::{
+    cell::{Ref, RefCell, RefMut},
+    net,
+    rc::Rc,
+};
 
 use bitflags::bitflags;
 
-use crate::extensions::Extensions;
-use crate::header::HeaderMap;
-use crate::http::{header, Method, StatusCode, Uri, Version};
+use crate::{
+    header::{self, HeaderMap},
+    Extensions, Method, StatusCode, Uri, Version,
+};
 
 /// Represents various types of connection
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum ConnectionType {
     /// Close connection after response
     Close,
+
     /// Keep connection alive after response
     KeepAlive,
+
     /// Connection is upgraded to different type
     Upgrade,
 }
@@ -41,8 +46,8 @@ pub trait Head: Default + 'static {
 
 #[derive(Debug)]
 pub struct RequestHead {
-    pub uri: Uri,
     pub method: Method,
+    pub uri: Uri,
     pub version: Version,
     pub headers: HeaderMap,
     pub extensions: RefCell<Extensions>,
@@ -53,13 +58,13 @@ pub struct RequestHead {
 impl Default for RequestHead {
     fn default() -> RequestHead {
         RequestHead {
-            uri: Uri::default(),
             method: Method::default(),
+            uri: Uri::default(),
             version: Version::HTTP_11,
             headers: HeaderMap::with_capacity(16),
-            flags: Flags::empty(),
-            peer_addr: None,
             extensions: RefCell::new(Extensions::new()),
+            peer_addr: None,
+            flags: Flags::empty(),
         }
     }
 }
@@ -147,15 +152,16 @@ impl RequestHead {
 
     /// Connection upgrade status
     pub fn upgrade(&self) -> bool {
-        if let Some(hdr) = self.headers().get(header::CONNECTION) {
-            if let Ok(s) = hdr.to_str() {
-                s.to_ascii_lowercase().contains("upgrade")
-            } else {
-                false
-            }
-        } else {
-            false
-        }
+        self.headers()
+            .get(header::CONNECTION)
+            .map(|hdr| {
+                if let Ok(s) = hdr.to_str() {
+                    s.to_ascii_lowercase().contains("upgrade")
+                } else {
+                    false
+                }
+            })
+            .unwrap_or(false)
     }
 
     #[inline]
@@ -186,6 +192,7 @@ impl RequestHead {
 }
 
 #[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
 pub enum RequestHeadType {
     Owned(RequestHead),
     Rc(Rc<RequestHead>, Option<HeaderMap>),
@@ -203,7 +210,7 @@ impl RequestHeadType {
 impl AsRef<RequestHead> for RequestHeadType {
     fn as_ref(&self) -> &RequestHead {
         match self {
-            RequestHeadType::Owned(head) => &head,
+            RequestHeadType::Owned(head) => head,
             RequestHeadType::Rc(head, _) => head.as_ref(),
         }
     }
@@ -288,14 +295,14 @@ impl ResponseHead {
         }
     }
 
-    #[inline]
     /// Check if keep-alive is enabled
+    #[inline]
     pub fn keep_alive(&self) -> bool {
         self.connection_type() == ConnectionType::KeepAlive
     }
 
-    #[inline]
     /// Check upgrade status of this message
+    #[inline]
     pub fn upgrade(&self) -> bool {
         self.connection_type() == ConnectionType::Upgrade
     }
@@ -303,17 +310,15 @@ impl ResponseHead {
     /// Get custom reason for the response
     #[inline]
     pub fn reason(&self) -> &str {
-        if let Some(reason) = self.reason {
-            reason
-        } else {
+        self.reason.unwrap_or_else(|| {
             self.status
                 .canonical_reason()
                 .unwrap_or("<unknown status code>")
-        }
+        })
     }
 
     #[inline]
-    pub(crate) fn ctype(&self) -> Option<ConnectionType> {
+    pub(crate) fn conn_type(&self) -> Option<ConnectionType> {
         if self.flags.contains(Flags::CLOSE) {
             Some(ConnectionType::Close)
         } else if self.flags.contains(Flags::KEEP_ALIVE) {
@@ -343,21 +348,15 @@ impl ResponseHead {
 }
 
 pub struct Message<T: Head> {
+    /// Rc here should not be cloned by anyone.
+    /// It's used to reuse allocation of T and no shared ownership is allowed.
     head: Rc<T>,
 }
 
 impl<T: Head> Message<T> {
     /// Get new message from the pool of objects
     pub fn new() -> Self {
-        T::with_pool(|p| p.get_message())
-    }
-}
-
-impl<T: Head> Clone for Message<T> {
-    fn clone(&self) -> Self {
-        Message {
-            head: self.head.clone(),
-        }
+        T::with_pool(MessagePool::get_message)
     }
 }
 
@@ -365,7 +364,7 @@ impl<T: Head> std::ops::Deref for Message<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        &self.head.as_ref()
+        self.head.as_ref()
     }
 }
 
@@ -377,9 +376,7 @@ impl<T: Head> std::ops::DerefMut for Message<T> {
 
 impl<T: Head> Drop for Message<T> {
     fn drop(&mut self) {
-        if Rc::strong_count(&self.head) == 1 {
-            T::with_pool(|p| p.release(self.head.clone()))
-        }
+        T::with_pool(|p| p.release(self.head.clone()))
     }
 }
 
@@ -391,12 +388,6 @@ impl BoxedResponseHead {
     /// Get new message from the pool of objects
     pub fn new(status: StatusCode) -> Self {
         RESPONSE_POOL.with(|p| p.get_message(status))
-    }
-
-    pub(crate) fn take(&mut self) -> Self {
-        BoxedResponseHead {
-            head: self.head.take(),
-        }
     }
 }
 

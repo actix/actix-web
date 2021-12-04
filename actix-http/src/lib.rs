@@ -1,6 +1,20 @@
 //! HTTP primitives for the Actix ecosystem.
+//!
+//! ## Crate Features
+//! | Feature             | Functionality                               |
+//! | ------------------- | ------------------------------------------- |
+//! | `openssl`           | TLS support via [OpenSSL].                  |
+//! | `rustls`            | TLS support via [rustls].                   |
+//! | `compress-brotli`   | Payload compression support: Brotli.        |
+//! | `compress-gzip`     | Payload compression support: Deflate, Gzip. |
+//! | `compress-zstd`     | Payload compression support: Zstd.          |
+//! | `trust-dns`         | Use [trust-dns] as the client DNS resolver. |
+//!
+//! [OpenSSL]: https://crates.io/crates/openssl
+//! [rustls]: https://crates.io/crates/rustls
+//! [trust-dns]: https://crates.io/crates/trust-dns
 
-#![deny(rust_2018_idioms)]
+#![deny(rust_2018_idioms, nonstandard_style, clippy::uninit_assumed_init)]
 #![allow(
     clippy::type_complexity,
     clippy::too_many_arguments,
@@ -13,28 +27,23 @@
 #[macro_use]
 extern crate log;
 
-#[macro_use]
-mod macros;
-
 pub mod body;
 mod builder;
-pub mod client;
 mod config;
-#[cfg(feature = "compress")]
+
+#[cfg(feature = "__compress")]
 pub mod encoding;
 mod extensions;
-mod header;
+pub mod header;
 mod helpers;
-mod httpcodes;
-pub mod httpmessage;
+mod http_message;
 mod message;
 mod payload;
 mod request;
 mod response;
+mod response_builder;
 mod service;
-mod time_parser;
 
-pub use cookie;
 pub mod error;
 pub mod h1;
 pub mod h2;
@@ -43,15 +52,22 @@ pub mod ws;
 
 pub use self::builder::HttpServiceBuilder;
 pub use self::config::{KeepAlive, ServiceConfig};
-pub use self::error::{Error, ResponseError, Result};
+pub use self::error::Error;
 pub use self::extensions::Extensions;
-pub use self::httpmessage::HttpMessage;
+pub use self::header::ContentEncoding;
+pub use self::http_message::HttpMessage;
+pub use self::message::ConnectionType;
 pub use self::message::{Message, RequestHead, RequestHeadType, ResponseHead};
 pub use self::payload::{Payload, PayloadStream};
 pub use self::request::Request;
-pub use self::response::{Response, ResponseBuilder};
+pub use self::response::Response;
+pub use self::response_builder::ResponseBuilder;
 pub use self::service::HttpService;
 
+pub use ::http::{uri, uri::Uri};
+pub use ::http::{Method, StatusCode, Version};
+
+// TODO: deprecate this mish-mash of random items
 pub mod http {
     //! Various HTTP related types.
 
@@ -61,7 +77,6 @@ pub mod http {
     pub use http::{uri, Error, Uri};
     pub use http::{Method, StatusCode, Version};
 
-    pub use crate::cookie::{Cookie, CookieBuilder};
     pub use crate::header::HeaderMap;
 
     /// A collection of HTTP headers and helpers.
@@ -87,13 +102,8 @@ type ConnectCallback<IO> = dyn Fn(&IO, &mut Extensions);
 ///
 /// # Implementation Details
 /// Uses Option to reduce necessary allocations when merging with request extensions.
+#[derive(Default)]
 pub(crate) struct OnConnectData(Option<Extensions>);
-
-impl Default for OnConnectData {
-    fn default() -> Self {
-        Self(None)
-    }
-}
 
 impl OnConnectData {
     /// Construct by calling the on-connect callback with the underlying transport I/O.

@@ -1,25 +1,65 @@
 //! Request extractors
 
 use std::{
+    convert::Infallible,
     future::Future,
     pin::Pin,
     task::{Context, Poll},
 };
 
-use futures_util::{
-    future::{ready, Ready},
-    ready,
-};
+use actix_http::http::{Method, Uri};
+use actix_utils::future::{ok, Ready};
+use futures_core::ready;
+use pin_project_lite::pin_project;
 
 use crate::{dev::Payload, Error, HttpRequest};
 
-/// Trait implemented by types that can be extracted from request.
+/// A type that implements [`FromRequest`] is called an **extractor** and can extract data from
+/// the request. Some types that implement this trait are: [`Json`], [`Header`], and [`Path`].
 ///
-/// Types that implement this trait can be used with `Route` handlers.
+/// # Configuration
+/// An extractor can be customized by injecting the corresponding configuration with one of:
+///
+/// - [`App::app_data()`][crate::App::app_data]
+/// - [`Scope::app_data()`][crate::Scope::app_data]
+/// - [`Resource::app_data()`][crate::Resource::app_data]
+///
+/// Here are some built-in extractors and their corresponding configuration.
+/// Please refer to the respective documentation for details.
+///
+/// | Extractor   | Configuration     |
+/// |-------------|-------------------|
+/// | [`Header`]  | _None_            |
+/// | [`Path`]    | [`PathConfig`]    |
+/// | [`Json`]    | [`JsonConfig`]    |
+/// | [`Form`]    | [`FormConfig`]    |
+/// | [`Query`]   | [`QueryConfig`]   |
+/// | [`Bytes`]   | [`PayloadConfig`] |
+/// | [`String`]  | [`PayloadConfig`] |
+/// | [`Payload`] | [`PayloadConfig`] |
+///
+/// # Implementing An Extractor
+/// To reduce duplicate code in handlers where extracting certain parts of a request has a common
+/// structure, you can implement `FromRequest` for your own types.
+///
+/// Note that the request payload can only be consumed by one extractor.
+///
+/// [`Header`]: crate::web::Header
+/// [`Json`]: crate::web::Json
+/// [`JsonConfig`]: crate::web::JsonConfig
+/// [`Form`]: crate::web::Form
+/// [`FormConfig`]: crate::web::FormConfig
+/// [`Path`]: crate::web::Path
+/// [`PathConfig`]: crate::web::PathConfig
+/// [`Query`]: crate::web::Query
+/// [`QueryConfig`]: crate::web::QueryConfig
+/// [`Payload`]: crate::web::Payload
+/// [`PayloadConfig`]: crate::web::PayloadConfig
+/// [`String`]: FromRequest#impl-FromRequest-for-String
+/// [`Bytes`]: crate::web::Bytes#impl-FromRequest
+/// [`Either`]: crate::web::Either
+#[doc(alias = "extract", alias = "extractor")]
 pub trait FromRequest: Sized {
-    /// Configuration for this extractor.
-    type Config: Default + 'static;
-
     /// The associated error which can be returned.
     type Error: Into<Error>;
 
@@ -35,27 +75,18 @@ pub trait FromRequest: Sized {
     fn extract(req: &HttpRequest) -> Self::Future {
         Self::from_request(req, &mut Payload::None)
     }
-
-    /// Create and configure config instance.
-    fn configure<F>(f: F) -> Self::Config
-    where
-        F: FnOnce(Self::Config) -> Self::Config,
-    {
-        f(Self::Config::default())
-    }
 }
 
 /// Optionally extract a field from the request
 ///
 /// If the FromRequest for T fails, return None rather than returning an error response
 ///
-/// ## Example
-///
-/// ```rust
+/// # Examples
+/// ```
 /// use actix_web::{web, dev, App, Error, HttpRequest, FromRequest};
 /// use actix_web::error::ErrorBadRequest;
 /// use futures_util::future::{ok, err, Ready};
-/// use serde_derive::Deserialize;
+/// use serde::Deserialize;
 /// use rand;
 ///
 /// #[derive(Debug, Deserialize)]
@@ -66,7 +97,6 @@ pub trait FromRequest: Sized {
 /// impl FromRequest for Thing {
 ///     type Error = Error;
 ///     type Future = Ready<Result<Self, Self::Error>>;
-///     type Config = ();
 ///
 ///     fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
 ///         if rand::random() {
@@ -101,7 +131,6 @@ where
 {
     type Error = Error;
     type Future = FromRequestOptFuture<T::Future>;
-    type Config = T::Config;
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
@@ -111,10 +140,11 @@ where
     }
 }
 
-#[pin_project::pin_project]
-pub struct FromRequestOptFuture<Fut> {
-    #[pin]
-    fut: Fut,
+pin_project! {
+    pub struct FromRequestOptFuture<Fut> {
+        #[pin]
+        fut: Fut,
+    }
 }
 
 impl<Fut, T, E> Future for FromRequestOptFuture<Fut>
@@ -141,13 +171,12 @@ where
 ///
 /// If the `FromRequest` for T fails, inject Err into handler rather than returning an error response
 ///
-/// ## Example
-///
-/// ```rust
+/// # Examples
+/// ```
 /// use actix_web::{web, dev, App, Result, Error, HttpRequest, FromRequest};
 /// use actix_web::error::ErrorBadRequest;
 /// use futures_util::future::{ok, err, Ready};
-/// use serde_derive::Deserialize;
+/// use serde::Deserialize;
 /// use rand;
 ///
 /// #[derive(Debug, Deserialize)]
@@ -158,7 +187,6 @@ where
 /// impl FromRequest for Thing {
 ///     type Error = Error;
 ///     type Future = Ready<Result<Thing, Error>>;
-///     type Config = ();
 ///
 ///     fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
 ///         if rand::random() {
@@ -191,7 +219,6 @@ where
 {
     type Error = Error;
     type Future = FromRequestResFuture<T::Future>;
-    type Config = T::Config;
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
@@ -201,10 +228,11 @@ where
     }
 }
 
-#[pin_project::pin_project]
-pub struct FromRequestResFuture<Fut> {
-    #[pin]
-    fut: Fut,
+pin_project! {
+    pub struct FromRequestResFuture<Fut> {
+        #[pin]
+        fut: Fut,
+    }
 }
 
 impl<Fut, T, E> Future for FromRequestResFuture<Fut>
@@ -220,121 +248,163 @@ where
     }
 }
 
-#[doc(hidden)]
-impl FromRequest for () {
-    type Error = Error;
-    type Future = Ready<Result<(), Error>>;
-    type Config = ();
+/// Extract the request's URI.
+///
+/// # Examples
+/// ```
+/// use actix_web::{http::Uri, web, App, Responder};
+///
+/// async fn handler(uri: Uri) -> impl Responder {
+///     format!("Requested path: {}", uri.path())
+/// }
+///
+/// let app = App::new().default_service(web::to(handler));
+/// ```
+impl FromRequest for Uri {
+    type Error = Infallible;
+    type Future = Ready<Result<Self, Self::Error>>;
 
-    fn from_request(_: &HttpRequest, _: &mut Payload) -> Self::Future {
-        ready(Ok(()))
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        ok(req.uri().clone())
     }
 }
 
-macro_rules! tuple_from_req ({$fut_type:ident, $(($n:tt, $T:ident)),+} => {
+/// Extract the request's method.
+///
+/// # Examples
+/// ```
+/// use actix_web::{http::Method, web, App, Responder};
+///
+/// async fn handler(method: Method) -> impl Responder {
+///     format!("Request method: {}", method)
+/// }
+///
+/// let app = App::new().default_service(web::to(handler));
+/// ```
+impl FromRequest for Method {
+    type Error = Infallible;
+    type Future = Ready<Result<Self, Self::Error>>;
 
-    // This module is a trick to get around the inability of
-    // `macro_rules!` macros to make new idents. We want to make
-    // a new `FutWrapper` struct for each distinct invocation of
-    // this macro. Ideally, we would name it something like
-    // `FutWrapper_$fut_type`, but this can't be done in a macro_rules
-    // macro.
-    //
-    // Instead, we put everything in a module named `$fut_type`, thus allowing
-    // us to use the name `FutWrapper` without worrying about conflicts.
-    // This macro only exists to generate trait impls for tuples - these
-    // are inherently global, so users don't have to care about this
-    // weird trick.
-    #[allow(non_snake_case)]
-    mod $fut_type {
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        ok(req.method().clone())
+    }
+}
 
-        // Bring everything into scope, so we don't need
-        // redundant imports
-        use super::*;
+#[doc(hidden)]
+impl FromRequest for () {
+    type Error = Infallible;
+    type Future = Ready<Result<Self, Self::Error>>;
 
-        /// A helper struct to allow us to pin-project through
-        /// to individual fields
-        #[pin_project::pin_project]
-        struct FutWrapper<$($T: FromRequest),+>($(#[pin] $T::Future),+);
+    fn from_request(_: &HttpRequest, _: &mut Payload) -> Self::Future {
+        ok(())
+    }
+}
 
-        /// FromRequest implementation for tuple
-        #[doc(hidden)]
-        #[allow(unused_parens)]
-        impl<$($T: FromRequest + 'static),+> FromRequest for ($($T,)+)
-        {
-            type Error = Error;
-            type Future = $fut_type<$($T),+>;
-            type Config = ($($T::Config),+);
+#[doc(hidden)]
+#[allow(non_snake_case)]
+mod tuple_from_req {
+    use super::*;
 
-            fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-                $fut_type {
-                    items: <($(Option<$T>,)+)>::default(),
-                    futs: FutWrapper($($T::from_request(req, payload),)+),
+    macro_rules! tuple_from_req {
+        ($fut: ident; $($T: ident),*) => {
+            /// FromRequest implementation for tuple
+            #[allow(unused_parens)]
+            impl<$($T: FromRequest + 'static),+> FromRequest for ($($T,)+)
+            {
+                type Error = Error;
+                type Future = $fut<$($T),+>;
+
+                fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+                    $fut {
+                        $(
+                            $T: ExtractFuture::Future {
+                                fut: $T::from_request(req, payload)
+                            },
+                        )+
+                    }
                 }
             }
-        }
 
-        #[doc(hidden)]
-        #[pin_project::pin_project]
-        pub struct $fut_type<$($T: FromRequest),+> {
-            items: ($(Option<$T>,)+),
-            #[pin]
-            futs: FutWrapper<$($T,)+>,
-        }
+            pin_project! {
+                pub struct $fut<$($T: FromRequest),+> {
+                    $(
+                        #[pin]
+                        $T: ExtractFuture<$T::Future, $T>,
+                    )+
+                }
+            }
 
-        impl<$($T: FromRequest),+> Future for $fut_type<$($T),+>
-        {
-            type Output = Result<($($T,)+), Error>;
+            impl<$($T: FromRequest),+> Future for $fut<$($T),+>
+            {
+                type Output = Result<($($T,)+), Error>;
 
-            fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-                let mut this = self.project();
+                fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+                    let mut this = self.project();
 
-                let mut ready = true;
-                $(
-                    if this.items.$n.is_none() {
-                        match this.futs.as_mut().project().$n.poll(cx) {
-                            Poll::Ready(Ok(item)) => {
-                                this.items.$n = Some(item);
-                            }
-                            Poll::Pending => ready = false,
-                            Poll::Ready(Err(e)) => return Poll::Ready(Err(e.into())),
+                    let mut ready = true;
+                    $(
+                        match this.$T.as_mut().project() {
+                            ExtractProj::Future { fut } => match fut.poll(cx) {
+                                Poll::Ready(Ok(output)) => {
+                                    let _ = this.$T.as_mut().project_replace(ExtractFuture::Done { output });
+                                },
+                                Poll::Ready(Err(e)) => return Poll::Ready(Err(e.into())),
+                                Poll::Pending => ready = false,
+                            },
+                            ExtractProj::Done { .. } => {},
+                            ExtractProj::Empty => unreachable!("FromRequest polled after finished"),
                         }
-                    }
-                )+
+                    )+
 
                     if ready {
                         Poll::Ready(Ok(
-                            ($(this.items.$n.take().unwrap(),)+)
+                            ($(
+                                match this.$T.project_replace(ExtractFuture::Empty) {
+                                    ExtractReplaceProj::Done { output } => output,
+                                    _ => unreachable!("FromRequest polled after finished"),
+                                },
+                            )+)
                         ))
                     } else {
                         Poll::Pending
                     }
+                }
             }
+        };
+    }
+
+    pin_project! {
+        #[project = ExtractProj]
+        #[project_replace = ExtractReplaceProj]
+        enum ExtractFuture<Fut, Res> {
+            Future {
+                #[pin]
+                fut: Fut
+            },
+            Done {
+                output: Res,
+            },
+            Empty
         }
     }
-});
 
-#[rustfmt::skip]
-mod m {
-    use super::*;
-
-tuple_from_req!(TupleFromRequest1, (0, A));
-tuple_from_req!(TupleFromRequest2, (0, A), (1, B));
-tuple_from_req!(TupleFromRequest3, (0, A), (1, B), (2, C));
-tuple_from_req!(TupleFromRequest4, (0, A), (1, B), (2, C), (3, D));
-tuple_from_req!(TupleFromRequest5, (0, A), (1, B), (2, C), (3, D), (4, E));
-tuple_from_req!(TupleFromRequest6, (0, A), (1, B), (2, C), (3, D), (4, E), (5, F));
-tuple_from_req!(TupleFromRequest7, (0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G));
-tuple_from_req!(TupleFromRequest8, (0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H));
-tuple_from_req!(TupleFromRequest9, (0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H), (8, I));
-tuple_from_req!(TupleFromRequest10, (0, A), (1, B), (2, C), (3, D), (4, E), (5, F), (6, G), (7, H), (8, I), (9, J));
+    tuple_from_req! { TupleFromRequest1; A }
+    tuple_from_req! { TupleFromRequest2; A, B }
+    tuple_from_req! { TupleFromRequest3; A, B, C }
+    tuple_from_req! { TupleFromRequest4; A, B, C, D }
+    tuple_from_req! { TupleFromRequest5; A, B, C, D, E }
+    tuple_from_req! { TupleFromRequest6; A, B, C, D, E, F }
+    tuple_from_req! { TupleFromRequest7; A, B, C, D, E, F, G }
+    tuple_from_req! { TupleFromRequest8; A, B, C, D, E, F, G, H }
+    tuple_from_req! { TupleFromRequest9; A, B, C, D, E, F, G, H, I }
+    tuple_from_req! { TupleFromRequest10; A, B, C, D, E, F, G, H, I, J }
 }
 
 #[cfg(test)]
 mod tests {
     use actix_http::http::header;
     use bytes::Bytes;
-    use serde_derive::Deserialize;
+    use serde::Deserialize;
 
     use super::*;
     use crate::test::TestRequest;
@@ -414,5 +484,41 @@ mod tests {
             .await
             .unwrap();
         assert!(r.is_err());
+    }
+
+    #[actix_rt::test]
+    async fn test_uri() {
+        let req = TestRequest::default().uri("/foo/bar").to_http_request();
+        let uri = Uri::extract(&req).await.unwrap();
+        assert_eq!(uri.path(), "/foo/bar");
+    }
+
+    #[actix_rt::test]
+    async fn test_method() {
+        let req = TestRequest::default().method(Method::GET).to_http_request();
+        let method = Method::extract(&req).await.unwrap();
+        assert_eq!(method, Method::GET);
+    }
+
+    #[actix_rt::test]
+    async fn test_concurrent() {
+        let (req, mut pl) = TestRequest::default()
+            .uri("/foo/bar")
+            .method(Method::GET)
+            .insert_header((header::CONTENT_TYPE, "application/x-www-form-urlencoded"))
+            .insert_header((header::CONTENT_LENGTH, "11"))
+            .set_payload(Bytes::from_static(b"hello=world"))
+            .to_http_parts();
+        let (method, uri, form) = <(Method, Uri, Form<Info>)>::from_request(&req, &mut pl)
+            .await
+            .unwrap();
+        assert_eq!(method, Method::GET);
+        assert_eq!(uri.path(), "/foo/bar");
+        assert_eq!(
+            form,
+            Form(Info {
+                hello: "world".into()
+            })
+        );
     }
 }

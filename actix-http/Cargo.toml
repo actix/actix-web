@@ -1,21 +1,23 @@
 [package]
 name = "actix-http"
-version = "3.0.0-beta.1"
+version = "3.0.0-beta.14"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "HTTP primitives for the Actix ecosystem"
-readme = "README.md"
 keywords = ["actix", "http", "framework", "async", "futures"]
 homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-web.git"
-documentation = "https://docs.rs/actix-http/"
-categories = ["network-programming", "asynchronous",
-              "web-programming::http-server",
-              "web-programming::websocket"]
+categories = [
+    "network-programming",
+    "asynchronous",
+    "web-programming::http-server",
+    "web-programming::websocket",
+]
 license = "MIT OR Apache-2.0"
 edition = "2018"
 
 [package.metadata.docs.rs]
-features = ["openssl", "rustls", "compress", "secure-cookies", "actors"]
+# features that docs.rs will build with
+features = ["openssl", "rustls", "compress-brotli", "compress-gzip", "compress-zstd"]
 
 [lib]
 name = "actix_http"
@@ -25,74 +27,79 @@ path = "src/lib.rs"
 default = []
 
 # openssl
-openssl = ["actix-tls/openssl"]
+openssl = ["actix-tls/accept", "actix-tls/openssl"]
 
 # rustls support
-rustls = ["actix-tls/rustls"]
+rustls = ["actix-tls/accept", "actix-tls/rustls"]
 
-# enable compressison support
-compress = ["flate2", "brotli2"]
+# enable compression support
+compress-brotli = ["brotli2", "__compress"]
+compress-gzip = ["flate2", "__compress"]
+compress-zstd = ["zstd", "__compress"]
 
-# support for secure cookies
-secure-cookies = ["cookie/secure"]
-
-# support for actix Actor messages
-actors = ["actix"]
+# Internal (PRIVATE!) features used to aid testing and cheking feature status.
+# Don't rely on these whatsoever. They may disappear at anytime.
+__compress = []
 
 [dependencies]
-actix-service = "2.0.0-beta.3"
-actix-codec = "0.4.0-beta.1"
-actix-utils = "3.0.0-beta.1"
-actix-rt = "2.0.0-beta.2"
-actix-tls = "3.0.0-beta.2"
-actix = { version = "0.11.0-beta.1", optional = true }
+actix-service = "2.0.0"
+actix-codec = "0.4.1"
+actix-utils = "3.0.0"
+actix-rt = "2.2"
 
+ahash = "0.7"
 base64 = "0.13"
 bitflags = "1.2"
 bytes = "1"
 bytestring = "1"
-cookie = { version = "0.14.1", features = ["percent-encode"] }
 derive_more = "0.99.5"
-either = "1.5.3"
 encoding_rs = "0.8"
-futures-channel = { version = "0.3.7", default-features = false }
-futures-core = { version = "0.3.7", default-features = false }
-futures-util = { version = "0.3.7", default-features = false, features = ["sink"] }
-ahash = "0.6"
-h2 = "0.3.0"
-http = "0.2.2"
-httparse = "1.3"
-indexmap = "1.3"
+futures-core = { version = "0.3.7", default-features = false, features = ["alloc"] }
+futures-util = { version = "0.3.7", default-features = false, features = ["alloc", "sink"] }
+h2 = "0.3.1"
+http = "0.2.5"
+httparse = "1.5.1"
+httpdate = "1.0.1"
 itoa = "0.4"
-lazy_static = "1.4"
-language-tags = "0.2"
+language-tags = "0.3"
+local-channel = "0.1"
 log = "0.4"
 mime = "0.3"
 percent-encoding = "2.1"
 pin-project = "1.0.0"
+pin-project-lite = "0.2"
 rand = "0.8"
-regex = "1.3"
-serde = "1.0"
-serde_json = "1.0"
 sha-1 = "0.9"
-smallvec = "1.6"
-slab = "0.4"
-serde_urlencoded = "0.7"
-time = { version = "0.2.7", default-features = false, features = ["std"] }
+smallvec = "1.6.1"
+
+# tls
+actix-tls = { version = "3.0.0-rc.1", default-features = false, optional = true }
 
 # compression
 brotli2 = { version="0.3.2", optional = true }
 flate2 = { version = "1.0.13", optional = true }
+zstd = { version = "0.9", optional = true }
 
 [dev-dependencies]
-actix-server = "2.0.0-beta.2"
-actix-http-test = { version = "3.0.0-beta.1", features = ["openssl"] }
-actix-tls = { version = "3.0.0-beta.2", features = ["openssl"] }
-criterion = "0.3"
-env_logger = "0.7"
-serde_derive = "1.0"
-open-ssl = { version="0.10", package = "openssl" }
-rust-tls = { version="0.19", package = "rustls" }
+actix-server = "2.0.0-beta.9"
+actix-http-test = { version = "3.0.0-beta.7", features = ["openssl"] }
+actix-tls = { version = "3.0.0-rc.1", features = ["openssl"] }
+async-stream = "0.3"
+criterion = { version = "0.3", features = ["html_reports"] }
+env_logger = "0.9"
+rcgen = "0.8"
+regex = "1.3"
+rustls-pemfile = "0.2"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+static_assertions = "1"
+tls-openssl = { package = "openssl", version = "0.10.9" }
+tls-rustls = { package = "rustls", version = "0.20.0" }
+tokio = { version = "1.2", features = ["net", "rt"] }
+
+[[example]]
+name = "ws"
+required-features = ["rustls"]
 
 [[bench]]
 name = "write-camel-case"

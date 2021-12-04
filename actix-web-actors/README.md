@@ -1,8 +1,17 @@
-Actix actors support for actix web framework [![Build Status](https://travis-ci.org/actix/actix-web.svg?branch=master)](https://travis-ci.org/actix/actix-web) [![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web) [![crates.io](https://meritbadge.herokuapp.com/actix-web-actors)](https://crates.io/crates/actix-web-actors) [![Join the chat at https://gitter.im/actix/actix](https://badges.gitter.im/actix/actix.svg)](https://gitter.im/actix/actix?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+# actix-web-actors
 
-## Documentation & community resources
+> Actix actors support for Actix Web.
 
-* [API Documentation](https://docs.rs/actix-web-actors/)
-* [Chat on gitter](https://gitter.im/actix/actix)
-* Cargo package: [actix-web-actors](https://crates.io/crates/actix-web-actors)
-* Minimum supported Rust version: 1.40 or later
+[![crates.io](https://img.shields.io/crates/v/actix-web-actors?label=latest)](https://crates.io/crates/actix-web-actors)
+[![Documentation](https://docs.rs/actix-web-actors/badge.svg?version=4.0.0-beta.7)](https://docs.rs/actix-web-actors/4.0.0-beta.7)
+[![Version](https://img.shields.io/badge/rustc-1.52+-ab6000.svg)](https://blog.rust-lang.org/2021/05/06/Rust-1.52.0.html)
+![License](https://img.shields.io/crates/l/actix-web-actors.svg)
+<br />
+[![dependency status](https://deps.rs/crate/actix-web-actors/4.0.0-beta.7/status.svg)](https://deps.rs/crate/actix-web-actors/4.0.0-beta.7)
+[![Download](https://img.shields.io/crates/d/actix-web-actors.svg)](https://crates.io/crates/actix-web-actors)
+[![Chat on Discord](https://img.shields.io/discord/771444961383153695?label=chat&logo=discord)](https://discord.gg/NWpN5mmg3x)
+
+## Documentation & Resources
+
+- [API Documentation](https://docs.rs/actix-web-actors)
+- Minimum Supported Rust Version (MSRV): 1.52

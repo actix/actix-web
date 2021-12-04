@@ -2,15 +2,15 @@
 
 use std::{fmt, ops, sync::Arc};
 
-use futures_util::future::{err, ok, Ready};
-use serde::de;
+use actix_utils::future::{err, ok, Ready};
+use serde::de::DeserializeOwned;
 
 use crate::{dev::Payload, error::QueryPayloadError, Error, FromRequest, HttpRequest};
 
 /// Extract typed information from the request's query.
 ///
 /// To extract typed data from the URL query string, the inner type `T` must implement the
-/// [`serde::Deserialize`] trait.
+/// [`DeserializeOwned`] trait.
 ///
 /// Use [`QueryConfig`] to configure extraction process.
 ///
@@ -18,7 +18,7 @@ use crate::{dev::Payload, error::QueryPayloadError, Error, FromRequest, HttpRequ
 /// A query string consists of unordered `key=value` pairs, therefore it cannot be decoded into any
 /// type which depends upon data ordering (eg. tuples). Trying to do so will result in a panic.
 ///
-/// # Usage
+/// # Examples
 /// ```
 /// use actix_web::{get, web};
 /// use serde::Deserialize;
@@ -29,7 +29,7 @@ use crate::{dev::Payload, error::QueryPayloadError, Error, FromRequest, HttpRequ
 ///    Code
 /// }
 ///
-/// #[derive(Deserialize)]
+/// #[derive(Debug, Deserialize)]
 /// pub struct AuthRequest {
 ///    id: u64,
 ///    response_type: ResponseType,
@@ -42,17 +42,33 @@ use crate::{dev::Payload, error::QueryPayloadError, Error, FromRequest, HttpRequ
 /// async fn index(info: web::Query<AuthRequest>) -> String {
 ///     format!("Authorization request for id={} and type={:?}!", info.id, info.response_type)
 /// }
+///
+/// // To access the entire underlying query struct, use `.into_inner()`.
+/// #[get("/debug1")]
+/// async fn debug1(info: web::Query<AuthRequest>) -> String {
+///     dbg!("Authorization object = {:?}", info.into_inner());
+///     "OK".to_string()
+/// }
+///
+/// // Or use destructuring, which is equivalent to `.into_inner()`.
+/// #[get("/debug2")]
+/// async fn debug2(web::Query(info): web::Query<AuthRequest>) -> String {
+///     dbg!("Authorization object = {:?}", info);
+///     "OK".to_string()
+/// }
 /// ```
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Query<T>(T);
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Query<T>(pub T);
 
 impl<T> Query<T> {
     /// Unwrap into inner `T` value.
     pub fn into_inner(self) -> T {
         self.0
     }
+}
 
-    /// Deserialize `T` from a URL encoded query parameter string.
+impl<T: DeserializeOwned> Query<T> {
+    /// Deserialize a `T` from the URL encoded query parameter string.
     ///
     /// ```
     /// # use std::collections::HashMap;
@@ -62,10 +78,7 @@ impl<T> Query<T> {
     /// assert_eq!(numbers.get("two"), Some(&2));
     /// assert!(numbers.get("three").is_none());
     /// ```
-    pub fn from_query(query_str: &str) -> Result<Self, QueryPayloadError>
-    where
-        T: de::DeserializeOwned,
-    {
+    pub fn from_query(query_str: &str) -> Result<Self, QueryPayloadError> {
         serde_urlencoded::from_str::<T>(query_str)
             .map(Self)
             .map_err(QueryPayloadError::Deserialize)
@@ -86,33 +99,22 @@ impl<T> ops::DerefMut for Query<T> {
     }
 }
 
-impl<T: fmt::Debug> fmt::Debug for Query<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
-    }
-}
-
 impl<T: fmt::Display> fmt::Display for Query<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
     }
 }
 
-/// See [here](#usage) for example of usage as an extractor.
-impl<T> FromRequest for Query<T>
-where
-    T: de::DeserializeOwned,
-{
+/// See [here](#Examples) for example of usage as an extractor.
+impl<T: DeserializeOwned> FromRequest for Query<T> {
     type Error = Error;
     type Future = Ready<Result<Self, Error>>;
-    type Config = QueryConfig;
 
     #[inline]
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let error_handler = req
-            .app_data::<Self::Config>()
-            .map(|c| c.err_handler.clone())
-            .unwrap_or(None);
+            .app_data::<QueryConfig>()
+            .and_then(|c| c.err_handler.clone());
 
         serde_urlencoded::from_str::<T>(req.query_string())
             .map(|val| ok(Query(val)))
@@ -138,7 +140,7 @@ where
 
 /// Query extractor configuration.
 ///
-/// # Usage
+/// # Examples
 /// ```
 /// use actix_web::{error, get, web, App, FromRequest, HttpResponse};
 /// use serde::Deserialize;
@@ -165,10 +167,9 @@ where
 ///     .app_data(query_cfg)
 ///     .service(index);
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct QueryConfig {
-    err_handler:
-        Option<Arc<dyn Fn(QueryPayloadError, &HttpRequest) -> Error + Send + Sync>>,
+    err_handler: Option<Arc<dyn Fn(QueryPayloadError, &HttpRequest) -> Error + Send + Sync>>,
 }
 
 impl QueryConfig {
@@ -179,12 +180,6 @@ impl QueryConfig {
     {
         self.err_handler = Some(Arc::new(f));
         self
-    }
-}
-
-impl Default for QueryConfig {
-    fn default() -> Self {
-        QueryConfig { err_handler: None }
     }
 }
 
@@ -207,13 +202,16 @@ mod tests {
     #[actix_rt::test]
     async fn test_service_request_extract() {
         let req = TestRequest::with_uri("/name/user1/").to_srv_request();
-        assert!(Query::<Id>::from_query(&req.query_string()).is_err());
+        assert!(Query::<Id>::from_query(req.query_string()).is_err());
 
         let req = TestRequest::with_uri("/name/user1/?id=test").to_srv_request();
-        let mut s = Query::<Id>::from_query(&req.query_string()).unwrap();
+        let mut s = Query::<Id>::from_query(req.query_string()).unwrap();
 
         assert_eq!(s.id, "test");
-        assert_eq!(format!("{}, {:?}", s, s), "test, Id { id: \"test\" }");
+        assert_eq!(
+            format!("{}, {:?}", s, s),
+            "test, Query(Id { id: \"test\" })"
+        );
 
         s.id = "test1".to_string();
         let s = s.into_inner();
@@ -231,7 +229,10 @@ mod tests {
 
         let mut s = Query::<Id>::from_request(&req, &mut pl).await.unwrap();
         assert_eq!(s.id, "test");
-        assert_eq!(format!("{}, {:?}", s, s), "test, Id { id: \"test\" }");
+        assert_eq!(
+            format!("{}, {:?}", s, s),
+            "test, Query(Id { id: \"test\" })"
+        );
 
         s.id = "test1".to_string();
         let s = s.into_inner();

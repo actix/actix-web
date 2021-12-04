@@ -3,9 +3,8 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::pin::Pin;
 use std::rc::{Rc, Weak};
-use std::task::{Context, Poll};
+use std::task::{Context, Poll, Waker};
 
-use actix_utils::task::LocalWaker;
 use bytes::Bytes;
 use futures_core::Stream;
 
@@ -134,7 +133,7 @@ impl PayloadSender {
             if shared.borrow().need_read {
                 PayloadStatus::Read
             } else {
-                shared.borrow_mut().io_task.register(cx.waker());
+                shared.borrow_mut().register_io(cx);
                 PayloadStatus::Pause
             }
         } else {
@@ -150,8 +149,8 @@ struct Inner {
     err: Option<PayloadError>,
     need_read: bool,
     items: VecDeque<Bytes>,
-    task: LocalWaker,
-    io_task: LocalWaker,
+    task: Option<Waker>,
+    io_task: Option<Waker>,
 }
 
 impl Inner {
@@ -162,8 +161,46 @@ impl Inner {
             err: None,
             items: VecDeque::new(),
             need_read: true,
-            task: LocalWaker::new(),
-            io_task: LocalWaker::new(),
+            task: None,
+            io_task: None,
+        }
+    }
+
+    /// Wake up future waiting for payload data to be available.
+    fn wake(&mut self) {
+        if let Some(waker) = self.task.take() {
+            waker.wake();
+        }
+    }
+
+    /// Wake up future feeding data to Payload.
+    fn wake_io(&mut self) {
+        if let Some(waker) = self.io_task.take() {
+            waker.wake();
+        }
+    }
+
+    /// Register future waiting data from payload.
+    /// Waker would be used in `Inner::wake`
+    fn register(&mut self, cx: &mut Context<'_>) {
+        if self
+            .task
+            .as_ref()
+            .map_or(true, |w| !cx.waker().will_wake(w))
+        {
+            self.task = Some(cx.waker().clone());
+        }
+    }
+
+    // Register future feeding data to payload.
+    /// Waker would be used in `Inner::wake_io`
+    fn register_io(&mut self, cx: &mut Context<'_>) {
+        if self
+            .io_task
+            .as_ref()
+            .map_or(true, |w| !cx.waker().will_wake(w))
+        {
+            self.io_task = Some(cx.waker().clone());
         }
     }
 
@@ -182,7 +219,7 @@ impl Inner {
         self.len += data.len();
         self.items.push_back(data);
         self.need_read = self.len < MAX_BUFFER_SIZE;
-        self.task.wake();
+        self.wake();
     }
 
     #[cfg(test)]
@@ -199,9 +236,9 @@ impl Inner {
             self.need_read = self.len < MAX_BUFFER_SIZE;
 
             if self.need_read && !self.eof {
-                self.task.register(cx.waker());
+                self.register(cx);
             }
-            self.io_task.wake();
+            self.wake_io();
             Poll::Ready(Some(Ok(data)))
         } else if let Some(err) = self.err.take() {
             Poll::Ready(Some(Err(err)))
@@ -209,8 +246,8 @@ impl Inner {
             Poll::Ready(None)
         } else {
             self.need_read = true;
-            self.task.register(cx.waker());
-            self.io_task.wake();
+            self.register(cx);
+            self.wake_io();
             Poll::Pending
         }
     }
@@ -224,7 +261,7 @@ impl Inner {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures_util::future::poll_fn;
+    use actix_utils::future::poll_fn;
 
     #[actix_rt::test]
     async fn test_unread_data() {

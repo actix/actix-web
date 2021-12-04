@@ -9,7 +9,7 @@ use actix_web::test::{init_service, ok_service, TestRequest};
 
 /// Criterion Benchmark for async Service
 /// Should be used from within criterion group:
-/// ```rust,ignore
+/// ```ignore
 /// let mut criterion: ::criterion::Criterion<_> =
 ///     ::criterion::Criterion::default().configure_from_args();
 /// bench_async_service(&mut criterion, ok_service(), "async_service_direct");
@@ -25,7 +25,7 @@ pub fn bench_async_service<S>(c: &mut Criterion, srv: S, name: &str)
 where
     S: Service<ServiceRequest, Response = ServiceResponse, Error = Error> + 'static,
 {
-    let rt = actix_rt::System::new("test");
+    let rt = actix_rt::System::new();
     let srv = Rc::new(RefCell::new(srv));
 
     let req = TestRequest::default().to_srv_request();
@@ -51,9 +51,8 @@ where
                     fut.await.unwrap();
                 }
             });
-            let elapsed = start.elapsed();
             // check that at least first request succeeded
-            elapsed
+            start.elapsed()
         })
     });
 }
@@ -67,7 +66,7 @@ async fn index(req: ServiceRequest) -> Result<ServiceResponse, Error> {
 // Sample results on MacBook Pro '14
 // time:   [2.0724 us 2.1345 us 2.2074 us]
 fn async_web_service(c: &mut Criterion) {
-    let rt = actix_rt::System::new("test");
+    let rt = actix_rt::System::new();
     let srv = Rc::new(RefCell::new(rt.block_on(init_service(
         App::new().service(web::service("/").finish(index)),
     ))));
@@ -93,9 +92,8 @@ fn async_web_service(c: &mut Criterion) {
                     fut.await.unwrap();
                 }
             });
-            let elapsed = start.elapsed();
             // check that at least first request succeeded
-            elapsed
+            start.elapsed()
         })
     });
 }

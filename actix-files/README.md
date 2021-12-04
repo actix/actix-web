@@ -3,17 +3,16 @@
 > Static file serving for Actix Web
 
 [![crates.io](https://img.shields.io/crates/v/actix-files?label=latest)](https://crates.io/crates/actix-files)
-[![Documentation](https://docs.rs/actix-files/badge.svg?version=0.5.0)](https://docs.rs/actix-files/0.5.0)
-[![Version](https://img.shields.io/badge/rustc-1.46+-ab6000.svg)](https://blog.rust-lang.org/2020/03/12/Rust-1.46.html)
+[![Documentation](https://docs.rs/actix-files/badge.svg?version=0.6.0-beta.9)](https://docs.rs/actix-files/0.6.0-beta.9)
+[![Version](https://img.shields.io/badge/rustc-1.52+-ab6000.svg)](https://blog.rust-lang.org/2021/05/06/Rust-1.52.0.html)
 ![License](https://img.shields.io/crates/l/actix-files.svg)
 <br />
-[![dependency status](https://deps.rs/crate/actix-files/0.5.0/status.svg)](https://deps.rs/crate/actix-files/0.5.0)
+[![dependency status](https://deps.rs/crate/actix-files/0.6.0-beta.9/status.svg)](https://deps.rs/crate/actix-files/0.6.0-beta.9)
 [![Download](https://img.shields.io/crates/d/actix-files.svg)](https://crates.io/crates/actix-files)
-[![Join the chat at https://gitter.im/actix/actix](https://badges.gitter.im/actix/actix.svg)](https://gitter.im/actix/actix?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Chat on Discord](https://img.shields.io/discord/771444961383153695?label=chat&logo=discord)](https://discord.gg/NWpN5mmg3x)
 
 ## Documentation & Resources
 
 - [API Documentation](https://docs.rs/actix-files/)
-- [Example Project](https://github.com/actix/examples/tree/master/static_index)
-- [Chat on Gitter](https://gitter.im/actix/actix-web)
-- Minimum supported Rust version: 1.46 or later
+- [Example Project](https://github.com/actix/examples/tree/master/basics/static_index)
+- Minimum Supported Rust Version (MSRV): 1.52

@@ -1,8 +1,8 @@
 use std::{fmt::Write, fs::DirEntry, io, path::Path, path::PathBuf};
 
 use actix_web::{dev::ServiceResponse, HttpRequest, HttpResponse};
+use askama_escape::{escape as escape_html_entity, Html};
 use percent_encoding::{utf8_percent_encode, CONTROLS};
-use v_htmlescape::escape as escape_html_entity;
 
 /// A directory; responds with the generated directory listing.
 #[derive(Debug)]
@@ -50,7 +50,7 @@ macro_rules! encode_file_url {
 // " -- &quot;  & -- &amp;  ' -- &#x27;  < -- &lt;  > -- &gt;  / -- &#x2f;
 macro_rules! encode_file_name {
     ($entry:ident) => {
-        escape_html_entity(&$entry.file_name().to_string_lossy())
+        escape_html_entity(&$entry.file_name().to_string_lossy(), Html)
     };
 }
 
@@ -66,9 +66,7 @@ pub(crate) fn directory_listing(
         if dir.is_visible(&entry) {
             let entry = entry.unwrap();
             let p = match entry.path().strip_prefix(&dir.path) {
-                Ok(p) if cfg!(windows) => {
-                    base.join(p).to_string_lossy().replace("\\", "/")
-                }
+                Ok(p) if cfg!(windows) => base.join(p).to_string_lossy().replace("\\", "/"),
                 Ok(p) => base.join(p).to_string_lossy().into_owned(),
                 Err(_) => continue,
             };

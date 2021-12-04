@@ -3,9 +3,9 @@ use std::io;
 use actix_codec::Framed;
 use actix_http::{body::BodySize, h1, ws, Error, HttpService, Request, Response};
 use actix_http_test::test_server;
+use actix_utils::future::ok;
 use bytes::Bytes;
-use futures_util::future::ok;
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{SinkExt as _, StreamExt as _};
 
 async fn ws_service(req: ws::Frame) -> Result<ws::Message, io::Error> {
     match req {
@@ -31,12 +31,12 @@ async fn test_simple() {
                         .send(h1::Message::Item((res.drop_body(), BodySize::None)))
                         .await?;
 
-                    // start websocket service
+                    // start WebSocket service
                     let framed = framed.replace_codec(ws::Codec::new());
                     ws::Dispatcher::with(framed, ws_service).await
                 }
             })
-            .finish(|_| ok::<_, Error>(Response::NotFound()))
+            .finish(|_| ok::<_, Error>(Response::not_found()))
             .tcp()
     })
     .await;

@@ -6,6 +6,8 @@ use std::{
 
 use derive_more::{Display, Error};
 
+use crate::error::ParseError;
+
 const MAX_QUALITY: u16 = 1000;
 const MAX_FLOAT_QUALITY: f32 = 1.0;
 
@@ -23,9 +25,9 @@ const MAX_FLOAT_QUALITY: f32 = 1.0;
 /// a value between 0 and 1000 e.g. `Quality(532)` matches the quality
 /// `q=0.532`.
 ///
-/// [RFC7231 Section 5.3.1](https://tools.ietf.org/html/rfc7231#section-5.3.1)
-/// gives more information on quality values in HTTP header fields.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+/// [RFC 7231 §5.3.1](https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.1) gives more
+/// information on quality values in HTTP header fields.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Quality(u16);
 
 impl Quality {
@@ -76,20 +78,21 @@ impl TryFrom<f32> for Quality {
     }
 }
 
-/// Represents an item with a quality value as defined in
-/// [RFC7231](https://tools.ietf.org/html/rfc7231#section-5.3.1).
-#[derive(Clone, PartialEq, Debug)]
+/// Represents an item with a quality value as defined
+/// in [RFC 7231 §5.3.1](https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.1).
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QualityItem<T> {
-    /// The actual contents of the field.
+    /// The wrapped contents of the field.
     pub item: T,
+
     /// The quality (client or server preference) for the value.
     pub quality: Quality,
 }
 
 impl<T> QualityItem<T> {
-    /// Creates a new `QualityItem` from an item and a quality.
-    /// The item can be of any type.
-    /// The quality should be a value in the range [0, 1].
+    /// Constructs a new `QualityItem` from an item and a quality value.
+    ///
+    /// The item can be of any type. The quality should be a value in the range [0, 1].
     pub fn new(item: T, quality: Quality) -> QualityItem<T> {
         QualityItem { item, quality }
     }
@@ -114,17 +117,18 @@ impl<T: fmt::Display> fmt::Display for QualityItem<T> {
 }
 
 impl<T: str::FromStr> str::FromStr for QualityItem<T> {
-    type Err = crate::error::ParseError;
+    type Err = ParseError;
 
-    fn from_str(qitem_str: &str) -> Result<QualityItem<T>, crate::error::ParseError> {
+    fn from_str(qitem_str: &str) -> Result<Self, Self::Err> {
         if !qitem_str.is_ascii() {
-            return Err(crate::error::ParseError::Header);
+            return Err(ParseError::Header);
         }
 
         // Set defaults used if parsing fails.
         let mut raw_item = qitem_str;
         let mut quality = 1f32;
 
+        // TODO: MSRV(1.52): use rsplit_once
         let parts: Vec<_> = qitem_str.rsplitn(2, ';').map(str::trim).collect();
 
         if parts.len() == 2 {
@@ -139,7 +143,7 @@ impl<T: str::FromStr> str::FromStr for QualityItem<T> {
             if parts[0].len() < 2 {
                 // Can't possibly be an attribute since an attribute needs at least a name followed
                 // by an equals sign. And bare identifiers are forbidden.
-                return Err(crate::error::ParseError::Header);
+                return Err(ParseError::Header);
             }
 
             let start = &parts[0][0..2];
@@ -148,25 +152,21 @@ impl<T: str::FromStr> str::FromStr for QualityItem<T> {
                 let q_val = &parts[0][2..];
                 if q_val.len() > 5 {
                     // longer than 5 indicates an over-precise q-factor
-                    return Err(crate::error::ParseError::Header);
+                    return Err(ParseError::Header);
                 }
 
-                let q_value = q_val
-                    .parse::<f32>()
-                    .map_err(|_| crate::error::ParseError::Header)?;
+                let q_value = q_val.parse::<f32>().map_err(|_| ParseError::Header)?;
 
                 if (0f32..=1f32).contains(&q_value) {
                     quality = q_value;
                     raw_item = parts[1];
                 } else {
-                    return Err(crate::error::ParseError::Header);
+                    return Err(ParseError::Header);
                 }
             }
         }
 
-        let item = raw_item
-            .parse::<T>()
-            .map_err(|_| crate::error::ParseError::Header)?;
+        let item = raw_item.parse::<T>().map_err(|_| ParseError::Header)?;
 
         // we already checked above that the quality is within range
         Ok(QualityItem::new(item, Quality::from_f32(quality)))
@@ -193,21 +193,70 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::super::encoding::*;
     use super::*;
+
+    // copy of encoding from actix-web headers
+    #[allow(clippy::enum_variant_names)] // allow Encoding prefix on EncodingExt
+    #[derive(Clone, PartialEq, Debug)]
+    pub enum Encoding {
+        Chunked,
+        Brotli,
+        Gzip,
+        Deflate,
+        Compress,
+        Identity,
+        Trailers,
+        EncodingExt(String),
+    }
+
+    impl fmt::Display for Encoding {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            use Encoding::*;
+            f.write_str(match *self {
+                Chunked => "chunked",
+                Brotli => "br",
+                Gzip => "gzip",
+                Deflate => "deflate",
+                Compress => "compress",
+                Identity => "identity",
+                Trailers => "trailers",
+                EncodingExt(ref s) => s.as_ref(),
+            })
+        }
+    }
+
+    impl str::FromStr for Encoding {
+        type Err = crate::error::ParseError;
+        fn from_str(s: &str) -> Result<Encoding, crate::error::ParseError> {
+            use Encoding::*;
+            match s {
+                "chunked" => Ok(Chunked),
+                "br" => Ok(Brotli),
+                "deflate" => Ok(Deflate),
+                "gzip" => Ok(Gzip),
+                "compress" => Ok(Compress),
+                "identity" => Ok(Identity),
+                "trailers" => Ok(Trailers),
+                _ => Ok(EncodingExt(s.to_owned())),
+            }
+        }
+    }
 
     #[test]
     fn test_quality_item_fmt_q_1() {
+        use Encoding::*;
         let x = qitem(Chunked);
         assert_eq!(format!("{}", x), "chunked");
     }
     #[test]
     fn test_quality_item_fmt_q_0001() {
+        use Encoding::*;
         let x = QualityItem::new(Chunked, Quality(1));
         assert_eq!(format!("{}", x), "chunked; q=0.001");
     }
     #[test]
     fn test_quality_item_fmt_q_05() {
+        use Encoding::*;
         // Custom value
         let x = QualityItem {
             item: EncodingExt("identity".to_owned()),
@@ -218,6 +267,7 @@ mod tests {
 
     #[test]
     fn test_quality_item_fmt_q_0() {
+        use Encoding::*;
         // Custom value
         let x = QualityItem {
             item: EncodingExt("identity".to_owned()),
@@ -228,6 +278,7 @@ mod tests {
 
     #[test]
     fn test_quality_item_from_str1() {
+        use Encoding::*;
         let x: Result<QualityItem<Encoding>, _> = "chunked".parse();
         assert_eq!(
             x.unwrap(),
@@ -237,8 +288,10 @@ mod tests {
             }
         );
     }
+
     #[test]
     fn test_quality_item_from_str2() {
+        use Encoding::*;
         let x: Result<QualityItem<Encoding>, _> = "chunked; q=1".parse();
         assert_eq!(
             x.unwrap(),
@@ -248,8 +301,10 @@ mod tests {
             }
         );
     }
+
     #[test]
     fn test_quality_item_from_str3() {
+        use Encoding::*;
         let x: Result<QualityItem<Encoding>, _> = "gzip; q=0.5".parse();
         assert_eq!(
             x.unwrap(),
@@ -259,8 +314,10 @@ mod tests {
             }
         );
     }
+
     #[test]
     fn test_quality_item_from_str4() {
+        use Encoding::*;
         let x: Result<QualityItem<Encoding>, _> = "gzip; q=0.273".parse();
         assert_eq!(
             x.unwrap(),
@@ -270,16 +327,19 @@ mod tests {
             }
         );
     }
+
     #[test]
     fn test_quality_item_from_str5() {
         let x: Result<QualityItem<Encoding>, _> = "gzip; q=0.2739999".parse();
         assert!(x.is_err());
     }
+
     #[test]
     fn test_quality_item_from_str6() {
         let x: Result<QualityItem<Encoding>, _> = "gzip; q=2".parse();
         assert!(x.is_err());
     }
+
     #[test]
     fn test_quality_item_ordering() {
         let x: QualityItem<Encoding> = "gzip; q=0.5".parse().ok().unwrap();

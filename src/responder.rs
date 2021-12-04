@@ -1,24 +1,25 @@
-use std::fmt;
+use std::borrow::Cow;
 
 use actix_http::{
-    error::InternalError,
+    body::{BoxBody, EitherBody, MessageBody},
     http::{header::IntoHeaderPair, Error as HttpError, HeaderMap, StatusCode},
-    ResponseBuilder,
 };
 use bytes::{Bytes, BytesMut};
 
-use crate::{Error, HttpRequest, HttpResponse};
+use crate::{BoxError, Error, HttpRequest, HttpResponse, HttpResponseBuilder};
 
 /// Trait implemented by types that can be converted to an HTTP response.
 ///
 /// Any types that implement this trait can be used in the return type of a handler.
 pub trait Responder {
+    type Body: MessageBody + 'static;
+
     /// Convert self to `HttpResponse`.
-    fn respond_to(self, req: &HttpRequest) -> HttpResponse;
+    fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body>;
 
     /// Override a status code for a Responder.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{http::StatusCode, HttpRequest, Responder};
     ///
     /// fn index(req: HttpRequest) -> impl Responder {
@@ -36,7 +37,7 @@ pub trait Responder {
     ///
     /// Overrides other headers with the same name.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{web, HttpRequest, Responder};
     /// use serde::Serialize;
     ///
@@ -60,17 +61,52 @@ pub trait Responder {
 }
 
 impl Responder for HttpResponse {
+    type Body = BoxBody;
+
     #[inline]
-    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
+    fn respond_to(self, _: &HttpRequest) -> HttpResponse<Self::Body> {
         self
     }
 }
 
-impl<T: Responder> Responder for Option<T> {
-    fn respond_to(self, req: &HttpRequest) -> HttpResponse {
+impl Responder for actix_http::Response<BoxBody> {
+    type Body = BoxBody;
+
+    #[inline]
+    fn respond_to(self, _: &HttpRequest) -> HttpResponse<Self::Body> {
+        HttpResponse::from(self)
+    }
+}
+
+impl Responder for HttpResponseBuilder {
+    type Body = BoxBody;
+
+    #[inline]
+    fn respond_to(mut self, _: &HttpRequest) -> HttpResponse<Self::Body> {
+        self.finish()
+    }
+}
+
+impl Responder for actix_http::ResponseBuilder {
+    type Body = BoxBody;
+
+    #[inline]
+    fn respond_to(mut self, req: &HttpRequest) -> HttpResponse<Self::Body> {
+        self.finish().map_into_boxed_body().respond_to(req)
+    }
+}
+
+impl<T> Responder for Option<T>
+where
+    T: Responder,
+    <T::Body as MessageBody>::Error: Into<BoxError>,
+{
+    type Body = EitherBody<T::Body>;
+
+    fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
         match self {
-            Some(t) => t.respond_to(req),
-            None => HttpResponse::build(StatusCode::NOT_FOUND).finish(),
+            Some(val) => val.respond_to(req).map_into_left_body(),
+            None => HttpResponse::new(StatusCode::NOT_FOUND).map_into_right_body(),
         }
     }
 }
@@ -78,85 +114,75 @@ impl<T: Responder> Responder for Option<T> {
 impl<T, E> Responder for Result<T, E>
 where
     T: Responder,
+    <T::Body as MessageBody>::Error: Into<BoxError>,
     E: Into<Error>,
 {
-    fn respond_to(self, req: &HttpRequest) -> HttpResponse {
+    type Body = EitherBody<T::Body>;
+
+    fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
         match self {
-            Ok(val) => val.respond_to(req),
-            Err(e) => HttpResponse::from_error(e.into()),
+            Ok(val) => val.respond_to(req).map_into_left_body(),
+            Err(err) => HttpResponse::from_error(err.into()).map_into_right_body(),
         }
     }
 }
 
-impl Responder for ResponseBuilder {
-    #[inline]
-    fn respond_to(mut self, _: &HttpRequest) -> HttpResponse {
-        self.finish()
-    }
-}
-
 impl<T: Responder> Responder for (T, StatusCode) {
-    fn respond_to(self, req: &HttpRequest) -> HttpResponse {
+    type Body = T::Body;
+
+    fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
         let mut res = self.0.respond_to(req);
         *res.status_mut() = self.1;
         res
     }
 }
 
-impl Responder for &'static str {
-    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
-        HttpResponse::Ok()
-            .content_type(mime::TEXT_PLAIN_UTF_8)
-            .body(self)
-    }
+macro_rules! impl_responder_by_forward_into_base_response {
+    ($res:ty, $body:ty) => {
+        impl Responder for $res {
+            type Body = $body;
+
+            fn respond_to(self, _: &HttpRequest) -> HttpResponse<Self::Body> {
+                let res: actix_http::Response<_> = self.into();
+                res.into()
+            }
+        }
+    };
+
+    ($res:ty) => {
+        impl_responder_by_forward_into_base_response!($res, $res);
+    };
 }
 
-impl Responder for &'static [u8] {
-    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
-        HttpResponse::Ok()
-            .content_type(mime::APPLICATION_OCTET_STREAM)
-            .body(self)
-    }
+impl_responder_by_forward_into_base_response!(&'static [u8]);
+impl_responder_by_forward_into_base_response!(Bytes);
+impl_responder_by_forward_into_base_response!(BytesMut);
+
+impl_responder_by_forward_into_base_response!(&'static str);
+impl_responder_by_forward_into_base_response!(String);
+
+macro_rules! impl_into_string_responder {
+    ($res:ty) => {
+        impl Responder for $res {
+            type Body = String;
+
+            fn respond_to(self, _: &HttpRequest) -> HttpResponse<Self::Body> {
+                let string: String = self.into();
+                let res: actix_http::Response<_> = string.into();
+                res.into()
+            }
+        }
+    };
 }
 
-impl Responder for String {
-    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
-        HttpResponse::Ok()
-            .content_type(mime::TEXT_PLAIN_UTF_8)
-            .body(self)
-    }
-}
-
-impl<'a> Responder for &'a String {
-    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
-        HttpResponse::Ok()
-            .content_type(mime::TEXT_PLAIN_UTF_8)
-            .body(self)
-    }
-}
-
-impl Responder for Bytes {
-    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
-        HttpResponse::Ok()
-            .content_type(mime::APPLICATION_OCTET_STREAM)
-            .body(self)
-    }
-}
-
-impl Responder for BytesMut {
-    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
-        HttpResponse::Ok()
-            .content_type(mime::APPLICATION_OCTET_STREAM)
-            .body(self)
-    }
-}
+impl_into_string_responder!(&'_ String);
+impl_into_string_responder!(Cow<'_, str>);
 
 /// Allows overriding status code and headers for a responder.
 pub struct CustomResponder<T> {
     responder: T,
     status: Option<StatusCode>,
-    headers: Option<HeaderMap>,
-    error: Option<HttpError>,
+    headers: Result<HeaderMap, HttpError>,
 }
 
 impl<T: Responder> CustomResponder<T> {
@@ -164,14 +190,13 @@ impl<T: Responder> CustomResponder<T> {
         CustomResponder {
             responder,
             status: None,
-            headers: None,
-            error: None,
+            headers: Ok(HeaderMap::new()),
         }
     }
 
     /// Override a status code for the Responder's response.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{HttpRequest, Responder, http::StatusCode};
     ///
     /// fn index(req: HttpRequest) -> impl Responder {
@@ -187,7 +212,7 @@ impl<T: Responder> CustomResponder<T> {
     ///
     /// Overrides other headers with the same name.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{web, HttpRequest, Responder};
     /// use serde::Serialize;
     ///
@@ -206,44 +231,42 @@ impl<T: Responder> CustomResponder<T> {
     where
         H: IntoHeaderPair,
     {
-        if self.headers.is_none() {
-            self.headers = Some(HeaderMap::new());
+        if let Ok(ref mut headers) = self.headers {
+            match header.try_into_header_pair() {
+                Ok((key, value)) => headers.append(key, value),
+                Err(e) => self.headers = Err(e.into()),
+            };
         }
-
-        match header.try_into_header_pair() {
-            Ok((key, value)) => self.headers.as_mut().unwrap().append(key, value),
-            Err(e) => self.error = Some(e.into()),
-        };
 
         self
     }
 }
 
-impl<T: Responder> Responder for CustomResponder<T> {
-    fn respond_to(self, req: &HttpRequest) -> HttpResponse {
+impl<T> Responder for CustomResponder<T>
+where
+    T: Responder,
+    <T::Body as MessageBody>::Error: Into<BoxError>,
+{
+    type Body = EitherBody<T::Body>;
+
+    fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
+        let headers = match self.headers {
+            Ok(headers) => headers,
+            Err(err) => return HttpResponse::from_error(err).map_into_right_body(),
+        };
+
         let mut res = self.responder.respond_to(req);
 
         if let Some(status) = self.status {
             *res.status_mut() = status;
         }
 
-        if let Some(ref headers) = self.headers {
-            for (k, v) in headers {
-                // TODO: before v4, decide if this should be append instead
-                res.headers_mut().insert(k.clone(), v.clone());
-            }
+        for (k, v) in headers {
+            // TODO: before v4, decide if this should be append instead
+            res.headers_mut().insert(k, v);
         }
 
-        res
-    }
-}
-
-impl<T> Responder for InternalError<T>
-where
-    T: fmt::Debug + fmt::Display + 'static,
-{
-    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
-        HttpResponse::from_error(self.into())
+        res.map_into_left_body()
     }
 }
 
@@ -252,19 +275,21 @@ pub(crate) mod tests {
     use actix_service::Service;
     use bytes::{Bytes, BytesMut};
 
+    use actix_http::body::to_bytes;
+
     use super::*;
-    use crate::dev::{Body, ResponseBody};
-    use crate::http::{header::CONTENT_TYPE, HeaderValue, StatusCode};
-    use crate::test::{init_service, TestRequest};
-    use crate::{error, web, App};
+    use crate::{
+        error,
+        http::{header::CONTENT_TYPE, HeaderValue, StatusCode},
+        test::{assert_body_eq, init_service, TestRequest},
+        web, App,
+    };
 
     #[actix_rt::test]
     async fn test_option_responder() {
-        let mut srv = init_service(
+        let srv = init_service(
             App::new()
-                .service(
-                    web::resource("/none").to(|| async { Option::<&'static str>::None }),
-                )
+                .service(web::resource("/none").to(|| async { Option::<&'static str>::None }))
                 .service(web::resource("/some").to(|| async { Some("some") })),
         )
         .await;
@@ -276,97 +301,116 @@ pub(crate) mod tests {
         let req = TestRequest::with_uri("/some").to_request();
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        match resp.response().body() {
-            ResponseBody::Body(Body::Bytes(ref b)) => {
-                let bytes = b.clone();
-                assert_eq!(bytes, Bytes::from_static(b"some"));
-            }
-            _ => panic!(),
-        }
-    }
-
-    pub(crate) trait BodyTest {
-        fn bin_ref(&self) -> &[u8];
-        fn body(&self) -> &Body;
-    }
-
-    impl BodyTest for ResponseBody<Body> {
-        fn bin_ref(&self) -> &[u8] {
-            match self {
-                ResponseBody::Body(ref b) => match b {
-                    Body::Bytes(ref bin) => &bin,
-                    _ => panic!(),
-                },
-                ResponseBody::Other(ref b) => match b {
-                    Body::Bytes(ref bin) => &bin,
-                    _ => panic!(),
-                },
-            }
-        }
-        fn body(&self) -> &Body {
-            match self {
-                ResponseBody::Body(ref b) => b,
-                ResponseBody::Other(ref b) => b,
-            }
-        }
+        assert_body_eq!(resp, b"some");
     }
 
     #[actix_rt::test]
     async fn test_responder() {
         let req = TestRequest::default().to_http_request();
 
-        let resp = "test".respond_to(&req);
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().bin_ref(), b"test");
+        let res = "test".respond_to(&req);
+        assert_eq!(res.status(), StatusCode::OK);
         assert_eq!(
-            resp.headers().get(CONTENT_TYPE).unwrap(),
+            res.headers().get(CONTENT_TYPE).unwrap(),
             HeaderValue::from_static("text/plain; charset=utf-8")
         );
-
-        let resp = b"test".respond_to(&req);
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().bin_ref(), b"test");
         assert_eq!(
-            resp.headers().get(CONTENT_TYPE).unwrap(),
-            HeaderValue::from_static("application/octet-stream")
+            to_bytes(res.into_body()).await.unwrap(),
+            Bytes::from_static(b"test"),
         );
 
-        let resp = "test".to_string().respond_to(&req);
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().bin_ref(), b"test");
+        let res = b"test".respond_to(&req);
+        assert_eq!(res.status(), StatusCode::OK);
         assert_eq!(
-            resp.headers().get(CONTENT_TYPE).unwrap(),
+            res.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("application/octet-stream")
+        );
+        assert_eq!(
+            to_bytes(res.into_body()).await.unwrap(),
+            Bytes::from_static(b"test"),
+        );
+
+        let res = "test".to_string().respond_to(&req);
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(
+            res.headers().get(CONTENT_TYPE).unwrap(),
             HeaderValue::from_static("text/plain; charset=utf-8")
         );
-
-        let resp = (&"test".to_string()).respond_to(&req);
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().bin_ref(), b"test");
         assert_eq!(
-            resp.headers().get(CONTENT_TYPE).unwrap(),
+            to_bytes(res.into_body()).await.unwrap(),
+            Bytes::from_static(b"test"),
+        );
+
+        let res = (&"test".to_string()).respond_to(&req);
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(
+            res.headers().get(CONTENT_TYPE).unwrap(),
             HeaderValue::from_static("text/plain; charset=utf-8")
         );
-
-        let resp = Bytes::from_static(b"test").respond_to(&req);
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().bin_ref(), b"test");
         assert_eq!(
-            resp.headers().get(CONTENT_TYPE).unwrap(),
-            HeaderValue::from_static("application/octet-stream")
+            to_bytes(res.into_body()).await.unwrap(),
+            Bytes::from_static(b"test"),
         );
 
-        let resp = BytesMut::from(b"test".as_ref()).respond_to(&req);
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().bin_ref(), b"test");
+        let s = String::from("test");
+        let res = Cow::Borrowed(s.as_str()).respond_to(&req);
+        assert_eq!(res.status(), StatusCode::OK);
         assert_eq!(
-            resp.headers().get(CONTENT_TYPE).unwrap(),
+            res.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("text/plain; charset=utf-8")
+        );
+        assert_eq!(
+            to_bytes(res.into_body()).await.unwrap(),
+            Bytes::from_static(b"test"),
+        );
+
+        let res = Cow::<'_, str>::Owned(s).respond_to(&req);
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(
+            res.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("text/plain; charset=utf-8")
+        );
+        assert_eq!(
+            to_bytes(res.into_body()).await.unwrap(),
+            Bytes::from_static(b"test"),
+        );
+
+        let res = Cow::Borrowed("test").respond_to(&req);
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(
+            res.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("text/plain; charset=utf-8")
+        );
+        assert_eq!(
+            to_bytes(res.into_body()).await.unwrap(),
+            Bytes::from_static(b"test"),
+        );
+
+        let res = Bytes::from_static(b"test").respond_to(&req);
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(
+            res.headers().get(CONTENT_TYPE).unwrap(),
             HeaderValue::from_static("application/octet-stream")
+        );
+        assert_eq!(
+            to_bytes(res.into_body()).await.unwrap(),
+            Bytes::from_static(b"test"),
+        );
+
+        let res = BytesMut::from(b"test".as_ref()).respond_to(&req);
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(
+            res.headers().get(CONTENT_TYPE).unwrap(),
+            HeaderValue::from_static("application/octet-stream")
+        );
+        assert_eq!(
+            to_bytes(res.into_body()).await.unwrap(),
+            Bytes::from_static(b"test"),
         );
 
         // InternalError
-        let resp =
-            error::InternalError::new("err", StatusCode::BAD_REQUEST).respond_to(&req);
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let res = error::InternalError::new("err", StatusCode::BAD_REQUEST).respond_to(&req);
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST);
     }
 
     #[actix_rt::test]
@@ -376,15 +420,17 @@ pub(crate) mod tests {
         // Result<I, E>
         let resp = Ok::<_, Error>("test".to_string()).respond_to(&req);
         assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(resp.body().bin_ref(), b"test");
         assert_eq!(
             resp.headers().get(CONTENT_TYPE).unwrap(),
             HeaderValue::from_static("text/plain; charset=utf-8")
         );
+        assert_eq!(
+            to_bytes(resp.into_body()).await.unwrap(),
+            Bytes::from_static(b"test"),
+        );
 
-        let res =
-            Err::<String, _>(error::InternalError::new("err", StatusCode::BAD_REQUEST))
-                .respond_to(&req);
+        let res = Err::<String, _>(error::InternalError::new("err", StatusCode::BAD_REQUEST))
+            .respond_to(&req);
 
         assert_eq!(res.status(), StatusCode::BAD_REQUEST);
     }
@@ -398,7 +444,10 @@ pub(crate) mod tests {
             .respond_to(&req);
 
         assert_eq!(res.status(), StatusCode::BAD_REQUEST);
-        assert_eq!(res.body().bin_ref(), b"test");
+        assert_eq!(
+            to_bytes(res.into_body()).await.unwrap(),
+            Bytes::from_static(b"test"),
+        );
 
         let res = "test"
             .to_string()
@@ -406,10 +455,13 @@ pub(crate) mod tests {
             .respond_to(&req);
 
         assert_eq!(res.status(), StatusCode::OK);
-        assert_eq!(res.body().bin_ref(), b"test");
         assert_eq!(
             res.headers().get(CONTENT_TYPE).unwrap(),
             HeaderValue::from_static("json")
+        );
+        assert_eq!(
+            to_bytes(res.into_body()).await.unwrap(),
+            Bytes::from_static(b"test"),
         );
     }
 
@@ -418,17 +470,23 @@ pub(crate) mod tests {
         let req = TestRequest::default().to_http_request();
         let res = ("test".to_string(), StatusCode::BAD_REQUEST).respond_to(&req);
         assert_eq!(res.status(), StatusCode::BAD_REQUEST);
-        assert_eq!(res.body().bin_ref(), b"test");
+        assert_eq!(
+            to_bytes(res.into_body()).await.unwrap(),
+            Bytes::from_static(b"test"),
+        );
 
         let req = TestRequest::default().to_http_request();
         let res = ("test".to_string(), StatusCode::OK)
             .with_header((CONTENT_TYPE, mime::APPLICATION_JSON))
             .respond_to(&req);
         assert_eq!(res.status(), StatusCode::OK);
-        assert_eq!(res.body().bin_ref(), b"test");
         assert_eq!(
             res.headers().get(CONTENT_TYPE).unwrap(),
             HeaderValue::from_static("application/json")
+        );
+        assert_eq!(
+            to_bytes(res.into_body()).await.unwrap(),
+            Bytes::from_static(b"test"),
         );
     }
 }

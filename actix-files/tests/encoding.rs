@@ -8,14 +8,13 @@ use actix_web::{
     App,
 };
 
-#[actix_rt::test]
+#[actix_web::test]
 async fn test_utf8_file_contents() {
     // use default ISO-8859-1 encoding
-    let mut srv =
-        test::init_service(App::new().service(Files::new("/", "./tests"))).await;
+    let srv = test::init_service(App::new().service(Files::new("/", "./tests"))).await;
 
     let req = TestRequest::with_uri("/utf8.txt").to_request();
-    let res = test::call_service(&mut srv, req).await;
+    let res = test::call_service(&srv, req).await;
 
     assert_eq!(res.status(), StatusCode::OK);
     assert_eq!(
@@ -24,13 +23,12 @@ async fn test_utf8_file_contents() {
     );
 
     // prefer UTF-8 encoding
-    let mut srv = test::init_service(
-        App::new().service(Files::new("/", "./tests").prefer_utf8(true)),
-    )
-    .await;
+    let srv =
+        test::init_service(App::new().service(Files::new("/", "./tests").prefer_utf8(true)))
+            .await;
 
     let req = TestRequest::with_uri("/utf8.txt").to_request();
-    let res = test::call_service(&mut srv, req).await;
+    let res = test::call_service(&srv, req).await;
 
     assert_eq!(res.status(), StatusCode::OK);
     assert_eq!(

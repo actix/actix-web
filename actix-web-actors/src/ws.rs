@@ -7,26 +7,30 @@ use std::task::{Context, Poll};
 use std::{collections::VecDeque, convert::TryFrom};
 
 use actix::dev::{
-    AsyncContextParts, ContextFut, ContextParts, Envelope, Mailbox, StreamHandler,
-    ToEnvelope,
+    AsyncContextParts, ContextFut, ContextParts, Envelope, Mailbox, StreamHandler, ToEnvelope,
 };
 use actix::fut::ActorFuture;
 use actix::{
-    Actor, ActorContext, ActorState, Addr, AsyncContext, Handler,
-    Message as ActixMessage, SpawnHandle,
+    Actor, ActorContext, ActorState, Addr, AsyncContext, Handler, Message as ActixMessage,
+    SpawnHandle,
 };
 use actix_codec::{Decoder, Encoder};
-use actix_http::ws::{hash_key, Codec};
 pub use actix_http::ws::{
     CloseCode, CloseReason, Frame, HandshakeError, Message, ProtocolError,
 };
-use actix_web::dev::HttpResponseBuilder;
-use actix_web::error::{Error, PayloadError};
-use actix_web::http::{header, Method, StatusCode};
-use actix_web::{HttpRequest, HttpResponse};
+use actix_http::{
+    http::HeaderValue,
+    ws::{hash_key, Codec},
+};
+use actix_web::{
+    error::{Error, PayloadError},
+    http::{header, Method, StatusCode},
+    HttpRequest, HttpResponse, HttpResponseBuilder,
+};
 use bytes::{Bytes, BytesMut};
 use bytestring::ByteString;
 use futures_core::Stream;
+use pin_project_lite::pin_project;
 use tokio::sync::oneshot::Sender;
 
 /// Builder for Websocket Session response.
@@ -50,8 +54,7 @@ use tokio::sync::oneshot::Sender;
 /// ```
 pub struct WsResponseBuilder<'a, A, T>
 where
-    A: Actor<Context = WebsocketContext<A>>
-        + StreamHandler<Result<Message, ProtocolError>>,
+    A: Actor<Context = WebsocketContext<A>> + StreamHandler<Result<Message, ProtocolError>>,
     T: Stream<Item = Result<Bytes, PayloadError>> + 'static,
 {
     actor: A,
@@ -64,8 +67,7 @@ where
 
 impl<'a, A, T> WsResponseBuilder<'a, A, T>
 where
-    A: Actor<Context = WebsocketContext<A>>
-        + StreamHandler<Result<Message, ProtocolError>>,
+    A: Actor<Context = WebsocketContext<A>> + StreamHandler<Result<Message, ProtocolError>>,
     T: Stream<Item = Result<Bytes, PayloadError>> + 'static,
 {
     pub fn new(actor: A, req: &'a HttpRequest, stream: T) -> Self {
@@ -166,8 +168,7 @@ where
 
         match self.codec {
             Some(codec) => {
-                let out_stream =
-                    WebsocketContext::with_codec(self.actor, self.stream, codec);
+                let out_stream = WebsocketContext::with_codec(self.actor, self.stream, codec);
                 Ok(res.streaming(out_stream))
             }
             None => {
@@ -210,8 +211,7 @@ where
 /// Perform WebSocket handshake and start actor.
 pub fn start<A, T>(actor: A, req: &HttpRequest, stream: T) -> Result<HttpResponse, Error>
 where
-    A: Actor<Context = WebsocketContext<A>>
-        + StreamHandler<Result<Message, ProtocolError>>,
+    A: Actor<Context = WebsocketContext<A>> + StreamHandler<Result<Message, ProtocolError>>,
     T: Stream<Item = Result<Bytes, PayloadError>> + 'static,
 {
     let mut res = handshake(req)?;
@@ -228,15 +228,14 @@ where
 ///
 /// If successful, returns a pair where the first item is an address for the
 /// created actor and the second item is the response that should be returned
-/// from the websocket request.
+/// from the WebSocket request.
 pub fn start_with_addr<A, T>(
     actor: A,
     req: &HttpRequest,
     stream: T,
 ) -> Result<(Addr<A>, HttpResponse), Error>
 where
-    A: Actor<Context = WebsocketContext<A>>
-        + StreamHandler<Result<Message, ProtocolError>>,
+    A: Actor<Context = WebsocketContext<A>> + StreamHandler<Result<Message, ProtocolError>>,
     T: Stream<Item = Result<Bytes, PayloadError>> + 'static,
 {
     let mut res = handshake(req)?;
@@ -244,7 +243,7 @@ where
     Ok((addr, res.streaming(out_stream)))
 }
 
-/// Do websocket handshake and start ws actor.
+/// Do WebSocket handshake and start ws actor.
 ///
 /// `protocols` is a sequence of known protocols.
 pub fn start_with_protocols<A, T>(
@@ -254,15 +253,14 @@ pub fn start_with_protocols<A, T>(
     stream: T,
 ) -> Result<HttpResponse, Error>
 where
-    A: Actor<Context = WebsocketContext<A>>
-        + StreamHandler<Result<Message, ProtocolError>>,
+    A: Actor<Context = WebsocketContext<A>> + StreamHandler<Result<Message, ProtocolError>>,
     T: Stream<Item = Result<Bytes, PayloadError>> + 'static,
 {
     let mut res = handshake_with_protocols(req, protocols)?;
     Ok(res.streaming(WebsocketContext::create(actor, stream)))
 }
 
-/// Prepare `WebSocket` handshake response.
+/// Prepare WebSocket handshake response.
 ///
 /// This function returns handshake `HttpResponse`, ready to send to peer.
 /// It does not perform any IO.
@@ -270,7 +268,7 @@ pub fn handshake(req: &HttpRequest) -> Result<HttpResponseBuilder, HandshakeErro
     handshake_with_protocols(req, &[])
 }
 
-/// Prepare `WebSocket` handshake response.
+/// Prepare WebSocket handshake response.
 ///
 /// This function returns handshake `HttpResponse`, ready to send to peer.
 /// It does not perform any IO.
@@ -287,7 +285,7 @@ pub fn handshake_with_protocols(
         return Err(HandshakeError::GetMethodRequired);
     }
 
-    // Check for "UPGRADE" to websocket header
+    // check for "UPGRADE" to WebSocket header
     let has_hdr = if let Some(hdr) = req.headers().get(&header::UPGRADE) {
         if let Ok(s) = hdr.to_str() {
             s.to_ascii_lowercase().contains("websocket")
@@ -344,7 +342,11 @@ pub fn handshake_with_protocols(
 
     let mut response = HttpResponse::build(StatusCode::SWITCHING_PROTOCOLS)
         .upgrade("websocket")
-        .insert_header((header::SEC_WEBSOCKET_ACCEPT, key))
+        .insert_header((
+            header::SEC_WEBSOCKET_ACCEPT,
+            // key is known to be header value safe ascii
+            HeaderValue::from_bytes(&key).unwrap(),
+        ))
         .take();
 
     if let Some(protocol) = protocol {
@@ -386,14 +388,14 @@ where
 {
     fn spawn<F>(&mut self, fut: F) -> SpawnHandle
     where
-        F: ActorFuture<Output = (), Actor = A> + 'static,
+        F: ActorFuture<A, Output = ()> + 'static,
     {
         self.inner.spawn(fut)
     }
 
     fn wait<F>(&mut self, fut: F)
     where
-        F: ActorFuture<Output = (), Actor = A> + 'static,
+        F: ActorFuture<A, Output = ()> + 'static,
     {
         self.inner.wait(fut)
     }
@@ -479,10 +481,7 @@ where
     }
 
     /// Create a new Websocket context
-    pub fn with_factory<S, F>(
-        stream: S,
-        f: F,
-    ) -> impl Stream<Item = Result<Bytes, Error>>
+    pub fn with_factory<S, F>(stream: S, f: F) -> impl Stream<Item = Result<Bytes, Error>>
     where
         F: FnOnce(&mut Self) -> A + 'static,
         A: StreamHandler<Result<Message, ProtocolError>>,
@@ -601,10 +600,7 @@ where
 {
     type Item = Result<Bytes, Error>;
 
-    fn poll_next(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
 
         if this.fut.alive() {
@@ -642,13 +638,14 @@ where
     }
 }
 
-#[pin_project::pin_project]
-struct WsStream<S> {
-    #[pin]
-    stream: S,
-    decoder: Codec,
-    buf: BytesMut,
-    closed: bool,
+pin_project! {
+    struct WsStream<S> {
+        #[pin]
+        stream: S,
+        decoder: Codec,
+        buf: BytesMut,
+        closed: bool,
+    }
 }
 
 impl<S> WsStream<S>
@@ -671,15 +668,11 @@ where
 {
     type Item = Result<Message, ProtocolError>;
 
-    fn poll_next(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.as_mut().project();
 
         if !*this.closed {
             loop {
-                this = self.as_mut().project();
                 match Pin::new(&mut this.stream).poll_next(cx) {
                     Poll::Ready(Some(Ok(chunk))) => {
                         this.buf.extend_from_slice(&chunk[..]);
@@ -690,9 +683,10 @@ where
                     }
                     Poll::Pending => break,
                     Poll::Ready(Some(Err(e))) => {
-                        return Poll::Ready(Some(Err(ProtocolError::Io(
-                            io::Error::new(io::ErrorKind::Other, format!("{}", e)),
-                        ))));
+                        return Poll::Ready(Some(Err(ProtocolError::Io(io::Error::new(
+                            io::ErrorKind::Other,
+                            format!("{}", e),
+                        )))));
                     }
                 }
             }

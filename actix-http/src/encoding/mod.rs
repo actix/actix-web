@@ -1,4 +1,5 @@
-//! Content-Encoding support
+//! Content-Encoding support.
+
 use std::io;
 
 use bytes::{Bytes, BytesMut};
@@ -9,6 +10,9 @@ mod encoder;
 pub use self::decoder::Decoder;
 pub use self::encoder::Encoder;
 
+/// Special-purpose writer for streaming (de-)compression.
+///
+/// Pre-allocates 8KiB of capacity.
 pub(self) struct Writer {
     buf: BytesMut,
 }

@@ -6,19 +6,21 @@ use std::{cmp, io};
 
 use bytes::{BufMut, BytesMut};
 
-use crate::body::BodySize;
-use crate::config::ServiceConfig;
-use crate::header::{map::Value, HeaderName};
-use crate::helpers;
-use crate::http::header::{CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
-use crate::http::{HeaderMap, StatusCode, Version};
-use crate::message::{ConnectionType, RequestHeadType};
-use crate::response::Response;
+use crate::{
+    body::BodySize,
+    config::ServiceConfig,
+    header::{map::Value, HeaderMap, HeaderName},
+    header::{CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING},
+    helpers,
+    message::{ConnectionType, RequestHeadType},
+    Response, StatusCode, Version,
+};
 
 const AVERAGE_HEADER_SIZE: usize = 30;
 
 #[derive(Debug)]
 pub(crate) struct MessageEncoder<T: MessageType> {
+    #[allow(dead_code)]
     pub length: BodySize,
     pub te: TransferEncoding,
     _phantom: PhantomData<T>,
@@ -54,7 +56,7 @@ pub(crate) trait MessageType: Sized {
         dst: &mut BytesMut,
         version: Version,
         mut length: BodySize,
-        ctype: ConnectionType,
+        conn_type: ConnectionType,
         config: &ServiceConfig,
     ) -> io::Result<()> {
         let chunked = self.chunked();
@@ -69,17 +71,28 @@ pub(crate) trait MessageType: Sized {
                 | StatusCode::PROCESSING
                 | StatusCode::NO_CONTENT => {
                     // skip content-length and transfer-encoding headers
-                    // See https://tools.ietf.org/html/rfc7230#section-3.3.1
-                    // and https://tools.ietf.org/html/rfc7230#section-3.3.2
+                    // see https://datatracker.ietf.org/doc/html/rfc7230#section-3.3.1
+                    // and https://datatracker.ietf.org/doc/html/rfc7230#section-3.3.2
                     skip_len = true;
                     length = BodySize::None
                 }
+
+                StatusCode::NOT_MODIFIED => {
+                    // 304 responses should never have a body but should retain a manually set
+                    // content-length header
+                    // see https://datatracker.ietf.org/doc/html/rfc7232#section-4.1
+                    skip_len = false;
+                    length = BodySize::None;
+                }
+
                 _ => {}
             }
         }
+
         match length {
             BodySize::Stream => {
                 if chunked {
+                    skip_len = true;
                     if camel_case {
                         dst.put_slice(b"\r\nTransfer-Encoding: chunked\r\n")
                     } else {
@@ -90,19 +103,16 @@ pub(crate) trait MessageType: Sized {
                     dst.put_slice(b"\r\n");
                 }
             }
-            BodySize::Empty => {
-                if camel_case {
-                    dst.put_slice(b"\r\nContent-Length: 0\r\n");
-                } else {
-                    dst.put_slice(b"\r\ncontent-length: 0\r\n");
-                }
+            BodySize::Sized(0) if camel_case => {
+                dst.put_slice(b"\r\nContent-Length: 0\r\n")
             }
+            BodySize::Sized(0) => dst.put_slice(b"\r\ncontent-length: 0\r\n"),
             BodySize::Sized(len) => helpers::write_content_length(len, dst),
             BodySize::None => dst.put_slice(b"\r\n"),
         }
 
         // Connection
-        match ctype {
+        match conn_type {
             ConnectionType::Upgrade => dst.put_slice(b"connection: upgrade\r\n"),
             ConnectionType::KeepAlive if version < Version::HTTP_11 => {
                 if camel_case {
@@ -144,104 +154,54 @@ pub(crate) trait MessageType: Sized {
             let k = key.as_str().as_bytes();
             let k_len = k.len();
 
-            match value {
-                Value::One(ref val) => {
-                    let v = val.as_ref();
-                    let v_len = v.len();
+            // TODO: drain?
+            for val in value.iter() {
+                let v = val.as_ref();
+                let v_len = v.len();
 
-                    // key length + value length + colon + space + \r\n
-                    let len = k_len + v_len + 4;
+                // key length + value length + colon + space + \r\n
+                let len = k_len + v_len + 4;
 
-                    if len > remaining {
-                        // not enough room in buffer for this header; reserve more space
-
-                        // SAFETY: all the bytes written up to position "pos" are initialized
-                        // the written byte count and pointer advancement are kept in sync
-                        unsafe {
-                            dst.advance_mut(pos);
-                        }
-
-                        pos = 0;
-                        dst.reserve(len * 2);
-                        remaining = dst.capacity() - dst.len();
-
-                        // re-assign buf raw pointer since it's possible that the buffer was
-                        // reallocated and/or resized
-                        buf = dst.chunk_mut().as_mut_ptr();
-                    }
-
-                    // SAFETY: on each write, it is enough to ensure that the advancement of the
-                    // cursor matches the number of bytes written
+                if len > remaining {
+                    // SAFETY: all the bytes written up to position "pos" are initialized
+                    // the written byte count and pointer advancement are kept in sync
                     unsafe {
-                        // use upper Camel-Case
-                        if camel_case {
-                            write_camel_case(k, from_raw_parts_mut(buf, k_len))
-                        } else {
-                            write_data(k, buf, k_len)
-                        }
-
-                        buf = buf.add(k_len);
-
-                        write_data(b": ", buf, 2);
-                        buf = buf.add(2);
-
-                        write_data(v, buf, v_len);
-                        buf = buf.add(v_len);
-
-                        write_data(b"\r\n", buf, 2);
-                        buf = buf.add(2);
+                        dst.advance_mut(pos);
                     }
 
-                    pos += len;
-                    remaining -= len;
+                    pos = 0;
+                    dst.reserve(len * 2);
+                    remaining = dst.capacity() - dst.len();
+
+                    // re-assign buf raw pointer since it's possible that the buffer was
+                    // reallocated and/or resized
+                    buf = dst.chunk_mut().as_mut_ptr();
                 }
 
-                Value::Multi(ref vec) => {
-                    for val in vec {
-                        let v = val.as_ref();
-                        let v_len = v.len();
-                        let len = k_len + v_len + 4;
-
-                        if len > remaining {
-                            // SAFETY: all the bytes written up to position "pos" are initialized
-                            // the written byte count and pointer advancement are kept in sync
-                            unsafe {
-                                dst.advance_mut(pos);
-                            }
-                            pos = 0;
-                            dst.reserve(len * 2);
-                            remaining = dst.capacity() - dst.len();
-
-                            // re-assign buf raw pointer since it's possible that the buffer was
-                            // reallocated and/or resized
-                            buf = dst.chunk_mut().as_mut_ptr();
-                        }
-
-                        // SAFETY: on each write, it is enough to ensure that the advancement of
-                        // the cursor matches the number of bytes written
-                        unsafe {
-                            if camel_case {
-                                write_camel_case(k, from_raw_parts_mut(buf, k_len));
-                            } else {
-                                write_data(k, buf, k_len);
-                            }
-
-                            buf = buf.add(k_len);
-
-                            write_data(b": ", buf, 2);
-                            buf = buf.add(2);
-
-                            write_data(v, buf, v_len);
-                            buf = buf.add(v_len);
-
-                            write_data(b"\r\n", buf, 2);
-                            buf = buf.add(2);
-                        };
-
-                        pos += len;
-                        remaining -= len;
+                // SAFETY: on each write, it is enough to ensure that the advancement of
+                // the cursor matches the number of bytes written
+                unsafe {
+                    if camel_case {
+                        // use Camel-Case headers
+                        write_camel_case(k, buf, k_len);
+                    } else {
+                        write_data(k, buf, k_len);
                     }
-                }
+
+                    buf = buf.add(k_len);
+
+                    write_data(b": ", buf, 2);
+                    buf = buf.add(2);
+
+                    write_data(v, buf, v_len);
+                    buf = buf.add(v_len);
+
+                    write_data(b"\r\n", buf, 2);
+                    buf = buf.add(2);
+                };
+
+                pos += len;
+                remaining -= len;
             }
         });
 
@@ -337,7 +297,7 @@ impl MessageType for RequestHeadType {
         let head = self.as_ref();
         dst.reserve(256 + head.headers.len() * AVERAGE_HEADER_SIZE);
         write!(
-            Writer(dst),
+            helpers::MutWriter(dst),
             "{} {} {}",
             head.method,
             head.uri.path_and_query().map(|u| u.as_str()).unwrap_or("/"),
@@ -377,13 +337,13 @@ impl<T: MessageType> MessageEncoder<T> {
         stream: bool,
         version: Version,
         length: BodySize,
-        ctype: ConnectionType,
+        conn_type: ConnectionType,
         config: &ServiceConfig,
     ) -> io::Result<()> {
         // transfer encoding
         if !head {
             self.te = match length {
-                BodySize::Empty => TransferEncoding::empty(),
+                BodySize::Sized(0) => TransferEncoding::empty(),
                 BodySize::Sized(len) => TransferEncoding::length(len),
                 BodySize::Stream => {
                     if message.chunked() && !stream {
@@ -399,7 +359,7 @@ impl<T: MessageType> MessageEncoder<T> {
         }
 
         message.encode_status(dst)?;
-        message.encode_headers(dst, version, length, ctype, config)
+        message.encode_headers(dst, version, length, conn_type, config)
     }
 }
 
@@ -413,10 +373,12 @@ pub(crate) struct TransferEncoding {
 enum TransferEncodingKind {
     /// An Encoder for when Transfer-Encoding includes `chunked`.
     Chunked(bool),
+
     /// An Encoder for when Content-Length is set.
     ///
     /// Enforces that the body is not longer than the Content-Length header.
     Length(u64),
+
     /// An Encoder for when Content-Length is not known.
     ///
     /// Application decides when to stop writing.
@@ -470,7 +432,7 @@ impl TransferEncoding {
                     *eof = true;
                     buf.extend_from_slice(b"0\r\n\r\n");
                 } else {
-                    writeln!(Writer(buf), "{:X}\r", msg.len())
+                    writeln!(helpers::MutWriter(buf), "{:X}\r", msg.len())
                         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
                     buf.reserve(msg.len() + 2);
@@ -520,28 +482,23 @@ impl TransferEncoding {
     }
 }
 
-struct Writer<'a>(pub &'a mut BytesMut);
-
-impl<'a> io::Write for Writer<'a> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.0.extend_from_slice(buf);
-        Ok(buf.len())
-    }
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}
-
 /// # Safety
-/// Callers must ensure that the given length matches given value length.
+/// Callers must ensure that the given `len` matches the given `value` length and that `buf` is
+/// valid for writes of at least `len` bytes.
 unsafe fn write_data(value: &[u8], buf: *mut u8, len: usize) {
     debug_assert_eq!(value.len(), len);
     copy_nonoverlapping(value.as_ptr(), buf, len);
 }
 
-fn write_camel_case(value: &[u8], buffer: &mut [u8]) {
+/// # Safety
+/// Callers must ensure that the given `len` matches the given `value` length and that `buf` is
+/// valid for writes of at least `len` bytes.
+unsafe fn write_camel_case(value: &[u8], buf: *mut u8, len: usize) {
     // first copy entire (potentially wrong) slice to output
-    buffer[..value.len()].copy_from_slice(value);
+    write_data(value, buf, len);
+
+    // SAFETY: We just initialized the buffer with `value`
+    let buffer = from_raw_parts_mut(buf, len);
 
     let mut iter = value.iter();
 
@@ -591,8 +548,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_camel_case() {
+    #[actix_rt::test]
+    async fn test_camel_case() {
         let mut bytes = BytesMut::with_capacity(2048);
         let mut head = RequestHead::default();
         head.set_camel_case_headers(true);
@@ -605,13 +562,12 @@ mod tests {
         let _ = head.encode_headers(
             &mut bytes,
             Version::HTTP_11,
-            BodySize::Empty,
+            BodySize::Sized(0),
             ConnectionType::Close,
             &ServiceConfig::default(),
         );
         let data =
             String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
-        eprintln!("{}", &data);
 
         assert!(data.contains("Content-Length: 0\r\n"));
         assert!(data.contains("Connection: close\r\n"));
@@ -655,8 +611,8 @@ mod tests {
         assert!(data.contains("date: date\r\n"));
     }
 
-    #[test]
-    fn test_extra_headers() {
+    #[actix_rt::test]
+    async fn test_extra_headers() {
         let mut bytes = BytesMut::with_capacity(2048);
 
         let mut head = RequestHead::default();
@@ -677,7 +633,7 @@ mod tests {
         let _ = head.encode_headers(
             &mut bytes,
             Version::HTTP_11,
-            BodySize::Empty,
+            BodySize::Sized(0),
             ConnectionType::Close,
             &ServiceConfig::default(),
         );
@@ -689,16 +645,14 @@ mod tests {
         assert!(data.contains("date: date\r\n"));
     }
 
-    #[test]
-    fn test_no_content_length() {
+    #[actix_rt::test]
+    async fn test_no_content_length() {
         let mut bytes = BytesMut::with_capacity(2048);
 
-        let mut res: Response<()> =
-            Response::new(StatusCode::SWITCHING_PROTOCOLS).into_body::<()>();
+        let mut res = Response::with_body(StatusCode::SWITCHING_PROTOCOLS, ());
+        res.headers_mut().insert(DATE, HeaderValue::from_static(""));
         res.headers_mut()
-            .insert(DATE, HeaderValue::from_static(&""));
-        res.headers_mut()
-            .insert(CONTENT_LENGTH, HeaderValue::from_static(&"0"));
+            .insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
 
         let _ = res.encode_headers(
             &mut bytes,

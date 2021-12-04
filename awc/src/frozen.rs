@@ -1,21 +1,21 @@
-use std::convert::TryFrom;
-use std::net;
-use std::rc::Rc;
-use std::time::Duration;
+use std::{convert::TryFrom, net, rc::Rc, time::Duration};
 
 use bytes::Bytes;
 use futures_core::Stream;
 use serde::Serialize;
 
-use actix_http::body::Body;
-use actix_http::http::header::IntoHeaderValue;
-use actix_http::http::{Error as HttpError, HeaderMap, HeaderName, Method, Uri};
-use actix_http::{Error, RequestHead};
+use actix_http::{
+    http::{header::IntoHeaderValue, Error as HttpError, HeaderMap, HeaderName, Method, Uri},
+    RequestHead,
+};
 
-use crate::sender::{RequestSender, SendClientRequest};
-use crate::ClientConfig;
+use crate::{
+    any_body::AnyBody,
+    sender::{RequestSender, SendClientRequest},
+    BoxError, ClientConfig,
+};
 
-/// `FrozenClientRequest` struct represents clonable client request.
+/// `FrozenClientRequest` struct represents cloneable client request.
 /// It could be used to send same request multiple times.
 #[derive(Clone)]
 pub struct FrozenClientRequest {
@@ -23,7 +23,7 @@ pub struct FrozenClientRequest {
     pub(crate) addr: Option<net::SocketAddr>,
     pub(crate) response_decompress: bool,
     pub(crate) timeout: Option<Duration>,
-    pub(crate) config: Rc<ClientConfig>,
+    pub(crate) config: ClientConfig,
 }
 
 impl FrozenClientRequest {
@@ -45,13 +45,13 @@ impl FrozenClientRequest {
     /// Send a body.
     pub fn send_body<B>(&self, body: B) -> SendClientRequest
     where
-        B: Into<Body>,
+        B: Into<AnyBody>,
     {
         RequestSender::Rc(self.head.clone(), None).send_body(
             self.addr,
             self.response_decompress,
             self.timeout,
-            self.config.as_ref(),
+            &self.config,
             body,
         )
     }
@@ -62,7 +62,7 @@ impl FrozenClientRequest {
             self.addr,
             self.response_decompress,
             self.timeout,
-            self.config.as_ref(),
+            &self.config,
             value,
         )
     }
@@ -73,7 +73,7 @@ impl FrozenClientRequest {
             self.addr,
             self.response_decompress,
             self.timeout,
-            self.config.as_ref(),
+            &self.config,
             value,
         )
     }
@@ -82,13 +82,13 @@ impl FrozenClientRequest {
     pub fn send_stream<S, E>(&self, stream: S) -> SendClientRequest
     where
         S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
-        E: Into<Error> + 'static,
+        E: Into<BoxError> + 'static,
     {
         RequestSender::Rc(self.head.clone(), None).send_stream(
             self.addr,
             self.response_decompress,
             self.timeout,
-            self.config.as_ref(),
+            &self.config,
             stream,
         )
     }
@@ -99,7 +99,7 @@ impl FrozenClientRequest {
             self.addr,
             self.response_decompress,
             self.timeout,
-            self.config.as_ref(),
+            &self.config,
         )
     }
 
@@ -145,7 +145,9 @@ impl FrozenSendBuilder {
     {
         match HeaderName::try_from(key) {
             Ok(key) => match value.try_into_value() {
-                Ok(value) => self.extra_headers.insert(key, value),
+                Ok(value) => {
+                    self.extra_headers.insert(key, value);
+                }
                 Err(e) => self.err = Some(e.into()),
             },
             Err(e) => self.err = Some(e.into()),
@@ -156,7 +158,7 @@ impl FrozenSendBuilder {
     /// Complete request construction and send a body.
     pub fn send_body<B>(self, body: B) -> SendClientRequest
     where
-        B: Into<Body>,
+        B: Into<AnyBody>,
     {
         if let Some(e) = self.err {
             return e.into();
@@ -166,7 +168,7 @@ impl FrozenSendBuilder {
             self.req.addr,
             self.req.response_decompress,
             self.req.timeout,
-            self.req.config.as_ref(),
+            &self.req.config,
             body,
         )
     }
@@ -181,7 +183,7 @@ impl FrozenSendBuilder {
             self.req.addr,
             self.req.response_decompress,
             self.req.timeout,
-            self.req.config.as_ref(),
+            &self.req.config,
             value,
         )
     }
@@ -196,7 +198,7 @@ impl FrozenSendBuilder {
             self.req.addr,
             self.req.response_decompress,
             self.req.timeout,
-            self.req.config.as_ref(),
+            &self.req.config,
             value,
         )
     }
@@ -205,7 +207,7 @@ impl FrozenSendBuilder {
     pub fn send_stream<S, E>(self, stream: S) -> SendClientRequest
     where
         S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
-        E: Into<Error> + 'static,
+        E: Into<BoxError> + 'static,
     {
         if let Some(e) = self.err {
             return e.into();
@@ -215,7 +217,7 @@ impl FrozenSendBuilder {
             self.req.addr,
             self.req.response_decompress,
             self.req.timeout,
-            self.req.config.as_ref(),
+            &self.req.config,
             stream,
         )
     }
@@ -230,7 +232,7 @@ impl FrozenSendBuilder {
             self.req.addr,
             self.req.response_decompress,
             self.req.timeout,
-            self.req.config.as_ref(),
+            &self.req.config,
         )
     }
 }

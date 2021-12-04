@@ -3,6 +3,38 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 0.5.0-beta.5 - 2021-10-20
+* Improve error recovery potential when macro input is invalid. [#2410]
+* Add `#[actix_web::test]` macro for setting up tests with a runtime. [#2409]
+* Minimum supported Rust version (MSRV) is now 1.52.
+
+[#2410]: https://github.com/actix/actix-web/pull/2410
+[#2409]: https://github.com/actix/actix-web/pull/2409
+
+
+## 0.5.0-beta.4 - 2021-09-09
+* In routing macros, paths are now validated at compile time. [#2350]
+* Minimum supported Rust version (MSRV) is now 1.51.
+
+[#2350]: https://github.com/actix/actix-web/pull/2350
+
+
+## 0.5.0-beta.3 - 2021-06-17
+* No notable changes.
+
+
+## 0.5.0-beta.2 - 2021-03-09
+* Preserve doc comments when using route macros. [#2022]
+* Add `name` attribute to `route` macro. [#1934]
+
+[#2022]: https://github.com/actix/actix-web/pull/2022
+[#1934]: https://github.com/actix/actix-web/pull/1934
+
+
+## 0.5.0-beta.1 - 2021-02-10
+* Use new call signature for `System::new`.
+
+
 ## 0.4.0 - 2020-09-20
 * Added compile success and failure testing. [#1677]
 * Add `route` macro for supporting multiple HTTP methods guards. [#1674]
