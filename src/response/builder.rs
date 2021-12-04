@@ -357,7 +357,7 @@ impl HttpResponseBuilder {
         S: Stream<Item = Result<Bytes, E>> + 'static,
         E: Into<BoxError> + 'static,
     {
-        self.body(BoxBody::new(BodyStream::new(stream)))
+        self.body(BodyStream::new(stream))
     }
 
     /// Set a JSON body and build the `HttpResponse`.
@@ -387,7 +387,7 @@ impl HttpResponseBuilder {
     /// `HttpResponseBuilder` can not be used after this call.
     #[inline]
     pub fn finish(&mut self) -> HttpResponse {
-        self.body(BoxBody::new(()))
+        self.body(())
     }
 
     /// This method construct new `HttpResponseBuilder`

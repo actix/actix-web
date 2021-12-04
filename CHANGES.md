@@ -4,8 +4,8 @@
 ### Added
 * Methods on `AcceptLanguage`: `ranked` and `preference`. [#2480]
 * `AcceptEncoding` typed header. [#2482]
-* `HttpResponse::map_into_{left,right}_body`. [#2468]
-* `HttpResponse::map_into_boxed_body`. [#2468]
+* `HttpResponse::map_into_{left,right}_body` and `HttpResponse::map_into_boxed_body`. [#2468]
+* `ServiceResponse::map_into_{left,right}_body` and `HttpResponse::map_into_boxed_body`. [#2468]
 
 ### Changed
 * Rename `Accept::{mime_precedence => ranked}`. [#2480]

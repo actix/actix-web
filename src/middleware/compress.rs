@@ -150,7 +150,8 @@ where
 
                 Either::right(ok(req
                     .into_response(res)
-                    .map_body(|_, body| EitherBody::right(BoxBody::new(body)))))
+                    .map_into_boxed_body()
+                    .map_into_right_body()))
             }
         }
     }

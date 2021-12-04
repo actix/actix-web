@@ -5,7 +5,7 @@ use std::{
 };
 
 use actix_http::{
-    body::{BoxBody, MessageBody},
+    body::{BoxBody, EitherBody, MessageBody},
     http::{HeaderMap, Method, StatusCode, Uri, Version},
     Extensions, HttpMessage, Payload, PayloadStream, RequestHead, Response, ResponseHead,
 };
@@ -410,6 +410,7 @@ impl<B> ServiceResponse<B> {
 
 impl<B> ServiceResponse<B> {
     /// Set a new body
+    #[inline]
     pub fn map_body<F, B2>(self, f: F) -> ServiceResponse<B2>
     where
         F: FnOnce(&mut ResponseHead, B) -> B2,
@@ -422,6 +423,17 @@ impl<B> ServiceResponse<B> {
         }
     }
 
+    #[inline]
+    pub fn map_into_left_body<R>(self) -> ServiceResponse<EitherBody<B, R>> {
+        self.map_body(|_, body| EitherBody::left(body))
+    }
+
+    #[inline]
+    pub fn map_into_right_body<L>(self) -> ServiceResponse<EitherBody<L, B>> {
+        self.map_body(|_, body| EitherBody::right(body))
+    }
+
+    #[inline]
     pub fn map_into_boxed_body(self) -> ServiceResponse<BoxBody>
     where
         B: MessageBody + 'static,

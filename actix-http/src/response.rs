@@ -190,6 +190,7 @@ impl<B> Response<B> {
         }
     }
 
+    #[inline]
     pub fn map_into_boxed_body(self) -> Response<BoxBody>
     where
         B: MessageBody + 'static,

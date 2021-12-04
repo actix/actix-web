@@ -229,14 +229,17 @@ impl<B> HttpResponse<B> {
 
     // TODO: docs for the body map methods below
 
+    #[inline]
     pub fn map_into_left_body<R>(self) -> HttpResponse<EitherBody<B, R>> {
         self.map_body(|_, body| EitherBody::left(body))
     }
 
+    #[inline]
     pub fn map_into_right_body<L>(self) -> HttpResponse<EitherBody<L, B>> {
         self.map_body(|_, body| EitherBody::right(body))
     }
 
+    #[inline]
     pub fn map_into_boxed_body(self) -> HttpResponse<BoxBody>
     where
         B: MessageBody + 'static,
