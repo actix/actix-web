@@ -55,7 +55,7 @@ async fn common_test_code(mut srv: actix_test::TestServer, frame_size: usize) {
 }
 
 #[actix_rt::test]
-async fn test_builder() {
+async fn simple_builder() {
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").to(
             |req: HttpRequest, stream: web::Payload| async move {
@@ -68,7 +68,7 @@ async fn test_builder() {
 }
 
 #[actix_rt::test]
-async fn test_builder_with_frame_size() {
+async fn builder_with_frame_size() {
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").to(
             |req: HttpRequest, stream: web::Payload| async move {
@@ -83,7 +83,7 @@ async fn test_builder_with_frame_size() {
 }
 
 #[actix_rt::test]
-async fn test_builder_with_frame_size_exceeded() {
+async fn builder_with_frame_size_exceeded() {
     const MAX_FRAME_SIZE: usize = 64;
 
     let mut srv = actix_test::start(|| {
@@ -112,7 +112,7 @@ async fn test_builder_with_frame_size_exceeded() {
 }
 
 #[actix_rt::test]
-async fn test_builder_with_codec() {
+async fn builder_with_codec() {
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").to(
             |req: HttpRequest, stream: web::Payload| async move {
@@ -127,7 +127,7 @@ async fn test_builder_with_codec() {
 }
 
 #[actix_rt::test]
-async fn test_builder_with_protocols() {
+async fn builder_with_protocols() {
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").to(
             |req: HttpRequest, stream: web::Payload| async move {
@@ -142,7 +142,23 @@ async fn test_builder_with_protocols() {
 }
 
 #[actix_rt::test]
-async fn test_builder_full() {
+async fn builder_with_codec_and_frame_size() {
+    let srv = actix_test::start(|| {
+        App::new().service(web::resource("/").to(
+            |req: HttpRequest, stream: web::Payload| async move {
+                ws::WsResponseBuilder::new(Ws, &req, stream)
+                    .codec(Codec::new())
+                    .frame_size(MAX_FRAME_SIZE)
+                    .start()
+            },
+        ))
+    });
+
+    common_test_code(srv, DEFAULT_FRAME_SIZE).await;
+}
+
+#[actix_rt::test]
+async fn builder_full() {
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").to(
             |req: HttpRequest, stream: web::Payload| async move {
@@ -159,23 +175,7 @@ async fn test_builder_full() {
 }
 
 #[actix_rt::test]
-async fn test_builder_with_codec_and_frame_size() {
-    let srv = actix_test::start(|| {
-        App::new().service(web::resource("/").to(
-            |req: HttpRequest, stream: web::Payload| async move {
-                ws::WsResponseBuilder::new(Ws, &req, stream)
-                    .codec(Codec::new())
-                    .frame_size(MAX_FRAME_SIZE)
-                    .start()
-            },
-        ))
-    });
-
-    common_test_code(srv, DEFAULT_FRAME_SIZE).await;
-}
-
-#[actix_rt::test]
-async fn test_simple() {
+async fn simple_start() {
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").to(
             |req: HttpRequest, stream: web::Payload| async move { ws::start(Ws, &req, stream) },

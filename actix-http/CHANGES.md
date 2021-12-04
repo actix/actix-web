@@ -10,6 +10,7 @@
 * Impl `MessageBody` for `bytestring::ByteString`. [#2468]
 * `impl Clone for ws::HandshakeError`. [#2468]
 * `#[must_use]` for `ws::Codec` to prevent subtle bugs. [#1920]
+* `impl Default ` for `ws::Codec`. [#1920]
 
 ### Changed
 * Rename `body::BoxBody::{from_body => new}`. [#2468]
@@ -19,7 +20,6 @@
 * `From` implementations on error types now return a `Response<BoxBody>`. [#2468]
 * `ResponseBuilder::body(B)` now returns `Response<EitherBody<B>>`. [#2468]
 * `ResponseBuilder::finish()` now returns `Response<EitherBody<()>>`. [#2468]
-* `impl Copy` for `ws::Codec`. [#1920]
 
 ### Removed
 * `ResponseBuilder::streaming`. [#2468]

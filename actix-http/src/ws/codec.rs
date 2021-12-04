@@ -90,7 +90,7 @@ impl Codec {
     /// Set max frame size.
     ///
     /// By default max size is set to 64KiB.
-    #[must_use = "this returns the a new Codec, without modifying the original"]
+    #[must_use = "This returns the a new Codec, without modifying the original."]
     pub fn max_size(mut self, size: usize) -> Self {
         self.max_size = size;
         self
@@ -99,7 +99,7 @@ impl Codec {
     /// Set decoder to client mode.
     ///
     /// By default decoder works in server mode.
-    #[must_use = "this returns the a new Codec, without modifying the original"]
+    #[must_use = "This returns the a new Codec, without modifying the original."]
     pub fn client_mode(mut self) -> Self {
         self.flags.remove(Flags::SERVER);
         self
