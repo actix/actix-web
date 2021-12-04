@@ -4,6 +4,7 @@
 ### Added
 * Methods on `AcceptLanguage`: `ranked` and `preference`. [#2480]
 * `AcceptEncoding` typed header. [#2482]
+* `Range` typed header. [#2324]
 * `HttpResponse::map_into_{left,right}_body` and `HttpResponse::map_into_boxed_body`. [#2468]
 * `ServiceResponse::map_into_{left,right}_body` and `HttpResponse::map_into_boxed_body`. [#2468]
 
@@ -17,6 +18,7 @@
 * Re-exports `dev::{BodySize, MessageBody, SizedStream}`. They are exposed through the `body` module. [#2468]
 * Typed headers containing lists that require one or more items now enforce this minimum. [#2482]
 
+[#2324]: https://github.com/actix/actix-web/pull/2324
 [#2468]: https://github.com/actix/actix-web/pull/2468
 [#2480]: https://github.com/actix/actix-web/pull/2480
 [#2482]: https://github.com/actix/actix-web/pull/2482

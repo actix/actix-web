@@ -77,10 +77,12 @@ struct Writer {
 }
 
 impl Writer {
+    /// Constructs new bytes writer.
     pub fn new() -> Writer {
         Writer::default()
     }
 
+    /// Splits bytes out of writer, leaving writer buffer empty.
     pub fn take(&mut self) -> Bytes {
         self.buf.split().freeze()
     }
