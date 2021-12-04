@@ -10,6 +10,7 @@
 ### Changed
 * Rename `Accept::{mime_precedence => ranked}`. [#2480]
 * Rename `Accept::{mime_preference => preference}`. [#2480]
+* Un-deprecate `App::data_factory`. [#2484]
 
 ### Fixed
 * Accept wildcard `*` items in `AcceptLanguage`. [#2480]
@@ -19,6 +20,7 @@
 [#2468]: https://github.com/actix/actix-web/pull/2468
 [#2480]: https://github.com/actix/actix-web/pull/2480
 [#2482]: https://github.com/actix/actix-web/pull/2482
+[#2484]: https://github.com/actix/actix-web/pull/2484
 
 
 ## 4.0.0-beta.13 - 2021-11-30
