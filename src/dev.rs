@@ -103,14 +103,15 @@ impl<B> BodyEncoding for crate::HttpResponse<B> {
     }
 }
 
-// pin_project_lite::pin_project! {
+// TODO: remove this if it doesn't appear to be needed
+
+#[allow(dead_code)]
 #[derive(Debug)]
-pub enum AnyBody {
+pub(crate) enum AnyBody {
     None,
     Full { body: crate::web::Bytes },
     Boxed { body: actix_http::body::BoxBody },
 }
-// }
 
 impl crate::body::MessageBody for AnyBody {
     type Error = crate::BoxError;
