@@ -46,8 +46,8 @@ pub trait Head: Default + 'static {
 
 #[derive(Debug)]
 pub struct RequestHead {
-    pub uri: Uri,
     pub method: Method,
+    pub uri: Uri,
     pub version: Version,
     pub headers: HeaderMap,
     pub extensions: RefCell<Extensions>,
@@ -58,13 +58,13 @@ pub struct RequestHead {
 impl Default for RequestHead {
     fn default() -> RequestHead {
         RequestHead {
-            uri: Uri::default(),
             method: Method::default(),
+            uri: Uri::default(),
             version: Version::HTTP_11,
             headers: HeaderMap::with_capacity(16),
-            flags: Flags::empty(),
-            peer_addr: None,
             extensions: RefCell::new(Extensions::new()),
+            peer_addr: None,
+            flags: Flags::empty(),
         }
     }
 }
@@ -192,6 +192,7 @@ impl RequestHead {
 }
 
 #[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
 pub enum RequestHeadType {
     Owned(RequestHead),
     Rc(Rc<RequestHead>, Option<HeaderMap>),

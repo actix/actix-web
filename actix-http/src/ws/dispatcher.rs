@@ -4,17 +4,21 @@ use std::task::{Context, Poll};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_service::{IntoService, Service};
+use pin_project_lite::pin_project;
 
 use super::{Codec, Frame, Message};
 
-#[pin_project::pin_project]
-pub struct Dispatcher<S, T>
-where
-    S: Service<Frame, Response = Message> + 'static,
-    T: AsyncRead + AsyncWrite,
-{
-    #[pin]
-    inner: inner::Dispatcher<S, T, Codec, Message>,
+pin_project! {
+    pub struct Dispatcher<S, T>
+    where
+        S: Service<Frame, Response = Message>,
+        S: 'static,
+        T: AsyncRead,
+        T: AsyncWrite,
+    {
+        #[pin]
+        inner: inner::Dispatcher<S, T, Codec, Message>,
+    }
 }
 
 impl<S, T> Dispatcher<S, T>
@@ -72,7 +76,7 @@ mod inner {
 
     use actix_codec::{AsyncRead, AsyncWrite, Decoder, Encoder, Framed};
 
-    use crate::{body::AnyBody, Response};
+    use crate::{body::BoxBody, Response};
 
     /// Framed transport errors
     pub enum DispatcherError<E, U, I>
@@ -136,7 +140,7 @@ mod inner {
         }
     }
 
-    impl<E, U, I> From<DispatcherError<E, U, I>> for Response<AnyBody>
+    impl<E, U, I> From<DispatcherError<E, U, I>> for Response<BoxBody>
     where
         E: fmt::Debug + fmt::Display,
         U: Encoder<I> + Decoder,
@@ -144,7 +148,7 @@ mod inner {
         <U as Decoder>::Error: fmt::Debug,
     {
         fn from(err: DispatcherError<E, U, I>) -> Self {
-            Response::internal_server_error().set_body(AnyBody::from(err.to_string()))
+            Response::internal_server_error().set_body(BoxBody::new(err.to_string()))
         }
     }
 

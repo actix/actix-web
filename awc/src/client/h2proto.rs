@@ -13,8 +13,10 @@ use log::trace;
 use actix_http::{
     body::{BodySize, MessageBody},
     header::HeaderMap,
-    Error, Payload, RequestHeadType, ResponseHead,
+    Payload, RequestHeadType, ResponseHead,
 };
+
+use crate::BoxError;
 
 use super::{
     config::ConnectorConfig,
@@ -30,7 +32,7 @@ pub(crate) async fn send_request<Io, B>(
 where
     Io: ConnectionIo,
     B: MessageBody,
-    B::Error: Into<Error>,
+    B::Error: Into<BoxError>,
 {
     trace!("Sending client request: {:?} {:?}", head, body.size());
 
@@ -133,10 +135,12 @@ where
 async fn send_body<B>(body: B, mut send: SendStream<Bytes>) -> Result<(), SendRequestError>
 where
     B: MessageBody,
-    B::Error: Into<Error>,
+    B::Error: Into<BoxError>,
 {
     let mut buf = None;
+
     actix_rt::pin!(body);
+
     loop {
         if buf.is_none() {
             match poll_fn(|cx| body.as_mut().poll_next(cx)).await {
@@ -144,10 +148,10 @@ where
                     send.reserve_capacity(b.len());
                     buf = Some(b);
                 }
-                Some(Err(e)) => return Err(e.into().into()),
+                Some(Err(err)) => return Err(SendRequestError::Body(err.into())),
                 None => {
-                    if let Err(e) = send.send_data(Bytes::new(), true) {
-                        return Err(e.into());
+                    if let Err(err) = send.send_data(Bytes::new(), true) {
+                        return Err(err.into());
                     }
                     send.reserve_capacity(0);
                     return Ok(());

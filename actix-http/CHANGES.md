@@ -3,9 +3,31 @@
 ## Unreleased - 2021-xx-xx
 ### Added
 * Add timeout for canceling HTTP/2 server side connection handshake. Default to 5 seconds. [#2483]
-* HTTP/2 handshake timeout can be configured with `ServiceConfig::client_timeout`. [#2483] 
+* HTTP/2 handshake timeout can be configured with `ServiceConfig::client_timeout`. [#2483]
+* `Response::map_into_boxed_body`. [#2468]
+* `body::EitherBody` enum. [#2468]
+* `body::None` struct. [#2468]
+* Impl `MessageBody` for `bytestring::ByteString`. [#2468]
+* `impl Clone for ws::HandshakeError`. [#2468]
+
+### Changed
+* Rename `body::BoxBody::{from_body => new}`. [#2468]
+* Body type for `Responses` returned from `Response::{new, ok, etc...}` is now `BoxBody`. [#2468]
+* The `Error` associated type on `MessageBody` type now requires `impl Error` (or similar). [#2468]
+* Error types using in service builders now require `Into<Response<BoxBody>>`. [#2468]
+* `From` implementations on error types now return a `Response<BoxBody>`. [#2468]
+* `ResponseBuilder::body(B)` now returns `Response<EitherBody<B>>`. [#2468]
+* `ResponseBuilder::finish()` now returns `Response<EitherBody<()>>`. [#2468]
+
+### Removed
+* `ResponseBuilder::streaming`. [#2468]
+* `impl Future` for `ResponseBuilder`. [#2468]
+* Remove unnecessary `MessageBody` bound on types passed to `body::AnyBody::new`. [#2468]
+* Move `body::AnyBody` to `awc`. Replaced with `EitherBody` and `BoxBody`. [#2468]
 
 [#2483]: https://github.com/actix/actix-web/pull/2483
+[#2468]: https://github.com/actix/actix-web/pull/2468
+
 
 ## 3.0.0-beta.14 - 2021-11-30
 ### Changed

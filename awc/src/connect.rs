@@ -7,16 +7,17 @@ use std::{
 };
 
 use actix_codec::Framed;
-use actix_http::{
-    body::AnyBody, h1::ClientCodec, Payload, RequestHead, RequestHeadType, ResponseHead,
-};
+use actix_http::{h1::ClientCodec, Payload, RequestHead, RequestHeadType, ResponseHead};
 use actix_service::Service;
 use futures_core::{future::LocalBoxFuture, ready};
 
-use crate::client::{
-    Connect as ClientConnect, ConnectError, Connection, ConnectionIo, SendRequestError,
+use crate::{
+    any_body::AnyBody,
+    client::{
+        Connect as ClientConnect, ConnectError, Connection, ConnectionIo, SendRequestError,
+    },
+    response::ClientResponse,
 };
-use crate::response::ClientResponse;
 
 pub type BoxConnectorService = Rc<
     dyn Service<

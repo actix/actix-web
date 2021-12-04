@@ -24,7 +24,7 @@ use log::{error, trace};
 use pin_project_lite::pin_project;
 
 use crate::{
-    body::{AnyBody, BodySize, MessageBody},
+    body::{BodySize, BoxBody, MessageBody},
     config::ServiceConfig,
     service::HttpFlow,
     OnConnectData, Payload, Request, Response, ResponseHead,
@@ -51,7 +51,7 @@ where
 {
     pub(crate) fn new(
         flow: Rc<HttpFlow<S, X, U>>,
-        mut connection: Connection<T, Bytes>,
+        mut conn: Connection<T, Bytes>,
         on_connect_data: OnConnectData,
         config: ServiceConfig,
         peer_addr: Option<net::SocketAddr>,
@@ -66,14 +66,14 @@ where
                 })
                 .unwrap_or_else(|| Box::pin(sleep(dur))),
             on_flight: false,
-            ping_pong: connection.ping_pong().unwrap(),
+            ping_pong: conn.ping_pong().unwrap(),
         });
 
         Self {
             flow,
             config,
             peer_addr,
-            connection,
+            connection: conn,
             on_connect_data,
             ping_pong,
             _phantom: PhantomData,
@@ -92,12 +92,11 @@ where
     T: AsyncRead + AsyncWrite + Unpin,
 
     S: Service<Request>,
-    S::Error: Into<Response<AnyBody>>,
+    S::Error: Into<Response<BoxBody>>,
     S::Future: 'static,
     S::Response: Into<Response<B>>,
 
     B: MessageBody,
-    B::Error: Into<Box<dyn StdError>>,
 {
     type Output = Result<(), crate::error::DispatchError>;
 
@@ -132,7 +131,7 @@ where
                         let res = match fut.await {
                             Ok(res) => handle_response(res.into(), tx, config).await,
                             Err(err) => {
-                                let res: Response<AnyBody> = err.into();
+                                let res: Response<BoxBody> = err.into();
                                 handle_response(res, tx, config).await
                             }
                         };
@@ -207,7 +206,6 @@ async fn handle_response<B>(
 ) -> Result<(), DispatchError>
 where
     B: MessageBody,
-    B::Error: Into<Box<dyn StdError>>,
 {
     let (res, body) = res.replace_body(());
 

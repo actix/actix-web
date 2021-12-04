@@ -1,8 +1,6 @@
 use std::{
     any::Any,
-    cmp,
-    error::Error as StdError,
-    fmt, io,
+    cmp, fmt, io,
     marker::PhantomData,
     net,
     sync::{Arc, Mutex},
@@ -75,15 +73,13 @@ where
     I: IntoServiceFactory<S, Request>,
 
     S: ServiceFactory<Request, Config = AppConfig> + 'static,
-    // S::Future: 'static,
     S::Error: Into<Error> + 'static,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
     S::Service: 'static,
-    // S::Service: 'static,
+
     B: MessageBody + 'static,
-    B::Error: Into<Box<dyn StdError>>,
 {
     /// Create new HTTP server with application factory
     pub fn new(factory: F) -> Self {
@@ -656,8 +652,8 @@ fn create_tcp_listener(addr: net::SocketAddr, backlog: u32) -> io::Result<net::T
     Ok(net::TcpListener::from(socket))
 }
 
-#[cfg(feature = "openssl")]
 /// Configure `SslAcceptorBuilder` with custom server flags.
+#[cfg(feature = "openssl")]
 fn openssl_acceptor(mut builder: SslAcceptorBuilder) -> io::Result<SslAcceptor> {
     builder.set_alpn_select_callback(|_, protocols| {
         const H2: &[u8] = b"\x02h2";

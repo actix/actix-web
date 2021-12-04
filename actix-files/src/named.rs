@@ -10,12 +10,12 @@ use std::{
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 
-use actix_http::body::AnyBody;
 use actix_service::{Service, ServiceFactory};
 use actix_web::{
+    body::{self, BoxBody, SizedStream},
     dev::{
         AppService, BodyEncoding, HttpServiceFactory, ResourceDef, ServiceRequest,
-        ServiceResponse, SizedStream,
+        ServiceResponse,
     },
     http::{
         header::{
@@ -112,6 +112,8 @@ impl fmt::Debug for NamedFile {
 pub(crate) use std::fs::File;
 #[cfg(feature = "experimental-io-uring")]
 pub(crate) use tokio_uring::fs::File;
+
+use super::chunked;
 
 impl NamedFile {
     /// Creates an instance from a previously opened file.
@@ -394,7 +396,7 @@ impl NamedFile {
     }
 
     /// Creates an `HttpResponse` with file as a streaming body.
-    pub fn into_response(self, req: &HttpRequest) -> HttpResponse {
+    pub fn into_response(self, req: &HttpRequest) -> HttpResponse<BoxBody> {
         if self.status_code != StatusCode::OK {
             let mut res = HttpResponse::build(self.status_code);
 
@@ -416,7 +418,7 @@ impl NamedFile {
                 res.encoding(current_encoding);
             }
 
-            let reader = super::chunked::new_chunked_read(self.md.len(), 0, self.file);
+            let reader = chunked::new_chunked_read(self.md.len(), 0, self.file);
 
             return res.streaming(reader);
         }
@@ -527,10 +529,13 @@ impl NamedFile {
         if precondition_failed {
             return resp.status(StatusCode::PRECONDITION_FAILED).finish();
         } else if not_modified {
-            return resp.status(StatusCode::NOT_MODIFIED).body(AnyBody::None);
+            return resp
+                .status(StatusCode::NOT_MODIFIED)
+                .body(body::None::new())
+                .map_into_boxed_body();
         }
 
-        let reader = super::chunked::new_chunked_read(length, offset, self.file);
+        let reader = chunked::new_chunked_read(length, offset, self.file);
 
         if offset != 0 || length != self.md.len() {
             resp.status(StatusCode::PARTIAL_CONTENT);
@@ -595,7 +600,9 @@ impl DerefMut for NamedFile {
 }
 
 impl Responder for NamedFile {
-    fn respond_to(self, req: &HttpRequest) -> HttpResponse {
+    type Body = BoxBody;
+
+    fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
         self.into_response(req)
     }
 }

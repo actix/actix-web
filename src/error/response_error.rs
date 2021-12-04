@@ -6,11 +6,17 @@ use std::{
     io::{self, Write as _},
 };
 
-use actix_http::{body::AnyBody, header, Response, StatusCode};
+use actix_http::{
+    body::BoxBody,
+    header::{self, IntoHeaderValue},
+    Response, StatusCode,
+};
 use bytes::BytesMut;
 
-use crate::error::{downcast_dyn, downcast_get_type_id};
-use crate::{helpers, HttpResponse};
+use crate::{
+    error::{downcast_dyn, downcast_get_type_id},
+    helpers, HttpResponse,
+};
 
 /// Errors that can generate responses.
 // TODO: add std::error::Error bound when replacement for Box<dyn Error> is found
@@ -27,18 +33,16 @@ pub trait ResponseError: fmt::Debug + fmt::Display {
     ///
     /// By default, the generated response uses a 500 Internal Server Error status code, a
     /// `Content-Type` of `text/plain`, and the body is set to `Self`'s `Display` impl.
-    fn error_response(&self) -> HttpResponse {
+    fn error_response(&self) -> HttpResponse<BoxBody> {
         let mut res = HttpResponse::new(self.status_code());
 
         let mut buf = BytesMut::new();
         let _ = write!(helpers::MutWriter(&mut buf), "{}", self);
 
-        res.headers_mut().insert(
-            header::CONTENT_TYPE,
-            header::HeaderValue::from_static("text/plain; charset=utf-8"),
-        );
+        let mime = mime::TEXT_PLAIN_UTF_8.try_into_value().unwrap();
+        res.headers_mut().insert(header::CONTENT_TYPE, mime);
 
-        res.set_body(AnyBody::from(buf))
+        res.set_body(BoxBody::new(buf))
     }
 
     downcast_get_type_id!();
@@ -86,8 +90,8 @@ impl ResponseError for actix_http::Error {
         StatusCode::INTERNAL_SERVER_ERROR
     }
 
-    fn error_response(&self) -> HttpResponse {
-        HttpResponse::new(self.status_code()).set_body(self.to_string().into())
+    fn error_response(&self) -> HttpResponse<BoxBody> {
+        HttpResponse::with_body(self.status_code(), self.to_string()).map_into_boxed_body()
     }
 }
 
@@ -123,8 +127,8 @@ impl ResponseError for actix_http::error::ContentTypeError {
 }
 
 impl ResponseError for actix_http::ws::HandshakeError {
-    fn error_response(&self) -> HttpResponse {
-        Response::from(self).into()
+    fn error_response(&self) -> HttpResponse<BoxBody> {
+        Response::from(self).map_into_boxed_body().into()
     }
 }
 

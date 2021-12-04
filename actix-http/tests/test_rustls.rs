@@ -10,7 +10,7 @@ use std::{
 };
 
 use actix_http::{
-    body::{AnyBody, SizedStream},
+    body::{BodyStream, BoxBody, SizedStream},
     error::PayloadError,
     http::{
         header::{self, HeaderName, HeaderValue},
@@ -416,7 +416,7 @@ async fn test_h2_body_chunked_explicit() {
                 ok::<_, Infallible>(
                     Response::build(StatusCode::OK)
                         .insert_header((header::TRANSFER_ENCODING, "chunked"))
-                        .streaming(body),
+                        .body(BodyStream::new(body)),
                 )
             })
             .rustls(tls_config())
@@ -467,9 +467,9 @@ async fn test_h2_response_http_error_handling() {
 #[display(fmt = "error")]
 struct BadRequest;
 
-impl From<BadRequest> for Response<AnyBody> {
+impl From<BadRequest> for Response<BoxBody> {
     fn from(_: BadRequest) -> Self {
-        Response::bad_request().set_body(AnyBody::from("error"))
+        Response::bad_request().set_body(BoxBody::new("error"))
     }
 }
 
@@ -477,7 +477,7 @@ impl From<BadRequest> for Response<AnyBody> {
 async fn test_h2_service_error() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|_| err::<Response<AnyBody>, _>(BadRequest))
+            .h2(|_| err::<Response<BoxBody>, _>(BadRequest))
             .rustls(tls_config())
     })
     .await;
@@ -494,7 +494,7 @@ async fn test_h2_service_error() {
 async fn test_h1_service_error() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h1(|_| err::<Response<AnyBody>, _>(BadRequest))
+            .h1(|_| err::<Response<BoxBody>, _>(BadRequest))
             .rustls(tls_config())
     })
     .await;

@@ -97,7 +97,7 @@ mod tests {
         let resp_body: &mut dyn MB = &mut body;
         let body = resp_body.downcast_ref::<String>().unwrap();
         assert_eq!(body, "hello cast");
-        let body = &mut resp_body.downcast_mut::<String>().unwrap();
+        let body = resp_body.downcast_mut::<String>().unwrap();
         body.push('!');
         let body = resp_body.downcast_ref::<String>().unwrap();
         assert_eq!(body, "hello cast!");
