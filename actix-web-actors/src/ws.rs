@@ -70,6 +70,9 @@ where
     A: Actor<Context = WebsocketContext<A>> + StreamHandler<Result<Message, ProtocolError>>,
     T: Stream<Item = Result<Bytes, PayloadError>> + 'static,
 {
+    /// Construct a new `WsResponseBuilder` with actor, request, and payload stream.
+    ///
+    /// For usage example, see docs on [`WsResponseBuilder`] struct.
     pub fn new(actor: A, req: &'a HttpRequest, stream: T) -> Self {
         WsResponseBuilder {
             actor,
@@ -89,16 +92,14 @@ where
 
     /// Set the max frame size for each message.
     ///
-    /// **Note**: This will override any given [`Codec`]'s
-    /// max frame size.
+    /// **Note**: This will override any given [`Codec`]'s max frame size.
     pub fn frame_size(mut self, frame_size: usize) -> Self {
         self.frame_size = Some(frame_size);
         self
     }
 
-    /// Set the [`Codec`] for the session. If [`Self::frame_size`]
-    /// is also set, the given [`Codec`]'s max frame size will be
-    /// overriden.
+    /// Set the [`Codec`] for the session. If [`Self::frame_size`] is also set, the given
+    /// [`Codec`]'s max frame size will be overridden.
     pub fn codec(mut self, codec: Codec) -> Self {
         self.codec = Some(codec);
         self
@@ -128,9 +129,9 @@ where
 
     /// Create a new Websocket context from a request, an actor, and a codec.
     ///
-    /// Returns a pair, where the first item is an addr for the created actor,
-    /// and the second item is a stream intended to be set as part of the
-    /// response via `HttpResponseBuilder::streaming()`.
+    /// Returns a pair, where the first item is an addr for the created actor, and the second item
+    /// is a stream intended to be set as part of the response
+    /// via [`HttpResponseBuilder::streaming()`].
     fn create_with_codec_addr<S>(
         actor: A,
         stream: S,
@@ -154,14 +155,14 @@ where
 
     /// Perform WebSocket handshake and start actor.
     ///
-    /// `req` is an [`HttpRequest`] that should be requesting a websocket
-    /// protocol change. `stream` should be a [`Bytes`] stream (such as
-    /// `actix_web::web::Payload`) that contains a stream of the body request.
+    /// `req` is an [`HttpRequest`] that should be requesting a websocket protocol change.
+    /// `stream` should be a [`Bytes`] stream (such as `actix_web::web::Payload`) that contains a
+    /// stream of the body request.
     ///
     /// If there is a problem with the handshake, an error is returned.
     ///
-    /// If successful, consume the [`WsResponseBuilder`] and return a
-    /// [`HttpResponse`] wrapped in a [`Result`].
+    /// If successful, consume the [`WsResponseBuilder`] and return a [`HttpResponse`] wrapped in
+    /// a [`Result`].
     pub fn start(mut self) -> Result<HttpResponse, Error> {
         let mut res = self.handshake_resp()?;
         self.set_frame_size();
@@ -180,15 +181,14 @@ where
 
     /// Perform WebSocket handshake and start actor.
     ///
-    /// `req` is an [`HttpRequest`] that should be requesting a websocket
-    /// protocol change. `stream` should be a [`Bytes`] stream (such as
-    /// `actix_web::web::Payload`) that contains a stream of the body request.
+    /// `req` is an [`HttpRequest`] that should be requesting a websocket protocol change.
+    /// `stream` should be a [`Bytes`] stream (such as `actix_web::web::Payload`) that contains a
+    /// stream of the body request.
     ///
     /// If there is a problem with the handshake, an error is returned.
     ///
-    /// If successful, returns a pair where the first item is an address for the
-    /// created actor and the second item is the [`HttpResponse`] that should be
-    /// returned from the websocket request.
+    /// If successful, returns a pair where the first item is an address for the created actor and
+    /// the second item is the [`HttpResponse`] that should be returned from the websocket request.
     pub fn start_with_addr(mut self) -> Result<(Addr<A>, HttpResponse), Error> {
         let mut res = self.handshake_resp()?;
         self.set_frame_size();
@@ -209,6 +209,8 @@ where
 }
 
 /// Perform WebSocket handshake and start actor.
+///
+/// To customize options, see [`WsResponseBuilder`].
 pub fn start<A, T>(actor: A, req: &HttpRequest, stream: T) -> Result<HttpResponse, Error>
 where
     A: Actor<Context = WebsocketContext<A>> + StreamHandler<Result<Message, ProtocolError>>,
@@ -220,15 +222,15 @@ where
 
 /// Perform WebSocket handshake and start actor.
 ///
-/// `req` is an HTTP Request that should be requesting a websocket protocol
-/// change. `stream` should be a `Bytes` stream (such as
-/// `actix_web::web::Payload`) that contains a stream of the body request.
+/// `req` is an HTTP Request that should be requesting a websocket protocol change. `stream` should
+/// be a `Bytes` stream (such as `actix_web::web::Payload`) that contains a stream of the
+/// body request.
 ///
 /// If there is a problem with the handshake, an error is returned.
 ///
-/// If successful, returns a pair where the first item is an address for the
-/// created actor and the second item is the response that should be returned
-/// from the WebSocket request.
+/// If successful, returns a pair where the first item is an address for the created actor and the
+/// second item is the response that should be returned from the WebSocket request.
+#[deprecated(since = "4.0.0", note = "Prefer `WsResponseBuilder::start_with_addr`.")]
 pub fn start_with_addr<A, T>(
     actor: A,
     req: &HttpRequest,
@@ -246,6 +248,10 @@ where
 /// Do WebSocket handshake and start ws actor.
 ///
 /// `protocols` is a sequence of known protocols.
+#[deprecated(
+    since = "4.0.0",
+    note = "Prefer `WsResponseBuilder` for setting protocols."
+)]
 pub fn start_with_protocols<A, T>(
     actor: A,
     protocols: &[&str],
@@ -262,20 +268,19 @@ where
 
 /// Prepare WebSocket handshake response.
 ///
-/// This function returns handshake `HttpResponse`, ready to send to peer.
-/// It does not perform any IO.
+/// This function returns handshake `HttpResponse`, ready to send to peer. It does not perform
+/// any IO.
 pub fn handshake(req: &HttpRequest) -> Result<HttpResponseBuilder, HandshakeError> {
     handshake_with_protocols(req, &[])
 }
 
 /// Prepare WebSocket handshake response.
 ///
-/// This function returns handshake `HttpResponse`, ready to send to peer.
-/// It does not perform any IO.
+/// This function returns handshake `HttpResponse`, ready to send to peer. It does not perform
+/// any IO.
 ///
-/// `protocols` is a sequence of known protocols. On successful handshake,
-/// the returned response headers contain the first protocol in this list
-/// which the server also knows.
+/// `protocols` is a sequence of known protocols. On successful handshake, the returned response
+/// headers contain the first protocol in this list which the server also knows.
 pub fn handshake_with_protocols(
     req: &HttpRequest,
     protocols: &[&str],
@@ -422,8 +427,8 @@ impl<A> WebsocketContext<A>
 where
     A: Actor<Context = Self>,
 {
+    /// Create a new Websocket context from a request and an actor.
     #[inline]
-    /// Create a new Websocket context from a request and an actor
     pub fn create<S>(actor: A, stream: S) -> impl Stream<Item = Result<Bytes, Error>>
     where
         A: StreamHandler<Result<Message, ProtocolError>>,
@@ -433,12 +438,11 @@ where
         stream
     }
 
-    #[inline]
     /// Create a new Websocket context from a request and an actor.
     ///
-    /// Returns a pair, where the first item is an addr for the created actor,
-    /// and the second item is a stream intended to be set as part of the
-    /// response via `HttpResponseBuilder::streaming()`.
+    /// Returns a pair, where the first item is an addr for the created actor, and the second item
+    /// is a stream intended to be set as part of the response
+    /// via [`HttpResponseBuilder::streaming()`].
     pub fn create_with_addr<S>(
         actor: A,
         stream: S,
@@ -459,7 +463,6 @@ where
         (addr, WebsocketContextFut::new(ctx, actor, mb, Codec::new()))
     }
 
-    #[inline]
     /// Create a new Websocket context from a request, an actor, and a codec
     pub fn with_codec<S>(
         actor: A,
@@ -724,9 +727,12 @@ where
 
 #[cfg(test)]
 mod tests {
+    use actix_web::{
+        http::{header, Method},
+        test::TestRequest,
+    };
+
     use super::*;
-    use actix_web::http::{header, Method};
-    use actix_web::test::TestRequest;
 
     #[test]
     fn test_handshake() {

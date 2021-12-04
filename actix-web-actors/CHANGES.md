@@ -1,7 +1,8 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
-* Add `ws:WsResponseBuilder` for building web socket session response. [#1920]
+* Add `ws:WsResponseBuilder` for building WebSocket session response. [#1920]
+* Deprecate `ws::{start_with_addr, start_with_protocols}`. [#1920]
 * Minimum supported Rust version (MSRV) is now 1.52.
 
 [#1920]: https://github.com/actix/actix-web/pull/1920
