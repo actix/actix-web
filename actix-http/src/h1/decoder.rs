@@ -511,7 +511,7 @@ mod tests {
     use super::*;
     use crate::{
         error::ParseError,
-        http::header::{HeaderName, SET_COOKIE},
+        header::{HeaderName, SET_COOKIE},
         HttpMessage as _,
     };
 

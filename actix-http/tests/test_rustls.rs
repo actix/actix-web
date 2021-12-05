@@ -12,11 +12,8 @@ use std::{
 use actix_http::{
     body::{BodyStream, BoxBody, SizedStream},
     error::PayloadError,
-    http::{
-        header::{self, HeaderName, HeaderValue},
-        Method, StatusCode, Version,
-    },
-    Error, HttpService, Request, Response,
+    header::{self, HeaderName, HeaderValue},
+    Error, HttpService, Method, Request, Response, StatusCode, Version,
 };
 use actix_http_test::test_server;
 use actix_service::{fn_factory_with_config, fn_service};

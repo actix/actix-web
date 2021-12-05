@@ -1,6 +1,6 @@
 use std::{future::Future, mem, rc::Rc};
 
-use actix_http::http::Method;
+use actix_http::Method;
 use actix_service::{
     boxed::{self, BoxService},
     fn_service, Service, ServiceFactory, ServiceFactoryExt,

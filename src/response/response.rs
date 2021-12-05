@@ -9,15 +9,15 @@ use std::{
 
 use actix_http::{
     body::{BoxBody, EitherBody, MessageBody},
-    http::{header::HeaderMap, StatusCode},
-    Extensions, Response, ResponseHead,
+    header::HeaderMap,
+    Extensions, Response, ResponseHead, StatusCode,
 };
 
 #[cfg(feature = "cookies")]
 use {
-    actix_http::http::{
+    actix_http::{
+        error::HttpError,
         header::{self, HeaderValue},
-        Error as HttpError,
     },
     cookie::Cookie,
 };

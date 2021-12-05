@@ -347,7 +347,7 @@ where
     /// ```
     /// use actix_service::Service;
     /// use actix_web::{web, App};
-    /// use actix_web::http::{header::CONTENT_TYPE, HeaderValue};
+    /// use actix_web::http::header::{CONTENT_TYPE, HeaderValue};
     ///
     /// async fn index() -> &'static str {
     ///     "Welcome!"
@@ -587,7 +587,10 @@ mod tests {
 
     use crate::{
         guard,
-        http::{header, HeaderValue, Method, StatusCode},
+        http::{
+            header::{self, HeaderValue},
+            Method, StatusCode,
+        },
         middleware::DefaultHeaders,
         service::{ServiceRequest, ServiceResponse},
         test::{assert_body_eq, call_service, init_service, read_body, TestRequest},

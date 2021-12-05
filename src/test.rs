@@ -4,9 +4,8 @@ use std::{borrow::Cow, net::SocketAddr, rc::Rc};
 
 pub use actix_http::test::TestBuffer;
 use actix_http::{
-    http::{header::IntoHeaderPair, Method, StatusCode, Uri, Version},
-    test::TestRequest as HttpTestRequest,
-    Extensions, Request,
+    header::IntoHeaderPair, test::TestRequest as HttpTestRequest, Extensions, Method, Request,
+    StatusCode, Uri, Version,
 };
 use actix_router::{Path, ResourceDef, Url};
 use actix_service::{IntoService, IntoServiceFactory, Service, ServiceFactory};
@@ -547,7 +546,7 @@ impl TestRequest {
 
         #[cfg(feature = "cookies")]
         {
-            use actix_http::http::header::{HeaderValue, COOKIE};
+            use actix_http::header::{HeaderValue, COOKIE};
 
             let cookie: String = self
                 .cookies

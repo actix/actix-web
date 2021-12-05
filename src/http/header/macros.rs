@@ -6,7 +6,7 @@ macro_rules! common_header_test_module {
 
             use ::core::str;
 
-            use ::actix_http::{http::Method, test};
+            use ::actix_http::{Method, test};
             use ::mime::*;
 
             use $crate::http::header::{self, *};

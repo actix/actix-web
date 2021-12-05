@@ -10,9 +10,8 @@ use std::{
 };
 
 use actix_http::{
-    error::PayloadError,
-    http::{header, HeaderMap, StatusCode, Version},
-    Extensions, HttpMessage, Payload, PayloadStream, ResponseHead,
+    error::PayloadError, header, header::HeaderMap, Extensions, HttpMessage, Payload,
+    PayloadStream, ResponseHead, StatusCode, Version,
 };
 use actix_rt::time::{sleep, Sleep};
 use bytes::{Bytes, BytesMut};

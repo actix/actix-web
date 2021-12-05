@@ -5,11 +5,9 @@ use futures_core::Stream;
 use serde::Serialize;
 
 use actix_http::{
-    http::{
-        header::{self, IntoHeaderPair},
-        ConnectionType, Error as HttpError, HeaderMap, HeaderValue, Method, Uri, Version,
-    },
-    RequestHead,
+    error::HttpError,
+    header::{self, HeaderMap, HeaderValue, IntoHeaderPair},
+    ConnectionType, Method, RequestHead, Uri, Version,
 };
 
 use crate::{
@@ -539,7 +537,7 @@ impl fmt::Debug for ClientRequest {
 mod tests {
     use std::time::SystemTime;
 
-    use actix_http::http::header::HttpDate;
+    use actix_http::header::HttpDate;
 
     use super::*;
     use crate::Client;

@@ -9,16 +9,14 @@ use std::{
     task::{Context, Poll},
 };
 
+use actix_http::error::HttpError;
 use actix_utils::future::{ready, Ready};
 use futures_core::ready;
 use pin_project_lite::pin_project;
 
 use crate::{
     dev::{Service, Transform},
-    http::{
-        header::{HeaderName, HeaderValue, CONTENT_TYPE},
-        Error as HttpError, HeaderMap,
-    },
+    http::header::{HeaderMap, HeaderName, HeaderValue, CONTENT_TYPE},
     service::{ServiceRequest, ServiceResponse},
     Error,
 };

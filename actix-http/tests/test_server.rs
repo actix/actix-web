@@ -7,8 +7,7 @@ use std::{
 
 use actix_http::{
     body::{self, BodyStream, BoxBody, SizedStream},
-    header, http, Error, HttpMessage, HttpService, KeepAlive, Request, Response,
-    StatusCode,
+    header, Error, HttpMessage, HttpService, KeepAlive, Request, Response, StatusCode,
 };
 use actix_http_test::test_server;
 use actix_rt::time::sleep;
@@ -383,7 +382,7 @@ async fn test_http1_keepalive_disabled() {
 
 #[actix_rt::test]
 async fn test_content_length() {
-    use actix_http::http::{
+    use actix_http::{
         header::{HeaderName, HeaderValue},
         StatusCode,
     };

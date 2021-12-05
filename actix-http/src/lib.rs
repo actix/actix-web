@@ -67,26 +67,6 @@ pub use self::service::HttpService;
 pub use ::http::{uri, uri::Uri};
 pub use ::http::{Method, StatusCode, Version};
 
-// TODO: deprecate this mish-mash of random items
-pub mod http {
-    //! Various HTTP related types.
-
-    // re-exports
-    pub use http::header::{HeaderName, HeaderValue};
-    pub use http::uri::PathAndQuery;
-    pub use http::{uri, Error, Uri};
-    pub use http::{Method, StatusCode, Version};
-
-    pub use crate::header::HeaderMap;
-
-    /// A collection of HTTP headers and helpers.
-    pub mod header {
-        pub use crate::header::*;
-    }
-    pub use crate::header::ContentEncoding;
-    pub use crate::message::ConnectionType;
-}
-
 /// A major HTTP protocol version.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]

@@ -2,7 +2,7 @@
 
 use std::{error::Error as StdError, future::Future};
 
-use actix_http::http::Method;
+use actix_http::Method;
 use actix_router::IntoPatterns;
 pub use bytes::{Buf, BufMut, Bytes, BytesMut};
 
