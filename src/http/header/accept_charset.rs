@@ -37,8 +37,8 @@ crate::http::header::common_header! {
     /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     AcceptCharset(vec![
-    ///         QualityItem::new(Charset::Us_Ascii, q(900)),
-    ///         QualityItem::new(Charset::Iso_8859_10, q(200)),
+    ///         QualityItem::new(Charset::Us_Ascii, q(0.9)),
+    ///         QualityItem::new(Charset::Iso_8859_10, q(0.2)),
     ///     ])
     /// );
     /// ```

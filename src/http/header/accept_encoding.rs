@@ -59,7 +59,7 @@ common_header! {
     /// builder.insert_header(
     ///     AcceptEncoding(vec![
     ///         QualityItem::max(Encoding::Chunked),
-    ///         QualityItem::new(Encoding::Gzip, q(600)),
+    ///         QualityItem::new(Encoding::Gzip, q(0.60)),
     ///         QualityItem::min(Encoding::EncodingExt("*".to_owned())),
     ///     ])
     /// );
@@ -79,3 +79,5 @@ common_header! {
         common_header_test!(test5, vec![b"gzip, identity; q=0.5, *;q=0"]);
     }
 }
+
+// TODO: shortcut for EncodingExt(*) = Any

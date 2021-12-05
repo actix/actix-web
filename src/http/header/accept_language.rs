@@ -50,8 +50,8 @@ common_header! {
     /// builder.insert_header(
     ///     AcceptLanguage(vec![
     ///         QualityItem::max("da".parse().unwrap()),
-    ///         QualityItem::new("en-GB".parse().unwrap(), q(800)),
-    ///         QualityItem::new("en".parse().unwrap(), q(700)),
+    ///         QualityItem::new("en-GB".parse().unwrap(), q(0.8)),
+    ///         QualityItem::new("en".parse().unwrap(), q(0.7)),
     ///     ])
     /// );
     /// ```
@@ -73,7 +73,7 @@ common_header! {
             vec![b"en-US, en; q=0.5, fr"],
             Some(AcceptLanguage(vec![
                 QualityItem::max("en-US".parse().unwrap()),
-                QualityItem::new("en".parse().unwrap(), q(500)),
+                QualityItem::new("en".parse().unwrap(), q(0.5)),
                 QualityItem::max("fr".parse().unwrap()),
             ]))
         );
@@ -83,10 +83,10 @@ common_header! {
             vec![b"fr-CH, fr; q=0.9, en; q=0.8, de; q=0.7, *; q=0.5"],
             Some(AcceptLanguage(vec![
                 QualityItem::max("fr-CH".parse().unwrap()),
-                QualityItem::new("fr".parse().unwrap(), q(900)),
-                QualityItem::new("en".parse().unwrap(), q(800)),
-                QualityItem::new("de".parse().unwrap(), q(700)),
-                QualityItem::new("*".parse().unwrap(), q(500)),
+                QualityItem::new("fr".parse().unwrap(), q(0.9)),
+                QualityItem::new("en".parse().unwrap(), q(0.8)),
+                QualityItem::new("de".parse().unwrap(), q(0.7)),
+                QualityItem::new("*".parse().unwrap(), q(0.5)),
             ]))
         );
     }
@@ -155,11 +155,11 @@ mod tests {
         assert_eq!(test.ranked(), vec!("fr-CH".parse().unwrap()));
 
         let test = AcceptLanguage(vec![
-            QualityItem::new("fr".parse().unwrap(), q(900)),
-            QualityItem::new("fr-CH".parse().unwrap(), q(1000)),
-            QualityItem::new("en".parse().unwrap(), q(800)),
-            QualityItem::new("*".parse().unwrap(), q(500)),
-            QualityItem::new("de".parse().unwrap(), q(700)),
+            QualityItem::new("fr".parse().unwrap(), q(0.900)),
+            QualityItem::new("fr-CH".parse().unwrap(), q(1.0)),
+            QualityItem::new("en".parse().unwrap(), q(0.800)),
+            QualityItem::new("*".parse().unwrap(), q(0.500)),
+            QualityItem::new("de".parse().unwrap(), q(0.700)),
         ]);
         assert_eq!(
             test.ranked(),
@@ -194,11 +194,11 @@ mod tests {
     #[test]
     fn preference_selection() {
         let test = AcceptLanguage(vec![
-            QualityItem::new("fr".parse().unwrap(), q(900)),
-            QualityItem::new("fr-CH".parse().unwrap(), q(1000)),
-            QualityItem::new("en".parse().unwrap(), q(800)),
-            QualityItem::new("*".parse().unwrap(), q(500)),
-            QualityItem::new("de".parse().unwrap(), q(700)),
+            QualityItem::new("fr".parse().unwrap(), q(0.900)),
+            QualityItem::new("fr-CH".parse().unwrap(), q(1.0)),
+            QualityItem::new("en".parse().unwrap(), q(0.800)),
+            QualityItem::new("*".parse().unwrap(), q(0.500)),
+            QualityItem::new("de".parse().unwrap(), q(0.700)),
         ]);
         assert_eq!(
             test.preference(),

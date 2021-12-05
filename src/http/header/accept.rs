@@ -65,15 +65,9 @@ crate::http::header::common_header! {
     ///     Accept(vec![
     ///         QualityItem::max(mime::TEXT_HTML),
     ///         QualityItem::max("application/xhtml+xml".parse().unwrap()),
-    ///         QualityItem::new(
-    ///             mime::TEXT_XML,
-    ///             q(900)
-    ///         ),
+    ///         QualityItem::new(mime::TEXT_XML, q(0.9)),
     ///         QualityItem::max("image/webp".parse().unwrap()),
-    ///         QualityItem::new(
-    ///             mime::STAR_STAR,
-    ///             q(800)
-    ///         ),
+    ///         QualityItem::new(mime::STAR_STAR, q(0.8)),
     ///     ])
     /// );
     /// ```
@@ -85,7 +79,7 @@ crate::http::header::common_header! {
             test1,
             vec![b"audio/*; q=0.2, audio/basic"],
             Some(Accept(vec![
-                QualityItem::new("audio/*".parse().unwrap(), q(200)),
+                QualityItem::new("audio/*".parse().unwrap(), q(0.2)),
                 QualityItem::max("audio/basic".parse().unwrap()),
                 ])));
 
@@ -93,11 +87,11 @@ crate::http::header::common_header! {
             test2,
             vec![b"text/plain; q=0.5, text/html, text/x-dvi; q=0.8, text/x-c"],
             Some(Accept(vec![
-                QualityItem::new(mime::TEXT_PLAIN, q(500)),
+                QualityItem::new(mime::TEXT_PLAIN, q(0.5)),
                 QualityItem::max(mime::TEXT_HTML),
                 QualityItem::new(
                     "text/x-dvi".parse().unwrap(),
-                    q(800)),
+                    q(0.8)),
                 QualityItem::max("text/x-c".parse().unwrap()),
                 ])));
 
@@ -113,7 +107,7 @@ crate::http::header::common_header! {
             vec![b"text/plain; charset=utf-8; q=0.5"],
             Some(Accept(vec![
                 QualityItem::new(mime::TEXT_PLAIN_UTF_8,
-                    q(500)),
+                    q(0.5)),
             ])));
 
         #[test]
@@ -213,10 +207,10 @@ impl Accept {
     ///
     /// [q-factor weighting]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
     pub fn preference(&self) -> Mime {
-        use actix_http::header::q;
+        use actix_http::header::Quality;
 
         let mut max_item = None;
-        let mut max_pref = q(0);
+        let mut max_pref = Quality::MIN;
 
         // uses manual max lookup loop since we want the first occurrence in the case of same
         // preference but `Iterator::max_by_key` would give us the last occurrence
