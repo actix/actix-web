@@ -8,29 +8,37 @@ use derive_more::{Display, Error};
 
 use crate::error::ParseError;
 
-const MAX_QUALITY: u16 = 1000;
-const MAX_FLOAT_QUALITY: f32 = 1.0;
+const MAX_QUALITY_INT: u16 = 1000;
+const MAX_QUALITY_FLOAT: f32 = 1.0;
 
-/// Represents a quality used in quality values.
+/// Represents a quality used in q-factor values.
 ///
-/// Can be created with the [`q`] function.
+/// The default value is [`Quality::MAX`].
 ///
 /// # Implementation notes
+/// The quality value is defined as a number between 0 and 1 with three decimal places. This means
+/// there are 1001 possible values. Since floating point numbers are not exact and the smallest
+/// floating point data type (`f32`) consumes four bytes, we use an `u16` value to store the
+/// quality internally. For performance reasons you may set quality directly to a value between 0
+/// and 1000 e.g. `Quality(532)` matches the quality `q=0.532`.
 ///
-/// The quality value is defined as a number between 0 and 1 with three decimal
-/// places. This means there are 1001 possible values. Since floating point
-/// numbers are not exact and the smallest floating point data type (`f32`)
-/// consumes four bytes, hyper uses an `u16` value to store the
-/// quality internally. For performance reasons you may set quality directly to
-/// a value between 0 and 1000 e.g. `Quality(532)` matches the quality
-/// `q=0.532`.
+/// [RFC 7231 §5.3.1] gives more information on quality values in HTTP header fields.
 ///
-/// [RFC 7231 §5.3.1](https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.1) gives more
-/// information on quality values in HTTP header fields.
+/// [RFC 7231 §5.3.1]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.1
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Quality(u16);
 
 impl Quality {
+    /// The maximum quality value, equivalent to `q=1.0`.
+    pub const MAX: Quality = Quality(MAX_QUALITY_INT);
+
+    /// The minimum quality value, equivalent to `q=0.0`.
+    pub const MIN: Quality = Quality(0);
+
+    /// Converts a float in the range 0.0–1.0 to a `Quality`.
+    ///
+    /// Intentionally private. External uses should rely on the `TryFrom` impl.
+    ///
     /// # Panics
     /// Panics in debug mode when value is not in the range 0.0 <= n <= 1.0.
     fn from_f32(value: f32) -> Self {
@@ -41,24 +49,26 @@ impl Quality {
             "q value must be between 0.0 and 1.0"
         );
 
-        Quality((value * MAX_QUALITY as f32) as u16)
+        Quality((value * MAX_QUALITY_INT as f32) as u16)
     }
 }
 
+/// The default value is [`Quality::MAX`].
 impl Default for Quality {
     fn default() -> Quality {
-        Quality(MAX_QUALITY)
+        Quality::MAX
     }
 }
 
 #[derive(Debug, Clone, Display, Error)]
+#[non_exhaustive]
 pub struct QualityOutOfBounds;
 
 impl TryFrom<u16> for Quality {
     type Error = QualityOutOfBounds;
 
     fn try_from(value: u16) -> Result<Self, Self::Error> {
-        if (0..=MAX_QUALITY).contains(&value) {
+        if (0..=MAX_QUALITY_INT).contains(&value) {
             Ok(Quality(value))
         } else {
             Err(QualityOutOfBounds)
@@ -70,7 +80,7 @@ impl TryFrom<f32> for Quality {
     type Error = QualityOutOfBounds;
 
     fn try_from(value: f32) -> Result<Self, Self::Error> {
-        if (0.0..=MAX_FLOAT_QUALITY).contains(&value) {
+        if (0.0..=MAX_QUALITY_FLOAT).contains(&value) {
             Ok(Quality::from_f32(value))
         } else {
             Err(QualityOutOfBounds)
@@ -93,8 +103,18 @@ impl<T> QualityItem<T> {
     /// Constructs a new `QualityItem` from an item and a quality value.
     ///
     /// The item can be of any type. The quality should be a value in the range [0, 1].
-    pub fn new(item: T, quality: Quality) -> QualityItem<T> {
+    pub fn new(item: T, quality: Quality) -> Self {
         QualityItem { item, quality }
+    }
+
+    /// Constructs a new `QualityItem` with from an item, using the maximum q-value.
+    pub fn max(item: T) -> Self {
+        Self::new(item, Quality::MAX)
+    }
+
+    /// Constructs a new `QualityItem` with from an item, using the minimum q-value.
+    pub fn min(item: T) -> Self {
+        Self::new(item, Quality::MIN)
     }
 }
 
@@ -109,7 +129,7 @@ impl<T: fmt::Display> fmt::Display for QualityItem<T> {
         fmt::Display::fmt(&self.item, f)?;
 
         match self.quality.0 {
-            MAX_QUALITY => Ok(()),
+            MAX_QUALITY_INT => Ok(()),
             0 => f.write_str("; q=0"),
             x => write!(f, "; q=0.{}", format!("{:03}", x).trim_end_matches('0')),
         }
@@ -173,22 +193,42 @@ impl<T: str::FromStr> str::FromStr for QualityItem<T> {
     }
 }
 
-/// Convenience function to wrap a value in a `QualityItem`
-/// Sets `q` to the default 1.0
-pub fn qitem<T>(item: T) -> QualityItem<T> {
-    QualityItem::new(item, Quality::default())
-}
-
-/// Convenience function to create a `Quality` from a float or integer.
+/// Convenience function to create a [`Quality`] from a `u16` (0–1000) or `f32` (0.0–1.0).
 ///
-/// Implemented for `u16` and `f32`. Panics if value is out of range.
-pub fn q<T>(val: T) -> Quality
+/// Not recommended for use with user input. Rely on the `TryFrom` impls where possible.
+///
+/// # Panics
+/// Panics if value is out of range.
+///
+/// # Examples
+/// ```
+/// # use actix_http::header::{q, Quality};
+/// let q1 = q(1000);
+/// assert_eq!(q1, Quality::MAX);
+///
+/// let q2 = q(0.0);
+/// assert_eq!(q2, Quality::MIN);
+///
+/// assert_eq!(q(0.42), q(420));
+/// ```
+///
+/// An out-of-range `u16` quality will panic.
+/// ```should_panic
+/// # use actix_http::header::q;
+/// let _q1 = q(1042);
+/// ```
+///
+/// An out-of-range `f32` quality will panic.
+/// ```should_panic
+/// # use actix_http::header::q;
+/// let _q2 = q(1.42);
+/// ```
+pub fn q<T>(quality: T) -> Quality
 where
     T: TryInto<Quality>,
     T::Error: fmt::Debug,
 {
-    // TODO: on next breaking change, handle unwrap differently
-    val.try_into().unwrap()
+    quality.try_into().expect("quality value was out of bounds")
 }
 
 #[cfg(test)]
