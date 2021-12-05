@@ -1,8 +1,8 @@
-use super::{EntityTag, IF_MATCH};
+use super::{common_header, EntityTag, IF_MATCH};
 
-crate::http::header::common_header! {
-    /// `If-Match` header, defined in
-    /// [RFC7232](https://tools.ietf.org/html/rfc7232#section-3.1)
+common_header! {
+    /// `If-Match` header, defined
+    /// in [RFC 7232 §3.1](https://datatracker.ietf.org/doc/html/rfc7232#section-3.1)
     ///
     /// The `If-Match` header field makes the request method conditional on
     /// the recipient origin server either having at least one current
@@ -17,18 +17,15 @@ crate::http::header::common_header! {
     /// there have been any changes to the representation data.
     ///
     /// # ABNF
-    ///
-    /// ```text
+    /// ```plain
     /// If-Match = "*" / 1#entity-tag
     /// ```
     ///
-    /// # Example values
-    ///
+    /// # Example Values
     /// * `"xyzzy"`
     /// * "xyzzy", "r2d2xxxx", "c3piozzzz"
     ///
     /// # Examples
-    ///
     /// ```
     /// use actix_web::HttpResponse;
     /// use actix_web::http::header::IfMatch;
@@ -52,7 +49,7 @@ crate::http::header::common_header! {
     /// ```
     (IfMatch, IF_MATCH) => {Any / (EntityTag)+}
 
-    test_if_match {
+    test_parse_and_format {
         crate::http::header::common_header_test!(
             test1,
             vec![b"\"xyzzy\""],

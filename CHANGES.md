@@ -2,13 +2,112 @@
 
 ## Unreleased - 2021-xx-xx
 ### Added
-* Re-export actix-service `ServiceFactory` in `dev` module. [#2325]
-
-### Changed
+* Methods on `AcceptLanguage`: `ranked` and `preference`. [#2480]
+* `AcceptEncoding` typed header. [#2482]
+* `Range` typed header. [#2485]
+* `HttpResponse::map_into_{left,right}_body` and `HttpResponse::map_into_boxed_body`. [#2468]
+* `ServiceResponse::map_into_{left,right}_body` and `HttpResponse::map_into_boxed_body`. [#2468]
 * `HttpServer::on_connect` now receives a `CloneableExtensions` object. [#2327]
 
 [#2325]: https://github.com/actix/actix-web/pull/2325
 [#2327]: https://github.com/actix/actix-web/pull/2327
+
+### Changed
+* Rename `Accept::{mime_precedence => ranked}`. [#2480]
+* Rename `Accept::{mime_preference => preference}`. [#2480]
+* Un-deprecate `App::data_factory`. [#2484]
+* `HttpRequest::url_for` no longer constructs URLs with query or fragment components. [#2430]
+* `HttpServer::on_connect` now receives a `CloneableExtensions` object. [#2327]
+
+### Fixed
+* Accept wildcard `*` items in `AcceptLanguage`. [#2480]
+* Re-exports `dev::{BodySize, MessageBody, SizedStream}`. They are exposed through the `body` module. [#2468]
+* Typed headers containing lists that require one or more items now enforce this minimum. [#2482]
+
+[#2327]: https://github.com/actix/actix-web/pull/2327
+[#2430]: https://github.com/actix/actix-web/pull/2430
+[#2468]: https://github.com/actix/actix-web/pull/2468
+[#2480]: https://github.com/actix/actix-web/pull/2480
+[#2482]: https://github.com/actix/actix-web/pull/2482
+[#2484]: https://github.com/actix/actix-web/pull/2484
+[#2485]: https://github.com/actix/actix-web/pull/2485
+
+
+## 4.0.0-beta.13 - 2021-11-30
+### Changed
+* Update `actix-tls` to `3.0.0-rc.1`. [#2474]
+
+[#2474]: https://github.com/actix/actix-web/pull/2474
+
+
+## 4.0.0-beta.12 - 2021-11-22
+### Changed
+* Compress middleware's response type is now `AnyBody<Encoder<B>>`. [#2448]
+
+### Fixed
+* Relax `Unpin` bound on `S` (stream) parameter of `HttpResponseBuilder::streaming`. [#2448]
+
+### Removed
+* `dev::ResponseBody` re-export; is function is replaced by the new `dev::AnyBody` enum. [#2446]
+
+[#2446]: https://github.com/actix/actix-web/pull/2446
+[#2448]: https://github.com/actix/actix-web/pull/2448
+
+
+## 4.0.0-beta.11 - 2021-11-15
+### Added
+* Re-export `dev::ServerHandle` from `actix-server`. [#2442]
+
+### Changed
+* `ContentType::html` now produces `text/html; charset=utf-8` instead of `text/html`. [#2423]
+* Update `actix-server` to `2.0.0-beta.9`. [#2442]
+
+[#2423]: https://github.com/actix/actix-web/pull/2423
+[#2442]: https://github.com/actix/actix-web/pull/2442
+
+
+## 4.0.0-beta.10 - 2021-10-20
+### Added
+* Option to allow `Json` extractor to work without a `Content-Type` header present. [#2362]
+* `#[actix_web::test]` macro for setting up tests with a runtime. [#2409]
+
+### Changed
+* Associated type `FromRequest::Config` was removed. [#2233]
+* Inner field made private on `web::Payload`. [#2384]
+* `Data::into_inner` and `Data::get_ref` no longer requires `T: Sized`. [#2403]
+* Updated rustls to v0.20. [#2414]
+* Minimum supported Rust version (MSRV) is now 1.52.
+
+### Removed
+* Useless `ServiceResponse::checked_expr` method. [#2401]
+
+[#2233]: https://github.com/actix/actix-web/pull/2233
+[#2362]: https://github.com/actix/actix-web/pull/2362
+[#2384]: https://github.com/actix/actix-web/pull/2384
+[#2401]: https://github.com/actix/actix-web/pull/2401
+[#2403]: https://github.com/actix/actix-web/pull/2403
+[#2409]: https://github.com/actix/actix-web/pull/2409
+[#2414]: https://github.com/actix/actix-web/pull/2414
+
+
+## 4.0.0-beta.9 - 2021-09-09
+### Added
+* Re-export actix-service `ServiceFactory` in `dev` module. [#2325]
+
+### Changed
+* Compress middleware will return 406 Not Acceptable when no content encoding is acceptable to the client. [#2344]
+* Move `BaseHttpResponse` to `dev::Response`. [#2379]
+* Enable `TestRequest::param` to accept more than just static strings. [#2172]
+* Minimum supported Rust version (MSRV) is now 1.51.
+
+### Fixed
+* Fix quality parse error in Accept-Encoding header. [#2344]
+* Re-export correct type at `web::HttpResponse`. [#2379]
+
+[#2172]: https://github.com/actix/actix-web/pull/2172
+[#2325]: https://github.com/actix/actix-web/pull/2325
+[#2344]: https://github.com/actix/actix-web/pull/2344
+[#2379]: https://github.com/actix/actix-web/pull/2379
 
 
 ## 4.0.0-beta.8 - 2021-06-26

@@ -39,7 +39,7 @@ fn tls_config() -> SslAcceptor {
 
 #[actix_rt::test]
 async fn test_connection_window_size() {
-    let srv = test_server(move || {
+    let srv = test_server(|| {
         HttpService::build()
             .h2(map_config(
                 App::new().service(web::resource("/").route(web::to(HttpResponse::Ok))),

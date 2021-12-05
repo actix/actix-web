@@ -1,25 +1,34 @@
-use std::cell::{Ref, RefMut};
-use std::rc::Rc;
-use std::{fmt, net};
+use std::{
+    cell::{Ref, RefMut},
+    fmt, net,
+    rc::Rc,
+};
 
 use actix_http::{
-    body::{AnyBody, MessageBody},
+    body::{BoxBody, EitherBody, MessageBody},
     http::{HeaderMap, Method, StatusCode, Uri, Version},
     Extensions, HttpMessage, Payload, PayloadStream, RequestHead, Response, ResponseHead,
 };
-use actix_router::{IntoPattern, Path, Resource, ResourceDef, Url};
-use actix_service::{IntoServiceFactory, ServiceFactory};
+use actix_router::{IntoPatterns, Path, Patterns, Resource, ResourceDef, Url};
+use actix_service::{
+    boxed::{BoxService, BoxServiceFactory},
+    IntoServiceFactory, ServiceFactory,
+};
 #[cfg(feature = "cookies")]
 use cookie::{Cookie, ParseError as CookieParseError};
 
 use crate::{
     config::{AppConfig, AppService},
-    dev::insert_leading_slash,
+    dev::ensure_leading_slash,
     guard::Guard,
     info::ConnectionInfo,
     rmap::ResourceMap,
     Error, HttpRequest, HttpResponse,
 };
+
+pub(crate) type BoxedHttpService = BoxService<ServiceRequest, ServiceResponse<BoxBody>, Error>;
+pub(crate) type BoxedHttpServiceFactory =
+    BoxServiceFactory<(), ServiceRequest, ServiceResponse<BoxBody>, Error, ()>;
 
 pub trait HttpServiceFactory {
     fn register(self, config: &mut AppService);
@@ -117,7 +126,7 @@ impl ServiceRequest {
     /// This method returns reference to the request head
     #[inline]
     pub fn head(&self) -> &RequestHead {
-        &self.req.head()
+        self.req.head()
     }
 
     /// This method returns reference to the request head
@@ -212,14 +221,14 @@ impl ServiceRequest {
         self.req.match_pattern()
     }
 
-    #[inline]
     /// Get a mutable reference to the Path parameters.
+    #[inline]
     pub fn match_info_mut(&mut self) -> &mut Path<Url> {
         self.req.match_info_mut()
     }
 
-    #[inline]
     /// Get a reference to a `ResourceMap` of current application.
+    #[inline]
     pub fn resource_map(&self) -> &ResourceMap {
         self.req.resource_map()
     }
@@ -326,12 +335,12 @@ impl fmt::Debug for ServiceRequest {
 }
 
 /// A service level response wrapper.
-pub struct ServiceResponse<B = AnyBody> {
+pub struct ServiceResponse<B = BoxBody> {
     request: HttpRequest,
     response: HttpResponse<B>,
 }
 
-impl ServiceResponse<AnyBody> {
+impl ServiceResponse<BoxBody> {
     /// Create service response from the error
     pub fn from_err<E: Into<Error>>(err: E, request: HttpRequest) -> Self {
         let response = HttpResponse::from_error(err);
@@ -393,16 +402,6 @@ impl<B> ServiceResponse<B> {
         self.response.headers_mut()
     }
 
-    /// Execute closure and in case of error convert it to response.
-    pub fn checked_expr<F, E>(mut self, f: F) -> Result<Self, Error>
-    where
-        F: FnOnce(&mut Self) -> Result<(), E>,
-        E: Into<Error>,
-    {
-        f(&mut self).map_err(Into::into)?;
-        Ok(self)
-    }
-
     /// Extract response body
     pub fn into_body(self) -> B {
         self.response.into_body()
@@ -411,6 +410,7 @@ impl<B> ServiceResponse<B> {
 
 impl<B> ServiceResponse<B> {
     /// Set a new body
+    #[inline]
     pub fn map_body<F, B2>(self, f: F) -> ServiceResponse<B2>
     where
         F: FnOnce(&mut ResponseHead, B) -> B2,
@@ -421,6 +421,24 @@ impl<B> ServiceResponse<B> {
             response,
             request: self.request,
         }
+    }
+
+    #[inline]
+    pub fn map_into_left_body<R>(self) -> ServiceResponse<EitherBody<B, R>> {
+        self.map_body(|_, body| EitherBody::left(body))
+    }
+
+    #[inline]
+    pub fn map_into_right_body<L>(self) -> ServiceResponse<EitherBody<L, B>> {
+        self.map_body(|_, body| EitherBody::right(body))
+    }
+
+    #[inline]
+    pub fn map_into_boxed_body(self) -> ServiceResponse<BoxBody>
+    where
+        B: MessageBody + 'static,
+    {
+        self.map_body(|_, body| BoxBody::new(body))
     }
 }
 
@@ -459,14 +477,14 @@ where
 }
 
 pub struct WebService {
-    rdef: Vec<String>,
+    rdef: Patterns,
     name: Option<String>,
     guards: Vec<Box<dyn Guard>>,
 }
 
 impl WebService {
     /// Create new `WebService` instance.
-    pub fn new<T: IntoPattern>(path: T) -> Self {
+    pub fn new<T: IntoPatterns>(path: T) -> Self {
         WebService {
             rdef: path.patterns(),
             name: None,
@@ -476,7 +494,7 @@ impl WebService {
 
     /// Set service name.
     ///
-    /// Name is used for url generation.
+    /// Name is used for URL generation.
     pub fn name(mut self, name: &str) -> Self {
         self.name = Some(name.to_string());
         self
@@ -528,7 +546,7 @@ impl WebService {
 
 struct WebServiceImpl<T> {
     srv: T,
-    rdef: Vec<String>,
+    rdef: Patterns,
     name: Option<String>,
     guards: Vec<Box<dyn Guard>>,
 }
@@ -551,13 +569,15 @@ where
         };
 
         let mut rdef = if config.is_root() || !self.rdef.is_empty() {
-            ResourceDef::new(insert_leading_slash(self.rdef))
+            ResourceDef::new(ensure_leading_slash(self.rdef))
         } else {
             ResourceDef::new(self.rdef)
         };
+
         if let Some(ref name) = self.name {
-            *rdef.name_mut() = name.clone();
+            rdef.set_name(name);
         }
+
         config.register_service(rdef, guards, self.srv, None)
     }
 }
@@ -569,7 +589,6 @@ where
 /// The max number of services can be grouped together is 12.
 ///
 /// # Examples
-///
 /// ```
 /// use actix_web::{services, web, App};
 ///

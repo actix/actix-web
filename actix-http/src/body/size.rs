@@ -6,14 +6,9 @@ pub enum BodySize {
     /// Will skip writing Content-Length header.
     None,
 
-    /// Zero size body.
-    ///
-    /// Will write `Content-Length: 0` header.
-    Empty,
-
     /// Known size body.
     ///
-    /// Will write `Content-Length: N` header. `Sized(0)` is treated the same as `Empty`.
+    /// Will write `Content-Length: N` header.
     Sized(u64),
 
     /// Unknown size body.
@@ -23,18 +18,19 @@ pub enum BodySize {
 }
 
 impl BodySize {
-    /// Returns true if size hint indicates no or empty body.
+    /// Returns true if size hint indicates omitted or empty body.
+    ///
+    /// Streams will return false because it cannot be known without reading the stream.
     ///
     /// ```
     /// # use actix_http::body::BodySize;
     /// assert!(BodySize::None.is_eof());
-    /// assert!(BodySize::Empty.is_eof());
     /// assert!(BodySize::Sized(0).is_eof());
     ///
     /// assert!(!BodySize::Sized(64).is_eof());
     /// assert!(!BodySize::Stream.is_eof());
     /// ```
     pub fn is_eof(&self) -> bool {
-        matches!(self, BodySize::None | BodySize::Empty | BodySize::Sized(0))
+        matches!(self, BodySize::None | BodySize::Sized(0))
     }
 }

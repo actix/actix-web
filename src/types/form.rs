@@ -20,8 +20,9 @@ use serde::{de::DeserializeOwned, Serialize};
 #[cfg(feature = "__compress")]
 use crate::dev::Decompress;
 use crate::{
-    error::UrlencodedError, extract::FromRequest, http::header::CONTENT_LENGTH, web, Error,
-    HttpMessage, HttpRequest, HttpResponse, Responder,
+    body::EitherBody, error::UrlencodedError, extract::FromRequest,
+    http::header::CONTENT_LENGTH, web, Error, HttpMessage, HttpRequest, HttpResponse,
+    Responder,
 };
 
 /// URL encoded payload extractor and responder.
@@ -30,9 +31,9 @@ use crate::{
 ///
 /// # Extractor
 /// To extract typed data from a request body, the inner type `T` must implement the
-/// [`serde::Deserialize`] trait.
+/// [`DeserializeOwned`] trait.
 ///
-/// Use [`FormConfig`] to configure extraction process.
+/// Use [`FormConfig`] to configure extraction options.
 ///
 /// ```
 /// use actix_web::{post, web};
@@ -126,20 +127,12 @@ impl<T> FromRequest for Form<T>
 where
     T: DeserializeOwned + 'static,
 {
-    type Config = FormConfig;
     type Error = Error;
     type Future = FormExtractFut<T>;
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-        let (limit, err_handler) = req
-            .app_data::<Self::Config>()
-            .or_else(|| {
-                req.app_data::<web::Data<Self::Config>>()
-                    .map(|d| d.as_ref())
-            })
-            .map(|c| (c.limit, c.err_handler.clone()))
-            .unwrap_or((16384, None));
+        let FormConfig { limit, err_handler } = FormConfig::from_req(req).clone();
 
         FormExtractFut {
             fut: UrlEncoded::new(req, payload).limit(limit),
@@ -188,12 +181,21 @@ impl<T: fmt::Display> fmt::Display for Form<T> {
 
 /// See [here](#responder) for example of usage as a handler return type.
 impl<T: Serialize> Responder for Form<T> {
-    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
+    type Body = EitherBody<String>;
+
+    fn respond_to(self, _: &HttpRequest) -> HttpResponse<Self::Body> {
         match serde_urlencoded::to_string(&self.0) {
-            Ok(body) => HttpResponse::Ok()
+            Ok(body) => match HttpResponse::Ok()
                 .content_type(mime::APPLICATION_WWW_FORM_URLENCODED)
-                .body(body),
-            Err(err) => HttpResponse::from_error(UrlencodedError::Serialize(err)),
+                .message_body(body)
+            {
+                Ok(res) => res.map_into_left_body(),
+                Err(err) => HttpResponse::from_error(err).map_into_right_body(),
+            },
+
+            Err(err) => {
+                HttpResponse::from_error(UrlencodedError::Serialize(err)).map_into_right_body()
+            }
         }
     }
 }
@@ -241,14 +243,26 @@ impl FormConfig {
         self.err_handler = Some(Rc::new(f));
         self
     }
+
+    /// Extract payload config from app data.
+    ///
+    /// Checks both `T` and `Data<T>`, in that order, and falls back to the default payload config.
+    fn from_req(req: &HttpRequest) -> &Self {
+        req.app_data::<Self>()
+            .or_else(|| req.app_data::<web::Data<Self>>().map(|d| d.as_ref()))
+            .unwrap_or(&DEFAULT_CONFIG)
+    }
 }
+
+/// Allow shared refs used as default.
+const DEFAULT_CONFIG: FormConfig = FormConfig {
+    limit: 16_384, // 2^14 bytes (~16kB)
+    err_handler: None,
+};
 
 impl Default for FormConfig {
     fn default() -> Self {
-        FormConfig {
-            limit: 16_384, // 2^14 bytes (~16kB)
-            err_handler: None,
-        }
+        DEFAULT_CONFIG
     }
 }
 
@@ -404,11 +418,14 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::http::{
-        header::{HeaderValue, CONTENT_LENGTH, CONTENT_TYPE},
-        StatusCode,
-    };
     use crate::test::TestRequest;
+    use crate::{
+        http::{
+            header::{HeaderValue, CONTENT_LENGTH, CONTENT_TYPE},
+            StatusCode,
+        },
+        test::assert_body_eq,
+    };
 
     #[derive(Deserialize, Serialize, Debug, PartialEq)]
     struct Info {
@@ -516,15 +533,13 @@ mod tests {
             hello: "world".to_string(),
             counter: 123,
         });
-        let resp = form.respond_to(&req);
-        assert_eq!(resp.status(), StatusCode::OK);
+        let res = form.respond_to(&req);
+        assert_eq!(res.status(), StatusCode::OK);
         assert_eq!(
-            resp.headers().get(CONTENT_TYPE).unwrap(),
+            res.headers().get(CONTENT_TYPE).unwrap(),
             HeaderValue::from_static("application/x-www-form-urlencoded")
         );
-
-        use crate::responder::tests::BodyTest;
-        assert_eq!(resp.body().bin_ref(), b"hello=world&counter=123");
+        assert_body_eq!(res, b"hello=world&counter=123");
     }
 
     #[actix_rt::test]

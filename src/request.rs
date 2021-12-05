@@ -100,7 +100,7 @@ impl HttpRequest {
         &self.head().headers
     }
 
-    /// The target path of this Request.
+    /// The target path of this request.
     #[inline]
     pub fn path(&self) -> &str {
         self.head().uri.path()
@@ -108,18 +108,22 @@ impl HttpRequest {
 
     /// The query string in the URL.
     ///
-    /// E.g., id=10
+    /// Example: `id=10`
     #[inline]
     pub fn query_string(&self) -> &str {
         self.uri().query().unwrap_or_default()
     }
 
-    /// Get a reference to the Path parameters.
+    /// Returns a reference to the URL parameters container.
     ///
-    /// Params is a container for url parameters.
-    /// A variable segment is specified in the form `{identifier}`,
-    /// where the identifier can be used later in a request handler to
-    /// access the matched value for that segment.
+    /// A url parameter is specified in the form `{identifier}`, where the identifier can be used
+    /// later in a request handler to access the matched value for that parameter.
+    ///
+    /// # Percent Encoding and URL Parameters
+    /// Because each URL parameter is able to capture multiple path segments, both `["%2F", "%25"]`
+    /// found in the request URI are not decoded into `["/", "%"]` in order to preserve path
+    /// segment boundaries. If a url parameter is expected to contain these characters, then it is
+    /// on the user to decode them.
     #[inline]
     pub fn match_info(&self) -> &Path<Url> {
         &self.inner.path
@@ -161,30 +165,36 @@ impl HttpRequest {
         self.head().extensions_mut()
     }
 
-    /// Generate url for named resource
+    /// Generates URL for a named resource.
     ///
+    /// This substitutes in sequence all URL parameters that appear in the resource itself and in
+    /// parent [scopes](crate::web::scope), if any.
+    ///
+    /// It is worth noting that the characters `['/', '%']` are not escaped and therefore a single
+    /// URL parameter may expand into multiple path segments and `elements` can be percent-encoded
+    /// beforehand without worrying about double encoding. Any other character that is not valid in
+    /// a URL path context is escaped using percent-encoding.
+    ///
+    /// # Examples
     /// ```
     /// # use actix_web::{web, App, HttpRequest, HttpResponse};
-    /// #
     /// fn index(req: HttpRequest) -> HttpResponse {
-    ///     let url = req.url_for("foo", &["1", "2", "3"]); // <- generate url for "foo" resource
+    ///     let url = req.url_for("foo", &["1", "2", "3"]); // <- generate URL for "foo" resource
     ///     HttpResponse::Ok().into()
     /// }
     ///
-    /// fn main() {
-    ///     let app = App::new()
-    ///         .service(web::resource("/test/{one}/{two}/{three}")
-    ///              .name("foo")  // <- set resource name, then it could be used in `url_for`
-    ///              .route(web::get().to(|| HttpResponse::Ok()))
-    ///         );
-    /// }
+    /// let app = App::new()
+    ///     .service(web::resource("/test/{one}/{two}/{three}")
+    ///          .name("foo")  // <- set resource name so it can be used in `url_for`
+    ///          .route(web::get().to(|| HttpResponse::Ok()))
+    ///     );
     /// ```
     pub fn url_for<U, I>(&self, name: &str, elements: U) -> Result<url::Url, UrlGenerationError>
     where
         U: IntoIterator<Item = I>,
         I: AsRef<str>,
     {
-        self.resource_map().url_for(&self, name, elements)
+        self.resource_map().url_for(self, name, elements)
     }
 
     /// Generate url for named resource
@@ -196,10 +206,10 @@ impl HttpRequest {
         self.url_for(name, &NO_PARAMS)
     }
 
-    #[inline]
     /// Get a reference to a `ResourceMap` of current application.
+    #[inline]
     pub fn resource_map(&self) -> &ResourceMap {
-        &self.app_state().rmap()
+        self.app_state().rmap()
     }
 
     /// Peer socket address.
@@ -358,7 +368,6 @@ impl Drop for HttpRequest {
 /// }
 /// ```
 impl FromRequest for HttpRequest {
-    type Config = ();
     type Error = Error;
     type Future = Ready<Result<Self, Error>>;
 
@@ -509,9 +518,9 @@ mod tests {
     #[test]
     fn test_url_for() {
         let mut res = ResourceDef::new("/user/{name}.{ext}");
-        *res.name_mut() = "index".to_string();
+        res.set_name("index");
 
-        let mut rmap = ResourceMap::new(ResourceDef::new(""));
+        let mut rmap = ResourceMap::new(ResourceDef::prefix(""));
         rmap.add(&mut res, None);
         assert!(rmap.has_resource("/user/test.html"));
         assert!(!rmap.has_resource("/test/unknown"));
@@ -539,9 +548,9 @@ mod tests {
     #[test]
     fn test_url_for_static() {
         let mut rdef = ResourceDef::new("/index.html");
-        *rdef.name_mut() = "index".to_string();
+        rdef.set_name("index");
 
-        let mut rmap = ResourceMap::new(ResourceDef::new(""));
+        let mut rmap = ResourceMap::new(ResourceDef::prefix(""));
         rmap.add(&mut rdef, None);
 
         assert!(rmap.has_resource("/index.html"));
@@ -560,9 +569,9 @@ mod tests {
     #[test]
     fn test_match_name() {
         let mut rdef = ResourceDef::new("/index.html");
-        *rdef.name_mut() = "index".to_string();
+        rdef.set_name("index");
 
-        let mut rmap = ResourceMap::new(ResourceDef::new(""));
+        let mut rmap = ResourceMap::new(ResourceDef::prefix(""));
         rmap.add(&mut rdef, None);
 
         assert!(rmap.has_resource("/index.html"));
@@ -579,11 +588,10 @@ mod tests {
     fn test_url_for_external() {
         let mut rdef = ResourceDef::new("https://youtube.com/watch/{video_id}");
 
-        *rdef.name_mut() = "youtube".to_string();
+        rdef.set_name("youtube");
 
-        let mut rmap = ResourceMap::new(ResourceDef::new(""));
+        let mut rmap = ResourceMap::new(ResourceDef::prefix(""));
         rmap.add(&mut rdef, None);
-        assert!(rmap.has_resource("https://youtube.com/watch/unknown"));
 
         let req = TestRequest::default().rmap(rmap).to_http_request();
         let url = req.url_for("youtube", &["oHg5SJYRHA0"]);

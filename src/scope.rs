@@ -3,9 +3,8 @@ use std::{cell::RefCell, fmt, future::Future, mem, rc::Rc};
 use actix_http::Extensions;
 use actix_router::{ResourceDef, Router};
 use actix_service::{
-    apply, apply_fn_factory,
-    boxed::{self, BoxService, BoxServiceFactory},
-    IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt, Transform,
+    apply, apply_fn_factory, boxed, IntoServiceFactory, Service, ServiceFactory,
+    ServiceFactoryExt, Transform,
 };
 use futures_core::future::LocalBoxFuture;
 use futures_util::future::join_all;
@@ -13,16 +12,17 @@ use futures_util::future::join_all;
 use crate::{
     config::ServiceConfig,
     data::Data,
-    dev::{AppService, HttpServiceFactory},
+    dev::AppService,
     guard::Guard,
     rmap::ResourceMap,
-    service::{AppServiceFactory, ServiceFactoryWrapper, ServiceRequest, ServiceResponse},
+    service::{
+        AppServiceFactory, BoxedHttpService, BoxedHttpServiceFactory, HttpServiceFactory,
+        ServiceFactoryWrapper, ServiceRequest, ServiceResponse,
+    },
     Error, Resource, Route,
 };
 
 type Guards = Vec<Box<dyn Guard>>;
-type HttpService = BoxService<ServiceRequest, ServiceResponse, Error>;
-type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
 
 /// Resources scope.
 ///
@@ -41,9 +41,9 @@ type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Err
 /// fn main() {
 ///     let app = App::new().service(
 ///         web::scope("/{project_id}/")
-///             .service(web::resource("/path1").to(|| async { HttpResponse::Ok() }))
+///             .service(web::resource("/path1").to(|| async { "OK" }))
 ///             .service(web::resource("/path2").route(web::get().to(|| HttpResponse::Ok())))
-///             .service(web::resource("/path3").route(web::head().to(|| HttpResponse::MethodNotAllowed())))
+///             .service(web::resource("/path3").route(web::head().to(HttpResponse::MethodNotAllowed)))
 ///     );
 /// }
 /// ```
@@ -58,7 +58,7 @@ pub struct Scope<T = ScopeEndpoint> {
     app_data: Option<Extensions>,
     services: Vec<Box<dyn AppServiceFactory>>,
     guards: Vec<Box<dyn Guard>>,
-    default: Option<Rc<HttpNewService>>,
+    default: Option<Rc<BoxedHttpServiceFactory>>,
     external: Vec<ResourceDef>,
     factory_ref: Rc<RefCell<Option<ScopeFactory>>>,
 }
@@ -470,8 +470,14 @@ where
 }
 
 pub struct ScopeFactory {
-    services: Rc<[(ResourceDef, HttpNewService, RefCell<Option<Guards>>)]>,
-    default: Rc<HttpNewService>,
+    services: Rc<
+        [(
+            ResourceDef,
+            BoxedHttpServiceFactory,
+            RefCell<Option<Guards>>,
+        )],
+    >,
+    default: Rc<BoxedHttpServiceFactory>,
 }
 
 impl ServiceFactory<ServiceRequest> for ScopeFactory {
@@ -518,8 +524,8 @@ impl ServiceFactory<ServiceRequest> for ScopeFactory {
 }
 
 pub struct ScopeService {
-    router: Router<HttpService, Vec<Box<dyn Guard>>>,
-    default: HttpService,
+    router: Router<BoxedHttpService, Vec<Box<dyn Guard>>>,
+    default: BoxedHttpService,
 }
 
 impl Service<ServiceRequest> for ScopeService {
@@ -530,7 +536,7 @@ impl Service<ServiceRequest> for ScopeService {
     actix_service::always_ready!();
 
     fn call(&self, mut req: ServiceRequest) -> Self::Future {
-        let res = self.router.recognize_checked(&mut req, |req, guards| {
+        let res = self.router.recognize_fn(&mut req, |req, guards| {
             if let Some(ref guards) = guards {
                 for f in guards {
                     if !f.check(req.head()) {
@@ -580,12 +586,11 @@ mod tests {
     use bytes::Bytes;
 
     use crate::{
-        dev::Body,
         guard,
         http::{header, HeaderValue, Method, StatusCode},
         middleware::DefaultHeaders,
         service::{ServiceRequest, ServiceResponse},
-        test::{call_service, init_service, read_body, TestRequest},
+        test::{assert_body_eq, call_service, init_service, read_body, TestRequest},
         web, App, HttpMessage, HttpRequest, HttpResponse,
     };
 
@@ -748,20 +753,13 @@ mod tests {
         .await;
 
         let req = TestRequest::with_uri("/ab-project1/path1").to_request();
-        let resp = srv.call(req).await.unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
-
-        match resp.response().body() {
-            Body::Bytes(ref b) => {
-                let bytes = b.clone();
-                assert_eq!(bytes, Bytes::from_static(b"project: project1"));
-            }
-            _ => panic!(),
-        }
+        let res = srv.call(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_body_eq!(res, b"project: project1");
 
         let req = TestRequest::with_uri("/aa-project1/path1").to_request();
-        let resp = srv.call(req).await.unwrap();
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        let res = srv.call(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::NOT_FOUND);
     }
 
     #[actix_rt::test]
@@ -849,16 +847,9 @@ mod tests {
         .await;
 
         let req = TestRequest::with_uri("/app/project_1/path1").to_request();
-        let resp = srv.call(req).await.unwrap();
-        assert_eq!(resp.status(), StatusCode::CREATED);
-
-        match resp.response().body() {
-            Body::Bytes(ref b) => {
-                let bytes = b.clone();
-                assert_eq!(bytes, Bytes::from_static(b"project: project_1"));
-            }
-            _ => panic!(),
-        }
+        let res = srv.call(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::CREATED);
+        assert_body_eq!(res, b"project: project_1");
     }
 
     #[actix_rt::test]
@@ -877,20 +868,13 @@ mod tests {
         .await;
 
         let req = TestRequest::with_uri("/app/test/1/path1").to_request();
-        let resp = srv.call(req).await.unwrap();
-        assert_eq!(resp.status(), StatusCode::CREATED);
-
-        match resp.response().body() {
-            Body::Bytes(ref b) => {
-                let bytes = b.clone();
-                assert_eq!(bytes, Bytes::from_static(b"project: test - 1"));
-            }
-            _ => panic!(),
-        }
+        let res = srv.call(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::CREATED);
+        assert_body_eq!(res, b"project: test - 1");
 
         let req = TestRequest::with_uri("/app/test/1/path2").to_request();
-        let resp = srv.call(req).await.unwrap();
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        let res = srv.call(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::NOT_FOUND);
     }
 
     #[actix_rt::test]
@@ -1152,5 +1136,71 @@ mod tests {
             body,
             Bytes::from_static(b"http://localhost:8080/a/b/c/12345")
         );
+    }
+
+    #[actix_rt::test]
+    async fn dynamic_scopes() {
+        let srv = init_service(
+            App::new().service(
+                web::scope("/{a}/").service(
+                    web::scope("/{b}/")
+                        .route("", web::get().to(|_: HttpRequest| HttpResponse::Created()))
+                        .route(
+                            "/",
+                            web::get().to(|_: HttpRequest| HttpResponse::Accepted()),
+                        )
+                        .route("/{c}", web::get().to(|_: HttpRequest| HttpResponse::Ok())),
+                ),
+            ),
+        )
+        .await;
+
+        // note the unintuitive behavior with trailing slashes on scopes with dynamic segments
+        let req = TestRequest::with_uri("/a//b//c").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/a//b/").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::CREATED);
+
+        let req = TestRequest::with_uri("/a//b//").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::ACCEPTED);
+
+        let req = TestRequest::with_uri("/a//b//c/d").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+
+        let srv = init_service(
+            App::new().service(
+                web::scope("/{a}").service(
+                    web::scope("/{b}")
+                        .route("", web::get().to(|_: HttpRequest| HttpResponse::Created()))
+                        .route(
+                            "/",
+                            web::get().to(|_: HttpRequest| HttpResponse::Accepted()),
+                        )
+                        .route("/{c}", web::get().to(|_: HttpRequest| HttpResponse::Ok())),
+                ),
+            ),
+        )
+        .await;
+
+        let req = TestRequest::with_uri("/a/b/c").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/a/b").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::CREATED);
+
+        let req = TestRequest::with_uri("/a/b/").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::ACCEPTED);
+
+        let req = TestRequest::with_uri("/a/b/c/d").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 }

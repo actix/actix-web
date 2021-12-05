@@ -1,9 +1,14 @@
 [alias]
-chk = "check --workspace --all-features --tests --examples --bins"
-lint = "clippy --workspace --all-features --tests --examples --bins"
-ci-min = "hack check --workspace --no-default-features"
-ci-min-test = "hack check --workspace --no-default-features --tests --examples"
-ci-default = "check --workspace --bins --tests --examples"
-ci-full = "check --workspace --all-features --bins --tests --examples"
-ci-test = "test --workspace --all-features --lib --tests --no-fail-fast -- --nocapture"
-ci-doctest = "hack test --workspace --all-features --doc --no-fail-fast -- --nocapture"
+lint = "clippy --workspace --tests --examples --bins -- -Dclippy::todo"
+lint-all = "clippy --workspace --all-features --tests --examples --bins -- -Dclippy::todo"
+
+# lib checking
+ci-check-min = "hack --workspace check --no-default-features"
+ci-check-default = "hack --workspace check"
+ci-check-default-tests = "check --workspace --tests"
+ci-check-all-feature-powerset="hack --workspace --feature-powerset --skip=__compress,io-uring check"
+ci-check-all-feature-powerset-linux="hack --workspace --feature-powerset --skip=__compress check"
+
+# testing
+ci-doctest-default = "test --workspace --doc --no-fail-fast -- --nocapture"
+ci-doctest = "test --workspace --all-features --doc --no-fail-fast -- --nocapture"

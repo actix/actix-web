@@ -1,5 +1,7 @@
-use std::fmt::{self, Display, Write};
-use std::str::FromStr;
+use std::{
+    fmt::{self, Display, Write},
+    str::FromStr,
+};
 
 use super::{HeaderValue, IntoHeaderValue, InvalidHeaderValue, Writer};
 
@@ -15,7 +17,8 @@ fn check_slice_validity(slice: &str) -> bool {
     slice.bytes().all(entity_validate_char)
 }
 
-/// An entity tag, defined in [RFC7232](https://tools.ietf.org/html/rfc7232#section-2.3)
+/// An entity tag, defined
+/// in [RFC 7232 §2.3](https://datatracker.ietf.org/doc/html/rfc7232#section-2.3)
 ///
 /// An entity tag consists of a string enclosed by two literal double quotes.
 /// Preceding the first double quote is an optional weakness indicator,
@@ -23,8 +26,7 @@ fn check_slice_validity(slice: &str) -> bool {
 /// `W/"xyzzy"`.
 ///
 /// # ABNF
-///
-/// ```text
+/// ```plain
 /// entity-tag = [ weak ] opaque-tag
 /// weak       = %x57.2F ; "W/", case-sensitive
 /// opaque-tag = DQUOTE *etagc DQUOTE

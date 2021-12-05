@@ -1,11 +1,12 @@
-//! Helper trait for types that can be effectively borrowed as a [HeaderValue].
-//!
-//! [HeaderValue]: crate::http::HeaderValue
+//! Sealed [`AsHeaderName`] trait and implementations.
 
-use std::{borrow::Cow, str::FromStr};
+use std::{borrow::Cow, str::FromStr as _};
 
 use http::header::{HeaderName, InvalidHeaderName};
 
+/// Sealed trait implemented for types that can be effectively borrowed as a [`HeaderValue`].
+///
+/// [`HeaderValue`]: crate::http::HeaderValue
 pub trait AsHeaderName: Sealed {}
 
 pub struct Seal;

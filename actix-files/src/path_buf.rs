@@ -8,7 +8,7 @@ use actix_web::{dev::Payload, FromRequest, HttpRequest};
 
 use crate::error::UriSegmentError;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub(crate) struct PathBufWrap(PathBuf);
 
 impl FromStr for PathBufWrap {
@@ -21,6 +21,8 @@ impl FromStr for PathBufWrap {
 
 impl PathBufWrap {
     /// Parse a path, giving the choice of allowing hidden files to be considered valid segments.
+    ///
+    /// Path traversal is guarded by this method.
     pub fn parse_path(path: &str, hidden_files: bool) -> Result<Self, UriSegmentError> {
         let mut buf = PathBuf::new();
 
@@ -59,7 +61,6 @@ impl AsRef<Path> for PathBufWrap {
 impl FromRequest for PathBufWrap {
     type Error = UriSegmentError;
     type Future = Ready<Result<Self, Self::Error>>;
-    type Config = ();
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         ready(req.match_info().path().parse())
@@ -114,6 +115,26 @@ mod tests {
         assert_eq!(
             PathBufWrap::parse_path("/test/.tt", true).unwrap().0,
             PathBuf::from_iter(vec!["test", ".tt"])
+        );
+    }
+
+    #[test]
+    fn path_traversal() {
+        assert_eq!(
+            PathBufWrap::parse_path("/../README.md", false).unwrap().0,
+            PathBuf::from_iter(vec!["README.md"])
+        );
+
+        assert_eq!(
+            PathBufWrap::parse_path("/../README.md", true).unwrap().0,
+            PathBuf::from_iter(vec!["README.md"])
+        );
+
+        assert_eq!(
+            PathBufWrap::parse_path("/../../../../../../../../../../etc/passwd", false)
+                .unwrap()
+                .0,
+            PathBuf::from_iter(vec!["etc/passwd"])
         );
     }
 }

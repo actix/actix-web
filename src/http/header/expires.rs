@@ -1,7 +1,8 @@
 use super::{HttpDate, EXPIRES};
 
 crate::http::header::common_header! {
-    /// `Expires` header, defined in [RFC7234](http://tools.ietf.org/html/rfc7234#section-5.3)
+    /// `Expires` header, defined
+    /// in [RFC 7234 §5.3](https://datatracker.ietf.org/doc/html/rfc7234#section-5.3)
     ///
     /// The `Expires` header field gives the date/time after which the
     /// response is considered stale.
@@ -11,12 +12,11 @@ crate::http::header::common_header! {
     /// time.
     ///
     /// # ABNF
-    ///
-    /// ```text
+    /// ```plain
     /// Expires = HTTP-date
     /// ```
     ///
-    /// # Example values
+    /// # Example Values
     /// * `Thu, 01 Dec 1994 16:00:00 GMT`
     ///
     /// # Example
@@ -34,7 +34,7 @@ crate::http::header::common_header! {
     /// ```
     (Expires, EXPIRES) => [HttpDate]
 
-    test_expires {
+    test_parse_and_format {
         // Test case from RFC
         crate::http::header::common_header_test!(test1, vec![b"Thu, 01 Dec 1994 16:00:00 GMT"]);
     }

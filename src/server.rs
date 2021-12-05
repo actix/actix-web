@@ -1,8 +1,6 @@
 use std::{
     any::Any,
-    cmp,
-    error::Error as StdError,
-    fmt, io,
+    cmp, fmt, io,
     marker::PhantomData,
     net,
     sync::{Arc, Mutex},
@@ -17,9 +15,9 @@ use actix_service::{
 };
 
 #[cfg(feature = "openssl")]
-use actix_tls::accept::openssl::{AlpnError, SslAcceptor, SslAcceptorBuilder};
+use actix_tls::accept::openssl::reexports::{AlpnError, SslAcceptor, SslAcceptorBuilder};
 #[cfg(feature = "rustls")]
-use actix_tls::accept::rustls::ServerConfig as RustlsServerConfig;
+use actix_tls::accept::rustls::reexports::ServerConfig as RustlsServerConfig;
 
 use crate::{config::AppConfig, Error};
 
@@ -77,15 +75,13 @@ where
     I: IntoServiceFactory<S, Request>,
 
     S: ServiceFactory<Request, Config = AppConfig> + 'static,
-    // S::Future: 'static,
     S::Error: Into<Error> + 'static,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
     S::Service: 'static,
-    // S::Service: 'static,
+
     B: MessageBody + 'static,
-    B::Error: Into<Box<dyn StdError>>,
 {
     /// Create new HTTP server with application factory
     pub fn new(factory: F) -> Self {
@@ -111,11 +107,11 @@ where
     /// and handlers.
     ///
     /// # Connection Types
-    /// - `actix_web::rt::net::TcpStream` when no TLS layer is used.
-    /// - `actix_tls::rustls::TlsStream<actix_web::rt::net::TcpStream>` when using rustls.
-    /// - `actix_tls::openssl::SslStream<actix_web::rt::net::TcpStream>` when using openssl.
+    /// - `actix_tls::accept::openssl::TlsStream<actix_web::rt::net::TcpStream>` when using openssl.
+    /// - `actix_tls::accept::rustls::TlsStream<actix_web::rt::net::TcpStream>` when using rustls.
+    /// - `actix_web::rt::net::TcpStream` when no encryption is used.
     ///
-    /// See `on_connect` example for additional details.
+    /// See the `on_connect` example for additional details.
     pub fn on_connect<CB>(self, f: CB) -> HttpServer<F, I, S, B>
     where
         CB: Fn(&dyn Any, &mut CloneableExtensions) + Send + Sync + 'static,
@@ -162,7 +158,7 @@ where
     ///
     /// By default max connections is set to a 25k.
     pub fn max_connections(mut self, num: usize) -> Self {
-        self.builder = self.builder.maxconn(num);
+        self.builder = self.builder.max_concurrent_connections(num);
         self
     }
 
@@ -236,7 +232,7 @@ where
         self
     }
 
-    /// Stop actix system.
+    /// Stop Actix `System` after server shutdown.
     pub fn system_exit(mut self) -> Self {
         self.builder = self.builder.system_exit();
         self
@@ -659,8 +655,8 @@ fn create_tcp_listener(addr: net::SocketAddr, backlog: u32) -> io::Result<net::T
     Ok(net::TcpListener::from(socket))
 }
 
-#[cfg(feature = "openssl")]
 /// Configure `SslAcceptorBuilder` with custom server flags.
+#[cfg(feature = "openssl")]
 fn openssl_acceptor(mut builder: SslAcceptorBuilder) -> io::Result<SslAcceptor> {
     builder.set_alpn_select_callback(|_, protocols| {
         const H2: &[u8] = b"\x02h2";

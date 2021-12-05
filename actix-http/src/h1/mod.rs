@@ -1,6 +1,8 @@
 //! HTTP/1 protocol implementation.
+
 use bytes::{Bytes, BytesMut};
 
+mod chunked;
 mod client;
 mod codec;
 mod decoder;

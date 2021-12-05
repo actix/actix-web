@@ -11,6 +11,7 @@ use std::{
 
 use actix_utils::future::{ready, Ready};
 use futures_core::ready;
+use pin_project_lite::pin_project;
 
 use crate::{
     dev::{Service, Transform},
@@ -153,12 +154,13 @@ where
     }
 }
 
-#[pin_project::pin_project]
-pub struct DefaultHeaderFuture<S: Service<ServiceRequest>, B> {
-    #[pin]
-    fut: S::Future,
-    inner: Rc<Inner>,
-    _body: PhantomData<B>,
+pin_project! {
+    pub struct DefaultHeaderFuture<S: Service<ServiceRequest>, B> {
+        #[pin]
+        fut: S::Future,
+        inner: Rc<Inner>,
+        _body: PhantomData<B>,
+    }
 }
 
 impl<S, B> Future for DefaultHeaderFuture<S, B>
