@@ -7,7 +7,7 @@ use super::Quality;
 /// Represents an item with a quality value as defined
 /// in [RFC 7231 §5.3.1](https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.1).
 ///
-/// # Parsing
+/// # Parsing and Formatting
 /// This wrapper be used to parse header value items that have a q-factor annotation as well as
 /// serialize items with a their q-factor.
 ///

@@ -128,7 +128,7 @@ impl TryFrom<f32> for Quality {
     }
 }
 
-/// Convenience function to create a [`Quality`] from a `u16` (0–1000) or `f32` (0.0–1.0).
+/// Convenience function to create a [`Quality`] from an `f32` (0.0–1.0).
 ///
 /// Not recommended for use with user input. Rely on the `TryFrom` impls where possible.
 ///
