@@ -435,10 +435,10 @@ impl Field {
 
     /// Returns the field's Content-Disposition.
     ///
-    /// Per [RFC 7578 §4.2]: 'Each part MUST contain a Content-Disposition header field where the
-    /// disposition type is "form-data". The Content-Disposition header field MUST also contain an
-    /// additional parameter of "name"; the value of the "name" parameter is the original field name
-    /// from the form.'
+    /// Per [RFC 7578 §4.2]: "Each part MUST contain a Content-Disposition header field where the
+    /// disposition type is `form-data`. The Content-Disposition header field MUST also contain an
+    /// additional parameter of `name`; the value of the `name` parameter is the original field name
+    /// from the form."
     ///
     /// This crate validates that it exists before returning a `Field`. As such, it is safe to
     /// unwrap `.content_disposition().get_name()`. The [name](Self::name) method is provided as
@@ -451,7 +451,8 @@ impl Field {
 
     /// Returns the field's name.
     ///
-    /// See [content_disposition] regarding guarantees about
+    /// See [content_disposition](Self::content_disposition) regarding guarantees about existence of
+    /// the name field.
     pub fn name(&self) -> &str {
         self.content_disposition()
             .get_name()

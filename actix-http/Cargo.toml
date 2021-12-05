@@ -112,3 +112,7 @@ harness = false
 [[bench]]
 name = "uninit-headers"
 harness = false
+
+[[bench]]
+name = "quality-value"
+harness = false

@@ -38,13 +38,14 @@ pub mod map;
 mod shared;
 mod utils;
 
-#[doc(hidden)]
-pub use self::shared::*;
-
 pub use self::as_name::AsHeaderName;
 pub use self::into_pair::IntoHeaderPair;
 pub use self::into_value::IntoHeaderValue;
 pub use self::map::HeaderMap;
+pub use self::shared::{
+    parse_extended_value, q, Charset, ContentEncoding, ExtendedValue, HttpDate,
+    LanguageTag, Quality, QualityItem,
+};
 pub use self::utils::{
     fmt_comma_delimited, from_comma_delimited, from_one_raw_str, http_percent_encode,
 };

@@ -29,36 +29,38 @@ common_header! {
     /// # Examples
     /// ```
     /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{AcceptEncoding, Encoding, qitem};
+    /// use actix_web::http::header::{AcceptEncoding, Encoding, QualityItem};
     ///
     /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
-    ///     AcceptEncoding(vec![qitem(Encoding::Chunked)])
+    ///     AcceptEncoding(vec![QualityItem::max(Encoding::Chunked)])
     /// );
     /// ```
+    ///
     /// ```
     /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{AcceptEncoding, Encoding, qitem};
+    /// use actix_web::http::header::{AcceptEncoding, Encoding, QualityItem};
     ///
     /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     AcceptEncoding(vec![
-    ///         qitem(Encoding::Chunked),
-    ///         qitem(Encoding::Gzip),
-    ///         qitem(Encoding::Deflate),
+    ///         QualityItem::max(Encoding::Chunked),
+    ///         QualityItem::max(Encoding::Gzip),
+    ///         QualityItem::max(Encoding::Deflate),
     ///     ])
     /// );
     /// ```
+    ///
     /// ```
     /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{AcceptEncoding, Encoding, QualityItem, q, qitem};
+    /// use actix_web::http::header::{AcceptEncoding, Encoding, QualityItem, q};
     ///
     /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     AcceptEncoding(vec![
-    ///         qitem(Encoding::Chunked),
-    ///         QualityItem::new(Encoding::Gzip, q(600)),
-    ///         QualityItem::new(Encoding::EncodingExt("*".to_owned()), q(0)),
+    ///         QualityItem::max(Encoding::Chunked),
+    ///         QualityItem::new(Encoding::Gzip, q(0.60)),
+    ///         QualityItem::min(Encoding::EncodingExt("*".to_owned())),
     ///     ])
     /// );
     /// ```
@@ -77,3 +79,5 @@ common_header! {
         common_header_test!(test5, vec![b"gzip, identity; q=0.5, *;q=0"]);
     }
 }
+
+// TODO: shortcut for EncodingExt(*) = Any

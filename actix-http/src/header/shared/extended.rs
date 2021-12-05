@@ -1,4 +1,4 @@
-// Originally from hyper v0.11.27 src/header/parsing.rs
+//! Originally taken from `hyper::header::parsing`.
 
 use std::{fmt, str::FromStr};
 

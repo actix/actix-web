@@ -22,11 +22,11 @@ crate::http::header::common_header! {
     /// # Examples
     /// ```
     /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{AcceptCharset, Charset, qitem};
+    /// use actix_web::http::header::{AcceptCharset, Charset, QualityItem};
     ///
     /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
-    ///     AcceptCharset(vec![qitem(Charset::Us_Ascii)])
+    ///     AcceptCharset(vec![QualityItem::max(Charset::Us_Ascii)])
     /// );
     /// ```
     ///
@@ -37,19 +37,19 @@ crate::http::header::common_header! {
     /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     AcceptCharset(vec![
-    ///         QualityItem::new(Charset::Us_Ascii, q(900)),
-    ///         QualityItem::new(Charset::Iso_8859_10, q(200)),
+    ///         QualityItem::new(Charset::Us_Ascii, q(0.9)),
+    ///         QualityItem::new(Charset::Iso_8859_10, q(0.2)),
     ///     ])
     /// );
     /// ```
     ///
     /// ```
     /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{AcceptCharset, Charset, qitem};
+    /// use actix_web::http::header::{AcceptCharset, Charset, QualityItem};
     ///
     /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
-    ///     AcceptCharset(vec![qitem(Charset::Ext("utf-8".to_owned()))])
+    ///     AcceptCharset(vec![QualityItem::max(Charset::Ext("utf-8".to_owned()))])
     /// );
     /// ```
     (AcceptCharset, ACCEPT_CHARSET) => (QualityItem<Charset>)+
