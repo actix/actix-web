@@ -10,8 +10,7 @@ use ahash::AHashMap;
 /// All entries into this map must be owned types (or static references).
 #[derive(Default)]
 pub struct Extensions {
-    /// Use FxHasher with a std HashMap with for faster
-    /// lookups on the small `TypeId` (u64 equivalent) keys.
+    /// Use AHasher with a std HashMap with for faster lookups on the small `TypeId` keys.
     map: AHashMap<TypeId, Box<dyn Any>>,
 }
 
@@ -157,7 +156,6 @@ pub trait CloneToAny {
 
 impl<T: Clone + Any> CloneToAny for T {
     #[cfg(test)]
-    #[inline]
     fn any_ref(&self) -> &dyn Any {
         &*self
     }
@@ -205,8 +203,7 @@ impl UncheckedAnyExt for dyn CloneAny {}
 /// cloneable already but you can use reference counted wrappers if not.
 #[derive(Default)]
 pub struct CloneableExtensions {
-    /// Use FxHasher with a std HashMap with for faster
-    /// lookups on the small `TypeId` (u64 equivalent) keys.
+    /// Use AHasher with a std HashMap with for faster lookups on the small `TypeId` keys.
     map: AHashMap<TypeId, Box<dyn CloneAny>>,
 }
 
