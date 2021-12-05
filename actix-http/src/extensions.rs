@@ -195,12 +195,6 @@ trait UncheckedAnyExt {
 
 impl UncheckedAnyExt for dyn CloneAny {}
 
-fn downcast_cloneable<T: 'static>(boxed: Box<dyn CloneAny>) -> T {
-    // Safety:
-    // Box is owned and `T` is known to be true type from map containing TypeId as key.
-    *unsafe { UncheckedAnyExt::downcast_unchecked::<T>(boxed) }
-}
-
 /// A type map for `on_connect` extensions.
 ///
 /// All entries into this map must be owned types and implement `Clone` trait.
@@ -221,6 +215,7 @@ impl CloneableExtensions {
     ///
     /// If an item of this type was already stored, it will be replaced and returned.
     ///
+    /// # Examples
     /// ```
     /// # use actix_http::Extensions;
     /// let mut map = Extensions::new();
@@ -232,7 +227,11 @@ impl CloneableExtensions {
     pub fn insert<T: CloneAny>(&mut self, val: T) -> Option<T> {
         self.map
             .insert(TypeId::of::<T>(), Box::new(val))
-            .and_then(downcast_cloneable)
+            .map(|boxed| {
+                // Safety:
+                // Box is owned and `T` is known to be true type from map.
+                *unsafe { UncheckedAnyExt::downcast_unchecked::<T>(boxed) }
+            })
     }
 
     #[cfg(test)]
