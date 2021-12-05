@@ -126,7 +126,8 @@ impl Logger {
     ///
     /// # Example
     /// ```
-    /// # use actix_web::{http::HeaderValue, middleware::Logger};
+    /// # use actix_web::http::{header::HeaderValue};
+    /// # use actix_web::middleware::Logger;
     /// # fn parse_jwt_id (_req: Option<&HeaderValue>) -> String { "jwt_uid".to_owned() }
     /// Logger::new("example %{JWT_ID}xi")
     ///     .custom_request_replace("JWT_ID", |req| parse_jwt_id(req.headers().get("Authorization")));

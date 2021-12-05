@@ -20,7 +20,7 @@ use crate::{
 ///
 /// # Examples
 /// ```
-/// use actix_http::{Response, ResponseBuilder, body, http::StatusCode, http::header};
+/// use actix_http::{Response, ResponseBuilder, StatusCode, body, header};
 ///
 /// # actix_rt::System::new().block_on(async {
 /// let mut res: Response<_> = Response::build(StatusCode::OK)
@@ -47,9 +47,7 @@ impl ResponseBuilder {
     /// Create response builder
     ///
     /// # Examples
-    /// ```
-    /// use actix_http::{Response, ResponseBuilder, http::StatusCode};
-    ///
+    //    /// use actix_http::{Response, ResponseBuilder, StatusCode};, / ``
     /// let res: Response<_> = ResponseBuilder::default().finish();
     /// assert_eq!(res.status(), StatusCode::OK);
     /// ```
@@ -64,9 +62,7 @@ impl ResponseBuilder {
     /// Set HTTP status code of this response.
     ///
     /// # Examples
-    /// ```
-    /// use actix_http::{ResponseBuilder, http::StatusCode};
-    ///
+    //    /// use actix_http::{ResponseBuilder, StatusCode};, / ``
     /// let res = ResponseBuilder::default().status(StatusCode::NOT_FOUND).finish();
     /// assert_eq!(res.status(), StatusCode::NOT_FOUND);
     /// ```
@@ -82,7 +78,7 @@ impl ResponseBuilder {
     ///
     /// # Examples
     /// ```
-    /// use actix_http::{ResponseBuilder, http::header};
+    /// use actix_http::{ResponseBuilder, header};
     ///
     /// let res = ResponseBuilder::default()
     ///     .insert_header((header::CONTENT_TYPE, mime::APPLICATION_JSON))
@@ -112,7 +108,7 @@ impl ResponseBuilder {
     ///
     /// # Examples
     /// ```
-    /// use actix_http::{ResponseBuilder, http::header};
+    /// use actix_http::{ResponseBuilder, header};
     ///
     /// let res = ResponseBuilder::default()
     ///     .append_header((header::CONTENT_TYPE, mime::APPLICATION_JSON))

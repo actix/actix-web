@@ -37,19 +37,20 @@ type ErrorHandler<B> = dyn Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse
 /// # Examples
 /// ```
 /// use actix_web::middleware::{ErrorHandlers, ErrorHandlerResponse};
-/// use actix_web::{web, http, dev, App, HttpRequest, HttpResponse, Result};
+/// use actix_web::{web, dev, App, HttpRequest, HttpResponse, Result};
+/// use actix_web::http::{StatusCode, header};
 ///
 /// fn render_500<B>(mut res: dev::ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
 ///     res.response_mut()
 ///        .headers_mut()
-///        .insert(http::header::CONTENT_TYPE, http::HeaderValue::from_static("Error"));
+///        .insert(header::CONTENT_TYPE, header::HeaderValue::from_static("Error"));
 ///     Ok(ErrorHandlerResponse::Response(res))
 /// }
 ///
 /// let app = App::new()
 ///     .wrap(
 ///         ErrorHandlers::new()
-///             .handler(http::StatusCode::INTERNAL_SERVER_ERROR, render_500),
+///             .handler(StatusCode::INTERNAL_SERVER_ERROR, render_500),
 ///     )
 ///     .service(web::resource("/test")
 ///         .route(web::get().to(|| HttpResponse::Ok()))
