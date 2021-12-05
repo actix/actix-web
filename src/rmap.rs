@@ -1,12 +1,14 @@
-use std::cell::RefCell;
-use std::rc::{Rc, Weak};
+use std::{
+    borrow::Cow,
+    cell::RefCell,
+    rc::{Rc, Weak},
+};
 
 use actix_router::ResourceDef;
 use ahash::AHashMap;
 use url::Url;
 
-use crate::error::UrlGenerationError;
-use crate::request::HttpRequest;
+use crate::{error::UrlGenerationError, request::HttpRequest};
 
 #[derive(Clone, Debug)]
 pub struct ResourceMap {
@@ -102,17 +104,28 @@ impl ResourceMap {
             })
             .ok_or(UrlGenerationError::NotEnoughElements)?;
 
-        if path.starts_with('/') {
+        let (base, path): (Cow<'_, _>, _) = if path.starts_with('/') {
+            // build full URL from connection info parts and resource path
             let conn = req.connection_info();
-            Ok(Url::parse(&format!(
-                "{}://{}{}",
-                conn.scheme(),
-                conn.host(),
-                path
-            ))?)
+            let base = format!("{}://{}", conn.scheme(), conn.host());
+            (Cow::Owned(base), path.as_str())
         } else {
-            Ok(Url::parse(&path)?)
-        }
+            // external resource; third slash would be the root slash in the path
+            let third_slash_index = path
+                .char_indices()
+                .filter_map(|(i, c)| (c == '/').then(|| i))
+                .nth(2)
+                .unwrap_or_else(|| path.len());
+
+            (
+                Cow::Borrowed(&path[..third_slash_index]),
+                &path[third_slash_index..],
+            )
+        };
+
+        let mut url = Url::parse(&base)?;
+        url.set_path(path);
+        Ok(url)
     }
 
     pub fn has_resource(&self, path: &str) -> bool {
@@ -404,6 +417,42 @@ mod tests {
         assert_eq!(url, "http://localhost:8888/user/u123/post/foobar");
 
         assert!(rmap.url_for(&req, "missing", &["u123"]).is_err());
+    }
+
+    #[test]
+    fn url_for_parser() {
+        let mut root = ResourceMap::new(ResourceDef::prefix(""));
+
+        let mut rdef_1 = ResourceDef::new("/{var}");
+        rdef_1.set_name("internal");
+
+        let mut rdef_2 = ResourceDef::new("http://host.dom/{var}");
+        rdef_2.set_name("external.1");
+
+        let mut rdef_3 = ResourceDef::new("{var}");
+        rdef_3.set_name("external.2");
+
+        root.add(&mut rdef_1, None);
+        root.add(&mut rdef_2, None);
+        root.add(&mut rdef_3, None);
+        let rmap = Rc::new(root);
+        ResourceMap::finish(&rmap);
+
+        let mut req = crate::test::TestRequest::default();
+        req.set_server_hostname("localhost:8888");
+        let req = req.to_http_request();
+
+        const INPUT: &[&str] = &["a/../quick brown%20fox/%nan?query#frag"];
+        const OUTPUT: &str = "/quick%20brown%20fox/%nan%3Fquery%23frag";
+
+        let url = rmap.url_for(&req, "internal", INPUT).unwrap();
+        assert_eq!(url.path(), OUTPUT);
+
+        let url = rmap.url_for(&req, "external.1", INPUT).unwrap();
+        assert_eq!(url.path(), OUTPUT);
+
+        assert!(rmap.url_for(&req, "external.2", INPUT).is_err());
+        assert!(rmap.url_for(&req, "external.2", &[""]).is_err());
     }
 
     #[test]

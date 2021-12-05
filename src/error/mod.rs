@@ -29,15 +29,15 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, PartialEq, Display, Error, From)]
 #[non_exhaustive]
 pub enum UrlGenerationError {
-    /// Resource not found
+    /// Resource not found.
     #[display(fmt = "Resource not found")]
     ResourceNotFound,
 
-    /// Not all path pattern covered
-    #[display(fmt = "Not all path pattern covered")]
+    /// Not all URL parameters covered.
+    #[display(fmt = "Not all URL parameters covered")]
     NotEnoughElements,
 
-    /// URL parse error
+    /// URL parse error.
     #[display(fmt = "{}", _0)]
     ParseError(UrlParseError),
 }

@@ -12,12 +12,14 @@
 * Rename `Accept::{mime_precedence => ranked}`. [#2480]
 * Rename `Accept::{mime_preference => preference}`. [#2480]
 * Un-deprecate `App::data_factory`. [#2484]
+* `HttpRequest::url_for` no longer constructs URLs with query or fragment components. [#2430]
 
 ### Fixed
 * Accept wildcard `*` items in `AcceptLanguage`. [#2480]
 * Re-exports `dev::{BodySize, MessageBody, SizedStream}`. They are exposed through the `body` module. [#2468]
 * Typed headers containing lists that require one or more items now enforce this minimum. [#2482]
 
+[#2430]: https://github.com/actix/actix-web/pull/2430
 [#2468]: https://github.com/actix/actix-web/pull/2468
 [#2480]: https://github.com/actix/actix-web/pull/2480
 [#2482]: https://github.com/actix/actix-web/pull/2482
