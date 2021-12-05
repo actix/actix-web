@@ -47,7 +47,7 @@ impl Quality {
     ///
     /// # Panics
     /// Panics in debug mode when value is not in the range 0.0 <= n <= 1.0.
-    pub(super) fn from_f32(value: f32) -> Self {
+    fn from_f32(value: f32) -> Self {
         // Check that `value` is within range should be done before calling this method.
         // Just in case, this debug_assert should catch if we were forgetful.
         debug_assert!(
@@ -118,6 +118,7 @@ pub struct QualityOutOfBounds;
 impl TryFrom<f32> for Quality {
     type Error = QualityOutOfBounds;
 
+    #[inline]
     fn try_from(value: f32) -> Result<Self, Self::Error> {
         if (0.0..=MAX_QUALITY_FLOAT).contains(&value) {
             Ok(Quality::from_f32(value))
@@ -151,6 +152,7 @@ impl TryFrom<f32> for Quality {
 /// # use actix_http::header::q;
 /// let _q2 = q(1.42);
 /// ```
+#[inline]
 pub fn q<T>(quality: T) -> Quality
 where
     T: TryInto<Quality>,
