@@ -5,8 +5,8 @@ use std::{
 
 use derive_more::{Display, Error};
 
-pub(super) const MAX_QUALITY_INT: u16 = 1000;
-pub(super) const MAX_QUALITY_FLOAT: f32 = 1.0;
+const MAX_QUALITY_INT: u16 = 1000;
+const MAX_QUALITY_FLOAT: f32 = 1.0;
 
 /// Represents a quality used in q-factor values.
 ///
@@ -66,8 +66,6 @@ impl Default for Quality {
     }
 }
 
-// In benchmarks this is twice as fast as a naive approach using something like
-// `format!("{}").trim_end_matches('0')` for non-fast path quality values
 impl fmt::Display for Quality {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.0 {
@@ -78,8 +76,9 @@ impl fmt::Display for Quality {
             x => {
                 f.write_str("0.")?;
 
-                // this implementation avoids string allocation otherwise required
-                // for `.trim_end_matches('0')`
+                // This implementation avoids string allocation for removing trailing zeroes.
+                // In benchmarks it is twice as fast as approach using something like
+                // `format!("{}").trim_end_matches('0')` for non-fast path quality values.
 
                 if x < 10 {
                     f.write_str("00")?;

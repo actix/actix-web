@@ -1,11 +1,8 @@
-use std::{cmp, fmt, str};
+use std::{cmp, convert::TryFrom as _, fmt, str};
 
 use crate::error::ParseError;
 
-use super::{
-    quality::{MAX_QUALITY_FLOAT, MAX_QUALITY_INT},
-    Quality,
-};
+use super::Quality;
 
 /// Represents an item with a quality value as defined
 /// in [RFC 7231 §5.3.1](https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.1).
@@ -74,9 +71,9 @@ impl<T: fmt::Display> fmt::Display for QualityItem<T> {
 
         match self.quality {
             // q-factor value is implied for max value
-            Quality(MAX_QUALITY_INT) => Ok(()),
+            Quality::MAX => Ok(()),
 
-            Quality(0) => f.write_str("; q=0"),
+            Quality::MIN => f.write_str("; q=0"),
 
             q => write!(f, "; q={}", q),
         }
@@ -86,57 +83,55 @@ impl<T: fmt::Display> fmt::Display for QualityItem<T> {
 impl<T: str::FromStr> str::FromStr for QualityItem<T> {
     type Err = ParseError;
 
-    fn from_str(qitem_str: &str) -> Result<Self, Self::Err> {
-        if !qitem_str.is_ascii() {
+    fn from_str(q_item_str: &str) -> Result<Self, Self::Err> {
+        if !q_item_str.is_ascii() {
             return Err(ParseError::Header);
         }
 
-        // Set defaults used if parsing fails.
-        let mut raw_item = qitem_str;
-        let mut quality = 1f32;
+        // set defaults used if quality-item parsing fails, i.e., item has no q-factor
+        let mut raw_item = q_item_str;
+        let mut quality = Quality::MAX;
 
-        // TODO: MSRV(1.52): use rsplit_once
-        let parts: Vec<_> = qitem_str.rsplitn(2, ';').map(str::trim).collect();
+        let parts = q_item_str
+            .rsplit_once(';')
+            .map(|(item, q_attr)| (item.trim(), q_attr.trim()));
 
-        if parts.len() == 2 {
+        if let Some((val, q_attr)) = parts {
             // example for item with q-factor:
             //
-            // gzip; q=0.65
-            //       ^^^^^^  parts[0]
-            //       ^^      start
-            //         ^^^^  q_val
-            // ^^^^          parts[1]
+            // gzip;q=0.65
+            // ^^^^         val
+            //      ^^^^^^  q_attr
+            //      ^^      q
+            //        ^^^^  q_val
 
-            if parts[0].len() < 2 {
+            if q_attr.len() < 2 {
                 // Can't possibly be an attribute since an attribute needs at least a name followed
                 // by an equals sign. And bare identifiers are forbidden.
                 return Err(ParseError::Header);
             }
 
-            let start = &parts[0][0..2];
+            let q = &q_attr[0..2];
 
-            if start == "q=" || start == "Q=" {
-                let q_val = &parts[0][2..];
+            if q == "q=" || q == "Q=" {
+                let q_val = &q_attr[2..];
                 if q_val.len() > 5 {
                     // longer than 5 indicates an over-precise q-factor
                     return Err(ParseError::Header);
                 }
 
                 let q_value = q_val.parse::<f32>().map_err(|_| ParseError::Header)?;
+                let q_value =
+                    Quality::try_from(q_value).map_err(|_| ParseError::Header)?;
 
-                if (0f32..=MAX_QUALITY_FLOAT).contains(&q_value) {
-                    quality = q_value;
-                    raw_item = parts[1];
-                } else {
-                    return Err(ParseError::Header);
-                }
+                quality = q_value;
+                raw_item = val;
             }
         }
 
         let item = raw_item.parse::<T>().map_err(|_| ParseError::Header)?;
 
-        // we already checked above that the quality is within range
-        Ok(QualityItem::new(item, Quality::from_f32(quality)))
+        Ok(QualityItem::new(item, quality))
     }
 }
 
