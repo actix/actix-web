@@ -4,6 +4,7 @@
 ### Added
 * Methods on `AcceptLanguage`: `ranked` and `preference`. [#2480]
 * `AcceptEncoding` typed header. [#2482]
+* `Range` typed header. [#2485]
 * `HttpResponse::map_into_{left,right}_body` and `HttpResponse::map_into_boxed_body`. [#2468]
 * `ServiceResponse::map_into_{left,right}_body` and `HttpResponse::map_into_boxed_body`. [#2468]
 
@@ -21,6 +22,7 @@
 [#2480]: https://github.com/actix/actix-web/pull/2480
 [#2482]: https://github.com/actix/actix-web/pull/2482
 [#2484]: https://github.com/actix/actix-web/pull/2484
+[#2485]: https://github.com/actix/actix-web/pull/2485
 
 
 ## 4.0.0-beta.13 - 2021-11-30

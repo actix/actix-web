@@ -40,7 +40,7 @@ mod if_unmodified_since;
 mod last_modified;
 mod macros;
 mod preference;
-// mod range;
+mod range;
 
 #[cfg(test)]
 pub(crate) use macros::common_header_test;
@@ -68,7 +68,7 @@ pub use self::if_range::IfRange;
 pub use self::if_unmodified_since::IfUnmodifiedSince;
 pub use self::last_modified::LastModified;
 pub use self::preference::Preference;
-//pub use self::range::{Range, ByteRangeSpec};
+pub use self::range::{ByteRangeSpec, Range};
 
 /// Format writer ([`fmt::Write`]) for a [`BytesMut`].
 #[derive(Debug, Default)]
@@ -77,10 +77,12 @@ struct Writer {
 }
 
 impl Writer {
+    /// Constructs new bytes writer.
     pub fn new() -> Writer {
         Writer::default()
     }
 
+    /// Splits bytes out of writer, leaving writer buffer empty.
     pub fn take(&mut self) -> Bytes {
         self.buf.split().freeze()
     }
