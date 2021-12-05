@@ -35,10 +35,7 @@ use std::{fmt, net, thread, time::Duration};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 pub use actix_http::test::TestBuffer;
-use actix_http::{
-    http::{HeaderMap, Method},
-    ws, HttpService, Request, Response,
-};
+use actix_http::{header::HeaderMap, ws, HttpService, Method, Request, Response};
 use actix_service::{map_config, IntoServiceFactory, ServiceFactory, ServiceFactoryExt as _};
 use actix_web::{
     body::MessageBody,

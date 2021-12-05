@@ -11,10 +11,9 @@ use bytestring::ByteString;
 use crate::{
     body::{BoxBody, MessageBody},
     extensions::Extensions,
-    header::{self, IntoHeaderValue},
-    http::{HeaderMap, StatusCode},
+    header::{self, HeaderMap, IntoHeaderValue},
     message::{BoxedResponseHead, ResponseHead},
-    Error, ResponseBuilder,
+    Error, ResponseBuilder, StatusCode,
 };
 
 /// An HTTP response.
@@ -323,7 +322,7 @@ mod tests {
     use super::*;
     use crate::{
         body::to_bytes,
-        http::header::{HeaderValue, CONTENT_TYPE, COOKIE},
+        header::{HeaderValue, CONTENT_TYPE, COOKIE},
     };
 
     #[test]

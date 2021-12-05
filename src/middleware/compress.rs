@@ -2,7 +2,7 @@
 
 use std::{
     cmp,
-    convert::TryFrom,
+    convert::TryFrom as _,
     future::Future,
     marker::PhantomData,
     pin::Pin,
@@ -12,7 +12,7 @@ use std::{
 use actix_http::{
     body::{EitherBody, MessageBody},
     encoding::Encoder,
-    http::header::{ContentEncoding, ACCEPT_ENCODING},
+    header::{ContentEncoding, ACCEPT_ENCODING},
     StatusCode,
 };
 use actix_service::{Service, Transform};

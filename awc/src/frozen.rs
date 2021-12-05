@@ -5,8 +5,9 @@ use futures_core::Stream;
 use serde::Serialize;
 
 use actix_http::{
-    http::{header::IntoHeaderValue, Error as HttpError, HeaderMap, HeaderName, Method, Uri},
-    RequestHead,
+    error::HttpError,
+    header::{HeaderMap, HeaderName, IntoHeaderValue},
+    Method, RequestHead, Uri,
 };
 
 use crate::{

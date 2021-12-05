@@ -27,11 +27,8 @@ use super::Writer;
 use crate::{
     body::{BodySize, MessageBody},
     error::BlockingError,
-    http::{
-        header::{ContentEncoding, CONTENT_ENCODING},
-        HeaderValue, StatusCode,
-    },
-    ResponseHead,
+    header::{self, ContentEncoding, HeaderValue, CONTENT_ENCODING},
+    ResponseHead, StatusCode,
 };
 
 const MAX_CHUNK_SIZE_ENCODE_IN_PLACE: usize = 1024;
@@ -222,7 +219,7 @@ where
 
 fn update_head(encoding: ContentEncoding, head: &mut ResponseHead) {
     head.headers_mut().insert(
-        CONTENT_ENCODING,
+        header::CONTENT_ENCODING,
         HeaderValue::from_static(encoding.as_str()),
     );
 }

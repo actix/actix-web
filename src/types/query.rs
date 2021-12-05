@@ -185,14 +185,12 @@ impl QueryConfig {
 
 #[cfg(test)]
 mod tests {
-    use actix_http::http::StatusCode;
+    use actix_http::StatusCode;
     use derive_more::Display;
     use serde::Deserialize;
 
     use super::*;
-    use crate::error::InternalError;
-    use crate::test::TestRequest;
-    use crate::HttpResponse;
+    use crate::{error::InternalError, test::TestRequest, HttpResponse};
 
     #[derive(Deserialize, Debug, Display)]
     struct Id {

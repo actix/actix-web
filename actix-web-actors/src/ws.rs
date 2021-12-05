@@ -19,16 +19,16 @@ use actix::{
     SpawnHandle,
 };
 use actix_codec::{Decoder as _, Encoder as _};
+use actix_http::ws::{hash_key, Codec};
 pub use actix_http::ws::{
     CloseCode, CloseReason, Frame, HandshakeError, Message, ProtocolError,
 };
-use actix_http::{
-    http::HeaderValue,
-    ws::{hash_key, Codec},
-};
 use actix_web::{
     error::{Error, PayloadError},
-    http::{header, Method, StatusCode},
+    http::{
+        header::{self, HeaderValue},
+        Method, StatusCode,
+    },
     HttpRequest, HttpResponse, HttpResponseBuilder,
 };
 use bytes::{Bytes, BytesMut};

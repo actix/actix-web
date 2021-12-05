@@ -531,8 +531,10 @@ mod tests {
     use http::header::AUTHORIZATION;
 
     use super::*;
-    use crate::http::header::{HeaderValue, CONTENT_TYPE};
-    use crate::RequestHead;
+    use crate::{
+        header::{HeaderValue, CONTENT_TYPE},
+        RequestHead,
+    };
 
     #[test]
     fn test_chunked_te() {

@@ -1,4 +1,4 @@
-use actix_http::http::Method;
+use actix_http::Method;
 
 use crate::http::header;
 

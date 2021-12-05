@@ -30,13 +30,15 @@
 * Remove unnecessary `MessageBody` bound on types passed to `body::AnyBody::new`. [#2468]
 * Move `body::AnyBody` to `awc`. Replaced with `EitherBody` and `BoxBody`. [#2468]
 * `impl Copy` for `ws::Codec`. [#1920]
-* `header::qitem` helper. Replaced with `header::QualityItem::max` [#2486]
-* `impl TryFrom<u16>` for `header::Quality` [#2486]
+* `header::qitem` helper. Replaced with `header::QualityItem::max`. [#2486]
+* `impl TryFrom<u16>` for `header::Quality`. [#2486]
+* `http` module. Most everything it contained is exported at the crate root. [#2488]
 
 [#2483]: https://github.com/actix/actix-web/pull/2483
 [#2468]: https://github.com/actix/actix-web/pull/2468
 [#1920]: https://github.com/actix/actix-web/pull/1920
 [#2486]: https://github.com/actix/actix-web/pull/2486
+[#2488]: https://github.com/actix/actix-web/pull/2488
 
 
 ## 3.0.0-beta.14 - 2021-11-30

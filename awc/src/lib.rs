@@ -117,7 +117,8 @@ mod sender;
 pub mod test;
 pub mod ws;
 
-pub use actix_http::http;
+// TODO: hmmmmmm
+pub use actix_http as http;
 #[cfg(feature = "cookies")]
 pub use cookie;
 
@@ -131,10 +132,7 @@ pub use self::sender::SendClientRequest;
 
 use std::{convert::TryFrom, rc::Rc, time::Duration};
 
-use actix_http::{
-    http::{Error as HttpError, HeaderMap, Method, Uri},
-    RequestHead,
-};
+use actix_http::{error::HttpError, header::HeaderMap, Method, RequestHead, Uri};
 use actix_rt::net::TcpStream;
 use actix_service::Service;
 

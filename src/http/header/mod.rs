@@ -15,7 +15,7 @@ use bytes::{Bytes, BytesMut};
 // - header map
 // - the few typed headers from actix-http
 // - header parsing utils
-pub use actix_http::http::header::*;
+pub use actix_http::header::*;
 
 mod accept;
 mod accept_charset;

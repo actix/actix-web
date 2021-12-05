@@ -2,7 +2,10 @@ use std::borrow::Cow;
 
 use actix_http::{
     body::{BoxBody, EitherBody, MessageBody},
-    http::{header::IntoHeaderPair, Error as HttpError, HeaderMap, StatusCode},
+    error::HttpError,
+    header::HeaderMap,
+    header::IntoHeaderPair,
+    StatusCode,
 };
 use bytes::{Bytes, BytesMut};
 
@@ -280,7 +283,10 @@ pub(crate) mod tests {
     use super::*;
     use crate::{
         error,
-        http::{header::CONTENT_TYPE, HeaderValue, StatusCode},
+        http::{
+            header::{HeaderValue, CONTENT_TYPE},
+            StatusCode,
+        },
         test::{assert_body_eq, init_service, TestRequest},
         web, App,
     };

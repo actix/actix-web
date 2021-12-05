@@ -2,7 +2,7 @@ use std::{fmt, io};
 
 use derive_more::{Display, From};
 
-use actix_http::{error::ParseError, http::Error as HttpError};
+use actix_http::error::{HttpError, ParseError};
 
 #[cfg(feature = "openssl")]
 use actix_tls::accept::openssl::reexports::Error as OpensslError;

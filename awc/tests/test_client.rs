@@ -21,10 +21,7 @@ use brotli2::write::BrotliEncoder;
 #[cfg(feature = "compress-gzip")]
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 
-use actix_http::{
-    http::{self, StatusCode},
-    HttpService,
-};
+use actix_http::{ContentEncoding, HttpService, StatusCode};
 use actix_http_test::test_server;
 use actix_service::{fn_service, map_config, ServiceFactoryExt as _};
 use actix_web::{
@@ -647,9 +644,7 @@ async fn test_client_brotli_encoding_large_random() {
 async fn test_client_deflate_encoding() {
     let srv = actix_test::start(|| {
         App::new().default_service(web::to(|body: Bytes| {
-            HttpResponse::Ok()
-                .encoding(http::ContentEncoding::Br)
-                .body(body)
+            HttpResponse::Ok().encoding(ContentEncoding::Br).body(body)
         }))
     });
 
@@ -672,9 +667,7 @@ async fn test_client_deflate_encoding_large_random() {
 
     let srv = actix_test::start(|| {
         App::new().default_service(web::to(|body: Bytes| {
-            HttpResponse::Ok()
-                .encoding(http::ContentEncoding::Br)
-                .body(body)
+            HttpResponse::Ok().encoding(ContentEncoding::Br).body(body)
         }))
     });
 
@@ -692,7 +685,7 @@ async fn test_client_streaming_explicit() {
     let srv = actix_test::start(|| {
         App::new().default_service(web::to(|body: web::Payload| {
             HttpResponse::Ok()
-                .encoding(http::ContentEncoding::Identity)
+                .encoding(ContentEncoding::Identity)
                 .streaming(body)
         }))
     });
@@ -717,7 +710,7 @@ async fn test_body_streaming_implicit() {
             });
 
             HttpResponse::Ok()
-                .encoding(http::ContentEncoding::Gzip)
+                .encoding(ContentEncoding::Gzip)
                 .streaming(Box::pin(body))
         }))
     });

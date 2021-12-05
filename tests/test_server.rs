@@ -10,7 +10,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use actix_http::http::header::{
+use actix_http::header::{
     ContentEncoding, ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_LENGTH, TRANSFER_ENCODING,
 };
 use brotli2::write::{BrotliDecoder, BrotliEncoder};
@@ -902,7 +902,7 @@ async fn test_brotli_encoding_large_openssl() {
         actix_test::start_with(actix_test::config().openssl(openssl_config()), move || {
             App::new().service(web::resource("/").route(web::to(|bytes: Bytes| {
                 HttpResponse::Ok()
-                    .encoding(actix_web::http::ContentEncoding::Identity)
+                    .encoding(ContentEncoding::Identity)
                     .body(bytes)
             })))
         });
@@ -970,7 +970,7 @@ mod plus_rustls {
         let srv = actix_test::start_with(actix_test::config().rustls(tls_config()), || {
             App::new().service(web::resource("/").route(web::to(|bytes: Bytes| {
                 HttpResponse::Ok()
-                    .encoding(actix_web::http::ContentEncoding::Identity)
+                    .encoding(ContentEncoding::Identity)
                     .body(bytes)
             })))
         });

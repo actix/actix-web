@@ -14,7 +14,7 @@ use crate::header::AsHeaderName;
 ///
 /// # Examples
 /// ```
-/// use actix_http::http::{header, HeaderMap, HeaderValue};
+/// use actix_http::header::{self, HeaderMap, HeaderValue};
 ///
 /// let mut map = HeaderMap::new();
 ///
@@ -75,7 +75,7 @@ impl HeaderMap {
     ///
     /// # Examples
     /// ```
-    /// # use actix_http::http::HeaderMap;
+    /// # use actix_http::header::HeaderMap;
     /// let map = HeaderMap::new();
     ///
     /// assert!(map.is_empty());
@@ -92,7 +92,7 @@ impl HeaderMap {
     ///
     /// # Examples
     /// ```
-    /// # use actix_http::http::HeaderMap;
+    /// # use actix_http::header::HeaderMap;
     /// let map = HeaderMap::with_capacity(16);
     ///
     /// assert!(map.is_empty());
@@ -139,7 +139,7 @@ impl HeaderMap {
     ///
     /// # Examples
     /// ```
-    /// # use actix_http::http::{header, HeaderMap, HeaderValue};
+    /// # use actix_http::header::{self, HeaderMap, HeaderValue};
     /// let mut map = HeaderMap::new();
     /// assert_eq!(map.len(), 0);
     ///
@@ -162,7 +162,7 @@ impl HeaderMap {
     ///
     /// # Examples
     /// ```
-    /// # use actix_http::http::{header, HeaderMap, HeaderValue};
+    /// # use actix_http::header::{self, HeaderMap, HeaderValue};
     /// let mut map = HeaderMap::new();
     /// assert_eq!(map.len_keys(), 0);
     ///
@@ -181,7 +181,7 @@ impl HeaderMap {
     ///
     /// # Examples
     /// ```
-    /// # use actix_http::http::{header, HeaderMap, HeaderValue};
+    /// # use actix_http::header::{self, HeaderMap, HeaderValue};
     /// let mut map = HeaderMap::new();
     /// assert!(map.is_empty());
     ///
@@ -198,7 +198,7 @@ impl HeaderMap {
     ///
     /// # Examples
     /// ```
-    /// # use actix_http::http::{header, HeaderMap, HeaderValue};
+    /// # use actix_http::header::{self, HeaderMap, HeaderValue};
     /// let mut map = HeaderMap::new();
     ///
     /// map.insert(header::ACCEPT, HeaderValue::from_static("text/plain"));
@@ -231,7 +231,7 @@ impl HeaderMap {
     ///
     /// # Examples
     /// ```
-    /// # use actix_http::http::{header, HeaderMap, HeaderValue};
+    /// # use actix_http::header::{self, HeaderMap, HeaderValue};
     /// let mut map = HeaderMap::new();
     ///
     /// map.insert(header::SET_COOKIE, HeaderValue::from_static("one=1"));
@@ -264,7 +264,7 @@ impl HeaderMap {
     ///
     /// # Examples
     /// ```
-    /// # use actix_http::http::{header, HeaderMap, HeaderValue};
+    /// # use actix_http::header::{self, HeaderMap, HeaderValue};
     /// let mut map = HeaderMap::new();
     ///
     /// map.insert(header::SET_COOKIE, HeaderValue::from_static("one=1"));
@@ -293,7 +293,7 @@ impl HeaderMap {
     ///
     /// # Examples
     /// ```
-    /// # use actix_http::http::{header, HeaderMap, HeaderValue};
+    /// # use actix_http::header::{self, HeaderMap, HeaderValue};
     /// let mut map = HeaderMap::new();
     ///
     /// let mut none_iter = map.get_all(header::ORIGIN);
@@ -319,7 +319,7 @@ impl HeaderMap {
     ///
     /// # Examples
     /// ```
-    /// # use actix_http::http::{header, HeaderMap, HeaderValue};
+    /// # use actix_http::header::{self, HeaderMap, HeaderValue};
     /// let mut map = HeaderMap::new();
     /// assert!(!map.contains_key(header::ACCEPT));
     ///
@@ -342,7 +342,7 @@ impl HeaderMap {
     ///
     /// # Examples
     /// ```
-    /// # use actix_http::http::{header, HeaderMap, HeaderValue};
+    /// # use actix_http::header::{self, HeaderMap, HeaderValue};
     /// let mut map = HeaderMap::new();
     ///
     /// map.insert(header::ACCEPT, HeaderValue::from_static("text/plain"));
@@ -359,7 +359,7 @@ impl HeaderMap {
     /// A convenience method is provided on the returned iterator to check if the insertion replaced
     /// any values.
     /// ```
-    /// # use actix_http::http::{header, HeaderMap, HeaderValue};
+    /// # use actix_http::header::{self, HeaderMap, HeaderValue};
     /// let mut map = HeaderMap::new();
     ///
     /// let removed = map.insert(header::ACCEPT, HeaderValue::from_static("text/plain"));
@@ -381,7 +381,7 @@ impl HeaderMap {
     ///
     /// # Examples
     /// ```
-    /// # use actix_http::http::{header, HeaderMap, HeaderValue};
+    /// # use actix_http::header::{self, HeaderMap, HeaderValue};
     /// let mut map = HeaderMap::new();
     ///
     /// map.append(header::HOST, HeaderValue::from_static("example.com"));
@@ -411,7 +411,7 @@ impl HeaderMap {
     ///
     /// # Examples
     /// ```
-    /// # use actix_http::http::{header, HeaderMap, HeaderValue};
+    /// # use actix_http::header::{self, HeaderMap, HeaderValue};
     /// let mut map = HeaderMap::new();
     ///
     /// map.append(header::SET_COOKIE, HeaderValue::from_static("one=1"));
@@ -430,7 +430,7 @@ impl HeaderMap {
     /// A convenience method is provided on the returned iterator to check if the `remove` call
     /// actually removed any values.
     /// ```
-    /// # use actix_http::http::{header, HeaderMap, HeaderValue};
+    /// # use actix_http::header::{self, HeaderMap, HeaderValue};
     /// let mut map = HeaderMap::new();
     ///
     /// let removed = map.remove("accept");
@@ -459,7 +459,7 @@ impl HeaderMap {
     ///
     /// # Examples
     /// ```
-    /// # use actix_http::http::HeaderMap;
+    /// # use actix_http::header::HeaderMap;
     /// let map = HeaderMap::with_capacity(16);
     ///
     /// assert!(map.is_empty());
@@ -479,7 +479,7 @@ impl HeaderMap {
     ///
     /// # Examples
     /// ```
-    /// # use actix_http::http::HeaderMap;
+    /// # use actix_http::header::HeaderMap;
     /// let mut map = HeaderMap::with_capacity(2);
     /// assert!(map.capacity() >= 2);
     ///
@@ -499,7 +499,7 @@ impl HeaderMap {
     ///
     /// # Examples
     /// ```
-    /// # use actix_http::http::{header, HeaderMap, HeaderValue};
+    /// # use actix_http::header::{self, HeaderMap, HeaderValue};
     /// let mut map = HeaderMap::new();
     ///
     /// let mut iter = map.iter();
@@ -531,7 +531,7 @@ impl HeaderMap {
     ///
     /// # Examples
     /// ```
-    /// # use actix_http::http::{header, HeaderMap, HeaderValue};
+    /// # use actix_http::header::{self, HeaderMap, HeaderValue};
     /// let mut map = HeaderMap::new();
     ///
     /// let mut iter = map.keys();
@@ -559,7 +559,7 @@ impl HeaderMap {
     /// Keeps the allocated memory for reuse.
     /// # Examples
     /// ```
-    /// # use actix_http::http::{header, HeaderMap, HeaderValue};
+    /// # use actix_http::header::{self, HeaderMap, HeaderValue};
     /// let mut map = HeaderMap::new();
     ///
     /// let mut iter = map.drain();
