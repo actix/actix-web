@@ -1,6 +1,5 @@
 use std::{
     collections::VecDeque,
-    error::Error as StdError,
     fmt,
     future::Future,
     io, mem, net,
@@ -19,7 +18,7 @@ use log::{error, trace};
 use pin_project::pin_project;
 
 use crate::{
-    body::{AnyBody, BodySize, MessageBody},
+    body::{BodySize, BoxBody, MessageBody},
     config::ServiceConfig,
     error::{DispatchError, ParseError, PayloadError},
     service::HttpFlow,
@@ -51,13 +50,12 @@ bitflags! {
 pub struct Dispatcher<T, S, B, X, U>
 where
     S: Service<Request>,
-    S::Error: Into<Response<AnyBody>>,
+    S::Error: Into<Response<BoxBody>>,
 
     B: MessageBody,
-    B::Error: Into<Box<dyn StdError>>,
 
     X: Service<Request, Response = Request>,
-    X::Error: Into<Response<AnyBody>>,
+    X::Error: Into<Response<BoxBody>>,
 
     U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
@@ -73,13 +71,12 @@ where
 enum DispatcherState<T, S, B, X, U>
 where
     S: Service<Request>,
-    S::Error: Into<Response<AnyBody>>,
+    S::Error: Into<Response<BoxBody>>,
 
     B: MessageBody,
-    B::Error: Into<Box<dyn StdError>>,
 
     X: Service<Request, Response = Request>,
-    X::Error: Into<Response<AnyBody>>,
+    X::Error: Into<Response<BoxBody>>,
 
     U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
@@ -92,13 +89,12 @@ where
 struct InnerDispatcher<T, S, B, X, U>
 where
     S: Service<Request>,
-    S::Error: Into<Response<AnyBody>>,
+    S::Error: Into<Response<BoxBody>>,
 
     B: MessageBody,
-    B::Error: Into<Box<dyn StdError>>,
 
     X: Service<Request, Response = Request>,
-    X::Error: Into<Response<AnyBody>>,
+    X::Error: Into<Response<BoxBody>>,
 
     U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
@@ -137,13 +133,12 @@ where
     X: Service<Request, Response = Request>,
 
     B: MessageBody,
-    B::Error: Into<Box<dyn StdError>>,
 {
     None,
     ExpectCall(#[pin] X::Future),
     ServiceCall(#[pin] S::Future),
     SendPayload(#[pin] B),
-    SendErrorPayload(#[pin] AnyBody),
+    SendErrorPayload(#[pin] BoxBody),
 }
 
 impl<S, B, X> State<S, B, X>
@@ -153,7 +148,6 @@ where
     X: Service<Request, Response = Request>,
 
     B: MessageBody,
-    B::Error: Into<Box<dyn StdError>>,
 {
     fn is_empty(&self) -> bool {
         matches!(self, State::None)
@@ -171,14 +165,13 @@ where
     T: AsyncRead + AsyncWrite + Unpin,
 
     S: Service<Request>,
-    S::Error: Into<Response<AnyBody>>,
+    S::Error: Into<Response<BoxBody>>,
     S::Response: Into<Response<B>>,
 
     B: MessageBody,
-    B::Error: Into<Box<dyn StdError>>,
 
     X: Service<Request, Response = Request>,
-    X::Error: Into<Response<AnyBody>>,
+    X::Error: Into<Response<BoxBody>>,
 
     U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
@@ -232,14 +225,13 @@ where
     T: AsyncRead + AsyncWrite + Unpin,
 
     S: Service<Request>,
-    S::Error: Into<Response<AnyBody>>,
+    S::Error: Into<Response<BoxBody>>,
     S::Response: Into<Response<B>>,
 
     B: MessageBody,
-    B::Error: Into<Box<dyn StdError>>,
 
     X: Service<Request, Response = Request>,
-    X::Error: Into<Response<AnyBody>>,
+    X::Error: Into<Response<BoxBody>>,
 
     U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
@@ -325,7 +317,7 @@ where
     ) -> Result<(), DispatchError> {
         let size = self.as_mut().send_response_inner(message, &body)?;
         let state = match size {
-            BodySize::None | BodySize::Empty => State::None,
+            BodySize::None | BodySize::Sized(0) => State::None,
             _ => State::SendPayload(body),
         };
         self.project().state.set(state);
@@ -335,11 +327,11 @@ where
     fn send_error_response(
         mut self: Pin<&mut Self>,
         message: Response<()>,
-        body: AnyBody,
+        body: BoxBody,
     ) -> Result<(), DispatchError> {
         let size = self.as_mut().send_response_inner(message, &body)?;
         let state = match size {
-            BodySize::None | BodySize::Empty => State::None,
+            BodySize::None | BodySize::Sized(0) => State::None,
             _ => State::SendErrorPayload(body),
         };
         self.project().state.set(state);
@@ -380,7 +372,7 @@ where
                         // send_response would update InnerDispatcher state to SendPayload or
                         // None(If response body is empty).
                         // continue loop to poll it.
-                        self.as_mut().send_error_response(res, AnyBody::Empty)?;
+                        self.as_mut().send_error_response(res, BoxBody::new(()))?;
                     }
 
                     // return with upgrade request and poll it exclusively.
@@ -400,7 +392,7 @@ where
 
                     // send service call error as response
                     Poll::Ready(Err(err)) => {
-                        let res: Response<AnyBody> = err.into();
+                        let res: Response<BoxBody> = err.into();
                         let (res, body) = res.replace_body(());
                         self.as_mut().send_error_response(res, body)?;
                     }
@@ -497,7 +489,7 @@ where
 
                     // send expect error as response
                     Poll::Ready(Err(err)) => {
-                        let res: Response<AnyBody> = err.into();
+                        let res: Response<BoxBody> = err.into();
                         let (res, body) = res.replace_body(());
                         self.as_mut().send_error_response(res, body)?;
                     }
@@ -546,7 +538,7 @@ where
                         // to notify the dispatcher a new state is set and the outer loop
                         // should be continue.
                         Poll::Ready(Err(err)) => {
-                            let res: Response<AnyBody> = err.into();
+                            let res: Response<BoxBody> = err.into();
                             let (res, body) = res.replace_body(());
                             return self.send_error_response(res, body);
                         }
@@ -566,7 +558,7 @@ where
                         Poll::Pending => Ok(()),
                         // see the comment on ExpectCall state branch's Ready(Err(err)).
                         Poll::Ready(Err(err)) => {
-                            let res: Response<AnyBody> = err.into();
+                            let res: Response<BoxBody> = err.into();
                             let (res, body) = res.replace_body(());
                             self.send_error_response(res, body)
                         }
@@ -772,7 +764,7 @@ where
                                 trace!("Slow request timeout");
                                 let _ = self.as_mut().send_error_response(
                                     Response::with_body(StatusCode::REQUEST_TIMEOUT, ()),
-                                    AnyBody::Empty,
+                                    BoxBody::new(()),
                                 );
                                 this = self.project();
                                 this.flags.insert(Flags::STARTED | Flags::SHUTDOWN);
@@ -909,14 +901,13 @@ where
     T: AsyncRead + AsyncWrite + Unpin,
 
     S: Service<Request>,
-    S::Error: Into<Response<AnyBody>>,
+    S::Error: Into<Response<BoxBody>>,
     S::Response: Into<Response<B>>,
 
     B: MessageBody,
-    B::Error: Into<Box<dyn StdError>>,
 
     X: Service<Request, Response = Request>,
-    X::Error: Into<Response<AnyBody>>,
+    X::Error: Into<Response<BoxBody>>,
 
     U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
@@ -1067,17 +1058,19 @@ mod tests {
         }
     }
 
-    fn ok_service() -> impl Service<Request, Response = Response<AnyBody>, Error = Error>
+    fn ok_service(
+    ) -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error>
     {
         fn_service(|_req: Request| ready(Ok::<_, Error>(Response::ok())))
     }
 
     fn echo_path_service(
-    ) -> impl Service<Request, Response = Response<AnyBody>, Error = Error> {
+    ) -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error>
+    {
         fn_service(|req: Request| {
             let path = req.path().as_bytes();
             ready(Ok::<_, Error>(
-                Response::ok().set_body(AnyBody::from_slice(path)),
+                Response::ok().set_body(Bytes::copy_from_slice(path)),
             ))
         })
     }

@@ -10,7 +10,7 @@ use std::{
 };
 
 use actix_http::{
-    body::{AnyBody, Body, SizedStream},
+    body::{BodyStream, BoxBody, SizedStream},
     error::PayloadError,
     http::{
         header::{self, HeaderName, HeaderValue},
@@ -20,16 +20,13 @@ use actix_http::{
 };
 use actix_http_test::test_server;
 use actix_service::{fn_factory_with_config, fn_service};
-use actix_tls::connect::tls::rustls::webpki_roots_cert_store;
+use actix_tls::connect::rustls::webpki_roots_cert_store;
 use actix_utils::future::{err, ok};
 use bytes::{Bytes, BytesMut};
 use derive_more::{Display, Error};
 use futures_core::Stream;
 use futures_util::stream::{once, StreamExt as _};
-use rustls::{
-    Certificate, OwnedTrustAnchor, PrivateKey, RootCertStore,
-    ServerConfig as RustlsServerConfig, ServerName,
-};
+use rustls::{Certificate, PrivateKey, ServerConfig as RustlsServerConfig, ServerName};
 use rustls_pemfile::{certs, pkcs8_private_keys};
 
 async fn load_body<S>(mut stream: S) -> Result<BytesMut, PayloadError>
@@ -419,7 +416,7 @@ async fn test_h2_body_chunked_explicit() {
                 ok::<_, Infallible>(
                     Response::build(StatusCode::OK)
                         .insert_header((header::TRANSFER_ENCODING, "chunked"))
-                        .streaming(body),
+                        .body(BodyStream::new(body)),
                 )
             })
             .rustls(tls_config())
@@ -470,9 +467,9 @@ async fn test_h2_response_http_error_handling() {
 #[display(fmt = "error")]
 struct BadRequest;
 
-impl From<BadRequest> for Response<AnyBody> {
+impl From<BadRequest> for Response<BoxBody> {
     fn from(_: BadRequest) -> Self {
-        Response::bad_request().set_body(AnyBody::from("error"))
+        Response::bad_request().set_body(BoxBody::new("error"))
     }
 }
 
@@ -480,7 +477,7 @@ impl From<BadRequest> for Response<AnyBody> {
 async fn test_h2_service_error() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h2(|_| err::<Response<Body>, _>(BadRequest))
+            .h2(|_| err::<Response<BoxBody>, _>(BadRequest))
             .rustls(tls_config())
     })
     .await;
@@ -497,7 +494,7 @@ async fn test_h2_service_error() {
 async fn test_h1_service_error() {
     let mut srv = test_server(move || {
         HttpService::build()
-            .h1(|_| err::<Response<Body>, _>(BadRequest))
+            .h1(|_| err::<Response<BoxBody>, _>(BadRequest))
             .rustls(tls_config())
     })
     .await;

@@ -12,9 +12,9 @@ use bytes::Bytes;
 use futures_core::future::LocalBoxFuture;
 use h2::client::SendRequest;
 
-use actix_http::{
-    body::MessageBody, h1::ClientCodec, Error, Payload, RequestHeadType, ResponseHead,
-};
+use actix_http::{body::MessageBody, h1::ClientCodec, Payload, RequestHeadType, ResponseHead};
+
+use crate::BoxError;
 
 use super::error::SendRequestError;
 use super::pool::Acquired;
@@ -173,6 +173,7 @@ impl H2ConnectionInner {
 /// Cancel spawned connection task on drop.
 impl Drop for H2ConnectionInner {
     fn drop(&mut self) {
+        // TODO: this can end up sending extraneous requests; see if there is a better way to handle
         if self
             .sender
             .send_request(http::Request::new(()), true)
@@ -183,8 +184,8 @@ impl Drop for H2ConnectionInner {
     }
 }
 
+/// Unified connection type cover HTTP/1 Plain/TLS and HTTP/2 protocols.
 #[allow(dead_code)]
-/// Unified connection type cover Http1 Plain/Tls and Http2 protocols
 pub enum Connection<A, B = Box<dyn ConnectionIo>>
 where
     A: ConnectionIo,
@@ -253,7 +254,7 @@ where
     where
         H: Into<RequestHeadType> + 'static,
         RB: MessageBody + 'static,
-        RB::Error: Into<Error>,
+        RB::Error: Into<BoxError>,
     {
         Box::pin(async move {
             match self {

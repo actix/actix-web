@@ -90,7 +90,7 @@ impl<T: fmt::Display> fmt::Display for Path<T> {
     }
 }
 
-/// See [here](#usage) for example of usage as an extractor.
+/// See [here](#Examples) for example of usage as an extractor.
 impl<T> FromRequest for Path<T>
 where
     T: de::DeserializeOwned,

@@ -1,14 +1,19 @@
-use std::cell::{Ref, RefMut};
-use std::rc::Rc;
-use std::{fmt, net};
+use std::{
+    cell::{Ref, RefMut},
+    fmt, net,
+    rc::Rc,
+};
 
 use actix_http::{
-    body::{AnyBody, MessageBody},
+    body::{BoxBody, EitherBody, MessageBody},
     http::{HeaderMap, Method, StatusCode, Uri, Version},
     Extensions, HttpMessage, Payload, PayloadStream, RequestHead, Response, ResponseHead,
 };
 use actix_router::{IntoPatterns, Path, Patterns, Resource, ResourceDef, Url};
-use actix_service::{IntoServiceFactory, ServiceFactory};
+use actix_service::{
+    boxed::{BoxService, BoxServiceFactory},
+    IntoServiceFactory, ServiceFactory,
+};
 #[cfg(feature = "cookies")]
 use cookie::{Cookie, ParseError as CookieParseError};
 
@@ -20,6 +25,10 @@ use crate::{
     rmap::ResourceMap,
     Error, HttpRequest, HttpResponse,
 };
+
+pub(crate) type BoxedHttpService = BoxService<ServiceRequest, ServiceResponse<BoxBody>, Error>;
+pub(crate) type BoxedHttpServiceFactory =
+    BoxServiceFactory<(), ServiceRequest, ServiceResponse<BoxBody>, Error, ()>;
 
 pub trait HttpServiceFactory {
     fn register(self, config: &mut AppService);
@@ -326,12 +335,12 @@ impl fmt::Debug for ServiceRequest {
 }
 
 /// A service level response wrapper.
-pub struct ServiceResponse<B = AnyBody> {
+pub struct ServiceResponse<B = BoxBody> {
     request: HttpRequest,
     response: HttpResponse<B>,
 }
 
-impl ServiceResponse<AnyBody> {
+impl ServiceResponse<BoxBody> {
     /// Create service response from the error
     pub fn from_err<E: Into<Error>>(err: E, request: HttpRequest) -> Self {
         let response = HttpResponse::from_error(err);
@@ -401,6 +410,7 @@ impl<B> ServiceResponse<B> {
 
 impl<B> ServiceResponse<B> {
     /// Set a new body
+    #[inline]
     pub fn map_body<F, B2>(self, f: F) -> ServiceResponse<B2>
     where
         F: FnOnce(&mut ResponseHead, B) -> B2,
@@ -411,6 +421,24 @@ impl<B> ServiceResponse<B> {
             response,
             request: self.request,
         }
+    }
+
+    #[inline]
+    pub fn map_into_left_body<R>(self) -> ServiceResponse<EitherBody<B, R>> {
+        self.map_body(|_, body| EitherBody::left(body))
+    }
+
+    #[inline]
+    pub fn map_into_right_body<L>(self) -> ServiceResponse<EitherBody<L, B>> {
+        self.map_body(|_, body| EitherBody::right(body))
+    }
+
+    #[inline]
+    pub fn map_into_boxed_body(self) -> ServiceResponse<BoxBody>
+    where
+        B: MessageBody + 'static,
+    {
+        self.map_body(|_, body| BoxBody::new(body))
     }
 }
 
@@ -561,7 +589,6 @@ where
 /// The max number of services can be grouped together is 12.
 ///
 /// # Examples
-///
 /// ```
 /// use actix_web::{services, web, App};
 ///

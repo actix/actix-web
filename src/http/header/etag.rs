@@ -1,7 +1,8 @@
 use super::{EntityTag, ETAG};
 
 crate::http::header::common_header! {
-    /// `ETag` header, defined in [RFC7232](http://tools.ietf.org/html/rfc7232#section-2.3)
+    /// `ETag` header, defined in
+    /// [RFC 7232 §2.3](https://datatracker.ietf.org/doc/html/rfc7232#section-2.3)
     ///
     /// The `ETag` header field in a response provides the current entity-tag
     /// for the selected representation, as determined at the conclusion of
@@ -14,19 +15,16 @@ crate::http::header::common_header! {
     /// prefixed by a weakness indicator.
     ///
     /// # ABNF
-    ///
-    /// ```text
+    /// ```plain
     /// ETag       = entity-tag
     /// ```
     ///
-    /// # Example values
-    ///
+    /// # Example Values
     /// * `"xyzzy"`
     /// * `W/"xyzzy"`
     /// * `""`
     ///
     /// # Examples
-    ///
     /// ```
     /// use actix_web::HttpResponse;
     /// use actix_web::http::header::{ETag, EntityTag};
@@ -48,7 +46,7 @@ crate::http::header::common_header! {
     /// ```
     (ETag, ETAG) => [EntityTag]
 
-    test_etag {
+    test_parse_and_format {
         // From the RFC
         crate::http::header::common_header_test!(test1,
             vec![b"\"xyzzy\""],

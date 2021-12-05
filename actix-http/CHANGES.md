@@ -1,11 +1,92 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+* Add timeout for canceling HTTP/2 server side connection handshake. Default to 5 seconds. [#2483]
+* HTTP/2 handshake timeout can be configured with `ServiceConfig::client_timeout`. [#2483]
+* `Response::map_into_boxed_body`. [#2468]
+* `body::EitherBody` enum. [#2468]
+* `body::None` struct. [#2468]
+* Impl `MessageBody` for `bytestring::ByteString`. [#2468]
+* `impl Clone for ws::HandshakeError`. [#2468]
+* `#[must_use]` for `ws::Codec` to prevent subtle bugs. [#1920]
+* `impl Default ` for `ws::Codec`. [#1920]
+* `header::QualityItem::{max, min}`. [#2486]
+* `header::Quality::{MAX, MIN}`. [#2486]
+* `impl Display` for `header::Quality`. [#2486]
+
+### Changed
+* Rename `body::BoxBody::{from_body => new}`. [#2468]
+* Body type for `Responses` returned from `Response::{new, ok, etc...}` is now `BoxBody`. [#2468]
+* The `Error` associated type on `MessageBody` type now requires `impl Error` (or similar). [#2468]
+* Error types using in service builders now require `Into<Response<BoxBody>>`. [#2468]
+* `From` implementations on error types now return a `Response<BoxBody>`. [#2468]
+* `ResponseBuilder::body(B)` now returns `Response<EitherBody<B>>`. [#2468]
+* `ResponseBuilder::finish()` now returns `Response<EitherBody<()>>`. [#2468]
+
+### Removed
+* `ResponseBuilder::streaming`. [#2468]
+* `impl Future` for `ResponseBuilder`. [#2468]
+* Remove unnecessary `MessageBody` bound on types passed to `body::AnyBody::new`. [#2468]
+* Move `body::AnyBody` to `awc`. Replaced with `EitherBody` and `BoxBody`. [#2468]
+* `impl Copy` for `ws::Codec`. [#1920]
+* `header::qitem` helper. Replaced with `header::QualityItem::max` [#2486]
+* `impl TryFrom<u16>` for `header::Quality` [#2486]
+
+[#2483]: https://github.com/actix/actix-web/pull/2483
+[#2468]: https://github.com/actix/actix-web/pull/2468
+[#1920]: https://github.com/actix/actix-web/pull/1920
+[#2486]: https://github.com/actix/actix-web/pull/2486
+
+
+## 3.0.0-beta.14 - 2021-11-30
+### Changed
+* Guarantee ordering of `header::GetAll` iterator to be same as insertion order. [#2467]
+* Expose `header::map` module. [#2467]
+* Implement `ExactSizeIterator` and `FusedIterator` for all `HeaderMap` iterators. [#2470]
+* Update `actix-tls` to `3.0.0-rc.1`. [#2474]
+
+[#2467]: https://github.com/actix/actix-web/pull/2467
+[#2470]: https://github.com/actix/actix-web/pull/2470
+[#2474]: https://github.com/actix/actix-web/pull/2474
+
+
+## 3.0.0-beta.13 - 2021-11-22
+### Added
+* `body::AnyBody::empty` for quickly creating an empty body. [#2446]
+* `body::AnyBody::none` for quickly creating a "none" body. [#2456]
+* `impl Clone` for `body::AnyBody<S> where S: Clone`. [#2448]
+* `body::AnyBody::into_boxed` for quickly converting to a type-erased, boxed body type. [#2448]
+
+### Changed
+* Rename `body::AnyBody::{Message => Body}`. [#2446]
+* Rename `body::AnyBody::{from_message => new_boxed}`. [#2448]
+* Rename `body::AnyBody::{from_slice => copy_from_slice}`. [#2448]
+* Rename `body::{BoxAnyBody => BoxBody}`. [#2448]
+* Change representation of `AnyBody` to include a type parameter in `Body` variant. Defaults to `BoxBody`. [#2448]
+* `Encoder::response` now returns `AnyBody<Encoder<B>>`. [#2448]
+
+### Removed
+* `body::AnyBody::Empty`; an empty body can now only be represented as a zero-length `Bytes` variant. [#2446]
+* `body::BodySize::Empty`; an empty body can now only be represented as a `Sized(0)` variant. [#2446]
+* `EncoderError::Boxed`; it is no longer required. [#2446]
+* `body::ResponseBody`; is function is replaced by the new `body::AnyBody` enum. [#2446]
+
+[#2446]: https://github.com/actix/actix-web/pull/2446
+[#2448]: https://github.com/actix/actix-web/pull/2448
+[#2456]: https://github.com/actix/actix-web/pull/2456
+
+
+## 3.0.0-beta.12 - 2021-11-15
+### Changed
+* Update `actix-server` to `2.0.0-beta.9`. [#2442]
+
 ### Removed
 * `client` module. [#2425]
 * `trust-dns` feature. [#2425]
 
 [#2425]: https://github.com/actix/actix-web/pull/2425
+[#2442]: https://github.com/actix/actix-web/pull/2442
 
 
 ## 3.0.0-beta.11 - 2021-10-20

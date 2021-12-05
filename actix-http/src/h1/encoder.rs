@@ -56,7 +56,7 @@ pub(crate) trait MessageType: Sized {
         dst: &mut BytesMut,
         version: Version,
         mut length: BodySize,
-        ctype: ConnectionType,
+        conn_type: ConnectionType,
         config: &ServiceConfig,
     ) -> io::Result<()> {
         let chunked = self.chunked();
@@ -71,14 +71,24 @@ pub(crate) trait MessageType: Sized {
                 | StatusCode::PROCESSING
                 | StatusCode::NO_CONTENT => {
                     // skip content-length and transfer-encoding headers
-                    // See https://tools.ietf.org/html/rfc7230#section-3.3.1
-                    // and https://tools.ietf.org/html/rfc7230#section-3.3.2
+                    // see https://datatracker.ietf.org/doc/html/rfc7230#section-3.3.1
+                    // and https://datatracker.ietf.org/doc/html/rfc7230#section-3.3.2
                     skip_len = true;
                     length = BodySize::None
                 }
+
+                StatusCode::NOT_MODIFIED => {
+                    // 304 responses should never have a body but should retain a manually set
+                    // content-length header
+                    // see https://datatracker.ietf.org/doc/html/rfc7232#section-4.1
+                    skip_len = false;
+                    length = BodySize::None;
+                }
+
                 _ => {}
             }
         }
+
         match length {
             BodySize::Stream => {
                 if chunked {
@@ -93,19 +103,16 @@ pub(crate) trait MessageType: Sized {
                     dst.put_slice(b"\r\n");
                 }
             }
-            BodySize::Empty => {
-                if camel_case {
-                    dst.put_slice(b"\r\nContent-Length: 0\r\n");
-                } else {
-                    dst.put_slice(b"\r\ncontent-length: 0\r\n");
-                }
+            BodySize::Sized(0) if camel_case => {
+                dst.put_slice(b"\r\nContent-Length: 0\r\n")
             }
+            BodySize::Sized(0) => dst.put_slice(b"\r\ncontent-length: 0\r\n"),
             BodySize::Sized(len) => helpers::write_content_length(len, dst),
             BodySize::None => dst.put_slice(b"\r\n"),
         }
 
         // Connection
-        match ctype {
+        match conn_type {
             ConnectionType::Upgrade => dst.put_slice(b"connection: upgrade\r\n"),
             ConnectionType::KeepAlive if version < Version::HTTP_11 => {
                 if camel_case {
@@ -330,13 +337,13 @@ impl<T: MessageType> MessageEncoder<T> {
         stream: bool,
         version: Version,
         length: BodySize,
-        ctype: ConnectionType,
+        conn_type: ConnectionType,
         config: &ServiceConfig,
     ) -> io::Result<()> {
         // transfer encoding
         if !head {
             self.te = match length {
-                BodySize::Empty => TransferEncoding::empty(),
+                BodySize::Sized(0) => TransferEncoding::empty(),
                 BodySize::Sized(len) => TransferEncoding::length(len),
                 BodySize::Stream => {
                     if message.chunked() && !stream {
@@ -352,7 +359,7 @@ impl<T: MessageType> MessageEncoder<T> {
         }
 
         message.encode_status(dst)?;
-        message.encode_headers(dst, version, length, ctype, config)
+        message.encode_headers(dst, version, length, conn_type, config)
     }
 }
 
@@ -366,10 +373,12 @@ pub(crate) struct TransferEncoding {
 enum TransferEncodingKind {
     /// An Encoder for when Transfer-Encoding includes `chunked`.
     Chunked(bool),
+
     /// An Encoder for when Content-Length is set.
     ///
     /// Enforces that the body is not longer than the Content-Length header.
     Length(u64),
+
     /// An Encoder for when Content-Length is not known.
     ///
     /// Application decides when to stop writing.
@@ -553,7 +562,7 @@ mod tests {
         let _ = head.encode_headers(
             &mut bytes,
             Version::HTTP_11,
-            BodySize::Empty,
+            BodySize::Sized(0),
             ConnectionType::Close,
             &ServiceConfig::default(),
         );
@@ -624,7 +633,7 @@ mod tests {
         let _ = head.encode_headers(
             &mut bytes,
             Version::HTTP_11,
-            BodySize::Empty,
+            BodySize::Sized(0),
             ConnectionType::Close,
             &ServiceConfig::default(),
         );

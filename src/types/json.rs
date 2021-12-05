@@ -19,6 +19,7 @@ use actix_http::Payload;
 #[cfg(feature = "__compress")]
 use crate::dev::Decompress;
 use crate::{
+    body::EitherBody,
     error::{Error, JsonPayloadError},
     extract::FromRequest,
     http::header::CONTENT_LENGTH,
@@ -116,12 +117,21 @@ impl<T: Serialize> Serialize for Json<T> {
 ///
 /// If serialization failed
 impl<T: Serialize> Responder for Json<T> {
-    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
+    type Body = EitherBody<String>;
+
+    fn respond_to(self, _: &HttpRequest) -> HttpResponse<Self::Body> {
         match serde_json::to_string(&self.0) {
-            Ok(body) => HttpResponse::Ok()
+            Ok(body) => match HttpResponse::Ok()
                 .content_type(mime::APPLICATION_JSON)
-                .body(body),
-            Err(err) => HttpResponse::from_error(JsonPayloadError::Serialize(err)),
+                .message_body(body)
+            {
+                Ok(res) => res.map_into_left_body(),
+                Err(err) => HttpResponse::from_error(err).map_into_right_body(),
+            },
+
+            Err(err) => {
+                HttpResponse::from_error(JsonPayloadError::Serialize(err)).map_into_right_body()
+            }
         }
     }
 }
@@ -444,7 +454,7 @@ mod tests {
             header::{self, CONTENT_LENGTH, CONTENT_TYPE},
             StatusCode,
         },
-        test::{load_body, TestRequest},
+        test::{assert_body_eq, load_body, TestRequest},
     };
 
     #[derive(Serialize, Deserialize, PartialEq, Debug)]
@@ -472,15 +482,13 @@ mod tests {
         let j = Json(MyObject {
             name: "test".to_string(),
         });
-        let resp = j.respond_to(&req);
-        assert_eq!(resp.status(), StatusCode::OK);
+        let res = j.respond_to(&req);
+        assert_eq!(res.status(), StatusCode::OK);
         assert_eq!(
-            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            res.headers().get(header::CONTENT_TYPE).unwrap(),
             header::HeaderValue::from_static("application/json")
         );
-
-        use crate::responder::tests::BodyTest;
-        assert_eq!(resp.body().bin_ref(), b"{\"name\":\"test\"}");
+        assert_body_eq!(res, b"{\"name\":\"test\"}");
     }
 
     #[actix_rt::test]

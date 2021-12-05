@@ -6,7 +6,7 @@ use std::{
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_http::{
-    body::{AnyBody, BodySize},
+    body::{BodySize, BoxBody},
     h1,
     ws::{self, CloseCode, Frame, Item, Message},
     Error, HttpService, Request, Response,
@@ -50,14 +50,14 @@ enum WsServiceError {
     Dispatcher,
 }
 
-impl From<WsServiceError> for Response<AnyBody> {
+impl From<WsServiceError> for Response<BoxBody> {
     fn from(err: WsServiceError) -> Self {
         match err {
             WsServiceError::Http(err) => err.into(),
             WsServiceError::Ws(err) => err.into(),
             WsServiceError::Io(_err) => unreachable!(),
             WsServiceError::Dispatcher => Response::internal_server_error()
-                .set_body(AnyBody::from(format!("{}", err))),
+                .set_body(BoxBody::new(format!("{}", err))),
         }
     }
 }

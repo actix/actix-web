@@ -13,8 +13,10 @@ use log::trace;
 use actix_http::{
     body::{BodySize, MessageBody},
     header::HeaderMap,
-    Error, Payload, RequestHeadType, ResponseHead,
+    Payload, RequestHeadType, ResponseHead,
 };
+
+use crate::BoxError;
 
 use super::{
     config::ConnectorConfig,
@@ -30,16 +32,13 @@ pub(crate) async fn send_request<Io, B>(
 where
     Io: ConnectionIo,
     B: MessageBody,
-    B::Error: Into<Error>,
+    B::Error: Into<BoxError>,
 {
     trace!("Sending client request: {:?} {:?}", head, body.size());
 
     let head_req = head.as_ref().method == Method::HEAD;
     let length = body.size();
-    let eof = matches!(
-        length,
-        BodySize::None | BodySize::Empty | BodySize::Sized(0)
-    );
+    let eof = matches!(length, BodySize::None | BodySize::Sized(0));
 
     let mut req = Request::new(());
     *req.uri_mut() = head.as_ref().uri.clone();
@@ -52,13 +51,11 @@ where
     // Content length
     let _ = match length {
         BodySize::None => None,
-        BodySize::Stream => {
-            skip_len = false;
-            None
-        }
-        BodySize::Empty => req
+
+        BodySize::Sized(0) => req
             .headers_mut()
             .insert(CONTENT_LENGTH, HeaderValue::from_static("0")),
+
         BodySize::Sized(len) => {
             let mut buf = itoa::Buffer::new();
 
@@ -66,6 +63,11 @@ where
                 CONTENT_LENGTH,
                 HeaderValue::from_str(buf.format(len)).unwrap(),
             )
+        }
+
+        BodySize::Stream => {
+            skip_len = false;
+            None
         }
     };
 
@@ -90,7 +92,7 @@ where
     for (key, value) in headers {
         match *key {
             // TODO: consider skipping other headers according to:
-            //       https://tools.ietf.org/html/rfc7540#section-8.1.2.2
+            //       https://datatracker.ietf.org/doc/html/rfc7540#section-8.1.2.2
             // omit HTTP/1.x only headers
             CONNECTION | TRANSFER_ENCODING => continue,
             CONTENT_LENGTH if skip_len => continue,
@@ -133,10 +135,12 @@ where
 async fn send_body<B>(body: B, mut send: SendStream<Bytes>) -> Result<(), SendRequestError>
 where
     B: MessageBody,
-    B::Error: Into<Error>,
+    B::Error: Into<BoxError>,
 {
     let mut buf = None;
+
     actix_rt::pin!(body);
+
     loop {
         if buf.is_none() {
             match poll_fn(|cx| body.as_mut().poll_next(cx)).await {
@@ -144,10 +148,10 @@ where
                     send.reserve_capacity(b.len());
                     buf = Some(b);
                 }
-                Some(Err(e)) => return Err(e.into().into()),
+                Some(Err(err)) => return Err(SendRequestError::Body(err.into())),
                 None => {
-                    if let Err(e) = send.send_data(Bytes::new(), true) {
-                        return Err(e.into());
+                    if let Err(err) = send.send_data(Bytes::new(), true) {
+                        return Err(err.into());
                     }
                     send.reserve_capacity(0);
                     return Ok(());

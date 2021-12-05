@@ -1,8 +1,61 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+* Methods on `AcceptLanguage`: `ranked` and `preference`. [#2480]
+* `AcceptEncoding` typed header. [#2482]
+* `Range` typed header. [#2485]
+* `HttpResponse::map_into_{left,right}_body` and `HttpResponse::map_into_boxed_body`. [#2468]
+* `ServiceResponse::map_into_{left,right}_body` and `HttpResponse::map_into_boxed_body`. [#2468]
+
 ### Changed
-* `ContentType::html` now returns `Content-Type: text/html; charset=utf-8` instead of `Content-Type: text/html`.
+* Rename `Accept::{mime_precedence => ranked}`. [#2480]
+* Rename `Accept::{mime_preference => preference}`. [#2480]
+* Un-deprecate `App::data_factory`. [#2484]
+
+### Fixed
+* Accept wildcard `*` items in `AcceptLanguage`. [#2480]
+* Re-exports `dev::{BodySize, MessageBody, SizedStream}`. They are exposed through the `body` module. [#2468]
+* Typed headers containing lists that require one or more items now enforce this minimum. [#2482]
+
+[#2468]: https://github.com/actix/actix-web/pull/2468
+[#2480]: https://github.com/actix/actix-web/pull/2480
+[#2482]: https://github.com/actix/actix-web/pull/2482
+[#2484]: https://github.com/actix/actix-web/pull/2484
+[#2485]: https://github.com/actix/actix-web/pull/2485
+
+
+## 4.0.0-beta.13 - 2021-11-30
+### Changed
+* Update `actix-tls` to `3.0.0-rc.1`. [#2474]
+
+[#2474]: https://github.com/actix/actix-web/pull/2474
+
+
+## 4.0.0-beta.12 - 2021-11-22
+### Changed
+* Compress middleware's response type is now `AnyBody<Encoder<B>>`. [#2448]
+
+### Fixed
+* Relax `Unpin` bound on `S` (stream) parameter of `HttpResponseBuilder::streaming`. [#2448]
+
+### Removed
+* `dev::ResponseBody` re-export; is function is replaced by the new `dev::AnyBody` enum. [#2446]
+
+[#2446]: https://github.com/actix/actix-web/pull/2446
+[#2448]: https://github.com/actix/actix-web/pull/2448
+
+
+## 4.0.0-beta.11 - 2021-11-15
+### Added
+* Re-export `dev::ServerHandle` from `actix-server`. [#2442]
+
+### Changed
+* `ContentType::html` now produces `text/html; charset=utf-8` instead of `text/html`. [#2423]
+* Update `actix-server` to `2.0.0-beta.9`. [#2442]
+
+[#2423]: https://github.com/actix/actix-web/pull/2423
+[#2442]: https://github.com/actix/actix-web/pull/2442
 
 
 ## 4.0.0-beta.10 - 2021-10-20
@@ -13,7 +66,7 @@
 ### Changed
 * Associated type `FromRequest::Config` was removed. [#2233]
 * Inner field made private on `web::Payload`. [#2384]
-* `Data::into_inner` and `Data::get_ref` no longer require T: Sized. [#2403]
+* `Data::into_inner` and `Data::get_ref` no longer requires `T: Sized`. [#2403]
 * Updated rustls to v0.20. [#2414]
 * Minimum supported Rust version (MSRV) is now 1.52.
 

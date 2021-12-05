@@ -1,7 +1,11 @@
 [package]
 name = "actix-files"
-version = "0.6.0-beta.8"
-authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
+version = "0.6.0-beta.9"
+authors = [
+    "Nikolay Kim <fafhrd91@gmail.com>",
+    "fakeshadow <24548779@qq.com>",
+    "Rob Ede <robjtede@icloud.com>",
+]
 description = "Static file serving for Actix Web"
 keywords = ["actix", "http", "async", "futures"]
 homepage = "https://actix.rs"
@@ -14,11 +18,14 @@ edition = "2018"
 name = "actix_files"
 path = "src/lib.rs"
 
+[features]
+experimental-io-uring = ["actix-web/experimental-io-uring", "tokio-uring"]
+
 [dependencies]
-actix-web = { version = "4.0.0-beta.10", default-features = false }
-actix-http = "3.0.0-beta.11"
-actix-service = "2.0.0"
-actix-utils = "3.0.0"
+actix-web = { version = "4.0.0-beta.11", default-features = false }
+actix-http = "3.0.0-beta.14"
+actix-service = "2"
+actix-utils = "3"
 
 askama_escape = "0.10"
 bitflags = "1"
@@ -30,8 +37,11 @@ log = "0.4"
 mime = "0.3"
 mime_guess = "2.0.1"
 percent-encoding = "2.1"
+pin-project-lite = "0.2.7"
+
+tokio-uring = { version = "0.1", optional = true }
 
 [dev-dependencies]
 actix-rt = "2.2"
-actix-web = "4.0.0-beta.10"
-actix-test = "0.1.0-beta.5"
+actix-web = "4.0.0-beta.11"
+actix-test = "0.1.0-beta.7"

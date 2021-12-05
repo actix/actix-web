@@ -115,3 +115,5 @@ pub use crate::scope::Scope;
 pub use crate::server::HttpServer;
 // TODO: is exposing the error directly really needed
 pub use crate::types::{Either, EitherExtractError};
+
+pub(crate) type BoxError = Box<dyn std::error::Error>;
