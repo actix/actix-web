@@ -19,9 +19,10 @@ use actix_web::{
     },
     http::{
         header::{
-            self, Charset, ContentDisposition, DispositionParam, DispositionType, ExtendedValue,
+            self, Charset, ContentDisposition, ContentEncoding, DispositionParam,
+            DispositionType, ExtendedValue,
         },
-        ContentEncoding, StatusCode,
+        StatusCode,
     },
     Error, HttpMessage, HttpRequest, HttpResponse, Responder,
 };

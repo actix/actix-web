@@ -353,7 +353,7 @@ where
     /// ```
     /// use actix_service::Service;
     /// use actix_web::{middleware, web, App};
-    /// use actix_web::http::{header::CONTENT_TYPE, HeaderValue};
+    /// use actix_web::http::header::{CONTENT_TYPE, HeaderValue};
     ///
     /// async fn index() -> &'static str {
     ///     "Welcome!"
@@ -410,7 +410,7 @@ where
     /// ```
     /// use actix_service::Service;
     /// use actix_web::{web, App};
-    /// use actix_web::http::{header::CONTENT_TYPE, HeaderValue};
+    /// use actix_web::http::header::{CONTENT_TYPE, HeaderValue};
     ///
     /// async fn index() -> &'static str {
     ///     "Welcome!"
@@ -494,7 +494,10 @@ mod tests {
     use bytes::Bytes;
 
     use super::*;
-    use crate::http::{header, HeaderValue, Method, StatusCode};
+    use crate::http::{
+        header::{self, HeaderValue},
+        Method, StatusCode,
+    };
     use crate::middleware::DefaultHeaders;
     use crate::service::ServiceRequest;
     use crate::test::{call_service, init_service, read_body, try_init_service, TestRequest};

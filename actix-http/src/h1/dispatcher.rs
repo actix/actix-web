@@ -1037,9 +1037,8 @@ mod tests {
     use crate::{
         error::Error,
         h1::{ExpectHandler, UpgradeHandler},
-        http::Method,
         test::{TestBuffer, TestSeqBuffer},
-        HttpMessage, KeepAlive,
+        HttpMessage, KeepAlive, Method,
     };
 
     fn find_slice(haystack: &[u8], needle: &[u8], from: usize) -> Option<usize> {

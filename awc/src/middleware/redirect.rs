@@ -7,10 +7,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use actix_http::{
-    http::{header, Method, StatusCode, Uri},
-    RequestHead, RequestHeadType,
-};
+use actix_http::{header, Method, RequestHead, RequestHeadType, StatusCode, Uri};
 use actix_service::Service;
 use bytes::Bytes;
 use futures_core::ready;
@@ -284,12 +281,12 @@ fn remove_sensitive_headers(headers: &mut header::HeaderMap, prev_uri: &Uri, nex
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use actix_web::{web, App, Error, HttpRequest, HttpResponse};
 
     use super::*;
-    use crate::http::HeaderValue;
-    use crate::ClientBuilder;
-    use std::str::FromStr;
+    use crate::{http::header::HeaderValue, ClientBuilder};
 
     #[actix_rt::test]
     async fn test_basic_redirect() {

@@ -13,7 +13,8 @@ use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_rt::{net::TcpStream, System};
 use actix_server::{Server, ServiceFactory};
 use awc::{
-    error::PayloadError, http::HeaderMap, ws, Client, ClientRequest, ClientResponse, Connector,
+    error::PayloadError, http::header::HeaderMap, ws, Client, ClientRequest, ClientResponse,
+    Connector,
 };
 use bytes::Bytes;
 use futures_core::stream::Stream;

@@ -1,6 +1,10 @@
 use std::{convert::TryFrom, fmt, net::IpAddr, rc::Rc, time::Duration};
 
-use actix_http::http::{self, header, Error as HttpError, HeaderMap, HeaderName, Uri};
+use actix_http::{
+    error::HttpError,
+    header::{self, HeaderMap, HeaderName},
+    Uri,
+};
 use actix_rt::net::{ActixStream, TcpStream};
 use actix_service::{boxed, Service};
 

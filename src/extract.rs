@@ -7,7 +7,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use actix_http::http::{Method, Uri};
+use actix_http::{Method, Uri};
 use actix_utils::future::{ok, Ready};
 use futures_core::ready;
 use pin_project_lite::pin_project;
@@ -402,7 +402,7 @@ mod tuple_from_req {
 
 #[cfg(test)]
 mod tests {
-    use actix_http::http::header;
+    use actix_http::header;
     use bytes::Bytes;
     use serde::Deserialize;
 
