@@ -78,14 +78,21 @@ impl fmt::Display for Quality {
 
                 // This implementation avoids string allocation for removing trailing zeroes.
                 // In benchmarks it is twice as fast as approach using something like
-                // `format!("{}").trim_end_matches('0')` for non-fast path quality values.
+                // `format!("{}").trim_end_matches('0')` for non-fast-path quality values.
 
                 if x < 10 {
+                    // x in is range 1–9
+
                     f.write_str("00")?;
-                    // 0 is handled so it's not possible to have a trailing 0, we can just return
+
+                    // 0 is already handled so it's not possible to have a trailing 0 in this range
+                    // we can just write the integer
                     itoa::fmt(f, x)
                 } else if x < 100 {
+                    // x in is range 10–99
+
                     f.write_str("0")?;
+
                     if x % 10 == 0 {
                         // trailing 0, divide by 10 and write
                         itoa::fmt(f, x / 10)
@@ -93,7 +100,7 @@ impl fmt::Display for Quality {
                         itoa::fmt(f, x)
                     }
                 } else {
-                    // x is in range 101–999
+                    // x is in range 100–999
 
                     if x % 100 == 0 {
                         // two trailing 0s, divide by 100 and write
@@ -179,6 +186,12 @@ mod tests {
         assert_eq!(q(0.22).to_string(), "0.22");
         assert_eq!(q(0.123).to_string(), "0.123");
         assert_eq!(q(0.999).to_string(), "0.999");
+
+        for x in 0..=1000 {
+            // if trailing zeroes are handled correctly, we would not expect the serialized length
+            // to ever exceed "0." + 3 decimal places = 5 in length
+            assert!(q(x as f32 / 1000.0).to_string().len() <= 5);
+        }
     }
 
     #[test]

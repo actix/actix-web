@@ -48,12 +48,12 @@ impl<T> QualityItem<T> {
         QualityItem { item, quality }
     }
 
-    /// Constructs a new `QualityItem` with from an item, using the maximum q-value.
+    /// Constructs a new `QualityItem` from an item, using the maximum q-value.
     pub fn max(item: T) -> Self {
         Self::new(item, Quality::MAX)
     }
 
-    /// Constructs a new `QualityItem` with from an item, using the minimum q-value.
+    /// Constructs a new `QualityItem` from an item, using the minimum q-value.
     pub fn min(item: T) -> Self {
         Self::new(item, Quality::MIN)
     }
@@ -74,7 +74,6 @@ impl<T: fmt::Display> fmt::Display for QualityItem<T> {
             Quality::MAX => Ok(()),
 
             Quality::MIN => f.write_str("; q=0"),
-
             q => write!(f, "; q={}", q),
         }
     }
@@ -88,7 +87,7 @@ impl<T: str::FromStr> str::FromStr for QualityItem<T> {
             return Err(ParseError::Header);
         }
 
-        // set defaults used if quality-item parsing fails, i.e., item has no q-factor
+        // set defaults used if quality-item parsing fails, i.e., item has no q attribute
         let mut raw_item = q_item_str;
         let mut quality = Quality::MAX;
 
