@@ -34,7 +34,7 @@ actix-codec = "0.4.1"
 actix-tls = "3.0.0-rc.1"
 actix-utils = "3.0.0"
 actix-rt = "2.2"
-actix-server = "2.0.0-beta.9"
+actix-server = "2.0.0-rc.1"
 awc = { version = "3.0.0-beta.11", default-features = false }
 
 base64 = "0.13"
