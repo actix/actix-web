@@ -10,9 +10,29 @@ use super::{
 /// Represents an item with a quality value as defined
 /// in [RFC 7231 §5.3.1](https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.1).
 ///
+/// # Parsing
+/// This wrapper be used to parse header value items that have a q-factor annotation as well as
+/// serialize items with a their q-factor.
+///
+/// # Ordering
+/// Since this context of use for this type is header value items, ordering is defined for
+/// `QualityItem`s but _only_ considers the item's quality. Order of appearance should be used as
+/// the secondary sorting parameter; i.e., a stable sort over the quality values will produce a
+/// correctly sorted sequence.
+///
 /// # Examples
 /// ```
+/// # use actix_http::header::{QualityItem, q};
+/// let q_item: QualityItem<String> = "hello;q=0.3".parse().unwrap();
+/// assert_eq!(&q_item.item, "hello");
+/// assert_eq!(q_item.quality, q(0.3));
 ///
+/// // note that format is normalized compared to parsed item
+/// assert_eq!(q_item.to_string(), "hello; q=0.3");
+///
+/// // item with q=0.3 is greater than item with q=0.1
+/// let q_item_fallback: QualityItem<String> = "abc;q=0.1".parse().unwrap();
+/// assert!(q_item > q_item_fallback);
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QualityItem<T> {
@@ -42,7 +62,7 @@ impl<T> QualityItem<T> {
     }
 }
 
-impl<T: PartialEq> cmp::PartialOrd for QualityItem<T> {
+impl<T: PartialEq> PartialOrd for QualityItem<T> {
     fn partial_cmp(&self, other: &QualityItem<T>) -> Option<cmp::Ordering> {
         self.quality.partial_cmp(&other.quality)
     }
