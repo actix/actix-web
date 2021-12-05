@@ -11,6 +11,8 @@
 * `impl Clone for ws::HandshakeError`. [#2468]
 * `#[must_use]` for `ws::Codec` to prevent subtle bugs. [#1920]
 * `impl Default ` for `ws::Codec`. [#1920]
+* `header::QualityItem::{max, min}`. [#????]
+* `header::Quality::{MAX, MIN}`. [#????]
 
 ### Changed
 * Rename `body::BoxBody::{from_body => new}`. [#2468]
@@ -27,10 +29,12 @@
 * Remove unnecessary `MessageBody` bound on types passed to `body::AnyBody::new`. [#2468]
 * Move `body::AnyBody` to `awc`. Replaced with `EitherBody` and `BoxBody`. [#2468]
 * `impl Copy` for `ws::Codec`. [#1920]
+* `header::qitem` helper. Replaced with `header::QualityItem::max` [#????]
 
 [#2483]: https://github.com/actix/actix-web/pull/2483
 [#2468]: https://github.com/actix/actix-web/pull/2468
 [#1920]: https://github.com/actix/actix-web/pull/1920
+[#????]: https://github.com/actix/actix-web/pull/????
 
 
 ## 3.0.0-beta.14 - 2021-11-30

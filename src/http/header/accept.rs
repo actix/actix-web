@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 
 use mime::Mime;
 
-use super::{qitem, QualityItem};
+use super::QualityItem;
 use crate::http::header;
 
 crate::http::header::common_header! {
@@ -34,42 +34,42 @@ crate::http::header::common_header! {
     /// # Examples
     /// ```
     /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{Accept, qitem};
+    /// use actix_web::http::header::{Accept, QualityItem};
     ///
     /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     Accept(vec![
-    ///         qitem(mime::TEXT_HTML),
+    ///         QualityItem::max(mime::TEXT_HTML),
     ///     ])
     /// );
     /// ```
     ///
     /// ```
     /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{Accept, qitem};
+    /// use actix_web::http::header::{Accept, QualityItem};
     ///
     /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     Accept(vec![
-    ///         qitem(mime::APPLICATION_JSON),
+    ///         QualityItem::max(mime::APPLICATION_JSON),
     ///     ])
     /// );
     /// ```
     ///
     /// ```
     /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{Accept, QualityItem, q, qitem};
+    /// use actix_web::http::header::{Accept, QualityItem, q};
     ///
     /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     Accept(vec![
-    ///         qitem(mime::TEXT_HTML),
-    ///         qitem("application/xhtml+xml".parse().unwrap()),
+    ///         QualityItem::max(mime::TEXT_HTML),
+    ///         QualityItem::max("application/xhtml+xml".parse().unwrap()),
     ///         QualityItem::new(
     ///             mime::TEXT_XML,
     ///             q(900)
     ///         ),
-    ///         qitem("image/webp".parse().unwrap()),
+    ///         QualityItem::max("image/webp".parse().unwrap()),
     ///         QualityItem::new(
     ///             mime::STAR_STAR,
     ///             q(800)
@@ -86,7 +86,7 @@ crate::http::header::common_header! {
             vec![b"audio/*; q=0.2, audio/basic"],
             Some(Accept(vec![
                 QualityItem::new("audio/*".parse().unwrap(), q(200)),
-                qitem("audio/basic".parse().unwrap()),
+                QualityItem::max("audio/basic".parse().unwrap()),
                 ])));
 
         crate::http::header::common_header_test!(
@@ -94,11 +94,11 @@ crate::http::header::common_header! {
             vec![b"text/plain; q=0.5, text/html, text/x-dvi; q=0.8, text/x-c"],
             Some(Accept(vec![
                 QualityItem::new(mime::TEXT_PLAIN, q(500)),
-                qitem(mime::TEXT_HTML),
+                QualityItem::max(mime::TEXT_HTML),
                 QualityItem::new(
                     "text/x-dvi".parse().unwrap(),
                     q(800)),
-                qitem("text/x-c".parse().unwrap()),
+                QualityItem::max("text/x-c".parse().unwrap()),
                 ])));
 
         // Custom tests
@@ -106,7 +106,7 @@ crate::http::header::common_header! {
             test3,
             vec![b"text/plain; charset=utf-8"],
             Some(Accept(vec![
-                qitem(mime::TEXT_PLAIN_UTF_8),
+                QualityItem::max(mime::TEXT_PLAIN_UTF_8),
                 ])));
         crate::http::header::common_header_test!(
             test4,
@@ -130,27 +130,27 @@ crate::http::header::common_header! {
 impl Accept {
     /// Construct `Accept: */*`.
     pub fn star() -> Accept {
-        Accept(vec![qitem(mime::STAR_STAR)])
+        Accept(vec![QualityItem::max(mime::STAR_STAR)])
     }
 
     /// Construct `Accept: application/json`.
     pub fn json() -> Accept {
-        Accept(vec![qitem(mime::APPLICATION_JSON)])
+        Accept(vec![QualityItem::max(mime::APPLICATION_JSON)])
     }
 
     /// Construct `Accept: text/*`.
     pub fn text() -> Accept {
-        Accept(vec![qitem(mime::TEXT_STAR)])
+        Accept(vec![QualityItem::max(mime::TEXT_STAR)])
     }
 
     /// Construct `Accept: image/*`.
     pub fn image() -> Accept {
-        Accept(vec![qitem(mime::IMAGE_STAR)])
+        Accept(vec![QualityItem::max(mime::IMAGE_STAR)])
     }
 
     /// Construct `Accept: text/html`.
     pub fn html() -> Accept {
-        Accept(vec![qitem(mime::TEXT_HTML)])
+        Accept(vec![QualityItem::max(mime::TEXT_HTML)])
     }
 
     /// Returns a sorted list of mime types from highest to lowest preference, accounting for
@@ -244,11 +244,11 @@ mod tests {
         let test = Accept(vec![]);
         assert!(test.ranked().is_empty());
 
-        let test = Accept(vec![qitem(mime::APPLICATION_JSON)]);
+        let test = Accept(vec![QualityItem::max(mime::APPLICATION_JSON)]);
         assert_eq!(test.ranked(), vec!(mime::APPLICATION_JSON));
 
         let test = Accept(vec![
-            qitem(mime::TEXT_HTML),
+            QualityItem::max(mime::TEXT_HTML),
             "application/xhtml+xml".parse().unwrap(),
             QualityItem::new("application/xml".parse().unwrap(), q(0.9)),
             QualityItem::new(mime::STAR_STAR, q(0.8)),
@@ -264,9 +264,9 @@ mod tests {
         );
 
         let test = Accept(vec![
-            qitem(mime::STAR_STAR),
-            qitem(mime::IMAGE_STAR),
-            qitem(mime::IMAGE_PNG),
+            QualityItem::max(mime::STAR_STAR),
+            QualityItem::max(mime::IMAGE_STAR),
+            QualityItem::max(mime::IMAGE_PNG),
         ]);
         assert_eq!(
             test.ranked(),
@@ -277,7 +277,7 @@ mod tests {
     #[test]
     fn preference_selection() {
         let test = Accept(vec![
-            qitem(mime::TEXT_HTML),
+            QualityItem::max(mime::TEXT_HTML),
             "application/xhtml+xml".parse().unwrap(),
             QualityItem::new("application/xml".parse().unwrap(), q(0.9)),
             QualityItem::new(mime::STAR_STAR, q(0.8)),
@@ -286,9 +286,9 @@ mod tests {
 
         let test = Accept(vec![
             QualityItem::new("video/*".parse().unwrap(), q(0.8)),
-            qitem(mime::IMAGE_PNG),
+            QualityItem::max(mime::IMAGE_PNG),
             QualityItem::new(mime::STAR_STAR, q(0.5)),
-            qitem(mime::IMAGE_SVG),
+            QualityItem::max(mime::IMAGE_SVG),
             QualityItem::new(mime::IMAGE_STAR, q(0.8)),
         ]);
         assert_eq!(test.preference(), mime::IMAGE_PNG);

@@ -1,6 +1,6 @@
 use language_tags::LanguageTag;
 
-use super::{common_header, Preference, QualityItem};
+use super::{common_header, Preference, Quality, QualityItem};
 use crate::http::header;
 
 common_header! {
@@ -32,24 +32,24 @@ common_header! {
     /// # Examples
     /// ```
     /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{AcceptLanguage, qitem};
+    /// use actix_web::http::header::{AcceptLanguage, QualityItem};
     ///
     /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     AcceptLanguage(vec![
-    ///         qitem("en-US".parse().unwrap())
+    ///         QualityItem::max("en-US".parse().unwrap())
     ///     ])
     /// );
     /// ```
     ///
     /// ```
     /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{AcceptLanguage, QualityItem, q, qitem};
+    /// use actix_web::http::header::{AcceptLanguage, QualityItem, q};
     ///
     /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     AcceptLanguage(vec![
-    ///         qitem("da".parse().unwrap()),
+    ///         QualityItem::max("da".parse().unwrap()),
     ///         QualityItem::new("en-GB".parse().unwrap(), q(800)),
     ///         QualityItem::new("en".parse().unwrap(), q(700)),
     ///     ])
@@ -72,9 +72,9 @@ common_header! {
             not_ordered_by_weight,
             vec![b"en-US, en; q=0.5, fr"],
             Some(AcceptLanguage(vec![
-                qitem("en-US".parse().unwrap()),
+                QualityItem::max("en-US".parse().unwrap()),
                 QualityItem::new("en".parse().unwrap(), q(500)),
-                qitem("fr".parse().unwrap()),
+                QualityItem::max("fr".parse().unwrap()),
             ]))
         );
 
@@ -82,7 +82,7 @@ common_header! {
             has_wildcard,
             vec![b"fr-CH, fr; q=0.9, en; q=0.8, de; q=0.7, *; q=0.5"],
             Some(AcceptLanguage(vec![
-                qitem("fr-CH".parse().unwrap()),
+                QualityItem::max("fr-CH".parse().unwrap()),
                 QualityItem::new("fr".parse().unwrap(), q(900)),
                 QualityItem::new("en".parse().unwrap(), q(800)),
                 QualityItem::new("de".parse().unwrap(), q(700)),
@@ -122,10 +122,8 @@ impl AcceptLanguage {
     ///
     /// [q-factor weighting]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
     pub fn preference(&self) -> Preference<LanguageTag> {
-        use actix_http::header::q;
-
         let mut max_item = None;
-        let mut max_pref = q(0);
+        let mut max_pref = Quality::MIN;
 
         // uses manual max lookup loop since we want the first occurrence in the case of same
         // preference but `Iterator::max_by_key` would give us the last occurrence
@@ -153,7 +151,7 @@ mod tests {
         let test = AcceptLanguage(vec![]);
         assert!(test.ranked().is_empty());
 
-        let test = AcceptLanguage(vec![qitem("fr-CH".parse().unwrap())]);
+        let test = AcceptLanguage(vec![QualityItem::max("fr-CH".parse().unwrap())]);
         assert_eq!(test.ranked(), vec!("fr-CH".parse().unwrap()));
 
         let test = AcceptLanguage(vec![
@@ -175,11 +173,11 @@ mod tests {
         );
 
         let test = AcceptLanguage(vec![
-            qitem("fr".parse().unwrap()),
-            qitem("fr-CH".parse().unwrap()),
-            qitem("en".parse().unwrap()),
-            qitem("*".parse().unwrap()),
-            qitem("de".parse().unwrap()),
+            QualityItem::max("fr".parse().unwrap()),
+            QualityItem::max("fr-CH".parse().unwrap()),
+            QualityItem::max("en".parse().unwrap()),
+            QualityItem::max("*".parse().unwrap()),
+            QualityItem::max("de".parse().unwrap()),
         ]);
         assert_eq!(
             test.ranked(),
@@ -208,11 +206,11 @@ mod tests {
         );
 
         let test = AcceptLanguage(vec![
-            qitem("fr".parse().unwrap()),
-            qitem("fr-CH".parse().unwrap()),
-            qitem("en".parse().unwrap()),
-            qitem("*".parse().unwrap()),
-            qitem("de".parse().unwrap()),
+            QualityItem::max("fr".parse().unwrap()),
+            QualityItem::max("fr-CH".parse().unwrap()),
+            QualityItem::max("en".parse().unwrap()),
+            QualityItem::max("*".parse().unwrap()),
+            QualityItem::max("de".parse().unwrap()),
         ]);
         assert_eq!(
             test.preference(),
