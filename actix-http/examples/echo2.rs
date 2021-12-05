@@ -1,8 +1,8 @@
 use std::io;
 
 use actix_http::{
-    body::MessageBody, http::HeaderValue, http::StatusCode, Error, HttpService, Request,
-    Response,
+    body::MessageBody, header::HeaderValue, Error, HttpService, Request, Response,
+    StatusCode,
 };
 use actix_server::Server;
 use bytes::BytesMut;
