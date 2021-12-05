@@ -1,13 +1,14 @@
-use std::borrow::Cow;
-use std::cell::RefCell;
-use std::rc::{Rc, Weak};
+use std::{
+    borrow::Cow,
+    cell::RefCell,
+    rc::{Rc, Weak},
+};
 
 use actix_router::ResourceDef;
 use ahash::AHashMap;
 use url::Url;
 
-use crate::error::UrlGenerationError;
-use crate::request::HttpRequest;
+use crate::{error::UrlGenerationError, request::HttpRequest};
 
 #[derive(Clone, Debug)]
 pub struct ResourceMap {
@@ -104,17 +105,22 @@ impl ResourceMap {
             .ok_or(UrlGenerationError::NotEnoughElements)?;
 
         let (base, path): (Cow<'_, _>, _) = if path.starts_with('/') {
+            // build full URL from connection info parts and resource path
             let conn = req.connection_info();
-            let base = format!("{}://{}", conn.scheme(), conn.host(),).into();
-            (base, path.as_str())
+            let base = format!("{}://{}", conn.scheme(), conn.host());
+            (Cow::Owned(base), path.as_str())
         } else {
-            // external resource
+            // external resource; third slash would be the root slash in the path
             let third_slash_index = path
                 .char_indices()
                 .filter_map(|(i, c)| (c == '/').then(|| i))
                 .nth(2)
-                .unwrap_or(path.len());
-            (path[..third_slash_index].into(), &path[third_slash_index..])
+                .unwrap_or_else(|| path.len());
+
+            (
+                Cow::Borrowed(&path[..third_slash_index]),
+                &path[third_slash_index..],
+            )
         };
 
         let mut url = Url::parse(&base)?;
