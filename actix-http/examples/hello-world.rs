@@ -1,6 +1,6 @@
 use std::{convert::Infallible, io};
 
-use actix_http::{http::StatusCode, HttpService, Response};
+use actix_http::{HttpService, Response, StatusCode};
 use actix_server::Server;
 use http::header::HeaderValue;
 
