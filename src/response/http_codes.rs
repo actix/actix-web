@@ -1,6 +1,6 @@
 //! Status code based HTTP response builders.
 
-use actix_http::http::StatusCode;
+use actix_http::StatusCode;
 
 use crate::{HttpResponse, HttpResponseBuilder};
 

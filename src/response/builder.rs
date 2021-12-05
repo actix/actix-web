@@ -8,18 +8,16 @@ use std::{
 
 use actix_http::{
     body::{BodyStream, BoxBody, MessageBody},
-    http::{
-        header::{self, HeaderName, IntoHeaderPair, IntoHeaderValue},
-        ConnectionType, Error as HttpError, StatusCode,
-    },
-    Extensions, Response, ResponseHead,
+    error::HttpError,
+    header::{self, HeaderName, IntoHeaderPair, IntoHeaderValue},
+    ConnectionType, Extensions, Response, ResponseHead, StatusCode,
 };
 use bytes::Bytes;
 use futures_core::Stream;
 use serde::Serialize;
 
 #[cfg(feature = "cookies")]
-use actix_http::http::header::HeaderValue;
+use actix_http::header::HeaderValue;
 #[cfg(feature = "cookies")]
 use cookie::{Cookie, CookieJar};
 

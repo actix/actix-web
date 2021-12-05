@@ -6,8 +6,9 @@ use std::{
 
 use actix_http::{
     body::{BoxBody, EitherBody, MessageBody},
-    http::{HeaderMap, Method, StatusCode, Uri, Version},
-    Extensions, HttpMessage, Payload, PayloadStream, RequestHead, Response, ResponseHead,
+    header::HeaderMap,
+    Extensions, HttpMessage, Method, Payload, PayloadStream, RequestHead, Response,
+    ResponseHead, StatusCode, Uri, Version,
 };
 use actix_router::{IntoPatterns, Path, Patterns, Resource, ResourceDef, Url};
 use actix_service::{

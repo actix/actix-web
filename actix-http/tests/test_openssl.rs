@@ -7,11 +7,8 @@ use std::{convert::Infallible, io};
 use actix_http::{
     body::{BodyStream, BoxBody, SizedStream},
     error::PayloadError,
-    http::{
-        header::{self, HeaderValue},
-        Method, StatusCode, Version,
-    },
-    Error, HttpMessage, HttpService, Request, Response,
+    header::{self, HeaderValue},
+    Error, HttpMessage, HttpService, Method, Request, Response, StatusCode, Version,
 };
 use actix_http_test::test_server;
 use actix_service::{fn_service, ServiceFactoryExt};

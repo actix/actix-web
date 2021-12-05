@@ -9,10 +9,8 @@ use std::{
 
 use actix_http::{
     body::BodyStream,
-    http::{
-        header::{self, HeaderMap, HeaderName, IntoHeaderValue},
-        Error as HttpError,
-    },
+    error::HttpError,
+    header::{self, HeaderMap, HeaderName, IntoHeaderValue},
     RequestHead, RequestHeadType,
 };
 use actix_rt::time::{sleep, Sleep};
@@ -22,7 +20,7 @@ use futures_core::Stream;
 use serde::Serialize;
 
 #[cfg(feature = "__compress")]
-use actix_http::{encoding::Decoder, http::header::ContentEncoding, Payload, PayloadStream};
+use actix_http::{encoding::Decoder, header::ContentEncoding, Payload, PayloadStream};
 
 use crate::{
     any_body::AnyBody,

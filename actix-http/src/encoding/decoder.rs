@@ -23,7 +23,7 @@ use zstd::stream::write::Decoder as ZstdDecoder;
 use crate::{
     encoding::Writer,
     error::{BlockingError, PayloadError},
-    http::header::{ContentEncoding, HeaderMap, CONTENT_ENCODING},
+    header::{ContentEncoding, HeaderMap, CONTENT_ENCODING},
 };
 
 const MAX_CHUNK_SIZE_DECODE_IN_PLACE: usize = 2049;

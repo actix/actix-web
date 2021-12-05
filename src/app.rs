@@ -494,7 +494,10 @@ mod tests {
     use bytes::Bytes;
 
     use super::*;
-    use crate::http::{header, HeaderValue, Method, StatusCode};
+    use crate::http::{
+        header::{self, HeaderValue},
+        Method, StatusCode,
+    };
     use crate::middleware::DefaultHeaders;
     use crate::service::ServiceRequest;
     use crate::test::{call_service, init_service, read_body, try_init_service, TestRequest};

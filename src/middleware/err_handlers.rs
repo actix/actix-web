@@ -182,7 +182,10 @@ mod tests {
     use futures_util::future::FutureExt as _;
 
     use super::*;
-    use crate::http::{header::CONTENT_TYPE, HeaderValue, StatusCode};
+    use crate::http::{
+        header::{HeaderValue, CONTENT_TYPE},
+        StatusCode,
+    };
     use crate::test::{self, TestRequest};
     use crate::HttpResponse;
 

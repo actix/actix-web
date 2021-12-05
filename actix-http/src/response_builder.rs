@@ -335,7 +335,7 @@ mod tests {
     use bytes::Bytes;
 
     use super::*;
-    use crate::http::header::{HeaderName, HeaderValue, CONTENT_TYPE};
+    use crate::header::{HeaderName, HeaderValue, CONTENT_TYPE};
 
     #[test]
     fn test_basic_builder() {

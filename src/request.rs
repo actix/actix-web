@@ -6,8 +6,8 @@ use std::{
 };
 
 use actix_http::{
-    http::{HeaderMap, Method, Uri, Version},
-    Extensions, HttpMessage, Message, Payload, RequestHead,
+    header::HeaderMap, Extensions, HttpMessage, Message, Method, Payload, RequestHead, Uri,
+    Version,
 };
 use actix_router::{Path, Url};
 use actix_utils::future::{ok, Ready};
@@ -266,7 +266,7 @@ impl HttpRequest {
     /// Load request cookies.
     #[cfg(feature = "cookies")]
     pub fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
-        use actix_http::http::header::COOKIE;
+        use actix_http::header::COOKIE;
 
         if self.extensions().get::<Cookies>().is_none() {
             let mut cookies = Vec::new();

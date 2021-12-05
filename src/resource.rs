@@ -508,7 +508,10 @@ mod tests {
 
     use crate::{
         guard,
-        http::{header, HeaderValue, Method, StatusCode},
+        http::{
+            header::{self, HeaderValue},
+            Method, StatusCode,
+        },
         middleware::DefaultHeaders,
         service::{ServiceRequest, ServiceResponse},
         test::{call_service, init_service, TestRequest},

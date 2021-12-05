@@ -23,7 +23,7 @@ use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 use crate::{
     body::{BodySize, MessageBody},
-    http::HeaderName,
+    http::header::HeaderName,
     service::{ServiceRequest, ServiceResponse},
     Error, HttpResponse, Result,
 };
