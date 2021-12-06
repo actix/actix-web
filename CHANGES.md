@@ -7,30 +7,26 @@
 * `Range` typed header. [#2485]
 * `HttpResponse::map_into_{left,right}_body` and `HttpResponse::map_into_boxed_body`. [#2468]
 * `ServiceResponse::map_into_{left,right}_body` and `HttpResponse::map_into_boxed_body`. [#2468]
-* `HttpServer::on_connect` now receives a `CloneableExtensions` object. [#2327]
-
-[#2325]: https://github.com/actix/actix-web/pull/2325
-[#2327]: https://github.com/actix/actix-web/pull/2327
+* Connection data set through the `HttpServer::on_connect` callback is now accessible only from the new `HttpRequest::conn_data()` method. [#2491]
 
 ### Changed
 * Rename `Accept::{mime_precedence => ranked}`. [#2480]
 * Rename `Accept::{mime_preference => preference}`. [#2480]
 * Un-deprecate `App::data_factory`. [#2484]
 * `HttpRequest::url_for` no longer constructs URLs with query or fragment components. [#2430]
-* `HttpServer::on_connect` now receives a `CloneableExtensions` object. [#2327]
 
 ### Fixed
 * Accept wildcard `*` items in `AcceptLanguage`. [#2480]
 * Re-exports `dev::{BodySize, MessageBody, SizedStream}`. They are exposed through the `body` module. [#2468]
 * Typed headers containing lists that require one or more items now enforce this minimum. [#2482]
 
-[#2327]: https://github.com/actix/actix-web/pull/2327
 [#2430]: https://github.com/actix/actix-web/pull/2430
 [#2468]: https://github.com/actix/actix-web/pull/2468
 [#2480]: https://github.com/actix/actix-web/pull/2480
 [#2482]: https://github.com/actix/actix-web/pull/2482
 [#2484]: https://github.com/actix/actix-web/pull/2484
 [#2485]: https://github.com/actix/actix-web/pull/2485
+[#2491]: https://github.com/actix/actix-web/pull/2491
 
 
 ## 4.0.0-beta.13 - 2021-11-30

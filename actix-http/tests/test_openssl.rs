@@ -8,7 +8,7 @@ use actix_http::{
     body::{BodyStream, BoxBody, SizedStream},
     error::PayloadError,
     header::{self, HeaderValue},
-    Error, HttpMessage, HttpService, Method, Request, Response, StatusCode, Version,
+    Error, HttpService, Method, Request, Response, StatusCode, Version,
 };
 use actix_http_test::test_server;
 use actix_service::{fn_service, ServiceFactoryExt};
