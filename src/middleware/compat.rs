@@ -1,15 +1,15 @@
 //! For middleware documentation, see [`Compat`].
 
 use std::{
-    error::Error as StdError,
     future::Future,
     pin::Pin,
     task::{Context, Poll},
 };
 
-use actix_http::body::{Body, MessageBody};
+use actix_http::body::MessageBody;
 use actix_service::{Service, Transform};
 use futures_core::{future::LocalBoxFuture, ready};
+use pin_project_lite::pin_project;
 
 use crate::{error::Error, service::ServiceResponse};
 
@@ -89,10 +89,11 @@ where
     }
 }
 
-#[pin_project::pin_project]
-pub struct CompatMiddlewareFuture<Fut> {
-    #[pin]
-    fut: Fut,
+pin_project! {
+    pub struct CompatMiddlewareFuture<Fut> {
+        #[pin]
+        fut: Fut,
+    }
 }
 
 impl<Fut, T, E> Future for CompatMiddlewareFuture<Fut>
@@ -121,10 +122,9 @@ pub trait MapServiceResponseBody {
 impl<B> MapServiceResponseBody for ServiceResponse<B>
 where
     B: MessageBody + Unpin + 'static,
-    B::Error: Into<Box<dyn StdError + 'static>>,
 {
     fn map_body(self) -> ServiceResponse {
-        self.map_body(|_, body| Body::from_message(body))
+        self.map_into_boxed_body()
     }
 }
 

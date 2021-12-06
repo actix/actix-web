@@ -10,6 +10,7 @@ use std::{
 use actix_service::{Service, Transform};
 use ahash::AHashMap;
 use futures_core::{future::LocalBoxFuture, ready};
+use pin_project_lite::pin_project;
 
 use crate::{
     dev::{ServiceRequest, ServiceResponse},
@@ -36,19 +37,20 @@ type ErrorHandler<B> = dyn Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse
 /// # Examples
 /// ```
 /// use actix_web::middleware::{ErrorHandlers, ErrorHandlerResponse};
-/// use actix_web::{web, http, dev, App, HttpRequest, HttpResponse, Result};
+/// use actix_web::{web, dev, App, HttpRequest, HttpResponse, Result};
+/// use actix_web::http::{StatusCode, header};
 ///
 /// fn render_500<B>(mut res: dev::ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
 ///     res.response_mut()
 ///        .headers_mut()
-///        .insert(http::header::CONTENT_TYPE, http::HeaderValue::from_static("Error"));
+///        .insert(header::CONTENT_TYPE, header::HeaderValue::from_static("Error"));
 ///     Ok(ErrorHandlerResponse::Response(res))
 /// }
 ///
 /// let app = App::new()
 ///     .wrap(
 ///         ErrorHandlers::new()
-///             .handler(http::StatusCode::INTERNAL_SERVER_ERROR, render_500),
+///             .handler(StatusCode::INTERNAL_SERVER_ERROR, render_500),
 ///     )
 ///     .service(web::resource("/test")
 ///         .route(web::get().to(|| HttpResponse::Ok()))
@@ -130,19 +132,21 @@ where
     }
 }
 
-#[pin_project::pin_project(project = ErrorHandlersProj)]
-pub enum ErrorHandlersFuture<Fut, B>
-where
-    Fut: Future,
-{
-    ServiceFuture {
-        #[pin]
-        fut: Fut,
-        handlers: Handlers<B>,
-    },
-    HandlerFuture {
-        fut: LocalBoxFuture<'static, Fut::Output>,
-    },
+pin_project! {
+    #[project = ErrorHandlersProj]
+    pub enum ErrorHandlersFuture<Fut, B>
+    where
+        Fut: Future,
+    {
+        ServiceFuture {
+            #[pin]
+            fut: Fut,
+            handlers: Handlers<B>,
+        },
+        HandlerFuture {
+            fut: LocalBoxFuture<'static, Fut::Output>,
+        },
+    }
 }
 
 impl<Fut, B> Future for ErrorHandlersFuture<Fut, B>
@@ -179,7 +183,10 @@ mod tests {
     use futures_util::future::FutureExt as _;
 
     use super::*;
-    use crate::http::{header::CONTENT_TYPE, HeaderValue, StatusCode};
+    use crate::http::{
+        header::{HeaderValue, CONTENT_TYPE},
+        StatusCode,
+    };
     use crate::test::{self, TestRequest};
     use crate::HttpResponse;
 

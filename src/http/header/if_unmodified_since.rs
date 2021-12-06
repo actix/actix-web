@@ -1,8 +1,8 @@
 use super::{HttpDate, IF_UNMODIFIED_SINCE};
 
 crate::http::header::common_header! {
-    /// `If-Unmodified-Since` header, defined in
-    /// [RFC7232](http://tools.ietf.org/html/rfc7232#section-3.4)
+    /// `If-Unmodified-Since` header, defined
+    /// in [RFC 7232 §3.4](https://datatracker.ietf.org/doc/html/rfc7232#section-3.4)
     ///
     /// The `If-Unmodified-Since` header field makes the request method
     /// conditional on the selected representation's last modification date
@@ -11,13 +11,11 @@ crate::http::header::common_header! {
     /// the user agent does not have an entity-tag for the representation.
     ///
     /// # ABNF
-    ///
-    /// ```text
+    /// ```plain
     /// If-Unmodified-Since = HTTP-date
     /// ```
     ///
-    /// # Example values
-    ///
+    /// # Example Values
     /// * `Sat, 29 Oct 1994 19:43:31 GMT`
     ///
     /// # Example
@@ -35,7 +33,7 @@ crate::http::header::common_header! {
     /// ```
     (IfUnmodifiedSince, IF_UNMODIFIED_SINCE) => [HttpDate]
 
-    test_if_unmodified_since {
+    test_parse_and_format {
         // Test case from RFC
         crate::http::header::common_header_test!(test1, vec![b"Sat, 29 Oct 1994 19:43:31 GMT"]);
     }

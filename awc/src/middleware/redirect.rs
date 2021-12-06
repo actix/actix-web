@@ -7,20 +7,18 @@ use std::{
     task::{Context, Poll},
 };
 
-use actix_http::{
-    body::Body,
-    http::{header, Method, StatusCode, Uri},
-    RequestHead, RequestHeadType,
-};
+use actix_http::{header, Method, RequestHead, RequestHeadType, StatusCode, Uri};
 use actix_service::Service;
 use bytes::Bytes;
 use futures_core::ready;
 
 use super::Transform;
-
-use crate::client::{InvalidUrl, SendRequestError};
-use crate::connect::{ConnectRequest, ConnectResponse};
-use crate::ClientResponse;
+use crate::{
+    any_body::AnyBody,
+    client::{InvalidUrl, SendRequestError},
+    connect::{ConnectRequest, ConnectResponse},
+    ClientResponse,
+};
 
 pub struct Redirect {
     max_redirect_times: u8,
@@ -95,7 +93,7 @@ where
                 };
 
                 let body_opt = match body {
-                    Body::Bytes(ref b) => Some(b.clone()),
+                    AnyBody::Bytes { ref body } => Some(body.clone()),
                     _ => None,
                 };
 
@@ -192,14 +190,16 @@ where
                         let body_new = if is_redirect {
                             // try to reuse body
                             match body {
-                                Some(ref bytes) => Body::Bytes(bytes.clone()),
-                                // TODO: should this be Body::Empty or Body::None.
-                                _ => Body::Empty,
+                                Some(ref bytes) => AnyBody::Bytes {
+                                    body: bytes.clone(),
+                                },
+                                // TODO: should this be AnyBody::Empty or AnyBody::None.
+                                _ => AnyBody::empty(),
                             }
                         } else {
                             body = None;
                             // remove body
-                            Body::None
+                            AnyBody::None
                         };
 
                         let mut headers = headers.take().unwrap();
@@ -281,12 +281,12 @@ fn remove_sensitive_headers(headers: &mut header::HeaderMap, prev_uri: &Uri, nex
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use actix_web::{web, App, Error, HttpRequest, HttpResponse};
 
     use super::*;
-    use crate::http::HeaderValue;
-    use crate::ClientBuilder;
-    use std::str::FromStr;
+    use crate::{http::header::HeaderValue, ClientBuilder};
 
     #[actix_rt::test]
     async fn test_basic_redirect() {

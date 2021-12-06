@@ -6,8 +6,8 @@ use std::{
 };
 
 use actix_http::{
-    http::{HeaderMap, Method, Uri, Version},
-    Extensions, HttpMessage, Message, Payload, RequestHead,
+    header::HeaderMap, Extensions, HttpMessage, Message, Method, Payload, RequestHead, Uri,
+    Version,
 };
 use actix_router::{Path, Url};
 use actix_utils::future::{ok, Ready};
@@ -100,7 +100,7 @@ impl HttpRequest {
         &self.head().headers
     }
 
-    /// The target path of this Request.
+    /// The target path of this request.
     #[inline]
     pub fn path(&self) -> &str {
         self.head().uri.path()
@@ -108,18 +108,22 @@ impl HttpRequest {
 
     /// The query string in the URL.
     ///
-    /// E.g., id=10
+    /// Example: `id=10`
     #[inline]
     pub fn query_string(&self) -> &str {
         self.uri().query().unwrap_or_default()
     }
 
-    /// Get a reference to the Path parameters.
+    /// Returns a reference to the URL parameters container.
     ///
-    /// Params is a container for url parameters.
-    /// A variable segment is specified in the form `{identifier}`,
-    /// where the identifier can be used later in a request handler to
-    /// access the matched value for that segment.
+    /// A url parameter is specified in the form `{identifier}`, where the identifier can be used
+    /// later in a request handler to access the matched value for that parameter.
+    ///
+    /// # Percent Encoding and URL Parameters
+    /// Because each URL parameter is able to capture multiple path segments, both `["%2F", "%25"]`
+    /// found in the request URI are not decoded into `["/", "%"]` in order to preserve path
+    /// segment boundaries. If a url parameter is expected to contain these characters, then it is
+    /// on the user to decode them.
     #[inline]
     pub fn match_info(&self) -> &Path<Url> {
         &self.inner.path
@@ -161,23 +165,29 @@ impl HttpRequest {
         self.head().extensions_mut()
     }
 
-    /// Generate url for named resource
+    /// Generates URL for a named resource.
     ///
+    /// This substitutes in sequence all URL parameters that appear in the resource itself and in
+    /// parent [scopes](crate::web::scope), if any.
+    ///
+    /// It is worth noting that the characters `['/', '%']` are not escaped and therefore a single
+    /// URL parameter may expand into multiple path segments and `elements` can be percent-encoded
+    /// beforehand without worrying about double encoding. Any other character that is not valid in
+    /// a URL path context is escaped using percent-encoding.
+    ///
+    /// # Examples
     /// ```
     /// # use actix_web::{web, App, HttpRequest, HttpResponse};
-    /// #
     /// fn index(req: HttpRequest) -> HttpResponse {
-    ///     let url = req.url_for("foo", &["1", "2", "3"]); // <- generate url for "foo" resource
+    ///     let url = req.url_for("foo", &["1", "2", "3"]); // <- generate URL for "foo" resource
     ///     HttpResponse::Ok().into()
     /// }
     ///
-    /// fn main() {
-    ///     let app = App::new()
-    ///         .service(web::resource("/test/{one}/{two}/{three}")
-    ///              .name("foo")  // <- set resource name, then it could be used in `url_for`
-    ///              .route(web::get().to(|| HttpResponse::Ok()))
-    ///         );
-    /// }
+    /// let app = App::new()
+    ///     .service(web::resource("/test/{one}/{two}/{three}")
+    ///          .name("foo")  // <- set resource name so it can be used in `url_for`
+    ///          .route(web::get().to(|| HttpResponse::Ok()))
+    ///     );
     /// ```
     pub fn url_for<U, I>(&self, name: &str, elements: U) -> Result<url::Url, UrlGenerationError>
     where
@@ -196,8 +206,8 @@ impl HttpRequest {
         self.url_for(name, &NO_PARAMS)
     }
 
-    #[inline]
     /// Get a reference to a `ResourceMap` of current application.
+    #[inline]
     pub fn resource_map(&self) -> &ResourceMap {
         self.app_state().rmap()
     }
@@ -256,7 +266,7 @@ impl HttpRequest {
     /// Load request cookies.
     #[cfg(feature = "cookies")]
     pub fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
-        use actix_http::http::header::COOKIE;
+        use actix_http::header::COOKIE;
 
         if self.extensions().get::<Cookies>().is_none() {
             let mut cookies = Vec::new();

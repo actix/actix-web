@@ -1,7 +1,7 @@
 use std::convert::Infallible;
 
 use actix_http::{
-    body::AnyBody, http, http::StatusCode, HttpMessage, HttpService, Request, Response,
+    body::BoxBody, HttpMessage, HttpService, Request, Response, StatusCode,
 };
 use actix_http_test::test_server;
 use actix_service::ServiceFactoryExt;
@@ -99,7 +99,7 @@ async fn test_with_query_parameter() {
 #[display(fmt = "expect failed")]
 struct ExpectFailed;
 
-impl From<ExpectFailed> for Response<AnyBody> {
+impl From<ExpectFailed> for Response<BoxBody> {
     fn from(_: ExpectFailed) -> Self {
         Response::new(StatusCode::EXPECTATION_FAILED)
     }

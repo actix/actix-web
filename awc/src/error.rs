@@ -1,15 +1,18 @@
 //! HTTP client errors
 
 pub use actix_http::{
-    error::PayloadError,
-    http::{header::HeaderValue, Error as HttpError, StatusCode},
+    error::{HttpError, PayloadError},
+    header::HeaderValue,
     ws::{HandshakeError as WsHandshakeError, ProtocolError as WsProtocolError},
+    StatusCode,
 };
 
 use derive_more::{Display, From};
 use serde_json::error::Error as JsonError;
 
 pub use crate::client::{ConnectError, FreezeRequestError, InvalidUrl, SendRequestError};
+
+// TODO: address display, error, and from impls
 
 /// Websocket client error
 #[derive(Debug, Display, From)]

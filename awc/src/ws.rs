@@ -26,9 +26,7 @@
 //! }
 //! ```
 
-use std::convert::TryFrom;
-use std::net::SocketAddr;
-use std::{fmt, str};
+use std::{convert::TryFrom, fmt, net::SocketAddr, str};
 
 use actix_codec::Framed;
 use actix_http::{ws, Payload, RequestHead};
@@ -37,14 +35,19 @@ use actix_service::Service;
 
 pub use actix_http::ws::{CloseCode, CloseReason, Codec, Frame, Message};
 
-use crate::connect::{BoxedSocket, ConnectRequest};
+use crate::{
+    connect::{BoxedSocket, ConnectRequest},
+    error::{HttpError, InvalidUrl, SendRequestError, WsClientError},
+    http::{
+        header::{self, HeaderName, HeaderValue, IntoHeaderValue, AUTHORIZATION},
+        ConnectionType, Method, StatusCode, Uri, Version,
+    },
+    response::ClientResponse,
+    ClientConfig,
+};
+
 #[cfg(feature = "cookies")]
 use crate::cookie::{Cookie, CookieJar};
-use crate::error::{InvalidUrl, SendRequestError, WsClientError};
-use crate::http::header::{self, HeaderName, HeaderValue, IntoHeaderValue, AUTHORIZATION};
-use crate::http::{ConnectionType, Error as HttpError, Method, StatusCode, Uri, Version};
-use crate::response::ClientResponse;
-use crate::ClientConfig;
 
 /// WebSocket connection.
 pub struct WebsocketsRequest {
@@ -312,9 +315,8 @@ impl WebsocketsRequest {
             );
         }
 
-        // Generate a random key for the `Sec-WebSocket-Key` header.
-        // a base64-encoded (see Section 4 of [RFC4648]) value that,
-        // when decoded, is 16 bytes in length (RFC 6455)
+        // Generate a random key for the `Sec-WebSocket-Key` header which is a base64-encoded
+        // (see RFC 4648 §4) value that, when decoded, is 16 bytes in length (RFC 6455 §1.3).
         let sec_key: [u8; 16] = rand::random();
         let key = base64::encode(&sec_key);
 

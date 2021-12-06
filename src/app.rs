@@ -1,37 +1,35 @@
-use std::cell::RefCell;
-use std::fmt;
-use std::future::Future;
-use std::marker::PhantomData;
-use std::rc::Rc;
+use std::{cell::RefCell, fmt, future::Future, marker::PhantomData, rc::Rc};
 
-use actix_http::body::{Body, MessageBody};
-use actix_http::{Extensions, Request};
-use actix_service::boxed::{self, BoxServiceFactory};
+use actix_http::{
+    body::{BoxBody, MessageBody},
+    Extensions, Request,
+};
 use actix_service::{
-    apply, apply_fn_factory, IntoServiceFactory, ServiceFactory, ServiceFactoryExt, Transform,
+    apply, apply_fn_factory, boxed, IntoServiceFactory, ServiceFactory, ServiceFactoryExt,
+    Transform,
 };
 use futures_util::future::FutureExt as _;
 
-use crate::app_service::{AppEntry, AppInit, AppRoutingFactory};
-use crate::config::ServiceConfig;
-use crate::data::{Data, DataFactory, FnDataFactory};
-use crate::dev::ResourceDef;
-use crate::error::Error;
-use crate::resource::Resource;
-use crate::route::Route;
-use crate::service::{
-    AppServiceFactory, HttpServiceFactory, ServiceFactoryWrapper, ServiceRequest,
-    ServiceResponse,
+use crate::{
+    app_service::{AppEntry, AppInit, AppRoutingFactory},
+    config::ServiceConfig,
+    data::{Data, DataFactory, FnDataFactory},
+    dev::ResourceDef,
+    error::Error,
+    resource::Resource,
+    route::Route,
+    service::{
+        AppServiceFactory, BoxedHttpServiceFactory, HttpServiceFactory, ServiceFactoryWrapper,
+        ServiceRequest, ServiceResponse,
+    },
 };
-
-type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
 
 /// Application builder - structure that follows the builder pattern
 /// for building application instances.
 pub struct App<T, B> {
     endpoint: T,
     services: Vec<Box<dyn AppServiceFactory>>,
-    default: Option<Rc<HttpNewService>>,
+    default: Option<Rc<BoxedHttpServiceFactory>>,
     factory_ref: Rc<RefCell<Option<AppRoutingFactory>>>,
     data_factories: Vec<FnDataFactory>,
     external: Vec<ResourceDef>,
@@ -39,7 +37,7 @@ pub struct App<T, B> {
     _phantom: PhantomData<B>,
 }
 
-impl App<AppEntry, Body> {
+impl App<AppEntry, BoxBody> {
     /// Create application builder. Application can be configured with a builder-like pattern.
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
@@ -142,10 +140,6 @@ where
     /// Add application data factory. This function is similar to `.data()` but it accepts a
     /// "data factory". Data values are constructed asynchronously during application
     /// initialization, before the server starts accepting requests.
-    #[deprecated(
-        since = "4.0.0",
-        note = "Construct data value before starting server and use `.app_data(Data::new(val))` instead."
-    )]
     pub fn data_factory<F, Out, D, E>(mut self, data: F) -> Self
     where
         F: Fn() -> Out + 'static,
@@ -287,7 +281,7 @@ where
     ///         );
     /// }
     /// ```
-    pub fn default_service<F, U>(mut self, f: F) -> Self
+    pub fn default_service<F, U>(mut self, svc: F) -> Self
     where
         F: IntoServiceFactory<U, ServiceRequest>,
         U: ServiceFactory<
@@ -298,10 +292,12 @@ where
             > + 'static,
         U::InitError: fmt::Debug,
     {
-        // create and configure default resource
-        self.default = Some(Rc::new(boxed::factory(f.into_factory().map_init_err(
-            |e| log::error!("Can not construct default service: {:?}", e),
-        ))));
+        let svc = svc
+            .into_factory()
+            .map(|res| res.map_into_boxed_body())
+            .map_init_err(|e| log::error!("Can not construct default service: {:?}", e));
+
+        self.default = Some(Rc::new(boxed::factory(svc)));
 
         self
     }
@@ -357,7 +353,7 @@ where
     /// ```
     /// use actix_service::Service;
     /// use actix_web::{middleware, web, App};
-    /// use actix_web::http::{header::CONTENT_TYPE, HeaderValue};
+    /// use actix_web::http::header::{CONTENT_TYPE, HeaderValue};
     ///
     /// async fn index() -> &'static str {
     ///     "Welcome!"
@@ -414,7 +410,7 @@ where
     /// ```
     /// use actix_service::Service;
     /// use actix_web::{web, App};
-    /// use actix_web::http::{header::CONTENT_TYPE, HeaderValue};
+    /// use actix_web::http::header::{CONTENT_TYPE, HeaderValue};
     ///
     /// async fn index() -> &'static str {
     ///     "Welcome!"
@@ -498,7 +494,10 @@ mod tests {
     use bytes::Bytes;
 
     use super::*;
-    use crate::http::{header, HeaderValue, Method, StatusCode};
+    use crate::http::{
+        header::{self, HeaderValue},
+        Method, StatusCode,
+    };
     use crate::middleware::DefaultHeaders;
     use crate::service::ServiceRequest;
     use crate::test::{call_service, init_service, read_body, try_init_service, TestRequest};

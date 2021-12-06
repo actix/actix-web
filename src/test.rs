@@ -4,10 +4,8 @@ use std::{borrow::Cow, net::SocketAddr, rc::Rc};
 
 pub use actix_http::test::TestBuffer;
 use actix_http::{
-    body,
-    http::{header::IntoHeaderPair, Method, StatusCode, Uri, Version},
-    test::TestRequest as HttpTestRequest,
-    Extensions, Request,
+    header::IntoHeaderPair, test::TestRequest as HttpTestRequest, Extensions, Method, Request,
+    StatusCode, Uri, Version,
 };
 use actix_router::{Path, ResourceDef, Url};
 use actix_service::{IntoService, IntoServiceFactory, Service, ServiceFactory};
@@ -20,9 +18,10 @@ use serde::{de::DeserializeOwned, Serialize};
 use crate::cookie::{Cookie, CookieJar};
 use crate::{
     app_service::AppInitServiceState,
+    body::{self, BoxBody, MessageBody},
     config::AppConfig,
     data::Data,
-    dev::{Body, MessageBody, Payload},
+    dev::Payload,
     http::header::ContentType,
     rmap::ResourceMap,
     service::{ServiceRequest, ServiceResponse},
@@ -32,14 +31,14 @@ use crate::{
 
 /// Create service that always responds with `HttpResponse::Ok()` and no body.
 pub fn ok_service(
-) -> impl Service<ServiceRequest, Response = ServiceResponse<Body>, Error = Error> {
+) -> impl Service<ServiceRequest, Response = ServiceResponse<BoxBody>, Error = Error> {
     default_service(StatusCode::OK)
 }
 
 /// Create service that always responds with given status code and no body.
 pub fn default_service(
     status_code: StatusCode,
-) -> impl Service<ServiceRequest, Response = ServiceResponse<Body>, Error = Error> {
+) -> impl Service<ServiceRequest, Response = ServiceResponse<BoxBody>, Error = Error> {
     (move |req: ServiceRequest| {
         ok(req.into_response(HttpResponseBuilder::new(status_code).finish()))
     })
@@ -547,7 +546,7 @@ impl TestRequest {
 
         #[cfg(feature = "cookies")]
         {
-            use actix_http::http::header::{HeaderValue, COOKIE};
+            use actix_http::header::{HeaderValue, COOKIE};
 
             let cookie: String = self
                 .cookies
@@ -631,6 +630,22 @@ impl TestRequest {
         self.config.set_host(host)
     }
 }
+
+/// Reduces boilerplate code when testing expected response payloads.
+#[cfg(test)]
+macro_rules! assert_body_eq {
+    ($res:ident, $expected:expr) => {
+        assert_eq!(
+            ::actix_http::body::to_bytes($res.into_body())
+                .await
+                .expect("body read should have succeeded"),
+            Bytes::from_static($expected),
+        )
+    };
+}
+
+#[cfg(test)]
+pub(crate) use assert_body_eq;
 
 #[cfg(test)]
 mod tests {

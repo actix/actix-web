@@ -8,16 +8,16 @@ use std::{
 };
 
 use actix_http::{
-    body::{AnyBody, Body, MessageBody},
-    http::{header::HeaderMap, StatusCode},
-    Extensions, Response, ResponseHead,
+    body::{BoxBody, EitherBody, MessageBody},
+    header::HeaderMap,
+    Extensions, Response, ResponseHead, StatusCode,
 };
 
 #[cfg(feature = "cookies")]
 use {
-    actix_http::http::{
+    actix_http::{
+        error::HttpError,
         header::{self, HeaderValue},
-        Error as HttpError,
     },
     cookie::Cookie,
 };
@@ -25,12 +25,12 @@ use {
 use crate::{error::Error, HttpResponseBuilder};
 
 /// An outgoing response.
-pub struct HttpResponse<B = AnyBody> {
+pub struct HttpResponse<B = BoxBody> {
     res: Response<B>,
     pub(crate) error: Option<Error>,
 }
 
-impl HttpResponse<AnyBody> {
+impl HttpResponse<BoxBody> {
     /// Constructs a response.
     #[inline]
     pub fn new(status: StatusCode) -> Self {
@@ -227,6 +227,27 @@ impl<B> HttpResponse<B> {
         }
     }
 
+    // TODO: docs for the body map methods below
+
+    #[inline]
+    pub fn map_into_left_body<R>(self) -> HttpResponse<EitherBody<B, R>> {
+        self.map_body(|_, body| EitherBody::left(body))
+    }
+
+    #[inline]
+    pub fn map_into_right_body<L>(self) -> HttpResponse<EitherBody<L, B>> {
+        self.map_body(|_, body| EitherBody::right(body))
+    }
+
+    #[inline]
+    pub fn map_into_boxed_body(self) -> HttpResponse<BoxBody>
+    where
+        B: MessageBody + 'static,
+    {
+        // TODO: avoid double boxing with down-casting, if it improves perf
+        self.map_body(|_, body| BoxBody::new(body))
+    }
+
     /// Extract response body
     pub fn into_body(self) -> B {
         self.res.into_body()
@@ -270,14 +291,14 @@ impl<B> From<HttpResponse<B>> for Response<B> {
     }
 }
 
-// Future is only implemented for Body payload type because it's the most useful for making simple
-// handlers without async blocks. Making it generic over all MessageBody types requires a future
-// impl on Response which would cause it's body field to be, undesirably, Option<B>.
+// Future is only implemented for BoxBody payload type because it's the most useful for making
+// simple handlers without async blocks. Making it generic over all MessageBody types requires a
+// future impl on Response which would cause it's body field to be, undesirably, Option<B>.
 //
 // This impl is not particularly efficient due to the Response construction and should probably
 // not be invoked if performance is important. Prefer an async fn/block in such cases.
-impl Future for HttpResponse<Body> {
-    type Output = Result<Response<Body>, Error>;
+impl Future for HttpResponse<BoxBody> {
+    type Output = Result<Response<BoxBody>, Error>;
 
     fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
         if let Some(err) = self.error.take() {
@@ -293,7 +314,7 @@ impl Future for HttpResponse<Body> {
 
 #[cfg(feature = "cookies")]
 pub struct CookieIter<'a> {
-    iter: header::GetAll<'a>,
+    iter: header::map::GetAll<'a>,
 }
 
 #[cfg(feature = "cookies")]

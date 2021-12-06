@@ -2,19 +2,18 @@ use super::{HttpDate, DATE};
 use std::time::SystemTime;
 
 crate::http::header::common_header! {
-    /// `Date` header, defined in [RFC7231](http://tools.ietf.org/html/rfc7231#section-7.1.1.2)
+    /// `Date` header, defined
+    /// in [RFC 7231 §7.1.1.2](https://datatracker.ietf.org/doc/html/rfc7231#section-7.1.1.2)
     ///
     /// The `Date` header field represents the date and time at which the
     /// message was originated.
     ///
     /// # ABNF
-    ///
-    /// ```text
+    /// ```plain
     /// Date = HTTP-date
     /// ```
     ///
-    /// # Example values
-    ///
+    /// # Example Values
     /// * `Tue, 15 Nov 1994 08:12:31 GMT`
     ///
     /// # Example
@@ -31,7 +30,7 @@ crate::http::header::common_header! {
     /// ```
     (Date, DATE) => [HttpDate]
 
-    test_date {
+    test_parse_and_format {
         crate::http::header::common_header_test!(test1, vec![b"Tue, 15 Nov 1994 08:12:31 GMT"]);
     }
 }

@@ -2,7 +2,7 @@
 
 use std::{
     cmp,
-    convert::TryFrom,
+    convert::TryFrom as _,
     future::Future,
     marker::PhantomData,
     pin::Pin,
@@ -10,16 +10,16 @@ use std::{
 };
 
 use actix_http::{
-    body::{MessageBody, ResponseBody},
+    body::{EitherBody, MessageBody},
     encoding::Encoder,
-    http::header::{ContentEncoding, ACCEPT_ENCODING},
+    header::{ContentEncoding, ACCEPT_ENCODING},
     StatusCode,
 };
 use actix_service::{Service, Transform};
 use actix_utils::future::{ok, Either, Ready};
 use futures_core::ready;
 use once_cell::sync::Lazy;
-use pin_project::pin_project;
+use pin_project_lite::pin_project;
 
 use crate::{
     dev::BodyEncoding,
@@ -61,7 +61,7 @@ where
     B: MessageBody,
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
-    type Response = ServiceResponse<ResponseBody<Encoder<B>>>;
+    type Response = ServiceResponse<EitherBody<Encoder<B>>>;
     type Error = Error;
     type Transform = CompressMiddleware<S>;
     type InitError = ();
@@ -81,7 +81,8 @@ pub struct CompressMiddleware<S> {
 }
 
 static SUPPORTED_ALGORITHM_NAMES: Lazy<String> = Lazy::new(|| {
-    let mut encoding = vec![];
+    #[allow(unused_mut)] // only unused when no compress features enabled
+    let mut encoding: Vec<&str> = vec![];
 
     #[cfg(feature = "compress-brotli")]
     {
@@ -110,7 +111,7 @@ where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     B: MessageBody,
 {
-    type Response = ServiceResponse<ResponseBody<Encoder<B>>>;
+    type Response = ServiceResponse<EitherBody<Encoder<B>>>;
     type Error = Error;
     type Future = Either<CompressResponse<S, B>, Ready<Result<Self::Response, Self::Error>>>;
 
@@ -144,27 +145,28 @@ where
             Some(Err(_)) => {
                 let res = HttpResponse::with_body(
                     StatusCode::NOT_ACCEPTABLE,
-                    SUPPORTED_ALGORITHM_NAMES.as_str(),
+                    SUPPORTED_ALGORITHM_NAMES.clone(),
                 );
-                let enc = ContentEncoding::Identity;
 
-                Either::right(ok(req.into_response(res.map_body(move |head, body| {
-                    Encoder::response(enc, head, ResponseBody::Other(body.into()))
-                }))))
+                Either::right(ok(req
+                    .into_response(res)
+                    .map_into_boxed_body()
+                    .map_into_right_body()))
             }
         }
     }
 }
 
-#[pin_project]
-pub struct CompressResponse<S, B>
-where
-    S: Service<ServiceRequest>,
-{
-    #[pin]
-    fut: S::Future,
-    encoding: ContentEncoding,
-    _phantom: PhantomData<B>,
+pin_project! {
+    pub struct CompressResponse<S, B>
+    where
+        S: Service<ServiceRequest>,
+    {
+        #[pin]
+        fut: S::Future,
+        encoding: ContentEncoding,
+        _phantom: PhantomData<B>,
+    }
 }
 
 impl<S, B> Future for CompressResponse<S, B>
@@ -172,7 +174,7 @@ where
     B: MessageBody,
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
-    type Output = Result<ServiceResponse<ResponseBody<Encoder<B>>>, Error>;
+    type Output = Result<ServiceResponse<EitherBody<Encoder<B>>>, Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
@@ -186,10 +188,11 @@ where
                 };
 
                 Poll::Ready(Ok(resp.map_body(move |head, body| {
-                    Encoder::response(enc, head, ResponseBody::Body(body))
+                    EitherBody::left(Encoder::response(enc, head, body))
                 })))
             }
-            Err(e) => Poll::Ready(Err(e)),
+
+            Err(err) => Poll::Ready(Err(err)),
         }
     }
 }

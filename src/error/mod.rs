@@ -1,6 +1,12 @@
 //! Error and Result module
 
-pub use actix_http::error::*;
+/// This is meant to be a glob import of the whole error module, but rustdoc can't handle
+/// shadowing `Error` type, so it is expanded manually.
+/// See https://github.com/rust-lang/rust/issues/83375
+pub use actix_http::error::{
+    BlockingError, ContentTypeError, DispatchError, HttpError, ParseError, PayloadError,
+};
+
 use derive_more::{Display, Error, From};
 use serde_json::error::Error as JsonError;
 use serde_urlencoded::de::Error as FormDeError;
@@ -29,15 +35,15 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, PartialEq, Display, Error, From)]
 #[non_exhaustive]
 pub enum UrlGenerationError {
-    /// Resource not found
+    /// Resource not found.
     #[display(fmt = "Resource not found")]
     ResourceNotFound,
 
-    /// Not all path pattern covered
-    #[display(fmt = "Not all path pattern covered")]
+    /// Not all URL parameters covered.
+    #[display(fmt = "Not all URL parameters covered")]
     NotEnoughElements,
 
-    /// URL parse error
+    /// URL parse error.
     #[display(fmt = "{}", _0)]
     ParseError(UrlParseError),
 }

@@ -9,14 +9,17 @@ use crate::{
     HttpMessage,
 };
 
-/// Error return when a content encoding is unknown.
-///
-/// Example: 'compress'
+/// Error returned when a content encoding is unknown.
 #[derive(Debug, Display, Error)]
 #[display(fmt = "unsupported content encoding")]
 pub struct ContentEncodingParseError;
 
 /// Represents a supported content encoding.
+///
+/// Includes a commonly-used subset of media types appropriate for use as HTTP content encodings.
+/// See [IANA HTTP Content Coding Registry].
+///
+/// [IANA HTTP Content Coding Registry]: https://www.iana.org/assignments/http-parameters/http-parameters.xhtml
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[non_exhaustive]
 pub enum ContentEncoding {
@@ -32,7 +35,7 @@ pub enum ContentEncoding {
     /// Gzip algorithm.
     Gzip,
 
-    // Zstd algorithm.
+    /// Zstd algorithm.
     Zstd,
 
     /// Indicates the identity function (i.e. no compression, nor modification).

@@ -8,7 +8,7 @@ use crate::{
     helpers::MutWriter,
 };
 
-/// A timestamp with HTTP formatting and parsing.
+/// A timestamp with HTTP-style formatting and parsing.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct HttpDate(SystemTime);
 

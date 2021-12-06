@@ -3,6 +3,20 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 3.0.0-beta.12 - 2021-11-30
+* Update `actix-tls` to `3.0.0-rc.1`. [#2474]
+
+[#2474]: https://github.com/actix/actix-web/pull/2474
+
+
+## 3.0.0-beta.11 - 2021-11-22
+* No significant changes from `3.0.0-beta.10`.
+
+
+## 3.0.0-beta.10 - 2021-11-15
+* No significant changes from `3.0.0-beta.9`.
+
+
 ## 3.0.0-beta.9 - 2021-10-20
 * Updated rustls to v0.20. [#2414]
 

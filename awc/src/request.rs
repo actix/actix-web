@@ -1,26 +1,25 @@
-use std::{convert::TryFrom, error::Error as StdError, fmt, net, rc::Rc, time::Duration};
+use std::{convert::TryFrom, fmt, net, rc::Rc, time::Duration};
 
 use bytes::Bytes;
 use futures_core::Stream;
 use serde::Serialize;
 
 use actix_http::{
-    body::Body,
-    http::{
-        header::{self, IntoHeaderPair},
-        ConnectionType, Error as HttpError, HeaderMap, HeaderValue, Method, Uri, Version,
-    },
-    RequestHead,
+    error::HttpError,
+    header::{self, HeaderMap, HeaderValue, IntoHeaderPair},
+    ConnectionType, Method, RequestHead, Uri, Version,
+};
+
+use crate::{
+    any_body::AnyBody,
+    error::{FreezeRequestError, InvalidUrl},
+    frozen::FrozenClientRequest,
+    sender::{PrepForSendingError, RequestSender, SendClientRequest},
+    BoxError, ClientConfig,
 };
 
 #[cfg(feature = "cookies")]
 use crate::cookie::{Cookie, CookieJar};
-use crate::{
-    error::{FreezeRequestError, InvalidUrl},
-    frozen::FrozenClientRequest,
-    sender::{PrepForSendingError, RequestSender, SendClientRequest},
-    ClientConfig,
-};
 
 /// An HTTP Client request builder
 ///
@@ -115,10 +114,10 @@ impl ClientRequest {
         &self.head.method
     }
 
-    #[doc(hidden)]
     /// Set HTTP version of this request.
     ///
     /// By default requests's HTTP version depends on network stream
+    #[doc(hidden)]
     #[inline]
     pub fn version(mut self, version: Version) -> Self {
         self.head.version = version;
@@ -350,7 +349,7 @@ impl ClientRequest {
     /// Complete request construction and send body.
     pub fn send_body<B>(self, body: B) -> SendClientRequest
     where
-        B: Into<Body>,
+        B: Into<AnyBody>,
     {
         let slf = match self.prep_for_sending() {
             Ok(slf) => slf,
@@ -404,7 +403,7 @@ impl ClientRequest {
     pub fn send_stream<S, E>(self, stream: S) -> SendClientRequest
     where
         S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
-        E: Into<Box<dyn StdError>> + 'static,
+        E: Into<BoxError> + 'static,
     {
         let slf = match self.prep_for_sending() {
             Ok(slf) => slf,
@@ -538,7 +537,7 @@ impl fmt::Debug for ClientRequest {
 mod tests {
     use std::time::SystemTime;
 
-    use actix_http::http::header::HttpDate;
+    use actix_http::header::HttpDate;
 
     use super::*;
     use crate::Client;

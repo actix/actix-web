@@ -1,29 +1,35 @@
-use actix_service::{Service, ServiceFactory};
-use actix_utils::future::{ok, ready, Ready};
-use actix_web::dev::{AppService, HttpServiceFactory, ResourceDef};
-use std::fs::{File, Metadata};
-use std::io;
-use std::ops::{Deref, DerefMut};
-use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    fmt,
+    fs::Metadata,
+    io,
+    ops::{Deref, DerefMut},
+    path::{Path, PathBuf},
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 
+use actix_service::{Service, ServiceFactory};
 use actix_web::{
-    dev::{BodyEncoding, ServiceRequest, ServiceResponse, SizedStream},
+    body::{self, BoxBody, SizedStream},
+    dev::{
+        AppService, BodyEncoding, HttpServiceFactory, ResourceDef, ServiceRequest,
+        ServiceResponse,
+    },
     http::{
         header::{
-            self, Charset, ContentDisposition, DispositionParam, DispositionType, ExtendedValue,
+            self, Charset, ContentDisposition, ContentEncoding, DispositionParam,
+            DispositionType, ExtendedValue,
         },
-        ContentEncoding, StatusCode,
+        StatusCode,
     },
     Error, HttpMessage, HttpRequest, HttpResponse, Responder,
 };
 use bitflags::bitflags;
+use futures_core::future::LocalBoxFuture;
 use mime_guess::from_path;
 
-use crate::ChunkedReadFile;
 use crate::{encoding::equiv_utf8_text, range::HttpRange};
 
 bitflags! {
@@ -48,9 +54,9 @@ impl Default for Flags {
 /// use actix_web::App;
 /// use actix_files::NamedFile;
 ///
-/// # fn run() -> Result<(), Box<dyn std::error::Error>> {
-/// let app = App::new()
-///     .service(NamedFile::open("./static/index.html")?);
+/// # async fn run() -> Result<(), Box<dyn std::error::Error>> {
+/// let file = NamedFile::open_async("./static/index.html").await?;
+/// let app = App::new().service(file);
 /// # Ok(())
 /// # }
 /// ```
@@ -62,10 +68,9 @@ impl Default for Flags {
 ///
 /// #[get("/")]
 /// async fn index() -> impl Responder {
-///     NamedFile::open("./static/index.html")
+///     NamedFile::open_async("./static/index.html").await
 /// }
 /// ```
-#[derive(Debug)]
 pub struct NamedFile {
     path: PathBuf,
     file: File,
@@ -78,6 +83,39 @@ pub struct NamedFile {
     pub(crate) encoding: Option<ContentEncoding>,
 }
 
+impl fmt::Debug for NamedFile {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("NamedFile")
+            .field("path", &self.path)
+            .field(
+                "file",
+                #[cfg(feature = "experimental-io-uring")]
+                {
+                    &"tokio_uring::File"
+                },
+                #[cfg(not(feature = "experimental-io-uring"))]
+                {
+                    &self.file
+                },
+            )
+            .field("modified", &self.modified)
+            .field("md", &self.md)
+            .field("flags", &self.flags)
+            .field("status_code", &self.status_code)
+            .field("content_type", &self.content_type)
+            .field("content_disposition", &self.content_disposition)
+            .field("encoding", &self.encoding)
+            .finish()
+    }
+}
+
+#[cfg(not(feature = "experimental-io-uring"))]
+pub(crate) use std::fs::File;
+#[cfg(feature = "experimental-io-uring")]
+pub(crate) use tokio_uring::fs::File;
+
+use super::chunked;
+
 impl NamedFile {
     /// Creates an instance from a previously opened file.
     ///
@@ -85,8 +123,7 @@ impl NamedFile {
     /// `ContentDisposition` headers.
     ///
     /// # Examples
-    ///
-    /// ```
+    /// ```ignore
     /// use actix_files::NamedFile;
     /// use std::io::{self, Write};
     /// use std::env;
@@ -147,7 +184,30 @@ impl NamedFile {
             (ct, cd)
         };
 
-        let md = file.metadata()?;
+        let md = {
+            #[cfg(not(feature = "experimental-io-uring"))]
+            {
+                file.metadata()?
+            }
+
+            #[cfg(feature = "experimental-io-uring")]
+            {
+                use std::os::unix::prelude::{AsRawFd, FromRawFd};
+
+                let fd = file.as_raw_fd();
+
+                // SAFETY: fd is borrowed and lives longer than the unsafe block
+                unsafe {
+                    let file = std::fs::File::from_raw_fd(fd);
+                    let md = file.metadata();
+                    // SAFETY: forget the fd before exiting block in success or error case but don't
+                    // run destructor (that would close file handle)
+                    std::mem::forget(file);
+                    md?
+                }
+            }
+        };
+
         let modified = md.modified().ok();
         let encoding = None;
 
@@ -164,17 +224,45 @@ impl NamedFile {
         })
     }
 
+    #[cfg(not(feature = "experimental-io-uring"))]
     /// Attempts to open a file in read-only mode.
     ///
     /// # Examples
-    ///
     /// ```
     /// use actix_files::NamedFile;
-    ///
     /// let file = NamedFile::open("foo.txt");
     /// ```
     pub fn open<P: AsRef<Path>>(path: P) -> io::Result<NamedFile> {
-        Self::from_file(File::open(&path)?, path)
+        let file = File::open(&path)?;
+        Self::from_file(file, path)
+    }
+
+    /// Attempts to open a file asynchronously in read-only mode.
+    ///
+    /// When the `experimental-io-uring` crate feature is enabled, this will be async.
+    /// Otherwise, it will be just like [`open`][Self::open].
+    ///
+    /// # Examples
+    /// ```
+    /// use actix_files::NamedFile;
+    /// # async fn open() {
+    /// let file = NamedFile::open_async("foo.txt").await.unwrap();
+    /// # }
+    /// ```
+    pub async fn open_async<P: AsRef<Path>>(path: P) -> io::Result<NamedFile> {
+        let file = {
+            #[cfg(not(feature = "experimental-io-uring"))]
+            {
+                File::open(&path)?
+            }
+
+            #[cfg(feature = "experimental-io-uring")]
+            {
+                File::open(&path).await?
+            }
+        };
+
+        Self::from_file(file, path)
     }
 
     /// Returns reference to the underlying `File` object.
@@ -186,13 +274,12 @@ impl NamedFile {
     /// Retrieve the path of this file.
     ///
     /// # Examples
-    ///
     /// ```
     /// # use std::io;
     /// use actix_files::NamedFile;
     ///
-    /// # fn path() -> io::Result<()> {
-    /// let file = NamedFile::open("test.txt")?;
+    /// # async fn path() -> io::Result<()> {
+    /// let file = NamedFile::open_async("test.txt").await?;
     /// assert_eq!(file.path().as_os_str(), "foo.txt");
     /// # Ok(())
     /// # }
@@ -310,7 +397,7 @@ impl NamedFile {
     }
 
     /// Creates an `HttpResponse` with file as a streaming body.
-    pub fn into_response(self, req: &HttpRequest) -> HttpResponse {
+    pub fn into_response(self, req: &HttpRequest) -> HttpResponse<BoxBody> {
         if self.status_code != StatusCode::OK {
             let mut res = HttpResponse::build(self.status_code);
 
@@ -332,7 +419,7 @@ impl NamedFile {
                 res.encoding(current_encoding);
             }
 
-            let reader = ChunkedReadFile::new(self.md.len(), 0, self.file);
+            let reader = chunked::new_chunked_read(self.md.len(), 0, self.file);
 
             return res.streaming(reader);
         }
@@ -443,30 +530,19 @@ impl NamedFile {
         if precondition_failed {
             return resp.status(StatusCode::PRECONDITION_FAILED).finish();
         } else if not_modified {
-            return resp.status(StatusCode::NOT_MODIFIED).finish();
+            return resp
+                .status(StatusCode::NOT_MODIFIED)
+                .body(body::None::new())
+                .map_into_boxed_body();
         }
 
-        let reader = ChunkedReadFile::new(length, offset, self.file);
+        let reader = chunked::new_chunked_read(length, offset, self.file);
 
         if offset != 0 || length != self.md.len() {
             resp.status(StatusCode::PARTIAL_CONTENT);
         }
 
         resp.body(SizedStream::new(length, reader))
-    }
-}
-
-impl Deref for NamedFile {
-    type Target = File;
-
-    fn deref(&self) -> &File {
-        &self.file
-    }
-}
-
-impl DerefMut for NamedFile {
-    fn deref_mut(&mut self) -> &mut File {
-        &mut self.file
     }
 }
 
@@ -510,8 +586,24 @@ fn none_match(etag: Option<&header::EntityTag>, req: &HttpRequest) -> bool {
     }
 }
 
+impl Deref for NamedFile {
+    type Target = File;
+
+    fn deref(&self) -> &Self::Target {
+        &self.file
+    }
+}
+
+impl DerefMut for NamedFile {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.file
+    }
+}
+
 impl Responder for NamedFile {
-    fn respond_to(self, req: &HttpRequest) -> HttpResponse {
+    type Body = BoxBody;
+
+    fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
         self.into_response(req)
     }
 }
@@ -520,14 +612,16 @@ impl ServiceFactory<ServiceRequest> for NamedFile {
     type Response = ServiceResponse;
     type Error = Error;
     type Config = ();
-    type InitError = ();
     type Service = NamedFileService;
-    type Future = Ready<Result<Self::Service, ()>>;
+    type InitError = ();
+    type Future = LocalBoxFuture<'static, Result<Self::Service, Self::InitError>>;
 
     fn new_service(&self, _: ()) -> Self::Future {
-        ok(NamedFileService {
+        let service = NamedFileService {
             path: self.path.clone(),
-        })
+        };
+
+        Box::pin(async move { Ok(service) })
     }
 }
 
@@ -540,18 +634,19 @@ pub struct NamedFileService {
 impl Service<ServiceRequest> for NamedFileService {
     type Response = ServiceResponse;
     type Error = Error;
-    type Future = Ready<Result<Self::Response, Self::Error>>;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
     actix_service::always_ready!();
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let (req, _) = req.into_parts();
-        ready(
-            NamedFile::open(&self.path)
-                .map_err(|e| e.into())
-                .map(|f| f.into_response(&req))
-                .map(|res| ServiceResponse::new(req, res)),
-        )
+
+        let path = self.path.clone();
+        Box::pin(async move {
+            let file = NamedFile::open_async(path).await?;
+            let res = file.into_response(&req);
+            Ok(ServiceResponse::new(req, res))
+        })
     }
 }
 

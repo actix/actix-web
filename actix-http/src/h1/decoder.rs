@@ -174,7 +174,7 @@ pub(crate) trait MessageType: Sized {
             self.set_expect()
         }
 
-        // https://tools.ietf.org/html/rfc7230#section-3.3.3
+        // https://datatracker.ietf.org/doc/html/rfc7230#section-3.3.3
         if chunked {
             // Chunked encoding
             Ok(PayloadLength::Payload(PayloadType::Payload(
@@ -511,7 +511,7 @@ mod tests {
     use super::*;
     use crate::{
         error::ParseError,
-        http::header::{HeaderName, SET_COOKIE},
+        header::{HeaderName, SET_COOKIE},
         HttpMessage as _,
     };
 

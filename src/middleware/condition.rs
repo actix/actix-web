@@ -102,7 +102,10 @@ mod tests {
     use crate::{
         dev::{ServiceRequest, ServiceResponse},
         error::Result,
-        http::{header::CONTENT_TYPE, HeaderValue, StatusCode},
+        http::{
+            header::{HeaderValue, CONTENT_TYPE},
+            StatusCode,
+        },
         middleware::err_handlers::*,
         test::{self, TestRequest},
         HttpResponse,

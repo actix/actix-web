@@ -104,6 +104,7 @@
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 
+mod any_body;
 mod builder;
 mod client;
 mod connect;
@@ -116,7 +117,8 @@ mod sender;
 pub mod test;
 pub mod ws;
 
-pub use actix_http::http;
+// TODO: hmmmmmm
+pub use actix_http as http;
 #[cfg(feature = "cookies")]
 pub use cookie;
 
@@ -130,14 +132,13 @@ pub use self::sender::SendClientRequest;
 
 use std::{convert::TryFrom, rc::Rc, time::Duration};
 
-use actix_http::{
-    http::{Error as HttpError, HeaderMap, Method, Uri},
-    RequestHead,
-};
+use actix_http::{error::HttpError, header::HeaderMap, Method, RequestHead, Uri};
 use actix_rt::net::TcpStream;
 use actix_service::Service;
 
-use self::client::{TcpConnect, TcpConnectError, TcpConnection};
+use self::client::{ConnectInfo, TcpConnectError, TcpConnection};
+
+pub(crate) type BoxError = Box<dyn std::error::Error>;
 
 /// An asynchronous HTTP and WebSocket client.
 ///
@@ -186,7 +187,7 @@ impl Client {
     /// This function is equivalent of `ClientBuilder::new()`.
     pub fn builder() -> ClientBuilder<
         impl Service<
-                TcpConnect<Uri>,
+                ConnectInfo<Uri>,
                 Response = TcpConnection<Uri, TcpStream>,
                 Error = TcpConnectError,
             > + Clone,

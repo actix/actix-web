@@ -1,5 +1,4 @@
 use std::{
-    error::Error as StdError,
     future::Future,
     net,
     pin::Pin,
@@ -9,12 +8,10 @@ use std::{
 };
 
 use actix_http::{
-    body::{Body, BodyStream},
-    http::{
-        header::{self, HeaderMap, HeaderName, IntoHeaderValue},
-        Error as HttpError,
-    },
-    Error, RequestHead, RequestHeadType,
+    body::BodyStream,
+    error::HttpError,
+    header::{self, HeaderMap, HeaderName, IntoHeaderValue},
+    RequestHead, RequestHeadType,
 };
 use actix_rt::time::{sleep, Sleep};
 use bytes::Bytes;
@@ -23,11 +20,12 @@ use futures_core::Stream;
 use serde::Serialize;
 
 #[cfg(feature = "__compress")]
-use actix_http::{encoding::Decoder, http::header::ContentEncoding, Payload, PayloadStream};
+use actix_http::{encoding::Decoder, header::ContentEncoding, Payload, PayloadStream};
 
 use crate::{
+    any_body::AnyBody,
     error::{FreezeRequestError, InvalidUrl, SendRequestError},
-    ClientConfig, ClientResponse, ConnectRequest, ConnectResponse,
+    BoxError, ClientConfig, ClientResponse, ConnectRequest, ConnectResponse,
 };
 
 #[derive(Debug, From)]
@@ -162,12 +160,6 @@ impl From<SendRequestError> for SendClientRequest {
     }
 }
 
-impl From<Error> for SendClientRequest {
-    fn from(e: Error) -> Self {
-        SendClientRequest::Err(Some(e.into()))
-    }
-}
-
 impl From<HttpError> for SendClientRequest {
     fn from(e: HttpError) -> Self {
         SendClientRequest::Err(Some(e.into()))
@@ -196,7 +188,7 @@ impl RequestSender {
         body: B,
     ) -> SendClientRequest
     where
-        B: Into<Body>,
+        B: Into<AnyBody>,
     {
         let req = match self {
             RequestSender::Owned(head) => {
@@ -236,7 +228,9 @@ impl RequestSender {
             response_decompress,
             timeout,
             config,
-            Body::Bytes(Bytes::from(body)),
+            AnyBody::Bytes {
+                body: Bytes::from(body),
+            },
         )
     }
 
@@ -265,7 +259,9 @@ impl RequestSender {
             response_decompress,
             timeout,
             config,
-            Body::Bytes(Bytes::from(body)),
+            AnyBody::Bytes {
+                body: Bytes::from(body),
+            },
         )
     }
 
@@ -279,14 +275,14 @@ impl RequestSender {
     ) -> SendClientRequest
     where
         S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
-        E: Into<Box<dyn StdError>> + 'static,
+        E: Into<BoxError> + 'static,
     {
         self.send_body(
             addr,
             response_decompress,
             timeout,
             config,
-            Body::from_message(BodyStream::new(stream)),
+            AnyBody::new_boxed(BodyStream::new(stream)),
         )
     }
 
@@ -297,7 +293,7 @@ impl RequestSender {
         timeout: Option<Duration>,
         config: &ClientConfig,
     ) -> SendClientRequest {
-        self.send_body(addr, response_decompress, timeout, config, Body::Empty)
+        self.send_body(addr, response_decompress, timeout, config, AnyBody::empty())
     }
 
     fn set_header_if_none<V>(&mut self, key: HeaderName, value: V) -> Result<(), HttpError>

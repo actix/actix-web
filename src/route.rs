@@ -1,19 +1,18 @@
-#![allow(clippy::rc_buffer)] // inner value is mutated before being shared (`Rc::get_mut`)
+use std::{future::Future, mem, rc::Rc};
 
-use std::{future::Future, rc::Rc};
-
-use actix_http::http::Method;
+use actix_http::Method;
 use actix_service::{
-    boxed::{self, BoxService, BoxServiceFactory},
-    Service, ServiceFactory, ServiceFactoryExt,
+    boxed::{self, BoxService},
+    fn_service, Service, ServiceFactory, ServiceFactoryExt,
 };
 use futures_core::future::LocalBoxFuture;
 
 use crate::{
+    body::MessageBody,
     guard::{self, Guard},
-    handler::{Handler, HandlerService},
-    service::{ServiceRequest, ServiceResponse},
-    Error, FromRequest, HttpResponse, Responder,
+    handler::{handler_service, Handler},
+    service::{BoxedHttpServiceFactory, ServiceRequest, ServiceResponse},
+    BoxError, Error, FromRequest, HttpResponse, Responder,
 };
 
 /// Resource route definition
@@ -21,7 +20,7 @@ use crate::{
 /// Route uses builder-like pattern for configuration.
 /// If handler is not explicitly set, default *404 Not Found* handler is used.
 pub struct Route {
-    service: BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>,
+    service: BoxedHttpServiceFactory,
     guards: Rc<Vec<Box<dyn Guard>>>,
 }
 
@@ -30,13 +29,15 @@ impl Route {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Route {
         Route {
-            service: boxed::factory(HandlerService::new(HttpResponse::NotFound)),
+            service: boxed::factory(fn_service(|req: ServiceRequest| async {
+                Ok(req.into_response(HttpResponse::NotFound()))
+            })),
             guards: Rc::new(Vec::new()),
         }
     }
 
     pub(crate) fn take_guards(&mut self) -> Vec<Box<dyn Guard>> {
-        std::mem::take(Rc::get_mut(&mut self.guards).unwrap())
+        mem::take(Rc::get_mut(&mut self.guards).unwrap())
     }
 }
 
@@ -181,8 +182,10 @@ impl Route {
         T: FromRequest + 'static,
         R: Future + 'static,
         R::Output: Responder + 'static,
+        <R::Output as Responder>::Body: MessageBody,
+        <<R::Output as Responder>::Body as MessageBody>::Error: Into<BoxError>,
     {
-        self.service = boxed::factory(HandlerService::new(handler));
+        self.service = handler_service(handler);
         self
     }
 

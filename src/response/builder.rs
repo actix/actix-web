@@ -1,39 +1,36 @@
 use std::{
     cell::{Ref, RefMut},
     convert::TryInto,
-    error::Error as StdError,
     future::Future,
     pin::Pin,
     task::{Context, Poll},
 };
 
 use actix_http::{
-    body::{AnyBody, BodyStream},
-    http::{
-        header::{self, HeaderName, IntoHeaderPair, IntoHeaderValue},
-        ConnectionType, Error as HttpError, StatusCode,
-    },
-    Extensions, Response, ResponseHead,
+    body::{BodyStream, BoxBody, MessageBody},
+    error::HttpError,
+    header::{self, HeaderName, IntoHeaderPair, IntoHeaderValue},
+    ConnectionType, Extensions, Response, ResponseHead, StatusCode,
 };
 use bytes::Bytes;
 use futures_core::Stream;
 use serde::Serialize;
 
 #[cfg(feature = "cookies")]
-use actix_http::http::header::HeaderValue;
+use actix_http::header::HeaderValue;
 #[cfg(feature = "cookies")]
 use cookie::{Cookie, CookieJar};
 
 use crate::{
     error::{Error, JsonPayloadError},
-    HttpResponse,
+    BoxError, HttpResponse,
 };
 
 /// An HTTP response builder.
 ///
 /// This type can be used to construct an instance of `Response` through a builder-like pattern.
 pub struct HttpResponseBuilder {
-    res: Option<Response<AnyBody>>,
+    res: Option<Response<BoxBody>>,
     err: Option<HttpError>,
     #[cfg(feature = "cookies")]
     cookies: Option<CookieJar>,
@@ -44,7 +41,7 @@ impl HttpResponseBuilder {
     /// Create response builder
     pub fn new(status: StatusCode) -> Self {
         Self {
-            res: Some(Response::new(status)),
+            res: Some(Response::with_body(status, BoxBody::new(()))),
             err: None,
             #[cfg(feature = "cookies")]
             cookies: None,
@@ -299,7 +296,6 @@ impl HttpResponseBuilder {
     }
 
     /// Mutable reference to a the response's extensions
-    #[inline]
     pub fn extensions_mut(&mut self) -> RefMut<'_, Extensions> {
         self.res
             .as_mut()
@@ -307,18 +303,20 @@ impl HttpResponseBuilder {
             .extensions_mut()
     }
 
-    /// Set a body and generate `Response`.
+    /// Set a body and build the `HttpResponse`.
     ///
     /// `HttpResponseBuilder` can not be used after this call.
-    #[inline]
-    pub fn body<B: Into<AnyBody>>(&mut self, body: B) -> HttpResponse<AnyBody> {
-        match self.message_body(body.into()) {
-            Ok(res) => res,
+    pub fn body<B>(&mut self, body: B) -> HttpResponse<BoxBody>
+    where
+        B: MessageBody + 'static,
+    {
+        match self.message_body(body) {
+            Ok(res) => res.map_into_boxed_body(),
             Err(err) => HttpResponse::from_error(err),
         }
     }
 
-    /// Set a body and generate `Response`.
+    /// Set a body and build the `HttpResponse`.
     ///
     /// `HttpResponseBuilder` can not be used after this call.
     pub fn message_body<B>(&mut self, body: B) -> Result<HttpResponse<B>, Error> {
@@ -332,7 +330,7 @@ impl HttpResponseBuilder {
             .expect("cannot reuse response builder")
             .set_body(body);
 
-        #[allow(unused_mut)]
+        #[allow(unused_mut)] // mut is only unused when cookies are disabled
         let mut res = HttpResponse::from(res);
 
         #[cfg(feature = "cookies")]
@@ -348,19 +346,19 @@ impl HttpResponseBuilder {
         Ok(res)
     }
 
-    /// Set a streaming body and generate `Response`.
+    /// Set a streaming body and build the `HttpResponse`.
     ///
     /// `HttpResponseBuilder` can not be used after this call.
     #[inline]
     pub fn streaming<S, E>(&mut self, stream: S) -> HttpResponse
     where
-        S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
-        E: Into<Box<dyn StdError>> + 'static,
+        S: Stream<Item = Result<Bytes, E>> + 'static,
+        E: Into<BoxError> + 'static,
     {
-        self.body(AnyBody::from_message(BodyStream::new(stream)))
+        self.body(BodyStream::new(stream))
     }
 
-    /// Set a json body and generate `Response`
+    /// Set a JSON body and build the `HttpResponse`.
     ///
     /// `HttpResponseBuilder` can not be used after this call.
     pub fn json(&mut self, value: impl Serialize) -> HttpResponse {
@@ -376,18 +374,18 @@ impl HttpResponseBuilder {
                     self.insert_header((header::CONTENT_TYPE, mime::APPLICATION_JSON));
                 }
 
-                self.body(AnyBody::from(body))
+                self.body(body)
             }
             Err(err) => HttpResponse::from_error(JsonPayloadError::Serialize(err)),
         }
     }
 
-    /// Set an empty body and generate `Response`
+    /// Set an empty body and build the `HttpResponse`.
     ///
     /// `HttpResponseBuilder` can not be used after this call.
     #[inline]
     pub fn finish(&mut self) -> HttpResponse {
-        self.body(AnyBody::Empty)
+        self.body(())
     }
 
     /// This method construct new `HttpResponseBuilder`
@@ -416,7 +414,7 @@ impl From<HttpResponseBuilder> for HttpResponse {
     }
 }
 
-impl From<HttpResponseBuilder> for Response<AnyBody> {
+impl From<HttpResponseBuilder> for Response<BoxBody> {
     fn from(mut builder: HttpResponseBuilder) -> Self {
         builder.finish().into()
     }
@@ -435,12 +433,9 @@ mod tests {
     use actix_http::body;
 
     use super::*;
-    use crate::{
-        dev::Body,
-        http::{
-            header::{self, HeaderValue, CONTENT_TYPE},
-            StatusCode,
-        },
+    use crate::http::{
+        header::{self, HeaderValue, CONTENT_TYPE},
+        StatusCode,
     };
 
     #[test]
@@ -475,7 +470,7 @@ mod tests {
     fn test_content_type() {
         let resp = HttpResponseBuilder::new(StatusCode::OK)
             .content_type("text/plain")
-            .body(Body::Empty);
+            .body(Bytes::new());
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "text/plain")
     }
 

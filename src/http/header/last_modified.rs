@@ -1,8 +1,8 @@
 use super::{HttpDate, LAST_MODIFIED};
 
 crate::http::header::common_header! {
-    /// `Last-Modified` header, defined in
-    /// [RFC7232](http://tools.ietf.org/html/rfc7232#section-2.2)
+    /// `Last-Modified` header, defined
+    /// in [RFC 7232 §2.2](https://datatracker.ietf.org/doc/html/rfc7232#section-2.2)
     ///
     /// The `Last-Modified` header field in a response provides a timestamp
     /// indicating the date and time at which the origin server believes the
@@ -10,13 +10,11 @@ crate::http::header::common_header! {
     /// conclusion of handling the request.
     ///
     /// # ABNF
-    ///
-    /// ```text
+    /// ```plain
     /// Expires = HTTP-date
     /// ```
     ///
-    /// # Example values
-    ///
+    /// # Example Values
     /// * `Sat, 29 Oct 1994 19:43:31 GMT`
     ///
     /// # Example
@@ -34,8 +32,8 @@ crate::http::header::common_header! {
     /// ```
     (LastModified, LAST_MODIFIED) => [HttpDate]
 
-        test_last_modified {
-            // Test case from RFC
-            crate::http::header::common_header_test!(test1, vec![b"Sat, 29 Oct 1994 19:43:31 GMT"]);
-        }
+    test_parse_and_format {
+        // Test case from RFC
+        crate::http::header::common_header_test!(test1, vec![b"Sat, 29 Oct 1994 19:43:31 GMT"]);
+    }
 }

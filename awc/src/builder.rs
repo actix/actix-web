@@ -1,18 +1,20 @@
-use std::convert::TryFrom;
-use std::fmt;
-use std::net::IpAddr;
-use std::rc::Rc;
-use std::time::Duration;
+use std::{convert::TryFrom, fmt, net::IpAddr, rc::Rc, time::Duration};
 
-use actix_http::http::{self, header, Error as HttpError, HeaderMap, HeaderName, Uri};
+use actix_http::{
+    error::HttpError,
+    header::{self, HeaderMap, HeaderName},
+    Uri,
+};
 use actix_rt::net::{ActixStream, TcpStream};
 use actix_service::{boxed, Service};
 
-use crate::client::{Connector, ConnectorService, TcpConnect, TcpConnectError, TcpConnection};
-use crate::connect::DefaultConnector;
-use crate::error::SendRequestError;
-use crate::middleware::{NestTransform, Redirect, Transform};
-use crate::{Client, ClientConfig, ConnectRequest, ConnectResponse};
+use crate::{
+    client::{ConnectInfo, Connector, ConnectorService, TcpConnectError, TcpConnection},
+    connect::DefaultConnector,
+    error::SendRequestError,
+    middleware::{NestTransform, Redirect, Transform},
+    Client, ClientConfig, ConnectRequest, ConnectResponse,
+};
 
 /// An HTTP Client builder
 ///
@@ -35,7 +37,7 @@ impl ClientBuilder {
     #[allow(clippy::new_ret_no_self)]
     pub fn new() -> ClientBuilder<
         impl Service<
-                TcpConnect<Uri>,
+                ConnectInfo<Uri>,
                 Response = TcpConnection<Uri, TcpStream>,
                 Error = TcpConnectError,
             > + Clone,
@@ -58,7 +60,7 @@ impl ClientBuilder {
 
 impl<S, Io, M> ClientBuilder<S, M>
 where
-    S: Service<TcpConnect<Uri>, Response = TcpConnection<Uri, Io>, Error = TcpConnectError>
+    S: Service<ConnectInfo<Uri>, Response = TcpConnection<Uri, Io>, Error = TcpConnectError>
         + Clone
         + 'static,
     Io: ActixStream + fmt::Debug + 'static,
@@ -67,7 +69,7 @@ where
     pub fn connector<S1, Io1>(self, connector: Connector<S1>) -> ClientBuilder<S1, M>
     where
         S1: Service<
-                TcpConnect<Uri>,
+                ConnectInfo<Uri>,
                 Response = TcpConnection<Uri, Io1>,
                 Error = TcpConnectError,
             > + Clone

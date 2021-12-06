@@ -1,6 +1,6 @@
 use std::io;
 
-use actix_http::{http::StatusCode, Error, HttpService, Request, Response};
+use actix_http::{Error, HttpService, Request, Response, StatusCode};
 use actix_server::Server;
 use bytes::BytesMut;
 use futures_util::StreamExt as _;
