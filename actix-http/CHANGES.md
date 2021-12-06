@@ -36,7 +36,6 @@
 * `impl TryFrom<u16>` for `header::Quality`. [#2486]
 * `http` module. Most everything it contained is exported at the crate root. [#2488]
 
-[#2327]: https://github.com/actix/actix-web/pull/2327
 [#2483]: https://github.com/actix/actix-web/pull/2483
 [#2468]: https://github.com/actix/actix-web/pull/2468
 [#1920]: https://github.com/actix/actix-web/pull/1920

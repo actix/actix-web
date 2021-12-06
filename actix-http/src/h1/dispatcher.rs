@@ -596,8 +596,7 @@ where
                         Message::Item(mut req) => {
                             req.head_mut().peer_addr = *this.peer_addr;
 
-                            req.conn_data =
-                                this.conn_data.as_ref().map(|data| Rc::clone(data));
+                            req.conn_data = this.conn_data.as_ref().map(Rc::clone);
 
                             match this.codec.message_type() {
                                 // Request is upgradable. add upgrade message and break.

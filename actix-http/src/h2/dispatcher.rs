@@ -119,7 +119,7 @@ where
                     head.headers = parts.headers.into();
                     head.peer_addr = this.peer_addr;
 
-                    req.conn_data = this.conn_data.as_ref().map(|data| Rc::clone(data));
+                    req.conn_data = this.conn_data.as_ref().map(Rc::clone);
 
                     let fut = this.flow.service.call(req);
                     let config = this.config.clone();
