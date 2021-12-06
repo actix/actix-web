@@ -430,7 +430,7 @@ async fn test_h2_on_connect() {
                 data.insert(20isize);
             })
             .h2(|req: Request| {
-                assert!(req.extensions().contains::<isize>());
+                assert!(req.conn_data::<isize>().is_some());
                 ok::<_, Infallible>(Response::ok())
             })
             .openssl(tls_config())

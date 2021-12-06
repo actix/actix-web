@@ -365,15 +365,7 @@ where
     }
 
     fn call(&self, (io, addr): (T, Option<net::SocketAddr>)) -> Self::Future {
-        let on_connect_data =
-            OnConnectData::from_io(&io, self.on_connect_ext.as_deref());
-
-        Dispatcher::new(
-            io,
-            self.cfg.clone(),
-            self.flow.clone(),
-            on_connect_data,
-            addr,
-        )
+        let conn_data = OnConnectData::from_io(&io, self.on_connect_ext.as_deref());
+        Dispatcher::new(io, self.flow.clone(), self.cfg.clone(), addr, conn_data)
     }
 }

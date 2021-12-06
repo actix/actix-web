@@ -2,7 +2,9 @@
 
 use std::{
     cell::{Ref, RefMut},
-    fmt, net, str,
+    fmt, net,
+    rc::Rc,
+    str,
 };
 
 use http::{header, Method, Uri, Version};
@@ -19,6 +21,7 @@ use crate::{
 pub struct Request<P = PayloadStream> {
     pub(crate) payload: Payload<P>,
     pub(crate) head: Message<RequestHead>,
+    pub(crate) conn_data: Option<Rc<Extensions>>,
 }
 
 impl<P> HttpMessage for Request<P> {
@@ -51,6 +54,7 @@ impl From<Message<RequestHead>> for Request<PayloadStream> {
         Request {
             head,
             payload: Payload::None,
+            conn_data: None,
         }
     }
 }
@@ -61,6 +65,7 @@ impl Request<PayloadStream> {
         Request {
             head: Message::new(),
             payload: Payload::None,
+            conn_data: None,
         }
     }
 }
@@ -71,16 +76,19 @@ impl<P> Request<P> {
         Request {
             payload,
             head: Message::new(),
+            conn_data: None,
         }
     }
 
     /// Create new Request instance
     pub fn replace_payload<P1>(self, payload: Payload<P1>) -> (Request<P1>, Payload<P>) {
         let pl = self.payload;
+
         (
             Request {
                 payload,
                 head: self.head,
+                conn_data: self.conn_data,
             },
             pl,
         )
@@ -169,6 +177,26 @@ impl<P> Request<P> {
     #[inline]
     pub fn peer_addr(&self) -> Option<net::SocketAddr> {
         self.head().peer_addr
+    }
+
+    /// Returns a reference a piece of connection data set in an [on-connect] callback.
+    ///
+    /// ```ignore
+    /// let opt_t = req.conn_data::<PeerCertificate>();
+    /// ```
+    ///
+    /// [on-connect]: crate::HttpServiceBuilder::on_connect_ext
+    pub fn conn_data<T: 'static>(&self) -> Option<&T> {
+        self.conn_data
+            .as_deref()
+            .and_then(|container| container.get::<T>())
+    }
+
+    /// Returns the connection data container if an [on-connect] callback was registered.
+    ///
+    /// [on-connect]: crate::HttpServiceBuilder::on_connect_ext
+    pub fn take_conn_data(&mut self) -> Option<Rc<Extensions>> {
+        self.conn_data.take()
     }
 }
 
