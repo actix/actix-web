@@ -51,10 +51,7 @@ impl App<AppEntry> {
     }
 }
 
-impl<T> App<T>
-where
-    T: ServiceFactory<ServiceRequest, Error = Error, Config = (), InitError = ()>,
-{
+impl<T> App<T> {
     /// Set application (root level) data.
     ///
     /// Application data stored with `App::app_data()` method is available through the
@@ -353,7 +350,7 @@ where
     ///         .route("/index.html", web::get().to(index));
     /// }
     /// ```
-    pub fn wrap<M, B1>(
+    pub fn wrap<M, B, B1>(
         self,
         mw: M,
     ) -> App<
@@ -366,6 +363,14 @@ where
         >,
     >
     where
+        T: ServiceFactory<
+            ServiceRequest,
+            Response = ServiceResponse<B>,
+            Error = Error,
+            Config = (),
+            InitError = (),
+        >,
+        B: MessageBody,
         M: Transform<
             T::Service,
             ServiceRequest,
@@ -373,6 +378,7 @@ where
             Error = Error,
             InitError = (),
         >,
+        B1: MessageBody,
     {
         App {
             endpoint: apply(mw, self.endpoint),
@@ -416,7 +422,7 @@ where
     ///         .route("/index.html", web::get().to(index));
     /// }
     /// ```
-    pub fn wrap_fn<B1, F, R>(
+    pub fn wrap_fn<F, R, B, B1>(
         self,
         mw: F,
     ) -> App<
@@ -429,9 +435,17 @@ where
         >,
     >
     where
-        B1: MessageBody,
+        T: ServiceFactory<
+            ServiceRequest,
+            Response = ServiceResponse<B>,
+            Error = Error,
+            Config = (),
+            InitError = (),
+        >,
+        B: MessageBody,
         F: Fn(ServiceRequest, &T::Service) -> R + Clone,
         R: Future<Output = Result<ServiceResponse<B1>, Error>>,
+        B1: MessageBody,
     {
         App {
             endpoint: apply_fn_factory(self.endpoint, mw),
