@@ -1,6 +1,6 @@
-use std::{cell::RefCell, fmt, future::Future, mem, rc::Rc};
+use std::{cell::RefCell, fmt, future::Future, marker::PhantomData, mem, rc::Rc};
 
-use actix_http::Extensions;
+use actix_http::{body::BoxBody, Extensions};
 use actix_router::{ResourceDef, Router};
 use actix_service::{
     apply, apply_fn_factory, boxed, IntoServiceFactory, Service, ServiceFactory,
@@ -52,7 +52,7 @@ type Guards = Vec<Box<dyn Guard>>;
 ///  * /{project_id}/path1 - responds to all http method
 ///  * /{project_id}/path2 - `GET` requests
 ///  * /{project_id}/path3 - `HEAD` requests
-pub struct Scope<T = ScopeEndpoint> {
+pub struct Scope<T = ScopeEndpoint, B = BoxBody> {
     endpoint: T,
     rdef: String,
     app_data: Option<Extensions>,
@@ -61,6 +61,7 @@ pub struct Scope<T = ScopeEndpoint> {
     default: Option<Rc<BoxedHttpServiceFactory>>,
     external: Vec<ResourceDef>,
     factory_ref: Rc<RefCell<Option<ScopeFactory>>>,
+    _phantom: PhantomData<B>,
 }
 
 impl Scope {
@@ -77,19 +78,21 @@ impl Scope {
             default: None,
             external: Vec::new(),
             factory_ref,
+            _phantom: Default::default(),
         }
     }
 }
 
-impl<T> Scope<T>
+impl<T, B> Scope<T, B>
 where
     T: ServiceFactory<
         ServiceRequest,
         Config = (),
-        Response = ServiceResponse,
+        Response = ServiceResponse<B>,
         Error = Error,
         InitError = (),
     >,
+    B: 'static,
 {
     /// Add match guard to a scope.
     ///
@@ -295,32 +298,29 @@ where
         self
     }
 
-    /// Registers middleware, in the form of a middleware component (type),
-    /// that runs during inbound processing in the request
-    /// life-cycle (request -> response), modifying request as
-    /// necessary, across all requests managed by the *Scope*.  Scope-level
-    /// middleware is more limited in what it can modify, relative to Route or
-    /// Application level middleware, in that Scope-level middleware can not modify
-    /// ServiceResponse.
+    /// Registers middleware, in the form of a middleware component (type), that runs during inbound
+    /// processing in the request life-cycle (request -> response), modifying request as necessary,
+    /// across all requests managed by the *Scope*.
     ///
     /// Use middleware when you need to read or modify *every* request in some way.
-    pub fn wrap<M>(
+    pub fn wrap<M, B1>(
         self,
         mw: M,
     ) -> Scope<
         impl ServiceFactory<
             ServiceRequest,
             Config = (),
-            Response = ServiceResponse,
+            Response = ServiceResponse<B1>,
             Error = Error,
             InitError = (),
         >,
+        B1,
     >
     where
         M: Transform<
             T::Service,
             ServiceRequest,
-            Response = ServiceResponse,
+            Response = ServiceResponse<B1>,
             Error = Error,
             InitError = (),
         >,
@@ -334,16 +334,15 @@ where
             default: self.default,
             external: self.external,
             factory_ref: self.factory_ref,
+            _phantom: PhantomData,
         }
     }
 
-    /// Registers middleware, in the form of a closure, that runs during inbound
-    /// processing in the request life-cycle (request -> response), modifying
-    /// request as necessary, across all requests managed by the *Scope*.
-    /// Scope-level middleware is more limited in what it can modify, relative
-    /// to Route or Application level middleware, in that Scope-level middleware
-    /// can not modify ServiceResponse.
+    /// Registers middleware, in the form of a closure, that runs during inbound processing in the
+    /// request life-cycle (request -> response), modifying request as necessary, across all
+    /// requests managed by the *Scope*.
     ///
+    /// # Examples
     /// ```
     /// use actix_service::Service;
     /// use actix_web::{web, App};
@@ -369,21 +368,22 @@ where
     ///             .route("/index.html", web::get().to(index)));
     /// }
     /// ```
-    pub fn wrap_fn<F, R>(
+    pub fn wrap_fn<F, R, B1>(
         self,
         mw: F,
     ) -> Scope<
         impl ServiceFactory<
             ServiceRequest,
             Config = (),
-            Response = ServiceResponse,
+            Response = ServiceResponse<B1>,
             Error = Error,
             InitError = (),
         >,
+        B1,
     >
     where
         F: Fn(ServiceRequest, &T::Service) -> R + Clone,
-        R: Future<Output = Result<ServiceResponse, Error>>,
+        R: Future<Output = Result<ServiceResponse<B1>, Error>>,
     {
         Scope {
             endpoint: apply_fn_factory(self.endpoint, mw),
@@ -394,6 +394,7 @@ where
             default: self.default,
             external: self.external,
             factory_ref: self.factory_ref,
+            _phantom: PhantomData,
         }
     }
 }

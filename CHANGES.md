@@ -13,6 +13,8 @@
 * Rename `Accept::{mime_preference => preference}`. [#2480]
 * Un-deprecate `App::data_factory`. [#2484]
 * `HttpRequest::url_for` no longer constructs URLs with query or fragment components. [#2430]
+* Remove `B` (body) type parameter on `App`. [#2493]
+* Add `B` (body) type parameter on `Scope`. [#2492]
 
 ### Fixed
 * Accept wildcard `*` items in `AcceptLanguage`. [#2480]
@@ -25,6 +27,8 @@
 [#2482]: https://github.com/actix/actix-web/pull/2482
 [#2484]: https://github.com/actix/actix-web/pull/2484
 [#2485]: https://github.com/actix/actix-web/pull/2485
+[#2492]: https://github.com/actix/actix-web/pull/2492
+[#2493]: https://github.com/actix/actix-web/pull/2493
 
 
 ## 4.0.0-beta.13 - 2021-11-30
