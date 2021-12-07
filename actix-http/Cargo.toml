@@ -84,6 +84,7 @@ zstd = { version = "0.9", optional = true }
 actix-server = "2.0.0-rc.1"
 actix-http-test = { version = "3.0.0-beta.7", features = ["openssl"] }
 actix-tls = { version = "3.0.0-rc.1", features = ["openssl"] }
+actix-web = "4.0.0-beta.13"
 async-stream = "0.3"
 criterion = { version = "0.3", features = ["html_reports"] }
 env_logger = "0.9"
@@ -95,7 +96,7 @@ serde_json = "1.0"
 static_assertions = "1"
 tls-openssl = { package = "openssl", version = "0.10.9" }
 tls-rustls = { package = "rustls", version = "0.20.0" }
-tokio = { version = "1.2", features = ["net", "rt"] }
+tokio = { version = "1.2", features = ["net", "rt", "macros"] }
 
 [[example]]
 name = "ws"
