@@ -68,7 +68,7 @@ impl<T: Clone + 'static> FromRequest for ReqData<T> {
     type Future = Ready<Result<Self, Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        if let Some(st) = req.extensions().get::<T>() {
+        if let Some(st) = req.req_data().get::<T>() {
             ok(ReqData(st.clone()))
         } else {
             log::debug!(

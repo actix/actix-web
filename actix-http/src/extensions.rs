@@ -19,7 +19,8 @@ impl Extensions {
     #[inline]
     pub fn new() -> Extensions {
         Extensions {
-            map: AHashMap::default(),
+            map: AHashMap::with_capacity(2),
+            // map: AHashMap::new(),
         }
     }
 

@@ -1,4 +1,4 @@
-use std::{cell::Ref, convert::Infallible, net::SocketAddr};
+use std::{convert::Infallible, net::SocketAddr};
 
 use actix_utils::future::{err, ok, Ready};
 use derive_more::{Display, Error};
@@ -72,15 +72,7 @@ pub struct ConnectionInfo {
 }
 
 impl ConnectionInfo {
-    /// Create *ConnectionInfo* instance for a request.
-    pub fn get<'a>(req: &'a RequestHead, cfg: &AppConfig) -> Ref<'a, Self> {
-        if !req.extensions().contains::<ConnectionInfo>() {
-            req.extensions_mut().insert(ConnectionInfo::new(req, cfg));
-        }
-        Ref::map(req.extensions(), |e| e.get().unwrap())
-    }
-
-    fn new(req: &RequestHead, cfg: &AppConfig) -> ConnectionInfo {
+    pub(crate) fn new(req: &RequestHead, cfg: &AppConfig) -> ConnectionInfo {
         let mut host = None;
         let mut scheme = None;
         let mut realip_remote_addr = None;

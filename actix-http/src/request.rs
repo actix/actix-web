@@ -1,7 +1,7 @@
 //! HTTP requests.
 
 use std::{
-    cell::{Ref, RefMut},
+    cell::{Ref, RefCell, RefMut},
     fmt, net,
     rc::Rc,
     str,
@@ -22,6 +22,7 @@ pub struct Request<P = PayloadStream> {
     pub(crate) payload: Payload<P>,
     pub(crate) head: Message<RequestHead>,
     pub(crate) conn_data: Option<Rc<Extensions>>,
+    pub req_data: RefCell<Extensions>,
 }
 
 impl<P> HttpMessage for Request<P> {
@@ -39,13 +40,13 @@ impl<P> HttpMessage for Request<P> {
     /// Request extensions
     #[inline]
     fn extensions(&self) -> Ref<'_, Extensions> {
-        self.head.extensions()
+        self.req_data.borrow()
     }
 
     /// Mutable reference to a the request's extensions
     #[inline]
     fn extensions_mut(&self) -> RefMut<'_, Extensions> {
-        self.head.extensions_mut()
+        self.req_data.borrow_mut()
     }
 }
 
@@ -54,6 +55,7 @@ impl From<Message<RequestHead>> for Request<PayloadStream> {
         Request {
             head,
             payload: Payload::None,
+            req_data: RefCell::new(Extensions::new()),
             conn_data: None,
         }
     }
@@ -65,6 +67,7 @@ impl Request<PayloadStream> {
         Request {
             head: Message::new(),
             payload: Payload::None,
+            req_data: RefCell::new(Extensions::new()),
             conn_data: None,
         }
     }
@@ -76,6 +79,7 @@ impl<P> Request<P> {
         Request {
             payload,
             head: Message::new(),
+            req_data: RefCell::new(Extensions::new()),
             conn_data: None,
         }
     }
@@ -88,6 +92,7 @@ impl<P> Request<P> {
             Request {
                 payload,
                 head: self.head,
+                req_data: self.req_data,
                 conn_data: self.conn_data,
             },
             pl,
@@ -124,7 +129,7 @@ impl<P> Request<P> {
 
     /// Mutable reference to the message's headers.
     pub fn headers_mut(&mut self) -> &mut HeaderMap {
-        &mut self.head_mut().headers
+        &mut self.head.headers
     }
 
     /// Request's uri.
@@ -136,7 +141,7 @@ impl<P> Request<P> {
     /// Mutable reference to the request's uri.
     #[inline]
     pub fn uri_mut(&mut self) -> &mut Uri {
-        &mut self.head_mut().uri
+        &mut self.head.uri
     }
 
     /// Read the Request method.

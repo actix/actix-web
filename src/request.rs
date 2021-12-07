@@ -38,6 +38,7 @@ pub(crate) struct HttpRequestInner {
     pub(crate) path: Path<Url>,
     pub(crate) app_data: SmallVec<[Rc<Extensions>; 4]>,
     pub(crate) conn_data: Option<Rc<Extensions>>,
+    pub(crate) req_data: Rc<RefCell<Extensions>>,
     app_state: Rc<AppInitServiceState>,
 }
 
@@ -49,6 +50,7 @@ impl HttpRequest {
         app_state: Rc<AppInitServiceState>,
         app_data: Rc<Extensions>,
         conn_data: Option<Rc<Extensions>>,
+        req_data: Rc<RefCell<Extensions>>,
     ) -> HttpRequest {
         let mut data = SmallVec::<[Rc<Extensions>; 4]>::new();
         data.push(app_data);
@@ -60,6 +62,7 @@ impl HttpRequest {
                 app_state,
                 app_data: data,
                 conn_data,
+                req_data,
             }),
         }
     }
@@ -156,16 +159,12 @@ impl HttpRequest {
         self.resource_map().match_name(self.path())
     }
 
-    /// Request extensions
-    #[inline]
-    pub fn extensions(&self) -> Ref<'_, Extensions> {
-        self.head().extensions()
+    pub fn req_data(&self) -> Ref<'_, Extensions> {
+        self.inner.req_data.borrow()
     }
 
-    /// Mutable reference to a the request's extensions
-    #[inline]
-    pub fn extensions_mut(&self) -> RefMut<'_, Extensions> {
-        self.head().extensions_mut()
+    pub fn req_data_mut(&self) -> RefMut<'_, Extensions> {
+        self.inner.req_data.borrow_mut()
     }
 
     /// Returns a reference a piece of connection data set in an [on-connect] callback.
@@ -248,7 +247,12 @@ impl HttpRequest {
     /// borrowed.
     #[inline]
     pub fn connection_info(&self) -> Ref<'_, ConnectionInfo> {
-        ConnectionInfo::get(self.head(), self.app_config())
+        if !self.extensions().contains::<ConnectionInfo>() {
+            let info = ConnectionInfo::new(self.head(), &*self.app_config());
+            self.extensions_mut().insert(info);
+        }
+
+        Ref::map(self.extensions(), |e| e.get().unwrap())
     }
 
     /// App config
@@ -329,13 +333,13 @@ impl HttpMessage for HttpRequest {
     /// Request extensions
     #[inline]
     fn extensions(&self) -> Ref<'_, Extensions> {
-        self.inner.head.extensions()
+        self.req_data()
     }
 
     /// Mutable reference to a the request's extensions
     #[inline]
     fn extensions_mut(&self) -> RefMut<'_, Extensions> {
-        self.inner.head.extensions_mut()
+        self.req_data_mut()
     }
 
     #[inline]
@@ -348,14 +352,14 @@ impl Drop for HttpRequest {
     fn drop(&mut self) {
         // if possible, contribute to current worker's HttpRequest allocation pool
 
-        // This relies on no Weak<HttpRequestInner> exists anywhere.(There is none)
+        // This relies on no Weak<HttpRequestInner> exists anywhere. (There is none.)
         if let Some(inner) = Rc::get_mut(&mut self.inner) {
             if inner.app_state.pool().is_available() {
                 // clear additional app_data and keep the root one for reuse.
                 inner.app_data.truncate(1);
-                // inner is borrowed mut here. get head's Extension mutably
-                // to reduce borrow check
-                inner.head.extensions.get_mut().clear();
+
+                // inner is borrowed mut here; get req data mutably to reduce borrow check
+                Rc::get_mut(&mut inner.req_data).unwrap().get_mut().clear();
 
                 // a re-borrow of pool is necessary here.
                 let req = self.inner.clone();

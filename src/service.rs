@@ -194,7 +194,7 @@ impl ServiceRequest {
     /// Get *ConnectionInfo* for the current request.
     #[inline]
     pub fn connection_info(&self) -> Ref<'_, ConnectionInfo> {
-        ConnectionInfo::get(self.head(), &*self.app_config())
+        self.req.connection_info()
     }
 
     /// Get a reference to the Path parameters.

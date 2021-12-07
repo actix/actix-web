@@ -50,7 +50,6 @@ pub struct RequestHead {
     pub uri: Uri,
     pub version: Version,
     pub headers: HeaderMap,
-    pub extensions: RefCell<Extensions>,
     pub peer_addr: Option<net::SocketAddr>,
     flags: Flags,
 }
@@ -62,7 +61,6 @@ impl Default for RequestHead {
             uri: Uri::default(),
             version: Version::HTTP_11,
             headers: HeaderMap::with_capacity(16),
-            extensions: RefCell::new(Extensions::new()),
             peer_addr: None,
             flags: Flags::empty(),
         }
@@ -73,7 +71,6 @@ impl Head for RequestHead {
     fn clear(&mut self) {
         self.flags = Flags::empty();
         self.headers.clear();
-        self.extensions.get_mut().clear();
     }
 
     fn with_pool<F, R>(f: F) -> R
@@ -85,18 +82,6 @@ impl Head for RequestHead {
 }
 
 impl RequestHead {
-    /// Message extensions
-    #[inline]
-    pub fn extensions(&self) -> Ref<'_, Extensions> {
-        self.extensions.borrow()
-    }
-
-    /// Mutable reference to a the message's extensions
-    #[inline]
-    pub fn extensions_mut(&self) -> RefMut<'_, Extensions> {
-        self.extensions.borrow_mut()
-    }
-
     /// Read the message headers.
     pub fn headers(&self) -> &HeaderMap {
         &self.headers
