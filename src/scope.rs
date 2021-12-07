@@ -298,13 +298,9 @@ where
         self
     }
 
-    /// Registers middleware, in the form of a middleware component (type),
-    /// that runs during inbound processing in the request
-    /// life-cycle (request -> response), modifying request as
-    /// necessary, across all requests managed by the *Scope*.  Scope-level
-    /// middleware is more limited in what it can modify, relative to Route or
-    /// Application level middleware, in that Scope-level middleware can not modify
-    /// ServiceResponse.
+    /// Registers middleware, in the form of a middleware component (type), that runs during inbound
+    /// processing in the request life-cycle (request -> response), modifying request as necessary,
+    /// across all requests managed by the *Scope*.
     ///
     /// Use middleware when you need to read or modify *every* request in some way.
     pub fn wrap<M, B1>(
@@ -342,13 +338,11 @@ where
         }
     }
 
-    /// Registers middleware, in the form of a closure, that runs during inbound
-    /// processing in the request life-cycle (request -> response), modifying
-    /// request as necessary, across all requests managed by the *Scope*.
-    /// Scope-level middleware is more limited in what it can modify, relative
-    /// to Route or Application level middleware, in that Scope-level middleware
-    /// can not modify ServiceResponse.
+    /// Registers middleware, in the form of a closure, that runs during inbound processing in the
+    /// request life-cycle (request -> response), modifying request as necessary, across all
+    /// requests managed by the *Scope*.
     ///
+    /// # Examples
     /// ```
     /// use actix_service::Service;
     /// use actix_web::{web, App};
