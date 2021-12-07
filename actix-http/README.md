@@ -19,34 +19,30 @@
 ## Example
 
 ```rust
-use std::{env, io};
-
-use actix_http::{HttpService, Response};
+use actix_http::HttpService;
 use actix_server::Server;
-use futures_util::future;
-use http::header::HeaderValue;
-use log::info;
+use actix_service::map_config;
+use actix_web::{dev::AppConfig, get, App};
 
-#[actix_rt::main]
-async fn main() -> io::Result<()> {
-    env::set_var("RUST_LOG", "hello_world=info");
-    env_logger::init();
-
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
     Server::build()
         .bind("hello-world", "127.0.0.1:8080", || {
+            // construct actix-web app.
+            let app = App::new().service(index);
             HttpService::build()
-                .client_timeout(1000)
-                .client_disconnect(1000)
-                .finish(|_req| {
-                    info!("{:?}", _req);
-                    let mut res = Response::Ok();
-                    res.header("x-head", HeaderValue::from_static("dummy value!"));
-                    future::ok::<_, ()>(res.body("Hello world!"))
-                })
+                // pass the app to service builder.
+                // map_config is used to map App's configuration to ServiceBuilder.
+                .finish(map_config(app, |_| AppConfig::default()))
                 .tcp()
         })?
         .run()
         .await
+}
+
+#[get("/")]
+async fn index() -> &'static str {
+    "Hello,World from actix-web!"
 }
 ```
 
