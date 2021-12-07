@@ -33,12 +33,11 @@ use crate::{dev::Payload, error::ErrorInternalServerError, Error, FromRequest, H
 ///     req: HttpRequest,
 ///     opt_flag: Option<web::ReqData<FlagFromMiddleware>>,
 /// ) -> impl Responder {
-///     // use an optional extractor if the middleware is
-///     // not guaranteed to add this type of requests data
+///     // use an option extractor if middleware is not guaranteed to add this type of req data
 ///     if let Some(flag) = opt_flag {
-///         assert_eq!(&flag.into_inner(), req.extensions().get::<FlagFromMiddleware>().unwrap());
+///         assert_eq!(&flag.into_inner(), req.req_data().get::<FlagFromMiddleware>().unwrap());
 ///     }
-///     
+///
 ///     HttpResponse::Ok()
 /// }
 /// ```
