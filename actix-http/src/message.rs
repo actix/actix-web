@@ -44,7 +44,7 @@ pub trait Head: Default + 'static {
         F: FnOnce(&MessagePool<Self>) -> R;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RequestHead {
     pub method: Method,
     pub uri: Uri,
