@@ -172,12 +172,10 @@ impl ServiceRequest {
         self.head().uri.path()
     }
 
-    /// The query string in the URL.
-    ///
-    /// E.g., id=10
+    /// Counterpart to [`HttpRequest::query_string`](super::HttpRequest::query_string()).
     #[inline]
     pub fn query_string(&self) -> &str {
-        self.uri().query().unwrap_or_default()
+        self.req.query_string()
     }
 
     /// Peer socket address.
@@ -241,6 +239,7 @@ impl ServiceRequest {
     }
 
     /// Counterpart to [`HttpRequest::app_data`](super::HttpRequest::app_data()).
+    #[inline]
     pub fn app_data<T: 'static>(&self) -> Option<&T> {
         for container in self.req.inner.app_data.iter().rev() {
             if let Some(data) = container.get::<T>() {
@@ -249,6 +248,12 @@ impl ServiceRequest {
         }
 
         None
+    }
+
+    /// Counterpart to [`HttpRequest::conn_data`](super::HttpRequest::conn_data()).
+    #[inline]
+    pub fn conn_data<T: 'static>(&self) -> Option<&T> {
+        self.req.conn_data()
     }
 
     #[cfg(feature = "cookies")]
@@ -263,6 +268,7 @@ impl ServiceRequest {
     }
 
     /// Set request payload.
+    #[inline]
     pub fn set_payload(&mut self, payload: Payload) {
         self.payload = payload;
     }
@@ -280,6 +286,7 @@ impl ServiceRequest {
 }
 
 impl Resource<Url> for ServiceRequest {
+    #[inline]
     fn resource_path(&mut self) -> &mut Path<Url> {
         self.match_info_mut()
     }
@@ -404,12 +411,11 @@ impl<B> ServiceResponse<B> {
     }
 
     /// Extract response body
+    #[inline]
     pub fn into_body(self) -> B {
         self.response.into_body()
     }
-}
 
-impl<B> ServiceResponse<B> {
     /// Set a new body
     #[inline]
     pub fn map_body<F, B2>(self, f: F) -> ServiceResponse<B2>
