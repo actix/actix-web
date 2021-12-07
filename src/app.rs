@@ -1,9 +1,6 @@
-use std::{cell::RefCell, fmt, future::Future, marker::PhantomData, rc::Rc};
+use std::{cell::RefCell, fmt, future::Future, rc::Rc};
 
-use actix_http::{
-    body::{BoxBody, MessageBody},
-    Extensions, Request,
-};
+use actix_http::{body::MessageBody, Extensions, Request};
 use actix_service::{
     apply, apply_fn_factory, boxed, IntoServiceFactory, ServiceFactory, ServiceFactoryExt,
     Transform,
@@ -26,7 +23,7 @@ use crate::{
 
 /// Application builder - structure that follows the builder pattern
 /// for building application instances.
-pub struct App<T, B> {
+pub struct App<T> {
     endpoint: T,
     services: Vec<Box<dyn AppServiceFactory>>,
     default: Option<Rc<BoxedHttpServiceFactory>>,
@@ -34,10 +31,9 @@ pub struct App<T, B> {
     data_factories: Vec<FnDataFactory>,
     external: Vec<ResourceDef>,
     extensions: Extensions,
-    _phantom: PhantomData<B>,
 }
 
-impl App<AppEntry, BoxBody> {
+impl App<AppEntry> {
     /// Create application builder. Application can be configured with a builder-like pattern.
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
@@ -51,21 +47,13 @@ impl App<AppEntry, BoxBody> {
             factory_ref,
             external: Vec::new(),
             extensions: Extensions::new(),
-            _phantom: PhantomData,
         }
     }
 }
 
-impl<T, B> App<T, B>
+impl<T> App<T>
 where
-    B: MessageBody,
-    T: ServiceFactory<
-        ServiceRequest,
-        Config = (),
-        Response = ServiceResponse<B>,
-        Error = Error,
-        InitError = (),
-    >,
+    T: ServiceFactory<ServiceRequest, Error = Error, Config = (), InitError = ()>,
 {
     /// Set application (root level) data.
     ///
@@ -376,7 +364,6 @@ where
             Error = Error,
             InitError = (),
         >,
-        B1,
     >
     where
         M: Transform<
@@ -386,7 +373,6 @@ where
             Error = Error,
             InitError = (),
         >,
-        B1: MessageBody,
     {
         App {
             endpoint: apply(mw, self.endpoint),
@@ -396,7 +382,6 @@ where
             factory_ref: self.factory_ref,
             external: self.external,
             extensions: self.extensions,
-            _phantom: PhantomData,
         }
     }
 
@@ -442,7 +427,6 @@ where
             Error = Error,
             InitError = (),
         >,
-        B1,
     >
     where
         B1: MessageBody,
@@ -457,12 +441,11 @@ where
             factory_ref: self.factory_ref,
             external: self.external,
             extensions: self.extensions,
-            _phantom: PhantomData,
         }
     }
 }
 
-impl<T, B> IntoServiceFactory<AppInit<T, B>, Request> for App<T, B>
+impl<T, B> IntoServiceFactory<AppInit<T, B>, Request> for App<T>
 where
     B: MessageBody,
     T: ServiceFactory<
