@@ -154,7 +154,7 @@ mod tests {
         let srv = init_service(
             App::new().service(
                 web::scope("app")
-                    .wrap(Compat::new(logger))
+                    .wrap(logger)
                     .wrap(Compat::new(compress))
                     .service(web::resource("/test").route(web::get().to(HttpResponse::Ok))),
             ),
