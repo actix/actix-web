@@ -581,7 +581,7 @@ impl TestRequest {
         let app_state = AppInitServiceState::new(Rc::new(self.rmap), self.config.clone());
 
         ServiceRequest::new(
-            HttpRequest::new(self.path, head, app_state, Rc::new(self.app_data)),
+            HttpRequest::new(self.path, head, app_state, Rc::new(self.app_data), None),
             payload,
         )
     }
@@ -599,7 +599,7 @@ impl TestRequest {
 
         let app_state = AppInitServiceState::new(Rc::new(self.rmap), self.config.clone());
 
-        HttpRequest::new(self.path, head, app_state, Rc::new(self.app_data))
+        HttpRequest::new(self.path, head, app_state, Rc::new(self.app_data), None)
     }
 
     /// Complete request creation and generate `HttpRequest` and `Payload` instances
@@ -610,7 +610,7 @@ impl TestRequest {
 
         let app_state = AppInitServiceState::new(Rc::new(self.rmap), self.config.clone());
 
-        let req = HttpRequest::new(self.path, head, app_state, Rc::new(self.app_data));
+        let req = HttpRequest::new(self.path, head, app_state, Rc::new(self.app_data), None);
 
         (req, payload)
     }

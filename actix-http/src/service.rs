@@ -507,8 +507,7 @@ where
         &self,
         (io, proto, peer_addr): (T, Protocol, Option<net::SocketAddr>),
     ) -> Self::Future {
-        let on_connect_data =
-            OnConnectData::from_io(&io, self.on_connect_ext.as_deref());
+        let conn_data = OnConnectData::from_io(&io, self.on_connect_ext.as_deref());
 
         match proto {
             Protocol::Http2 => HttpServiceHandlerResponse {
@@ -517,7 +516,7 @@ where
                         h2::handshake_with_timeout(io, &self.cfg),
                         self.cfg.clone(),
                         self.flow.clone(),
-                        on_connect_data,
+                        conn_data,
                         peer_addr,
                     )),
                 },
@@ -527,10 +526,10 @@ where
                 state: State::H1 {
                     dispatcher: h1::Dispatcher::new(
                         io,
-                        self.cfg.clone(),
                         self.flow.clone(),
-                        on_connect_data,
+                        self.cfg.clone(),
                         peer_addr,
+                        conn_data,
                     ),
                 },
             },
@@ -627,17 +626,12 @@ where
             StateProj::H2Handshake { handshake: data } => {
                 match ready!(Pin::new(&mut data.as_mut().unwrap().0).poll(cx)) {
                     Ok((conn, timer)) => {
-                        let (_, config, flow, on_connect_data, peer_addr) =
+                        let (_, config, flow, conn_data, peer_addr) =
                             data.take().unwrap();
 
                         self.as_mut().project().state.set(State::H2 {
                             dispatcher: h2::Dispatcher::new(
-                                flow,
-                                conn,
-                                on_connect_data,
-                                config,
-                                peer_addr,
-                                timer,
+                                conn, flow, config, peer_addr, conn_data, timer,
                             ),
                         });
                         self.poll(cx)

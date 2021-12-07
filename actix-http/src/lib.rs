@@ -92,19 +92,11 @@ impl OnConnectData {
         on_connect_ext: Option<&ConnectCallback<T>>,
     ) -> Self {
         let ext = on_connect_ext.map(|handler| {
-            let mut extensions = Extensions::new();
+            let mut extensions = Extensions::default();
             handler(io, &mut extensions);
             extensions
         });
 
         Self(ext)
-    }
-
-    /// Merge self into given request's extensions.
-    #[inline]
-    pub(crate) fn merge_into(&mut self, req: &mut Request) {
-        if let Some(ref mut ext) = self.0 {
-            req.head.extensions.get_mut().drain_from(ext);
-        }
     }
 }

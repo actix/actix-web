@@ -22,7 +22,7 @@ use crate::{
     config::ServiceConfig,
     error::{DispatchError, ParseError, PayloadError},
     service::HttpFlow,
-    OnConnectData, Request, Response, StatusCode,
+    Extensions, OnConnectData, Request, Response, StatusCode,
 };
 
 use super::{
@@ -100,9 +100,9 @@ where
     U::Error: fmt::Display,
 {
     flow: Rc<HttpFlow<S, X, U>>,
-    on_connect_data: OnConnectData,
     flags: Flags,
     peer_addr: Option<net::SocketAddr>,
+    conn_data: Option<Rc<Extensions>>,
     error: Option<DispatchError>,
 
     #[pin]
@@ -179,10 +179,10 @@ where
     /// Create HTTP/1 dispatcher.
     pub(crate) fn new(
         io: T,
-        config: ServiceConfig,
         flow: Rc<HttpFlow<S, X, U>>,
-        on_connect_data: OnConnectData,
+        config: ServiceConfig,
         peer_addr: Option<net::SocketAddr>,
+        conn_data: OnConnectData,
     ) -> Self {
         let flags = if config.keep_alive_enabled() {
             Flags::KEEPALIVE
@@ -198,20 +198,23 @@ where
 
         Dispatcher {
             inner: DispatcherState::Normal(InnerDispatcher {
-                read_buf: BytesMut::with_capacity(HW_BUFFER_SIZE),
-                write_buf: BytesMut::with_capacity(HW_BUFFER_SIZE),
-                payload: None,
-                state: State::None,
-                error: None,
-                messages: VecDeque::new(),
-                io: Some(io),
-                codec: Codec::new(config),
                 flow,
-                on_connect_data,
                 flags,
                 peer_addr,
+                conn_data: conn_data.0.map(Rc::new),
+                error: None,
+
+                state: State::None,
+                payload: None,
+                messages: VecDeque::new(),
+
                 ka_expire,
                 ka_timer,
+
+                io: Some(io),
+                read_buf: BytesMut::with_capacity(HW_BUFFER_SIZE),
+                write_buf: BytesMut::with_capacity(HW_BUFFER_SIZE),
+                codec: Codec::new(config),
             }),
 
             #[cfg(test)]
@@ -593,8 +596,7 @@ where
                         Message::Item(mut req) => {
                             req.head_mut().peer_addr = *this.peer_addr;
 
-                            // merge on_connect_ext data into request extensions
-                            this.on_connect_data.merge_into(&mut req);
+                            req.conn_data = this.conn_data.as_ref().map(Rc::clone);
 
                             match this.codec.message_type() {
                                 // Request is upgradable. add upgrade message and break.
@@ -1100,10 +1102,10 @@ mod tests {
 
             let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
                 buf,
-                ServiceConfig::default(),
                 services,
-                OnConnectData::default(),
+                ServiceConfig::default(),
                 None,
+                OnConnectData::default(),
             );
 
             actix_rt::pin!(h1);
@@ -1140,10 +1142,10 @@ mod tests {
 
             let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
                 buf,
-                cfg,
                 services,
-                OnConnectData::default(),
+                cfg,
                 None,
+                OnConnectData::default(),
             );
 
             actix_rt::pin!(h1);
@@ -1194,10 +1196,10 @@ mod tests {
 
             let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
                 buf,
-                cfg,
                 services,
-                OnConnectData::default(),
+                cfg,
                 None,
+                OnConnectData::default(),
             );
 
             actix_rt::pin!(h1);
@@ -1244,10 +1246,10 @@ mod tests {
 
             let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
                 buf.clone(),
-                cfg,
                 services,
-                OnConnectData::default(),
+                cfg,
                 None,
+                OnConnectData::default(),
             );
 
             buf.extend_read_buf(
@@ -1316,10 +1318,10 @@ mod tests {
 
             let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
                 buf.clone(),
-                cfg,
                 services,
-                OnConnectData::default(),
+                cfg,
                 None,
+                OnConnectData::default(),
             );
 
             buf.extend_read_buf(
@@ -1393,10 +1395,10 @@ mod tests {
 
             let h1 = Dispatcher::<_, _, _, _, TestUpgrade>::new(
                 buf.clone(),
-                cfg,
                 services,
-                OnConnectData::default(),
+                cfg,
                 None,
+                OnConnectData::default(),
             );
 
             buf.extend_read_buf(

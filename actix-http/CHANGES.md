@@ -14,6 +14,8 @@
 * `header::QualityItem::{max, min}`. [#2486]
 * `header::Quality::{MAX, MIN}`. [#2486]
 * `impl Display` for `header::Quality`. [#2486]
+* Connection data set through the `on_connect_ext` callbacks is now accessible only from the new `Request::conn_data()` method. [#2491]
+* `Request::take_conn_data()`. [#2491]
 
 ### Changed
 * Rename `body::BoxBody::{from_body => new}`. [#2468]
@@ -39,6 +41,7 @@
 [#1920]: https://github.com/actix/actix-web/pull/1920
 [#2486]: https://github.com/actix/actix-web/pull/2486
 [#2488]: https://github.com/actix/actix-web/pull/2488
+[#2491]: https://github.com/actix/actix-web/pull/2491
 
 
 ## 3.0.0-beta.14 - 2021-11-30

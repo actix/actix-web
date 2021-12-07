@@ -101,9 +101,9 @@ where
 
     /// Sets function that will be called once before each connection is handled.
     /// It will receive a `&std::any::Any`, which contains underlying connection type and an
-    /// [Extensions] container so that request-local data can be passed to middleware and handlers.
+    /// [Extensions] container so that connection data can be accessed in middleware and handlers.
     ///
-    /// For example:
+    /// # Connection Types
     /// - `actix_tls::accept::openssl::TlsStream<actix_web::rt::net::TcpStream>` when using openssl.
     /// - `actix_tls::accept::rustls::TlsStream<actix_web::rt::net::TcpStream>` when using rustls.
     /// - `actix_web::rt::net::TcpStream` when no encryption is used.

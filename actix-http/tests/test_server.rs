@@ -7,7 +7,7 @@ use std::{
 
 use actix_http::{
     body::{self, BodyStream, BoxBody, SizedStream},
-    header, Error, HttpMessage, HttpService, KeepAlive, Request, Response, StatusCode,
+    header, Error, HttpService, KeepAlive, Request, Response, StatusCode,
 };
 use actix_http_test::test_server;
 use actix_rt::time::sleep;
@@ -748,7 +748,7 @@ async fn test_h1_on_connect() {
                 data.insert(20isize);
             })
             .h1(|req: Request| {
-                assert!(req.extensions().contains::<isize>());
+                assert!(req.conn_data::<isize>().is_some());
                 ok::<_, Infallible>(Response::ok())
             })
             .tcp()

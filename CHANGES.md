@@ -7,6 +7,7 @@
 * `Range` typed header. [#2485]
 * `HttpResponse::map_into_{left,right}_body` and `HttpResponse::map_into_boxed_body`. [#2468]
 * `ServiceResponse::map_into_{left,right}_body` and `HttpResponse::map_into_boxed_body`. [#2468]
+* Connection data set through the `HttpServer::on_connect` callback is now accessible only from the new `HttpRequest::conn_data()` and `ServiceRequest::conn_data()` methods. [#2491]
 
 ### Changed
 * Rename `Accept::{mime_precedence => ranked}`. [#2480]
@@ -27,6 +28,7 @@
 [#2482]: https://github.com/actix/actix-web/pull/2482
 [#2484]: https://github.com/actix/actix-web/pull/2484
 [#2485]: https://github.com/actix/actix-web/pull/2485
+[#2491]: https://github.com/actix/actix-web/pull/2491
 [#2492]: https://github.com/actix/actix-web/pull/2492
 [#2493]: https://github.com/actix/actix-web/pull/2493
 

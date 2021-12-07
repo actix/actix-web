@@ -27,7 +27,7 @@ use crate::{
     body::{BodySize, BoxBody, MessageBody},
     config::ServiceConfig,
     service::HttpFlow,
-    OnConnectData, Payload, Request, Response, ResponseHead,
+    Extensions, OnConnectData, Payload, Request, Response, ResponseHead,
 };
 
 const CHUNK_SIZE: usize = 16_384;
@@ -37,7 +37,7 @@ pin_project! {
     pub struct Dispatcher<T, S, B, X, U> {
         flow: Rc<HttpFlow<S, X, U>>,
         connection: Connection<T, Bytes>,
-        on_connect_data: OnConnectData,
+        conn_data: Option<Rc<Extensions>>,
         config: ServiceConfig,
         peer_addr: Option<net::SocketAddr>,
         ping_pong: Option<H2PingPong>,
@@ -50,11 +50,11 @@ where
     T: AsyncRead + AsyncWrite + Unpin,
 {
     pub(crate) fn new(
-        flow: Rc<HttpFlow<S, X, U>>,
         mut conn: Connection<T, Bytes>,
-        on_connect_data: OnConnectData,
+        flow: Rc<HttpFlow<S, X, U>>,
         config: ServiceConfig,
         peer_addr: Option<net::SocketAddr>,
+        conn_data: OnConnectData,
         timer: Option<Pin<Box<Sleep>>>,
     ) -> Self {
         let ping_pong = config.keep_alive().map(|dur| H2PingPong {
@@ -74,7 +74,7 @@ where
             config,
             peer_addr,
             connection: conn,
-            on_connect_data,
+            conn_data: conn_data.0.map(Rc::new),
             ping_pong,
             _phantom: PhantomData,
         }
@@ -119,8 +119,7 @@ where
                     head.headers = parts.headers.into();
                     head.peer_addr = this.peer_addr;
 
-                    // merge on_connect_ext data into request extensions
-                    this.on_connect_data.merge_into(&mut req);
+                    req.conn_data = this.conn_data.as_ref().map(Rc::clone);
 
                     let fut = this.flow.service.call(req);
                     let config = this.config.clone();

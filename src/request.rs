@@ -37,6 +37,7 @@ pub(crate) struct HttpRequestInner {
     pub(crate) head: Message<RequestHead>,
     pub(crate) path: Path<Url>,
     pub(crate) app_data: SmallVec<[Rc<Extensions>; 4]>,
+    pub(crate) conn_data: Option<Rc<Extensions>>,
     app_state: Rc<AppInitServiceState>,
 }
 
@@ -47,6 +48,7 @@ impl HttpRequest {
         head: Message<RequestHead>,
         app_state: Rc<AppInitServiceState>,
         app_data: Rc<Extensions>,
+        conn_data: Option<Rc<Extensions>>,
     ) -> HttpRequest {
         let mut data = SmallVec::<[Rc<Extensions>; 4]>::new();
         data.push(app_data);
@@ -57,6 +59,7 @@ impl HttpRequest {
                 path,
                 app_state,
                 app_data: data,
+                conn_data,
             }),
         }
     }
@@ -163,6 +166,20 @@ impl HttpRequest {
     #[inline]
     pub fn extensions_mut(&self) -> RefMut<'_, Extensions> {
         self.head().extensions_mut()
+    }
+
+    /// Returns a reference a piece of connection data set in an [on-connect] callback.
+    ///
+    /// ```ignore
+    /// let opt_t = req.conn_data::<PeerCertificate>();
+    /// ```
+    ///
+    /// [on-connect]: crate::HttpServiceBuilder::on_connect_ext
+    pub fn conn_data<T: 'static>(&self) -> Option<&T> {
+        self.inner
+            .conn_data
+            .as_deref()
+            .and_then(|container| container.get::<T>())
     }
 
     /// Generates URL for a named resource.

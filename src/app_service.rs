@@ -197,7 +197,8 @@ where
 
     actix_service::forward_ready!(service);
 
-    fn call(&self, req: Request) -> Self::Future {
+    fn call(&self, mut req: Request) -> Self::Future {
+        let conn_data = req.take_conn_data();
         let (head, payload) = req.into_parts();
 
         let req = if let Some(mut req) = self.app_state.pool().pop() {
@@ -205,6 +206,7 @@ where
             inner.path.get_mut().update(&head.uri);
             inner.path.reset();
             inner.head = head;
+            inner.conn_data = conn_data;
             req
         } else {
             HttpRequest::new(
@@ -212,6 +214,7 @@ where
                 head,
                 self.app_state.clone(),
                 self.app_data.clone(),
+                conn_data,
             )
         };
         self.service.call(ServiceRequest::new(req, payload))
