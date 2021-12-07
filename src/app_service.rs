@@ -198,7 +198,7 @@ where
     actix_service::forward_ready!(service);
 
     fn call(&self, mut req: Request) -> Self::Future {
-        let req_data = Rc::new(RefCell::new(req.req_data.take()));
+        let req_data = Rc::new(RefCell::new(req.take_req_data()));
         let conn_data = req.take_conn_data();
         let (head, payload) = req.into_parts();
 

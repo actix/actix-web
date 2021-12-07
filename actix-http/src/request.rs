@@ -2,7 +2,7 @@
 
 use std::{
     cell::{Ref, RefCell, RefMut},
-    fmt, net,
+    fmt, mem, net,
     rc::Rc,
     str,
 };
@@ -22,7 +22,7 @@ pub struct Request<P = PayloadStream> {
     pub(crate) payload: Payload<P>,
     pub(crate) head: Message<RequestHead>,
     pub(crate) conn_data: Option<Rc<Extensions>>,
-    pub req_data: RefCell<Extensions>,
+    pub(crate) req_data: RefCell<Extensions>,
 }
 
 impl<P> HttpMessage for Request<P> {
@@ -34,7 +34,7 @@ impl<P> HttpMessage for Request<P> {
     }
 
     fn take_payload(&mut self) -> Payload<P> {
-        std::mem::replace(&mut self.payload, Payload::None)
+        mem::replace(&mut self.payload, Payload::None)
     }
 
     /// Request extensions
@@ -55,7 +55,7 @@ impl From<Message<RequestHead>> for Request<PayloadStream> {
         Request {
             head,
             payload: Payload::None,
-            req_data: RefCell::new(Extensions::new()),
+            req_data: RefCell::new(Extensions::default()),
             conn_data: None,
         }
     }
@@ -67,7 +67,7 @@ impl Request<PayloadStream> {
         Request {
             head: Message::new(),
             payload: Payload::None,
-            req_data: RefCell::new(Extensions::new()),
+            req_data: RefCell::new(Extensions::default()),
             conn_data: None,
         }
     }
@@ -79,7 +79,7 @@ impl<P> Request<P> {
         Request {
             payload,
             head: Message::new(),
-            req_data: RefCell::new(Extensions::new()),
+            req_data: RefCell::new(Extensions::default()),
             conn_data: None,
         }
     }
@@ -106,7 +106,7 @@ impl<P> Request<P> {
 
     /// Get request's payload
     pub fn take_payload(&mut self) -> Payload<P> {
-        std::mem::replace(&mut self.payload, Payload::None)
+        mem::replace(&mut self.payload, Payload::None)
     }
 
     /// Split request into request head and payload
@@ -202,6 +202,11 @@ impl<P> Request<P> {
     /// [on-connect]: crate::HttpServiceBuilder::on_connect_ext
     pub fn take_conn_data(&mut self) -> Option<Rc<Extensions>> {
         self.conn_data.take()
+    }
+
+    /// Returns the request data container, leaving an empty one in it's place.
+    pub fn take_req_data(&mut self) -> Extensions {
+        mem::take(&mut self.req_data.get_mut())
     }
 }
 

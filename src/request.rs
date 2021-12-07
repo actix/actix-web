@@ -325,18 +325,15 @@ impl HttpMessage for HttpRequest {
     type Stream = ();
 
     #[inline]
-    /// Returns Request's headers.
     fn headers(&self) -> &HeaderMap {
         &self.head().headers
     }
 
-    /// Request extensions
     #[inline]
     fn extensions(&self) -> Ref<'_, Extensions> {
         self.req_data()
     }
 
-    /// Mutable reference to a the request's extensions
     #[inline]
     fn extensions_mut(&self) -> RefMut<'_, Extensions> {
         self.req_data_mut()
@@ -358,7 +355,8 @@ impl Drop for HttpRequest {
                 // clear additional app_data and keep the root one for reuse.
                 inner.app_data.truncate(1);
 
-                // inner is borrowed mut here; get req data mutably to reduce borrow check
+                // Inner is borrowed mut here and; get req data mutably to reduce borrow check. Also
+                // we know the req_data Rc will not have any cloned at this point to unwrap is okay.
                 Rc::get_mut(&mut inner.req_data).unwrap().get_mut().clear();
 
                 // a re-borrow of pool is necessary here.
