@@ -14,7 +14,8 @@
 //! [rustls]: https://crates.io/crates/rustls
 //! [trust-dns]: https://crates.io/crates/trust-dns
 
-#![deny(rust_2018_idioms, nonstandard_style, clippy::uninit_assumed_init)]
+#![deny(rust_2018_idioms, nonstandard_style)]
+#![warn(future_incompatible)]
 #![allow(
     clippy::type_complexity,
     clippy::too_many_arguments,
@@ -87,10 +88,7 @@ pub(crate) struct OnConnectData(Option<Extensions>);
 
 impl OnConnectData {
     /// Construct by calling the on-connect callback with the underlying transport I/O.
-    pub(crate) fn from_io<T>(
-        io: &T,
-        on_connect_ext: Option<&ConnectCallback<T>>,
-    ) -> Self {
+    pub(crate) fn from_io<T>(io: &T, on_connect_ext: Option<&ConnectCallback<T>>) -> Self {
         let ext = on_connect_ext.map(|handler| {
             let mut extensions = Extensions::default();
             handler(io, &mut extensions);

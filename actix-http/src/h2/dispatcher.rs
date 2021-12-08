@@ -109,7 +109,7 @@ where
                 Poll::Ready(Some((req, tx))) => {
                     let (parts, body) = req.into_parts();
                     let pl = crate::h2::Payload::new(body);
-                    let pl = Payload::<crate::payload::PayloadStream>::H2(pl);
+                    let pl = Payload::H2(pl);
                     let mut req = Request::with_payload(pl);
 
                     let head = req.head_mut();
@@ -160,16 +160,11 @@ where
                                 Poll::Ready(_) => {
                                     ping_pong.on_flight = false;
 
-                                    let dead_line =
-                                        this.config.keep_alive_expire().unwrap();
+                                    let dead_line = this.config.keep_alive_expire().unwrap();
                                     ping_pong.timer.as_mut().reset(dead_line);
                                 }
                                 Poll::Pending => {
-                                    return ping_pong
-                                        .timer
-                                        .as_mut()
-                                        .poll(cx)
-                                        .map(|_| Ok(()))
+                                    return ping_pong.timer.as_mut().poll(cx).map(|_| Ok(()))
                                 }
                             }
                         } else {

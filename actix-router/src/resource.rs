@@ -168,7 +168,7 @@ const REGEX_FLAGS: &str = "(?s-m)";
 /// extracted in the same way as non-tail dynamic segments.
 ///
 /// ## Examples
-/// ```rust
+/// ```
 /// # use actix_router::{Path, ResourceDef};
 /// let resource = ResourceDef::new("/blob/{tail}*");
 /// assert!(resource.is_match("/blob/HEAD/Cargo.toml"));
@@ -191,7 +191,7 @@ const REGEX_FLAGS: &str = "(?s-m)";
 /// expectations in the router using these definitions and cause runtime panics.
 ///
 /// ## Examples
-/// ```rust
+/// ```
 /// # use actix_router::ResourceDef;
 /// let resource = ResourceDef::new(["/home", "/index"]);
 /// assert!(resource.is_match("/home"));
@@ -206,7 +206,7 @@ const REGEX_FLAGS: &str = "(?s-m)";
 /// resource-path pairs that would not be compatible.
 ///
 /// ## Examples
-/// ```rust
+/// ```
 /// # use actix_router::ResourceDef;
 /// assert!(!ResourceDef::new("/root").is_match("/root/"));
 /// assert!(!ResourceDef::new("/root/").is_match("/root"));

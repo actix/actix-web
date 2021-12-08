@@ -70,15 +70,12 @@ where
                         .unwrap()
                         .is_write_buf_full()
                 {
-                    let next =
-                        match this.body.as_mut().as_pin_mut().unwrap().poll_next(cx) {
-                            Poll::Ready(Some(Ok(item))) => Poll::Ready(Some(item)),
-                            Poll::Ready(Some(Err(err))) => {
-                                return Poll::Ready(Err(err.into()))
-                            }
-                            Poll::Ready(None) => Poll::Ready(None),
-                            Poll::Pending => Poll::Pending,
-                        };
+                    let next = match this.body.as_mut().as_pin_mut().unwrap().poll_next(cx) {
+                        Poll::Ready(Some(Ok(item))) => Poll::Ready(Some(item)),
+                        Poll::Ready(Some(Err(err))) => return Poll::Ready(Err(err.into())),
+                        Poll::Ready(None) => Poll::Ready(None),
+                        Poll::Pending => Poll::Pending,
+                    };
 
                     match next {
                         Poll::Ready(item) => {
@@ -88,9 +85,9 @@ where
                                 let _ = this.body.take();
                             }
                             let framed = this.framed.as_mut().as_pin_mut().unwrap();
-                            framed.write(Message::Chunk(item)).map_err(|err| {
-                                Error::new_send_response().with_cause(err)
-                            })?;
+                            framed
+                                .write(Message::Chunk(item))
+                                .map_err(|err| Error::new_send_response().with_cause(err))?;
                         }
                         Poll::Pending => body_ready = false,
                     }

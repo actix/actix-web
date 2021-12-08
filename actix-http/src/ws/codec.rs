@@ -224,9 +224,7 @@ impl Decoder for Codec {
                         OpCode::Continue => {
                             if self.flags.contains(Flags::CONTINUATION) {
                                 Ok(Some(Frame::Continuation(Item::Continue(
-                                    payload
-                                        .map(|pl| pl.freeze())
-                                        .unwrap_or_else(Bytes::new),
+                                    payload.map(|pl| pl.freeze()).unwrap_or_else(Bytes::new),
                                 ))))
                             } else {
                                 Err(ProtocolError::ContinuationNotStarted)
@@ -236,9 +234,7 @@ impl Decoder for Codec {
                             if !self.flags.contains(Flags::CONTINUATION) {
                                 self.flags.insert(Flags::CONTINUATION);
                                 Ok(Some(Frame::Continuation(Item::FirstBinary(
-                                    payload
-                                        .map(|pl| pl.freeze())
-                                        .unwrap_or_else(Bytes::new),
+                                    payload.map(|pl| pl.freeze()).unwrap_or_else(Bytes::new),
                                 ))))
                             } else {
                                 Err(ProtocolError::ContinuationStarted)
@@ -248,9 +244,7 @@ impl Decoder for Codec {
                             if !self.flags.contains(Flags::CONTINUATION) {
                                 self.flags.insert(Flags::CONTINUATION);
                                 Ok(Some(Frame::Continuation(Item::FirstText(
-                                    payload
-                                        .map(|pl| pl.freeze())
-                                        .unwrap_or_else(Bytes::new),
+                                    payload.map(|pl| pl.freeze()).unwrap_or_else(Bytes::new),
                                 ))))
                             } else {
                                 Err(ProtocolError::ContinuationStarted)

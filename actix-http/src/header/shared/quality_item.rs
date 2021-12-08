@@ -120,8 +120,7 @@ impl<T: str::FromStr> str::FromStr for QualityItem<T> {
                 }
 
                 let q_value = q_val.parse::<f32>().map_err(|_| ParseError::Header)?;
-                let q_value =
-                    Quality::try_from(q_value).map_err(|_| ParseError::Header)?;
+                let q_value = Quality::try_from(q_value).map_err(|_| ParseError::Header)?;
 
                 quality = q_value;
                 raw_item = val;

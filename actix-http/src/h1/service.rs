@@ -266,8 +266,7 @@ where
     }
 }
 
-impl<T, S, B, X, U> ServiceFactory<(T, Option<net::SocketAddr>)>
-    for H1Service<T, S, B, X, U>
+impl<T, S, B, X, U> ServiceFactory<(T, Option<net::SocketAddr>)> for H1Service<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin + 'static,
 
@@ -310,9 +309,9 @@ where
 
             let upgrade = match upgrade {
                 Some(upgrade) => {
-                    let upgrade = upgrade.await.map_err(|e| {
-                        log::error!("Init http upgrade service error: {:?}", e)
-                    })?;
+                    let upgrade = upgrade
+                        .await
+                        .map_err(|e| log::error!("Init http upgrade service error: {:?}", e))?;
                     Some(upgrade)
                 }
                 None => None,
@@ -336,8 +335,7 @@ where
 /// `Service` implementation for HTTP/1 transport
 pub type H1ServiceHandler<T, S, B, X, U> = HttpServiceHandler<T, S, B, X, U>;
 
-impl<T, S, B, X, U> Service<(T, Option<net::SocketAddr>)>
-    for HttpServiceHandler<T, S, B, X, U>
+impl<T, S, B, X, U> Service<(T, Option<net::SocketAddr>)> for HttpServiceHandler<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
 

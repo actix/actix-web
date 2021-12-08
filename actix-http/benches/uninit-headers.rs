@@ -54,15 +54,10 @@ const EMPTY_HEADER_INDEX: HeaderIndex = HeaderIndex {
     value: (0, 0),
 };
 
-const EMPTY_HEADER_INDEX_ARRAY: [HeaderIndex; MAX_HEADERS] =
-    [EMPTY_HEADER_INDEX; MAX_HEADERS];
+const EMPTY_HEADER_INDEX_ARRAY: [HeaderIndex; MAX_HEADERS] = [EMPTY_HEADER_INDEX; MAX_HEADERS];
 
 impl HeaderIndex {
-    fn record(
-        bytes: &[u8],
-        headers: &[httparse::Header<'_>],
-        indices: &mut [HeaderIndex],
-    ) {
+    fn record(bytes: &[u8], headers: &[httparse::Header<'_>], indices: &mut [HeaderIndex]) {
         let bytes_ptr = bytes.as_ptr() as usize;
         for (header, indices) in headers.iter().zip(indices.iter_mut()) {
             let name_start = header.name.as_ptr() as usize - bytes_ptr;

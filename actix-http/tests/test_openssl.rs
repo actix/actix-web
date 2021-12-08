@@ -170,10 +170,11 @@ async fn test_h2_headers() {
 
     let mut srv = test_server(move || {
         let data = data.clone();
-        HttpService::build().h2(move |_| {
-            let mut builder = Response::build(StatusCode::OK);
-            for idx in 0..90 {
-                builder.insert_header(
+        HttpService::build()
+            .h2(move |_| {
+                let mut builder = Response::build(StatusCode::OK);
+                for idx in 0..90 {
+                    builder.insert_header(
                     (format!("X-TEST-{}", idx).as_str(),
                     "TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
@@ -189,12 +190,13 @@ async fn test_h2_headers() {
                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST ",
                 ));
-            }
-            ok::<_, Infallible>(builder.body(data.clone()))
-        })
+                }
+                ok::<_, Infallible>(builder.body(data.clone()))
+            })
             .openssl(tls_config())
-                    .map_err(|_| ())
-    }).await;
+            .map_err(|_| ())
+    })
+    .await;
 
     let response = srv.sget("/").send().await.unwrap();
     assert!(response.status().is_success());
@@ -315,9 +317,8 @@ async fn test_h2_body_length() {
     let mut srv = test_server(move || {
         HttpService::build()
             .h2(|_| async {
-                let body = once(async {
-                    Ok::<_, Infallible>(Bytes::from_static(STR.as_ref()))
-                });
+                let body =
+                    once(async { Ok::<_, Infallible>(Bytes::from_static(STR.as_ref())) });
 
                 Ok::<_, Infallible>(
                     Response::ok().set_body(SizedStream::new(STR.len() as u64, body)),

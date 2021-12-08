@@ -227,10 +227,7 @@ impl Inner {
         self.len
     }
 
-    fn readany(
-        &mut self,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<Bytes, PayloadError>>> {
+    fn readany(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes, PayloadError>>> {
         if let Some(data) = self.items.pop_front() {
             self.len -= data.len();
             self.need_read = self.len < MAX_BUFFER_SIZE;

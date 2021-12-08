@@ -161,11 +161,7 @@ where
     X::Error: Into<Response<BoxBody>>,
     X::InitError: fmt::Debug,
 
-    U: ServiceFactory<
-        (Request, Framed<TcpStream, h1::Codec>),
-        Config = (),
-        Response = (),
-    >,
+    U: ServiceFactory<(Request, Framed<TcpStream, h1::Codec>), Config = (), Response = ()>,
     U::Future: 'static,
     U::Error: fmt::Display + Into<Response<BoxBody>>,
     U::InitError: fmt::Debug,
@@ -381,9 +377,9 @@ where
 
             let upgrade = match upgrade {
                 Some(upgrade) => {
-                    let upgrade = upgrade.await.map_err(|e| {
-                        log::error!("Init http upgrade service error: {:?}", e)
-                    })?;
+                    let upgrade = upgrade
+                        .await
+                        .map_err(|e| log::error!("Init http upgrade service error: {:?}", e))?;
                     Some(upgrade)
                 }
                 None => None,
@@ -626,8 +622,7 @@ where
             StateProj::H2Handshake { handshake: data } => {
                 match ready!(Pin::new(&mut data.as_mut().unwrap().0).poll(cx)) {
                     Ok((conn, timer)) => {
-                        let (_, config, flow, conn_data, peer_addr) =
-                            data.take().unwrap();
+                        let (_, config, flow, conn_data, peer_addr) = data.take().unwrap();
 
                         self.as_mut().project().state.set(State::H2 {
                             dispatcher: h2::Dispatcher::new(

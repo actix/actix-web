@@ -74,8 +74,7 @@ pub(crate) trait MessageType: Sized {
             let headers = self.headers_mut();
 
             for idx in raw_headers.iter() {
-                let name =
-                    HeaderName::from_bytes(&slice[idx.name.0..idx.name.1]).unwrap();
+                let name = HeaderName::from_bytes(&slice[idx.name.0..idx.name.1]).unwrap();
 
                 // SAFETY: httparse already checks header value is only visible ASCII bytes
                 // from_maybe_shared_unchecked contains debug assertions so they are omitted here
@@ -605,8 +604,7 @@ mod tests {
 
     #[test]
     fn test_parse_body() {
-        let mut buf =
-            BytesMut::from("GET /test HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody");
+        let mut buf = BytesMut::from("GET /test HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody");
 
         let mut reader = MessageDecoder::<Request>::default();
         let (req, pl) = reader.decode(&mut buf).unwrap().unwrap();
@@ -622,8 +620,7 @@ mod tests {
 
     #[test]
     fn test_parse_body_crlf() {
-        let mut buf =
-            BytesMut::from("\r\nGET /test HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody");
+        let mut buf = BytesMut::from("\r\nGET /test HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody");
 
         let mut reader = MessageDecoder::<Request>::default();
         let (req, pl) = reader.decode(&mut buf).unwrap().unwrap();

@@ -12,7 +12,7 @@ use super::{Header, IntoHeaderValue};
 /// An interface for types that can be converted into a [`HeaderName`]/[`HeaderValue`] pair for
 /// insertion into a [`HeaderMap`].
 ///
-/// [`HeaderMap`]: crate::http::HeaderMap
+/// [`HeaderMap`]: super::HeaderMap
 pub trait IntoHeaderPair: Sized {
     type Error: Into<HttpError>;
 

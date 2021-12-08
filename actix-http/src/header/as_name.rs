@@ -6,7 +6,7 @@ use http::header::{HeaderName, InvalidHeaderName};
 
 /// Sealed trait implemented for types that can be effectively borrowed as a [`HeaderValue`].
 ///
-/// [`HeaderValue`]: crate::http::HeaderValue
+/// [`HeaderValue`]: super::HeaderValue
 pub trait AsHeaderName: Sealed {}
 
 pub struct Seal;

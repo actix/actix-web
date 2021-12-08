@@ -53,11 +53,7 @@ impl<B: MessageBody> Encoder<B> {
         }
     }
 
-    pub fn response(
-        encoding: ContentEncoding,
-        head: &mut ResponseHead,
-        body: B,
-    ) -> Self {
+    pub fn response(encoding: ContentEncoding, head: &mut ResponseHead, body: B) -> Self {
         let can_encode = !(head.headers().contains_key(&CONTENT_ENCODING)
             || head.status == StatusCode::SWITCHING_PROTOCOLS
             || head.status == StatusCode::NO_CONTENT

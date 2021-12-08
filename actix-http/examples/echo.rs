@@ -25,10 +25,7 @@ async fn main() -> io::Result<()> {
 
                     Ok::<_, Error>(
                         Response::build(StatusCode::OK)
-                            .insert_header((
-                                "x-head",
-                                HeaderValue::from_static("dummy value!"),
-                            ))
+                            .insert_header(("x-head", HeaderValue::from_static("dummy value!")))
                             .body(body),
                     )
                 })

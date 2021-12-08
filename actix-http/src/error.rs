@@ -457,8 +457,7 @@ mod tests {
 
     #[test]
     fn test_payload_error() {
-        let err: PayloadError =
-            io::Error::new(io::ErrorKind::Other, "ParseError").into();
+        let err: PayloadError = io::Error::new(io::ErrorKind::Other, "ParseError").into();
         assert!(err.to_string().contains("ParseError"));
 
         let err = PayloadError::Incomplete(None);

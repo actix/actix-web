@@ -21,10 +21,7 @@ async fn main() -> io::Result<()> {
                     log::info!("{:?}", req);
 
                     let mut res = Response::build(StatusCode::OK);
-                    res.insert_header((
-                        "x-head",
-                        HeaderValue::from_static("dummy value!"),
-                    ));
+                    res.insert_header(("x-head", HeaderValue::from_static("dummy value!")));
 
                     let forty_two = req.extensions().get::<u32>().unwrap().to_string();
                     res.insert_header((

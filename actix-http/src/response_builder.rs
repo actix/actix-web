@@ -47,7 +47,8 @@ impl ResponseBuilder {
     /// Create response builder
     ///
     /// # Examples
-    //    /// use actix_http::{Response, ResponseBuilder, StatusCode};, / ``
+    /// ```
+    /// use actix_http::{Response, ResponseBuilder, StatusCode};
     /// let res: Response<_> = ResponseBuilder::default().finish();
     /// assert_eq!(res.status(), StatusCode::OK);
     /// ```
@@ -62,7 +63,8 @@ impl ResponseBuilder {
     /// Set HTTP status code of this response.
     ///
     /// # Examples
-    //    /// use actix_http::{ResponseBuilder, StatusCode};, / ``
+    /// ```
+    /// use actix_http::{ResponseBuilder, StatusCode};
     /// let res = ResponseBuilder::default().status(StatusCode::NOT_FOUND).finish();
     /// assert_eq!(res.status(), StatusCode::NOT_FOUND);
     /// ```

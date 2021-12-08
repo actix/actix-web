@@ -173,7 +173,7 @@ impl HttpRequest {
     /// let opt_t = req.conn_data::<PeerCertificate>();
     /// ```
     ///
-    /// [on-connect]: crate::HttpServiceBuilder::on_connect_ext
+    /// [on-connect]: crate::HttpServer::on_connect
     pub fn conn_data<T: 'static>(&self) -> Option<&T> {
         self.inner
             .conn_data

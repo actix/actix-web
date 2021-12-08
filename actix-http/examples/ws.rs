@@ -60,10 +60,7 @@ impl Heartbeat {
 impl Stream for Heartbeat {
     type Item = Result<Bytes, Error>;
 
-    fn poll_next(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         log::trace!("poll");
 
         ready!(self.as_mut().interval.poll_tick(cx));

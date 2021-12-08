@@ -109,6 +109,7 @@ impl HttpResponseBuilder {
     }
 
     /// Replaced with [`Self::insert_header()`].
+    #[doc(hidden)]
     #[deprecated(
         since = "4.0.0",
         note = "Replaced with `insert_header((key, value))`. Will be removed in v5."
@@ -133,6 +134,7 @@ impl HttpResponseBuilder {
     }
 
     /// Replaced with [`Self::append_header()`].
+    #[doc(hidden)]
     #[deprecated(
         since = "4.0.0",
         note = "Replaced with `append_header((key, value))`. Will be removed in v5."

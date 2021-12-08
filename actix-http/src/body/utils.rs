@@ -68,9 +68,8 @@ mod test {
         let bytes = to_bytes(body).await.unwrap();
         assert_eq!(bytes, b"123"[..]);
 
-        let stream =
-            stream::iter(vec![Bytes::from_static(b"123"), Bytes::from_static(b"abc")])
-                .map(Ok::<_, Error>);
+        let stream = stream::iter(vec![Bytes::from_static(b"123"), Bytes::from_static(b"abc")])
+            .map(Ok::<_, Error>);
         let body = BodyStream::new(stream);
         let bytes = to_bytes(body).await.unwrap();
         assert_eq!(bytes, b"123abc"[..]);

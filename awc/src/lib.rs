@@ -95,7 +95,8 @@
 //! # }
 //! ```
 
-#![deny(rust_2018_idioms)]
+#![deny(rust_2018_idioms, nonstandard_style)]
+#![warn(future_incompatible)]
 #![allow(
     clippy::type_complexity,
     clippy::borrow_interior_mutable_const,

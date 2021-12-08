@@ -123,12 +123,11 @@ impl HeaderMap {
         let mut map = HeaderMap::with_capacity(capacity);
         map.append(first_name.clone(), first_value);
 
-        let (map, _) =
-            drain.fold((map, first_name), |(mut map, prev_name), (name, value)| {
-                let name = name.unwrap_or(prev_name);
-                map.append(name.clone(), value);
-                (map, name)
-            });
+        let (map, _) = drain.fold((map, first_name), |(mut map, prev_name), (name, value)| {
+            let name = name.unwrap_or(prev_name);
+            map.append(name.clone(), value);
+            (map, name)
+        });
 
         map
     }

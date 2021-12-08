@@ -1,6 +1,7 @@
 //! Resource path matching and router.
 
 #![deny(rust_2018_idioms, nonstandard_style)]
+#![warn(future_incompatible)]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 

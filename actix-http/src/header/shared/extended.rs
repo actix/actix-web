@@ -63,9 +63,7 @@ pub struct ExtendedValue {
 /// [RFC 2231 §7]: https://datatracker.ietf.org/doc/html/rfc2231#section-7
 /// [RFC 2978 §2.3]: https://datatracker.ietf.org/doc/html/rfc2978#section-2.3
 /// [RFC 3986 §2.1]: https://datatracker.ietf.org/doc/html/rfc5646#section-2.1
-pub fn parse_extended_value(
-    val: &str,
-) -> Result<ExtendedValue, crate::error::ParseError> {
+pub fn parse_extended_value(val: &str) -> Result<ExtendedValue, crate::error::ParseError> {
     // Break into three pieces separated by the single-quote character
     let mut parts = val.splitn(3, '\'');
 
@@ -100,8 +98,7 @@ pub fn parse_extended_value(
 
 impl fmt::Display for ExtendedValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let encoded_value =
-            percent_encoding::percent_encode(&self.value[..], HTTP_VALUE);
+        let encoded_value = percent_encoding::percent_encode(&self.value[..], HTTP_VALUE);
         if let Some(ref lang) = self.language_tag {
             write!(f, "{}'{}'{}", self.charset, lang, encoded_value)
         } else {
@@ -143,8 +140,8 @@ mod tests {
         assert!(extended_value.language_tag.is_none());
         assert_eq!(
             vec![
-                194, 163, b' ', b'a', b'n', b'd', b' ', 226, 130, 172, b' ', b'r', b'a',
-                b't', b'e', b's',
+                194, 163, b' ', b'a', b'n', b'd', b' ', 226, 130, 172, b' ', b'r', b'a', b't',
+                b'e', b's',
             ],
             extended_value.value
         );
@@ -185,8 +182,8 @@ mod tests {
             charset: Charset::Ext("UTF-8".to_string()),
             language_tag: None,
             value: vec![
-                194, 163, b' ', b'a', b'n', b'd', b' ', 226, 130, 172, b' ', b'r', b'a',
-                b't', b'e', b's',
+                194, 163, b' ', b'a', b'n', b'd', b' ', 226, 130, 172, b' ', b'r', b'a', b't',
+                b'e', b's',
             ],
         };
         assert_eq!(
