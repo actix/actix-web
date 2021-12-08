@@ -11,8 +11,8 @@
 //!     .service(Files::new("/static", ".").prefer_utf8(true));
 //! ```
 
-#![deny(rust_2018_idioms)]
-#![warn(missing_docs, missing_debug_implementations)]
+#![deny(rust_2018_idioms, nonstandard_style)]
+#![warn(future_incompatible, missing_docs, missing_debug_implementations)]
 
 use actix_service::boxed::{BoxService, BoxServiceFactory};
 use actix_web::{

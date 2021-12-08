@@ -26,6 +26,9 @@
 //! }
 //! ```
 
+#![deny(rust_2018_idioms, nonstandard_style)]
+#![warn(future_incompatible)]
+
 #[cfg(feature = "openssl")]
 extern crate tls_openssl as openssl;
 #[cfg(feature = "rustls")]

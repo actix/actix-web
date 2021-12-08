@@ -57,6 +57,8 @@
 //! [DELETE]: macro@delete
 
 #![recursion_limit = "512"]
+#![deny(rust_2018_idioms, nonstandard_style)]
+#![warn(future_incompatible)]
 
 use proc_macro::TokenStream;
 use quote::quote;
