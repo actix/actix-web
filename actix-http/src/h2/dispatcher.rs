@@ -109,7 +109,7 @@ where
                 Poll::Ready(Some((req, tx))) => {
                     let (parts, body) = req.into_parts();
                     let pl = crate::h2::Payload::new(body);
-                    let pl = Payload::<crate::payload::PayloadStream>::H2(pl);
+                    let pl = Payload::H2(pl);
                     let mut req = Request::with_payload(pl);
 
                     let head = req.head_mut();

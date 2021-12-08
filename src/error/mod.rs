@@ -2,7 +2,7 @@
 
 /// This is meant to be a glob import of the whole error module, but rustdoc can't handle
 /// shadowing `Error` type, so it is expanded manually.
-/// See https://github.com/rust-lang/rust/issues/83375
+/// See <https://github.com/rust-lang/rust/issues/83375>
 pub use actix_http::error::{
     BlockingError, ContentTypeError, DispatchError, HttpError, ParseError, PayloadError,
 };

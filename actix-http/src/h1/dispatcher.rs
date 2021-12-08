@@ -27,6 +27,7 @@ use crate::{
 
 use super::{
     codec::Codec,
+    decoder::MAX_BUFFER_SIZE,
     payload::{Payload, PayloadSender, PayloadStatus},
     Message, MessageType,
 };
@@ -793,7 +794,6 @@ where
     /// Returns true when io stream can be disconnected after write to it.
     ///
     /// It covers these conditions:
-    ///
     /// - `std::io::ErrorKind::ConnectionReset` after partial read.
     /// - all data read done.
     #[inline(always)]
@@ -813,46 +813,39 @@ where
 
         loop {
             // Return early when read buf exceed decoder's max buffer size.
-            if this.read_buf.len() >= super::decoder::MAX_BUFFER_SIZE {
-                /*
-                 At this point it's not known IO stream is still scheduled
-                 to be waked up. so force wake up dispatcher just in case.
+            if this.read_buf.len() >= MAX_BUFFER_SIZE {
+                // At this point it's not known IO stream is still scheduled to be waked up so
+                // force wake up dispatcher just in case.
+                //
+                // Reason:
+                // AsyncRead mostly would only have guarantee wake up when the poll_read
+                // return Poll::Pending.
+                //
+                // Case:
+                // When read_buf is beyond max buffer size the early return could be successfully
+                // be parsed as a new Request. This case would not generate ParseError::TooLarge and
+                // at this point IO stream is not fully read to Pending and would result in
+                // dispatcher stuck until timeout (KA)
+                //
+                // Note:
+                // This is a perf choice to reduce branch on <Request as MessageType>::decode.
+                //
+                // A Request head too large to parse is only checked on
+                // `httparse::Status::Partial` condition.
 
-                 Reason:
-                 AsyncRead mostly would only have guarantee wake up
-                 when the poll_read return Poll::Pending.
-
-                 Case:
-                 When read_buf is beyond max buffer size the early return
-                 could be successfully be parsed as a new Request.
-                 This case would not generate ParseError::TooLarge
-                 and at this point IO stream is not fully read to Pending
-                 and would result in dispatcher stuck until timeout (KA)
-
-                 Note:
-                 This is a perf choice to reduce branch on
-                 <Request as MessageType>::decode.
-
-                 A Request head too large to parse is only checked on
-                 httparse::Status::Partial condition.
-                */
                 if this.payload.is_none() {
-                    /*
-                    When dispatcher has a payload the responsibility of
-                    wake up it would be shift to h1::payload::Payload.
-
-                    Reason:
-                    Self wake up when there is payload would waste poll
-                    and/or result in over read.
-
-                    Case:
-                    When payload is (partial) dropped by user there is
-                    no need to do read anymore.
-                    At this case read_buf could always remain beyond
-                    MAX_BUFFER_SIZE and self wake up would be busy poll
-                    dispatcher and waste resource.
-
-                    */
+                    // When dispatcher has a payload the responsibility of wake up it would be shift
+                    // to h1::payload::Payload.
+                    //
+                    // Reason:
+                    // Self wake up when there is payload would waste poll and/or result in
+                    // over read.
+                    //
+                    // Case:
+                    // When payload is (partial) dropped by user there is no need to do
+                    // read anymore. At this case read_buf could always remain beyond
+                    // MAX_BUFFER_SIZE and self wake up would be busy poll dispatcher and
+                    // waste resources.
                     cx.waker().wake_by_ref();
                 }
 
