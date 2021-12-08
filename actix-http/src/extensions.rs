@@ -19,7 +19,7 @@ impl Extensions {
     #[inline]
     pub fn new() -> Extensions {
         Extensions {
-            map: AHashMap::default(),
+            map: AHashMap::new(),
         }
     }
 

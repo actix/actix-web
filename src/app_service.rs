@@ -198,6 +198,7 @@ where
     actix_service::forward_ready!(service);
 
     fn call(&self, mut req: Request) -> Self::Future {
+        let req_data = Rc::new(RefCell::new(req.take_req_data()));
         let conn_data = req.take_conn_data();
         let (head, payload) = req.into_parts();
 
@@ -207,6 +208,7 @@ where
             inner.path.reset();
             inner.head = head;
             inner.conn_data = conn_data;
+            inner.req_data = req_data;
             req
         } else {
             HttpRequest::new(
@@ -215,6 +217,7 @@ where
                 self.app_state.clone(),
                 self.app_data.clone(),
                 conn_data,
+                req_data,
             )
         };
         self.service.call(ServiceRequest::new(req, payload))
