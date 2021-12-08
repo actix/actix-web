@@ -20,9 +20,8 @@ use serde::{de::DeserializeOwned, Serialize};
 #[cfg(feature = "__compress")]
 use crate::dev::Decompress;
 use crate::{
-    body::EitherBody, error::UrlencodedError, extract::FromRequest,
-    http::header::CONTENT_LENGTH, web, Error, HttpMessage, HttpRequest, HttpResponse,
-    Responder,
+    error::UrlencodedError, extract::FromRequest, http::header::CONTENT_LENGTH, web, Error,
+    HttpMessage, HttpRequest, HttpResponse, Responder,
 };
 
 /// URL encoded payload extractor and responder.
@@ -181,7 +180,7 @@ impl<T: fmt::Display> fmt::Display for Form<T> {
 
 /// See [here](#responder) for example of usage as a handler return type.
 impl<T: Serialize> Responder for Form<T> {
-    type Body = EitherBody<String>;
+    type Body = String;
 
     fn respond_to(self, _: &HttpRequest) -> HttpResponse<Self::Body> {
         match serde_urlencoded::to_string(&self.0) {
@@ -189,12 +188,12 @@ impl<T: Serialize> Responder for Form<T> {
                 .content_type(mime::APPLICATION_WWW_FORM_URLENCODED)
                 .message_body(body)
             {
-                Ok(res) => res.map_into_left_body(),
-                Err(err) => HttpResponse::from_error(err).map_into_right_body(),
+                Ok(res) => res,
+                Err(err) => HttpResponse::from_error(err).map_into_body(),
             },
 
             Err(err) => {
-                HttpResponse::from_error(UrlencodedError::Serialize(err)).map_into_right_body()
+                HttpResponse::from_error(UrlencodedError::Serialize(err)).map_into_body()
             }
         }
     }

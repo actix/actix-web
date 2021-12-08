@@ -53,6 +53,15 @@ impl<B: MessageBody> Encoder<B> {
         }
     }
 
+    pub fn not_acceptable(body: Bytes) -> Self {
+        Encoder {
+            body: EncoderBody::Bytes { body },
+            encoder: None,
+            fut: None,
+            eof: false,
+        }
+    }
+
     pub fn response(encoding: ContentEncoding, head: &mut ResponseHead, body: B) -> Self {
         let can_encode = !(head.headers().contains_key(&CONTENT_ENCODING)
             || head.status == StatusCode::SWITCHING_PROTOCOLS
@@ -99,6 +108,7 @@ pin_project! {
     #[project = EncoderBodyProj]
     enum EncoderBody<B> {
         None,
+        Bytes { body: Bytes },
         Stream { #[pin] body: B },
     }
 }
@@ -112,6 +122,7 @@ where
     fn size(&self) -> BodySize {
         match self {
             EncoderBody::None => BodySize::None,
+            EncoderBody::Bytes { body } => body.size(),
             EncoderBody::Stream { body } => body.size(),
         }
     }
@@ -122,7 +133,9 @@ where
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         match self.project() {
             EncoderBodyProj::None => Poll::Ready(None),
-
+            EncoderBodyProj::Bytes { body } => {
+                Pin::new(body).poll_next(cx).map_err(|err| match err {})
+            }
             EncoderBodyProj::Stream { body } => body
                 .poll_next(cx)
                 .map_err(|err| EncoderError::Body(err.into())),

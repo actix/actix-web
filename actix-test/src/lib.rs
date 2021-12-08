@@ -163,9 +163,11 @@ where
                             local_addr,
                         );
 
-                        let fac = factory()
-                            .into_factory()
-                            .map_err(|err| err.into().error_response());
+                        let fac = factory().into_factory().map_err(|err| {
+                            let res: actix_http::Response<_> =
+                                err.into().error_response().into();
+                            res.map_into_boxed_body()
+                        });
 
                         HttpService::build()
                             .client_timeout(timeout)
@@ -179,9 +181,11 @@ where
                             local_addr,
                         );
 
-                        let fac = factory()
-                            .into_factory()
-                            .map_err(|err| err.into().error_response());
+                        let fac = factory().into_factory().map_err(|err| {
+                            let res: actix_http::Response<_> =
+                                err.into().error_response().into();
+                            res.map_into_boxed_body()
+                        });
 
                         HttpService::build()
                             .client_timeout(timeout)
@@ -195,9 +199,11 @@ where
                             local_addr,
                         );
 
-                        let fac = factory()
-                            .into_factory()
-                            .map_err(|err| err.into().error_response());
+                        let fac = factory().into_factory().map_err(|err| {
+                            let res: actix_http::Response<_> =
+                                err.into().error_response().into();
+                            res.map_into_boxed_body()
+                        });
 
                         HttpService::build()
                             .client_timeout(timeout)
@@ -214,9 +220,11 @@ where
                             local_addr,
                         );
 
-                        let fac = factory()
-                            .into_factory()
-                            .map_err(|err| err.into().error_response());
+                        let fac = factory().into_factory().map_err(|err| {
+                            let res: actix_http::Response<_> =
+                                err.into().error_response().into();
+                            res.map_into_boxed_body()
+                        });
 
                         HttpService::build()
                             .client_timeout(timeout)
@@ -230,9 +238,11 @@ where
                             local_addr,
                         );
 
-                        let fac = factory()
-                            .into_factory()
-                            .map_err(|err| err.into().error_response());
+                        let fac = factory().into_factory().map_err(|err| {
+                            let res: actix_http::Response<_> =
+                                err.into().error_response().into();
+                            res.map_into_boxed_body()
+                        });
 
                         HttpService::build()
                             .client_timeout(timeout)
@@ -246,9 +256,11 @@ where
                             local_addr,
                         );
 
-                        let fac = factory()
-                            .into_factory()
-                            .map_err(|err| err.into().error_response());
+                        let fac = factory().into_factory().map_err(|err| {
+                            let res: actix_http::Response<_> =
+                                err.into().error_response().into();
+                            res.map_into_boxed_body()
+                        });
 
                         HttpService::build()
                             .client_timeout(timeout)
@@ -265,9 +277,11 @@ where
                             local_addr,
                         );
 
-                        let fac = factory()
-                            .into_factory()
-                            .map_err(|err| err.into().error_response());
+                        let fac = factory().into_factory().map_err(|err| {
+                            let res: actix_http::Response<_> =
+                                err.into().error_response().into();
+                            res.map_into_boxed_body()
+                        });
 
                         HttpService::build()
                             .client_timeout(timeout)
@@ -281,9 +295,11 @@ where
                             local_addr,
                         );
 
-                        let fac = factory()
-                            .into_factory()
-                            .map_err(|err| err.into().error_response());
+                        let fac = factory().into_factory().map_err(|err| {
+                            let res: actix_http::Response<_> =
+                                err.into().error_response().into();
+                            res.map_into_boxed_body()
+                        });
 
                         HttpService::build()
                             .client_timeout(timeout)
@@ -297,9 +313,11 @@ where
                             local_addr,
                         );
 
-                        let fac = factory()
-                            .into_factory()
-                            .map_err(|err| err.into().error_response());
+                        let fac = factory().into_factory().map_err(|err| {
+                            let res: actix_http::Response<_> =
+                                err.into().error_response().into();
+                            res.map_into_boxed_body()
+                        });
 
                         HttpService::build()
                             .client_timeout(timeout)

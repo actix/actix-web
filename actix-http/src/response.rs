@@ -2,7 +2,7 @@
 
 use std::{
     cell::{Ref, RefMut},
-    fmt, str,
+    fmt, mem, str,
 };
 
 use bytes::{Bytes, BytesMut};
@@ -200,6 +200,12 @@ impl<B> Response<B> {
     /// Returns body, consuming this response.
     pub fn into_body(self) -> B {
         self.body
+    }
+}
+
+impl<B: Default> Response<B> {
+    pub fn take_body(&mut self) -> B {
+        mem::take(&mut self.body)
     }
 }
 

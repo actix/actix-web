@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use actix_http::{
-    body::{BoxBody, EitherBody, MessageBody},
+    body::{BoxBody, MessageBody},
     error::HttpError,
     header::HeaderMap,
     header::IntoHeaderPair,
@@ -9,7 +9,9 @@ use actix_http::{
 };
 use bytes::{Bytes, BytesMut};
 
-use crate::{BoxError, Error, HttpRequest, HttpResponse, HttpResponseBuilder};
+use crate::{
+    any_body::AnyBody, BoxError, Error, HttpRequest, HttpResponse, HttpResponseBuilder,
+};
 
 /// Trait implemented by types that can be converted to an HTTP response.
 ///
@@ -72,7 +74,7 @@ impl Responder for HttpResponse {
     }
 }
 
-impl Responder for actix_http::Response<BoxBody> {
+impl Responder for actix_http::Response<AnyBody<BoxBody>> {
     type Body = BoxBody;
 
     #[inline]
@@ -95,7 +97,10 @@ impl Responder for actix_http::ResponseBuilder {
 
     #[inline]
     fn respond_to(mut self, req: &HttpRequest) -> HttpResponse<Self::Body> {
-        self.finish().map_into_boxed_body().respond_to(req)
+        self.finish()
+            .map_into_boxed_body()
+            .map_body(|_, body| AnyBody::Boxed { body })
+            .respond_to(req)
     }
 }
 
@@ -104,12 +109,12 @@ where
     T: Responder,
     <T::Body as MessageBody>::Error: Into<BoxError>,
 {
-    type Body = EitherBody<T::Body>;
+    type Body = T::Body;
 
     fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
         match self {
-            Some(val) => val.respond_to(req).map_into_left_body(),
-            None => HttpResponse::new(StatusCode::NOT_FOUND).map_into_right_body(),
+            Some(val) => val.respond_to(req),
+            None => HttpResponse::new(StatusCode::NOT_FOUND).map_into_body(),
         }
     }
 }
@@ -120,12 +125,12 @@ where
     <T::Body as MessageBody>::Error: Into<BoxError>,
     E: Into<Error>,
 {
-    type Body = EitherBody<T::Body>;
+    type Body = T::Body;
 
     fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
         match self {
-            Ok(val) => val.respond_to(req).map_into_left_body(),
-            Err(err) => HttpResponse::from_error(err.into()).map_into_right_body(),
+            Ok(val) => val.respond_to(req),
+            Err(err) => HttpResponse::from_error(err.into()).map_into_body(),
         }
     }
 }
@@ -146,7 +151,12 @@ macro_rules! impl_responder_by_forward_into_base_response {
             type Body = $body;
 
             fn respond_to(self, _: &HttpRequest) -> HttpResponse<Self::Body> {
-                let res: actix_http::Response<_> = self.into();
+                let res = actix_http::Response::with_body(
+                    StatusCode::default(),
+                    AnyBody::Full {
+                        body: Bytes::from(self),
+                    },
+                );
                 res.into()
             }
         }
@@ -171,7 +181,12 @@ macro_rules! impl_into_string_responder {
 
             fn respond_to(self, _: &HttpRequest) -> HttpResponse<Self::Body> {
                 let string: String = self.into();
-                let res: actix_http::Response<_> = string.into();
+                let res = actix_http::Response::with_body(
+                    StatusCode::default(),
+                    AnyBody::Full {
+                        body: Bytes::from(string),
+                    },
+                );
                 res.into()
             }
         }
@@ -250,12 +265,12 @@ where
     T: Responder,
     <T::Body as MessageBody>::Error: Into<BoxError>,
 {
-    type Body = EitherBody<T::Body>;
+    type Body = T::Body;
 
     fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
         let headers = match self.headers {
             Ok(headers) => headers,
-            Err(err) => return HttpResponse::from_error(err).map_into_right_body(),
+            Err(err) => return HttpResponse::from_error(err).map_into_body(),
         };
 
         let mut res = self.responder.respond_to(req);
@@ -269,7 +284,7 @@ where
             res.headers_mut().insert(k, v);
         }
 
-        res.map_into_left_body()
+        res
     }
 }
 

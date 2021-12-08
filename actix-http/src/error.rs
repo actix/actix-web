@@ -9,6 +9,8 @@ use crate::{body::BoxBody, ws, Response};
 
 pub use http::Error as HttpError;
 
+pub use crate::encoding::EncoderError;
+
 pub struct Error {
     inner: Box<ErrorInner>,
 }

@@ -70,6 +70,7 @@
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 
+mod any_body;
 mod app;
 mod app_service;
 mod config;

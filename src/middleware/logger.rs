@@ -22,6 +22,7 @@ use regex::{Regex, RegexSet};
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 use crate::{
+    any_body::AnyBody,
     body::{BodySize, MessageBody},
     http::header::HeaderName,
     service::{ServiceRequest, ServiceResponse},
@@ -175,7 +176,7 @@ impl Default for Logger {
     }
 }
 
-impl<S, B> Transform<S, ServiceRequest> for Logger
+impl<S, B: 'static> Transform<S, ServiceRequest> for Logger
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     B: MessageBody,
@@ -210,7 +211,7 @@ pub struct LoggerMiddleware<S> {
     service: S,
 }
 
-impl<S, B> Service<ServiceRequest> for LoggerMiddleware<S>
+impl<S, B: 'static> Service<ServiceRequest> for LoggerMiddleware<S>
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     B: MessageBody,
@@ -262,7 +263,7 @@ pin_project! {
     }
 }
 
-impl<S, B> Future for LoggerResponse<S, B>
+impl<S, B: 'static> Future for LoggerResponse<S, B>
 where
     B: MessageBody,
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
@@ -290,11 +291,13 @@ where
         let time = *this.time;
         let format = this.format.take();
 
-        Poll::Ready(Ok(res.map_body(move |_, body| StreamLog {
-            body,
-            time,
-            format,
-            size: 0,
+        Poll::Ready(Ok(res.map_body(move |_, body| AnyBody::Stream {
+            body: StreamLog {
+                body: body.into_body(),
+                time,
+                format,
+                size: 0,
+            },
         })))
     }
 }
@@ -302,7 +305,7 @@ where
 pin_project! {
     pub struct StreamLog<B> {
         #[pin]
-        body: B,
+        body: AnyBody<B>,
         format: Option<Format>,
         size: usize,
         time: OffsetDateTime,

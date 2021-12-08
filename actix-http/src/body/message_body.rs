@@ -19,7 +19,7 @@ use super::BodySize;
 pub trait MessageBody {
     // TODO: consider this bound to only fmt::Display since the error type is not really used
     // and there is an impl for Into<Box<StdError>> on String
-    type Error: Into<Box<dyn StdError>>;
+    type Error: Into<Box<dyn StdError>> + 'static;
 
     /// Body size hint.
     fn size(&self) -> BodySize;
@@ -272,7 +272,7 @@ impl<B, F, E> MessageBody for MessageBodyMapErr<B, F>
 where
     B: MessageBody,
     F: FnOnce(B::Error) -> E,
-    E: Into<Box<dyn StdError>>,
+    E: Into<Box<dyn StdError>> + 'static,
 {
     type Error = E;
 
@@ -305,6 +305,8 @@ mod tests {
     use bytes::{Bytes, BytesMut};
 
     use super::*;
+
+    // static_assertions::assert_obj_safe!(MessageBody<()>);
 
     macro_rules! assert_poll_next {
         ($pin:expr, $exp:expr) => {

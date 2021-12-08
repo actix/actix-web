@@ -5,7 +5,7 @@ use std::{
 };
 
 use actix_http::{
-    body::{BoxBody, EitherBody, MessageBody},
+    body::{self, BoxBody, MessageBody},
     header::HeaderMap,
     Extensions, HttpMessage, Method, Payload, PayloadStream, RequestHead, Response,
     ResponseHead, StatusCode, Uri, Version,
@@ -19,6 +19,7 @@ use actix_service::{
 use cookie::{Cookie, ParseError as CookieParseError};
 
 use crate::{
+    any_body::AnyBody,
     config::{AppConfig, AppService},
     dev::ensure_leading_slash,
     guard::Guard,
@@ -112,7 +113,7 @@ impl ServiceRequest {
 
     /// Create service response
     #[inline]
-    pub fn into_response<B, R: Into<Response<B>>>(self, res: R) -> ServiceResponse<B> {
+    pub fn into_response<B, R: Into<Response<AnyBody<B>>>>(self, res: R) -> ServiceResponse<B> {
         let res = HttpResponse::from(res.into());
         ServiceResponse::new(self.req, res)
     }
@@ -410,9 +411,14 @@ impl<B> ServiceResponse<B> {
         self.response.headers_mut()
     }
 
+    #[inline]
+    pub fn take_body(&mut self) -> AnyBody<B> {
+        self.response.take_body()
+    }
+
     /// Extract response body
     #[inline]
-    pub fn into_body(self) -> B {
+    pub fn into_body(self) -> AnyBody<B> {
         self.response.into_body()
     }
 
@@ -420,7 +426,7 @@ impl<B> ServiceResponse<B> {
     #[inline]
     pub fn map_body<F, B2>(self, f: F) -> ServiceResponse<B2>
     where
-        F: FnOnce(&mut ResponseHead, B) -> B2,
+        F: FnOnce(&mut ResponseHead, AnyBody<B>) -> AnyBody<B2>,
     {
         let response = self.response.map_body(f);
 
@@ -430,22 +436,29 @@ impl<B> ServiceResponse<B> {
         }
     }
 
-    #[inline]
-    pub fn map_into_left_body<R>(self) -> ServiceResponse<EitherBody<B, R>> {
-        self.map_body(|_, body| EitherBody::left(body))
-    }
+    // #[inline]
+    // pub fn map_into_left_body<R>(self) -> ServiceResponse<EitherBody<B, R>> {
+    //     self.map_body(|_, body| EitherBody::left(body))
+    // }
 
-    #[inline]
-    pub fn map_into_right_body<L>(self) -> ServiceResponse<EitherBody<L, B>> {
-        self.map_body(|_, body| EitherBody::right(body))
-    }
+    // #[inline]
+    // pub fn map_into_right_body<L>(self) -> ServiceResponse<EitherBody<L, B>> {
+    //     self.map_body(|_, body| EitherBody::right(body))
+    // }
 
     #[inline]
     pub fn map_into_boxed_body(self) -> ServiceResponse<BoxBody>
     where
         B: MessageBody + 'static,
     {
-        self.map_body(|_, body| BoxBody::new(body))
+        self.map_body(|_, body| AnyBody::Stream {
+            body: match body {
+                AnyBody::None => BoxBody::new(body::None::new()),
+                AnyBody::Full { body } => BoxBody::new(body),
+                AnyBody::Stream { body } => BoxBody::new(body),
+                AnyBody::Boxed { body } => body,
+            },
+        })
     }
 }
 
@@ -455,8 +468,8 @@ impl<B> From<ServiceResponse<B>> for HttpResponse<B> {
     }
 }
 
-impl<B> From<ServiceResponse<B>> for Response<B> {
-    fn from(res: ServiceResponse<B>) -> Response<B> {
+impl<B> From<ServiceResponse<B>> for Response<AnyBody<B>> {
+    fn from(res: ServiceResponse<B>) -> Response<AnyBody<B>> {
         res.response.into()
     }
 }

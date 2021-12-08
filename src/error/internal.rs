@@ -7,7 +7,7 @@ use actix_http::{
 };
 use bytes::{BufMut as _, BytesMut};
 
-use crate::{Error, HttpRequest, HttpResponse, Responder, ResponseError};
+use crate::{any_body::AnyBody, Error, HttpRequest, HttpResponse, Responder, ResponseError};
 
 /// Wraps errors to alter the generated response status code.
 ///
@@ -91,7 +91,9 @@ where
                 let mime = mime::TEXT_PLAIN_UTF_8.try_into_value().unwrap();
                 res.headers_mut().insert(header::CONTENT_TYPE, mime);
 
-                res.set_body(BoxBody::new(buf.into_inner()))
+                res.set_body(AnyBody::Full {
+                    body: buf.into_inner().freeze(),
+                })
             }
 
             InternalErrorType::Response(ref resp) => {

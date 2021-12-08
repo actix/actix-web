@@ -17,7 +17,7 @@ use actix_tls::accept::openssl::reexports::{AlpnError, SslAcceptor, SslAcceptorB
 #[cfg(feature = "rustls")]
 use actix_tls::accept::rustls::reexports::ServerConfig as RustlsServerConfig;
 
-use crate::{config::AppConfig, Error};
+use crate::{any_body::AnyBody, config::AppConfig, Error};
 
 struct Socket {
     scheme: &'static str,
@@ -55,7 +55,7 @@ where
     S: ServiceFactory<Request, Config = AppConfig>,
     S::Error: Into<Error>,
     S::InitError: fmt::Debug,
-    S::Response: Into<Response<B>>,
+    S::Response: Into<Response<AnyBody<B>>>,
     B: MessageBody,
 {
     pub(super) factory: F,
@@ -75,7 +75,7 @@ where
     S: ServiceFactory<Request, Config = AppConfig> + 'static,
     S::Error: Into<Error> + 'static,
     S::InitError: fmt::Debug,
-    S::Response: Into<Response<B>> + 'static,
+    S::Response: Into<Response<AnyBody<B>>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
     S::Service: 'static,
 
@@ -300,9 +300,10 @@ where
                         })
                     };
 
-                    let fac = factory()
-                        .into_factory()
-                        .map_err(|err| err.into().error_response());
+                    let fac = factory().into_factory().map_err(|err| {
+                        let res: actix_http::Response<_> = err.into().error_response().into();
+                        res.map_into_boxed_body()
+                    });
 
                     svc.finish(map_config(fac, move |_| {
                         AppConfig::new(false, host.clone(), addr)
@@ -360,9 +361,10 @@ where
                         svc
                     };
 
-                    let fac = factory()
-                        .into_factory()
-                        .map_err(|err| err.into().error_response());
+                    let fac = factory().into_factory().map_err(|err| {
+                        let res: actix_http::Response<_> = err.into().error_response().into();
+                        res.map_into_boxed_body()
+                    });
 
                     svc.finish(map_config(fac, move |_| {
                         AppConfig::new(true, host.clone(), addr)
@@ -544,9 +546,10 @@ where
                         .on_connect_ext(move |io: &_, ext: _| (&*handler)(io as &dyn Any, ext));
                 }
 
-                let fac = factory()
-                    .into_factory()
-                    .map_err(|err| err.into().error_response());
+                let fac = factory().into_factory().map_err(|err| {
+                    let res: actix_http::Response<_> = err.into().error_response().into();
+                    res.map_into_boxed_body()
+                });
 
                 svc.finish(map_config(fac, move |_| config.clone()))
             })
@@ -585,9 +588,10 @@ where
                     socket_addr,
                 );
 
-                let fac = factory()
-                    .into_factory()
-                    .map_err(|err| err.into().error_response());
+                let fac = factory().into_factory().map_err(|err| {
+                    let res: actix_http::Response<_> = err.into().error_response().into();
+                    res.map_into_boxed_body()
+                });
 
                 fn_service(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) }).and_then(
                     HttpService::build()
@@ -610,7 +614,7 @@ where
     S: ServiceFactory<Request, Config = AppConfig>,
     S::Error: Into<Error>,
     S::InitError: fmt::Debug,
-    S::Response: Into<Response<B>>,
+    S::Response: Into<Response<AnyBody<B>>>,
     S::Service: 'static,
     B: MessageBody,
 {

@@ -8,7 +8,7 @@ use std::{
 };
 
 use actix_http::{
-    body::{BoxBody, EitherBody, MessageBody},
+    body::{BoxBody, MessageBody, None as NoneBody},
     header::HeaderMap,
     Extensions, Response, ResponseHead, StatusCode,
 };
@@ -22,11 +22,11 @@ use {
     cookie::Cookie,
 };
 
-use crate::{error::Error, HttpResponseBuilder};
+use crate::{any_body::AnyBody, error::Error, HttpResponseBuilder};
 
 /// An outgoing response.
 pub struct HttpResponse<B = BoxBody> {
-    res: Response<B>,
+    res: Response<AnyBody<B>>,
     pub(crate) error: Option<Error>,
 }
 
@@ -35,7 +35,7 @@ impl HttpResponse<BoxBody> {
     #[inline]
     pub fn new(status: StatusCode) -> Self {
         Self {
-            res: Response::new(status),
+            res: Response::with_body(status, AnyBody::default()),
             error: None,
         }
     }
@@ -54,6 +54,13 @@ impl HttpResponse<BoxBody> {
         response.error = Some(error);
         response
     }
+
+    pub fn map_into_body<B>(self) -> HttpResponse<B>
+    where
+        B: MessageBody + 'static,
+    {
+        self.map_body(|_, body| body.into_body())
+    }
 }
 
 impl<B> HttpResponse<B> {
@@ -61,7 +68,7 @@ impl<B> HttpResponse<B> {
     #[inline]
     pub fn with_body(status: StatusCode, body: B) -> Self {
         Self {
-            res: Response::with_body(status, body),
+            res: Response::with_body(status, AnyBody::Stream { body }),
             error: None,
         }
     }
@@ -182,12 +189,12 @@ impl<B> HttpResponse<B> {
 
     /// Get body of this response
     #[inline]
-    pub fn body(&self) -> &B {
+    pub fn body(&self) -> &AnyBody<B> {
         self.res.body()
     }
 
     /// Set a body
-    pub fn set_body<B2>(self, body: B2) -> HttpResponse<B2> {
+    pub fn set_body<B2>(self, body: AnyBody<B2>) -> HttpResponse<B2> {
         HttpResponse {
             res: self.res.set_body(body),
             error: None,
@@ -196,12 +203,12 @@ impl<B> HttpResponse<B> {
     }
 
     /// Split response and body
-    pub fn into_parts(self) -> (HttpResponse<()>, B) {
+    pub fn into_parts(self) -> (HttpResponse<()>, AnyBody<B>) {
         let (head, body) = self.res.into_parts();
 
         (
             HttpResponse {
-                res: head,
+                res: head.map_body(|_, _b| AnyBody::default()),
                 error: None,
             },
             body,
@@ -211,7 +218,7 @@ impl<B> HttpResponse<B> {
     /// Drop request's body
     pub fn drop_body(self) -> HttpResponse<()> {
         HttpResponse {
-            res: self.res.drop_body(),
+            res: self.res.drop_body().map_body(|_, _b| AnyBody::default()),
             error: None,
         }
     }
@@ -219,7 +226,7 @@ impl<B> HttpResponse<B> {
     /// Set a body and return previous body value
     pub fn map_body<F, B2>(self, f: F) -> HttpResponse<B2>
     where
-        F: FnOnce(&mut ResponseHead, B) -> B2,
+        F: FnOnce(&mut ResponseHead, AnyBody<B>) -> AnyBody<B2>,
     {
         HttpResponse {
             res: self.res.map_body(f),
@@ -230,26 +237,27 @@ impl<B> HttpResponse<B> {
     // TODO: docs for the body map methods below
 
     #[inline]
-    pub fn map_into_left_body<R>(self) -> HttpResponse<EitherBody<B, R>> {
-        self.map_body(|_, body| EitherBody::left(body))
-    }
-
-    #[inline]
-    pub fn map_into_right_body<L>(self) -> HttpResponse<EitherBody<L, B>> {
-        self.map_body(|_, body| EitherBody::right(body))
-    }
-
-    #[inline]
     pub fn map_into_boxed_body(self) -> HttpResponse<BoxBody>
     where
         B: MessageBody + 'static,
     {
-        // TODO: avoid double boxing with down-casting, if it improves perf
-        self.map_body(|_, body| BoxBody::new(body))
+        self.map_body(|_, body| AnyBody::Boxed {
+            body: match body {
+                AnyBody::None => BoxBody::new(NoneBody::new()),
+                AnyBody::Full { body } => BoxBody::new(body),
+                AnyBody::Stream { body } => BoxBody::new(body),
+                AnyBody::Boxed { body } => body,
+            },
+        })
     }
 
     /// Extract response body
-    pub fn into_body(self) -> B {
+    pub fn take_body(&mut self) -> AnyBody<B> {
+        self.res.take_body()
+    }
+
+    /// Extract response body
+    pub fn into_body(self) -> AnyBody<B> {
         self.res.into_body()
     }
 }
@@ -266,8 +274,8 @@ where
     }
 }
 
-impl<B> From<Response<B>> for HttpResponse<B> {
-    fn from(res: Response<B>) -> Self {
+impl<B> From<Response<AnyBody<B>>> for HttpResponse<B> {
+    fn from(res: Response<AnyBody<B>>) -> Self {
         HttpResponse { res, error: None }
     }
 }
@@ -278,7 +286,7 @@ impl From<Error> for HttpResponse {
     }
 }
 
-impl<B> From<HttpResponse<B>> for Response<B> {
+impl<B> From<HttpResponse<B>> for Response<AnyBody<B>> {
     fn from(res: HttpResponse<B>) -> Self {
         // this impl will always be called as part of dispatcher
 
@@ -291,14 +299,14 @@ impl<B> From<HttpResponse<B>> for Response<B> {
     }
 }
 
-// Future is only implemented for BoxBody payload type because it's the most useful for making
+// Future is only implemented for default payload type because it's the most useful for making
 // simple handlers without async blocks. Making it generic over all MessageBody types requires a
 // future impl on Response which would cause it's body field to be, undesirably, Option<B>.
 //
 // This impl is not particularly efficient due to the Response construction and should probably
 // not be invoked if performance is important. Prefer an async fn/block in such cases.
-impl Future for HttpResponse<BoxBody> {
-    type Output = Result<Response<BoxBody>, Error>;
+impl Future for HttpResponse {
+    type Output = Result<Response<AnyBody>, Error>;
 
     fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
         if let Some(err) = self.error.take() {
@@ -307,7 +315,7 @@ impl Future for HttpResponse<BoxBody> {
 
         Poll::Ready(Ok(mem::replace(
             &mut self.res,
-            Response::new(StatusCode::default()),
+            Response::with_body(StatusCode::default(), AnyBody::None),
         )))
     }
 }

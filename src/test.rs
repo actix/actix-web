@@ -163,7 +163,7 @@ where
 
     actix_rt::pin!(body);
     while let Some(item) = poll_fn(|cx| body.as_mut().poll_next(cx)).await {
-        bytes.extend_from_slice(&item.map_err(Into::into).unwrap());
+        bytes.extend_from_slice(&item.unwrap());
     }
 
     bytes.freeze()
@@ -205,7 +205,7 @@ where
 
     actix_rt::pin!(body);
     while let Some(item) = poll_fn(|cx| body.as_mut().poll_next(cx)).await {
-        bytes.extend_from_slice(&item.map_err(Into::into).unwrap());
+        bytes.extend_from_slice(&item.unwrap());
     }
 
     bytes.freeze()

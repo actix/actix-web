@@ -8,7 +8,7 @@ mod decoder;
 mod encoder;
 
 pub use self::decoder::Decoder;
-pub use self::encoder::Encoder;
+pub use self::encoder::{Encoder, EncoderError};
 
 /// Special-purpose writer for streaming (de-)compression.
 ///

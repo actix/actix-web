@@ -22,6 +22,7 @@ use actix_http::header::HeaderValue;
 use cookie::{Cookie, CookieJar};
 
 use crate::{
+    any_body::AnyBody,
     error::{Error, JsonPayloadError},
     BoxError, HttpResponse,
 };
@@ -333,7 +334,7 @@ impl HttpResponseBuilder {
             .set_body(body);
 
         #[allow(unused_mut)] // mut is only unused when cookies are disabled
-        let mut res = HttpResponse::from(res);
+        let mut res = HttpResponse::from(res.map_body(|_, body| AnyBody::Stream { body }));
 
         #[cfg(feature = "cookies")]
         if let Some(ref jar) = self.cookies {
@@ -416,7 +417,7 @@ impl From<HttpResponseBuilder> for HttpResponse {
     }
 }
 
-impl From<HttpResponseBuilder> for Response<BoxBody> {
+impl From<HttpResponseBuilder> for Response<AnyBody<BoxBody>> {
     fn from(mut builder: HttpResponseBuilder) -> Self {
         builder.finish().into()
     }

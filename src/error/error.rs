@@ -2,7 +2,7 @@ use std::{error::Error as StdError, fmt};
 
 use actix_http::{body::BoxBody, Response};
 
-use crate::{HttpResponse, ResponseError};
+use crate::{any_body::AnyBody, HttpResponse, ResponseError};
 
 /// General purpose actix web error.
 ///
@@ -69,8 +69,15 @@ impl<T: ResponseError + 'static> From<T> for Error {
     }
 }
 
-impl From<Error> for Response<BoxBody> {
-    fn from(err: Error) -> Response<BoxBody> {
+impl From<Error> for Response<AnyBody<BoxBody>> {
+    fn from(err: Error) -> Self {
         err.error_response().into()
+    }
+}
+
+impl From<Error> for actix_http::Response<BoxBody> {
+    fn from(err: Error) -> Self {
+        let res: actix_http::Response<_> = err.error_response().into();
+        res.map_into_boxed_body()
     }
 }

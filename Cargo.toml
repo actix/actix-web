@@ -118,6 +118,7 @@ futures-util = { version = "0.3.7", default-features = false, features = ["std"]
 rand = "0.8"
 rcgen = "0.8"
 rustls-pemfile = "0.2"
+static_assertions = "1"
 tls-openssl = { package = "openssl", version = "0.10.9" }
 tls-rustls = { package = "rustls", version = "0.20.0" }
 zstd = "0.9"

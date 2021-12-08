@@ -14,6 +14,7 @@ use actix_http::{
 use bytes::BytesMut;
 
 use crate::{
+    any_body::AnyBody,
     error::{downcast_dyn, downcast_get_type_id},
     helpers, HttpResponse,
 };
@@ -33,7 +34,7 @@ pub trait ResponseError: fmt::Debug + fmt::Display {
     ///
     /// By default, the generated response uses a 500 Internal Server Error status code, a
     /// `Content-Type` of `text/plain`, and the body is set to `Self`'s `Display` impl.
-    fn error_response(&self) -> HttpResponse<BoxBody> {
+    fn error_response(&self) -> HttpResponse {
         let mut res = HttpResponse::new(self.status_code());
 
         let mut buf = BytesMut::new();
@@ -42,7 +43,7 @@ pub trait ResponseError: fmt::Debug + fmt::Display {
         let mime = mime::TEXT_PLAIN_UTF_8.try_into_value().unwrap();
         res.headers_mut().insert(header::CONTENT_TYPE, mime);
 
-        res.set_body(BoxBody::new(buf))
+        res.set_body(AnyBody::Full { body: buf.freeze() })
     }
 
     downcast_get_type_id!();
@@ -50,7 +51,7 @@ pub trait ResponseError: fmt::Debug + fmt::Display {
 
 downcast_dyn!(ResponseError);
 
-impl ResponseError for Box<dyn StdError + 'static> {}
+impl ResponseError for Box<dyn StdError> {}
 
 #[cfg(feature = "openssl")]
 impl ResponseError for actix_tls::accept::openssl::reexports::Error {}
@@ -128,7 +129,15 @@ impl ResponseError for actix_http::error::ContentTypeError {
 
 impl ResponseError for actix_http::ws::HandshakeError {
     fn error_response(&self) -> HttpResponse<BoxBody> {
-        Response::from(self).map_into_boxed_body().into()
+        Response::from(self)
+            .map_body(|_, body| AnyBody::Boxed { body })
+            .into()
+    }
+}
+
+impl ResponseError for actix_http::error::EncoderError {
+    fn error_response(&self) -> HttpResponse {
+        todo!("")
     }
 }
 

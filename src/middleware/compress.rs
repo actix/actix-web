@@ -10,7 +10,7 @@ use std::{
 };
 
 use actix_http::{
-    body::{EitherBody, MessageBody},
+    body::MessageBody,
     encoding::Encoder,
     header::{ContentEncoding, ACCEPT_ENCODING},
     StatusCode,
@@ -22,6 +22,7 @@ use once_cell::sync::Lazy;
 use pin_project_lite::pin_project;
 
 use crate::{
+    any_body::AnyBody,
     dev::BodyEncoding,
     service::{ServiceRequest, ServiceResponse},
     Error, HttpResponse,
@@ -61,7 +62,7 @@ where
     B: MessageBody,
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
-    type Response = ServiceResponse<EitherBody<Encoder<B>>>;
+    type Response = ServiceResponse<Encoder<AnyBody<B>>>;
     type Error = Error;
     type Transform = CompressMiddleware<S>;
     type InitError = ();
@@ -111,7 +112,7 @@ where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     B: MessageBody,
 {
-    type Response = ServiceResponse<EitherBody<Encoder<B>>>;
+    type Response = ServiceResponse<Encoder<AnyBody<B>>>;
     type Error = Error;
     type Future = Either<CompressResponse<S, B>, Ready<Result<Self::Response, Self::Error>>>;
 
@@ -146,12 +147,15 @@ where
                 let res = HttpResponse::with_body(
                     StatusCode::NOT_ACCEPTABLE,
                     SUPPORTED_ALGORITHM_NAMES.clone(),
-                );
+                )
+                .map_body(|_, body| match body {
+                    AnyBody::Full { body } => AnyBody::Stream {
+                        body: Encoder::not_acceptable(body),
+                    },
+                    _ => unreachable!("probably"),
+                });
 
-                Either::right(ok(req
-                    .into_response(res)
-                    .map_into_boxed_body()
-                    .map_into_right_body()))
+                Either::right(ok(req.into_response(res)))
             }
         }
     }
@@ -174,7 +178,7 @@ where
     B: MessageBody,
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
-    type Output = Result<ServiceResponse<EitherBody<Encoder<B>>>, Error>;
+    type Output = Result<ServiceResponse<Encoder<AnyBody<B>>>, Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
@@ -187,8 +191,8 @@ where
                     *this.encoding
                 };
 
-                Poll::Ready(Ok(resp.map_body(move |head, body| {
-                    EitherBody::left(Encoder::response(enc, head, body))
+                Poll::Ready(Ok(resp.map_body(move |head, body| AnyBody::Stream {
+                    body: Encoder::response(enc, head, body),
                 })))
             }
 

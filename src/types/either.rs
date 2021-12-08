@@ -12,9 +12,9 @@ use futures_core::ready;
 use pin_project_lite::pin_project;
 
 use crate::{
-    body, dev,
+    dev,
     web::{Form, Json},
-    Error, FromRequest, HttpRequest, HttpResponse, Responder,
+    Error, FromRequest, HttpRequest,
 };
 
 /// Combines two extractor or responder types into a single type.
@@ -140,21 +140,23 @@ impl<L, R> Either<L, R> {
     }
 }
 
-/// See [here](#responder) for example of usage as a handler return type.
-impl<L, R> Responder for Either<L, R>
-where
-    L: Responder,
-    R: Responder,
-{
-    type Body = body::EitherBody<L::Body, R::Body>;
+// /// See [here](#responder) for example of usage as a handler return type.
+// impl<L, R> Responder for Either<L, R>
+// where
+//     L: Responder,
+//     R: Responder,
+// {
+//     type Body = EitherAnyBody<L::Body, R::Body>;
 
-    fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
-        match self {
-            Either::Left(a) => a.respond_to(req).map_into_left_body(),
-            Either::Right(b) => b.respond_to(req).map_into_right_body(),
-        }
-    }
-}
+//     fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
+//         match self {
+//             Either::Left(a) => a.respond_to(req).map_body(|_, body| EitherAnyBodyProj::left(body)),
+//             Either::Right(b) => b
+//                 .respond_to(req)
+//                 .map_body(|_, body| EitherAnyBodyProj::right(body)),
+//         }
+//     }
+// }
 
 /// A composite error resulting from failure to extract an `Either<L, R>`.
 ///
