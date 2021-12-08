@@ -51,6 +51,38 @@ impl MessageBody for BoxBody {
             .poll_next(cx)
             .map_err(|err| Error::new_body().with_cause(err))
     }
+
+    fn is_complete_body(&self) -> bool {
+        let a = self.0.is_complete_body();
+        eprintln!("BoxBody is complete?: {}", a);
+        a
+    }
+
+    fn take_complete_body(&mut self) -> Bytes {
+        eprintln!("taking box body contents");
+
+        debug_assert!(
+            self.is_complete_body(),
+            "boxed type does not allow taking complete body; caller should make sure to \
+            call `is_complete_body` first",
+        );
+
+        // we do not have DerefMut access to call take_complete_body directly but since
+        // is_complete_body is true we should expect the entire bytes chunk in one poll_next
+
+        let waker = futures_util::task::noop_waker();
+        let mut cx = Context::from_waker(&waker);
+
+        match self.as_pin_mut().poll_next(&mut cx) {
+            Poll::Ready(Some(Ok(data))) => data,
+            _ => {
+                panic!(
+                    "boxed type indicated it allows taking complete body but failed to \
+                    return Bytes when polled",
+                );
+            }
+        }
+    }
 }
 
 #[cfg(test)]
