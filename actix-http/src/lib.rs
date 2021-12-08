@@ -32,7 +32,6 @@ pub mod body;
 mod builder;
 mod config;
 
-#[cfg(feature = "__compress")]
 pub mod encoding;
 mod extensions;
 pub mod header;

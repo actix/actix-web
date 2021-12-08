@@ -1,7 +1,6 @@
 //! Stream encoders.
 
 use std::{
-    error::Error as StdError,
     future::Future,
     io::{self, Write as _},
     pin::Pin,
@@ -10,7 +9,6 @@ use std::{
 
 use actix_rt::task::{spawn_blocking, JoinHandle};
 use bytes::Bytes;
-use derive_more::Display;
 use futures_core::ready;
 use pin_project_lite::pin_project;
 
@@ -23,7 +21,7 @@ use flate2::write::{GzEncoder, ZlibEncoder};
 #[cfg(feature = "compress-zstd")]
 use zstd::stream::write::Encoder as ZstdEncoder;
 
-use super::Writer;
+use super::{EncoderError, Writer};
 use crate::{
     body::{BodySize, MessageBody},
     error::BlockingError,
@@ -362,34 +360,5 @@ impl ContentEncoder {
                 }
             },
         }
-    }
-}
-
-#[derive(Debug, Display)]
-#[non_exhaustive]
-pub enum EncoderError {
-    #[display(fmt = "body")]
-    Body(Box<dyn StdError>),
-
-    #[display(fmt = "blocking")]
-    Blocking(BlockingError),
-
-    #[display(fmt = "io")]
-    Io(io::Error),
-}
-
-impl StdError for EncoderError {
-    fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        match self {
-            EncoderError::Body(err) => Some(&**err),
-            EncoderError::Blocking(err) => Some(err),
-            EncoderError::Io(err) => Some(err),
-        }
-    }
-}
-
-impl From<EncoderError> for crate::Error {
-    fn from(err: EncoderError) -> Self {
-        crate::Error::new_encoder().with_cause(err)
     }
 }
