@@ -56,10 +56,7 @@ where
     type Item = Result<Bytes, PayloadError>;
 
     #[inline]
-    fn poll_next(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match self.get_mut() {
             Payload::None => Poll::Ready(None),
             Payload::H1(ref mut pl) => pl.readany(cx),

@@ -40,10 +40,7 @@ impl Payload {
 impl Stream for Payload {
     type Item = Result<Bytes, PayloadError>;
 
-    fn poll_next(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
 
         match ready!(Pin::new(&mut this.stream).poll_data(cx)) {

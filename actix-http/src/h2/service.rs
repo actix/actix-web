@@ -10,8 +10,7 @@ use std::{
 use actix_codec::{AsyncRead, AsyncWrite};
 use actix_rt::net::TcpStream;
 use actix_service::{
-    fn_factory, fn_service, IntoServiceFactory, Service, ServiceFactory,
-    ServiceFactoryExt as _,
+    fn_factory, fn_service, IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt as _,
 };
 use actix_utils::future::ready;
 use futures_core::{future::LocalBoxFuture, ready};
@@ -279,8 +278,7 @@ where
     }
 
     fn call(&self, (io, addr): (T, Option<net::SocketAddr>)) -> Self::Future {
-        let on_connect_data =
-            OnConnectData::from_io(&io, self.on_connect_ext.as_deref());
+        let on_connect_data = OnConnectData::from_io(&io, self.on_connect_ext.as_deref());
 
         H2ServiceHandlerResponse {
             state: State::Handshake(

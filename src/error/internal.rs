@@ -128,7 +128,7 @@ macro_rules! error_helper {
                 InternalError::new(err, StatusCode::$status).into()
             }
         }
-    }
+    };
 }
 
 error_helper!(ErrorBadRequest, BAD_REQUEST);

@@ -24,9 +24,7 @@ impl BoxBody {
     }
 
     /// Returns a mutable pinned reference to the inner message body type.
-    pub fn as_pin_mut(
-        &mut self,
-    ) -> Pin<&mut (dyn MessageBody<Error = Box<dyn StdError>>)> {
+    pub fn as_pin_mut(&mut self) -> Pin<&mut (dyn MessageBody<Error = Box<dyn StdError>>)> {
         self.0.as_mut()
     }
 }

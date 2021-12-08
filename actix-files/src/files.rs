@@ -262,9 +262,9 @@ impl Files {
         self
     }
 
+    /// See [`Files::method_guard`].
     #[doc(hidden)]
     #[deprecated(since = "0.6.0", note = "Renamed to `method_guard`.")]
-    /// See [`Files::method_guard`].
     pub fn use_guards<G: Guard + 'static>(self, guard: G) -> Self {
         self.method_guard(guard)
     }

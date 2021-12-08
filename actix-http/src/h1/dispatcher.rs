@@ -260,10 +260,7 @@ where
         }
     }
 
-    fn poll_flush(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<(), io::Error>> {
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
         let InnerDispatcherProj { io, write_buf, .. } = self.project();
         let mut io = Pin::new(io.as_mut().unwrap());
 
@@ -273,10 +270,7 @@ where
         while written < len {
             match io.as_mut().poll_write(cx, &write_buf[written..])? {
                 Poll::Ready(0) => {
-                    return Poll::Ready(Err(io::Error::new(
-                        io::ErrorKind::WriteZero,
-                        "",
-                    )))
+                    return Poll::Ready(Err(io::Error::new(io::ErrorKind::WriteZero, "")))
                 }
                 Poll::Ready(n) => written += n,
                 Poll::Pending => {
@@ -419,15 +413,12 @@ where
                     while this.write_buf.len() < super::payload::MAX_BUFFER_SIZE {
                         match stream.as_mut().poll_next(cx) {
                             Poll::Ready(Some(Ok(item))) => {
-                                this.codec.encode(
-                                    Message::Chunk(Some(item)),
-                                    this.write_buf,
-                                )?;
+                                this.codec
+                                    .encode(Message::Chunk(Some(item)), this.write_buf)?;
                             }
 
                             Poll::Ready(None) => {
-                                this.codec
-                                    .encode(Message::Chunk(None), this.write_buf)?;
+                                this.codec.encode(Message::Chunk(None), this.write_buf)?;
                                 // payload stream finished.
                                 // set state to None and handle next message
                                 this.state.set(State::None);
@@ -454,15 +445,12 @@ where
                     while this.write_buf.len() < super::payload::MAX_BUFFER_SIZE {
                         match stream.as_mut().poll_next(cx) {
                             Poll::Ready(Some(Ok(item))) => {
-                                this.codec.encode(
-                                    Message::Chunk(Some(item)),
-                                    this.write_buf,
-                                )?;
+                                this.codec
+                                    .encode(Message::Chunk(Some(item)), this.write_buf)?;
                             }
 
                             Poll::Ready(None) => {
-                                this.codec
-                                    .encode(Message::Chunk(None), this.write_buf)?;
+                                this.codec.encode(Message::Chunk(None), this.write_buf)?;
                                 // payload stream finished.
                                 // set state to None and handle next message
                                 this.state.set(State::None);
@@ -568,9 +556,11 @@ where
                         }
                     };
                 }
-                _ => unreachable!(
-                    "State must be set to ServiceCall or ExceptCall in handle_request"
-                ),
+                _ => {
+                    unreachable!(
+                        "State must be set to ServiceCall or ExceptCall in handle_request"
+                    )
+                }
             }
         }
     }
@@ -604,8 +594,7 @@ where
                                 // everything remain in read buffer would be handed to
                                 // upgraded Request.
                                 MessageType::Stream if this.flow.upgrade.is_some() => {
-                                    this.messages
-                                        .push_back(DispatcherMessage::Upgrade(req));
+                                    this.messages.push_back(DispatcherMessage::Upgrade(req));
                                     break;
                                 }
 
@@ -620,8 +609,7 @@ where
                                     where the state can be collected and consumed.
                                     */
                                     let (ps, pl) = Payload::create(false);
-                                    let (req1, _) =
-                                        req.replace_payload(crate::Payload::H1(pl));
+                                    let (req1, _) = req.replace_payload(crate::Payload::H1(pl));
                                     req = req1;
                                     *this.payload = Some(ps);
                                 }
@@ -642,9 +630,7 @@ where
                             if let Some(ref mut payload) = this.payload {
                                 payload.feed_data(chunk);
                             } else {
-                                error!(
-                                    "Internal server error: unexpected payload chunk"
-                                );
+                                error!("Internal server error: unexpected payload chunk");
                                 this.flags.insert(Flags::READ_DISCONNECT);
                                 this.messages.push_back(DispatcherMessage::Error(
                                     Response::internal_server_error().drop_body(),
@@ -682,12 +668,11 @@ where
                         payload.set_error(PayloadError::Overflow);
                     }
                     // Requests overflow buffer size should be responded with 431
-                    this.messages.push_back(DispatcherMessage::Error(
-                        Response::with_body(
+                    this.messages
+                        .push_back(DispatcherMessage::Error(Response::with_body(
                             StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
                             (),
-                        ),
-                    ));
+                        )));
                     this.flags.insert(Flags::READ_DISCONNECT);
                     *this.error = Some(ParseError::TooLarge.into());
                     break;
@@ -729,8 +714,7 @@ where
             None => {
                 // conditionally go into shutdown timeout
                 if this.flags.contains(Flags::SHUTDOWN) {
-                    if let Some(deadline) = this.codec.config().client_disconnect_timer()
-                    {
+                    if let Some(deadline) = this.codec.config().client_disconnect_timer() {
                         // write client disconnect time out and poll again to
                         // go into Some<Pin<&mut Sleep>> branch
                         this.ka_timer.set(Some(sleep_until(deadline)));
@@ -773,9 +757,7 @@ where
                                 this.flags.insert(Flags::STARTED | Flags::SHUTDOWN);
                             }
                             // still have unfinished task. try to reset and register keep-alive.
-                        } else if let Some(deadline) =
-                            this.codec.config().keep_alive_expire()
-                        {
+                        } else if let Some(deadline) = this.codec.config().keep_alive_expire() {
                             timer.as_mut().reset(deadline);
                             let _ = timer.poll(cx);
                         }
@@ -1053,14 +1035,12 @@ mod tests {
     }
 
     fn ok_service(
-    ) -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error>
-    {
+    ) -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error> {
         fn_service(|_req: Request| ready(Ok::<_, Error>(Response::ok())))
     }
 
     fn echo_path_service(
-    ) -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error>
-    {
+    ) -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error> {
         fn_service(|req: Request| {
             let path = req.path().as_bytes();
             ready(Ok::<_, Error>(
@@ -1069,8 +1049,8 @@ mod tests {
         })
     }
 
-    fn echo_payload_service(
-    ) -> impl Service<Request, Response = Response<Bytes>, Error = Error> {
+    fn echo_payload_service() -> impl Service<Request, Response = Response<Bytes>, Error = Error>
+    {
         fn_service(|mut req: Request| {
             Box::pin(async move {
                 use futures_util::stream::StreamExt as _;

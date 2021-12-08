@@ -160,16 +160,11 @@ where
                                 Poll::Ready(_) => {
                                     ping_pong.on_flight = false;
 
-                                    let dead_line =
-                                        this.config.keep_alive_expire().unwrap();
+                                    let dead_line = this.config.keep_alive_expire().unwrap();
                                     ping_pong.timer.as_mut().reset(dead_line);
                                 }
                                 Poll::Pending => {
-                                    return ping_pong
-                                        .timer
-                                        .as_mut()
-                                        .poll(cx)
-                                        .map(|_| Ok(()))
+                                    return ping_pong.timer.as_mut().poll(cx).map(|_| Ok(()))
                                 }
                             }
                         } else {

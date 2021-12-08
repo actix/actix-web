@@ -304,8 +304,7 @@ mod inner {
                         let item = match this.framed.next_item(cx) {
                             Poll::Ready(Some(Ok(el))) => el,
                             Poll::Ready(Some(Err(err))) => {
-                                *this.state =
-                                    State::FramedError(DispatcherError::Decoder(err));
+                                *this.state = State::FramedError(DispatcherError::Decoder(err));
                                 return true;
                             }
                             Poll::Pending => return false,
@@ -348,8 +347,7 @@ mod inner {
                     match Pin::new(&mut this.rx).poll_next(cx) {
                         Poll::Ready(Some(Ok(Message::Item(msg)))) => {
                             if let Err(err) = this.framed.as_mut().write(msg) {
-                                *this.state =
-                                    State::FramedError(DispatcherError::Encoder(err));
+                                *this.state = State::FramedError(DispatcherError::Encoder(err));
                                 return true;
                             }
                         }
@@ -371,8 +369,7 @@ mod inner {
                         Poll::Ready(Ok(_)) => {}
                         Poll::Ready(Err(err)) => {
                             debug!("Error sending data: {:?}", err);
-                            *this.state =
-                                State::FramedError(DispatcherError::Encoder(err));
+                            *this.state = State::FramedError(DispatcherError::Encoder(err));
                             return true;
                         }
                     }
@@ -432,9 +429,7 @@ mod inner {
                             Poll::Ready(Ok(()))
                         }
                     }
-                    State::FramedError(_) => {
-                        Poll::Ready(Err(this.state.take_framed_error()))
-                    }
+                    State::FramedError(_) => Poll::Ready(Err(this.state.take_framed_error())),
                     State::Stopping => Poll::Ready(Ok(())),
                 };
             }

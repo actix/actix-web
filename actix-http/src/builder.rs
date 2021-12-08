@@ -214,8 +214,7 @@ where
             self.local_addr,
         );
 
-        H2Service::with_config(cfg, service.into_factory())
-            .on_connect_ext(self.on_connect_ext)
+        H2Service::with_config(cfg, service.into_factory()).on_connect_ext(self.on_connect_ext)
     }
 
     /// Finish service configuration and create `HttpService` instance.

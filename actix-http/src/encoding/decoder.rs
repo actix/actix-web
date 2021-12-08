@@ -44,17 +44,17 @@ where
     pub fn new(stream: S, encoding: ContentEncoding) -> Decoder<S> {
         let decoder = match encoding {
             #[cfg(feature = "compress-brotli")]
-            ContentEncoding::Br => Some(ContentDecoder::Br(Box::new(
-                BrotliDecoder::new(Writer::new()),
-            ))),
+            ContentEncoding::Br => Some(ContentDecoder::Br(Box::new(BrotliDecoder::new(
+                Writer::new(),
+            )))),
             #[cfg(feature = "compress-gzip")]
             ContentEncoding::Deflate => Some(ContentDecoder::Deflate(Box::new(
                 ZlibDecoder::new(Writer::new()),
             ))),
             #[cfg(feature = "compress-gzip")]
-            ContentEncoding::Gzip => Some(ContentDecoder::Gzip(Box::new(
-                GzDecoder::new(Writer::new()),
-            ))),
+            ContentEncoding::Gzip => Some(ContentDecoder::Gzip(Box::new(GzDecoder::new(
+                Writer::new(),
+            )))),
             #[cfg(feature = "compress-zstd")]
             ContentEncoding::Zstd => Some(ContentDecoder::Zstd(Box::new(
                 ZstdDecoder::new(Writer::new()).expect(
@@ -93,10 +93,7 @@ where
 {
     type Item = Result<Bytes, PayloadError>;
 
-    fn poll_next(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         loop {
             if let Some(ref mut fut) = self.fut {
                 let (chunk, decoder) =

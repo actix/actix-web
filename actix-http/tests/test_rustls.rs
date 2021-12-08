@@ -238,10 +238,11 @@ async fn test_h2_headers() {
 
     let mut srv = test_server(move || {
         let data = data.clone();
-        HttpService::build().h2(move |_| {
-            let mut config = Response::build(StatusCode::OK);
-            for idx in 0..90 {
-                config.insert_header((
+        HttpService::build()
+            .h2(move |_| {
+                let mut config = Response::build(StatusCode::OK);
+                for idx in 0..90 {
+                    config.insert_header((
                     format!("X-TEST-{}", idx).as_str(),
                     "TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
@@ -257,11 +258,12 @@ async fn test_h2_headers() {
                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST ",
                 ));
-            }
-            ok::<_, Infallible>(config.body(data.clone()))
-        })
+                }
+                ok::<_, Infallible>(config.body(data.clone()))
+            })
             .rustls(tls_config())
-    }).await;
+    })
+    .await;
 
     let response = srv.sget("/").send().await.unwrap();
     assert!(response.status().is_success());

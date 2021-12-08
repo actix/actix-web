@@ -4,8 +4,7 @@ use bytes::BytesMut;
 use http::header::{HeaderValue, InvalidHeaderValue};
 
 use crate::{
-    config::DATE_VALUE_LENGTH, error::ParseError, header::IntoHeaderValue,
-    helpers::MutWriter,
+    config::DATE_VALUE_LENGTH, error::ParseError, header::IntoHeaderValue, helpers::MutWriter,
 };
 
 /// A timestamp with HTTP-style formatting and parsing.

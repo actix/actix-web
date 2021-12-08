@@ -87,10 +87,7 @@ pub(crate) struct OnConnectData(Option<Extensions>);
 
 impl OnConnectData {
     /// Construct by calling the on-connect callback with the underlying transport I/O.
-    pub(crate) fn from_io<T>(
-        io: &T,
-        on_connect_ext: Option<&ConnectCallback<T>>,
-    ) -> Self {
+    pub(crate) fn from_io<T>(io: &T, on_connect_ext: Option<&ConnectCallback<T>>) -> Self {
         let ext = on_connect_ext.map(|handler| {
             let mut extensions = Extensions::default();
             handler(io, &mut extensions);

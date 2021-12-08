@@ -231,9 +231,7 @@ impl<B: Default> Default for Response<B> {
     }
 }
 
-impl<I: Into<Response<BoxBody>>, E: Into<Error>> From<Result<I, E>>
-    for Response<BoxBody>
-{
+impl<I: Into<Response<BoxBody>>, E: Into<Error>> From<Result<I, E>> for Response<BoxBody> {
     fn from(res: Result<I, E>) -> Self {
         match res {
             Ok(val) => val.into(),
