@@ -19,13 +19,13 @@ use h2::{
     server::{Connection, SendResponse},
     Ping, PingPong,
 };
-use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
 use log::{error, trace};
 use pin_project_lite::pin_project;
 
 use crate::{
     body::{BodySize, BoxBody, MessageBody},
     config::ServiceConfig,
+    header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING},
     service::HttpFlow,
     Extensions, OnConnectData, Payload, Request, Response, ResponseHead,
 };
@@ -217,25 +217,28 @@ where
         return Ok(());
     }
 
-    // poll response body and send chunks to client.
+    // poll response body and send chunks to client
     actix_rt::pin!(body);
 
     while let Some(res) = poll_fn(|cx| body.as_mut().poll_next(cx)).await {
         let mut chunk = res.map_err(|err| DispatchError::ResponseBody(err.into()))?;
 
         'send: loop {
+            let chunk_size = cmp::min(chunk.len(), CHUNK_SIZE);
+
             // reserve enough space and wait for stream ready.
-            stream.reserve_capacity(cmp::min(chunk.len(), CHUNK_SIZE));
+            stream.reserve_capacity(chunk_size);
 
             match poll_fn(|cx| stream.poll_capacity(cx)).await {
                 // No capacity left. drop body and return.
                 None => return Ok(()),
-                Some(res) => {
-                    // Split chuck to writeable size and send to client.
-                    let cap = res.map_err(DispatchError::SendData)?;
 
+                Some(Err(err)) => return Err(DispatchError::SendData(err)),
+
+                Some(Ok(cap)) => {
+                    // split chunk to writeable size and send to client
                     let len = chunk.len();
-                    let bytes = chunk.split_to(cmp::min(cap, len));
+                    let bytes = chunk.split_to(cmp::min(len, cap));
 
                     stream
                         .send_data(bytes, false)
