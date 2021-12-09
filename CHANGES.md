@@ -9,6 +9,7 @@
 * `ServiceResponse::map_into_{left,right}_body` and `HttpResponse::map_into_boxed_body`. [#2468]
 * Connection data set through the `HttpServer::on_connect` callback is now accessible only from the new `HttpRequest::conn_data()` and `ServiceRequest::conn_data()` methods. [#2491]
 * `HttpRequest::{req_data,req_data_mut}`. [#2487]
+* `ServiceResponse::into_parts`. [#2499]
 
 ### Changed
 * Rename `Accept::{mime_precedence => ranked}`. [#2480]
@@ -37,6 +38,7 @@
 [#2491]: https://github.com/actix/actix-web/pull/2491
 [#2492]: https://github.com/actix/actix-web/pull/2492
 [#2493]: https://github.com/actix/actix-web/pull/2493
+[#2499]: https://github.com/actix/actix-web/pull/2499
 
 
 ## 4.0.0-beta.13 - 2021-11-30
