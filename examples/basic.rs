@@ -11,11 +11,9 @@ async fn index_async(req: HttpRequest) -> &'static str {
     "Hello world!\r\n"
 }
 
-static A: [u8; 4096] = [b'0'; 4096];
-
 #[get("/")]
 async fn no_params() -> &'static str {
-    std::str::from_utf8(A.as_ref()).unwrap()
+    "Hello world!\r\n"
 }
 
 #[actix_web::main]

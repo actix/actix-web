@@ -54,6 +54,9 @@ pub trait MessageBody {
     /// - A call to [`poll_next`] after calling [`take_complete_body`] should return `None` unless
     ///   the chunk is guaranteed to be empty.
     ///
+    /// The default implementation panics unconditionally, indicating a control flow bug in the
+    /// calling code.
+    ///
     /// # Panics
     /// With a correct implementation, panics if called without first checking [`is_complete_body`].
     ///
@@ -562,13 +565,49 @@ mod tests {
         assert_poll_next!(pl, Bytes::from("test"));
     }
 
-    #[actix_rt::test]
-    async fn big_string() {
-        let mut data = "HELLOWORLD".repeat(64 * 1024);
+    #[test]
+    fn take_string() {
+        let mut data = "test".repeat(2);
         let data_bytes = Bytes::from(data.clone());
-
         assert!(data.is_complete_body());
         assert_eq!(data.take_complete_body(), data_bytes);
+
+        let mut big_data = "test".repeat(64 * 1024);
+        let data_bytes = Bytes::from(big_data.clone());
+        assert!(big_data.is_complete_body());
+        assert_eq!(big_data.take_complete_body(), data_bytes);
+    }
+
+    #[test]
+    fn take_boxed_equivalence() {
+        let mut data = Bytes::from_static(b"test");
+        assert!(data.is_complete_body());
+        assert_eq!(data.take_complete_body(), b"test".as_ref());
+
+        let mut data = Box::new(Bytes::from_static(b"test"));
+        assert!(data.is_complete_body());
+        assert_eq!(data.take_complete_body(), b"test".as_ref());
+
+        let mut data = Box::pin(Bytes::from_static(b"test"));
+        assert!(data.is_complete_body());
+        assert_eq!(data.take_complete_body(), b"test".as_ref());
+    }
+
+    #[test]
+    fn take_policy() {
+        let mut data = Bytes::from_static(b"test");
+        // first call returns chunk
+        assert_eq!(data.take_complete_body(), b"test".as_ref());
+        // second call returns empty
+        assert_eq!(data.take_complete_body(), b"".as_ref());
+
+        let waker = futures_util::task::noop_waker();
+        let mut cx = Context::from_waker(&waker);
+        let mut data = Bytes::from_static(b"test");
+        // take returns whole chunk
+        assert_eq!(data.take_complete_body(), b"test".as_ref());
+        // subsequent poll_next returns None
+        assert_eq!(Pin::new(&mut data).poll_next(&mut cx), Poll::Ready(None));
     }
 
     // down-casting used to be done with a method on MessageBody trait
