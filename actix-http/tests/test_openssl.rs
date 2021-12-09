@@ -101,7 +101,7 @@ async fn test_h2_1() -> io::Result<()> {
 
 #[actix_rt::test]
 async fn test_h2_body() -> io::Result<()> {
-    let data = "HELLOWORLD".to_owned().repeat(64 * 1024);
+    let data = "HELLOWORLD".to_owned().repeat(64 * 1024); // 640 KiB
     let mut srv = test_server(move || {
         HttpService::build()
             .h2(|mut req: Request<_>| async move {

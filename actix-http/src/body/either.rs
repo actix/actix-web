@@ -67,6 +67,20 @@ where
                 .map_err(|err| Error::new_body().with_cause(err)),
         }
     }
+
+    fn is_complete_body(&self) -> bool {
+        match self {
+            EitherBody::Left { body } => body.is_complete_body(),
+            EitherBody::Right { body } => body.is_complete_body(),
+        }
+    }
+
+    fn take_complete_body(&mut self) -> Bytes {
+        match self {
+            EitherBody::Left { body } => body.take_complete_body(),
+            EitherBody::Right { body } => body.take_complete_body(),
+        }
+    }
 }
 
 #[cfg(test)]
