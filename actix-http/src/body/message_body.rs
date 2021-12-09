@@ -522,6 +522,15 @@ mod tests {
         assert_poll_next!(pl, Bytes::from("test"));
     }
 
+    #[actix_rt::test]
+    async fn big_string() {
+        let mut data = "HELLOWORLD".repeat(64 * 1024);
+        let data_bytes = Bytes::from(data.clone());
+
+        assert!(data.is_complete_body());
+        assert_eq!(data.take_complete_body(), data_bytes);
+    }
+
     // down-casting used to be done with a method on MessageBody trait
     // test is kept to demonstrate equivalence of Any trait
     #[actix_rt::test]
