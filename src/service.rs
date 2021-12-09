@@ -410,7 +410,7 @@ impl<B> ServiceResponse<B> {
         self.response.headers_mut()
     }
 
-    /// Destructure into request and response components
+    /// Destructures `ServiceResponse` into request and response components.
     #[inline]
     pub fn into_parts(self) -> (HttpRequest, HttpResponse<B>) {
         (self.request, self.response)
