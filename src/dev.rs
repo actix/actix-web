@@ -10,9 +10,7 @@ pub use crate::info::{ConnectionInfo, PeerAddr};
 pub use crate::rmap::ResourceMap;
 pub use crate::service::{HttpServiceFactory, ServiceRequest, ServiceResponse, WebService};
 
-pub use crate::types::form::UrlEncoded;
-pub use crate::types::json::JsonBody;
-pub use crate::types::readlines::Readlines;
+pub use crate::types::{JsonBody, Readlines, UrlEncoded};
 
 pub use actix_http::{Extensions, Payload, PayloadStream, RequestHead, Response, ResponseHead};
 pub use actix_router::{Path, ResourceDef, ResourcePath, Url};

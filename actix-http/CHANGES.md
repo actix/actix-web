@@ -3,7 +3,9 @@
 ## Unreleased - 2021-xx-xx
 ### Changes
 - `HeaderMap::get_all` now returns a `std::slice::Iter`. [#2527]
+- `impl Eq` for `header::ContentEncoding`. [#2501]
 
+[#2501]: https://github.com/actix/actix-web/pull/2501
 [#2527]: https://github.com/actix/actix-web/pull/2527
 
 

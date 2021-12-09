@@ -93,26 +93,6 @@ common_header! {
 }
 
 impl AcceptLanguage {
-    /// Returns a sorted list of languages from highest to lowest precedence, accounting
-    /// for [q-factor weighting].
-    ///
-    /// [q-factor weighting]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
-    pub fn ranked(&self) -> Vec<Preference<LanguageTag>> {
-        if self.0.is_empty() {
-            return vec![];
-        }
-
-        let mut types = self.0.clone();
-
-        // use stable sort so items with equal q-factor retain listed order
-        types.sort_by(|a, b| {
-            // sort by q-factor descending
-            b.quality.cmp(&a.quality)
-        });
-
-        types.into_iter().map(|qitem| qitem.item).collect()
-    }
-
     /// Extracts the most preferable language, accounting for [q-factor weighting].
     ///
     /// If no q-factors are provided, the first language is chosen. Note that items without
@@ -139,6 +119,26 @@ impl AcceptLanguage {
 
         max_item.unwrap_or(Preference::Any)
     }
+
+    /// Returns a sorted list of languages from highest to lowest precedence, accounting
+    /// for [q-factor weighting].
+    ///
+    /// [q-factor weighting]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
+    pub fn ranked(&self) -> Vec<Preference<LanguageTag>> {
+        if self.0.is_empty() {
+            return vec![];
+        }
+
+        let mut types = self.0.clone();
+
+        // use stable sort so items with equal q-factor retain listed order
+        types.sort_by(|a, b| {
+            // sort by q-factor descending
+            b.quality.cmp(&a.quality)
+        });
+
+        types.into_iter().map(|qitem| qitem.item).collect()
+    }
 }
 
 #[cfg(test)]
@@ -152,7 +152,7 @@ mod tests {
         assert!(test.ranked().is_empty());
 
         let test = AcceptLanguage(vec![QualityItem::max("fr-CH".parse().unwrap())]);
-        assert_eq!(test.ranked(), vec!("fr-CH".parse().unwrap()));
+        assert_eq!(test.ranked(), vec!["fr-CH".parse().unwrap()]);
 
         let test = AcceptLanguage(vec![
             QualityItem::new("fr".parse().unwrap(), q(0.900)),

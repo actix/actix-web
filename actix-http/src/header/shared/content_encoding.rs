@@ -20,7 +20,7 @@ pub struct ContentEncodingParseError;
 /// See [IANA HTTP Content Coding Registry].
 ///
 /// [IANA HTTP Content Coding Registry]: https://www.iana.org/assignments/http-parameters/http-parameters.xhtml
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ContentEncoding {
     /// Automatically select encoding based on encoding negotiation.
