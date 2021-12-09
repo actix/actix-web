@@ -53,14 +53,10 @@ impl MessageBody for BoxBody {
     }
 
     fn is_complete_body(&self) -> bool {
-        let a = self.0.is_complete_body();
-        eprintln!("BoxBody is complete?: {}", a);
-        a
+        self.0.is_complete_body()
     }
 
     fn take_complete_body(&mut self) -> Bytes {
-        eprintln!("taking box body contents");
-
         debug_assert!(
             self.is_complete_body(),
             "boxed type does not allow taking complete body; caller should make sure to \

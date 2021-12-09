@@ -25,18 +25,52 @@ pub trait MessageBody {
     fn size(&self) -> BodySize;
 
     /// Attempt to pull out the next chunk of body bytes.
+    // TODO: expand documentation
     fn poll_next(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Self::Error>>>;
 
+    /// Returns true if entire body bytes chunk is obtainable in one call to `poll_next`.
+    ///
+    /// This method's implementation should agree with [`take_complete_body`] and should always be
+    /// checked before taking the body.
+    ///
+    /// The default implementation returns `false.
+    ///
+    /// [`take_complete_body`]: MessageBody::take_complete_body
     fn is_complete_body(&self) -> bool {
         false
     }
 
+    /// Returns the complete chunk of body bytes.
+    ///
+    /// Implementors of this method should note the following:
+    /// - It is acceptable to skip the omit checks of [`is_complete_body`]. The responsibility of
+    ///   performing this check is delegated to the caller.
+    /// - If the result of [`is_complete_body`] is conditional, that condition should be given
+    ///   equivalent attention here.
+    /// - A second call call to [`take_complete_body`] should return an empty `Bytes` or panic.
+    /// - A call to [`poll_next`] after calling [`take_complete_body`] should return `None` unless
+    ///   the chunk is guaranteed to be empty.
+    ///
+    /// # Panics
+    /// With a correct implementation, panics if called without first checking [`is_complete_body`].
+    ///
+    /// [`is_complete_body`]: MessageBody::is_complete_body
+    /// [`take_complete_body`]: MessageBody::take_complete_body
+    /// [`poll_next`]: MessageBody::poll_next
     fn take_complete_body(&mut self) -> Bytes {
+        assert!(
+            self.is_complete_body(),
+            "type ({}) allows taking complete body but did not provide an implementation \
+            of `take_complete_body`",
+            std::any::type_name::<Self>()
+        );
+
         unimplemented!(
-            "type ({}) allows taking complete body but did not provide an implementation",
+            "type ({}) does not allow taking complete body; caller should make sure to \
+            check `is_complete_body` first",
             std::any::type_name::<Self>()
         );
     }
@@ -86,10 +120,12 @@ mod foreign_impls {
             Poll::Ready(None)
         }
 
+        #[inline]
         fn is_complete_body(&self) -> bool {
             true
         }
 
+        #[inline]
         fn take_complete_body(&mut self) -> Bytes {
             Bytes::new()
         }
@@ -114,10 +150,12 @@ mod foreign_impls {
             Pin::new(self.get_mut().as_mut()).poll_next(cx)
         }
 
+        #[inline]
         fn is_complete_body(&self) -> bool {
             self.as_ref().is_complete_body()
         }
 
+        #[inline]
         fn take_complete_body(&mut self) -> Bytes {
             self.as_mut().take_complete_body()
         }
@@ -142,10 +180,12 @@ mod foreign_impls {
             self.as_mut().poll_next(cx)
         }
 
+        #[inline]
         fn is_complete_body(&self) -> bool {
             self.as_ref().is_complete_body()
         }
 
+        #[inline]
         fn take_complete_body(&mut self) -> Bytes {
             debug_assert!(
                 self.is_complete_body(),

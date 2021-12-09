@@ -65,24 +65,16 @@ impl<B: MessageBody> Encoder<B> {
             return Self::none();
         }
 
-        eprintln!("body type: {}", std::any::type_name::<B>());
-
         let body = if body.is_complete_body() {
-            eprintln!("reducing allocation");
             let body = body.take_complete_body();
             EncoderBody::Full { body }
         } else {
-            eprintln!("using stream type");
             EncoderBody::Stream { body }
         };
 
         if can_encode {
-            eprintln!("I CAN ENCODE WOO");
-
             // Modify response body only if encoder is set
             if let Some(enc) = ContentEncoder::encoder(encoding) {
-                eprintln!("AND i have an encoder - lucky day");
-
                 update_head(encoding, head);
 
                 return Encoder {
@@ -92,11 +84,7 @@ impl<B: MessageBody> Encoder<B> {
                     eof: false,
                 };
             }
-
-            eprintln!("but i DONT have an encoder :(");
         }
-
-        eprintln!("rip, no compression for you");
 
         Encoder {
             body,
