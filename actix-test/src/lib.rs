@@ -341,7 +341,7 @@ where
                 Connector::new()
                     .conn_lifetime(Duration::from_secs(0))
                     .timeout(Duration::from_millis(30000))
-                    .ssl(builder.build())
+                    .openssl(builder.build())
             }
             #[cfg(not(feature = "openssl"))]
             {

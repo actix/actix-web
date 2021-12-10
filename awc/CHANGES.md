@@ -1,6 +1,7 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+* Rename `Connector::{ssl => openssl}`. [#2503]
 * Improve `Client` instantiation efficiency when using `openssl` by only building connectors once. [#2503]
 
 [#2503]: https://github.com/actix/actix-web/pull/2503

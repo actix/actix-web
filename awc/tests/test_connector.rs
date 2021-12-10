@@ -58,7 +58,7 @@ async fn test_connection_window_size() {
         .map_err(|e| log::error!("Can not set alpn protocol: {:?}", e));
 
     let client = awc::Client::builder()
-        .connector(awc::Connector::new().ssl(builder.build()))
+        .connector(awc::Connector::new().openssl(builder.build()))
         .initial_window_size(100)
         .initial_connection_window_size(100)
         .finish();

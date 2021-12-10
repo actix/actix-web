@@ -38,10 +38,10 @@ enum OurTlsConnector {
     Openssl(actix_tls::connect::openssl::reexports::SslConnector),
 
     /// Provided because building the OpenSSL context on newer versions can be very slow.
-    /// This prevents unnecessary calls to `.build()` which constructing the client connector.
+    /// This prevents unnecessary calls to `.build()` while constructing the client connector.
     #[cfg(feature = "openssl")]
     #[allow(dead_code)] // false positive; used in build_ssl
-    OpensslBuilder(tls_openssl::ssl::SslConnectorBuilder),
+    OpensslBuilder(actix_tls::connect::openssl::reexports::SslConnectorBuilder),
 
     #[cfg(feature = "rustls")]
     Rustls(std::sync::Arc<actix_tls::connect::rustls::reexports::ClientConfig>),
@@ -77,8 +77,6 @@ impl Connector<()> {
                 Error = actix_tls::connect::ConnectError,
             > + Clone,
     > {
-        println!("[awc] Connector::new");
-
         Connector {
             connector: TcpConnector::new(resolver::resolver()).service(),
             config: ConnectorConfig::default(),
@@ -220,7 +218,6 @@ where
                 unimplemented!("actix-http client only supports versions http/1.1 & http/2")
             }
         };
-        println!("[awc] max_http_version");
         self.tls = Connector::build_ssl(versions);
         self
     }
@@ -308,6 +305,7 @@ where
         };
 
         let tls = match self.tls {
+            #[cfg(feature = "openssl")]
             OurTlsConnector::OpensslBuilder(builder) => {
                 OurTlsConnector::Openssl(builder.build())
             }
