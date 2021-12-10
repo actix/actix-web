@@ -22,11 +22,13 @@ use futures_core::{future::LocalBoxFuture, ready};
 use http::Uri;
 use pin_project_lite::pin_project;
 
-use super::config::ConnectorConfig;
-use super::connection::{Connection, ConnectionIo};
-use super::error::ConnectError;
-use super::pool::ConnectionPool;
-use super::Connect;
+use super::{
+    config::ConnectorConfig,
+    connection::{Connection, ConnectionIo},
+    error::ConnectError,
+    pool::ConnectionPool,
+    Connect,
+};
 
 enum OurTlsConnector {
     #[allow(dead_code)] // only dead when no TLS feature is enabled
@@ -34,6 +36,12 @@ enum OurTlsConnector {
 
     #[cfg(feature = "openssl")]
     Openssl(actix_tls::connect::openssl::reexports::SslConnector),
+
+    /// Provided because building the OpenSSL context on newer versions can be very slow.
+    /// This prevents unnecessary calls to `.build()` which constructing the client connector.
+    #[cfg(feature = "openssl")]
+    #[allow(dead_code)] // false positive; used in build_ssl
+    OpensslBuilder(tls_openssl::ssl::SslConnectorBuilder),
 
     #[cfg(feature = "rustls")]
     Rustls(std::sync::Arc<actix_tls::connect::rustls::reexports::ClientConfig>),
@@ -57,7 +65,7 @@ pub struct Connector<T> {
     config: ConnectorConfig,
 
     #[allow(dead_code)] // only dead when no TLS feature is enabled
-    ssl: OurTlsConnector,
+    tls: OurTlsConnector,
 }
 
 impl Connector<()> {
@@ -69,10 +77,12 @@ impl Connector<()> {
                 Error = actix_tls::connect::ConnectError,
             > + Clone,
     > {
+        println!("[awc] Connector::new");
+
         Connector {
             connector: TcpConnector::new(resolver::resolver()).service(),
             config: ConnectorConfig::default(),
-            ssl: Self::build_ssl(vec![b"h2".to_vec(), b"http/1.1".to_vec()]),
+            tls: Self::build_ssl(vec![b"h2".to_vec(), b"http/1.1".to_vec()]),
         }
     }
 
@@ -116,7 +126,7 @@ impl Connector<()> {
             log::error!("Can not set ALPN protocol: {:?}", err);
         }
 
-        OurTlsConnector::Openssl(ssl.build())
+        OurTlsConnector::OpensslBuilder(ssl)
     }
 }
 
@@ -134,7 +144,7 @@ impl<S> Connector<S> {
         Connector {
             connector,
             config: self.config,
-            ssl: self.ssl,
+            tls: self.tls,
         }
     }
 }
@@ -167,23 +177,35 @@ where
         self
     }
 
+    /// Use custom OpenSSL `SslConnector` instance.
     #[cfg(feature = "openssl")]
-    /// Use custom `SslConnector` instance.
+    pub fn openssl(
+        mut self,
+        connector: actix_tls::connect::openssl::reexports::SslConnector,
+    ) -> Self {
+        self.tls = OurTlsConnector::Openssl(connector);
+        self
+    }
+
+    /// See docs for [`Connector::openssl`].
+    #[doc(hidden)]
+    #[cfg(feature = "openssl")]
+    #[deprecated(since = "3.0.0", note = "Renamed to `Connector::openssl`.")]
     pub fn ssl(
         mut self,
         connector: actix_tls::connect::openssl::reexports::SslConnector,
     ) -> Self {
-        self.ssl = OurTlsConnector::Openssl(connector);
+        self.tls = OurTlsConnector::Openssl(connector);
         self
     }
 
+    /// Use custom Rustls `ClientConfig` instance.
     #[cfg(feature = "rustls")]
-    /// Use custom `ClientConfig` instance.
     pub fn rustls(
         mut self,
         connector: std::sync::Arc<actix_tls::connect::rustls::reexports::ClientConfig>,
     ) -> Self {
-        self.ssl = OurTlsConnector::Rustls(connector);
+        self.tls = OurTlsConnector::Rustls(connector);
         self
     }
 
@@ -198,7 +220,8 @@ where
                 unimplemented!("actix-http client only supports versions http/1.1 & http/2")
             }
         };
-        self.ssl = Connector::build_ssl(versions);
+        println!("[awc] max_http_version");
+        self.tls = Connector::build_ssl(versions);
         self
     }
 
@@ -270,8 +293,8 @@ where
     }
 
     /// Finish configuration process and create connector service.
-    /// The Connector builder always concludes by calling `finish()` last in
-    /// its combinator chain.
+    ///
+    /// The `Connector` builder always concludes by calling `finish()` last in its combinator chain.
     pub fn finish(self) -> ConnectorService<S, IO> {
         let local_address = self.config.local_address;
         let timeout = self.config.timeout;
@@ -284,7 +307,14 @@ where
             service: tcp_service_inner.clone(),
         };
 
-        let tls_service = match self.ssl {
+        let tls = match self.tls {
+            OurTlsConnector::OpensslBuilder(builder) => {
+                OurTlsConnector::Openssl(builder.build())
+            }
+            tls => tls,
+        };
+
+        let tls_service = match tls {
             OurTlsConnector::None => {
                 #[cfg(not(feature = "dangerous-h2c"))]
                 {
@@ -372,6 +402,11 @@ where
                 };
 
                 Some(actix_service::boxed::rc_service(tls_service))
+            }
+
+            #[cfg(feature = "openssl")]
+            OurTlsConnector::OpensslBuilder(_) => {
+                unreachable!("OpenSSL builder is built before this match.");
             }
 
             #[cfg(feature = "rustls")]

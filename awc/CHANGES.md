@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+* Improve `Client` instantiation efficiency when using `openssl` by only building connectors once. [#2503]
+
+[#2503]: https://github.com/actix/actix-web/pull/2503
 
 
 ## 3.0.0-beta.12 - 2021-11-30
