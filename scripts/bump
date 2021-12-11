@@ -41,6 +41,8 @@ cat "$CHANGELOG_FILE" |
 # if word count of changelog chunk is 0 then insert filler changelog chunk
 if [ "$(wc -w "$CHANGE_CHUNK_FILE" | awk '{ print $1 }')" = "0" ]; then
     echo "* No significant changes since \`$CURRENT_VERSION\`." >"$CHANGE_CHUNK_FILE"
+    echo >>"$CHANGE_CHUNK_FILE"
+    echo >>"$CHANGE_CHUNK_FILE"
 fi
 
 if [ -n "${2-}" ]; then
