@@ -10,8 +10,13 @@ use std::{
     task::{Context, Poll},
 };
 
-use actix_http::header::{
-    ContentEncoding, ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_LENGTH, TRANSFER_ENCODING,
+use actix_web::{
+    dev::BodyEncoding,
+    http::header::{
+        ContentEncoding, ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_LENGTH, TRANSFER_ENCODING,
+    },
+    middleware::{Compress, NormalizePath, TrailingSlash},
+    web, App, Error, HttpResponse,
 };
 use brotli2::write::{BrotliDecoder, BrotliEncoder};
 use bytes::Bytes;
@@ -30,10 +35,6 @@ use openssl::{
 };
 use rand::{distributions::Alphanumeric, Rng};
 use zstd::stream::{read::Decoder as ZstdDecoder, write::Encoder as ZstdEncoder};
-
-use actix_web::dev::BodyEncoding;
-use actix_web::middleware::{Compress, NormalizePath, TrailingSlash};
-use actix_web::{web, App, Error, HttpResponse};
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World \
