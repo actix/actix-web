@@ -886,7 +886,7 @@ mod tests {
         let connector = Connector {
             connector: TcpConnector::new(resolver::resolver()).service(),
             config: ConnectorConfig::default(),
-            ssl: OurTlsConnector::None,
+            tls: OurTlsConnector::None,
         };
 
         let client = Client::builder().connector(connector).finish();
