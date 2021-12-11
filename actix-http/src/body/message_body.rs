@@ -85,12 +85,10 @@ mod foreign_impls {
     impl MessageBody for Infallible {
         type Error = Infallible;
 
-        #[inline]
         fn size(&self) -> BodySize {
             match *self {}
         }
 
-        #[inline]
         fn poll_next(
             self: Pin<&mut Self>,
             _cx: &mut Context<'_>,
@@ -219,6 +217,7 @@ mod foreign_impls {
     impl MessageBody for &'static [u8] {
         type Error = Infallible;
 
+        #[inline]
         fn size(&self) -> BodySize {
             BodySize::Sized(self.len() as u64)
         }
@@ -234,10 +233,12 @@ mod foreign_impls {
             }
         }
 
+        #[inline]
         fn is_complete_body(&self) -> bool {
             true
         }
 
+        #[inline]
         fn take_complete_body(&mut self) -> Bytes {
             Bytes::from_static(mem::take(self))
         }
@@ -246,6 +247,7 @@ mod foreign_impls {
     impl MessageBody for Bytes {
         type Error = Infallible;
 
+        #[inline]
         fn size(&self) -> BodySize {
             BodySize::Sized(self.len() as u64)
         }
@@ -261,10 +263,12 @@ mod foreign_impls {
             }
         }
 
+        #[inline]
         fn is_complete_body(&self) -> bool {
             true
         }
 
+        #[inline]
         fn take_complete_body(&mut self) -> Bytes {
             mem::take(self)
         }
@@ -273,6 +277,7 @@ mod foreign_impls {
     impl MessageBody for BytesMut {
         type Error = Infallible;
 
+        #[inline]
         fn size(&self) -> BodySize {
             BodySize::Sized(self.len() as u64)
         }
@@ -288,10 +293,12 @@ mod foreign_impls {
             }
         }
 
+        #[inline]
         fn is_complete_body(&self) -> bool {
             true
         }
 
+        #[inline]
         fn take_complete_body(&mut self) -> Bytes {
             mem::take(self).freeze()
         }
@@ -300,6 +307,7 @@ mod foreign_impls {
     impl MessageBody for Vec<u8> {
         type Error = Infallible;
 
+        #[inline]
         fn size(&self) -> BodySize {
             BodySize::Sized(self.len() as u64)
         }
@@ -315,10 +323,12 @@ mod foreign_impls {
             }
         }
 
+        #[inline]
         fn is_complete_body(&self) -> bool {
             true
         }
 
+        #[inline]
         fn take_complete_body(&mut self) -> Bytes {
             Bytes::from(mem::take(self))
         }
@@ -327,6 +337,7 @@ mod foreign_impls {
     impl MessageBody for &'static str {
         type Error = Infallible;
 
+        #[inline]
         fn size(&self) -> BodySize {
             BodySize::Sized(self.len() as u64)
         }
@@ -344,10 +355,12 @@ mod foreign_impls {
             }
         }
 
+        #[inline]
         fn is_complete_body(&self) -> bool {
             true
         }
 
+        #[inline]
         fn take_complete_body(&mut self) -> Bytes {
             Bytes::from_static(mem::take(self).as_bytes())
         }
@@ -356,6 +369,7 @@ mod foreign_impls {
     impl MessageBody for String {
         type Error = Infallible;
 
+        #[inline]
         fn size(&self) -> BodySize {
             BodySize::Sized(self.len() as u64)
         }
@@ -372,10 +386,12 @@ mod foreign_impls {
             }
         }
 
+        #[inline]
         fn is_complete_body(&self) -> bool {
             true
         }
 
+        #[inline]
         fn take_complete_body(&mut self) -> Bytes {
             Bytes::from(mem::take(self))
         }
@@ -384,6 +400,7 @@ mod foreign_impls {
     impl MessageBody for bytestring::ByteString {
         type Error = Infallible;
 
+        #[inline]
         fn size(&self) -> BodySize {
             BodySize::Sized(self.len() as u64)
         }
@@ -396,10 +413,12 @@ mod foreign_impls {
             Poll::Ready(Some(Ok(string.into_bytes())))
         }
 
+        #[inline]
         fn is_complete_body(&self) -> bool {
             true
         }
 
+        #[inline]
         fn take_complete_body(&mut self) -> Bytes {
             mem::take(self).into_bytes()
         }
@@ -435,6 +454,7 @@ where
 {
     type Error = E;
 
+    #[inline]
     fn size(&self) -> BodySize {
         self.body.size()
     }
