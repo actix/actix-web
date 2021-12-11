@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 4.0.0-beta.8 - 2021-12-11
 * Add `ws:WsResponseBuilder` for building WebSocket session response. [#1920]
 * Deprecate `ws::{start_with_addr, start_with_protocols}`. [#1920]
 * Minimum supported Rust version (MSRV) is now 1.52.
