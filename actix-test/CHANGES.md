@@ -3,6 +3,10 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 0.1.0-beta.8 - 2021-12-11
+* No significant changes since `0.1.0-beta.7`.
+
+
 ## 0.1.0-beta.7 - 2021-11-22
 * Fix compatibility with experimental `io-uring` feature of `actix-rt`. [#2408]
 

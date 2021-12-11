@@ -41,6 +41,8 @@ cat "$CHANGELOG_FILE" |
 # if word count of changelog chunk is 0 then insert filler changelog chunk
 if [ "$(wc -w "$CHANGE_CHUNK_FILE" | awk '{ print $1 }')" = "0" ]; then
     echo "* No significant changes since \`$CURRENT_VERSION\`." >"$CHANGE_CHUNK_FILE"
+    echo >>"$CHANGE_CHUNK_FILE"
+    echo >>"$CHANGE_CHUNK_FILE"
 fi
 
 if [ -n "${2-}" ]; then
@@ -82,8 +84,33 @@ rm -f $README_FILE.bak
 echo "manifest, changelog, and readme updated"
 echo
 echo "check other references:"
-rg "$PACKAGE_NAME =" || true
-rg "package = \"$PACKAGE_NAME\"" || true
+rg --glob='**/Cargo.toml' "\
+${PACKAGE_NAME} ?= ?\"[^\"]+\"\
+|${PACKAGE_NAME} ?=.*version ?= ?\"([^\"]+)\"\
+|package ?= ?\"${PACKAGE_NAME}\".*version ?= ?\"([^\"]+)\"\
+|version ?= ?\"([^\"]+)\".*package ?= ?\"${PACKAGE_NAME}\"" || true
+
+echo
+read -p "Update all references: (y/N) " UPDATE_REFERENCES
+UPDATE_REFERENCES="${UPDATE_REFERENCES:-n}"
+
+if [ "$UPDATE_REFERENCES" = 'y' ] || [ "$UPDATE_REFERENCES" = 'Y' ]; then
+
+    for f in $(fd Cargo.toml); do
+        sed -i.bak -E \
+            "s/^(${PACKAGE_NAME} ?= ?\")[^\"]+(\")$/\1${NEW_VERSION}\2/g" $f
+        sed -i.bak -E \
+            "s/^(${PACKAGE_NAME} ?=.*version ?= ?\")[^\"]+(\".*)$/\1${NEW_VERSION}\2/g" $f
+        sed -i.bak -E \
+            "s/^(.*package ?= ?\"${PACKAGE_NAME}\".*version ?= ?\")[^\"]+(\".*)$/\1${NEW_VERSION}\2/g" $f
+        sed -i.bak -E \
+            "s/^(.*version ?= ?\")[^\"]+(\".*package ?= ?\"${PACKAGE_NAME}\".*)$/\1${NEW_VERSION}\2/g" $f
+
+        # remove backup file
+        rm -f $f.bak
+    done
+
+fi
 
 if [ $MACOS ]; then
     printf "prepare $PACKAGE_NAME release $NEW_VERSION" | pbcopy

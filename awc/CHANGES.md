@@ -7,6 +7,10 @@
 [#2503]: https://github.com/actix/actix-web/pull/2503
 
 
+## 3.0.0-beta.13 - 2021-12-11
+* No significant changes since `3.0.0-beta.12`.
+
+
 ## 3.0.0-beta.12 - 2021-11-30
 * Update `actix-tls` to `3.0.0-rc.1`. [#2474]
 
