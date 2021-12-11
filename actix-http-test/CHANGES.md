@@ -3,6 +3,10 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 3.0.0-beta.9 - 2021-12-11
+* No significant changes since `3.0.0-beta.8`.
+
+
 ## 3.0.0-beta.8 - 2021-11-30
 * Update `actix-tls` to `3.0.0-rc.1`. [#2474]
 
