@@ -31,10 +31,10 @@ openssl = ["tls-openssl", "actix-http/openssl", "awc/openssl"]
 actix-codec = "0.4.1"
 actix-http = "3.0.0-beta.15"
 actix-http-test = "3.0.0-beta.7"
+actix-rt = "2.1"
 actix-service = "2.0.0"
 actix-utils = "3.0.0"
-actix-web = { version = "4.0.0-beta.11", default-features = false, features = ["cookies"] }
-actix-rt = "2.1"
+actix-web = { version = "4.0.0-beta.14", default-features = false, features = ["cookies"] }
 awc = { version = "3.0.0-beta.13", default-features = false, features = ["cookies"] }
 
 futures-core = { version = "0.3.7", default-features = false, features = ["std"] }

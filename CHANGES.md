@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 4.0.0-beta.14 - 2021-12-11
 ### Added
 * Methods on `AcceptLanguage`: `ranked` and `preference`. [#2480]
 * `AcceptEncoding` typed header. [#2482]
