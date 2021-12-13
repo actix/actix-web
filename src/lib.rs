@@ -86,7 +86,6 @@ pub mod middleware;
 mod request;
 mod request_data;
 mod resource;
-mod responder;
 mod response;
 mod rmap;
 mod route;
@@ -109,12 +108,10 @@ pub use crate::error::{Error, ResponseError, Result};
 pub use crate::extract::FromRequest;
 pub use crate::request::HttpRequest;
 pub use crate::resource::Resource;
-pub use crate::responder::Responder;
-pub use crate::response::{HttpResponse, HttpResponseBuilder};
+pub use crate::response::{CustomizeResponder, HttpResponse, HttpResponseBuilder, Responder};
 pub use crate::route::Route;
 pub use crate::scope::Scope;
 pub use crate::server::HttpServer;
-// TODO: is exposing the error directly really needed
-pub use crate::types::{Either, EitherExtractError};
+pub use crate::types::Either;
 
 pub(crate) type BoxError = Box<dyn std::error::Error>;

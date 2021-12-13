@@ -125,7 +125,7 @@ macro_rules! common_header {
             }
         }
 
-        impl $crate::http::header::IntoHeaderValue for $id {
+        impl $crate::http::header::TryIntoHeaderValue for $id {
             type Error = $crate::http::header::InvalidHeaderValue;
 
             #[inline]
@@ -172,7 +172,7 @@ macro_rules! common_header {
             }
         }
 
-        impl $crate::http::header::IntoHeaderValue for $id {
+        impl $crate::http::header::TryIntoHeaderValue for $id {
             type Error = $crate::http::header::InvalidHeaderValue;
 
             #[inline]
@@ -211,7 +211,7 @@ macro_rules! common_header {
             }
         }
 
-        impl $crate::http::header::IntoHeaderValue for $id {
+        impl $crate::http::header::TryIntoHeaderValue for $id {
             type Error = $crate::http::header::InvalidHeaderValue;
 
             #[inline]
@@ -266,7 +266,7 @@ macro_rules! common_header {
             }
         }
 
-        impl $crate::http::header::IntoHeaderValue for $id {
+        impl $crate::http::header::TryIntoHeaderValue for $id {
             type Error = $crate::http::header::InvalidHeaderValue;
 
             #[inline]

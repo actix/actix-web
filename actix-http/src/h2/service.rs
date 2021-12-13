@@ -270,10 +270,10 @@ where
     type Future = H2ServiceHandlerResponse<T, S, B>;
 
     fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.flow.service.poll_ready(cx).map_err(|e| {
-            let e = e.into();
-            error!("Service readiness error: {:?}", e);
-            DispatchError::Service(e)
+        self.flow.service.poll_ready(cx).map_err(|err| {
+            let err = err.into();
+            error!("Service readiness error: {:?}", err);
+            DispatchError::Service(err)
         })
     }
 
@@ -297,7 +297,6 @@ where
     T: AsyncRead + AsyncWrite + Unpin,
     S::Future: 'static,
 {
-    Incoming(Dispatcher<T, S, B, (), ()>),
     Handshake(
         Option<Rc<HttpFlow<S, (), ()>>>,
         Option<ServiceConfig>,
@@ -305,6 +304,7 @@ where
         OnConnectData,
         HandshakeWithTimeout<T>,
     ),
+    Established(Dispatcher<T, S, B, (), ()>),
 }
 
 pub struct H2ServiceHandlerResponse<T, S, B>
@@ -332,7 +332,6 @@ where
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.state {
-            State::Incoming(ref mut disp) => Pin::new(disp).poll(cx),
             State::Handshake(
                 ref mut srv,
                 ref mut config,
@@ -343,7 +342,7 @@ where
                 Ok((conn, timer)) => {
                     let on_connect_data = mem::take(conn_data);
 
-                    self.state = State::Incoming(Dispatcher::new(
+                    self.state = State::Established(Dispatcher::new(
                         conn,
                         srv.take().unwrap(),
                         config.take().unwrap(),
@@ -360,6 +359,8 @@ where
                     Poll::Ready(Err(err))
                 }
             },
+
+            State::Established(ref mut disp) => Pin::new(disp).poll(cx),
         }
     }
 }

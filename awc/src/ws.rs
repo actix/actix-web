@@ -39,7 +39,7 @@ use crate::{
     connect::{BoxedSocket, ConnectRequest},
     error::{HttpError, InvalidUrl, SendRequestError, WsClientError},
     http::{
-        header::{self, HeaderName, HeaderValue, IntoHeaderValue, AUTHORIZATION},
+        header::{self, HeaderName, HeaderValue, TryIntoHeaderValue, AUTHORIZATION},
         ConnectionType, Method, StatusCode, Uri, Version,
     },
     response::ClientResponse,
@@ -171,7 +171,7 @@ impl WebsocketsRequest {
     where
         HeaderName: TryFrom<K>,
         <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
-        V: IntoHeaderValue,
+        V: TryIntoHeaderValue,
     {
         match HeaderName::try_from(key) {
             Ok(key) => match value.try_into_value() {
@@ -190,7 +190,7 @@ impl WebsocketsRequest {
     where
         HeaderName: TryFrom<K>,
         <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
-        V: IntoHeaderValue,
+        V: TryIntoHeaderValue,
     {
         match HeaderName::try_from(key) {
             Ok(key) => match value.try_into_value() {
@@ -209,7 +209,7 @@ impl WebsocketsRequest {
     where
         HeaderName: TryFrom<K>,
         <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
-        V: IntoHeaderValue,
+        V: TryIntoHeaderValue,
     {
         match HeaderName::try_from(key) {
             Ok(key) => {
@@ -445,7 +445,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_header_override() {
         let req = Client::builder()
-            .header(header::CONTENT_TYPE, "111")
+            .add_default_header((header::CONTENT_TYPE, "111"))
             .finish()
             .ws("/")
             .set_header(header::CONTENT_TYPE, "222");

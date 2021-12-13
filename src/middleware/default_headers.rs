@@ -16,7 +16,7 @@ use pin_project_lite::pin_project;
 
 use crate::{
     dev::{Service, Transform},
-    http::header::{HeaderMap, HeaderName, HeaderValue, CONTENT_TYPE},
+    http::header::{HeaderMap, HeaderName, HeaderValue, TryIntoHeaderPair, CONTENT_TYPE},
     service::{ServiceRequest, ServiceResponse},
     Error,
 };
@@ -29,79 +29,81 @@ use crate::{
 /// ```
 /// use actix_web::{web, http, middleware, App, HttpResponse};
 ///
-/// fn main() {
-///     let app = App::new()
-///         .wrap(middleware::DefaultHeaders::new().header("X-Version", "0.2"))
-///         .service(
-///             web::resource("/test")
-///                 .route(web::get().to(|| HttpResponse::Ok()))
-///                 .route(web::method(http::Method::HEAD).to(|| HttpResponse::MethodNotAllowed()))
-///         );
-/// }
+/// let app = App::new()
+///     .wrap(middleware::DefaultHeaders::new().add(("X-Version", "0.2")))
+///     .service(
+///         web::resource("/test")
+///             .route(web::get().to(|| HttpResponse::Ok()))
+///             .route(web::method(http::Method::HEAD).to(|| HttpResponse::MethodNotAllowed()))
+///     );
 /// ```
-#[derive(Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct DefaultHeaders {
     inner: Rc<Inner>,
 }
 
+#[derive(Debug, Default)]
 struct Inner {
     headers: HeaderMap,
 }
 
-impl Default for DefaultHeaders {
-    fn default() -> Self {
-        DefaultHeaders {
-            inner: Rc::new(Inner {
-                headers: HeaderMap::new(),
-            }),
-        }
-    }
-}
-
 impl DefaultHeaders {
     /// Constructs an empty `DefaultHeaders` middleware.
+    #[inline]
     pub fn new() -> DefaultHeaders {
         DefaultHeaders::default()
     }
 
     /// Adds a header to the default set.
-    #[inline]
-    pub fn header<K, V>(mut self, key: K, value: V) -> Self
+    ///
+    /// # Panics
+    /// Panics when resolved header name or value is invalid.
+    #[allow(clippy::should_implement_trait)]
+    pub fn add(mut self, header: impl TryIntoHeaderPair) -> Self {
+        // standard header terminology `insert` or `append` for this method would make the behavior
+        // of this middleware less obvious since it only adds the headers if they are not present
+
+        match header.try_into_pair() {
+            Ok((key, value)) => Rc::get_mut(&mut self.inner)
+                .expect("All default headers must be added before cloning.")
+                .headers
+                .append(key, value),
+            Err(err) => panic!("Invalid header: {}", err.into()),
+        }
+
+        self
+    }
+
+    #[doc(hidden)]
+    #[deprecated(
+        since = "4.0.0",
+        note = "Prefer `.add((key, value))`. Will be removed in v5."
+    )]
+    pub fn header<K, V>(self, key: K, value: V) -> Self
     where
         HeaderName: TryFrom<K>,
         <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
         HeaderValue: TryFrom<V>,
         <HeaderValue as TryFrom<V>>::Error: Into<HttpError>,
     {
-        #[allow(clippy::match_wild_err_arm)]
-        match HeaderName::try_from(key) {
-            Ok(key) => match HeaderValue::try_from(value) {
-                Ok(value) => {
-                    Rc::get_mut(&mut self.inner)
-                        .expect("Multiple copies exist")
-                        .headers
-                        .append(key, value);
-                }
-                Err(_) => panic!("Can not create header value"),
-            },
-            Err(_) => panic!("Can not create header name"),
-        }
-        self
+        self.add((
+            HeaderName::try_from(key)
+                .map_err(Into::into)
+                .expect("Invalid header name"),
+            HeaderValue::try_from(value)
+                .map_err(Into::into)
+                .expect("Invalid header value"),
+        ))
     }
 
     /// Adds a default *Content-Type* header if response does not contain one.
     ///
     /// Default is `application/octet-stream`.
-    pub fn add_content_type(mut self) -> Self {
-        Rc::get_mut(&mut self.inner)
-            .expect("Multiple `Inner` copies exist.")
-            .headers
-            .insert(
-                CONTENT_TYPE,
-                HeaderValue::from_static("application/octet-stream"),
-            );
-
-        self
+    pub fn add_content_type(self) -> Self {
+        self.add((
+            CONTENT_TYPE,
+            HeaderValue::from_static("application/octet-stream"),
+        ))
     }
 }
 
@@ -119,7 +121,7 @@ where
     fn new_transform(&self, service: S) -> Self::Future {
         ready(Ok(DefaultHeadersMiddleware {
             service,
-            inner: self.inner.clone(),
+            inner: Rc::clone(&self.inner),
         }))
     }
 }
@@ -197,17 +199,22 @@ mod tests {
     };
 
     #[actix_rt::test]
-    async fn test_default_headers() {
+    async fn adding_default_headers() {
         let mw = DefaultHeaders::new()
-            .header(CONTENT_TYPE, "0001")
+            .add(("X-TEST", "0001"))
+            .add(("X-TEST-TWO", HeaderValue::from_static("123")))
             .new_transform(ok_service())
             .await
             .unwrap();
 
         let req = TestRequest::default().to_srv_request();
-        let resp = mw.call(req).await.unwrap();
-        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
+        let res = mw.call(req).await.unwrap();
+        assert_eq!(res.headers().get("x-test").unwrap(), "0001");
+        assert_eq!(res.headers().get("x-test-two").unwrap(), "123");
+    }
 
+    #[actix_rt::test]
+    async fn no_override_existing() {
         let req = TestRequest::default().to_srv_request();
         let srv = |req: ServiceRequest| {
             ok(req.into_response(
@@ -217,7 +224,7 @@ mod tests {
             ))
         };
         let mw = DefaultHeaders::new()
-            .header(CONTENT_TYPE, "0001")
+            .add((CONTENT_TYPE, "0001"))
             .new_transform(srv.into_service())
             .await
             .unwrap();
@@ -226,7 +233,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_content_type() {
+    async fn adding_content_type() {
         let srv = |req: ServiceRequest| ok(req.into_response(HttpResponse::Ok().finish()));
         let mw = DefaultHeaders::new()
             .add_content_type()
@@ -240,5 +247,17 @@ mod tests {
             resp.headers().get(CONTENT_TYPE).unwrap(),
             "application/octet-stream"
         );
+    }
+
+    #[test]
+    #[should_panic]
+    fn invalid_header_name() {
+        DefaultHeaders::new().add((":", "hello"));
+    }
+
+    #[test]
+    #[should_panic]
+    fn invalid_header_value() {
+        DefaultHeaders::new().add(("x-test", "\n"));
     }
 }

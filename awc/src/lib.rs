@@ -168,7 +168,7 @@ pub struct Client(ClientConfig);
 #[derive(Clone)]
 pub(crate) struct ClientConfig {
     pub(crate) connector: BoxConnectorService,
-    pub(crate) headers: Rc<HeaderMap>,
+    pub(crate) default_headers: Rc<HeaderMap>,
     pub(crate) timeout: Option<Duration>,
 }
 
@@ -204,7 +204,9 @@ impl Client {
     {
         let mut req = ClientRequest::new(method, url, self.0.clone());
 
-        for header in self.0.headers.iter() {
+        for header in self.0.default_headers.iter() {
+            // header map is empty
+            // TODO: probably append instead
             req = req.insert_header_if_none(header);
         }
         req
@@ -297,7 +299,7 @@ impl Client {
         <Uri as TryFrom<U>>::Error: Into<HttpError>,
     {
         let mut req = ws::WebsocketsRequest::new(url, self.0.clone());
-        for (key, value) in self.0.headers.iter() {
+        for (key, value) in self.0.default_headers.iter() {
             req.head.headers.insert(key.clone(), value.clone());
         }
         req
@@ -308,6 +310,6 @@ impl Client {
     /// Returns Some(&mut HeaderMap) when Client object is unique
     /// (No other clone of client exists at the same time).
     pub fn headers(&mut self) -> Option<&mut HeaderMap> {
-        Rc::get_mut(&mut self.0.headers)
+        Rc::get_mut(&mut self.0.default_headers)
     }
 }

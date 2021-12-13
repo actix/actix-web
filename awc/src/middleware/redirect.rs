@@ -442,13 +442,15 @@ mod tests {
         });
 
         let client = ClientBuilder::new()
-            .header("custom", "value")
+            .add_default_header(("custom", "value"))
             .disable_redirects()
             .finish();
         let res = client.get(srv.url("/")).send().await.unwrap();
         assert_eq!(res.status().as_u16(), 302);
 
-        let client = ClientBuilder::new().header("custom", "value").finish();
+        let client = ClientBuilder::new()
+            .add_default_header(("custom", "value"))
+            .finish();
         let res = client.get(srv.url("/")).send().await.unwrap();
         assert_eq!(res.status().as_u16(), 200);
 
@@ -520,7 +522,7 @@ mod tests {
 
         // send a request to different origins, http://srv1/ then http://srv2/. So it should remove the header
         let client = ClientBuilder::new()
-            .header(header::AUTHORIZATION, "auth_key_value")
+            .add_default_header((header::AUTHORIZATION, "auth_key_value"))
             .finish();
         let res = client.get(srv1.url("/")).send().await.unwrap();
         assert_eq!(res.status().as_u16(), 200);

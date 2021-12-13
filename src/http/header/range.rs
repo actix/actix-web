@@ -6,7 +6,7 @@ use std::{
 
 use actix_http::{error::ParseError, header, HttpMessage};
 
-use super::{Header, HeaderName, HeaderValue, IntoHeaderValue, InvalidHeaderValue, Writer};
+use super::{Header, HeaderName, HeaderValue, InvalidHeaderValue, TryIntoHeaderValue, Writer};
 
 /// `Range` header, defined
 /// in [RFC 7233 §3.1](https://datatracker.ietf.org/doc/html/rfc7233#section-3.1)
@@ -274,7 +274,7 @@ impl Header for Range {
     }
 }
 
-impl IntoHeaderValue for Range {
+impl TryIntoHeaderValue for Range {
     type Error = InvalidHeaderValue;
 
     fn try_into_value(self) -> Result<HeaderValue, Self::Error> {

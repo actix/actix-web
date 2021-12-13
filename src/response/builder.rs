@@ -9,7 +9,7 @@ use std::{
 use actix_http::{
     body::{BodyStream, BoxBody, MessageBody},
     error::HttpError,
-    header::{self, HeaderName, IntoHeaderPair, IntoHeaderValue},
+    header::{self, HeaderName, TryIntoHeaderPair, TryIntoHeaderValue},
     ConnectionType, Extensions, Response, ResponseHead, StatusCode,
 };
 use bytes::Bytes;
@@ -67,12 +67,9 @@ impl HttpResponseBuilder {
     ///     .insert_header(("X-TEST", "value"))
     ///     .finish();
     /// ```
-    pub fn insert_header<H>(&mut self, header: H) -> &mut Self
-    where
-        H: IntoHeaderPair,
-    {
+    pub fn insert_header(&mut self, header: impl TryIntoHeaderPair) -> &mut Self {
         if let Some(parts) = self.inner() {
-            match header.try_into_header_pair() {
+            match header.try_into_pair() {
                 Ok((key, value)) => {
                     parts.headers.insert(key, value);
                 }
@@ -94,12 +91,9 @@ impl HttpResponseBuilder {
     ///     .append_header(("X-TEST", "value2"))
     ///     .finish();
     /// ```
-    pub fn append_header<H>(&mut self, header: H) -> &mut Self
-    where
-        H: IntoHeaderPair,
-    {
+    pub fn append_header(&mut self, header: impl TryIntoHeaderPair) -> &mut Self {
         if let Some(parts) = self.inner() {
-            match header.try_into_header_pair() {
+            match header.try_into_pair() {
                 Ok((key, value)) => parts.headers.append(key, value),
                 Err(e) => self.err = Some(e.into()),
             };
@@ -118,7 +112,7 @@ impl HttpResponseBuilder {
     where
         K: TryInto<HeaderName>,
         K::Error: Into<HttpError>,
-        V: IntoHeaderValue,
+        V: TryIntoHeaderValue,
     {
         if self.err.is_some() {
             return self;
@@ -143,7 +137,7 @@ impl HttpResponseBuilder {
     where
         K: TryInto<HeaderName>,
         K::Error: Into<HttpError>,
-        V: IntoHeaderValue,
+        V: TryIntoHeaderValue,
     {
         if self.err.is_some() {
             return self;
@@ -180,7 +174,7 @@ impl HttpResponseBuilder {
     #[inline]
     pub fn upgrade<V>(&mut self, value: V) -> &mut Self
     where
-        V: IntoHeaderValue,
+        V: TryIntoHeaderValue,
     {
         if let Some(parts) = self.inner() {
             parts.set_connection_type(ConnectionType::Upgrade);
@@ -218,7 +212,7 @@ impl HttpResponseBuilder {
     #[inline]
     pub fn content_type<V>(&mut self, value: V) -> &mut Self
     where
-        V: IntoHeaderValue,
+        V: TryIntoHeaderValue,
     {
         if let Some(parts) = self.inner() {
             match value.try_into_value() {

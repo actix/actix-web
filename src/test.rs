@@ -4,8 +4,8 @@ use std::{borrow::Cow, net::SocketAddr, rc::Rc};
 
 pub use actix_http::test::TestBuffer;
 use actix_http::{
-    header::IntoHeaderPair, test::TestRequest as HttpTestRequest, Extensions, Method, Request,
-    StatusCode, Uri, Version,
+    header::TryIntoHeaderPair, test::TestRequest as HttpTestRequest, Extensions, Method,
+    Request, StatusCode, Uri, Version,
 };
 use actix_router::{Path, ResourceDef, Url};
 use actix_service::{IntoService, IntoServiceFactory, Service, ServiceFactory};
@@ -445,19 +445,13 @@ impl TestRequest {
     }
 
     /// Insert a header, replacing any that were set with an equivalent field name.
-    pub fn insert_header<H>(mut self, header: H) -> Self
-    where
-        H: IntoHeaderPair,
-    {
+    pub fn insert_header(mut self, header: impl TryIntoHeaderPair) -> Self {
         self.req.insert_header(header);
         self
     }
 
     /// Append a header, keeping any that were set with an equivalent field name.
-    pub fn append_header<H>(mut self, header: H) -> Self
-    where
-        H: IntoHeaderPair,
-    {
+    pub fn append_header(mut self, header: impl TryIntoHeaderPair) -> Self {
         self.req.append_header(header);
         self
     }

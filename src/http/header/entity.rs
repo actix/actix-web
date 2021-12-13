@@ -3,7 +3,7 @@ use std::{
     str::FromStr,
 };
 
-use super::{HeaderValue, IntoHeaderValue, InvalidHeaderValue, Writer};
+use super::{HeaderValue, InvalidHeaderValue, TryIntoHeaderValue, Writer};
 
 /// check that each char in the slice is either:
 /// 1. `%x21`, or
@@ -159,7 +159,7 @@ impl FromStr for EntityTag {
     }
 }
 
-impl IntoHeaderValue for EntityTag {
+impl TryIntoHeaderValue for EntityTag {
     type Error = InvalidHeaderValue;
 
     fn try_into_value(self) -> Result<HeaderValue, Self::Error> {

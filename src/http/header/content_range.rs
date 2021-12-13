@@ -3,7 +3,7 @@ use std::{
     str::FromStr,
 };
 
-use super::{HeaderValue, IntoHeaderValue, InvalidHeaderValue, Writer, CONTENT_RANGE};
+use super::{HeaderValue, InvalidHeaderValue, TryIntoHeaderValue, Writer, CONTENT_RANGE};
 use crate::error::ParseError;
 
 crate::http::header::common_header! {
@@ -196,7 +196,7 @@ impl Display for ContentRangeSpec {
     }
 }
 
-impl IntoHeaderValue for ContentRangeSpec {
+impl TryIntoHeaderValue for ContentRangeSpec {
     type Error = InvalidHeaderValue;
 
     fn try_into_value(self) -> Result<HeaderValue, Self::Error> {

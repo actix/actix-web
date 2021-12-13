@@ -10,7 +10,7 @@ use std::{
 use actix_http::{
     body::BodyStream,
     error::HttpError,
-    header::{self, HeaderMap, HeaderName, IntoHeaderValue},
+    header::{self, HeaderMap, HeaderName, TryIntoHeaderValue},
     RequestHead, RequestHeadType,
 };
 use actix_rt::time::{sleep, Sleep};
@@ -298,7 +298,7 @@ impl RequestSender {
 
     fn set_header_if_none<V>(&mut self, key: HeaderName, value: V) -> Result<(), HttpError>
     where
-        V: IntoHeaderValue,
+        V: TryIntoHeaderValue,
     {
         match self {
             RequestSender::Owned(head) => {

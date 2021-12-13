@@ -8,7 +8,7 @@ pub use bytes::{Buf, BufMut, Bytes, BytesMut};
 
 use crate::{
     body::MessageBody, error::BlockingError, extract::FromRequest, handler::Handler,
-    resource::Resource, responder::Responder, route::Route, scope::Scope, service::WebService,
+    resource::Resource, route::Route, scope::Scope, service::WebService, Responder,
 };
 
 pub use crate::config::ServiceConfig;

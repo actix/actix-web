@@ -602,7 +602,7 @@ mod tests {
             App::new()
                 .wrap(
                     DefaultHeaders::new()
-                        .header(header::CONTENT_TYPE, HeaderValue::from_static("0001")),
+                        .add((header::CONTENT_TYPE, HeaderValue::from_static("0001"))),
                 )
                 .route("/test", web::get().to(HttpResponse::Ok)),
         )
@@ -623,7 +623,7 @@ mod tests {
                 .route("/test", web::get().to(HttpResponse::Ok))
                 .wrap(
                     DefaultHeaders::new()
-                        .header(header::CONTENT_TYPE, HeaderValue::from_static("0001")),
+                        .add((header::CONTENT_TYPE, HeaderValue::from_static("0001"))),
                 ),
         )
         .await;
