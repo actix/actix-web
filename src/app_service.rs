@@ -22,6 +22,7 @@ use crate::{
 type Guards = Vec<Box<dyn Guard>>;
 
 /// Service factory to convert `Request` to a `ServiceRequest<S>`.
+///
 /// It also executes data factories.
 pub struct AppInit<T, B>
 where
