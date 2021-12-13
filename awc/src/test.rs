@@ -40,7 +40,7 @@ impl TestResponse {
 
     /// Insert a header
     pub fn insert_header(mut self, header: impl TryIntoHeaderPair) -> Self {
-        if let Ok((key, value)) = header.try_into_header_pair() {
+        if let Ok((key, value)) = header.try_into_pair() {
             self.head.headers.insert(key, value);
             return self;
         }
@@ -49,7 +49,7 @@ impl TestResponse {
 
     /// Append a header
     pub fn append_header(mut self, header: impl TryIntoHeaderPair) -> Self {
-        if let Ok((key, value)) = header.try_into_header_pair() {
+        if let Ok((key, value)) = header.try_into_pair() {
             self.head.headers.append(key, value);
             return self;
         }

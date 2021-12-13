@@ -168,7 +168,7 @@ where
     /// # Panics
     /// Panics if header name or value is invalid.
     pub fn add_default_header(mut self, header: impl TryIntoHeaderPair) -> Self {
-        match header.try_into_header_pair() {
+        match header.try_into_pair() {
             Ok((key, value)) => self.default_headers.append(key, value),
             Err(err) => panic!("Header error: {:?}", err.into()),
         }

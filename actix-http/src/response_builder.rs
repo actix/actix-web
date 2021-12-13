@@ -92,7 +92,7 @@ impl ResponseBuilder {
     /// ```
     pub fn insert_header(&mut self, header: impl TryIntoHeaderPair) -> &mut Self {
         if let Some(parts) = self.inner() {
-            match header.try_into_header_pair() {
+            match header.try_into_pair() {
                 Ok((key, value)) => {
                     parts.headers.insert(key, value);
                 }
@@ -120,7 +120,7 @@ impl ResponseBuilder {
     /// ```
     pub fn append_header(&mut self, header: impl TryIntoHeaderPair) -> &mut Self {
         if let Some(parts) = self.inner() {
-            match header.try_into_header_pair() {
+            match header.try_into_pair() {
                 Ok((key, value)) => parts.headers.append(key, value),
                 Err(e) => self.err = Some(e.into()),
             };

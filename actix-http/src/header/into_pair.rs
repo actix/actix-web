@@ -14,7 +14,7 @@ use crate::error::HttpError;
 pub trait TryIntoHeaderPair: Sized {
     type Error: Into<HttpError>;
 
-    fn try_into_header_pair(self) -> Result<(HeaderName, HeaderValue), Self::Error>;
+    fn try_into_pair(self) -> Result<(HeaderName, HeaderValue), Self::Error>;
 }
 
 #[derive(Debug)]
@@ -39,7 +39,7 @@ where
 {
     type Error = InvalidHeaderPart;
 
-    fn try_into_header_pair(self) -> Result<(HeaderName, HeaderValue), Self::Error> {
+    fn try_into_pair(self) -> Result<(HeaderName, HeaderValue), Self::Error> {
         let (name, value) = self;
         let value = value
             .try_into_value()
@@ -55,7 +55,7 @@ where
 {
     type Error = InvalidHeaderPart;
 
-    fn try_into_header_pair(self) -> Result<(HeaderName, HeaderValue), Self::Error> {
+    fn try_into_pair(self) -> Result<(HeaderName, HeaderValue), Self::Error> {
         let (name, value) = self;
         let value = value
             .try_into_value()
@@ -71,7 +71,7 @@ where
 {
     type Error = InvalidHeaderPart;
 
-    fn try_into_header_pair(self) -> Result<(HeaderName, HeaderValue), Self::Error> {
+    fn try_into_pair(self) -> Result<(HeaderName, HeaderValue), Self::Error> {
         let (name, value) = self;
         let name = HeaderName::try_from(name).map_err(InvalidHeaderPart::Name)?;
         let value = value
@@ -88,7 +88,7 @@ where
 {
     type Error = InvalidHeaderPart;
 
-    fn try_into_header_pair(self) -> Result<(HeaderName, HeaderValue), Self::Error> {
+    fn try_into_pair(self) -> Result<(HeaderName, HeaderValue), Self::Error> {
         let (name, value) = self;
         let name = HeaderName::try_from(name).map_err(InvalidHeaderPart::Name)?;
         let value = value
@@ -106,9 +106,9 @@ where
     type Error = InvalidHeaderPart;
 
     #[inline]
-    fn try_into_header_pair(self) -> Result<(HeaderName, HeaderValue), Self::Error> {
+    fn try_into_pair(self) -> Result<(HeaderName, HeaderValue), Self::Error> {
         let (name, value) = self;
-        (name.as_str(), value).try_into_header_pair()
+        (name.as_str(), value).try_into_pair()
     }
 }
 
@@ -116,7 +116,7 @@ impl<T: Header> TryIntoHeaderPair for T {
     type Error = <T as TryIntoHeaderValue>::Error;
 
     #[inline]
-    fn try_into_header_pair(self) -> Result<(HeaderName, HeaderValue), Self::Error> {
+    fn try_into_pair(self) -> Result<(HeaderName, HeaderValue), Self::Error> {
         Ok((T::name(), self.try_into_value()?))
     }
 }

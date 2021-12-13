@@ -93,7 +93,7 @@ impl TestRequest {
 
     /// Insert a header, replacing any that were set with an equivalent field name.
     pub fn insert_header(&mut self, header: impl TryIntoHeaderPair) -> &mut Self {
-        match header.try_into_header_pair() {
+        match header.try_into_pair() {
             Ok((key, value)) => {
                 parts(&mut self.0).headers.insert(key, value);
             }
@@ -107,7 +107,7 @@ impl TestRequest {
 
     /// Append a header, keeping any that were set with an equivalent field name.
     pub fn append_header(&mut self, header: impl TryIntoHeaderPair) -> &mut Self {
-        match header.try_into_header_pair() {
+        match header.try_into_pair() {
             Ok((key, value)) => {
                 parts(&mut self.0).headers.append(key, value);
             }

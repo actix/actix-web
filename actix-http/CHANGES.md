@@ -3,6 +3,7 @@
 ## Unreleased - 2021-xx-xx
 ### Changed
 * Rename trait `IntoHeaderPair => TryIntoHeaderPair`. [#2510]
+* Rename `TryIntoHeaderPair::{try_into_header_pair => try_into_pair}`. [#2510]
 * Rename trait `IntoHeaderValue => TryIntoHeaderValue`. [#2510]
 
 [#2510]: https://github.com/actix/actix-web/pull/2510

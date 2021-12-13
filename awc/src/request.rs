@@ -148,7 +148,7 @@ impl ClientRequest {
 
     /// Insert a header, replacing any that were set with an equivalent field name.
     pub fn insert_header(mut self, header: impl TryIntoHeaderPair) -> Self {
-        match header.try_into_header_pair() {
+        match header.try_into_pair() {
             Ok((key, value)) => {
                 self.head.headers.insert(key, value);
             }
@@ -160,7 +160,7 @@ impl ClientRequest {
 
     /// Insert a header only if it is not yet set.
     pub fn insert_header_if_none(mut self, header: impl TryIntoHeaderPair) -> Self {
-        match header.try_into_header_pair() {
+        match header.try_into_pair() {
             Ok((key, value)) => {
                 if !self.head.headers.contains_key(&key) {
                     self.head.headers.insert(key, value);
@@ -187,7 +187,7 @@ impl ClientRequest {
     /// # }
     /// ```
     pub fn append_header(mut self, header: impl TryIntoHeaderPair) -> Self {
-        match header.try_into_header_pair() {
+        match header.try_into_pair() {
             Ok((key, value)) => self.head.headers.append(key, value),
             Err(e) => self.err = Some(e.into()),
         };

@@ -79,7 +79,7 @@ impl<R: Responder> CustomizeResponder<R> {
     /// ```
     pub fn insert_header(mut self, header: impl TryIntoHeaderPair) -> Self {
         if let Some(inner) = self.inner() {
-            match header.try_into_header_pair() {
+            match header.try_into_pair() {
                 Ok((key, value)) => {
                     inner.override_headers.insert(key, value);
                 }
@@ -111,7 +111,7 @@ impl<R: Responder> CustomizeResponder<R> {
     /// ```
     pub fn append_header(mut self, header: impl TryIntoHeaderPair) -> Self {
         if let Some(inner) = self.inner() {
-            match header.try_into_header_pair() {
+            match header.try_into_pair() {
                 Ok((key, value)) => {
                     inner.append_headers.append(key, value);
                 }

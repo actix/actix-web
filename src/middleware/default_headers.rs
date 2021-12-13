@@ -63,7 +63,7 @@ impl DefaultHeaders {
         // standard header terminology `insert` or `append` for this method would make the behavior
         // of this middleware less obvious since it only adds the headers if they are not present
 
-        match header.try_into_header_pair() {
+        match header.try_into_pair() {
             Ok((key, value)) => Rc::get_mut(&mut self.inner)
                 .expect("All default headers must be added before cloning.")
                 .headers
