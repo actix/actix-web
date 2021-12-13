@@ -48,7 +48,7 @@ pub trait Responder {
     }
 
     #[doc(hidden)]
-    #[deprecated(since = "4.0.0", note = "Prefer `.customize().insert_header()`.")]
+    #[deprecated(since = "4.0.0", note = "Prefer `.customize().insert_header(header)`.")]
     fn with_header(self, header: impl TryIntoHeaderPair) -> CustomizeResponder<Self>
     where
         Self: Sized,

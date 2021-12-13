@@ -3,7 +3,7 @@
 use std::convert::TryFrom as _;
 
 use super::{
-    Header, HeaderName, HeaderValue, IntoHeaderValue, InvalidHeaderName, InvalidHeaderValue,
+    Header, HeaderName, HeaderValue, InvalidHeaderName, InvalidHeaderValue, TryIntoHeaderValue,
 };
 use crate::error::HttpError;
 
@@ -34,7 +34,7 @@ impl From<InvalidHeaderPart> for HttpError {
 
 impl<V> TryIntoHeaderPair for (HeaderName, V)
 where
-    V: IntoHeaderValue,
+    V: TryIntoHeaderValue,
     V::Error: Into<InvalidHeaderValue>,
 {
     type Error = InvalidHeaderPart;
@@ -50,7 +50,7 @@ where
 
 impl<V> TryIntoHeaderPair for (&HeaderName, V)
 where
-    V: IntoHeaderValue,
+    V: TryIntoHeaderValue,
     V::Error: Into<InvalidHeaderValue>,
 {
     type Error = InvalidHeaderPart;
@@ -66,7 +66,7 @@ where
 
 impl<V> TryIntoHeaderPair for (&[u8], V)
 where
-    V: IntoHeaderValue,
+    V: TryIntoHeaderValue,
     V::Error: Into<InvalidHeaderValue>,
 {
     type Error = InvalidHeaderPart;
@@ -83,7 +83,7 @@ where
 
 impl<V> TryIntoHeaderPair for (&str, V)
 where
-    V: IntoHeaderValue,
+    V: TryIntoHeaderValue,
     V::Error: Into<InvalidHeaderValue>,
 {
     type Error = InvalidHeaderPart;
@@ -100,7 +100,7 @@ where
 
 impl<V> TryIntoHeaderPair for (String, V)
 where
-    V: IntoHeaderValue,
+    V: TryIntoHeaderValue,
     V::Error: Into<InvalidHeaderValue>,
 {
     type Error = InvalidHeaderPart;
@@ -113,7 +113,7 @@ where
 }
 
 impl<T: Header> TryIntoHeaderPair for T {
-    type Error = <T as IntoHeaderValue>::Error;
+    type Error = <T as TryIntoHeaderValue>::Error;
 
     #[inline]
     fn try_into_header_pair(self) -> Result<(HeaderName, HeaderValue), Self::Error> {

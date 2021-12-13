@@ -2,9 +2,10 @@
 
 ## Unreleased - 2021-xx-xx
 ### Changed
-* Rename trait `IntoHeaderPair => TryIntoHeaderPair`. [#????]
+* Rename trait `IntoHeaderPair => TryIntoHeaderPair`. [#2510]
+* Rename trait `IntoHeaderValue => TryIntoHeaderValue`. [#2510]
 
-[#????]: https://github.com/actix/actix-web/pull/????
+[#2510]: https://github.com/actix/actix-web/pull/2510
 
 
 ## 3.0.0-beta.15 - 2021-12-11
@@ -275,9 +276,9 @@
 * `trust-dns` optional feature to enable `trust-dns-resolver` as client dns resolver. [#1969]
 
 ### Changed
-* `ResponseBuilder::content_type` now takes an `impl IntoHeaderValue` to support using typed
+* `ResponseBuilder::content_type` now takes an `impl TryIntoHeaderValue` to support using typed
   `mime` types. [#1894]
-* Renamed `IntoHeaderValue::{try_into => try_into_value}` to avoid ambiguity with std
+* Renamed `TryIntoHeaderValue::{try_into => try_into_value}` to avoid ambiguity with std
   `TryInto` trait. [#1894]
 * `Extensions::insert` returns Option of replaced item. [#1904]
 * Remove `HttpResponseBuilder::json2()`. [#1903]

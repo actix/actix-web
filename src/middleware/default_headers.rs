@@ -75,7 +75,10 @@ impl DefaultHeaders {
     }
 
     #[doc(hidden)]
-    #[deprecated(since = "4.0.0", note = "Prefer `add`.")]
+    #[deprecated(
+        since = "4.0.0",
+        note = "Prefer `.add((key, value))`. Will be removed in v5."
+    )]
     pub fn header<K, V>(self, key: K, value: V) -> Self
     where
         HeaderName: TryFrom<K>,

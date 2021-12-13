@@ -38,7 +38,7 @@ mod utils;
 
 pub use self::as_name::AsHeaderName;
 pub use self::into_pair::TryIntoHeaderPair;
-pub use self::into_value::IntoHeaderValue;
+pub use self::into_value::TryIntoHeaderValue;
 pub use self::map::HeaderMap;
 pub use self::shared::{
     parse_extended_value, q, Charset, ContentEncoding, ExtendedValue, HttpDate, LanguageTag,
@@ -49,7 +49,7 @@ pub use self::utils::{
 };
 
 /// An interface for types that already represent a valid header.
-pub trait Header: IntoHeaderValue {
+pub trait Header: TryIntoHeaderValue {
     /// Returns the name of the header field
     fn name() -> HeaderName;
 

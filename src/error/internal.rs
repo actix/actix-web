@@ -2,7 +2,7 @@ use std::{cell::RefCell, fmt, io::Write as _};
 
 use actix_http::{
     body::BoxBody,
-    header::{self, IntoHeaderValue as _},
+    header::{self, TryIntoHeaderValue as _},
     StatusCode,
 };
 use bytes::{BufMut as _, BytesMut};

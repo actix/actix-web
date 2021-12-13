@@ -9,7 +9,7 @@ use actix_http::{
     body::{BodySize, MessageBody},
     error::PayloadError,
     h1,
-    header::{HeaderMap, IntoHeaderValue, EXPECT, HOST},
+    header::{HeaderMap, TryIntoHeaderValue, EXPECT, HOST},
     Payload, RequestHeadType, ResponseHead, StatusCode,
 };
 use actix_utils::future::poll_fn;

@@ -166,7 +166,7 @@ where
     where
         HeaderName: TryFrom<K>,
         <HeaderName as TryFrom<K>>::Error: fmt::Debug + Into<HttpError>,
-        V: header::IntoHeaderValue,
+        V: header::TryIntoHeaderValue,
         V::Error: fmt::Debug,
     {
         match HeaderName::try_from(key) {

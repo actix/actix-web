@@ -11,7 +11,7 @@ use bytestring::ByteString;
 use crate::{
     body::{BoxBody, MessageBody},
     extensions::Extensions,
-    header::{self, HeaderMap, IntoHeaderValue},
+    header::{self, HeaderMap, TryIntoHeaderValue},
     message::{BoxedResponseHead, ResponseHead},
     Error, ResponseBuilder, StatusCode,
 };

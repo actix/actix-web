@@ -9,7 +9,7 @@ use std::{
 use actix_http::{
     body::{BodyStream, BoxBody, MessageBody},
     error::HttpError,
-    header::{self, HeaderName, IntoHeaderValue, TryIntoHeaderPair},
+    header::{self, HeaderName, TryIntoHeaderPair, TryIntoHeaderValue},
     ConnectionType, Extensions, Response, ResponseHead, StatusCode,
 };
 use bytes::Bytes;
@@ -112,7 +112,7 @@ impl HttpResponseBuilder {
     where
         K: TryInto<HeaderName>,
         K::Error: Into<HttpError>,
-        V: IntoHeaderValue,
+        V: TryIntoHeaderValue,
     {
         if self.err.is_some() {
             return self;
@@ -137,7 +137,7 @@ impl HttpResponseBuilder {
     where
         K: TryInto<HeaderName>,
         K::Error: Into<HttpError>,
-        V: IntoHeaderValue,
+        V: TryIntoHeaderValue,
     {
         if self.err.is_some() {
             return self;
@@ -174,7 +174,7 @@ impl HttpResponseBuilder {
     #[inline]
     pub fn upgrade<V>(&mut self, value: V) -> &mut Self
     where
-        V: IntoHeaderValue,
+        V: TryIntoHeaderValue,
     {
         if let Some(parts) = self.inner() {
             parts.set_connection_type(ConnectionType::Upgrade);
@@ -212,7 +212,7 @@ impl HttpResponseBuilder {
     #[inline]
     pub fn content_type<V>(&mut self, value: V) -> &mut Self
     where
-        V: IntoHeaderValue,
+        V: TryIntoHeaderValue,
     {
         if let Some(parts) = self.inner() {
             match value.try_into_value() {

@@ -8,7 +8,7 @@ use std::{
 use crate::{
     body::{EitherBody, MessageBody},
     error::{Error, HttpError},
-    header::{self, IntoHeaderValue, TryIntoHeaderPair},
+    header::{self, TryIntoHeaderPair, TryIntoHeaderValue},
     message::{BoxedResponseHead, ConnectionType, ResponseHead},
     Extensions, Response, StatusCode,
 };
@@ -151,7 +151,7 @@ impl ResponseBuilder {
     #[inline]
     pub fn upgrade<V>(&mut self, value: V) -> &mut Self
     where
-        V: IntoHeaderValue,
+        V: TryIntoHeaderValue,
     {
         if let Some(parts) = self.inner() {
             parts.set_connection_type(ConnectionType::Upgrade);
@@ -189,7 +189,7 @@ impl ResponseBuilder {
     #[inline]
     pub fn content_type<V>(&mut self, value: V) -> &mut Self
     where
-        V: IntoHeaderValue,
+        V: TryIntoHeaderValue,
     {
         if let Some(parts) = self.inner() {
             match value.try_into_value() {

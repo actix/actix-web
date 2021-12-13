@@ -2,12 +2,16 @@
 
 ## Unreleased - 2021-xx-xx
 ### Added
-* Method on `Responder` trait (`customize`) for customizing responders and `CustomizeResponder` struct. [#????]
+* Method on `Responder` trait (`customize`) for customizing responders and `CustomizeResponder` struct. [#2510]
+* Implement `Debug` for `DefaultHeaders`. [#2510]
 
 ### Changed
-* Align `DefaultHeader` method terminology, deprecating previous methods. [#????]
+* Align `DefaultHeader` method terminology, deprecating previous methods. [#2510]
 
-[#????]: https://github.com/actix/actix-web/pull/????
+### Removed
+* Top-level `EitherExtractError` export. [#2510]
+
+[#2510]: https://github.com/actix/actix-web/pull/2510
 
 
 ## 4.0.0-beta.14 - 2021-12-11
