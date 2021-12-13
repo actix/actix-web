@@ -935,7 +935,7 @@ mod tests {
                 web::scope("app")
                     .wrap(
                         DefaultHeaders::new()
-                            .header(header::CONTENT_TYPE, HeaderValue::from_static("0001")),
+                            .insert((header::CONTENT_TYPE, HeaderValue::from_static("0001"))),
                     )
                     .service(web::resource("/test").route(web::get().to(HttpResponse::Ok))),
             ),

@@ -6,7 +6,7 @@ use serde::Serialize;
 
 use actix_http::{
     error::HttpError,
-    header::{self, HeaderMap, HeaderValue, IntoHeaderPair},
+    header::{self, HeaderMap, HeaderValue, TryIntoHeaderPair},
     ConnectionType, Method, RequestHead, Uri, Version,
 };
 
@@ -147,10 +147,7 @@ impl ClientRequest {
     }
 
     /// Insert a header, replacing any that were set with an equivalent field name.
-    pub fn insert_header<H>(mut self, header: H) -> Self
-    where
-        H: IntoHeaderPair,
-    {
+    pub fn insert_header(mut self, header: impl TryIntoHeaderPair) -> Self {
         match header.try_into_header_pair() {
             Ok((key, value)) => {
                 self.head.headers.insert(key, value);
@@ -162,10 +159,7 @@ impl ClientRequest {
     }
 
     /// Insert a header only if it is not yet set.
-    pub fn insert_header_if_none<H>(mut self, header: H) -> Self
-    where
-        H: IntoHeaderPair,
-    {
+    pub fn insert_header_if_none(mut self, header: impl TryIntoHeaderPair) -> Self {
         match header.try_into_header_pair() {
             Ok((key, value)) => {
                 if !self.head.headers.contains_key(&key) {
@@ -192,10 +186,7 @@ impl ClientRequest {
     ///     .insert_header((CONTENT_TYPE, mime::APPLICATION_JSON));
     /// # }
     /// ```
-    pub fn append_header<H>(mut self, header: H) -> Self
-    where
-        H: IntoHeaderPair,
-    {
+    pub fn append_header(mut self, header: impl TryIntoHeaderPair) -> Self {
         match header.try_into_header_pair() {
             Ok((key, value)) => self.head.headers.append(key, value),
             Err(e) => self.err = Some(e.into()),

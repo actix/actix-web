@@ -1,6 +1,10 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Changed
+* Rename trait `IntoHeaderPair => TryIntoHeaderPair`. [#????]
+
+[#????]: https://github.com/actix/actix-web/pull/????
 
 
 ## 3.0.0-beta.15 - 2021-12-11
@@ -260,7 +264,7 @@
 
 ## 3.0.0-beta.2 - 2021-02-10
 ### Added
-* `IntoHeaderPair` trait that allows using typed and untyped headers in the same methods. [#1869]
+* `TryIntoHeaderPair` trait that allows using typed and untyped headers in the same methods. [#1869]
 * `ResponseBuilder::insert_header` method which allows using typed headers. [#1869]
 * `ResponseBuilder::append_header` method which allows using typed headers. [#1869]
 * `TestRequest::insert_header` method which allows using typed headers. [#1869]

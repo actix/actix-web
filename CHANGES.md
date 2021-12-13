@@ -1,6 +1,13 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+* Method on `Responder` trait (`customize`) for customizing responders and `CustomizeResponder` struct. [#????]
+
+### Changed
+* Align `DefaultHeader` method terminology, deprecating previous methods. [#????]
+
+[#????]: https://github.com/actix/actix-web/pull/????
 
 
 ## 4.0.0-beta.14 - 2021-12-11

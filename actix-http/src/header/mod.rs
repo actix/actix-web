@@ -37,7 +37,7 @@ mod shared;
 mod utils;
 
 pub use self::as_name::AsHeaderName;
-pub use self::into_pair::IntoHeaderPair;
+pub use self::into_pair::TryIntoHeaderPair;
 pub use self::into_value::IntoHeaderValue;
 pub use self::map::HeaderMap;
 pub use self::shared::{

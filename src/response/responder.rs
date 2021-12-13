@@ -2,64 +2,59 @@ use std::borrow::Cow;
 
 use actix_http::{
     body::{BoxBody, EitherBody, MessageBody},
-    error::HttpError,
-    header::HeaderMap,
-    header::IntoHeaderPair,
+    header::TryIntoHeaderPair,
     StatusCode,
 };
 use bytes::{Bytes, BytesMut};
 
 use crate::{BoxError, Error, HttpRequest, HttpResponse, HttpResponseBuilder};
 
+use super::CustomizeResponder;
+
 /// Trait implemented by types that can be converted to an HTTP response.
 ///
 /// Any types that implement this trait can be used in the return type of a handler.
+// # TODO: more about implementation notes and foreign impls
 pub trait Responder {
     type Body: MessageBody + 'static;
 
     /// Convert self to `HttpResponse`.
     fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body>;
 
-    /// Override a status code for a Responder.
+    /// Wraps responder in [`CustomizeResponder`] that allows modification of response details.
     ///
-    /// ```
-    /// use actix_web::{http::StatusCode, HttpRequest, Responder};
+    /// See [`CustomizeResponder`] docs for more.
     ///
-    /// fn index(req: HttpRequest) -> impl Responder {
-    ///     "Welcome!".with_status(StatusCode::OK)
-    /// }
+    /// # Examples
     /// ```
-    fn with_status(self, status: StatusCode) -> CustomResponder<Self>
+    /// use actix_web::{Responder, test};
+    ///
+    /// let request = test::TestRequest::default().to_http_request();
+    ///
+    /// let responder = "Hello world!"
+    ///     .customize()
+    ///     .with_status(400)
+    ///     .insert_header(("x-hello", "world"))
+    ///
+    /// let response = res.respond_to(&req);
+    /// assert_eq!(res.status(), 400);
+    /// assert_eq!(res.headers().get("x-hello").unwrap(), "world");
+    /// ```
+    #[inline]
+    fn customize(self) -> CustomizeResponder<Self>
     where
         Self: Sized,
     {
-        CustomResponder::new(self).with_status(status)
+        CustomizeResponder::new(self)
     }
 
-    /// Insert header to the final response.
-    ///
-    /// Overrides other headers with the same name.
-    ///
-    /// ```
-    /// use actix_web::{web, HttpRequest, Responder};
-    /// use serde::Serialize;
-    ///
-    /// #[derive(Serialize)]
-    /// struct MyObj {
-    ///     name: String,
-    /// }
-    ///
-    /// fn index(req: HttpRequest) -> impl Responder {
-    ///     web::Json(MyObj { name: "Name".to_owned() })
-    ///         .with_header(("x-version", "1.2.3"))
-    /// }
-    /// ```
-    fn with_header<H>(self, header: H) -> CustomResponder<Self>
+    #[doc(hidden)]
+    #[deprecated(since = "4.0.0", note = "Prefer `.customize().insert_header()`.")]
+    fn with_header(self, header: impl TryIntoHeaderPair) -> CustomizeResponder<Self>
     where
         Self: Sized,
-        H: IntoHeaderPair,
     {
-        CustomResponder::new(self).with_header(header)
+        self.customize().insert_header(header)
     }
 }
 
@@ -180,98 +175,6 @@ macro_rules! impl_into_string_responder {
 
 impl_into_string_responder!(&'_ String);
 impl_into_string_responder!(Cow<'_, str>);
-
-/// Allows overriding status code and headers for a responder.
-pub struct CustomResponder<T> {
-    responder: T,
-    status: Option<StatusCode>,
-    headers: Result<HeaderMap, HttpError>,
-}
-
-impl<T: Responder> CustomResponder<T> {
-    fn new(responder: T) -> Self {
-        CustomResponder {
-            responder,
-            status: None,
-            headers: Ok(HeaderMap::new()),
-        }
-    }
-
-    /// Override a status code for the Responder's response.
-    ///
-    /// ```
-    /// use actix_web::{HttpRequest, Responder, http::StatusCode};
-    ///
-    /// fn index(req: HttpRequest) -> impl Responder {
-    ///     "Welcome!".with_status(StatusCode::OK)
-    /// }
-    /// ```
-    pub fn with_status(mut self, status: StatusCode) -> Self {
-        self.status = Some(status);
-        self
-    }
-
-    /// Insert header to the final response.
-    ///
-    /// Overrides other headers with the same name.
-    ///
-    /// ```
-    /// use actix_web::{web, HttpRequest, Responder};
-    /// use serde::Serialize;
-    ///
-    /// #[derive(Serialize)]
-    /// struct MyObj {
-    ///     name: String,
-    /// }
-    ///
-    /// fn index(req: HttpRequest) -> impl Responder {
-    ///     web::Json(MyObj { name: "Name".to_string() })
-    ///         .with_header(("x-version", "1.2.3"))
-    ///         .with_header(("x-version", "1.2.3"))
-    /// }
-    /// ```
-    pub fn with_header<H>(mut self, header: H) -> Self
-    where
-        H: IntoHeaderPair,
-    {
-        if let Ok(ref mut headers) = self.headers {
-            match header.try_into_header_pair() {
-                Ok((key, value)) => headers.append(key, value),
-                Err(e) => self.headers = Err(e.into()),
-            };
-        }
-
-        self
-    }
-}
-
-impl<T> Responder for CustomResponder<T>
-where
-    T: Responder,
-    <T::Body as MessageBody>::Error: Into<BoxError>,
-{
-    type Body = EitherBody<T::Body>;
-
-    fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
-        let headers = match self.headers {
-            Ok(headers) => headers,
-            Err(err) => return HttpResponse::from_error(err).map_into_right_body(),
-        };
-
-        let mut res = self.responder.respond_to(req);
-
-        if let Some(status) = self.status {
-            *res.status_mut() = status;
-        }
-
-        for (k, v) in headers {
-            // TODO: before v4, decide if this should be append instead
-            res.headers_mut().insert(k, v);
-        }
-
-        res.map_into_left_body()
-    }
-}
 
 #[cfg(test)]
 pub(crate) mod tests {
@@ -439,60 +342,5 @@ pub(crate) mod tests {
             .respond_to(&req);
 
         assert_eq!(res.status(), StatusCode::BAD_REQUEST);
-    }
-
-    #[actix_rt::test]
-    async fn test_custom_responder() {
-        let req = TestRequest::default().to_http_request();
-        let res = "test"
-            .to_string()
-            .with_status(StatusCode::BAD_REQUEST)
-            .respond_to(&req);
-
-        assert_eq!(res.status(), StatusCode::BAD_REQUEST);
-        assert_eq!(
-            to_bytes(res.into_body()).await.unwrap(),
-            Bytes::from_static(b"test"),
-        );
-
-        let res = "test"
-            .to_string()
-            .with_header(("content-type", "json"))
-            .respond_to(&req);
-
-        assert_eq!(res.status(), StatusCode::OK);
-        assert_eq!(
-            res.headers().get(CONTENT_TYPE).unwrap(),
-            HeaderValue::from_static("json")
-        );
-        assert_eq!(
-            to_bytes(res.into_body()).await.unwrap(),
-            Bytes::from_static(b"test"),
-        );
-    }
-
-    #[actix_rt::test]
-    async fn test_tuple_responder_with_status_code() {
-        let req = TestRequest::default().to_http_request();
-        let res = ("test".to_string(), StatusCode::BAD_REQUEST).respond_to(&req);
-        assert_eq!(res.status(), StatusCode::BAD_REQUEST);
-        assert_eq!(
-            to_bytes(res.into_body()).await.unwrap(),
-            Bytes::from_static(b"test"),
-        );
-
-        let req = TestRequest::default().to_http_request();
-        let res = ("test".to_string(), StatusCode::OK)
-            .with_header((CONTENT_TYPE, mime::APPLICATION_JSON))
-            .respond_to(&req);
-        assert_eq!(res.status(), StatusCode::OK);
-        assert_eq!(
-            res.headers().get(CONTENT_TYPE).unwrap(),
-            HeaderValue::from_static("application/json")
-        );
-        assert_eq!(
-            to_bytes(res.into_body()).await.unwrap(),
-            Bytes::from_static(b"test"),
-        );
     }
 }

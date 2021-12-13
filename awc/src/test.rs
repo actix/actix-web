@@ -1,6 +1,6 @@
 //! Test helpers for actix http client to use during testing.
 
-use actix_http::{h1, header::IntoHeaderPair, Payload, ResponseHead, StatusCode, Version};
+use actix_http::{h1, header::TryIntoHeaderPair, Payload, ResponseHead, StatusCode, Version};
 use bytes::Bytes;
 
 #[cfg(feature = "cookies")]
@@ -28,10 +28,7 @@ impl Default for TestResponse {
 
 impl TestResponse {
     /// Create TestResponse and set header
-    pub fn with_header<H>(header: H) -> Self
-    where
-        H: IntoHeaderPair,
-    {
+    pub fn with_header(header: impl TryIntoHeaderPair) -> Self {
         Self::default().insert_header(header)
     }
 
@@ -42,10 +39,7 @@ impl TestResponse {
     }
 
     /// Insert a header
-    pub fn insert_header<H>(mut self, header: H) -> Self
-    where
-        H: IntoHeaderPair,
-    {
+    pub fn insert_header(mut self, header: impl TryIntoHeaderPair) -> Self {
         if let Ok((key, value)) = header.try_into_header_pair() {
             self.head.headers.insert(key, value);
             return self;
@@ -54,10 +48,7 @@ impl TestResponse {
     }
 
     /// Append a header
-    pub fn append_header<H>(mut self, header: H) -> Self
-    where
-        H: IntoHeaderPair,
-    {
+    pub fn append_header(mut self, header: impl TryIntoHeaderPair) -> Self {
         if let Ok((key, value)) = header.try_into_header_pair() {
             self.head.headers.append(key, value);
             return self;
