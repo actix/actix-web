@@ -525,7 +525,7 @@ mod tests {
                     .name("test")
                     .wrap(
                         DefaultHeaders::new()
-                            .insert((header::CONTENT_TYPE, HeaderValue::from_static("0001"))),
+                            .add((header::CONTENT_TYPE, HeaderValue::from_static("0001"))),
                     )
                     .route(web::get().to(HttpResponse::Ok)),
             ),

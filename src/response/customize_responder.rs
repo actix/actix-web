@@ -8,7 +8,9 @@ use actix_http::{
 
 use crate::{BoxError, HttpRequest, HttpResponse, Responder};
 
-/// Allows overriding status code and headers for a responder.
+/// Allows overriding status code and headers for a [`Responder`].
+///
+/// Created by the [`Responder::customize`] method.
 pub struct CustomizeResponder<R> {
     inner: CustomizeResponderInner<R>,
     error: Option<HttpError>,
@@ -36,12 +38,15 @@ impl<R: Responder> CustomizeResponder<R> {
 
     /// Override a status code for the Responder's response.
     ///
+    /// # Examples
     /// ```
-    /// use actix_web::{HttpRequest, Responder, http::StatusCode};
+    /// use actix_web::{Responder, http::StatusCode, test::TestRequest};
     ///
-    /// fn index(req: HttpRequest) -> impl Responder {
-    ///     "Welcome!".with_status(StatusCode::OK)
-    /// }
+    /// let responder = "Welcome!".customize().with_status(StatusCode::ACCEPTED);
+    ///
+    /// let request = TestRequest::default().to_http_request();
+    /// let response = responder.respond_to(&request);
+    /// assert_eq!(response.status(), StatusCode::ACCEPTED);
     /// ```
     pub fn with_status(mut self, status: StatusCode) -> Self {
         if let Some(inner) = self.inner() {
@@ -51,24 +56,26 @@ impl<R: Responder> CustomizeResponder<R> {
         self
     }
 
-    /// Insert header to the final response.
+    /// Insert (override) header in the final response.
     ///
     /// Overrides other headers with the same name.
+    /// See [`HeaderMap::insert`](crate::http::header::HeaderMap::insert).
     ///
+    /// Headers added with this method will be inserted before those added
+    /// with [`append_header`](Self::append_header). As such, header(s) can be overridden with more
+    /// than one new header by first calling `insert_header` followed by `append_header`.
+    ///
+    /// # Examples
     /// ```
-    /// use actix_web::{web, HttpRequest, Responder};
-    /// use serde::Serialize;
+    /// use actix_web::{Responder, test::TestRequest};
     ///
-    /// #[derive(Serialize)]
-    /// struct MyObj {
-    ///     name: String,
-    /// }
+    /// let responder = "Hello world!"
+    ///     .customize()
+    ///     .insert_header(("x-version", "1.2.3"));
     ///
-    /// fn index(req: HttpRequest) -> impl Responder {
-    ///     web::Json(MyObj { name: "Name".to_string() })
-    ///         .with_header(("x-version", "1.2.3"))
-    ///         .with_header(("x-version", "1.2.3"))
-    /// }
+    /// let request = TestRequest::default().to_http_request();
+    /// let response = responder.respond_to(&request);
+    /// assert_eq!(response.headers().get("x-version").unwrap(), "1.2.3");
     /// ```
     pub fn insert_header(mut self, header: impl TryIntoHeaderPair) -> Self {
         if let Some(inner) = self.inner() {
@@ -83,6 +90,25 @@ impl<R: Responder> CustomizeResponder<R> {
         self
     }
 
+    /// Append header to the final response.
+    ///
+    /// Unlike [`insert_header`](Self::insert_header), this will not override existing headers.
+    /// See [`HeaderMap::append`](crate::http::header::HeaderMap::append).
+    ///
+    /// Headers added here are appended _after_ additions/overrides from `insert_header`.
+    ///
+    /// # Examples
+    /// ```
+    /// use actix_web::{Responder, test::TestRequest};
+    ///
+    /// let responder = "Hello world!"
+    ///     .customize()
+    ///     .append_header(("x-version", "1.2.3"));
+    ///
+    /// let request = TestRequest::default().to_http_request();
+    /// let response = responder.respond_to(&request);
+    /// assert_eq!(response.headers().get("x-version").unwrap(), "1.2.3");
+    /// ```
     pub fn append_header(mut self, header: impl TryIntoHeaderPair) -> Self {
         if let Some(inner) = self.inner() {
             match header.try_into_header_pair() {

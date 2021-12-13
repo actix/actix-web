@@ -30,7 +30,7 @@ use crate::{
 /// use actix_web::{web, http, middleware, App, HttpResponse};
 ///
 /// let app = App::new()
-///     .wrap(middleware::DefaultHeaders::new().insert("X-Version", "0.2"))
+///     .wrap(middleware::DefaultHeaders::new().add(("X-Version", "0.2")))
 ///     .service(
 ///         web::resource("/test")
 ///             .route(web::get().to(|| HttpResponse::Ok()))
@@ -58,12 +58,14 @@ impl DefaultHeaders {
     ///
     /// # Panics
     /// Panics when resolved header name or value is invalid.
-    pub fn insert(mut self, header: impl TryIntoHeaderPair) -> Self {
+    #[allow(clippy::should_implement_trait)]
+    pub fn add(mut self, header: impl TryIntoHeaderPair) -> Self {
+        // standard header terminology `insert` or `append` for this method would make the behavior
+        // of this middleware less obvious since it only adds the headers if they are not present
+
         match header.try_into_header_pair() {
             Ok((key, value)) => Rc::get_mut(&mut self.inner)
-                .expect(
-                    "DefaultHeaders has been cloned. Add all default headers before cloning.",
-                )
+                .expect("All default headers must be added before cloning.")
                 .headers
                 .append(key, value),
             Err(err) => panic!("Invalid header: {}", err.into()),
@@ -73,7 +75,7 @@ impl DefaultHeaders {
     }
 
     #[doc(hidden)]
-    #[deprecated(since = "4.0.0", note = "Prefer `insert`.")]
+    #[deprecated(since = "4.0.0", note = "Prefer `add`.")]
     pub fn header<K, V>(self, key: K, value: V) -> Self
     where
         HeaderName: TryFrom<K>,
@@ -81,7 +83,7 @@ impl DefaultHeaders {
         HeaderValue: TryFrom<V>,
         <HeaderValue as TryFrom<V>>::Error: Into<HttpError>,
     {
-        self.insert((
+        self.add((
             HeaderName::try_from(key)
                 .map_err(Into::into)
                 .expect("Invalid header name"),
@@ -94,17 +96,11 @@ impl DefaultHeaders {
     /// Adds a default *Content-Type* header if response does not contain one.
     ///
     /// Default is `application/octet-stream`.
-    pub fn insert_content_type(self) -> Self {
-        self.insert((
+    pub fn add_content_type(self) -> Self {
+        self.add((
             CONTENT_TYPE,
             HeaderValue::from_static("application/octet-stream"),
         ))
-    }
-
-    #[doc(hidden)]
-    #[deprecated(since = "4.0.0", note = "Renamed to `insert_content_type`.")]
-    pub fn add_content_type(self) -> Self {
-        self.insert_content_type()
     }
 }
 
@@ -202,8 +198,8 @@ mod tests {
     #[actix_rt::test]
     async fn adding_default_headers() {
         let mw = DefaultHeaders::new()
-            .insert(("X-TEST", "0001"))
-            .insert(("X-TEST-TWO", HeaderValue::from_static("123")))
+            .add(("X-TEST", "0001"))
+            .add(("X-TEST-TWO", HeaderValue::from_static("123")))
             .new_transform(ok_service())
             .await
             .unwrap();
@@ -225,7 +221,7 @@ mod tests {
             ))
         };
         let mw = DefaultHeaders::new()
-            .insert((CONTENT_TYPE, "0001"))
+            .add((CONTENT_TYPE, "0001"))
             .new_transform(srv.into_service())
             .await
             .unwrap();
@@ -237,7 +233,7 @@ mod tests {
     async fn adding_content_type() {
         let srv = |req: ServiceRequest| ok(req.into_response(HttpResponse::Ok().finish()));
         let mw = DefaultHeaders::new()
-            .insert_content_type()
+            .add_content_type()
             .new_transform(srv.into_service())
             .await
             .unwrap();
@@ -253,12 +249,12 @@ mod tests {
     #[test]
     #[should_panic]
     fn invalid_header_name() {
-        DefaultHeaders::new().insert((":", "hello"));
+        DefaultHeaders::new().add((":", "hello"));
     }
 
     #[test]
     #[should_panic]
     fn invalid_header_value() {
-        DefaultHeaders::new().insert(("x-test", "\n"));
+        DefaultHeaders::new().add(("x-test", "\n"));
     }
 }

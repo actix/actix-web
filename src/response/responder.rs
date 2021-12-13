@@ -21,24 +21,23 @@ pub trait Responder {
     /// Convert self to `HttpResponse`.
     fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body>;
 
-    /// Wraps responder in [`CustomizeResponder`] that allows modification of response details.
+    /// Wraps responder to allow alteration of its response.
     ///
-    /// See [`CustomizeResponder`] docs for more.
+    /// See [`CustomizeResponder`] docs for its capabilities.
     ///
     /// # Examples
     /// ```
-    /// use actix_web::{Responder, test};
-    ///
-    /// let request = test::TestRequest::default().to_http_request();
+    /// use actix_web::{Responder, http::StatusCode, test::TestRequest};
     ///
     /// let responder = "Hello world!"
     ///     .customize()
-    ///     .with_status(400)
-    ///     .insert_header(("x-hello", "world"))
+    ///     .with_status(StatusCode::BAD_REQUEST)
+    ///     .insert_header(("x-hello", "world"));
     ///
-    /// let response = res.respond_to(&req);
-    /// assert_eq!(res.status(), 400);
-    /// assert_eq!(res.headers().get("x-hello").unwrap(), "world");
+    /// let request = TestRequest::default().to_http_request();
+    /// let response = responder.respond_to(&request);
+    /// assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    /// assert_eq!(response.headers().get("x-hello").unwrap(), "world");
     /// ```
     #[inline]
     fn customize(self) -> CustomizeResponder<Self>

@@ -33,7 +33,7 @@ mod tests {
         let _ = App::new()
             .wrap(Compat::new(Logger::default()))
             .wrap(Condition::new(true, DefaultHeaders::new()))
-            .wrap(DefaultHeaders::new().insert(("X-Test2", "X-Value2")))
+            .wrap(DefaultHeaders::new().add(("X-Test2", "X-Value2")))
             .wrap(ErrorHandlers::new().handler(StatusCode::FORBIDDEN, |res| {
                 Ok(ErrorHandlerResponse::Response(res))
             }))
@@ -46,7 +46,7 @@ mod tests {
             .wrap(ErrorHandlers::new().handler(StatusCode::FORBIDDEN, |res| {
                 Ok(ErrorHandlerResponse::Response(res))
             }))
-            .wrap(DefaultHeaders::new().insert(("X-Test2", "X-Value2")))
+            .wrap(DefaultHeaders::new().add(("X-Test2", "X-Value2")))
             .wrap(Condition::new(true, DefaultHeaders::new()))
             .wrap(Compat::new(Logger::default()));
 

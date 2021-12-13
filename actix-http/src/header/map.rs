@@ -333,7 +333,7 @@ impl HeaderMap {
         }
     }
 
-    /// Inserts a name-value pair into the map.
+    /// Inserts (overrides) a name-value pair in the map.
     ///
     /// If the map already contained this key, the new value is associated with the key and all
     /// previous values are removed and returned as a `Removed` iterator. The key is not updated;
@@ -372,7 +372,7 @@ impl HeaderMap {
         Removed::new(value)
     }
 
-    /// Inserts a name-value pair into the map.
+    /// Appends a name-value pair to the map.
     ///
     /// If the map already contained this key, the new value is added to the list of values
     /// currently associated with the key. The key is not updated; this matters for types that can
