@@ -34,6 +34,9 @@ use crate::{
 ///     assert_eq!(res.status(), StatusCode::OK);
 /// }
 /// ```
+///
+/// # Panics
+/// Panics if service initialization returns an error.
 pub async fn init_service<R, S, B, E>(
     app: R,
 ) -> impl Service<Request, Response = ServiceResponse<B>, Error = E>
@@ -82,12 +85,17 @@ where
 ///     assert_eq!(res.status(), StatusCode::OK);
 /// }
 /// ```
+///
+/// # Panics
+/// Panics if service call returns error.
 pub async fn call_service<S, R, B, E>(app: &S, req: R) -> S::Response
 where
     S: Service<R, Response = ServiceResponse<B>, Error = E>,
     E: std::fmt::Debug,
 {
-    app.call(req).await.unwrap()
+    app.call(req)
+        .await
+        .expect("test service call returned error")
 }
 
 /// Helper function that returns a response body of a TestRequest
@@ -115,17 +123,18 @@ where
 ///     assert_eq!(result, Bytes::from_static(b"welcome!"));
 /// }
 /// ```
+///
+/// # Panics
+/// Panics if:
+/// - service call returns error;
+/// - body yields an error while it is being read.
 pub async fn read_response<S, B>(app: &S, req: Request) -> Bytes
 where
     S: Service<Request, Response = ServiceResponse<B>, Error = Error>,
-    B: MessageBody + Unpin,
+    B: MessageBody,
     B::Error: fmt::Debug,
 {
-    let res = app
-        .call(req)
-        .await
-        .unwrap_or_else(|e| panic!("read_response failed at application call: {:?}", e));
-
+    let res = call_service(app, req).await;
     read_body(res).await
 }
 
@@ -158,10 +167,10 @@ where
 /// ```
 ///
 /// # Panics
-/// Panics if body errors while it is being read.
+/// Panics if body yields an error while it is being read.
 pub async fn read_body<B>(res: ServiceResponse<B>) -> Bytes
 where
-    B: MessageBody + Unpin,
+    B: MessageBody,
     B::Error: fmt::Debug,
 {
     let body = res.into_body();
@@ -207,18 +216,25 @@ where
 ///     let result: Person = test::read_body_json(res).await;
 /// }
 /// ```
+///
+/// # Panics
+/// Panics if:
+/// - body yields an error while it is being read;
+/// - received body is not a valid JSON representation of `T`.
 pub async fn read_body_json<T, B>(res: ServiceResponse<B>) -> T
 where
-    B: MessageBody + Unpin,
+    B: MessageBody,
     B::Error: fmt::Debug,
     T: DeserializeOwned,
 {
     let body = read_body(res).await;
 
-    serde_json::from_slice(&body).unwrap_or_else(|e| {
+    serde_json::from_slice(&body).unwrap_or_else(|err| {
         panic!(
-            "read_response_json failed during deserialization of body: {:?}, {}",
-            body, e
+            "could not deserialize body into a {}\nerr: {}\nbody: {:?}",
+            std::any::type_name::<T>(),
+            err,
+            body,
         )
     })
 }
@@ -257,21 +273,21 @@ where
 ///     let result: Person = test::read_response_json(&mut app, req).await;
 /// }
 /// ```
+///
+/// # Panics
+/// Panics if:
+/// - service call returns an error body yields an error while it is being read;
+/// - body yields an error while it is being read;
+/// - received body is not a valid JSON representation of `T`.
 pub async fn read_response_json<S, B, T>(app: &S, req: Request) -> T
 where
     S: Service<Request, Response = ServiceResponse<B>, Error = Error>,
-    B: MessageBody + Unpin,
+    B: MessageBody,
     B::Error: fmt::Debug,
     T: DeserializeOwned,
 {
-    let body = read_response(app, req).await;
-
-    serde_json::from_slice(&body).unwrap_or_else(|_| {
-        panic!(
-            "read_response_json failed during deserialization of body: {:?}",
-            body
-        )
-    })
+    let res = call_service(app, req).await;
+    read_body_json(res).await
 }
 
 #[cfg(test)]
