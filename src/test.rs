@@ -1,6 +1,6 @@
 //! Various helpers for Actix applications to use during testing.
 
-use std::{borrow::Cow, net::SocketAddr, rc::Rc};
+use std::{borrow::Cow, fmt, net::SocketAddr, rc::Rc};
 
 pub use actix_http::test::TestBuffer;
 use actix_http::{
@@ -157,12 +157,12 @@ pub async fn read_response<S, B>(app: &S, req: Request) -> Bytes
 where
     S: Service<Request, Response = ServiceResponse<B>, Error = Error>,
     B: MessageBody + Unpin,
-    B::Error: Into<Error>,
+    B::Error: fmt::Debug,
 {
     let resp = app
         .call(req)
         .await
-        .unwrap_or_else(|e| panic!("read_response failed at application call: {}", e));
+        .unwrap_or_else(|e| panic!("read_response failed at application call: {:?}", e));
 
     let body = resp.into_body();
     let mut bytes = BytesMut::new();
@@ -204,7 +204,7 @@ where
 pub async fn read_body<B>(res: ServiceResponse<B>) -> Bytes
 where
     B: MessageBody + Unpin,
-    B::Error: Into<Error>,
+    B::Error: fmt::Debug,
 {
     let body = res.into_body();
     let mut bytes = BytesMut::new();
@@ -257,7 +257,7 @@ where
 pub async fn read_body_json<T, B>(res: ServiceResponse<B>) -> T
 where
     B: MessageBody + Unpin,
-    B::Error: Into<Error>,
+    B::Error: fmt::Debug,
     T: DeserializeOwned,
 {
     let body = read_body(res).await;
@@ -308,7 +308,7 @@ pub async fn read_response_json<S, B, T>(app: &S, req: Request) -> T
 where
     S: Service<Request, Response = ServiceResponse<B>, Error = Error>,
     B: MessageBody + Unpin,
-    B::Error: Into<Error>,
+    B::Error: fmt::Debug,
     T: DeserializeOwned,
 {
     let body = read_response(app, req).await;
