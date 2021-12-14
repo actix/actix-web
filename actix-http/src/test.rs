@@ -264,7 +264,7 @@ impl TestSeqBuffer {
 
     /// Create new empty `TestBuffer` instance.
     pub fn empty() -> Self {
-        Self::new("")
+        Self::new(BytesMut::new())
     }
 
     pub fn read_buf(&self) -> Ref<'_, BytesMut> {

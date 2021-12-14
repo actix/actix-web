@@ -10,15 +10,13 @@ use actix_http::{
 use actix_router::{Path, ResourceDef, Url};
 use actix_service::{IntoService, IntoServiceFactory, Service, ServiceFactory};
 use actix_utils::future::{ok, poll_fn};
-use futures_core::Stream;
-use futures_util::StreamExt as _;
 use serde::{de::DeserializeOwned, Serialize};
 
 #[cfg(feature = "cookies")]
 use crate::cookie::{Cookie, CookieJar};
 use crate::{
     app_service::AppInitServiceState,
-    body::{self, BoxBody, MessageBody},
+    body::{BoxBody, MessageBody},
     config::AppConfig,
     data::Data,
     dev::Payload,
@@ -262,25 +260,6 @@ where
             body, e
         )
     })
-}
-
-pub async fn load_stream<S>(mut stream: S) -> Result<Bytes, Error>
-where
-    S: Stream<Item = Result<Bytes, Error>> + Unpin,
-{
-    let mut data = BytesMut::new();
-    while let Some(item) = stream.next().await {
-        data.extend_from_slice(&item?);
-    }
-    Ok(data.freeze())
-}
-
-pub async fn load_body<B>(body: B) -> Result<Bytes, Error>
-where
-    B: MessageBody + Unpin,
-    B::Error: Into<Error>,
-{
-    body::to_bytes(body).await.map_err(Into::into)
 }
 
 /// Helper function that returns a deserialized response body of a TestRequest
