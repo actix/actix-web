@@ -12,10 +12,9 @@ use actix_service::{IntoService, IntoServiceFactory, Service, ServiceFactory};
 use actix_utils::future::{ok, poll_fn};
 use serde::{de::DeserializeOwned, Serialize};
 
-#[cfg(feature = "cookies")]
-use crate::cookie::{Cookie, CookieJar};
 use crate::{
     app_service::AppInitServiceState,
+    body,
     body::{BoxBody, MessageBody},
     config::AppConfig,
     data::Data,
@@ -26,6 +25,9 @@ use crate::{
     web::{Bytes, BytesMut},
     Error, HttpRequest, HttpResponse, HttpResponseBuilder,
 };
+
+#[cfg(feature = "cookies")]
+use crate::cookie::{Cookie, CookieJar};
 
 /// Creates service that always responds with `200 OK` and no body.
 pub fn ok_service(
@@ -165,18 +167,12 @@ where
         .unwrap_or_else(|e| panic!("read_response failed at application call: {:?}", e));
 
     let body = resp.into_body();
-    let mut bytes = BytesMut::new();
-
-    actix_rt::pin!(body);
-    while let Some(item) = poll_fn(|cx| body.as_mut().poll_next(cx)).await {
-        bytes.extend_from_slice(&item.map_err(Into::into).unwrap());
-    }
-
-    bytes.freeze()
+    read_body(body).await
 }
 
 /// Helper function that returns a response body of a ServiceResponse.
 ///
+/// # Examples
 /// ```
 /// use actix_web::{test, web, App, HttpResponse, http::header};
 /// use bytes::Bytes;
@@ -201,20 +197,18 @@ where
 ///     assert_eq!(result, Bytes::from_static(b"welcome!"));
 /// }
 /// ```
+///
+/// # Panics
+/// Panics if body errors while it is being read.
 pub async fn read_body<B>(res: ServiceResponse<B>) -> Bytes
 where
     B: MessageBody + Unpin,
     B::Error: fmt::Debug,
 {
     let body = res.into_body();
-    let mut bytes = BytesMut::new();
-
-    actix_rt::pin!(body);
-    while let Some(item) = poll_fn(|cx| body.as_mut().poll_next(cx)).await {
-        bytes.extend_from_slice(&item.map_err(Into::into).unwrap());
-    }
-
-    bytes.freeze()
+    body::to_bytes(body)
+        .await
+        .expect("error reading test response body")
 }
 
 /// Helper function that returns a deserialized response body of a ServiceResponse.
