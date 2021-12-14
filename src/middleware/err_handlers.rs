@@ -189,12 +189,13 @@ mod tests {
     use futures_util::future::FutureExt as _;
 
     use super::*;
-    use crate::http::{
-        header::{HeaderValue, CONTENT_TYPE},
-        StatusCode,
+    use crate::{
+        http::{
+            header::{HeaderValue, CONTENT_TYPE},
+            StatusCode,
+        },
+        test::{self, TestRequest},
     };
-    use crate::test::{self, TestRequest};
-    use crate::HttpResponse;
 
     #[actix_rt::test]
     async fn add_header_error_handler() {
@@ -207,9 +208,7 @@ mod tests {
             Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
         }
 
-        let srv = |req: ServiceRequest| {
-            ok(req.into_response(HttpResponse::InternalServerError().finish()))
-        };
+        let srv = test::default_service(StatusCode::INTERNAL_SERVER_ERROR);
 
         let mw = ErrorHandlers::new()
             .handler(StatusCode::INTERNAL_SERVER_ERROR, error_handler)
@@ -236,9 +235,7 @@ mod tests {
             ))
         }
 
-        let srv = |req: ServiceRequest| {
-            ok(req.into_response(HttpResponse::InternalServerError().finish()))
-        };
+        let srv = test::default_service(StatusCode::INTERNAL_SERVER_ERROR);
 
         let mw = ErrorHandlers::new()
             .handler(StatusCode::INTERNAL_SERVER_ERROR, error_handler)
@@ -262,12 +259,11 @@ mod tests {
             let res = ServiceResponse::new(req, res)
                 .map_into_boxed_body()
                 .map_into_right_body();
+
             Ok(ErrorHandlerResponse::Response(res))
         }
 
-        let srv = |req: ServiceRequest| {
-            ok(req.into_response(HttpResponse::InternalServerError().finish()))
-        };
+        let srv = test::default_service(StatusCode::INTERNAL_SERVER_ERROR);
 
         let mw = ErrorHandlers::new()
             .handler(StatusCode::INTERNAL_SERVER_ERROR, error_handler)
@@ -275,7 +271,9 @@ mod tests {
             .await
             .unwrap();
 
-        let resp = test::call_service(&mw, TestRequest::default().to_srv_request()).await;
-        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
+        let res = test::call_service(&mw, TestRequest::default().to_srv_request()).await;
+        assert_eq!(test::read_body(res).await, "sorry, that's no bueno");
     }
+
+    // TODO: test where error is thrown
 }
