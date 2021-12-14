@@ -45,7 +45,8 @@ type ErrorHandler<B> = dyn Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse
 ///     res.response_mut()
 ///        .headers_mut()
 ///        .insert(header::CONTENT_TYPE, header::HeaderValue::from_static("Error"));
-///     Ok(ErrorHandlerResponse::Response(res))
+///
+///     Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
 /// }
 ///
 /// let app = App::new()
