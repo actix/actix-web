@@ -10,8 +10,10 @@
 
 ### Removed
 * Top-level `EitherExtractError` export. [#2510]
+* Conversion implementations for `either` crate. [#2516]
 
 [#2510]: https://github.com/actix/actix-web/pull/2510
+[#2516]: https://github.com/actix/actix-web/pull/2516
 
 
 ## 4.0.0-beta.14 - 2021-12-11

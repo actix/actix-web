@@ -86,7 +86,6 @@ bytes = "1"
 cfg-if = "1"
 cookie = { version = "0.15", features = ["percent-encode"], optional = true }
 derive_more = "0.99.5"
-either = "1.5.3"
 encoding_rs = "0.8"
 futures-core = { version = "0.3.7", default-features = false }
 futures-util = { version = "0.3.7", default-features = false }
