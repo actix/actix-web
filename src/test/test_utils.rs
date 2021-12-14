@@ -344,7 +344,7 @@ mod tests {
             .insert_header((header::CONTENT_TYPE, "application/json"))
             .to_request();
 
-        let result = read_response(&app, put_req).await;
+        let result = call_and_read_body(&app, put_req).await;
         assert_eq!(result, Bytes::from_static(b"put!"));
 
         let patch_req = TestRequest::patch()
@@ -352,11 +352,11 @@ mod tests {
             .insert_header((header::CONTENT_TYPE, "application/json"))
             .to_request();
 
-        let result = read_response(&app, patch_req).await;
+        let result = call_and_read_body(&app, patch_req).await;
         assert_eq!(result, Bytes::from_static(b"patch!"));
 
         let delete_req = TestRequest::delete().uri("/index.html").to_request();
-        let result = read_response(&app, delete_req).await;
+        let result = call_and_read_body(&app, delete_req).await;
         assert_eq!(result, Bytes::from_static(b"delete!"));
     }
 
@@ -381,7 +381,7 @@ mod tests {
             .set_payload(payload)
             .to_request();
 
-        let result: Person = read_response_json(&app, req).await;
+        let result: Person = call_and_read_body_json(&app, req).await;
         assert_eq!(&result.id, "12345");
     }
 
@@ -424,7 +424,7 @@ mod tests {
 
         assert_eq!(req.content_type(), "application/x-www-form-urlencoded");
 
-        let result: Person = read_response_json(&app, req).await;
+        let result: Person = call_and_read_body_json(&app, req).await;
         assert_eq!(&result.id, "12345");
         assert_eq!(&result.name, "User name");
     }
@@ -444,7 +444,7 @@ mod tests {
             .insert_header((header::CONTENT_TYPE, "application/json"))
             .to_request();
 
-        let result = read_response(&app, req).await;
+        let result = call_and_read_body(&app, req).await;
         assert_eq!(result, Bytes::from_static(b"welcome!"));
     }
 
@@ -467,7 +467,7 @@ mod tests {
 
         assert_eq!(req.content_type(), "application/json");
 
-        let result: Person = read_response_json(&app, req).await;
+        let result: Person = call_and_read_body_json(&app, req).await;
         assert_eq!(&result.id, "12345");
         assert_eq!(&result.name, "User name");
     }

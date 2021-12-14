@@ -1,6 +1,10 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+* Re-export `actix_http::body::to_bytes`. [#2518]
+* Update `actix_web::test` re-exports. [#2518]
+
+[#2518]: https://github.com/actix/actix-web/pull/2518
 
 
 ## 0.1.0-beta.8 - 2021-12-11
