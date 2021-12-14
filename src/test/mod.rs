@@ -1,4 +1,23 @@
 //! Various helpers for Actix applications to use during testing.
+//!
+//! # Creating A Test Service
+//! - [`init_service`]
+//!
+//! # Off-The-Shelf Test Services
+//! - [`ok_service`]
+//! - [`simple_service`]
+//!
+//! # Calling Test Service
+//! - [`TestRequest`]
+//! - [`call_service`]
+//! - [`call_and_read_body`]
+//! - [`call_and_read_body_json`]
+//!
+//! # Reading Response Payloads
+//! - [`read_body`]
+//! - [`read_body_json`]
+
+// TODO: more docs on generally how testing works with these parts
 
 pub use actix_http::test::TestBuffer;
 
@@ -9,8 +28,10 @@ mod test_utils;
 pub use self::test_request::TestRequest;
 #[allow(deprecated)]
 pub use self::test_services::{default_service, ok_service, simple_service};
+#[allow(deprecated)]
 pub use self::test_utils::{
-    call_service, init_service, read_body, read_body_json, read_response, read_response_json,
+    call_and_read_body, call_and_read_body_json, call_service, init_service, read_body,
+    read_body_json, read_response, read_response_json,
 };
 
 #[cfg(test)]
