@@ -106,7 +106,7 @@ mod tests {
             header::{HeaderValue, CONTENT_TYPE},
             StatusCode,
         },
-        middleware::err_handlers::*,
+        middleware::{err_handlers::*, Compat},
         test::{self, TestRequest},
         HttpResponse,
     };
@@ -116,7 +116,8 @@ mod tests {
         res.response_mut()
             .headers_mut()
             .insert(CONTENT_TYPE, HeaderValue::from_static("0001"));
-        Ok(ErrorHandlerResponse::Response(res))
+
+        Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
     }
 
     #[actix_rt::test]
@@ -125,7 +126,9 @@ mod tests {
             ok(req.into_response(HttpResponse::InternalServerError().finish()))
         };
 
-        let mw = ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, render_500);
+        let mw = Compat::new(
+            ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, render_500),
+        );
 
         let mw = Condition::new(true, mw)
             .new_transform(srv.into_service())
@@ -141,7 +144,9 @@ mod tests {
             ok(req.into_response(HttpResponse::InternalServerError().finish()))
         };
 
-        let mw = ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, render_500);
+        let mw = Compat::new(
+            ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, render_500),
+        );
 
         let mw = Condition::new(false, mw)
             .new_transform(srv.into_service())
