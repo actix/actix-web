@@ -20,8 +20,6 @@ use crate::{
 
 /// Combines two extractor or responder types into a single type.
 ///
-/// Can be converted to and from an [`either::Either`].
-///
 /// # Extractor
 /// Provides a mechanism for trying two extractors, a primary and a fallback. Useful for
 /// "polymorphic payloads" where, for example, a form might be JSON or URL encoded.
