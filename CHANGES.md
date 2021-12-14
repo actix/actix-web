@@ -7,12 +7,15 @@
 
 ### Changed
 * Align `DefaultHeader` method terminology, deprecating previous methods. [#2510]
+* Response service types in `ErrorHandlers` middleware now use `ServiceResponse<EitherBody<B>>` to allow changing the body type. [#2515]
+* Both variants in `ErrorHandlerResponse` now use `ServiceResponse<EitherBody<B>>`. [#2515]
 
 ### Removed
 * Top-level `EitherExtractError` export. [#2510]
 * Conversion implementations for `either` crate. [#2516]
 
 [#2510]: https://github.com/actix/actix-web/pull/2510
+[#2515]: https://github.com/actix/actix-web/pull/2515
 [#2516]: https://github.com/actix/actix-web/pull/2516
 
 
