@@ -13,6 +13,7 @@ use futures_core::{future::LocalBoxFuture, ready};
 use pin_project_lite::pin_project;
 
 use crate::{
+    body::EitherBody,
     dev::{ServiceRequest, ServiceResponse},
     http::StatusCode,
     Error, Result,
@@ -21,10 +22,10 @@ use crate::{
 /// Return type for [`ErrorHandlers`] custom handlers.
 pub enum ErrorHandlerResponse<B> {
     /// Immediate HTTP response.
-    Response(ServiceResponse<B>),
+    Response(ServiceResponse<EitherBody<B>>),
 
     /// A future that resolves to an HTTP response.
-    Future(LocalBoxFuture<'static, Result<ServiceResponse<B>, Error>>),
+    Future(LocalBoxFuture<'static, Result<ServiceResponse<EitherBody<B>>, Error>>),
 }
 
 type ErrorHandler<B> = dyn Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>>;
@@ -44,7 +45,8 @@ type ErrorHandler<B> = dyn Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse
 ///     res.response_mut()
 ///        .headers_mut()
 ///        .insert(header::CONTENT_TYPE, header::HeaderValue::from_static("Error"));
-///     Ok(ErrorHandlerResponse::Response(res))
+///
+///     Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
 /// }
 ///
 /// let app = App::new()
@@ -66,7 +68,7 @@ type Handlers<B> = Rc<AHashMap<StatusCode, Box<ErrorHandler<B>>>>;
 impl<B> Default for ErrorHandlers<B> {
     fn default() -> Self {
         ErrorHandlers {
-            handlers: Rc::new(AHashMap::default()),
+            handlers: Default::default(),
         }
     }
 }
@@ -95,7 +97,7 @@ where
     S::Future: 'static,
     B: 'static,
 {
-    type Response = ServiceResponse<B>;
+    type Response = ServiceResponse<EitherBody<B>>;
     type Error = Error;
     type Transform = ErrorHandlersMiddleware<S, B>;
     type InitError = ();
@@ -119,7 +121,7 @@ where
     S::Future: 'static,
     B: 'static,
 {
-    type Response = ServiceResponse<B>;
+    type Response = ServiceResponse<EitherBody<B>>;
     type Error = Error;
     type Future = ErrorHandlersFuture<S::Future, B>;
 
@@ -143,8 +145,8 @@ pin_project! {
             fut: Fut,
             handlers: Handlers<B>,
         },
-        HandlerFuture {
-            fut: LocalBoxFuture<'static, Fut::Output>,
+        ErrorHandlerFuture {
+            fut: LocalBoxFuture<'static, Result<ServiceResponse<EitherBody<B>>, Error>>,
         },
     }
 }
@@ -153,25 +155,29 @@ impl<Fut, B> Future for ErrorHandlersFuture<Fut, B>
 where
     Fut: Future<Output = Result<ServiceResponse<B>, Error>>,
 {
-    type Output = Fut::Output;
+    type Output = Result<ServiceResponse<EitherBody<B>>, Error>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.as_mut().project() {
             ErrorHandlersProj::ServiceFuture { fut, handlers } => {
                 let res = ready!(fut.poll(cx))?;
+
                 match handlers.get(&res.status()) {
                     Some(handler) => match handler(res)? {
                         ErrorHandlerResponse::Response(res) => Poll::Ready(Ok(res)),
                         ErrorHandlerResponse::Future(fut) => {
                             self.as_mut()
-                                .set(ErrorHandlersFuture::HandlerFuture { fut });
+                                .set(ErrorHandlersFuture::ErrorHandlerFuture { fut });
+
                             self.poll(cx)
                         }
                     },
-                    None => Poll::Ready(Ok(res)),
+
+                    None => Poll::Ready(Ok(res.map_into_left_body())),
                 }
             }
-            ErrorHandlersProj::HandlerFuture { fut } => fut.as_mut().poll(cx),
+
+            ErrorHandlersProj::ErrorHandlerFuture { fut } => fut.as_mut().poll(cx),
         }
     }
 }
@@ -180,32 +186,33 @@ where
 mod tests {
     use actix_service::IntoService;
     use actix_utils::future::ok;
+    use bytes::Bytes;
     use futures_util::future::FutureExt as _;
 
     use super::*;
-    use crate::http::{
-        header::{HeaderValue, CONTENT_TYPE},
-        StatusCode,
+    use crate::{
+        http::{
+            header::{HeaderValue, CONTENT_TYPE},
+            StatusCode,
+        },
+        test::{self, TestRequest},
     };
-    use crate::test::{self, TestRequest};
-    use crate::HttpResponse;
-
-    #[allow(clippy::unnecessary_wraps)]
-    fn render_500<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
-        res.response_mut()
-            .headers_mut()
-            .insert(CONTENT_TYPE, HeaderValue::from_static("0001"));
-        Ok(ErrorHandlerResponse::Response(res))
-    }
 
     #[actix_rt::test]
-    async fn test_handler() {
-        let srv = |req: ServiceRequest| {
-            ok(req.into_response(HttpResponse::InternalServerError().finish()))
-        };
+    async fn add_header_error_handler() {
+        #[allow(clippy::unnecessary_wraps)]
+        fn error_handler<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
+            res.response_mut()
+                .headers_mut()
+                .insert(CONTENT_TYPE, HeaderValue::from_static("0001"));
+
+            Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
+        }
+
+        let srv = test::default_service(StatusCode::INTERNAL_SERVER_ERROR);
 
         let mw = ErrorHandlers::new()
-            .handler(StatusCode::INTERNAL_SERVER_ERROR, render_500)
+            .handler(StatusCode::INTERNAL_SERVER_ERROR, error_handler)
             .new_transform(srv.into_service())
             .await
             .unwrap();
@@ -214,24 +221,25 @@ mod tests {
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
     }
 
-    #[allow(clippy::unnecessary_wraps)]
-    fn render_500_async<B: 'static>(
-        mut res: ServiceResponse<B>,
-    ) -> Result<ErrorHandlerResponse<B>> {
-        res.response_mut()
-            .headers_mut()
-            .insert(CONTENT_TYPE, HeaderValue::from_static("0001"));
-        Ok(ErrorHandlerResponse::Future(ok(res).boxed_local()))
-    }
-
     #[actix_rt::test]
-    async fn test_handler_async() {
-        let srv = |req: ServiceRequest| {
-            ok(req.into_response(HttpResponse::InternalServerError().finish()))
-        };
+    async fn add_header_error_handler_async() {
+        #[allow(clippy::unnecessary_wraps)]
+        fn error_handler<B: 'static>(
+            mut res: ServiceResponse<B>,
+        ) -> Result<ErrorHandlerResponse<B>> {
+            res.response_mut()
+                .headers_mut()
+                .insert(CONTENT_TYPE, HeaderValue::from_static("0001"));
+
+            Ok(ErrorHandlerResponse::Future(
+                ok(res.map_into_left_body()).boxed_local(),
+            ))
+        }
+
+        let srv = test::default_service(StatusCode::INTERNAL_SERVER_ERROR);
 
         let mw = ErrorHandlers::new()
-            .handler(StatusCode::INTERNAL_SERVER_ERROR, render_500_async)
+            .handler(StatusCode::INTERNAL_SERVER_ERROR, error_handler)
             .new_transform(srv.into_service())
             .await
             .unwrap();
@@ -239,4 +247,34 @@ mod tests {
         let resp = test::call_service(&mw, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
     }
+
+    #[actix_rt::test]
+    async fn changes_body_type() {
+        #[allow(clippy::unnecessary_wraps)]
+        fn error_handler<B: 'static>(
+            res: ServiceResponse<B>,
+        ) -> Result<ErrorHandlerResponse<B>> {
+            let (req, res) = res.into_parts();
+            let res = res.set_body(Bytes::from("sorry, that's no bueno"));
+
+            let res = ServiceResponse::new(req, res)
+                .map_into_boxed_body()
+                .map_into_right_body();
+
+            Ok(ErrorHandlerResponse::Response(res))
+        }
+
+        let srv = test::default_service(StatusCode::INTERNAL_SERVER_ERROR);
+
+        let mw = ErrorHandlers::new()
+            .handler(StatusCode::INTERNAL_SERVER_ERROR, error_handler)
+            .new_transform(srv.into_service())
+            .await
+            .unwrap();
+
+        let res = test::call_service(&mw, TestRequest::default().to_srv_request()).await;
+        assert_eq!(test::read_body(res).await, "sorry, that's no bueno");
+    }
+
+    // TODO: test where error is thrown
 }

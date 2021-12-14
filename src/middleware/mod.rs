@@ -35,7 +35,7 @@ mod tests {
             .wrap(Condition::new(true, DefaultHeaders::new()))
             .wrap(DefaultHeaders::new().add(("X-Test2", "X-Value2")))
             .wrap(ErrorHandlers::new().handler(StatusCode::FORBIDDEN, |res| {
-                Ok(ErrorHandlerResponse::Response(res))
+                Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
             }))
             .wrap(Logger::default())
             .wrap(NormalizePath::new(TrailingSlash::Trim));
@@ -44,7 +44,7 @@ mod tests {
             .wrap(NormalizePath::new(TrailingSlash::Trim))
             .wrap(Logger::default())
             .wrap(ErrorHandlers::new().handler(StatusCode::FORBIDDEN, |res| {
-                Ok(ErrorHandlerResponse::Response(res))
+                Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
             }))
             .wrap(DefaultHeaders::new().add(("X-Test2", "X-Value2")))
             .wrap(Condition::new(true, DefaultHeaders::new()))

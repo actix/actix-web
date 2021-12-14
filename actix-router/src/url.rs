@@ -2,22 +2,28 @@ use crate::ResourcePath;
 
 #[allow(dead_code)]
 const GEN_DELIMS: &[u8] = b":/?#[]@";
+
 #[allow(dead_code)]
 const SUB_DELIMS_WITHOUT_QS: &[u8] = b"!$'()*,";
+
 #[allow(dead_code)]
 const SUB_DELIMS: &[u8] = b"!$'()*,+?=;";
+
 #[allow(dead_code)]
 const RESERVED: &[u8] = b":/?#[]@!$'()*,+?=;";
+
 #[allow(dead_code)]
 const UNRESERVED: &[u8] = b"abcdefghijklmnopqrstuvwxyz
     ABCDEFGHIJKLMNOPQRSTUVWXYZ
     1234567890
     -._~";
+
 const ALLOWED: &[u8] = b"abcdefghijklmnopqrstuvwxyz
     ABCDEFGHIJKLMNOPQRSTUVWXYZ
     1234567890
     -._~
     !$'()*,";
+
 const QS: &[u8] = b"+&=;b";
 
 #[inline]
@@ -34,19 +40,20 @@ thread_local! {
     static DEFAULT_QUOTER: Quoter = Quoter::new(b"@:", b"%/+");
 }
 
-#[derive(Default, Clone, Debug)]
+#[derive(Debug, Clone, Default)]
 pub struct Url {
     uri: http::Uri,
     path: Option<String>,
 }
 
 impl Url {
+    #[inline]
     pub fn new(uri: http::Uri) -> Url {
         let path = DEFAULT_QUOTER.with(|q| q.requote(uri.path().as_bytes()));
-
         Url { uri, path }
     }
 
+    #[inline]
     pub fn with_quoter(uri: http::Uri, quoter: &Quoter) -> Url {
         Url {
             path: quoter.requote(uri.path().as_bytes()),
@@ -54,15 +61,16 @@ impl Url {
         }
     }
 
+    #[inline]
     pub fn uri(&self) -> &http::Uri {
         &self.uri
     }
 
+    #[inline]
     pub fn path(&self) -> &str {
-        if let Some(ref s) = self.path {
-            s
-        } else {
-            self.uri.path()
+        match self.path {
+            Some(ref path) => path,
+            _ => self.uri.path(),
         }
     }
 
@@ -86,6 +94,7 @@ impl ResourcePath for Url {
     }
 }
 
+/// A quoter
 pub struct Quoter {
     safe_table: [u8; 16],
     protected_table: [u8; 16],
@@ -93,7 +102,7 @@ pub struct Quoter {
 
 impl Quoter {
     pub fn new(safe: &[u8], protected: &[u8]) -> Quoter {
-        let mut q = Quoter {
+        let mut quoter = Quoter {
             safe_table: [0; 16],
             protected_table: [0; 16],
         };
@@ -101,24 +110,24 @@ impl Quoter {
         // prepare safe table
         for i in 0..128 {
             if ALLOWED.contains(&i) {
-                set_bit(&mut q.safe_table, i);
+                set_bit(&mut quoter.safe_table, i);
             }
             if QS.contains(&i) {
-                set_bit(&mut q.safe_table, i);
+                set_bit(&mut quoter.safe_table, i);
             }
         }
 
         for ch in safe {
-            set_bit(&mut q.safe_table, *ch)
+            set_bit(&mut quoter.safe_table, *ch)
         }
 
         // prepare protected table
         for ch in protected {
-            set_bit(&mut q.safe_table, *ch);
-            set_bit(&mut q.protected_table, *ch);
+            set_bit(&mut quoter.safe_table, *ch);
+            set_bit(&mut quoter.protected_table, *ch);
         }
 
-        q
+        quoter
     }
 
     pub fn requote(&self, val: &[u8]) -> Option<String> {
@@ -215,7 +224,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_url() {
+    fn parse_url() {
         let re = "/user/{id}/test";
 
         let path = match_url(re, "/user/2345/test");
@@ -231,24 +240,24 @@ mod tests {
     }
 
     #[test]
-    fn test_protected_chars() {
+    fn protected_chars() {
         let encoded = percent_encode(PROTECTED);
         let path = match_url("/user/{id}/test", format!("/user/{}/test", encoded));
         assert_eq!(path.get("id").unwrap(), &encoded);
     }
 
     #[test]
-    fn test_non_protecteed_ascii() {
-        let nonprotected_ascii = ('\u{0}'..='\u{7F}')
+    fn non_protected_ascii() {
+        let non_protected_ascii = ('\u{0}'..='\u{7F}')
             .filter(|&c| c.is_ascii() && !PROTECTED.contains(&(c as u8)))
             .collect::<String>();
-        let encoded = percent_encode(nonprotected_ascii.as_bytes());
+        let encoded = percent_encode(non_protected_ascii.as_bytes());
         let path = match_url("/user/{id}/test", format!("/user/{}/test", encoded));
-        assert_eq!(path.get("id").unwrap(), &nonprotected_ascii);
+        assert_eq!(path.get("id").unwrap(), &non_protected_ascii);
     }
 
     #[test]
-    fn test_valid_utf8_multibyte() {
+    fn valid_utf8_multibyte() {
         let test = ('\u{FF00}'..='\u{FFFF}').collect::<String>();
         let encoded = percent_encode(test.as_bytes());
         let path = match_url("/a/{id}/b", format!("/a/{}/b", &encoded));
@@ -256,7 +265,7 @@ mod tests {
     }
 
     #[test]
-    fn test_invalid_utf8() {
+    fn invalid_utf8() {
         let invalid_utf8 = percent_encode((0x80..=0xff).collect::<Vec<_>>().as_slice());
         let uri = Uri::try_from(format!("/{}", invalid_utf8)).unwrap();
         let path = Path::new(Url::new(uri));
@@ -266,7 +275,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_hex() {
+    fn hex_encoding() {
         let hex = b"0123456789abcdefABCDEF";
 
         for i in 0..256 {
