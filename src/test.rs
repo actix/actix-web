@@ -27,20 +27,28 @@ use crate::{
     Error, HttpRequest, HttpResponse, HttpResponseBuilder,
 };
 
-/// Create service that always responds with `HttpResponse::Ok()` and no body.
+/// Creates service that always responds with `200 OK` and no body.
 pub fn ok_service(
 ) -> impl Service<ServiceRequest, Response = ServiceResponse<BoxBody>, Error = Error> {
-    default_service(StatusCode::OK)
+    simple_service(StatusCode::OK)
 }
 
-/// Create service that always responds with given status code and no body.
-pub fn default_service(
+/// Creates service that always responds with given status code and no body.
+pub fn simple_service(
     status_code: StatusCode,
 ) -> impl Service<ServiceRequest, Response = ServiceResponse<BoxBody>, Error = Error> {
     (move |req: ServiceRequest| {
         ok(req.into_response(HttpResponseBuilder::new(status_code).finish()))
     })
     .into_service()
+}
+
+#[doc(hidden)]
+#[deprecated(since = "4.0.0", note = "Renamed to `simple_service`.")]
+pub fn default_service(
+    status_code: StatusCode,
+) -> impl Service<ServiceRequest, Response = ServiceResponse<BoxBody>, Error = Error> {
+    simple_service(status_code)
 }
 
 /// Initialize service from application builder instance.

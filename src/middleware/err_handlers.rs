@@ -209,7 +209,7 @@ mod tests {
             Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
         }
 
-        let srv = test::default_service(StatusCode::INTERNAL_SERVER_ERROR);
+        let srv = test::simple_service(StatusCode::INTERNAL_SERVER_ERROR);
 
         let mw = ErrorHandlers::new()
             .handler(StatusCode::INTERNAL_SERVER_ERROR, error_handler)
@@ -236,7 +236,7 @@ mod tests {
             ))
         }
 
-        let srv = test::default_service(StatusCode::INTERNAL_SERVER_ERROR);
+        let srv = test::simple_service(StatusCode::INTERNAL_SERVER_ERROR);
 
         let mw = ErrorHandlers::new()
             .handler(StatusCode::INTERNAL_SERVER_ERROR, error_handler)
@@ -264,7 +264,7 @@ mod tests {
             Ok(ErrorHandlerResponse::Response(res))
         }
 
-        let srv = test::default_service(StatusCode::INTERNAL_SERVER_ERROR);
+        let srv = test::simple_service(StatusCode::INTERNAL_SERVER_ERROR);
 
         let mw = ErrorHandlers::new()
             .handler(StatusCode::INTERNAL_SERVER_ERROR, error_handler)
