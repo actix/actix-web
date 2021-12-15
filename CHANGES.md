@@ -9,14 +9,20 @@
 * Align `DefaultHeader` method terminology, deprecating previous methods. [#2510]
 * Response service types in `ErrorHandlers` middleware now use `ServiceResponse<EitherBody<B>>` to allow changing the body type. [#2515]
 * Both variants in `ErrorHandlerResponse` now use `ServiceResponse<EitherBody<B>>`. [#2515]
+* Rename `test::{default_service => simple_service}`. Old name is deprecated. [#2518]
+* Rename `test::{read_response_json => call_and_read_body_json}`. Old name is deprecated. [#2518]
+* Rename `test::{read_response => call_and_read_body}`. Old name is deprecated. [#2518]
+* Relax body type and error bounds on test utilities.
 
 ### Removed
 * Top-level `EitherExtractError` export. [#2510]
 * Conversion implementations for `either` crate. [#2516]
+* `test::load_stream` and `test::load_body`; replace usage with `body::to_bytes`. [#2518]
 
 [#2510]: https://github.com/actix/actix-web/pull/2510
 [#2515]: https://github.com/actix/actix-web/pull/2515
 [#2516]: https://github.com/actix/actix-web/pull/2516
+[#2518]: https://github.com/actix/actix-web/pull/2518
 
 
 ## 4.0.0-beta.14 - 2021-12-11

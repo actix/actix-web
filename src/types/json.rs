@@ -449,12 +449,13 @@ mod tests {
 
     use super::*;
     use crate::{
+        body,
         error::InternalError,
         http::{
             header::{self, CONTENT_LENGTH, CONTENT_TYPE},
             StatusCode,
         },
-        test::{assert_body_eq, load_body, TestRequest},
+        test::{assert_body_eq, TestRequest},
     };
 
     #[derive(Serialize, Deserialize, PartialEq, Debug)]
@@ -517,7 +518,7 @@ mod tests {
         let resp = HttpResponse::from_error(s.err().unwrap());
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
-        let body = load_body(resp.into_body()).await.unwrap();
+        let body = body::to_bytes(resp.into_body()).await.unwrap();
         let msg: MyObject = serde_json::from_slice(&body).unwrap();
         assert_eq!(msg.name, "invalid request");
     }

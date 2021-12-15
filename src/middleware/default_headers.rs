@@ -194,7 +194,7 @@ mod tests {
     use crate::{
         dev::ServiceRequest,
         http::header::CONTENT_TYPE,
-        test::{ok_service, TestRequest},
+        test::{self, TestRequest},
         HttpResponse,
     };
 
@@ -203,7 +203,7 @@ mod tests {
         let mw = DefaultHeaders::new()
             .add(("X-TEST", "0001"))
             .add(("X-TEST-TWO", HeaderValue::from_static("123")))
-            .new_transform(ok_service())
+            .new_transform(test::ok_service())
             .await
             .unwrap();
 
@@ -234,10 +234,9 @@ mod tests {
 
     #[actix_rt::test]
     async fn adding_content_type() {
-        let srv = |req: ServiceRequest| ok(req.into_response(HttpResponse::Ok().finish()));
         let mw = DefaultHeaders::new()
             .add_content_type()
-            .new_transform(srv.into_service())
+            .new_transform(test::ok_service())
             .await
             .unwrap();
 
