@@ -134,7 +134,7 @@ mod foreign_impls {
 
     impl<B> MessageBody for Box<B>
     where
-        B: MessageBody + Unpin,
+        B: MessageBody + Unpin + ?Sized,
     {
         type Error = B::Error;
 
