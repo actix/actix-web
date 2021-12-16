@@ -335,28 +335,27 @@ impl From<PayloadError> for Error {
 #[derive(Debug, Display, Error, From)]
 #[non_exhaustive]
 pub enum DispatchError {
-    /// Service error
+    /// Service error.
     // FIXME: display and error type
     #[display(fmt = "Service Error")]
     Service(#[error(not(source))] Response<BoxBody>),
 
-    /// Body error
-    // FIXME: display and error type
+    /// Body error.
     #[display(fmt = "Body Error")]
-    Body(#[error(not(source))] Box<dyn StdError>),
+    ResponseBody(#[error(not(source))] Box<dyn fmt::Debug>),
 
-    /// Upgrade service error
+    /// Upgrade service error.
     Upgrade,
 
     /// An `io::Error` that occurred while trying to read or write to a network stream.
-    #[display(fmt = "IO error: {}", _0)]
+    #[display(fmt = "IO error")]
     Io(io::Error),
 
-    /// Http request parse error.
-    #[display(fmt = "Parse error: {}", _0)]
+    /// Request parse error.
+    #[display(fmt = "Request parse error")]
     Parse(ParseError),
 
-    /// Http/2 error
+    /// HTTP/2 error.
     #[display(fmt = "{}", _0)]
     H2(h2::Error),
 
@@ -364,23 +363,23 @@ pub enum DispatchError {
     #[display(fmt = "The first request did not complete within the specified timeout")]
     SlowRequestTimeout,
 
-    /// Disconnect timeout. Makes sense for ssl streams.
+    /// Disconnect timeout. Makes sense for TLS streams.
     #[display(fmt = "Connection shutdown timeout")]
     DisconnectTimeout,
 
-    /// Payload is not consumed
+    /// Payload is not consumed.
     #[display(fmt = "Task is completed but request's payload is not consumed")]
     PayloadIsNotConsumed,
 
-    /// Malformed request
+    /// Malformed request.
     #[display(fmt = "Malformed request")]
     MalformedRequest,
 
-    /// Internal error
+    /// Internal error.
     #[display(fmt = "Internal error")]
     InternalError,
 
-    /// Unknown error
+    /// Unknown error.
     #[display(fmt = "Unknown error")]
     Unknown,
 }

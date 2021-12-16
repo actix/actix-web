@@ -426,7 +426,7 @@ where
                             }
 
                             Poll::Ready(Some(Err(err))) => {
-                                return Err(DispatchError::Body(err.into()))
+                                return Err(DispatchError::ResponseBody(Box::new(err)))
                             }
 
                             Poll::Pending => return Ok(PollResponse::DoNothing),
@@ -458,7 +458,7 @@ where
                             }
 
                             Poll::Ready(Some(Err(err))) => {
-                                return Err(DispatchError::Service(err.into()))
+                                return Err(DispatchError::ResponseBody(err))
                             }
 
                             Poll::Pending => return Ok(PollResponse::DoNothing),

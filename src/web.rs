@@ -1,6 +1,6 @@
 //! Essentials helper functions and types for application registration.
 
-use std::{error::Error as StdError, future::Future};
+use std::{fmt, future::Future};
 
 use actix_http::Method;
 use actix_router::IntoPatterns;
@@ -146,7 +146,7 @@ where
     R: Future + 'static,
     R::Output: Responder + 'static,
     <R::Output as Responder>::Body: MessageBody + 'static,
-    <<R::Output as Responder>::Body as MessageBody>::Error: Into<Box<dyn StdError + 'static>>,
+    <<R::Output as Responder>::Body as MessageBody>::Error: fmt::Debug,
 {
     Route::new().to(handler)
 }

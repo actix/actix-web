@@ -1,11 +1,11 @@
-use std::future::Future;
+use std::{fmt, future::Future};
 
 use actix_service::{boxed, fn_service};
 
 use crate::{
     body::MessageBody,
     service::{BoxedHttpServiceFactory, ServiceRequest, ServiceResponse},
-    BoxError, FromRequest, HttpResponse, Responder,
+    FromRequest, HttpResponse, Responder,
 };
 
 /// A request handler is an async function that accepts zero or more parameters that can be
@@ -31,7 +31,7 @@ where
     R: Future,
     R::Output: Responder,
     <R::Output as Responder>::Body: MessageBody,
-    <<R::Output as Responder>::Body as MessageBody>::Error: Into<BoxError>,
+    <<R::Output as Responder>::Body as MessageBody>::Error: fmt::Debug,
 {
     boxed::factory(fn_service(move |req: ServiceRequest| {
         let handler = handler.clone();

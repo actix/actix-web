@@ -20,7 +20,7 @@ use crate::{
         BoxedHttpService, BoxedHttpServiceFactory, HttpServiceFactory, ServiceRequest,
         ServiceResponse,
     },
-    BoxError, Error, FromRequest, HttpResponse, Responder,
+    Error, FromRequest, HttpResponse, Responder,
 };
 
 /// *Resource* is an entry in resources table which corresponds to requested URL.
@@ -239,7 +239,7 @@ where
         R: Future + 'static,
         R::Output: Responder + 'static,
         <R::Output as Responder>::Body: MessageBody,
-        <<R::Output as Responder>::Body as MessageBody>::Error: Into<BoxError>,
+        <<R::Output as Responder>::Body as MessageBody>::Error: fmt::Debug,
     {
         self.routes.push(Route::new().to(handler));
         self

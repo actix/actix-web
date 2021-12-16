@@ -113,5 +113,3 @@ pub use crate::route::Route;
 pub use crate::scope::Scope;
 pub use crate::server::HttpServer;
 pub use crate::types::Either;
-
-pub(crate) type BoxError = Box<dyn std::error::Error>;

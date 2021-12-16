@@ -66,10 +66,10 @@ where
         match self.project() {
             EitherBodyProj::Left { body } => body
                 .poll_next(cx)
-                .map_err(|err| Error::new_body().with_cause(err)),
+                .map_err(|err| Error::new_body().with_cause(format!("{:?}", err))),
             EitherBodyProj::Right { body } => body
                 .poll_next(cx)
-                .map_err(|err| Error::new_body().with_cause(err)),
+                .map_err(|err| Error::new_body().with_cause(format!("{:?}", err))),
         }
     }
 

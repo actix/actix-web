@@ -1,3 +1,5 @@
+use std::fmt;
+
 use actix_http::{
     body::{EitherBody, MessageBody},
     error::HttpError,
@@ -6,7 +8,7 @@ use actix_http::{
     StatusCode,
 };
 
-use crate::{BoxError, HttpRequest, HttpResponse, Responder};
+use crate::{HttpRequest, HttpResponse, Responder};
 
 /// Allows overriding status code and headers for a [`Responder`].
 ///
@@ -143,7 +145,7 @@ impl<R: Responder> CustomizeResponder<R> {
 impl<T> Responder for CustomizeResponder<T>
 where
     T: Responder,
-    <T::Body as MessageBody>::Error: Into<BoxError>,
+    <T::Body as MessageBody>::Error: fmt::Debug,
 {
     type Body = EitherBody<T::Body>;
 

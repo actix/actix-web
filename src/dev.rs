@@ -3,6 +3,8 @@
 //! Most users will not have to interact with the types in this module, but it is useful for those
 //! writing extractors, middleware, libraries, or interacting with the service API directly.
 
+use std::fmt;
+
 pub use crate::config::{AppConfig, AppService};
 #[doc(hidden)]
 pub use crate::handler::Handler;
@@ -114,7 +116,7 @@ pub(crate) enum AnyBody {
 }
 
 impl crate::body::MessageBody for AnyBody {
-    type Error = crate::BoxError;
+    type Error = Box<dyn fmt::Debug>;
 
     /// Body size hint.
     fn size(&self) -> crate::body::BodySize {

@@ -1,5 +1,4 @@
 use std::{
-    error::Error as StdError,
     fmt,
     pin::Pin,
     task::{Context, Poll},
@@ -8,23 +7,28 @@ use std::{
 use bytes::Bytes;
 
 use super::{BodySize, MessageBody, MessageBodyMapErr};
-use crate::Error;
 
 /// A boxed message body with boxed errors.
-pub struct BoxBody(Pin<Box<dyn MessageBody<Error = Box<dyn StdError>>>>);
+pub struct BoxBody(Pin<Box<dyn MessageBody<Error = Box<dyn fmt::Debug>>>>);
 
 impl BoxBody {
     /// Boxes a `MessageBody` and any errors it generates.
+    #[inline]
     pub fn new<B>(body: B) -> Self
     where
         B: MessageBody + 'static,
     {
-        let body = MessageBodyMapErr::new(body, Into::into);
+        fn box_it<T: fmt::Debug + 'static>(it: T) -> Box<dyn fmt::Debug> {
+            Box::new(it)
+        }
+
+        let body = MessageBodyMapErr::new(body, box_it);
         Self(Box::pin(body))
     }
 
     /// Returns a mutable pinned reference to the inner message body type.
-    pub fn as_pin_mut(&mut self) -> Pin<&mut (dyn MessageBody<Error = Box<dyn StdError>>)> {
+    #[inline]
+    pub fn as_pin_mut(&mut self) -> Pin<&mut (dyn MessageBody<Error = Box<dyn fmt::Debug>>)> {
         self.0.as_mut()
     }
 }
@@ -36,22 +40,22 @@ impl fmt::Debug for BoxBody {
 }
 
 impl MessageBody for BoxBody {
-    type Error = Error;
+    type Error = Box<dyn fmt::Debug>;
 
+    #[inline]
     fn size(&self) -> BodySize {
         self.0.size()
     }
 
+    #[inline]
     fn poll_next(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
-        self.0
-            .as_mut()
-            .poll_next(cx)
-            .map_err(|err| Error::new_body().with_cause(err))
+        self.0.as_mut().poll_next(cx)
     }
 
+    #[inline]
     fn is_complete_body(&self) -> bool {
         self.0.is_complete_body()
     }

@@ -15,7 +15,7 @@ use crate::{
     error::{FreezeRequestError, InvalidUrl},
     frozen::FrozenClientRequest,
     sender::{PrepForSendingError, RequestSender, SendClientRequest},
-    BoxError, ClientConfig,
+    ClientConfig,
 };
 
 #[cfg(feature = "cookies")]
@@ -394,7 +394,7 @@ impl ClientRequest {
     pub fn send_stream<S, E>(self, stream: S) -> SendClientRequest
     where
         S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
-        E: Into<BoxError> + 'static,
+        E: fmt::Debug + 'static,
     {
         let slf = match self.prep_for_sending() {
             Ok(slf) => slf,

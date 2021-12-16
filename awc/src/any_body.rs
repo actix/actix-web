@@ -11,8 +11,6 @@ use pin_project_lite::pin_project;
 
 use actix_http::body::{BodySize, BodyStream, BoxBody, MessageBody, SizedStream};
 
-use crate::BoxError;
-
 pin_project! {
     /// Represents various types of HTTP message body.
     #[derive(Clone)]
@@ -117,7 +115,9 @@ where
                 }
             }
 
-            AnyBodyProj::Body { body } => body.poll_next(cx).map_err(|err| err.into()),
+            AnyBodyProj::Body { body } => body
+                .poll_next(cx)
+                .map_err(|err| format!("{:?}", err).into()),
         }
     }
 }
@@ -213,7 +213,7 @@ impl<B> From<BytesMut> for AnyBody<B> {
 impl<S, E> From<SizedStream<S>> for AnyBody
 where
     S: Stream<Item = Result<Bytes, E>> + 'static,
-    E: Into<BoxError> + 'static,
+    E: fmt::Debug + 'static,
 {
     fn from(stream: SizedStream<S>) -> Self {
         AnyBody::new_boxed(stream)
@@ -223,7 +223,7 @@ where
 impl<S, E> From<BodyStream<S>> for AnyBody
 where
     S: Stream<Item = Result<Bytes, E>> + 'static,
-    E: Into<BoxError> + 'static,
+    E: fmt::Debug + 'static,
 {
     fn from(stream: BodyStream<S>) -> Self {
         AnyBody::new_boxed(stream)

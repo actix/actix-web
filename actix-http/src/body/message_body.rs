@@ -2,8 +2,7 @@
 
 use std::{
     convert::Infallible,
-    error::Error as StdError,
-    mem,
+    fmt, mem,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -17,9 +16,11 @@ use super::BodySize;
 /// An interface types that can converted to bytes and used as response bodies.
 // TODO: examples
 pub trait MessageBody {
-    // TODO: consider this bound to only fmt::Display since the error type is not really used
-    // and there is an impl for Into<Box<StdError>> on String
-    type Error: Into<Box<dyn StdError>>;
+    /// The type of error that will be returned if streaming response fails.
+    ///
+    /// Since it is not appropriate to generate a response mid-stream, it only requires `Debug` for
+    /// internal logging.
+    type Error: fmt::Debug + 'static;
 
     /// Body size hint.
     fn size(&self) -> BodySize;
@@ -450,7 +451,7 @@ impl<B, F, E> MessageBody for MessageBodyMapErr<B, F>
 where
     B: MessageBody,
     F: FnOnce(B::Error) -> E,
-    E: Into<Box<dyn StdError>>,
+    E: fmt::Debug + 'static,
 {
     type Error = E;
 

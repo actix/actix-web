@@ -129,7 +129,7 @@ where
             }
             EncoderBodyProj::Stream { body } => body
                 .poll_next(cx)
-                .map_err(|err| EncoderError::Body(err.into())),
+                .map_err(|err| EncoderError::Body(format!("{:?}", err).into())),
         }
     }
 

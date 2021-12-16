@@ -325,9 +325,8 @@ pin_project! {
 impl<B> MessageBody for StreamLog<B>
 where
     B: MessageBody,
-    B::Error: Into<Error>,
 {
-    type Error = Error;
+    type Error = B::Error;
 
     fn size(&self) -> BodySize {
         self.body.size()
@@ -344,7 +343,7 @@ where
                 *this.size += chunk.len();
                 Poll::Ready(Some(Ok(chunk)))
             }
-            Some(Err(err)) => Poll::Ready(Some(Err(err.into()))),
+            Some(Err(err)) => Poll::Ready(Some(Err(err))),
             None => Poll::Ready(None),
         }
     }

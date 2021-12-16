@@ -1,4 +1,5 @@
 use std::{
+    fmt,
     future::Future,
     net,
     pin::Pin,
@@ -25,7 +26,7 @@ use actix_http::{encoding::Decoder, header::ContentEncoding, Payload, PayloadStr
 use crate::{
     any_body::AnyBody,
     error::{FreezeRequestError, InvalidUrl, SendRequestError},
-    BoxError, ClientConfig, ClientResponse, ConnectRequest, ConnectResponse,
+    ClientConfig, ClientResponse, ConnectRequest, ConnectResponse,
 };
 
 #[derive(Debug, From)]
@@ -275,7 +276,7 @@ impl RequestSender {
     ) -> SendClientRequest
     where
         S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
-        E: Into<BoxError> + 'static,
+        E: fmt::Debug + 'static,
     {
         self.send_body(
             addr,

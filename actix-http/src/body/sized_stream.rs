@@ -1,5 +1,5 @@
 use std::{
-    error::Error as StdError,
+    fmt,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -25,7 +25,7 @@ pin_project! {
 impl<S, E> SizedStream<S>
 where
     S: Stream<Item = Result<Bytes, E>>,
-    E: Into<Box<dyn StdError>> + 'static,
+    E: fmt::Debug + 'static,
 {
     #[inline]
     pub fn new(size: u64, stream: S) -> Self {
@@ -38,7 +38,7 @@ where
 impl<S, E> MessageBody for SizedStream<S>
 where
     S: Stream<Item = Result<Bytes, E>>,
-    E: Into<Box<dyn StdError>> + 'static,
+    E: fmt::Debug + 'static,
 {
     type Error = E;
 
@@ -146,26 +146,5 @@ mod tests {
 
         let body = SizedStream::new(1, stream::once(async { Err("stringy error") }));
         assert!(matches!(to_bytes(body).await, Err("stringy error")));
-    }
-
-    #[actix_rt::test]
-    async fn stream_boxed_error() {
-        // `Box<dyn Error>` does not impl `Error`
-        // but it does impl `Into<Box<dyn Error>>`
-
-        let body = SizedStream::new(
-            0,
-            stream::once(async { Err(Box::<dyn StdError>::from("stringy error")) }),
-        );
-        assert_eq!(to_bytes(body).await.unwrap(), Bytes::new());
-
-        let body = SizedStream::new(
-            1,
-            stream::once(async { Err(Box::<dyn StdError>::from("stringy error")) }),
-        );
-        assert_eq!(
-            to_bytes(body).await.unwrap_err().to_string(),
-            "stringy error"
-        );
     }
 }

@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, fmt};
 
 use actix_http::{
     body::{BoxBody, EitherBody, MessageBody},
@@ -7,7 +7,7 @@ use actix_http::{
 };
 use bytes::{Bytes, BytesMut};
 
-use crate::{BoxError, Error, HttpRequest, HttpResponse, HttpResponseBuilder};
+use crate::{Error, HttpRequest, HttpResponse, HttpResponseBuilder};
 
 use super::CustomizeResponder;
 
@@ -96,7 +96,7 @@ impl Responder for actix_http::ResponseBuilder {
 impl<T> Responder for Option<T>
 where
     T: Responder,
-    <T::Body as MessageBody>::Error: Into<BoxError>,
+    <T::Body as MessageBody>::Error: fmt::Debug,
 {
     type Body = EitherBody<T::Body>;
 
@@ -111,7 +111,7 @@ where
 impl<T, E> Responder for Result<T, E>
 where
     T: Responder,
-    <T::Body as MessageBody>::Error: Into<BoxError>,
+    <T::Body as MessageBody>::Error: fmt::Debug,
     E: Into<Error>,
 {
     type Body = EitherBody<T::Body>;

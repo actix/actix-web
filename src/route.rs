@@ -1,4 +1,4 @@
-use std::{future::Future, mem, rc::Rc};
+use std::{fmt, future::Future, mem, rc::Rc};
 
 use actix_http::Method;
 use actix_service::{
@@ -12,7 +12,7 @@ use crate::{
     guard::{self, Guard},
     handler::{handler_service, Handler},
     service::{BoxedHttpServiceFactory, ServiceRequest, ServiceResponse},
-    BoxError, Error, FromRequest, HttpResponse, Responder,
+    Error, FromRequest, HttpResponse, Responder,
 };
 
 /// Resource route definition
@@ -183,7 +183,7 @@ impl Route {
         R: Future + 'static,
         R::Output: Responder + 'static,
         <R::Output as Responder>::Body: MessageBody,
-        <<R::Output as Responder>::Body as MessageBody>::Error: Into<BoxError>,
+        <<R::Output as Responder>::Body as MessageBody>::Error: fmt::Debug,
     {
         self.service = handler_service(handler);
         self

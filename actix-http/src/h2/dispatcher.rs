@@ -1,6 +1,5 @@
 use std::{
-    cmp,
-    error::Error as StdError,
+    cmp, fmt,
     future::Future,
     marker::PhantomData,
     net,
@@ -14,6 +13,7 @@ use actix_rt::time::{sleep, Sleep};
 use actix_service::Service;
 use actix_utils::future::poll_fn;
 use bytes::{Bytes, BytesMut};
+use derive_more::{Display, Error};
 use futures_core::ready;
 use h2::{
     server::{Connection, SendResponse},
@@ -187,10 +187,25 @@ where
     }
 }
 
+#[derive(Debug, Display, Error)]
 enum DispatchError {
+    /// Send response head failed.
+    #[display(fmt = "Send response head failed")]
     SendResponse(h2::Error),
+
+    /// Send response data failed.
+    #[display(fmt = "Send response data failed")]
     SendData(h2::Error),
-    ResponseBody(Box<dyn StdError>),
+
+    /// Receiving body chunk failed.
+    #[display(fmt = "Receiving body chunk failed")]
+    ResponseBody(#[error(not(source))] Box<dyn fmt::Debug>),
+}
+
+impl DispatchError {
+    fn response_body<E: fmt::Debug + 'static>(err: E) -> Self {
+        Self::ResponseBody(Box::new(err))
+    }
 }
 
 async fn handle_response<B>(
@@ -221,7 +236,7 @@ where
     actix_rt::pin!(body);
 
     while let Some(res) = poll_fn(|cx| body.as_mut().poll_next(cx)).await {
-        let mut chunk = res.map_err(|err| DispatchError::ResponseBody(err.into()))?;
+        let mut chunk = res.map_err(DispatchError::response_body)?;
 
         'send: loop {
             let chunk_size = cmp::min(chunk.len(), CHUNK_SIZE);

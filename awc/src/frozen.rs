@@ -1,4 +1,4 @@
-use std::{convert::TryFrom, net, rc::Rc, time::Duration};
+use std::{convert::TryFrom, fmt, net, rc::Rc, time::Duration};
 
 use bytes::Bytes;
 use futures_core::Stream;
@@ -13,7 +13,7 @@ use actix_http::{
 use crate::{
     any_body::AnyBody,
     sender::{RequestSender, SendClientRequest},
-    BoxError, ClientConfig,
+    ClientConfig,
 };
 
 /// `FrozenClientRequest` struct represents cloneable client request.
@@ -83,7 +83,7 @@ impl FrozenClientRequest {
     pub fn send_stream<S, E>(&self, stream: S) -> SendClientRequest
     where
         S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
-        E: Into<BoxError> + 'static,
+        E: fmt::Debug + 'static,
     {
         RequestSender::Rc(self.head.clone(), None).send_stream(
             self.addr,
@@ -208,7 +208,7 @@ impl FrozenSendBuilder {
     pub fn send_stream<S, E>(self, stream: S) -> SendClientRequest
     where
         S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
-        E: Into<BoxError> + 'static,
+        E: fmt::Debug + 'static,
     {
         if let Some(e) = self.err {
             return e.into();

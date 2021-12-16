@@ -1,6 +1,7 @@
 use std::{
     cell::{Ref, RefMut},
     convert::TryInto,
+    fmt,
     future::Future,
     pin::Pin,
     task::{Context, Poll},
@@ -23,7 +24,7 @@ use cookie::{Cookie, CookieJar};
 
 use crate::{
     error::{Error, JsonPayloadError},
-    BoxError, HttpResponse,
+    HttpResponse,
 };
 
 /// An HTTP response builder.
@@ -349,7 +350,7 @@ impl HttpResponseBuilder {
     pub fn streaming<S, E>(&mut self, stream: S) -> HttpResponse
     where
         S: Stream<Item = Result<Bytes, E>> + 'static,
-        E: Into<BoxError> + 'static,
+        E: fmt::Debug + 'static,
     {
         self.body(BodyStream::new(stream))
     }
