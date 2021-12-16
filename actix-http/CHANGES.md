@@ -28,6 +28,8 @@
 * `Request::take_req_data()`. [#2487]
 * `impl Clone` for `RequestHead`. [#2487]
 * New methods on `MessageBody` trait, `is_complete_body` and `take_complete_body`, both with default implementations, for optimisations on body types that are done in exactly one poll/chunk. [#2497]
+* New method on `MessageBody` trait, `boxed`, for optimisations on boxing body type. [#2520]
+* `BoxBody::new_raw`, which is less performant than `BoxBody::new` but is necessary for the default implmentation of `MessageBody::boxed`. [#2520]
 
 ### Changed
 * Rename `body::BoxBody::{from_body => new}`. [#2468]
@@ -56,6 +58,7 @@
 [#2488]: https://github.com/actix/actix-web/pull/2488
 [#2491]: https://github.com/actix/actix-web/pull/2491
 [#2497]: https://github.com/actix/actix-web/pull/2497
+[#2520]: https://github.com/actix/actix-web/pull/2520
 
 
 ## 3.0.0-beta.14 - 2021-11-30
