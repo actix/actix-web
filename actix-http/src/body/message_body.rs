@@ -164,7 +164,7 @@ mod foreign_impls {
 
     impl<B> MessageBody for Pin<Box<B>>
     where
-        B: MessageBody,
+        B: MessageBody + ?Sized,
     {
         type Error = B::Error;
 
@@ -175,10 +175,10 @@ mod foreign_impls {
 
         #[inline]
         fn poll_next(
-            mut self: Pin<&mut Self>,
+            self: Pin<&mut Self>,
             cx: &mut Context<'_>,
         ) -> Poll<Option<Result<Bytes, Self::Error>>> {
-            self.as_mut().poll_next(cx)
+            self.get_mut().as_mut().poll_next(cx)
         }
 
         #[inline]
@@ -475,6 +475,16 @@ where
             None => Poll::Ready(None),
         }
     }
+
+    #[inline]
+    fn is_complete_body(&self) -> bool {
+        self.body.is_complete_body()
+    }
+
+    #[inline]
+    fn take_complete_body(&mut self) -> Bytes {
+        self.body.take_complete_body()
+    }
 }
 
 #[cfg(test)]
@@ -628,6 +638,27 @@ mod tests {
         assert_eq!(data.take_complete_body(), b"test".as_ref());
         // subsequent poll_next returns None
         assert_eq!(Pin::new(&mut data).poll_next(&mut cx), Poll::Ready(None));
+    }
+
+    #[test]
+    fn complete_body_combinators() {
+        use crate::body::{BoxBody, EitherBody};
+
+        let body = Bytes::from_static(b"test");
+        let body = BoxBody::new(body);
+        let body = EitherBody::<_, ()>::left(body);
+        let body = EitherBody::<(), _>::right(body);
+        let body = Box::new(body);
+        let body = Box::pin(body);
+        let mut body = body;
+
+        assert!(body.is_complete_body());
+        assert_eq!(body.take_complete_body(), b"test".as_ref());
+
+        // subsequent poll_next returns None
+        let waker = futures_util::task::noop_waker();
+        let mut cx = Context::from_waker(&waker);
+        assert!(Pin::new(&mut body).poll_next(&mut cx).map_err(drop) == Poll::Ready(None));
     }
 
     // down-casting used to be done with a method on MessageBody trait
