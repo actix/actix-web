@@ -198,7 +198,7 @@ mod foreign_impls {
             // we do not have DerefMut access to call take_complete_body directly but since
             // is_complete_body is true we should expect the entire bytes chunk in one poll_next
 
-            let waker = futures_util::task::noop_waker();
+            let waker = futures_task::noop_waker();
             let mut cx = Context::from_waker(&waker);
 
             match self.as_mut().poll_next(&mut cx) {
@@ -631,7 +631,7 @@ mod tests {
         // second call returns empty
         assert_eq!(data.take_complete_body(), b"".as_ref());
 
-        let waker = futures_util::task::noop_waker();
+        let waker = futures_task::noop_waker();
         let mut cx = Context::from_waker(&waker);
         let mut data = Bytes::from_static(b"test");
         // take returns whole chunk

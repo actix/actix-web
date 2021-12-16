@@ -70,8 +70,8 @@ base64 = "0.13"
 bytes = "1"
 cfg-if = "1"
 derive_more = "0.99.5"
-futures-core = { version = "0.3.7", default-features = false }
-futures-util = { version = "0.3.7", default-features = false }
+futures-core = { version = "0.3.7", default-features = false, features = ["alloc"] }
+futures-util = { version = "0.3.7", default-features = false, features = ["alloc", "sink"] }
 h2 = "0.3.9"
 http = "0.2.5"
 itoa = "0.4"
