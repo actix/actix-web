@@ -14,8 +14,16 @@ use crate::Error;
 pub struct BoxBody(Pin<Box<dyn MessageBody<Error = Box<dyn StdError>>>>);
 
 impl BoxBody {
-    /// Boxes a `MessageBody` and any errors it generates.
+    /// Same as `MessageBody::boxed`.
     pub fn new<B>(body: B) -> Self
+    where
+        B: MessageBody + 'static,
+    {
+        body.boxed()
+    }
+
+    /// Boxes a `MessageBody` and any errors it generates.
+    pub fn new_raw<B>(body: B) -> Self
     where
         B: MessageBody + 'static,
     {
@@ -58,6 +66,11 @@ impl MessageBody for BoxBody {
 
     fn take_complete_body(&mut self) -> Bytes {
         self.0.take_complete_body()
+    }
+
+    #[inline]
+    fn boxed(self) -> BoxBody {
+        self
     }
 }
 

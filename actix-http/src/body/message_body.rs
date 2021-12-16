@@ -12,7 +12,7 @@ use bytes::{Bytes, BytesMut};
 use futures_core::ready;
 use pin_project_lite::pin_project;
 
-use super::BodySize;
+use super::{BodySize, BoxBody};
 
 /// An interface types that can converted to bytes and used as response bodies.
 // TODO: examples
@@ -76,6 +76,17 @@ pub trait MessageBody {
             check `is_complete_body` first",
             std::any::type_name::<Self>()
         );
+    }
+
+    /// Converts this body into `BoxBody`.
+    ///
+    /// Implementation shouldn't call `BoxBody::new` on `self` as it would cause infinite
+    /// recursion.
+    fn boxed(self) -> BoxBody
+    where
+        Self: Sized + 'static,
+    {
+        BoxBody::new_raw(self)
     }
 }
 
