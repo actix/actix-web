@@ -31,51 +31,11 @@ pub trait MessageBody {
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Self::Error>>>;
 
-    /// Returns true if entire body bytes chunk is obtainable in one call to `poll_next`.
-    ///
-    /// This method's implementation should agree with [`take_complete_body`] and should always be
-    /// checked before taking the body.
-    ///
-    /// The default implementation returns `false.
-    ///
-    /// [`take_complete_body`]: MessageBody::take_complete_body
-    fn is_complete_body(&self) -> bool {
-        false
-    }
-
-    /// Returns the complete chunk of body bytes.
-    ///
-    /// Implementors of this method should note the following:
-    /// - It is acceptable to skip the omit checks of [`is_complete_body`]. The responsibility of
-    ///   performing this check is delegated to the caller.
-    /// - If the result of [`is_complete_body`] is conditional, that condition should be given
-    ///   equivalent attention here.
-    /// - A second call call to [`take_complete_body`] should return an empty `Bytes` or panic.
-    /// - A call to [`poll_next`] after calling [`take_complete_body`] should return `None` unless
-    ///   the chunk is guaranteed to be empty.
-    ///
-    /// The default implementation panics unconditionally, indicating a control flow bug in the
-    /// calling code.
-    ///
-    /// # Panics
-    /// With a correct implementation, panics if called without first checking [`is_complete_body`].
-    ///
-    /// [`is_complete_body`]: MessageBody::is_complete_body
-    /// [`take_complete_body`]: MessageBody::take_complete_body
-    /// [`poll_next`]: MessageBody::poll_next
-    fn take_complete_body(&mut self) -> Bytes {
-        assert!(
-            self.is_complete_body(),
-            "type ({}) allows taking complete body but did not provide an implementation \
-            of `take_complete_body`",
-            std::any::type_name::<Self>()
-        );
-
-        unimplemented!(
-            "type ({}) does not allow taking complete body; caller should make sure to \
-            check `is_complete_body` first",
-            std::any::type_name::<Self>()
-        );
+    fn try_into_bytes(self) -> Result<Bytes, Self>
+    where
+        Self: Sized,
+    {
+        Err(self)
     }
 
     /// Converts this body into `BoxBody`.
@@ -104,14 +64,6 @@ mod foreign_impls {
         ) -> Poll<Option<Result<Bytes, Self::Error>>> {
             match *self {}
         }
-
-        fn is_complete_body(&self) -> bool {
-            true
-        }
-
-        fn take_complete_body(&mut self) -> Bytes {
-            match *self {}
-        }
     }
 
     impl MessageBody for () {
@@ -131,13 +83,8 @@ mod foreign_impls {
         }
 
         #[inline]
-        fn is_complete_body(&self) -> bool {
-            true
-        }
-
-        #[inline]
-        fn take_complete_body(&mut self) -> Bytes {
-            Bytes::new()
+        fn try_into_bytes(self) -> Result<Bytes, Self> {
+            Ok(Bytes::new())
         }
     }
 
@@ -159,16 +106,6 @@ mod foreign_impls {
         ) -> Poll<Option<Result<Bytes, Self::Error>>> {
             Pin::new(self.get_mut().as_mut()).poll_next(cx)
         }
-
-        #[inline]
-        fn is_complete_body(&self) -> bool {
-            self.as_ref().is_complete_body()
-        }
-
-        #[inline]
-        fn take_complete_body(&mut self) -> Bytes {
-            self.as_mut().take_complete_body()
-        }
     }
 
     impl<B> MessageBody for Pin<Box<B>>
@@ -189,38 +126,6 @@ mod foreign_impls {
         ) -> Poll<Option<Result<Bytes, Self::Error>>> {
             self.get_mut().as_mut().poll_next(cx)
         }
-
-        #[inline]
-        fn is_complete_body(&self) -> bool {
-            self.as_ref().is_complete_body()
-        }
-
-        #[inline]
-        fn take_complete_body(&mut self) -> Bytes {
-            debug_assert!(
-                self.is_complete_body(),
-                "inner type \"{}\" does not allow taking complete body; caller should make sure to \
-                call `is_complete_body` first",
-                std::any::type_name::<B>(),
-            );
-
-            // we do not have DerefMut access to call take_complete_body directly but since
-            // is_complete_body is true we should expect the entire bytes chunk in one poll_next
-
-            let waker = futures_task::noop_waker();
-            let mut cx = Context::from_waker(&waker);
-
-            match self.as_mut().poll_next(&mut cx) {
-                Poll::Ready(Some(Ok(data))) => data,
-                _ => {
-                    panic!(
-                        "inner type \"{}\" indicated it allows taking complete body but failed to \
-                        return Bytes when polled",
-                        std::any::type_name::<B>()
-                    );
-                }
-            }
-        }
     }
 
     impl MessageBody for &'static [u8] {
@@ -232,24 +137,19 @@ mod foreign_impls {
         }
 
         fn poll_next(
-            mut self: Pin<&mut Self>,
+            self: Pin<&mut Self>,
             _cx: &mut Context<'_>,
         ) -> Poll<Option<Result<Bytes, Self::Error>>> {
             if self.is_empty() {
                 Poll::Ready(None)
             } else {
-                Poll::Ready(Some(Ok(self.take_complete_body())))
+                Poll::Ready(Some(Ok(Bytes::from_static(mem::take(self.get_mut())))))
             }
         }
 
         #[inline]
-        fn is_complete_body(&self) -> bool {
-            true
-        }
-
-        #[inline]
-        fn take_complete_body(&mut self) -> Bytes {
-            Bytes::from_static(mem::take(self))
+        fn try_into_bytes(self) -> Result<Bytes, Self> {
+            Ok(Bytes::from_static(self))
         }
     }
 
@@ -262,24 +162,19 @@ mod foreign_impls {
         }
 
         fn poll_next(
-            mut self: Pin<&mut Self>,
+            self: Pin<&mut Self>,
             _cx: &mut Context<'_>,
         ) -> Poll<Option<Result<Bytes, Self::Error>>> {
             if self.is_empty() {
                 Poll::Ready(None)
             } else {
-                Poll::Ready(Some(Ok(self.take_complete_body())))
+                Poll::Ready(Some(Ok(mem::take(self.get_mut()))))
             }
         }
 
         #[inline]
-        fn is_complete_body(&self) -> bool {
-            true
-        }
-
-        #[inline]
-        fn take_complete_body(&mut self) -> Bytes {
-            mem::take(self)
+        fn try_into_bytes(self) -> Result<Bytes, Self> {
+            Ok(self)
         }
     }
 
@@ -292,24 +187,19 @@ mod foreign_impls {
         }
 
         fn poll_next(
-            mut self: Pin<&mut Self>,
+            self: Pin<&mut Self>,
             _cx: &mut Context<'_>,
         ) -> Poll<Option<Result<Bytes, Self::Error>>> {
             if self.is_empty() {
                 Poll::Ready(None)
             } else {
-                Poll::Ready(Some(Ok(self.take_complete_body())))
+                Poll::Ready(Some(Ok(mem::take(self.get_mut()).freeze())))
             }
         }
 
         #[inline]
-        fn is_complete_body(&self) -> bool {
-            true
-        }
-
-        #[inline]
-        fn take_complete_body(&mut self) -> Bytes {
-            mem::take(self).freeze()
+        fn try_into_bytes(self) -> Result<Bytes, Self> {
+            Ok(self.freeze())
         }
     }
 
@@ -322,24 +212,19 @@ mod foreign_impls {
         }
 
         fn poll_next(
-            mut self: Pin<&mut Self>,
+            self: Pin<&mut Self>,
             _cx: &mut Context<'_>,
         ) -> Poll<Option<Result<Bytes, Self::Error>>> {
             if self.is_empty() {
                 Poll::Ready(None)
             } else {
-                Poll::Ready(Some(Ok(self.take_complete_body())))
+                Poll::Ready(Some(Ok(mem::take(self.get_mut()).into())))
             }
         }
 
         #[inline]
-        fn is_complete_body(&self) -> bool {
-            true
-        }
-
-        #[inline]
-        fn take_complete_body(&mut self) -> Bytes {
-            Bytes::from(mem::take(self))
+        fn try_into_bytes(self) -> Result<Bytes, Self> {
+            Ok(Bytes::from(self))
         }
     }
 
@@ -365,13 +250,8 @@ mod foreign_impls {
         }
 
         #[inline]
-        fn is_complete_body(&self) -> bool {
-            true
-        }
-
-        #[inline]
-        fn take_complete_body(&mut self) -> Bytes {
-            Bytes::from_static(mem::take(self).as_bytes())
+        fn try_into_bytes(self) -> Result<Bytes, Self> {
+            Ok(Bytes::from_static(self.as_bytes()))
         }
     }
 
@@ -396,13 +276,8 @@ mod foreign_impls {
         }
 
         #[inline]
-        fn is_complete_body(&self) -> bool {
-            true
-        }
-
-        #[inline]
-        fn take_complete_body(&mut self) -> Bytes {
-            Bytes::from(mem::take(self))
+        fn try_into_bytes(self) -> Result<Bytes, Self> {
+            Ok(Bytes::from(self))
         }
     }
 
@@ -423,13 +298,8 @@ mod foreign_impls {
         }
 
         #[inline]
-        fn is_complete_body(&self) -> bool {
-            true
-        }
-
-        #[inline]
-        fn take_complete_body(&mut self) -> Bytes {
-            mem::take(self).into_bytes()
+        fn try_into_bytes(self) -> Result<Bytes, Self> {
+            Ok(self.into_bytes())
         }
     }
 }
@@ -486,13 +356,9 @@ where
     }
 
     #[inline]
-    fn is_complete_body(&self) -> bool {
-        self.body.is_complete_body()
-    }
-
-    #[inline]
-    fn take_complete_body(&mut self) -> Bytes {
-        self.body.take_complete_body()
+    fn try_into_bytes(self) -> Result<Bytes, Self> {
+        let Self { body, mapper } = self;
+        body.try_into_bytes().map_err(|body| Self { body, mapper })
     }
 }
 
@@ -605,51 +471,6 @@ mod tests {
     }
 
     #[test]
-    fn take_string() {
-        let mut data = "test".repeat(2);
-        let data_bytes = Bytes::from(data.clone());
-        assert!(data.is_complete_body());
-        assert_eq!(data.take_complete_body(), data_bytes);
-
-        let mut big_data = "test".repeat(64 * 1024);
-        let data_bytes = Bytes::from(big_data.clone());
-        assert!(big_data.is_complete_body());
-        assert_eq!(big_data.take_complete_body(), data_bytes);
-    }
-
-    #[test]
-    fn take_boxed_equivalence() {
-        let mut data = Bytes::from_static(b"test");
-        assert!(data.is_complete_body());
-        assert_eq!(data.take_complete_body(), b"test".as_ref());
-
-        let mut data = Box::new(Bytes::from_static(b"test"));
-        assert!(data.is_complete_body());
-        assert_eq!(data.take_complete_body(), b"test".as_ref());
-
-        let mut data = Box::pin(Bytes::from_static(b"test"));
-        assert!(data.is_complete_body());
-        assert_eq!(data.take_complete_body(), b"test".as_ref());
-    }
-
-    #[test]
-    fn take_policy() {
-        let mut data = Bytes::from_static(b"test");
-        // first call returns chunk
-        assert_eq!(data.take_complete_body(), b"test".as_ref());
-        // second call returns empty
-        assert_eq!(data.take_complete_body(), b"".as_ref());
-
-        let waker = futures_task::noop_waker();
-        let mut cx = Context::from_waker(&waker);
-        let mut data = Bytes::from_static(b"test");
-        // take returns whole chunk
-        assert_eq!(data.take_complete_body(), b"test".as_ref());
-        // subsequent poll_next returns None
-        assert_eq!(Pin::new(&mut data).poll_next(&mut cx), Poll::Ready(None));
-    }
-
-    #[test]
     fn complete_body_combinators() {
         use crate::body::{BoxBody, EitherBody};
 
@@ -661,13 +482,7 @@ mod tests {
         let body = Box::pin(body);
         let mut body = body;
 
-        assert!(body.is_complete_body());
-        assert_eq!(body.take_complete_body(), b"test".as_ref());
-
-        // subsequent poll_next returns None
-        let waker = futures_task::noop_waker();
-        let mut cx = Context::from_waker(&waker);
-        assert!(Pin::new(&mut body).poll_next(&mut cx).map_err(drop) == Poll::Ready(None));
+        assert_eq!(body.try_into_bytes().unwrap(), b"test".as_ref());
     }
 
     // down-casting used to be done with a method on MessageBody trait

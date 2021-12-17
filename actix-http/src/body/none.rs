@@ -40,14 +40,4 @@ impl MessageBody for None {
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         Poll::Ready(Option::None)
     }
-
-    #[inline]
-    fn is_complete_body(&self) -> bool {
-        true
-    }
-
-    #[inline]
-    fn take_complete_body(&mut self) -> Bytes {
-        Bytes::new()
-    }
 }
