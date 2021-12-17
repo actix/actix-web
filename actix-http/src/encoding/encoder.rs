@@ -108,6 +108,7 @@ where
 {
     type Error = EncoderError;
 
+    #[inline]
     fn size(&self) -> BodySize {
         match self {
             EncoderBody::None => BodySize::None,
@@ -131,6 +132,7 @@ where
         }
     }
 
+    #[inline]
     fn try_into_bytes(self) -> Result<Bytes, Self>
     where
         Self: Sized,
@@ -149,6 +151,7 @@ where
 {
     type Error = EncoderError;
 
+    #[inline]
     fn size(&self) -> BodySize {
         if self.encoder.is_some() {
             BodySize::Stream
@@ -225,6 +228,7 @@ where
         }
     }
 
+    #[inline]
     fn try_into_bytes(mut self) -> Result<Bytes, Self>
     where
         Self: Sized,

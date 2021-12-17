@@ -33,7 +33,8 @@ pub trait MessageBody {
 
     /// Convert this body into `Bytes`.
     ///
-    /// Bodies with `BodySize::None` are allowed to return empty `Bytes`.
+    /// Body types with `BodySize::None` are allowed to return empty `Bytes`.
+    #[inline]
     fn try_into_bytes(self) -> Result<Bytes, Self>
     where
         Self: Sized,
@@ -139,6 +140,7 @@ mod foreign_impls {
             BodySize::Sized(self.len() as u64)
         }
 
+        #[inline]
         fn poll_next(
             self: Pin<&mut Self>,
             _cx: &mut Context<'_>,
@@ -164,6 +166,7 @@ mod foreign_impls {
             BodySize::Sized(self.len() as u64)
         }
 
+        #[inline]
         fn poll_next(
             self: Pin<&mut Self>,
             _cx: &mut Context<'_>,
@@ -189,6 +192,7 @@ mod foreign_impls {
             BodySize::Sized(self.len() as u64)
         }
 
+        #[inline]
         fn poll_next(
             self: Pin<&mut Self>,
             _cx: &mut Context<'_>,
@@ -214,6 +218,7 @@ mod foreign_impls {
             BodySize::Sized(self.len() as u64)
         }
 
+        #[inline]
         fn poll_next(
             self: Pin<&mut Self>,
             _cx: &mut Context<'_>,
@@ -239,6 +244,7 @@ mod foreign_impls {
             BodySize::Sized(self.len() as u64)
         }
 
+        #[inline]
         fn poll_next(
             self: Pin<&mut Self>,
             _cx: &mut Context<'_>,
@@ -266,6 +272,7 @@ mod foreign_impls {
             BodySize::Sized(self.len() as u64)
         }
 
+        #[inline]
         fn poll_next(
             self: Pin<&mut Self>,
             _cx: &mut Context<'_>,
@@ -292,6 +299,7 @@ mod foreign_impls {
             BodySize::Sized(self.len() as u64)
         }
 
+        #[inline]
         fn poll_next(
             self: Pin<&mut Self>,
             _cx: &mut Context<'_>,

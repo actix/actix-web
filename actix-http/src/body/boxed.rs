@@ -77,17 +77,21 @@ impl MessageBody for BoxBody {
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         match &mut self.0 {
-            BoxBodyInner::None(_) => Poll::Ready(None),
-            BoxBodyInner::Bytes(bytes) => Pin::new(bytes).poll_next(cx).map_err(Into::into),
-            BoxBodyInner::Stream(stream) => Pin::new(stream).poll_next(cx),
+            BoxBodyInner::None(body) => {
+                Pin::new(body).poll_next(cx).map_err(|err| match err {})
+            }
+            BoxBodyInner::Bytes(body) => {
+                Pin::new(body).poll_next(cx).map_err(|err| match err {})
+            }
+            BoxBodyInner::Stream(body) => Pin::new(body).poll_next(cx),
         }
     }
 
     #[inline]
     fn try_into_bytes(self) -> Result<Bytes, Self> {
         match self.0 {
-            BoxBodyInner::None(none) => Ok(none.try_into_bytes().unwrap()),
-            BoxBodyInner::Bytes(bytes) => Ok(bytes.try_into_bytes().unwrap()),
+            BoxBodyInner::None(body) => Ok(body.try_into_bytes().unwrap()),
+            BoxBodyInner::Bytes(body) => Ok(body.try_into_bytes().unwrap()),
             _ => Err(self),
         }
     }
