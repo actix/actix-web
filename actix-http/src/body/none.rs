@@ -42,12 +42,7 @@ impl MessageBody for None {
     }
 
     #[inline]
-    fn is_complete_body(&self) -> bool {
-        true
-    }
-
-    #[inline]
-    fn take_complete_body(&mut self) -> Bytes {
-        Bytes::new()
+    fn try_into_bytes(self) -> Result<Bytes, Self> {
+        Ok(Bytes::new())
     }
 }

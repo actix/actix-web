@@ -22,7 +22,7 @@ use crate::{
     config::ServiceConfig,
     error::{DispatchError, ParseError, PayloadError},
     service::HttpFlow,
-    Extensions, OnConnectData, Request, Response, StatusCode,
+    Error, Extensions, OnConnectData, Request, Response, StatusCode,
 };
 
 use super::{
@@ -494,7 +494,9 @@ where
                             }
 
                             Poll::Ready(Some(Err(err))) => {
-                                return Err(DispatchError::Body(err.into()))
+                                return Err(DispatchError::Body(
+                                    Error::new_body().with_cause(err).into(),
+                                ))
                             }
 
                             Poll::Pending => return Ok(PollResponse::DoNothing),

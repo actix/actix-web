@@ -8,10 +8,16 @@ use std::{
 use bytes::Bytes;
 
 use super::{BodySize, MessageBody, MessageBodyMapErr};
-use crate::Error;
+use crate::body;
 
 /// A boxed message body with boxed errors.
-pub struct BoxBody(Pin<Box<dyn MessageBody<Error = Box<dyn StdError>>>>);
+pub struct BoxBody(BoxBodyInner);
+
+enum BoxBodyInner {
+    None(body::None),
+    Bytes(Bytes),
+    Stream(Pin<Box<dyn MessageBody<Error = Box<dyn StdError>>>>),
+}
 
 impl BoxBody {
     /// Same as `MessageBody::boxed`.
@@ -23,29 +29,42 @@ impl BoxBody {
     where
         B: MessageBody + 'static,
     {
-        let body = MessageBodyMapErr::new(body, Into::into);
-        Self(Box::pin(body))
+        match body.size() {
+            BodySize::None => Self(BoxBodyInner::None(body::None)),
+            _ => match body.try_into_bytes() {
+                Ok(bytes) => Self(BoxBodyInner::Bytes(bytes)),
+                Err(body) => {
+                    let body = MessageBodyMapErr::new(body, Into::into);
+                    Self(BoxBodyInner::Stream(Box::pin(body)))
+                }
+            },
+        }
     }
 
     /// Returns a mutable pinned reference to the inner message body type.
     #[inline]
-    pub fn as_pin_mut(&mut self) -> Pin<&mut (dyn MessageBody<Error = Box<dyn StdError>>)> {
-        self.0.as_mut()
+    pub fn as_pin_mut(&mut self) -> Pin<&mut Self> {
+        Pin::new(self)
     }
 }
 
 impl fmt::Debug for BoxBody {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // TODO show BoxBodyInner
         f.write_str("BoxBody(dyn MessageBody)")
     }
 }
 
 impl MessageBody for BoxBody {
-    type Error = Error;
+    type Error = Box<dyn StdError>;
 
     #[inline]
     fn size(&self) -> BodySize {
-        self.0.size()
+        match &self.0 {
+            BoxBodyInner::None(none) => none.size(),
+            BoxBodyInner::Bytes(bytes) => bytes.size(),
+            BoxBodyInner::Stream(stream) => stream.size(),
+        }
     }
 
     #[inline]
@@ -53,20 +72,20 @@ impl MessageBody for BoxBody {
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
-        self.0
-            .as_mut()
-            .poll_next(cx)
-            .map_err(|err| Error::new_body().with_cause(err))
+        match &mut self.0 {
+            BoxBodyInner::None(_) => Poll::Ready(None),
+            BoxBodyInner::Bytes(bytes) => Pin::new(bytes).poll_next(cx).map_err(Into::into),
+            BoxBodyInner::Stream(stream) => Pin::new(stream).poll_next(cx),
+        }
     }
 
     #[inline]
-    fn is_complete_body(&self) -> bool {
-        self.0.is_complete_body()
-    }
-
-    #[inline]
-    fn take_complete_body(&mut self) -> Bytes {
-        self.0.take_complete_body()
+    fn try_into_bytes(self) -> Result<Bytes, Self> {
+        match self.0 {
+            BoxBodyInner::None(none) => Ok(none.try_into_bytes().unwrap()),
+            BoxBodyInner::Bytes(bytes) => Ok(bytes.try_into_bytes().unwrap()),
+            _ => Err(self),
+        }
     }
 
     #[inline]

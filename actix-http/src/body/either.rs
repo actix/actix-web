@@ -74,18 +74,14 @@ where
     }
 
     #[inline]
-    fn is_complete_body(&self) -> bool {
+    fn try_into_bytes(self) -> Result<Bytes, Self> {
         match self {
-            EitherBody::Left { body } => body.is_complete_body(),
-            EitherBody::Right { body } => body.is_complete_body(),
-        }
-    }
-
-    #[inline]
-    fn take_complete_body(&mut self) -> Bytes {
-        match self {
-            EitherBody::Left { body } => body.take_complete_body(),
-            EitherBody::Right { body } => body.take_complete_body(),
+            EitherBody::Left { body } => body
+                .try_into_bytes()
+                .map_err(|body| EitherBody::Left { body }),
+            EitherBody::Right { body } => body
+                .try_into_bytes()
+                .map_err(|body| EitherBody::Right { body }),
         }
     }
 

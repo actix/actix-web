@@ -139,4 +139,12 @@ impl crate::body::MessageBody for AnyBody {
             AnyBody::Boxed { body } => body.as_pin_mut().poll_next(cx),
         }
     }
+
+    fn try_into_bytes(self) -> Result<crate::web::Bytes, Self> {
+        match self {
+            AnyBody::None => Ok(crate::web::Bytes::new()),
+            AnyBody::Full { body } => Ok(body),
+            _ => Err(self),
+        }
+    }
 }
