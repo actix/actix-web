@@ -28,7 +28,7 @@ twoway = "0.2"
 
 [dev-dependencies]
 actix-rt = "2.2"
-actix-http = "3.0.0-beta.15"
+actix-http = "3.0.0-beta.16"
 futures-util = { version = "0.3.7", default-features = false, features = ["alloc"] }
 tokio = { version = "1", features = ["sync"] }
 tokio-stream = "0.1"

@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 3.0.0-beta.16 - 2021-12-17
 ### Added
 * New method on `MessageBody` trait, `try_into_bytes`, with default implementation, for optimizations on body types that complete in exactly one poll. Replaces `is_complete_body` and `take_complete_body`. [#2522]
 
