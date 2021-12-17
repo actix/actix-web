@@ -79,14 +79,12 @@ pub trait MessageBody {
     }
 
     /// Converts this body into `BoxBody`.
-    ///
-    /// Implementation shouldn't call `BoxBody::new` on `self` as it would cause infinite
-    /// recursion.
+    #[inline]
     fn boxed(self) -> BoxBody
     where
         Self: Sized + 'static,
     {
-        BoxBody::new_raw(self)
+        BoxBody::new(self)
     }
 }
 
@@ -667,7 +665,7 @@ mod tests {
         assert_eq!(body.take_complete_body(), b"test".as_ref());
 
         // subsequent poll_next returns None
-        let waker = futures_util::task::noop_waker();
+        let waker = futures_task::noop_waker();
         let mut cx = Context::from_waker(&waker);
         assert!(Pin::new(&mut body).poll_next(&mut cx).map_err(drop) == Poll::Ready(None));
     }
