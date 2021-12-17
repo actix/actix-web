@@ -244,8 +244,7 @@ impl<B> HttpResponse<B> {
     where
         B: MessageBody + 'static,
     {
-        // TODO: avoid double boxing with down-casting, if it improves perf
-        self.map_body(|_, body| BoxBody::new(body))
+        self.map_body(|_, body| body.boxed())
     }
 
     /// Extract response body

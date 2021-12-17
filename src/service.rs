@@ -451,7 +451,7 @@ impl<B> ServiceResponse<B> {
     where
         B: MessageBody + 'static,
     {
-        self.map_body(|_, body| BoxBody::new(body))
+        self.map_body(|_, body| body.boxed())
     }
 }
 
