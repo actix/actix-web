@@ -46,6 +46,11 @@ bitflags! {
     }
 }
 
+// there's 2 versions of Dispatcher state because of:
+// https://github.com/taiki-e/pin-project-lite/issues/3
+//
+// tl;dr: pin-project-lite doesn't play well with other attribute macros
+
 #[cfg(not(test))]
 pin_project! {
     /// Dispatcher for HTTP/1.1 protocol
@@ -64,37 +69,6 @@ pin_project! {
     {
         #[pin]
         inner: DispatcherState<T, S, B, X, U>,
-    }
-}
-
-// there's 2 versions of dispatcher state because of:
-// https://github.com/taiki-e/pin-project-lite/issues/3
-//
-// tl;dr: pin-project-lite doesn't play well with other attribute macros
-
-pin_project! {
-    #[project = DispatcherStateProj]
-    enum DispatcherState<T, S, B, X, U>
-    where
-        S: Service<Request>,
-        S::Error: Into<Response<BoxBody>>,
-
-        B: MessageBody,
-
-        X: Service<Request, Response = Request>,
-        X::Error: Into<Response<BoxBody>>,
-
-        U: Service<(Request, Framed<T, Codec>), Response = ()>,
-        U::Error: fmt::Display,
-    {
-        Normal {
-            #[pin]
-            inner: InnerDispatcher<T, S, B, X, U>,
-        },
-        Upgrade {
-            #[pin]
-            fut: U::Future,
-        },
     }
 }
 
@@ -119,6 +93,26 @@ pin_project! {
 
         // used in tests
         poll_count: u64,
+    }
+}
+
+pin_project! {
+    #[project = DispatcherStateProj]
+    enum DispatcherState<T, S, B, X, U>
+    where
+        S: Service<Request>,
+        S::Error: Into<Response<BoxBody>>,
+
+        B: MessageBody,
+
+        X: Service<Request, Response = Request>,
+        X::Error: Into<Response<BoxBody>>,
+
+        U: Service<(Request, Framed<T, Codec>), Response = ()>,
+        U::Error: fmt::Display,
+    {
+        Normal { #[pin] inner: InnerDispatcher<T, S, B, X, U> },
+        Upgrade { #[pin] fut: U::Future },
     }
 }
 
