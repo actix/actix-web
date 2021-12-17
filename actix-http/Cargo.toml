@@ -45,7 +45,7 @@ __compress = []
 actix-service = "2.0.0"
 actix-codec = "0.4.1"
 actix-utils = "3.0.0"
-actix-rt = "2.2"
+actix-rt = { version = "2.2", default-features = false }
 
 ahash = "0.7"
 base64 = "0.13"
@@ -66,7 +66,7 @@ local-channel = "0.1"
 log = "0.4"
 mime = "0.3"
 percent-encoding = "2.1"
-pin-project = "1.0.0"
+# pin-project = "1.0.0"
 pin-project-lite = "0.2"
 rand = "0.8"
 sha-1 = "0.9"
