@@ -332,31 +332,28 @@ impl From<PayloadError> for Error {
 }
 
 /// A set of errors that can occur during dispatching HTTP requests.
-#[derive(Debug, Display, Error, From)]
-#[non_exhaustive]
+#[derive(Debug, Display, From)]
 pub enum DispatchError {
-    /// Service error
-    // FIXME: display and error type
+    /// Service error.
     #[display(fmt = "Service Error")]
-    Service(#[error(not(source))] Response<BoxBody>),
+    Service(Response<BoxBody>),
 
-    /// Body error
-    // FIXME: display and error type
-    #[display(fmt = "Body Error")]
-    Body(#[error(not(source))] Box<dyn StdError>),
+    /// Body streaming error.
+    #[display(fmt = "Body error: {}", _0)]
+    Body(Box<dyn StdError>),
 
-    /// Upgrade service error
+    /// Upgrade service error.
     Upgrade,
 
     /// An `io::Error` that occurred while trying to read or write to a network stream.
     #[display(fmt = "IO error: {}", _0)]
     Io(io::Error),
 
-    /// Http request parse error.
-    #[display(fmt = "Parse error: {}", _0)]
+    /// Request parse error.
+    #[display(fmt = "Request parse error: {}", _0)]
     Parse(ParseError),
 
-    /// Http/2 error
+    /// HTTP/2 error.
     #[display(fmt = "{}", _0)]
     H2(h2::Error),
 
@@ -368,21 +365,23 @@ pub enum DispatchError {
     #[display(fmt = "Connection shutdown timeout")]
     DisconnectTimeout,
 
-    /// Payload is not consumed
-    #[display(fmt = "Task is completed but request's payload is not consumed")]
-    PayloadIsNotConsumed,
-
-    /// Malformed request
-    #[display(fmt = "Malformed request")]
-    MalformedRequest,
-
-    /// Internal error
+    /// Internal error.
     #[display(fmt = "Internal error")]
     InternalError,
+}
 
-    /// Unknown error
-    #[display(fmt = "Unknown error")]
-    Unknown,
+impl StdError for DispatchError {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        match self {
+            // TODO: error source extraction?
+            DispatchError::Service(_res) => None,
+            DispatchError::Body(err) => Some(&**err),
+            DispatchError::Io(err) => Some(err),
+            DispatchError::Parse(err) => Some(err),
+            DispatchError::H2(err) => Some(err),
+            _ => None,
+        }
+    }
 }
 
 /// A set of error that can occur during parsing content type.

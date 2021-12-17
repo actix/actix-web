@@ -356,9 +356,9 @@ where
     type Future = Dispatcher<T, S, B, X, U>;
 
     fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self._poll_ready(cx).map_err(|e| {
-            log::error!("HTTP/1 service readiness error: {:?}", e);
-            DispatchError::Service(e)
+        self._poll_ready(cx).map_err(|err| {
+            log::error!("HTTP/1 service readiness error: {:?}", err);
+            DispatchError::Service(err)
         })
     }
 

@@ -458,7 +458,7 @@ where
                             }
 
                             Poll::Ready(Some(Err(err))) => {
-                                return Err(DispatchError::Service(err.into()))
+                                return Err(DispatchError::Body(err.into()))
                             }
 
                             Poll::Pending => return Ok(PollResponse::DoNothing),
