@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 4.0.0-beta.15 - 2021-12-17
 ### Added
 * Method on `Responder` trait (`customize`) for customizing responders and `CustomizeResponder` struct. [#2510]
 * Implement `Debug` for `DefaultHeaders`. [#2510]
