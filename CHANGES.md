@@ -15,7 +15,7 @@
 * Rename `test::{default_service => simple_service}`. Old name is deprecated. [#2518]
 * Rename `test::{read_response_json => call_and_read_body_json}`. Old name is deprecated. [#2518]
 * Rename `test::{read_response => call_and_read_body}`. Old name is deprecated. [#2518]
-* Relax body type and error bounds on test utilities.
+* Relax body type and error bounds on test utilities. [#2518]
 
 ### Removed
 * Top-level `EitherExtractError` export. [#2510]
