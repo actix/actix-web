@@ -25,7 +25,7 @@ use zstd::stream::write::Encoder as ZstdEncoder;
 
 use super::Writer;
 use crate::{
-    body::{BodySize, MessageBody},
+    body::{self, BodySize, MessageBody},
     error::BlockingError,
     header::{self, ContentEncoding, HeaderValue, CONTENT_ENCODING},
     ResponseHead, StatusCode,
@@ -46,7 +46,9 @@ pin_project! {
 impl<B: MessageBody> Encoder<B> {
     fn none() -> Self {
         Encoder {
-            body: EncoderBody::None,
+            body: EncoderBody::None {
+                body: body::None::new(),
+            },
             encoder: None,
             fut: None,
             eof: true,
@@ -96,7 +98,7 @@ impl<B: MessageBody> Encoder<B> {
 pin_project! {
     #[project = EncoderBodyProj]
     enum EncoderBody<B> {
-        None,
+        None { body: body::None },
         Full { body: Bytes },
         Stream { #[pin] body: B },
     }
@@ -111,7 +113,7 @@ where
     #[inline]
     fn size(&self) -> BodySize {
         match self {
-            EncoderBody::None => BodySize::None,
+            EncoderBody::None { body } => body.size(),
             EncoderBody::Full { body } => body.size(),
             EncoderBody::Stream { body } => body.size(),
         }
@@ -122,7 +124,9 @@ where
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         match self.project() {
-            EncoderBodyProj::None => Poll::Ready(None),
+            EncoderBodyProj::None { body } => {
+                Pin::new(body).poll_next(cx).map_err(|err| match err {})
+            }
             EncoderBodyProj::Full { body } => {
                 Pin::new(body).poll_next(cx).map_err(|err| match err {})
             }
@@ -138,8 +142,8 @@ where
         Self: Sized,
     {
         match self {
-            EncoderBody::None => Ok(Bytes::new()),
-            EncoderBody::Full { body } => Ok(body),
+            EncoderBody::None { body } => Ok(body.try_into_bytes().unwrap()),
+            EncoderBody::Full { body } => Ok(body.try_into_bytes().unwrap()),
             _ => Err(self),
         }
     }
