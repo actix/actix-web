@@ -14,7 +14,11 @@ use crate::Error;
 pub struct BoxBody(Pin<Box<dyn MessageBody<Error = Box<dyn StdError>>>>);
 
 impl BoxBody {
-    /// Boxes a `MessageBody` and any errors it generates.
+    /// Same as `MessageBody::boxed`.
+    ///
+    /// If the body type to wrap is unknown or generic it is better to use [`MessageBody::boxed`] to
+    /// avoid double boxing.
+    #[inline]
     pub fn new<B>(body: B) -> Self
     where
         B: MessageBody + 'static,
@@ -24,6 +28,7 @@ impl BoxBody {
     }
 
     /// Returns a mutable pinned reference to the inner message body type.
+    #[inline]
     pub fn as_pin_mut(&mut self) -> Pin<&mut (dyn MessageBody<Error = Box<dyn StdError>>)> {
         self.0.as_mut()
     }
@@ -38,10 +43,12 @@ impl fmt::Debug for BoxBody {
 impl MessageBody for BoxBody {
     type Error = Error;
 
+    #[inline]
     fn size(&self) -> BodySize {
         self.0.size()
     }
 
+    #[inline]
     fn poll_next(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -52,12 +59,19 @@ impl MessageBody for BoxBody {
             .map_err(|err| Error::new_body().with_cause(err))
     }
 
+    #[inline]
     fn is_complete_body(&self) -> bool {
         self.0.is_complete_body()
     }
 
+    #[inline]
     fn take_complete_body(&mut self) -> Bytes {
         self.0.take_complete_body()
+    }
+
+    #[inline]
+    fn boxed(self) -> BoxBody {
+        self
     }
 }
 
