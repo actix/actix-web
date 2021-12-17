@@ -1,6 +1,10 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Removed
+* `header::map::GetAll` iterator, its `Iterator::size_hint` method was wrongly implemented. Replaced with `std::slice::Iter`. [#2527]
+
+[#2527]: https://github.com/actix/actix-web/pull/2527
 
 
 ## 3.0.0-beta.16 - 2021-12-17
