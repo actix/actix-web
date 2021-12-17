@@ -17,11 +17,15 @@ use super::{BodySize, BoxBody};
 /// An interface types that can converted to bytes and used as response bodies.
 // TODO: examples
 pub trait MessageBody {
-    // TODO: consider this bound to only fmt::Display since the error type is not really used
-    // and there is an impl for Into<Box<StdError>> on String
+    /// The type of error that will be returned if streaming body fails.
+    ///
+    /// Since it is not appropriate to generate a response mid-stream, it only requires `Error` for
+    /// internal use and logging.
     type Error: Into<Box<dyn StdError>>;
 
     /// Body size hint.
+    ///
+    /// If [`BodySize::None`] is returned, optimizations that skip reading the body are allowed.
     fn size(&self) -> BodySize;
 
     /// Attempt to pull out the next chunk of body bytes.
@@ -31,9 +35,17 @@ pub trait MessageBody {
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Self::Error>>>;
 
-    /// Convert this body into `Bytes`.
+    /// Try to convert into the complete chunk of body bytes.
     ///
-    /// Body types with `BodySize::None` are allowed to return empty `Bytes`.
+    /// Implement this method if the entire body can be trivially extracted. This is useful for
+    /// optimizations where `poll_next` calls can be avoided.
+    ///
+    /// Body types with [`BodySize::None`] are allowed to return empty `Bytes`. Although, if calling
+    /// this method, it is recommended to check `size` first and return early.
+    ///
+    /// # Errors
+    /// The default implementation will error and return the original type back to the caller for
+    /// further use.
     #[inline]
     fn try_into_bytes(self) -> Result<Bytes, Self>
     where
