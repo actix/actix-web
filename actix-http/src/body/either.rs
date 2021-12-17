@@ -88,6 +88,14 @@ where
             EitherBody::Right { body } => body.take_complete_body(),
         }
     }
+
+    #[inline]
+    fn boxed(self) -> BoxBody {
+        match self {
+            EitherBody::Left { body } => body.boxed(),
+            EitherBody::Right { body } => body.boxed(),
+        }
+    }
 }
 
 #[cfg(test)]

@@ -194,7 +194,7 @@ impl<B> Response<B> {
     where
         B: MessageBody + 'static,
     {
-        self.map_body(|_, body| BoxBody::new(body))
+        self.map_body(|_, body| body.boxed())
     }
 
     /// Returns body, consuming this response.

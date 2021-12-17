@@ -11,7 +11,7 @@ use bytes::{Bytes, BytesMut};
 use futures_core::ready;
 use pin_project_lite::pin_project;
 
-use super::BodySize;
+use super::{BodySize, BoxBody};
 
 /// An interface types that can converted to bytes and used as response bodies.
 // TODO: examples
@@ -77,6 +77,15 @@ pub trait MessageBody {
             check `is_complete_body` first",
             std::any::type_name::<Self>()
         );
+    }
+
+    /// Converts this body into `BoxBody`.
+    #[inline]
+    fn boxed(self) -> BoxBody
+    where
+        Self: Sized + 'static,
+    {
+        BoxBody::new(self)
     }
 }
 
@@ -657,7 +666,7 @@ mod tests {
         assert_eq!(body.take_complete_body(), b"test".as_ref());
 
         // subsequent poll_next returns None
-        let waker = futures_util::task::noop_waker();
+        let waker = futures_task::noop_waker();
         let mut cx = Context::from_waker(&waker);
         assert!(Pin::new(&mut body).poll_next(&mut cx).map_err(drop) == Poll::Ready(None));
     }

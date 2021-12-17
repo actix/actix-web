@@ -13,6 +13,9 @@ pub struct BoxBody(Pin<Box<dyn MessageBody<Error = Box<dyn fmt::Debug>>>>);
 
 impl BoxBody {
     /// Boxes a `MessageBody` and any errors it generates.
+    ///
+    /// If the body type to wrap is unknown or generic it is better to use [`MessageBody::boxed`] to
+    /// avoid double boxing.
     #[inline]
     pub fn new<B>(body: B) -> Self
     where
@@ -28,7 +31,7 @@ impl BoxBody {
 
     /// Returns a mutable pinned reference to the inner message body type.
     #[inline]
-    pub fn as_pin_mut(&mut self) -> Pin<&mut (dyn MessageBody<Error = Box<dyn fmt::Debug>>)> {
+    pub fn as_pin_mut(&mut self) -> Pin<&mut (dyn MessageBody<Error = Box<dyn StdError>>)> {
         self.0.as_mut()
     }
 }
@@ -60,8 +63,14 @@ impl MessageBody for BoxBody {
         self.0.is_complete_body()
     }
 
+    #[inline]
     fn take_complete_body(&mut self) -> Bytes {
         self.0.take_complete_body()
+    }
+
+    #[inline]
+    fn boxed(self) -> BoxBody {
+        self
     }
 }
 
