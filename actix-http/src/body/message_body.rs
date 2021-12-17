@@ -369,6 +369,7 @@ mod tests {
     use bytes::{Bytes, BytesMut};
 
     use super::*;
+    use crate::body::{BoxBody, EitherBody};
 
     macro_rules! assert_poll_next {
         ($pin:expr, $exp:expr) => {
@@ -470,19 +471,30 @@ mod tests {
         assert_poll_next!(pl, Bytes::from("test"));
     }
 
-    #[test]
-    fn complete_body_combinators() {
-        use crate::body::{BoxBody, EitherBody};
-
+    #[actix_rt::test]
+    async fn complete_body_combinators() {
         let body = Bytes::from_static(b"test");
         let body = BoxBody::new(body);
         let body = EitherBody::<_, ()>::left(body);
         let body = EitherBody::<(), _>::right(body);
-        let body = Box::new(body);
-        let body = Box::pin(body);
+        // Do not support try_into_bytes:
+        // let body = Box::new(body);
+        // let body = Box::pin(body);
+
+        assert_eq!(body.try_into_bytes().unwrap(), Bytes::from("test"));
+    }
+
+    #[actix_rt::test]
+    async fn complete_body_combinators_poll() {
+        let body = Bytes::from_static(b"test");
+        let body = BoxBody::new(body);
+        let body = EitherBody::<_, ()>::left(body);
+        let body = EitherBody::<(), _>::right(body);
         let mut body = body;
 
-        assert_eq!(body.try_into_bytes().unwrap(), b"test".as_ref());
+        assert_eq!(body.size(), BodySize::Sized(4));
+        assert_poll_next!(Pin::new(&mut body), Bytes::from("test"));
+        assert_poll_next_none!(Pin::new(&mut body));
     }
 
     // down-casting used to be done with a method on MessageBody trait

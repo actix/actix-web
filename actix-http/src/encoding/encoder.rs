@@ -53,7 +53,7 @@ impl<B: MessageBody> Encoder<B> {
         }
     }
 
-    pub fn response(encoding: ContentEncoding, head: &mut ResponseHead, mut body: B) -> Self {
+    pub fn response(encoding: ContentEncoding, head: &mut ResponseHead, body: B) -> Self {
         let can_encode = !(head.headers().contains_key(&CONTENT_ENCODING)
             || head.status == StatusCode::SWITCHING_PROTOCOLS
             || head.status == StatusCode::NO_CONTENT
@@ -65,11 +65,9 @@ impl<B: MessageBody> Encoder<B> {
             return Self::none();
         }
 
-        let body = if body.is_complete_body() {
-            let body = body.take_complete_body();
-            EncoderBody::Full { body }
-        } else {
-            EncoderBody::Stream { body }
+        let body = match body.try_into_bytes() {
+            Ok(body) => EncoderBody::Full { body },
+            Err(body) => EncoderBody::Stream { body },
         };
 
         if can_encode {
@@ -133,21 +131,13 @@ where
         }
     }
 
-    fn is_complete_body(&self) -> bool {
+    fn try_into_bytes(self) -> Result<Bytes, Self>
+    where
+        Self: Sized,
+    {
         match self {
-            EncoderBody::None => true,
-            EncoderBody::Full { .. } => true,
-            EncoderBody::Stream { .. } => false,
-        }
-    }
-
-    fn take_complete_body(&mut self) -> Bytes {
-        match self {
-            EncoderBody::None => Bytes::new(),
-            EncoderBody::Full { body } => body.take_complete_body(),
-            EncoderBody::Stream { .. } => {
-                panic!("EncoderBody::Stream variant cannot be taken")
-            }
+            EncoderBody::Full { body } => Ok(body),
+            _ => Err(self),
         }
     }
 }
@@ -234,19 +224,20 @@ where
         }
     }
 
-    fn is_complete_body(&self) -> bool {
+    fn try_into_bytes(mut self) -> Result<Bytes, Self>
+    where
+        Self: Sized,
+    {
         if self.encoder.is_some() {
-            false
+            Err(self)
         } else {
-            self.body.is_complete_body()
-        }
-    }
-
-    fn take_complete_body(&mut self) -> Bytes {
-        if self.encoder.is_some() {
-            panic!("compressed body stream cannot be taken")
-        } else {
-            self.body.take_complete_body()
+            match self.body.try_into_bytes() {
+                Ok(body) => Ok(body),
+                Err(body) => {
+                    self.body = body;
+                    Err(self)
+                }
+            }
         }
     }
 }

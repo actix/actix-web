@@ -1,6 +1,6 @@
 use std::{
     error::Error as StdError,
-    fmt, mem,
+    fmt,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -8,7 +8,6 @@ use std::{
 use bytes::Bytes;
 
 use super::{BodySize, MessageBody, MessageBodyMapErr};
-use crate::Error;
 
 /// A boxed message body with boxed errors.
 pub struct BoxBody(BoxBodyInner);
@@ -43,7 +42,6 @@ impl BoxBody {
 
     /// Returns a mutable pinned reference to the inner message body type.
     #[inline]
-    //pub fn as_pin_mut(&mut self) -> Pin<&mut (dyn MessageBody<Error = Box<dyn StdError>>)> {
     pub fn as_pin_mut(&mut self) -> Pin<&mut Self> {
         Pin::new(self)
     }
@@ -57,7 +55,7 @@ impl fmt::Debug for BoxBody {
 }
 
 impl MessageBody for BoxBody {
-    type Error = Error;
+    type Error = Box<dyn StdError>;
 
     #[inline]
     fn size(&self) -> BodySize {
@@ -75,8 +73,8 @@ impl MessageBody for BoxBody {
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         match &mut self.0 {
             BoxBodyInner::None => Poll::Ready(None),
-            BoxBodyInner::Bytes(bytes) => Poll::Ready(Some(Ok(mem::take(bytes)))),
-            BoxBodyInner::Stream(stream) => Pin::new(stream).poll_next(cx).map_err(|err| Error::new_body().with_cause(err)),
+            BoxBodyInner::Bytes(bytes) => Pin::new(bytes).poll_next(cx).map_err(Into::into),
+            BoxBodyInner::Stream(stream) => Pin::new(stream).poll_next(cx),
         }
     }
 
