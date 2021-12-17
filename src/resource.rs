@@ -1,6 +1,6 @@
-use std::{cell::RefCell, fmt, future::Future, rc::Rc};
+use std::{cell::RefCell, fmt, future::Future, marker::PhantomData, rc::Rc};
 
-use actix_http::Extensions;
+use actix_http::{body::BoxBody, Extensions};
 use actix_router::{IntoPatterns, Patterns};
 use actix_service::{
     apply, apply_fn_factory, boxed, fn_service, IntoServiceFactory, Service, ServiceFactory,
@@ -45,7 +45,7 @@ use crate::{
 ///
 /// If no matching route could be found, *405* response code get returned.
 /// Default behavior could be overridden with `default_resource()` method.
-pub struct Resource<T = ResourceEndpoint> {
+pub struct Resource<T = ResourceEndpoint, B = BoxBody> {
     endpoint: T,
     rdef: Patterns,
     name: Option<String>,
@@ -54,6 +54,7 @@ pub struct Resource<T = ResourceEndpoint> {
     guards: Vec<Box<dyn Guard>>,
     default: BoxedHttpServiceFactory,
     factory_ref: Rc<RefCell<Option<ResourceFactory>>>,
+    _phantom: PhantomData<B>,
 }
 
 impl Resource {
@@ -71,11 +72,12 @@ impl Resource {
             default: boxed::factory(fn_service(|req: ServiceRequest| async {
                 Ok(req.into_response(HttpResponse::MethodNotAllowed()))
             })),
+            _phantom: PhantomData,
         }
     }
 }
 
-impl<T> Resource<T>
+impl<T, B> Resource<T, B>
 where
     T: ServiceFactory<
         ServiceRequest,
@@ -84,6 +86,7 @@ where
         Error = Error,
         InitError = (),
     >,
+    B: MessageBody,
 {
     /// Set resource name.
     ///
@@ -252,26 +255,28 @@ where
     /// type (i.e modify response's body).
     ///
     /// **Note**: middlewares get called in opposite order of middlewares registration.
-    pub fn wrap<M>(
+    pub fn wrap<M, B1>(
         self,
         mw: M,
     ) -> Resource<
         impl ServiceFactory<
             ServiceRequest,
             Config = (),
-            Response = ServiceResponse,
+            Response = ServiceResponse<B1>,
             Error = Error,
             InitError = (),
         >,
+        B1,
     >
     where
         M: Transform<
             T::Service,
             ServiceRequest,
-            Response = ServiceResponse,
+            Response = ServiceResponse<B1>,
             Error = Error,
             InitError = (),
         >,
+        B1: MessageBody,
     {
         Resource {
             endpoint: apply(mw, self.endpoint),
@@ -282,6 +287,7 @@ where
             default: self.default,
             app_data: self.app_data,
             factory_ref: self.factory_ref,
+            _phantom: PhantomData,
         }
     }
 
@@ -319,21 +325,23 @@ where
     ///             .route(web::get().to(index)));
     /// }
     /// ```
-    pub fn wrap_fn<F, R>(
+    pub fn wrap_fn<F, R, B1>(
         self,
         mw: F,
     ) -> Resource<
         impl ServiceFactory<
             ServiceRequest,
             Config = (),
-            Response = ServiceResponse,
+            Response = ServiceResponse<B1>,
             Error = Error,
             InitError = (),
         >,
+        B1,
     >
     where
         F: Fn(ServiceRequest, &T::Service) -> R + Clone,
-        R: Future<Output = Result<ServiceResponse, Error>>,
+        R: Future<Output = Result<ServiceResponse<B1>, Error>>,
+        B1: MessageBody,
     {
         Resource {
             endpoint: apply_fn_factory(self.endpoint, mw),
@@ -344,6 +352,7 @@ where
             default: self.default,
             app_data: self.app_data,
             factory_ref: self.factory_ref,
+            _phantom: PhantomData,
         }
     }
 
@@ -371,15 +380,16 @@ where
     }
 }
 
-impl<T> HttpServiceFactory for Resource<T>
+impl<T, B> HttpServiceFactory for Resource<T, B>
 where
     T: ServiceFactory<
             ServiceRequest,
             Config = (),
-            Response = ServiceResponse,
+            Response = ServiceResponse<B>,
             Error = Error,
             InitError = (),
         > + 'static,
+    B: MessageBody + 'static,
 {
     fn register(mut self, config: &mut AppService) {
         let guards = if self.guards.is_empty() {
@@ -411,7 +421,9 @@ where
                 req.add_data_container(Rc::clone(data));
             }
 
-            srv.call(req)
+            let fut = srv.call(req);
+
+            async { Ok(fut.await?.map_into_boxed_body()) }
         });
 
         config.register_service(rdef, guards, endpoint, None)

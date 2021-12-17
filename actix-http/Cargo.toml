@@ -55,7 +55,6 @@ bytestring = "1"
 derive_more = "0.99.5"
 encoding_rs = "0.8"
 futures-core = { version = "0.3.7", default-features = false, features = ["alloc"] }
-futures-task = { version = "0.3.7", default-features = false, features = ["alloc"] }
 h2 = "0.3.9"
 http = "0.2.5"
 httparse = "1.5.1"
