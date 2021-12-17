@@ -31,6 +31,9 @@ pub trait MessageBody {
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Self::Error>>>;
 
+    /// Convert this body into `Bytes`.
+    ///
+    /// Bodies with `BodySize::None` are allowed to return empty `Bytes`.
     fn try_into_bytes(self) -> Result<Bytes, Self>
     where
         Self: Sized,
@@ -369,7 +372,7 @@ mod tests {
     use bytes::{Bytes, BytesMut};
 
     use super::*;
-    use crate::body::{BoxBody, EitherBody};
+    use crate::body::{self, EitherBody};
 
     macro_rules! assert_poll_next {
         ($pin:expr, $exp:expr) => {
@@ -495,6 +498,21 @@ mod tests {
         assert_eq!(body.size(), BodySize::Sized(4));
         assert_poll_next!(Pin::new(&mut body), Bytes::from("test"));
         assert_poll_next_none!(Pin::new(&mut body));
+    }
+
+    #[actix_rt::test]
+    async fn none_body_combinators() {
+        fn none_body() -> BoxBody {
+            let body = body::None;
+            let body = BoxBody::new(body);
+            let body = EitherBody::<_, ()>::left(body);
+            let body = EitherBody::<(), _>::right(body);
+            body.boxed()
+        }
+
+        assert_eq!(none_body().size(), BodySize::None);
+        assert_eq!(none_body().try_into_bytes().unwrap(), Bytes::new());
+        assert_poll_next_none!(Pin::new(&mut none_body()));
     }
 
     // down-casting used to be done with a method on MessageBody trait

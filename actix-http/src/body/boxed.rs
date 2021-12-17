@@ -8,12 +8,13 @@ use std::{
 use bytes::Bytes;
 
 use super::{BodySize, MessageBody, MessageBodyMapErr};
+use crate::body;
 
 /// A boxed message body with boxed errors.
 pub struct BoxBody(BoxBodyInner);
 
 enum BoxBodyInner {
-    None,
+    None(body::None),
     Bytes(Bytes),
     Stream(Pin<Box<dyn MessageBody<Error = Box<dyn StdError>>>>),
 }
@@ -29,7 +30,7 @@ impl BoxBody {
         B: MessageBody + 'static,
     {
         match body.size() {
-            BodySize::None => Self(BoxBodyInner::None),
+            BodySize::None => Self(BoxBodyInner::None(body::None)),
             _ => match body.try_into_bytes() {
                 Ok(bytes) => Self(BoxBodyInner::Bytes(bytes)),
                 Err(body) => {
@@ -60,8 +61,8 @@ impl MessageBody for BoxBody {
     #[inline]
     fn size(&self) -> BodySize {
         match &self.0 {
-            BoxBodyInner::None => BodySize::None,
-            BoxBodyInner::Bytes(bytes) => BodySize::Sized(bytes.len() as u64),
+            BoxBodyInner::None(none) => none.size(),
+            BoxBodyInner::Bytes(bytes) => bytes.size(),
             BoxBodyInner::Stream(stream) => stream.size(),
         }
     }
@@ -72,7 +73,7 @@ impl MessageBody for BoxBody {
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         match &mut self.0 {
-            BoxBodyInner::None => Poll::Ready(None),
+            BoxBodyInner::None(_) => Poll::Ready(None),
             BoxBodyInner::Bytes(bytes) => Pin::new(bytes).poll_next(cx).map_err(Into::into),
             BoxBodyInner::Stream(stream) => Pin::new(stream).poll_next(cx),
         }
@@ -81,7 +82,8 @@ impl MessageBody for BoxBody {
     #[inline]
     fn try_into_bytes(self) -> Result<Bytes, Self> {
         match self.0 {
-            BoxBodyInner::Bytes(bytes) => Ok(bytes),
+            BoxBodyInner::None(none) => Ok(none.try_into_bytes().unwrap()),
+            BoxBodyInner::Bytes(bytes) => Ok(bytes.try_into_bytes().unwrap()),
             _ => Err(self),
         }
     }

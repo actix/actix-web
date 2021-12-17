@@ -136,6 +136,7 @@ where
         Self: Sized,
     {
         match self {
+            EncoderBody::None => Ok(Bytes::new()),
             EncoderBody::Full { body } => Ok(body),
             _ => Err(self),
         }
