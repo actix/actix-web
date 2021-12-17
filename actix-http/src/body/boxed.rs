@@ -11,12 +11,23 @@ use super::{BodySize, MessageBody, MessageBodyMapErr};
 use crate::body;
 
 /// A boxed message body with boxed errors.
+#[derive(Debug)]
 pub struct BoxBody(BoxBodyInner);
 
 enum BoxBodyInner {
     None(body::None),
     Bytes(Bytes),
     Stream(Pin<Box<dyn MessageBody<Error = Box<dyn StdError>>>>),
+}
+
+impl fmt::Debug for BoxBodyInner {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::None(arg0) => f.debug_tuple("None").field(arg0).finish(),
+            Self::Bytes(arg0) => f.debug_tuple("Bytes").field(arg0).finish(),
+            Self::Stream(_) => f.debug_tuple("Stream").field(&"dyn MessageBody").finish(),
+        }
+    }
 }
 
 impl BoxBody {
@@ -45,13 +56,6 @@ impl BoxBody {
     #[inline]
     pub fn as_pin_mut(&mut self) -> Pin<&mut Self> {
         Pin::new(self)
-    }
-}
-
-impl fmt::Debug for BoxBody {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // TODO show BoxBodyInner
-        f.write_str("BoxBody(dyn MessageBody)")
     }
 }
 
