@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 3.0.0-beta.14 - 2021-12-17
 * Add `ClientBuilder::add_default_header` and deprecate `ClientBuilder::header`. [#2510]
 
 [#2510]: https://github.com/actix/actix-web/pull/2510

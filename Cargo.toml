@@ -107,7 +107,7 @@ url = "2.1"
 
 [dev-dependencies]
 actix-test = { version = "0.1.0-beta.8", features = ["openssl", "rustls"] }
-awc = { version = "3.0.0-beta.13", features = ["openssl"] }
+awc = { version = "3.0.0-beta.14", features = ["openssl"] }
 
 brotli2 = "0.3.2"
 criterion = { version = "0.3", features = ["html_reports"] }
