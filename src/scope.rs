@@ -1,6 +1,9 @@
 use std::{cell::RefCell, fmt, future::Future, marker::PhantomData, mem, rc::Rc};
 
-use actix_http::{body::BoxBody, Extensions};
+use actix_http::{
+    body::{BoxBody, MessageBody},
+    Extensions,
+};
 use actix_router::{ResourceDef, Router};
 use actix_service::{
     apply, apply_fn_factory, boxed, IntoServiceFactory, Service, ServiceFactory,
@@ -399,15 +402,16 @@ where
     }
 }
 
-impl<T> HttpServiceFactory for Scope<T>
+impl<T, B> HttpServiceFactory for Scope<T, B>
 where
     T: ServiceFactory<
             ServiceRequest,
             Config = (),
-            Response = ServiceResponse,
+            Response = ServiceResponse<B>,
             Error = Error,
             InitError = (),
         > + 'static,
+    B: MessageBody + 'static,
 {
     fn register(mut self, config: &mut AppService) {
         // update default resource if needed
@@ -457,7 +461,9 @@ where
                 req.add_data_container(Rc::clone(data));
             }
 
-            srv.call(req)
+            let fut = srv.call(req);
+
+            async { Ok(fut.await?.map_into_boxed_body()) }
         });
 
         // register final service
@@ -978,6 +984,30 @@ mod tests {
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             HeaderValue::from_static("0001")
         );
+    }
+
+    /// Any output body type should be accepted; test for `EitherBody`
+    #[actix_rt::test]
+    async fn test_middleware_body_type() {
+        let srv = init_service(
+            App::new().service(
+                web::scope("app")
+                    .wrap_fn(|req, srv| {
+                        let fut = srv.call(req);
+                        async { Ok(fut.await?.map_into_right_body::<()>()) }
+                    })
+                    .service(web::resource("/test").route(web::get().to(|| async { "hello" }))),
+            ),
+        )
+        .await;
+
+        // test if `is_complete_body()` is preserved across scope layer
+        use actix_http::body::MessageBody as _;
+        let req = TestRequest::with_uri("/app/test").to_request();
+        let resp = call_service(&srv, req).await;
+        let mut body = resp.into_body();
+        assert!(body.is_complete_body());
+        assert_eq!(body.take_complete_body(), b"hello".as_ref());
     }
 
     #[actix_rt::test]
