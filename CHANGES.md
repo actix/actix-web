@@ -1,6 +1,10 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
+### Changed
+* Soft-deprecate `NormalizePath::default()`, noting upcoming behavior change in v4. [#2529]
+
+[#2529]: https://github.com/actix/actix-web/pull/2529
 
 
 ## 3.3.2 - 2020-12-01

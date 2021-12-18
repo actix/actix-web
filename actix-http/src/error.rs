@@ -55,7 +55,7 @@ impl Error {
 
     /// Similar to `as_response_error` but downcasts.
     pub fn as_error<T: ResponseError + 'static>(&self) -> Option<&T> {
-        ResponseError::downcast_ref(self.cause.as_ref())
+        <dyn ResponseError>::downcast_ref(self.cause.as_ref())
     }
 }
 

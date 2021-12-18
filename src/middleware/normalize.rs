@@ -31,7 +31,7 @@ impl Default for TrailingSlash {
     }
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Clone, Copy)]
 /// `Middleware` to normalize request's URI in place
 ///
 /// Performs following:
@@ -55,6 +55,18 @@ impl Default for TrailingSlash {
 /// ```
 
 pub struct NormalizePath(TrailingSlash);
+
+impl Default for NormalizePath {
+    fn default() -> Self {
+        log::warn!(
+            "`NormalizePath::default()` is deprecated. The default trailing slash behavior will \
+            change in v4 from `Always` to `Trim`. Update your call to `NormalizePath::new(...)` to \
+            avoid inaccessible routes when upgrading."
+        );
+
+        Self(TrailingSlash::default())
+    }
+}
 
 impl NormalizePath {
     /// Create new `NormalizePath` middleware with the specified trailing slash style.
