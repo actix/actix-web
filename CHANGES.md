@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2020-xx-xx
+
+
+## 3.3.3 - 2021-12-18
 ### Changed
 * Soft-deprecate `NormalizePath::default()`, noting upcoming behavior change in v4. [#2529]
 
