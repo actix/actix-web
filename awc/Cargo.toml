@@ -62,7 +62,7 @@ actix-codec = "0.4.1"
 actix-service = "2.0.0"
 actix-http = "3.0.0-beta.16"
 actix-rt = { version = "2.1", default-features = false }
-actix-tls = { version = "3.0.0-rc.1", features = ["connect", "uri"] }
+actix-tls = { version = "3.0.0-rc.2", features = ["connect", "uri"] }
 actix-utils = "3.0.0"
 
 ahash = "0.7"

@@ -121,7 +121,7 @@ async fn test_start_ssl() {
     let client = awc::Client::builder()
         .connector(
             awc::Connector::new()
-                .ssl(builder.build())
+                .openssl(builder.build())
                 .timeout(Duration::from_millis(100)),
         )
         .finish();
