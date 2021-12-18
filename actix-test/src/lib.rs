@@ -37,9 +37,14 @@ extern crate tls_rustls as rustls;
 use std::{fmt, net, thread, time::Duration};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
-pub use actix_http::test::TestBuffer;
+pub use actix_http::{body::to_bytes, test::TestBuffer};
 use actix_http::{header::HeaderMap, ws, HttpService, Method, Request, Response};
+pub use actix_http_test::unused_addr;
 use actix_service::{map_config, IntoServiceFactory, ServiceFactory, ServiceFactoryExt as _};
+pub use actix_web::test::{
+    call_and_read_body, call_and_read_body_json, call_service, init_service, ok_service,
+    read_body, read_body_json, simple_service, TestRequest,
+};
 use actix_web::{
     body::MessageBody,
     dev::{AppConfig, Server, ServerHandle, Service},
@@ -48,12 +53,6 @@ use actix_web::{
 };
 use awc::{error::PayloadError, Client, ClientRequest, ClientResponse, Connector};
 use futures_core::Stream;
-
-pub use actix_http_test::unused_addr;
-pub use actix_web::test::{
-    call_service, default_service, init_service, load_stream, ok_service, read_body,
-    read_body_json, read_response, read_response_json, TestRequest,
-};
 use tokio::sync::mpsc;
 
 /// Start default [`TestServer`].

@@ -27,6 +27,7 @@ where
     S: Stream<Item = Result<Bytes, E>>,
     E: Into<Box<dyn StdError>> + 'static,
 {
+    #[inline]
     pub fn new(stream: S) -> Self {
         BodyStream { stream }
     }
@@ -39,6 +40,7 @@ where
 {
     type Error = E;
 
+    #[inline]
     fn size(&self) -> BodySize {
         BodySize::Stream
     }

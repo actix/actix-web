@@ -349,7 +349,7 @@ impl Drop for HttpRequest {
     fn drop(&mut self) {
         // if possible, contribute to current worker's HttpRequest allocation pool
 
-        // This relies on no Weak<HttpRequestInner> exists anywhere. (There is none.)
+        // This relies on no weak references to inner existing anywhere within the codebase.
         if let Some(inner) = Rc::get_mut(&mut self.inner) {
             if inner.app_state.pool().is_available() {
                 // clear additional app_data and keep the root one for reuse.
@@ -360,7 +360,7 @@ impl Drop for HttpRequest {
                 Rc::get_mut(&mut inner.req_data).unwrap().get_mut().clear();
 
                 // a re-borrow of pool is necessary here.
-                let req = self.inner.clone();
+                let req = Rc::clone(&self.inner);
                 self.app_state().pool().push(req);
             }
         }

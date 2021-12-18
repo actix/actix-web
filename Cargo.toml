@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "4.0.0-beta.14"
+version = "4.0.0-beta.15"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix Web is a powerful, pragmatic, and extremely fast web framework for Rust"
 keywords = ["actix", "http", "web", "framework", "async"]
@@ -77,8 +77,8 @@ actix-service = "2.0.0"
 actix-utils = "3.0.0"
 actix-tls = { version = "3.0.0-rc.1", default-features = false, optional = true }
 
-actix-http = "3.0.0-beta.15"
-actix-router = "0.5.0-beta.2"
+actix-http = "3.0.0-beta.16"
+actix-router = "0.5.0-beta.3"
 actix-web-codegen = "0.5.0-beta.6"
 
 ahash = "0.7"
@@ -86,7 +86,6 @@ bytes = "1"
 cfg-if = "1"
 cookie = { version = "0.15", features = ["percent-encode"], optional = true }
 derive_more = "0.99.5"
-either = "1.5.3"
 encoding_rs = "0.8"
 futures-core = { version = "0.3.7", default-features = false }
 futures-util = { version = "0.3.7", default-features = false }
@@ -107,8 +106,8 @@ time = { version = "0.3", default-features = false, features = ["formatting"] }
 url = "2.1"
 
 [dev-dependencies]
-actix-test = { version = "0.1.0-beta.8", features = ["openssl", "rustls"] }
-awc = { version = "3.0.0-beta.13", features = ["openssl"] }
+actix-test = { version = "0.1.0-beta.9", features = ["openssl", "rustls"] }
+awc = { version = "3.0.0-beta.14", features = ["openssl"] }
 
 brotli2 = "0.3.2"
 criterion = { version = "0.3", features = ["html_reports"] }

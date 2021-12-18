@@ -7,10 +7,10 @@ use h2::RecvStream;
 
 use crate::error::PayloadError;
 
-/// Type represent boxed payload
+/// A boxed payload.
 pub type PayloadStream = Pin<Box<dyn Stream<Item = Result<Bytes, PayloadError>>>>;
 
-/// Type represent streaming payload
+/// A streaming payload.
 pub enum Payload<S = PayloadStream> {
     None,
     H1(crate::h1::Payload),

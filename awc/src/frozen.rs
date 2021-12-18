@@ -6,7 +6,7 @@ use serde::Serialize;
 
 use actix_http::{
     error::HttpError,
-    header::{HeaderMap, HeaderName, IntoHeaderValue},
+    header::{HeaderMap, HeaderName, TryIntoHeaderValue},
     Method, RequestHead, Uri,
 };
 
@@ -114,7 +114,7 @@ impl FrozenClientRequest {
     where
         HeaderName: TryFrom<K>,
         <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
-        V: IntoHeaderValue,
+        V: TryIntoHeaderValue,
     {
         self.extra_headers(HeaderMap::new())
             .extra_header(key, value)
@@ -142,7 +142,7 @@ impl FrozenSendBuilder {
     where
         HeaderName: TryFrom<K>,
         <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
-        V: IntoHeaderValue,
+        V: TryIntoHeaderValue,
     {
         match HeaderName::try_from(key) {
             Ok(key) => match value.try_into_value() {

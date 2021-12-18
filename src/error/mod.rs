@@ -1,4 +1,5 @@
 //! Error and Result module
+
 // This is meant to be a glob import of the whole error module except for `Error`. Rustdoc can't yet
 // correctly resolve the conflicting `Error` type defined in this module, so these re-exports are
 // expanded manually.

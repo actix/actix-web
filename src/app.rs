@@ -486,19 +486,21 @@ where
 
 #[cfg(test)]
 mod tests {
-    use actix_service::Service;
+    use actix_service::Service as _;
     use actix_utils::future::{err, ok};
     use bytes::Bytes;
 
     use super::*;
-    use crate::http::{
-        header::{self, HeaderValue},
-        Method, StatusCode,
+    use crate::{
+        http::{
+            header::{self, HeaderValue},
+            Method, StatusCode,
+        },
+        middleware::DefaultHeaders,
+        service::ServiceRequest,
+        test::{call_service, init_service, read_body, try_init_service, TestRequest},
+        web, HttpRequest, HttpResponse,
     };
-    use crate::middleware::DefaultHeaders;
-    use crate::service::ServiceRequest;
-    use crate::test::{call_service, init_service, read_body, try_init_service, TestRequest};
-    use crate::{web, HttpRequest, HttpResponse};
 
     #[actix_rt::test]
     async fn test_default_resource() {
@@ -602,7 +604,7 @@ mod tests {
             App::new()
                 .wrap(
                     DefaultHeaders::new()
-                        .header(header::CONTENT_TYPE, HeaderValue::from_static("0001")),
+                        .add((header::CONTENT_TYPE, HeaderValue::from_static("0001"))),
                 )
                 .route("/test", web::get().to(HttpResponse::Ok)),
         )
@@ -623,7 +625,7 @@ mod tests {
                 .route("/test", web::get().to(HttpResponse::Ok))
                 .wrap(
                     DefaultHeaders::new()
-                        .header(header::CONTENT_TYPE, HeaderValue::from_static("0001")),
+                        .add((header::CONTENT_TYPE, HeaderValue::from_static("0001"))),
                 ),
         )
         .await;
@@ -705,5 +707,26 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         let body = read_body(resp).await;
         assert_eq!(body, Bytes::from_static(b"https://youtube.com/watch/12345"));
+    }
+
+    /// compile-only test for returning app type from function
+    pub fn foreign_app_type() -> App<
+        impl ServiceFactory<
+            ServiceRequest,
+            Response = ServiceResponse<impl MessageBody>,
+            Config = (),
+            InitError = (),
+            Error = Error,
+        >,
+    > {
+        App::new()
+            // logger can be removed without affecting the return type
+            .wrap(crate::middleware::Logger::default())
+            .route("/", web::to(|| async { "hello" }))
+    }
+
+    #[test]
+    fn return_foreign_app_type() {
+        let _app = foreign_app_type();
     }
 }

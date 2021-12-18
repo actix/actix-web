@@ -1,6 +1,26 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Removed
+* `header::map::GetAll` iterator, its `Iterator::size_hint` method was wrongly implemented. Replaced with `std::slice::Iter`. [#2527]
+
+[#2527]: https://github.com/actix/actix-web/pull/2527
+
+
+## 3.0.0-beta.16 - 2021-12-17
+### Added
+* New method on `MessageBody` trait, `try_into_bytes`, with default implementation, for optimizations on body types that complete in exactly one poll. Replaces `is_complete_body` and `take_complete_body`. [#2522]
+
+### Changed
+* Rename trait `IntoHeaderPair => TryIntoHeaderPair`. [#2510]
+* Rename `TryIntoHeaderPair::{try_into_header_pair => try_into_pair}`. [#2510]
+* Rename trait `IntoHeaderValue => TryIntoHeaderValue`. [#2510]
+
+### Removed
+* `MessageBody::{is_complete_body,take_complete_body}`. [#2522]
+
+[#2510]: https://github.com/actix/actix-web/pull/2510
+[#2522]: https://github.com/actix/actix-web/pull/2522
 
 
 ## 3.0.0-beta.15 - 2021-12-11
@@ -21,7 +41,8 @@
 * `Request::take_conn_data()`. [#2491]
 * `Request::take_req_data()`. [#2487]
 * `impl Clone` for `RequestHead`. [#2487]
-* New methods on `MessageBody` trait, `is_complete_body` and `take_complete_body`, both with default implementations, for optimisations on body types that are done in exactly one poll/chunk. [#2497]
+* New methods on `MessageBody` trait, `is_complete_body` and `take_complete_body`, both with default implementations, for optimizations on body types that are done in exactly one poll/chunk. [#2497]
+* New `boxed` method on `MessageBody` trait for wrapping body type. [#2520]
 
 ### Changed
 * Rename `body::BoxBody::{from_body => new}`. [#2468]
@@ -50,6 +71,7 @@
 [#2488]: https://github.com/actix/actix-web/pull/2488
 [#2491]: https://github.com/actix/actix-web/pull/2491
 [#2497]: https://github.com/actix/actix-web/pull/2497
+[#2520]: https://github.com/actix/actix-web/pull/2520
 
 
 ## 3.0.0-beta.14 - 2021-11-30
@@ -260,7 +282,7 @@
 
 ## 3.0.0-beta.2 - 2021-02-10
 ### Added
-* `IntoHeaderPair` trait that allows using typed and untyped headers in the same methods. [#1869]
+* `TryIntoHeaderPair` trait that allows using typed and untyped headers in the same methods. [#1869]
 * `ResponseBuilder::insert_header` method which allows using typed headers. [#1869]
 * `ResponseBuilder::append_header` method which allows using typed headers. [#1869]
 * `TestRequest::insert_header` method which allows using typed headers. [#1869]
@@ -271,9 +293,9 @@
 * `trust-dns` optional feature to enable `trust-dns-resolver` as client dns resolver. [#1969]
 
 ### Changed
-* `ResponseBuilder::content_type` now takes an `impl IntoHeaderValue` to support using typed
+* `ResponseBuilder::content_type` now takes an `impl TryIntoHeaderValue` to support using typed
   `mime` types. [#1894]
-* Renamed `IntoHeaderValue::{try_into => try_into_value}` to avoid ambiguity with std
+* Renamed `TryIntoHeaderValue::{try_into => try_into_value}` to avoid ambiguity with std
   `TryInto` trait. [#1894]
 * `Extensions::insert` returns Option of replaced item. [#1904]
 * Remove `HttpResponseBuilder::json2()`. [#1903]

@@ -45,9 +45,7 @@ impl AnyBody {
     where
         B: MessageBody + 'static,
     {
-        Self::Body {
-            body: BoxBody::new(body),
-        }
+        Self::Body { body: body.boxed() }
     }
 
     /// Constructs new `AnyBody` instance from a slice of bytes by copying it.

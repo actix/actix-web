@@ -11,7 +11,7 @@ use bytestring::ByteString;
 use crate::{
     body::{BoxBody, MessageBody},
     extensions::Extensions,
-    header::{self, HeaderMap, IntoHeaderValue},
+    header::{self, HeaderMap, TryIntoHeaderValue},
     message::{BoxedResponseHead, ResponseHead},
     Error, ResponseBuilder, StatusCode,
 };
@@ -170,7 +170,7 @@ impl<B> Response<B> {
     /// Returns split head and body.
     ///
     /// # Implementation Notes
-    /// Due to internal performance optimisations, the first element of the returned tuple is a
+    /// Due to internal performance optimizations, the first element of the returned tuple is a
     /// `Response` as well but only contains the head of the response this was called on.
     pub fn into_parts(self) -> (Response<()>, B) {
         self.replace_body(())
@@ -194,7 +194,7 @@ impl<B> Response<B> {
     where
         B: MessageBody + 'static,
     {
-        self.map_body(|_, body| BoxBody::new(body))
+        self.map_body(|_, body| body.boxed())
     }
 
     /// Returns body, consuming this response.

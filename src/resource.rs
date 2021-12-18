@@ -15,13 +15,12 @@ use crate::{
     dev::{ensure_leading_slash, AppService, ResourceDef},
     guard::Guard,
     handler::Handler,
-    responder::Responder,
     route::{Route, RouteService},
     service::{
         BoxedHttpService, BoxedHttpServiceFactory, HttpServiceFactory, ServiceRequest,
         ServiceResponse,
     },
-    BoxError, Error, FromRequest, HttpResponse,
+    BoxError, Error, FromRequest, HttpResponse, Responder,
 };
 
 /// *Resource* is an entry in resources table which corresponds to requested URL.
@@ -526,7 +525,7 @@ mod tests {
                     .name("test")
                     .wrap(
                         DefaultHeaders::new()
-                            .header(header::CONTENT_TYPE, HeaderValue::from_static("0001")),
+                            .add((header::CONTENT_TYPE, HeaderValue::from_static("0001"))),
                     )
                     .route(web::get().to(HttpResponse::Ok)),
             ),

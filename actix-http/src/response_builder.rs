@@ -8,7 +8,7 @@ use std::{
 use crate::{
     body::{EitherBody, MessageBody},
     error::{Error, HttpError},
-    header::{self, IntoHeaderPair, IntoHeaderValue},
+    header::{self, TryIntoHeaderPair, TryIntoHeaderValue},
     message::{BoxedResponseHead, ConnectionType, ResponseHead},
     Extensions, Response, StatusCode,
 };
@@ -90,12 +90,9 @@ impl ResponseBuilder {
     /// assert!(res.headers().contains_key("content-type"));
     /// assert!(res.headers().contains_key("x-test"));
     /// ```
-    pub fn insert_header<H>(&mut self, header: H) -> &mut Self
-    where
-        H: IntoHeaderPair,
-    {
+    pub fn insert_header(&mut self, header: impl TryIntoHeaderPair) -> &mut Self {
         if let Some(parts) = self.inner() {
-            match header.try_into_header_pair() {
+            match header.try_into_pair() {
                 Ok((key, value)) => {
                     parts.headers.insert(key, value);
                 }
@@ -121,12 +118,9 @@ impl ResponseBuilder {
     /// assert_eq!(res.headers().get_all("content-type").count(), 1);
     /// assert_eq!(res.headers().get_all("x-test").count(), 2);
     /// ```
-    pub fn append_header<H>(&mut self, header: H) -> &mut Self
-    where
-        H: IntoHeaderPair,
-    {
+    pub fn append_header(&mut self, header: impl TryIntoHeaderPair) -> &mut Self {
         if let Some(parts) = self.inner() {
-            match header.try_into_header_pair() {
+            match header.try_into_pair() {
                 Ok((key, value)) => parts.headers.append(key, value),
                 Err(e) => self.err = Some(e.into()),
             };
@@ -157,7 +151,7 @@ impl ResponseBuilder {
     #[inline]
     pub fn upgrade<V>(&mut self, value: V) -> &mut Self
     where
-        V: IntoHeaderValue,
+        V: TryIntoHeaderValue,
     {
         if let Some(parts) = self.inner() {
             parts.set_connection_type(ConnectionType::Upgrade);
@@ -195,7 +189,7 @@ impl ResponseBuilder {
     #[inline]
     pub fn content_type<V>(&mut self, value: V) -> &mut Self
     where
-        V: IntoHeaderValue,
+        V: TryIntoHeaderValue,
     {
         if let Some(parts) = self.inner() {
             match value.try_into_value() {

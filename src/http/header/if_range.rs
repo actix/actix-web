@@ -1,8 +1,8 @@
 use std::fmt::{self, Display, Write};
 
 use super::{
-    from_one_raw_str, EntityTag, Header, HeaderName, HeaderValue, HttpDate, IntoHeaderValue,
-    InvalidHeaderValue, Writer,
+    from_one_raw_str, EntityTag, Header, HeaderName, HeaderValue, HttpDate, InvalidHeaderValue,
+    TryIntoHeaderValue, Writer,
 };
 use crate::error::ParseError;
 use crate::http::header;
@@ -96,7 +96,7 @@ impl Display for IfRange {
     }
 }
 
-impl IntoHeaderValue for IfRange {
+impl TryIntoHeaderValue for IfRange {
     type Error = InvalidHeaderValue;
 
     fn try_into_value(self) -> Result<HeaderValue, Self::Error> {

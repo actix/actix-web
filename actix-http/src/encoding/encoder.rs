@@ -25,7 +25,7 @@ use zstd::stream::write::Encoder as ZstdEncoder;
 
 use super::Writer;
 use crate::{
-    body::{BodySize, MessageBody},
+    body::{self, BodySize, MessageBody},
     error::BlockingError,
     header::{self, ContentEncoding, HeaderValue, CONTENT_ENCODING},
     ResponseHead, StatusCode,
@@ -46,14 +46,16 @@ pin_project! {
 impl<B: MessageBody> Encoder<B> {
     fn none() -> Self {
         Encoder {
-            body: EncoderBody::None,
+            body: EncoderBody::None {
+                body: body::None::new(),
+            },
             encoder: None,
             fut: None,
             eof: true,
         }
     }
 
-    pub fn response(encoding: ContentEncoding, head: &mut ResponseHead, mut body: B) -> Self {
+    pub fn response(encoding: ContentEncoding, head: &mut ResponseHead, body: B) -> Self {
         let can_encode = !(head.headers().contains_key(&CONTENT_ENCODING)
             || head.status == StatusCode::SWITCHING_PROTOCOLS
             || head.status == StatusCode::NO_CONTENT
@@ -65,11 +67,9 @@ impl<B: MessageBody> Encoder<B> {
             return Self::none();
         }
 
-        let body = if body.is_complete_body() {
-            let body = body.take_complete_body();
-            EncoderBody::Full { body }
-        } else {
-            EncoderBody::Stream { body }
+        let body = match body.try_into_bytes() {
+            Ok(body) => EncoderBody::Full { body },
+            Err(body) => EncoderBody::Stream { body },
         };
 
         if can_encode {
@@ -98,7 +98,7 @@ impl<B: MessageBody> Encoder<B> {
 pin_project! {
     #[project = EncoderBodyProj]
     enum EncoderBody<B> {
-        None,
+        None { body: body::None },
         Full { body: Bytes },
         Stream { #[pin] body: B },
     }
@@ -110,9 +110,10 @@ where
 {
     type Error = EncoderError;
 
+    #[inline]
     fn size(&self) -> BodySize {
         match self {
-            EncoderBody::None => BodySize::None,
+            EncoderBody::None { body } => body.size(),
             EncoderBody::Full { body } => body.size(),
             EncoderBody::Stream { body } => body.size(),
         }
@@ -123,7 +124,9 @@ where
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         match self.project() {
-            EncoderBodyProj::None => Poll::Ready(None),
+            EncoderBodyProj::None { body } => {
+                Pin::new(body).poll_next(cx).map_err(|err| match err {})
+            }
             EncoderBodyProj::Full { body } => {
                 Pin::new(body).poll_next(cx).map_err(|err| match err {})
             }
@@ -133,21 +136,15 @@ where
         }
     }
 
-    fn is_complete_body(&self) -> bool {
+    #[inline]
+    fn try_into_bytes(self) -> Result<Bytes, Self>
+    where
+        Self: Sized,
+    {
         match self {
-            EncoderBody::None => true,
-            EncoderBody::Full { .. } => true,
-            EncoderBody::Stream { .. } => false,
-        }
-    }
-
-    fn take_complete_body(&mut self) -> Bytes {
-        match self {
-            EncoderBody::None => Bytes::new(),
-            EncoderBody::Full { body } => body.take_complete_body(),
-            EncoderBody::Stream { .. } => {
-                panic!("EncoderBody::Stream variant cannot be taken")
-            }
+            EncoderBody::None { body } => Ok(body.try_into_bytes().unwrap()),
+            EncoderBody::Full { body } => Ok(body.try_into_bytes().unwrap()),
+            _ => Err(self),
         }
     }
 }
@@ -158,6 +155,7 @@ where
 {
     type Error = EncoderError;
 
+    #[inline]
     fn size(&self) -> BodySize {
         if self.encoder.is_some() {
             BodySize::Stream
@@ -234,19 +232,21 @@ where
         }
     }
 
-    fn is_complete_body(&self) -> bool {
+    #[inline]
+    fn try_into_bytes(mut self) -> Result<Bytes, Self>
+    where
+        Self: Sized,
+    {
         if self.encoder.is_some() {
-            false
+            Err(self)
         } else {
-            self.body.is_complete_body()
-        }
-    }
-
-    fn take_complete_body(&mut self) -> Bytes {
-        if self.encoder.is_some() {
-            panic!("compressed body stream cannot be taken")
-        } else {
-            self.body.take_complete_body()
+            match self.body.try_into_bytes() {
+                Ok(body) => Ok(body),
+                Err(body) => {
+                    self.body = body;
+                    Err(self)
+                }
+            }
         }
     }
 }

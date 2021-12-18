@@ -14,7 +14,7 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use std::fmt::{self, Write};
 
-use super::{ExtendedValue, Header, IntoHeaderValue, Writer};
+use super::{ExtendedValue, Header, TryIntoHeaderValue, Writer};
 use crate::http::header;
 
 /// Split at the index of the first `needle` if it exists or at the end.
@@ -454,7 +454,7 @@ impl ContentDisposition {
     }
 }
 
-impl IntoHeaderValue for ContentDisposition {
+impl TryIntoHeaderValue for ContentDisposition {
     type Error = header::InvalidHeaderValue;
 
     fn try_into_value(self) -> Result<header::HeaderValue, Self::Error> {

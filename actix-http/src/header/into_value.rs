@@ -1,4 +1,4 @@
-//! [`IntoHeaderValue`] trait and implementations.
+//! [`TryIntoHeaderValue`] trait and implementations.
 
 use std::convert::TryFrom as _;
 
@@ -7,7 +7,7 @@ use http::{header::InvalidHeaderValue, Error as HttpError, HeaderValue};
 use mime::Mime;
 
 /// An interface for types that can be converted into a [`HeaderValue`].
-pub trait IntoHeaderValue: Sized {
+pub trait TryIntoHeaderValue: Sized {
     /// The type returned in the event of a conversion error.
     type Error: Into<HttpError>;
 
@@ -15,7 +15,7 @@ pub trait IntoHeaderValue: Sized {
     fn try_into_value(self) -> Result<HeaderValue, Self::Error>;
 }
 
-impl IntoHeaderValue for HeaderValue {
+impl TryIntoHeaderValue for HeaderValue {
     type Error = InvalidHeaderValue;
 
     #[inline]
@@ -24,7 +24,7 @@ impl IntoHeaderValue for HeaderValue {
     }
 }
 
-impl IntoHeaderValue for &HeaderValue {
+impl TryIntoHeaderValue for &HeaderValue {
     type Error = InvalidHeaderValue;
 
     #[inline]
@@ -33,7 +33,7 @@ impl IntoHeaderValue for &HeaderValue {
     }
 }
 
-impl IntoHeaderValue for &str {
+impl TryIntoHeaderValue for &str {
     type Error = InvalidHeaderValue;
 
     #[inline]
@@ -42,7 +42,7 @@ impl IntoHeaderValue for &str {
     }
 }
 
-impl IntoHeaderValue for &[u8] {
+impl TryIntoHeaderValue for &[u8] {
     type Error = InvalidHeaderValue;
 
     #[inline]
@@ -51,7 +51,7 @@ impl IntoHeaderValue for &[u8] {
     }
 }
 
-impl IntoHeaderValue for Bytes {
+impl TryIntoHeaderValue for Bytes {
     type Error = InvalidHeaderValue;
 
     #[inline]
@@ -60,7 +60,7 @@ impl IntoHeaderValue for Bytes {
     }
 }
 
-impl IntoHeaderValue for Vec<u8> {
+impl TryIntoHeaderValue for Vec<u8> {
     type Error = InvalidHeaderValue;
 
     #[inline]
@@ -69,7 +69,7 @@ impl IntoHeaderValue for Vec<u8> {
     }
 }
 
-impl IntoHeaderValue for String {
+impl TryIntoHeaderValue for String {
     type Error = InvalidHeaderValue;
 
     #[inline]
@@ -78,7 +78,7 @@ impl IntoHeaderValue for String {
     }
 }
 
-impl IntoHeaderValue for usize {
+impl TryIntoHeaderValue for usize {
     type Error = InvalidHeaderValue;
 
     #[inline]
@@ -87,7 +87,7 @@ impl IntoHeaderValue for usize {
     }
 }
 
-impl IntoHeaderValue for i64 {
+impl TryIntoHeaderValue for i64 {
     type Error = InvalidHeaderValue;
 
     #[inline]
@@ -96,7 +96,7 @@ impl IntoHeaderValue for i64 {
     }
 }
 
-impl IntoHeaderValue for u64 {
+impl TryIntoHeaderValue for u64 {
     type Error = InvalidHeaderValue;
 
     #[inline]
@@ -105,7 +105,7 @@ impl IntoHeaderValue for u64 {
     }
 }
 
-impl IntoHeaderValue for i32 {
+impl TryIntoHeaderValue for i32 {
     type Error = InvalidHeaderValue;
 
     #[inline]
@@ -114,7 +114,7 @@ impl IntoHeaderValue for i32 {
     }
 }
 
-impl IntoHeaderValue for u32 {
+impl TryIntoHeaderValue for u32 {
     type Error = InvalidHeaderValue;
 
     #[inline]
@@ -123,7 +123,7 @@ impl IntoHeaderValue for u32 {
     }
 }
 
-impl IntoHeaderValue for Mime {
+impl TryIntoHeaderValue for Mime {
     type Error = InvalidHeaderValue;
 
     #[inline]

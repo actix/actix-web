@@ -7,6 +7,12 @@
 [#2503]: https://github.com/actix/actix-web/pull/2503
 
 
+## 3.0.0-beta.14 - 2021-12-17
+* Add `ClientBuilder::add_default_header` and deprecate `ClientBuilder::header`. [#2510]
+
+[#2510]: https://github.com/actix/actix-web/pull/2510
+
+
 ## 3.0.0-beta.13 - 2021-12-11
 * No significant changes since `3.0.0-beta.12`.
 
@@ -64,7 +70,7 @@
 * `ConnectorService` type is renamed to `BoxConnectorService`. [#2081]
 * Fix http/https encoding when enabling `compress` feature. [#2116]
 * Rename `TestResponse::header` to `append_header`, `set` to `insert_header`. `TestResponse` header
-  methods now take `IntoHeaderPair` tuples. [#2094]
+  methods now take `TryIntoHeaderPair` tuples. [#2094]
 
 [#2081]: https://github.com/actix/actix-web/pull/2081
 [#2094]: https://github.com/actix/actix-web/pull/2094
