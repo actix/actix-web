@@ -55,6 +55,11 @@ else
     read -p "Update version to: " NEW_VERSION
 fi
 
+# strip leading v from input
+if [ "${NEW_VERSION:0:1}" = "v" ]; then
+    NEW_VERSION="${NEW_VERSION:1}"
+fi
+
 DATE="$(date -u +"%Y-%m-%d")"
 echo "updating from $CURRENT_VERSION => $NEW_VERSION ($DATE)"
 
@@ -124,15 +129,20 @@ SHORT_PACKAGE_NAME="$(echo $PACKAGE_NAME | sed 's/^actix-web-//' | sed 's/^actix
 GIT_TAG="$(echo $SHORT_PACKAGE_NAME-v$NEW_VERSION)"
 RELEASE_TITLE="$(echo $PACKAGE_NAME: v$NEW_VERSION)"
 
+if [ "$(echo $NEW_VERSION | grep beta)" ] || [ "$(echo $NEW_VERSION | grep rc)" ] || [ "$(echo $NEW_VERSION | grep alpha)" ]; then
+    PRERELEASE="--prerelease"
+fi
+
 echo
 echo "GitHub release command:"
-echo "gh release create \"$GIT_TAG\" --draft --title \"$RELEASE_TITLE\" --notes-file \"$CHANGE_CHUNK_FILE\" --prerelease"
+GH_CMD="gh release create \"$GIT_TAG\" --draft --title \"$RELEASE_TITLE\" --notes-file \"$CHANGE_CHUNK_FILE\" ${PRERELEASE:-}"
+echo "$GH_CMD"
 
 read -p "Submit draft GH release: (y/N) " GH_RELEASE
 GH_RELEASE="${GH_RELEASE:-n}"
 
 if [ "$GH_RELEASE" = 'y' ] || [ "$GH_RELEASE" = 'Y' ]; then
-    gh release create "$GIT_TAG" --draft --title "$RELEASE_TITLE" --notes-file "$CHANGE_CHUNK_FILE" --prerelease
+    eval "$GH_CMD"
 fi
 
 echo

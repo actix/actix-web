@@ -486,19 +486,21 @@ where
 
 #[cfg(test)]
 mod tests {
-    use actix_service::Service;
+    use actix_service::Service as _;
     use actix_utils::future::{err, ok};
     use bytes::Bytes;
 
     use super::*;
-    use crate::http::{
-        header::{self, HeaderValue},
-        Method, StatusCode,
+    use crate::{
+        http::{
+            header::{self, HeaderValue},
+            Method, StatusCode,
+        },
+        middleware::DefaultHeaders,
+        service::ServiceRequest,
+        test::{call_service, init_service, read_body, try_init_service, TestRequest},
+        web, HttpRequest, HttpResponse,
     };
-    use crate::middleware::DefaultHeaders;
-    use crate::service::ServiceRequest;
-    use crate::test::{call_service, init_service, read_body, try_init_service, TestRequest};
-    use crate::{web, HttpRequest, HttpResponse};
 
     #[actix_rt::test]
     async fn test_default_resource() {
