@@ -306,8 +306,11 @@ impl HeaderMap {
     /// assert_eq!(set_cookies_iter.next().unwrap(), "two=2");
     /// assert!(set_cookies_iter.next().is_none());
     /// ```
-    pub fn get_all(&self, key: impl AsHeaderName) -> GetAll<'_> {
-        GetAll::new(self.get_value(key))
+    pub fn get_all(&self, key: impl AsHeaderName) -> std::slice::Iter<'_, HeaderValue> {
+        match self.get_value(key) {
+            Some(value) => value.iter(),
+            None => (&[]).iter(),
+        }
     }
 
     // TODO: get_all_mut ?
@@ -602,52 +605,6 @@ impl<'a> IntoIterator for &'a HeaderMap {
     }
 }
 
-/// Iterator over borrowed values with the same associated name.
-///
-/// See [`HeaderMap::get_all`].
-#[derive(Debug)]
-pub struct GetAll<'a> {
-    idx: usize,
-    value: Option<&'a Value>,
-}
-
-impl<'a> GetAll<'a> {
-    fn new(value: Option<&'a Value>) -> Self {
-        Self { idx: 0, value }
-    }
-}
-
-impl<'a> Iterator for GetAll<'a> {
-    type Item = &'a HeaderValue;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let val = self.value?;
-
-        match val.get(self.idx) {
-            Some(val) => {
-                self.idx += 1;
-                Some(val)
-            }
-            None => {
-                // current index is none; remove value to fast-path future next calls
-                self.value = None;
-                None
-            }
-        }
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        match self.value {
-            Some(val) => (val.len(), Some(val.len())),
-            None => (0, Some(0)),
-        }
-    }
-}
-
-impl ExactSizeIterator for GetAll<'_> {}
-
-impl iter::FusedIterator for GetAll<'_> {}
-
 /// Iterator over removed, owned values with the same associated name.
 ///
 /// Returned from methods that remove or replace items. See [`HeaderMap::insert`]
@@ -895,7 +852,7 @@ mod tests {
 
     assert_impl_all!(HeaderMap: IntoIterator);
     assert_impl_all!(Keys<'_>: Iterator, ExactSizeIterator, FusedIterator);
-    assert_impl_all!(GetAll<'_>: Iterator, ExactSizeIterator, FusedIterator);
+    assert_impl_all!(std::slice::Iter<'_, HeaderValue>: Iterator, ExactSizeIterator, FusedIterator);
     assert_impl_all!(Removed: Iterator, ExactSizeIterator, FusedIterator);
     assert_impl_all!(Iter<'_>: Iterator, ExactSizeIterator, FusedIterator);
     assert_impl_all!(IntoIter: Iterator, ExactSizeIterator, FusedIterator);

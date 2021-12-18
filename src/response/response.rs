@@ -313,7 +313,7 @@ impl Future for HttpResponse<BoxBody> {
 
 #[cfg(feature = "cookies")]
 pub struct CookieIter<'a> {
-    iter: header::map::GetAll<'a>,
+    iter: std::slice::Iter<'a, HeaderValue>,
 }
 
 #[cfg(feature = "cookies")]
