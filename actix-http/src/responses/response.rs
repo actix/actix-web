@@ -12,8 +12,8 @@ use crate::{
     body::{BoxBody, MessageBody},
     extensions::Extensions,
     header::{self, HeaderMap, TryIntoHeaderValue},
-    message::{BoxedResponseHead, ResponseHead},
-    Error, ResponseBuilder, StatusCode,
+    responses::{BoxedResponseHead, ResponseBuilder, ResponseHead},
+    Error, StatusCode,
 };
 
 /// An HTTP response.

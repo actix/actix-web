@@ -31,23 +31,20 @@ extern crate log;
 pub mod body;
 mod builder;
 mod config;
-
 #[cfg(feature = "__compress")]
 pub mod encoding;
+pub mod error;
 mod extensions;
+pub mod h1;
+pub mod h2;
 pub mod header;
 mod helpers;
 mod http_message;
 mod message;
 mod payload;
 mod requests;
-mod response;
-mod response_builder;
+mod responses;
 mod service;
-
-pub mod error;
-pub mod h1;
-pub mod h2;
 pub mod test;
 pub mod ws;
 
@@ -58,11 +55,10 @@ pub use self::extensions::Extensions;
 pub use self::header::ContentEncoding;
 pub use self::http_message::HttpMessage;
 pub use self::message::ConnectionType;
-pub use self::message::{Message, ResponseHead};
+pub use self::message::Message;
 pub use self::payload::{Payload, PayloadStream};
 pub use self::requests::{Request, RequestHead, RequestHeadType};
-pub use self::response::Response;
-pub use self::response_builder::ResponseBuilder;
+pub use self::responses::{Response, ResponseBuilder, ResponseHead};
 pub use self::service::HttpService;
 
 pub use ::http::{uri, uri::Uri};
