@@ -2,17 +2,14 @@ use std::{convert::TryFrom, io, marker::PhantomData, mem::MaybeUninit, task::Pol
 
 use actix_codec::Decoder;
 use bytes::{Bytes, BytesMut};
-use http::header::{HeaderName, HeaderValue};
-use http::{header, Method, StatusCode, Uri, Version};
+use http::{
+    header::{self, HeaderName, HeaderValue},
+    Method, StatusCode, Uri, Version,
+};
 use log::{debug, error, trace};
 
 use super::chunked::ChunkedState;
-use crate::{
-    error::ParseError,
-    header::HeaderMap,
-    message::{ConnectionType, ResponseHead},
-    request::Request,
-};
+use crate::{error::ParseError, header::HeaderMap, ConnectionType, Request, ResponseHead};
 
 pub(crate) const MAX_BUFFER_SIZE: usize = 131_072;
 const MAX_HEADERS: usize = 96;
@@ -50,7 +47,7 @@ pub(crate) enum PayloadLength {
 }
 
 pub(crate) trait MessageType: Sized {
-    fn set_connection_type(&mut self, ctype: Option<ConnectionType>);
+    fn set_connection_type(&mut self, conn_type: Option<ConnectionType>);
 
     fn set_expect(&mut self);
 
@@ -193,8 +190,8 @@ pub(crate) trait MessageType: Sized {
 }
 
 impl MessageType for Request {
-    fn set_connection_type(&mut self, ctype: Option<ConnectionType>) {
-        if let Some(ctype) = ctype {
+    fn set_connection_type(&mut self, conn_type: Option<ConnectionType>) {
+        if let Some(ctype) = conn_type {
             self.head_mut().set_connection_type(ctype);
         }
     }
@@ -278,8 +275,8 @@ impl MessageType for Request {
 }
 
 impl MessageType for ResponseHead {
-    fn set_connection_type(&mut self, ctype: Option<ConnectionType>) {
-        if let Some(ctype) = ctype {
+    fn set_connection_type(&mut self, conn_type: Option<ConnectionType>) {
+        if let Some(ctype) = conn_type {
             ResponseHead::set_connection_type(self, ctype);
         }
     }

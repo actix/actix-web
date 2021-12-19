@@ -5,15 +5,13 @@ use bitflags::bitflags;
 use bytes::BytesMut;
 use http::{Method, Version};
 
-use super::decoder::{PayloadDecoder, PayloadItem, PayloadType};
-use super::{decoder, encoder};
-use super::{Message, MessageType};
-use crate::body::BodySize;
-use crate::config::ServiceConfig;
-use crate::error::ParseError;
-use crate::message::ConnectionType;
-use crate::request::Request;
-use crate::response::Response;
+use super::{
+    decoder::{self, PayloadDecoder, PayloadItem, PayloadType},
+    encoder, Message, MessageType,
+};
+use crate::{
+    body::BodySize, error::ParseError, ConnectionType, Request, Response, ServiceConfig,
+};
 
 bitflags! {
     struct Flags: u8 {
@@ -199,7 +197,7 @@ mod tests {
     use http::Method;
 
     use super::*;
-    use crate::HttpMessage;
+    use crate::HttpMessage as _;
 
     #[actix_rt::test]
     async fn test_http_request_chunked_payload_and_next_message() {

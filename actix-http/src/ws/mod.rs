@@ -9,7 +9,7 @@ use derive_more::{Display, Error, From};
 use http::{header, Method, StatusCode};
 
 use crate::body::BoxBody;
-use crate::{header::HeaderValue, message::RequestHead, response::Response, ResponseBuilder};
+use crate::{header::HeaderValue, RequestHead, Response, ResponseBuilder};
 
 mod codec;
 mod dispatcher;

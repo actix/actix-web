@@ -10,11 +10,7 @@ use std::{
 use http::{header, Method, Uri, Version};
 
 use crate::{
-    extensions::Extensions,
-    header::HeaderMap,
-    message::{Message, RequestHead},
-    payload::{Payload, PayloadStream},
-    HttpMessage,
+    header::HeaderMap, Extensions, HttpMessage, Message, Payload, PayloadStream, RequestHead,
 };
 
 /// An HTTP request.
@@ -206,7 +202,7 @@ impl<P> Request<P> {
 
     /// Returns the request data container, leaving an empty one in it's place.
     pub fn take_req_data(&mut self) -> Extensions {
-        mem::take(&mut self.req_data.get_mut())
+        mem::take(self.req_data.get_mut())
     }
 }
 

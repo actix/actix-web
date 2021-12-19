@@ -1,19 +1,19 @@
-use std::io::Write;
-use std::marker::PhantomData;
-use std::ptr::copy_nonoverlapping;
-use std::slice::from_raw_parts_mut;
-use std::{cmp, io};
+use std::{
+    cmp,
+    io::{self, Write as _},
+    marker::PhantomData,
+    ptr::copy_nonoverlapping,
+    slice::from_raw_parts_mut,
+};
 
 use bytes::{BufMut, BytesMut};
 
 use crate::{
     body::BodySize,
-    config::ServiceConfig,
-    header::{map::Value, HeaderMap, HeaderName},
-    header::{CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING},
-    helpers,
-    message::{ConnectionType, RequestHeadType},
-    Response, StatusCode, Version,
+    header::{
+        map::Value, HeaderMap, HeaderName, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING,
+    },
+    helpers, ConnectionType, RequestHeadType, Response, ServiceConfig, StatusCode, Version,
 };
 
 const AVERAGE_HEADER_SIZE: usize = 30;

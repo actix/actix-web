@@ -9,8 +9,8 @@ use crate::{
     body::{EitherBody, MessageBody},
     error::{Error, HttpError},
     header::{self, TryIntoHeaderPair, TryIntoHeaderValue},
-    message::{BoxedResponseHead, ConnectionType, ResponseHead},
-    Extensions, Response, StatusCode,
+    responses::{BoxedResponseHead, ResponseHead},
+    ConnectionType, Extensions, Response, StatusCode,
 };
 
 /// An HTTP response builder.

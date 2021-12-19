@@ -9,9 +9,8 @@ use pin_project_lite::pin_project;
 
 use crate::{
     body::{BodySize, MessageBody},
-    error::Error,
     h1::{Codec, Message},
-    response::Response,
+    Error, Response,
 };
 
 pin_project! {
