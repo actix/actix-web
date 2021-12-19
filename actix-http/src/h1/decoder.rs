@@ -8,10 +8,7 @@ use log::{debug, error, trace};
 
 use super::chunked::ChunkedState;
 use crate::{
-    error::ParseError,
-    header::HeaderMap,
-    message::{ConnectionType, ResponseHead},
-    request::Request,
+    error::ParseError, header::HeaderMap, message::ResponseHead, ConnectionType, Request,
 };
 
 pub(crate) const MAX_BUFFER_SIZE: usize = 131_072;

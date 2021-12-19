@@ -7,6 +7,7 @@ use h2::RecvStream;
 
 use crate::error::PayloadError;
 
+// TODO: rename to boxed payload
 /// A boxed payload.
 pub type PayloadStream = Pin<Box<dyn Stream<Item = Result<Bytes, PayloadError>>>>;
 
