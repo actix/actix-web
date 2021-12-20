@@ -126,12 +126,11 @@ where
                     ))
                 }
                 Acquire::Available => {
+                    let guard = OpenGuard::new(key, inner);
                     // open tcp connection
                     let (io, proto) = connector.call(req).await?;
 
                     let config = inner.borrow().config.clone();
-
-                    let guard = OpenGuard::new(key, inner);
 
                     if proto == Protocol::Http1 {
                         Ok(IoConnection::new(
