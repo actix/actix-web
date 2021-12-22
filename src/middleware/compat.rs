@@ -38,6 +38,15 @@ pub struct Compat<T> {
     transform: T,
 }
 
+#[cfg(test)]
+impl Compat<super::Noop> {
+    pub(crate) fn noop() -> Self {
+        Self {
+            transform: super::Noop,
+        }
+    }
+}
+
 impl<T> Compat<T> {
     /// Wrap a middleware to give it broader compatibility.
     pub fn new(middleware: T) -> Self {
