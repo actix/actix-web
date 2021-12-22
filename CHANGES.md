@@ -1,6 +1,10 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Changed
+- no longer requires `Scope` service body type to be boxed. [#2523]
+
+[#2523]: https://github.com/actix/actix-web/pull/2523
 
 
 ## 4.0.0-beta.15 - 2021-12-17

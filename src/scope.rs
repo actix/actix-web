@@ -986,9 +986,9 @@ mod tests {
         );
     }
 
-    /// Any output body type should be accepted; test for `EitherBody`
     #[actix_rt::test]
     async fn test_middleware_body_type() {
+        // Compile test that Scope accepts any body type; test for `EitherBody`
         let srv = init_service(
             App::new().service(
                 web::scope("app")
@@ -1001,13 +1001,12 @@ mod tests {
         )
         .await;
 
-        // test if `is_complete_body()` is preserved across scope layer
+        // test if `MessageBody::try_into_bytes()` is preserved across scope layer
         use actix_http::body::MessageBody as _;
         let req = TestRequest::with_uri("/app/test").to_request();
         let resp = call_service(&srv, req).await;
-        let mut body = resp.into_body();
-        assert!(body.is_complete_body());
-        assert_eq!(body.take_complete_body(), b"hello".as_ref());
+        let body = resp.into_body();
+        assert_eq!(body.try_into_bytes().unwrap(), b"hello".as_ref());
     }
 
     #[actix_rt::test]
