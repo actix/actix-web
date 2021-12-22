@@ -59,6 +59,7 @@ impl From<Message<RequestHead>> for Request<PayloadStream> {
 
 impl Request<PayloadStream> {
     /// Create new Request instance
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Request<PayloadStream> {
         Request {
             head: Message::new(),

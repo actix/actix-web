@@ -43,6 +43,7 @@ pub struct Message<T: Head> {
 
 impl<T: Head> Message<T> {
     /// Get new message from the pool of objects
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         T::with_pool(MessagePool::get_message)
     }

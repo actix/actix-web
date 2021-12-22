@@ -19,7 +19,6 @@
 #![allow(
     clippy::type_complexity,
     clippy::too_many_arguments,
-    clippy::new_without_default,
     clippy::borrow_interior_mutable_const
 )]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
@@ -27,6 +26,9 @@
 
 #[macro_use]
 extern crate log;
+
+pub use ::http::{uri, uri::Uri};
+pub use ::http::{Method, StatusCode, Version};
 
 pub mod body;
 mod builder;
@@ -60,9 +62,6 @@ pub use self::payload::{Payload, PayloadStream};
 pub use self::requests::{Request, RequestHead, RequestHeadType};
 pub use self::responses::{Response, ResponseBuilder, ResponseHead};
 pub use self::service::HttpService;
-
-pub use ::http::{uri, uri::Uri};
-pub use ::http::{Method, StatusCode, Version};
 
 /// A major HTTP protocol version.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]

@@ -10,10 +10,9 @@ use bytestring::ByteString;
 
 use crate::{
     body::{BoxBody, MessageBody},
-    extensions::Extensions,
     header::{self, HeaderMap, TryIntoHeaderValue},
-    responses::{BoxedResponseHead, ResponseBuilder, ResponseHead},
-    Error, StatusCode,
+    responses::BoxedResponseHead,
+    Error, Extensions, ResponseBuilder, ResponseHead, StatusCode,
 };
 
 /// An HTTP response.

@@ -36,6 +36,7 @@ where
     <S::Service as Service<Request>>::Future: 'static,
 {
     /// Create instance of `ServiceConfigBuilder`
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         HttpServiceBuilder {
             keep_alive: KeepAlive::Timeout(5),
