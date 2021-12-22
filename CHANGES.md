@@ -1,6 +1,10 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Changed
+- No longer require `Resource` service body type to be boxed. [#2526]
+
+[#2526]: https://github.com/actix/actix-web/pull/2526
 
 
 ## 4.0.0-beta.15 - 2021-12-17
