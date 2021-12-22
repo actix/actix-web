@@ -622,11 +622,11 @@ mod tests {
             >,
         > {
             web::scope("/test-compat")
-                // .wrap_fn(|req, srv| {
-                //     let fut = srv.call(req);
-                //     async { Ok(fut.await?.map_into_right_body::<()>()) }
-                // })
-                .wrap(Compat::new(DefaultHeaders::new()))
+                .wrap_fn(|req, srv| {
+                    let fut = srv.call(req);
+                    async { Ok(fut.await?.map_into_right_body::<()>()) }
+                })
+                .wrap(Compat::noop())
                 .service(web::resource("").route(web::get().to(|| async { "hello" })))
         }
 
