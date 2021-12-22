@@ -17,7 +17,7 @@ use crate::{
 };
 
 /// Middleware for enabling any middleware to be used in [`Resource::wrap`](crate::Resource::wrap),
-/// [`Scope::wrap`](crate::Scope::wrap) and [`Condition`](super::Condition).
+/// and [`Condition`](super::Condition).
 ///
 /// # Examples
 /// ```

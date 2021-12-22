@@ -2,8 +2,10 @@
 
 ## Unreleased - 2021-xx-xx
 ### Changed
+- No longer require `Scope` service body type to be boxed. [#2523]
 - No longer require `Resource` service body type to be boxed. [#2526]
 
+[#2523]: https://github.com/actix/actix-web/pull/2523
 [#2526]: https://github.com/actix/actix-web/pull/2526
 
 
