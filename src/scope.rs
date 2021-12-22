@@ -586,17 +586,46 @@ mod tests {
     use actix_utils::future::ok;
     use bytes::Bytes;
 
+    use super::*;
     use crate::{
         guard,
         http::{
             header::{self, HeaderValue},
             Method, StatusCode,
         },
-        middleware::DefaultHeaders,
+        middleware::{Compat, DefaultHeaders},
         service::{ServiceRequest, ServiceResponse},
         test::{assert_body_eq, call_service, init_service, read_body, TestRequest},
         web, App, HttpMessage, HttpRequest, HttpResponse,
     };
+
+    #[test]
+    fn can_be_returned_from_fn() {
+        fn my_scope() -> Scope {
+            web::scope("/test")
+                .service(web::resource("").route(web::get().to(|| async { "hello" })))
+        }
+
+        fn my_compat_scope() -> Scope<
+            impl ServiceFactory<
+                ServiceRequest,
+                Config = (),
+                Response = ServiceResponse,
+                Error = Error,
+                InitError = (),
+            >,
+        > {
+            web::scope("/test-compat")
+                // .wrap_fn(|req, srv| {
+                //     let fut = srv.call(req);
+                //     async { Ok(fut.await?.map_into_right_body::<()>()) }
+                // })
+                .wrap(Compat::new(DefaultHeaders::new()))
+                .service(web::resource("").route(web::get().to(|| async { "hello" })))
+        }
+
+        App::new().service(my_scope()).service(my_compat_scope());
+    }
 
     #[actix_rt::test]
     async fn test_scope() {

@@ -709,24 +709,24 @@ mod tests {
         assert_eq!(body, Bytes::from_static(b"https://youtube.com/watch/12345"));
     }
 
-    /// compile-only test for returning app type from function
-    pub fn foreign_app_type() -> App<
-        impl ServiceFactory<
-            ServiceRequest,
-            Response = ServiceResponse<impl MessageBody>,
-            Config = (),
-            InitError = (),
-            Error = Error,
-        >,
-    > {
-        App::new()
-            // logger can be removed without affecting the return type
-            .wrap(crate::middleware::Logger::default())
-            .route("/", web::to(|| async { "hello" }))
-    }
-
     #[test]
-    fn return_foreign_app_type() {
-        let _app = foreign_app_type();
+    fn can_be_returned_from_fn() {
+        /// compile-only test for returning app type from function
+        pub fn my_app() -> App<
+            impl ServiceFactory<
+                ServiceRequest,
+                Response = ServiceResponse<impl MessageBody>,
+                Config = (),
+                InitError = (),
+                Error = Error,
+            >,
+        > {
+            App::new()
+                // logger can be removed without affecting the return type
+                .wrap(crate::middleware::Logger::default())
+                .route("/", web::to(|| async { "hello" }))
+        }
+
+        let _ = init_service(my_app());
     }
 }

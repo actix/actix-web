@@ -505,17 +505,47 @@ mod tests {
     use actix_service::Service;
     use actix_utils::future::ok;
 
+    use super::*;
     use crate::{
         guard,
         http::{
             header::{self, HeaderValue},
             Method, StatusCode,
         },
-        middleware::DefaultHeaders,
+        middleware::{Compat, DefaultHeaders},
         service::{ServiceRequest, ServiceResponse},
         test::{call_service, init_service, TestRequest},
         web, App, Error, HttpMessage, HttpResponse,
     };
+
+    #[test]
+    fn can_be_returned_from_fn() {
+        fn my_resource() -> Resource {
+            web::resource("/test").route(web::get().to(|| async { "hello" }))
+        }
+
+        fn my_compat_resource() -> Resource<
+            impl ServiceFactory<
+                ServiceRequest,
+                Config = (),
+                Response = ServiceResponse,
+                Error = Error,
+                InitError = (),
+            >,
+        > {
+            web::resource("/test-compat")
+                // .wrap_fn(|req, srv| {
+                //     let fut = srv.call(req);
+                //     async { Ok(fut.await?.map_into_right_body::<()>()) }
+                // })
+                .wrap(Compat::new(DefaultHeaders::new()))
+                .route(web::get().to(|| async { "hello" }))
+        }
+
+        App::new()
+            .service(my_resource())
+            .service(my_compat_resource());
+    }
 
     #[actix_rt::test]
     async fn test_middleware() {
