@@ -109,7 +109,7 @@ url = "2.1"
 actix-test = { version = "0.1.0-beta.9", features = ["openssl", "rustls"] }
 awc = { version = "3.0.0-beta.14", features = ["openssl"] }
 
-brotli2 = "0.3.2"
+brotli = "3.3"
 criterion = { version = "0.3", features = ["html_reports"] }
 env_logger = "0.9"
 flate2 = "1.0.13"
@@ -141,6 +141,8 @@ actix-web = { path = "." }
 actix-web-actors = { path = "actix-web-actors" }
 actix-web-codegen = { path = "actix-web-codegen" }
 awc = { path = "awc" }
+
+brotli = { path = "../rust-brotli" }
 
 # uncomment for quick testing against local actix-net repo
 # actix-service = { path = "../actix-net/actix-service" }

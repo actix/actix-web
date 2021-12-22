@@ -101,7 +101,7 @@ actix-tls = { version = "3.0.0-rc.1", features = ["openssl", "rustls"] }
 actix-utils = "3.0.0"
 actix-web = { version = "4.0.0-beta.15", features = ["openssl"] }
 
-brotli2 = "0.3.2"
+brotli = "3.3"
 env_logger = "0.9"
 flate2 = "1.0.13"
 futures-util = { version = "0.3.7", default-features = false }
