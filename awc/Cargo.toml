@@ -74,7 +74,7 @@ futures-core = { version = "0.3.7", default-features = false, features = ["alloc
 futures-util = { version = "0.3.7", default-features = false, features = ["alloc", "sink"] }
 h2 = "0.3.9"
 http = "0.2.5"
-itoa = "0.4"
+itoa = "1"
 log =" 0.4"
 mime = "0.3"
 percent-encoding = "2.1"

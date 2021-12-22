@@ -87,7 +87,7 @@ impl fmt::Display for Quality {
 
                     // 0 is already handled so it's not possible to have a trailing 0 in this range
                     // we can just write the integer
-                    itoa::fmt(f, x)
+                    itoa_fmt(f, x)
                 } else if x < 100 {
                     // x in is range 10–99
 
@@ -95,26 +95,32 @@ impl fmt::Display for Quality {
 
                     if x % 10 == 0 {
                         // trailing 0, divide by 10 and write
-                        itoa::fmt(f, x / 10)
+                        itoa_fmt(f, x / 10)
                     } else {
-                        itoa::fmt(f, x)
+                        itoa_fmt(f, x)
                     }
                 } else {
                     // x is in range 100–999
 
                     if x % 100 == 0 {
                         // two trailing 0s, divide by 100 and write
-                        itoa::fmt(f, x / 100)
+                        itoa_fmt(f, x / 100)
                     } else if x % 10 == 0 {
                         // one trailing 0, divide by 10 and write
-                        itoa::fmt(f, x / 10)
+                        itoa_fmt(f, x / 10)
                     } else {
-                        itoa::fmt(f, x)
+                        itoa_fmt(f, x)
                     }
                 }
             }
         }
     }
+}
+
+/// Write integer to a `fmt::Write`.
+pub fn itoa_fmt<W: fmt::Write, V: itoa::Integer>(mut wr: W, value: V) -> fmt::Result {
+    let mut buf = itoa::Buffer::new();
+    wr.write_str(buf.format(value))
 }
 
 #[derive(Debug, Clone, Display, Error)]
