@@ -74,7 +74,7 @@ futures-core = { version = "0.3.7", default-features = false, features = ["alloc
 futures-util = { version = "0.3.7", default-features = false, features = ["alloc", "sink"] }
 h2 = "0.3.9"
 http = "0.2.5"
-itoa = "0.4"
+itoa = "1"
 log =" 0.4"
 mime = "0.3"
 percent-encoding = "2.1"
@@ -83,7 +83,7 @@ rand = "0.8"
 serde = "1.0"
 serde_json = "1.0"
 serde_urlencoded = "0.7"
-tokio = { version = "1", features = ["sync"] }
+tokio = { version = "1.8", features = ["sync"] }
 
 cookie = { version = "0.15", features = ["percent-encode"], optional = true }
 

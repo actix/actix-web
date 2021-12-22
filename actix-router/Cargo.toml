@@ -21,7 +21,7 @@ default = ["http"]
 
 [dependencies]
 bytestring = ">=0.1.5, <2"
-firestorm = "0.4"
+firestorm = "0.5"
 http = { version = "0.2.3", optional = true }
 log = "0.4"
 regex = "1.5"
@@ -29,7 +29,7 @@ serde = "1"
 
 [dev-dependencies]
 criterion = { version = "0.3", features = ["html_reports"] }
-firestorm = { version = "0.4", features = ["enable_system_time"] }
+firestorm = { version = "0.5", features = ["enable_system_time"] }
 http = "0.2.5"
 serde = { version = "1", features = ["derive"] }
 

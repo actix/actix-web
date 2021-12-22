@@ -59,7 +59,7 @@ h2 = "0.3.9"
 http = "0.2.5"
 httparse = "1.5.1"
 httpdate = "1.0.1"
-itoa = "0.4"
+itoa = "1"
 language-tags = "0.3"
 local-channel = "0.1"
 log = "0.4"
@@ -67,7 +67,7 @@ mime = "0.3"
 percent-encoding = "2.1"
 pin-project-lite = "0.2"
 rand = "0.8"
-sha-1 = "0.9"
+sha-1 = "0.10"
 smallvec = "1.6.1"
 
 # tls
@@ -96,7 +96,7 @@ serde_json = "1.0"
 static_assertions = "1"
 tls-openssl = { package = "openssl", version = "0.10.9" }
 tls-rustls = { package = "rustls", version = "0.20.0" }
-tokio = { version = "1.2", features = ["net", "rt", "macros"] }
+tokio = { version = "1.8", features = ["net", "rt", "macros"] }
 
 [[example]]
 name = "ws"
