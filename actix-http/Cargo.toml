@@ -68,7 +68,7 @@ mime = "0.3"
 percent-encoding = "2.1"
 pin-project-lite = "0.2"
 rand = "0.8"
-sha-1 = "0.9"
+sha-1 = "0.10"
 smallvec = "1.6.1"
 
 # tls
