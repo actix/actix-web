@@ -83,7 +83,7 @@ rand = "0.8"
 serde = "1.0"
 serde_json = "1.0"
 serde_urlencoded = "0.7"
-tokio = { version = "1", features = ["sync"] }
+tokio = { version = "1.8", features = ["sync"] }
 
 cookie = { version = "0.15", features = ["percent-encode"], optional = true }
 
