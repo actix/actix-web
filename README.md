@@ -21,25 +21,25 @@
 
 ## Features
 
-* Supports *HTTP/1.x* and *HTTP/2*
-* Streaming and pipelining
-* Keep-alive and slow requests handling
-* Client/server [WebSockets](https://actix.rs/docs/websockets/) support
-* Transparent content compression/decompression (br, gzip, deflate, zstd)
-* Powerful [request routing](https://actix.rs/docs/url-dispatch/)
-* Multipart streams
-* Static assets
-* SSL support using OpenSSL or Rustls
-* Middlewares ([Logger, Session, CORS, etc](https://actix.rs/docs/middleware/))
-* Includes an async [HTTP client](https://docs.rs/awc/)
-* Runs on stable Rust 1.52+
+- Supports *HTTP/1.x* and *HTTP/2*
+- Streaming and pipelining
+- Keep-alive and slow requests handling
+- Client/server [WebSockets](https://actix.rs/docs/websockets/) support
+- Transparent content compression/decompression (br, gzip, deflate, zstd)
+- Powerful [request routing](https://actix.rs/docs/url-dispatch/)
+- Multipart streams
+- Static assets
+- SSL support using OpenSSL or Rustls
+- Middlewares ([Logger, Session, CORS, etc](https://actix.rs/docs/middleware/))
+- Includes an async [HTTP client](https://docs.rs/awc/)
+- Runs on stable Rust 1.52+
 
 ## Documentation
 
-* [Website & User Guide](https://actix.rs)
-* [Examples Repository](https://github.com/actix/examples)
-* [API Documentation](https://docs.rs/actix-web)
-* [API Documentation (master branch)](https://actix.rs/actix-web/actix_web)
+- [Website & User Guide](https://actix.rs)
+- [Examples Repository](https://github.com/actix/examples)
+- [API Documentation](https://docs.rs/actix-web)
+- [API Documentation (master branch)](https://actix.rs/actix-web/actix_web)
 
 ## Example
 
@@ -71,18 +71,18 @@ async fn main() -> std::io::Result<()> {
 
 ### More examples
 
-* [Basic Setup](https://github.com/actix/examples/tree/master/basics/basics/)
-* [Application State](https://github.com/actix/examples/tree/master/basics/state/)
-* [JSON Handling](https://github.com/actix/examples/tree/master/json/json/)
-* [Multipart Streams](https://github.com/actix/examples/tree/master/forms/multipart/)
-* [Diesel Integration](https://github.com/actix/examples/tree/master/database_interactions/diesel/)
-* [r2d2 Integration](https://github.com/actix/examples/tree/master/database_interactions/r2d2/)
-* [Simple WebSocket](https://github.com/actix/examples/tree/master/websockets/websocket/)
-* [Tera Templates](https://github.com/actix/examples/tree/master/template_engines/tera/)
-* [Askama Templates](https://github.com/actix/examples/tree/master/template_engines/askama/)
-* [HTTPS using Rustls](https://github.com/actix/examples/tree/master/security/rustls/)
-* [HTTPS using OpenSSL](https://github.com/actix/examples/tree/master/security/openssl/)
-* [WebSocket Chat](https://github.com/actix/examples/tree/master/websockets/chat/)
+- [Basic Setup](https://github.com/actix/examples/tree/master/basics/basics/)
+- [Application State](https://github.com/actix/examples/tree/master/basics/state/)
+- [JSON Handling](https://github.com/actix/examples/tree/master/json/json/)
+- [Multipart Streams](https://github.com/actix/examples/tree/master/forms/multipart/)
+- [Diesel Integration](https://github.com/actix/examples/tree/master/database_interactions/diesel/)
+- [r2d2 Integration](https://github.com/actix/examples/tree/master/database_interactions/r2d2/)
+- [Simple WebSocket](https://github.com/actix/examples/tree/master/websockets/websocket/)
+- [Tera Templates](https://github.com/actix/examples/tree/master/template_engines/tera/)
+- [Askama Templates](https://github.com/actix/examples/tree/master/template_engines/askama/)
+- [HTTPS using Rustls](https://github.com/actix/examples/tree/master/security/rustls/)
+- [HTTPS using OpenSSL](https://github.com/actix/examples/tree/master/security/openssl/)
+- [WebSocket Chat](https://github.com/actix/examples/tree/master/websockets/chat/)
 
 You may consider checking out
 [this directory](https://github.com/actix/examples/tree/master/) for more examples.
@@ -96,9 +96,9 @@ One of the fastest web frameworks available according to the
 
 This project is licensed under either of
 
-* Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
+- Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
   [http://www.apache.org/licenses/LICENSE-2.0])
-* MIT license ([LICENSE-MIT](LICENSE-MIT) or
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or
   [http://opensource.org/licenses/MIT])
 
 at your option.
