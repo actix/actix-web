@@ -318,6 +318,14 @@
 [#1875]: https://github.com/actix/actix-web/pull/1875
 [#1878]: https://github.com/actix/actix-web/pull/1878
 
+
+## 3.3.3 - 2021-12-18
+### Changed
+* Soft-deprecate `NormalizePath::default()`, noting upcoming behavior change in v4. [#2529]
+
+[#2529]: https://github.com/actix/actix-web/pull/2529
+
+
 ## 3.3.2 - 2020-12-01
 ### Fixed
 * Removed an occasional `unwrap` on `None` panic in `NormalizePathNormalization`. [#1762]
