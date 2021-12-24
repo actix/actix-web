@@ -415,10 +415,13 @@ where
     }
 }
 
-struct ReadBody<S> {
-    stream: Payload<S>,
-    buf: BytesMut,
-    limit: usize,
+pin_project_lite::pin_project! {
+    struct ReadBody<S> {
+        #[pin]
+        stream: Payload<S>,
+        buf: BytesMut,
+        limit: usize,
+    }
 }
 
 impl<S> ReadBody<S> {
@@ -433,15 +436,15 @@ impl<S> ReadBody<S> {
 
 impl<S> Future for ReadBody<S>
 where
-    S: Stream<Item = Result<Bytes, PayloadError>> + Unpin,
+    S: Stream<Item = Result<Bytes, PayloadError>>,
 {
     type Output = Result<Bytes, PayloadError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.get_mut();
+        let mut this = self.project();
 
-        while let Some(chunk) = ready!(Pin::new(&mut this.stream).poll_next(cx)?) {
-            if (this.buf.len() + chunk.len()) > this.limit {
+        while let Some(chunk) = ready!(this.stream.as_mut().poll_next(cx)?) {
+            if (this.buf.len() + chunk.len()) > *this.limit {
                 return Poll::Ready(Err(PayloadError::Overflow));
             }
             this.buf.extend_from_slice(&chunk);
@@ -453,10 +456,13 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde::{Deserialize, Serialize};
+    use static_assertions::assert_impl_all;
 
+    use super::*;
     use crate::{http::header, test::TestResponse};
+
+    assert_impl_all!(ClientResponse: Unpin);
 
     #[actix_rt::test]
     async fn test_body() {
