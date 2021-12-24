@@ -77,10 +77,27 @@ impl<B> AnyBody<B>
 where
     B: MessageBody + 'static,
 {
+    /// Converts a [`MessageBody`] type into the best possible representation.
+    ///
+    /// Checks size for `None` and tries to convert to `Bytes`. Otherwise, uses the `Body` variant.
+    pub fn from_message_body(body: B) -> Self
+    where
+        B: MessageBody,
+    {
+        if matches!(body.size(), BodySize::None) {
+            return Self::None;
+        }
+
+        match body.try_into_bytes() {
+            Ok(body) => Self::Bytes { body },
+            Err(body) => Self::new(body),
+        }
+    }
+
     pub fn into_boxed(self) -> AnyBody {
         match self {
             Self::None => AnyBody::None,
-            Self::Bytes { body: bytes } => AnyBody::Bytes { body: bytes },
+            Self::Bytes { body } => AnyBody::Bytes { body },
             Self::Body { body } => AnyBody::new_boxed(body),
         }
     }

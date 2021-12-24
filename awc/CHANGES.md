@@ -3,8 +3,10 @@
 ## Unreleased - 2021-xx-xx
 - Rename `Connector::{ssl => openssl}`. [#2503]
 - Improve `Client` instantiation efficiency when using `openssl` by only building connectors once. [#2503]
+- `ClientRequest::send_body` now takes an `impl MessageBody`. [#????]
 
 [#2503]: https://github.com/actix/actix-web/pull/2503
+[#????]: https://github.com/actix/actix-web/pull/????
 
 
 ## 3.0.0-beta.14 - 2021-12-17
