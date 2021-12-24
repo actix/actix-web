@@ -10,8 +10,8 @@ use std::{
 };
 
 use actix_http::{
-    error::PayloadError, header, header::HeaderMap, Extensions, HttpMessage, Payload,
-    PayloadStream, ResponseHead, StatusCode, Version,
+    error::PayloadError, header, header::HeaderMap, BoxedPayloadStream, Extensions,
+    HttpMessage, Payload, ResponseHead, StatusCode, Version,
 };
 use actix_rt::time::{sleep, Sleep};
 use bytes::{Bytes, BytesMut};
@@ -23,7 +23,7 @@ use crate::cookie::{Cookie, ParseError as CookieParseError};
 use crate::error::JsonPayloadError;
 
 /// Client Response
-pub struct ClientResponse<S = PayloadStream> {
+pub struct ClientResponse<S = BoxedPayloadStream> {
     pub(crate) head: ResponseHead,
     pub(crate) payload: Payload<S>,
     pub(crate) timeout: ResponseTimeout,

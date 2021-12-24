@@ -646,10 +646,11 @@ where
                                     Payload is attached to Request and passed to Service::call
                                     where the state can be collected and consumed.
                                     */
-                                    let (ps, pl) = Payload::create(false);
-                                    let (req1, _) = req.replace_payload(crate::Payload::H1(pl));
+                                    let (sender, payload) = Payload::create(false);
+                                    let (req1, _) =
+                                        req.replace_payload(crate::Payload::H1 { payload });
                                     req = req1;
-                                    *this.payload = Some(ps);
+                                    *this.payload = Some(sender);
                                 }
 
                                 // Request has no payload.
