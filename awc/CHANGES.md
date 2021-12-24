@@ -3,11 +3,8 @@
 ## Unreleased - 2021-xx-xx
 - Rename `Connector::{ssl => openssl}`. [#2503]
 - Improve `Client` instantiation efficiency when using `openssl` by only building connectors once. [#2503]
-- `ClientResponse` is no longer `Unpin`. [#2545]
-- `impl Stream` for `ClientResponse` no longer requires the body type be `Unpin`. [#2545]
 
 [#2503]: https://github.com/actix/actix-web/pull/2503
-[#2545]: https://github.com/actix/actix-web/pull/2545
 
 
 ## 3.0.0-beta.14 - 2021-12-17

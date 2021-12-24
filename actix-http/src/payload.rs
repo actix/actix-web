@@ -12,7 +12,7 @@ use crate::error::PayloadError;
 /// A boxed payload stream.
 pub type BoxedPayloadStream = Pin<Box<dyn Stream<Item = Result<Bytes, PayloadError>>>>;
 
-#[deprecated(since = "4.0.0", note = "Renamed to `BoxedStream`.")]
+#[deprecated(since = "4.0.0", note = "Renamed to `BoxedPayloadStream`.")]
 pub type PayloadStream = BoxedPayloadStream;
 
 pin_project_lite::pin_project! {
@@ -78,9 +78,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use static_assertions::assert_impl_all;
+    use std::panic::{RefUnwindSafe, UnwindSafe};
+
+    use static_assertions::{assert_impl_all, assert_not_impl_any};
 
     use super::*;
 
     assert_impl_all!(Payload: Unpin);
+    assert_not_impl_any!(Payload: Send, Sync, UnwindSafe, RefUnwindSafe);
 }
