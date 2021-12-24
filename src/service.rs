@@ -7,7 +7,7 @@ use std::{
 use actix_http::{
     body::{BoxBody, EitherBody, MessageBody},
     header::HeaderMap,
-    Extensions, HttpMessage, Method, Payload, PayloadStream, RequestHead, Response,
+    BoxedPayloadStream, Extensions, HttpMessage, Method, Payload, RequestHead, Response,
     ResponseHead, StatusCode, Uri, Version,
 };
 use actix_router::{IntoPatterns, Path, Patterns, Resource, ResourceDef, Url};
@@ -293,7 +293,7 @@ impl Resource<Url> for ServiceRequest {
 }
 
 impl HttpMessage for ServiceRequest {
-    type Stream = PayloadStream;
+    type Stream = BoxedPayloadStream;
 
     #[inline]
     /// Returns Request's headers.

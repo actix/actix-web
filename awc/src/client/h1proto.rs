@@ -123,7 +123,12 @@ where
 
             Ok((head, Payload::None))
         }
-        _ => Ok((head, Payload::Stream(Box::pin(PlStream::new(framed))))),
+        _ => Ok((
+            head,
+            Payload::Stream {
+                payload: Box::pin(PlStream::new(framed)),
+            },
+        )),
     }
 }
 

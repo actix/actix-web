@@ -58,7 +58,8 @@ pub use self::header::ContentEncoding;
 pub use self::http_message::HttpMessage;
 pub use self::message::ConnectionType;
 pub use self::message::Message;
-pub use self::payload::{Payload, PayloadStream};
+#[allow(deprecated)]
+pub use self::payload::{BoxedPayloadStream, Payload, PayloadStream};
 pub use self::requests::{Request, RequestHead, RequestHeadType};
 pub use self::responses::{Response, ResponseBuilder, ResponseHead};
 pub use self::service::HttpService;

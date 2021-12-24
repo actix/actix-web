@@ -98,3 +98,12 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use static_assertions::assert_impl_all;
+
+    use super::*;
+
+    assert_impl_all!(Payload: Unpin);
+}

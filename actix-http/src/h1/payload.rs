@@ -22,9 +22,9 @@ pub enum PayloadStatus {
 
 /// Buffered stream of bytes chunks
 ///
-/// Payload stores chunks in a vector. First chunk can be received with
-/// `.readany()` method. Payload stream is not thread safe. Payload does not
-/// notify current task when new data is available.
+/// Payload stores chunks in a vector. First chunk can be received with `.readany()` method.
+/// Payload stream is not thread safe. Payload does not notify current task when new data
+/// is available.
 ///
 /// Payload stream can be used as `Response` body stream.
 #[derive(Debug)]
@@ -76,14 +76,6 @@ impl Payload {
     #[inline]
     pub fn unread_data(&mut self, data: Bytes) {
         self.inner.borrow_mut().unread_data(data);
-    }
-
-    #[inline]
-    pub fn readany(
-        &mut self,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<Bytes, PayloadError>>> {
-        self.inner.borrow_mut().readany(cx)
     }
 }
 
@@ -257,8 +249,12 @@ impl Inner {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use actix_utils::future::poll_fn;
+    use static_assertions::assert_impl_all;
+
+    use super::*;
+
+    assert_impl_all!(Payload: Unpin);
 
     #[actix_rt::test]
     async fn test_unread_data() {
@@ -270,7 +266,10 @@ mod tests {
 
         assert_eq!(
             Bytes::from("data"),
-            poll_fn(|cx| payload.readany(cx)).await.unwrap().unwrap()
+            poll_fn(|cx| Pin::new(&mut payload).poll_next(cx))
+                .await
+                .unwrap()
+                .unwrap()
         );
     }
 }

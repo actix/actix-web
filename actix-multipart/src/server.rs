@@ -1233,7 +1233,7 @@ mod tests {
 
         // and should not consume the payload
         match payload {
-            actix_web::dev::Payload::H1(_) => {} //expected
+            actix_web::dev::Payload::H1 { .. } => {} //expected
             _ => unreachable!(),
         }
     }
