@@ -23,7 +23,7 @@ pin_project_lite::pin_project! {
         H1 { payload: crate::h1::Payload },
         H2 { payload: crate::h2::Payload },
         Stream { #[pin] payload: S },
-}
+    }
 }
 
 impl<S> From<crate::h1::Payload> for Payload<S> {

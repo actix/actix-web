@@ -120,7 +120,7 @@ impl TestRequest {
     }
 
     /// Set request payload.
-    pub fn set_payload<B: Into<Bytes>>(&mut self, data: B) -> &mut Self {
+    pub fn set_payload(&mut self, data: impl Into<Bytes>) -> &mut Self {
         let mut payload = crate::h1::Payload::empty();
         payload.unread_data(data.into());
         parts(&mut self.0).payload = Some(payload.into());
