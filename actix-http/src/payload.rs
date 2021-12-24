@@ -6,7 +6,6 @@ use std::{
 
 use bytes::Bytes;
 use futures_core::Stream;
-use h2::RecvStream;
 
 use crate::error::PayloadError;
 
@@ -39,8 +38,8 @@ impl<S> From<crate::h2::Payload> for Payload<S> {
     }
 }
 
-impl<S> From<RecvStream> for Payload<S> {
-    fn from(stream: RecvStream) -> Self {
+impl<S> From<h2::RecvStream> for Payload<S> {
+    fn from(stream: h2::RecvStream) -> Self {
         Payload::H2 {
             payload: crate::h2::Payload::new(stream),
         }
@@ -83,6 +82,5 @@ mod tests {
 
     use super::*;
 
-    assert_impl_all!(RecvStream: Unpin);
     assert_impl_all!(Payload: Unpin);
 }
