@@ -42,8 +42,7 @@ use crate::{
         header::{self, HeaderName, HeaderValue, TryIntoHeaderValue, AUTHORIZATION},
         ConnectionType, Method, StatusCode, Uri, Version,
     },
-    response::ClientResponse,
-    ClientConfig,
+    ClientConfig, ClientResponse,
 };
 
 #[cfg(feature = "cookies")]

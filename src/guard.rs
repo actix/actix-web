@@ -270,13 +270,11 @@ impl Guard for HeaderGuard {
 /// ```
 /// use actix_web::{web, guard::Host, App, HttpResponse};
 ///
-/// fn main() {
-///     App::new().service(
-///         web::resource("/index.html")
-///             .guard(Host("www.rust-lang.org"))
-///             .to(|| HttpResponse::MethodNotAllowed())
-///     );
-/// }
+/// App::new().service(
+///     web::resource("/index.html")
+///         .guard(Host("www.rust-lang.org"))
+///         .to(|| HttpResponse::MethodNotAllowed())
+/// );
 /// ```
 pub fn Host<H: AsRef<str>>(host: H) -> HostGuard {
     HostGuard(host.as_ref().to_string(), None)

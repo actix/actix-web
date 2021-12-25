@@ -113,7 +113,7 @@ pub mod error;
 mod frozen;
 pub mod middleware;
 mod request;
-mod response;
+mod responses;
 mod sender;
 pub mod test;
 pub mod ws;
@@ -128,7 +128,8 @@ pub use self::client::Connector;
 pub use self::connect::{BoxConnectorService, BoxedSocket, ConnectRequest, ConnectResponse};
 pub use self::frozen::{FrozenClientRequest, FrozenSendBuilder};
 pub use self::request::ClientRequest;
-pub use self::response::{ClientResponse, JsonBody, MessageBody};
+#[allow(deprecated)]
+pub use self::responses::{ClientResponse, JsonBody, MessageBody, ResponseBody};
 pub use self::sender::SendClientRequest;
 
 use std::{convert::TryFrom, rc::Rc, time::Duration};

@@ -5,13 +5,13 @@ use futures_core::Stream;
 use serde::Serialize;
 
 use actix_http::{
+    body::MessageBody,
     error::HttpError,
     header::{self, HeaderMap, HeaderValue, TryIntoHeaderPair},
     ConnectionType, Method, RequestHead, Uri, Version,
 };
 
 use crate::{
-    any_body::AnyBody,
     error::{FreezeRequestError, InvalidUrl},
     frozen::FrozenClientRequest,
     sender::{PrepForSendingError, RequestSender, SendClientRequest},
@@ -26,20 +26,20 @@ use crate::cookie::{Cookie, CookieJar};
 /// This type can be used to construct an instance of `ClientRequest` through a
 /// builder-like pattern.
 ///
-/// ```
-/// #[actix_rt::main]
-/// async fn main() {
-///    let response = awc::Client::new()
-///         .get("http://www.rust-lang.org") // <- Create request builder
-///         .insert_header(("User-Agent", "Actix-web"))
-///         .send()                          // <- Send HTTP request
-///         .await;
+/// ```no_run
+/// # #[actix_rt::main]
+/// # async fn main() {
+/// let response = awc::Client::new()
+///      .get("http://www.rust-lang.org") // <- Create request builder
+///      .insert_header(("User-Agent", "Actix-web"))
+///      .send()                          // <- Send HTTP request
+///      .await;
 ///
-///    response.and_then(|response| {   // <- server HTTP response
-///         println!("Response: {:?}", response);
-///         Ok(())
-///    });
-/// }
+/// response.and_then(|response| {   // <- server HTTP response
+///      println!("Response: {:?}", response);
+///      Ok(())
+/// });
+/// # }
 /// ```
 pub struct ClientRequest {
     pub(crate) head: RequestHead,
@@ -174,17 +174,13 @@ impl ClientRequest {
 
     /// Append a header, keeping any that were set with an equivalent field name.
     ///
-    /// ```
-    /// # #[actix_rt::main]
-    /// # async fn main() {
-    /// # use awc::Client;
-    /// use awc::http::header::CONTENT_TYPE;
+    /// ```no_run
+    /// use awc::{http::header, Client};
     ///
     /// Client::new()
     ///     .get("http://www.rust-lang.org")
     ///     .insert_header(("X-TEST", "value"))
-    ///     .insert_header((CONTENT_TYPE, mime::APPLICATION_JSON));
-    /// # }
+    ///     .insert_header((header::CONTENT_TYPE, mime::APPLICATION_JSON));
     /// ```
     pub fn append_header(mut self, header: impl TryIntoHeaderPair) -> Self {
         match header.try_into_pair() {
@@ -252,23 +248,25 @@ impl ClientRequest {
 
     /// Set a cookie
     ///
-    /// ```
-    /// #[actix_rt::main]
-    /// async fn main() {
-    ///     let resp = awc::Client::new().get("https://www.rust-lang.org")
-    ///         .cookie(
-    ///             awc::cookie::Cookie::build("name", "value")
-    ///                 .domain("www.rust-lang.org")
-    ///                 .path("/")
-    ///                 .secure(true)
-    ///                 .http_only(true)
-    ///                 .finish(),
-    ///          )
-    ///          .send()
-    ///          .await;
+    /// ```no_run
+    /// use awc::{cookie, Client};
     ///
-    ///     println!("Response: {:?}", resp);
-    /// }
+    /// # #[actix_rt::main]
+    /// # async fn main() {
+    /// let resp = Client::new().get("https://www.rust-lang.org")
+    ///     .cookie(
+    ///         awc::cookie::Cookie::build("name", "value")
+    ///             .domain("www.rust-lang.org")
+    ///             .path("/")
+    ///             .secure(true)
+    ///             .http_only(true)
+    ///             .finish(),
+    ///      )
+    ///      .send()
+    ///      .await;
+    ///
+    /// println!("Response: {:?}", resp);
+    /// # }
     /// ```
     #[cfg(feature = "cookies")]
     pub fn cookie(mut self, cookie: Cookie<'_>) -> Self {
@@ -340,7 +338,7 @@ impl ClientRequest {
     /// Complete request construction and send body.
     pub fn send_body<B>(self, body: B) -> SendClientRequest
     where
-        B: Into<AnyBody>,
+        B: MessageBody + 'static,
     {
         let slf = match self.prep_for_sending() {
             Ok(slf) => slf,

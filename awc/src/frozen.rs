@@ -5,13 +5,13 @@ use futures_core::Stream;
 use serde::Serialize;
 
 use actix_http::{
+    body::MessageBody,
     error::HttpError,
     header::{HeaderMap, HeaderName, TryIntoHeaderValue},
     Method, RequestHead, Uri,
 };
 
 use crate::{
-    any_body::AnyBody,
     sender::{RequestSender, SendClientRequest},
     BoxError, ClientConfig,
 };
@@ -46,7 +46,7 @@ impl FrozenClientRequest {
     /// Send a body.
     pub fn send_body<B>(&self, body: B) -> SendClientRequest
     where
-        B: Into<AnyBody>,
+        B: MessageBody + 'static,
     {
         RequestSender::Rc(self.head.clone(), None).send_body(
             self.addr,
@@ -159,7 +159,7 @@ impl FrozenSendBuilder {
     /// Complete request construction and send a body.
     pub fn send_body<B>(self, body: B) -> SendClientRequest
     where
-        B: Into<AnyBody>,
+        B: MessageBody + 'static,
     {
         if let Some(e) = self.err {
             return e.into();

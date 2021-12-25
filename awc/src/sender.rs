@@ -8,7 +8,7 @@ use std::{
 };
 
 use actix_http::{
-    body::BodyStream,
+    body::{BodyStream, MessageBody},
     error::HttpError,
     header::{self, HeaderMap, HeaderName, TryIntoHeaderValue},
     RequestHead, RequestHeadType,
@@ -189,15 +189,17 @@ impl RequestSender {
         body: B,
     ) -> SendClientRequest
     where
-        B: Into<AnyBody>,
+        B: MessageBody + 'static,
     {
         let req = match self {
-            RequestSender::Owned(head) => {
-                ConnectRequest::Client(RequestHeadType::Owned(head), body.into(), addr)
-            }
+            RequestSender::Owned(head) => ConnectRequest::Client(
+                RequestHeadType::Owned(head),
+                AnyBody::from_message_body(body).into_boxed(),
+                addr,
+            ),
             RequestSender::Rc(head, extra_headers) => ConnectRequest::Client(
                 RequestHeadType::Rc(head, extra_headers),
-                body.into(),
+                AnyBody::from_message_body(body).into_boxed(),
                 addr,
             ),
         };
@@ -229,9 +231,7 @@ impl RequestSender {
             response_decompress,
             timeout,
             config,
-            AnyBody::Bytes {
-                body: Bytes::from(body),
-            },
+            AnyBody::from_message_body(body.into_bytes()),
         )
     }
 
@@ -260,9 +260,7 @@ impl RequestSender {
             response_decompress,
             timeout,
             config,
-            AnyBody::Bytes {
-                body: Bytes::from(body),
-            },
+            AnyBody::from_message_body(body.into_bytes()),
         )
     }
 
