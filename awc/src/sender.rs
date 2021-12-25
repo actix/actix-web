@@ -24,8 +24,9 @@ use actix_http::{encoding::Decoder, header::ContentEncoding, Payload};
 
 use crate::{
     any_body::AnyBody,
+    client::ClientConfig,
     error::{FreezeRequestError, InvalidUrl, SendRequestError},
-    BoxError, ClientConfig, ClientResponse, ConnectRequest, ConnectResponse,
+    BoxError, ClientResponse, ConnectRequest, ConnectResponse,
 };
 
 #[derive(Debug, From)]

@@ -31,18 +31,19 @@ use std::{convert::TryFrom, fmt, net::SocketAddr, str};
 use actix_codec::Framed;
 use actix_http::{ws, Payload, RequestHead};
 use actix_rt::time::timeout;
-use actix_service::Service;
+use actix_service::Service as _;
 
 pub use actix_http::ws::{CloseCode, CloseReason, Codec, Frame, Message};
 
 use crate::{
+    client::ClientConfig,
     connect::{BoxedSocket, ConnectRequest},
     error::{HttpError, InvalidUrl, SendRequestError, WsClientError},
     http::{
         header::{self, HeaderName, HeaderValue, TryIntoHeaderValue, AUTHORIZATION},
         ConnectionType, Method, StatusCode, Uri, Version,
     },
-    ClientConfig, ClientResponse,
+    ClientResponse,
 };
 
 #[cfg(feature = "cookies")]

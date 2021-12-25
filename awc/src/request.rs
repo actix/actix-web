@@ -12,10 +12,11 @@ use actix_http::{
 };
 
 use crate::{
+    client::ClientConfig,
     error::{FreezeRequestError, InvalidUrl},
     frozen::FrozenClientRequest,
     sender::{PrepForSendingError, RequestSender, SendClientRequest},
-    BoxError, ClientConfig,
+    BoxError,
 };
 
 #[cfg(feature = "cookies")]
@@ -249,23 +250,16 @@ impl ClientRequest {
     /// Set a cookie
     ///
     /// ```no_run
-    /// use awc::{cookie, Client};
+    /// use awc::{cookie::Cookie, Client};
     ///
     /// # #[actix_rt::main]
     /// # async fn main() {
-    /// let resp = Client::new().get("https://www.rust-lang.org")
-    ///     .cookie(
-    ///         awc::cookie::Cookie::build("name", "value")
-    ///             .domain("www.rust-lang.org")
-    ///             .path("/")
-    ///             .secure(true)
-    ///             .http_only(true)
-    ///             .finish(),
-    ///      )
-    ///      .send()
-    ///      .await;
+    /// let res = Client::new().get("https://httpbin.org/cookies")
+    ///     .cookie(Cookie::new("name", "value"))
+    ///     .send()
+    ///     .await;
     ///
-    /// println!("Response: {:?}", resp);
+    /// println!("Response: {:?}", res);
     /// # }
     /// ```
     #[cfg(feature = "cookies")]

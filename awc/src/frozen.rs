@@ -12,8 +12,9 @@ use actix_http::{
 };
 
 use crate::{
+    client::ClientConfig,
     sender::{RequestSender, SendClientRequest},
-    BoxError, ClientConfig,
+    BoxError,
 };
 
 /// `FrozenClientRequest` struct represents cloneable client request.
