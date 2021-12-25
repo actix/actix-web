@@ -15,10 +15,10 @@ use crate::{
     BoxError, Error, FromRequest, HttpResponse, Responder,
 };
 
-/// Resource route definition
+/// A request handler with [guards](guard).
 ///
-/// Route uses builder-like pattern for configuration.
-/// If handler is not explicitly set, default *404 Not Found* handler is used.
+/// Route uses a builder-like pattern for configuration. If handler is not set, a `404 Not Found`
+/// handler is used.
 pub struct Route {
     service: BoxedHttpServiceFactory,
     guards: Rc<Vec<Box<dyn Guard>>>,

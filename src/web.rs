@@ -52,11 +52,16 @@ pub fn resource<T: IntoPatterns>(path: T) -> Resource {
 /// Scopes collect multiple paths under a common path prefix. The scope's path can contain dynamic
 /// path segments.
 ///
+/// # Avoid Trailing Slashes
+/// Avoid using trailing slashes in the scope prefix (e.g., `web::scope("/scope/")`). It will almost
+/// certainly not have the expected behavior. See the [documentation on resource definitions][pat]
+/// to understand why this is the case and how to correctly construct scope/prefix definitions.
+///
 /// # Examples
 /// In this example, three routes are set up (and will handle any method):
-///  * `/{project_id}/path1`
-///  * `/{project_id}/path2`
-///  * `/{project_id}/path3`
+/// - `/{project_id}/path1`
+/// - `/{project_id}/path2`
+/// - `/{project_id}/path3`
 ///
 /// ```
 /// use actix_web::{web, App, HttpResponse};
@@ -68,6 +73,8 @@ pub fn resource<T: IntoPatterns>(path: T) -> Resource {
 ///         .service(web::resource("/path3").to(|| HttpResponse::MethodNotAllowed()))
 /// );
 /// ```
+///
+/// [pat]: crate::dev::ResourceDef#prefix-resources
 pub fn scope(path: &str) -> Scope {
     Scope::new(path)
 }

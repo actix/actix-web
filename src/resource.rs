@@ -23,28 +23,25 @@ use crate::{
     BoxError, Error, FromRequest, HttpResponse, Responder,
 };
 
-/// *Resource* is an entry in resources table which corresponds to requested URL.
+/// A collection of [`Route`]s that respond to the same path pattern.
 ///
-/// Resource in turn has at least one route.
-/// Route consists of an handlers objects and list of guards
-/// (objects that implement `Guard` trait).
-/// Resources and routes uses builder-like pattern for configuration.
-/// During request handling, resource object iterate through all routes
-/// and check guards for specific route, if request matches all
-/// guards, route considered matched and route handler get called.
+/// Resource in turn has at least one route. Route consists of an handlers objects and list of
+/// guards (objects that implement `Guard` trait). Resources and routes uses builder-like pattern
+/// for configuration. During request handling, resource object iterate through all routes and check
+/// guards for specific route, if request matches all guards, route considered matched and route
+/// handler get called.
 ///
+/// # Examples
 /// ```
 /// use actix_web::{web, App, HttpResponse};
 ///
-/// fn main() {
-///     let app = App::new().service(
-///         web::resource("/")
-///             .route(web::get().to(|| HttpResponse::Ok())));
-/// }
+/// let app = App::new().service(
+///     web::resource("/")
+///         .route(web::get().to(|| HttpResponse::Ok())));
 /// ```
 ///
-/// If no matching route could be found, *405* response code get returned.
-/// Default behavior could be overridden with `default_resource()` method.
+/// If no matching route could be found, *405* response code get returned. Default behavior could be
+/// overridden with `default_resource()` method.
 pub struct Resource<T = ResourceEndpoint, B = BoxBody> {
     endpoint: T,
     rdef: Patterns,
