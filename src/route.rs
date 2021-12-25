@@ -176,10 +176,10 @@ impl Route {
     ///     );
     /// }
     /// ```
-    pub fn to<F, T, R>(mut self, handler: F) -> Self
+    pub fn to<F, Args, R>(mut self, handler: F) -> Self
     where
-        F: Handler<T, R>,
-        T: FromRequest + 'static,
+        F: Handler<Args, R>,
+        Args: FromRequest + 'static,
         R: Future + 'static,
         R::Output: Responder + 'static,
         <R::Output as Responder>::Body: MessageBody,

@@ -232,10 +232,10 @@ where
     /// # fn index(req: HttpRequest) -> HttpResponse { unimplemented!() }
     /// App::new().service(web::resource("/").route(web::route().to(index)));
     /// ```
-    pub fn to<F, I, R>(mut self, handler: F) -> Self
+    pub fn to<F, Args, R>(mut self, handler: F) -> Self
     where
-        F: Handler<I, R>,
-        I: FromRequest + 'static,
+        F: Handler<Args, R>,
+        Args: FromRequest + 'static,
         R: Future + 'static,
         R::Output: Responder + 'static,
         <R::Output as Responder>::Body: MessageBody,
