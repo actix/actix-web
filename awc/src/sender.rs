@@ -231,7 +231,7 @@ impl RequestSender {
             response_decompress,
             timeout,
             config,
-            AnyBody::copy_from_slice(body.as_bytes()),
+            AnyBody::from_message_body(body.into_bytes()),
         )
     }
 
@@ -260,7 +260,7 @@ impl RequestSender {
             response_decompress,
             timeout,
             config,
-            AnyBody::copy_from_slice(body.as_bytes()),
+            AnyBody::from_message_body(body.into_bytes()),
         )
     }
 

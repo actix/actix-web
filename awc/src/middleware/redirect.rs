@@ -191,6 +191,7 @@ where
                             // try to reuse body
                             match body {
                                 Some(ref bytes) => AnyBody::from(bytes.clone()),
+                                // TODO: should this be AnyBody::Empty or AnyBody::None.
                                 _ => AnyBody::empty(),
                             }
                         } else {

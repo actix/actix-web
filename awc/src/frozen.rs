@@ -46,7 +46,7 @@ impl FrozenClientRequest {
     /// Send a body.
     pub fn send_body<B>(&self, body: B) -> SendClientRequest
     where
-        B: actix_http::body::MessageBody + 'static,
+        B: MessageBody + 'static,
     {
         RequestSender::Rc(self.head.clone(), None).send_body(
             self.addr,
