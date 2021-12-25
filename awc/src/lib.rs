@@ -105,6 +105,11 @@
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 
+pub use actix_http::body;
+
+#[cfg(feature = "cookies")]
+pub use cookie;
+
 mod any_body;
 mod builder;
 mod client;
@@ -118,10 +123,14 @@ mod sender;
 pub mod test;
 pub mod ws;
 
-// TODO: hmmmmmm
-pub use actix_http as http;
-#[cfg(feature = "cookies")]
-pub use cookie;
+pub mod http {
+    //! Various HTTP related types.
+
+    // TODO: figure out how best to expose http::Error vs actix_http::Error
+    pub use actix_http::{
+        header, uri, ConnectionType, Error, Method, StatusCode, Uri, Version,
+    };
+}
 
 pub use self::builder::ClientBuilder;
 pub use self::client::{Client, Connector};
