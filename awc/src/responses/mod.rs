@@ -25,7 +25,8 @@ mod read_body;
 mod response_body;
 
 pub use self::json_body::JsonBody;
-pub use self::response_body::ResponseBody;
+#[allow(deprecated)]
+pub use self::response_body::{MessageBody, ResponseBody};
 
 /// Client Response
 pub struct ClientResponse<S = BoxedPayloadStream> {
@@ -249,7 +250,7 @@ impl<S> fmt::Debug for ClientResponse<S> {
     }
 }
 
-/// Default body size limit: 2MiB
+/// Default body size limit: 2 MiB
 const DEFAULT_BODY_LIMIT: usize = 2 * 1024 * 1024;
 
 #[cfg(test)]

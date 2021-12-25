@@ -16,15 +16,15 @@ use super::{read_body::ReadBody, ResponseTimeout, DEFAULT_BODY_LIMIT};
 use crate::{error::JsonPayloadError, ClientResponse};
 
 pin_project! {
-    /// Consumes body stream and parses JSON, resolving to a deserialized `T` value.
+    /// A `Future` that reads a body stream, parses JSON, resolving to a deserialized `T`.
     ///
     /// # Errors
     /// `Future` implementation returns error if:
     /// - content type is not `application/json`;
     /// - content length is greater than [limit](JsonBody::limit) (default: 2 MiB).
-    pub struct JsonBody<B, T> {
+    pub struct JsonBody<S, T> {
         #[pin]
-        body: Option<ReadBody<B>>,
+        body: Option<ReadBody<S>>,
         length: Option<usize>,
         timeout: ResponseTimeout,
         err: Option<JsonPayloadError>,
@@ -32,13 +32,13 @@ pin_project! {
     }
 }
 
-impl<B, T> JsonBody<B, T>
+impl<S, T> JsonBody<S, T>
 where
-    B: Stream<Item = Result<Bytes, PayloadError>>,
+    S: Stream<Item = Result<Bytes, PayloadError>>,
     T: DeserializeOwned,
 {
-    /// Create `JsonBody` for request.
-    pub fn new(res: &mut ClientResponse<B>) -> Self {
+    /// Creates a JSON body stream reader from a response by taking its payload.
+    pub fn new(res: &mut ClientResponse<S>) -> Self {
         // check content-type
         let json = if let Ok(Some(mime)) = res.mime_type() {
             mime.subtype() == mime::JSON || mime.suffix() == Some(mime::JSON)
@@ -56,19 +56,15 @@ where
             };
         }
 
-        let mut len = None;
-
-        if let Some(l) = res.headers().get(&header::CONTENT_LENGTH) {
-            if let Ok(s) = l.to_str() {
-                if let Ok(l) = s.parse::<usize>() {
-                    len = Some(l)
-                }
-            }
-        }
+        let length = res
+            .headers()
+            .get(&header::CONTENT_LENGTH)
+            .and_then(|len_hdr| len_hdr.to_str().ok())
+            .and_then(|len_str| len_str.parse::<usize>().ok());
 
         JsonBody {
             body: Some(ReadBody::new(res.take_payload(), DEFAULT_BODY_LIMIT)),
-            length: len,
+            length,
             timeout: mem::take(&mut res.timeout),
             err: None,
             _phantom: PhantomData,
@@ -85,9 +81,9 @@ where
     }
 }
 
-impl<B, T> Future for JsonBody<B, T>
+impl<S, T> Future for JsonBody<S, T>
 where
-    B: Stream<Item = Result<Bytes, PayloadError>>,
+    S: Stream<Item = Result<Bytes, PayloadError>>,
     T: DeserializeOwned,
 {
     type Output = Result<T, JsonPayloadError>;
@@ -142,7 +138,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_json_body() {
+    async fn read_json_body() {
         let mut req = TestResponse::default().finish();
         let json = JsonBody::<_, MyObject>::new(&mut req).await;
         assert!(json_eq(json.err().unwrap(), JsonPayloadError::ContentType));

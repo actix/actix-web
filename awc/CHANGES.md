@@ -4,6 +4,8 @@
 - Rename `Connector::{ssl => openssl}`. [#2503]
 - Improve `Client` instantiation efficiency when using `openssl` by only building connectors once. [#2503]
 - `ClientRequest::send_body` now takes an `impl MessageBody`. [#2546]
+- Rename `MessageBody => ResponseBody` to avoid conflicts with `MessageBody` trait. [#2546]
+- `impl Future` for `ResponseBody` no longer requires the body type be `Unpin`. [#2546]
 - `impl Future` for `JsonBody` no longer requires the body type be `Unpin`. [#2546]
 - `impl Stream` for `ClientResponse` no longer requires the body type be `Unpin`. [#2546]
 - `ClientResponse` is no longer `Unpin`. [#2546]
