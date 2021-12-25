@@ -7,6 +7,7 @@ use std::{
     io::{self, BufReader, Write},
     net::{SocketAddr, TcpStream as StdTcpStream},
     sync::Arc,
+    task::Poll,
 };
 
 use actix_http::{
@@ -16,25 +17,37 @@ use actix_http::{
     Error, HttpService, Method, Request, Response, StatusCode, Version,
 };
 use actix_http_test::test_server;
+use actix_rt::pin;
 use actix_service::{fn_factory_with_config, fn_service};
 use actix_tls::connect::rustls::webpki_roots_cert_store;
-use actix_utils::future::{err, ok};
+use actix_utils::future::{err, ok, poll_fn};
 use bytes::{Bytes, BytesMut};
 use derive_more::{Display, Error};
-use futures_core::Stream;
-use futures_util::stream::{once, StreamExt as _};
+use futures_core::{ready, Stream};
+use futures_util::stream::once;
 use rustls::{Certificate, PrivateKey, ServerConfig as RustlsServerConfig, ServerName};
 use rustls_pemfile::{certs, pkcs8_private_keys};
 
-async fn load_body<S>(mut stream: S) -> Result<BytesMut, PayloadError>
+async fn load_body<S>(stream: S) -> Result<BytesMut, PayloadError>
 where
-    S: Stream<Item = Result<Bytes, PayloadError>> + Unpin,
+    S: Stream<Item = Result<Bytes, PayloadError>>,
 {
-    let mut body = BytesMut::new();
-    while let Some(item) = stream.next().await {
-        body.extend_from_slice(&item?)
-    }
-    Ok(body)
+    let mut buf = BytesMut::new();
+
+    pin!(stream);
+
+    poll_fn(|cx| loop {
+        let body = stream.as_mut();
+
+        match ready!(body.poll_next(cx)) {
+            Some(Ok(bytes)) => buf.extend_from_slice(&*bytes),
+            None => return Poll::Ready(Ok(())),
+            Some(Err(err)) => return Poll::Ready(Err(err)),
+        }
+    })
+    .await?;
+
+    Ok(buf)
 }
 
 fn tls_config() -> RustlsServerConfig {

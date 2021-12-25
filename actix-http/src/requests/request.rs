@@ -10,11 +10,12 @@ use std::{
 use http::{header, Method, Uri, Version};
 
 use crate::{
-    header::HeaderMap, Extensions, HttpMessage, Message, Payload, PayloadStream, RequestHead,
+    header::HeaderMap, BoxedPayloadStream, Extensions, HttpMessage, Message, Payload,
+    RequestHead,
 };
 
 /// An HTTP request.
-pub struct Request<P = PayloadStream> {
+pub struct Request<P = BoxedPayloadStream> {
     pub(crate) payload: Payload<P>,
     pub(crate) head: Message<RequestHead>,
     pub(crate) conn_data: Option<Rc<Extensions>>,
@@ -46,7 +47,7 @@ impl<P> HttpMessage for Request<P> {
     }
 }
 
-impl From<Message<RequestHead>> for Request<PayloadStream> {
+impl From<Message<RequestHead>> for Request<BoxedPayloadStream> {
     fn from(head: Message<RequestHead>) -> Self {
         Request {
             head,
@@ -57,10 +58,10 @@ impl From<Message<RequestHead>> for Request<PayloadStream> {
     }
 }
 
-impl Request<PayloadStream> {
+impl Request<BoxedPayloadStream> {
     /// Create new Request instance
     #[allow(clippy::new_without_default)]
-    pub fn new() -> Request<PayloadStream> {
+    pub fn new() -> Request<BoxedPayloadStream> {
         Request {
             head: Message::new(),
             payload: Payload::None,

@@ -1,5 +1,6 @@
 //! HTTP client errors
 
+// TODO: figure out how best to expose http::Error vs actix_http::Error
 pub use actix_http::{
     error::{HttpError, PayloadError},
     header::HeaderValue,

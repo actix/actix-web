@@ -65,7 +65,7 @@ impl TestResponse {
 
     /// Set response's payload
     pub fn set_payload<B: Into<Bytes>>(mut self, data: B) -> Self {
-        let mut payload = h1::Payload::empty();
+        let (_, mut payload) = h1::Payload::create(true);
         payload.unread_data(data.into());
         self.payload = Some(payload.into());
         self
@@ -90,7 +90,8 @@ impl TestResponse {
         if let Some(pl) = self.payload {
             ClientResponse::new(head, pl)
         } else {
-            ClientResponse::new(head, h1::Payload::empty().into())
+            let (_, payload) = h1::Payload::create(true);
+            ClientResponse::new(head, payload.into())
         }
     }
 }

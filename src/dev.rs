@@ -14,7 +14,7 @@ pub use crate::types::form::UrlEncoded;
 pub use crate::types::json::JsonBody;
 pub use crate::types::readlines::Readlines;
 
-pub use actix_http::{Extensions, Payload, PayloadStream, RequestHead, Response, ResponseHead};
+pub use actix_http::{Extensions, Payload, RequestHead, Response, ResponseHead};
 pub use actix_router::{Path, ResourceDef, ResourcePath, Url};
 pub use actix_server::{Server, ServerHandle};
 pub use actix_service::{

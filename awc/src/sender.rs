@@ -8,7 +8,7 @@ use std::{
 };
 
 use actix_http::{
-    body::BodyStream,
+    body::{BodyStream, MessageBody},
     error::HttpError,
     header::{self, HeaderMap, HeaderName, TryIntoHeaderValue},
     RequestHead, RequestHeadType,
@@ -20,12 +20,13 @@ use futures_core::Stream;
 use serde::Serialize;
 
 #[cfg(feature = "__compress")]
-use actix_http::{encoding::Decoder, header::ContentEncoding, Payload, PayloadStream};
+use actix_http::{encoding::Decoder, header::ContentEncoding, Payload};
 
 use crate::{
     any_body::AnyBody,
+    client::ClientConfig,
     error::{FreezeRequestError, InvalidUrl, SendRequestError},
-    BoxError, ClientConfig, ClientResponse, ConnectRequest, ConnectResponse,
+    BoxError, ClientResponse, ConnectRequest, ConnectResponse,
 };
 
 #[derive(Debug, From)]
@@ -91,7 +92,7 @@ impl SendClientRequest {
 
 #[cfg(feature = "__compress")]
 impl Future for SendClientRequest {
-    type Output = Result<ClientResponse<Decoder<Payload<PayloadStream>>>, SendRequestError>;
+    type Output = Result<ClientResponse<Decoder<Payload>>, SendRequestError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
@@ -108,12 +109,13 @@ impl Future for SendClientRequest {
                     res.into_client_response()._timeout(delay.take()).map_body(
                         |head, payload| {
                             if *response_decompress {
-                                Payload::Stream(Decoder::from_headers(payload, &head.headers))
+                                Payload::Stream {
+                                    payload: Decoder::from_headers(payload, &head.headers),
+                                }
                             } else {
-                                Payload::Stream(Decoder::new(
-                                    payload,
-                                    ContentEncoding::Identity,
-                                ))
+                                Payload::Stream {
+                                    payload: Decoder::new(payload, ContentEncoding::Identity),
+                                }
                             }
                         },
                     )
@@ -188,15 +190,17 @@ impl RequestSender {
         body: B,
     ) -> SendClientRequest
     where
-        B: Into<AnyBody>,
+        B: MessageBody + 'static,
     {
         let req = match self {
-            RequestSender::Owned(head) => {
-                ConnectRequest::Client(RequestHeadType::Owned(head), body.into(), addr)
-            }
+            RequestSender::Owned(head) => ConnectRequest::Client(
+                RequestHeadType::Owned(head),
+                AnyBody::from_message_body(body).into_boxed(),
+                addr,
+            ),
             RequestSender::Rc(head, extra_headers) => ConnectRequest::Client(
                 RequestHeadType::Rc(head, extra_headers),
-                body.into(),
+                AnyBody::from_message_body(body).into_boxed(),
                 addr,
             ),
         };
@@ -228,9 +232,7 @@ impl RequestSender {
             response_decompress,
             timeout,
             config,
-            AnyBody::Bytes {
-                body: Bytes::from(body),
-            },
+            AnyBody::from_message_body(body.into_bytes()),
         )
     }
 
@@ -259,9 +261,7 @@ impl RequestSender {
             response_decompress,
             timeout,
             config,
-            AnyBody::Bytes {
-                body: Bytes::from(body),
-            },
+            AnyBody::from_message_body(body.into_bytes()),
         )
     }
 

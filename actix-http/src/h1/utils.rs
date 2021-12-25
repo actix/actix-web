@@ -45,7 +45,7 @@ where
 impl<T, B> Future for SendResponse<T, B>
 where
     T: AsyncRead + AsyncWrite + Unpin,
-    B: MessageBody + Unpin,
+    B: MessageBody,
     B::Error: Into<Error>,
 {
     type Output = Result<Framed<T, Codec>, Error>;
@@ -81,7 +81,7 @@ where
                             // body is done when item is None
                             body_done = item.is_none();
                             if body_done {
-                                let _ = this.body.take();
+                                this.body.set(None);
                             }
                             let framed = this.framed.as_mut().as_pin_mut().unwrap();
                             framed

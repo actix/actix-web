@@ -1,0 +1,66 @@
+name: CI (master only)
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  ci_feature_powerset_check:
+    name: Verify Feature Combinations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install stable
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable-x86_64-unknown-linux-gnu
+          profile: minimal
+          override: true
+
+      - name: Generate Cargo.lock
+        uses: actions-rs/cargo@v1
+        with: { command: generate-lockfile }
+      - name: Cache Dependencies
+        uses: Swatinem/rust-cache@v1.2.0
+
+      - name: Install cargo-hack
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-hack
+
+      - name: check feature combinations
+        uses: actions-rs/cargo@v1
+        with: { command: ci-check-all-feature-powerset }
+      
+      - name: check feature combinations
+        uses: actions-rs/cargo@v1
+        with: { command: ci-check-all-feature-powerset-linux }
+
+  coverage:
+    name: coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install stable
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable-x86_64-unknown-linux-gnu
+          profile: minimal
+          override: true
+
+      - name: Generate Cargo.lock
+        uses: actions-rs/cargo@v1
+        with: { command: generate-lockfile }
+      - name: Cache Dependencies
+        uses: Swatinem/rust-cache@v1.2.0
+
+      - name: Generate coverage file
+        run: |
+          cargo install cargo-tarpaulin --vers "^0.13"
+          cargo tarpaulin --workspace --features=rustls,openssl --out Xml --verbose
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v1
+        with: { file: cobertura.xml }

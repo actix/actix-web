@@ -9,11 +9,13 @@ use actix_rt::net::{ActixStream, TcpStream};
 use actix_service::{boxed, Service};
 
 use crate::{
-    client::{ConnectInfo, Connector, ConnectorService, TcpConnectError, TcpConnection},
+    client::{
+        ClientConfig, ConnectInfo, Connector, ConnectorService, TcpConnectError, TcpConnection,
+    },
     connect::DefaultConnector,
     error::SendRequestError,
     middleware::{NestTransform, Redirect, Transform},
-    Client, ClientConfig, ConnectRequest, ConnectResponse,
+    Client, ConnectRequest, ConnectResponse,
 };
 
 /// An HTTP Client builder

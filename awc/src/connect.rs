@@ -16,7 +16,7 @@ use crate::{
     client::{
         Connect as ClientConnect, ConnectError, Connection, ConnectionIo, SendRequestError,
     },
-    response::ClientResponse,
+    ClientResponse,
 };
 
 pub type BoxConnectorService = Rc<

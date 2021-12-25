@@ -429,9 +429,12 @@ mod tests {
     use actix_http::body;
 
     use super::*;
-    use crate::http::{
-        header::{self, HeaderValue, CONTENT_TYPE},
-        StatusCode,
+    use crate::{
+        http::{
+            header::{self, HeaderValue, CONTENT_TYPE},
+            StatusCode,
+        },
+        test::assert_body_eq,
     };
 
     #[test]
@@ -472,32 +475,23 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_json() {
-        let resp = HttpResponse::Ok().json(vec!["v1", "v2", "v3"]);
-        let ct = resp.headers().get(CONTENT_TYPE).unwrap();
+        let res = HttpResponse::Ok().json(vec!["v1", "v2", "v3"]);
+        let ct = res.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("application/json"));
-        assert_eq!(
-            body::to_bytes(resp.into_body()).await.unwrap().as_ref(),
-            br#"["v1","v2","v3"]"#
-        );
+        assert_body_eq!(res, br#"["v1","v2","v3"]"#);
 
-        let resp = HttpResponse::Ok().json(&["v1", "v2", "v3"]);
-        let ct = resp.headers().get(CONTENT_TYPE).unwrap();
+        let res = HttpResponse::Ok().json(&["v1", "v2", "v3"]);
+        let ct = res.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("application/json"));
-        assert_eq!(
-            body::to_bytes(resp.into_body()).await.unwrap().as_ref(),
-            br#"["v1","v2","v3"]"#
-        );
+        assert_body_eq!(res, br#"["v1","v2","v3"]"#);
 
         // content type override
-        let resp = HttpResponse::Ok()
+        let res = HttpResponse::Ok()
             .insert_header((CONTENT_TYPE, "text/json"))
             .json(&vec!["v1", "v2", "v3"]);
-        let ct = resp.headers().get(CONTENT_TYPE).unwrap();
+        let ct = res.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("text/json"));
-        assert_eq!(
-            body::to_bytes(resp.into_body()).await.unwrap().as_ref(),
-            br#"["v1","v2","v3"]"#
-        );
+        assert_body_eq!(res, br#"["v1","v2","v3"]"#);
     }
 
     #[actix_rt::test]
