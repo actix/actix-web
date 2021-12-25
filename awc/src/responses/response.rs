@@ -13,6 +13,7 @@ use actix_http::{
 use actix_rt::time::{sleep, Sleep};
 use bytes::Bytes;
 use futures_core::Stream;
+use pin_project_lite::pin_project;
 use serde::de::DeserializeOwned;
 
 #[cfg(feature = "cookies")]
@@ -20,11 +21,14 @@ use crate::cookie::{Cookie, ParseError as CookieParseError};
 
 use super::{JsonBody, ResponseBody, ResponseTimeout};
 
-/// Client Response
-pub struct ClientResponse<S = BoxedPayloadStream> {
-    pub(crate) head: ResponseHead,
-    pub(crate) payload: Payload<S>,
-    pub(crate) timeout: ResponseTimeout,
+pin_project! {
+    /// Client Response
+    pub struct ClientResponse<S = BoxedPayloadStream> {
+        pub(crate) head: ResponseHead,
+        #[pin]
+        pub(crate) payload: Payload<S>,
+        pub(crate) timeout: ResponseTimeout,
+    }
 }
 
 impl<S> ClientResponse<S> {
@@ -234,10 +238,9 @@ where
     type Item = Result<Bytes, PayloadError>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let this = self.get_mut();
+        let this = self.project();
         this.timeout.poll_timeout(cx)?;
-
-        Pin::new(&mut this.payload).poll_next(cx)
+        this.payload.poll_next(cx)
     }
 }
 
@@ -246,6 +249,9 @@ mod tests {
     use static_assertions::assert_impl_all;
 
     use super::*;
+    use crate::any_body::AnyBody;
 
     assert_impl_all!(ClientResponse: Unpin);
+    assert_impl_all!(ClientResponse<()>: Unpin);
+    assert_impl_all!(ClientResponse<AnyBody>: Unpin);
 }

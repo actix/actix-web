@@ -8,7 +8,6 @@
 - `impl Future` for `ResponseBody` no longer requires the body type be `Unpin`. [#2546]
 - `impl Future` for `JsonBody` no longer requires the body type be `Unpin`. [#2546]
 - `impl Stream` for `ClientResponse` no longer requires the body type be `Unpin`. [#2546]
-- `ClientResponse` is no longer `Unpin`. [#2546]
 
 [#2503]: https://github.com/actix/actix-web/pull/2503
 [#2546]: https://github.com/actix/actix-web/pull/2546
