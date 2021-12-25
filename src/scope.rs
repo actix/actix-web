@@ -469,6 +469,7 @@ where
 }
 
 pub struct ScopeFactory {
+    #[allow(clippy::type_complexity)]
     services: Rc<
         [(
             ResourceDef,

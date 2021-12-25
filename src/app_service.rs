@@ -236,6 +236,7 @@ where
 }
 
 pub struct AppRoutingFactory {
+    #[allow(clippy::type_complexity)]
     services: Rc<
         [(
             ResourceDef,

@@ -24,6 +24,7 @@ pub struct AppService {
     config: AppConfig,
     root: bool,
     default: Rc<HttpNewService>,
+    #[allow(clippy::type_complexity)]
     services: Vec<(
         ResourceDef,
         HttpNewService,
@@ -48,6 +49,7 @@ impl AppService {
         self.root
     }
 
+    #[allow(clippy::type_complexity)]
     pub(crate) fn into_services(
         self,
     ) -> (

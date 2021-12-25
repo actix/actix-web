@@ -15,14 +15,12 @@
 //! ```
 //! use actix_web::{web, http, dev, guard, App, HttpResponse};
 //!
-//! fn main() {
-//!     App::new().service(web::resource("/index.html").route(
-//!         web::route()
-//!              .guard(guard::Post())
-//!              .guard(guard::fn_guard(|head| head.method == http::Method::GET))
-//!              .to(|| HttpResponse::MethodNotAllowed()))
-//!     );
-//! }
+//! App::new().service(web::resource("/index.html").route(
+//!     web::route()
+//!          .guard(guard::Post())
+//!          .guard(guard::fn_guard(|head| head.method == http::Method::GET))
+//!          .to(|| HttpResponse::MethodNotAllowed()))
+//! );
 //! ```
 
 #![allow(non_snake_case)]
@@ -53,16 +51,14 @@ impl Guard for Rc<dyn Guard> {
 /// ```
 /// use actix_web::{guard, web, App, HttpResponse};
 ///
-/// fn main() {
-///     App::new().service(web::resource("/index.html").route(
-///         web::route()
-///             .guard(
-///                 guard::fn_guard(
-///                     |req| req.headers()
-///                              .contains_key("content-type")))
-///             .to(|| HttpResponse::MethodNotAllowed()))
-///     );
-/// }
+/// App::new().service(web::resource("/index.html").route(
+///     web::route()
+///         .guard(
+///             guard::fn_guard(
+///                 |req| req.headers()
+///                          .contains_key("content-type")))
+///         .to(|| HttpResponse::MethodNotAllowed()))
+/// );
 /// ```
 pub fn fn_guard<F>(f: F) -> impl Guard
 where
@@ -96,13 +92,11 @@ where
 /// ```
 /// use actix_web::{web, guard, App, HttpResponse};
 ///
-/// fn main() {
-///     App::new().service(web::resource("/index.html").route(
-///         web::route()
-///              .guard(guard::Any(guard::Get()).or(guard::Post()))
-///              .to(|| HttpResponse::MethodNotAllowed()))
-///     );
-/// }
+/// App::new().service(web::resource("/index.html").route(
+///     web::route()
+///          .guard(guard::Any(guard::Get()).or(guard::Post()))
+///          .to(|| HttpResponse::MethodNotAllowed()))
+/// );
 /// ```
 pub fn Any<F: Guard + 'static>(guard: F) -> AnyGuard {
     AnyGuard(vec![Box::new(guard)])
@@ -135,14 +129,12 @@ impl Guard for AnyGuard {
 /// ```
 /// use actix_web::{guard, web, App, HttpResponse};
 ///
-/// fn main() {
-///     App::new().service(web::resource("/index.html").route(
-///         web::route()
-///             .guard(
-///                 guard::All(guard::Get()).and(guard::Header("content-type", "text/plain")))
-///             .to(|| HttpResponse::MethodNotAllowed()))
-///     );
-/// }
+/// App::new().service(web::resource("/index.html").route(
+///     web::route()
+///         .guard(
+///             guard::All(guard::Get()).and(guard::Header("content-type", "text/plain")))
+///         .to(|| HttpResponse::MethodNotAllowed()))
+/// );
 /// ```
 pub fn All<F: Guard + 'static>(guard: F) -> AllGuard {
     AllGuard(vec![Box::new(guard)])

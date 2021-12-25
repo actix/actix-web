@@ -131,15 +131,13 @@ where
     /// ```
     /// use actix_web::{web, guard, App, HttpResponse};
     ///
-    /// fn main() {
-    ///     let app = App::new().service(
-    ///         web::resource("/").route(
-    ///             web::route()
-    ///                 .guard(guard::Any(guard::Get()).or(guard::Put()))
-    ///                 .guard(guard::Header("Content-Type", "text/plain"))
-    ///                 .to(|| HttpResponse::Ok()))
-    ///     );
-    /// }
+    /// let app = App::new().service(
+    ///     web::resource("/").route(
+    ///         web::route()
+    ///             .guard(guard::Any(guard::Get()).or(guard::Put()))
+    ///             .guard(guard::Header("Content-Type", "text/plain"))
+    ///             .to(|| HttpResponse::Ok()))
+    /// );
     /// ```
     ///
     /// Multiple routes could be added to a resource. Resource object uses

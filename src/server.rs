@@ -63,6 +63,7 @@ where
     backlog: u32,
     sockets: Vec<Socket>,
     builder: ServerBuilder,
+    #[allow(clippy::type_complexity)]
     on_connect_fn: Option<Arc<dyn Fn(&dyn Any, &mut Extensions) + Send + Sync>>,
     _phantom: PhantomData<(S, B)>,
 }

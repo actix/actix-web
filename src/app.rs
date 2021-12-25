@@ -122,9 +122,10 @@ impl<T> App<T> {
         self.app_data(Data::new(data))
     }
 
-    /// Add application data factory. This function is similar to `.data()` but it accepts a
-    /// "data factory". Data values are constructed asynchronously during application
-    /// initialization, before the server starts accepting requests.
+    /// Add application data factory that resolves asynchronously.
+    ///
+    /// Data items are constructed during application initialization, before the server starts
+    /// accepting requests.
     pub fn data_factory<F, Out, D, E>(mut self, data: F) -> Self
     where
         F: Fn() -> Out + 'static,
@@ -150,6 +151,7 @@ impl<T> App<T> {
             }
             .boxed_local()
         }));
+
         self
     }
 
@@ -200,11 +202,9 @@ impl<T> App<T> {
     ///     "Welcome!"
     /// }
     ///
-    /// fn main() {
-    ///     let app = App::new()
-    ///         .route("/test1", web::get().to(index))
-    ///         .route("/test2", web::post().to(|| HttpResponse::MethodNotAllowed()));
-    /// }
+    /// let app = App::new()
+    ///     .route("/test1", web::get().to(index))
+    ///     .route("/test2", web::post().to(|| HttpResponse::MethodNotAllowed()));
     /// ```
     pub fn route(self, path: &str, mut route: Route) -> Self {
         self.service(
@@ -243,13 +243,11 @@ impl<T> App<T> {
     ///     "Welcome!"
     /// }
     ///
-    /// fn main() {
-    ///     let app = App::new()
-    ///         .service(
-    ///             web::resource("/index.html").route(web::get().to(index)))
-    ///         .default_service(
-    ///             web::route().to(|| HttpResponse::NotFound()));
-    /// }
+    /// let app = App::new()
+    ///     .service(
+    ///         web::resource("/index.html").route(web::get().to(index)))
+    ///     .default_service(
+    ///         web::route().to(|| HttpResponse::NotFound()));
     /// ```
     ///
     /// It is also possible to use static files as default service.
@@ -257,14 +255,12 @@ impl<T> App<T> {
     /// ```
     /// use actix_web::{web, App, HttpResponse};
     ///
-    /// fn main() {
-    ///     let app = App::new()
-    ///         .service(
-    ///             web::resource("/index.html").to(|| HttpResponse::Ok()))
-    ///         .default_service(
-    ///             web::to(|| HttpResponse::NotFound())
-    ///         );
-    /// }
+    /// let app = App::new()
+    ///     .service(
+    ///         web::resource("/index.html").to(|| HttpResponse::Ok()))
+    ///     .default_service(
+    ///         web::to(|| HttpResponse::NotFound())
+    ///     );
     /// ```
     pub fn default_service<F, U>(mut self, svc: F) -> Self
     where

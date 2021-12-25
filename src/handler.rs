@@ -31,8 +31,8 @@ use crate::{
 /// The first thing to note is that [`FromRequest`] is implemented for tuples (up to 12 in length).
 ///
 /// Secondly, the `Handler` trait is implemented for functions (up to an [arity] of 12) in a way
-/// that aligns their parameter positions with a corresponding tuple of types (becoming the `T` type
-/// parameter in this trait's implementation).
+/// that aligns their parameter positions with a corresponding tuple of types (becoming the `Args`
+/// type parameter for this trait).
 ///
 /// Thanks to Rust's type system, Actix Web can infer the function parameter types. During the
 /// extraction step, the parameter types are described as a tuple type, [`from_request`] is run on
@@ -78,12 +78,12 @@ use crate::{
 /// [arity]: https://en.wikipedia.org/wiki/Arity
 /// [`from_request`]: FromRequest::from_request
 /// [on_unimpl]: https://github.com/rust-lang/rust/issues/29628
-pub trait Handler<T, R>: Clone + 'static
+pub trait Handler<Args, R>: Clone + 'static
 where
     R: Future,
     R::Output: Responder,
 {
-    fn call(&self, args: T) -> R;
+    fn call(&self, args: Args) -> R;
 }
 
 pub(crate) fn handler_service<F, Args, R>(handler: F) -> BoxedHttpServiceFactory
