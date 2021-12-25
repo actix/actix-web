@@ -144,23 +144,53 @@ impl<S> ClientResponse<S>
 where
     S: Stream<Item = Result<Bytes, PayloadError>>,
 {
-    /// Loads HTTP response's body.
-    /// Consumes body stream and parses JSON, resolving to a deserialized `T` value.
+    /// Returns a [`Future`] that consumes the body stream and resolves to [`Bytes`].
     ///
     /// # Errors
     /// `Future` implementation returns error if:
     /// - content type is not `application/json`
     /// - content length is greater than [limit](JsonBody::limit) (default: 2 MiB)
+    ///
+    /// # Examples
+    /// ```no_run
+    /// # use awc::Client;
+    /// # use bytes::Bytes;
+    /// # #[actix_rt::main]
+    /// # async fn async_ctx() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = Client::default();
+    /// let mut res = client.get("https://httpbin.org/robots.txt").send().await?;
+    /// let body: Bytes = res.body().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// [`Future`]: std::future::Future
     pub fn body(&mut self) -> ResponseBody<S> {
         ResponseBody::new(self)
     }
 
-    /// Consumes body stream and parses JSON, resolving to a deserialized `T` value.
+    /// Returns a [`Future`] consumes the body stream, parses JSON, and resolves to a deserialized
+    /// `T` value.
     ///
     /// # Errors
     /// Future returns error if:
     /// - content type is not `application/json`;
     /// - content length is greater than [limit](JsonBody::limit) (default: 2 MiB).
+    ///
+    /// # Examples
+    /// ```no_run
+    /// # use awc::Client;
+    /// # #[actix_rt::main]
+    /// # async fn async_ctx() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = Client::default();
+    /// let mut res = client.get("https://httpbin.org/json").send().await?;
+    /// let val = res.json::<serde_json::Value>().await?;
+    /// assert!(val.is_object());
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// [`Future`]: std::future::Future
     pub fn json<T: DeserializeOwned>(&mut self) -> JsonBody<S, T> {
         JsonBody::new(self)
     }
