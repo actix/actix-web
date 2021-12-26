@@ -17,7 +17,7 @@ use crate::{
 ///   [`HttpResponse`] (i.e., it implements the [`Responder`] trait).
 ///
 /// # Compiler Errors
-/// If you get the error `the trait Handler<_, _, _> is not implemented`, then your handler does not
+/// If you get the error `the trait Handler<_> is not implemented`, then your handler does not
 /// fulfill one or more of the above requirements.
 ///
 /// Unfortunately we cannot provide a better compile error message (while keeping the trait's
@@ -77,20 +77,18 @@ use crate::{
 /// [arity]: https://en.wikipedia.org/wiki/Arity
 /// [`from_request`]: FromRequest::from_request
 /// [on_unimpl]: https://github.com/rust-lang/rust/issues/29628
-pub trait Handler<Args, R>: Clone + 'static
-where
-    R: Future,
-    R::Output: Responder,
-{
-    fn call(&self, args: Args) -> R;
+pub trait Handler<Args>: Clone + 'static {
+    type Output;
+    type Future: Future<Output = Self::Output>;
+
+    fn call(&self, args: Args) -> Self::Future;
 }
 
-pub(crate) fn handler_service<F, Args, R>(handler: F) -> BoxedHttpServiceFactory
+pub(crate) fn handler_service<F, Args>(handler: F) -> BoxedHttpServiceFactory
 where
-    F: Handler<Args, R>,
+    F: Handler<Args>,
     Args: FromRequest,
-    R: Future,
-    R::Output: Responder,
+    F::Output: Responder,
 {
     boxed::factory(fn_service(move |req: ServiceRequest| {
         let handler = handler.clone();
@@ -122,14 +120,16 @@ where
 /// factory_tuple! { A B C }  // implements Handler for types: fn(A, B, C) -> R
 /// ```
 macro_rules! factory_tuple ({ $($param:ident)* } => {
-    impl<Func, $($param,)* R> Handler<($($param,)*), R> for Func
-    where Func: Fn($($param),*) -> R + Clone + 'static,
-          R: Future,
-          R::Output: Responder,
+    impl<Func, Fut, $($param,)*> Handler<($($param,)*)> for Func
+    where Func: Fn($($param),*) -> Fut + Clone + 'static,
+          Fut: Future,
     {
+        type Output = Fut::Output;
+        type Future = Fut;
+
         #[inline]
         #[allow(non_snake_case)]
-        fn call(&self, ($($param,)*): ($($param,)*)) -> R {
+        fn call(&self, ($($param,)*): ($($param,)*)) -> Self::Future {
             (self)($($param,)*)
         }
     }

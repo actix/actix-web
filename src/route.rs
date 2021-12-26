@@ -1,4 +1,4 @@
-use std::{future::Future, mem, rc::Rc};
+use std::{mem, rc::Rc};
 
 use actix_http::Method;
 use actix_service::{
@@ -175,12 +175,11 @@ impl Route {
     ///     );
     /// }
     /// ```
-    pub fn to<F, Args, R>(mut self, handler: F) -> Self
+    pub fn to<F, Args>(mut self, handler: F) -> Self
     where
-        F: Handler<Args, R>,
+        F: Handler<Args>,
         Args: FromRequest + 'static,
-        R: Future + 'static,
-        R::Output: Responder + 'static,
+        F::Output: Responder + 'static,
     {
         self.service = handler_service(handler);
         self

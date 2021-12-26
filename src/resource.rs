@@ -230,12 +230,11 @@ where
     /// # fn index(req: HttpRequest) -> HttpResponse { unimplemented!() }
     /// App::new().service(web::resource("/").route(web::route().to(index)));
     /// ```
-    pub fn to<F, Args, R>(mut self, handler: F) -> Self
+    pub fn to<F, Args>(mut self, handler: F) -> Self
     where
-        F: Handler<Args, R>,
+        F: Handler<Args>,
         Args: FromRequest + 'static,
-        R: Future + 'static,
-        R::Output: Responder + 'static,
+        F::Output: Responder + 'static,
     {
         self.routes.push(Route::new().to(handler));
         self
