@@ -20,7 +20,7 @@ use crate::{
         BoxedHttpService, BoxedHttpServiceFactory, HttpServiceFactory, ServiceRequest,
         ServiceResponse,
     },
-    BoxError, Error, FromRequest, HttpResponse, Responder,
+    Error, FromRequest, HttpResponse, Responder,
 };
 
 /// A collection of [`Route`]s that respond to the same path pattern.
@@ -236,8 +236,6 @@ where
         Args: FromRequest + 'static,
         R: Future + 'static,
         R::Output: Responder + 'static,
-        <R::Output as Responder>::Body: MessageBody,
-        <<R::Output as Responder>::Body as MessageBody>::Error: Into<BoxError>,
     {
         self.routes.push(Route::new().to(handler));
         self

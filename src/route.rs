@@ -8,11 +8,10 @@ use actix_service::{
 use futures_core::future::LocalBoxFuture;
 
 use crate::{
-    body::MessageBody,
     guard::{self, Guard},
     handler::{handler_service, Handler},
     service::{BoxedHttpServiceFactory, ServiceRequest, ServiceResponse},
-    BoxError, Error, FromRequest, HttpResponse, Responder,
+    Error, FromRequest, HttpResponse, Responder,
 };
 
 /// A request handler with [guards](guard).
@@ -182,8 +181,6 @@ impl Route {
         Args: FromRequest + 'static,
         R: Future + 'static,
         R::Output: Responder + 'static,
-        <R::Output as Responder>::Body: MessageBody,
-        <<R::Output as Responder>::Body as MessageBody>::Error: Into<BoxError>,
     {
         self.service = handler_service(handler);
         self

@@ -1,14 +1,14 @@
 //! Essentials helper functions and types for application registration.
 
-use std::{error::Error as StdError, future::Future};
+use std::future::Future;
 
 use actix_http::Method;
 use actix_router::IntoPatterns;
 pub use bytes::{Buf, BufMut, Bytes, BytesMut};
 
 use crate::{
-    body::MessageBody, error::BlockingError, extract::FromRequest, handler::Handler,
-    resource::Resource, route::Route, scope::Scope, service::WebService, Responder,
+    error::BlockingError, extract::FromRequest, handler::Handler, resource::Resource,
+    route::Route, scope::Scope, service::WebService, Responder,
 };
 
 pub use crate::config::ServiceConfig;
@@ -152,8 +152,6 @@ where
     Args: FromRequest + 'static,
     R: Future + 'static,
     R::Output: Responder + 'static,
-    <R::Output as Responder>::Body: MessageBody + 'static,
-    <<R::Output as Responder>::Body as MessageBody>::Error: Into<Box<dyn StdError + 'static>>,
 {
     Route::new().to(handler)
 }

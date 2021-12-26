@@ -3,9 +3,8 @@ use std::future::Future;
 use actix_service::{boxed, fn_service};
 
 use crate::{
-    body::MessageBody,
     service::{BoxedHttpServiceFactory, ServiceRequest, ServiceResponse},
-    BoxError, FromRequest, HttpResponse, Responder,
+    FromRequest, HttpResponse, Responder,
 };
 
 /// The interface for request handlers.
@@ -92,8 +91,6 @@ where
     Args: FromRequest,
     R: Future,
     R::Output: Responder,
-    <R::Output as Responder>::Body: MessageBody,
-    <<R::Output as Responder>::Body as MessageBody>::Error: Into<BoxError>,
 {
     boxed::factory(fn_service(move |req: ServiceRequest| {
         let handler = handler.clone();
