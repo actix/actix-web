@@ -1,6 +1,6 @@
 [package]
 name = "actix-web-actors"
-version = "4.0.0-beta.8"
+version = "4.0.0-beta.9"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix actors support for Actix Web"
 keywords = ["actix", "http", "web", "framework", "async"]
@@ -27,7 +27,7 @@ tokio = { version = "1.8", features = ["sync"] }
 
 [dev-dependencies]
 actix-rt = "2.2"
-actix-test = "0.1.0-beta.9"
+actix-test = "0.1.0-beta.10"
 awc = { version = "3.0.0-beta.15", default-features = false }
 
 env_logger = "0.9"
