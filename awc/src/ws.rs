@@ -300,13 +300,16 @@ impl WebsocketsRequest {
         }
 
         self.head.set_connection_type(ConnectionType::Upgrade);
+
+        #[allow(clippy::declare_interior_mutable_const)]
+        const HV_WEBSOCKET: HeaderValue = HeaderValue::from_static("websocket");
+        self.head.headers.insert(header::UPGRADE, HV_WEBSOCKET);
+
+        #[allow(clippy::declare_interior_mutable_const)]
+        const HV_THIRTEEN: HeaderValue = HeaderValue::from_static("13");
         self.head
             .headers
-            .insert(header::UPGRADE, HeaderValue::from_static("websocket"));
-        self.head.headers.insert(
-            header::SEC_WEBSOCKET_VERSION,
-            HeaderValue::from_static("13"),
-        );
+            .insert(header::SEC_WEBSOCKET_VERSION, HV_THIRTEEN);
 
         if let Some(protocols) = self.protocols.take() {
             self.head.headers.insert(

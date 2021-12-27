@@ -45,13 +45,13 @@ pub enum ContentEncoding {
 impl ContentEncoding {
     /// Is the content compressed?
     #[inline]
-    pub fn is_compression(self) -> bool {
+    pub const fn is_compression(self) -> bool {
         matches!(self, ContentEncoding::Identity | ContentEncoding::Auto)
     }
 
     /// Convert content encoding to string.
     #[inline]
-    pub fn as_str(self) -> &'static str {
+    pub const fn as_str(self) -> &'static str {
         match self {
             ContentEncoding::Br => "br",
             ContentEncoding::Gzip => "gzip",

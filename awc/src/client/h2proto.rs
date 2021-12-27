@@ -52,9 +52,11 @@ where
     let _ = match length {
         BodySize::None => None,
 
-        BodySize::Sized(0) => req
-            .headers_mut()
-            .insert(CONTENT_LENGTH, HeaderValue::from_static("0")),
+        BodySize::Sized(0) => {
+            #[allow(clippy::declare_interior_mutable_const)]
+            const HV_ZERO: HeaderValue = HeaderValue::from_static("0");
+            req.headers_mut().insert(CONTENT_LENGTH, HV_ZERO)
+        }
 
         BodySize::Sized(len) => {
             let mut buf = itoa::Buffer::new();
