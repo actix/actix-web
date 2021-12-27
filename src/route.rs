@@ -65,9 +65,12 @@ pub struct RouteService {
 }
 
 impl RouteService {
+    // TODO: does this need to take &mut ?
     pub fn check(&self, req: &mut ServiceRequest) -> bool {
-        for f in self.guards.iter() {
-            if !f.check(req.head()) {
+        for guard in self.guards.iter() {
+            let guard_ctx = req.guard_ctx();
+
+            if !guard.check(&guard_ctx) {
                 return false;
             }
         }
