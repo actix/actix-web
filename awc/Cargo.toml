@@ -1,6 +1,6 @@
 [package]
 name = "awc"
-version = "3.0.0-beta.14"
+version = "3.0.0-beta.15"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
     "fakeshadow <24548779@qq.com>",
@@ -99,7 +99,7 @@ actix-server = "2.0.0-rc.2"
 actix-test = { version = "0.1.0-beta.9", features = ["openssl", "rustls"] }
 actix-tls = { version = "3.0.0", features = ["openssl", "rustls"] }
 actix-utils = "3.0.0"
-actix-web = { version = "4.0.0-beta.15", features = ["openssl"] }
+actix-web = { version = "4.0.0-beta.16", features = ["openssl"] }
 
 brotli2 = "0.3.2"
 env_logger = "0.9"
