@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 3.0.0-beta.15 - 2021-12-27
 - Rename `Connector::{ssl => openssl}`. [#2503]
 - Improve `Client` instantiation efficiency when using `openssl` by only building connectors once. [#2503]
 - `ClientRequest::send_body` now takes an `impl MessageBody`. [#2546]

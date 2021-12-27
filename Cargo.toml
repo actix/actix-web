@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "4.0.0-beta.15"
+version = "4.0.0-beta.16"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix Web is a powerful, pragmatic, and extremely fast web framework for Rust"
 keywords = ["actix", "http", "web", "framework", "async"]
@@ -72,12 +72,12 @@ experimental-io-uring = ["actix-server/io-uring"]
 actix-codec = "0.4.1"
 actix-macros = "0.2.3"
 actix-rt = "2.3"
-actix-server = "2.0.0-rc.1"
+actix-server = "2.0.0-rc.2"
 actix-service = "2.0.0"
 actix-utils = "3.0.0"
 actix-tls = { version = "3.0.0", default-features = false, optional = true }
 
-actix-http = "3.0.0-beta.16"
+actix-http = "3.0.0-beta.17"
 actix-router = "0.5.0-beta.3"
 actix-web-codegen = "0.5.0-beta.6"
 
@@ -106,8 +106,8 @@ time = { version = "0.3", default-features = false, features = ["formatting"] }
 url = "2.1"
 
 [dev-dependencies]
-actix-test = { version = "0.1.0-beta.9", features = ["openssl", "rustls"] }
-awc = { version = "3.0.0-beta.14", features = ["openssl"] }
+actix-test = { version = "0.1.0-beta.10", features = ["openssl", "rustls"] }
+awc = { version = "3.0.0-beta.15", features = ["openssl"] }
 
 brotli2 = "0.3.2"
 criterion = { version = "0.3", features = ["html_reports"] }

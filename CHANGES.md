@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 4.0.0-beta.16 - 2021-12-27
 ### Changed
 - No longer require `Scope` service body type to be boxed. [#2523]
 - No longer require `Resource` service body type to be boxed. [#2526]

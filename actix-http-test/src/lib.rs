@@ -12,7 +12,7 @@ use std::{net, thread, time::Duration};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_rt::{net::TcpStream, System};
-use actix_server::{Server, ServiceFactory};
+use actix_server::{Server, ServerServiceFactory};
 use awc::{
     error::PayloadError, http::header::HeaderMap, ws, Client, ClientRequest, ClientResponse,
     Connector,
@@ -51,13 +51,13 @@ use tokio::sync::mpsc;
 ///     assert!(response.status().is_success());
 /// }
 /// ```
-pub async fn test_server<F: ServiceFactory<TcpStream>>(factory: F) -> TestServer {
+pub async fn test_server<F: ServerServiceFactory<TcpStream>>(factory: F) -> TestServer {
     let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
     test_server_with_addr(tcp, factory).await
 }
 
 /// Start [`test server`](test_server()) on an existing address binding.
-pub async fn test_server_with_addr<F: ServiceFactory<TcpStream>>(
+pub async fn test_server_with_addr<F: ServerServiceFactory<TcpStream>>(
     tcp: net::TcpListener,
     factory: F,
 ) -> TestServer {
