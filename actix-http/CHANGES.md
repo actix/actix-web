@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 3.0.0-beta.17 - 2021-12-27
 ### Changes
 - `HeaderMap::get_all` now returns a `std::slice::Iter`. [#2527]
 - `Payload` inner fields are now named. [#2545]
