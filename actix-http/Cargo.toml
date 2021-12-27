@@ -96,7 +96,7 @@ serde_json = "1.0"
 static_assertions = "1"
 tls-openssl = { package = "openssl", version = "0.10.9" }
 tls-rustls = { package = "rustls", version = "0.20.0" }
-tokio = { version = "1.8", features = ["net", "rt", "macros"] }
+tokio = { version = "1.8.4", features = ["net", "rt", "macros"] }
 
 [[example]]
 name = "ws"
