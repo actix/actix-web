@@ -1,4 +1,4 @@
-use std::{future::Future, mem, rc::Rc};
+use std::{mem, rc::Rc};
 
 use actix_http::Method;
 use actix_service::{
@@ -8,11 +8,10 @@ use actix_service::{
 use futures_core::future::LocalBoxFuture;
 
 use crate::{
-    body::MessageBody,
     guard::{self, Guard},
     handler::{handler_service, Handler},
     service::{BoxedHttpServiceFactory, ServiceRequest, ServiceResponse},
-    BoxError, Error, FromRequest, HttpResponse, Responder,
+    Error, FromRequest, HttpResponse, Responder,
 };
 
 /// A request handler with [guards](guard).
@@ -176,14 +175,11 @@ impl Route {
     ///     );
     /// }
     /// ```
-    pub fn to<F, Args, R>(mut self, handler: F) -> Self
+    pub fn to<F, Args>(mut self, handler: F) -> Self
     where
-        F: Handler<Args, R>,
+        F: Handler<Args>,
         Args: FromRequest + 'static,
-        R: Future + 'static,
-        R::Output: Responder + 'static,
-        <R::Output as Responder>::Body: MessageBody,
-        <<R::Output as Responder>::Body as MessageBody>::Error: Into<BoxError>,
+        F::Output: Responder + 'static,
     {
         self.service = handler_service(handler);
         self

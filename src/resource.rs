@@ -20,7 +20,7 @@ use crate::{
         BoxedHttpService, BoxedHttpServiceFactory, HttpServiceFactory, ServiceRequest,
         ServiceResponse,
     },
-    BoxError, Error, FromRequest, HttpResponse, Responder,
+    Error, FromRequest, HttpResponse, Responder,
 };
 
 /// A collection of [`Route`]s that respond to the same path pattern.
@@ -230,14 +230,11 @@ where
     /// # fn index(req: HttpRequest) -> HttpResponse { unimplemented!() }
     /// App::new().service(web::resource("/").route(web::route().to(index)));
     /// ```
-    pub fn to<F, Args, R>(mut self, handler: F) -> Self
+    pub fn to<F, Args>(mut self, handler: F) -> Self
     where
-        F: Handler<Args, R>,
+        F: Handler<Args>,
         Args: FromRequest + 'static,
-        R: Future + 'static,
-        R::Output: Responder + 'static,
-        <R::Output as Responder>::Body: MessageBody,
-        <<R::Output as Responder>::Body as MessageBody>::Error: Into<BoxError>,
+        F::Output: Responder + 'static,
     {
         self.routes.push(Route::new().to(handler));
         self
