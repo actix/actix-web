@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+- Update `actix-server` to `2.0.0-rc.2`. [#????]
+
+[#????]: https://github.com/actix/actix-web/pull/????
 
 
 ## 3.0.0-beta.9 - 2021-12-11

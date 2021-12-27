@@ -72,7 +72,7 @@ experimental-io-uring = ["actix-server/io-uring"]
 actix-codec = "0.4.1"
 actix-macros = "0.2.3"
 actix-rt = "2.3"
-actix-server = "2.0.0-rc.1"
+actix-server = "2.0.0-rc.2"
 actix-service = "2.0.0"
 actix-utils = "3.0.0"
 actix-tls = { version = "3.0.0", default-features = false, optional = true }
