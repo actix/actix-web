@@ -134,7 +134,7 @@ impl ConnectionInfo {
             .or_else(|| first_header_value(req, &*X_FORWARDED_FOR))
             .map(str::to_owned);
 
-        let remote_addr = req.peer_addr.map(|addr| addr.to_string());
+        let remote_addr = req.peer_addr.map(|addr| addr.ip().to_string());
 
         ConnectionInfo {
             host,
@@ -165,6 +165,7 @@ impl ConnectionInfo {
     /// - Host
     /// - Uri
     /// - Server hostname
+    #[inline]
     pub fn host(&self) -> &str {
         &self.host
     }
@@ -172,6 +173,7 @@ impl ConnectionInfo {
     /// Remote address of the connection.
     ///
     /// Get remote_addr address from socket address.
+    #[inline]
     pub fn remote_addr(&self) -> Option<&str> {
         self.remote_addr.as_deref()
     }
@@ -432,13 +434,25 @@ mod tests {
 
     #[actix_rt::test]
     async fn peer_addr_extract() {
+        let req = TestRequest::default().to_http_request();
+        let res = PeerAddr::extract(&req).await;
+        assert!(res.is_err());
+
         let addr = "127.0.0.1:8080".parse().unwrap();
         let req = TestRequest::default().peer_addr(addr).to_http_request();
         let peer_addr = PeerAddr::extract(&req).await.unwrap();
         assert_eq!(peer_addr, PeerAddr(addr));
+    }
 
+    #[actix_rt::test]
+    async fn real_ip_from_socket_addr() {
         let req = TestRequest::default().to_http_request();
-        let res = PeerAddr::extract(&req).await;
-        assert!(res.is_err());
+        let res = ConnectionInfo::extract(&req).await.unwrap();
+        assert!(res.realip_remote_addr().is_none());
+
+        let addr = "127.0.0.1:8080".parse().unwrap();
+        let req = TestRequest::default().peer_addr(addr).to_http_request();
+        let conn_info = ConnectionInfo::extract(&req).await.unwrap();
+        assert_eq!(conn_info.realip_remote_addr().unwrap(), "127.0.0.1");
     }
 }
