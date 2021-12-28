@@ -1,25 +1,66 @@
 //! Route guards.
 //!
-//! Guards are one of the ways how actix-web router chooses a handler service. In essence it is just
-//! a function that accepts a reference to a `RequestHead` instance and returns a boolean. It is
-//! possible to add guards to *scopes*, *resources* and *routes*. Actix provide several guards by
-//! default, like various HTTP methods, header, etc. To become a guard, type must implement the
-//! `Guard` trait. Simple functions could be guards as well.
+//! Guards are used during routing to help select a matching service or handler using some aspect of
+//! the request; though guards should not be used for path matching since it is a built-in function
+//! of the Actix Web router.
 //!
-//! Guards can not modify the request object. But it is possible to store extra attributes on a
-//! request by using the `Extensions` container. Extensions containers are available via the
-//! `RequestHead::extensions()` method.
+//! Guards can be used on [`Scope`]s, [`Resource`]s, [`Route`]s, and other custom services.
 //!
+//! Fundamentally, a guard is a predicate function that receives a reference to a request context
+//! object and returns a boolean; true if the request _should_ be handled by the guarded service
+//! or handler. This interface is defined by the [`Guard`] trait.
+//!
+//! Commonly-used guards are provided in this module as well as way of creating a guard from a
+//! closure ([`fn_guard`]). The [`Not`], [`Any`], and [`All`] guards are noteworthy, as they can be
+//! used to compose other guards in a more flexible and semantic way than calling `.guard(...)` on
+//! services multiple times (which might have different combining behavior than you want).
+//!
+//! Guards can not modify anything about the request. However, it is possible to store extra
+//! attributes in the request-local data container obtained with [`GuardContext::req_data_mut`].
+//!
+//! Guards can prevent resource definitions from overlapping (resulting in some inaccessible routes)
+//! where they otherwise would when only considering paths. See the virtual hosting example below.
+//!
+//! # Examples
+//! In the following code, the `/guarded` resource has one defined route whose handler will only be
+//! called if the request method is `POST` and there is a request header with name and value equal
+//! to `x-guarded` and `secret`, respectively.
 //! ```
-//! use actix_web::{web, http, dev, guard, App, HttpResponse};
+//! use actix_web::{web, http::Method, guard, App, HttpResponse};
 //!
-//! App::new().service(web::resource("/index.html").route(
+//! web::resource("/guarded").route(
 //!     web::route()
-//!          .guard(guard::Post())
-//!          .guard(guard::fn_guard(|ctx| ctx.head().method == http::Method::GET))
-//!          .to(|| HttpResponse::MethodNotAllowed()))
+//!         .guard(guard::Any(guard::Get()).or(guard::Post()))
+//!         .guard(guard::Header("x-guarded", "secret"))
+//!         .to(|| HttpResponse::Ok())
 //! );
 //! ```
+//!
+//! Guards can be used to set up some form of [virtual hosting] within a single app.
+//! Overlapping scope prefixes are usually discouraged, but when combined with non-overlapping guard
+//! definitions they become safe to use in this way. Without these host guards, only routes under
+//! the first-to-be-defined scope would be accessible. You can test this locally using `127.0.0.1`
+//! and `localhost` as the `Host` guards.
+//! ```
+//! use actix_web::{web, http::Method, guard, App, HttpResponse};
+//!
+//! App::new()
+//!     .service(
+//!         web::scope("")
+//!             .guard(guard::Host("www.rust-lang.org"))
+//!             .default_service(web::to(|| HttpResponse::Ok().body("marketing site"))),
+//!     )
+//!     .service(
+//!         web::scope("")
+//!             .guard(guard::Host("play.rust-lang.org"))
+//!             .default_service(web::to(|| HttpResponse::Ok().body("playground frontend"))),
+//!     );
+//! ```
+//!
+//! [`Scope`]: crate::Scope::guard()
+//! [`Resource`]: crate::Resource::guard()
+//! [`Route`]: crate::Route::guard()
+//! [virtual hosting]: https://en.wikipedia.org/wiki/Virtual_hosting
 
 use std::{
     cell::{Ref, RefMut},
@@ -31,35 +72,37 @@ use actix_http::{header, uri::Uri, Extensions, Method as HttpMethod, RequestHead
 
 use crate::service::ServiceRequest;
 
+/// Provides access to request parts that are useful during routing.
 #[derive(Debug)]
 pub struct GuardContext<'a> {
     pub(crate) req: &'a ServiceRequest,
 }
 
 impl<'a> GuardContext<'a> {
+    /// Returns reference to the request head.
     #[inline]
     pub fn head(&self) -> &RequestHead {
         self.req.head()
     }
 
+    /// Returns reference to the request-local data container.
     #[inline]
     pub fn req_data(&self) -> Ref<'a, Extensions> {
         self.req.req_data()
     }
 
+    /// Returns mutable reference to the request-local data container.
     #[inline]
     pub fn req_data_mut(&self) -> RefMut<'a, Extensions> {
         self.req.req_data_mut()
     }
 }
 
-/// Trait defines resource guards. Guards are used for route selection.
+/// Interface for routing guards.
 ///
-/// Guards can not modify the request object. But it is possible to store extra attributes on a
-/// request by using the `Extensions` container. Extensions containers are available via the
-/// `RequestHead::extensions()` method.
+/// See [module level documentation](self) for more.
 pub trait Guard {
-    /// Check if request matches predicate
+    /// Returns true if predicate condition is met for a given request.
     fn check(&self, ctx: &GuardContext<'_>) -> bool;
 }
 
@@ -69,20 +112,17 @@ impl Guard for Rc<dyn Guard> {
     }
 }
 
-/// Create guard object for supplied function.
+/// Creates a guard using the given function.
 ///
+/// # Examples
 /// ```
-/// use actix_web::{guard, web, App, HttpResponse};
+/// use actix_web::{guard, web, HttpResponse};
 ///
-/// App::new().service(
-///         web::resource("/index.html").route(
-///             web::route()
-///                 .guard(guard::fn_guard(|ctx| {
-///                     ctx.head().headers().contains_key("content-type")
-///                 }))
-///                 .to(|| HttpResponse::MethodNotAllowed()),
-///         ),
-///     );
+/// web::route()
+///     .guard(guard::fn_guard(|ctx| {
+///         ctx.head().headers().contains_key("content-type")
+///     }))
+///     .to(|| HttpResponse::Ok());
 /// ```
 pub fn fn_guard<F>(f: F) -> impl Guard
 where
@@ -113,14 +153,16 @@ where
 
 /// Return guard that matches if any of supplied guards.
 ///
+/// # Examples
+/// The handler below will be called for either request method `GET` or `POST`.
 /// ```
 /// use actix_web::{web, guard, App, HttpResponse};
 ///
-/// App::new().service(web::resource("/index.html").route(
-///     web::route()
-///          .guard(guard::Any(guard::Get()).or(guard::Post()))
-///          .to(|| HttpResponse::MethodNotAllowed()))
-/// );
+/// web::route()
+///     .guard(
+///         guard::Any(guard::Get())
+///             .or(guard::Post()))
+///     .to(|| HttpResponse::Ok());
 /// ```
 #[allow(non_snake_case)]
 pub fn Any<F: Guard + 'static>(guard: F) -> AnyGuard {
@@ -154,17 +196,20 @@ impl Guard for AnyGuard {
     }
 }
 
-/// Return guard that matches if all of the supplied guards.
+/// Creates a guard that matches if all of the supplied guards.
 ///
+/// # Examples
+/// The handler below will only be called if the request method is `GET` **and** the specified
+/// header name and value match exactly.
 /// ```
-/// use actix_web::{guard, web, App, HttpResponse};
+/// use actix_web::{guard, web, HttpResponse};
 ///
-/// App::new().service(web::resource("/index.html").route(
-///     web::route()
-///         .guard(
-///             guard::All(guard::Get()).and(guard::Header("content-type", "text/plain")))
-///         .to(|| HttpResponse::MethodNotAllowed()))
-/// );
+/// web::route()
+///     .guard(
+///         guard::All(guard::Get())
+///             .and(guard::Header("accept", "text/plain"))
+///     )
+///     .to(|| HttpResponse::Ok());
 /// ```
 #[allow(non_snake_case)]
 pub fn All<F: Guard + 'static>(guard: F) -> AllGuard {
@@ -197,18 +242,35 @@ impl Guard for AllGuard {
     }
 }
 
-/// Return guard that matches if supplied guard does not match.
+/// Wraps a guard and inverts the outcome of it's `Guard` implementation.
+///
+/// # Examples
+/// The handler below will be called for any request method apart from `GET`.
+/// ```
+/// use actix_web::{guard, web, HttpResponse};
+///
+/// web::route()
+///     .guard(guard::Not(guard::Get()))
+///     .to(|| HttpResponse::Ok());
+/// ```
 #[allow(non_snake_case)]
-pub fn Not<F: Guard + 'static>(guard: F) -> impl Guard {
-    NotGuard(Box::new(guard))
+pub fn Not<G: Guard>(guard: G) -> NotGuard<G> {
+    NotGuard(guard)
 }
 
-struct NotGuard(Box<dyn Guard>);
+#[doc(hidden)]
+pub struct NotGuard<G>(G);
 
-impl Guard for NotGuard {
+impl<G: Guard> Guard for NotGuard<G> {
     fn check(&self, ctx: &GuardContext<'_>) -> bool {
         !self.0.check(ctx)
     }
+}
+
+/// Predicate to match specified HTTP method.
+#[allow(non_snake_case)]
+pub fn Method(method: HttpMethod) -> impl Guard {
+    MethodGuard(method)
 }
 
 /// HTTP method guard.
@@ -220,67 +282,39 @@ impl Guard for MethodGuard {
     }
 }
 
-/// Guard to match *GET* HTTP method.
-#[allow(non_snake_case)]
-pub fn Get() -> impl Guard {
-    MethodGuard(HttpMethod::GET)
+macro_rules! method_guard {
+    ($method_fn:ident, $method_const:ident) => {
+        paste::paste! {
+            #[doc = " Creates a guard that matches the `" $method_const "` request method."]
+            ///
+            /// # Examples
+            #[doc = " The route in this example will only respond to `" $method_const "` requests."]
+            /// ```
+            /// use actix_web::{guard, web, HttpResponse};
+            ///
+            /// web::route()
+            #[doc = "     .guard(guard::" $method_fn "())"]
+            ///     .to(|| HttpResponse::Ok());
+            /// ```
+            #[allow(non_snake_case)]
+            pub fn $method_fn() -> impl Guard {
+                MethodGuard(HttpMethod::$method_const)
+            }
+        }
+    };
 }
 
-/// Predicate to match *POST* HTTP method.
-#[allow(non_snake_case)]
-pub fn Post() -> impl Guard {
-    MethodGuard(HttpMethod::POST)
-}
+method_guard!(Get, GET);
+method_guard!(Post, POST);
+method_guard!(Put, PUT);
+method_guard!(Delete, DELETE);
+method_guard!(Head, HEAD);
+method_guard!(Options, OPTIONS);
+method_guard!(Connect, CONNECT);
+method_guard!(Patch, PATCH);
+method_guard!(Trace, TRACE);
 
-/// Predicate to match *PUT* HTTP method.
-#[allow(non_snake_case)]
-pub fn Put() -> impl Guard {
-    MethodGuard(HttpMethod::PUT)
-}
-
-/// Predicate to match *DELETE* HTTP method.
-#[allow(non_snake_case)]
-pub fn Delete() -> impl Guard {
-    MethodGuard(HttpMethod::DELETE)
-}
-
-/// Predicate to match *HEAD* HTTP method.
-#[allow(non_snake_case)]
-pub fn Head() -> impl Guard {
-    MethodGuard(HttpMethod::HEAD)
-}
-
-/// Predicate to match *OPTIONS* HTTP method.
-#[allow(non_snake_case)]
-pub fn Options() -> impl Guard {
-    MethodGuard(HttpMethod::OPTIONS)
-}
-
-/// Predicate to match *CONNECT* HTTP method.
-#[allow(non_snake_case)]
-pub fn Connect() -> impl Guard {
-    MethodGuard(HttpMethod::CONNECT)
-}
-
-/// Predicate to match *PATCH* HTTP method.
-#[allow(non_snake_case)]
-pub fn Patch() -> impl Guard {
-    MethodGuard(HttpMethod::PATCH)
-}
-
-/// Predicate to match *TRACE* HTTP method.
-#[allow(non_snake_case)]
-pub fn Trace() -> impl Guard {
-    MethodGuard(HttpMethod::TRACE)
-}
-
-/// Predicate to match specified HTTP method.
-#[allow(non_snake_case)]
-pub fn Method(method: HttpMethod) -> impl Guard {
-    MethodGuard(method)
-}
-
-/// Return predicate that matches if request contains specified header and value.
+/// Creates a guard that matches if request contains given header name and value.
 #[allow(non_snake_case)]
 pub fn Header(name: &'static str, value: &'static str) -> impl Guard {
     HeaderGuard(
@@ -289,7 +323,6 @@ pub fn Header(name: &'static str, value: &'static str) -> impl Guard {
     )
 }
 
-#[doc(hidden)]
 struct HeaderGuard(header::HeaderName, header::HeaderValue);
 
 impl Guard for HeaderGuard {
@@ -302,19 +335,33 @@ impl Guard for HeaderGuard {
     }
 }
 
-/// Return predicate that matches if request contains specified Host name.
+/// Creates a guard that matches requests targetting a specific host.
 ///
+/// # Matching Host
+/// This guard will:
+/// - match against the `Host` header, if present;
+/// - fall-back to matching against the request target's host, if present;
+/// - return false if host cannot be determined;
+///
+/// # Matching Scheme
+/// Optionally, this guard can match against the host's scheme. Set the scheme for matching using
+/// `Host(host).scheme(protocol)`. If the request's scheme cannot be determined, it will not prevent
+/// the guard from matching successfully.
+///
+/// # Examples
+/// The [module-level documentation](self) has an example of virtual hosting using `Host` guards.
+///
+/// The example below additionally guards on the host URI's scheme. This could allow routing to
+/// different handlers for `http:` vs `https:` visitors; to redirect, for example.
 /// ```
-/// use actix_web::{web, guard::Host, App, HttpResponse};
+/// use actix_web::{web, guard::Host, HttpResponse};
 ///
-/// App::new().service(
-///     web::resource("/index.html")
-///         .guard(Host("www.rust-lang.org"))
-///         .to(|| HttpResponse::MethodNotAllowed())
-/// );
+/// web::scope("/admin")
+///     .guard(Host("admin.rust-lang.org").scheme("https"))
+///     .default_service(web::to(|| HttpResponse::Ok().body("admin connection is secure")));
 /// ```
 #[allow(non_snake_case)]
-pub fn Host<H: AsRef<str>>(host: H) -> HostGuard {
+pub fn Host(host: impl AsRef<str>) -> HostGuard {
     HostGuard {
         host: host.as_ref().to_string(),
         scheme: None,
@@ -326,8 +373,7 @@ fn get_host_uri(req: &RequestHead) -> Option<Uri> {
         .get(header::HOST)
         .and_then(|host_value| host_value.to_str().ok())
         .or_else(|| req.uri.host())
-        .map(|host| host.parse().ok())
-        .and_then(|host_success| host_success)
+        .and_then(|host| host.parse().ok())
 }
 
 #[doc(hidden)]
@@ -346,26 +392,34 @@ impl HostGuard {
 
 impl Guard for HostGuard {
     fn check(&self, ctx: &GuardContext<'_>) -> bool {
-        let req_host_uri = if let Some(uri) = get_host_uri(ctx.head()) {
-            uri
-        } else {
-            return false;
+        // parse host URI from header or request target
+        let req_host_uri = match get_host_uri(ctx.head()) {
+            Some(uri) => uri,
+
+            // no match if host cannot be determined
+            None => return false,
         };
 
-        if let Some(uri_host) = req_host_uri.host() {
-            if self.host != uri_host {
-                return false;
-            }
-        } else {
-            return false;
+        match req_host_uri.host() {
+            // fall through to scheme checks
+            Some(uri_host) if self.host == uri_host => {}
+
+            // Either:
+            // - request's host does not match guard's host;
+            // - It was possible that the parsed URI from request target did not contain a host.
+            _ => return false,
         }
 
         if let Some(ref scheme) = self.scheme {
             if let Some(ref req_host_uri_scheme) = req_host_uri.scheme_str() {
                 return scheme == req_host_uri_scheme;
             }
+
+            // TODO: is the the correct behavior?
+            // falls through if scheme cannot be determined
         }
 
+        // all conditions passed
         true
     }
 }
