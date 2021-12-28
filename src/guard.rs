@@ -253,15 +253,9 @@ impl Guard for AllGuard {
 ///     .guard(guard::Not(guard::Get()))
 ///     .to(|| HttpResponse::Ok());
 /// ```
-#[allow(non_snake_case)]
-pub fn Not<G: Guard>(guard: G) -> NotGuard<G> {
-    NotGuard(guard)
-}
+pub struct Not<G>(pub G);
 
-#[doc(hidden)]
-pub struct NotGuard<G>(G);
-
-impl<G: Guard> Guard for NotGuard<G> {
+impl<G: Guard> Guard for Not<G> {
     fn check(&self, ctx: &GuardContext<'_>) -> bool {
         !self.0.check(ctx)
     }
@@ -594,5 +588,19 @@ mod tests {
 
         assert!(Any(Get()).or(Trace()).check(&r.guard_ctx()));
         assert!(!Any(Get()).or(Get()).check(&r.guard_ctx()));
+    }
+
+    #[test]
+    fn not_guard_reflexive() {
+        let req = TestRequest::default().to_srv_request();
+
+        let get = Get();
+        assert!(get.check(&req.guard_ctx()));
+
+        let not_get = Not(get);
+        assert!(!not_get.check(&req.guard_ctx()));
+
+        let not_not_get = Not(not_get);
+        assert!(not_not_get.check(&req.guard_ctx()));
     }
 }

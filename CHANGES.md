@@ -8,7 +8,8 @@
 ### Changed
 - `Guard` trait now receives a `&GuardContext`. [#2552]
 - `guard::fn_guard` functions now receives a `&GuardContext`. [#2552]
-- Some guards now return `impl Guard` and their concrete types are made private: `guard::{Not, Header}` and all the method guards. [#2552]
+- Some guards now return `impl Guard` and their concrete types are made private: `guard::{Header}` and all the method guards. [#2552]
+- The `Not` guard is now generic over the type of guard it wraps. [#2552]
 
 [#2552]: https://github.com/actix/actix-web/pull/2552
 
