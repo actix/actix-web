@@ -628,4 +628,18 @@ mod tests {
         let not_not_get = Not(not_get);
         assert!(not_not_get.check(&req.guard_ctx()));
     }
+
+    #[test]
+    fn function_guard() {
+        let domain = "rust-lang.org".to_owned();
+        let guard = fn_guard(|ctx| ctx.head().uri.host().unwrap().ends_with(&domain));
+
+        let req = TestRequest::default()
+            .uri("blog.rust-lang.org")
+            .to_srv_request();
+        assert!(guard.check(&req.guard_ctx()));
+
+        let req = TestRequest::default().uri("crates.io").to_srv_request();
+        assert!(!guard.check(&req.guard_ctx()));
+    }
 }
