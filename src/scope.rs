@@ -538,12 +538,15 @@ impl Service<ServiceRequest> for ScopeService {
     fn call(&self, mut req: ServiceRequest) -> Self::Future {
         let res = self.router.recognize_fn(&mut req, |req, guards| {
             if let Some(ref guards) = guards {
-                for f in guards {
-                    if !f.check(req.head()) {
+                let guard_ctx = req.guard_ctx();
+
+                for guard in guards {
+                    if !guard.check(&guard_ctx) {
                         return false;
                     }
                 }
             }
+
             true
         });
 

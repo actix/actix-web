@@ -65,9 +65,12 @@ pub struct RouteService {
 }
 
 impl RouteService {
+    // TODO: does this need to take &mut ?
     pub fn check(&self, req: &mut ServiceRequest) -> bool {
-        for f in self.guards.iter() {
-            if !f.check(req.head()) {
+        let guard_ctx = req.guard_ctx();
+
+        for guard in self.guards.iter() {
+            if !guard.check(&guard_ctx) {
                 return false;
             }
         }
@@ -90,6 +93,7 @@ impl Service<ServiceRequest> for RouteService {
 impl Route {
     /// Add method guard to the route.
     ///
+    /// # Examples
     /// ```
     /// # use actix_web::*;
     /// # fn main() {
@@ -110,6 +114,7 @@ impl Route {
 
     /// Add guard to the route.
     ///
+    /// # Examples
     /// ```
     /// # use actix_web::*;
     /// # fn main() {
@@ -143,16 +148,13 @@ impl Route {
     ///     format!("Welcome {}!", info.username)
     /// }
     ///
-    /// fn main() {
-    ///     let app = App::new().service(
-    ///         web::resource("/{username}/index.html") // <- define path parameters
-    ///             .route(web::get().to(index))        // <- register handler
-    ///     );
-    /// }
+    /// let app = App::new().service(
+    ///     web::resource("/{username}/index.html") // <- define path parameters
+    ///         .route(web::get().to(index))        // <- register handler
+    /// );
     /// ```
     ///
     /// It is possible to use multiple extractors for one handler function.
-    ///
     /// ```
     /// # use std::collections::HashMap;
     /// # use serde::Deserialize;
@@ -164,16 +166,18 @@ impl Route {
     /// }
     ///
     /// /// extract path info using serde
-    /// async fn index(path: web::Path<Info>, query: web::Query<HashMap<String, String>>, body: web::Json<Info>) -> String {
+    /// async fn index(
+    ///     path: web::Path<Info>,
+    ///     query: web::Query<HashMap<String, String>>,
+    ///     body: web::Json<Info>
+    /// ) -> String {
     ///     format!("Welcome {}!", path.username)
     /// }
     ///
-    /// fn main() {
-    ///     let app = App::new().service(
-    ///         web::resource("/{username}/index.html") // <- define path parameters
-    ///             .route(web::get().to(index))
-    ///     );
-    /// }
+    /// let app = App::new().service(
+    ///     web::resource("/{username}/index.html") // <- define path parameters
+    ///         .route(web::get().to(index))
+    /// );
     /// ```
     pub fn to<F, Args>(mut self, handler: F) -> Self
     where
@@ -199,7 +203,7 @@ impl Route {
     ///     type Error = Infallible;
     ///     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
     ///
-    ///     always_ready!();
+    ///     dev::always_ready!();
     ///
     ///     fn call(&self, req: ServiceRequest) -> Self::Future {
     ///         let (req, _) = req.into_parts();
