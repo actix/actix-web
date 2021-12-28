@@ -385,7 +385,7 @@ impl ClientRequest {
     /// Set an streaming body and generate `ClientRequest`.
     pub fn send_stream<S, E>(self, stream: S) -> SendClientRequest
     where
-        S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
+        S: Stream<Item = Result<Bytes, E>> + 'static,
         E: Into<BoxError> + 'static,
     {
         let slf = match self.prep_for_sending() {

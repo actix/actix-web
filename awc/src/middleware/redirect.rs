@@ -190,7 +190,9 @@ where
                         let body_new = if is_redirect {
                             // try to reuse body
                             match body {
-                                Some(ref bytes) => AnyBody::from(bytes.clone()),
+                                Some(ref bytes) => AnyBody::Bytes {
+                                    body: bytes.clone(),
+                                },
                                 // TODO: should this be AnyBody::Empty or AnyBody::None.
                                 _ => AnyBody::empty(),
                             }

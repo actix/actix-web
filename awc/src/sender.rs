@@ -181,17 +181,14 @@ pub(crate) enum RequestSender {
 }
 
 impl RequestSender {
-    pub(crate) fn send_body<B>(
+    pub(crate) fn send_body(
         self,
         addr: Option<net::SocketAddr>,
         response_decompress: bool,
         timeout: Option<Duration>,
         config: &ClientConfig,
-        body: B,
-    ) -> SendClientRequest
-    where
-        B: MessageBody + 'static,
-    {
+        body: impl MessageBody + 'static,
+    ) -> SendClientRequest {
         let req = match self {
             RequestSender::Owned(head) => ConnectRequest::Client(
                 RequestHeadType::Owned(head),
@@ -210,15 +207,15 @@ impl RequestSender {
         SendClientRequest::new(fut, response_decompress, timeout.or(config.timeout))
     }
 
-    pub(crate) fn send_json<T: Serialize>(
+    pub(crate) fn send_json(
         mut self,
         addr: Option<net::SocketAddr>,
         response_decompress: bool,
         timeout: Option<Duration>,
         config: &ClientConfig,
-        value: &T,
+        value: impl Serialize,
     ) -> SendClientRequest {
-        let body = match serde_json::to_string(value) {
+        let body = match serde_json::to_string(&value) {
             Ok(body) => body,
             Err(err) => return PrepForSendingError::Json(err).into(),
         };
@@ -227,22 +224,16 @@ impl RequestSender {
             return e.into();
         }
 
-        self.send_body(
-            addr,
-            response_decompress,
-            timeout,
-            config,
-            AnyBody::from_message_body(body.into_bytes()),
-        )
+        self.send_body(addr, response_decompress, timeout, config, body)
     }
 
-    pub(crate) fn send_form<T: Serialize>(
+    pub(crate) fn send_form(
         mut self,
         addr: Option<net::SocketAddr>,
         response_decompress: bool,
         timeout: Option<Duration>,
         config: &ClientConfig,
-        value: &T,
+        value: impl Serialize,
     ) -> SendClientRequest {
         let body = match serde_urlencoded::to_string(value) {
             Ok(body) => body,
@@ -250,19 +241,13 @@ impl RequestSender {
         };
 
         // set content-type
-        if let Err(e) =
+        if let Err(err) =
             self.set_header_if_none(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
         {
-            return e.into();
+            return err.into();
         }
 
-        self.send_body(
-            addr,
-            response_decompress,
-            timeout,
-            config,
-            AnyBody::from_message_body(body.into_bytes()),
-        )
+        self.send_body(addr, response_decompress, timeout, config, body)
     }
 
     pub(crate) fn send_stream<S, E>(
@@ -274,7 +259,7 @@ impl RequestSender {
         stream: S,
     ) -> SendClientRequest
     where
-        S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
+        S: Stream<Item = Result<Bytes, E>> + 'static,
         E: Into<BoxError> + 'static,
     {
         self.send_body(
@@ -282,7 +267,7 @@ impl RequestSender {
             response_decompress,
             timeout,
             config,
-            AnyBody::new_boxed(BodyStream::new(stream)),
+            BodyStream::new(stream),
         )
     }
 
@@ -293,7 +278,7 @@ impl RequestSender {
         timeout: Option<Duration>,
         config: &ClientConfig,
     ) -> SendClientRequest {
-        self.send_body(addr, response_decompress, timeout, config, AnyBody::empty())
+        self.send_body(addr, response_decompress, timeout, config, ())
     }
 
     fn set_header_if_none<V>(&mut self, key: HeaderName, value: V) -> Result<(), HttpError>
