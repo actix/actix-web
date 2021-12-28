@@ -128,7 +128,7 @@ impl AppConfig {
 
     /// Server host name.
     ///
-    /// Host name is used by application router as a hostname for url generation.
+    /// Host name is used by application router as a hostname for URL generation.
     /// Check [ConnectionInfo](super::dev::ConnectionInfo::host())
     /// documentation for more information.
     ///
@@ -137,7 +137,7 @@ impl AppConfig {
         &self.host
     }
 
-    /// Returns true if connection is secure(https)
+    /// Returns true if connection is secure (ie. running over `https:`).
     pub fn secure(&self) -> bool {
         self.secure
     }

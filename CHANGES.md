@@ -12,6 +12,8 @@
 - The `Not` guard is now generic over the type of guard it wraps. [#2552]
 
 ### Fixed
+- Rename `ConnectionInfo::{remote_addr => peer_addr}`, deprecating the old name. [#2554]
+- `ConnectionInfo::peer_addr` will not return the port number. [#2554]
 - `ConnectionInfo::realip_remote_addr` will not return the port number if sourcing the IP from the peer's socket address. [#2554]
 
 [#2552]: https://github.com/actix/actix-web/pull/2552

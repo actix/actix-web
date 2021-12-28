@@ -228,23 +228,28 @@ impl HttpRequest {
         self.app_state().rmap()
     }
 
-    /// Peer socket address.
+    /// Returns peer socket address.
     ///
     /// Peer address is the directly connected peer's socket address. If a proxy is used in front of
     /// the Actix Web server, then it would be address of this proxy.
     ///
-    /// To get client connection information `.connection_info()` should be used.
+    /// For expanded client connection information, use [`connection_info`] instead.
     ///
-    /// Will only return None when called in unit tests.
+    /// Will only return None when called in unit tests unless [`TestRequest::peer_addr`] is used.
+    ///
+    /// [`TestRequest::peer_addr`]: crate::test::TestRequest::peer_addr
+    /// [`connection_info`]: Self::connection_info
     #[inline]
     pub fn peer_addr(&self) -> Option<net::SocketAddr> {
         self.head().peer_addr
     }
 
-    /// Get *ConnectionInfo* for the current request.
+    /// Returns connection info for the current request.
     ///
-    /// This method panics if request's extensions container is already
-    /// borrowed.
+    /// The return type, [`ConnectionInfo`], can also be used as an extractor.
+    ///
+    /// # Panics
+    /// Panics if request's extensions container is already borrowed.
     #[inline]
     pub fn connection_info(&self) -> Ref<'_, ConnectionInfo> {
         if !self.extensions().contains::<ConnectionInfo>() {
@@ -252,7 +257,7 @@ impl HttpRequest {
             self.extensions_mut().insert(info);
         }
 
-        Ref::map(self.extensions(), |e| e.get().unwrap())
+        Ref::map(self.extensions(), |data| data.get().unwrap())
     }
 
     /// App config
