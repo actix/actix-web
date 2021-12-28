@@ -26,7 +26,7 @@
 //! called if the request method is `POST` and there is a request header with name and value equal
 //! to `x-guarded` and `secret`, respectively.
 //! ```
-//! use actix_web::{web, http::Method, guard, App, HttpResponse};
+//! use actix_web::{web, http::Method, guard, HttpResponse};
 //!
 //! web::resource("/guarded").route(
 //!     web::route()
@@ -156,7 +156,7 @@ where
 /// # Examples
 /// The handler below will be called for either request method `GET` or `POST`.
 /// ```
-/// use actix_web::{web, guard, App, HttpResponse};
+/// use actix_web::{web, guard, HttpResponse};
 ///
 /// web::route()
 ///     .guard(
@@ -174,6 +174,8 @@ pub fn Any<F: Guard + 'static>(guard: F) -> AnyGuard {
 /// A collection of guards that match if the disjunction of their `check` outcomes is true.
 ///
 /// That is, only one contained guard needs to match in order for the aggregate guard to match.
+///
+/// Construct an `AnyGuard` using [`Any`].
 pub struct AnyGuard {
     guards: Vec<Box<dyn Guard>>,
 }
@@ -223,6 +225,8 @@ pub fn All<F: Guard + 'static>(guard: F) -> AllGuard {
 /// A collection of guards that match if the conjunction of their `check` outcomes is true.
 ///
 /// That is, **all** contained guard needs to match in order for the aggregate guard to match.
+///
+/// Construct an `AllGuard` using [`All`].
 pub struct AllGuard {
     guards: Vec<Box<dyn Guard>>,
 }
@@ -265,7 +269,7 @@ impl<G: Guard> Guard for Not<G> {
     }
 }
 
-/// Predicate to match specified HTTP method.
+/// Creates a guard that matches a specified HTTP method.
 #[allow(non_snake_case)]
 pub fn Method(method: HttpMethod) -> impl Guard {
     MethodGuard(method)
@@ -291,7 +295,7 @@ macro_rules! method_guard {
             /// use actix_web::{guard, web, HttpResponse};
             ///
             /// web::route()
-            #[doc = "     .guard(guard::" $method_fn "())"]
+      #[doc = "     .guard(guard::" $method_fn "())"]
             ///     .to(|| HttpResponse::Ok());
             /// ```
             #[allow(non_snake_case)]
@@ -313,6 +317,17 @@ method_guard!(Patch, PATCH);
 method_guard!(Trace, TRACE);
 
 /// Creates a guard that matches if request contains given header name and value.
+///
+/// # Examples
+/// The handler below will be called when the request contains an `x-guarded` header with value
+/// equal to `secret`.
+/// ```
+/// use actix_web::{guard, web, HttpResponse};
+///
+/// web::route()
+///     .guard(guard::Header("x-guarded", "secret"))
+///     .to(|| HttpResponse::Ok());
+/// ```
 #[allow(non_snake_case)]
 pub fn Header(name: &'static str, value: &'static str) -> impl Guard {
     HeaderGuard(
@@ -430,23 +445,26 @@ mod tests {
     use crate::test::TestRequest;
 
     #[test]
-    fn test_header() {
+    fn header_match() {
         let req = TestRequest::default()
             .insert_header((header::TRANSFER_ENCODING, "chunked"))
             .to_srv_request();
 
-        let pred = Header("transfer-encoding", "chunked");
-        assert!(pred.check(&req.guard_ctx()));
+        let hdr = Header("transfer-encoding", "chunked");
+        assert!(hdr.check(&req.guard_ctx()));
 
-        let pred = Header("transfer-encoding", "other");
-        assert!(!pred.check(&req.guard_ctx()));
+        let hdr = Header("transfer-encoding", "other");
+        assert!(!hdr.check(&req.guard_ctx()));
 
-        let pred = Header("content-type", "other");
-        assert!(!pred.check(&req.guard_ctx()));
+        let hdr = Header("content-type", "chunked");
+        assert!(!hdr.check(&req.guard_ctx()));
+
+        let hdr = Header("content-type", "other");
+        assert!(!hdr.check(&req.guard_ctx()));
     }
 
     #[test]
-    fn test_host() {
+    fn host_from_header() {
         let req = TestRequest::default()
             .insert_header((
                 header::HOST,
@@ -454,27 +472,52 @@ mod tests {
             ))
             .to_srv_request();
 
-        let pred = Host("www.rust-lang.org");
-        assert!(pred.check(&req.guard_ctx()));
+        let host = Host("www.rust-lang.org");
+        assert!(host.check(&req.guard_ctx()));
 
-        let pred = Host("www.rust-lang.org").scheme("https");
-        assert!(pred.check(&req.guard_ctx()));
+        let host = Host("www.rust-lang.org").scheme("https");
+        assert!(host.check(&req.guard_ctx()));
 
-        let pred = Host("blog.rust-lang.org");
-        assert!(!pred.check(&req.guard_ctx()));
+        let host = Host("blog.rust-lang.org");
+        assert!(!host.check(&req.guard_ctx()));
 
-        let pred = Host("blog.rust-lang.org").scheme("https");
-        assert!(!pred.check(&req.guard_ctx()));
+        let host = Host("blog.rust-lang.org").scheme("https");
+        assert!(!host.check(&req.guard_ctx()));
 
-        let pred = Host("crates.io");
-        assert!(!pred.check(&req.guard_ctx()));
+        let host = Host("crates.io");
+        assert!(!host.check(&req.guard_ctx()));
 
-        let pred = Host("localhost");
-        assert!(!pred.check(&req.guard_ctx()));
+        let host = Host("localhost");
+        assert!(!host.check(&req.guard_ctx()));
     }
 
     #[test]
-    fn test_host_scheme() {
+    fn host_without_header() {
+        let req = TestRequest::default()
+            .uri("www.rust-lang.org")
+            .to_srv_request();
+
+        let host = Host("www.rust-lang.org");
+        assert!(host.check(&req.guard_ctx()));
+
+        let host = Host("www.rust-lang.org").scheme("https");
+        assert!(host.check(&req.guard_ctx()));
+
+        let host = Host("blog.rust-lang.org");
+        assert!(!host.check(&req.guard_ctx()));
+
+        let host = Host("blog.rust-lang.org").scheme("https");
+        assert!(!host.check(&req.guard_ctx()));
+
+        let host = Host("crates.io");
+        assert!(!host.check(&req.guard_ctx()));
+
+        let host = Host("localhost");
+        assert!(!host.check(&req.guard_ctx()));
+    }
+
+    #[test]
+    fn host_scheme() {
         let req = TestRequest::default()
             .insert_header((
                 header::HOST,
@@ -482,120 +525,98 @@ mod tests {
             ))
             .to_srv_request();
 
-        let pred = Host("www.rust-lang.org").scheme("https");
-        assert!(pred.check(&req.guard_ctx()));
+        let host = Host("www.rust-lang.org").scheme("https");
+        assert!(host.check(&req.guard_ctx()));
 
-        let pred = Host("www.rust-lang.org");
-        assert!(pred.check(&req.guard_ctx()));
+        let host = Host("www.rust-lang.org");
+        assert!(host.check(&req.guard_ctx()));
 
-        let pred = Host("www.rust-lang.org").scheme("http");
-        assert!(!pred.check(&req.guard_ctx()));
+        let host = Host("www.rust-lang.org").scheme("http");
+        assert!(!host.check(&req.guard_ctx()));
 
-        let pred = Host("blog.rust-lang.org");
-        assert!(!pred.check(&req.guard_ctx()));
+        let host = Host("blog.rust-lang.org");
+        assert!(!host.check(&req.guard_ctx()));
 
-        let pred = Host("blog.rust-lang.org").scheme("https");
-        assert!(!pred.check(&req.guard_ctx()));
+        let host = Host("blog.rust-lang.org").scheme("https");
+        assert!(!host.check(&req.guard_ctx()));
 
-        let pred = Host("crates.io").scheme("https");
-        assert!(!pred.check(&req.guard_ctx()));
+        let host = Host("crates.io").scheme("https");
+        assert!(!host.check(&req.guard_ctx()));
 
-        let pred = Host("localhost");
-        assert!(!pred.check(&req.guard_ctx()));
+        let host = Host("localhost");
+        assert!(!host.check(&req.guard_ctx()));
     }
 
     #[test]
-    fn test_host_without_header() {
-        let req = TestRequest::default()
-            .uri("www.rust-lang.org")
-            .to_srv_request();
+    fn method_guards() {
+        let get_req = TestRequest::get().to_srv_request();
+        let post_req = TestRequest::post().to_srv_request();
 
-        let pred = Host("www.rust-lang.org");
-        assert!(pred.check(&req.guard_ctx()));
+        assert!(Get().check(&get_req.guard_ctx()));
+        assert!(!Get().check(&post_req.guard_ctx()));
 
-        let pred = Host("www.rust-lang.org").scheme("https");
-        assert!(pred.check(&req.guard_ctx()));
+        assert!(Post().check(&post_req.guard_ctx()));
+        assert!(!Post().check(&get_req.guard_ctx()));
 
-        let pred = Host("blog.rust-lang.org");
-        assert!(!pred.check(&req.guard_ctx()));
+        let req = TestRequest::put().to_srv_request();
+        assert!(Put().check(&req.guard_ctx()));
+        assert!(!Put().check(&get_req.guard_ctx()));
 
-        let pred = Host("blog.rust-lang.org").scheme("https");
-        assert!(!pred.check(&req.guard_ctx()));
+        let req = TestRequest::patch().to_srv_request();
+        assert!(Patch().check(&req.guard_ctx()));
+        assert!(!Patch().check(&get_req.guard_ctx()));
 
-        let pred = Host("crates.io");
-        assert!(!pred.check(&req.guard_ctx()));
-
-        let pred = Host("localhost");
-        assert!(!pred.check(&req.guard_ctx()));
-    }
-
-    #[test]
-    fn test_methods() {
-        let req = TestRequest::default().to_srv_request();
-        let req2 = TestRequest::default().method(Method::POST).to_srv_request();
-
-        assert!(Get().check(&req.guard_ctx()));
-        assert!(!Get().check(&req2.guard_ctx()));
-        assert!(Post().check(&req2.guard_ctx()));
-        assert!(!Post().check(&req.guard_ctx()));
-
-        let r = TestRequest::default().method(Method::PUT).to_srv_request();
-        assert!(Put().check(&r.guard_ctx()));
-        assert!(!Put().check(&req.guard_ctx()));
-
-        let r = TestRequest::default()
-            .method(Method::DELETE)
-            .to_srv_request();
+        let r = TestRequest::delete().to_srv_request();
         assert!(Delete().check(&r.guard_ctx()));
-        assert!(!Delete().check(&req.guard_ctx()));
+        assert!(!Delete().check(&get_req.guard_ctx()));
 
-        let r = TestRequest::default().method(Method::HEAD).to_srv_request();
-        assert!(Head().check(&r.guard_ctx()));
-        assert!(!Head().check(&req.guard_ctx()));
+        let req = TestRequest::default().method(Method::HEAD).to_srv_request();
+        assert!(Head().check(&req.guard_ctx()));
+        assert!(!Head().check(&get_req.guard_ctx()));
 
-        let r = TestRequest::default()
+        let req = TestRequest::default()
             .method(Method::OPTIONS)
             .to_srv_request();
-        assert!(Options().check(&r.guard_ctx()));
-        assert!(!Options().check(&req.guard_ctx()));
+        assert!(Options().check(&req.guard_ctx()));
+        assert!(!Options().check(&get_req.guard_ctx()));
 
-        let r = TestRequest::default()
+        let req = TestRequest::default()
             .method(Method::CONNECT)
             .to_srv_request();
-        assert!(Connect().check(&r.guard_ctx()));
-        assert!(!Connect().check(&req.guard_ctx()));
+        assert!(Connect().check(&req.guard_ctx()));
+        assert!(!Connect().check(&get_req.guard_ctx()));
 
-        let r = TestRequest::default()
-            .method(Method::PATCH)
-            .to_srv_request();
-        assert!(Patch().check(&r.guard_ctx()));
-        assert!(!Patch().check(&req.guard_ctx()));
-
-        let r = TestRequest::default()
+        let req = TestRequest::default()
             .method(Method::TRACE)
             .to_srv_request();
-        assert!(Trace().check(&r.guard_ctx()));
-        assert!(!Trace().check(&req.guard_ctx()));
+        assert!(Trace().check(&req.guard_ctx()));
+        assert!(!Trace().check(&get_req.guard_ctx()));
     }
 
     #[test]
-    fn test_preds() {
-        let r = TestRequest::default()
+    fn aggregate_any() {
+        let req = TestRequest::default()
             .method(Method::TRACE)
             .to_srv_request();
 
-        assert!(Not(Get()).check(&r.guard_ctx()));
-        assert!(!Not(Trace()).check(&r.guard_ctx()));
-
-        assert!(All(Trace()).and(Trace()).check(&r.guard_ctx()));
-        assert!(!All(Get()).and(Trace()).check(&r.guard_ctx()));
-
-        assert!(Any(Get()).or(Trace()).check(&r.guard_ctx()));
-        assert!(!Any(Get()).or(Get()).check(&r.guard_ctx()));
+        assert!(Any(Trace()).check(&req.guard_ctx()));
+        assert!(Any(Trace()).or(Get()).check(&req.guard_ctx()));
+        assert!(!Any(Get()).or(Get()).check(&req.guard_ctx()));
     }
 
     #[test]
-    fn not_guard_reflexive() {
+    fn aggregate_all() {
+        let req = TestRequest::default()
+            .method(Method::TRACE)
+            .to_srv_request();
+
+        assert!(All(Trace()).check(&req.guard_ctx()));
+        assert!(All(Trace()).and(Trace()).check(&req.guard_ctx()));
+        assert!(!All(Trace()).and(Get()).check(&req.guard_ctx()));
+    }
+
+    #[test]
+    fn nested_not() {
         let req = TestRequest::default().to_srv_request();
 
         let get = Get();
