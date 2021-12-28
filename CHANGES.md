@@ -11,7 +11,13 @@
 - Some guards now return `impl Guard` and their concrete types are made private: `guard::{Header}` and all the method guards. [#2552]
 - The `Not` guard is now generic over the type of guard it wraps. [#2552]
 
+### Fixed
+- Rename `ConnectionInfo::{remote_addr => peer_addr}`, deprecating the old name. [#2554]
+- `ConnectionInfo::peer_addr` will not return the port number. [#2554]
+- `ConnectionInfo::realip_remote_addr` will not return the port number if sourcing the IP from the peer's socket address. [#2554]
+
 [#2552]: https://github.com/actix/actix-web/pull/2552
+[#2554]: https://github.com/actix/actix-web/pull/2554
 
 
 ## 4.0.0-beta.16 - 2021-12-27
