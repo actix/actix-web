@@ -151,7 +151,7 @@ where
     }
 }
 
-/// Return guard that matches if any of supplied guards.
+/// Creates a guard that matches if any added guards match.
 ///
 /// # Examples
 /// The handler below will be called for either request method `GET` or `POST`.
@@ -171,13 +171,15 @@ pub fn Any<F: Guard + 'static>(guard: F) -> AnyGuard {
     }
 }
 
-/// Matches any of supplied guards.
+/// A collection of guards that match if the disjunction of their `check` outcomes is true.
+///
+/// That is, only one contained guard needs to match in order for the aggregate guard to match.
 pub struct AnyGuard {
     guards: Vec<Box<dyn Guard>>,
 }
 
 impl AnyGuard {
-    /// Add guard to a list of guards to check
+    /// Adds new guard to the collection of guards to check.
     pub fn or<F: Guard + 'static>(mut self, guard: F) -> Self {
         self.guards.push(Box::new(guard));
         self
@@ -196,7 +198,7 @@ impl Guard for AnyGuard {
     }
 }
 
-/// Creates a guard that matches if all of the supplied guards.
+/// Creates a guard that matches if all added guards match.
 ///
 /// # Examples
 /// The handler below will only be called if the request method is `GET` **and** the specified
@@ -218,13 +220,15 @@ pub fn All<F: Guard + 'static>(guard: F) -> AllGuard {
     }
 }
 
-/// Matches if all of supplied guards.
+/// A collection of guards that match if the conjunction of their `check` outcomes is true.
+///
+/// That is, **all** contained guard needs to match in order for the aggregate guard to match.
 pub struct AllGuard {
     guards: Vec<Box<dyn Guard>>,
 }
 
 impl AllGuard {
-    /// Add new guard to the list of guards to check
+    /// Adds new guard to the collection of guards to check.
     pub fn and<F: Guard + 'static>(mut self, guard: F) -> Self {
         self.guards.push(Box::new(guard));
         self
