@@ -7,8 +7,8 @@ use std::{
 };
 
 use actix_http::{
-    error::PayloadError, header, header::HeaderMap, BoxedPayloadStream, Extensions,
-    HttpMessage, Payload, ResponseHead, StatusCode, Version,
+    error::PayloadError, header::HeaderMap, BoxedPayloadStream, Extensions, HttpMessage,
+    Payload, ResponseHead, StatusCode, Version,
 };
 use actix_rt::time::{sleep, Sleep};
 use bytes::Bytes;
@@ -119,12 +119,13 @@ impl<S> ClientResponse<S> {
 
         if self.extensions().get::<Cookies>().is_none() {
             let mut cookies = Vec::new();
-            for hdr in self.headers().get_all(&header::SET_COOKIE) {
+            for hdr in self.headers().get_all(&actix_http::header::SET_COOKIE) {
                 let s = std::str::from_utf8(hdr.as_bytes()).map_err(CookieParseError::from)?;
                 cookies.push(Cookie::parse_encoded(s)?.into_owned());
             }
             self.extensions_mut().insert(Cookies(cookies));
         }
+
         Ok(Ref::map(self.extensions(), |ext| {
             &ext.get::<Cookies>().unwrap().0
         }))
