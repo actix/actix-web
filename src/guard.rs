@@ -10,16 +10,22 @@
 //! object and returns a boolean; true if the request _should_ be handled by the guarded service
 //! or handler. This interface is defined by the [`Guard`] trait.
 //!
-//! Commonly-used guards are provided in this module as well as way of creating a guard from a
+//! Commonly-used guards are provided in this module as well as a way of creating a guard from a
 //! closure ([`fn_guard`]). The [`Not`], [`Any`], and [`All`] guards are noteworthy, as they can be
 //! used to compose other guards in a more flexible and semantic way than calling `.guard(...)` on
 //! services multiple times (which might have different combining behavior than you want).
 //!
+//! There are shortcuts for routes with method guards in the [`web`](crate::web) module:
+//! [`web::get()`](crate::web::get), [`web::post()`](crate::web::post), etc. The routes created by
+//! the following calls are equivalent:
+//! - `web::get()` (recommended form)
+//! - `web::route().guard(guard::Get())`
+//!
 //! Guards can not modify anything about the request. However, it is possible to store extra
 //! attributes in the request-local data container obtained with [`GuardContext::req_data_mut`].
 //!
-//! Guards can prevent resource definitions from overlapping (resulting in some inaccessible routes)
-//! where they otherwise would when only considering paths. See the virtual hosting example below.
+//! Guards can prevent resource definitions from overlapping which, when only considering paths,
+//! would result in inaccessible routes. See the [`Host`] guard for an example of virtual hosting.
 //!
 //! # Examples
 //! In the following code, the `/guarded` resource has one defined route whose handler will only be
@@ -36,31 +42,9 @@
 //! );
 //! ```
 //!
-//! Guards can be used to set up some form of [virtual hosting] within a single app.
-//! Overlapping scope prefixes are usually discouraged, but when combined with non-overlapping guard
-//! definitions they become safe to use in this way. Without these host guards, only routes under
-//! the first-to-be-defined scope would be accessible. You can test this locally using `127.0.0.1`
-//! and `localhost` as the `Host` guards.
-//! ```
-//! use actix_web::{web, http::Method, guard, App, HttpResponse};
-//!
-//! App::new()
-//!     .service(
-//!         web::scope("")
-//!             .guard(guard::Host("www.rust-lang.org"))
-//!             .default_service(web::to(|| HttpResponse::Ok().body("marketing site"))),
-//!     )
-//!     .service(
-//!         web::scope("")
-//!             .guard(guard::Host("play.rust-lang.org"))
-//!             .default_service(web::to(|| HttpResponse::Ok().body("playground frontend"))),
-//!     );
-//! ```
-//!
 //! [`Scope`]: crate::Scope::guard()
 //! [`Resource`]: crate::Resource::guard()
 //! [`Route`]: crate::Route::guard()
-//! [virtual hosting]: https://en.wikipedia.org/wiki/Virtual_hosting
 
 use std::{
     cell::{Ref, RefMut},
@@ -373,6 +357,29 @@ impl Guard for HeaderGuard {
 ///     .guard(Host("admin.rust-lang.org").scheme("https"))
 ///     .default_service(web::to(|| HttpResponse::Ok().body("admin connection is secure")));
 /// ```
+///
+/// The `Host` guard can be used to set up some form of [virtual hosting] within a single app.
+/// Overlapping scope prefixes are usually discouraged, but when combined with non-overlapping guard
+/// definitions they become safe to use in this way. Without these host guards, only routes under
+/// the first-to-be-defined scope would be accessible. You can test this locally using `127.0.0.1`
+/// and `localhost` as the `Host` guards.
+/// ```
+/// use actix_web::{web, http::Method, guard, App, HttpResponse};
+///
+/// App::new()
+///     .service(
+///         web::scope("")
+///             .guard(guard::Host("www.rust-lang.org"))
+///             .default_service(web::to(|| HttpResponse::Ok().body("marketing site"))),
+///     )
+///     .service(
+///         web::scope("")
+///             .guard(guard::Host("play.rust-lang.org"))
+///             .default_service(web::to(|| HttpResponse::Ok().body("playground frontend"))),
+///     );
+/// ```
+///
+/// [virtual hosting]: https://en.wikipedia.org/wiki/Virtual_hosting
 #[allow(non_snake_case)]
 pub fn Host(host: impl AsRef<str>) -> HostGuard {
     HostGuard {
@@ -641,5 +648,18 @@ mod tests {
 
         let req = TestRequest::default().uri("crates.io").to_srv_request();
         assert!(!guard.check(&req.guard_ctx()));
+    }
+
+    #[test]
+    fn mega_nesting() {
+        let guard = fn_guard(|ctx| All(Not(Any(Not(Trace())))).check(ctx));
+
+        let req = TestRequest::default().to_srv_request();
+        assert!(!guard.check(&req.guard_ctx()));
+
+        let req = TestRequest::default()
+            .method(Method::TRACE)
+            .to_srv_request();
+        assert!(guard.check(&req.guard_ctx()));
     }
 }
