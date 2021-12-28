@@ -124,7 +124,7 @@ impl TestRequest {
         self
     }
 
-    /// Set HTTP Uri of this request
+    /// Set HTTP URI of this request
     pub fn uri(mut self, path: &str) -> Self {
         self.req.uri(path);
         self

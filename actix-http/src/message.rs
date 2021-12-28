@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, ops, rc::Rc};
 
 use bitflags::bitflags;
 
@@ -49,7 +49,7 @@ impl<T: Head> Message<T> {
     }
 }
 
-impl<T: Head> std::ops::Deref for Message<T> {
+impl<T: Head> ops::Deref for Message<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -57,7 +57,7 @@ impl<T: Head> std::ops::Deref for Message<T> {
     }
 }
 
-impl<T: Head> std::ops::DerefMut for Message<T> {
+impl<T: Head> ops::DerefMut for Message<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         Rc::get_mut(&mut self.head).expect("Multiple copies exist")
     }
