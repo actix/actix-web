@@ -137,7 +137,7 @@ impl AppConfig {
         &self.host
     }
 
-    /// Returns true if connection is secure (ie. running over `https:`).
+    /// Returns true if connection is secure (i.e., running over `https:`).
     pub fn secure(&self) -> bool {
         self.secure
     }

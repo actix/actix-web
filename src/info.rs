@@ -449,12 +449,12 @@ mod tests {
     async fn remote_address() {
         let req = TestRequest::default().to_http_request();
         let res = ConnectionInfo::extract(&req).await.unwrap();
-        assert!(res.remote_addr().is_none());
+        assert!(res.peer_addr().is_none());
 
         let addr = "127.0.0.1:8080".parse().unwrap();
         let req = TestRequest::default().peer_addr(addr).to_http_request();
         let conn_info = ConnectionInfo::extract(&req).await.unwrap();
-        assert_eq!(conn_info.remote_addr().unwrap(), "127.0.0.1");
+        assert_eq!(conn_info.peer_addr().unwrap(), "127.0.0.1");
     }
 
     #[actix_rt::test]
