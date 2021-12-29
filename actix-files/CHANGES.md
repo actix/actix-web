@@ -1,7 +1,11 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+- `Files`: `%2F` in request URL path is now decoded to  `/` and thus functions as a path separator. [#2398]
+- `Files`: Fixed a regression where `%25` in the URL path is not decoded to `%` in the file path. [#2398]
 - Minimum supported Rust version (MSRV) is now 1.54.
+
+[#2398]: https://github.com/actix/actix-web/pull/2398
 
 
 ## 0.6.0-beta.12 - 2021-12-29

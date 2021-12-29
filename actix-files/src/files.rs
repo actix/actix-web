@@ -28,15 +28,15 @@ use crate::{
 ///
 /// `Files` service must be registered with `App::service()` method.
 ///
-/// # Security Coniderations
+/// # Percent-Encoding and Security Considerations
 ///
 /// When converting the request URL path into the target [file path](std::path::Path),
-/// `Files` service *does* decode *all* percent-encoded chars in the path string.
+/// `Files` service *does* decode *all* percent-encoded characters in the path string.
 /// One implication is that the resulting file path may have more components than the URL path
 /// as a result of decoding `%2F` into `/`.
 ///
-/// Any middleware that is responsibe for validating the paths managed under `Files`
-/// should be aware of this behvaior.
+/// Any middleware that is responsible for validating the paths managed under `Files`
+/// should be aware of this behavior.
 ///
 /// # Examples
 /// ```
