@@ -2,7 +2,14 @@
 
 ## Unreleased - 2021-xx-xx
 ### Changed
-- `awc` has upgraded to `cookie` 0.16. This removes `awc`'s dependency on a version of `time` that was affected by RUSTSEC-2020-0071. `awc` still depends on a vulnerable version of `chrono` via `rcgen`, but `rcgen` is only used as a dev dependency therefore this does not affect end users.
+- Update `cookie` dependency (re-exported) to `0.16`. [#2555]
+
+### Security
+- `cookie` upgrade addresses [`RUSTSEC-2020-0071`].
+
+[#2555]: https://github.com/actix/actix-web/pull/2555
+[`RUSTSEC-2020-0071`]: https://rustsec.org/advisories/RUSTSEC-2020-0071.html
+
 
 ## 3.0.0-beta.16 - 2021-12-29
 - `*::send_json` and `*::send_form` methods now receive `impl Serialize`. [#2553]
