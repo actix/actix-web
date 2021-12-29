@@ -3,6 +3,10 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 0.1.0-beta.10 - 2021-12-27
+* No significant changes since `0.1.0-beta.9`.
+
+
 ## 0.1.0-beta.9 - 2021-12-17
 - Re-export `actix_http::body::to_bytes`. [#2518]
 - Update `actix_web::test` re-exports. [#2518]

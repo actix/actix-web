@@ -1,10 +1,24 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+- `*::send_json` and `*::send_form` methods now receive `impl Serialize`. [#2553]
+- `FrozenClientRequest::extra_header` now uses receives an `impl TryIntoHeaderPair`. [#2553]
+- Remove unnecessary `Unpin` bounds on `*::send_stream`. [#2553]
+
+[#2553]: https://github.com/actix/actix-web/pull/2553
+
+
+## 3.0.0-beta.15 - 2021-12-27
 - Rename `Connector::{ssl => openssl}`. [#2503]
 - Improve `Client` instantiation efficiency when using `openssl` by only building connectors once. [#2503]
+- `ClientRequest::send_body` now takes an `impl MessageBody`. [#2546]
+- Rename `MessageBody => ResponseBody` to avoid conflicts with `MessageBody` trait. [#2546]
+- `impl Future` for `ResponseBody` no longer requires the body type be `Unpin`. [#2546]
+- `impl Future` for `JsonBody` no longer requires the body type be `Unpin`. [#2546]
+- `impl Stream` for `ClientResponse` no longer requires the body type be `Unpin`. [#2546]
 
 [#2503]: https://github.com/actix/actix-web/pull/2503
+[#2546]: https://github.com/actix/actix-web/pull/2546
 
 
 ## 3.0.0-beta.14 - 2021-12-17

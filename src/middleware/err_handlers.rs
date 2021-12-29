@@ -37,27 +37,21 @@ type ErrorHandler<B> = dyn Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse
 ///
 /// # Examples
 /// ```
-/// use actix_web::middleware::{ErrorHandlers, ErrorHandlerResponse};
-/// use actix_web::{web, dev, App, HttpRequest, HttpResponse, Result};
-/// use actix_web::http::{StatusCode, header};
+/// use actix_web::http::{header, StatusCode};
+/// use actix_web::middleware::{ErrorHandlerResponse, ErrorHandlers};
+/// use actix_web::{dev, web, App, HttpResponse, Result};
 ///
-/// fn render_500<B>(mut res: dev::ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
-///     res.response_mut()
-///        .headers_mut()
-///        .insert(header::CONTENT_TYPE, header::HeaderValue::from_static("Error"));
-///
+/// fn add_error_header<B>(mut res: dev::ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
+///     res.response_mut().headers_mut().insert(
+///         header::CONTENT_TYPE,
+///         header::HeaderValue::from_static("Error"),
+///     );
 ///     Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
 /// }
 ///
 /// let app = App::new()
-///     .wrap(
-///         ErrorHandlers::new()
-///             .handler(StatusCode::INTERNAL_SERVER_ERROR, render_500),
-///     )
-///     .service(web::resource("/test")
-///         .route(web::get().to(|| HttpResponse::Ok()))
-///         .route(web::head().to(|| HttpResponse::MethodNotAllowed())
-///     ));
+///     .wrap(ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, add_error_header))
+///     .service(web::resource("/").route(web::get().to(HttpResponse::InternalServerError)));
 /// ```
 pub struct ErrorHandlers<B> {
     handlers: Handlers<B>,

@@ -1,4 +1,4 @@
-use std::{future::Future, mem, rc::Rc};
+use std::{mem, rc::Rc};
 
 use actix_http::Method;
 use actix_service::{
@@ -8,17 +8,16 @@ use actix_service::{
 use futures_core::future::LocalBoxFuture;
 
 use crate::{
-    body::MessageBody,
     guard::{self, Guard},
     handler::{handler_service, Handler},
     service::{BoxedHttpServiceFactory, ServiceRequest, ServiceResponse},
-    BoxError, Error, FromRequest, HttpResponse, Responder,
+    Error, FromRequest, HttpResponse, Responder,
 };
 
-/// Resource route definition
+/// A request handler with [guards](guard).
 ///
-/// Route uses builder-like pattern for configuration.
-/// If handler is not explicitly set, default *404 Not Found* handler is used.
+/// Route uses a builder-like pattern for configuration. If handler is not set, a `404 Not Found`
+/// handler is used.
 pub struct Route {
     service: BoxedHttpServiceFactory,
     guards: Rc<Vec<Box<dyn Guard>>>,
@@ -66,9 +65,12 @@ pub struct RouteService {
 }
 
 impl RouteService {
+    // TODO: does this need to take &mut ?
     pub fn check(&self, req: &mut ServiceRequest) -> bool {
-        for f in self.guards.iter() {
-            if !f.check(req.head()) {
+        let guard_ctx = req.guard_ctx();
+
+        for guard in self.guards.iter() {
+            if !guard.check(&guard_ctx) {
                 return false;
             }
         }
@@ -91,6 +93,7 @@ impl Service<ServiceRequest> for RouteService {
 impl Route {
     /// Add method guard to the route.
     ///
+    /// # Examples
     /// ```
     /// # use actix_web::*;
     /// # fn main() {
@@ -111,6 +114,7 @@ impl Route {
 
     /// Add guard to the route.
     ///
+    /// # Examples
     /// ```
     /// # use actix_web::*;
     /// # fn main() {
@@ -144,16 +148,13 @@ impl Route {
     ///     format!("Welcome {}!", info.username)
     /// }
     ///
-    /// fn main() {
-    ///     let app = App::new().service(
-    ///         web::resource("/{username}/index.html") // <- define path parameters
-    ///             .route(web::get().to(index))        // <- register handler
-    ///     );
-    /// }
+    /// let app = App::new().service(
+    ///     web::resource("/{username}/index.html") // <- define path parameters
+    ///         .route(web::get().to(index))        // <- register handler
+    /// );
     /// ```
     ///
     /// It is possible to use multiple extractors for one handler function.
-    ///
     /// ```
     /// # use std::collections::HashMap;
     /// # use serde::Deserialize;
@@ -165,25 +166,24 @@ impl Route {
     /// }
     ///
     /// /// extract path info using serde
-    /// async fn index(path: web::Path<Info>, query: web::Query<HashMap<String, String>>, body: web::Json<Info>) -> String {
+    /// async fn index(
+    ///     path: web::Path<Info>,
+    ///     query: web::Query<HashMap<String, String>>,
+    ///     body: web::Json<Info>
+    /// ) -> String {
     ///     format!("Welcome {}!", path.username)
     /// }
     ///
-    /// fn main() {
-    ///     let app = App::new().service(
-    ///         web::resource("/{username}/index.html") // <- define path parameters
-    ///             .route(web::get().to(index))
-    ///     );
-    /// }
+    /// let app = App::new().service(
+    ///     web::resource("/{username}/index.html") // <- define path parameters
+    ///         .route(web::get().to(index))
+    /// );
     /// ```
-    pub fn to<F, T, R>(mut self, handler: F) -> Self
+    pub fn to<F, Args>(mut self, handler: F) -> Self
     where
-        F: Handler<T, R>,
-        T: FromRequest + 'static,
-        R: Future + 'static,
-        R::Output: Responder + 'static,
-        <R::Output as Responder>::Body: MessageBody,
-        <<R::Output as Responder>::Body as MessageBody>::Error: Into<BoxError>,
+        F: Handler<Args>,
+        Args: FromRequest + 'static,
+        F::Output: Responder + 'static,
     {
         self.service = handler_service(handler);
         self
@@ -203,7 +203,7 @@ impl Route {
     ///     type Error = Infallible;
     ///     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
     ///
-    ///     always_ready!();
+    ///     dev::always_ready!();
     ///
     ///     fn call(&self, req: ServiceRequest) -> Self::Future {
     ///         let (req, _) = req.into_parts();

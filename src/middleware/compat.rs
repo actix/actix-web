@@ -17,7 +17,7 @@ use crate::{
 };
 
 /// Middleware for enabling any middleware to be used in [`Resource::wrap`](crate::Resource::wrap),
-/// [`Scope::wrap`](crate::Scope::wrap) and [`Condition`](super::Condition).
+/// and [`Condition`](super::Condition).
 ///
 /// # Examples
 /// ```
@@ -36,6 +36,15 @@ use crate::{
 /// ```
 pub struct Compat<T> {
     transform: T,
+}
+
+#[cfg(test)]
+impl Compat<super::Noop> {
+    pub(crate) fn noop() -> Self {
+        Self {
+            transform: super::Noop,
+        }
+    }
 }
 
 impl<T> Compat<T> {

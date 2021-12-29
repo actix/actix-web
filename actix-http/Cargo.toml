@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "3.0.0-beta.16"
+version = "3.0.0-beta.17"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "HTTP primitives for the Actix ecosystem"
 keywords = ["actix", "http", "framework", "async", "futures"]
@@ -55,12 +55,11 @@ bytestring = "1"
 derive_more = "0.99.5"
 encoding_rs = "0.8"
 futures-core = { version = "0.3.7", default-features = false, features = ["alloc"] }
-futures-task = { version = "0.3.7", default-features = false, features = ["alloc"] }
 h2 = "0.3.9"
 http = "0.2.5"
 httparse = "1.5.1"
 httpdate = "1.0.1"
-itoa = "0.4"
+itoa = "1"
 language-tags = "0.3"
 local-channel = "0.1"
 log = "0.4"
@@ -68,11 +67,11 @@ mime = "0.3"
 percent-encoding = "2.1"
 pin-project-lite = "0.2"
 rand = "0.8"
-sha-1 = "0.9"
+sha-1 = "0.10"
 smallvec = "1.6.1"
 
 # tls
-actix-tls = { version = "3.0.0-rc.1", default-features = false, optional = true }
+actix-tls = { version = "3.0.0", default-features = false, optional = true }
 
 # compression
 brotli2 = { version="0.3.2", optional = true }
@@ -80,10 +79,10 @@ flate2 = { version = "1.0.13", optional = true }
 zstd = { version = "0.9", optional = true }
 
 [dev-dependencies]
-actix-http-test = { version = "3.0.0-beta.9", features = ["openssl"] }
-actix-server = "2.0.0-rc.1"
-actix-tls = { version = "3.0.0-rc.1", features = ["openssl"] }
-actix-web = "4.0.0-beta.15"
+actix-http-test = { version = "3.0.0-beta.10", features = ["openssl"] }
+actix-server = "2.0.0-rc.2"
+actix-tls = { version = "3.0.0", features = ["openssl"] }
+actix-web = "4.0.0-beta.16"
 
 async-stream = "0.3"
 criterion = { version = "0.3", features = ["html_reports"] }
@@ -97,7 +96,7 @@ serde_json = "1.0"
 static_assertions = "1"
 tls-openssl = { package = "openssl", version = "0.10.9" }
 tls-rustls = { package = "rustls", version = "0.20.0" }
-tokio = { version = "1.2", features = ["net", "rt", "macros"] }
+tokio = { version = "1.8.4", features = ["net", "rt", "macros"] }
 
 [[example]]
 name = "ws"

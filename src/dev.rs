@@ -3,16 +3,7 @@
 //! Most users will not have to interact with the types in this module, but it is useful for those
 //! writing extractors, middleware, libraries, or interacting with the service API directly.
 
-pub use crate::config::{AppConfig, AppService};
-#[doc(hidden)]
-pub use crate::handler::Handler;
-pub use crate::info::{ConnectionInfo, PeerAddr};
-pub use crate::rmap::ResourceMap;
-pub use crate::service::{HttpServiceFactory, ServiceRequest, ServiceResponse, WebService};
-
-pub use crate::types::{JsonBody, Readlines, UrlEncoded};
-
-pub use actix_http::{Extensions, Payload, PayloadStream, RequestHead, Response, ResponseHead};
+pub use actix_http::{Extensions, Payload, RequestHead, Response, ResponseHead};
 pub use actix_router::{Path, ResourceDef, ResourcePath, Url};
 pub use actix_server::{Server, ServerHandle};
 pub use actix_service::{
@@ -21,6 +12,15 @@ pub use actix_service::{
 
 #[cfg(feature = "__compress")]
 pub use actix_http::encoding::Decoder as Decompress;
+
+pub use crate::config::{AppConfig, AppService};
+#[doc(hidden)]
+pub use crate::handler::Handler;
+pub use crate::info::{ConnectionInfo, PeerAddr};
+pub use crate::rmap::ResourceMap;
+pub use crate::service::{HttpServiceFactory, ServiceRequest, ServiceResponse, WebService};
+
+pub use crate::types::{JsonBody, Readlines, UrlEncoded};
 
 use crate::http::header::ContentEncoding;
 
@@ -44,7 +44,6 @@ pub(crate) fn ensure_leading_slash(mut patterns: Patterns) -> Patterns {
 
     patterns
 }
-struct Enc(ContentEncoding);
 
 /// Helper trait that allows to set specific encoding for response.
 pub trait BodyEncoding {
@@ -67,6 +66,8 @@ impl BodyEncoding for actix_http::ResponseBuilder {
         self
     }
 }
+
+struct Enc(ContentEncoding);
 
 impl<B> BodyEncoding for actix_http::Response<B> {
     fn get_encoding(&self) -> Option<ContentEncoding> {

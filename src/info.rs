@@ -67,7 +67,7 @@ fn first_header_value<'a>(req: &'a RequestHead, name: &'_ HeaderName) -> Option<
 pub struct ConnectionInfo {
     host: String,
     scheme: String,
-    remote_addr: Option<String>,
+    peer_addr: Option<String>,
     realip_remote_addr: Option<String>,
 }
 
@@ -134,67 +134,70 @@ impl ConnectionInfo {
             .or_else(|| first_header_value(req, &*X_FORWARDED_FOR))
             .map(str::to_owned);
 
-        let remote_addr = req.peer_addr.map(|addr| addr.to_string());
+        let peer_addr = req.peer_addr.map(|addr| addr.ip().to_string());
 
         ConnectionInfo {
             host,
             scheme,
-            remote_addr,
+            peer_addr,
             realip_remote_addr,
         }
     }
 
+    /// Real IP (remote address) of client that initiated request.
+    ///
+    /// The address is resolved through the following, in order:
+    /// - `Forwarded` header
+    /// - `X-Forwarded-For` header
+    /// - peer address of opened socket (same as [`remote_addr`](Self::remote_addr))
+    ///
+    /// # Security
+    /// Do not use this function for security purposes unless you can be sure that the `Forwarded`
+    /// and `X-Forwarded-For` headers cannot be spoofed by the client. If you are running without a
+    /// proxy then [obtaining the peer address](Self::peer_addr) would be more appropriate.
+    #[inline]
+    pub fn realip_remote_addr(&self) -> Option<&str> {
+        self.realip_remote_addr
+            .as_deref()
+            .or_else(|| self.peer_addr.as_deref())
+    }
+
+    /// Returns serialized IP address of the peer connection.
+    ///
+    /// See [`HttpRequest::peer_addr`] for more details.
+    #[inline]
+    pub fn peer_addr(&self) -> Option<&str> {
+        self.peer_addr.as_deref()
+    }
+
+    /// Hostname of the request.
+    ///
+    /// Hostname is resolved through the following, in order:
+    /// - `Forwarded` header
+    /// - `X-Forwarded-Host` header
+    /// - `Host` header
+    /// - request target / URI
+    /// - configured server hostname
+    #[inline]
+    pub fn host(&self) -> &str {
+        &self.host
+    }
+
     /// Scheme of the request.
     ///
-    /// Scheme is resolved through the following headers, in this order:
-    ///
-    /// - Forwarded
-    /// - X-Forwarded-Proto
-    /// - Uri
+    /// Scheme is resolved through the following, in order:
+    /// - `Forwarded` header
+    /// - `X-Forwarded-Proto` header
+    /// - request target / URI
     #[inline]
     pub fn scheme(&self) -> &str {
         &self.scheme
     }
 
-    /// Hostname of the request.
-    ///
-    /// Hostname is resolved through the following headers, in this order:
-    ///
-    /// - Forwarded
-    /// - X-Forwarded-Host
-    /// - Host
-    /// - Uri
-    /// - Server hostname
-    pub fn host(&self) -> &str {
-        &self.host
-    }
-
-    /// Remote address of the connection.
-    ///
-    /// Get remote_addr address from socket address.
+    #[doc(hidden)]
+    #[deprecated(since = "4.0.0", note = "Renamed to `peer_addr`.")]
     pub fn remote_addr(&self) -> Option<&str> {
-        self.remote_addr.as_deref()
-    }
-
-    /// Real IP (remote address) of client that initiated request.
-    ///
-    /// The address is resolved through the following headers, in this order:
-    ///
-    /// - Forwarded
-    /// - X-Forwarded-For
-    /// - remote_addr name of opened socket
-    ///
-    /// # Security
-    /// Do not use this function for security purposes, unless you can ensure the Forwarded and
-    /// X-Forwarded-For headers cannot be spoofed by the client. If you want the client's socket
-    /// address explicitly, use [`HttpRequest::peer_addr()`][peer_addr] instead.
-    ///
-    /// [peer_addr]: crate::web::HttpRequest::peer_addr()
-    #[inline]
-    pub fn realip_remote_addr(&self) -> Option<&str> {
-        self.realip_remote_addr
-            .as_deref()
-            .or_else(|| self.remote_addr.as_deref())
+        self.peer_addr()
     }
 }
 
@@ -209,7 +212,7 @@ impl FromRequest for ConnectionInfo {
 
 /// Extractor for peer's socket address.
 ///
-/// Also see [`HttpRequest::peer_addr`].
+/// Also see [`HttpRequest::peer_addr`] and [`ConnectionInfo::peer_addr`].
 ///
 /// # Examples
 /// ```
@@ -432,13 +435,37 @@ mod tests {
 
     #[actix_rt::test]
     async fn peer_addr_extract() {
+        let req = TestRequest::default().to_http_request();
+        let res = PeerAddr::extract(&req).await;
+        assert!(res.is_err());
+
         let addr = "127.0.0.1:8080".parse().unwrap();
         let req = TestRequest::default().peer_addr(addr).to_http_request();
         let peer_addr = PeerAddr::extract(&req).await.unwrap();
         assert_eq!(peer_addr, PeerAddr(addr));
+    }
 
+    #[actix_rt::test]
+    async fn remote_address() {
         let req = TestRequest::default().to_http_request();
-        let res = PeerAddr::extract(&req).await;
-        assert!(res.is_err());
+        let res = ConnectionInfo::extract(&req).await.unwrap();
+        assert!(res.peer_addr().is_none());
+
+        let addr = "127.0.0.1:8080".parse().unwrap();
+        let req = TestRequest::default().peer_addr(addr).to_http_request();
+        let conn_info = ConnectionInfo::extract(&req).await.unwrap();
+        assert_eq!(conn_info.peer_addr().unwrap(), "127.0.0.1");
+    }
+
+    #[actix_rt::test]
+    async fn real_ip_from_socket_addr() {
+        let req = TestRequest::default().to_http_request();
+        let res = ConnectionInfo::extract(&req).await.unwrap();
+        assert!(res.realip_remote_addr().is_none());
+
+        let addr = "127.0.0.1:8080".parse().unwrap();
+        let req = TestRequest::default().peer_addr(addr).to_http_request();
+        let conn_info = ConnectionInfo::extract(&req).await.unwrap();
+        assert_eq!(conn_info.realip_remote_addr().unwrap(), "127.0.0.1");
     }
 }

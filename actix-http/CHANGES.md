@@ -2,11 +2,25 @@
 
 ## Unreleased - 2021-xx-xx
 ### Changes
-- `HeaderMap::get_all` now returns a `std::slice::Iter`. [#2527]
 - `impl Eq` for `header::ContentEncoding`. [#2501]
 
 [#2501]: https://github.com/actix/actix-web/pull/2501
+
+
+## 3.0.0-beta.17 - 2021-12-27
+### Changes
+- `HeaderMap::get_all` now returns a `std::slice::Iter`. [#2527]
+- `Payload` inner fields are now named. [#2545]
+- `impl Stream` for `Payload` no longer requires the `Stream` variant be `Unpin`. [#2545]
+- `impl Future` for `h1::SendResponse` no longer requires the body type be `Unpin`. [#2545]
+- `impl Stream` for `encoding::Decoder` no longer requires the stream type be `Unpin`. [#2545]
+- Rename `PayloadStream` to `BoxedPayloadStream`. [#2545]
+
+### Removed
+- `h1::Payload::readany`. [#2545]
+
 [#2527]: https://github.com/actix/actix-web/pull/2527
+[#2545]: https://github.com/actix/actix-web/pull/2545
 
 
 ## 3.0.0-beta.16 - 2021-12-17

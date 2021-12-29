@@ -29,26 +29,25 @@ const REGEX_FLAGS: &str = "(?s-m)";
 ///
 ///
 /// # Pattern Format and Matching Behavior
-///
 /// Resource pattern is defined as a string of zero or more _segments_ where each segment is
 /// preceded by a slash `/`.
 ///
-/// This means that pattern string __must__ either be empty or begin with a slash (`/`).
-/// This also implies that a trailing slash in pattern defines an empty segment.
-/// For example, the pattern `"/user/"` has two segments: `["user", ""]`
+/// This means that pattern string __must__ either be empty or begin with a slash (`/`). This also
+/// implies that a trailing slash in pattern defines an empty segment. For example, the pattern
+/// `"/user/"` has two segments: `["user", ""]`
 ///
-/// A key point to underhand is that `ResourceDef` matches segments, not strings.
-/// It matches segments individually.
-/// For example, the pattern `/user/` is not considered a prefix for the path `/user/123/456`,
-/// because the second segment doesn't match: `["user", ""]` vs `["user", "123", "456"]`.
+/// A key point to understand is that `ResourceDef` matches segments, not strings. Segments are
+/// matched individually. For example, the pattern `/user/` is not considered a prefix for the path
+/// `/user/123/456`, because the second segment doesn't match: `["user", ""]`
+/// vs `["user", "123", "456"]`.
 ///
 /// This definition is consistent with the definition of absolute URL path in
-/// [RFC 3986 (section 3.3)](https://datatracker.ietf.org/doc/html/rfc3986#section-3.3)
+/// [RFC 3986 §3.3](https://datatracker.ietf.org/doc/html/rfc3986#section-3.3)
 ///
 ///
 /// # Static Resources
-/// A static resource is the most basic type of definition. Pass a pattern to
-/// [new][Self::new]. Conforming paths must match the pattern exactly.
+/// A static resource is the most basic type of definition. Pass a pattern to [new][Self::new].
+/// Conforming paths must match the pattern exactly.
 ///
 /// ## Examples
 /// ```
@@ -62,7 +61,6 @@ const REGEX_FLAGS: &str = "(?s-m)";
 /// assert!(!resource.is_match("/homes"));
 /// assert!(!resource.is_match("/search"));
 /// ```
-///
 ///
 /// # Dynamic Segments
 /// Also known as "path parameters". Resources can define sections of a pattern that be extracted
@@ -102,15 +100,15 @@ const REGEX_FLAGS: &str = "(?s-m)";
 /// assert_eq!(path.get("id").unwrap(), "123");
 /// ```
 ///
-///
 /// # Prefix Resources
 /// A prefix resource is defined as pattern that can match just the start of a path, up to a
 /// segment boundary.
 ///
 /// Prefix patterns with a trailing slash may have an unexpected, though correct, behavior.
-/// They define and therefore require an empty segment in order to match. Examples are given below.
+/// They define and therefore require an empty segment in order to match. It is easier to understand
+/// this behavior after reading the [matching behavior section]. Examples are given below.
 ///
-/// Empty pattern matches any path as a prefix.
+/// The empty pattern (`""`), as a prefix, matches any path.
 ///
 /// Prefix resources can contain dynamic segments.
 ///
@@ -129,7 +127,6 @@ const REGEX_FLAGS: &str = "(?s-m)";
 /// assert!(!resource.is_match("/user/123/stars"));
 /// assert!(!resource.is_match("/user/123"));
 /// ```
-///
 ///
 /// # Custom Regex Segments
 /// Dynamic segments can be customised to only match a specific regular expression. It can be
@@ -158,7 +155,6 @@ const REGEX_FLAGS: &str = "(?s-m)";
 /// assert!(!resource.is_match("/user/abc"));
 /// ```
 ///
-///
 /// # Tail Segments
 /// As a shortcut to defining a custom regex for matching _all_ remaining characters (not just those
 /// up until a `/` character), there is a special pattern to match (and capture) the remaining
@@ -179,7 +175,6 @@ const REGEX_FLAGS: &str = "(?s-m)";
 /// assert_eq!(path.get("tail").unwrap(), "main/LICENSE");
 /// ```
 ///
-///
 /// # Multi-Pattern Resources
 /// For resources that can map to multiple distinct paths, it may be suitable to use
 /// multi-pattern resources by passing an array/vec to [`new`][Self::new]. They will be combined
@@ -198,7 +193,6 @@ const REGEX_FLAGS: &str = "(?s-m)";
 /// assert!(resource.is_match("/index"));
 /// ```
 ///
-///
 /// # Trailing Slashes
 /// It should be noted that this library takes no steps to normalize intra-path or trailing slashes.
 /// As such, all resource definitions implicitly expect a pre-processing step to normalize paths if
@@ -212,6 +206,8 @@ const REGEX_FLAGS: &str = "(?s-m)";
 /// assert!(!ResourceDef::new("/root/").is_match("/root"));
 /// assert!(!ResourceDef::prefix("/root/").is_match("/root"));
 /// ```
+///
+/// [matching behavior section]: #pattern-format-and-matching-behavior
 #[derive(Clone, Debug)]
 pub struct ResourceDef {
     id: u16,
@@ -279,7 +275,7 @@ impl ResourceDef {
     /// ```
     pub fn new<T: IntoPatterns>(paths: T) -> Self {
         profile_method!(new);
-        Self::new2(paths, false)
+        Self::construct(paths, false)
     }
 
     /// Constructs a new resource definition using a pattern that performs prefix matching.
@@ -292,7 +288,7 @@ impl ResourceDef {
     /// resource definition with a tail segment; use [`new`][Self::new] in this case.
     ///
     /// # Panics
-    /// Panics if path regex pattern is malformed.
+    /// Panics if path pattern is malformed.
     ///
     /// # Examples
     /// ```
@@ -307,14 +303,14 @@ impl ResourceDef {
     /// ```
     pub fn prefix<T: IntoPatterns>(paths: T) -> Self {
         profile_method!(prefix);
-        ResourceDef::new2(paths, true)
+        ResourceDef::construct(paths, true)
     }
 
     /// Constructs a new resource definition using a string pattern that performs prefix matching,
-    /// inserting a `/` to beginning of the pattern if absent and pattern is not empty.
+    /// ensuring a leading `/` if pattern is not empty.
     ///
     /// # Panics
-    /// Panics if path regex pattern is malformed.
+    /// Panics if path pattern is malformed.
     ///
     /// # Examples
     /// ```
@@ -515,8 +511,8 @@ impl ResourceDef {
             .collect::<Vec<_>>();
 
         match patterns.len() {
-            1 => ResourceDef::new2(&patterns[0], other.is_prefix()),
-            _ => ResourceDef::new2(patterns, other.is_prefix()),
+            1 => ResourceDef::construct(&patterns[0], other.is_prefix()),
+            _ => ResourceDef::construct(patterns, other.is_prefix()),
         }
     }
 
@@ -881,8 +877,8 @@ impl ResourceDef {
         }
     }
 
-    fn new2<T: IntoPatterns>(paths: T, is_prefix: bool) -> Self {
-        profile_method!(new2);
+    fn construct<T: IntoPatterns>(paths: T, is_prefix: bool) -> Self {
+        profile_method!(construct);
 
         let patterns = paths.patterns();
         let (pat_type, segments) = match &patterns {
@@ -1814,7 +1810,7 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn prefix_plus_tail_match_is_allowed() {
+    fn prefix_plus_tail_match_disallowed() {
         ResourceDef::prefix("/user/{id}*");
     }
 }

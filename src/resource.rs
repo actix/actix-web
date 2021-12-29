@@ -1,6 +1,6 @@
-use std::{cell::RefCell, fmt, future::Future, rc::Rc};
+use std::{cell::RefCell, fmt, future::Future, marker::PhantomData, rc::Rc};
 
-use actix_http::Extensions;
+use actix_http::{body::BoxBody, Extensions};
 use actix_router::{IntoPatterns, Patterns};
 use actix_service::{
     apply, apply_fn_factory, boxed, fn_service, IntoServiceFactory, Service, ServiceFactory,
@@ -20,32 +20,29 @@ use crate::{
         BoxedHttpService, BoxedHttpServiceFactory, HttpServiceFactory, ServiceRequest,
         ServiceResponse,
     },
-    BoxError, Error, FromRequest, HttpResponse, Responder,
+    Error, FromRequest, HttpResponse, Responder,
 };
 
-/// *Resource* is an entry in resources table which corresponds to requested URL.
+/// A collection of [`Route`]s that respond to the same path pattern.
 ///
-/// Resource in turn has at least one route.
-/// Route consists of an handlers objects and list of guards
-/// (objects that implement `Guard` trait).
-/// Resources and routes uses builder-like pattern for configuration.
-/// During request handling, resource object iterate through all routes
-/// and check guards for specific route, if request matches all
-/// guards, route considered matched and route handler get called.
+/// Resource in turn has at least one route. Route consists of an handlers objects and list of
+/// guards (objects that implement `Guard` trait). Resources and routes uses builder-like pattern
+/// for configuration. During request handling, resource object iterate through all routes and check
+/// guards for specific route, if request matches all guards, route considered matched and route
+/// handler get called.
 ///
+/// # Examples
 /// ```
 /// use actix_web::{web, App, HttpResponse};
 ///
-/// fn main() {
-///     let app = App::new().service(
-///         web::resource("/")
-///             .route(web::get().to(|| HttpResponse::Ok())));
-/// }
+/// let app = App::new().service(
+///     web::resource("/")
+///         .route(web::get().to(|| HttpResponse::Ok())));
 /// ```
 ///
-/// If no matching route could be found, *405* response code get returned.
-/// Default behavior could be overridden with `default_resource()` method.
-pub struct Resource<T = ResourceEndpoint> {
+/// If no matching route could be found, *405* response code get returned. Default behavior could be
+/// overridden with `default_resource()` method.
+pub struct Resource<T = ResourceEndpoint, B = BoxBody> {
     endpoint: T,
     rdef: Patterns,
     name: Option<String>,
@@ -54,6 +51,7 @@ pub struct Resource<T = ResourceEndpoint> {
     guards: Vec<Box<dyn Guard>>,
     default: BoxedHttpServiceFactory,
     factory_ref: Rc<RefCell<Option<ResourceFactory>>>,
+    _phantom: PhantomData<B>,
 }
 
 impl Resource {
@@ -71,19 +69,21 @@ impl Resource {
             default: boxed::factory(fn_service(|req: ServiceRequest| async {
                 Ok(req.into_response(HttpResponse::MethodNotAllowed()))
             })),
+            _phantom: PhantomData,
         }
     }
 }
 
-impl<T> Resource<T>
+impl<T, B> Resource<T, B>
 where
     T: ServiceFactory<
         ServiceRequest,
         Config = (),
-        Response = ServiceResponse,
+        Response = ServiceResponse<B>,
         Error = Error,
         InitError = (),
     >,
+    B: MessageBody,
 {
     /// Set resource name.
     ///
@@ -131,15 +131,13 @@ where
     /// ```
     /// use actix_web::{web, guard, App, HttpResponse};
     ///
-    /// fn main() {
-    ///     let app = App::new().service(
-    ///         web::resource("/").route(
-    ///             web::route()
-    ///                 .guard(guard::Any(guard::Get()).or(guard::Put()))
-    ///                 .guard(guard::Header("Content-Type", "text/plain"))
-    ///                 .to(|| HttpResponse::Ok()))
-    ///     );
-    /// }
+    /// let app = App::new().service(
+    ///     web::resource("/").route(
+    ///         web::route()
+    ///             .guard(guard::Any(guard::Get()).or(guard::Put()))
+    ///             .guard(guard::Header("Content-Type", "text/plain"))
+    ///             .to(|| HttpResponse::Ok()))
+    /// );
     /// ```
     ///
     /// Multiple routes could be added to a resource. Resource object uses
@@ -232,14 +230,11 @@ where
     /// # fn index(req: HttpRequest) -> HttpResponse { unimplemented!() }
     /// App::new().service(web::resource("/").route(web::route().to(index)));
     /// ```
-    pub fn to<F, I, R>(mut self, handler: F) -> Self
+    pub fn to<F, Args>(mut self, handler: F) -> Self
     where
-        F: Handler<I, R>,
-        I: FromRequest + 'static,
-        R: Future + 'static,
-        R::Output: Responder + 'static,
-        <R::Output as Responder>::Body: MessageBody,
-        <<R::Output as Responder>::Body as MessageBody>::Error: Into<BoxError>,
+        F: Handler<Args>,
+        Args: FromRequest + 'static,
+        F::Output: Responder + 'static,
     {
         self.routes.push(Route::new().to(handler));
         self
@@ -252,26 +247,28 @@ where
     /// type (i.e modify response's body).
     ///
     /// **Note**: middlewares get called in opposite order of middlewares registration.
-    pub fn wrap<M>(
+    pub fn wrap<M, B1>(
         self,
         mw: M,
     ) -> Resource<
         impl ServiceFactory<
             ServiceRequest,
             Config = (),
-            Response = ServiceResponse,
+            Response = ServiceResponse<B1>,
             Error = Error,
             InitError = (),
         >,
+        B1,
     >
     where
         M: Transform<
             T::Service,
             ServiceRequest,
-            Response = ServiceResponse,
+            Response = ServiceResponse<B1>,
             Error = Error,
             InitError = (),
         >,
+        B1: MessageBody,
     {
         Resource {
             endpoint: apply(mw, self.endpoint),
@@ -282,6 +279,7 @@ where
             default: self.default,
             app_data: self.app_data,
             factory_ref: self.factory_ref,
+            _phantom: PhantomData,
         }
     }
 
@@ -319,21 +317,23 @@ where
     ///             .route(web::get().to(index)));
     /// }
     /// ```
-    pub fn wrap_fn<F, R>(
+    pub fn wrap_fn<F, R, B1>(
         self,
         mw: F,
     ) -> Resource<
         impl ServiceFactory<
             ServiceRequest,
             Config = (),
-            Response = ServiceResponse,
+            Response = ServiceResponse<B1>,
             Error = Error,
             InitError = (),
         >,
+        B1,
     >
     where
         F: Fn(ServiceRequest, &T::Service) -> R + Clone,
-        R: Future<Output = Result<ServiceResponse, Error>>,
+        R: Future<Output = Result<ServiceResponse<B1>, Error>>,
+        B1: MessageBody,
     {
         Resource {
             endpoint: apply_fn_factory(self.endpoint, mw),
@@ -344,6 +344,7 @@ where
             default: self.default,
             app_data: self.app_data,
             factory_ref: self.factory_ref,
+            _phantom: PhantomData,
         }
     }
 
@@ -371,15 +372,16 @@ where
     }
 }
 
-impl<T> HttpServiceFactory for Resource<T>
+impl<T, B> HttpServiceFactory for Resource<T, B>
 where
     T: ServiceFactory<
             ServiceRequest,
             Config = (),
-            Response = ServiceResponse,
+            Response = ServiceResponse<B>,
             Error = Error,
             InitError = (),
         > + 'static,
+    B: MessageBody + 'static,
 {
     fn register(mut self, config: &mut AppService) {
         let guards = if self.guards.is_empty() {
@@ -411,7 +413,9 @@ where
                 req.add_data_container(Rc::clone(data));
             }
 
-            srv.call(req)
+            let fut = srv.call(req);
+
+            async { Ok(fut.await?.map_into_boxed_body()) }
         });
 
         config.register_service(rdef, guards, endpoint, None)
@@ -534,11 +538,11 @@ mod tests {
             >,
         > {
             web::resource("/test-compat")
-                // .wrap_fn(|req, srv| {
-                //     let fut = srv.call(req);
-                //     async { Ok(fut.await?.map_into_right_body::<()>()) }
-                // })
-                .wrap(Compat::new(DefaultHeaders::new()))
+                .wrap_fn(|req, srv| {
+                    let fut = srv.call(req);
+                    async { Ok(fut.await?.map_into_right_body::<()>()) }
+                })
+                .wrap(Compat::noop())
                 .route(web::get().to(|| async { "hello" }))
         }
 
@@ -800,5 +804,27 @@ mod tests {
         let req = TestRequest::post().uri("/test").to_request();
         let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[actix_rt::test]
+    async fn test_middleware_body_type() {
+        let srv = init_service(
+            App::new().service(
+                web::resource("/test")
+                    .wrap_fn(|req, srv| {
+                        let fut = srv.call(req);
+                        async { Ok(fut.await?.map_into_right_body::<()>()) }
+                    })
+                    .route(web::get().to(|| async { "hello" })),
+            ),
+        )
+        .await;
+
+        // test if `try_into_bytes()` is preserved across scope layer
+        use actix_http::body::MessageBody as _;
+        let req = TestRequest::with_uri("/test").to_request();
+        let resp = call_service(&srv, req).await;
+        let body = resp.into_body();
+        assert_eq!(body.try_into_bytes().unwrap(), b"hello".as_ref());
     }
 }
