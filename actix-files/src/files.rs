@@ -28,6 +28,17 @@ use crate::{
 ///
 /// `Files` service must be registered with `App::service()` method.
 ///
+/// # Security Coniderations
+///
+/// When converting the request URL path into the target [file path](std::path::Path),
+/// `Files` service *does* decode *all* percent-encoded chars in the path string.
+/// One implication is that the resulting file path may have more components than the URL path
+/// as a result of decoding `%2F` into `/`.
+///
+/// Any middleware that is responsibe for validating the paths managed under `Files`
+/// should be aware of this behvaior.
+///
+/// # Examples
 /// ```
 /// use actix_web::App;
 /// use actix_files::Files;
