@@ -31,19 +31,19 @@ use std::{convert::TryFrom, fmt, net::SocketAddr, str};
 use actix_codec::Framed;
 use actix_http::{ws, Payload, RequestHead};
 use actix_rt::time::timeout;
-use actix_service::Service;
+use actix_service::Service as _;
 
 pub use actix_http::ws::{CloseCode, CloseReason, Codec, Frame, Message};
 
 use crate::{
+    client::ClientConfig,
     connect::{BoxedSocket, ConnectRequest},
     error::{HttpError, InvalidUrl, SendRequestError, WsClientError},
     http::{
-        header::{self, HeaderName, HeaderValue, IntoHeaderValue, AUTHORIZATION},
+        header::{self, HeaderName, HeaderValue, TryIntoHeaderValue, AUTHORIZATION},
         ConnectionType, Method, StatusCode, Uri, Version,
     },
-    response::ClientResponse,
-    ClientConfig,
+    ClientResponse,
 };
 
 #[cfg(feature = "cookies")]
@@ -171,7 +171,7 @@ impl WebsocketsRequest {
     where
         HeaderName: TryFrom<K>,
         <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
-        V: IntoHeaderValue,
+        V: TryIntoHeaderValue,
     {
         match HeaderName::try_from(key) {
             Ok(key) => match value.try_into_value() {
@@ -190,7 +190,7 @@ impl WebsocketsRequest {
     where
         HeaderName: TryFrom<K>,
         <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
-        V: IntoHeaderValue,
+        V: TryIntoHeaderValue,
     {
         match HeaderName::try_from(key) {
             Ok(key) => match value.try_into_value() {
@@ -209,7 +209,7 @@ impl WebsocketsRequest {
     where
         HeaderName: TryFrom<K>,
         <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
-        V: IntoHeaderValue,
+        V: TryIntoHeaderValue,
     {
         match HeaderName::try_from(key) {
             Ok(key) => {
@@ -300,13 +300,16 @@ impl WebsocketsRequest {
         }
 
         self.head.set_connection_type(ConnectionType::Upgrade);
+
+        #[allow(clippy::declare_interior_mutable_const)]
+        const HV_WEBSOCKET: HeaderValue = HeaderValue::from_static("websocket");
+        self.head.headers.insert(header::UPGRADE, HV_WEBSOCKET);
+
+        #[allow(clippy::declare_interior_mutable_const)]
+        const HV_THIRTEEN: HeaderValue = HeaderValue::from_static("13");
         self.head
             .headers
-            .insert(header::UPGRADE, HeaderValue::from_static("websocket"));
-        self.head.headers.insert(
-            header::SEC_WEBSOCKET_VERSION,
-            HeaderValue::from_static("13"),
-        );
+            .insert(header::SEC_WEBSOCKET_VERSION, HV_THIRTEEN);
 
         if let Some(protocols) = self.protocols.take() {
             self.head.headers.insert(
@@ -445,7 +448,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_header_override() {
         let req = Client::builder()
-            .header(header::CONTENT_TYPE, "111")
+            .add_default_header((header::CONTENT_TYPE, "111"))
             .finish()
             .ws("/")
             .set_header(header::CONTENT_TYPE, "222");

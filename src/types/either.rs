@@ -12,14 +12,13 @@ use futures_core::ready;
 use pin_project_lite::pin_project;
 
 use crate::{
-    body, dev,
+    body::EitherBody,
+    dev,
     web::{Form, Json},
     Error, FromRequest, HttpRequest, HttpResponse, Responder,
 };
 
 /// Combines two extractor or responder types into a single type.
-///
-/// Can be converted to and from an [`either::Either`].
 ///
 /// # Extractor
 /// Provides a mechanism for trying two extractors, a primary and a fallback. Useful for
@@ -101,24 +100,6 @@ impl<T> Either<Json<T>, Form<T>> {
     }
 }
 
-impl<L, R> From<either::Either<L, R>> for Either<L, R> {
-    fn from(val: either::Either<L, R>) -> Self {
-        match val {
-            either::Either::Left(l) => Either::Left(l),
-            either::Either::Right(r) => Either::Right(r),
-        }
-    }
-}
-
-impl<L, R> From<Either<L, R>> for either::Either<L, R> {
-    fn from(val: Either<L, R>) -> Self {
-        match val {
-            Either::Left(l) => either::Either::Left(l),
-            Either::Right(r) => either::Either::Right(r),
-        }
-    }
-}
-
 #[cfg(test)]
 impl<L, R> Either<L, R> {
     pub(self) fn unwrap_left(self) -> L {
@@ -146,7 +127,7 @@ where
     L: Responder,
     R: Responder,
 {
-    type Body = body::EitherBody<L::Body, R::Body>;
+    type Body = EitherBody<L::Body, R::Body>;
 
     fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
         match self {
@@ -165,7 +146,7 @@ pub enum EitherExtractError<L, R> {
     /// Error from payload buffering, such as exceeding payload max size limit.
     Bytes(Error),
 
-    /// Error from primary extractor.
+    /// Error from primary and fallback extractors.
     Extract(L, R),
 }
 

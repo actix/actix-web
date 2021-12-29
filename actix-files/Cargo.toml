@@ -1,6 +1,6 @@
 [package]
 name = "actix-files"
-version = "0.6.0-beta.9"
+version = "0.6.0-beta.12"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
     "fakeshadow <24548779@qq.com>",
@@ -22,17 +22,17 @@ path = "src/lib.rs"
 experimental-io-uring = ["actix-web/experimental-io-uring", "tokio-uring"]
 
 [dependencies]
-actix-web = { version = "4.0.0-beta.11", default-features = false }
-actix-http = "3.0.0-beta.14"
+actix-http = "3.0.0-beta.17"
 actix-service = "2"
 actix-utils = "3"
+actix-web = { version = "4.0.0-beta.17", default-features = false }
 
 askama_escape = "0.10"
 bitflags = "1"
 bytes = "1"
+derive_more = "0.99.5"
 futures-core = { version = "0.3.7", default-features = false, features = ["alloc"] }
 http-range = "0.1.4"
-derive_more = "0.99.5"
 log = "0.4"
 mime = "0.3"
 mime_guess = "2.0.1"
@@ -43,6 +43,6 @@ tokio-uring = { version = "0.1", optional = true }
 
 [dev-dependencies]
 actix-rt = "2.2"
-actix-web = "4.0.0-beta.11"
-actix-test = "0.1.0-beta.7"
+actix-test = "0.1.0-beta.10"
+actix-web = "4.0.0-beta.17"
 tempfile = "3.2"

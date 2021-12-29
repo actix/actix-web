@@ -37,6 +37,8 @@ pub(crate) struct HttpRequestInner {
     pub(crate) head: Message<RequestHead>,
     pub(crate) path: Path<Url>,
     pub(crate) app_data: SmallVec<[Rc<Extensions>; 4]>,
+    pub(crate) conn_data: Option<Rc<Extensions>>,
+    pub(crate) req_data: Rc<RefCell<Extensions>>,
     app_state: Rc<AppInitServiceState>,
 }
 
@@ -47,6 +49,8 @@ impl HttpRequest {
         head: Message<RequestHead>,
         app_state: Rc<AppInitServiceState>,
         app_data: Rc<Extensions>,
+        conn_data: Option<Rc<Extensions>>,
+        req_data: Rc<RefCell<Extensions>>,
     ) -> HttpRequest {
         let mut data = SmallVec::<[Rc<Extensions>; 4]>::new();
         data.push(app_data);
@@ -57,6 +61,8 @@ impl HttpRequest {
                 path,
                 app_state,
                 app_data: data,
+                conn_data,
+                req_data,
             }),
         }
     }
@@ -153,16 +159,26 @@ impl HttpRequest {
         self.resource_map().match_name(self.path())
     }
 
-    /// Request extensions
-    #[inline]
-    pub fn extensions(&self) -> Ref<'_, Extensions> {
-        self.head().extensions()
+    pub fn req_data(&self) -> Ref<'_, Extensions> {
+        self.inner.req_data.borrow()
     }
 
-    /// Mutable reference to a the request's extensions
-    #[inline]
-    pub fn extensions_mut(&self) -> RefMut<'_, Extensions> {
-        self.head().extensions_mut()
+    pub fn req_data_mut(&self) -> RefMut<'_, Extensions> {
+        self.inner.req_data.borrow_mut()
+    }
+
+    /// Returns a reference a piece of connection data set in an [on-connect] callback.
+    ///
+    /// ```ignore
+    /// let opt_t = req.conn_data::<PeerCertificate>();
+    /// ```
+    ///
+    /// [on-connect]: crate::HttpServer::on_connect
+    pub fn conn_data<T: 'static>(&self) -> Option<&T> {
+        self.inner
+            .conn_data
+            .as_deref()
+            .and_then(|container| container.get::<T>())
     }
 
     /// Generates URL for a named resource.
@@ -212,26 +228,36 @@ impl HttpRequest {
         self.app_state().rmap()
     }
 
-    /// Peer socket address.
+    /// Returns peer socket address.
     ///
     /// Peer address is the directly connected peer's socket address. If a proxy is used in front of
     /// the Actix Web server, then it would be address of this proxy.
     ///
-    /// To get client connection information `.connection_info()` should be used.
+    /// For expanded client connection information, use [`connection_info`] instead.
     ///
-    /// Will only return None when called in unit tests.
+    /// Will only return None when called in unit tests unless [`TestRequest::peer_addr`] is used.
+    ///
+    /// [`TestRequest::peer_addr`]: crate::test::TestRequest::peer_addr
+    /// [`connection_info`]: Self::connection_info
     #[inline]
     pub fn peer_addr(&self) -> Option<net::SocketAddr> {
         self.head().peer_addr
     }
 
-    /// Get *ConnectionInfo* for the current request.
+    /// Returns connection info for the current request.
     ///
-    /// This method panics if request's extensions container is already
-    /// borrowed.
+    /// The return type, [`ConnectionInfo`], can also be used as an extractor.
+    ///
+    /// # Panics
+    /// Panics if request's extensions container is already borrowed.
     #[inline]
     pub fn connection_info(&self) -> Ref<'_, ConnectionInfo> {
-        ConnectionInfo::get(self.head(), self.app_config())
+        if !self.extensions().contains::<ConnectionInfo>() {
+            let info = ConnectionInfo::new(self.head(), &*self.app_config());
+            self.extensions_mut().insert(info);
+        }
+
+        Ref::map(self.extensions(), |data| data.get().unwrap())
     }
 
     /// App config
@@ -304,21 +330,18 @@ impl HttpMessage for HttpRequest {
     type Stream = ();
 
     #[inline]
-    /// Returns Request's headers.
     fn headers(&self) -> &HeaderMap {
         &self.head().headers
     }
 
-    /// Request extensions
     #[inline]
     fn extensions(&self) -> Ref<'_, Extensions> {
-        self.inner.head.extensions()
+        self.req_data()
     }
 
-    /// Mutable reference to a the request's extensions
     #[inline]
     fn extensions_mut(&self) -> RefMut<'_, Extensions> {
-        self.inner.head.extensions_mut()
+        self.req_data_mut()
     }
 
     #[inline]
@@ -331,17 +354,18 @@ impl Drop for HttpRequest {
     fn drop(&mut self) {
         // if possible, contribute to current worker's HttpRequest allocation pool
 
-        // This relies on no Weak<HttpRequestInner> exists anywhere.(There is none)
+        // This relies on no weak references to inner existing anywhere within the codebase.
         if let Some(inner) = Rc::get_mut(&mut self.inner) {
             if inner.app_state.pool().is_available() {
                 // clear additional app_data and keep the root one for reuse.
                 inner.app_data.truncate(1);
-                // inner is borrowed mut here. get head's Extension mutably
-                // to reduce borrow check
-                inner.head.extensions.get_mut().clear();
+
+                // Inner is borrowed mut here and; get req data mutably to reduce borrow check. Also
+                // we know the req_data Rc will not have any cloned at this point to unwrap is okay.
+                Rc::get_mut(&mut inner.req_data).unwrap().get_mut().clear();
 
                 // a re-borrow of pool is necessary here.
-                let req = self.inner.clone();
+                let req = Rc::clone(&self.inner);
                 self.app_state().pool().push(req);
             }
         }

@@ -6,7 +6,10 @@
 
 use std::{any::Any, io, net::SocketAddr};
 
-use actix_web::{dev::Extensions, rt::net::TcpStream, web, App, HttpServer};
+use actix_web::{
+    dev::Extensions, rt::net::TcpStream, web, App, HttpRequest, HttpResponse, HttpServer,
+    Responder,
+};
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
@@ -16,11 +19,16 @@ struct ConnectionInfo {
     ttl: Option<u32>,
 }
 
-async fn route_whoami(conn_info: web::ReqData<ConnectionInfo>) -> String {
-    format!(
-        "Here is some info about your connection:\n\n{:#?}",
-        conn_info
-    )
+async fn route_whoami(req: HttpRequest) -> impl Responder {
+    match req.conn_data::<ConnectionInfo>() {
+        Some(info) => HttpResponse::Ok().body(format!(
+            "Here is some info about your connection:\n\n{:#?}",
+            info
+        )),
+        None => {
+            HttpResponse::InternalServerError().body("Missing expected request extension data")
+        }
+    }
 }
 
 fn get_conn_info(connection: &dyn Any, data: &mut Extensions) {
@@ -39,9 +47,12 @@ fn get_conn_info(connection: &dyn Any, data: &mut Extensions) {
 async fn main() -> io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
+    let bind = ("127.0.0.1", 8080);
+    log::info!("staring server at http://{}:{}", &bind.0, &bind.1);
+
     HttpServer::new(|| App::new().default_service(web::to(route_whoami)))
         .on_connect(get_conn_info)
-        .bind(("127.0.0.1", 8080))?
+        .bind(bind)?
         .workers(1)
         .run()
         .await

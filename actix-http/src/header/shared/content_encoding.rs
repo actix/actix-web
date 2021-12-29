@@ -5,7 +5,7 @@ use http::header::InvalidHeaderValue;
 
 use crate::{
     error::ParseError,
-    header::{self, from_one_raw_str, Header, HeaderName, HeaderValue, IntoHeaderValue},
+    header::{self, from_one_raw_str, Header, HeaderName, HeaderValue, TryIntoHeaderValue},
     HttpMessage,
 };
 
@@ -45,13 +45,13 @@ pub enum ContentEncoding {
 impl ContentEncoding {
     /// Is the content compressed?
     #[inline]
-    pub fn is_compression(self) -> bool {
+    pub const fn is_compression(self) -> bool {
         matches!(self, ContentEncoding::Identity | ContentEncoding::Auto)
     }
 
     /// Convert content encoding to string.
     #[inline]
-    pub fn as_str(self) -> &'static str {
+    pub const fn as_str(self) -> &'static str {
         match self {
             ContentEncoding::Br => "br",
             ContentEncoding::Gzip => "gzip",
@@ -96,7 +96,7 @@ impl TryFrom<&str> for ContentEncoding {
     }
 }
 
-impl IntoHeaderValue for ContentEncoding {
+impl TryIntoHeaderValue for ContentEncoding {
     type Error = InvalidHeaderValue;
 
     fn try_into_value(self) -> Result<http::HeaderValue, Self::Error> {

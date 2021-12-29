@@ -1,8 +1,9 @@
 use std::{convert::Infallible, io};
 
-use actix_http::{HttpService, Response, StatusCode};
+use actix_http::{
+    header::HeaderValue, HttpMessage, HttpService, Request, Response, StatusCode,
+};
 use actix_server::Server;
-use http::header::HeaderValue;
 
 #[actix_rt::main]
 async fn main() -> io::Result<()> {
@@ -13,13 +14,19 @@ async fn main() -> io::Result<()> {
             HttpService::build()
                 .client_timeout(1000)
                 .client_disconnect(1000)
-                .finish(|req| async move {
+                .on_connect_ext(|_, ext| {
+                    ext.insert(42u32);
+                })
+                .finish(|req: Request| async move {
                     log::info!("{:?}", req);
 
                     let mut res = Response::build(StatusCode::OK);
+                    res.insert_header(("x-head", HeaderValue::from_static("dummy value!")));
+
+                    let forty_two = req.extensions().get::<u32>().unwrap().to_string();
                     res.insert_header((
-                        "x-head",
-                        HeaderValue::from_static("dummy value!"),
+                        "x-forty-two",
+                        HeaderValue::from_str(&forty_two).unwrap(),
                     ));
 
                     Ok::<_, Infallible>(res.body("Hello world!"))

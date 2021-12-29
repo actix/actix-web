@@ -5,6 +5,8 @@ mod condition;
 mod default_headers;
 mod err_handlers;
 mod logger;
+#[cfg(test)]
+mod noop;
 mod normalize;
 
 pub use self::compat::Compat;
@@ -12,6 +14,8 @@ pub use self::condition::Condition;
 pub use self::default_headers::DefaultHeaders;
 pub use self::err_handlers::{ErrorHandlerResponse, ErrorHandlers};
 pub use self::logger::Logger;
+#[cfg(test)]
+pub(crate) use self::noop::Noop;
 pub use self::normalize::{NormalizePath, TrailingSlash};
 
 #[cfg(feature = "__compress")]
@@ -33,9 +37,9 @@ mod tests {
         let _ = App::new()
             .wrap(Compat::new(Logger::default()))
             .wrap(Condition::new(true, DefaultHeaders::new()))
-            .wrap(DefaultHeaders::new().header("X-Test2", "X-Value2"))
+            .wrap(DefaultHeaders::new().add(("X-Test2", "X-Value2")))
             .wrap(ErrorHandlers::new().handler(StatusCode::FORBIDDEN, |res| {
-                Ok(ErrorHandlerResponse::Response(res))
+                Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
             }))
             .wrap(Logger::default())
             .wrap(NormalizePath::new(TrailingSlash::Trim));
@@ -44,9 +48,9 @@ mod tests {
             .wrap(NormalizePath::new(TrailingSlash::Trim))
             .wrap(Logger::default())
             .wrap(ErrorHandlers::new().handler(StatusCode::FORBIDDEN, |res| {
-                Ok(ErrorHandlerResponse::Response(res))
+                Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
             }))
-            .wrap(DefaultHeaders::new().header("X-Test2", "X-Value2"))
+            .wrap(DefaultHeaders::new().add(("X-Test2", "X-Value2")))
             .wrap(Condition::new(true, DefaultHeaders::new()))
             .wrap(Compat::new(Logger::default()));
 

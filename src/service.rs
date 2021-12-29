@@ -7,7 +7,7 @@ use std::{
 use actix_http::{
     body::{BoxBody, EitherBody, MessageBody},
     header::HeaderMap,
-    Extensions, HttpMessage, Method, Payload, PayloadStream, RequestHead, Response,
+    BoxedPayloadStream, Extensions, HttpMessage, Method, Payload, RequestHead, Response,
     ResponseHead, StatusCode, Uri, Version,
 };
 use actix_router::{IntoPatterns, Path, Patterns, Resource, ResourceDef, Url};
@@ -21,7 +21,7 @@ use cookie::{Cookie, ParseError as CookieParseError};
 use crate::{
     config::{AppConfig, AppService},
     dev::ensure_leading_slash,
-    guard::Guard,
+    guard::{Guard, GuardContext},
     info::ConnectionInfo,
     rmap::ResourceMap,
     Error, HttpRequest, HttpResponse,
@@ -172,12 +172,10 @@ impl ServiceRequest {
         self.head().uri.path()
     }
 
-    /// The query string in the URL.
-    ///
-    /// E.g., id=10
+    /// Counterpart to [`HttpRequest::query_string`].
     #[inline]
     pub fn query_string(&self) -> &str {
-        self.uri().query().unwrap_or_default()
+        self.req.query_string()
     }
 
     /// Peer socket address.
@@ -196,7 +194,7 @@ impl ServiceRequest {
     /// Get *ConnectionInfo* for the current request.
     #[inline]
     pub fn connection_info(&self) -> Ref<'_, ConnectionInfo> {
-        ConnectionInfo::get(self.head(), &*self.app_config())
+        self.req.connection_info()
     }
 
     /// Get a reference to the Path parameters.
@@ -210,13 +208,13 @@ impl ServiceRequest {
         self.req.match_info()
     }
 
-    /// Counterpart to [`HttpRequest::match_name`](super::HttpRequest::match_name()).
+    /// Counterpart to [`HttpRequest::match_name`].
     #[inline]
     pub fn match_name(&self) -> Option<&str> {
         self.req.match_name()
     }
 
-    /// Counterpart to [`HttpRequest::match_pattern`](super::HttpRequest::match_pattern()).
+    /// Counterpart to [`HttpRequest::match_pattern`].
     #[inline]
     pub fn match_pattern(&self) -> Option<String> {
         self.req.match_pattern()
@@ -240,7 +238,8 @@ impl ServiceRequest {
         self.req.app_config()
     }
 
-    /// Counterpart to [`HttpRequest::app_data`](super::HttpRequest::app_data()).
+    /// Counterpart to [`HttpRequest::app_data`].
+    #[inline]
     pub fn app_data<T: 'static>(&self) -> Option<&T> {
         for container in self.req.inner.app_data.iter().rev() {
             if let Some(data) = container.get::<T>() {
@@ -251,18 +250,39 @@ impl ServiceRequest {
         None
     }
 
+    /// Counterpart to [`HttpRequest::conn_data`].
+    #[inline]
+    pub fn conn_data<T: 'static>(&self) -> Option<&T> {
+        self.req.conn_data()
+    }
+
+    /// Counterpart to [`HttpRequest::req_data`].
+    #[inline]
+    pub fn req_data(&self) -> Ref<'_, Extensions> {
+        self.req.req_data()
+    }
+
+    /// Counterpart to [`HttpRequest::req_data_mut`].
+    #[inline]
+    pub fn req_data_mut(&self) -> RefMut<'_, Extensions> {
+        self.req.req_data_mut()
+    }
+
     #[cfg(feature = "cookies")]
+    #[inline]
     pub fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
         self.req.cookies()
     }
 
     /// Return request cookie.
     #[cfg(feature = "cookies")]
+    #[inline]
     pub fn cookie(&self, name: &str) -> Option<Cookie<'static>> {
         self.req.cookie(name)
     }
 
     /// Set request payload.
+    #[inline]
     pub fn set_payload(&mut self, payload: Payload) {
         self.payload = payload;
     }
@@ -277,16 +297,25 @@ impl ServiceRequest {
             .app_data
             .push(extensions);
     }
+
+    /// Creates a context object for use with a [guard](crate::guard).
+    ///
+    /// Useful if you are implementing
+    #[inline]
+    pub fn guard_ctx(&self) -> GuardContext<'_> {
+        GuardContext { req: self }
+    }
 }
 
 impl Resource<Url> for ServiceRequest {
+    #[inline]
     fn resource_path(&mut self) -> &mut Path<Url> {
         self.match_info_mut()
     }
 }
 
 impl HttpMessage for ServiceRequest {
-    type Stream = PayloadStream;
+    type Stream = BoxedPayloadStream;
 
     #[inline]
     /// Returns Request's headers.
@@ -403,13 +432,18 @@ impl<B> ServiceResponse<B> {
         self.response.headers_mut()
     }
 
+    /// Destructures `ServiceResponse` into request and response components.
+    #[inline]
+    pub fn into_parts(self) -> (HttpRequest, HttpResponse<B>) {
+        (self.request, self.response)
+    }
+
     /// Extract response body
+    #[inline]
     pub fn into_body(self) -> B {
         self.response.into_body()
     }
-}
 
-impl<B> ServiceResponse<B> {
     /// Set a new body
     #[inline]
     pub fn map_body<F, B2>(self, f: F) -> ServiceResponse<B2>
@@ -439,7 +473,7 @@ impl<B> ServiceResponse<B> {
     where
         B: MessageBody + 'static,
     {
-        self.map_body(|_, body| BoxBody::new(body))
+        self.map_body(|_, body| body.boxed())
     }
 }
 

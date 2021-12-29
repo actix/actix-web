@@ -1,8 +1,6 @@
 use std::convert::Infallible;
 
-use actix_http::{
-    body::BoxBody, HttpMessage, HttpService, Request, Response, StatusCode,
-};
+use actix_http::{body::BoxBody, HttpMessage, HttpService, Request, Response, StatusCode};
 use actix_http_test::test_server;
 use actix_service::ServiceFactoryExt;
 use actix_utils::future;

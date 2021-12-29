@@ -1,9 +1,6 @@
-use std::{cell::RefCell, fmt, future::Future, marker::PhantomData, rc::Rc};
+use std::{cell::RefCell, fmt, future::Future, rc::Rc};
 
-use actix_http::{
-    body::{BoxBody, MessageBody},
-    Extensions, Request,
-};
+use actix_http::{body::MessageBody, Extensions, Request};
 use actix_service::{
     apply, apply_fn_factory, boxed, IntoServiceFactory, ServiceFactory, ServiceFactoryExt,
     Transform,
@@ -26,7 +23,7 @@ use crate::{
 
 /// Application builder - structure that follows the builder pattern
 /// for building application instances.
-pub struct App<T, B> {
+pub struct App<T> {
     endpoint: T,
     services: Vec<Box<dyn AppServiceFactory>>,
     default: Option<Rc<BoxedHttpServiceFactory>>,
@@ -34,10 +31,9 @@ pub struct App<T, B> {
     data_factories: Vec<FnDataFactory>,
     external: Vec<ResourceDef>,
     extensions: Extensions,
-    _phantom: PhantomData<B>,
 }
 
-impl App<AppEntry, BoxBody> {
+impl App<AppEntry> {
     /// Create application builder. Application can be configured with a builder-like pattern.
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
@@ -51,22 +47,11 @@ impl App<AppEntry, BoxBody> {
             factory_ref,
             external: Vec::new(),
             extensions: Extensions::new(),
-            _phantom: PhantomData,
         }
     }
 }
 
-impl<T, B> App<T, B>
-where
-    B: MessageBody,
-    T: ServiceFactory<
-        ServiceRequest,
-        Config = (),
-        Response = ServiceResponse<B>,
-        Error = Error,
-        InitError = (),
-    >,
-{
+impl<T> App<T> {
     /// Set application (root level) data.
     ///
     /// Application data stored with `App::app_data()` method is available through the
@@ -137,9 +122,10 @@ where
         self.app_data(Data::new(data))
     }
 
-    /// Add application data factory. This function is similar to `.data()` but it accepts a
-    /// "data factory". Data values are constructed asynchronously during application
-    /// initialization, before the server starts accepting requests.
+    /// Add application data factory that resolves asynchronously.
+    ///
+    /// Data items are constructed during application initialization, before the server starts
+    /// accepting requests.
     pub fn data_factory<F, Out, D, E>(mut self, data: F) -> Self
     where
         F: Fn() -> Out + 'static,
@@ -165,6 +151,7 @@ where
             }
             .boxed_local()
         }));
+
         self
     }
 
@@ -215,11 +202,9 @@ where
     ///     "Welcome!"
     /// }
     ///
-    /// fn main() {
-    ///     let app = App::new()
-    ///         .route("/test1", web::get().to(index))
-    ///         .route("/test2", web::post().to(|| HttpResponse::MethodNotAllowed()));
-    /// }
+    /// let app = App::new()
+    ///     .route("/test1", web::get().to(index))
+    ///     .route("/test2", web::post().to(|| HttpResponse::MethodNotAllowed()));
     /// ```
     pub fn route(self, path: &str, mut route: Route) -> Self {
         self.service(
@@ -258,13 +243,11 @@ where
     ///     "Welcome!"
     /// }
     ///
-    /// fn main() {
-    ///     let app = App::new()
-    ///         .service(
-    ///             web::resource("/index.html").route(web::get().to(index)))
-    ///         .default_service(
-    ///             web::route().to(|| HttpResponse::NotFound()));
-    /// }
+    /// let app = App::new()
+    ///     .service(
+    ///         web::resource("/index.html").route(web::get().to(index)))
+    ///     .default_service(
+    ///         web::route().to(|| HttpResponse::NotFound()));
     /// ```
     ///
     /// It is also possible to use static files as default service.
@@ -272,14 +255,12 @@ where
     /// ```
     /// use actix_web::{web, App, HttpResponse};
     ///
-    /// fn main() {
-    ///     let app = App::new()
-    ///         .service(
-    ///             web::resource("/index.html").to(|| HttpResponse::Ok()))
-    ///         .default_service(
-    ///             web::to(|| HttpResponse::NotFound())
-    ///         );
-    /// }
+    /// let app = App::new()
+    ///     .service(
+    ///         web::resource("/index.html").to(|| HttpResponse::Ok()))
+    ///     .default_service(
+    ///         web::to(|| HttpResponse::NotFound())
+    ///     );
     /// ```
     pub fn default_service<F, U>(mut self, svc: F) -> Self
     where
@@ -365,7 +346,7 @@ where
     ///         .route("/index.html", web::get().to(index));
     /// }
     /// ```
-    pub fn wrap<M, B1>(
+    pub fn wrap<M, B, B1>(
         self,
         mw: M,
     ) -> App<
@@ -376,9 +357,16 @@ where
             Error = Error,
             InitError = (),
         >,
-        B1,
     >
     where
+        T: ServiceFactory<
+            ServiceRequest,
+            Response = ServiceResponse<B>,
+            Error = Error,
+            Config = (),
+            InitError = (),
+        >,
+        B: MessageBody,
         M: Transform<
             T::Service,
             ServiceRequest,
@@ -396,7 +384,6 @@ where
             factory_ref: self.factory_ref,
             external: self.external,
             extensions: self.extensions,
-            _phantom: PhantomData,
         }
     }
 
@@ -431,7 +418,7 @@ where
     ///         .route("/index.html", web::get().to(index));
     /// }
     /// ```
-    pub fn wrap_fn<B1, F, R>(
+    pub fn wrap_fn<F, R, B, B1>(
         self,
         mw: F,
     ) -> App<
@@ -442,12 +429,19 @@ where
             Error = Error,
             InitError = (),
         >,
-        B1,
     >
     where
-        B1: MessageBody,
+        T: ServiceFactory<
+            ServiceRequest,
+            Response = ServiceResponse<B>,
+            Error = Error,
+            Config = (),
+            InitError = (),
+        >,
+        B: MessageBody,
         F: Fn(ServiceRequest, &T::Service) -> R + Clone,
         R: Future<Output = Result<ServiceResponse<B1>, Error>>,
+        B1: MessageBody,
     {
         App {
             endpoint: apply_fn_factory(self.endpoint, mw),
@@ -457,12 +451,11 @@ where
             factory_ref: self.factory_ref,
             external: self.external,
             extensions: self.extensions,
-            _phantom: PhantomData,
         }
     }
 }
 
-impl<T, B> IntoServiceFactory<AppInit<T, B>, Request> for App<T, B>
+impl<T, B> IntoServiceFactory<AppInit<T, B>, Request> for App<T>
 where
     B: MessageBody,
     T: ServiceFactory<
@@ -489,19 +482,21 @@ where
 
 #[cfg(test)]
 mod tests {
-    use actix_service::Service;
+    use actix_service::Service as _;
     use actix_utils::future::{err, ok};
     use bytes::Bytes;
 
     use super::*;
-    use crate::http::{
-        header::{self, HeaderValue},
-        Method, StatusCode,
+    use crate::{
+        http::{
+            header::{self, HeaderValue},
+            Method, StatusCode,
+        },
+        middleware::DefaultHeaders,
+        service::ServiceRequest,
+        test::{call_service, init_service, read_body, try_init_service, TestRequest},
+        web, HttpRequest, HttpResponse,
     };
-    use crate::middleware::DefaultHeaders;
-    use crate::service::ServiceRequest;
-    use crate::test::{call_service, init_service, read_body, try_init_service, TestRequest};
-    use crate::{web, HttpRequest, HttpResponse};
 
     #[actix_rt::test]
     async fn test_default_resource() {
@@ -605,7 +600,7 @@ mod tests {
             App::new()
                 .wrap(
                     DefaultHeaders::new()
-                        .header(header::CONTENT_TYPE, HeaderValue::from_static("0001")),
+                        .add((header::CONTENT_TYPE, HeaderValue::from_static("0001"))),
                 )
                 .route("/test", web::get().to(HttpResponse::Ok)),
         )
@@ -626,7 +621,7 @@ mod tests {
                 .route("/test", web::get().to(HttpResponse::Ok))
                 .wrap(
                     DefaultHeaders::new()
-                        .header(header::CONTENT_TYPE, HeaderValue::from_static("0001")),
+                        .add((header::CONTENT_TYPE, HeaderValue::from_static("0001"))),
                 ),
         )
         .await;
@@ -708,5 +703,26 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         let body = read_body(resp).await;
         assert_eq!(body, Bytes::from_static(b"https://youtube.com/watch/12345"));
+    }
+
+    #[test]
+    fn can_be_returned_from_fn() {
+        /// compile-only test for returning app type from function
+        pub fn my_app() -> App<
+            impl ServiceFactory<
+                ServiceRequest,
+                Response = ServiceResponse<impl MessageBody>,
+                Config = (),
+                InitError = (),
+                Error = Error,
+            >,
+        > {
+            App::new()
+                // logger can be removed without affecting the return type
+                .wrap(crate::middleware::Logger::default())
+                .route("/", web::to(|| async { "hello" }))
+        }
+
+        let _ = init_service(my_app());
     }
 }

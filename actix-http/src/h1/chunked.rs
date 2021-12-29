@@ -50,10 +50,7 @@ impl ChunkedState {
         }
     }
 
-    fn read_size(
-        rdr: &mut BytesMut,
-        size: &mut u64,
-    ) -> Poll<Result<ChunkedState, io::Error>> {
+    fn read_size(rdr: &mut BytesMut, size: &mut u64) -> Poll<Result<ChunkedState, io::Error>> {
         let radix = 16;
 
         let rem = match byte!(rdr) {
@@ -111,10 +108,7 @@ impl ChunkedState {
             _ => Poll::Ready(Ok(ChunkedState::Extension)), // no supported extensions
         }
     }
-    fn read_size_lf(
-        rdr: &mut BytesMut,
-        size: u64,
-    ) -> Poll<Result<ChunkedState, io::Error>> {
+    fn read_size_lf(rdr: &mut BytesMut, size: u64) -> Poll<Result<ChunkedState, io::Error>> {
         match byte!(rdr) {
             b'\n' if size > 0 => Poll::Ready(Ok(ChunkedState::Body)),
             b'\n' if size == 0 => Poll::Ready(Ok(ChunkedState::EndCr)),

@@ -56,8 +56,9 @@ impl From<WsServiceError> for Response<BoxBody> {
             WsServiceError::Http(err) => err.into(),
             WsServiceError::Ws(err) => err.into(),
             WsServiceError::Io(_err) => unreachable!(),
-            WsServiceError::Dispatcher => Response::internal_server_error()
-                .set_body(BoxBody::new(format!("{}", err))),
+            WsServiceError::Dispatcher => {
+                Response::internal_server_error().set_body(BoxBody::new(format!("{}", err)))
+            }
         }
     }
 }
@@ -97,9 +98,7 @@ where
 async fn service(msg: Frame) -> Result<Message, Error> {
     let msg = match msg {
         Frame::Ping(msg) => Message::Pong(msg),
-        Frame::Text(text) => {
-            Message::Text(String::from_utf8_lossy(&text).into_owned().into())
-        }
+        Frame::Text(text) => Message::Text(String::from_utf8_lossy(&text).into_owned().into()),
         Frame::Binary(bin) => Message::Binary(bin),
         Frame::Continuation(item) => Message::Continuation(item),
         Frame::Close(reason) => Message::Close(reason),

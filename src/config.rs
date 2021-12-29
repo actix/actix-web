@@ -24,6 +24,7 @@ pub struct AppService {
     config: AppConfig,
     root: bool,
     default: Rc<HttpNewService>,
+    #[allow(clippy::type_complexity)]
     services: Vec<(
         ResourceDef,
         HttpNewService,
@@ -48,6 +49,7 @@ impl AppService {
         self.root
     }
 
+    #[allow(clippy::type_complexity)]
     pub(crate) fn into_services(
         self,
     ) -> (
@@ -126,7 +128,7 @@ impl AppConfig {
 
     /// Server host name.
     ///
-    /// Host name is used by application router as a hostname for url generation.
+    /// Host name is used by application router as a hostname for URL generation.
     /// Check [ConnectionInfo](super::dev::ConnectionInfo::host())
     /// documentation for more information.
     ///
@@ -135,7 +137,7 @@ impl AppConfig {
         &self.host
     }
 
-    /// Returns true if connection is secure(https)
+    /// Returns true if connection is secure (i.e., running over `https:`).
     pub fn secure(&self) -> bool {
         self.secure
     }

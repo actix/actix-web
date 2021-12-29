@@ -1,7 +1,7 @@
 use std::{
     future::Future,
     marker::PhantomData,
-    net,
+    mem, net,
     pin::Pin,
     rc::Rc,
     task::{Context, Poll},
@@ -10,8 +10,7 @@ use std::{
 use actix_codec::{AsyncRead, AsyncWrite};
 use actix_rt::net::TcpStream;
 use actix_service::{
-    fn_factory, fn_service, IntoServiceFactory, Service, ServiceFactory,
-    ServiceFactoryExt as _,
+    fn_factory, fn_service, IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt as _,
 };
 use actix_utils::future::ready;
 use futures_core::{future::LocalBoxFuture, ready};
@@ -271,16 +270,15 @@ where
     type Future = H2ServiceHandlerResponse<T, S, B>;
 
     fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.flow.service.poll_ready(cx).map_err(|e| {
-            let e = e.into();
-            error!("Service readiness error: {:?}", e);
-            DispatchError::Service(e)
+        self.flow.service.poll_ready(cx).map_err(|err| {
+            let err = err.into();
+            error!("Service readiness error: {:?}", err);
+            DispatchError::Service(err)
         })
     }
 
     fn call(&self, (io, addr): (T, Option<net::SocketAddr>)) -> Self::Future {
-        let on_connect_data =
-            OnConnectData::from_io(&io, self.on_connect_ext.as_deref());
+        let on_connect_data = OnConnectData::from_io(&io, self.on_connect_ext.as_deref());
 
         H2ServiceHandlerResponse {
             state: State::Handshake(
@@ -299,7 +297,6 @@ where
     T: AsyncRead + AsyncWrite + Unpin,
     S::Future: 'static,
 {
-    Incoming(Dispatcher<T, S, B, (), ()>),
     Handshake(
         Option<Rc<HttpFlow<S, (), ()>>>,
         Option<ServiceConfig>,
@@ -307,6 +304,7 @@ where
         OnConnectData,
         HandshakeWithTimeout<T>,
     ),
+    Established(Dispatcher<T, S, B, (), ()>),
 }
 
 pub struct H2ServiceHandlerResponse<T, S, B>
@@ -334,31 +332,35 @@ where
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.state {
-            State::Incoming(ref mut disp) => Pin::new(disp).poll(cx),
             State::Handshake(
                 ref mut srv,
                 ref mut config,
                 ref peer_addr,
-                ref mut on_connect_data,
+                ref mut conn_data,
                 ref mut handshake,
             ) => match ready!(Pin::new(handshake).poll(cx)) {
                 Ok((conn, timer)) => {
-                    let on_connect_data = std::mem::take(on_connect_data);
-                    self.state = State::Incoming(Dispatcher::new(
-                        srv.take().unwrap(),
+                    let on_connect_data = mem::take(conn_data);
+
+                    self.state = State::Established(Dispatcher::new(
                         conn,
-                        on_connect_data,
+                        srv.take().unwrap(),
                         config.take().unwrap(),
                         *peer_addr,
+                        on_connect_data,
                         timer,
                     ));
+
                     self.poll(cx)
                 }
+
                 Err(err) => {
                     trace!("H2 handshake error: {}", err);
                     Poll::Ready(Err(err))
                 }
             },
+
+            State::Established(ref mut disp) => Pin::new(disp).poll(cx),
         }
     }
 }

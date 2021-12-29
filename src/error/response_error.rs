@@ -8,7 +8,7 @@ use std::{
 
 use actix_http::{
     body::BoxBody,
-    header::{self, IntoHeaderValue},
+    header::{self, TryIntoHeaderValue},
     Response, StatusCode,
 };
 use bytes::BytesMut;

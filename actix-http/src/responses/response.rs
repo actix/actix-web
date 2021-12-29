@@ -10,10 +10,9 @@ use bytestring::ByteString;
 
 use crate::{
     body::{BoxBody, MessageBody},
-    extensions::Extensions,
-    header::{self, HeaderMap, IntoHeaderValue},
-    message::{BoxedResponseHead, ResponseHead},
-    Error, ResponseBuilder, StatusCode,
+    header::{self, HeaderMap, TryIntoHeaderValue},
+    responses::BoxedResponseHead,
+    Error, Extensions, ResponseBuilder, ResponseHead, StatusCode,
 };
 
 /// An HTTP response.
@@ -170,7 +169,7 @@ impl<B> Response<B> {
     /// Returns split head and body.
     ///
     /// # Implementation Notes
-    /// Due to internal performance optimisations, the first element of the returned tuple is a
+    /// Due to internal performance optimizations, the first element of the returned tuple is a
     /// `Response` as well but only contains the head of the response this was called on.
     pub fn into_parts(self) -> (Response<()>, B) {
         self.replace_body(())
@@ -194,7 +193,7 @@ impl<B> Response<B> {
     where
         B: MessageBody + 'static,
     {
-        self.map_body(|_, body| BoxBody::new(body))
+        self.map_body(|_, body| body.boxed())
     }
 
     /// Returns body, consuming this response.
@@ -231,9 +230,7 @@ impl<B: Default> Default for Response<B> {
     }
 }
 
-impl<I: Into<Response<BoxBody>>, E: Into<Error>> From<Result<I, E>>
-    for Response<BoxBody>
-{
+impl<I: Into<Response<BoxBody>>, E: Into<Error>> From<Result<I, E>> for Response<BoxBody> {
     fn from(res: Result<I, E>) -> Self {
         match res {
             Ok(val) => val.into(),

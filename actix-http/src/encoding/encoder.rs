@@ -25,7 +25,7 @@ use zstd::stream::write::Encoder as ZstdEncoder;
 
 use super::Writer;
 use crate::{
-    body::{BodySize, MessageBody},
+    body::{self, BodySize, MessageBody},
     error::BlockingError,
     header::{self, ContentEncoding, HeaderValue, CONTENT_ENCODING},
     ResponseHead, StatusCode,
@@ -46,43 +46,39 @@ pin_project! {
 impl<B: MessageBody> Encoder<B> {
     fn none() -> Self {
         Encoder {
-            body: EncoderBody::None,
+            body: EncoderBody::None {
+                body: body::None::new(),
+            },
             encoder: None,
             fut: None,
             eof: true,
         }
     }
 
-    pub fn response(
-        encoding: ContentEncoding,
-        head: &mut ResponseHead,
-        body: B,
-    ) -> Self {
+    pub fn response(encoding: ContentEncoding, head: &mut ResponseHead, body: B) -> Self {
         let can_encode = !(head.headers().contains_key(&CONTENT_ENCODING)
             || head.status == StatusCode::SWITCHING_PROTOCOLS
             || head.status == StatusCode::NO_CONTENT
             || encoding == ContentEncoding::Identity
             || encoding == ContentEncoding::Auto);
 
-        match body.size() {
-            // no need to compress an empty body
-            BodySize::None => return Self::none(),
-
-            // we cannot assume that Sized is not a stream
-            BodySize::Sized(_) | BodySize::Stream => {}
+        // no need to compress an empty body
+        if matches!(body.size(), BodySize::None) {
+            return Self::none();
         }
 
-        // TODO potentially some optimisation for single-chunk responses here by trying to read the
-        // payload eagerly, stopping after 2 polls if the first is a chunk and the second is None
+        let body = match body.try_into_bytes() {
+            Ok(body) => EncoderBody::Full { body },
+            Err(body) => EncoderBody::Stream { body },
+        };
 
         if can_encode {
             // Modify response body only if encoder is set
             if let Some(enc) = ContentEncoder::encoder(encoding) {
                 update_head(encoding, head);
-                head.no_chunking(false);
 
                 return Encoder {
-                    body: EncoderBody::Stream { body },
+                    body,
                     encoder: Some(enc),
                     fut: None,
                     eof: false,
@@ -91,7 +87,7 @@ impl<B: MessageBody> Encoder<B> {
         }
 
         Encoder {
-            body: EncoderBody::Stream { body },
+            body,
             encoder: None,
             fut: None,
             eof: false,
@@ -102,7 +98,8 @@ impl<B: MessageBody> Encoder<B> {
 pin_project! {
     #[project = EncoderBodyProj]
     enum EncoderBody<B> {
-        None,
+        None { body: body::None },
+        Full { body: Bytes },
         Stream { #[pin] body: B },
     }
 }
@@ -113,9 +110,11 @@ where
 {
     type Error = EncoderError;
 
+    #[inline]
     fn size(&self) -> BodySize {
         match self {
-            EncoderBody::None => BodySize::None,
+            EncoderBody::None { body } => body.size(),
+            EncoderBody::Full { body } => body.size(),
             EncoderBody::Stream { body } => body.size(),
         }
     }
@@ -125,11 +124,27 @@ where
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         match self.project() {
-            EncoderBodyProj::None => Poll::Ready(None),
-
+            EncoderBodyProj::None { body } => {
+                Pin::new(body).poll_next(cx).map_err(|err| match err {})
+            }
+            EncoderBodyProj::Full { body } => {
+                Pin::new(body).poll_next(cx).map_err(|err| match err {})
+            }
             EncoderBodyProj::Stream { body } => body
                 .poll_next(cx)
                 .map_err(|err| EncoderError::Body(err.into())),
+        }
+    }
+
+    #[inline]
+    fn try_into_bytes(self) -> Result<Bytes, Self>
+    where
+        Self: Sized,
+    {
+        match self {
+            EncoderBody::None { body } => Ok(body.try_into_bytes().unwrap()),
+            EncoderBody::Full { body } => Ok(body.try_into_bytes().unwrap()),
+            _ => Err(self),
         }
     }
 }
@@ -140,11 +155,12 @@ where
 {
     type Error = EncoderError;
 
+    #[inline]
     fn size(&self) -> BodySize {
-        if self.encoder.is_none() {
-            self.body.size()
-        } else {
+        if self.encoder.is_some() {
             BodySize::Stream
+        } else {
+            self.body.size()
         }
     }
 
@@ -215,6 +231,24 @@ where
             }
         }
     }
+
+    #[inline]
+    fn try_into_bytes(mut self) -> Result<Bytes, Self>
+    where
+        Self: Sized,
+    {
+        if self.encoder.is_some() {
+            Err(self)
+        } else {
+            match self.body.try_into_bytes() {
+                Ok(body) => Ok(body),
+                Err(body) => {
+                    self.body = body;
+                    Err(self)
+                }
+            }
+        }
+    }
 }
 
 fn update_head(encoding: ContentEncoding, head: &mut ResponseHead) {
@@ -222,6 +256,8 @@ fn update_head(encoding: ContentEncoding, head: &mut ResponseHead) {
         header::CONTENT_ENCODING,
         HeaderValue::from_static(encoding.as_str()),
     );
+
+    head.no_chunking(false);
 }
 
 enum ContentEncoder {

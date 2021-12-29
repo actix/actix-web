@@ -23,6 +23,7 @@ pin_project! {
 
 impl<L> EitherBody<L, BoxBody> {
     /// Creates new `EitherBody` using left variant and boxed right variant.
+    #[inline]
     pub fn new(body: L) -> Self {
         Self::Left { body }
     }
@@ -30,11 +31,13 @@ impl<L> EitherBody<L, BoxBody> {
 
 impl<L, R> EitherBody<L, R> {
     /// Creates new `EitherBody` using left variant.
+    #[inline]
     pub fn left(body: L) -> Self {
         Self::Left { body }
     }
 
     /// Creates new `EitherBody` using right variant.
+    #[inline]
     pub fn right(body: R) -> Self {
         Self::Right { body }
     }
@@ -47,6 +50,7 @@ where
 {
     type Error = Error;
 
+    #[inline]
     fn size(&self) -> BodySize {
         match self {
             EitherBody::Left { body } => body.size(),
@@ -54,6 +58,7 @@ where
         }
     }
 
+    #[inline]
     fn poll_next(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -65,6 +70,26 @@ where
             EitherBodyProj::Right { body } => body
                 .poll_next(cx)
                 .map_err(|err| Error::new_body().with_cause(err)),
+        }
+    }
+
+    #[inline]
+    fn try_into_bytes(self) -> Result<Bytes, Self> {
+        match self {
+            EitherBody::Left { body } => body
+                .try_into_bytes()
+                .map_err(|body| EitherBody::Left { body }),
+            EitherBody::Right { body } => body
+                .try_into_bytes()
+                .map_err(|body| EitherBody::Right { body }),
+        }
+    }
+
+    #[inline]
+    fn boxed(self) -> BoxBody {
+        match self {
+            EitherBody::Left { body } => body.boxed(),
+            EitherBody::Right { body } => body.boxed(),
         }
     }
 }

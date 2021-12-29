@@ -14,11 +14,11 @@
 //! [rustls]: https://crates.io/crates/rustls
 //! [trust-dns]: https://crates.io/crates/trust-dns
 
-#![deny(rust_2018_idioms, nonstandard_style, clippy::uninit_assumed_init)]
+#![deny(rust_2018_idioms, nonstandard_style)]
+#![warn(future_incompatible)]
 #![allow(
     clippy::type_complexity,
     clippy::too_many_arguments,
-    clippy::new_without_default,
     clippy::borrow_interior_mutable_const
 )]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
@@ -27,26 +27,26 @@
 #[macro_use]
 extern crate log;
 
+pub use ::http::{uri, uri::Uri};
+pub use ::http::{Method, StatusCode, Version};
+
 pub mod body;
 mod builder;
 mod config;
-
 #[cfg(feature = "__compress")]
 pub mod encoding;
+pub mod error;
 mod extensions;
+pub mod h1;
+pub mod h2;
 pub mod header;
 mod helpers;
 mod http_message;
 mod message;
 mod payload;
-mod request;
-mod response;
-mod response_builder;
+mod requests;
+mod responses;
 mod service;
-
-pub mod error;
-pub mod h1;
-pub mod h2;
 pub mod test;
 pub mod ws;
 
@@ -57,15 +57,12 @@ pub use self::extensions::Extensions;
 pub use self::header::ContentEncoding;
 pub use self::http_message::HttpMessage;
 pub use self::message::ConnectionType;
-pub use self::message::{Message, RequestHead, RequestHeadType, ResponseHead};
-pub use self::payload::{Payload, PayloadStream};
-pub use self::request::Request;
-pub use self::response::Response;
-pub use self::response_builder::ResponseBuilder;
+pub use self::message::Message;
+#[allow(deprecated)]
+pub use self::payload::{BoxedPayloadStream, Payload, PayloadStream};
+pub use self::requests::{Request, RequestHead, RequestHeadType};
+pub use self::responses::{Response, ResponseBuilder, ResponseHead};
 pub use self::service::HttpService;
-
-pub use ::http::{uri, uri::Uri};
-pub use ::http::{Method, StatusCode, Version};
 
 /// A major HTTP protocol version.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -87,24 +84,13 @@ pub(crate) struct OnConnectData(Option<Extensions>);
 
 impl OnConnectData {
     /// Construct by calling the on-connect callback with the underlying transport I/O.
-    pub(crate) fn from_io<T>(
-        io: &T,
-        on_connect_ext: Option<&ConnectCallback<T>>,
-    ) -> Self {
+    pub(crate) fn from_io<T>(io: &T, on_connect_ext: Option<&ConnectCallback<T>>) -> Self {
         let ext = on_connect_ext.map(|handler| {
-            let mut extensions = Extensions::new();
+            let mut extensions = Extensions::default();
             handler(io, &mut extensions);
             extensions
         });
 
         Self(ext)
-    }
-
-    /// Merge self into given request's extensions.
-    #[inline]
-    pub(crate) fn merge_into(&mut self, req: &mut Request) {
-        if let Some(ref mut ext) = self.0 {
-            req.head.extensions.get_mut().drain_from(ext);
-        }
     }
 }

@@ -113,6 +113,7 @@ where
 {
     type Response = ServiceResponse<EitherBody<Encoder<B>>>;
     type Error = Error;
+    #[allow(clippy::type_complexity)]
     type Future = Either<CompressResponse<S, B>, Ready<Result<Self::Response, Self::Error>>>;
 
     actix_service::forward_ready!(service);

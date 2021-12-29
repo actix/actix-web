@@ -1,14 +1,16 @@
 use std::{cell::RefCell, mem, rc::Rc};
 
-use actix_http::{Extensions, Request};
+use actix_http::Request;
 use actix_router::{Path, ResourceDef, Router, Url};
 use actix_service::{boxed, fn_service, Service, ServiceFactory};
 use futures_core::future::LocalBoxFuture;
 use futures_util::future::join_all;
 
 use crate::{
+    body::BoxBody,
     config::{AppConfig, AppService},
     data::FnDataFactory,
+    dev::Extensions,
     guard::Guard,
     request::{HttpRequest, HttpRequestPool},
     rmap::ResourceMap,
@@ -22,6 +24,7 @@ use crate::{
 type Guards = Vec<Box<dyn Guard>>;
 
 /// Service factory to convert `Request` to a `ServiceRequest<S>`.
+///
 /// It also executes data factories.
 pub struct AppInit<T, B>
 where
@@ -197,7 +200,9 @@ where
 
     actix_service::forward_ready!(service);
 
-    fn call(&self, req: Request) -> Self::Future {
+    fn call(&self, mut req: Request) -> Self::Future {
+        let req_data = Rc::new(RefCell::new(req.take_req_data()));
+        let conn_data = req.take_conn_data();
         let (head, payload) = req.into_parts();
 
         let req = if let Some(mut req) = self.app_state.pool().pop() {
@@ -205,6 +210,8 @@ where
             inner.path.get_mut().update(&head.uri);
             inner.path.reset();
             inner.head = head;
+            inner.conn_data = conn_data;
+            inner.req_data = req_data;
             req
         } else {
             HttpRequest::new(
@@ -212,8 +219,11 @@ where
                 head,
                 self.app_state.clone(),
                 self.app_data.clone(),
+                conn_data,
+                req_data,
             )
         };
+
         self.service.call(ServiceRequest::new(req, payload))
     }
 }
@@ -228,6 +238,7 @@ where
 }
 
 pub struct AppRoutingFactory {
+    #[allow(clippy::type_complexity)]
     services: Rc<
         [(
             ResourceDef,
@@ -288,7 +299,7 @@ pub struct AppRouting {
 }
 
 impl Service<ServiceRequest> for AppRouting {
-    type Response = ServiceResponse;
+    type Response = ServiceResponse<BoxBody>;
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
@@ -297,12 +308,15 @@ impl Service<ServiceRequest> for AppRouting {
     fn call(&self, mut req: ServiceRequest) -> Self::Future {
         let res = self.router.recognize_fn(&mut req, |req, guards| {
             if let Some(ref guards) = guards {
-                for f in guards {
-                    if !f.check(req.head()) {
+                let guard_ctx = req.guard_ctx();
+
+                for guard in guards {
+                    if !guard.check(&guard_ctx) {
                         return false;
                     }
                 }
             }
+
             true
         });
 

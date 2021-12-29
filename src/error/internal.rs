@@ -2,7 +2,7 @@ use std::{cell::RefCell, fmt, io::Write as _};
 
 use actix_http::{
     body::BoxBody,
-    header::{self, IntoHeaderValue as _},
+    header::{self, TryIntoHeaderValue as _},
     StatusCode,
 };
 use bytes::{BufMut as _, BytesMut};
@@ -128,7 +128,7 @@ macro_rules! error_helper {
                 InternalError::new(err, StatusCode::$status).into()
             }
         }
-    }
+    };
 }
 
 error_helper!(ErrorBadRequest, BAD_REQUEST);

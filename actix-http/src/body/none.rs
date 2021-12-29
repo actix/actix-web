@@ -40,4 +40,9 @@ impl MessageBody for None {
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         Poll::Ready(Option::None)
     }
+
+    #[inline]
+    fn try_into_bytes(self) -> Result<Bytes, Self> {
+        Ok(Bytes::new())
+    }
 }

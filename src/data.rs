@@ -31,41 +31,53 @@ pub(crate) type FnDataFactory =
 /// server constructs an application instance for each thread, thus application data must be
 /// constructed multiple times. If you want to share data between different threads, a shareable
 /// object should be used, e.g. `Send + Sync`. Application data does not need to be `Send`
-/// or `Sync`. Internally `Data` uses `Arc`.
+/// or `Sync`. Internally `Data` contains an `Arc`.
 ///
-/// If route data is not set for a handler, using `Data<T>` extractor would cause *Internal
-/// Server Error* response.
+/// If route data is not set for a handler, using `Data<T>` extractor would cause a `500 Internal
+/// Server Error` response.
 ///
-// TODO: document `dyn T` functionality through converting an Arc
-// TODO: note equivalence of req.app_data<Data<T>> and Data<T> extractor
-// TODO: note that data must be inserted using Data<T> in order to extract it
+/// # Unsized Data
+/// For types that are unsized, most commonly `dyn T`, `Data` can wrap these types by first
+/// constructing an `Arc<dyn T>` and using the `From` implementation to convert it.
+///
+/// ```
+/// # use std::{fmt::Display, sync::Arc};
+/// # use actix_web::web::Data;
+/// let displayable_arc: Arc<dyn Display> = Arc::new(42usize);
+/// let displayable_data: Data<dyn Display> = Data::from(displayable_arc);
+/// ```
 ///
 /// # Examples
 /// ```
 /// use std::sync::Mutex;
-/// use actix_web::{web, App, HttpResponse, Responder};
+/// use actix_web::{App, HttpRequest, HttpResponse, Responder, web::{self, Data}};
 ///
 /// struct MyData {
 ///     counter: usize,
 /// }
 ///
 /// /// Use the `Data<T>` extractor to access data in a handler.
-/// async fn index(data: web::Data<Mutex<MyData>>) -> impl Responder {
-///     let mut data = data.lock().unwrap();
-///     data.counter += 1;
+/// async fn index(data: Data<Mutex<MyData>>) -> impl Responder {
+///     let mut my_data = data.lock().unwrap();
+///     my_data.counter += 1;
 ///     HttpResponse::Ok()
 /// }
 ///
-/// fn main() {
-///     let data = web::Data::new(Mutex::new(MyData{ counter: 0 }));
-///
-///     let app = App::new()
-///         // Store `MyData` in application storage.
-///         .app_data(data.clone())
-///         .service(
-///             web::resource("/index.html").route(
-///                 web::get().to(index)));
+/// /// Alteratively, use the `HttpRequest::app_data` method to access data in a handler.
+/// async fn index_alt(req: HttpRequest) -> impl Responder {
+///     let data = req.app_data::<Data<Mutex<MyData>>>().unwrap();
+///     let mut my_data = data.lock().unwrap();
+///     my_data.counter += 1;
+///     HttpResponse::Ok()
 /// }
+///
+/// let data = Data::new(Mutex::new(MyData { counter: 0 }));
+///
+/// let app = App::new()
+///     // Store `MyData` in application storage.
+///     .app_data(Data::clone(&data))
+///     .route("/index.html", web::get().to(index))
+///     .route("/index-alt.html", web::get().to(index_alt));
 /// ```
 #[derive(Debug)]
 pub struct Data<T: ?Sized>(Arc<T>);

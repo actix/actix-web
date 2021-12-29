@@ -267,7 +267,9 @@ where
                 Connection::Tls(ConnectionType::H2(conn)) => {
                     h2proto::send_request(conn, head.into(), body).await
                 }
-                _ => unreachable!("Plain Tcp connection can be used only in Http1 protocol"),
+                _ => {
+                    unreachable!("Plain TCP connection can be used only with HTTP/1.1 protocol")
+                }
             }
         })
     }

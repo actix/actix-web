@@ -3,6 +3,16 @@
 //! Most users will not have to interact with the types in this module, but it is useful for those
 //! writing extractors, middleware, libraries, or interacting with the service API directly.
 
+pub use actix_http::{Extensions, Payload, RequestHead, Response, ResponseHead};
+pub use actix_router::{Path, ResourceDef, ResourcePath, Url};
+pub use actix_server::{Server, ServerHandle};
+pub use actix_service::{
+    always_ready, fn_factory, fn_service, forward_ready, Service, ServiceFactory, Transform,
+};
+
+#[cfg(feature = "__compress")]
+pub use actix_http::encoding::Decoder as Decompress;
+
 pub use crate::config::{AppConfig, AppService};
 #[doc(hidden)]
 pub use crate::handler::Handler;
@@ -13,16 +23,6 @@ pub use crate::service::{HttpServiceFactory, ServiceRequest, ServiceResponse, We
 pub use crate::types::form::UrlEncoded;
 pub use crate::types::json::JsonBody;
 pub use crate::types::readlines::Readlines;
-
-pub use actix_http::{Extensions, Payload, PayloadStream, RequestHead, Response, ResponseHead};
-pub use actix_router::{Path, ResourceDef, ResourcePath, Url};
-pub use actix_server::{Server, ServerHandle};
-pub use actix_service::{
-    always_ready, fn_factory, fn_service, forward_ready, Service, ServiceFactory, Transform,
-};
-
-#[cfg(feature = "__compress")]
-pub use actix_http::encoding::Decoder as Decompress;
 
 use crate::http::header::ContentEncoding;
 
@@ -46,7 +46,6 @@ pub(crate) fn ensure_leading_slash(mut patterns: Patterns) -> Patterns {
 
     patterns
 }
-struct Enc(ContentEncoding);
 
 /// Helper trait that allows to set specific encoding for response.
 pub trait BodyEncoding {
@@ -69,6 +68,8 @@ impl BodyEncoding for actix_http::ResponseBuilder {
         self
     }
 }
+
+struct Enc(ContentEncoding);
 
 impl<B> BodyEncoding for actix_http::Response<B> {
     fn get_encoding(&self) -> Option<ContentEncoding> {
@@ -100,43 +101,5 @@ impl<B> BodyEncoding for crate::HttpResponse<B> {
     fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
         self.extensions_mut().insert(Enc(encoding));
         self
-    }
-}
-
-// TODO: remove this if it doesn't appear to be needed
-
-#[allow(dead_code)]
-#[derive(Debug)]
-pub(crate) enum AnyBody {
-    None,
-    Full { body: crate::web::Bytes },
-    Boxed { body: actix_http::body::BoxBody },
-}
-
-impl crate::body::MessageBody for AnyBody {
-    type Error = crate::BoxError;
-
-    /// Body size hint.
-    fn size(&self) -> crate::body::BodySize {
-        match self {
-            AnyBody::None => crate::body::BodySize::None,
-            AnyBody::Full { body } => body.size(),
-            AnyBody::Boxed { body } => body.size(),
-        }
-    }
-
-    /// Attempt to pull out the next chunk of body bytes.
-    fn poll_next(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Result<crate::web::Bytes, Self::Error>>> {
-        match self.get_mut() {
-            AnyBody::None => std::task::Poll::Ready(None),
-            AnyBody::Full { body } => {
-                let bytes = std::mem::take(body);
-                std::task::Poll::Ready(Some(Ok(bytes)))
-            }
-            AnyBody::Boxed { body } => body.as_pin_mut().poll_next(cx),
-        }
     }
 }

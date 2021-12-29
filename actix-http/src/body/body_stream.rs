@@ -27,6 +27,7 @@ where
     S: Stream<Item = Result<Bytes, E>>,
     E: Into<Box<dyn StdError>> + 'static,
 {
+    #[inline]
     pub fn new(stream: S) -> Self {
         BodyStream { stream }
     }
@@ -39,6 +40,7 @@ where
 {
     type Error = E;
 
+    #[inline]
     fn size(&self) -> BodySize {
         BodySize::Stream
     }
@@ -165,8 +167,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn stream_delayed_error() {
-        let body =
-            BodyStream::new(stream::iter(vec![Ok(Bytes::from("1")), Err(StreamErr)]));
+        let body = BodyStream::new(stream::iter(vec![Ok(Bytes::from("1")), Err(StreamErr)]));
         assert!(matches!(to_bytes(body).await, Err(StreamErr)));
 
         pin_project! {

@@ -2,13 +2,9 @@ use std::{
     fmt,
     fs::Metadata,
     io,
-    ops::{Deref, DerefMut},
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
-
-#[cfg(unix)]
-use std::os::unix::fs::MetadataExt;
 
 use actix_service::{Service, ServiceFactory};
 use actix_web::{
@@ -27,6 +23,7 @@ use actix_web::{
     Error, HttpMessage, HttpRequest, HttpResponse, Responder,
 };
 use bitflags::bitflags;
+use derive_more::{Deref, DerefMut};
 use futures_core::future::LocalBoxFuture;
 use mime_guess::from_path;
 
@@ -71,8 +68,11 @@ impl Default for Flags {
 ///     NamedFile::open_async("./static/index.html").await
 /// }
 /// ```
+#[derive(Deref, DerefMut)]
 pub struct NamedFile {
     path: PathBuf,
+    #[deref]
+    #[deref_mut]
     file: File,
     modified: Option<SystemTime>,
     pub(crate) md: Metadata,
@@ -364,14 +364,18 @@ impl NamedFile {
         self
     }
 
+    /// Creates a etag in a format is similar to Apache's.
     pub(crate) fn etag(&self) -> Option<header::EntityTag> {
-        // This etag format is similar to Apache's.
         self.modified.as_ref().map(|mtime| {
             let ino = {
                 #[cfg(unix)]
                 {
+                    #[cfg(unix)]
+                    use std::os::unix::fs::MetadataExt as _;
+
                     self.md.ino()
                 }
+
                 #[cfg(not(unix))]
                 {
                     0
@@ -472,17 +476,17 @@ impl NamedFile {
             false
         };
 
-        let mut resp = HttpResponse::build(self.status_code);
+        let mut res = HttpResponse::build(self.status_code);
 
         if self.flags.contains(Flags::PREFER_UTF8) {
             let ct = equiv_utf8_text(self.content_type.clone());
-            resp.insert_header((header::CONTENT_TYPE, ct.to_string()));
+            res.insert_header((header::CONTENT_TYPE, ct.to_string()));
         } else {
-            resp.insert_header((header::CONTENT_TYPE, self.content_type.to_string()));
+            res.insert_header((header::CONTENT_TYPE, self.content_type.to_string()));
         }
 
         if self.flags.contains(Flags::CONTENT_DISPOSITION) {
-            resp.insert_header((
+            res.insert_header((
                 header::CONTENT_DISPOSITION,
                 self.content_disposition.to_string(),
             ));
@@ -490,18 +494,18 @@ impl NamedFile {
 
         // default compressing
         if let Some(current_encoding) = self.encoding {
-            resp.encoding(current_encoding);
+            res.encoding(current_encoding);
         }
 
         if let Some(lm) = last_modified {
-            resp.insert_header((header::LAST_MODIFIED, lm.to_string()));
+            res.insert_header((header::LAST_MODIFIED, lm.to_string()));
         }
 
         if let Some(etag) = etag {
-            resp.insert_header((header::ETAG, etag.to_string()));
+            res.insert_header((header::ETAG, etag.to_string()));
         }
 
-        resp.insert_header((header::ACCEPT_RANGES, "bytes"));
+        res.insert_header((header::ACCEPT_RANGES, "bytes"));
 
         let mut length = self.md.len();
         let mut offset = 0;
@@ -513,24 +517,24 @@ impl NamedFile {
                     length = ranges[0].length;
                     offset = ranges[0].start;
 
-                    resp.encoding(ContentEncoding::Identity);
-                    resp.insert_header((
+                    res.encoding(ContentEncoding::Identity);
+                    res.insert_header((
                         header::CONTENT_RANGE,
                         format!("bytes {}-{}/{}", offset, offset + length - 1, self.md.len()),
                     ));
                 } else {
-                    resp.insert_header((header::CONTENT_RANGE, format!("bytes */{}", length)));
-                    return resp.status(StatusCode::RANGE_NOT_SATISFIABLE).finish();
+                    res.insert_header((header::CONTENT_RANGE, format!("bytes */{}", length)));
+                    return res.status(StatusCode::RANGE_NOT_SATISFIABLE).finish();
                 };
             } else {
-                return resp.status(StatusCode::BAD_REQUEST).finish();
+                return res.status(StatusCode::BAD_REQUEST).finish();
             };
         };
 
         if precondition_failed {
-            return resp.status(StatusCode::PRECONDITION_FAILED).finish();
+            return res.status(StatusCode::PRECONDITION_FAILED).finish();
         } else if not_modified {
-            return resp
+            return res
                 .status(StatusCode::NOT_MODIFIED)
                 .body(body::None::new())
                 .map_into_boxed_body();
@@ -539,10 +543,10 @@ impl NamedFile {
         let reader = chunked::new_chunked_read(length, offset, self.file);
 
         if offset != 0 || length != self.md.len() {
-            resp.status(StatusCode::PARTIAL_CONTENT);
+            res.status(StatusCode::PARTIAL_CONTENT);
         }
 
-        resp.body(SizedStream::new(length, reader))
+        res.body(SizedStream::new(length, reader))
     }
 }
 
@@ -583,20 +587,6 @@ fn none_match(etag: Option<&header::EntityTag>, req: &HttpRequest) -> bool {
         }
 
         None => true,
-    }
-}
-
-impl Deref for NamedFile {
-    type Target = File;
-
-    fn deref(&self) -> &Self::Target {
-        &self.file
-    }
-}
-
-impl DerefMut for NamedFile {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.file
     }
 }
 

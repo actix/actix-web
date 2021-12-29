@@ -4,15 +4,25 @@
 
 set -x
 
-cargo test --lib --tests -p=actix-router --all-features
-cargo test --lib --tests -p=actix-http --all-features
-cargo test --lib --tests -p=actix-web --features=rustls,openssl -- --skip=test_reading_deflate_encoding_large_random_rustls
-cargo test --lib --tests -p=actix-web-codegen --all-features
-cargo test --lib --tests -p=awc --all-features
-cargo test --lib --tests -p=actix-http-test --all-features
-cargo test --lib --tests -p=actix-test --all-features
-cargo test --lib --tests -p=actix-files
-cargo test --lib --tests -p=actix-multipart --all-features
-cargo test --lib --tests -p=actix-web-actors --all-features
+EXIT=0
 
-cargo test --workspace --doc
+save_exit_code() {
+    eval $@
+    local CMD_EXIT=$?
+    [ "$CMD_EXIT" = "0" ] || EXIT=$CMD_EXIT
+}
+
+save_exit_code cargo test --lib --tests -p=actix-router --all-features
+save_exit_code cargo test --lib --tests -p=actix-http --all-features
+save_exit_code cargo test --lib --tests -p=actix-web --features=rustls,openssl -- --skip=test_reading_deflate_encoding_large_random_rustls
+save_exit_code cargo test --lib --tests -p=actix-web-codegen --all-features
+save_exit_code cargo test --lib --tests -p=awc --all-features
+save_exit_code cargo test --lib --tests -p=actix-http-test --all-features
+save_exit_code cargo test --lib --tests -p=actix-test --all-features
+save_exit_code cargo test --lib --tests -p=actix-files
+save_exit_code cargo test --lib --tests -p=actix-multipart --all-features
+save_exit_code cargo test --lib --tests -p=actix-web-actors --all-features
+
+save_exit_code cargo test --workspace --doc
+
+exit $EXIT

@@ -1,6 +1,7 @@
 //! Various helpers for Actix applications to use during testing.
 
-#![deny(rust_2018_idioms)]
+#![deny(rust_2018_idioms, nonstandard_style)]
+#![warn(future_incompatible)]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 
@@ -11,7 +12,7 @@ use std::{net, thread, time::Duration};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_rt::{net::TcpStream, System};
-use actix_server::{Server, ServiceFactory};
+use actix_server::{Server, ServerServiceFactory};
 use awc::{
     error::PayloadError, http::header::HeaderMap, ws, Client, ClientRequest, ClientResponse,
     Connector,
@@ -50,13 +51,13 @@ use tokio::sync::mpsc;
 ///     assert!(response.status().is_success());
 /// }
 /// ```
-pub async fn test_server<F: ServiceFactory<TcpStream>>(factory: F) -> TestServer {
+pub async fn test_server<F: ServerServiceFactory<TcpStream>>(factory: F) -> TestServer {
     let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
     test_server_with_addr(tcp, factory).await
 }
 
 /// Start [`test server`](test_server()) on an existing address binding.
-pub async fn test_server_with_addr<F: ServiceFactory<TcpStream>>(
+pub async fn test_server_with_addr<F: ServerServiceFactory<TcpStream>>(
     tcp: net::TcpListener,
     factory: F,
 ) -> TestServer {
@@ -106,7 +107,7 @@ pub async fn test_server_with_addr<F: ServiceFactory<TcpStream>>(
             Connector::new()
                 .conn_lifetime(Duration::from_secs(0))
                 .timeout(Duration::from_millis(30000))
-                .ssl(builder.build())
+                .openssl(builder.build())
         };
 
         #[cfg(not(feature = "openssl"))]

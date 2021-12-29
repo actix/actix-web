@@ -6,15 +6,18 @@ use std::{
     task::{Context, Poll},
 };
 
-use actix_http::body::MessageBody;
-use actix_service::{Service, Transform};
 use futures_core::{future::LocalBoxFuture, ready};
 use pin_project_lite::pin_project;
 
-use crate::{error::Error, service::ServiceResponse};
+use crate::{
+    body::{BoxBody, MessageBody},
+    dev::{Service, Transform},
+    error::Error,
+    service::ServiceResponse,
+};
 
 /// Middleware for enabling any middleware to be used in [`Resource::wrap`](crate::Resource::wrap),
-/// [`Scope::wrap`](crate::Scope::wrap) and [`Condition`](super::Condition).
+/// and [`Condition`](super::Condition).
 ///
 /// # Examples
 /// ```
@@ -35,6 +38,15 @@ pub struct Compat<T> {
     transform: T,
 }
 
+#[cfg(test)]
+impl Compat<super::Noop> {
+    pub(crate) fn noop() -> Self {
+        Self {
+            transform: super::Noop,
+        }
+    }
+}
+
 impl<T> Compat<T> {
     /// Wrap a middleware to give it broader compatibility.
     pub fn new(middleware: T) -> Self {
@@ -52,7 +64,7 @@ where
     T::Response: MapServiceResponseBody,
     T::Error: Into<Error>,
 {
-    type Response = ServiceResponse;
+    type Response = ServiceResponse<BoxBody>;
     type Error = Error;
     type Transform = CompatMiddleware<T::Transform>;
     type InitError = T::InitError;
@@ -77,7 +89,7 @@ where
     S::Response: MapServiceResponseBody,
     S::Error: Into<Error>,
 {
-    type Response = ServiceResponse;
+    type Response = ServiceResponse<BoxBody>;
     type Error = Error;
     type Future = CompatMiddlewareFuture<S::Future>;
 
@@ -102,7 +114,7 @@ where
     T: MapServiceResponseBody,
     E: Into<Error>,
 {
-    type Output = Result<ServiceResponse, Error>;
+    type Output = Result<ServiceResponse<BoxBody>, Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let res = match ready!(self.project().fut.poll(cx)) {
@@ -116,14 +128,15 @@ where
 
 /// Convert `ServiceResponse`'s `ResponseBody<B>` generic type to `ResponseBody<Body>`.
 pub trait MapServiceResponseBody {
-    fn map_body(self) -> ServiceResponse;
+    fn map_body(self) -> ServiceResponse<BoxBody>;
 }
 
 impl<B> MapServiceResponseBody for ServiceResponse<B>
 where
-    B: MessageBody + Unpin + 'static,
+    B: MessageBody + 'static,
 {
-    fn map_body(self) -> ServiceResponse {
+    #[inline]
+    fn map_body(self) -> ServiceResponse<BoxBody> {
         self.map_into_boxed_body()
     }
 }
@@ -154,7 +167,7 @@ mod tests {
         let srv = init_service(
             App::new().service(
                 web::scope("app")
-                    .wrap(Compat::new(logger))
+                    .wrap(logger)
                     .wrap(Compat::new(compress))
                     .service(web::resource("/test").route(web::get().to(HttpResponse::Ok))),
             ),

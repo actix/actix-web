@@ -9,7 +9,7 @@ use std::{
 use actix_http::{
     body::{BodyStream, BoxBody, MessageBody},
     error::HttpError,
-    header::{self, HeaderName, IntoHeaderPair, IntoHeaderValue},
+    header::{self, HeaderName, TryIntoHeaderPair, TryIntoHeaderValue},
     ConnectionType, Extensions, Response, ResponseHead, StatusCode,
 };
 use bytes::Bytes;
@@ -67,12 +67,9 @@ impl HttpResponseBuilder {
     ///     .insert_header(("X-TEST", "value"))
     ///     .finish();
     /// ```
-    pub fn insert_header<H>(&mut self, header: H) -> &mut Self
-    where
-        H: IntoHeaderPair,
-    {
+    pub fn insert_header(&mut self, header: impl TryIntoHeaderPair) -> &mut Self {
         if let Some(parts) = self.inner() {
-            match header.try_into_header_pair() {
+            match header.try_into_pair() {
                 Ok((key, value)) => {
                     parts.headers.insert(key, value);
                 }
@@ -94,12 +91,9 @@ impl HttpResponseBuilder {
     ///     .append_header(("X-TEST", "value2"))
     ///     .finish();
     /// ```
-    pub fn append_header<H>(&mut self, header: H) -> &mut Self
-    where
-        H: IntoHeaderPair,
-    {
+    pub fn append_header(&mut self, header: impl TryIntoHeaderPair) -> &mut Self {
         if let Some(parts) = self.inner() {
-            match header.try_into_header_pair() {
+            match header.try_into_pair() {
                 Ok((key, value)) => parts.headers.append(key, value),
                 Err(e) => self.err = Some(e.into()),
             };
@@ -109,6 +103,7 @@ impl HttpResponseBuilder {
     }
 
     /// Replaced with [`Self::insert_header()`].
+    #[doc(hidden)]
     #[deprecated(
         since = "4.0.0",
         note = "Replaced with `insert_header((key, value))`. Will be removed in v5."
@@ -117,7 +112,7 @@ impl HttpResponseBuilder {
     where
         K: TryInto<HeaderName>,
         K::Error: Into<HttpError>,
-        V: IntoHeaderValue,
+        V: TryIntoHeaderValue,
     {
         if self.err.is_some() {
             return self;
@@ -133,6 +128,7 @@ impl HttpResponseBuilder {
     }
 
     /// Replaced with [`Self::append_header()`].
+    #[doc(hidden)]
     #[deprecated(
         since = "4.0.0",
         note = "Replaced with `append_header((key, value))`. Will be removed in v5."
@@ -141,7 +137,7 @@ impl HttpResponseBuilder {
     where
         K: TryInto<HeaderName>,
         K::Error: Into<HttpError>,
-        V: IntoHeaderValue,
+        V: TryIntoHeaderValue,
     {
         if self.err.is_some() {
             return self;
@@ -178,7 +174,7 @@ impl HttpResponseBuilder {
     #[inline]
     pub fn upgrade<V>(&mut self, value: V) -> &mut Self
     where
-        V: IntoHeaderValue,
+        V: TryIntoHeaderValue,
     {
         if let Some(parts) = self.inner() {
             parts.set_connection_type(ConnectionType::Upgrade);
@@ -216,7 +212,7 @@ impl HttpResponseBuilder {
     #[inline]
     pub fn content_type<V>(&mut self, value: V) -> &mut Self
     where
-        V: IntoHeaderValue,
+        V: TryIntoHeaderValue,
     {
         if let Some(parts) = self.inner() {
             match value.try_into_value() {
@@ -433,9 +429,12 @@ mod tests {
     use actix_http::body;
 
     use super::*;
-    use crate::http::{
-        header::{self, HeaderValue, CONTENT_TYPE},
-        StatusCode,
+    use crate::{
+        http::{
+            header::{self, HeaderValue, CONTENT_TYPE},
+            StatusCode,
+        },
+        test::assert_body_eq,
     };
 
     #[test]
@@ -476,32 +475,23 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_json() {
-        let resp = HttpResponse::Ok().json(vec!["v1", "v2", "v3"]);
-        let ct = resp.headers().get(CONTENT_TYPE).unwrap();
+        let res = HttpResponse::Ok().json(vec!["v1", "v2", "v3"]);
+        let ct = res.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("application/json"));
-        assert_eq!(
-            body::to_bytes(resp.into_body()).await.unwrap().as_ref(),
-            br#"["v1","v2","v3"]"#
-        );
+        assert_body_eq!(res, br#"["v1","v2","v3"]"#);
 
-        let resp = HttpResponse::Ok().json(&["v1", "v2", "v3"]);
-        let ct = resp.headers().get(CONTENT_TYPE).unwrap();
+        let res = HttpResponse::Ok().json(&["v1", "v2", "v3"]);
+        let ct = res.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("application/json"));
-        assert_eq!(
-            body::to_bytes(resp.into_body()).await.unwrap().as_ref(),
-            br#"["v1","v2","v3"]"#
-        );
+        assert_body_eq!(res, br#"["v1","v2","v3"]"#);
 
         // content type override
-        let resp = HttpResponse::Ok()
+        let res = HttpResponse::Ok()
             .insert_header((CONTENT_TYPE, "text/json"))
             .json(&vec!["v1", "v2", "v3"]);
-        let ct = resp.headers().get(CONTENT_TYPE).unwrap();
+        let ct = res.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("text/json"));
-        assert_eq!(
-            body::to_bytes(resp.into_body()).await.unwrap().as_ref(),
-            br#"["v1","v2","v3"]"#
-        );
+        assert_body_eq!(res, br#"["v1","v2","v3"]"#);
     }
 
     #[actix_rt::test]

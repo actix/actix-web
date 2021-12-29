@@ -1,17 +1,13 @@
 use std::{
-    borrow::Cow,
     fmt, mem,
     pin::Pin,
     task::{Context, Poll},
 };
 
-use bytes::{Bytes, BytesMut};
-use futures_core::Stream;
+use bytes::Bytes;
 use pin_project_lite::pin_project;
 
-use actix_http::body::{BodySize, BodyStream, BoxBody, MessageBody, SizedStream};
-
-use crate::BoxError;
+use actix_http::body::{BodySize, BoxBody, MessageBody};
 
 pin_project! {
     /// Represents various types of HTTP message body.
@@ -45,9 +41,7 @@ impl AnyBody {
     where
         B: MessageBody + 'static,
     {
-        Self::Body {
-            body: BoxBody::new(body),
-        }
+        Self::Body { body: body.boxed() }
     }
 
     /// Constructs new `AnyBody` instance from a slice of bytes by copying it.
@@ -79,10 +73,27 @@ impl<B> AnyBody<B>
 where
     B: MessageBody + 'static,
 {
+    /// Converts a [`MessageBody`] type into the best possible representation.
+    ///
+    /// Checks size for `None` and tries to convert to `Bytes`. Otherwise, uses the `Body` variant.
+    pub fn from_message_body(body: B) -> Self
+    where
+        B: MessageBody,
+    {
+        if matches!(body.size(), BodySize::None) {
+            return Self::None;
+        }
+
+        match body.try_into_bytes() {
+            Ok(body) => Self::Bytes { body },
+            Err(body) => Self::new(body),
+        }
+    }
+
     pub fn into_boxed(self) -> AnyBody {
         match self {
             Self::None => AnyBody::None,
-            Self::Bytes { body: bytes } => AnyBody::Bytes { body: bytes },
+            Self::Bytes { body } => AnyBody::Bytes { body },
             Self::Body { body } => AnyBody::new_boxed(body),
         }
     }
@@ -142,91 +153,6 @@ impl<S: fmt::Debug> fmt::Debug for AnyBody<S> {
             AnyBody::Bytes { ref body } => write!(f, "AnyBody::Bytes({:?})", body),
             AnyBody::Body { ref body } => write!(f, "AnyBody::Message({:?})", body),
         }
-    }
-}
-
-impl<B> From<&'static str> for AnyBody<B> {
-    fn from(string: &'static str) -> Self {
-        Self::Bytes {
-            body: Bytes::from_static(string.as_ref()),
-        }
-    }
-}
-
-impl<B> From<&'static [u8]> for AnyBody<B> {
-    fn from(bytes: &'static [u8]) -> Self {
-        Self::Bytes {
-            body: Bytes::from_static(bytes),
-        }
-    }
-}
-
-impl<B> From<Vec<u8>> for AnyBody<B> {
-    fn from(vec: Vec<u8>) -> Self {
-        Self::Bytes {
-            body: Bytes::from(vec),
-        }
-    }
-}
-
-impl<B> From<String> for AnyBody<B> {
-    fn from(string: String) -> Self {
-        Self::Bytes {
-            body: Bytes::from(string),
-        }
-    }
-}
-
-impl<B> From<&'_ String> for AnyBody<B> {
-    fn from(string: &String) -> Self {
-        Self::Bytes {
-            body: Bytes::copy_from_slice(AsRef::<[u8]>::as_ref(&string)),
-        }
-    }
-}
-
-impl<B> From<Cow<'_, str>> for AnyBody<B> {
-    fn from(string: Cow<'_, str>) -> Self {
-        match string {
-            Cow::Owned(s) => Self::from(s),
-            Cow::Borrowed(s) => Self::Bytes {
-                body: Bytes::copy_from_slice(AsRef::<[u8]>::as_ref(s)),
-            },
-        }
-    }
-}
-
-impl<B> From<Bytes> for AnyBody<B> {
-    fn from(bytes: Bytes) -> Self {
-        Self::Bytes { body: bytes }
-    }
-}
-
-impl<B> From<BytesMut> for AnyBody<B> {
-    fn from(bytes: BytesMut) -> Self {
-        Self::Bytes {
-            body: bytes.freeze(),
-        }
-    }
-}
-
-impl<S, E> From<SizedStream<S>> for AnyBody
-where
-    S: Stream<Item = Result<Bytes, E>> + 'static,
-    E: Into<BoxError> + 'static,
-{
-    fn from(stream: SizedStream<S>) -> Self {
-        AnyBody::new_boxed(stream)
-    }
-}
-
-impl<S, E> From<BodyStream<S>> for AnyBody
-where
-    S: Stream<Item = Result<Bytes, E>> + 'static,
-    E: Into<BoxError> + 'static,
-{
-    fn from(stream: BodyStream<S>) -> Self {
-        AnyBody::new_boxed(stream)
     }
 }
 

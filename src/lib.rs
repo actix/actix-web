@@ -65,7 +65,7 @@
 //! * `secure-cookies` - secure cookies support
 
 #![deny(rust_2018_idioms, nonstandard_style)]
-#![allow(clippy::needless_doctest_main, clippy::type_complexity)]
+#![warn(future_incompatible)]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 
@@ -85,7 +85,6 @@ pub mod middleware;
 mod request;
 mod request_data;
 mod resource;
-mod responder;
 mod response;
 mod rmap;
 mod route;
@@ -106,14 +105,13 @@ pub use cookie;
 pub use crate::app::App;
 pub use crate::error::{Error, ResponseError, Result};
 pub use crate::extract::FromRequest;
+pub use crate::handler::Handler;
 pub use crate::request::HttpRequest;
 pub use crate::resource::Resource;
-pub use crate::responder::Responder;
-pub use crate::response::{HttpResponse, HttpResponseBuilder};
+pub use crate::response::{CustomizeResponder, HttpResponse, HttpResponseBuilder, Responder};
 pub use crate::route::Route;
 pub use crate::scope::Scope;
 pub use crate::server::HttpServer;
-// TODO: is exposing the error directly really needed
-pub use crate::types::{Either, EitherExtractError};
+pub use crate::types::Either;
 
 pub(crate) type BoxError = Box<dyn std::error::Error>;

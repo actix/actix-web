@@ -7,7 +7,7 @@ use std::{
 
 use actix_http::{
     body::{self, BodyStream, BoxBody, SizedStream},
-    header, Error, HttpMessage, HttpService, KeepAlive, Request, Response, StatusCode,
+    header, Error, HttpService, KeepAlive, Request, Response, StatusCode,
 };
 use actix_http_test::test_server;
 use actix_rt::time::sleep;
@@ -154,9 +154,7 @@ async fn test_chunked_payload() {
                     })
                     .fold(0usize, |acc, chunk| ready(acc + chunk.len()))
                     .map(|req_size| {
-                        Ok::<_, Error>(
-                            Response::ok().set_body(format!("size={}", req_size)),
-                        )
+                        Ok::<_, Error>(Response::ok().set_body(format!("size={}", req_size)))
                     })
             }))
             .tcp()
@@ -165,8 +163,7 @@ async fn test_chunked_payload() {
 
     let returned_size = {
         let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
-        let _ = stream
-            .write_all(b"POST /test HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n");
+        let _ = stream.write_all(b"POST /test HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n");
 
         for chunk_size in chunk_sizes.iter() {
             let mut bytes = Vec::new();
@@ -293,8 +290,7 @@ async fn test_http1_keepalive_close() {
     .await;
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
-    let _ =
-        stream.write_all(b"GET /test/tests/test HTTP/1.1\r\nconnection: close\r\n\r\n");
+    let _ = stream.write_all(b"GET /test/tests/test HTTP/1.1\r\nconnection: close\r\n\r\n");
     let mut data = vec![0; 1024];
     let _ = stream.read(&mut data);
     assert_eq!(&data[..17], b"HTTP/1.1 200 OK\r\n");
@@ -338,8 +334,8 @@ async fn test_http10_keepalive() {
     .await;
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
-    let _ = stream
-        .write_all(b"GET /test/tests/test HTTP/1.0\r\nconnection: keep-alive\r\n\r\n");
+    let _ =
+        stream.write_all(b"GET /test/tests/test HTTP/1.0\r\nconnection: keep-alive\r\n\r\n");
     let mut data = vec![0; 1024];
     let _ = stream.read(&mut data);
     assert_eq!(&data[..17], b"HTTP/1.0 200 OK\r\n");
@@ -436,10 +432,11 @@ async fn test_h1_headers() {
 
     let mut srv = test_server(move || {
         let data = data.clone();
-        HttpService::build().h1(move |_| {
-            let mut builder = Response::build(StatusCode::OK);
-            for idx in 0..90 {
-                builder.insert_header((
+        HttpService::build()
+            .h1(move |_| {
+                let mut builder = Response::build(StatusCode::OK);
+                for idx in 0..90 {
+                    builder.insert_header((
                     format!("X-TEST-{}", idx).as_str(),
                     "TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
@@ -455,10 +452,12 @@ async fn test_h1_headers() {
                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST \
                         TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST ",
                 ));
-            }
-            ok::<_, Infallible>(builder.body(data.clone()))
-        }).tcp()
-    }).await;
+                }
+                ok::<_, Infallible>(builder.body(data.clone()))
+            })
+            .tcp()
+    })
+    .await;
 
     let response = srv.get("/").send().await.unwrap();
     assert!(response.status().is_success());
@@ -655,9 +654,7 @@ async fn test_h1_body_chunked_implicit() {
         HttpService::build()
             .h1(|_| {
                 let body = once(ok::<_, Error>(Bytes::from_static(STR.as_ref())));
-                ok::<_, Infallible>(
-                    Response::build(StatusCode::OK).body(BodyStream::new(body)),
-                )
+                ok::<_, Infallible>(Response::build(StatusCode::OK).body(BodyStream::new(body)))
             })
             .tcp()
     })
@@ -748,7 +745,7 @@ async fn test_h1_on_connect() {
                 data.insert(20isize);
             })
             .h1(|req: Request| {
-                assert!(req.extensions().contains::<isize>());
+                assert!(req.conn_data::<isize>().is_some());
                 ok::<_, Infallible>(Response::ok())
             })
             .tcp()
@@ -776,10 +773,8 @@ async fn test_not_modified_spec_h1() {
             .h1(|req: Request| {
                 let res: Response<BoxBody> = match req.path() {
                     // with no content-length
-                    "/none" => {
-                        Response::with_body(StatusCode::NOT_MODIFIED, body::None::new())
-                            .map_into_boxed_body()
-                    }
+                    "/none" => Response::with_body(StatusCode::NOT_MODIFIED, body::None::new())
+                        .map_into_boxed_body(),
 
                     // with no content-length
                     "/body" => Response::with_body(StatusCode::NOT_MODIFIED, "1234")
@@ -787,10 +782,8 @@ async fn test_not_modified_spec_h1() {
 
                     // with manual content-length header and specific None body
                     "/cl-none" => {
-                        let mut res = Response::with_body(
-                            StatusCode::NOT_MODIFIED,
-                            body::None::new(),
-                        );
+                        let mut res =
+                            Response::with_body(StatusCode::NOT_MODIFIED, body::None::new());
                         res.headers_mut()
                             .insert(CL.clone(), header::HeaderValue::from_static("24"));
                         res.map_into_boxed_body()
@@ -798,8 +791,7 @@ async fn test_not_modified_spec_h1() {
 
                     // with manual content-length header and ignore-able body
                     "/cl-body" => {
-                        let mut res =
-                            Response::with_body(StatusCode::NOT_MODIFIED, "1234");
+                        let mut res = Response::with_body(StatusCode::NOT_MODIFIED, "1234");
                         res.headers_mut()
                             .insert(CL.clone(), header::HeaderValue::from_static("4"));
                         res.map_into_boxed_body()

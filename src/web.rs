@@ -1,14 +1,14 @@
 //! Essentials helper functions and types for application registration.
 
-use std::{error::Error as StdError, future::Future};
+use std::future::Future;
 
 use actix_http::Method;
 use actix_router::IntoPatterns;
 pub use bytes::{Buf, BufMut, Bytes, BytesMut};
 
 use crate::{
-    body::MessageBody, error::BlockingError, extract::FromRequest, handler::Handler,
-    resource::Resource, responder::Responder, route::Route, scope::Scope, service::WebService,
+    error::BlockingError, extract::FromRequest, handler::Handler, resource::Resource,
+    route::Route, scope::Scope, service::WebService, Responder,
 };
 
 pub use crate::config::ServiceConfig;
@@ -52,11 +52,16 @@ pub fn resource<T: IntoPatterns>(path: T) -> Resource {
 /// Scopes collect multiple paths under a common path prefix. The scope's path can contain dynamic
 /// path segments.
 ///
+/// # Avoid Trailing Slashes
+/// Avoid using trailing slashes in the scope prefix (e.g., `web::scope("/scope/")`). It will almost
+/// certainly not have the expected behavior. See the [documentation on resource definitions][pat]
+/// to understand why this is the case and how to correctly construct scope/prefix definitions.
+///
 /// # Examples
 /// In this example, three routes are set up (and will handle any method):
-///  * `/{project_id}/path1`
-///  * `/{project_id}/path2`
-///  * `/{project_id}/path3`
+/// - `/{project_id}/path1`
+/// - `/{project_id}/path2`
+/// - `/{project_id}/path3`
 ///
 /// ```
 /// use actix_web::{web, App, HttpResponse};
@@ -68,6 +73,8 @@ pub fn resource<T: IntoPatterns>(path: T) -> Resource {
 ///         .service(web::resource("/path3").to(|| HttpResponse::MethodNotAllowed()))
 /// );
 /// ```
+///
+/// [pat]: crate::dev::ResourceDef#prefix-resources
 pub fn scope(path: &str) -> Scope {
     Scope::new(path)
 }
@@ -139,14 +146,11 @@ pub fn method(method: Method) -> Route {
 ///         web::to(index))
 /// );
 /// ```
-pub fn to<F, I, R>(handler: F) -> Route
+pub fn to<F, Args>(handler: F) -> Route
 where
-    F: Handler<I, R>,
-    I: FromRequest + 'static,
-    R: Future + 'static,
-    R::Output: Responder + 'static,
-    <R::Output as Responder>::Body: MessageBody + 'static,
-    <<R::Output as Responder>::Body as MessageBody>::Error: Into<Box<dyn StdError + 'static>>,
+    F: Handler<Args>,
+    Args: FromRequest + 'static,
+    F::Output: Responder + 'static,
 {
     Route::new().to(handler)
 }

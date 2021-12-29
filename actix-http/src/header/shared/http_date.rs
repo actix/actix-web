@@ -4,7 +4,7 @@ use bytes::BytesMut;
 use http::header::{HeaderValue, InvalidHeaderValue};
 
 use crate::{
-    config::DATE_VALUE_LENGTH, error::ParseError, header::IntoHeaderValue,
+    config::DATE_VALUE_LENGTH, error::ParseError, header::TryIntoHeaderValue,
     helpers::MutWriter,
 };
 
@@ -30,7 +30,7 @@ impl fmt::Display for HttpDate {
     }
 }
 
-impl IntoHeaderValue for HttpDate {
+impl TryIntoHeaderValue for HttpDate {
     type Error = InvalidHeaderValue;
 
     fn try_into_value(self) -> Result<HeaderValue, Self::Error> {

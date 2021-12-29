@@ -1,9 +1,11 @@
 /// Body size hint.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BodySize {
-    /// Absence of body can be assumed from method or status code.
+    /// Implicitly empty body.
     ///
-    /// Will skip writing Content-Length header.
+    /// Will omit the Content-Length header. Used for responses to certain methods (e.g., `HEAD`) or
+    /// with particular status codes (e.g., 204 No Content). Consumers that read this as a body size
+    /// hint are allowed to make optimizations that skip reading or writing the payload.
     None,
 
     /// Known size body.
@@ -18,6 +20,9 @@ pub enum BodySize {
 }
 
 impl BodySize {
+    /// Equivalent to `BodySize::Sized(0)`;
+    pub const ZERO: Self = Self::Sized(0);
+
     /// Returns true if size hint indicates omitted or empty body.
     ///
     /// Streams will return false because it cannot be known without reading the stream.

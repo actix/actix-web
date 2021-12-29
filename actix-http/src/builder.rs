@@ -36,6 +36,7 @@ where
     <S::Service as Service<Request>>::Future: 'static,
 {
     /// Create instance of `ServiceConfigBuilder`
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         HttpServiceBuilder {
             keep_alive: KeepAlive::Timeout(5),
@@ -214,8 +215,7 @@ where
             self.local_addr,
         );
 
-        H2Service::with_config(cfg, service.into_factory())
-            .on_connect_ext(self.on_connect_ext)
+        H2Service::with_config(cfg, service.into_factory()).on_connect_ext(self.on_connect_ext)
     }
 
     /// Finish service configuration and create `HttpService` instance.

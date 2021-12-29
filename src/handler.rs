@@ -3,35 +3,92 @@ use std::future::Future;
 use actix_service::{boxed, fn_service};
 
 use crate::{
-    body::MessageBody,
     service::{BoxedHttpServiceFactory, ServiceRequest, ServiceResponse},
-    BoxError, FromRequest, HttpResponse, Responder,
+    FromRequest, HttpResponse, Responder,
 };
 
-/// A request handler is an async function that accepts zero or more parameters that can be
-/// extracted from a request (i.e., [`impl FromRequest`]) and returns a type that can be converted
-/// into an [`HttpResponse`] (that is, it impls the [`Responder`] trait).
+/// The interface for request handlers.
 ///
-/// If you got the error `the trait Handler<_, _, _> is not implemented`, then your function is not
-/// a valid handler. See <https://actix.rs/docs/handlers> for more information.
+/// # What Is A Request Handler
+/// A request handler has three requirements:
+/// 1. It is an async function (or a function/closure that returns an appropriate future);
+/// 1. The function accepts zero or more parameters that implement [`FromRequest`];
+/// 1. The async function (or future) resolves to a type that can be converted into an
+///   [`HttpResponse`] (i.e., it implements the [`Responder`] trait).
 ///
-/// [`impl FromRequest`]: crate::FromRequest
-pub trait Handler<T, R>: Clone + 'static
-where
-    R: Future,
-    R::Output: Responder,
-{
-    fn call(&self, param: T) -> R;
+/// # Compiler Errors
+/// If you get the error `the trait Handler<_> is not implemented`, then your handler does not
+/// fulfill one or more of the above requirements.
+///
+/// Unfortunately we cannot provide a better compile error message (while keeping the trait's
+/// flexibility) unless a stable alternative to [`#[rustc_on_unimplemented]`][on_unimpl] is added
+/// to Rust.
+///
+/// # How Do Handlers Receive Variable Numbers Of Arguments
+/// Rest assured there is no macro magic here; it's just traits.
+///
+/// The first thing to note is that [`FromRequest`] is implemented for tuples (up to 12 in length).
+///
+/// Secondly, the `Handler` trait is implemented for functions (up to an [arity] of 12) in a way
+/// that aligns their parameter positions with a corresponding tuple of types (becoming the `Args`
+/// type parameter for this trait).
+///
+/// Thanks to Rust's type system, Actix Web can infer the function parameter types. During the
+/// extraction step, the parameter types are described as a tuple type, [`from_request`] is run on
+/// that tuple, and the `Handler::call` implementation for that particular function arity
+/// destructures the tuple into it's component types and calls your handler function with them.
+///
+/// In pseudo-code the process looks something like this:
+/// ```ignore
+/// async fn my_handler(body: String, state: web::Data<MyState>) -> impl Responder {
+///     ...
+/// }
+///
+/// // the function params above described as a tuple, names do not matter, only position
+/// type InferredMyHandlerArgs = (String, web::Data<MyState>);
+///
+/// // create tuple of arguments to be passed to handler
+/// let args = InferredMyHandlerArgs::from_request(&request, &payload).await;
+///
+/// // call handler with argument tuple
+/// let response = Handler::call(&my_handler, args).await;
+///
+/// // which is effectively...
+///
+/// let (body, state) = args;
+/// let response = my_handler(body, state).await;
+/// ```
+///
+/// This is the source code for the 2-parameter implementation of `Handler` to help illustrate the
+/// bounds of the handler call after argument extraction:
+/// ```ignore
+/// impl<Func, Arg1, Arg2, R> Handler<(Arg1, Arg2), R> for Func
+/// where
+///     Func: Fn(Arg1, Arg2) -> R + Clone + 'static,
+///     R: Future,
+///     R::Output: Responder,
+/// {
+///     fn call(&self, (arg1, arg2): (Arg1, Arg2)) -> R {
+///         (self)(arg1, arg2)
+///     }
+/// }
+/// ```
+///
+/// [arity]: https://en.wikipedia.org/wiki/Arity
+/// [`from_request`]: FromRequest::from_request
+/// [on_unimpl]: https://github.com/rust-lang/rust/issues/29628
+pub trait Handler<Args>: Clone + 'static {
+    type Output;
+    type Future: Future<Output = Self::Output>;
+
+    fn call(&self, args: Args) -> Self::Future;
 }
 
-pub(crate) fn handler_service<F, T, R>(handler: F) -> BoxedHttpServiceFactory
+pub(crate) fn handler_service<F, Args>(handler: F) -> BoxedHttpServiceFactory
 where
-    F: Handler<T, R>,
-    T: FromRequest,
-    R: Future,
-    R::Output: Responder,
-    <R::Output as Responder>::Body: MessageBody,
-    <<R::Output as Responder>::Body as MessageBody>::Error: Into<BoxError>,
+    F: Handler<Args>,
+    Args: FromRequest,
+    F::Output: Responder,
 {
     boxed::factory(fn_service(move |req: ServiceRequest| {
         let handler = handler.clone();
@@ -39,7 +96,7 @@ where
         async move {
             let (req, mut payload) = req.into_parts();
 
-            let res = match T::from_request(&req, &mut payload).await {
+            let res = match Args::from_request(&req, &mut payload).await {
                 Err(err) => HttpResponse::from_error(err),
 
                 Ok(data) => handler
@@ -59,17 +116,20 @@ where
 ///
 /// # Examples
 /// ```ignore
-/// factory_tuple! {}         // implements Handler for types: fn() -> Res
-/// factory_tuple! { A B C }  // implements Handler for types: fn(A, B, C) -> Res
+/// factory_tuple! {}         // implements Handler for types: fn() -> R
+/// factory_tuple! { A B C }  // implements Handler for types: fn(A, B, C) -> R
 /// ```
 macro_rules! factory_tuple ({ $($param:ident)* } => {
-    impl<Func, $($param,)* Res> Handler<($($param,)*), Res> for Func
-    where Func: Fn($($param),*) -> Res + Clone + 'static,
-          Res: Future,
-          Res::Output: Responder,
+    impl<Func, Fut, $($param,)*> Handler<($($param,)*)> for Func
+    where Func: Fn($($param),*) -> Fut + Clone + 'static,
+          Fut: Future,
     {
+        type Output = Fut::Output;
+        type Future = Fut;
+
+        #[inline]
         #[allow(non_snake_case)]
-        fn call(&self, ($($param,)*): ($($param,)*)) -> Res {
+        fn call(&self, ($($param,)*): ($($param,)*)) -> Self::Future {
             (self)($($param,)*)
         }
     }

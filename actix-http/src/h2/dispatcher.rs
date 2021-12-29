@@ -19,15 +19,15 @@ use h2::{
     server::{Connection, SendResponse},
     Ping, PingPong,
 };
-use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
 use log::{error, trace};
 use pin_project_lite::pin_project;
 
 use crate::{
     body::{BodySize, BoxBody, MessageBody},
     config::ServiceConfig,
+    header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING},
     service::HttpFlow,
-    OnConnectData, Payload, Request, Response, ResponseHead,
+    Extensions, OnConnectData, Payload, Request, Response, ResponseHead,
 };
 
 const CHUNK_SIZE: usize = 16_384;
@@ -37,7 +37,7 @@ pin_project! {
     pub struct Dispatcher<T, S, B, X, U> {
         flow: Rc<HttpFlow<S, X, U>>,
         connection: Connection<T, Bytes>,
-        on_connect_data: OnConnectData,
+        conn_data: Option<Rc<Extensions>>,
         config: ServiceConfig,
         peer_addr: Option<net::SocketAddr>,
         ping_pong: Option<H2PingPong>,
@@ -50,11 +50,11 @@ where
     T: AsyncRead + AsyncWrite + Unpin,
 {
     pub(crate) fn new(
-        flow: Rc<HttpFlow<S, X, U>>,
         mut conn: Connection<T, Bytes>,
-        on_connect_data: OnConnectData,
+        flow: Rc<HttpFlow<S, X, U>>,
         config: ServiceConfig,
         peer_addr: Option<net::SocketAddr>,
+        conn_data: OnConnectData,
         timer: Option<Pin<Box<Sleep>>>,
     ) -> Self {
         let ping_pong = config.keep_alive().map(|dur| H2PingPong {
@@ -74,7 +74,7 @@ where
             config,
             peer_addr,
             connection: conn,
-            on_connect_data,
+            conn_data: conn_data.0.map(Rc::new),
             ping_pong,
             _phantom: PhantomData,
         }
@@ -108,8 +108,8 @@ where
             match Pin::new(&mut this.connection).poll_accept(cx)? {
                 Poll::Ready(Some((req, tx))) => {
                     let (parts, body) = req.into_parts();
-                    let pl = crate::h2::Payload::new(body);
-                    let pl = Payload::<crate::payload::PayloadStream>::H2(pl);
+                    let payload = crate::h2::Payload::new(body);
+                    let pl = Payload::H2 { payload };
                     let mut req = Request::with_payload(pl);
 
                     let head = req.head_mut();
@@ -119,8 +119,7 @@ where
                     head.headers = parts.headers.into();
                     head.peer_addr = this.peer_addr;
 
-                    // merge on_connect_ext data into request extensions
-                    this.on_connect_data.merge_into(&mut req);
+                    req.conn_data = this.conn_data.as_ref().map(Rc::clone);
 
                     let fut = this.flow.service.call(req);
                     let config = this.config.clone();
@@ -161,16 +160,11 @@ where
                                 Poll::Ready(_) => {
                                     ping_pong.on_flight = false;
 
-                                    let dead_line =
-                                        this.config.keep_alive_expire().unwrap();
+                                    let dead_line = this.config.keep_alive_expire().unwrap();
                                     ping_pong.timer.as_mut().reset(dead_line);
                                 }
                                 Poll::Pending => {
-                                    return ping_pong
-                                        .timer
-                                        .as_mut()
-                                        .poll(cx)
-                                        .map(|_| Ok(()))
+                                    return ping_pong.timer.as_mut().poll(cx).map(|_| Ok(()))
                                 }
                             }
                         } else {
@@ -223,25 +217,28 @@ where
         return Ok(());
     }
 
-    // poll response body and send chunks to client.
+    // poll response body and send chunks to client
     actix_rt::pin!(body);
 
     while let Some(res) = poll_fn(|cx| body.as_mut().poll_next(cx)).await {
         let mut chunk = res.map_err(|err| DispatchError::ResponseBody(err.into()))?;
 
         'send: loop {
+            let chunk_size = cmp::min(chunk.len(), CHUNK_SIZE);
+
             // reserve enough space and wait for stream ready.
-            stream.reserve_capacity(cmp::min(chunk.len(), CHUNK_SIZE));
+            stream.reserve_capacity(chunk_size);
 
             match poll_fn(|cx| stream.poll_capacity(cx)).await {
                 // No capacity left. drop body and return.
                 None => return Ok(()),
-                Some(res) => {
-                    // Split chuck to writeable size and send to client.
-                    let cap = res.map_err(DispatchError::SendData)?;
 
+                Some(Err(err)) => return Err(DispatchError::SendData(err)),
+
+                Some(Ok(cap)) => {
+                    // split chunk to writeable size and send to client
                     let len = chunk.len();
-                    let bytes = chunk.split_to(cmp::min(cap, len));
+                    let bytes = chunk.split_to(cmp::min(len, cap));
 
                     stream
                         .send_data(bytes, false)
@@ -291,9 +288,11 @@ fn prepare_response(
     let _ = match size {
         BodySize::None | BodySize::Stream => None,
 
-        BodySize::Sized(0) => res
-            .headers_mut()
-            .insert(CONTENT_LENGTH, HeaderValue::from_static("0")),
+        BodySize::Sized(0) => {
+            #[allow(clippy::declare_interior_mutable_const)]
+            const HV_ZERO: HeaderValue = HeaderValue::from_static("0");
+            res.headers_mut().insert(CONTENT_LENGTH, HV_ZERO)
+        }
 
         BodySize::Sized(len) => {
             let mut buf = itoa::Buffer::new();

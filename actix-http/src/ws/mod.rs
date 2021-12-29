@@ -9,9 +9,7 @@ use derive_more::{Display, Error, From};
 use http::{header, Method, StatusCode};
 
 use crate::body::BoxBody;
-use crate::{
-    header::HeaderValue, message::RequestHead, response::Response, ResponseBuilder,
-};
+use crate::{header::HeaderValue, RequestHead, Response, ResponseBuilder};
 
 mod codec;
 mod dispatcher;
@@ -101,8 +99,9 @@ impl From<HandshakeError> for Response<BoxBody> {
         match err {
             HandshakeError::GetMethodRequired => {
                 let mut res = Response::new(StatusCode::METHOD_NOT_ALLOWED);
-                res.headers_mut()
-                    .insert(header::ALLOW, HeaderValue::from_static("GET"));
+                #[allow(clippy::declare_interior_mutable_const)]
+                const HV_GET: HeaderValue = HeaderValue::from_static("GET");
+                res.headers_mut().insert(header::ALLOW, HV_GET);
                 res
             }
 

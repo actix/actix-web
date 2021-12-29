@@ -266,8 +266,7 @@ where
     }
 }
 
-impl<T, S, B, X, U> ServiceFactory<(T, Option<net::SocketAddr>)>
-    for H1Service<T, S, B, X, U>
+impl<T, S, B, X, U> ServiceFactory<(T, Option<net::SocketAddr>)> for H1Service<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin + 'static,
 
@@ -310,9 +309,9 @@ where
 
             let upgrade = match upgrade {
                 Some(upgrade) => {
-                    let upgrade = upgrade.await.map_err(|e| {
-                        log::error!("Init http upgrade service error: {:?}", e)
-                    })?;
+                    let upgrade = upgrade
+                        .await
+                        .map_err(|e| log::error!("Init http upgrade service error: {:?}", e))?;
                     Some(upgrade)
                 }
                 None => None,
@@ -336,8 +335,7 @@ where
 /// `Service` implementation for HTTP/1 transport
 pub type H1ServiceHandler<T, S, B, X, U> = HttpServiceHandler<T, S, B, X, U>;
 
-impl<T, S, B, X, U> Service<(T, Option<net::SocketAddr>)>
-    for HttpServiceHandler<T, S, B, X, U>
+impl<T, S, B, X, U> Service<(T, Option<net::SocketAddr>)> for HttpServiceHandler<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
 
@@ -358,22 +356,14 @@ where
     type Future = Dispatcher<T, S, B, X, U>;
 
     fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self._poll_ready(cx).map_err(|e| {
-            log::error!("HTTP/1 service readiness error: {:?}", e);
-            DispatchError::Service(e)
+        self._poll_ready(cx).map_err(|err| {
+            log::error!("HTTP/1 service readiness error: {:?}", err);
+            DispatchError::Service(err)
         })
     }
 
     fn call(&self, (io, addr): (T, Option<net::SocketAddr>)) -> Self::Future {
-        let on_connect_data =
-            OnConnectData::from_io(&io, self.on_connect_ext.as_deref());
-
-        Dispatcher::new(
-            io,
-            self.cfg.clone(),
-            self.flow.clone(),
-            on_connect_data,
-            addr,
-        )
+        let conn_data = OnConnectData::from_io(&io, self.on_connect_ext.as_deref());
+        Dispatcher::new(io, self.flow.clone(), self.cfg.clone(), addr, conn_data)
     }
 }

@@ -1,7 +1,4 @@
-extern crate proc_macro;
-
-use std::collections::HashSet;
-use std::convert::TryFrom;
+use std::{collections::HashSet, convert::TryFrom};
 
 use actix_router::ResourceDef;
 use proc_macro::TokenStream;

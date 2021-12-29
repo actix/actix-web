@@ -12,23 +12,56 @@ use bytes::{Bytes, BytesMut};
 use futures_core::ready;
 use pin_project_lite::pin_project;
 
-use super::BodySize;
+use super::{BodySize, BoxBody};
 
 /// An interface types that can converted to bytes and used as response bodies.
 // TODO: examples
 pub trait MessageBody {
-    // TODO: consider this bound to only fmt::Display since the error type is not really used
-    // and there is an impl for Into<Box<StdError>> on String
+    /// The type of error that will be returned if streaming body fails.
+    ///
+    /// Since it is not appropriate to generate a response mid-stream, it only requires `Error` for
+    /// internal use and logging.
     type Error: Into<Box<dyn StdError>>;
 
     /// Body size hint.
+    ///
+    /// If [`BodySize::None`] is returned, optimizations that skip reading the body are allowed.
     fn size(&self) -> BodySize;
 
     /// Attempt to pull out the next chunk of body bytes.
+    // TODO: expand documentation
     fn poll_next(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Self::Error>>>;
+
+    /// Try to convert into the complete chunk of body bytes.
+    ///
+    /// Implement this method if the entire body can be trivially extracted. This is useful for
+    /// optimizations where `poll_next` calls can be avoided.
+    ///
+    /// Body types with [`BodySize::None`] are allowed to return empty `Bytes`. Although, if calling
+    /// this method, it is recommended to check `size` first and return early.
+    ///
+    /// # Errors
+    /// The default implementation will error and return the original type back to the caller for
+    /// further use.
+    #[inline]
+    fn try_into_bytes(self) -> Result<Bytes, Self>
+    where
+        Self: Sized,
+    {
+        Err(self)
+    }
+
+    /// Converts this body into `BoxBody`.
+    #[inline]
+    fn boxed(self) -> BoxBody
+    where
+        Self: Sized + 'static,
+    {
+        BoxBody::new(self)
+    }
 }
 
 mod foreign_impls {
@@ -37,12 +70,10 @@ mod foreign_impls {
     impl MessageBody for Infallible {
         type Error = Infallible;
 
-        #[inline]
         fn size(&self) -> BodySize {
             match *self {}
         }
 
-        #[inline]
         fn poll_next(
             self: Pin<&mut Self>,
             _cx: &mut Context<'_>,
@@ -66,11 +97,16 @@ mod foreign_impls {
         ) -> Poll<Option<Result<Bytes, Self::Error>>> {
             Poll::Ready(None)
         }
+
+        #[inline]
+        fn try_into_bytes(self) -> Result<Bytes, Self> {
+            Ok(Bytes::new())
+        }
     }
 
     impl<B> MessageBody for Box<B>
     where
-        B: MessageBody + Unpin,
+        B: MessageBody + Unpin + ?Sized,
     {
         type Error = B::Error;
 
@@ -90,7 +126,7 @@ mod foreign_impls {
 
     impl<B> MessageBody for Pin<Box<B>>
     where
-        B: MessageBody,
+        B: MessageBody + ?Sized,
     {
         type Error = B::Error;
 
@@ -101,20 +137,22 @@ mod foreign_impls {
 
         #[inline]
         fn poll_next(
-            mut self: Pin<&mut Self>,
+            self: Pin<&mut Self>,
             cx: &mut Context<'_>,
         ) -> Poll<Option<Result<Bytes, Self::Error>>> {
-            self.as_mut().poll_next(cx)
+            self.get_mut().as_mut().poll_next(cx)
         }
     }
 
     impl MessageBody for &'static [u8] {
         type Error = Infallible;
 
+        #[inline]
         fn size(&self) -> BodySize {
             BodySize::Sized(self.len() as u64)
         }
 
+        #[inline]
         fn poll_next(
             self: Pin<&mut Self>,
             _cx: &mut Context<'_>,
@@ -122,20 +160,25 @@ mod foreign_impls {
             if self.is_empty() {
                 Poll::Ready(None)
             } else {
-                let bytes = mem::take(self.get_mut());
-                let bytes = Bytes::from_static(bytes);
-                Poll::Ready(Some(Ok(bytes)))
+                Poll::Ready(Some(Ok(Bytes::from_static(mem::take(self.get_mut())))))
             }
+        }
+
+        #[inline]
+        fn try_into_bytes(self) -> Result<Bytes, Self> {
+            Ok(Bytes::from_static(self))
         }
     }
 
     impl MessageBody for Bytes {
         type Error = Infallible;
 
+        #[inline]
         fn size(&self) -> BodySize {
             BodySize::Sized(self.len() as u64)
         }
 
+        #[inline]
         fn poll_next(
             self: Pin<&mut Self>,
             _cx: &mut Context<'_>,
@@ -143,19 +186,25 @@ mod foreign_impls {
             if self.is_empty() {
                 Poll::Ready(None)
             } else {
-                let bytes = mem::take(self.get_mut());
-                Poll::Ready(Some(Ok(bytes)))
+                Poll::Ready(Some(Ok(mem::take(self.get_mut()))))
             }
+        }
+
+        #[inline]
+        fn try_into_bytes(self) -> Result<Bytes, Self> {
+            Ok(self)
         }
     }
 
     impl MessageBody for BytesMut {
         type Error = Infallible;
 
+        #[inline]
         fn size(&self) -> BodySize {
             BodySize::Sized(self.len() as u64)
         }
 
+        #[inline]
         fn poll_next(
             self: Pin<&mut Self>,
             _cx: &mut Context<'_>,
@@ -163,19 +212,25 @@ mod foreign_impls {
             if self.is_empty() {
                 Poll::Ready(None)
             } else {
-                let bytes = mem::take(self.get_mut()).freeze();
-                Poll::Ready(Some(Ok(bytes)))
+                Poll::Ready(Some(Ok(mem::take(self.get_mut()).freeze())))
             }
+        }
+
+        #[inline]
+        fn try_into_bytes(self) -> Result<Bytes, Self> {
+            Ok(self.freeze())
         }
     }
 
     impl MessageBody for Vec<u8> {
         type Error = Infallible;
 
+        #[inline]
         fn size(&self) -> BodySize {
             BodySize::Sized(self.len() as u64)
         }
 
+        #[inline]
         fn poll_next(
             self: Pin<&mut Self>,
             _cx: &mut Context<'_>,
@@ -183,19 +238,25 @@ mod foreign_impls {
             if self.is_empty() {
                 Poll::Ready(None)
             } else {
-                let bytes = mem::take(self.get_mut());
-                Poll::Ready(Some(Ok(Bytes::from(bytes))))
+                Poll::Ready(Some(Ok(mem::take(self.get_mut()).into())))
             }
+        }
+
+        #[inline]
+        fn try_into_bytes(self) -> Result<Bytes, Self> {
+            Ok(Bytes::from(self))
         }
     }
 
     impl MessageBody for &'static str {
         type Error = Infallible;
 
+        #[inline]
         fn size(&self) -> BodySize {
             BodySize::Sized(self.len() as u64)
         }
 
+        #[inline]
         fn poll_next(
             self: Pin<&mut Self>,
             _cx: &mut Context<'_>,
@@ -208,15 +269,22 @@ mod foreign_impls {
                 Poll::Ready(Some(Ok(bytes)))
             }
         }
+
+        #[inline]
+        fn try_into_bytes(self) -> Result<Bytes, Self> {
+            Ok(Bytes::from_static(self.as_bytes()))
+        }
     }
 
     impl MessageBody for String {
         type Error = Infallible;
 
+        #[inline]
         fn size(&self) -> BodySize {
             BodySize::Sized(self.len() as u64)
         }
 
+        #[inline]
         fn poll_next(
             self: Pin<&mut Self>,
             _cx: &mut Context<'_>,
@@ -228,21 +296,33 @@ mod foreign_impls {
                 Poll::Ready(Some(Ok(Bytes::from(string))))
             }
         }
+
+        #[inline]
+        fn try_into_bytes(self) -> Result<Bytes, Self> {
+            Ok(Bytes::from(self))
+        }
     }
 
     impl MessageBody for bytestring::ByteString {
         type Error = Infallible;
 
+        #[inline]
         fn size(&self) -> BodySize {
             BodySize::Sized(self.len() as u64)
         }
 
+        #[inline]
         fn poll_next(
             self: Pin<&mut Self>,
             _cx: &mut Context<'_>,
         ) -> Poll<Option<Result<Bytes, Self::Error>>> {
             let string = mem::take(self.get_mut());
             Poll::Ready(Some(Ok(string.into_bytes())))
+        }
+
+        #[inline]
+        fn try_into_bytes(self) -> Result<Bytes, Self> {
+            Ok(self.into_bytes())
         }
     }
 }
@@ -276,6 +356,7 @@ where
 {
     type Error = E;
 
+    #[inline]
     fn size(&self) -> BodySize {
         self.body.size()
     }
@@ -296,6 +377,12 @@ where
             None => Poll::Ready(None),
         }
     }
+
+    #[inline]
+    fn try_into_bytes(self) -> Result<Bytes, Self> {
+        let Self { body, mapper } = self;
+        body.try_into_bytes().map_err(|body| Self { body, mapper })
+    }
 }
 
 #[cfg(test)]
@@ -305,6 +392,7 @@ mod tests {
     use bytes::{Bytes, BytesMut};
 
     use super::*;
+    use crate::body::{self, EitherBody};
 
     macro_rules! assert_poll_next {
         ($pin:expr, $exp:expr) => {
@@ -404,6 +492,47 @@ mod tests {
         let pl = "test".to_owned();
         pin!(pl);
         assert_poll_next!(pl, Bytes::from("test"));
+    }
+
+    #[actix_rt::test]
+    async fn complete_body_combinators() {
+        let body = Bytes::from_static(b"test");
+        let body = BoxBody::new(body);
+        let body = EitherBody::<_, ()>::left(body);
+        let body = EitherBody::<(), _>::right(body);
+        // Do not support try_into_bytes:
+        // let body = Box::new(body);
+        // let body = Box::pin(body);
+
+        assert_eq!(body.try_into_bytes().unwrap(), Bytes::from("test"));
+    }
+
+    #[actix_rt::test]
+    async fn complete_body_combinators_poll() {
+        let body = Bytes::from_static(b"test");
+        let body = BoxBody::new(body);
+        let body = EitherBody::<_, ()>::left(body);
+        let body = EitherBody::<(), _>::right(body);
+        let mut body = body;
+
+        assert_eq!(body.size(), BodySize::Sized(4));
+        assert_poll_next!(Pin::new(&mut body), Bytes::from("test"));
+        assert_poll_next_none!(Pin::new(&mut body));
+    }
+
+    #[actix_rt::test]
+    async fn none_body_combinators() {
+        fn none_body() -> BoxBody {
+            let body = body::None;
+            let body = BoxBody::new(body);
+            let body = EitherBody::<_, ()>::left(body);
+            let body = EitherBody::<(), _>::right(body);
+            body.boxed()
+        }
+
+        assert_eq!(none_body().size(), BodySize::None);
+        assert_eq!(none_body().try_into_bytes().unwrap(), Bytes::new());
+        assert_poll_next_none!(Pin::new(&mut none_body()));
     }
 
     // down-casting used to be done with a method on MessageBody trait

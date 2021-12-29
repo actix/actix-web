@@ -1,19 +1,19 @@
-use std::io::Write;
-use std::marker::PhantomData;
-use std::ptr::copy_nonoverlapping;
-use std::slice::from_raw_parts_mut;
-use std::{cmp, io};
+use std::{
+    cmp,
+    io::{self, Write as _},
+    marker::PhantomData,
+    ptr::copy_nonoverlapping,
+    slice::from_raw_parts_mut,
+};
 
 use bytes::{BufMut, BytesMut};
 
 use crate::{
     body::BodySize,
-    config::ServiceConfig,
-    header::{map::Value, HeaderMap, HeaderName},
-    header::{CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING},
-    helpers,
-    message::{ConnectionType, RequestHeadType},
-    Response, StatusCode, Version,
+    header::{
+        map::Value, HeaderMap, HeaderName, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING,
+    },
+    helpers, ConnectionType, RequestHeadType, Response, ServiceConfig, StatusCode, Version,
 };
 
 const AVERAGE_HEADER_SIZE: usize = 30;
@@ -103,9 +103,7 @@ pub(crate) trait MessageType: Sized {
                     dst.put_slice(b"\r\n");
                 }
             }
-            BodySize::Sized(0) if camel_case => {
-                dst.put_slice(b"\r\nContent-Length: 0\r\n")
-            }
+            BodySize::Sized(0) if camel_case => dst.put_slice(b"\r\nContent-Length: 0\r\n"),
             BodySize::Sized(0) => dst.put_slice(b"\r\ncontent-length: 0\r\n"),
             BodySize::Sized(len) => helpers::write_content_length(len, dst),
             BodySize::None => dst.put_slice(b"\r\n"),
@@ -307,11 +305,7 @@ impl MessageType for RequestHeadType {
                 Version::HTTP_11 => "HTTP/1.1",
                 Version::HTTP_2 => "HTTP/2.0",
                 Version::HTTP_3 => "HTTP/3.0",
-                _ =>
-                    return Err(io::Error::new(
-                        io::ErrorKind::Other,
-                        "unsupported version"
-                    )),
+                _ => return Err(io::Error::new(io::ErrorKind::Other, "unsupported version")),
             }
         )
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
@@ -568,8 +562,7 @@ mod tests {
             ConnectionType::Close,
             &ServiceConfig::default(),
         );
-        let data =
-            String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
+        let data = String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
 
         assert!(data.contains("Content-Length: 0\r\n"));
         assert!(data.contains("Connection: close\r\n"));
@@ -583,8 +576,7 @@ mod tests {
             ConnectionType::KeepAlive,
             &ServiceConfig::default(),
         );
-        let data =
-            String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
+        let data = String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
         assert!(data.contains("Transfer-Encoding: chunked\r\n"));
         assert!(data.contains("Content-Type: plain/text\r\n"));
         assert!(data.contains("Date: date\r\n"));
@@ -605,8 +597,7 @@ mod tests {
             ConnectionType::KeepAlive,
             &ServiceConfig::default(),
         );
-        let data =
-            String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
+        let data = String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
         assert!(data.contains("transfer-encoding: chunked\r\n"));
         assert!(data.contains("content-type: xml\r\n"));
         assert!(data.contains("content-type: plain/text\r\n"));
@@ -639,8 +630,7 @@ mod tests {
             ConnectionType::Close,
             &ServiceConfig::default(),
         );
-        let data =
-            String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
+        let data = String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
         assert!(data.contains("content-length: 0\r\n"));
         assert!(data.contains("connection: close\r\n"));
         assert!(data.contains("authorization: another authorization\r\n"));
@@ -663,8 +653,7 @@ mod tests {
             ConnectionType::Upgrade,
             &ServiceConfig::default(),
         );
-        let data =
-            String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
+        let data = String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
         assert!(!data.contains("content-length: 0\r\n"));
         assert!(!data.contains("transfer-encoding: chunked\r\n"));
     }

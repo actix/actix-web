@@ -41,6 +41,8 @@ cat "$CHANGELOG_FILE" |
 # if word count of changelog chunk is 0 then insert filler changelog chunk
 if [ "$(wc -w "$CHANGE_CHUNK_FILE" | awk '{ print $1 }')" = "0" ]; then
     echo "* No significant changes since \`$CURRENT_VERSION\`." >"$CHANGE_CHUNK_FILE"
+    echo >>"$CHANGE_CHUNK_FILE"
+    echo >>"$CHANGE_CHUNK_FILE"
 fi
 
 if [ -n "${2-}" ]; then
@@ -51,6 +53,11 @@ else
     cat "$CHANGE_CHUNK_FILE"
     echo
     read -p "Update version to: " NEW_VERSION
+fi
+
+# strip leading v from input
+if [ "${NEW_VERSION:0:1}" = "v" ]; then
+    NEW_VERSION="${NEW_VERSION:1}"
 fi
 
 DATE="$(date -u +"%Y-%m-%d")"
@@ -82,8 +89,33 @@ rm -f $README_FILE.bak
 echo "manifest, changelog, and readme updated"
 echo
 echo "check other references:"
-rg "$PACKAGE_NAME =" || true
-rg "package = \"$PACKAGE_NAME\"" || true
+rg --glob='**/Cargo.toml' "\
+${PACKAGE_NAME} ?= ?\"[^\"]+\"\
+|${PACKAGE_NAME} ?=.*version ?= ?\"([^\"]+)\"\
+|package ?= ?\"${PACKAGE_NAME}\".*version ?= ?\"([^\"]+)\"\
+|version ?= ?\"([^\"]+)\".*package ?= ?\"${PACKAGE_NAME}\"" || true
+
+echo
+read -p "Update all references: (y/N) " UPDATE_REFERENCES
+UPDATE_REFERENCES="${UPDATE_REFERENCES:-n}"
+
+if [ "$UPDATE_REFERENCES" = 'y' ] || [ "$UPDATE_REFERENCES" = 'Y' ]; then
+
+    for f in $(fd Cargo.toml); do
+        sed -i.bak -E \
+            "s/^(${PACKAGE_NAME} ?= ?\")[^\"]+(\")$/\1${NEW_VERSION}\2/g" $f
+        sed -i.bak -E \
+            "s/^(${PACKAGE_NAME} ?=.*version ?= ?\")[^\"]+(\".*)$/\1${NEW_VERSION}\2/g" $f
+        sed -i.bak -E \
+            "s/^(.*package ?= ?\"${PACKAGE_NAME}\".*version ?= ?\")[^\"]+(\".*)$/\1${NEW_VERSION}\2/g" $f
+        sed -i.bak -E \
+            "s/^(.*version ?= ?\")[^\"]+(\".*package ?= ?\"${PACKAGE_NAME}\".*)$/\1${NEW_VERSION}\2/g" $f
+
+        # remove backup file
+        rm -f $f.bak
+    done
+
+fi
 
 if [ $MACOS ]; then
     printf "prepare $PACKAGE_NAME release $NEW_VERSION" | pbcopy
@@ -97,15 +129,20 @@ SHORT_PACKAGE_NAME="$(echo $PACKAGE_NAME | sed 's/^actix-web-//' | sed 's/^actix
 GIT_TAG="$(echo $SHORT_PACKAGE_NAME-v$NEW_VERSION)"
 RELEASE_TITLE="$(echo $PACKAGE_NAME: v$NEW_VERSION)"
 
+if [ "$(echo $NEW_VERSION | grep beta)" ] || [ "$(echo $NEW_VERSION | grep rc)" ] || [ "$(echo $NEW_VERSION | grep alpha)" ]; then
+    PRERELEASE="--prerelease"
+fi
+
 echo
 echo "GitHub release command:"
-echo "gh release create \"$GIT_TAG\" --draft --title \"$RELEASE_TITLE\" --notes-file \"$CHANGE_CHUNK_FILE\" --prerelease"
+GH_CMD="gh release create \"$GIT_TAG\" --draft --title \"$RELEASE_TITLE\" --notes-file \"$CHANGE_CHUNK_FILE\" ${PRERELEASE:-}"
+echo "$GH_CMD"
 
 read -p "Submit draft GH release: (y/N) " GH_RELEASE
 GH_RELEASE="${GH_RELEASE:-n}"
 
 if [ "$GH_RELEASE" = 'y' ] || [ "$GH_RELEASE" = 'Y' ]; then
-    gh release create "$GIT_TAG" --draft --title "$RELEASE_TITLE" --notes-file "$CHANGE_CHUNK_FILE" --prerelease
+    eval "$GH_CMD"
 fi
 
 echo
