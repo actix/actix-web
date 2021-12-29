@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 3.0.0-beta.16 - 2021-12-29
 - `*::send_json` and `*::send_form` methods now receive `impl Serialize`. [#2553]
 - `FrozenClientRequest::extra_header` now uses receives an `impl TryIntoHeaderPair`. [#2553]
 - Remove unnecessary `Unpin` bounds on `*::send_stream`. [#2553]
