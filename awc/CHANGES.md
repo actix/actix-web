@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 3.0.0-beta.17 - 2021-12-29
 ### Changed
 - Update `cookie` dependency (re-exported) to `0.16`. [#2555]
 
