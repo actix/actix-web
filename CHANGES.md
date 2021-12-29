@@ -2,7 +2,8 @@
 
 ## Unreleased - 2021-xx-xx
 ### Changed
-- `actix-web` has upgraded to `cookie` 0.16. This removes `actix-web`'s dependency on a version of `time` that was affected by RUSTSEC-2020-0071. `actix-web` still depends on a vulnerable version of `chrono` via `rcgen`, but `rcgen` is only used as a dev dependency therefore this does not affect end users.
+- `actix-web` has upgrade to `cookie` 0.16. This removes `actix-web`'s dependency on a version of `time` that was affected by RUSTSEC-2020-0071. `actix-web` still depends on a vulnerable version of `chrono` via `rcgen`, but `rcgen` is only used as a dev dependency therefore this does not affect end users.
+- Minimum supported Rust version (MSRV) is now 1.54.
 
 ## 4.0.0-beta.17 - 2021-12-29
 ### Added

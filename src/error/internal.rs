@@ -118,15 +118,13 @@ where
 
 macro_rules! error_helper {
     ($name:ident, $status:ident) => {
-        paste::paste! {
-            #[doc = "Helper function that wraps any error and generates a `" $status "` response."]
-            #[allow(non_snake_case)]
-            pub fn $name<T>(err: T) -> Error
-            where
-                T: fmt::Debug + fmt::Display + 'static,
-            {
-                InternalError::new(err, StatusCode::$status).into()
-            }
+        #[doc = concat!("Helper function that wraps any error and generates a `", stringify!($status), "` response.")]
+        #[allow(non_snake_case)]
+        pub fn $name<T>(err: T) -> Error
+        where
+            T: fmt::Debug + fmt::Display + 'static,
+        {
+            InternalError::new(err, StatusCode::$status).into()
         }
     };
 }

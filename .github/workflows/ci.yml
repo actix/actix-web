@@ -16,7 +16,7 @@ jobs:
           - { name: macOS, os: macos-latest, triple: x86_64-apple-darwin }
           - { name: Windows, os: windows-2022, triple: x86_64-pc-windows-msvc }
         version:
-          - 1.52.0 # MSRV
+          - 1.54.0 # MSRV
           - stable
           - nightly
 
