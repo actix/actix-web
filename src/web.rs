@@ -86,23 +86,21 @@ pub fn route() -> Route {
 
 macro_rules! method_route {
     ($method_fn:ident, $method_const:ident) => {
-        paste::paste! {
-            #[doc = " Creates a new route with `" $method_const "` method guard."]
-            ///
-            /// # Examples
-            #[doc = " In this example, one `" $method_const " /{project_id}` route is set up:"]
-            /// ```
-            /// use actix_web::{web, App, HttpResponse};
-            ///
-            /// let app = App::new().service(
-            ///     web::resource("/{project_id}")
-            #[doc = "         .route(web::" $method_fn "().to(|| HttpResponse::Ok()))"]
-            ///
-            /// );
-            /// ```
-            pub fn $method_fn() -> Route {
-                method(Method::$method_const)
-            }
+        #[doc = concat!(" Creates a new route with `", stringify!($method_const), "` method guard.")]
+        ///
+        /// # Examples
+        #[doc = concat!(" In this example, one `", stringify!($method_const), " /{project_id}` route is set up:")]
+        /// ```
+        /// use actix_web::{web, App, HttpResponse};
+        ///
+        /// let app = App::new().service(
+        ///     web::resource("/{project_id}")
+        #[doc = concat!("         .route(web::", stringify!($method_fn), "().to(|| HttpResponse::Ok()))")]
+        ///
+        /// );
+        /// ```
+        pub fn $method_fn() -> Route {
+            method(Method::$method_const)
         }
     };
 }

@@ -3,6 +3,18 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 4.0.0-beta.18 - 2021-12-29
+### Changed
+- Update `cookie` dependency (re-exported) to `0.16`. [#2555]
+- Minimum supported Rust version (MSRV) is now 1.54.
+
+### Security
+- `cookie` upgrade addresses [`RUSTSEC-2020-0071`].
+
+[#2555]: https://github.com/actix/actix-web/pull/2555
+[`RUSTSEC-2020-0071`]: https://rustsec.org/advisories/RUSTSEC-2020-0071.html
+
+
 ## 4.0.0-beta.17 - 2021-12-29
 ### Added
 - `guard::GuardContext` for use with the `Guard` trait. [#2552]

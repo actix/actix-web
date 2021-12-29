@@ -270,22 +270,20 @@ impl Guard for MethodGuard {
 
 macro_rules! method_guard {
     ($method_fn:ident, $method_const:ident) => {
-        paste::paste! {
-            #[doc = " Creates a guard that matches the `" $method_const "` request method."]
-            ///
-            /// # Examples
-            #[doc = " The route in this example will only respond to `" $method_const "` requests."]
-            /// ```
-            /// use actix_web::{guard, web, HttpResponse};
-            ///
-            /// web::route()
-      #[doc = "     .guard(guard::" $method_fn "())"]
-            ///     .to(|| HttpResponse::Ok());
-            /// ```
-            #[allow(non_snake_case)]
-            pub fn $method_fn() -> impl Guard {
-                MethodGuard(HttpMethod::$method_const)
-            }
+        #[doc = concat!("Creates a guard that matches the `", stringify!($method_const), "` request method.")]
+        ///
+        /// # Examples
+        #[doc = concat!("The route in this example will only respond to `", stringify!($method_const), "` requests.")]
+        /// ```
+        /// use actix_web::{guard, web, HttpResponse};
+        ///
+        /// web::route()
+        #[doc = concat!("    .guard(guard::", stringify!($method_fn), "())")]
+        ///     .to(|| HttpResponse::Ok());
+        /// ```
+        #[allow(non_snake_case)]
+        pub fn $method_fn() -> impl Guard {
+            MethodGuard(HttpMethod::$method_const)
         }
     };
 }
