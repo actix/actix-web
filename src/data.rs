@@ -153,16 +153,15 @@ impl<T: ?Sized + 'static> FromRequest for Data<T> {
             ok(st.clone())
         } else {
             log::debug!(
-                "Failed to construct Data extractor type: `{}`. For the Data extractor to work \
+                "Failed to extract `Data<{}>` for `{}` handler. For the Data extractor to work \
                 correctly, wrap the data with `Data::new()` and pass it to `App::app_data()`. \
-                Ensure that types align in both the set and retrieve calls. \
-                Request path: {}",
+                Ensure that types align in both the set and retrieve calls.",
                 type_name::<T>(),
-                req.path()
+                req.match_name().unwrap_or_else(|| req.path())
             );
 
             err(ErrorInternalServerError(
-                "Requested application data is not configured. \
+                "Requested application data is not configured correctly. \
                 View/enable debug logs for more details.",
             ))
         }
