@@ -109,6 +109,7 @@ impl<T> App<T> {
     ///         .route("/", web::get().to(handler))
     /// })
     /// ```
+    #[doc(alias = "manage")]
     pub fn app_data<U: 'static>(mut self, ext: U) -> Self {
         self.extensions.insert(ext);
         self

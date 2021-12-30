@@ -19,22 +19,31 @@ pub(crate) trait DataFactory {
 pub(crate) type FnDataFactory =
     Box<dyn Fn() -> LocalBoxFuture<'static, Result<Box<dyn DataFactory>, ()>>>;
 
-/// Application data.
+/// Application data wrapper and extractor.
 ///
-/// Application level data is a piece of arbitrary data attached to the app, scope, or resource.
-/// Application data is available to all routes and can be added during the application
-/// configuration process via `App::data()`.
+/// # Setting Data
+/// Data is set using the `app_data` methods on `App`, `Scope`, and `Resource`. If data is wrapped
+/// in this `Data` type for those calls, it can be used as an extractor.
 ///
-/// Application data can be accessed by using `Data<T>` extractor where `T` is data type.
+/// Note that `Data` should be constructed _outside_ the `HttpServer::new` closure if shared,
+/// potentially mutable state is desired. `Data` is cheap to clone; internally, it uses an `Arc`.
 ///
-/// **Note**: HTTP server accepts an application factory rather than an application instance. HTTP
-/// server constructs an application instance for each thread, thus application data must be
-/// constructed multiple times. If you want to share data between different threads, a shareable
-/// object should be used, e.g. `Send + Sync`. Application data does not need to be `Send`
-/// or `Sync`. Internally `Data` contains an `Arc`.
+/// See also [`App::app_data`](crate::App::app_data), [`Scope::app_data`](crate::Scope::app_data),
+/// and [`Resource::app_data`](crate::Resource::app_data).
+///
+/// # Extracting `Data`
+/// Since the Actix Web router layers application data, the returned object will reference the
+/// "closest" instance of the type. For example, if an `App` stores a `u32`, a nested `Scope`
+/// also stores a `u32`, and the delegated request handler falls within that `Scope`, then
+/// extracting a `web::<Data<u32>>` for that handler will return the `Scope`'s instance.
+/// However, using the same router set up and a request that does not get captured by the `Scope`,
+/// `web::<Data<u32>>` would return the `App`'s instance.
 ///
 /// If route data is not set for a handler, using `Data<T>` extractor would cause a `500 Internal
 /// Server Error` response.
+///
+/// See also [`HttpRequest::app_data`]
+/// and [`ServiceRequest::app_data`](crate::dev::ServiceRequest::app_data).
 ///
 /// # Unsized Data
 /// For types that are unsized, most commonly `dyn T`, `Data` can wrap these types by first
@@ -79,6 +88,7 @@ pub(crate) type FnDataFactory =
 ///     .route("/index.html", web::get().to(index))
 ///     .route("/index-alt.html", web::get().to(index_alt));
 /// ```
+#[doc(alias = "state")]
 #[derive(Debug)]
 pub struct Data<T: ?Sized>(Arc<T>);
 
@@ -90,12 +100,12 @@ impl<T> Data<T> {
 }
 
 impl<T: ?Sized> Data<T> {
-    /// Get reference to inner app data.
+    /// Returns reference to inner `T`.
     pub fn get_ref(&self) -> &T {
         self.0.as_ref()
     }
 
-    /// Convert to the internal Arc<T>
+    /// Unwraps to the internal `Arc<T>`
     pub fn into_inner(self) -> Arc<T> {
         self.0
     }
@@ -143,13 +153,17 @@ impl<T: ?Sized + 'static> FromRequest for Data<T> {
             ok(st.clone())
         } else {
             log::debug!(
-                "Failed to construct App-level Data extractor. \
-                 Request path: {:?} (type: {})",
-                req.path(),
+                "Failed to construct Data extractor type: `{}`. For the Data extractor to work \
+                correctly, wrap the data with `Data::new()` and pass it to `App::app_data()`. \
+                Ensure that types align in both the set and retrieve calls. \
+                Request path: {}",
                 type_name::<T>(),
+                req.path()
             );
+
             err(ErrorInternalServerError(
-                "App data is not configured, to configure construct it with web::Data::new() and pass it to App::app_data()",
+                "Requested application data is not configured. \
+                View/enable debug logs for more details.",
             ))
         }
     }

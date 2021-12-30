@@ -266,14 +266,34 @@ impl HttpRequest {
         self.app_state().config()
     }
 
-    /// Get an application data object stored with `App::data` or `App::app_data`
-    /// methods during application configuration.
+    /// Retrieves a piece of application state.
     ///
-    /// If `App::data` was used to store object, use `Data<T>`:
+    /// Extracts any object stored with [`App::app_data()`](crate::App::app_data) (or the
+    /// counterpart methods on [`Scope`](crate::Scope::app_data) and
+    /// [`Resource`](crate::Resource::app_data)) during application configuration.
     ///
-    /// ```ignore
-    /// let opt_t = req.app_data::<Data<T>>();
+    /// Since the Actix Web router layers application data, the returned object will reference the
+    /// "closest" instance of the type. For example, if an `App` stores a `u32`, a nested `Scope`
+    /// also stores a `u32`, and the delegated request handler falls within that `Scope`, then
+    /// calling `.app_data::<u32>()` on an `HttpRequest` within that handler will return the
+    /// `Scope`'s instance. However, using the same router set up and a request that does not get
+    /// captured by the `Scope`, `.app_data::<u32>()` would return the `App`'s instance.
+    ///
+    /// If the state was stored using the [`Data`] wrapper, then it must also be retrieved using
+    /// this same type.
+    ///
+    /// See also the [`Data`] extractor.
+    ///
+    /// # Examples
+    /// ```no_run
+    /// # use actix_web::{web, test::TestRequest};
+    /// # let req = TestRequest::default().to_http_request();
+    /// # type T = u32;
+    /// let opt_t: Option<&T> = req.app_data::<web::Data<T>>();
     /// ```
+    ///
+    /// [`Data`]: crate::web::Data
+    #[doc(alias = "state")]
     pub fn app_data<T: 'static>(&self) -> Option<&T> {
         for container in self.inner.app_data.iter().rev() {
             if let Some(data) = container.get::<T>() {
