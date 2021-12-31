@@ -18,7 +18,6 @@ jobs:
         version:
           - 1.54.0 # MSRV
           - stable
-          - nightly
 
     name: ${{ matrix.target.name }} / ${{ matrix.version }}
     runs-on: ${{ matrix.target.os }}
