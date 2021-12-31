@@ -11,7 +11,7 @@
 ![MIT or Apache 2.0 licensed](https://img.shields.io/crates/l/actix-web.svg)
 [![Dependency Status](https://deps.rs/crate/actix-web/4.0.0-beta.18/status.svg)](https://deps.rs/crate/actix-web/4.0.0-beta.18)
 <br />
-[![build status](https://github.com/actix/actix-web/workflows/CI%20%28Linux%29/badge.svg?branch=master&event=push)](https://github.com/actix/actix-web/actions)
+[![CI](https://github.com/actix/actix-web/actions/workflows/ci.yml/badge.svg)](https://github.com/actix/actix-web/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web) 
 ![downloads](https://img.shields.io/crates/d/actix-web.svg)
 [![Chat on Discord](https://img.shields.io/discord/771444961383153695?label=chat&logo=discord)](https://discord.gg/NWpN5mmg3x)

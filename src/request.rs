@@ -286,10 +286,10 @@ impl HttpRequest {
     ///
     /// # Examples
     /// ```no_run
-    /// # use actix_web::{web, test::TestRequest};
+    /// # use actix_web::{test::TestRequest, web::Data};
     /// # let req = TestRequest::default().to_http_request();
     /// # type T = u32;
-    /// let opt_t: Option<&T> = req.app_data::<web::Data<T>>();
+    /// let opt_t: Option<&Data<T>> = req.app_data::<Data<T>>();
     /// ```
     ///
     /// [`Data`]: crate::web::Data
