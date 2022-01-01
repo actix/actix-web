@@ -31,7 +31,7 @@ use super::Quality;
 /// let q_item_fallback: QualityItem<String> = "abc;q=0.1".parse().unwrap();
 /// assert!(q_item > q_item_fallback);
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct QualityItem<T> {
     /// The wrapped contents of the field.
     pub item: T,
@@ -53,9 +53,14 @@ impl<T> QualityItem<T> {
         Self::new(item, Quality::MAX)
     }
 
-    /// Constructs a new `QualityItem` from an item, using the minimum q-value.
+    /// Constructs a new `QualityItem` from an item, using the minimum, non-zero q-value.
     pub fn min(item: T) -> Self {
         Self::new(item, Quality::MIN)
+    }
+
+    /// Constructs a new `QualityItem` from an item, using zero q-value of zero.
+    pub fn zero(item: T) -> Self {
+        Self::new(item, Quality::ZERO)
     }
 }
 
@@ -73,7 +78,10 @@ impl<T: fmt::Display> fmt::Display for QualityItem<T> {
             // q-factor value is implied for max value
             Quality::MAX => Ok(()),
 
-            Quality::MIN => f.write_str("; q=0"),
+            // fast path for zero
+            Quality::ZERO => f.write_str("; q=0"),
+
+            // quality formatting is already using itoa
             q => write!(f, "; q={}", q),
         }
     }

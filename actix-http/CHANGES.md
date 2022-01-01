@@ -1,8 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
-### Changes
+### Added
 - `impl Eq` for `header::ContentEncoding`. [#2501]
+- `impl Copy` for `QualityItem` where `T: Copy`. [#2501]
 
 [#2501]: https://github.com/actix/actix-web/pull/2501
 
