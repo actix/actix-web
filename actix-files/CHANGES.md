@@ -1,10 +1,15 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+- Minimum supported Rust version (MSRV) is now 1.54.
+
+
+## 0.6.0-beta.12 - 2021-12-29
+- No significant changes since `0.6.0-beta.11`.
 
 
 ## 0.6.0-beta.11 - 2021-12-27
-* No significant changes since `0.6.0-beta.10`.
+- No significant changes since `0.6.0-beta.10`.
 
 
 ## 0.6.0-beta.10 - 2021-12-11

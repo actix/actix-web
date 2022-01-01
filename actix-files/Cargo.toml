@@ -1,6 +1,6 @@
 [package]
 name = "actix-files"
-version = "0.6.0-beta.11"
+version = "0.6.0-beta.12"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
     "fakeshadow <24548779@qq.com>",
@@ -25,7 +25,7 @@ experimental-io-uring = ["actix-web/experimental-io-uring", "tokio-uring"]
 actix-http = "3.0.0-beta.17"
 actix-service = "2"
 actix-utils = "3"
-actix-web = { version = "4.0.0-beta.16", default-features = false }
+actix-web = { version = "4.0.0-beta.18", default-features = false }
 
 askama_escape = "0.10"
 bitflags = "1"
@@ -44,4 +44,4 @@ tokio-uring = { version = "0.1", optional = true }
 [dev-dependencies]
 actix-rt = "2.2"
 actix-test = "0.1.0-beta.10"
-actix-web = "4.0.0-beta.16"
+actix-web = "4.0.0-beta.18"

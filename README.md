@@ -6,12 +6,12 @@
   <p>
 
 [![crates.io](https://img.shields.io/crates/v/actix-web?label=latest)](https://crates.io/crates/actix-web)
-[![Documentation](https://docs.rs/actix-web/badge.svg?version=4.0.0-beta.16)](https://docs.rs/actix-web/4.0.0-beta.16)
-[![Version](https://img.shields.io/badge/rustc-1.52+-ab6000.svg)](https://blog.rust-lang.org/2021/05/06/Rust-1.52.0.html)
+[![Documentation](https://docs.rs/actix-web/badge.svg?version=4.0.0-beta.18)](https://docs.rs/actix-web/4.0.0-beta.18)
+[![Version](https://img.shields.io/badge/rustc-1.54+-ab6000.svg)](https://blog.rust-lang.org/2021/05/06/Rust-1.54.0.html)
 ![MIT or Apache 2.0 licensed](https://img.shields.io/crates/l/actix-web.svg)
-[![Dependency Status](https://deps.rs/crate/actix-web/4.0.0-beta.16/status.svg)](https://deps.rs/crate/actix-web/4.0.0-beta.16)
+[![Dependency Status](https://deps.rs/crate/actix-web/4.0.0-beta.18/status.svg)](https://deps.rs/crate/actix-web/4.0.0-beta.18)
 <br />
-[![build status](https://github.com/actix/actix-web/workflows/CI%20%28Linux%29/badge.svg?branch=master&event=push)](https://github.com/actix/actix-web/actions)
+[![CI](https://github.com/actix/actix-web/actions/workflows/ci.yml/badge.svg)](https://github.com/actix/actix-web/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web) 
 ![downloads](https://img.shields.io/crates/d/actix-web.svg)
 [![Chat on Discord](https://img.shields.io/discord/771444961383153695?label=chat&logo=discord)](https://discord.gg/NWpN5mmg3x)
@@ -32,7 +32,7 @@
 - SSL support using OpenSSL or Rustls
 - Middlewares ([Logger, Session, CORS, etc](https://actix.rs/docs/middleware/))
 - Includes an async [HTTP client](https://docs.rs/awc/)
-- Runs on stable Rust 1.52+
+- Runs on stable Rust 1.54+
 
 ## Documentation
 

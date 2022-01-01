@@ -10,6 +10,7 @@
 ### Changed
 - `Quality::MIN` is now the smallest non-zero value. [#2501]
 - `QualityItem::min` has different semantics due to the `QualityItem::MIN` change. [#2501]
+- Minimum supported Rust version (MSRV) is now 1.54.
 
 [#2501]: https://github.com/actix/actix-web/pull/2501
 

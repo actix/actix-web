@@ -1,6 +1,21 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 4.0.0-beta.18 - 2021-12-29
+### Changed
+- Update `cookie` dependency (re-exported) to `0.16`. [#2555]
+- Minimum supported Rust version (MSRV) is now 1.54.
+
+### Security
+- `cookie` upgrade addresses [`RUSTSEC-2020-0071`].
+
+[#2555]: https://github.com/actix/actix-web/pull/2555
+[`RUSTSEC-2020-0071`]: https://rustsec.org/advisories/RUSTSEC-2020-0071.html
+
+
+## 4.0.0-beta.17 - 2021-12-29
 ### Added
 - `guard::GuardContext` for use with the `Guard` trait. [#2552]
 - `ServiceRequest::guard_ctx` for obtaining a guard context. [#2552]
@@ -10,7 +25,7 @@
 ### Changed
 - `Guard` trait now receives a `&GuardContext`. [#2552]
 - `guard::fn_guard` functions now receives a `&GuardContext`. [#2552]
-- Some guards now return `impl Guard` and their concrete types are made private: `guard::{Header}` and all the method guards. [#2552]
+- Some guards now return `impl Guard` and their concrete types are made private: `guard::Header` and all the method guards. [#2552]
 - The `Not` guard is now generic over the type of guard it wraps. [#2552]
 - `AcceptEncoding::preference` now returns `Option<Preference<Encoding>>`. [#2501]
 
