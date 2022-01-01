@@ -4,6 +4,12 @@
 ### Added
 - `impl Eq` for `header::ContentEncoding`. [#2501]
 - `impl Copy` for `QualityItem` where `T: Copy`. [#2501]
+- `Quality::ZERO` equivalent to `q=0`. [#2501]
+- `QualityItem::zero` that uses `Quality::ZERO`. [#2501]
+
+### Changed
+- `Quality::MIN` is now the smallest non-zero value. [#2501]
+- `QualityItem::min` has different semantics due to the `QualityItem::MIN` change. [#2501]
 
 [#2501]: https://github.com/actix/actix-web/pull/2501
 
