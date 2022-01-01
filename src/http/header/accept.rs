@@ -163,7 +163,7 @@ impl Accept {
         use actix_http::header::Quality;
 
         let mut max_item = None;
-        let mut max_pref = Quality::MIN;
+        let mut max_pref = Quality::ZERO;
 
         // uses manual max lookup loop since we want the first occurrence in the case of same
         // preference but `Iterator::max_by_key` would give us the last occurrence

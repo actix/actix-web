@@ -5,7 +5,7 @@ pub use self::Encoding::{
 };
 
 /// A value to represent an encoding used in `Transfer-Encoding` or `Accept-Encoding` header.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Encoding {
     /// The `chunked` encoding.
     Chunked,
@@ -22,7 +22,7 @@ pub enum Encoding {
     /// The `compress` encoding.
     Compress,
 
-    /// The `identity` encoding.
+    /// The `identity` encoding. Does not affect content.
     Identity,
 
     /// The `trailers` encoding.

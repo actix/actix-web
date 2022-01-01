@@ -1,17 +1,15 @@
-use actix_http::header::QualityItem;
+use std::collections::HashSet;
 
-use super::{common_header, Encoding, Preference, Quality};
+use super::{common_header, Encoding, Preference, Quality, QualityItem};
 use crate::http::header;
 
 common_header! {
     /// `Accept-Encoding` header, defined
     /// in [RFC 7231](https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.4)
     ///
-    /// The `Accept-Encoding` header field can be used by user agents to
-    /// indicate what response content-codings are
-    /// acceptable in the response.  An  `identity` token is used as a synonym
-    /// for "no encoding" in order to communicate when no encoding is
-    /// preferred.
+    /// The `Accept-Encoding` header field can be used by user agents to indicate what response
+    /// content-codings are acceptable in the response. An `identity` token is used as a synonym
+    /// for "no encoding" in order to communicate when no encoding is preferred.
     ///
     /// # ABNF
     /// ```plain
@@ -60,7 +58,7 @@ common_header! {
     ///     AcceptEncoding(vec![
     ///         QualityItem::max(Encoding::Chunked),
     ///         QualityItem::new(Encoding::Gzip, q(0.60)),
-    ///         QualityItem::min(Encoding::EncodingExt("*".to_owned())),
+    ///         QualityItem::zero(Encoding::EncodingExt("*".to_owned())),
     ///     ])
     /// );
     /// ```
@@ -95,27 +93,99 @@ common_header! {
             vec![b"gzip, *; q=0"],
             Some(AcceptEncoding(vec![
                 QualityItem::max(Preference::Specific(Encoding::Gzip)),
-                QualityItem::min(Preference::Any),
+                QualityItem::zero(Preference::Any),
             ]))
         );
     }
 }
 
 impl AcceptEncoding {
-    // TODO: method for getting best content encoding based on q-factors, available from server side
-    // and if none are acceptable return None
+    /// Selects the most acceptable encoding according to client preference and supported types.
+    ///
+    /// The "identity" encoding is not assumed and should be included in the `supported` iterator
+    /// if a non-encoded representation can be selected.
+    ///
+    /// If `None` is returned, this indicates that none of the supported encodings are acceptable to
+    /// the client. The caller should generate a 406 Not Acceptable response (unencoded) that
+    /// includes the server's supported encodings in the body plus a [`Vary`] header.
+    ///
+    /// [`Vary`]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Vary
+    pub fn negotiate<'a>(
+        &self,
+        supported: impl Iterator<Item = &'a Encoding>,
+    ) -> Option<Encoding> {
+        // 1. If no Accept-Encoding field is in the request, any content-coding is considered
+        // acceptable by the user agent.
+
+        let supported_set = supported.collect::<HashSet<_>>();
+
+        if supported_set.is_empty() {
+            return None;
+        }
+
+        if self.0.is_empty() {
+            // though it is not recommended to encode in this case, return identity encoding
+            return Some(Encoding::Identity);
+        }
+
+        // 2. If the representation has no content-coding, then it is acceptable by default unless
+        // specifically excluded by the Accept-Encoding field stating either "identity;q=0" or
+        // "*;q=0" without a more specific entry for "identity".
+
+        let acceptable_items = self.ranked_items().collect::<Vec<_>>();
+
+        let identity_acceptable = is_identity_acceptable(&acceptable_items);
+        let identity_supported = supported_set.contains(&Encoding::Identity);
+
+        if identity_acceptable && identity_supported && supported_set.len() == 1 {
+            return Some(Encoding::Identity);
+        }
+
+        // 3. If the representation's content-coding is one of the content-codings listed in the
+        // Accept-Encoding field, then it is acceptable unless it is accompanied by a qvalue of 0.
+
+        // 4. If multiple content-codings are acceptable, then the acceptable content-coding with
+        // the highest non-zero qvalue is preferred.
+
+        let matched = acceptable_items
+            .into_iter()
+            .filter(|q| q.quality > Quality::ZERO)
+            // search relies on item list being in descending order of quality
+            .find(|q| {
+                let enc = &q.item;
+                matches!(enc, Preference::Specific(enc) if supported_set.contains(enc))
+            })
+            .map(|q| q.item);
+
+        match matched {
+            Some(Preference::Specific(enc)) => Some(enc),
+
+            _ if identity_acceptable => Some(Encoding::Identity),
+
+            _ => None,
+        }
+    }
 
     /// Extracts the most preferable encoding, accounting for [q-factor weighting].
     ///
     /// If no q-factors are provided, the first encoding is chosen. Note that items without
     /// q-factors are given the maximum preference value.
     ///
-    /// As per the spec, returns [`Preference::Any`] if contained list is empty.
+    /// As per the spec, returns [`Preference::Any`] if acceptable list is empty. Though, if this is
+    /// returned, it is recommended to use an un-encoded representation.
+    ///
+    /// If `None` is returned, it means that the client has signalled that no representations
+    /// are acceptable. This should never occur for a well behaved user-agent.
     ///
     /// [q-factor weighting]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
-    pub fn preference(&self) -> Preference<Encoding> {
+    pub fn preference(&self) -> Option<Preference<Encoding>> {
+        // empty header indicates no preference
+        if self.0.is_empty() {
+            return Some(Preference::Any);
+        }
+
         let mut max_item = None;
-        let mut max_pref = Quality::MIN;
+        let mut max_pref = Quality::ZERO;
 
         // uses manual max lookup loop since we want the first occurrence in the case of same
         // preference but `Iterator::max_by_key` would give us the last occurrence
@@ -129,7 +199,23 @@ impl AcceptEncoding {
             }
         }
 
-        max_item.unwrap_or(Preference::Any)
+        // Return max_item if any items were above 0 quality...
+        max_item.or_else(|| {
+            // ...or else check for "*" or "identity". We can elide quality checks since
+            // entering this block means all items had "q=0".
+            match self.0.iter().find(|pref| {
+                matches!(
+                    pref.item,
+                    Preference::Any | Preference::Specific(Encoding::Identity)
+                )
+            }) {
+                // "identity" or "*" found so no representation is acceptable
+                Some(_) => None,
+
+                // implicit "identity" is acceptable
+                None => Some(Preference::Specific(Encoding::Identity)),
+            }
+        })
     }
 
     /// Returns a sorted list of encodings from highest to lowest precedence, accounting
@@ -137,8 +223,12 @@ impl AcceptEncoding {
     ///
     /// [q-factor weighting]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
     pub fn ranked(&self) -> Vec<Preference<Encoding>> {
+        self.ranked_items().map(|q| q.item).collect()
+    }
+
+    fn ranked_items(&self) -> impl Iterator<Item = QualityItem<Preference<Encoding>>> {
         if self.0.is_empty() {
-            return vec![];
+            return vec![].into_iter();
         }
 
         let mut types = self.0.clone();
@@ -149,8 +239,34 @@ impl AcceptEncoding {
             b.quality.cmp(&a.quality)
         });
 
-        types.into_iter().map(|qitem| qitem.item).collect()
+        types.into_iter()
     }
+}
+
+/// Returns true if "identity" is an acceptable encoding.
+///
+/// Internal algorithm relies on item list being in descending order of quality.
+fn is_identity_acceptable(items: &'_ [QualityItem<Preference<Encoding>>]) -> bool {
+    if items.is_empty() {
+        return true;
+    }
+
+    // Loop algorithm depends on items being sorted in descending order of quality. As such, it
+    // is sufficient to return (q > 0) when reaching either an "identity" or "*" item.
+    for q in items {
+        match (q.quality, &q.item) {
+            // occurrence of "identity;q=n"; return true if quality is non-zero
+            (q, Preference::Specific(Encoding::Identity)) => return q > Quality::ZERO,
+
+            // occurrence of "*;q=n"; return true if quality is non-zero
+            (q, Preference::Any) => return q > Quality::ZERO,
+
+            _ => {}
+        }
+    }
+
+    // implicit acceptable identity
+    true
 }
 
 #[cfg(test)]
@@ -158,75 +274,167 @@ mod tests {
     use super::*;
     use crate::http::header::*;
 
+    macro_rules! accept_encoding {
+        () => { AcceptEncoding(vec![]) };
+        ($($q:expr),+ $(,)?) => { AcceptEncoding(vec![$($q.parse().unwrap()),+]) };
+    }
+
+    /// Parses an encoding string.
+    fn enc(enc: &str) -> Preference<Encoding> {
+        enc.parse().unwrap()
+    }
+
     #[test]
-    fn ranking_precedence() {
-        let test = AcceptLanguage(vec![]);
-        assert!(test.ranked().is_empty());
+    fn detect_identity_acceptable() {
+        macro_rules! accept_encoding_ranked {
+            () => { accept_encoding!().ranked_items().collect::<Vec<_>>() };
+            ($($q:expr),+ $(,)?) => { accept_encoding!($($q),+).ranked_items().collect::<Vec<_>>() };
+        }
 
-        let test = AcceptLanguage(vec![QualityItem::max("gzip".parse().unwrap())]);
-        assert_eq!(test.ranked(), vec!["gzip".parse().unwrap()]);
+        let test = accept_encoding_ranked!();
+        assert!(is_identity_acceptable(&test));
+        let test = accept_encoding_ranked!("gzip");
+        assert!(is_identity_acceptable(&test));
+        let test = accept_encoding_ranked!("gzip", "br");
+        assert!(is_identity_acceptable(&test));
+        let test = accept_encoding_ranked!("gzip", "*;q=0.1");
+        assert!(is_identity_acceptable(&test));
+        let test = accept_encoding_ranked!("gzip", "identity;q=0.1");
+        assert!(is_identity_acceptable(&test));
+        let test = accept_encoding_ranked!("gzip", "identity;q=0.1", "*;q=0");
+        assert!(is_identity_acceptable(&test));
+        let test = accept_encoding_ranked!("gzip", "*;q=0", "identity;q=0.1");
+        assert!(is_identity_acceptable(&test));
 
-        let test = AcceptLanguage(vec![
-            QualityItem::new("gzip".parse().unwrap(), q(0.900)),
-            QualityItem::new("*".parse().unwrap(), q(0.700)),
-            QualityItem::new("br".parse().unwrap(), q(1.0)),
-        ]);
+        let test = accept_encoding_ranked!("gzip", "*;q=0");
+        assert!(!is_identity_acceptable(&test));
+        let test = accept_encoding_ranked!("gzip", "identity;q=0");
+        assert!(!is_identity_acceptable(&test));
+        let test = accept_encoding_ranked!("gzip", "identity;q=0", "*;q=0");
+        assert!(!is_identity_acceptable(&test));
+        let test = accept_encoding_ranked!("gzip", "*;q=0", "identity;q=0");
+        assert!(!is_identity_acceptable(&test));
+    }
+
+    #[test]
+    fn encoding_negotiation() {
+        // no preference
+        let test = accept_encoding!();
+        assert_eq!(test.negotiate([].iter()), None);
+
+        let test = accept_encoding!();
         assert_eq!(
-            test.ranked(),
-            vec![
-                "br".parse().unwrap(),
-                "gzip".parse().unwrap(),
-                "*".parse().unwrap(),
-            ]
+            test.negotiate([Encoding::Identity].iter()),
+            Some(Encoding::Identity),
         );
 
-        let test = AcceptLanguage(vec![
-            QualityItem::max("br".parse().unwrap()),
-            QualityItem::max("gzip".parse().unwrap()),
-            QualityItem::max("*".parse().unwrap()),
-        ]);
+        let test = accept_encoding!("identity;q=0");
+        assert_eq!(test.negotiate([Encoding::Identity].iter()), None);
+
+        let test = accept_encoding!("*;q=0");
+        assert_eq!(test.negotiate([Encoding::Identity].iter()), None);
+
+        let test = accept_encoding!();
         assert_eq!(
-            test.ranked(),
-            vec![
-                "br".parse().unwrap(),
-                "gzip".parse().unwrap(),
-                "*".parse().unwrap(),
-            ]
+            test.negotiate([Encoding::Gzip, Encoding::Identity].iter()),
+            Some(Encoding::Identity),
+        );
+
+        let test = accept_encoding!("gzip");
+        assert_eq!(
+            test.negotiate([Encoding::Gzip, Encoding::Identity].iter()),
+            Some(Encoding::Gzip),
+        );
+        assert_eq!(
+            test.negotiate([Encoding::Brotli, Encoding::Identity].iter()),
+            Some(Encoding::Identity),
+        );
+        assert_eq!(
+            test.negotiate([Encoding::Brotli, Encoding::Gzip, Encoding::Identity].iter()),
+            Some(Encoding::Gzip),
+        );
+
+        let test = accept_encoding!("gzip", "identity;q=0");
+        assert_eq!(
+            test.negotiate([Encoding::Gzip, Encoding::Identity].iter()),
+            Some(Encoding::Gzip),
+        );
+        assert_eq!(
+            test.negotiate([Encoding::Brotli, Encoding::Identity].iter()),
+            None
+        );
+
+        let test = accept_encoding!("gzip", "*;q=0");
+        assert_eq!(
+            test.negotiate([Encoding::Gzip, Encoding::Identity].iter()),
+            Some(Encoding::Gzip),
+        );
+        assert_eq!(
+            test.negotiate([Encoding::Brotli, Encoding::Identity].iter()),
+            None
+        );
+
+        let test = accept_encoding!("gzip", "deflate", "br");
+        assert_eq!(
+            test.negotiate([Encoding::Gzip, Encoding::Identity].iter()),
+            Some(Encoding::Gzip),
+        );
+        assert_eq!(
+            test.negotiate([Encoding::Brotli, Encoding::Identity].iter()),
+            Some(Encoding::Brotli)
+        );
+        assert_eq!(
+            test.negotiate([Encoding::Deflate, Encoding::Identity].iter()),
+            Some(Encoding::Deflate)
+        );
+        assert_eq!(
+            test.negotiate([Encoding::Gzip, Encoding::Deflate, Encoding::Identity].iter()),
+            Some(Encoding::Gzip)
+        );
+        assert_eq!(
+            test.negotiate([Encoding::Gzip, Encoding::Brotli, Encoding::Identity].iter()),
+            Some(Encoding::Gzip)
+        );
+        assert_eq!(
+            test.negotiate([Encoding::Brotli, Encoding::Gzip, Encoding::Identity].iter()),
+            Some(Encoding::Gzip)
         );
     }
 
     #[test]
+    fn ranking_precedence() {
+        let test = accept_encoding!();
+        assert!(test.ranked().is_empty());
+
+        let test = accept_encoding!("gzip");
+        assert_eq!(test.ranked(), vec![enc("gzip")]);
+
+        let test = accept_encoding!("gzip;q=0.900", "*;q=0.700", "br;q=1.0");
+        assert_eq!(test.ranked(), vec![enc("br"), enc("gzip"), enc("*")]);
+
+        let test = accept_encoding!("br", "gzip", "*");
+        assert_eq!(test.ranked(), vec![enc("br"), enc("gzip"), enc("*")]);
+    }
+
+    #[test]
     fn preference_selection() {
-        assert_eq!(AcceptLanguage(vec![]).preference(), Preference::Any);
+        assert_eq!(accept_encoding!().preference(), Some(Preference::Any));
 
-        assert_eq!(
-            AcceptLanguage(vec!["compress;q=0; *;q=0".parse().unwrap()]).preference(),
-            Preference::Any
-        );
+        assert_eq!(accept_encoding!("identity;q=0").preference(), None);
+        assert_eq!(accept_encoding!("*;q=0").preference(), None);
+        assert_eq!(accept_encoding!("compress;q=0", "*;q=0").preference(), None);
+        assert_eq!(accept_encoding!("identity;q=0", "*;q=0").preference(), None);
 
-        assert_eq!(
-            AcceptLanguage(vec!["identity;q=0; *;q=0".parse().unwrap()]).preference(),
-            Preference::Any
-        );
+        let test = accept_encoding!("*;q=0.5");
+        assert_eq!(test.preference().unwrap(), enc("*"));
 
-        let test = AcceptLanguage(vec![
-            QualityItem::new("br".parse().unwrap(), q(0.900)),
-            QualityItem::new("gzip".parse().unwrap(), q(1.0)),
-            QualityItem::new("*".parse().unwrap(), q(0.500)),
-        ]);
-        assert_eq!(
-            test.preference(),
-            Preference::Specific("gzip".parse().unwrap())
-        );
+        let test = accept_encoding!("br;q=0");
+        assert_eq!(test.preference().unwrap(), enc("identity"));
 
-        let test = AcceptLanguage(vec![
-            QualityItem::max("br".parse().unwrap()),
-            QualityItem::max("gzip".parse().unwrap()),
-            QualityItem::max("*".parse().unwrap()),
-        ]);
-        assert_eq!(
-            test.preference(),
-            Preference::Specific("br".parse().unwrap())
-        );
+        let test = accept_encoding!("br;q=0.900", "gzip;q=1.0", "*;q=0.500");
+        assert_eq!(test.preference().unwrap(), enc("gzip"));
+
+        let test = accept_encoding!("br", "gzip", "*");
+        assert_eq!(test.preference().unwrap(), enc("br"));
     }
 }

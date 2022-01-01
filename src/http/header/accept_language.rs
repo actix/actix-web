@@ -37,7 +37,7 @@ common_header! {
     /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     AcceptLanguage(vec![
-    ///         QualityItem::max("en-US".parse().unwrap())
+    ///         "en-US".parse().unwrap(),
     ///     ])
     /// );
     /// ```
@@ -49,9 +49,9 @@ common_header! {
     /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     AcceptLanguage(vec![
-    ///         QualityItem::max("da".parse().unwrap()),
-    ///         QualityItem::new("en-GB".parse().unwrap(), q(0.8)),
-    ///         QualityItem::new("en".parse().unwrap(), q(0.7)),
+    ///         "da".parse().unwrap(),
+    ///         "en-GB;q=0.8".parse().unwrap(),
+    ///         "en;q=0.7".parse().unwrap(),
     ///     ])
     /// );
     /// ```
@@ -103,7 +103,7 @@ impl AcceptLanguage {
     /// [q-factor weighting]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
     pub fn preference(&self) -> Preference<LanguageTag> {
         let mut max_item = None;
-        let mut max_pref = Quality::MIN;
+        let mut max_pref = Quality::ZERO;
 
         // uses manual max lookup loop since we want the first occurrence in the case of same
         // preference but `Iterator::max_by_key` would give us the last occurrence
