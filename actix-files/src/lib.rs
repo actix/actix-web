@@ -33,7 +33,6 @@ mod path_buf;
 mod range;
 mod service;
 
-pub use self::chunked::ChunkedReadFile;
 pub use self::directory::Directory;
 pub use self::files::Files;
 pub use self::named::NamedFile;

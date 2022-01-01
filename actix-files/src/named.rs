@@ -21,8 +21,9 @@ use actix_web::{
     Error, HttpMessage, HttpRequest, HttpResponse, Responder,
 };
 use bitflags::bitflags;
+use bytes::Bytes;
 use derive_more::{Deref, DerefMut};
-use futures_core::future::LocalBoxFuture;
+use futures_core::{future::LocalBoxFuture, Stream};
 use mime_guess::from_path;
 
 use crate::{encoding::equiv_utf8_text, range::HttpRange};
@@ -526,6 +527,11 @@ impl NamedFile {
         }
 
         res.body(SizedStream::new(length, reader))
+    }
+
+    /// Returns stream of chunks for the complete file.
+    pub fn into_chunk_stream(self) -> impl Stream<Item = Result<Bytes, Error>> {
+        chunked::new_chunked_read(self.md.len(), 0, self.file)
     }
 }
 
