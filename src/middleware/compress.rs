@@ -45,7 +45,7 @@ pub struct Compress;
 impl Compress {
     /// Create new `Compress` middleware with the specified encoding.
     // TODO: remove
-    pub fn new(encoding: ContentEncoding) -> Self {
+    pub fn new(_encoding: ContentEncoding) -> Self {
         // Compress(encoding)
         Compress
     }

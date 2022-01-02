@@ -27,11 +27,11 @@ common_header! {
     /// # Examples
     /// ```
     /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{AcceptEncoding, Encoding, QualityItem};
+    /// use actix_web::http::header::{AcceptEncoding, Encoding, Preference, QualityItem};
     ///
     /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
-    ///     AcceptEncoding(vec![QualityItem::max(Encoding::Chunked)])
+    ///     AcceptEncoding(vec![QualityItem::max(Preference::Specific(Encoding::Gzip))])
     /// );
     /// ```
     ///
@@ -42,23 +42,8 @@ common_header! {
     /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     AcceptEncoding(vec![
-    ///         QualityItem::max(Encoding::Chunked),
-    ///         QualityItem::max(Encoding::Gzip),
-    ///         QualityItem::max(Encoding::Deflate),
-    ///     ])
-    /// );
-    /// ```
-    ///
-    /// ```
-    /// use actix_web::HttpResponse;
-    /// use actix_web::http::header::{AcceptEncoding, Encoding, QualityItem, q};
-    ///
-    /// let mut builder = HttpResponse::Ok();
-    /// builder.insert_header(
-    ///     AcceptEncoding(vec![
-    ///         QualityItem::max(Encoding::Chunked),
-    ///         QualityItem::new(Encoding::Gzip, q(0.60)),
-    ///         QualityItem::zero(Encoding::EncodingExt("*".to_owned())),
+    ///         "gzip".parse().unwrap(),
+    ///         "br".parse().unwrap(),
     ///     ])
     /// );
     /// ```

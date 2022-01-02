@@ -158,13 +158,13 @@ impl TryFrom<f32> for Quality {
 /// let q1 = q(1.0);
 /// assert_eq!(q1, Quality::MAX);
 ///
-/// let q2 = q(0.0001);
+/// let q2 = q(0.001);
 /// assert_eq!(q2, Quality::MIN);
-
-/// let q2 = q(0.0);
-/// assert_eq!(q2, Quality::ZERO);
 ///
-/// let q3 = q(0.42);
+/// let q3 = q(0.0);
+/// assert_eq!(q3, Quality::ZERO);
+///
+/// let q4 = q(0.42);
 /// ```
 ///
 /// An out-of-range `f32` quality will panic.
