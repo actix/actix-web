@@ -18,7 +18,7 @@ use crate::{
     body::{EitherBody, MessageBody},
     dev::BodyEncoding as _,
     http::{
-        header::{self, AcceptEncoding, ContentEncoding, Encoding, HeaderValue},
+        header::{self, AcceptEncoding, Encoding, HeaderValue},
         StatusCode,
     },
     service::{ServiceRequest, ServiceResponse},
@@ -38,25 +38,9 @@ use crate::{
 ///     .wrap(middleware::Compress::default())
 ///     .default_service(web::to(|| HttpResponse::NotFound()));
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 #[non_exhaustive]
 pub struct Compress;
-
-impl Compress {
-    /// Create new `Compress` middleware with the specified encoding.
-    // TODO: remove
-    pub fn new(_encoding: ContentEncoding) -> Self {
-        // Compress(encoding)
-        Compress
-    }
-}
-
-impl Default for Compress {
-    fn default() -> Self {
-        // Compress::new(ContentEncoding::Auto)
-        Compress
-    }
-}
 
 impl<S, B> Transform<S, ServiceRequest> for Compress
 where
@@ -70,72 +54,13 @@ where
     type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        ok(CompressMiddleware {
-            service,
-            // encoding: self.0,
-        })
+        ok(CompressMiddleware { service })
     }
 }
 
 pub struct CompressMiddleware<S> {
     service: S,
-    // encoding: ContentEncoding,
 }
-
-static SUPPORTED_ENCODINGS_STRING: Lazy<String> = Lazy::new(|| {
-    #[allow(unused_mut)] // only unused when no compress features enabled
-    let mut encoding: Vec<&str> = vec![];
-
-    #[cfg(feature = "compress-brotli")]
-    {
-        encoding.push("br");
-    }
-
-    #[cfg(feature = "compress-gzip")]
-    {
-        encoding.push("gzip");
-        encoding.push("deflate");
-    }
-
-    #[cfg(feature = "compress-zstd")]
-    {
-        encoding.push("zstd");
-    }
-
-    assert!(
-        !encoding.is_empty(),
-        "encoding can not be empty unless __compress feature has been explicitly enabled by itself"
-    );
-
-    encoding.join(", ")
-});
-
-static SUPPORTED_ENCODINGS: Lazy<Vec<Encoding>> = Lazy::new(|| {
-    let mut encodings = vec![Encoding::identity()];
-
-    #[cfg(feature = "compress-brotli")]
-    {
-        encodings.push(Encoding::brotli());
-    }
-
-    #[cfg(feature = "compress-gzip")]
-    {
-        encodings.push(Encoding::gzip());
-        encodings.push(Encoding::deflate());
-    }
-
-    #[cfg(feature = "compress-zstd")]
-    {
-        encodings.push(Encoding::zstd());
-    }
-
-    assert!(
-        !encodings.is_empty(),
-        "encodings can not be empty unless __compress feature has been explicitly enabled by itself"
-    );
-
-    encodings
-});
 
 impl<S, B> Service<ServiceRequest> for CompressMiddleware<S>
 where
@@ -237,3 +162,58 @@ where
         }
     }
 }
+
+static SUPPORTED_ENCODINGS_STRING: Lazy<String> = Lazy::new(|| {
+    #[allow(unused_mut)] // only unused when no compress features enabled
+    let mut encoding: Vec<&str> = vec![];
+
+    #[cfg(feature = "compress-brotli")]
+    {
+        encoding.push("br");
+    }
+
+    #[cfg(feature = "compress-gzip")]
+    {
+        encoding.push("gzip");
+        encoding.push("deflate");
+    }
+
+    #[cfg(feature = "compress-zstd")]
+    {
+        encoding.push("zstd");
+    }
+
+    assert!(
+        !encoding.is_empty(),
+        "encoding can not be empty unless __compress feature has been explicitly enabled by itself"
+    );
+
+    encoding.join(", ")
+});
+
+static SUPPORTED_ENCODINGS: Lazy<Vec<Encoding>> = Lazy::new(|| {
+    let mut encodings = vec![Encoding::identity()];
+
+    #[cfg(feature = "compress-brotli")]
+    {
+        encodings.push(Encoding::brotli());
+    }
+
+    #[cfg(feature = "compress-gzip")]
+    {
+        encodings.push(Encoding::gzip());
+        encodings.push(Encoding::deflate());
+    }
+
+    #[cfg(feature = "compress-zstd")]
+    {
+        encodings.push(Encoding::zstd());
+    }
+
+    assert!(
+        !encodings.is_empty(),
+        "encodings can not be empty unless __compress feature has been explicitly enabled by itself"
+    );
+
+    encodings
+});

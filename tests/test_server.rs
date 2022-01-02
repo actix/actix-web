@@ -133,7 +133,7 @@ async fn test_body() {
 async fn test_body_encoding_override() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
-            .wrap(Compress::new(ContentEncoding::Gzip))
+            .wrap(Compress::default())
             .service(web::resource("/").route(web::to(|| {
                 HttpResponse::Ok()
                     .encode_with(ContentEncoding::Deflate)
@@ -183,12 +183,9 @@ async fn body_gzip_large() {
     let srv = actix_test::start_with(actix_test::config().h1(), move || {
         let data = srv_data.clone();
 
-        App::new()
-            .wrap(Compress::new(ContentEncoding::Gzip))
-            .service(
-                web::resource("/")
-                    .route(web::to(move || HttpResponse::Ok().body(data.clone()))),
-            )
+        App::new().wrap(Compress::default()).service(
+            web::resource("/").route(web::to(move || HttpResponse::Ok().body(data.clone()))),
+        )
     });
 
     let mut res = srv
@@ -217,12 +214,9 @@ async fn test_body_gzip_large_random() {
 
     let srv = actix_test::start_with(actix_test::config().h1(), move || {
         let data = srv_data.clone();
-        App::new()
-            .wrap(Compress::new(ContentEncoding::Gzip))
-            .service(
-                web::resource("/")
-                    .route(web::to(move || HttpResponse::Ok().body(data.clone()))),
-            )
+        App::new().wrap(Compress::default()).service(
+            web::resource("/").route(web::to(move || HttpResponse::Ok().body(data.clone()))),
+        )
     });
 
     let mut res = srv
@@ -244,7 +238,7 @@ async fn test_body_gzip_large_random() {
 async fn test_body_chunked_implicit() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
-            .wrap(Compress::new(ContentEncoding::Gzip))
+            .wrap(Compress::default())
             .service(web::resource("/").route(web::get().to(move || {
                 HttpResponse::Ok()
                     .streaming(TestBody::new(Bytes::from_static(STR.as_ref()), 24))
@@ -271,7 +265,7 @@ async fn test_body_chunked_implicit() {
 async fn test_body_br_streaming() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
-            .wrap(Compress::new(ContentEncoding::Brotli))
+            .wrap(Compress::default())
             .service(web::resource("/").route(web::to(move || {
                 HttpResponse::Ok()
                     .streaming(TestBody::new(Bytes::from_static(STR.as_ref()), 24))
@@ -337,7 +331,7 @@ async fn test_no_chunking() {
 async fn test_body_deflate() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
-            .wrap(Compress::new(ContentEncoding::Deflate))
+            .wrap(Compress::default())
             .service(web::resource("/").route(web::to(move || HttpResponse::Ok().body(STR))))
     });
 
@@ -360,7 +354,7 @@ async fn test_body_deflate() {
 async fn test_body_brotli() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
-            .wrap(Compress::new(ContentEncoding::Brotli))
+            .wrap(Compress::default())
             .service(web::resource("/").route(web::to(move || HttpResponse::Ok().body(STR))))
     });
 
@@ -383,7 +377,7 @@ async fn test_body_brotli() {
 async fn test_body_zstd() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
-            .wrap(Compress::new(ContentEncoding::Zstd))
+            .wrap(Compress::default())
             .service(web::resource("/").route(web::to(move || HttpResponse::Ok().body(STR))))
     });
 
@@ -406,7 +400,7 @@ async fn test_body_zstd() {
 async fn test_body_zstd_streaming() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
-            .wrap(Compress::new(ContentEncoding::Zstd))
+            .wrap(Compress::default())
             .service(web::resource("/").route(web::to(move || {
                 HttpResponse::Ok()
                     .streaming(TestBody::new(Bytes::from_static(STR.as_ref()), 24))

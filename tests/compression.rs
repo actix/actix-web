@@ -288,6 +288,7 @@ async fn deny_identity_coding_no_decompress() {
 }
 
 // TODO: fix test
+// currently fails because negotiation doesn't consider unknown encoding types
 #[ignore]
 #[actix_rt::test]
 async fn deny_identity_for_manual_coding() {

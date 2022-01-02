@@ -60,18 +60,19 @@ pub trait BodyEncoding {
     /// [`Compress`]: crate::middleware::Compress
     fn encode_with(&mut self, encoding: ContentEncoding) -> &mut Self;
 
-    /// Flags that a file already is encoded so that [`Compress`] does not modify it.
-    ///
-    /// Effectively a shortcut for `compress_with("identity")`
-    /// plus `insert_header(ContentEncoding, encoding)`.
-    ///
-    /// [`Compress`]: crate::middleware::Compress
-    fn pre_encoded_with(&mut self, encoding: ContentEncoding) -> &mut Self;
+    // /// Flags that a file already is encoded so that [`Compress`] does not modify it.
+    // ///
+    // /// Effectively a shortcut for `compress_with("identity")`
+    // /// plus `insert_header(ContentEncoding, encoding)`.
+    // ///
+    // /// [`Compress`]: crate::middleware::Compress
+    // fn pre_encoded_with(&mut self, encoding: ContentEncoding) -> &mut Self;
 }
 
 struct CompressWith(ContentEncoding);
 
-struct PreCompressed(ContentEncoding);
+// TODO: add or delete this
+// struct PreCompressed(ContentEncoding);
 
 impl BodyEncoding for crate::HttpResponseBuilder {
     fn preferred_encoding(&self) -> Option<ContentEncoding> {
@@ -83,10 +84,10 @@ impl BodyEncoding for crate::HttpResponseBuilder {
         self
     }
 
-    fn pre_encoded_with(&mut self, encoding: ContentEncoding) -> &mut Self {
-        self.extensions_mut().insert(PreCompressed(encoding));
-        self
-    }
+    // fn pre_encoded_with(&mut self, encoding: ContentEncoding) -> &mut Self {
+    //     self.extensions_mut().insert(PreCompressed(encoding));
+    //     self
+    // }
 }
 
 impl<B> BodyEncoding for crate::HttpResponse<B> {
@@ -99,10 +100,10 @@ impl<B> BodyEncoding for crate::HttpResponse<B> {
         self
     }
 
-    fn pre_encoded_with(&mut self, encoding: ContentEncoding) -> &mut Self {
-        self.extensions_mut().insert(PreCompressed(encoding));
-        self
-    }
+    // fn pre_encoded_with(&mut self, encoding: ContentEncoding) -> &mut Self {
+    //     self.extensions_mut().insert(PreCompressed(encoding));
+    //     self
+    // }
 }
 
 impl<B> BodyEncoding for ServiceResponse<B> {
@@ -120,32 +121,33 @@ impl<B> BodyEncoding for ServiceResponse<B> {
         self
     }
 
-    fn pre_encoded_with(&mut self, encoding: ContentEncoding) -> &mut Self {
-        self.request()
-            .extensions_mut()
-            .insert(PreCompressed(encoding));
+    // fn pre_encoded_with(&mut self, encoding: ContentEncoding) -> &mut Self {
+    //     self.request()
+    //         .extensions_mut()
+    //         .insert(PreCompressed(encoding));
+    //     self
+    // }
+}
+
+// TODO: remove these impls ?
+impl BodyEncoding for actix_http::ResponseBuilder {
+    fn preferred_encoding(&self) -> Option<ContentEncoding> {
+        self.extensions().get::<CompressWith>().map(|enc| enc.0)
+    }
+
+    fn encode_with(&mut self, encoding: ContentEncoding) -> &mut Self {
+        self.extensions_mut().insert(CompressWith(encoding));
         self
     }
 }
 
-// impl BodyEncoding for actix_http::ResponseBuilder {
-//     fn get_encoding(&self) -> Option<ContentEncoding> {
-//         self.extensions().get::<Enc>().map(|enc| enc.0)
-//     }
+impl<B> BodyEncoding for actix_http::Response<B> {
+    fn preferred_encoding(&self) -> Option<ContentEncoding> {
+        self.extensions().get::<CompressWith>().map(|enc| enc.0)
+    }
 
-//     fn compress_with(&mut self, encoding: ContentEncoding) -> &mut Self {
-//         self.extensions_mut().insert(Enc(encoding));
-//         self
-//     }
-// }
-
-// impl<B> BodyEncoding for actix_http::Response<B> {
-//     fn get_encoding(&self) -> Option<ContentEncoding> {
-//         self.extensions().get::<Enc>().map(|enc| enc.0)
-//     }
-
-//     fn compress_with(&mut self, encoding: ContentEncoding) -> &mut Self {
-//         self.extensions_mut().insert(Enc(encoding));
-//         self
-//     }
-// }
+    fn encode_with(&mut self, encoding: ContentEncoding) -> &mut Self {
+        self.extensions_mut().insert(CompressWith(encoding));
+        self
+    }
+}

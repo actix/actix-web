@@ -1,6 +1,22 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+- `impl Hash` for `http::header::Encoding`. [#2501]
+- `AcceptEncoding::negotiate()`. [#2501]
+
+### Changed
+- `AcceptEncoding::preference` now returns `Option<Preference<Encoding>>`. [#2501]
+- Rename methods `BodyEncoding::{encoding => encode_with, get_encoding => preferred_encoding}`. [#2501]
+- `http::header::Encoding` now only represents `Content-Encoding` types. [#2501]
+
+### Fixed
+- Auto-negotiation of content encoding is more fault-tolerant when using the `Compress` middleware. [#2501]
+
+### Removed
+- `Compress::new`; restricting compression algorithm is done through feature flags. [#2501]
+
+[#2501]: https://github.com/actix/actix-web/pull/2501
 
 
 ## 4.0.0-beta.18 - 2021-12-29
@@ -19,22 +35,18 @@
 ### Added
 - `guard::GuardContext` for use with the `Guard` trait. [#2552]
 - `ServiceRequest::guard_ctx` for obtaining a guard context. [#2552]
-- `impl Hash` for `http::header::Encoding`. [#2501]
-- `AcceptEncoding::negotiate`. [#2501]
 
 ### Changed
 - `Guard` trait now receives a `&GuardContext`. [#2552]
 - `guard::fn_guard` functions now receives a `&GuardContext`. [#2552]
 - Some guards now return `impl Guard` and their concrete types are made private: `guard::Header` and all the method guards. [#2552]
 - The `Not` guard is now generic over the type of guard it wraps. [#2552]
-- `AcceptEncoding::preference` now returns `Option<Preference<Encoding>>`. [#2501]
 
 ### Fixed
 - Rename `ConnectionInfo::{remote_addr => peer_addr}`, deprecating the old name. [#2554]
 - `ConnectionInfo::peer_addr` will not return the port number. [#2554]
 - `ConnectionInfo::realip_remote_addr` will not return the port number if sourcing the IP from the peer's socket address. [#2554]
 
-[#2501]: https://github.com/actix/actix-web/pull/2501
 [#2552]: https://github.com/actix/actix-web/pull/2552
 [#2554]: https://github.com/actix/actix-web/pull/2554
 
