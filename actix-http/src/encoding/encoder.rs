@@ -299,7 +299,7 @@ impl ContentEncoder {
                 Some(ContentEncoder::Zstd(encoder))
             }
 
-            _ => None,
+            ContentEncoding::Identity => None,
         }
     }
 

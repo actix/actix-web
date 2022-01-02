@@ -7,6 +7,9 @@ use actix_web::{
 };
 use bytes::Bytes;
 
+mod test_utils;
+use test_utils::{brotli, gzip, zstd};
+
 static LOREM: &[u8] = include_bytes!("fixtures/lorem.txt");
 static LOREM_GZIP: &[u8] = include_bytes!("fixtures/lorem.txt.gz");
 static LOREM_BR: &[u8] = include_bytes!("fixtures/lorem.txt.br");
@@ -106,6 +109,16 @@ async fn negotiate_encoding_gzip() {
     let bytes = res.body().await.unwrap();
     assert_eq!(bytes, Bytes::from_static(LOREM));
 
+    let mut res = srv
+        .post("/static")
+        .no_decompress()
+        .insert_header((header::ACCEPT_ENCODING, "gzip,br,zstd"))
+        .send()
+        .await
+        .unwrap();
+    let bytes = res.body().await.unwrap();
+    assert_eq!(gzip::decode(bytes), LOREM);
+
     srv.stop().await;
 }
 
@@ -125,6 +138,16 @@ async fn negotiate_encoding_br() {
     let bytes = res.body().await.unwrap();
     assert_eq!(bytes, Bytes::from_static(LOREM));
 
+    let mut res = srv
+        .post("/static")
+        .no_decompress()
+        .insert_header((header::ACCEPT_ENCODING, "br,zstd,gzip"))
+        .send()
+        .await
+        .unwrap();
+    let bytes = res.body().await.unwrap();
+    assert_eq!(brotli::decode(bytes), LOREM);
+
     srv.stop().await;
 }
 
@@ -143,6 +166,16 @@ async fn negotiate_encoding_zstd() {
 
     let bytes = res.body().await.unwrap();
     assert_eq!(bytes, Bytes::from_static(LOREM));
+
+    let mut res = srv
+        .post("/static")
+        .no_decompress()
+        .insert_header((header::ACCEPT_ENCODING, "zstd,gzip,br"))
+        .send()
+        .await
+        .unwrap();
+    let bytes = res.body().await.unwrap();
+    assert_eq!(zstd::decode(bytes), LOREM);
 
     srv.stop().await;
 }
@@ -261,7 +294,7 @@ async fn deny_identity_for_manual_coding() {
     let srv = test_server!();
 
     let req = srv
-        .post("/static")
+        .post("/static-xz")
         // don't decompress response body
         .no_decompress()
         // signal that we want a compressed body

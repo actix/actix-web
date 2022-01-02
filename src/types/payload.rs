@@ -248,6 +248,7 @@ impl PayloadConfig {
                 }
             }
         }
+
         Ok(())
     }
 
