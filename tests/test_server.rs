@@ -136,12 +136,12 @@ async fn test_body_encoding_override() {
             .wrap(Compress::new(ContentEncoding::Gzip))
             .service(web::resource("/").route(web::to(|| {
                 HttpResponse::Ok()
-                    .encoding(ContentEncoding::Deflate)
+                    .encode_with(ContentEncoding::Deflate)
                     .body(STR)
             })))
             .service(web::resource("/raw").route(web::to(|| {
                 let mut res = HttpResponse::with_body(actix_web::http::StatusCode::OK, STR);
-                res.encoding(ContentEncoding::Deflate);
+                res.encode_with(ContentEncoding::Deflate);
                 res.map_into_boxed_body()
             })))
     });
@@ -704,7 +704,7 @@ async fn test_brotli_encoding_large_openssl() {
         actix_test::start_with(actix_test::config().openssl(openssl_config()), move || {
             App::new().service(web::resource("/").route(web::to(|bytes: Bytes| {
                 HttpResponse::Ok()
-                    .encoding(ContentEncoding::Identity)
+                    .encode_with(ContentEncoding::Identity)
                     .body(bytes)
             })))
         });
@@ -765,20 +765,15 @@ mod plus_rustls {
         let srv = actix_test::start_with(actix_test::config().rustls(tls_config()), || {
             App::new().service(web::resource("/").route(web::to(|bytes: Bytes| {
                 HttpResponse::Ok()
-                    .encoding(ContentEncoding::Identity)
+                    .encode_with(ContentEncoding::Identity)
                     .body(bytes)
             })))
         });
 
-        // encode data
-        let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
-        e.write_all(data.as_ref()).unwrap();
-        let enc = e.finish().unwrap();
-
         let req = srv
             .post("/")
             .insert_header((actix_web::http::header::CONTENT_ENCODING, "deflate"))
-            .send_stream(TestBody::new(Bytes::from(enc), 1024));
+            .send_stream(TestBody::new(Bytes::from(deflate::encode(&data)), 1024));
 
         let mut res = req.await.unwrap();
         assert_eq!(res.status(), StatusCode::OK);

@@ -1,36 +1,44 @@
 use std::{fmt, str};
 
-/// A value to represent an encoding used in the `Accept-Encoding` header.
+use actix_http::ContentEncoding;
+
+/// A value to represent an encoding used in the `Accept-Encoding` and `Content-Encoding` header.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Encoding {
-    /// The no-op "identity" encoding.
-    Identity,
+    /// A supported content encoding. See [`ContentEncoding`] for variants.
+    Known(ContentEncoding),
 
-    /// Brotli compression (`br`).
-    Brotli,
+    /// Some other encoding that is less common, can be any string.
+    Unknown(String),
+}
 
-    /// Gzip compression.
-    Gzip,
+impl Encoding {
+    pub const fn identity() -> Self {
+        Self::Known(ContentEncoding::Identity)
+    }
 
-    /// Deflate (LZ77) encoding.
-    Deflate,
+    pub const fn brotli() -> Self {
+        Self::Known(ContentEncoding::Brotli)
+    }
 
-    /// Zstd compression.
-    Zstd,
+    pub const fn deflate() -> Self {
+        Self::Known(ContentEncoding::Deflate)
+    }
 
-    /// Some other encoding that is less common, can be any String.
-    Other(String),
+    pub const fn gzip() -> Self {
+        Self::Known(ContentEncoding::Gzip)
+    }
+
+    pub const fn zstd() -> Self {
+        Self::Known(ContentEncoding::Zstd)
+    }
 }
 
 impl fmt::Display for Encoding {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
-            Encoding::Identity => "identity",
-            Encoding::Brotli => "br",
-            Encoding::Gzip => "gzip",
-            Encoding::Deflate => "deflate",
-            Encoding::Zstd => "zstd",
-            Encoding::Other(ref enc) => enc.as_ref(),
+            Encoding::Known(enc) => enc.as_str(),
+            Encoding::Unknown(enc) => enc.as_str(),
         })
     }
 }
@@ -38,14 +46,10 @@ impl fmt::Display for Encoding {
 impl str::FromStr for Encoding {
     type Err = crate::error::ParseError;
 
-    fn from_str(enc_str: &str) -> Result<Self, crate::error::ParseError> {
-        match enc_str {
-            "identity" => Ok(Self::Identity),
-            "br" => Ok(Self::Brotli),
-            "gzip" => Ok(Self::Gzip),
-            "deflate" => Ok(Self::Deflate),
-            "zstd" => Ok(Self::Zstd),
-            _ => Ok(Self::Other(enc_str.to_owned())),
+    fn from_str(enc: &str) -> Result<Self, crate::error::ParseError> {
+        match enc.parse::<ContentEncoding>() {
+            Ok(enc) => Ok(Self::Known(enc)),
+            Err(_) => Ok(Self::Unknown(enc.to_owned())),
         }
     }
 }

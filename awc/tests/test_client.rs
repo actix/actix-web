@@ -473,7 +473,7 @@ async fn test_no_decompress() {
             .wrap(actix_web::middleware::Compress::default())
             .service(web::resource("/").route(web::to(|| {
                 let mut res = HttpResponse::Ok().body(STR);
-                res.encoding(header::ContentEncoding::Gzip);
+                res.encode_with(header::ContentEncoding::Gzip);
                 res
             })))
     });
@@ -645,7 +645,7 @@ async fn test_client_deflate_encoding() {
     let srv = actix_test::start(|| {
         App::new().default_service(web::to(|body: Bytes| {
             HttpResponse::Ok()
-                .encoding(ContentEncoding::Brotli)
+                .encode_with(ContentEncoding::Brotli)
                 .body(body)
         }))
     });
@@ -670,7 +670,7 @@ async fn test_client_deflate_encoding_large_random() {
     let srv = actix_test::start(|| {
         App::new().default_service(web::to(|body: Bytes| {
             HttpResponse::Ok()
-                .encoding(ContentEncoding::Brotli)
+                .encode_with(ContentEncoding::Brotli)
                 .body(body)
         }))
     });
@@ -689,7 +689,7 @@ async fn test_client_streaming_explicit() {
     let srv = actix_test::start(|| {
         App::new().default_service(web::to(|body: web::Payload| {
             HttpResponse::Ok()
-                .encoding(ContentEncoding::Identity)
+                .encode_with(ContentEncoding::Identity)
                 .streaming(body)
         }))
     });
@@ -714,7 +714,7 @@ async fn test_body_streaming_implicit() {
             });
 
             HttpResponse::Ok()
-                .encoding(ContentEncoding::Gzip)
+                .encode_with(ContentEncoding::Gzip)
                 .streaming(Box::pin(body))
         }))
     });

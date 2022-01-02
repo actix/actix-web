@@ -20,7 +20,7 @@ pub struct ContentEncodingParseError;
 /// See [IANA HTTP Content Coding Registry].
 ///
 /// [IANA HTTP Content Coding Registry]: https://www.iana.org/assignments/http-parameters/http-parameters.xhtml
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ContentEncoding {
     /// Indicates the no-op identity encoding.
@@ -42,12 +42,6 @@ pub enum ContentEncoding {
 }
 
 impl ContentEncoding {
-    // /// Is the content compressed?
-    // #[inline]
-    // pub const fn is_compression(self) -> bool {
-    //     matches!(self, ContentEncoding::Identity)
-    // }
-
     /// Convert content encoding to string.
     #[inline]
     pub const fn as_str(self) -> &'static str {
@@ -82,16 +76,18 @@ impl Default for ContentEncoding {
 impl FromStr for ContentEncoding {
     type Err = ContentEncodingParseError;
 
-    fn from_str(val: &str) -> Result<Self, Self::Err> {
-        let val = val.trim();
+    fn from_str(enc: &str) -> Result<Self, Self::Err> {
+        let enc = enc.trim();
 
-        if val.eq_ignore_ascii_case("br") {
+        if enc.eq_ignore_ascii_case("br") {
             Ok(ContentEncoding::Brotli)
-        } else if val.eq_ignore_ascii_case("gzip") {
+        } else if enc.eq_ignore_ascii_case("gzip") {
             Ok(ContentEncoding::Gzip)
-        } else if val.eq_ignore_ascii_case("deflate") {
+        } else if enc.eq_ignore_ascii_case("deflate") {
             Ok(ContentEncoding::Deflate)
-        } else if val.eq_ignore_ascii_case("zstd") {
+        } else if enc.eq_ignore_ascii_case("identity") {
+            Ok(ContentEncoding::Identity)
+        } else if enc.eq_ignore_ascii_case("zstd") {
             Ok(ContentEncoding::Zstd)
         } else {
             Err(ContentEncodingParseError)

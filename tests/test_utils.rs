@@ -1,3 +1,6 @@
+// compiling some tests will trigger unused function warnings even though other tests use them
+#![allow(dead_code)]
+
 use std::io::{Read as _, Write as _};
 
 pub mod gzip {

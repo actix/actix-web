@@ -27,7 +27,7 @@ macro_rules! test_server {
                     web::to(|| {
                         HttpResponse::Ok()
                             // signal to compressor that content should not be altered
-                            .encoding(ContentEncoding::Identity)
+                            .encode_with(ContentEncoding::Identity)
                             // signal to client that content is encoded
                             .insert_header(ContentEncoding::Gzip)
                             .body(LOREM_GZIP)
@@ -38,7 +38,7 @@ macro_rules! test_server {
                     web::to(|| {
                         HttpResponse::Ok()
                             // signal to compressor that content should not be altered
-                            .encoding(ContentEncoding::Identity)
+                            .encode_with(ContentEncoding::Identity)
                             // signal to client that content is encoded
                             .insert_header(ContentEncoding::Brotli)
                             .body(LOREM_BR)
@@ -49,7 +49,7 @@ macro_rules! test_server {
                     web::to(|| {
                         HttpResponse::Ok()
                             // signal to compressor that content should not be altered
-                            .encoding(ContentEncoding::Identity)
+                            .encode_with(ContentEncoding::Identity)
                             // signal to client that content is encoded
                             .insert_header(ContentEncoding::Zstd)
                             .body(LOREM_ZSTD)
@@ -60,7 +60,7 @@ macro_rules! test_server {
                     web::to(|| {
                         HttpResponse::Ok()
                             // signal to compressor that content should not be altered
-                            .encoding(ContentEncoding::Identity)
+                            .encode_with(ContentEncoding::Identity)
                             // signal to client that content is encoded as 7zip
                             .insert_header((header::CONTENT_ENCODING, "xz"))
                             .body(LOREM_XZ)

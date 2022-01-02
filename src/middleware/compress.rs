@@ -16,7 +16,7 @@ use pin_project_lite::pin_project;
 
 use crate::{
     body::{EitherBody, MessageBody},
-    dev::BodyEncoding,
+    dev::BodyEncoding as _,
     http::{
         header::{self, AcceptEncoding, ContentEncoding, Encoding, HeaderValue},
         StatusCode,
@@ -111,22 +111,22 @@ static SUPPORTED_ENCODINGS_STRING: Lazy<String> = Lazy::new(|| {
 });
 
 static SUPPORTED_ENCODINGS: Lazy<Vec<Encoding>> = Lazy::new(|| {
-    let mut encodings = vec![Encoding::Identity];
+    let mut encodings = vec![Encoding::identity()];
 
     #[cfg(feature = "compress-brotli")]
     {
-        encodings.push(Encoding::Brotli);
+        encodings.push(Encoding::brotli());
     }
 
     #[cfg(feature = "compress-gzip")]
     {
-        encodings.push(Encoding::Gzip);
-        encodings.push(Encoding::Deflate);
+        encodings.push(Encoding::gzip());
+        encodings.push(Encoding::deflate());
     }
 
     #[cfg(feature = "compress-zstd")]
     {
-        encodings.push(Encoding::Zstd);
+        encodings.push(Encoding::zstd());
     }
 
     assert!(
@@ -158,7 +158,7 @@ where
             // missing header; fallback to identity
             None => {
                 return Either::left(CompressResponse {
-                    encoding: Encoding::Identity,
+                    encoding: Encoding::identity(),
                     fut: self.service.call(req),
                     _phantom: PhantomData,
                 })
@@ -217,16 +217,14 @@ where
 
         match ready!(this.fut.poll(cx)) {
             Ok(resp) => {
-                let enc = if let Some(enc) = resp.response().get_encoding() {
+                let enc = if let Some(enc) = resp.response().preferred_encoding() {
                     enc
                 } else {
                     match this.encoding {
-                        Encoding::Brotli => ContentEncoding::Brotli,
-                        Encoding::Gzip => ContentEncoding::Gzip,
-                        Encoding::Deflate => ContentEncoding::Deflate,
-                        Encoding::Identity => ContentEncoding::Identity,
-                        Encoding::Zstd => ContentEncoding::Zstd,
-                        enc => unimplemented!("encoding {} should not be here", enc),
+                        Encoding::Known(enc) => *enc,
+                        Encoding::Unknown(enc) => {
+                            unimplemented!("encoding {} should not be here", enc);
+                        }
                     }
                 };
 

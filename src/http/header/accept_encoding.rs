@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use super::{common_header, Encoding, Preference, Quality, QualityItem};
+use super::{common_header, ContentEncoding, Encoding, Preference, Quality, QualityItem};
 use crate::http::header;
 
 common_header! {
@@ -31,7 +31,7 @@ common_header! {
     ///
     /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
-    ///     AcceptEncoding(vec![QualityItem::max(Preference::Specific(Encoding::Gzip))])
+    ///     AcceptEncoding(vec![QualityItem::max(Preference::Specific(Encoding::gzip()))])
     /// );
     /// ```
     ///
@@ -57,8 +57,8 @@ common_header! {
             order_of_appearance,
             vec![b"br, gzip"],
             Some(AcceptEncoding(vec![
-                QualityItem::max(Preference::Specific(Encoding::Brotli)),
-                QualityItem::max(Preference::Specific(Encoding::Gzip)),
+                QualityItem::max(Preference::Specific(Encoding::brotli())),
+                QualityItem::max(Preference::Specific(Encoding::gzip())),
             ]))
         );
 
@@ -76,7 +76,7 @@ common_header! {
             only_gzip_no_identity,
             vec![b"gzip, *; q=0"],
             Some(AcceptEncoding(vec![
-                QualityItem::max(Preference::Specific(Encoding::Gzip)),
+                QualityItem::max(Preference::Specific(Encoding::gzip())),
                 QualityItem::zero(Preference::Any),
             ]))
         );
@@ -109,7 +109,7 @@ impl AcceptEncoding {
 
         if self.0.is_empty() {
             // though it is not recommended to encode in this case, return identity encoding
-            return Some(Encoding::Identity);
+            return Some(Encoding::identity());
         }
 
         // 2. If the representation has no content-coding, then it is acceptable by default unless
@@ -119,10 +119,10 @@ impl AcceptEncoding {
         let acceptable_items = self.ranked_items().collect::<Vec<_>>();
 
         let identity_acceptable = is_identity_acceptable(&acceptable_items);
-        let identity_supported = supported_set.contains(&Encoding::Identity);
+        let identity_supported = supported_set.contains(&Encoding::identity());
 
         if identity_acceptable && identity_supported && supported_set.len() == 1 {
-            return Some(Encoding::Identity);
+            return Some(Encoding::identity());
         }
 
         // 3. If the representation's content-coding is one of the content-codings listed in the
@@ -144,7 +144,7 @@ impl AcceptEncoding {
         match matched {
             Some(Preference::Specific(enc)) => Some(enc),
 
-            _ if identity_acceptable => Some(Encoding::Identity),
+            _ if identity_acceptable => Some(Encoding::identity()),
 
             _ => None,
         }
@@ -190,14 +190,15 @@ impl AcceptEncoding {
             match self.0.iter().find(|pref| {
                 matches!(
                     pref.item,
-                    Preference::Any | Preference::Specific(Encoding::Identity)
+                    Preference::Any
+                        | Preference::Specific(Encoding::Known(ContentEncoding::Identity))
                 )
             }) {
                 // "identity" or "*" found so no representation is acceptable
                 Some(_) => None,
 
                 // implicit "identity" is acceptable
-                None => Some(Preference::Specific(Encoding::Identity)),
+                None => Some(Preference::Specific(Encoding::identity())),
             }
         })
     }
@@ -240,7 +241,9 @@ fn is_identity_acceptable(items: &'_ [QualityItem<Preference<Encoding>>]) -> boo
     for q in items {
         match (q.quality, &q.item) {
             // occurrence of "identity;q=n"; return true if quality is non-zero
-            (q, Preference::Specific(Encoding::Identity)) => return q > Quality::ZERO,
+            (q, Preference::Specific(Encoding::Known(ContentEncoding::Identity))) => {
+                return q > Quality::ZERO
+            }
 
             // occurrence of "*;q=n"; return true if quality is non-zero
             (q, Preference::Any) => return q > Quality::ZERO,
@@ -308,80 +311,82 @@ mod tests {
 
         let test = accept_encoding!();
         assert_eq!(
-            test.negotiate([Encoding::Identity].iter()),
-            Some(Encoding::Identity),
+            test.negotiate([Encoding::identity()].iter()),
+            Some(Encoding::identity()),
         );
 
         let test = accept_encoding!("identity;q=0");
-        assert_eq!(test.negotiate([Encoding::Identity].iter()), None);
+        assert_eq!(test.negotiate([Encoding::identity()].iter()), None);
 
         let test = accept_encoding!("*;q=0");
-        assert_eq!(test.negotiate([Encoding::Identity].iter()), None);
+        assert_eq!(test.negotiate([Encoding::identity()].iter()), None);
 
         let test = accept_encoding!();
         assert_eq!(
-            test.negotiate([Encoding::Gzip, Encoding::Identity].iter()),
-            Some(Encoding::Identity),
+            test.negotiate([Encoding::gzip(), Encoding::identity()].iter()),
+            Some(Encoding::identity()),
         );
 
         let test = accept_encoding!("gzip");
         assert_eq!(
-            test.negotiate([Encoding::Gzip, Encoding::Identity].iter()),
-            Some(Encoding::Gzip),
+            test.negotiate([Encoding::gzip(), Encoding::identity()].iter()),
+            Some(Encoding::gzip()),
         );
         assert_eq!(
-            test.negotiate([Encoding::Brotli, Encoding::Identity].iter()),
-            Some(Encoding::Identity),
+            test.negotiate([Encoding::brotli(), Encoding::identity()].iter()),
+            Some(Encoding::identity()),
         );
         assert_eq!(
-            test.negotiate([Encoding::Brotli, Encoding::Gzip, Encoding::Identity].iter()),
-            Some(Encoding::Gzip),
+            test.negotiate([Encoding::brotli(), Encoding::gzip(), Encoding::identity()].iter()),
+            Some(Encoding::gzip()),
         );
 
         let test = accept_encoding!("gzip", "identity;q=0");
         assert_eq!(
-            test.negotiate([Encoding::Gzip, Encoding::Identity].iter()),
-            Some(Encoding::Gzip),
+            test.negotiate([Encoding::gzip(), Encoding::identity()].iter()),
+            Some(Encoding::gzip()),
         );
         assert_eq!(
-            test.negotiate([Encoding::Brotli, Encoding::Identity].iter()),
+            test.negotiate([Encoding::brotli(), Encoding::identity()].iter()),
             None
         );
 
         let test = accept_encoding!("gzip", "*;q=0");
         assert_eq!(
-            test.negotiate([Encoding::Gzip, Encoding::Identity].iter()),
-            Some(Encoding::Gzip),
+            test.negotiate([Encoding::gzip(), Encoding::identity()].iter()),
+            Some(Encoding::gzip()),
         );
         assert_eq!(
-            test.negotiate([Encoding::Brotli, Encoding::Identity].iter()),
+            test.negotiate([Encoding::brotli(), Encoding::identity()].iter()),
             None
         );
 
         let test = accept_encoding!("gzip", "deflate", "br");
         assert_eq!(
-            test.negotiate([Encoding::Gzip, Encoding::Identity].iter()),
-            Some(Encoding::Gzip),
+            test.negotiate([Encoding::gzip(), Encoding::identity()].iter()),
+            Some(Encoding::gzip()),
         );
         assert_eq!(
-            test.negotiate([Encoding::Brotli, Encoding::Identity].iter()),
-            Some(Encoding::Brotli)
+            test.negotiate([Encoding::brotli(), Encoding::identity()].iter()),
+            Some(Encoding::brotli())
         );
         assert_eq!(
-            test.negotiate([Encoding::Deflate, Encoding::Identity].iter()),
-            Some(Encoding::Deflate)
+            test.negotiate([Encoding::deflate(), Encoding::identity()].iter()),
+            Some(Encoding::deflate())
         );
         assert_eq!(
-            test.negotiate([Encoding::Gzip, Encoding::Deflate, Encoding::Identity].iter()),
-            Some(Encoding::Gzip)
+            test.negotiate(
+                [Encoding::gzip(), Encoding::deflate(), Encoding::identity()].iter()
+            ),
+            Some(Encoding::gzip())
         );
         assert_eq!(
-            test.negotiate([Encoding::Gzip, Encoding::Brotli, Encoding::Identity].iter()),
-            Some(Encoding::Gzip)
+            test.negotiate([Encoding::gzip(), Encoding::brotli(), Encoding::identity()].iter()),
+            Some(Encoding::gzip())
         );
         assert_eq!(
-            test.negotiate([Encoding::Brotli, Encoding::Gzip, Encoding::Identity].iter()),
-            Some(Encoding::Gzip)
+            test.negotiate([Encoding::brotli(), Encoding::gzip(), Encoding::identity()].iter()),
+            Some(Encoding::gzip())
         );
     }
 
