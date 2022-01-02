@@ -644,7 +644,9 @@ async fn test_client_brotli_encoding_large_random() {
 async fn test_client_deflate_encoding() {
     let srv = actix_test::start(|| {
         App::new().default_service(web::to(|body: Bytes| {
-            HttpResponse::Ok().encoding(ContentEncoding::Br).body(body)
+            HttpResponse::Ok()
+                .encoding(ContentEncoding::Brotli)
+                .body(body)
         }))
     });
 
@@ -667,7 +669,9 @@ async fn test_client_deflate_encoding_large_random() {
 
     let srv = actix_test::start(|| {
         App::new().default_service(web::to(|body: Bytes| {
-            HttpResponse::Ok().encoding(ContentEncoding::Br).body(body)
+            HttpResponse::Ok()
+                .encoding(ContentEncoding::Brotli)
+                .body(body)
         }))
     });
 

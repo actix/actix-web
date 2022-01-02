@@ -23,11 +23,13 @@ pub struct ContentEncodingParseError;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ContentEncoding {
-    /// Automatically select encoding based on encoding negotiation.
-    Auto,
+    /// Indicates the no-op identity encoding.
+    ///
+    /// I.e., no compression or modification.
+    Identity,
 
     /// A format using the Brotli algorithm.
-    Br,
+    Brotli,
 
     /// A format using the zlib structure with deflate algorithm.
     Deflate,
@@ -37,27 +39,36 @@ pub enum ContentEncoding {
 
     /// Zstd algorithm.
     Zstd,
-
-    /// Indicates the identity function (i.e. no compression, nor modification).
-    Identity,
 }
 
 impl ContentEncoding {
-    /// Is the content compressed?
-    #[inline]
-    pub const fn is_compression(self) -> bool {
-        matches!(self, ContentEncoding::Identity | ContentEncoding::Auto)
-    }
+    // /// Is the content compressed?
+    // #[inline]
+    // pub const fn is_compression(self) -> bool {
+    //     matches!(self, ContentEncoding::Identity)
+    // }
 
     /// Convert content encoding to string.
     #[inline]
     pub const fn as_str(self) -> &'static str {
         match self {
-            ContentEncoding::Br => "br",
+            ContentEncoding::Brotli => "br",
             ContentEncoding::Gzip => "gzip",
             ContentEncoding::Deflate => "deflate",
             ContentEncoding::Zstd => "zstd",
-            ContentEncoding::Identity | ContentEncoding::Auto => "identity",
+            ContentEncoding::Identity => "identity",
+        }
+    }
+
+    /// Convert content encoding to header value.
+    #[inline]
+    pub const fn to_header_value(self) -> HeaderValue {
+        match self {
+            ContentEncoding::Brotli => HeaderValue::from_static("br"),
+            ContentEncoding::Gzip => HeaderValue::from_static("gzip"),
+            ContentEncoding::Deflate => HeaderValue::from_static("deflate"),
+            ContentEncoding::Zstd => HeaderValue::from_static("zstd"),
+            ContentEncoding::Identity => HeaderValue::from_static("identity"),
         }
     }
 }
@@ -75,7 +86,7 @@ impl FromStr for ContentEncoding {
         let val = val.trim();
 
         if val.eq_ignore_ascii_case("br") {
-            Ok(ContentEncoding::Br)
+            Ok(ContentEncoding::Brotli)
         } else if val.eq_ignore_ascii_case("gzip") {
             Ok(ContentEncoding::Gzip)
         } else if val.eq_ignore_ascii_case("deflate") {

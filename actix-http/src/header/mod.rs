@@ -57,13 +57,6 @@ pub trait Header: TryIntoHeaderValue {
     fn parse<M: HttpMessage>(msg: &M) -> Result<Self, ParseError>;
 }
 
-/// Convert `http::HeaderMap` to our `HeaderMap`.
-impl From<http::HeaderMap> for HeaderMap {
-    fn from(mut map: http::HeaderMap) -> HeaderMap {
-        HeaderMap::from_drain(map.drain())
-    }
-}
-
 /// This encode set is used for HTTP header values and is defined at
 /// <https://datatracker.ietf.org/doc/html/rfc5987#section-3.2>.
 pub(crate) const HTTP_VALUE: &AsciiSet = &CONTROLS

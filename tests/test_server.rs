@@ -366,7 +366,7 @@ async fn test_body_chunked_implicit() {
 async fn test_body_br_streaming() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
-            .wrap(Compress::new(ContentEncoding::Br))
+            .wrap(Compress::new(ContentEncoding::Brotli))
             .service(web::resource("/").route(web::to(move || {
                 HttpResponse::Ok()
                     .streaming(TestBody::new(Bytes::from_static(STR.as_ref()), 24))
@@ -473,7 +473,7 @@ async fn test_body_deflate() {
 async fn test_body_brotli() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
-            .wrap(Compress::new(ContentEncoding::Br))
+            .wrap(Compress::new(ContentEncoding::Brotli))
             .service(web::resource("/").route(web::to(move || HttpResponse::Ok().body(STR))))
     });
 

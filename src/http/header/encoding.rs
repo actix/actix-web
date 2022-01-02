@@ -1,69 +1,51 @@
 use std::{fmt, str};
 
-pub use self::Encoding::{
-    Brotli, Chunked, Compress, Deflate, EncodingExt, Gzip, Identity, Trailers, Zstd,
-};
-
-/// A value to represent an encoding used in `Transfer-Encoding` or `Accept-Encoding` header.
+/// A value to represent an encoding used in the `Accept-Encoding` header.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Encoding {
-    /// The `chunked` encoding.
-    Chunked,
-
-    /// The `br` encoding.
-    Brotli,
-
-    /// The `gzip` encoding.
-    Gzip,
-
-    /// The `deflate` encoding.
-    Deflate,
-
-    /// The `compress` encoding.
-    Compress,
-
-    /// The `identity` encoding. Does not affect content.
+    /// The no-op "identity" encoding.
     Identity,
 
-    /// The `trailers` encoding.
-    Trailers,
+    /// Brotli compression (`br`).
+    Brotli,
 
-    /// The `zstd` encoding.
+    /// Gzip compression.
+    Gzip,
+
+    /// Deflate (LZ77) encoding.
+    Deflate,
+
+    /// Zstd compression.
     Zstd,
 
     /// Some other encoding that is less common, can be any String.
-    EncodingExt(String),
+    Other(String),
 }
 
 impl fmt::Display for Encoding {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match *self {
-            Chunked => "chunked",
-            Brotli => "br",
-            Gzip => "gzip",
-            Deflate => "deflate",
-            Compress => "compress",
-            Identity => "identity",
-            Trailers => "trailers",
-            Zstd => "zstd",
-            EncodingExt(ref s) => s.as_ref(),
+        f.write_str(match self {
+            Encoding::Identity => "identity",
+            Encoding::Brotli => "br",
+            Encoding::Gzip => "gzip",
+            Encoding::Deflate => "deflate",
+            Encoding::Zstd => "zstd",
+            Encoding::Other(ref enc) => enc.as_ref(),
         })
     }
 }
 
 impl str::FromStr for Encoding {
     type Err = crate::error::ParseError;
-    fn from_str(s: &str) -> Result<Encoding, crate::error::ParseError> {
-        match s {
-            "chunked" => Ok(Chunked),
-            "br" => Ok(Brotli),
-            "deflate" => Ok(Deflate),
-            "gzip" => Ok(Gzip),
-            "compress" => Ok(Compress),
-            "identity" => Ok(Identity),
-            "trailers" => Ok(Trailers),
-            "zstd" => Ok(Zstd),
-            _ => Ok(EncodingExt(s.to_owned())),
+
+    fn from_str(enc_str: &str) -> Result<Self, crate::error::ParseError> {
+        match enc_str {
+            "identity" => Ok(Self::Identity),
+            "br" => Ok(Self::Brotli),
+            "gzip" => Ok(Self::Gzip),
+            "deflate" => Ok(Self::Deflate),
+            "zstd" => Ok(Self::Zstd),
+            _ => Ok(Self::Other(enc_str.to_owned())),
         }
     }
 }

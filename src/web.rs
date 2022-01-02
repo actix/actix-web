@@ -2,13 +2,12 @@
 
 use std::future::Future;
 
-use actix_http::Method;
 use actix_router::IntoPatterns;
 pub use bytes::{Buf, BufMut, Bytes, BytesMut};
 
 use crate::{
-    error::BlockingError, extract::FromRequest, handler::Handler, resource::Resource,
-    route::Route, scope::Scope, service::WebService, Responder,
+    error::BlockingError, http::Method, service::WebService, FromRequest, Handler, Resource,
+    Responder, Route, Scope,
 };
 
 pub use crate::config::ServiceConfig;

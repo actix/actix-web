@@ -45,7 +45,10 @@ pub(crate) fn ensure_leading_slash(mut patterns: Patterns) -> Patterns {
     patterns
 }
 
-/// Helper trait that allows to set specific encoding for response.
+/// Helper trait for managing response encoding.
+///
+/// Use `encoding` to flag response as already encoded. For example, when serving a Gzip compressed
+/// file from disk.
 pub trait BodyEncoding {
     /// Get content encoding
     fn get_encoding(&self) -> Option<ContentEncoding>;
@@ -55,6 +58,8 @@ pub trait BodyEncoding {
     /// Must be used with [`crate::middleware::Compress`] to take effect.
     fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self;
 }
+
+struct Enc(ContentEncoding);
 
 impl BodyEncoding for actix_http::ResponseBuilder {
     fn get_encoding(&self) -> Option<ContentEncoding> {
@@ -66,8 +71,6 @@ impl BodyEncoding for actix_http::ResponseBuilder {
         self
     }
 }
-
-struct Enc(ContentEncoding);
 
 impl<B> BodyEncoding for actix_http::Response<B> {
     fn get_encoding(&self) -> Option<ContentEncoding> {

@@ -27,7 +27,8 @@ const MAX_QUALITY_FLOAT: f32 = 1.0;
 ///
 /// assert_eq!(q(0.42).to_string(), "0.42");
 /// assert_eq!(q(1.0).to_string(), "1");
-/// assert_eq!(Quality::MIN.to_string(), "0");
+/// assert_eq!(Quality::MIN.to_string(), "0.001");
+/// assert_eq!(Quality::ZERO.to_string(), "0");
 /// ```
 ///
 /// [RFC 7231 §5.3.1]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.1
@@ -157,8 +158,11 @@ impl TryFrom<f32> for Quality {
 /// let q1 = q(1.0);
 /// assert_eq!(q1, Quality::MAX);
 ///
-/// let q2 = q(0.0);
+/// let q2 = q(0.0001);
 /// assert_eq!(q2, Quality::MIN);
+
+/// let q2 = q(0.0);
+/// assert_eq!(q2, Quality::ZERO);
 ///
 /// let q3 = q(0.42);
 /// ```

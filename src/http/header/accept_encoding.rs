@@ -68,12 +68,11 @@ common_header! {
         common_header_test!(no_headers, vec![b""; 0], Some(AcceptEncoding(vec![])));
         common_header_test!(empty_header, vec![b""; 1], Some(AcceptEncoding(vec![])));
 
-        // From the RFC
         common_header_test!(
             order_of_appearance,
-            vec![b"compress, gzip"],
+            vec![b"br, gzip"],
             Some(AcceptEncoding(vec![
-                QualityItem::max(Preference::Specific(Encoding::Compress)),
+                QualityItem::max(Preference::Specific(Encoding::Brotli)),
                 QualityItem::max(Preference::Specific(Encoding::Gzip)),
             ]))
         );
