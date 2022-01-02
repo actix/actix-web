@@ -27,7 +27,7 @@ use super::Writer;
 use crate::{
     body::{self, BodySize, MessageBody},
     error::BlockingError,
-    header::{self, ContentEncoding, CONTENT_ENCODING},
+    header::{self, ContentEncoding, HeaderValue, CONTENT_ENCODING},
     ResponseHead, StatusCode,
 };
 
@@ -56,7 +56,7 @@ impl<B: MessageBody> Encoder<B> {
     }
 
     pub fn response(encoding: ContentEncoding, head: &mut ResponseHead, body: B) -> Self {
-        let can_encode = !(head.headers().contains_key(&CONTENT_ENCODING)
+        let should_encode = !(head.headers().contains_key(&CONTENT_ENCODING)
             || head.status == StatusCode::SWITCHING_PROTOCOLS
             || head.status == StatusCode::NO_CONTENT
             || encoding == ContentEncoding::Identity);
@@ -71,8 +71,8 @@ impl<B: MessageBody> Encoder<B> {
             Err(body) => EncoderBody::Stream { body },
         };
 
-        if can_encode {
-            // Modify response body only if encoder is set
+        if should_encode {
+            // wrap body only if encoder is feature-enabled
             if let Some(enc) = ContentEncoder::encoder(encoding) {
                 update_head(encoding, head);
 
@@ -253,6 +253,8 @@ where
 fn update_head(encoding: ContentEncoding, head: &mut ResponseHead) {
     head.headers_mut()
         .insert(header::CONTENT_ENCODING, encoding.to_header_value());
+    head.headers_mut()
+        .insert(header::VARY, HeaderValue::from_static("accept-encoding"));
 
     head.no_chunking(false);
 }
