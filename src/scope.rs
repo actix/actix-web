@@ -154,6 +154,7 @@ where
     ///         .route("/", web::get().to(handler))
     /// );
     /// ```
+    #[doc(alias = "manage")]
     pub fn app_data<U: 'static>(mut self, data: U) -> Self {
         self.app_data
             .get_or_insert_with(Extensions::new)
