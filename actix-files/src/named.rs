@@ -420,7 +420,7 @@ impl NamedFile {
             }
 
             if let Some(current_encoding) = self.encoding {
-                res.encoding(current_encoding);
+                res.encode_with(current_encoding);
             }
 
             let reader = chunked::new_chunked_read(self.md.len(), 0, self.file);
@@ -494,7 +494,7 @@ impl NamedFile {
 
         // default compressing
         if let Some(current_encoding) = self.encoding {
-            res.encoding(current_encoding);
+            res.encode_with(current_encoding);
         }
 
         if let Some(lm) = last_modified {
@@ -517,7 +517,7 @@ impl NamedFile {
                     length = ranges[0].length;
                     offset = ranges[0].start;
 
-                    res.encoding(ContentEncoding::Identity);
+                    res.encode_with(ContentEncoding::Identity);
                     res.insert_header((
                         header::CONTENT_RANGE,
                         format!("bytes {}-{}/{}", offset, offset + length - 1, self.md.len()),

@@ -37,7 +37,7 @@ common_header! {
     /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     AcceptLanguage(vec![
-    ///         QualityItem::max("en-US".parse().unwrap())
+    ///         "en-US".parse().unwrap(),
     ///     ])
     /// );
     /// ```
@@ -49,9 +49,9 @@ common_header! {
     /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
     ///     AcceptLanguage(vec![
-    ///         QualityItem::max("da".parse().unwrap()),
-    ///         QualityItem::new("en-GB".parse().unwrap(), q(0.8)),
-    ///         QualityItem::new("en".parse().unwrap(), q(0.7)),
+    ///         "da".parse().unwrap(),
+    ///         "en-GB;q=0.8".parse().unwrap(),
+    ///         "en;q=0.7".parse().unwrap(),
     ///     ])
     /// );
     /// ```
@@ -93,6 +93,33 @@ common_header! {
 }
 
 impl AcceptLanguage {
+    /// Extracts the most preferable language, accounting for [q-factor weighting].
+    ///
+    /// If no q-factors are provided, the first language is chosen. Note that items without
+    /// q-factors are given the maximum preference value.
+    ///
+    /// As per the spec, returns [`Preference::Any`] if contained list is empty.
+    ///
+    /// [q-factor weighting]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
+    pub fn preference(&self) -> Preference<LanguageTag> {
+        let mut max_item = None;
+        let mut max_pref = Quality::ZERO;
+
+        // uses manual max lookup loop since we want the first occurrence in the case of same
+        // preference but `Iterator::max_by_key` would give us the last occurrence
+
+        for pref in &self.0 {
+            // only change if strictly greater
+            // equal items, even while unsorted, still have higher preference if they appear first
+            if pref.quality > max_pref {
+                max_pref = pref.quality;
+                max_item = Some(pref.item.clone());
+            }
+        }
+
+        max_item.unwrap_or(Preference::Any)
+    }
+
     /// Returns a sorted list of languages from highest to lowest precedence, accounting
     /// for [q-factor weighting].
     ///
@@ -112,33 +139,6 @@ impl AcceptLanguage {
 
         types.into_iter().map(|qitem| qitem.item).collect()
     }
-
-    /// Extracts the most preferable language, accounting for [q-factor weighting].
-    ///
-    /// If no q-factors are provided, the first language is chosen. Note that items without
-    /// q-factors are given the maximum preference value.
-    ///
-    /// As per the spec, returns [`Preference::Any`] if contained list is empty.
-    ///
-    /// [q-factor weighting]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
-    pub fn preference(&self) -> Preference<LanguageTag> {
-        let mut max_item = None;
-        let mut max_pref = Quality::MIN;
-
-        // uses manual max lookup loop since we want the first occurrence in the case of same
-        // preference but `Iterator::max_by_key` would give us the last occurrence
-
-        for pref in &self.0 {
-            // only change if strictly greater
-            // equal items, even while unsorted, still have higher preference if they appear first
-            if pref.quality > max_pref {
-                max_pref = pref.quality;
-                max_item = Some(pref.item.clone());
-            }
-        }
-
-        max_item.unwrap_or(Preference::Any)
-    }
 }
 
 #[cfg(test)]
@@ -152,7 +152,7 @@ mod tests {
         assert!(test.ranked().is_empty());
 
         let test = AcceptLanguage(vec![QualityItem::max("fr-CH".parse().unwrap())]);
-        assert_eq!(test.ranked(), vec!("fr-CH".parse().unwrap()));
+        assert_eq!(test.ranked(), vec!["fr-CH".parse().unwrap()]);
 
         let test = AcceptLanguage(vec![
             QualityItem::new("fr".parse().unwrap(), q(0.900)),

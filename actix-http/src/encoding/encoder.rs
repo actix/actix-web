@@ -56,11 +56,10 @@ impl<B: MessageBody> Encoder<B> {
     }
 
     pub fn response(encoding: ContentEncoding, head: &mut ResponseHead, body: B) -> Self {
-        let can_encode = !(head.headers().contains_key(&CONTENT_ENCODING)
+        let should_encode = !(head.headers().contains_key(&CONTENT_ENCODING)
             || head.status == StatusCode::SWITCHING_PROTOCOLS
             || head.status == StatusCode::NO_CONTENT
-            || encoding == ContentEncoding::Identity
-            || encoding == ContentEncoding::Auto);
+            || encoding == ContentEncoding::Identity);
 
         // no need to compress an empty body
         if matches!(body.size(), BodySize::None) {
@@ -72,8 +71,8 @@ impl<B: MessageBody> Encoder<B> {
             Err(body) => EncoderBody::Stream { body },
         };
 
-        if can_encode {
-            // Modify response body only if encoder is set
+        if should_encode {
+            // wrap body only if encoder is feature-enabled
             if let Some(enc) = ContentEncoder::encoder(encoding) {
                 update_head(encoding, head);
 
@@ -252,10 +251,10 @@ where
 }
 
 fn update_head(encoding: ContentEncoding, head: &mut ResponseHead) {
-    head.headers_mut().insert(
-        header::CONTENT_ENCODING,
-        HeaderValue::from_static(encoding.as_str()),
-    );
+    head.headers_mut()
+        .insert(header::CONTENT_ENCODING, encoding.to_header_value());
+    head.headers_mut()
+        .insert(header::VARY, HeaderValue::from_static("accept-encoding"));
 
     head.no_chunking(false);
 }
@@ -268,7 +267,7 @@ enum ContentEncoder {
     Gzip(GzEncoder<Writer>),
 
     #[cfg(feature = "compress-brotli")]
-    Br(BrotliEncoder<Writer>),
+    Brotli(BrotliEncoder<Writer>),
 
     // Wwe need explicit 'static lifetime here because ZstdEncoder needs a lifetime argument and we
     // use `spawn_blocking` in `Encoder::poll_next` that requires `FnOnce() -> R + Send + 'static`.
@@ -292,8 +291,8 @@ impl ContentEncoder {
             ))),
 
             #[cfg(feature = "compress-brotli")]
-            ContentEncoding::Br => {
-                Some(ContentEncoder::Br(BrotliEncoder::new(Writer::new(), 3)))
+            ContentEncoding::Brotli => {
+                Some(ContentEncoder::Brotli(BrotliEncoder::new(Writer::new(), 3)))
             }
 
             #[cfg(feature = "compress-zstd")]
@@ -302,7 +301,7 @@ impl ContentEncoder {
                 Some(ContentEncoder::Zstd(encoder))
             }
 
-            _ => None,
+            ContentEncoding::Identity => None,
         }
     }
 
@@ -310,7 +309,7 @@ impl ContentEncoder {
     pub(crate) fn take(&mut self) -> Bytes {
         match *self {
             #[cfg(feature = "compress-brotli")]
-            ContentEncoder::Br(ref mut encoder) => encoder.get_mut().take(),
+            ContentEncoder::Brotli(ref mut encoder) => encoder.get_mut().take(),
 
             #[cfg(feature = "compress-gzip")]
             ContentEncoder::Deflate(ref mut encoder) => encoder.get_mut().take(),
@@ -326,7 +325,7 @@ impl ContentEncoder {
     fn finish(self) -> Result<Bytes, io::Error> {
         match self {
             #[cfg(feature = "compress-brotli")]
-            ContentEncoder::Br(encoder) => match encoder.finish() {
+            ContentEncoder::Brotli(encoder) => match encoder.finish() {
                 Ok(writer) => Ok(writer.buf.freeze()),
                 Err(err) => Err(err),
             },
@@ -354,7 +353,7 @@ impl ContentEncoder {
     fn write(&mut self, data: &[u8]) -> Result<(), io::Error> {
         match *self {
             #[cfg(feature = "compress-brotli")]
-            ContentEncoder::Br(ref mut encoder) => match encoder.write_all(data) {
+            ContentEncoder::Brotli(ref mut encoder) => match encoder.write_all(data) {
                 Ok(_) => Ok(()),
                 Err(err) => {
                     trace!("Error decoding br encoding: {}", err);

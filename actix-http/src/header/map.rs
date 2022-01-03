@@ -605,6 +605,13 @@ impl<'a> IntoIterator for &'a HeaderMap {
     }
 }
 
+/// Convert `http::HeaderMap` to our `HeaderMap`.
+impl From<http::HeaderMap> for HeaderMap {
+    fn from(mut map: http::HeaderMap) -> HeaderMap {
+        HeaderMap::from_drain(map.drain())
+    }
+}
+
 /// Iterator over removed, owned values with the same associated name.
 ///
 /// Returned from methods that remove or replace items. See [`HeaderMap::insert`]

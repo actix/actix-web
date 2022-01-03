@@ -47,9 +47,9 @@ where
     pub fn new(stream: S, encoding: ContentEncoding) -> Decoder<S> {
         let decoder = match encoding {
             #[cfg(feature = "compress-brotli")]
-            ContentEncoding::Br => Some(ContentDecoder::Br(Box::new(BrotliDecoder::new(
-                Writer::new(),
-            )))),
+            ContentEncoding::Brotli => Some(ContentDecoder::Brotli(Box::new(
+                BrotliDecoder::new(Writer::new()),
+            ))),
             #[cfg(feature = "compress-gzip")]
             ContentEncoding::Deflate => Some(ContentDecoder::Deflate(Box::new(
                 ZlibDecoder::new(Writer::new()),
@@ -165,7 +165,7 @@ enum ContentDecoder {
     #[cfg(feature = "compress-gzip")]
     Gzip(Box<GzDecoder<Writer>>),
     #[cfg(feature = "compress-brotli")]
-    Br(Box<BrotliDecoder<Writer>>),
+    Brotli(Box<BrotliDecoder<Writer>>),
     // We need explicit 'static lifetime here because ZstdDecoder need lifetime
     // argument, and we use `spawn_blocking` in `Decoder::poll_next` that require `FnOnce() -> R + Send + 'static`
     #[cfg(feature = "compress-zstd")]
@@ -176,7 +176,7 @@ impl ContentDecoder {
     fn feed_eof(&mut self) -> io::Result<Option<Bytes>> {
         match self {
             #[cfg(feature = "compress-brotli")]
-            ContentDecoder::Br(ref mut decoder) => match decoder.flush() {
+            ContentDecoder::Brotli(ref mut decoder) => match decoder.flush() {
                 Ok(()) => {
                     let b = decoder.get_mut().take();
 
@@ -234,7 +234,7 @@ impl ContentDecoder {
     fn feed_data(&mut self, data: Bytes) -> io::Result<Option<Bytes>> {
         match self {
             #[cfg(feature = "compress-brotli")]
-            ContentDecoder::Br(ref mut decoder) => match decoder.write_all(&data) {
+            ContentDecoder::Brotli(ref mut decoder) => match decoder.write_all(&data) {
                 Ok(_) => {
                     decoder.flush()?;
                     let b = decoder.get_mut().take();

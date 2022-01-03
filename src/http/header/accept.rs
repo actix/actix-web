@@ -147,6 +147,39 @@ impl Accept {
         Accept(vec![QualityItem::max(mime::TEXT_HTML)])
     }
 
+    // TODO: method for getting best content encoding based on q-factors, available from server side
+    // and if none are acceptable return None
+
+    /// Extracts the most preferable mime type, accounting for [q-factor weighting].
+    ///
+    /// If no q-factors are provided, the first mime type is chosen. Note that items without
+    /// q-factors are given the maximum preference value.
+    ///
+    /// As per the spec, will return [`mime::STAR_STAR`] (indicating no preference) if the contained
+    /// list is empty.
+    ///
+    /// [q-factor weighting]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
+    pub fn preference(&self) -> Mime {
+        use actix_http::header::Quality;
+
+        let mut max_item = None;
+        let mut max_pref = Quality::ZERO;
+
+        // uses manual max lookup loop since we want the first occurrence in the case of same
+        // preference but `Iterator::max_by_key` would give us the last occurrence
+
+        for pref in &self.0 {
+            // only change if strictly greater
+            // equal items, even while unsorted, still have higher preference if they appear first
+            if pref.quality > max_pref {
+                max_pref = pref.quality;
+                max_item = Some(pref.item.clone());
+            }
+        }
+
+        max_item.unwrap_or(mime::STAR_STAR)
+    }
+
     /// Returns a sorted list of mime types from highest to lowest preference, accounting for
     /// [q-factor weighting] and specificity.
     ///
@@ -196,36 +229,6 @@ impl Accept {
 
         types.into_iter().map(|qitem| qitem.item).collect()
     }
-
-    /// Extracts the most preferable mime type, accounting for [q-factor weighting].
-    ///
-    /// If no q-factors are provided, the first mime type is chosen. Note that items without
-    /// q-factors are given the maximum preference value.
-    ///
-    /// As per the spec, will return [`mime::STAR_STAR`] (indicating no preference) if the contained
-    /// list is empty.
-    ///
-    /// [q-factor weighting]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
-    pub fn preference(&self) -> Mime {
-        use actix_http::header::Quality;
-
-        let mut max_item = None;
-        let mut max_pref = Quality::MIN;
-
-        // uses manual max lookup loop since we want the first occurrence in the case of same
-        // preference but `Iterator::max_by_key` would give us the last occurrence
-
-        for pref in &self.0 {
-            // only change if strictly greater
-            // equal items, even while unsorted, still have higher preference if they appear first
-            if pref.quality > max_pref {
-                max_pref = pref.quality;
-                max_item = Some(pref.item.clone());
-            }
-        }
-
-        max_item.unwrap_or(mime::STAR_STAR)
-    }
 }
 
 #[cfg(test)]
@@ -239,7 +242,7 @@ mod tests {
         assert!(test.ranked().is_empty());
 
         let test = Accept(vec![QualityItem::max(mime::APPLICATION_JSON)]);
-        assert_eq!(test.ranked(), vec!(mime::APPLICATION_JSON));
+        assert_eq!(test.ranked(), vec![mime::APPLICATION_JSON]);
 
         let test = Accept(vec![
             QualityItem::max(mime::TEXT_HTML),

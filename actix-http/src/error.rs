@@ -250,6 +250,7 @@ impl From<ParseError> for Response<BoxBody> {
 /// A set of errors that can occur running blocking tasks in thread pool.
 #[derive(Debug, Display, Error)]
 #[display(fmt = "Blocking thread pool is gone")]
+// TODO: non-exhaustive
 pub struct BlockingError;
 
 /// A set of errors that can occur during payload parsing.
