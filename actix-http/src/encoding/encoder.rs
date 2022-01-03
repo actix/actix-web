@@ -73,7 +73,7 @@ impl<B: MessageBody> Encoder<B> {
 
         if should_encode {
             // wrap body only if encoder is feature-enabled
-            if let Some(enc) = ContentEncoder::encoder(encoding) {
+            if let Some(enc) = ContentEncoder::select(encoding) {
                 update_head(encoding, head);
 
                 return Encoder {
@@ -168,6 +168,7 @@ where
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         let mut this = self.project();
+
         loop {
             if *this.eof {
                 return Poll::Ready(None);
@@ -276,7 +277,7 @@ enum ContentEncoder {
 }
 
 impl ContentEncoder {
-    fn encoder(encoding: ContentEncoding) -> Option<Self> {
+    fn select(encoding: ContentEncoding) -> Option<Self> {
         match encoding {
             #[cfg(feature = "compress-gzip")]
             ContentEncoding::Deflate => Some(ContentEncoder::Deflate(ZlibEncoder::new(

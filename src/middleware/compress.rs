@@ -27,17 +27,51 @@ use crate::{
 
 /// Middleware for compressing response payloads.
 ///
-/// Use `BodyEncoding` trait for overriding response compression. To disable compression set
-/// encoding to `ContentEncoding::Identity`.
+/// # Encoding Negotiation
+/// `Compress` will read the `Accept-Encoding` header to negotiate which compression codec to use.
+/// Payloads are not compressed if the header is not sent. The `compress-*` [feature flags] are also
+/// considered in this selection process.
+///
+/// # Pre-compressed Payload
+/// If you are serving some data is already using a compressed representation (e.g., a gzip
+/// compressed HTML file from disk) you can signal this to `Compress` by setting an appropriate
+/// `Content-Encoding` header. In addition to preventing double compressing the payload, this header
+/// is required by the spec when using compressed representations and will inform the client that
+/// the content should be uncompressed.
+///
+/// However, it is not advised to unconditionally serve encoded representations of content because
+/// the client may not support it. The [`AcceptEncoding`] typed header has some utilities to help
+/// perform manual encoding negotiation, if required. When negotiating content encoding, it is also
+/// required by the spec to send a `Vary: Accept-Encoding` header.
+///
+/// A (naïve) example serving an pre-compressed Gzip file is included below.
 ///
 /// # Examples
+/// To enable automatic payload compression just include `Compress` as a top-level middleware:
 /// ```
-/// use actix_web::{web, middleware, App, HttpResponse};
+/// use actix_web::{middleware, web, App, HttpResponse};
 ///
 /// let app = App::new()
 ///     .wrap(middleware::Compress::default())
-///     .default_service(web::to(|| HttpResponse::NotFound()));
+///     .default_service(web::to(|| HttpResponse::Ok().body("hello world")));
 /// ```
+///
+/// Pre-compressed Gzip file being served from disk with correct headers added to bypass middleware:
+/// ```no_run
+/// use actix_web::{middleware, http::header, web, App, HttpResponse, Responder};
+///
+/// async fn index_handler() -> actix_web::Result<impl Responder> {
+///     Ok(actix_files::NamedFile::open("./assets/index.html.gz")?
+///         .customize()
+///         .insert_header(header::ContentEncoding::Gzip))
+/// }
+///
+/// let app = App::new()
+///     .wrap(middleware::Compress::default())
+///     .default_service(web::to(index_handler));
+/// ```
+///
+/// [feature flags]: ../index.html#crate-features
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
 pub struct Compress;

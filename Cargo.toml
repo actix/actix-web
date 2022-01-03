@@ -28,15 +28,15 @@ path = "src/lib.rs"
 resolver = "2"
 members = [
     ".",
-    "awc",
-    "actix-http",
     "actix-files",
+    "actix-http-test",
+    "actix-http",
     "actix-multipart",
+    "actix-router",
+    "actix-test",
     "actix-web-actors",
     "actix-web-codegen",
-    "actix-http-test",
-    "actix-test",
-    "actix-router",
+    "awc",
 ]
 
 [features]
@@ -105,6 +105,7 @@ time = { version = "0.3", default-features = false, features = ["formatting"] }
 url = "2.1"
 
 [dev-dependencies]
+actix-files = "0.6.0-beta.12"
 actix-test = { version = "0.1.0-beta.10", features = ["openssl", "rustls"] }
 awc = { version = "3.0.0-beta.17", features = ["openssl"] }
 

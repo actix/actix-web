@@ -46,9 +46,6 @@ pub(crate) fn ensure_leading_slash(mut patterns: Patterns) -> Patterns {
 }
 
 /// Helper trait for managing response encoding.
-///
-/// Use `pre_encoded_with` to flag response as already encoded. For example, when serving a Gzip
-/// compressed file from disk.
 pub trait BodyEncoding {
     /// Get content encoding
     fn preferred_encoding(&self) -> Option<ContentEncoding>;
@@ -59,20 +56,9 @@ pub trait BodyEncoding {
     ///
     /// [`Compress`]: crate::middleware::Compress
     fn encode_with(&mut self, encoding: ContentEncoding) -> &mut Self;
-
-    // /// Flags that a file already is encoded so that [`Compress`] does not modify it.
-    // ///
-    // /// Effectively a shortcut for `compress_with("identity")`
-    // /// plus `insert_header(ContentEncoding, encoding)`.
-    // ///
-    // /// [`Compress`]: crate::middleware::Compress
-    // fn pre_encoded_with(&mut self, encoding: ContentEncoding) -> &mut Self;
 }
 
 struct CompressWith(ContentEncoding);
-
-// TODO: add or delete this
-// struct PreCompressed(ContentEncoding);
 
 impl BodyEncoding for crate::HttpResponseBuilder {
     fn preferred_encoding(&self) -> Option<ContentEncoding> {
@@ -83,11 +69,6 @@ impl BodyEncoding for crate::HttpResponseBuilder {
         self.extensions_mut().insert(CompressWith(encoding));
         self
     }
-
-    // fn pre_encoded_with(&mut self, encoding: ContentEncoding) -> &mut Self {
-    //     self.extensions_mut().insert(PreCompressed(encoding));
-    //     self
-    // }
 }
 
 impl<B> BodyEncoding for crate::HttpResponse<B> {
@@ -99,11 +80,6 @@ impl<B> BodyEncoding for crate::HttpResponse<B> {
         self.extensions_mut().insert(CompressWith(encoding));
         self
     }
-
-    // fn pre_encoded_with(&mut self, encoding: ContentEncoding) -> &mut Self {
-    //     self.extensions_mut().insert(PreCompressed(encoding));
-    //     self
-    // }
 }
 
 impl<B> BodyEncoding for ServiceResponse<B> {
@@ -120,13 +96,6 @@ impl<B> BodyEncoding for ServiceResponse<B> {
             .insert(CompressWith(encoding));
         self
     }
-
-    // fn pre_encoded_with(&mut self, encoding: ContentEncoding) -> &mut Self {
-    //     self.request()
-    //         .extensions_mut()
-    //         .insert(PreCompressed(encoding));
-    //     self
-    // }
 }
 
 // TODO: remove these impls ?
