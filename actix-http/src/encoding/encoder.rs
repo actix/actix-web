@@ -56,15 +56,15 @@ impl<B: MessageBody> Encoder<B> {
     }
 
     pub fn response(encoding: ContentEncoding, head: &mut ResponseHead, body: B) -> Self {
-        let should_encode = !(head.headers().contains_key(&CONTENT_ENCODING)
-            || head.status == StatusCode::SWITCHING_PROTOCOLS
-            || head.status == StatusCode::NO_CONTENT
-            || encoding == ContentEncoding::Identity);
-
         // no need to compress an empty body
         if matches!(body.size(), BodySize::None) {
             return Self::none();
         }
+
+        let should_encode = !(head.headers().contains_key(&CONTENT_ENCODING)
+            || head.status == StatusCode::SWITCHING_PROTOCOLS
+            || head.status == StatusCode::NO_CONTENT
+            || encoding == ContentEncoding::Identity);
 
         let body = match body.try_into_bytes() {
             Ok(body) => EncoderBody::Full { body },
@@ -301,7 +301,7 @@ impl ContentEncoder {
                 Some(ContentEncoder::Zstd(encoder))
             }
 
-            ContentEncoding::Identity => None,
+            _ => None,
         }
     }
 

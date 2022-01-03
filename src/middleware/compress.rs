@@ -217,3 +217,63 @@ static SUPPORTED_ENCODINGS: Lazy<Vec<Encoding>> = Lazy::new(|| {
 
     encodings
 });
+
+// move cfg(feature) to prevents_double_compressing if more tests are added
+#[cfg(feature = "compress-gzip")]
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{middleware::DefaultHeaders, test, web, App};
+
+    pub fn gzip_decode(bytes: impl AsRef<[u8]>) -> Vec<u8> {
+        use std::io::Read as _;
+        let mut decoder = flate2::read::GzDecoder::new(bytes.as_ref());
+        let mut buf = Vec::new();
+        decoder.read_to_end(&mut buf).unwrap();
+        buf
+    }
+
+    #[actix_rt::test]
+    async fn prevents_double_compressing() {
+        const D: &str = "hello world ";
+        const DATA: &str = const_str::repeat!(D, 100);
+
+        let app = test::init_service({
+            App::new()
+                .wrap(Compress::default())
+                .route(
+                    "/single",
+                    web::get().to(move || HttpResponse::Ok().body(DATA)),
+                )
+                .service(
+                    web::resource("/double")
+                        .wrap(Compress::default())
+                        .wrap(DefaultHeaders::new().add(("x-double", "true")))
+                        .route(web::get().to(move || HttpResponse::Ok().body(DATA))),
+                )
+        })
+        .await;
+
+        let req = test::TestRequest::default()
+            .uri("/single")
+            .insert_header((header::ACCEPT_ENCODING, "gzip"))
+            .to_request();
+        let res = test::call_service(&app, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(res.headers().get("x-double"), None);
+        assert_eq!(res.headers().get(header::CONTENT_ENCODING).unwrap(), "gzip");
+        let bytes = test::read_body(res).await;
+        assert_eq!(gzip_decode(bytes), DATA.as_bytes());
+
+        let req = test::TestRequest::default()
+            .uri("/double")
+            .insert_header((header::ACCEPT_ENCODING, "gzip"))
+            .to_request();
+        let res = test::call_service(&app, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(res.headers().get("x-double").unwrap(), "true");
+        assert_eq!(res.headers().get(header::CONTENT_ENCODING).unwrap(), "gzip");
+        let bytes = test::read_body(res).await;
+        assert_eq!(gzip_decode(bytes), DATA.as_bytes());
+    }
+}
