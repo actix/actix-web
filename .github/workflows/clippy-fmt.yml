@@ -32,6 +32,13 @@ jobs:
           toolchain: stable
           components: clippy
           override: true
+
+      - name: Generate Cargo.lock
+        uses: actions-rs/cargo@v1
+        with: { command: generate-lockfile }
+      - name: Cache Dependencies
+        uses: Swatinem/rust-cache@v1.2.0
+      
       - name: Check with Clippy
         uses: actions-rs/clippy-check@v1
         with:
