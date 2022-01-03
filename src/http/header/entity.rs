@@ -59,7 +59,7 @@ pub struct EntityTag {
 }
 
 impl EntityTag {
-    /// Constructs a new EntityTag.
+    /// Constructs a new `EntityTag`.
     ///
     /// # Panics
     /// If the tag contains invalid characters.
@@ -72,51 +72,61 @@ impl EntityTag {
     ///
     /// # Panics
     /// If the tag contains invalid characters.
-    pub fn weak(tag: String) -> EntityTag {
+    pub fn new_weak(tag: String) -> EntityTag {
         EntityTag::new(true, tag)
+    }
+
+    #[deprecated(since = "3.0.0", note = "Renamed to `new_weak`.")]
+    pub fn weak(tag: String) -> EntityTag {
+        Self::new_weak(tag)
     }
 
     /// Constructs a new strong EntityTag.
     ///
     /// # Panics
     /// If the tag contains invalid characters.
-    pub fn strong(tag: String) -> EntityTag {
+    pub fn new_strong(tag: String) -> EntityTag {
         EntityTag::new(false, tag)
     }
 
-    /// Get the tag.
+    #[deprecated(since = "3.0.0", note = "Renamed to `new_strong`.")]
+    pub fn strong(tag: String) -> EntityTag {
+        Self::new_strong(tag)
+    }
+
+    /// Returns tag.
     pub fn tag(&self) -> &str {
         self.tag.as_ref()
     }
 
-    /// Set the tag.
+    /// Sets tag.
     ///
     /// # Panics
     /// If the tag contains invalid characters.
-    pub fn set_tag(&mut self, tag: String) {
+    pub fn set_tag(&mut self, tag: impl Into<String>) {
+        let tag = tag.into();
         assert!(check_slice_validity(&tag), "Invalid tag: {:?}", tag);
         self.tag = tag
     }
 
-    /// For strong comparison two entity-tags are equivalent if both are not
-    /// weak and their opaque-tags match character-by-character.
+    /// For strong comparison two entity-tags are equivalent if both are not weak and their
+    /// opaque-tags match character-by-character.
     pub fn strong_eq(&self, other: &EntityTag) -> bool {
         !self.weak && !other.weak && self.tag == other.tag
     }
 
-    /// For weak comparison two entity-tags are equivalent if their
-    /// opaque-tags match character-by-character, regardless of either or
-    /// both being tagged as "weak".
+    /// For weak comparison two entity-tags are equivalent if their opaque-tags match
+    /// character-by-character, regardless of either or both being tagged as "weak".
     pub fn weak_eq(&self, other: &EntityTag) -> bool {
         self.tag == other.tag
     }
 
-    /// The inverse of `EntityTag.strong_eq()`.
+    /// Returns the inverse of `strong_eq()`.
     pub fn strong_ne(&self, other: &EntityTag) -> bool {
         !self.strong_eq(other)
     }
 
-    /// The inverse of `EntityTag.weak_eq()`.
+    /// Returns inverse of `weak_eq()`.
     pub fn weak_ne(&self, other: &EntityTag) -> bool {
         !self.weak_eq(other)
     }
@@ -184,23 +194,23 @@ mod tests {
         // Expected success
         assert_eq!(
             "\"foobar\"".parse::<EntityTag>().unwrap(),
-            EntityTag::strong("foobar".to_owned())
+            EntityTag::new_strong("foobar".to_owned())
         );
         assert_eq!(
             "\"\"".parse::<EntityTag>().unwrap(),
-            EntityTag::strong("".to_owned())
+            EntityTag::new_strong("".to_owned())
         );
         assert_eq!(
             "W/\"weaktag\"".parse::<EntityTag>().unwrap(),
-            EntityTag::weak("weaktag".to_owned())
+            EntityTag::new_weak("weaktag".to_owned())
         );
         assert_eq!(
             "W/\"\x65\x62\"".parse::<EntityTag>().unwrap(),
-            EntityTag::weak("\x65\x62".to_owned())
+            EntityTag::new_weak("\x65\x62".to_owned())
         );
         assert_eq!(
             "W/\"\"".parse::<EntityTag>().unwrap(),
-            EntityTag::weak("".to_owned())
+            EntityTag::new_weak("".to_owned())
         );
     }
 
@@ -220,19 +230,19 @@ mod tests {
     #[test]
     fn test_etag_fmt() {
         assert_eq!(
-            format!("{}", EntityTag::strong("foobar".to_owned())),
+            format!("{}", EntityTag::new_strong("foobar".to_owned())),
             "\"foobar\""
         );
-        assert_eq!(format!("{}", EntityTag::strong("".to_owned())), "\"\"");
+        assert_eq!(format!("{}", EntityTag::new_strong("".to_owned())), "\"\"");
         assert_eq!(
-            format!("{}", EntityTag::weak("weak-etag".to_owned())),
+            format!("{}", EntityTag::new_weak("weak-etag".to_owned())),
             "W/\"weak-etag\""
         );
         assert_eq!(
-            format!("{}", EntityTag::weak("\u{0065}".to_owned())),
+            format!("{}", EntityTag::new_weak("\u{0065}".to_owned())),
             "W/\"\x65\""
         );
-        assert_eq!(format!("{}", EntityTag::weak("".to_owned())), "W/\"\"");
+        assert_eq!(format!("{}", EntityTag::new_weak("".to_owned())), "W/\"\"");
     }
 
     #[test]
@@ -243,29 +253,29 @@ mod tests {
         // | `W/"1"` | `W/"2"` | no match          | no match        |
         // | `W/"1"` | `"1"`   | no match          | match           |
         // | `"1"`   | `"1"`   | match             | match           |
-        let mut etag1 = EntityTag::weak("1".to_owned());
-        let mut etag2 = EntityTag::weak("1".to_owned());
+        let mut etag1 = EntityTag::new_weak("1".to_owned());
+        let mut etag2 = EntityTag::new_weak("1".to_owned());
         assert!(!etag1.strong_eq(&etag2));
         assert!(etag1.weak_eq(&etag2));
         assert!(etag1.strong_ne(&etag2));
         assert!(!etag1.weak_ne(&etag2));
 
-        etag1 = EntityTag::weak("1".to_owned());
-        etag2 = EntityTag::weak("2".to_owned());
+        etag1 = EntityTag::new_weak("1".to_owned());
+        etag2 = EntityTag::new_weak("2".to_owned());
         assert!(!etag1.strong_eq(&etag2));
         assert!(!etag1.weak_eq(&etag2));
         assert!(etag1.strong_ne(&etag2));
         assert!(etag1.weak_ne(&etag2));
 
-        etag1 = EntityTag::weak("1".to_owned());
-        etag2 = EntityTag::strong("1".to_owned());
+        etag1 = EntityTag::new_weak("1".to_owned());
+        etag2 = EntityTag::new_strong("1".to_owned());
         assert!(!etag1.strong_eq(&etag2));
         assert!(etag1.weak_eq(&etag2));
         assert!(etag1.strong_ne(&etag2));
         assert!(!etag1.weak_ne(&etag2));
 
-        etag1 = EntityTag::strong("1".to_owned());
-        etag2 = EntityTag::strong("1".to_owned());
+        etag1 = EntityTag::new_strong("1".to_owned());
+        etag2 = EntityTag::new_strong("1".to_owned());
         assert!(etag1.strong_eq(&etag2));
         assert!(etag1.weak_eq(&etag2));
         assert!(!etag1.strong_ne(&etag2));

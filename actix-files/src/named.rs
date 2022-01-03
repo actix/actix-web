@@ -381,7 +381,7 @@ impl NamedFile {
                 .duration_since(UNIX_EPOCH)
                 .expect("modification time must be after epoch");
 
-            header::EntityTag::strong(format!(
+            header::EntityTag::new_strong(format!(
                 "{:x}:{:x}:{:x}:{:x}",
                 ino,
                 self.md.len(),
