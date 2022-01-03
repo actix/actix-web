@@ -61,7 +61,7 @@ use crate::{
 /// use actix_web::{middleware, http::header, web, App, HttpResponse, Responder};
 ///
 /// async fn index_handler() -> actix_web::Result<impl Responder> {
-///     Ok(actix_files::NamedFile::open("./assets/index.html.gz")?
+///     Ok(actix_files::NamedFile::open_async("./assets/index.html.gz").await?
 ///         .customize()
 ///         .insert_header(header::ContentEncoding::Gzip))
 /// }
