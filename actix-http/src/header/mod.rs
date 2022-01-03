@@ -50,10 +50,10 @@ pub use self::utils::{
 
 /// An interface for types that already represent a valid header.
 pub trait Header: TryIntoHeaderValue {
-    /// Returns the name of the header field
+    /// Returns the name of the header field.
     fn name() -> HeaderName;
 
-    /// Parse a header
+    /// Parse the header from a HTTP message.
     fn parse<M: HttpMessage>(msg: &M) -> Result<Self, ParseError>;
 }
 

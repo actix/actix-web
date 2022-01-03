@@ -9,14 +9,11 @@ use std::{
 use actix_service::{Service, ServiceFactory};
 use actix_web::{
     body::{self, BoxBody, SizedStream},
-    dev::{
-        AppService, BodyEncoding, HttpServiceFactory, ResourceDef, ServiceRequest,
-        ServiceResponse,
-    },
+    dev::{AppService, HttpServiceFactory, ResourceDef, ServiceRequest, ServiceResponse},
     http::{
         header::{
             self, Charset, ContentDisposition, ContentEncoding, DispositionParam,
-            DispositionType, ExtendedValue,
+            DispositionType, ExtendedValue, HeaderValue,
         },
         StatusCode,
     },
@@ -224,7 +221,6 @@ impl NamedFile {
         })
     }
 
-    #[cfg(not(feature = "experimental-io-uring"))]
     /// Attempts to open a file in read-only mode.
     ///
     /// # Examples
@@ -232,6 +228,7 @@ impl NamedFile {
     /// use actix_files::NamedFile;
     /// let file = NamedFile::open("foo.txt");
     /// ```
+    #[cfg(not(feature = "experimental-io-uring"))]
     pub fn open<P: AsRef<Path>>(path: P) -> io::Result<NamedFile> {
         let file = File::open(&path)?;
         Self::from_file(file, path)
@@ -295,23 +292,21 @@ impl NamedFile {
         self
     }
 
-    /// Set the MIME Content-Type for serving this file. By default
-    /// the Content-Type is inferred from the filename extension.
+    /// Set the MIME Content-Type for serving this file. By default the Content-Type is inferred
+    /// from the filename extension.
     #[inline]
     pub fn set_content_type(mut self, mime_type: mime::Mime) -> Self {
         self.content_type = mime_type;
         self
     }
 
-    /// Set the Content-Disposition for serving this file. This allows
-    /// changing the inline/attachment disposition as well as the filename
-    /// sent to the peer.
+    /// Set the Content-Disposition for serving this file. This allows changing the
+    /// `inline/attachment` disposition as well as the filename sent to the peer.
     ///
     /// By default the disposition is `inline` for `text/*`, `image/*`, `video/*` and
-    /// `application/{javascript, json, wasm}` mime types, and `attachment` otherwise,
-    /// and the filename is taken from the path provided in the `open` method
-    /// after converting it to UTF-8 using.
-    /// [`std::ffi::OsStr::to_string_lossy`]
+    /// `application/{javascript, json, wasm}` mime types, and `attachment` otherwise, and the
+    /// filename is taken from the path provided in the `open` method after converting it to UTF-8
+    /// (using `to_string_lossy`).
     #[inline]
     pub fn set_content_disposition(mut self, cd: header::ContentDisposition) -> Self {
         self.content_disposition = cd;
@@ -337,7 +332,7 @@ impl NamedFile {
         self
     }
 
-    /// Specifies whether to use ETag or not.
+    /// Specifies whether to return `ETag` header in response.
     ///
     /// Default is true.
     #[inline]
@@ -346,7 +341,7 @@ impl NamedFile {
         self
     }
 
-    /// Specifies whether to use Last-Modified or not.
+    /// Specifies whether to return `Last-Modified` header in response.
     ///
     /// Default is true.
     #[inline]
@@ -364,7 +359,7 @@ impl NamedFile {
         self
     }
 
-    /// Creates a etag in a format is similar to Apache's.
+    /// Creates an `ETag` in a format is similar to Apache's.
     pub(crate) fn etag(&self) -> Option<header::EntityTag> {
         self.modified.as_ref().map(|mtime| {
             let ino = {
@@ -405,12 +400,13 @@ impl NamedFile {
         if self.status_code != StatusCode::OK {
             let mut res = HttpResponse::build(self.status_code);
 
-            if self.flags.contains(Flags::PREFER_UTF8) {
-                let ct = equiv_utf8_text(self.content_type.clone());
-                res.insert_header((header::CONTENT_TYPE, ct.to_string()));
+            let ct = if self.flags.contains(Flags::PREFER_UTF8) {
+                equiv_utf8_text(self.content_type.clone())
             } else {
-                res.insert_header((header::CONTENT_TYPE, self.content_type.to_string()));
-            }
+                self.content_type
+            };
+
+            res.insert_header((header::CONTENT_TYPE, ct.to_string()));
 
             if self.flags.contains(Flags::CONTENT_DISPOSITION) {
                 res.insert_header((
@@ -420,7 +416,7 @@ impl NamedFile {
             }
 
             if let Some(current_encoding) = self.encoding {
-                res.encode_with(current_encoding);
+                res.insert_header((header::CONTENT_ENCODING, current_encoding.as_str()));
             }
 
             let reader = chunked::new_chunked_read(self.md.len(), 0, self.file);
@@ -478,12 +474,13 @@ impl NamedFile {
 
         let mut res = HttpResponse::build(self.status_code);
 
-        if self.flags.contains(Flags::PREFER_UTF8) {
-            let ct = equiv_utf8_text(self.content_type.clone());
-            res.insert_header((header::CONTENT_TYPE, ct.to_string()));
+        let ct = if self.flags.contains(Flags::PREFER_UTF8) {
+            equiv_utf8_text(self.content_type.clone())
         } else {
-            res.insert_header((header::CONTENT_TYPE, self.content_type.to_string()));
-        }
+            self.content_type
+        };
+
+        res.insert_header((header::CONTENT_TYPE, ct.to_string()));
 
         if self.flags.contains(Flags::CONTENT_DISPOSITION) {
             res.insert_header((
@@ -492,9 +489,8 @@ impl NamedFile {
             ));
         }
 
-        // default compressing
         if let Some(current_encoding) = self.encoding {
-            res.encode_with(current_encoding);
+            res.insert_header((header::CONTENT_ENCODING, current_encoding.as_str()));
         }
 
         if let Some(lm) = last_modified {
@@ -517,7 +513,12 @@ impl NamedFile {
                     length = ranges[0].length;
                     offset = ranges[0].start;
 
-                    res.encode_with(ContentEncoding::Identity);
+                    // don't allow compression middleware to modify partial content
+                    res.insert_header((
+                        header::CONTENT_ENCODING,
+                        HeaderValue::from_static("identity"),
+                    ));
+
                     res.insert_header((
                         header::CONTENT_RANGE,
                         format!("bytes {}-{}/{}", offset, offset + length - 1, self.md.len()),

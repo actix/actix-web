@@ -22,8 +22,6 @@ pub use crate::service::{HttpServiceFactory, ServiceRequest, ServiceResponse, We
 
 pub use crate::types::{JsonBody, Readlines, UrlEncoded};
 
-use crate::{http::header::ContentEncoding, HttpMessage as _};
-
 use actix_router::Patterns;
 
 pub(crate) fn ensure_leading_slash(mut patterns: Patterns) -> Patterns {
@@ -43,80 +41,4 @@ pub(crate) fn ensure_leading_slash(mut patterns: Patterns) -> Patterns {
     }
 
     patterns
-}
-
-/// Helper trait for managing response encoding.
-pub trait BodyEncoding {
-    /// Get content encoding
-    fn preferred_encoding(&self) -> Option<ContentEncoding>;
-
-    /// Set content encoding to use.
-    ///
-    /// Must be used with [`Compress`] to take effect.
-    ///
-    /// [`Compress`]: crate::middleware::Compress
-    fn encode_with(&mut self, encoding: ContentEncoding) -> &mut Self;
-}
-
-struct CompressWith(ContentEncoding);
-
-impl BodyEncoding for crate::HttpResponseBuilder {
-    fn preferred_encoding(&self) -> Option<ContentEncoding> {
-        self.extensions().get::<CompressWith>().map(|enc| enc.0)
-    }
-
-    fn encode_with(&mut self, encoding: ContentEncoding) -> &mut Self {
-        self.extensions_mut().insert(CompressWith(encoding));
-        self
-    }
-}
-
-impl<B> BodyEncoding for crate::HttpResponse<B> {
-    fn preferred_encoding(&self) -> Option<ContentEncoding> {
-        self.extensions().get::<CompressWith>().map(|enc| enc.0)
-    }
-
-    fn encode_with(&mut self, encoding: ContentEncoding) -> &mut Self {
-        self.extensions_mut().insert(CompressWith(encoding));
-        self
-    }
-}
-
-impl<B> BodyEncoding for ServiceResponse<B> {
-    fn preferred_encoding(&self) -> Option<ContentEncoding> {
-        self.request()
-            .extensions()
-            .get::<CompressWith>()
-            .map(|enc| enc.0)
-    }
-
-    fn encode_with(&mut self, encoding: ContentEncoding) -> &mut Self {
-        self.request()
-            .extensions_mut()
-            .insert(CompressWith(encoding));
-        self
-    }
-}
-
-// TODO: remove these impls ?
-impl BodyEncoding for actix_http::ResponseBuilder {
-    fn preferred_encoding(&self) -> Option<ContentEncoding> {
-        self.extensions().get::<CompressWith>().map(|enc| enc.0)
-    }
-
-    fn encode_with(&mut self, encoding: ContentEncoding) -> &mut Self {
-        self.extensions_mut().insert(CompressWith(encoding));
-        self
-    }
-}
-
-impl<B> BodyEncoding for actix_http::Response<B> {
-    fn preferred_encoding(&self) -> Option<ContentEncoding> {
-        self.extensions().get::<CompressWith>().map(|enc| enc.0)
-    }
-
-    fn encode_with(&mut self, encoding: ContentEncoding) -> &mut Self {
-        self.extensions_mut().insert(CompressWith(encoding));
-        self
-    }
 }

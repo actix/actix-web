@@ -16,7 +16,6 @@ use pin_project_lite::pin_project;
 
 use crate::{
     body::{EitherBody, MessageBody},
-    dev::BodyEncoding as _,
     http::{
         header::{self, AcceptEncoding, Encoding, HeaderValue},
         StatusCode,
@@ -176,14 +175,10 @@ where
 
         match ready!(this.fut.poll(cx)) {
             Ok(resp) => {
-                let enc = if let Some(enc) = resp.response().preferred_encoding() {
-                    enc
-                } else {
-                    match this.encoding {
-                        Encoding::Known(enc) => *enc,
-                        Encoding::Unknown(enc) => {
-                            unimplemented!("encoding {} should not be here", enc);
-                        }
+                let enc = match this.encoding {
+                    Encoding::Known(enc) => *enc,
+                    Encoding::Unknown(enc) => {
+                        unimplemented!("encoding {} should not be here", enc);
                     }
                 };
 

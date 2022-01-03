@@ -597,7 +597,8 @@ mod tests {
             .to_request();
         let res = test::call_service(&srv, request).await;
         assert_eq!(res.status(), StatusCode::OK);
-        assert!(!res.headers().contains_key(header::CONTENT_ENCODING));
+        assert!(res.headers().contains_key(header::CONTENT_ENCODING));
+        assert!(!test::read_body(res).await.is_empty());
     }
 
     #[actix_rt::test]

@@ -17,8 +17,7 @@ fn check_slice_validity(slice: &str) -> bool {
     slice.bytes().all(entity_validate_char)
 }
 
-/// An entity tag, defined
-/// in [RFC 7232 §2.3](https://datatracker.ietf.org/doc/html/rfc7232#section-2.3)
+/// An entity tag, defined in [RFC 7232 §2.3].
 ///
 /// An entity tag consists of a string enclosed by two literal double quotes.
 /// Preceding the first double quote is an optional weakness indicator,
@@ -48,16 +47,20 @@ fn check_slice_validity(slice: &str) -> bool {
 /// | `W/"1"` | `W/"2"` | no match          | no match        |
 /// | `W/"1"` | `"1"`   | no match          | match           |
 /// | `"1"`   | `"1"`   | match             | match           |
-#[derive(Clone, Debug, Eq, PartialEq)]
+///
+/// [RFC 7232 §2.3](https://datatracker.ietf.org/doc/html/rfc7232#section-2.3)
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EntityTag {
     /// Weakness indicator for the tag
     pub weak: bool,
+
     /// The opaque string in between the DQUOTEs
     tag: String,
 }
 
 impl EntityTag {
     /// Constructs a new EntityTag.
+    ///
     /// # Panics
     /// If the tag contains invalid characters.
     pub fn new(weak: bool, tag: String) -> EntityTag {
@@ -66,6 +69,7 @@ impl EntityTag {
     }
 
     /// Constructs a new weak EntityTag.
+    ///
     /// # Panics
     /// If the tag contains invalid characters.
     pub fn weak(tag: String) -> EntityTag {
@@ -73,6 +77,7 @@ impl EntityTag {
     }
 
     /// Constructs a new strong EntityTag.
+    ///
     /// # Panics
     /// If the tag contains invalid characters.
     pub fn strong(tag: String) -> EntityTag {
@@ -85,6 +90,7 @@ impl EntityTag {
     }
 
     /// Set the tag.
+    ///
     /// # Panics
     /// If the tag contains invalid characters.
     pub fn set_tag(&mut self, tag: String) {
