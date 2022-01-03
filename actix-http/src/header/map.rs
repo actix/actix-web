@@ -6,7 +6,7 @@ use ahash::AHashMap;
 use http::header::{HeaderName, HeaderValue};
 use smallvec::{smallvec, SmallVec};
 
-use crate::header::AsHeaderName;
+use super::AsHeaderName;
 
 /// A multi-map of HTTP headers.
 ///

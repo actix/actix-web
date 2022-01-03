@@ -68,6 +68,7 @@ impl ContentEncoding {
 }
 
 impl Default for ContentEncoding {
+    #[inline]
     fn default() -> Self {
         Self::Identity
     }

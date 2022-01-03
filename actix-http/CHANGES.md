@@ -13,6 +13,7 @@
 - `QualityItem::min` semantics changed with `QualityItem::MIN`. [#2501]
 - Rename `ContentEncoding::{Br => Brotli}`. [#2501]
 - Minimum supported Rust version (MSRV) is now 1.54.
+- Rename `header::EntityTag::{weak => new_weak, strong => new_strong}`. [#2565]
 
 ### Fixed
 - `ContentEncoding::Identity` can now be parsed from a string. [#2501]
@@ -23,6 +24,7 @@
 - `ContentEncoding::is_compression()`. [#2501]
 
 [#2501]: https://github.com/actix/actix-web/pull/2501
+[#2565]: https://github.com/actix/actix-web/pull/2565
 
 
 ## 3.0.0-beta.17 - 2021-12-27

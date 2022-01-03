@@ -1,14 +1,12 @@
 use actix_http::ContentEncoding;
 use actix_web::{
-    dev::BodyEncoding as _,
     http::{header, StatusCode},
     middleware::Compress,
     web, App, HttpResponse,
 };
 use bytes::Bytes;
 
-mod test_utils;
-use test_utils::{brotli, gzip, zstd};
+mod utils;
 
 static LOREM: &[u8] = include_bytes!("fixtures/lorem.txt");
 static LOREM_GZIP: &[u8] = include_bytes!("fixtures/lorem.txt.gz");
@@ -27,7 +25,6 @@ macro_rules! test_server {
                     web::to(|| {
                         HttpResponse::Ok()
                             // signal to compressor that content should not be altered
-                            .encode_with(ContentEncoding::Identity)
                             // signal to client that content is encoded
                             .insert_header(ContentEncoding::Gzip)
                             .body(LOREM_GZIP)
@@ -38,7 +35,6 @@ macro_rules! test_server {
                     web::to(|| {
                         HttpResponse::Ok()
                             // signal to compressor that content should not be altered
-                            .encode_with(ContentEncoding::Identity)
                             // signal to client that content is encoded
                             .insert_header(ContentEncoding::Brotli)
                             .body(LOREM_BR)
@@ -49,7 +45,6 @@ macro_rules! test_server {
                     web::to(|| {
                         HttpResponse::Ok()
                             // signal to compressor that content should not be altered
-                            .encode_with(ContentEncoding::Identity)
                             // signal to client that content is encoded
                             .insert_header(ContentEncoding::Zstd)
                             .body(LOREM_ZSTD)
@@ -60,7 +55,6 @@ macro_rules! test_server {
                     web::to(|| {
                         HttpResponse::Ok()
                             // signal to compressor that content should not be altered
-                            .encode_with(ContentEncoding::Identity)
                             // signal to client that content is encoded as 7zip
                             .insert_header((header::CONTENT_ENCODING, "xz"))
                             .body(LOREM_XZ)
@@ -117,7 +111,7 @@ async fn negotiate_encoding_gzip() {
         .await
         .unwrap();
     let bytes = res.body().await.unwrap();
-    assert_eq!(gzip::decode(bytes), LOREM);
+    assert_eq!(utils::gzip::decode(bytes), LOREM);
 
     srv.stop().await;
 }
@@ -146,7 +140,7 @@ async fn negotiate_encoding_br() {
         .await
         .unwrap();
     let bytes = res.body().await.unwrap();
-    assert_eq!(brotli::decode(bytes), LOREM);
+    assert_eq!(utils::brotli::decode(bytes), LOREM);
 
     srv.stop().await;
 }
@@ -175,7 +169,7 @@ async fn negotiate_encoding_zstd() {
         .await
         .unwrap();
     let bytes = res.body().await.unwrap();
-    assert_eq!(zstd::decode(bytes), LOREM);
+    assert_eq!(utils::zstd::decode(bytes), LOREM);
 
     srv.stop().await;
 }

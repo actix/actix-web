@@ -82,8 +82,8 @@ mod tests {
 
         if_none_match = Header::parse(&req);
         let mut entities: Vec<EntityTag> = Vec::new();
-        let foobar_etag = EntityTag::new(false, "foobar".to_owned());
-        let weak_etag = EntityTag::new(true, "weak-etag".to_owned());
+        let foobar_etag = EntityTag::new_strong("foobar".to_owned());
+        let weak_etag = EntityTag::new_weak("weak-etag".to_owned());
         entities.push(foobar_etag);
         entities.push(weak_etag);
         assert_eq!(if_none_match.ok(), Some(IfNoneMatch::Items(entities)));
