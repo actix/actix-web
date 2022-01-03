@@ -55,7 +55,6 @@ macro_rules! test_server {
                     web::to(|| {
                         HttpResponse::Ok()
                             // signal to compressor that content should not be altered
-                            // .encode_with(ContentEncoding::Identity)
                             // signal to client that content is encoded as 7zip
                             .insert_header((header::CONTENT_ENCODING, "xz"))
                             .body(LOREM_XZ)
@@ -112,7 +111,7 @@ async fn negotiate_encoding_gzip() {
         .await
         .unwrap();
     let bytes = res.body().await.unwrap();
-    assert_eq!(gzip::decode(bytes), LOREM);
+    assert_eq!(utils::gzip::decode(bytes), LOREM);
 
     srv.stop().await;
 }

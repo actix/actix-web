@@ -15,8 +15,10 @@
 
 ### Removed
 - `Compress::new`; restricting compression algorithm is done through feature flags. [#2501]
+- `BodyEncoding` trait; signalling content encoding is now only done via the `Content-Encoding` header. [#2565]
 
 [#2501]: https://github.com/actix/actix-web/pull/2501
+[#2565]: https://github.com/actix/actix-web/pull/2565
 
 
 ## 4.0.0-beta.18 - 2021-12-29

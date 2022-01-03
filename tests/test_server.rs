@@ -28,7 +28,6 @@ use openssl::{
 };
 
 mod utils;
-use utils::{brotli, deflate, gzip, zstd};
 
 const S: &str = "Hello World ";
 const STR: &str = const_str::repeat!(S, 100);
@@ -135,7 +134,7 @@ async fn test_body() {
 //     assert_eq!(res.status(), StatusCode::OK);
 
 //     let bytes = res.body().await.unwrap();
-//     assert_eq!(deflate::decode(bytes), STR.as_bytes());
+//     assert_eq!(utils::deflate::decode(bytes), STR.as_bytes());
 
 //     // Raw Response
 //     let mut res = srv
@@ -148,7 +147,7 @@ async fn test_body() {
 //     assert_eq!(res.status(), StatusCode::OK);
 
 //     let bytes = res.body().await.unwrap();
-//     assert_eq!(deflate::decode(bytes), STR.as_bytes());
+//     assert_eq!(utils::deflate::decode(bytes), STR.as_bytes());
 
 //     srv.stop().await;
 // }
@@ -176,7 +175,7 @@ async fn body_gzip_large() {
     assert_eq!(res.status(), StatusCode::OK);
 
     let bytes = res.body().await.unwrap();
-    assert_eq!(gzip::decode(bytes), data.as_bytes());
+    assert_eq!(utils::gzip::decode(bytes), data.as_bytes());
 
     srv.stop().await;
 }
@@ -207,7 +206,7 @@ async fn test_body_gzip_large_random() {
     assert_eq!(res.status(), StatusCode::OK);
 
     let bytes = res.body().await.unwrap();
-    assert_eq!(gzip::decode(bytes), data.as_bytes());
+    assert_eq!(utils::gzip::decode(bytes), data.as_bytes());
 
     srv.stop().await;
 }
@@ -237,7 +236,7 @@ async fn test_body_chunked_implicit() {
     );
 
     let bytes = res.body().await.unwrap();
-    assert_eq!(gzip::decode(bytes), STR.as_bytes());
+    assert_eq!(utils::gzip::decode(bytes), STR.as_bytes());
 
     srv.stop().await;
 }
@@ -263,7 +262,7 @@ async fn test_body_br_streaming() {
     assert_eq!(res.status(), StatusCode::OK);
 
     let bytes = res.body().await.unwrap();
-    assert_eq!(brotli::decode(bytes), STR.as_bytes());
+    assert_eq!(utils::brotli::decode(bytes), STR.as_bytes());
 
     srv.stop().await;
 }
@@ -326,7 +325,7 @@ async fn test_body_deflate() {
     assert_eq!(res.status(), StatusCode::OK);
 
     let bytes = res.body().await.unwrap();
-    assert_eq!(deflate::decode(bytes), STR.as_bytes());
+    assert_eq!(utils::deflate::decode(bytes), STR.as_bytes());
 
     srv.stop().await;
 }
@@ -349,7 +348,7 @@ async fn test_body_brotli() {
     assert_eq!(res.status(), StatusCode::OK);
 
     let bytes = res.body().await.unwrap();
-    assert_eq!(brotli::decode(bytes), STR.as_bytes());
+    assert_eq!(utils::brotli::decode(bytes), STR.as_bytes());
 
     srv.stop().await;
 }
@@ -372,7 +371,7 @@ async fn test_body_zstd() {
     assert_eq!(res.status(), StatusCode::OK);
 
     let bytes = res.body().await.unwrap();
-    assert_eq!(zstd::decode(bytes), STR.as_bytes());
+    assert_eq!(utils::zstd::decode(bytes), STR.as_bytes());
 
     srv.stop().await;
 }
@@ -398,7 +397,7 @@ async fn test_body_zstd_streaming() {
     assert_eq!(res.status(), StatusCode::OK);
 
     let bytes = res.body().await.unwrap();
-    assert_eq!(zstd::decode(bytes), STR.as_bytes());
+    assert_eq!(utils::zstd::decode(bytes), STR.as_bytes());
 
     srv.stop().await;
 }
@@ -414,7 +413,7 @@ async fn test_zstd_encoding() {
     let request = srv
         .post("/")
         .append_header((header::CONTENT_ENCODING, "zstd"))
-        .send_body(zstd::encode(STR));
+        .send_body(utils::zstd::encode(STR));
     let mut res = request.await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
 
@@ -445,7 +444,7 @@ async fn test_zstd_encoding_large() {
     let request = srv
         .post("/")
         .append_header((header::CONTENT_ENCODING, "zstd"))
-        .send_body(zstd::encode(&data));
+        .send_body(utils::zstd::encode(&data));
     let mut res = request.await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
 
@@ -466,7 +465,7 @@ async fn test_encoding() {
     let request = srv
         .post("/")
         .insert_header((header::CONTENT_ENCODING, "gzip"))
-        .send_body(gzip::encode(STR));
+        .send_body(utils::gzip::encode(STR));
     let mut res = request.await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
 
@@ -487,7 +486,7 @@ async fn test_gzip_encoding() {
     let request = srv
         .post("/")
         .append_header((header::CONTENT_ENCODING, "gzip"))
-        .send_body(gzip::encode(STR));
+        .send_body(utils::gzip::encode(STR));
     let mut res = request.await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
 
@@ -509,7 +508,7 @@ async fn test_gzip_encoding_large() {
     let req = srv
         .post("/")
         .append_header((header::CONTENT_ENCODING, "gzip"))
-        .send_body(gzip::encode(&data));
+        .send_body(utils::gzip::encode(&data));
     let mut res = req.await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
 
@@ -536,7 +535,7 @@ async fn test_reading_gzip_encoding_large_random() {
     let request = srv
         .post("/")
         .append_header((header::CONTENT_ENCODING, "gzip"))
-        .send_body(gzip::encode(&data));
+        .send_body(utils::gzip::encode(&data));
     let mut res = request.await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
 
@@ -557,7 +556,7 @@ async fn test_reading_deflate_encoding() {
     let request = srv
         .post("/")
         .append_header((header::CONTENT_ENCODING, "deflate"))
-        .send_body(deflate::encode(STR));
+        .send_body(utils::deflate::encode(STR));
     let mut res = request.await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
 
@@ -579,7 +578,7 @@ async fn test_reading_deflate_encoding_large() {
     let request = srv
         .post("/")
         .append_header((header::CONTENT_ENCODING, "deflate"))
-        .send_body(deflate::encode(&data));
+        .send_body(utils::deflate::encode(&data));
     let mut res = request.await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
 
@@ -606,7 +605,7 @@ async fn test_reading_deflate_encoding_large_random() {
     let request = srv
         .post("/")
         .append_header((header::CONTENT_ENCODING, "deflate"))
-        .send_body(deflate::encode(&data));
+        .send_body(utils::deflate::encode(&data));
     let mut res = request.await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
 
@@ -628,7 +627,7 @@ async fn test_brotli_encoding() {
     let request = srv
         .post("/")
         .append_header((header::CONTENT_ENCODING, "br"))
-        .send_body(brotli::encode(STR));
+        .send_body(utils::brotli::encode(STR));
     let mut res = request.await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
 
@@ -659,7 +658,7 @@ async fn test_brotli_encoding_large() {
     let request = srv
         .post("/")
         .append_header((header::CONTENT_ENCODING, "br"))
-        .send_body(brotli::encode(&data));
+        .send_body(utils::brotli::encode(&data));
     let mut res = request.await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
 
@@ -688,7 +687,7 @@ async fn test_brotli_encoding_large_openssl() {
     let mut res = srv
         .post("/")
         .append_header((header::CONTENT_ENCODING, "br"))
-        .send_body(brotli::encode(&data))
+        .send_body(utils::brotli::encode(&data))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
@@ -750,7 +749,10 @@ mod plus_rustls {
         let req = srv
             .post("/")
             .insert_header((header::CONTENT_ENCODING, "deflate"))
-            .send_stream(TestBody::new(Bytes::from(deflate::encode(&data)), 1024));
+            .send_stream(TestBody::new(
+                Bytes::from(utils::deflate::encode(&data)),
+                1024,
+            ));
 
         let mut res = req.await.unwrap();
         assert_eq!(res.status(), StatusCode::OK);
