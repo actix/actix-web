@@ -803,6 +803,38 @@ mod tests {
         let req = TestRequest::get().uri("/test/%43argo.toml").to_request();
         let res = test::call_service(&srv, req).await;
         assert_eq!(res.status(), StatusCode::OK);
+
+        // `%2F` == `/`
+        let req = TestRequest::get().uri("/test%2Ftest.binary").to_request();
+        let res = test::call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::get().uri("/test/Cargo.toml%00").to_request();
+        let res = test::call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[actix_rt::test]
+    async fn test_percent_encoding_2() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let filename = match cfg!(unix) {
+            true => "ض:?#[]{}<>()@!$&'`|*+,;= %20.test",
+            false => "ض#[]{}()@!$&'`+,;= %20.test",
+        };
+        let filename_encoded = filename
+            .as_bytes()
+            .iter()
+            .map(|c| format!("%{:02X}", c))
+            .collect::<String>();
+        std::fs::File::create(tmpdir.path().join(filename)).unwrap();
+
+        let srv = test::init_service(App::new().service(Files::new("", tmpdir.path()))).await;
+
+        let req = TestRequest::get()
+            .uri(&format!("/{}", filename_encoded))
+            .to_request();
+        let res = test::call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
     }
 
     #[actix_rt::test]
