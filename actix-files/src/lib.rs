@@ -805,11 +805,9 @@ mod tests {
         assert_eq!(res.status(), StatusCode::OK);
 
         // `%2F` == `/`
-        let req = TestRequest::get()
-            .uri("/test/%2F..%2F..%2Ftests%2Ftest.binary")
-            .to_request();
+        let req = TestRequest::get().uri("/test%2Ftest.binary").to_request();
         let res = test::call_service(&srv, req).await;
-        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(res.status(), StatusCode::NOT_FOUND);
 
         let req = TestRequest::get().uri("/test/Cargo.toml%00").to_request();
         let res = test::call_service(&srv, req).await;
