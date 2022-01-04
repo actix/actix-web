@@ -9,6 +9,7 @@ use serde::de;
 use crate::{
     dev::Payload,
     error::{Error, ErrorNotFound, PathError},
+    web::Data,
     FromRequest, HttpRequest,
 };
 
@@ -102,6 +103,7 @@ where
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let error_handler = req
             .app_data::<PathConfig>()
+            .or_else(|| req.app_data::<Data<PathConfig>>().map(Data::get_ref))
             .and_then(|c| c.err_handler.clone());
 
         ready(
@@ -113,6 +115,7 @@ where
                          Request path: {:?}",
                         req.path()
                     );
+
                     if let Some(error_handler) = error_handler {
                         let e = PathError::Deserialize(err);
                         (error_handler)(e, req)
