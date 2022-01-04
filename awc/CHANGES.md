@@ -4,7 +4,7 @@
 
 
 ## 3.0.0-beta.18 - 2022-01-04
-- No significant changes since `3.0.0-beta.17`.
+- Minimum supported Rust version (MSRV) is now 1.54.
 
 
 ## 3.0.0-beta.17 - 2021-12-29
