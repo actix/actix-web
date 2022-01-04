@@ -138,6 +138,7 @@ where
 /// enum Folder {
 ///     #[serde(rename = "inbox")]
 ///     Inbox,
+///
 ///     #[serde(rename = "outbox")]
 ///     Outbox,
 /// }
@@ -147,19 +148,17 @@ where
 ///     format!("Selected folder: {:?}!", folder)
 /// }
 ///
-/// fn main() {
-///     let app = App::new().service(
-///         web::resource("/messages/{folder}")
-///             .app_data(PathConfig::default().error_handler(|err, req| {
-///                 error::InternalError::from_response(
-///                     err,
-///                     HttpResponse::Conflict().into(),
-///                 )
-///                 .into()
-///             }))
-///             .route(web::post().to(index)),
-///     );
-/// }
+/// let app = App::new().service(
+///     web::resource("/messages/{folder}")
+///         .app_data(PathConfig::default().error_handler(|err, req| {
+///             error::InternalError::from_response(
+///                 err,
+///                 HttpResponse::Conflict().into(),
+///             )
+///             .into()
+///         }))
+///         .route(web::post().to(index)),
+/// );
 /// ```
 #[derive(Clone, Default)]
 pub struct PathConfig {
@@ -167,7 +166,7 @@ pub struct PathConfig {
 }
 
 impl PathConfig {
-    /// Set custom error handler
+    /// Set custom error handler.
     pub fn error_handler<F>(mut self, f: F) -> Self
     where
         F: Fn(PathError, &HttpRequest) -> Error + Send + Sync + 'static,

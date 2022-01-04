@@ -38,7 +38,7 @@ pub enum UriSegmentError {
     BadEnd(char),
 
     /// The path is not a valid UTF-8 string after doing percent decoding.
-    #[display(fmt = "The path is not a valif UTF-8 string after percent-decoding")]
+    #[display(fmt = "The path is not a valid UTF-8 string after percent-decoding")]
     NotValidUtf8,
 }
 

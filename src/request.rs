@@ -122,7 +122,7 @@ impl HttpRequest {
 
     /// Returns a reference to the URL parameters container.
     ///
-    /// A url parameter is specified in the form `{identifier}`, where the identifier can be used
+    /// A URL parameter is specified in the form `{identifier}`, where the identifier can be used
     /// later in a request handler to access the matched value for that parameter.
     ///
     /// # Percent Encoding and URL Parameters

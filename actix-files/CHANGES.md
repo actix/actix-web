@@ -1,8 +1,8 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
-- `Files`: request URL paths with `%2F` are now rejected. [#2398]
-- `Files`: Fixed a regression where `%25` in the URL path is not decoded to `%` in the file path. [#2398]
+- The `Files` service now rejects requests with URL paths that include `%2F` (decoded: `/`). [#2398]
+- The `Files` service now correctly decodes `%25` in the URL path to `%` for the file path. [#2398]
 - Minimum supported Rust version (MSRV) is now 1.54.
 
 [#2398]: https://github.com/actix/actix-web/pull/2398
