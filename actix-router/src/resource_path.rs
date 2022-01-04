@@ -2,8 +2,10 @@ use crate::Path;
 
 // TODO: this trait is necessary, document it
 // see impl Resource for ServiceRequest
-pub trait Resource<T: ResourcePath> {
-    fn resource_path(&mut self) -> &mut Path<T>;
+pub trait Resource {
+    type Path: ResourcePath;
+
+    fn resource_path(&mut self) -> &mut Path<Self::Path>;
 }
 
 pub trait ResourcePath {
