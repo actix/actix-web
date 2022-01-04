@@ -48,6 +48,25 @@ macro_rules! parse_single_value {
     };
 }
 
+macro_rules! parse_value {
+    ($trait_fn:ident, $visit_fn:ident, $tp:tt) => {
+        fn $trait_fn<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+        where
+            V: Visitor<'de>,
+        {
+            let decoded = FULL_QUOTER
+                .with(|q| q.requote(self.value.as_bytes()))
+                .unwrap_or_else(|| self.value.to_owned());
+
+            let v = decoded.parse().map_err(|_| {
+                de::value::Error::custom(format!("can not parse {:?} to a {}", self.value, $tp))
+            })?;
+
+            visitor.$visit_fn(v)
+        }
+    };
+}
+
 pub struct PathDeserializer<'de, T: ResourcePath> {
     path: &'de Path<T>,
 }
@@ -175,27 +194,6 @@ impl<'de, T: ResourcePath + 'de> Deserializer<'de> for PathDeserializer<'de, T> 
         }
     }
 
-    fn deserialize_str<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        if self.path.segment_count() != 1 {
-            Err(de::value::Error::custom(
-                format!(
-                    "wrong number of parameters: {} expected 1",
-                    self.path.segment_count()
-                )
-                .as_str(),
-            ))
-        } else {
-            let decoded = FULL_QUOTER
-                .with(|q| q.requote(self.path[0].as_bytes()))
-                .unwrap_or_else(|| self.path[0].to_owned());
-
-            visitor.visit_str(&decoded)
-        }
-    }
-
     fn deserialize_seq<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
@@ -222,6 +220,7 @@ impl<'de, T: ResourcePath + 'de> Deserializer<'de> for PathDeserializer<'de, T> 
     parse_single_value!(deserialize_u64, visit_u64, "u64");
     parse_single_value!(deserialize_f32, visit_f32, "f32");
     parse_single_value!(deserialize_f64, visit_f64, "f64");
+    parse_single_value!(deserialize_str, visit_string, "String");
     parse_single_value!(deserialize_string, visit_string, "String");
     parse_single_value!(deserialize_byte_buf, visit_string, "String");
     parse_single_value!(deserialize_char, visit_char, "char");
@@ -284,25 +283,6 @@ impl<'de> Deserializer<'de> for Key<'de> {
             byte_buf option unit unit_struct newtype_struct seq tuple
             tuple_struct map struct enum ignored_any
     }
-}
-
-macro_rules! parse_value {
-    ($trait_fn:ident, $visit_fn:ident, $tp:tt) => {
-        fn $trait_fn<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            let decoded = FULL_QUOTER
-                .with(|q| q.requote(self.value.as_bytes()))
-                .unwrap_or_else(|| self.value.to_owned());
-
-            let v = decoded.parse().map_err(|_| {
-                de::value::Error::custom(format!("can not parse {:?} to a {}", self.value, $tp))
-            })?;
-
-            visitor.$visit_fn(v)
-        }
-    };
 }
 
 struct Value<'de> {
