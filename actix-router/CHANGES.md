@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 0.5.0-beta.4 - 2022-01-04
 - `PathDeserializer` now decodes all percent encoded characters in dynamic segments. [#2566]
 - Minimum supported Rust version (MSRV) is now 1.54.
 
