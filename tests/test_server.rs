@@ -11,52 +11,26 @@ use std::{
 };
 
 use actix_web::{
-    dev::BodyEncoding,
-    http::header::{
-        ContentEncoding, ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_LENGTH, TRANSFER_ENCODING,
-    },
+    cookie::{Cookie, CookieBuilder},
+    http::{header, StatusCode},
     middleware::{Compress, NormalizePath, TrailingSlash},
     web, App, Error, HttpResponse,
 };
-use brotli2::write::{BrotliDecoder, BrotliEncoder};
 use bytes::Bytes;
-use cookie::{Cookie, CookieBuilder};
-use flate2::{
-    read::GzDecoder,
-    write::{GzEncoder, ZlibDecoder, ZlibEncoder},
-    Compression,
-};
 use futures_core::ready;
+use rand::{distributions::Alphanumeric, Rng as _};
+
 #[cfg(feature = "openssl")]
 use openssl::{
     pkey::PKey,
     ssl::{SslAcceptor, SslMethod},
     x509::X509,
 };
-use rand::{distributions::Alphanumeric, Rng};
-use zstd::stream::{read::Decoder as ZstdDecoder, write::Encoder as ZstdEncoder};
 
-const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World";
+mod utils;
+
+const S: &str = "Hello World ";
+const STR: &str = const_str::repeat!(S, 100);
 
 #[cfg(feature = "openssl")]
 fn openssl_config() -> SslAcceptor {
@@ -122,165 +96,86 @@ async fn test_body() {
         App::new().service(web::resource("/").route(web::to(|| HttpResponse::Ok().body(STR))))
     });
 
-    let mut response = srv.get("/").send().await.unwrap();
-    assert!(response.status().is_success());
+    let mut res = srv.get("/").send().await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
 
-    // read response
-    let bytes = response.body().await.unwrap();
+    let bytes = res.body().await.unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 
     srv.stop().await;
 }
 
-#[actix_rt::test]
-async fn test_body_gzip() {
-    let srv = actix_test::start_with(actix_test::config().h1(), || {
-        App::new()
-            .wrap(Compress::new(ContentEncoding::Gzip))
-            .service(web::resource("/").route(web::to(|| HttpResponse::Ok().body(STR))))
-    });
+// enforcing an encoding per-response is removed
+// #[actix_rt::test]
+// async fn test_body_encoding_override() {
+//     let srv = actix_test::start_with(actix_test::config().h1(), || {
+//         App::new()
+//             .wrap(Compress::default())
+//             .service(web::resource("/").route(web::to(|| {
+//                 HttpResponse::Ok()
+//                     .encode_with(ContentEncoding::Deflate)
+//                     .body(STR)
+//             })))
+//             .service(web::resource("/raw").route(web::to(|| {
+//                 let mut res = HttpResponse::with_body(actix_web::http::StatusCode::OK, STR);
+//                 res.encode_with(ContentEncoding::Deflate);
+//                 res.map_into_boxed_body()
+//             })))
+//     });
 
-    let mut response = srv
-        .get("/")
-        .no_decompress()
-        .append_header((ACCEPT_ENCODING, "gzip"))
-        .send()
-        .await
-        .unwrap();
-    assert!(response.status().is_success());
+//     // Builder
+//     let mut res = srv
+//         .get("/")
+//         .no_decompress()
+//         .append_header((ACCEPT_ENCODING, "deflate"))
+//         .send()
+//         .await
+//         .unwrap();
+//     assert_eq!(res.status(), StatusCode::OK);
 
-    // read response
-    let bytes = response.body().await.unwrap();
+//     let bytes = res.body().await.unwrap();
+//     assert_eq!(utils::deflate::decode(bytes), STR.as_bytes());
 
-    // decode
-    let mut e = GzDecoder::new(&bytes[..]);
-    let mut dec = Vec::new();
-    e.read_to_end(&mut dec).unwrap();
-    assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
+//     // Raw Response
+//     let mut res = srv
+//         .request(actix_web::http::Method::GET, srv.url("/raw"))
+//         .no_decompress()
+//         .append_header((ACCEPT_ENCODING, "deflate"))
+//         .send()
+//         .await
+//         .unwrap();
+//     assert_eq!(res.status(), StatusCode::OK);
 
-    srv.stop().await;
-}
+//     let bytes = res.body().await.unwrap();
+//     assert_eq!(utils::deflate::decode(bytes), STR.as_bytes());
 
-#[actix_rt::test]
-async fn test_body_gzip2() {
-    let srv = actix_test::start_with(actix_test::config().h1(), || {
-        App::new()
-            .wrap(Compress::new(ContentEncoding::Gzip))
-            .service(web::resource("/").route(web::to(|| HttpResponse::Ok().body(STR))))
-    });
-
-    let mut response = srv
-        .get("/")
-        .no_decompress()
-        .append_header((ACCEPT_ENCODING, "gzip"))
-        .send()
-        .await
-        .unwrap();
-    assert!(response.status().is_success());
-
-    // read response
-    let bytes = response.body().await.unwrap();
-
-    // decode
-    let mut e = GzDecoder::new(&bytes[..]);
-    let mut dec = Vec::new();
-    e.read_to_end(&mut dec).unwrap();
-    assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
-
-    srv.stop().await;
-}
+//     srv.stop().await;
+// }
 
 #[actix_rt::test]
-async fn test_body_encoding_override() {
-    let srv = actix_test::start_with(actix_test::config().h1(), || {
-        App::new()
-            .wrap(Compress::new(ContentEncoding::Gzip))
-            .service(web::resource("/").route(web::to(|| {
-                HttpResponse::Ok()
-                    .encoding(ContentEncoding::Deflate)
-                    .body(STR)
-            })))
-            .service(web::resource("/raw").route(web::to(|| {
-                let mut response =
-                    HttpResponse::with_body(actix_web::http::StatusCode::OK, STR);
-                response.encoding(ContentEncoding::Deflate);
-                response.map_into_boxed_body()
-            })))
-    });
-
-    // Builder
-    let mut response = srv
-        .get("/")
-        .no_decompress()
-        .append_header((ACCEPT_ENCODING, "deflate"))
-        .send()
-        .await
-        .unwrap();
-    assert!(response.status().is_success());
-
-    // read response
-    let bytes = response.body().await.unwrap();
-
-    // decode
-    let mut e = ZlibDecoder::new(Vec::new());
-    e.write_all(bytes.as_ref()).unwrap();
-    let dec = e.finish().unwrap();
-    assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
-
-    // Raw Response
-    let mut response = srv
-        .request(actix_web::http::Method::GET, srv.url("/raw"))
-        .no_decompress()
-        .append_header((ACCEPT_ENCODING, "deflate"))
-        .send()
-        .await
-        .unwrap();
-    assert!(response.status().is_success());
-
-    // read response
-    let bytes = response.body().await.unwrap();
-
-    // decode
-    let mut e = ZlibDecoder::new(Vec::new());
-    e.write_all(bytes.as_ref()).unwrap();
-    let dec = e.finish().unwrap();
-    assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
-
-    srv.stop().await;
-}
-
-#[actix_rt::test]
-async fn test_body_gzip_large() {
+async fn body_gzip_large() {
     let data = STR.repeat(10);
     let srv_data = data.clone();
 
     let srv = actix_test::start_with(actix_test::config().h1(), move || {
         let data = srv_data.clone();
-        App::new()
-            .wrap(Compress::new(ContentEncoding::Gzip))
-            .service(
-                web::resource("/")
-                    .route(web::to(move || HttpResponse::Ok().body(data.clone()))),
-            )
+
+        App::new().wrap(Compress::default()).service(
+            web::resource("/").route(web::to(move || HttpResponse::Ok().body(data.clone()))),
+        )
     });
 
-    let mut response = srv
+    let mut res = srv
         .get("/")
         .no_decompress()
-        .append_header((ACCEPT_ENCODING, "gzip"))
+        .append_header((header::ACCEPT_ENCODING, "gzip"))
         .send()
         .await
         .unwrap();
-    assert!(response.status().is_success());
+    assert_eq!(res.status(), StatusCode::OK);
 
-    // read response
-    let bytes = response.body().await.unwrap();
-
-    // decode
-    let mut e = GzDecoder::new(&bytes[..]);
-    let mut dec = Vec::new();
-    e.read_to_end(&mut dec).unwrap();
-    assert_eq!(Bytes::from(dec), Bytes::from(data));
+    let bytes = res.body().await.unwrap();
+    assert_eq!(utils::gzip::decode(bytes), data.as_bytes());
 
     srv.stop().await;
 }
@@ -296,32 +191,22 @@ async fn test_body_gzip_large_random() {
 
     let srv = actix_test::start_with(actix_test::config().h1(), move || {
         let data = srv_data.clone();
-        App::new()
-            .wrap(Compress::new(ContentEncoding::Gzip))
-            .service(
-                web::resource("/")
-                    .route(web::to(move || HttpResponse::Ok().body(data.clone()))),
-            )
+        App::new().wrap(Compress::default()).service(
+            web::resource("/").route(web::to(move || HttpResponse::Ok().body(data.clone()))),
+        )
     });
 
-    let mut response = srv
+    let mut res = srv
         .get("/")
         .no_decompress()
-        .append_header((ACCEPT_ENCODING, "gzip"))
+        .append_header((header::ACCEPT_ENCODING, "gzip"))
         .send()
         .await
         .unwrap();
-    assert!(response.status().is_success());
+    assert_eq!(res.status(), StatusCode::OK);
 
-    // read response
-    let bytes = response.body().await.unwrap();
-
-    // decode
-    let mut e = GzDecoder::new(&bytes[..]);
-    let mut dec = Vec::new();
-    e.read_to_end(&mut dec).unwrap();
-    assert_eq!(dec.len(), data.len());
-    assert_eq!(Bytes::from(dec), Bytes::from(data));
+    let bytes = res.body().await.unwrap();
+    assert_eq!(utils::gzip::decode(bytes), data.as_bytes());
 
     srv.stop().await;
 }
@@ -330,34 +215,28 @@ async fn test_body_gzip_large_random() {
 async fn test_body_chunked_implicit() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
-            .wrap(Compress::new(ContentEncoding::Gzip))
+            .wrap(Compress::default())
             .service(web::resource("/").route(web::get().to(move || {
                 HttpResponse::Ok()
                     .streaming(TestBody::new(Bytes::from_static(STR.as_ref()), 24))
             })))
     });
 
-    let mut response = srv
+    let mut res = srv
         .get("/")
         .no_decompress()
-        .append_header((ACCEPT_ENCODING, "gzip"))
+        .append_header((header::ACCEPT_ENCODING, "gzip"))
         .send()
         .await
         .unwrap();
-    assert!(response.status().is_success());
+    assert_eq!(res.status(), StatusCode::OK);
     assert_eq!(
-        response.headers().get(TRANSFER_ENCODING).unwrap(),
-        &b"chunked"[..]
+        res.headers().get(header::TRANSFER_ENCODING).unwrap(),
+        "chunked"
     );
 
-    // read response
-    let bytes = response.body().await.unwrap();
-
-    // decode
-    let mut e = GzDecoder::new(&bytes[..]);
-    let mut dec = Vec::new();
-    e.read_to_end(&mut dec).unwrap();
-    assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
+    let bytes = res.body().await.unwrap();
+    assert_eq!(utils::gzip::decode(bytes), STR.as_bytes());
 
     srv.stop().await;
 }
@@ -366,32 +245,24 @@ async fn test_body_chunked_implicit() {
 async fn test_body_br_streaming() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
-            .wrap(Compress::new(ContentEncoding::Br))
+            .wrap(Compress::default())
             .service(web::resource("/").route(web::to(move || {
                 HttpResponse::Ok()
                     .streaming(TestBody::new(Bytes::from_static(STR.as_ref()), 24))
             })))
     });
 
-    let mut response = srv
+    let mut res = srv
         .get("/")
-        .append_header((ACCEPT_ENCODING, "br"))
+        .append_header((header::ACCEPT_ENCODING, "br"))
         .no_decompress()
         .send()
         .await
         .unwrap();
-    assert!(response.status().is_success());
+    assert_eq!(res.status(), StatusCode::OK);
 
-    // read response
-    let bytes = response.body().await.unwrap();
-    println!("TEST: {:?}", bytes.len());
-
-    // decode br
-    let mut e = BrotliDecoder::new(Vec::with_capacity(2048));
-    e.write_all(bytes.as_ref()).unwrap();
-    let dec = e.finish().unwrap();
-    println!("T: {:?}", Bytes::copy_from_slice(&dec));
-    assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
+    let bytes = res.body().await.unwrap();
+    assert_eq!(utils::brotli::decode(bytes), STR.as_bytes());
 
     srv.stop().await;
 }
@@ -404,16 +275,13 @@ async fn test_head_binary() {
         )
     });
 
-    let mut response = srv.head("/").send().await.unwrap();
-    assert!(response.status().is_success());
+    let mut res = srv.head("/").send().await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
 
-    {
-        let len = response.headers().get(CONTENT_LENGTH).unwrap();
-        assert_eq!(format!("{}", STR.len()), len.to_str().unwrap());
-    }
+    let len = res.headers().get(header::CONTENT_LENGTH).unwrap();
+    assert_eq!(format!("{}", STR.len()), len.to_str().unwrap());
 
-    // read response
-    let bytes = response.body().await.unwrap();
+    let bytes = res.body().await.unwrap();
     assert!(bytes.is_empty());
 
     srv.stop().await;
@@ -429,12 +297,11 @@ async fn test_no_chunking() {
         })))
     });
 
-    let mut response = srv.get("/").send().await.unwrap();
-    assert!(response.status().is_success());
-    assert!(!response.headers().contains_key(TRANSFER_ENCODING));
+    let mut res = srv.get("/").send().await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    assert!(!res.headers().contains_key(header::TRANSFER_ENCODING));
 
-    // read response
-    let bytes = response.body().await.unwrap();
+    let bytes = res.body().await.unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 
     srv.stop().await;
@@ -444,27 +311,21 @@ async fn test_no_chunking() {
 async fn test_body_deflate() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
-            .wrap(Compress::new(ContentEncoding::Deflate))
+            .wrap(Compress::default())
             .service(web::resource("/").route(web::to(move || HttpResponse::Ok().body(STR))))
     });
 
-    // client request
-    let mut response = srv
+    let mut res = srv
         .get("/")
-        .append_header((ACCEPT_ENCODING, "deflate"))
+        .append_header((header::ACCEPT_ENCODING, "deflate"))
         .no_decompress()
         .send()
         .await
         .unwrap();
-    assert!(response.status().is_success());
+    assert_eq!(res.status(), StatusCode::OK);
 
-    // read response
-    let bytes = response.body().await.unwrap();
-
-    let mut e = ZlibDecoder::new(Vec::new());
-    e.write_all(bytes.as_ref()).unwrap();
-    let dec = e.finish().unwrap();
-    assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
+    let bytes = res.body().await.unwrap();
+    assert_eq!(utils::deflate::decode(bytes), STR.as_bytes());
 
     srv.stop().await;
 }
@@ -473,28 +334,21 @@ async fn test_body_deflate() {
 async fn test_body_brotli() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
-            .wrap(Compress::new(ContentEncoding::Br))
+            .wrap(Compress::default())
             .service(web::resource("/").route(web::to(move || HttpResponse::Ok().body(STR))))
     });
 
-    // client request
-    let mut response = srv
+    let mut res = srv
         .get("/")
-        .append_header((ACCEPT_ENCODING, "br"))
+        .append_header((header::ACCEPT_ENCODING, "br"))
         .no_decompress()
         .send()
         .await
         .unwrap();
-    assert!(response.status().is_success());
+    assert_eq!(res.status(), StatusCode::OK);
 
-    // read response
-    let bytes = response.body().await.unwrap();
-
-    // decode brotli
-    let mut e = BrotliDecoder::new(Vec::with_capacity(2048));
-    e.write_all(bytes.as_ref()).unwrap();
-    let dec = e.finish().unwrap();
-    assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
+    let bytes = res.body().await.unwrap();
+    assert_eq!(utils::brotli::decode(bytes), STR.as_bytes());
 
     srv.stop().await;
 }
@@ -503,28 +357,21 @@ async fn test_body_brotli() {
 async fn test_body_zstd() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
-            .wrap(Compress::new(ContentEncoding::Zstd))
+            .wrap(Compress::default())
             .service(web::resource("/").route(web::to(move || HttpResponse::Ok().body(STR))))
     });
 
-    // client request
-    let mut response = srv
+    let mut res = srv
         .get("/")
-        .append_header((ACCEPT_ENCODING, "zstd"))
+        .append_header((header::ACCEPT_ENCODING, "zstd"))
         .no_decompress()
         .send()
         .await
         .unwrap();
-    assert!(response.status().is_success());
+    assert_eq!(res.status(), StatusCode::OK);
 
-    // read response
-    let bytes = response.body().await.unwrap();
-
-    // decode
-    let mut e = ZstdDecoder::new(&bytes[..]).unwrap();
-    let mut dec = Vec::new();
-    e.read_to_end(&mut dec).unwrap();
-    assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
+    let bytes = res.body().await.unwrap();
+    assert_eq!(utils::zstd::decode(bytes), STR.as_bytes());
 
     srv.stop().await;
 }
@@ -533,31 +380,24 @@ async fn test_body_zstd() {
 async fn test_body_zstd_streaming() {
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new()
-            .wrap(Compress::new(ContentEncoding::Zstd))
+            .wrap(Compress::default())
             .service(web::resource("/").route(web::to(move || {
                 HttpResponse::Ok()
                     .streaming(TestBody::new(Bytes::from_static(STR.as_ref()), 24))
             })))
     });
 
-    // client request
-    let mut response = srv
+    let mut res = srv
         .get("/")
-        .append_header((ACCEPT_ENCODING, "zstd"))
+        .append_header((header::ACCEPT_ENCODING, "zstd"))
         .no_decompress()
         .send()
         .await
         .unwrap();
-    assert!(response.status().is_success());
+    assert_eq!(res.status(), StatusCode::OK);
 
-    // read response
-    let bytes = response.body().await.unwrap();
-
-    // decode
-    let mut e = ZstdDecoder::new(&bytes[..]).unwrap();
-    let mut dec = Vec::new();
-    e.read_to_end(&mut dec).unwrap();
-    assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
+    let bytes = res.body().await.unwrap();
+    assert_eq!(utils::zstd::decode(bytes), STR.as_bytes());
 
     srv.stop().await;
 }
@@ -570,20 +410,14 @@ async fn test_zstd_encoding() {
         )
     });
 
-    let mut e = ZstdEncoder::new(Vec::new(), 5).unwrap();
-    e.write_all(STR.as_ref()).unwrap();
-    let enc = e.finish().unwrap();
-
-    // client request
     let request = srv
         .post("/")
-        .append_header((CONTENT_ENCODING, "zstd"))
-        .send_body(enc.clone());
-    let mut response = request.await.unwrap();
-    assert!(response.status().is_success());
+        .append_header((header::CONTENT_ENCODING, "zstd"))
+        .send_body(utils::zstd::encode(STR));
+    let mut res = request.await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
 
-    // read response
-    let bytes = response.body().await.unwrap();
+    let bytes = res.body().await.unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 
     srv.stop().await;
@@ -607,21 +441,15 @@ async fn test_zstd_encoding_large() {
         )
     });
 
-    let mut e = ZstdEncoder::new(Vec::new(), 5).unwrap();
-    e.write_all(data.as_ref()).unwrap();
-    let enc = e.finish().unwrap();
-
-    // client request
     let request = srv
         .post("/")
-        .append_header((CONTENT_ENCODING, "zstd"))
-        .send_body(enc.clone());
-    let mut response = request.await.unwrap();
-    assert!(response.status().is_success());
+        .append_header((header::CONTENT_ENCODING, "zstd"))
+        .send_body(utils::zstd::encode(&data));
+    let mut res = request.await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
 
-    // read response
-    let bytes = response.body().limit(320_000).await.unwrap();
-    assert_eq!(bytes, Bytes::from(data));
+    let bytes = res.body().limit(320_000).await.unwrap();
+    assert_eq!(bytes, data.as_bytes());
 
     srv.stop().await;
 }
@@ -634,20 +462,14 @@ async fn test_encoding() {
         )
     });
 
-    // client request
-    let mut e = GzEncoder::new(Vec::new(), Compression::default());
-    e.write_all(STR.as_ref()).unwrap();
-    let enc = e.finish().unwrap();
-
     let request = srv
         .post("/")
-        .insert_header((CONTENT_ENCODING, "gzip"))
-        .send_body(enc.clone());
-    let mut response = request.await.unwrap();
-    assert!(response.status().is_success());
+        .insert_header((header::CONTENT_ENCODING, "gzip"))
+        .send_body(utils::gzip::encode(STR));
+    let mut res = request.await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
 
-    // read response
-    let bytes = response.body().await.unwrap();
+    let bytes = res.body().await.unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 
     srv.stop().await;
@@ -661,21 +483,15 @@ async fn test_gzip_encoding() {
         )
     });
 
-    // client request
-    let mut e = GzEncoder::new(Vec::new(), Compression::default());
-    e.write_all(STR.as_ref()).unwrap();
-    let enc = e.finish().unwrap();
-
     let request = srv
         .post("/")
-        .append_header((CONTENT_ENCODING, "gzip"))
-        .send_body(enc.clone());
-    let mut response = request.await.unwrap();
-    assert!(response.status().is_success());
+        .append_header((header::CONTENT_ENCODING, "gzip"))
+        .send_body(utils::gzip::encode(STR));
+    let mut res = request.await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
 
-    // read response
-    let bytes = response.body().await.unwrap();
-    assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+    let bytes = res.body().await.unwrap();
+    assert_eq!(bytes, STR.as_bytes());
 
     srv.stop().await;
 }
@@ -689,21 +505,15 @@ async fn test_gzip_encoding_large() {
         )
     });
 
-    // client request
-    let mut e = GzEncoder::new(Vec::new(), Compression::default());
-    e.write_all(data.as_ref()).unwrap();
-    let enc = e.finish().unwrap();
-
-    let request = srv
+    let req = srv
         .post("/")
-        .append_header((CONTENT_ENCODING, "gzip"))
-        .send_body(enc.clone());
-    let mut response = request.await.unwrap();
-    assert!(response.status().is_success());
+        .append_header((header::CONTENT_ENCODING, "gzip"))
+        .send_body(utils::gzip::encode(&data));
+    let mut res = req.await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
 
-    // read response
-    let bytes = response.body().await.unwrap();
-    assert_eq!(bytes, Bytes::from(data));
+    let bytes = res.body().await.unwrap();
+    assert_eq!(bytes, data);
 
     srv.stop().await;
 }
@@ -722,22 +532,15 @@ async fn test_reading_gzip_encoding_large_random() {
         )
     });
 
-    // client request
-    let mut e = GzEncoder::new(Vec::new(), Compression::default());
-    e.write_all(data.as_ref()).unwrap();
-    let enc = e.finish().unwrap();
-
     let request = srv
         .post("/")
-        .append_header((CONTENT_ENCODING, "gzip"))
-        .send_body(enc.clone());
-    let mut response = request.await.unwrap();
-    assert!(response.status().is_success());
+        .append_header((header::CONTENT_ENCODING, "gzip"))
+        .send_body(utils::gzip::encode(&data));
+    let mut res = request.await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
 
-    // read response
-    let bytes = response.body().await.unwrap();
-    assert_eq!(bytes.len(), data.len());
-    assert_eq!(bytes, Bytes::from(data));
+    let bytes = res.body().await.unwrap();
+    assert_eq!(bytes, data.as_bytes());
 
     srv.stop().await;
 }
@@ -750,20 +553,14 @@ async fn test_reading_deflate_encoding() {
         )
     });
 
-    let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
-    e.write_all(STR.as_ref()).unwrap();
-    let enc = e.finish().unwrap();
-
-    // client request
     let request = srv
         .post("/")
-        .append_header((CONTENT_ENCODING, "deflate"))
-        .send_body(enc.clone());
-    let mut response = request.await.unwrap();
-    assert!(response.status().is_success());
+        .append_header((header::CONTENT_ENCODING, "deflate"))
+        .send_body(utils::deflate::encode(STR));
+    let mut res = request.await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
 
-    // read response
-    let bytes = response.body().await.unwrap();
+    let bytes = res.body().await.unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 
     srv.stop().await;
@@ -778,20 +575,14 @@ async fn test_reading_deflate_encoding_large() {
         )
     });
 
-    let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
-    e.write_all(data.as_ref()).unwrap();
-    let enc = e.finish().unwrap();
-
-    // client request
     let request = srv
         .post("/")
-        .append_header((CONTENT_ENCODING, "deflate"))
-        .send_body(enc.clone());
-    let mut response = request.await.unwrap();
-    assert!(response.status().is_success());
+        .append_header((header::CONTENT_ENCODING, "deflate"))
+        .send_body(utils::deflate::encode(&data));
+    let mut res = request.await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
 
-    // read response
-    let bytes = response.body().await.unwrap();
+    let bytes = res.body().await.unwrap();
     assert_eq!(bytes, Bytes::from(data));
 
     srv.stop().await;
@@ -811,20 +602,14 @@ async fn test_reading_deflate_encoding_large_random() {
         )
     });
 
-    let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
-    e.write_all(data.as_ref()).unwrap();
-    let enc = e.finish().unwrap();
-
-    // client request
     let request = srv
         .post("/")
-        .append_header((CONTENT_ENCODING, "deflate"))
-        .send_body(enc.clone());
-    let mut response = request.await.unwrap();
-    assert!(response.status().is_success());
+        .append_header((header::CONTENT_ENCODING, "deflate"))
+        .send_body(utils::deflate::encode(&data));
+    let mut res = request.await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
 
-    // read response
-    let bytes = response.body().await.unwrap();
+    let bytes = res.body().await.unwrap();
     assert_eq!(bytes.len(), data.len());
     assert_eq!(bytes, Bytes::from(data));
 
@@ -839,20 +624,14 @@ async fn test_brotli_encoding() {
         )
     });
 
-    let mut e = BrotliEncoder::new(Vec::new(), 5);
-    e.write_all(STR.as_ref()).unwrap();
-    let enc = e.finish().unwrap();
-
-    // client request
     let request = srv
         .post("/")
-        .append_header((CONTENT_ENCODING, "br"))
-        .send_body(enc.clone());
-    let mut response = request.await.unwrap();
-    assert!(response.status().is_success());
+        .append_header((header::CONTENT_ENCODING, "br"))
+        .send_body(utils::brotli::encode(STR));
+    let mut res = request.await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
 
-    // read response
-    let bytes = response.body().await.unwrap();
+    let bytes = res.body().await.unwrap();
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 
     srv.stop().await;
@@ -876,20 +655,14 @@ async fn test_brotli_encoding_large() {
         )
     });
 
-    let mut e = BrotliEncoder::new(Vec::new(), 5);
-    e.write_all(data.as_ref()).unwrap();
-    let enc = e.finish().unwrap();
-
-    // client request
     let request = srv
         .post("/")
-        .append_header((CONTENT_ENCODING, "br"))
-        .send_body(enc.clone());
-    let mut response = request.await.unwrap();
-    assert!(response.status().is_success());
+        .append_header((header::CONTENT_ENCODING, "br"))
+        .send_body(utils::brotli::encode(&data));
+    let mut res = request.await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
 
-    // read response
-    let bytes = response.body().limit(320_000).await.unwrap();
+    let bytes = res.body().limit(320_000).await.unwrap();
     assert_eq!(bytes, Bytes::from(data));
 
     srv.stop().await;
@@ -898,32 +671,28 @@ async fn test_brotli_encoding_large() {
 #[cfg(feature = "openssl")]
 #[actix_rt::test]
 async fn test_brotli_encoding_large_openssl() {
+    use actix_web::http::header;
+
     let data = STR.repeat(10);
     let srv =
         actix_test::start_with(actix_test::config().openssl(openssl_config()), move || {
             App::new().service(web::resource("/").route(web::to(|bytes: Bytes| {
+                // echo decompressed request body back in response
                 HttpResponse::Ok()
-                    .encoding(ContentEncoding::Identity)
+                    .insert_header(header::ContentEncoding::Identity)
                     .body(bytes)
             })))
         });
 
-    // body
-    let mut enc = BrotliEncoder::new(Vec::new(), 3);
-    enc.write_all(data.as_ref()).unwrap();
-    let enc = enc.finish().unwrap();
-
-    // client request
-    let mut response = srv
+    let mut res = srv
         .post("/")
-        .append_header((actix_web::http::header::CONTENT_ENCODING, "br"))
-        .send_body(enc)
+        .append_header((header::CONTENT_ENCODING, "br"))
+        .send_body(utils::brotli::encode(&data))
         .await
         .unwrap();
-    assert!(response.status().is_success());
+    assert_eq!(res.status(), StatusCode::OK);
 
-    // read response
-    let bytes = response.body().await.unwrap();
+    let bytes = res.body().await.unwrap();
     assert_eq!(bytes, Bytes::from(data));
 
     srv.stop().await;
@@ -970,28 +739,25 @@ mod plus_rustls {
 
         let srv = actix_test::start_with(actix_test::config().rustls(tls_config()), || {
             App::new().service(web::resource("/").route(web::to(|bytes: Bytes| {
+                // echo decompressed request body back in response
                 HttpResponse::Ok()
-                    .encoding(ContentEncoding::Identity)
+                    .insert_header(header::ContentEncoding::Identity)
                     .body(bytes)
             })))
         });
 
-        // encode data
-        let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
-        e.write_all(data.as_ref()).unwrap();
-        let enc = e.finish().unwrap();
-
-        // client request
         let req = srv
             .post("/")
-            .insert_header((actix_web::http::header::CONTENT_ENCODING, "deflate"))
-            .send_stream(TestBody::new(Bytes::from(enc), 1024));
+            .insert_header((header::CONTENT_ENCODING, "deflate"))
+            .send_stream(TestBody::new(
+                Bytes::from(utils::deflate::encode(&data)),
+                1024,
+            ));
 
-        let mut response = req.await.unwrap();
-        assert!(response.status().is_success());
+        let mut res = req.await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
 
-        // read response
-        let bytes = response.body().await.unwrap();
+        let bytes = res.body().await.unwrap();
         assert_eq!(bytes.len(), data.len());
         assert_eq!(bytes, Bytes::from(data));
 
@@ -1084,8 +850,8 @@ async fn test_normalize() {
             .service(web::resource("/one").route(web::to(HttpResponse::Ok)))
     });
 
-    let response = srv.get("/one/").send().await.unwrap();
-    assert!(response.status().is_success());
+    let res = srv.get("/one/").send().await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
 
     srv.stop().await
 }
@@ -1148,15 +914,20 @@ async fn test_accept_encoding_no_match() {
             .service(web::resource("/").route(web::to(move || HttpResponse::Ok().finish())))
     });
 
-    let response = srv
+    let mut res = srv
         .get("/")
-        .append_header((ACCEPT_ENCODING, "compress, identity;q=0"))
+        .insert_header((header::ACCEPT_ENCODING, "xz, identity;q=0"))
         .no_decompress()
         .send()
         .await
         .unwrap();
 
-    assert_eq!(response.status().as_u16(), 406);
+    assert_eq!(res.status(), StatusCode::NOT_ACCEPTABLE);
+    assert_eq!(res.headers().get(header::CONTENT_ENCODING), None);
+
+    let bytes = res.body().await.unwrap();
+    // body should contain the supported encodings
+    assert!(!bytes.is_empty());
 
     srv.stop().await;
 }

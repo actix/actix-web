@@ -1,6 +1,24 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+- `impl Hash` for `http::header::Encoding`. [#2501]
+- `AcceptEncoding::negotiate()`. [#2501]
+
+### Changed
+- `AcceptEncoding::preference` now returns `Option<Preference<Encoding>>`. [#2501]
+- Rename methods `BodyEncoding::{encoding => encode_with, get_encoding => preferred_encoding}`. [#2501]
+- `http::header::Encoding` now only represents `Content-Encoding` types. [#2501]
+
+### Fixed
+- Auto-negotiation of content encoding is more fault-tolerant when using the `Compress` middleware. [#2501]
+
+### Removed
+- `Compress::new`; restricting compression algorithm is done through feature flags. [#2501]
+- `BodyEncoding` trait; signalling content encoding is now only done via the `Content-Encoding` header. [#2565]
+
+[#2501]: https://github.com/actix/actix-web/pull/2501
+[#2565]: https://github.com/actix/actix-web/pull/2565
 
 
 ## 4.0.0-beta.18 - 2021-12-29

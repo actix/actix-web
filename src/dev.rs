@@ -20,11 +20,7 @@ pub use crate::info::{ConnectionInfo, PeerAddr};
 pub use crate::rmap::ResourceMap;
 pub use crate::service::{HttpServiceFactory, ServiceRequest, ServiceResponse, WebService};
 
-pub use crate::types::form::UrlEncoded;
-pub use crate::types::json::JsonBody;
-pub use crate::types::readlines::Readlines;
-
-use crate::http::header::ContentEncoding;
+pub use crate::types::{JsonBody, Readlines, UrlEncoded};
 
 use actix_router::Patterns;
 
@@ -45,61 +41,4 @@ pub(crate) fn ensure_leading_slash(mut patterns: Patterns) -> Patterns {
     }
 
     patterns
-}
-
-/// Helper trait that allows to set specific encoding for response.
-pub trait BodyEncoding {
-    /// Get content encoding
-    fn get_encoding(&self) -> Option<ContentEncoding>;
-
-    /// Set content encoding
-    ///
-    /// Must be used with [`crate::middleware::Compress`] to take effect.
-    fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self;
-}
-
-impl BodyEncoding for actix_http::ResponseBuilder {
-    fn get_encoding(&self) -> Option<ContentEncoding> {
-        self.extensions().get::<Enc>().map(|enc| enc.0)
-    }
-
-    fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
-        self.extensions_mut().insert(Enc(encoding));
-        self
-    }
-}
-
-struct Enc(ContentEncoding);
-
-impl<B> BodyEncoding for actix_http::Response<B> {
-    fn get_encoding(&self) -> Option<ContentEncoding> {
-        self.extensions().get::<Enc>().map(|enc| enc.0)
-    }
-
-    fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
-        self.extensions_mut().insert(Enc(encoding));
-        self
-    }
-}
-
-impl BodyEncoding for crate::HttpResponseBuilder {
-    fn get_encoding(&self) -> Option<ContentEncoding> {
-        self.extensions().get::<Enc>().map(|enc| enc.0)
-    }
-
-    fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
-        self.extensions_mut().insert(Enc(encoding));
-        self
-    }
-}
-
-impl<B> BodyEncoding for crate::HttpResponse<B> {
-    fn get_encoding(&self) -> Option<ContentEncoding> {
-        self.extensions().get::<Enc>().map(|enc| enc.0)
-    }
-
-    fn encoding(&mut self, encoding: ContentEncoding) -> &mut Self {
-        self.extensions_mut().insert(Enc(encoding));
-        self
-    }
 }

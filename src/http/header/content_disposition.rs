@@ -301,7 +301,6 @@ impl DispositionParam {
 /// change to match local file system conventions if applicable, and do not use directory path
 /// information that may be present.
 /// See [RFC 2183 §2.3](https://datatracker.ietf.org/doc/html/rfc2183#section-2.3).
-// TODO: think about using private fields and smallvec
 #[derive(Clone, Debug, PartialEq)]
 pub struct ContentDisposition {
     /// The disposition type

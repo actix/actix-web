@@ -54,14 +54,15 @@ common_header! {
             test1,
             vec![b"\"xyzzy\""],
             Some(HeaderField::Items(
-                vec![EntityTag::new(false, "xyzzy".to_owned())])));
+                vec![EntityTag::new_strong("xyzzy".to_owned())])));
+
         crate::http::header::common_header_test!(
             test2,
             vec![b"\"xyzzy\", \"r2d2xxxx\", \"c3piozzzz\""],
             Some(HeaderField::Items(
-                vec![EntityTag::new(false, "xyzzy".to_owned()),
-                     EntityTag::new(false, "r2d2xxxx".to_owned()),
-                     EntityTag::new(false, "c3piozzzz".to_owned())])));
+                vec![EntityTag::new_strong("xyzzy".to_owned()),
+                     EntityTag::new_strong("r2d2xxxx".to_owned()),
+                     EntityTag::new_strong("c3piozzzz".to_owned())])));
         crate::http::header::common_header_test!(test3, vec![b"*"], Some(IfMatch::Any));
     }
 }

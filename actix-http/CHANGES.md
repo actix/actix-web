@@ -1,7 +1,30 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+- `impl Eq` for `header::ContentEncoding`. [#2501]
+- `impl Copy` for `QualityItem` where `T: Copy`. [#2501]
+- `Quality::ZERO` equivalent to `q=0`. [#2501]
+- `QualityItem::zero` that uses `Quality::ZERO`. [#2501]
+- `ContentEncoding::to_header_value()`. [#2501]
+
+### Changed
+- `Quality::MIN` is now the smallest non-zero value. [#2501]
+- `QualityItem::min` semantics changed with `QualityItem::MIN`. [#2501]
+- Rename `ContentEncoding::{Br => Brotli}`. [#2501]
 - Minimum supported Rust version (MSRV) is now 1.54.
+- Rename `header::EntityTag::{weak => new_weak, strong => new_strong}`. [#2565]
+
+### Fixed
+- `ContentEncoding::Identity` can now be parsed from a string. [#2501]
+- A `Vary` header is now correctly sent along with compressed content. [#2501]
+
+### Removed
+- `ContentEncoding::Auto` variant. [#2501]
+- `ContentEncoding::is_compression()`. [#2501]
+
+[#2501]: https://github.com/actix/actix-web/pull/2501
+[#2565]: https://github.com/actix/actix-web/pull/2565
 
 
 ## 3.0.0-beta.17 - 2021-12-27

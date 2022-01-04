@@ -6,7 +6,7 @@ use ahash::AHashMap;
 use http::header::{HeaderName, HeaderValue};
 use smallvec::{smallvec, SmallVec};
 
-use crate::header::AsHeaderName;
+use super::AsHeaderName;
 
 /// A multi-map of HTTP headers.
 ///
@@ -602,6 +602,13 @@ impl<'a> IntoIterator for &'a HeaderMap {
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
         Iter::new(self.inner.iter())
+    }
+}
+
+/// Convert `http::HeaderMap` to our `HeaderMap`.
+impl From<http::HeaderMap> for HeaderMap {
+    fn from(mut map: http::HeaderMap) -> HeaderMap {
+        HeaderMap::from_drain(map.drain())
     }
 }
 
