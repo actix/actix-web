@@ -3,6 +3,10 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 3.0.0-beta.18 - 2022-01-04
+- Minimum supported Rust version (MSRV) is now 1.54.
+
+
 ## 3.0.0-beta.17 - 2021-12-29
 ### Changed
 - Update `cookie` dependency (re-exported) to `0.16`. [#2555]
