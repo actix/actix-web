@@ -2,7 +2,11 @@ use serde::de::{self, Deserializer, Error as DeError, Visitor};
 use serde::forward_to_deserialize_any;
 
 use crate::path::{Path, PathIter};
-use crate::ResourcePath;
+use crate::{Quoter, ResourcePath};
+
+thread_local! {
+    static FULL_QUOTER: Quoter = Quoter::new(b"+/%", b"");
+}
 
 macro_rules! unsupported_type {
     ($trait_fn:ident, $name:expr) => {
@@ -10,16 +14,13 @@ macro_rules! unsupported_type {
         where
             V: Visitor<'de>,
         {
-            Err(de::value::Error::custom(concat!(
-                "unsupported type: ",
-                $name
-            )))
+            Err(de::Error::custom(concat!("unsupported type: ", $name)))
         }
     };
 }
 
 macro_rules! parse_single_value {
-    ($trait_fn:ident, $visit_fn:ident, $tp:tt) => {
+    ($trait_fn:ident, $visit_fn:ident, $tp:expr) => {
         fn $trait_fn<V>(self, visitor: V) -> Result<V::Value, Self::Error>
         where
             V: Visitor<'de>,
@@ -33,12 +34,14 @@ macro_rules! parse_single_value {
                     .as_str(),
                 ))
             } else {
-                let v = self.path[0].parse().map_err(|_| {
-                    de::value::Error::custom(format!(
-                        "can not parse {:?} to a {}",
-                        &self.path[0], $tp
-                    ))
+                let decoded = FULL_QUOTER
+                    .with(|q| q.requote(self.path[0].as_bytes()))
+                    .unwrap_or_else(|| self.path[0].to_owned());
+
+                let v = decoded.parse().map_err(|_| {
+                    de::Error::custom(format!("can not parse {:?} to a {}", &self.path[0], $tp))
                 })?;
+
                 visitor.$visit_fn(v)
             }
         }
@@ -185,7 +188,11 @@ impl<'de, T: ResourcePath + 'de> Deserializer<'de> for PathDeserializer<'de, T> 
                 .as_str(),
             ))
         } else {
-            visitor.visit_str(&self.path[0])
+            let decoded = FULL_QUOTER
+                .with(|q| q.requote(self.path[0].as_bytes()))
+                .unwrap_or_else(|| self.path[0].to_owned());
+
+            visitor.visit_str(&decoded)
         }
     }
 
@@ -285,9 +292,14 @@ macro_rules! parse_value {
         where
             V: Visitor<'de>,
         {
-            let v = self.value.parse().map_err(|_| {
+            let decoded = FULL_QUOTER
+                .with(|q| q.requote(self.value.as_bytes()))
+                .unwrap_or_else(|| self.value.to_owned());
+
+            let v = decoded.parse().map_err(|_| {
                 de::value::Error::custom(format!("can not parse {:?} to a {}", self.value, $tp))
             })?;
+
             visitor.$visit_fn(v)
         }
     };
@@ -497,6 +509,7 @@ mod tests {
     use super::*;
     use crate::path::Path;
     use crate::router::Router;
+    use crate::ResourceDef;
 
     #[derive(Deserialize)]
     struct MyStruct {
@@ -655,6 +668,53 @@ mod tests {
             de::Deserialize::deserialize(PathDeserializer::new(&path));
         assert!(s.is_err());
         assert!(format!("{:?}", s).contains("can not parse"));
+    }
+
+    #[test]
+    fn deserialize_path_decode_string() {
+        let rdef = ResourceDef::new("/{key}");
+
+        let mut path = Path::new("/%25");
+        rdef.capture_match_info(&mut path);
+        let de = PathDeserializer::new(&path);
+        let segment: String = serde::Deserialize::deserialize(de).unwrap();
+        assert_eq!(segment, "%");
+
+        let mut path = Path::new("/%2F");
+        rdef.capture_match_info(&mut path);
+        let de = PathDeserializer::new(&path);
+        let segment: String = serde::Deserialize::deserialize(de).unwrap();
+        assert_eq!(segment, "/")
+    }
+
+    #[test]
+    fn deserialize_path_decode_seq() {
+        let rdef = ResourceDef::new("/{key}/{value}");
+
+        let mut path = Path::new("/%25/%2F");
+        rdef.capture_match_info(&mut path);
+        let de = PathDeserializer::new(&path);
+        let segment: (String, String) = serde::Deserialize::deserialize(de).unwrap();
+        assert_eq!(segment.0, "%");
+        assert_eq!(segment.1, "/");
+    }
+
+    #[test]
+    fn deserialize_path_decode_map() {
+        #[derive(Deserialize)]
+        struct Vals {
+            key: String,
+            value: String,
+        }
+
+        let rdef = ResourceDef::new("/{key}/{value}");
+
+        let mut path = Path::new("/%25/%2F");
+        rdef.capture_match_info(&mut path);
+        let de = PathDeserializer::new(&path);
+        let vals: Vals = serde::Deserialize::deserialize(de).unwrap();
+        assert_eq!(vals.key, "%");
+        assert_eq!(vals.value, "/");
     }
 
     // #[test]
