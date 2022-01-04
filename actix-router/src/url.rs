@@ -340,6 +340,7 @@ mod tests {
         assert_eq!(q.requote(b"/a%25b%2Bc").unwrap(), "/a%b+c");
         assert_eq!(q.requote(b"/a%2fb").unwrap(), "/a%2fb");
         assert_eq!(q.requote(b"/a%2Fb").unwrap(), "/a%2Fb");
+        assert_eq!(q.requote(b"/a%0Ab").unwrap(), "/a\nb");
     }
 
     #[test]
