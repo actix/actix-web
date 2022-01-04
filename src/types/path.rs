@@ -286,6 +286,18 @@ mod tests {
     }
 
     #[actix_rt::test]
+    async fn paths_decoded() {
+        let resource = ResourceDef::new("/{key}/{value}");
+        let mut req = TestRequest::with_uri("/na%2Bme/us%2Fer%251").to_srv_request();
+        resource.capture_match_info(req.match_info_mut());
+
+        let (req, mut pl) = req.into_parts();
+        let path_items = Path::<MyStruct>::from_request(&req, &mut pl).await.unwrap();
+        assert_eq!(path_items.key, "na+me");
+        assert_eq!(path_items.value, "us/er%1");
+    }
+
+    #[actix_rt::test]
     async fn test_custom_err_handler() {
         let (req, mut pl) = TestRequest::with_uri("/name/user1/")
             .app_data(PathConfig::default().error_handler(|err, _| {
