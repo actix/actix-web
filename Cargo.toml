@@ -165,7 +165,7 @@ name = "uds"
 required-features = ["compress-gzip"]
 
 [[example]]
-name = "on_connect"
+name = "on-connect"
 required-features = []
 
 [[bench]]
