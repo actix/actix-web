@@ -114,7 +114,7 @@ impl Service<ServiceRequest> for FilesService {
         Box::pin(async move {
             if !is_method_valid {
                 return Ok(req.into_response(
-                    actix_web::HttpResponse::MethodNotAllowed()
+                    HttpResponse::MethodNotAllowed()
                         .insert_header(header::ContentType(mime::TEXT_PLAIN_UTF_8))
                         .body("Request did not meet this resource's requirements."),
                 ));
@@ -123,7 +123,7 @@ impl Service<ServiceRequest> for FilesService {
             let real_path =
                 match PathBufWrap::parse_path(req.match_info().path(), this.hidden_files) {
                     Ok(item) => item,
-                    Err(e) => return Ok(req.error_response(e)),
+                    Err(err) => return Ok(req.error_response(err)),
                 };
 
             if let Some(filter) = &this.path_filter {
@@ -131,9 +131,7 @@ impl Service<ServiceRequest> for FilesService {
                     if let Some(ref default) = this.default {
                         return default.call(req).await;
                     } else {
-                        return Ok(
-                            req.into_response(actix_web::HttpResponse::NotFound().finish())
-                        );
+                        return Ok(req.into_response(HttpResponse::NotFound().finish()));
                     }
                 }
             }
