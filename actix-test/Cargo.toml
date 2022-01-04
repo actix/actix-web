@@ -34,7 +34,7 @@ actix-http-test = "3.0.0-beta.10"
 actix-rt = "2.1"
 actix-service = "2.0.0"
 actix-utils = "3.0.0"
-actix-web = { version = "4.0.0-beta.18", default-features = false, features = ["cookies"] }
+actix-web = { version = "4.0.0-beta.19", default-features = false, features = ["cookies"] }
 awc = { version = "3.0.0-beta.17", default-features = false, features = ["cookies"] }
 
 futures-core = { version = "0.3.7", default-features = false, features = ["std"] }
