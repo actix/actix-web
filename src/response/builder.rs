@@ -23,7 +23,7 @@ use cookie::{Cookie, CookieJar};
 
 use crate::{
     error::{Error, JsonPayloadError},
-    BoxError, HttpResponse,
+    BoxError, HttpRequest, HttpResponse, Responder,
 };
 
 /// An HTTP response builder.
@@ -421,6 +421,15 @@ impl Future for HttpResponseBuilder {
 
     fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
         Poll::Ready(Ok(self.finish()))
+    }
+}
+
+impl Responder for HttpResponseBuilder {
+    type Body = BoxBody;
+
+    #[inline]
+    fn respond_to(mut self, _: &HttpRequest) -> HttpResponse<Self::Body> {
+        self.finish()
     }
 }
 

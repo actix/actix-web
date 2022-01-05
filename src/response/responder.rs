@@ -7,7 +7,7 @@ use actix_http::{
 };
 use bytes::{Bytes, BytesMut};
 
-use crate::{Error, HttpRequest, HttpResponse, HttpResponseBuilder};
+use crate::{Error, HttpRequest, HttpResponse};
 
 use super::CustomizeResponder;
 
@@ -57,33 +57,12 @@ pub trait Responder {
     }
 }
 
-impl<B> Responder for HttpResponse<B>
-where
-    B: MessageBody + 'static,
-{
-    type Body = B;
-
-    #[inline]
-    fn respond_to(self, _: &HttpRequest) -> HttpResponse<Self::Body> {
-        self
-    }
-}
-
 impl Responder for actix_http::Response<BoxBody> {
     type Body = BoxBody;
 
     #[inline]
     fn respond_to(self, _: &HttpRequest) -> HttpResponse<Self::Body> {
         HttpResponse::from(self)
-    }
-}
-
-impl Responder for HttpResponseBuilder {
-    type Body = BoxBody;
-
-    #[inline]
-    fn respond_to(mut self, _: &HttpRequest) -> HttpResponse<Self::Body> {
-        self.finish()
     }
 }
 
