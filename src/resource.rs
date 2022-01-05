@@ -232,10 +232,14 @@ where
         self
     }
 
-    /// Registers middleware, in the form of a middleware component (type),
-    /// that can modify the request and response across all routes managed by this `Resource`.
+    /// Registers a resource middleware.
     ///
-    /// See [`App::wrap`](crate::App::wrap) for details.
+    /// `mw` is a middleware component (type), that can modify the request and response across all
+    /// routes managed by this `Resource`.
+    ///
+    /// See [`App::wrap`](crate::App::wrap) for more details.
+    #[doc(alias = "middleware")]
+    #[doc(alias = "use")] // nodejs terminology
     pub fn wrap<M, B>(
         self,
         mw: M,
@@ -270,37 +274,15 @@ where
         }
     }
 
-    /// Registers middleware, in the form of a closure,
-    /// that can modify the request and response across all routes managed by this `Resource`.
+    /// Registers a resource function middleware.
     ///
-    /// See [`App::wrap_fn`](crate::App::wrap_fn) for details.
+    /// `mw` is a closure that runs during inbound and/or outbound processing in the request
+    /// life-cycle (request -> response), modifying request/response as necessary, across all
+    /// requests handled by the `Resource`.
     ///
-    /// # Examples
-    /// ```
-    /// use actix_service::Service;
-    /// use actix_web::{web, App};
-    /// use actix_web::http::header::{CONTENT_TYPE, HeaderValue};
-    ///
-    /// async fn index() -> &'static str {
-    ///     "Welcome!"
-    /// }
-    ///
-    /// fn main() {
-    ///     let app = App::new().service(
-    ///         web::resource("/index.html")
-    ///             .wrap_fn(|req, srv| {
-    ///                 let fut = srv.call(req);
-    ///                 async {
-    ///                     let mut res = fut.await?;
-    ///                     res.headers_mut().insert(
-    ///                        CONTENT_TYPE, HeaderValue::from_static("text/plain"),
-    ///                     );
-    ///                     Ok(res)
-    ///                 }
-    ///             })
-    ///             .route(web::get().to(index)));
-    /// }
-    /// ```
+    /// See [`App::wrap_fn`](crate::App::wrap_fn) for examples and more details.
+    #[doc(alias = "middleware")]
+    #[doc(alias = "use")] // nodejs terminology
     pub fn wrap_fn<F, R, B>(
         self,
         mw: F,
@@ -498,7 +480,7 @@ mod tests {
             header::{self, HeaderValue},
             Method, StatusCode,
         },
-        middleware::{Compat, DefaultHeaders},
+        middleware::DefaultHeaders,
         service::{ServiceRequest, ServiceResponse},
         test::{call_service, init_service, TestRequest},
         web, App, Error, HttpMessage, HttpResponse,
@@ -506,11 +488,11 @@ mod tests {
 
     #[test]
     fn can_be_returned_from_fn() {
-        fn my_resource() -> Resource {
-            web::resource("/test").route(web::get().to(|| async { "hello" }))
+        fn my_resource_1() -> Resource {
+            web::resource("/test1").route(web::get().to(|| async { "hello" }))
         }
 
-        fn my_compat_resource() -> Resource<
+        fn my_resource_2() -> Resource<
             impl ServiceFactory<
                 ServiceRequest,
                 Config = (),
@@ -519,18 +501,22 @@ mod tests {
                 InitError = (),
             >,
         > {
-            web::resource("/test-compat")
+            web::resource("/test2")
                 .wrap_fn(|req, srv| {
                     let fut = srv.call(req);
                     async { Ok(fut.await?.map_into_right_body::<()>()) }
                 })
-                .wrap(Compat::noop())
                 .route(web::get().to(|| async { "hello" }))
         }
 
+        fn my_resource_3() -> impl HttpServiceFactory {
+            web::resource("/test2").route(web::get().to(|| async { "hello" }))
+        }
+
         App::new()
-            .service(my_resource())
-            .service(my_compat_resource());
+            .service(my_resource_1())
+            .service(my_resource_2())
+            .service(my_resource_3());
     }
 
     #[actix_rt::test]

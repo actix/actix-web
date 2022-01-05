@@ -1,4 +1,4 @@
-//! Commonly used middleware.
+//! A collection of common middleware.
 
 mod compat;
 mod condition;

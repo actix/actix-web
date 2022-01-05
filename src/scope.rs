@@ -284,10 +284,14 @@ where
         self
     }
 
-    /// Registers middleware, in the form of a middleware component (type),
-    /// that can modify the request and response across all routes managed by this `Scope`.
+    /// Registers a scope-wide middleware.
     ///
-    /// See [`App::wrap`](crate::App::wrap) for details.
+    /// `mw` is a middleware component (type), that can modify the request and response across all
+    /// sub-resources managed by this `Scope`.
+    ///
+    /// See [`App::wrap`](crate::App::wrap) for more details.
+    #[doc(alias = "middleware")]
+    #[doc(alias = "use")] // nodejs terminology
     pub fn wrap<M, B>(
         self,
         mw: M,
@@ -322,35 +326,15 @@ where
         }
     }
 
-    /// Registers middleware, in the form of a closure,
-    /// that can modify the request and response across all routes managed by this `Scope`.
+    /// Registers a scope-wide function middleware.
     ///
-    /// See [`App::wrap_fn`](crate::App::wrap_fn) for details.
+    /// `mw` is a closure that runs during inbound and/or outbound processing in the request
+    /// life-cycle (request -> response), modifying request/response as necessary, across all
+    /// requests handled by the `Scope`.
     ///
-    /// # Examples
-    /// ```
-    /// use actix_service::Service;
-    /// use actix_web::{web, App};
-    /// use actix_web::http::header::{CONTENT_TYPE, HeaderValue};
-    ///
-    /// async fn index() -> &'static str {
-    ///     "Welcome!"
-    /// }
-    ///
-    /// let app = App::new().service(
-    ///     web::scope("/app")
-    ///         .wrap_fn(|req, srv| {
-    ///             let fut = srv.call(req);
-    ///             async {
-    ///                 let mut res = fut.await?;
-    ///                 res.headers_mut().insert(
-    ///                    CONTENT_TYPE, HeaderValue::from_static("text/plain"),
-    ///                 );
-    ///                 Ok(res)
-    ///             }
-    ///         })
-    ///         .route("/index.html", web::get().to(index)));
-    /// ```
+    /// See [`App::wrap_fn`](crate::App::wrap_fn) for examples and more details.
+    #[doc(alias = "middleware")]
+    #[doc(alias = "use")] // nodejs terminology
     pub fn wrap_fn<F, R, B>(
         self,
         mw: F,
