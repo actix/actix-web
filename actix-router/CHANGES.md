@@ -1,7 +1,17 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+- `Resource` trait now have an associated type, `Path`, instead of the generic parameter. [#2568]
+- `Resource` is now implemented for `&mut Path<_>` and `RefMut<Path<_>>`. [#2568]
+
+[#2568]: https://github.com/actix/actix-web/pull/2568
+
+
+## 0.5.0-beta.4 - 2022-01-04
+- `PathDeserializer` now decodes all percent encoded characters in dynamic segments. [#2566]
 - Minimum supported Rust version (MSRV) is now 1.54.
+
+[#2566]: https://github.com/actix/actix-net/pull/2566
 
 
 ## 0.5.0-beta.3 - 2021-12-17

@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "3.0.0-beta.17"
+version = "3.0.0-beta.18"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "HTTP primitives for the Actix ecosystem"
 keywords = ["actix", "http", "framework", "async", "futures"]
@@ -79,10 +79,10 @@ flate2 = { version = "1.0.13", optional = true }
 zstd = { version = "0.9", optional = true }
 
 [dev-dependencies]
-actix-http-test = { version = "3.0.0-beta.10", features = ["openssl"] }
+actix-http-test = { version = "3.0.0-beta.11", features = ["openssl"] }
 actix-server = "2.0.0-rc.2"
 actix-tls = { version = "3.0.0", features = ["openssl"] }
-actix-web = "4.0.0-beta.18"
+actix-web = "4.0.0-beta.19"
 
 async-stream = "0.3"
 criterion = { version = "0.3", features = ["html_reports"] }

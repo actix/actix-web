@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 4.0.0-beta.19 - 2022-01-04
 ### Added
 - `impl Hash` for `http::header::Encoding`. [#2501]
 - `AcceptEncoding::negotiate()`. [#2501]

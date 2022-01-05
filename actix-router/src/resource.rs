@@ -678,15 +678,14 @@ impl ResourceDef {
     /// assert!(!try_match(&resource, &mut path));
     /// assert_eq!(path.unprocessed(), "/user/admin/stars");
     /// ```
-    pub fn capture_match_info_fn<R, T, F, U>(
+    pub fn capture_match_info_fn<R, F, U>(
         &self,
         resource: &mut R,
         check_fn: F,
         user_data: U,
     ) -> bool
     where
-        R: Resource<T>,
-        T: ResourcePath,
+        R: Resource,
         F: FnOnce(&R, U) -> bool,
     {
         profile_method!(capture_match_info_fn);

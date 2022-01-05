@@ -307,9 +307,11 @@ impl ServiceRequest {
     }
 }
 
-impl Resource<Url> for ServiceRequest {
+impl Resource for ServiceRequest {
+    type Path = Url;
+
     #[inline]
-    fn resource_path(&mut self) -> &mut Path<Url> {
+    fn resource_path(&mut self) -> &mut Path<Self::Path> {
         self.match_info_mut()
     }
 }

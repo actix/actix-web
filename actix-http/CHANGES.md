@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 3.0.0-beta.18 - 2022-01-04
 ### Added
 - `impl Eq` for `header::ContentEncoding`. [#2501]
 - `impl Copy` for `QualityItem` where `T: Copy`. [#2501]

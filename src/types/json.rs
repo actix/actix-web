@@ -11,7 +11,7 @@ use std::{
 };
 
 use bytes::BytesMut;
-use futures_core::{ready, stream::Stream as _};
+use futures_core::{ready, Stream as _};
 use serde::{de::DeserializeOwned, Serialize};
 
 use actix_http::Payload;
@@ -515,7 +515,7 @@ mod tests {
             .to_http_parts();
 
         let s = Json::<MyObject>::from_request(&req, &mut pl).await;
-        let resp = HttpResponse::from_error(s.err().unwrap());
+        let resp = HttpResponse::from_error(s.unwrap_err());
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
         let body = body::to_bytes(resp.into_body()).await.unwrap();
