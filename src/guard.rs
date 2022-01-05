@@ -54,7 +54,7 @@ use std::{
 
 use actix_http::{header, uri::Uri, Extensions, Method as HttpMethod, RequestHead};
 
-use crate::service::ServiceRequest;
+use crate::{http::header::Header, service::ServiceRequest};
 
 /// Provides access to request parts that are useful during routing.
 #[derive(Debug)]
@@ -79,6 +79,26 @@ impl<'a> GuardContext<'a> {
     #[inline]
     pub fn req_data_mut(&self) -> RefMut<'a, Extensions> {
         self.req.req_data_mut()
+    }
+
+    /// Extracts a typed header from the request.
+    ///
+    /// Returns `None` if parsing `H` fails.
+    ///
+    /// # Examples
+    /// ```
+    /// use actix_web::{guard::fn_guard, http::header};
+    ///
+    /// let image_accept_guard = fn_guard(|ctx| {
+    ///     match ctx.header::<header::Accept>() {
+    ///         Some(hdr) => hdr.preference() == "image/*",
+    ///         None => false,
+    ///     }
+    /// });
+    /// ```
+    #[inline]
+    pub fn header<H: Header>(&self) -> Option<H> {
+        H::parse(self.req).ok()
     }
 }
 

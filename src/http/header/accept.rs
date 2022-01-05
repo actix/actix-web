@@ -2,10 +2,10 @@ use std::cmp::Ordering;
 
 use mime::Mime;
 
-use super::QualityItem;
+use super::{common_header, QualityItem};
 use crate::http::header;
 
-crate::http::header::common_header! {
+common_header! {
     /// `Accept` header, defined
     /// in [RFC 7231 §5.3.2](https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2)
     ///
