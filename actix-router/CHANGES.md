@@ -1,6 +1,10 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+- `Resource` trait now have an associated type, `Path`, instead of the generic parameter. [#2568]
+- `Resource` is now implemented for `&mut Path<_>` and `RefMut<Path<_>>`. [#2568]
+
+[#2568]: https://github.com/actix/actix-web/pull/2568
 
 
 ## 0.5.0-beta.4 - 2022-01-04
