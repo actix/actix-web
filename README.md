@@ -7,12 +7,12 @@
 
 [![crates.io](https://img.shields.io/crates/v/actix-web?label=latest)](https://crates.io/crates/actix-web)
 [![Documentation](https://docs.rs/actix-web/badge.svg?version=4.0.0-beta.19)](https://docs.rs/actix-web/4.0.0-beta.19)
-[![Version](https://img.shields.io/badge/rustc-1.54+-ab6000.svg)](https://blog.rust-lang.org/2021/05/06/Rust-1.54.0.html)
+![MSRV](https://img.shields.io/badge/rustc-1.54+-ab6000.svg)
 ![MIT or Apache 2.0 licensed](https://img.shields.io/crates/l/actix-web.svg)
 [![Dependency Status](https://deps.rs/crate/actix-web/4.0.0-beta.19/status.svg)](https://deps.rs/crate/actix-web/4.0.0-beta.19)
 <br />
 [![CI](https://github.com/actix/actix-web/actions/workflows/ci.yml/badge.svg)](https://github.com/actix/actix-web/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web) 
+[![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web)
 ![downloads](https://img.shields.io/crates/d/actix-web.svg)
 [![Chat on Discord](https://img.shields.io/discord/771444961383153695?label=chat&logo=discord)](https://discord.gg/NWpN5mmg3x)
 
