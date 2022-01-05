@@ -42,31 +42,36 @@ mod _new {
                     if x < 10 {
                         f.write_str("00")?;
                         // 0 is handled so it's not possible to have a trailing 0, we can just return
-                        itoa::fmt(f, x)
+                        itoa_fmt(f, x)
                     } else if x < 100 {
                         f.write_str("0")?;
                         if x % 10 == 0 {
                             // trailing 0, divide by 10 and write
-                            itoa::fmt(f, x / 10)
+                            itoa_fmt(f, x / 10)
                         } else {
-                            itoa::fmt(f, x)
+                            itoa_fmt(f, x)
                         }
                     } else {
                         // x is in range 101–999
 
                         if x % 100 == 0 {
                             // two trailing 0s, divide by 100 and write
-                            itoa::fmt(f, x / 100)
+                            itoa_fmt(f, x / 100)
                         } else if x % 10 == 0 {
                             // one trailing 0, divide by 10 and write
-                            itoa::fmt(f, x / 10)
+                            itoa_fmt(f, x / 10)
                         } else {
-                            itoa::fmt(f, x)
+                            itoa_fmt(f, x)
                         }
                     }
                 }
             }
         }
+    }
+
+    pub fn itoa_fmt<W: fmt::Write, V: itoa::Integer>(mut wr: W, value: V) -> fmt::Result {
+        let mut buf = itoa::Buffer::new();
+        wr.write_str(buf.format(value))
     }
 }
 
