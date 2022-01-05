@@ -1,6 +1,6 @@
-use std::{cell::RefCell, fmt, future::Future, marker::PhantomData, rc::Rc};
+use std::{cell::RefCell, fmt, future::Future, rc::Rc};
 
-use actix_http::{body::BoxBody, Extensions};
+use actix_http::Extensions;
 use actix_router::{IntoPatterns, Patterns};
 use actix_service::{
     apply, apply_fn_factory, boxed, fn_service, IntoServiceFactory, Service, ServiceFactory,
@@ -42,7 +42,7 @@ use crate::{
 ///
 /// If no matching route could be found, *405* response code get returned. Default behavior could be
 /// overridden with `default_resource()` method.
-pub struct Resource<T = ResourceEndpoint, B = BoxBody> {
+pub struct Resource<T = ResourceEndpoint> {
     endpoint: T,
     rdef: Patterns,
     name: Option<String>,
@@ -51,7 +51,6 @@ pub struct Resource<T = ResourceEndpoint, B = BoxBody> {
     guards: Vec<Box<dyn Guard>>,
     default: BoxedHttpServiceFactory,
     factory_ref: Rc<RefCell<Option<ResourceFactory>>>,
-    _phantom: PhantomData<B>,
 }
 
 impl Resource {
@@ -69,21 +68,13 @@ impl Resource {
             default: boxed::factory(fn_service(|req: ServiceRequest| async {
                 Ok(req.into_response(HttpResponse::MethodNotAllowed()))
             })),
-            _phantom: PhantomData,
         }
     }
 }
 
-impl<T, B> Resource<T, B>
+impl<T> Resource<T>
 where
-    T: ServiceFactory<
-        ServiceRequest,
-        Config = (),
-        Response = ServiceResponse<B>,
-        Error = Error,
-        InitError = (),
-    >,
-    B: MessageBody,
+    T: ServiceFactory<ServiceRequest, Config = (), Error = Error, InitError = ()>,
 {
     /// Set resource name.
     ///
@@ -241,35 +232,31 @@ where
         self
     }
 
-    /// Register a resource middleware.
+    /// Registers middleware, in the form of a middleware component (type),
+    /// that can modify the request and response across all routes managed by this `Resource`.
     ///
-    /// This is similar to `App's` middlewares, but middleware get invoked on resource level.
-    /// Resource level middlewares are not allowed to change response
-    /// type (i.e modify response's body).
-    ///
-    /// **Note**: middlewares get called in opposite order of middlewares registration.
-    pub fn wrap<M, B1>(
+    /// See [`App::wrap`](crate::App::wrap) for details.
+    pub fn wrap<M, B>(
         self,
         mw: M,
     ) -> Resource<
         impl ServiceFactory<
             ServiceRequest,
             Config = (),
-            Response = ServiceResponse<B1>,
+            Response = ServiceResponse<B>,
             Error = Error,
             InitError = (),
         >,
-        B1,
     >
     where
         M: Transform<
-            T::Service,
-            ServiceRequest,
-            Response = ServiceResponse<B1>,
-            Error = Error,
-            InitError = (),
-        >,
-        B1: MessageBody,
+                T::Service,
+                ServiceRequest,
+                Response = ServiceResponse<B>,
+                Error = Error,
+                InitError = (),
+            > + 'static,
+        B: MessageBody,
     {
         Resource {
             endpoint: apply(mw, self.endpoint),
@@ -280,19 +267,15 @@ where
             default: self.default,
             app_data: self.app_data,
             factory_ref: self.factory_ref,
-            _phantom: PhantomData,
         }
     }
 
-    /// Register a resource middleware function.
+    /// Registers middleware, in the form of a closure,
+    /// that can modify the request and response across all routes managed by this `Resource`.
     ///
-    /// This function accepts instance of `ServiceRequest` type and
-    /// mutable reference to the next middleware in chain.
+    /// See [`App::wrap_fn`](crate::App::wrap_fn) for details.
     ///
-    /// This is similar to `App's` middlewares, but middleware get invoked on resource level.
-    /// Resource level middlewares are not allowed to change response
-    /// type (i.e modify response's body).
-    ///
+    /// # Examples
     /// ```
     /// use actix_service::Service;
     /// use actix_web::{web, App};
@@ -318,23 +301,22 @@ where
     ///             .route(web::get().to(index)));
     /// }
     /// ```
-    pub fn wrap_fn<F, R, B1>(
+    pub fn wrap_fn<F, R, B>(
         self,
         mw: F,
     ) -> Resource<
         impl ServiceFactory<
             ServiceRequest,
             Config = (),
-            Response = ServiceResponse<B1>,
+            Response = ServiceResponse<B>,
             Error = Error,
             InitError = (),
         >,
-        B1,
     >
     where
-        F: Fn(ServiceRequest, &T::Service) -> R + Clone,
-        R: Future<Output = Result<ServiceResponse<B1>, Error>>,
-        B1: MessageBody,
+        F: Fn(ServiceRequest, &T::Service) -> R + Clone + 'static,
+        R: Future<Output = Result<ServiceResponse<B>, Error>>,
+        B: MessageBody,
     {
         Resource {
             endpoint: apply_fn_factory(self.endpoint, mw),
@@ -345,7 +327,6 @@ where
             default: self.default,
             app_data: self.app_data,
             factory_ref: self.factory_ref,
-            _phantom: PhantomData,
         }
     }
 
@@ -373,7 +354,7 @@ where
     }
 }
 
-impl<T, B> HttpServiceFactory for Resource<T, B>
+impl<T, B> HttpServiceFactory for Resource<T>
 where
     T: ServiceFactory<
             ServiceRequest,
@@ -533,7 +514,7 @@ mod tests {
             impl ServiceFactory<
                 ServiceRequest,
                 Config = (),
-                Response = ServiceResponse,
+                Response = ServiceResponse<impl MessageBody>,
                 Error = Error,
                 InitError = (),
             >,

@@ -1,9 +1,6 @@
-use std::{cell::RefCell, fmt, future::Future, marker::PhantomData, mem, rc::Rc};
+use std::{cell::RefCell, fmt, future::Future, mem, rc::Rc};
 
-use actix_http::{
-    body::{BoxBody, MessageBody},
-    Extensions,
-};
+use actix_http::{body::MessageBody, Extensions};
 use actix_router::{ResourceDef, Router};
 use actix_service::{
     apply, apply_fn_factory, boxed, IntoServiceFactory, Service, ServiceFactory,
@@ -57,7 +54,7 @@ type Guards = Vec<Box<dyn Guard>>;
 ///
 /// [pat]: crate::dev::ResourceDef#prefix-resources
 /// [dynamic segments]: crate::dev::ResourceDef#dynamic-segments
-pub struct Scope<T = ScopeEndpoint, B = BoxBody> {
+pub struct Scope<T = ScopeEndpoint> {
     endpoint: T,
     rdef: String,
     app_data: Option<Extensions>,
@@ -66,7 +63,6 @@ pub struct Scope<T = ScopeEndpoint, B = BoxBody> {
     default: Option<Rc<BoxedHttpServiceFactory>>,
     external: Vec<ResourceDef>,
     factory_ref: Rc<RefCell<Option<ScopeFactory>>>,
-    _phantom: PhantomData<B>,
 }
 
 impl Scope {
@@ -83,21 +79,13 @@ impl Scope {
             default: None,
             external: Vec::new(),
             factory_ref,
-            _phantom: Default::default(),
         }
     }
 }
 
-impl<T, B> Scope<T, B>
+impl<T> Scope<T>
 where
-    T: ServiceFactory<
-        ServiceRequest,
-        Config = (),
-        Response = ServiceResponse<B>,
-        Error = Error,
-        InitError = (),
-    >,
-    B: 'static,
+    T: ServiceFactory<ServiceRequest, Config = (), Error = Error, InitError = ()>,
 {
     /// Add match guard to a scope.
     ///
@@ -296,32 +284,31 @@ where
         self
     }
 
-    /// Registers middleware, in the form of a middleware component (type), that runs during inbound
-    /// processing in the request life-cycle (request -> response), modifying request as necessary,
-    /// across all requests managed by the *Scope*.
+    /// Registers middleware, in the form of a middleware component (type),
+    /// that can modify the request and response across all routes managed by this `Scope`.
     ///
-    /// Use middleware when you need to read or modify *every* request in some way.
-    pub fn wrap<M, B1>(
+    /// See [`App::wrap`](crate::App::wrap) for details.
+    pub fn wrap<M, B>(
         self,
         mw: M,
     ) -> Scope<
         impl ServiceFactory<
             ServiceRequest,
             Config = (),
-            Response = ServiceResponse<B1>,
+            Response = ServiceResponse<B>,
             Error = Error,
             InitError = (),
         >,
-        B1,
     >
     where
         M: Transform<
-            T::Service,
-            ServiceRequest,
-            Response = ServiceResponse<B1>,
-            Error = Error,
-            InitError = (),
-        >,
+                T::Service,
+                ServiceRequest,
+                Response = ServiceResponse<B>,
+                Error = Error,
+                InitError = (),
+            > + 'static,
+        B: MessageBody,
     {
         Scope {
             endpoint: apply(mw, self.endpoint),
@@ -332,13 +319,13 @@ where
             default: self.default,
             external: self.external,
             factory_ref: self.factory_ref,
-            _phantom: PhantomData,
         }
     }
 
-    /// Registers middleware, in the form of a closure, that runs during inbound processing in the
-    /// request life-cycle (request -> response), modifying request as necessary, across all
-    /// requests managed by the *Scope*.
+    /// Registers middleware, in the form of a closure,
+    /// that can modify the request and response across all routes managed by this `Scope`.
+    ///
+    /// See [`App::wrap_fn`](crate::App::wrap_fn) for details.
     ///
     /// # Examples
     /// ```
@@ -364,22 +351,22 @@ where
     ///         })
     ///         .route("/index.html", web::get().to(index)));
     /// ```
-    pub fn wrap_fn<F, R, B1>(
+    pub fn wrap_fn<F, R, B>(
         self,
         mw: F,
     ) -> Scope<
         impl ServiceFactory<
             ServiceRequest,
             Config = (),
-            Response = ServiceResponse<B1>,
+            Response = ServiceResponse<B>,
             Error = Error,
             InitError = (),
         >,
-        B1,
     >
     where
-        F: Fn(ServiceRequest, &T::Service) -> R + Clone,
-        R: Future<Output = Result<ServiceResponse<B1>, Error>>,
+        F: Fn(ServiceRequest, &T::Service) -> R + Clone + 'static,
+        R: Future<Output = Result<ServiceResponse<B>, Error>>,
+        B: MessageBody,
     {
         Scope {
             endpoint: apply_fn_factory(self.endpoint, mw),
@@ -390,12 +377,11 @@ where
             default: self.default,
             external: self.external,
             factory_ref: self.factory_ref,
-            _phantom: PhantomData,
         }
     }
 }
 
-impl<T, B> HttpServiceFactory for Scope<T, B>
+impl<T, B> HttpServiceFactory for Scope<T>
 where
     T: ServiceFactory<
             ServiceRequest,
@@ -596,7 +582,7 @@ mod tests {
             header::{self, HeaderValue},
             Method, StatusCode,
         },
-        middleware::{Compat, DefaultHeaders},
+        middleware::DefaultHeaders,
         service::{ServiceRequest, ServiceResponse},
         test::{assert_body_eq, call_service, init_service, read_body, TestRequest},
         web, App, HttpMessage, HttpRequest, HttpResponse,
@@ -604,16 +590,16 @@ mod tests {
 
     #[test]
     fn can_be_returned_from_fn() {
-        fn my_scope() -> Scope {
+        fn my_scope_1() -> Scope {
             web::scope("/test")
                 .service(web::resource("").route(web::get().to(|| async { "hello" })))
         }
 
-        fn my_compat_scope() -> Scope<
+        fn my_scope_2() -> Scope<
             impl ServiceFactory<
                 ServiceRequest,
                 Config = (),
-                Response = ServiceResponse,
+                Response = ServiceResponse<impl MessageBody>,
                 Error = Error,
                 InitError = (),
             >,
@@ -623,11 +609,17 @@ mod tests {
                     let fut = srv.call(req);
                     async { Ok(fut.await?.map_into_right_body::<()>()) }
                 })
-                .wrap(Compat::noop())
                 .service(web::resource("").route(web::get().to(|| async { "hello" })))
         }
 
-        App::new().service(my_scope()).service(my_compat_scope());
+        fn my_scope_3() -> impl HttpServiceFactory {
+            my_scope_2()
+        }
+
+        App::new()
+            .service(my_scope_1())
+            .service(my_scope_2())
+            .service(my_scope_3());
     }
 
     #[actix_rt::test]

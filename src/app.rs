@@ -51,7 +51,10 @@ impl App<AppEntry> {
     }
 }
 
-impl<T> App<T> {
+impl<T> App<T>
+where
+    T: ServiceFactory<ServiceRequest, Config = (), Error = Error, InitError = ()>,
+{
     /// Set application (root level) data.
     ///
     /// Application data stored with `App::app_data()` method is available through the
@@ -347,35 +350,27 @@ impl<T> App<T> {
     ///         .route("/index.html", web::get().to(index));
     /// }
     /// ```
-    pub fn wrap<M, B, B1>(
+    pub fn wrap<M, B>(
         self,
         mw: M,
     ) -> App<
         impl ServiceFactory<
             ServiceRequest,
             Config = (),
-            Response = ServiceResponse<B1>,
+            Response = ServiceResponse<B>,
             Error = Error,
             InitError = (),
         >,
     >
     where
-        T: ServiceFactory<
-            ServiceRequest,
-            Response = ServiceResponse<B>,
-            Error = Error,
-            Config = (),
-            InitError = (),
-        >,
-        B: MessageBody,
         M: Transform<
-            T::Service,
-            ServiceRequest,
-            Response = ServiceResponse<B1>,
-            Error = Error,
-            InitError = (),
-        >,
-        B1: MessageBody,
+                T::Service,
+                ServiceRequest,
+                Response = ServiceResponse<B>,
+                Error = Error,
+                InitError = (),
+            > + 'static,
+        B: MessageBody,
     {
         App {
             endpoint: apply(mw, self.endpoint),
@@ -395,6 +390,9 @@ impl<T> App<T> {
     ///
     /// Use middleware when you need to read or modify *every* request or response in some way.
     ///
+    /// See [`App::wrap`] for details on how middlewares compose with each other.
+    ///
+    /// # Examples
     /// ```
     /// use actix_service::Service;
     /// use actix_web::{web, App};
@@ -419,30 +417,22 @@ impl<T> App<T> {
     ///         .route("/index.html", web::get().to(index));
     /// }
     /// ```
-    pub fn wrap_fn<F, R, B, B1>(
+    pub fn wrap_fn<F, R, B>(
         self,
         mw: F,
     ) -> App<
         impl ServiceFactory<
             ServiceRequest,
             Config = (),
-            Response = ServiceResponse<B1>,
+            Response = ServiceResponse<B>,
             Error = Error,
             InitError = (),
         >,
     >
     where
-        T: ServiceFactory<
-            ServiceRequest,
-            Response = ServiceResponse<B>,
-            Error = Error,
-            Config = (),
-            InitError = (),
-        >,
+        F: Fn(ServiceRequest, &T::Service) -> R + Clone + 'static,
+        R: Future<Output = Result<ServiceResponse<B>, Error>>,
         B: MessageBody,
-        F: Fn(ServiceRequest, &T::Service) -> R + Clone,
-        R: Future<Output = Result<ServiceResponse<B1>, Error>>,
-        B1: MessageBody,
     {
         App {
             endpoint: apply_fn_factory(self.endpoint, mw),
@@ -458,15 +448,14 @@ impl<T> App<T> {
 
 impl<T, B> IntoServiceFactory<AppInit<T, B>, Request> for App<T>
 where
-    B: MessageBody,
     T: ServiceFactory<
-        ServiceRequest,
-        Config = (),
-        Response = ServiceResponse<B>,
-        Error = Error,
-        InitError = (),
-    >,
-    T::Future: 'static,
+            ServiceRequest,
+            Config = (),
+            Response = ServiceResponse<B>,
+            Error = Error,
+            InitError = (),
+        > + 'static,
+    B: MessageBody,
 {
     fn into_factory(self) -> AppInit<T, B> {
         AppInit {
