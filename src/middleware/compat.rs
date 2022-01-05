@@ -150,11 +150,13 @@ mod tests {
 
     use actix_service::IntoService;
 
-    use crate::dev::ServiceRequest;
-    use crate::http::StatusCode;
-    use crate::middleware::{self, Condition, Logger};
-    use crate::test::{call_service, init_service, TestRequest};
-    use crate::{web, App, HttpResponse};
+    use crate::{
+        dev::ServiceRequest,
+        http::StatusCode,
+        middleware::{self, Condition, Logger},
+        test::{self, call_service, init_service, TestRequest},
+        web, App, HttpResponse,
+    };
 
     #[actix_rt::test]
     #[cfg(all(feature = "cookies", feature = "__compress"))]
@@ -218,5 +220,18 @@ mod tests {
             .unwrap();
         let resp = call_service(&mw, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[actix_rt::test]
+    async fn compat_noop_is_noop() {
+        let srv = test::ok_service();
+
+        let mw = Compat::noop()
+            .new_transform(srv.into_service())
+            .await
+            .unwrap();
+
+        let resp = call_service(&mw, TestRequest::default().to_srv_request()).await;
+        assert_eq!(resp.status(), StatusCode::OK);
     }
 }

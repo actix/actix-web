@@ -51,7 +51,10 @@ impl App<AppEntry> {
     }
 }
 
-impl<T> App<T> {
+impl<T> App<T>
+where
+    T: ServiceFactory<ServiceRequest, Config = (), Error = Error, InitError = ()>,
+{
     /// Set application (root level) data.
     ///
     /// Application data stored with `App::app_data()` method is available through the
@@ -317,65 +320,63 @@ impl<T> App<T> {
         self
     }
 
-    /// Registers middleware, in the form of a middleware component (type),
-    /// that runs during inbound and/or outbound processing in the request
-    /// life-cycle (request -> response), modifying request/response as
-    /// necessary, across all requests managed by the *Application*.
+    /// Registers an app-wide middleware.
     ///
-    /// Use middleware when you need to read or modify *every* request or
-    /// response in some way.
+    /// Registers middleware, in the form of a middleware compo nen t (type), that runs during
+    /// inbound and/or outbound processing in the request life-cycle (request -> response),
+    /// modifying request/response as necessary, across all requests managed by the `App`.
     ///
-    /// Notice that the keyword for registering middleware is `wrap`. As you
-    /// register middleware using `wrap` in the App builder,  imagine wrapping
-    /// layers around an inner App.  The first middleware layer exposed to a
-    /// Request is the outermost layer-- the *last* registered in
-    /// the builder chain.  Consequently, the *first* middleware registered
-    /// in the builder chain is the *last* to execute during request processing.
+    /// Use middleware when you need to read or modify *every* request or response in some way.
     ///
+    /// Middleware can be applied similarly to individual `Scope`s and `Resource`s.
+    /// See [`Scope::wrap`](crate::Scope::wrap) and [`Resource::wrap`].
+    ///
+    /// # Middleware Order
+    /// Notice that the keyword for registering middleware is `wrap`. As you register middleware
+    /// using `wrap` in the App builder, imagine wrapping layers around an inner App. The first
+    /// middleware layer exposed to a Request is the outermost layer (i.e., the *last* registered in
+    /// the builder chain). Consequently, the *first* middleware registered in the builder chain is
+    /// the *last* to start executing during request processing.
+    ///
+    /// Ordering is less obvious when wrapped services also have middleware applied. In this case,
+    /// middlewares are run in reverse order for `App` _and then_ in reverse order for the
+    /// wrapped service.
+    ///
+    /// # Examples
     /// ```
-    /// use actix_service::Service;
     /// use actix_web::{middleware, web, App};
-    /// use actix_web::http::header::{CONTENT_TYPE, HeaderValue};
     ///
     /// async fn index() -> &'static str {
     ///     "Welcome!"
     /// }
     ///
-    /// fn main() {
-    ///     let app = App::new()
-    ///         .wrap(middleware::Logger::default())
-    ///         .route("/index.html", web::get().to(index));
-    /// }
+    /// let app = App::new()
+    ///     .wrap(middleware::Logger::default())
+    ///     .route("/index.html", web::get().to(index));
     /// ```
-    pub fn wrap<M, B, B1>(
+    #[doc(alias = "middleware")]
+    #[doc(alias = "use")] // nodejs terminology
+    pub fn wrap<M, B>(
         self,
         mw: M,
     ) -> App<
         impl ServiceFactory<
             ServiceRequest,
             Config = (),
-            Response = ServiceResponse<B1>,
+            Response = ServiceResponse<B>,
             Error = Error,
             InitError = (),
         >,
     >
     where
-        T: ServiceFactory<
-            ServiceRequest,
-            Response = ServiceResponse<B>,
-            Error = Error,
-            Config = (),
-            InitError = (),
-        >,
-        B: MessageBody,
         M: Transform<
-            T::Service,
-            ServiceRequest,
-            Response = ServiceResponse<B1>,
-            Error = Error,
-            InitError = (),
-        >,
-        B1: MessageBody,
+                T::Service,
+                ServiceRequest,
+                Response = ServiceResponse<B>,
+                Error = Error,
+                InitError = (),
+            > + 'static,
+        B: MessageBody,
     {
         App {
             endpoint: apply(mw, self.endpoint),
@@ -388,61 +389,57 @@ impl<T> App<T> {
         }
     }
 
-    /// Registers middleware, in the form of a closure, that runs during inbound
-    /// and/or outbound processing in the request life-cycle (request -> response),
-    /// modifying request/response as necessary, across all requests managed by
-    /// the *Application*.
+    /// Registers an app-wide function middleware.
+    ///
+    /// `mw` is a closure that runs during inbound and/or outbound processing in the request
+    /// life-cycle (request -> response), modifying request/response as necessary, across all
+    /// requests handled by the `App`.
     ///
     /// Use middleware when you need to read or modify *every* request or response in some way.
     ///
+    /// Middleware can also be applied to individual `Scope`s and `Resource`s.
+    ///
+    /// See [`App::wrap`] for details on how middlewares compose with each other.
+    ///
+    /// # Examples
     /// ```
-    /// use actix_service::Service;
-    /// use actix_web::{web, App};
+    /// use actix_web::{dev::Service as _, middleware, web, App};
     /// use actix_web::http::header::{CONTENT_TYPE, HeaderValue};
     ///
     /// async fn index() -> &'static str {
     ///     "Welcome!"
     /// }
     ///
-    /// fn main() {
-    ///     let app = App::new()
-    ///         .wrap_fn(|req, srv| {
-    ///             let fut = srv.call(req);
-    ///             async {
-    ///                 let mut res = fut.await?;
-    ///                 res.headers_mut().insert(
-    ///                    CONTENT_TYPE, HeaderValue::from_static("text/plain"),
-    ///                 );
-    ///                 Ok(res)
-    ///             }
-    ///         })
-    ///         .route("/index.html", web::get().to(index));
-    /// }
+    /// let app = App::new()
+    ///     .wrap_fn(|req, srv| {
+    ///         let fut = srv.call(req);
+    ///         async {
+    ///             let mut res = fut.await?;
+    ///             res.headers_mut()
+    ///                 .insert(CONTENT_TYPE, HeaderValue::from_static("text/plain"));
+    ///             Ok(res)
+    ///         }
+    ///     })
+    ///     .route("/index.html", web::get().to(index));
     /// ```
-    pub fn wrap_fn<F, R, B, B1>(
+    #[doc(alias = "middleware")]
+    #[doc(alias = "use")] // nodejs terminology
+    pub fn wrap_fn<F, R, B>(
         self,
         mw: F,
     ) -> App<
         impl ServiceFactory<
             ServiceRequest,
             Config = (),
-            Response = ServiceResponse<B1>,
+            Response = ServiceResponse<B>,
             Error = Error,
             InitError = (),
         >,
     >
     where
-        T: ServiceFactory<
-            ServiceRequest,
-            Response = ServiceResponse<B>,
-            Error = Error,
-            Config = (),
-            InitError = (),
-        >,
+        F: Fn(ServiceRequest, &T::Service) -> R + Clone + 'static,
+        R: Future<Output = Result<ServiceResponse<B>, Error>>,
         B: MessageBody,
-        F: Fn(ServiceRequest, &T::Service) -> R + Clone,
-        R: Future<Output = Result<ServiceResponse<B1>, Error>>,
-        B1: MessageBody,
     {
         App {
             endpoint: apply_fn_factory(self.endpoint, mw),
@@ -458,15 +455,14 @@ impl<T> App<T> {
 
 impl<T, B> IntoServiceFactory<AppInit<T, B>, Request> for App<T>
 where
-    B: MessageBody,
     T: ServiceFactory<
-        ServiceRequest,
-        Config = (),
-        Response = ServiceResponse<B>,
-        Error = Error,
-        InitError = (),
-    >,
-    T::Future: 'static,
+            ServiceRequest,
+            Config = (),
+            Response = ServiceResponse<B>,
+            Error = Error,
+            InitError = (),
+        > + 'static,
+    B: MessageBody,
 {
     fn into_factory(self) -> AppInit<T, B> {
         AppInit {
