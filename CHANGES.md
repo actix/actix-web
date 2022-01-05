@@ -3,10 +3,12 @@
 ## Unreleased - 2021-xx-xx
 ### Added
 - `GuardContext::header` [#2569]
+- `ServiceConfig::configure` to allow easy nesting of configuration functions. [#1988]
 
 ### Changed
 - `HttpResponse` can now be used as a `Responder` with any body type. [#2567]
 
+[#1988]: https://github.com/actix/actix-web/pull/1988
 [#2567]: https://github.com/actix/actix-web/pull/2567
 [#2569]: https://github.com/actix/actix-web/pull/2569
 

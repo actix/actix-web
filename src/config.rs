@@ -215,6 +215,17 @@ impl ServiceConfig {
         self
     }
 
+    /// Run external configuration as part of the application building process
+    ///
+    /// Counterpart to [`App::configure()`](crate::App::configure) that allows for easy nesting.
+    pub fn configure<F>(&mut self, f: F) -> &mut Self
+    where
+        F: FnOnce(&mut ServiceConfig),
+    {
+        f(self);
+        self
+    }
+
     /// Configure route for a specific path.
     ///
     /// Counterpart to [`App::route()`](crate::App::route).
@@ -264,7 +275,7 @@ mod tests {
 
     use super::*;
     use crate::http::{Method, StatusCode};
-    use crate::test::{call_service, init_service, read_body, TestRequest};
+    use crate::test::{assert_body_eq, call_service, init_service, read_body, TestRequest};
     use crate::{web, App, HttpRequest, HttpResponse};
 
     // allow deprecated `ServiceConfig::data`
@@ -362,5 +373,23 @@ mod tests {
             .to_request();
         let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[actix_rt::test]
+    async fn nested_service_configure() {
+        fn cfg_root(cfg: &mut ServiceConfig) {
+            cfg.configure(cfg_sub);
+        }
+
+        fn cfg_sub(cfg: &mut ServiceConfig) {
+            cfg.route("/", web::get().to(|| async { "hello world" }));
+        }
+
+        let srv = init_service(App::new().configure(cfg_root)).await;
+
+        let req = TestRequest::with_uri("/").to_request();
+        let res = call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_body_eq!(res, b"hello world");
     }
 }
