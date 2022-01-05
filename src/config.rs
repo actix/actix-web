@@ -299,38 +299,6 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    // #[actix_rt::test]
-    // async fn test_data_factory() {
-    //     let cfg = |cfg: &mut ServiceConfig| {
-    //         cfg.data_factory(|| {
-    //             sleep(std::time::Duration::from_millis(50)).then(|_| {
-    //                 println!("READY");
-    //                 Ok::<_, ()>(10usize)
-    //             })
-    //         });
-    //     };
-
-    //     let srv =
-    //         init_service(App::new().configure(cfg).service(
-    //             web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
-    //         ));
-    //     let req = TestRequest::default().to_request();
-    //     let resp = srv.call(req).await.unwrap();
-    //     assert_eq!(resp.status(), StatusCode::OK);
-
-    //     let cfg2 = |cfg: &mut ServiceConfig| {
-    //         cfg.data_factory(|| Ok::<_, ()>(10u32));
-    //     };
-    //     let srv = init_service(
-    //         App::new()
-    //             .service(web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()))
-    //             .configure(cfg2),
-    //     );
-    //     let req = TestRequest::default().to_request();
-    //     let resp = srv.call(req).await.unwrap();
-    //     assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
-    // }
-
     #[actix_rt::test]
     async fn test_external_resource() {
         let srv = init_service(
