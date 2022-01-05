@@ -1,7 +1,6 @@
 //! `awc` is a HTTP and WebSocket client library built on the Actix ecosystem.
 //!
-//! ## Making a GET request
-//!
+//! # Making a GET request
 //! ```no_run
 //! # #[actix_rt::main]
 //! # async fn main() -> Result<(), awc::error::SendRequestError> {
@@ -16,10 +15,8 @@
 //! # }
 //! ```
 //!
-//! ## Making POST requests
-//!
-//! ### Raw body contents
-//!
+//! # Making POST requests
+//! ## Raw body contents
 //! ```no_run
 //! # #[actix_rt::main]
 //! # async fn main() -> Result<(), awc::error::SendRequestError> {
@@ -31,8 +28,7 @@
 //! # }
 //! ```
 //!
-//! ### Forms
-//!
+//! ## Forms
 //! ```no_run
 //! # #[actix_rt::main]
 //! # async fn main() -> Result<(), awc::error::SendRequestError> {
@@ -46,8 +42,7 @@
 //! # }
 //! ```
 //!
-//! ### JSON
-//!
+//! ## JSON
 //! ```no_run
 //! # #[actix_rt::main]
 //! # async fn main() -> Result<(), awc::error::SendRequestError> {
@@ -64,8 +59,24 @@
 //! # }
 //! ```
 //!
-//! ## WebSocket support
+//! # Response Compression
+//! All [official][iana-encodings] and common content encoding codecs are supported, optionally.
 //!
+//! The `Accept-Encoding` header will automatically be populated with enabled codecs and added to
+//! outgoing requests, allowing servers to select their `Content-Encoding` accordingly.
+//!
+//! Feature flags enable these codecs according to the table below. By default, all `compress-*`
+//! features are enabled.
+//!
+//! | Feature           | Codecs        |
+//! | ----------------- | ------------- |
+//! | `compress-brotli` | brotli        |
+//! | `compress-gzip`   | gzip, deflate |
+//! | `compress-zstd`   | zstd          |
+//!
+//! [iana-encodings]: https://www.iana.org/assignments/http-parameters/http-parameters.xhtml#content-coding
+//!
+//! # WebSocket support
 //! ```no_run
 //! # #[actix_rt::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -84,7 +95,8 @@
 //! # }
 //! ```
 
-#![deny(rust_2018_idioms)]
+#![deny(rust_2018_idioms, nonstandard_style)]
+#![warn(future_incompatible)]
 #![allow(
     clippy::type_complexity,
     clippy::borrow_interior_mutable_const,
@@ -93,190 +105,40 @@
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 
-use std::convert::TryFrom;
-use std::rc::Rc;
-use std::time::Duration;
+pub use actix_http::body;
 
 #[cfg(feature = "cookies")]
-pub use actix_http::cookie;
-pub use actix_http::{client::Connector, http};
+pub use cookie;
 
-use actix_http::http::{Error as HttpError, HeaderMap, Method, Uri};
-use actix_http::RequestHead;
-
+mod any_body;
 mod builder;
+mod client;
 mod connect;
 pub mod error;
 mod frozen;
+pub mod middleware;
 mod request;
-mod response;
+mod responses;
 mod sender;
 pub mod test;
 pub mod ws;
 
+pub mod http {
+    //! Various HTTP related types.
+
+    // TODO: figure out how best to expose http::Error vs actix_http::Error
+    pub use actix_http::{
+        header, uri, ConnectionType, Error, Method, StatusCode, Uri, Version,
+    };
+}
+
 pub use self::builder::ClientBuilder;
-pub use self::connect::BoxedSocket;
+pub use self::client::{Client, Connector};
+pub use self::connect::{BoxConnectorService, BoxedSocket, ConnectRequest, ConnectResponse};
 pub use self::frozen::{FrozenClientRequest, FrozenSendBuilder};
 pub use self::request::ClientRequest;
-pub use self::response::{ClientResponse, JsonBody, MessageBody};
+#[allow(deprecated)]
+pub use self::responses::{ClientResponse, JsonBody, MessageBody, ResponseBody};
 pub use self::sender::SendClientRequest;
 
-use self::connect::{Connect, ConnectorWrapper};
-
-/// An asynchronous HTTP and WebSocket client.
-///
-/// ## Examples
-///
-/// ```rust
-/// use awc::Client;
-///
-/// #[actix_rt::main]
-/// async fn main() {
-///     let mut client = Client::default();
-///
-///     let res = client.get("http://www.rust-lang.org") // <- Create request builder
-///         .insert_header(("User-Agent", "Actix-web"))
-///         .send()                             // <- Send HTTP request
-///         .await;                             // <- send request and wait for response
-///
-///      println!("Response: {:?}", res);
-/// }
-/// ```
-#[derive(Clone)]
-pub struct Client(Rc<ClientConfig>);
-
-pub(crate) struct ClientConfig {
-    pub(crate) connector: Box<dyn Connect>,
-    pub(crate) headers: HeaderMap,
-    pub(crate) timeout: Option<Duration>,
-}
-
-impl Default for Client {
-    fn default() -> Self {
-        Client(Rc::new(ClientConfig {
-            connector: Box::new(ConnectorWrapper(Connector::new().finish())),
-            headers: HeaderMap::new(),
-            timeout: Some(Duration::from_secs(5)),
-        }))
-    }
-}
-
-impl Client {
-    /// Create new client instance with default settings.
-    pub fn new() -> Client {
-        Client::default()
-    }
-
-    /// Create `Client` builder.
-    /// This function is equivalent of `ClientBuilder::new()`.
-    pub fn builder() -> ClientBuilder {
-        ClientBuilder::new()
-    }
-
-    /// Construct HTTP request.
-    pub fn request<U>(&self, method: Method, url: U) -> ClientRequest
-    where
-        Uri: TryFrom<U>,
-        <Uri as TryFrom<U>>::Error: Into<HttpError>,
-    {
-        let mut req = ClientRequest::new(method, url, self.0.clone());
-
-        for header in self.0.headers.iter() {
-            req = req.insert_header_if_none(header);
-        }
-        req
-    }
-
-    /// Create `ClientRequest` from `RequestHead`
-    ///
-    /// It is useful for proxy requests. This implementation
-    /// copies all headers and the method.
-    pub fn request_from<U>(&self, url: U, head: &RequestHead) -> ClientRequest
-    where
-        Uri: TryFrom<U>,
-        <Uri as TryFrom<U>>::Error: Into<HttpError>,
-    {
-        let mut req = self.request(head.method.clone(), url);
-        for header in head.headers.iter() {
-            req = req.insert_header_if_none(header);
-        }
-        req
-    }
-
-    /// Construct HTTP *GET* request.
-    pub fn get<U>(&self, url: U) -> ClientRequest
-    where
-        Uri: TryFrom<U>,
-        <Uri as TryFrom<U>>::Error: Into<HttpError>,
-    {
-        self.request(Method::GET, url)
-    }
-
-    /// Construct HTTP *HEAD* request.
-    pub fn head<U>(&self, url: U) -> ClientRequest
-    where
-        Uri: TryFrom<U>,
-        <Uri as TryFrom<U>>::Error: Into<HttpError>,
-    {
-        self.request(Method::HEAD, url)
-    }
-
-    /// Construct HTTP *PUT* request.
-    pub fn put<U>(&self, url: U) -> ClientRequest
-    where
-        Uri: TryFrom<U>,
-        <Uri as TryFrom<U>>::Error: Into<HttpError>,
-    {
-        self.request(Method::PUT, url)
-    }
-
-    /// Construct HTTP *POST* request.
-    pub fn post<U>(&self, url: U) -> ClientRequest
-    where
-        Uri: TryFrom<U>,
-        <Uri as TryFrom<U>>::Error: Into<HttpError>,
-    {
-        self.request(Method::POST, url)
-    }
-
-    /// Construct HTTP *PATCH* request.
-    pub fn patch<U>(&self, url: U) -> ClientRequest
-    where
-        Uri: TryFrom<U>,
-        <Uri as TryFrom<U>>::Error: Into<HttpError>,
-    {
-        self.request(Method::PATCH, url)
-    }
-
-    /// Construct HTTP *DELETE* request.
-    pub fn delete<U>(&self, url: U) -> ClientRequest
-    where
-        Uri: TryFrom<U>,
-        <Uri as TryFrom<U>>::Error: Into<HttpError>,
-    {
-        self.request(Method::DELETE, url)
-    }
-
-    /// Construct HTTP *OPTIONS* request.
-    pub fn options<U>(&self, url: U) -> ClientRequest
-    where
-        Uri: TryFrom<U>,
-        <Uri as TryFrom<U>>::Error: Into<HttpError>,
-    {
-        self.request(Method::OPTIONS, url)
-    }
-
-    /// Initialize a WebSocket connection.
-    /// Returns a WebSocket connection builder.
-    pub fn ws<U>(&self, url: U) -> ws::WebsocketsRequest
-    where
-        Uri: TryFrom<U>,
-        <Uri as TryFrom<U>>::Error: Into<HttpError>,
-    {
-        let mut req = ws::WebsocketsRequest::new(url, self.0.clone());
-        for (key, value) in self.0.headers.iter() {
-            req.head.headers.insert(key.clone(), value.clone());
-        }
-        req
-    }
-}
+pub(crate) type BoxError = Box<dyn std::error::Error>;

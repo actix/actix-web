@@ -1,10 +1,7 @@
-use std::task::Poll;
-
 use actix_service::{Service, ServiceFactory};
-use futures_util::future::{ready, Ready};
+use actix_utils::future::{ready, Ready};
 
-use crate::error::Error;
-use crate::request::Request;
+use crate::{Error, Request};
 
 pub struct ExpectHandler;
 

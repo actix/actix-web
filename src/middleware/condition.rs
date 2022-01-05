@@ -3,7 +3,9 @@
 use std::task::{Context, Poll};
 
 use actix_service::{Service, Transform};
-use futures_util::future::{Either, FutureExt, LocalBoxFuture};
+use actix_utils::future::Either;
+use futures_core::future::LocalBoxFuture;
+use futures_util::future::FutureExt as _;
 
 /// Middleware for conditionally enabling other middleware.
 ///
@@ -12,7 +14,7 @@ use futures_util::future::{Either, FutureExt, LocalBoxFuture};
 /// middleware for a workaround.
 ///
 /// # Examples
-/// ```rust
+/// ```
 /// use actix_web::middleware::{Condition, NormalizePath};
 /// use actix_web::App;
 ///
@@ -85,8 +87,8 @@ where
 
     fn call(&self, req: Req) -> Self::Future {
         match self {
-            ConditionMiddleware::Enable(service) => Either::Left(service.call(req)),
-            ConditionMiddleware::Disable(service) => Either::Right(service.call(req)),
+            ConditionMiddleware::Enable(service) => Either::left(service.call(req)),
+            ConditionMiddleware::Disable(service) => Either::right(service.call(req)),
         }
     }
 }
@@ -94,23 +96,28 @@ where
 #[cfg(test)]
 mod tests {
     use actix_service::IntoService;
-    use futures_util::future::ok;
+    use actix_utils::future::ok;
 
     use super::*;
     use crate::{
         dev::{ServiceRequest, ServiceResponse},
         error::Result,
-        http::{header::CONTENT_TYPE, HeaderValue, StatusCode},
-        middleware::err_handlers::*,
+        http::{
+            header::{HeaderValue, CONTENT_TYPE},
+            StatusCode,
+        },
+        middleware::{err_handlers::*, Compat},
         test::{self, TestRequest},
         HttpResponse,
     };
 
+    #[allow(clippy::unnecessary_wraps)]
     fn render_500<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
         res.response_mut()
             .headers_mut()
             .insert(CONTENT_TYPE, HeaderValue::from_static("0001"));
-        Ok(ErrorHandlerResponse::Response(res))
+
+        Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
     }
 
     #[actix_rt::test]
@@ -119,7 +126,9 @@ mod tests {
             ok(req.into_response(HttpResponse::InternalServerError().finish()))
         };
 
-        let mw = ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, render_500);
+        let mw = Compat::new(
+            ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, render_500),
+        );
 
         let mw = Condition::new(true, mw)
             .new_transform(srv.into_service())
@@ -135,7 +144,9 @@ mod tests {
             ok(req.into_response(HttpResponse::InternalServerError().finish()))
         };
 
-        let mw = ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, render_500);
+        let mw = Compat::new(
+            ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, render_500),
+        );
 
         let mw = Condition::new(false, mw)
             .new_transform(srv.into_service())

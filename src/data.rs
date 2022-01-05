@@ -1,14 +1,14 @@
-use std::any::type_name;
-use std::ops::Deref;
-use std::sync::Arc;
+use std::{any::type_name, ops::Deref, sync::Arc};
 
-use actix_http::error::{Error, ErrorInternalServerError};
 use actix_http::Extensions;
-use futures_util::future::{err, ok, LocalBoxFuture, Ready};
+use actix_utils::future::{err, ok, Ready};
+use futures_core::future::LocalBoxFuture;
+use serde::Serialize;
 
-use crate::dev::Payload;
-use crate::extract::FromRequest;
-use crate::request::HttpRequest;
+use crate::{
+    dev::Payload, error::ErrorInternalServerError, extract::FromRequest, request::HttpRequest,
+    Error,
+};
 
 /// Data factory.
 pub(crate) trait DataFactory {
@@ -19,49 +19,76 @@ pub(crate) trait DataFactory {
 pub(crate) type FnDataFactory =
     Box<dyn Fn() -> LocalBoxFuture<'static, Result<Box<dyn DataFactory>, ()>>>;
 
-/// Application data.
+/// Application data wrapper and extractor.
 ///
-/// Application level data is a piece of arbitrary data attached to the app, scope, or resource.
-/// Application data is available to all routes and can be added during the application
-/// configuration process via `App::data()`.
+/// # Setting Data
+/// Data is set using the `app_data` methods on `App`, `Scope`, and `Resource`. If data is wrapped
+/// in this `Data` type for those calls, it can be used as an extractor.
 ///
-/// Application data can be accessed by using `Data<T>` extractor where `T` is data type.
+/// Note that `Data` should be constructed _outside_ the `HttpServer::new` closure if shared,
+/// potentially mutable state is desired. `Data` is cheap to clone; internally, it uses an `Arc`.
 ///
-/// **Note**: HTTP server accepts an application factory rather than an application instance. HTTP
-/// server constructs an application instance for each thread, thus application data must be
-/// constructed multiple times. If you want to share data between different threads, a shareable
-/// object should be used, e.g. `Send + Sync`. Application data does not need to be `Send`
-/// or `Sync`. Internally `Data` uses `Arc`.
+/// See also [`App::app_data`](crate::App::app_data), [`Scope::app_data`](crate::Scope::app_data),
+/// and [`Resource::app_data`](crate::Resource::app_data).
 ///
-/// If route data is not set for a handler, using `Data<T>` extractor would cause *Internal
-/// Server Error* response.
+/// # Extracting `Data`
+/// Since the Actix Web router layers application data, the returned object will reference the
+/// "closest" instance of the type. For example, if an `App` stores a `u32`, a nested `Scope`
+/// also stores a `u32`, and the delegated request handler falls within that `Scope`, then
+/// extracting a `web::<Data<u32>>` for that handler will return the `Scope`'s instance.
+/// However, using the same router set up and a request that does not get captured by the `Scope`,
+/// `web::<Data<u32>>` would return the `App`'s instance.
 ///
-/// ```rust
+/// If route data is not set for a handler, using `Data<T>` extractor would cause a `500 Internal
+/// Server Error` response.
+///
+/// See also [`HttpRequest::app_data`]
+/// and [`ServiceRequest::app_data`](crate::dev::ServiceRequest::app_data).
+///
+/// # Unsized Data
+/// For types that are unsized, most commonly `dyn T`, `Data` can wrap these types by first
+/// constructing an `Arc<dyn T>` and using the `From` implementation to convert it.
+///
+/// ```
+/// # use std::{fmt::Display, sync::Arc};
+/// # use actix_web::web::Data;
+/// let displayable_arc: Arc<dyn Display> = Arc::new(42usize);
+/// let displayable_data: Data<dyn Display> = Data::from(displayable_arc);
+/// ```
+///
+/// # Examples
+/// ```
 /// use std::sync::Mutex;
-/// use actix_web::{web, App, HttpResponse, Responder};
+/// use actix_web::{App, HttpRequest, HttpResponse, Responder, web::{self, Data}};
 ///
 /// struct MyData {
 ///     counter: usize,
 /// }
 ///
 /// /// Use the `Data<T>` extractor to access data in a handler.
-/// async fn index(data: web::Data<Mutex<MyData>>) -> impl Responder {
-///     let mut data = data.lock().unwrap();
-///     data.counter += 1;
+/// async fn index(data: Data<Mutex<MyData>>) -> impl Responder {
+///     let mut my_data = data.lock().unwrap();
+///     my_data.counter += 1;
 ///     HttpResponse::Ok()
 /// }
 ///
-/// fn main() {
-///     let data = web::Data::new(Mutex::new(MyData{ counter: 0 }));
-///
-///     let app = App::new()
-///         // Store `MyData` in application storage.
-///         .app_data(data.clone())
-///         .service(
-///             web::resource("/index.html").route(
-///                 web::get().to(index)));
+/// /// Alteratively, use the `HttpRequest::app_data` method to access data in a handler.
+/// async fn index_alt(req: HttpRequest) -> impl Responder {
+///     let data = req.app_data::<Data<Mutex<MyData>>>().unwrap();
+///     let mut my_data = data.lock().unwrap();
+///     my_data.counter += 1;
+///     HttpResponse::Ok()
 /// }
+///
+/// let data = Data::new(Mutex::new(MyData { counter: 0 }));
+///
+/// let app = App::new()
+///     // Store `MyData` in application storage.
+///     .app_data(Data::clone(&data))
+///     .route("/index.html", web::get().to(index))
+///     .route("/index-alt.html", web::get().to(index_alt));
 /// ```
+#[doc(alias = "state")]
 #[derive(Debug)]
 pub struct Data<T: ?Sized>(Arc<T>);
 
@@ -70,13 +97,15 @@ impl<T> Data<T> {
     pub fn new(state: T) -> Data<T> {
         Data(Arc::new(state))
     }
+}
 
-    /// Get reference to inner app data.
+impl<T: ?Sized> Data<T> {
+    /// Returns reference to inner `T`.
     pub fn get_ref(&self) -> &T {
         self.0.as_ref()
     }
 
-    /// Convert to the internal Arc<T>
+    /// Unwraps to the internal `Arc<T>`
     pub fn into_inner(self) -> Arc<T> {
         self.0
     }
@@ -102,8 +131,19 @@ impl<T: ?Sized> From<Arc<T>> for Data<T> {
     }
 }
 
+impl<T> Serialize for Data<T>
+where
+    T: Serialize,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.0.serialize(serializer)
+    }
+}
+
 impl<T: ?Sized + 'static> FromRequest for Data<T> {
-    type Config = ();
     type Error = Error;
     type Future = Ready<Result<Self, Error>>;
 
@@ -113,13 +153,16 @@ impl<T: ?Sized + 'static> FromRequest for Data<T> {
             ok(st.clone())
         } else {
             log::debug!(
-                "Failed to construct App-level Data extractor. \
-                 Request path: {:?} (type: {})",
-                req.path(),
+                "Failed to extract `Data<{}>` for `{}` handler. For the Data extractor to work \
+                correctly, wrap the data with `Data::new()` and pass it to `App::app_data()`. \
+                Ensure that types align in both the set and retrieve calls.",
                 type_name::<T>(),
+                req.match_name().unwrap_or_else(|| req.path())
             );
+
             err(ErrorInternalServerError(
-                "App data is not configured, to configure use App::data()",
+                "Requested application data is not configured correctly. \
+                View/enable debug logs for more details.",
             ))
         }
     }
@@ -134,14 +177,16 @@ impl<T: ?Sized + 'static> DataFactory for Data<T> {
 
 #[cfg(test)]
 mod tests {
-    use actix_service::Service;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-
     use super::*;
-    use crate::http::StatusCode;
-    use crate::test::{self, init_service, TestRequest};
-    use crate::{web, App, HttpResponse};
+    use crate::{
+        dev::Service,
+        http::StatusCode,
+        test::{init_service, TestRequest},
+        web, App, HttpResponse,
+    };
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_data_extractor() {
         let srv = init_service(App::new().data("TEST".to_string()).service(
@@ -209,6 +254,8 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_route_data_extractor() {
         let srv = init_service(
@@ -238,6 +285,8 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_override_data() {
         let srv =
@@ -257,53 +306,10 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_data_drop() {
-        struct TestData(Arc<AtomicUsize>);
-
-        impl TestData {
-            fn new(inner: Arc<AtomicUsize>) -> Self {
-                let _ = inner.fetch_add(1, Ordering::SeqCst);
-                Self(inner)
-            }
-        }
-
-        impl Clone for TestData {
-            fn clone(&self) -> Self {
-                let inner = self.0.clone();
-                let _ = inner.fetch_add(1, Ordering::SeqCst);
-                Self(inner)
-            }
-        }
-
-        impl Drop for TestData {
-            fn drop(&mut self) {
-                let _ = self.0.fetch_sub(1, Ordering::SeqCst);
-            }
-        }
-
-        let num = Arc::new(AtomicUsize::new(0));
-        let data = TestData::new(num.clone());
-        assert_eq!(num.load(Ordering::SeqCst), 1);
-
-        let srv = test::start(move || {
-            let data = data.clone();
-
-            App::new()
-                .data(data)
-                .service(web::resource("/").to(|_data: Data<TestData>| async { "ok" }))
-        });
-
-        assert!(srv.get("/").send().await.unwrap().status().is_success());
-        srv.stop().await;
-
-        assert_eq!(num.load(Ordering::SeqCst), 0);
-    }
-
-    #[actix_rt::test]
     async fn test_data_from_arc() {
         let data_new = Data::new(String::from("test-123"));
         let data_from_arc = Data::from(Arc::new(String::from("test-123")));
-        assert_eq!(data_new.0, data_from_arc.0)
+        assert_eq!(data_new.0, data_from_arc.0);
     }
 
     #[actix_rt::test]
@@ -324,5 +330,39 @@ mod tests {
         let dyn_arc: Arc<dyn TestTrait> = Arc::new(A {});
         let data_arc = Data::from(dyn_arc);
         assert_eq!(data_arc_box.get_num(), data_arc.get_num())
+    }
+
+    #[actix_rt::test]
+    async fn test_dyn_data_into_arc() {
+        trait TestTrait {
+            fn get_num(&self) -> i32;
+        }
+        struct A {}
+        impl TestTrait for A {
+            fn get_num(&self) -> i32 {
+                42
+            }
+        }
+        let dyn_arc: Arc<dyn TestTrait> = Arc::new(A {});
+        let data_arc = Data::from(dyn_arc);
+        let arc_from_data = data_arc.clone().into_inner();
+        assert_eq!(data_arc.get_num(), arc_from_data.get_num())
+    }
+
+    #[actix_rt::test]
+    async fn test_get_ref_from_dyn_data() {
+        trait TestTrait {
+            fn get_num(&self) -> i32;
+        }
+        struct A {}
+        impl TestTrait for A {
+            fn get_num(&self) -> i32 {
+                42
+            }
+        }
+        let dyn_arc: Arc<dyn TestTrait> = Arc::new(A {});
+        let data_arc = Data::from(dyn_arc);
+        let ref_data = data_arc.get_ref();
+        assert_eq!(data_arc.get_num(), ref_data.get_num())
     }
 }

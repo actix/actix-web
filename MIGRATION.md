@@ -1,42 +1,57 @@
 ## Unreleased
 
-* The default `NormalizePath` behavior now strips trailing slashes by default. This was
+- The default `NormalizePath` behavior now strips trailing slashes by default. This was
   previously documented to be the case in v3 but the behavior now matches. The effect is that
   routes defined with trailing slashes will become inaccessible when
-  using `NormalizePath::default()`.
+  using `NormalizePath::default()`. As such, calling `NormalizePath::default()` will log a warning.
+  It is advised that the `new` method be used instead.
   
-  Before: `#[get("/test/")`  
-  After: `#[get("/test")`  
+  Before: `#[get("/test/")]`  
+  After:  `#[get("/test")]`  
 
   Alternatively, explicitly require trailing slashes: `NormalizePath::new(TrailingSlash::Always)`.
+
+- The `type Config` of `FromRequest` was removed.
+
+- Feature flag `compress` has been split into its supported algorithm (brotli, gzip, zstd).
+  By default all compression algorithms are enabled.
+  To select algorithm you want to include with `middleware::Compress` use following flags:
+  - `compress-brotli`
+  - `compress-gzip`
+  - `compress-zstd`
+  If you have set in your `Cargo.toml` dedicated `actix-web` features and you still want
+  to have compression enabled. Please change features selection like bellow:
+
+  Before: `"compress"`
+  After: `"compress-brotli", "compress-gzip", "compress-zstd"`
 
 
 ## 3.0.0
 
-* The return type for `ServiceRequest::app_data::<T>()` was changed from returning a `Data<T>` to
+- The return type for `ServiceRequest::app_data::<T>()` was changed from returning a `Data<T>` to
   simply a `T`. To access a `Data<T>` use `ServiceRequest::app_data::<Data<T>>()`.
 
-* Cookie handling has been offloaded to the `cookie` crate:
+- Cookie handling has been offloaded to the `cookie` crate:
   * `USERINFO_ENCODE_SET` is no longer exposed. Percent-encoding is still supported; check docs.
   * Some types now require lifetime parameters.
 
-* The time crate was updated to `v0.2`, a major breaking change to the time crate, which affects
+- The time crate was updated to `v0.2`, a major breaking change to the time crate, which affects
   any `actix-web` method previously expecting a time v0.1 input.
 
-* Setting a cookie's SameSite property, explicitly, to `SameSite::None` will now
+- Setting a cookie's SameSite property, explicitly, to `SameSite::None` will now
   result in `SameSite=None` being sent with the response Set-Cookie header.
   To create a cookie without a SameSite attribute, remove any calls setting same_site.
 
-* actix-http support for Actors messages was moved to actix-http crate and is enabled 
+- actix-http support for Actors messages was moved to actix-http crate and is enabled 
   with feature `actors`
 
-* content_length function is removed from actix-http.
+- content_length function is removed from actix-http.
   You can set Content-Length by normally setting the response body or calling no_chunking function. 
 
-* `BodySize::Sized64` variant has been removed. `BodySize::Sized` now receives a
+- `BodySize::Sized64` variant has been removed. `BodySize::Sized` now receives a
   `u64` instead of a `usize`.
 
-* Code that was using `path.<index>` to access a `web::Path<(A, B, C)>`s elements now needs to use
+- Code that was using `path.<index>` to access a `web::Path<(A, B, C)>`s elements now needs to use
   destructuring or `.into_inner()`. For example:
 
   ```rust
@@ -56,35 +71,35 @@
   }
   ```
 
-* `middleware::NormalizePath` can now also be configured to trim trailing slashes instead of always keeping one.
+- `middleware::NormalizePath` can now also be configured to trim trailing slashes instead of always keeping one.
   It will need `middleware::normalize::TrailingSlash` when being constructed with `NormalizePath::new(...)`,
   or for an easier migration you can replace `wrap(middleware::NormalizePath)` with `wrap(middleware::NormalizePath::new(TrailingSlash::MergeOnly))`.
 
-* `HttpServer::maxconn` is renamed to the more expressive `HttpServer::max_connections`.
+- `HttpServer::maxconn` is renamed to the more expressive `HttpServer::max_connections`.
 
-* `HttpServer::maxconnrate` is renamed to the more expressive `HttpServer::max_connection_rate`.
+- `HttpServer::maxconnrate` is renamed to the more expressive `HttpServer::max_connection_rate`.
 
 
 ## 2.0.0
 
-* `HttpServer::start()` renamed to `HttpServer::run()`. It also possible to
+- `HttpServer::start()` renamed to `HttpServer::run()`. It also possible to
   `.await` on `run` method result, in that case it awaits server exit.
 
-* `App::register_data()` renamed to `App::app_data()` and accepts any type `T: 'static`.
+- `App::register_data()` renamed to `App::app_data()` and accepts any type `T: 'static`.
   Stored data is available via `HttpRequest::app_data()` method at runtime.
 
-* Extractor configuration must be registered with `App::app_data()` instead of `App::data()`
+- Extractor configuration must be registered with `App::app_data()` instead of `App::data()`
 
-* Sync handlers has been removed. `.to_async()` method has been renamed to `.to()`
+- Sync handlers has been removed. `.to_async()` method has been renamed to `.to()`
   replace `fn` with `async fn` to convert sync handler to async
 
-* `actix_http_test::TestServer` moved to `actix_web::test` module. To start
+- `actix_http_test::TestServer` moved to `actix_web::test` module. To start
   test server use `test::start()` or `test_start_with_config()` methods
 
-* `ResponseError` trait has been reafctored. `ResponseError::error_response()` renders
+- `ResponseError` trait has been reafctored. `ResponseError::error_response()` renders
   http response.
 
-* Feature `rust-tls` renamed to `rustls`
+- Feature `rust-tls` renamed to `rustls`
 
   instead of
 
@@ -98,7 +113,7 @@
     actix-web = { version = "2.0.0", features = ["rustls"] }
     ```
 
-* Feature `ssl` renamed to `openssl`
+- Feature `ssl` renamed to `openssl`
 
   instead of
 
@@ -111,11 +126,11 @@
     ```rust
     actix-web = { version = "2.0.0", features = ["openssl"] }
     ```
-* `Cors` builder now requires that you call `.finish()` to construct the middleware
+- `Cors` builder now requires that you call `.finish()` to construct the middleware
 
 ## 1.0.1
 
-* Cors middleware has been moved to `actix-cors` crate
+- Cors middleware has been moved to `actix-cors` crate
 
   instead of
 
@@ -129,7 +144,7 @@
   use actix_cors::Cors;
   ```
 
-* Identity middleware has been moved to `actix-identity` crate
+- Identity middleware has been moved to `actix-identity` crate
 
   instead of
 
@@ -146,7 +161,7 @@
 
 ## 1.0.0
 
-* Extractor configuration. In version 1.0 this is handled with the new `Data` mechanism for both setting and retrieving the configuration
+- Extractor configuration. In version 1.0 this is handled with the new `Data` mechanism for both setting and retrieving the configuration
 
   instead of
 
@@ -204,7 +219,7 @@
   )
   ```
 
-* Resource registration. 1.0 version uses generalized resource
+- Resource registration. 1.0 version uses generalized resource
   registration via `.service()` method.
 
   instead of
@@ -224,7 +239,7 @@
             .route(web::post().to(post_handler))
   ```
 
-* Scope registration.
+- Scope registration.
 
   instead of
 
@@ -248,7 +263,7 @@
       );
   ```
 
-* `.with()`, `.with_async()` registration methods have been renamed to `.to()` and `.to_async()`.
+- `.with()`, `.with_async()` registration methods have been renamed to `.to()` and `.to_async()`.
 
   instead of
 
@@ -262,7 +277,7 @@
     App.new().service(web::resource("/welcome").to(welcome))
   ```
 
-* Passing arguments to handler with extractors, multiple arguments are allowed
+- Passing arguments to handler with extractors, multiple arguments are allowed
 
   instead of
 
@@ -280,7 +295,7 @@
   }
   ```
 
-* `.f()`, `.a()` and `.h()` handler registration methods have been removed.
+- `.f()`, `.a()` and `.h()` handler registration methods have been removed.
   Use `.to()` for handlers and `.to_async()` for async handlers. Handler function
   must use extractors.
 
@@ -296,7 +311,7 @@
     App.new().service(web::resource("/welcome").to(welcome))
   ```
 
-* `HttpRequest` does not provide access to request's payload stream.
+- `HttpRequest` does not provide access to request's payload stream.
 
   instead of
 
@@ -326,7 +341,7 @@
   }
   ```
 
-* `State` is now `Data`.  You register Data during the App initialization process
+- `State` is now `Data`.  You register Data during the App initialization process
   and then access it from handlers either using a Data extractor or using
   HttpRequest's api.
 
@@ -362,7 +377,7 @@
   ```
 
 
-* AsyncResponder is removed, use `.to_async()` registration method and `impl Future<>` as result type.
+- AsyncResponder is removed, use `.to_async()` registration method and `impl Future<>` as result type.
 
   instead of
 
@@ -378,7 +393,7 @@
   .. simply omit AsyncResponder and the corresponding responder() finish method
 
 
-* Middleware
+- Middleware
 
   instead of
 
@@ -395,7 +410,7 @@
            .route("/index.html", web::get().to(index));
   ```
 
-* `HttpRequest::body()`, `HttpRequest::urlencoded()`, `HttpRequest::json()`, `HttpRequest::multipart()`
+- `HttpRequest::body()`, `HttpRequest::urlencoded()`, `HttpRequest::json()`, `HttpRequest::multipart()`
   method have been removed. Use `Bytes`, `String`, `Form`, `Json`, `Multipart` extractors instead.
 
   instead of
@@ -417,9 +432,9 @@
   }
   ```
 
-* `actix_web::server` module has been removed. To start http server use `actix_web::HttpServer` type
+- `actix_web::server` module has been removed. To start http server use `actix_web::HttpServer` type
 
-* StaticFiles and NamedFile have been moved to a separate crate.
+- StaticFiles and NamedFile have been moved to a separate crate.
 
   instead of `use actix_web::fs::StaticFile`
 
@@ -429,20 +444,20 @@
 
   use `use actix_files::NamedFile`
 
-* Multipart has been moved to a separate crate.
+- Multipart has been moved to a separate crate.
 
   instead of `use actix_web::multipart::Multipart`
 
   use `use actix_multipart::Multipart`
 
-* Response compression is not enabled by default.
+- Response compression is not enabled by default.
   To enable, use `Compress` middleware, `App::new().wrap(Compress::default())`.
 
-* Session middleware moved to actix-session crate
+- Session middleware moved to actix-session crate
 
-* Actors support have been moved to `actix-web-actors` crate
+- Actors support have been moved to `actix-web-actors` crate
 
-* Custom Error
+- Custom Error
 
   Instead of error_response method alone, ResponseError now provides two methods: error_response and render_response respectively. Where, error_response creates the error response and render_response returns the error response to the caller. 
 
@@ -456,7 +471,7 @@
 
 ## 0.7.15
 
-* The `' '` character is not percent decoded anymore before matching routes. If you need to use it in
+- The `' '` character is not percent decoded anymore before matching routes. If you need to use it in
   your routes, you should use `%20`.
 
   instead of
@@ -481,18 +496,18 @@
     }
     ```
 
-* If you used `AsyncResult::async` you need to replace it with `AsyncResult::future`
+- If you used `AsyncResult::async` you need to replace it with `AsyncResult::future`
 
 
 ## 0.7.4
 
-* `Route::with_config()`/`Route::with_async_config()` always passes configuration objects as tuple
+- `Route::with_config()`/`Route::with_async_config()` always passes configuration objects as tuple
   even for handler with one parameter.
 
 
 ## 0.7
 
-* `HttpRequest` does not implement `Stream` anymore. If you need to read request payload
+- `HttpRequest` does not implement `Stream` anymore. If you need to read request payload
   use `HttpMessage::payload()` method.
 
   instead of
@@ -518,10 +533,10 @@
     }
     ```
 
-* [Middleware](https://actix.rs/actix-web/actix_web/middleware/trait.Middleware.html)
+- [Middleware](https://actix.rs/actix-web/actix_web/middleware/trait.Middleware.html)
   trait uses `&HttpRequest` instead of `&mut HttpRequest`.
 
-* Removed `Route::with2()` and `Route::with3()` use tuple of extractors instead.
+- Removed `Route::with2()` and `Route::with3()` use tuple of extractors instead.
 
     instead of
 
@@ -535,17 +550,17 @@
     fn index((query, json): (Query<..>, Json<MyStruct)) -> impl Responder {}
     ```
 
-* `Handler::handle()` uses `&self` instead of `&mut self`
+- `Handler::handle()` uses `&self` instead of `&mut self`
 
-* `Handler::handle()` accepts reference to `HttpRequest<_>` instead of value
+- `Handler::handle()` accepts reference to `HttpRequest<_>` instead of value
 
-* Removed deprecated `HttpServer::threads()`, use
+- Removed deprecated `HttpServer::threads()`, use
   [HttpServer::workers()](https://actix.rs/actix-web/actix_web/server/struct.HttpServer.html#method.workers) instead.
 
-* Renamed `client::ClientConnectorError::Connector` to
+- Renamed `client::ClientConnectorError::Connector` to
   `client::ClientConnectorError::Resolver`
 
-* `Route::with()` does not return `ExtractorConfig`, to configure
+- `Route::with()` does not return `ExtractorConfig`, to configure
   extractor use `Route::with_config()`
 
     instead of
@@ -574,26 +589,26 @@
     }
     ```
 
-* `Route::with_async()` does not return `ExtractorConfig`, to configure
+- `Route::with_async()` does not return `ExtractorConfig`, to configure
   extractor use `Route::with_async_config()`
 
 
 ## 0.6
 
-* `Path<T>` extractor return `ErrorNotFound` on failure instead of `ErrorBadRequest`
+- `Path<T>` extractor return `ErrorNotFound` on failure instead of `ErrorBadRequest`
 
-* `ws::Message::Close` now includes optional close reason.
+- `ws::Message::Close` now includes optional close reason.
   `ws::CloseCode::Status` and `ws::CloseCode::Empty` have been removed.
 
-* `HttpServer::threads()` renamed to `HttpServer::workers()`.
+- `HttpServer::threads()` renamed to `HttpServer::workers()`.
 
-* `HttpServer::start_ssl()` and `HttpServer::start_tls()` deprecated.
+- `HttpServer::start_ssl()` and `HttpServer::start_tls()` deprecated.
   Use `HttpServer::bind_ssl()` and `HttpServer::bind_tls()` instead.
 
-* `HttpRequest::extensions()` returns read only reference to the request's Extension
+- `HttpRequest::extensions()` returns read only reference to the request's Extension
   `HttpRequest::extensions_mut()` returns mutable reference.
 
-* Instead of
+- Instead of
 
    `use actix_web::middleware::{
         CookieSessionBackend, CookieSessionError, RequestSession,
@@ -604,15 +619,15 @@
    `use actix_web::middleware::session{CookieSessionBackend, CookieSessionError,
         RequestSession, Session, SessionBackend, SessionImpl, SessionStorage};`
 
-* `FromRequest::from_request()` accepts mutable reference to a request
+- `FromRequest::from_request()` accepts mutable reference to a request
 
-* `FromRequest::Result` has to implement `Into<Reply<Self>>`
+- `FromRequest::Result` has to implement `Into<Reply<Self>>`
 
-* [`Responder::respond_to()`](
+- [`Responder::respond_to()`](
   https://actix.rs/actix-web/actix_web/trait.Responder.html#tymethod.respond_to)
   is generic over `S`
 
-*  Use `Query` extractor instead of HttpRequest::query()`.
+-  Use `Query` extractor instead of HttpRequest::query()`.
 
    ```rust
    fn index(q: Query<HashMap<String, String>>) -> Result<..> {
@@ -626,37 +641,37 @@
    let q = Query::<HashMap<String, String>>::extract(req);
    ```
 
-* Websocket operations are implemented as `WsWriter` trait.
+- Websocket operations are implemented as `WsWriter` trait.
   you need to use `use actix_web::ws::WsWriter`
 
 
 ## 0.5
 
-* `HttpResponseBuilder::body()`, `.finish()`, `.json()`
+- `HttpResponseBuilder::body()`, `.finish()`, `.json()`
    methods return `HttpResponse` instead of `Result<HttpResponse>`
 
-* `actix_web::Method`, `actix_web::StatusCode`, `actix_web::Version`
+- `actix_web::Method`, `actix_web::StatusCode`, `actix_web::Version`
    moved to `actix_web::http` module
 
-* `actix_web::header` moved to `actix_web::http::header`
+- `actix_web::header` moved to `actix_web::http::header`
 
-* `NormalizePath` moved to `actix_web::http` module
+- `NormalizePath` moved to `actix_web::http` module
 
-* `HttpServer` moved to `actix_web::server`, added new `actix_web::server::new()` function,
+- `HttpServer` moved to `actix_web::server`, added new `actix_web::server::new()` function,
   shortcut for `actix_web::server::HttpServer::new()`
 
-* `DefaultHeaders` middleware does not use separate builder, all builder methods moved to type itself
+- `DefaultHeaders` middleware does not use separate builder, all builder methods moved to type itself
 
-* `StaticFiles::new()`'s show_index parameter removed, use `show_files_listing()` method instead.
+- `StaticFiles::new()`'s show_index parameter removed, use `show_files_listing()` method instead.
 
-* `CookieSessionBackendBuilder` removed, all methods moved to `CookieSessionBackend` type
+- `CookieSessionBackendBuilder` removed, all methods moved to `CookieSessionBackend` type
 
-* `actix_web::httpcodes` module is deprecated, `HttpResponse::Ok()`, `HttpResponse::Found()` and other `HttpResponse::XXX()`
+- `actix_web::httpcodes` module is deprecated, `HttpResponse::Ok()`, `HttpResponse::Found()` and other `HttpResponse::XXX()`
    functions should be used instead
 
-* `ClientRequestBuilder::body()` returns `Result<_, actix_web::Error>`
+- `ClientRequestBuilder::body()` returns `Result<_, actix_web::Error>`
   instead of `Result<_, http::Error>`
 
-* `Application` renamed to a `App`
+- `Application` renamed to a `App`
 
-* `actix_web::Reply`, `actix_web::Resource` moved to `actix_web::dev`
+- `actix_web::Reply`, `actix_web::Resource` moved to `actix_web::dev`

@@ -1,125 +1,166 @@
 //! For middleware documentation, see [`Compress`].
 
 use std::{
-    cmp,
     future::Future,
     marker::PhantomData,
     pin::Pin,
-    str::FromStr,
     task::{Context, Poll},
 };
 
-use actix_http::{
-    body::MessageBody,
-    encoding::Encoder,
-    http::header::{ContentEncoding, ACCEPT_ENCODING},
-    Error,
-};
+use actix_http::encoding::Encoder;
 use actix_service::{Service, Transform};
+use actix_utils::future::{ok, Either, Ready};
 use futures_core::ready;
-use futures_util::future::{ok, Ready};
-use pin_project::pin_project;
+use once_cell::sync::Lazy;
+use pin_project_lite::pin_project;
 
 use crate::{
-    dev::BodyEncoding,
+    body::{EitherBody, MessageBody},
+    http::{
+        header::{self, AcceptEncoding, Encoding, HeaderValue},
+        StatusCode,
+    },
     service::{ServiceRequest, ServiceResponse},
+    Error, HttpMessage, HttpResponse,
 };
 
 /// Middleware for compressing response payloads.
 ///
-/// Use `BodyEncoding` trait for overriding response compression. To disable compression set
-/// encoding to `ContentEncoding::Identity`.
+/// # Encoding Negotiation
+/// `Compress` will read the `Accept-Encoding` header to negotiate which compression codec to use.
+/// Payloads are not compressed if the header is not sent. The `compress-*` [feature flags] are also
+/// considered in this selection process.
+///
+/// # Pre-compressed Payload
+/// If you are serving some data is already using a compressed representation (e.g., a gzip
+/// compressed HTML file from disk) you can signal this to `Compress` by setting an appropriate
+/// `Content-Encoding` header. In addition to preventing double compressing the payload, this header
+/// is required by the spec when using compressed representations and will inform the client that
+/// the content should be uncompressed.
+///
+/// However, it is not advised to unconditionally serve encoded representations of content because
+/// the client may not support it. The [`AcceptEncoding`] typed header has some utilities to help
+/// perform manual encoding negotiation, if required. When negotiating content encoding, it is also
+/// required by the spec to send a `Vary: Accept-Encoding` header.
+///
+/// A (naïve) example serving an pre-compressed Gzip file is included below.
 ///
 /// # Examples
-/// ```rust
-/// use actix_web::{web, middleware, App, HttpResponse};
+/// To enable automatic payload compression just include `Compress` as a top-level middleware:
+/// ```
+/// use actix_web::{middleware, web, App, HttpResponse};
 ///
 /// let app = App::new()
 ///     .wrap(middleware::Compress::default())
-///     .default_service(web::to(|| HttpResponse::NotFound()));
+///     .default_service(web::to(|| HttpResponse::Ok().body("hello world")));
 /// ```
-#[derive(Debug, Clone)]
-pub struct Compress(ContentEncoding);
-
-impl Compress {
-    /// Create new `Compress` middleware with the specified encoding.
-    pub fn new(encoding: ContentEncoding) -> Self {
-        Compress(encoding)
-    }
-}
-
-impl Default for Compress {
-    fn default() -> Self {
-        Compress::new(ContentEncoding::Auto)
-    }
-}
+///
+/// Pre-compressed Gzip file being served from disk with correct headers added to bypass middleware:
+/// ```no_run
+/// use actix_web::{middleware, http::header, web, App, HttpResponse, Responder};
+///
+/// async fn index_handler() -> actix_web::Result<impl Responder> {
+///     Ok(actix_files::NamedFile::open_async("./assets/index.html.gz").await?
+///         .customize()
+///         .insert_header(header::ContentEncoding::Gzip))
+/// }
+///
+/// let app = App::new()
+///     .wrap(middleware::Compress::default())
+///     .default_service(web::to(index_handler));
+/// ```
+///
+/// [feature flags]: ../index.html#crate-features
+#[derive(Debug, Clone, Default)]
+#[non_exhaustive]
+pub struct Compress;
 
 impl<S, B> Transform<S, ServiceRequest> for Compress
 where
     B: MessageBody,
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
-    type Response = ServiceResponse<Encoder<B>>;
+    type Response = ServiceResponse<EitherBody<Encoder<B>>>;
     type Error = Error;
     type Transform = CompressMiddleware<S>;
     type InitError = ();
     type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        ok(CompressMiddleware {
-            service,
-            encoding: self.0,
-        })
+        ok(CompressMiddleware { service })
     }
 }
 
 pub struct CompressMiddleware<S> {
     service: S,
-    encoding: ContentEncoding,
 }
 
 impl<S, B> Service<ServiceRequest> for CompressMiddleware<S>
 where
-    B: MessageBody,
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    B: MessageBody,
 {
-    type Response = ServiceResponse<Encoder<B>>;
+    type Response = ServiceResponse<EitherBody<Encoder<B>>>;
     type Error = Error;
-    type Future = CompressResponse<S, B>;
+    #[allow(clippy::type_complexity)]
+    type Future = Either<CompressResponse<S, B>, Ready<Result<Self::Response, Self::Error>>>;
 
     actix_service::forward_ready!(service);
 
     #[allow(clippy::borrow_interior_mutable_const)]
     fn call(&self, req: ServiceRequest) -> Self::Future {
         // negotiate content-encoding
-        let encoding = if let Some(val) = req.headers().get(&ACCEPT_ENCODING) {
-            if let Ok(enc) = val.to_str() {
-                AcceptEncoding::parse(enc, self.encoding)
-            } else {
-                ContentEncoding::Identity
+        let accept_encoding = req.get_header::<AcceptEncoding>();
+
+        let accept_encoding = match accept_encoding {
+            // missing header; fallback to identity
+            None => {
+                return Either::left(CompressResponse {
+                    encoding: Encoding::identity(),
+                    fut: self.service.call(req),
+                    _phantom: PhantomData,
+                })
             }
-        } else {
-            ContentEncoding::Identity
+
+            // valid accept-encoding header
+            Some(accept_encoding) => accept_encoding,
         };
 
-        CompressResponse {
-            encoding,
-            fut: self.service.call(req),
-            _phantom: PhantomData,
+        match accept_encoding.negotiate(SUPPORTED_ENCODINGS.iter()) {
+            None => {
+                let mut res = HttpResponse::with_body(
+                    StatusCode::NOT_ACCEPTABLE,
+                    SUPPORTED_ENCODINGS_STRING.as_str(),
+                );
+
+                res.headers_mut()
+                    .insert(header::VARY, HeaderValue::from_static("Accept-Encoding"));
+
+                Either::right(ok(req
+                    .into_response(res)
+                    .map_into_boxed_body()
+                    .map_into_right_body()))
+            }
+
+            Some(encoding) => Either::left(CompressResponse {
+                fut: self.service.call(req),
+                encoding,
+                _phantom: PhantomData,
+            }),
         }
     }
 }
 
-#[pin_project]
-pub struct CompressResponse<S, B>
-where
-    S: Service<ServiceRequest>,
-    B: MessageBody,
-{
-    #[pin]
-    fut: S::Future,
-    encoding: ContentEncoding,
-    _phantom: PhantomData<B>,
+pin_project! {
+    pub struct CompressResponse<S, B>
+    where
+        S: Service<ServiceRequest>,
+    {
+        #[pin]
+        fut: S::Future,
+        encoding: Encoding,
+        _phantom: PhantomData<B>,
+    }
 }
 
 impl<S, B> Future for CompressResponse<S, B>
@@ -127,92 +168,141 @@ where
     B: MessageBody,
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
-    type Output = Result<ServiceResponse<Encoder<B>>, Error>;
+    type Output = Result<ServiceResponse<EitherBody<Encoder<B>>>, Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
 
         match ready!(this.fut.poll(cx)) {
             Ok(resp) => {
-                let enc = if let Some(enc) = resp.response().get_encoding() {
-                    enc
-                } else {
-                    *this.encoding
+                let enc = match this.encoding {
+                    Encoding::Known(enc) => *enc,
+                    Encoding::Unknown(enc) => {
+                        unimplemented!("encoding {} should not be here", enc);
+                    }
                 };
 
-                Poll::Ready(Ok(
-                    resp.map_body(move |head, body| Encoder::response(enc, head, body))
-                ))
+                Poll::Ready(Ok(resp.map_body(move |head, body| {
+                    EitherBody::left(Encoder::response(enc, head, body))
+                })))
             }
-            Err(e) => Poll::Ready(Err(e)),
+
+            Err(err) => Poll::Ready(Err(err)),
         }
     }
 }
 
-struct AcceptEncoding {
-    encoding: ContentEncoding,
-    quality: f64,
-}
+static SUPPORTED_ENCODINGS_STRING: Lazy<String> = Lazy::new(|| {
+    #[allow(unused_mut)] // only unused when no compress features enabled
+    let mut encoding: Vec<&str> = vec![];
 
-impl Eq for AcceptEncoding {}
-
-impl Ord for AcceptEncoding {
-    #[allow(clippy::comparison_chain)]
-    fn cmp(&self, other: &AcceptEncoding) -> cmp::Ordering {
-        if self.quality > other.quality {
-            cmp::Ordering::Less
-        } else if self.quality < other.quality {
-            cmp::Ordering::Greater
-        } else {
-            cmp::Ordering::Equal
-        }
-    }
-}
-
-impl PartialOrd for AcceptEncoding {
-    fn partial_cmp(&self, other: &AcceptEncoding) -> Option<cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl PartialEq for AcceptEncoding {
-    fn eq(&self, other: &AcceptEncoding) -> bool {
-        self.quality == other.quality
-    }
-}
-
-impl AcceptEncoding {
-    fn new(tag: &str) -> Option<AcceptEncoding> {
-        let parts: Vec<&str> = tag.split(';').collect();
-        let encoding = match parts.len() {
-            0 => return None,
-            _ => ContentEncoding::from(parts[0]),
-        };
-        let quality = match parts.len() {
-            1 => encoding.quality(),
-            _ => f64::from_str(parts[1]).unwrap_or(0.0),
-        };
-        Some(AcceptEncoding { encoding, quality })
+    #[cfg(feature = "compress-brotli")]
+    {
+        encoding.push("br");
     }
 
-    /// Parse a raw Accept-Encoding header value into an ordered list.
-    pub fn parse(raw: &str, encoding: ContentEncoding) -> ContentEncoding {
-        let mut encodings: Vec<_> = raw
-            .replace(' ', "")
-            .split(',')
-            .map(|l| AcceptEncoding::new(l))
-            .collect();
-        encodings.sort();
+    #[cfg(feature = "compress-gzip")]
+    {
+        encoding.push("gzip");
+        encoding.push("deflate");
+    }
 
-        for enc in encodings {
-            if let Some(enc) = enc {
-                if encoding == ContentEncoding::Auto {
-                    return enc.encoding;
-                } else if encoding == enc.encoding {
-                    return encoding;
-                }
-            }
-        }
-        ContentEncoding::Identity
+    #[cfg(feature = "compress-zstd")]
+    {
+        encoding.push("zstd");
+    }
+
+    assert!(
+        !encoding.is_empty(),
+        "encoding can not be empty unless __compress feature has been explicitly enabled by itself"
+    );
+
+    encoding.join(", ")
+});
+
+static SUPPORTED_ENCODINGS: Lazy<Vec<Encoding>> = Lazy::new(|| {
+    let mut encodings = vec![Encoding::identity()];
+
+    #[cfg(feature = "compress-brotli")]
+    {
+        encodings.push(Encoding::brotli());
+    }
+
+    #[cfg(feature = "compress-gzip")]
+    {
+        encodings.push(Encoding::gzip());
+        encodings.push(Encoding::deflate());
+    }
+
+    #[cfg(feature = "compress-zstd")]
+    {
+        encodings.push(Encoding::zstd());
+    }
+
+    assert!(
+        !encodings.is_empty(),
+        "encodings can not be empty unless __compress feature has been explicitly enabled by itself"
+    );
+
+    encodings
+});
+
+// move cfg(feature) to prevents_double_compressing if more tests are added
+#[cfg(feature = "compress-gzip")]
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{middleware::DefaultHeaders, test, web, App};
+
+    pub fn gzip_decode(bytes: impl AsRef<[u8]>) -> Vec<u8> {
+        use std::io::Read as _;
+        let mut decoder = flate2::read::GzDecoder::new(bytes.as_ref());
+        let mut buf = Vec::new();
+        decoder.read_to_end(&mut buf).unwrap();
+        buf
+    }
+
+    #[actix_rt::test]
+    async fn prevents_double_compressing() {
+        const D: &str = "hello world ";
+        const DATA: &str = const_str::repeat!(D, 100);
+
+        let app = test::init_service({
+            App::new()
+                .wrap(Compress::default())
+                .route(
+                    "/single",
+                    web::get().to(move || HttpResponse::Ok().body(DATA)),
+                )
+                .service(
+                    web::resource("/double")
+                        .wrap(Compress::default())
+                        .wrap(DefaultHeaders::new().add(("x-double", "true")))
+                        .route(web::get().to(move || HttpResponse::Ok().body(DATA))),
+                )
+        })
+        .await;
+
+        let req = test::TestRequest::default()
+            .uri("/single")
+            .insert_header((header::ACCEPT_ENCODING, "gzip"))
+            .to_request();
+        let res = test::call_service(&app, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(res.headers().get("x-double"), None);
+        assert_eq!(res.headers().get(header::CONTENT_ENCODING).unwrap(), "gzip");
+        let bytes = test::read_body(res).await;
+        assert_eq!(gzip_decode(bytes), DATA.as_bytes());
+
+        let req = test::TestRequest::default()
+            .uri("/double")
+            .insert_header((header::ACCEPT_ENCODING, "gzip"))
+            .to_request();
+        let res = test::call_service(&app, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(res.headers().get("x-double").unwrap(), "true");
+        assert_eq!(res.headers().get(header::CONTENT_ENCODING).unwrap(), "gzip");
+        let bytes = test::read_body(res).await;
+        assert_eq!(gzip_decode(bytes), DATA.as_bytes());
     }
 }

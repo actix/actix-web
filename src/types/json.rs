@@ -11,14 +11,15 @@ use std::{
 };
 
 use bytes::BytesMut;
-use futures_util::{ready, stream::Stream};
+use futures_core::{ready, Stream as _};
 use serde::{de::DeserializeOwned, Serialize};
 
 use actix_http::Payload;
 
-#[cfg(feature = "compress")]
+#[cfg(feature = "__compress")]
 use crate::dev::Decompress;
 use crate::{
+    body::EitherBody,
     error::{Error, JsonPayloadError},
     extract::FromRequest,
     http::header::CONTENT_LENGTH,
@@ -34,7 +35,7 @@ use crate::{
 /// To extract typed data from a request body, the inner type `T` must implement the
 /// [`serde::Deserialize`] trait.
 ///
-/// Use [`JsonConfig`] to configure extraction process.
+/// Use [`JsonConfig`] to configure extraction options.
 ///
 /// ```
 /// use actix_web::{post, web, App};
@@ -73,6 +74,7 @@ use crate::{
 ///     })
 /// }
 /// ```
+#[derive(Debug)]
 pub struct Json<T>(pub T);
 
 impl<T> Json<T> {
@@ -96,21 +98,18 @@ impl<T> ops::DerefMut for Json<T> {
     }
 }
 
-impl<T> fmt::Debug for Json<T>
-where
-    T: fmt::Debug,
-{
+impl<T: fmt::Display> fmt::Display for Json<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Json: {:?}", self.0)
+        fmt::Display::fmt(&self.0, f)
     }
 }
 
-impl<T> fmt::Display for Json<T>
-where
-    T: fmt::Display,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(&self.0, f)
+impl<T: Serialize> Serialize for Json<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.0.serialize(serializer)
     }
 }
 
@@ -118,36 +117,42 @@ where
 ///
 /// If serialization failed
 impl<T: Serialize> Responder for Json<T> {
-    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
+    type Body = EitherBody<String>;
+
+    fn respond_to(self, _: &HttpRequest) -> HttpResponse<Self::Body> {
         match serde_json::to_string(&self.0) {
-            Ok(body) => HttpResponse::Ok()
+            Ok(body) => match HttpResponse::Ok()
                 .content_type(mime::APPLICATION_JSON)
-                .body(body),
-            Err(err) => HttpResponse::from_error(err.into()),
+                .message_body(body)
+            {
+                Ok(res) => res.map_into_left_body(),
+                Err(err) => HttpResponse::from_error(err).map_into_right_body(),
+            },
+
+            Err(err) => {
+                HttpResponse::from_error(JsonPayloadError::Serialize(err)).map_into_right_body()
+            }
         }
     }
 }
 
 /// See [here](#extractor) for example of usage as an extractor.
-impl<T> FromRequest for Json<T>
-where
-    T: DeserializeOwned + 'static,
-{
+impl<T: DeserializeOwned> FromRequest for Json<T> {
     type Error = Error;
     type Future = JsonExtractFut<T>;
-    type Config = JsonConfig;
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let config = JsonConfig::from_req(req);
 
         let limit = config.limit;
-        let ctype = config.content_type.as_deref();
+        let ctype_required = config.content_type_required;
+        let ctype_fn = config.content_type.as_deref();
         let err_handler = config.err_handler.clone();
 
         JsonExtractFut {
             req: Some(req.clone()),
-            fut: JsonBody::new(req, payload, ctype).limit(limit),
+            fut: JsonBody::new(req, payload, ctype_fn, ctype_required).limit(limit),
             err_handler,
         }
     }
@@ -162,10 +167,7 @@ pub struct JsonExtractFut<T> {
     err_handler: JsonErrorHandler,
 }
 
-impl<T> Future for JsonExtractFut<T>
-where
-    T: DeserializeOwned + 'static,
-{
+impl<T: DeserializeOwned> Future for JsonExtractFut<T> {
     type Output = Result<Json<T>, Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -221,7 +223,7 @@ where
 ///     .content_type(|mime| mime == mime::TEXT_PLAIN)
 ///     // use custom error handler
 ///     .error_handler(|err, req| {
-///         error::InternalError::from_response(err, HttpResponse::Conflict().finish()).into()
+///         error::InternalError::from_response(err, HttpResponse::Conflict().into()).into()
 ///     });
 ///
 /// App::new()
@@ -233,10 +235,11 @@ pub struct JsonConfig {
     limit: usize,
     err_handler: JsonErrorHandler,
     content_type: Option<Arc<dyn Fn(mime::Mime) -> bool + Send + Sync>>,
+    content_type_required: bool,
 }
 
 impl JsonConfig {
-    /// Set maximum accepted payload size. By default this limit is 32kB.
+    /// Set maximum accepted payload size. By default this limit is 2MB.
     pub fn limit(mut self, limit: usize) -> Self {
         self.limit = limit;
         self
@@ -260,6 +263,12 @@ impl JsonConfig {
         self
     }
 
+    /// Sets whether or not the request must have a `Content-Type` header to be parsed.
+    pub fn content_type_required(mut self, content_type_required: bool) -> Self {
+        self.content_type_required = content_type_required;
+        self
+    }
+
     /// Extract payload config from app data. Check both `T` and `Data<T>`, in that order, and fall
     /// back to the default payload config.
     fn from_req(req: &HttpRequest) -> &Self {
@@ -269,11 +278,14 @@ impl JsonConfig {
     }
 }
 
+const DEFAULT_LIMIT: usize = 2_097_152; // 2 mb
+
 /// Allow shared refs used as default.
 const DEFAULT_CONFIG: JsonConfig = JsonConfig {
-    limit: 32_768, // 2^15 bytes, (~32kB)
+    limit: DEFAULT_LIMIT,
     err_handler: None,
     content_type: None,
+    content_type_required: true,
 };
 
 impl Default for JsonConfig {
@@ -284,19 +296,22 @@ impl Default for JsonConfig {
 
 /// Future that resolves to some `T` when parsed from a JSON payload.
 ///
-/// Form can be deserialized from any type `T` that implements [`serde::Deserialize`].
+/// Can deserialize any type `T` that implements [`Deserialize`][serde::Deserialize].
 ///
 /// Returns error if:
-/// - content type is not `application/json`
-/// - content length is greater than [limit](JsonBody::limit())
+/// - `Content-Type` is not `application/json` when `ctype_required` (passed to [`new`][Self::new])
+///   is `true`.
+/// - `Content-Length` is greater than [limit](JsonBody::limit()).
+/// - The payload, when consumed, is not valid JSON.
 pub enum JsonBody<T> {
     Error(Option<JsonPayloadError>),
     Body {
         limit: usize,
+        /// Length as reported by `Content-Length` header, if present.
         length: Option<usize>,
-        #[cfg(feature = "compress")]
+        #[cfg(feature = "__compress")]
         payload: Decompress<Payload>,
-        #[cfg(not(feature = "compress"))]
+        #[cfg(not(feature = "__compress"))]
         payload: Payload,
         buf: BytesMut,
         _res: PhantomData<T>,
@@ -305,27 +320,27 @@ pub enum JsonBody<T> {
 
 impl<T> Unpin for JsonBody<T> {}
 
-impl<T> JsonBody<T>
-where
-    T: DeserializeOwned + 'static,
-{
+impl<T: DeserializeOwned> JsonBody<T> {
     /// Create a new future to decode a JSON request payload.
     #[allow(clippy::borrow_interior_mutable_const)]
     pub fn new(
         req: &HttpRequest,
         payload: &mut Payload,
-        ctype: Option<&(dyn Fn(mime::Mime) -> bool + Send + Sync)>,
+        ctype_fn: Option<&(dyn Fn(mime::Mime) -> bool + Send + Sync)>,
+        ctype_required: bool,
     ) -> Self {
         // check content-type
-        let json = if let Ok(Some(mime)) = req.mime_type() {
+        let can_parse_json = if let Ok(Some(mime)) = req.mime_type() {
             mime.subtype() == mime::JSON
                 || mime.suffix() == Some(mime::JSON)
-                || ctype.map_or(false, |predicate| predicate(mime))
+                || ctype_fn.map_or(false, |predicate| predicate(mime))
         } else {
-            false
+            // if `ctype_required` is false, assume payload is
+            // json even when content-type header is missing
+            !ctype_required
         };
 
-        if !json {
+        if !can_parse_json {
             return JsonBody::Error(Some(JsonPayloadError::ContentType));
         }
 
@@ -335,17 +350,22 @@ where
             .and_then(|l| l.to_str().ok())
             .and_then(|s| s.parse::<usize>().ok());
 
-        // Notice the content_length is not checked against limit of json config here.
+        // Notice the content-length is not checked against limit of json config here.
         // As the internal usage always call JsonBody::limit after JsonBody::new.
         // And limit check to return an error variant of JsonBody happens there.
 
-        #[cfg(feature = "compress")]
-        let payload = Decompress::from_headers(payload.take(), req.headers());
-        #[cfg(not(feature = "compress"))]
-        let payload = payload.take();
+        let payload = {
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "__compress")] {
+                    Decompress::from_headers(payload.take(), req.headers())
+                } else {
+                    payload.take()
+                }
+            }
+        };
 
         JsonBody::Body {
-            limit: 262_144,
+            limit: DEFAULT_LIMIT,
             length,
             payload,
             buf: BytesMut::with_capacity(8192),
@@ -353,7 +373,7 @@ where
         }
     }
 
-    /// Set maximum accepted payload size. The default limit is 256kB.
+    /// Set maximum accepted payload size. The default limit is 2MB.
     pub fn limit(self, limit: usize) -> Self {
         match self {
             JsonBody::Body {
@@ -364,7 +384,10 @@ where
             } => {
                 if let Some(len) = length {
                     if len > limit {
-                        return JsonBody::Error(Some(JsonPayloadError::Overflow));
+                        return JsonBody::Error(Some(JsonPayloadError::OverflowKnownLength {
+                            length: len,
+                            limit,
+                        }));
                     }
                 }
 
@@ -381,10 +404,7 @@ where
     }
 }
 
-impl<T> Future for JsonBody<T>
-where
-    T: DeserializeOwned + 'static,
-{
+impl<T: DeserializeOwned> Future for JsonBody<T> {
     type Output = Result<T, JsonPayloadError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -401,14 +421,18 @@ where
                 match res {
                     Some(chunk) => {
                         let chunk = chunk?;
-                        if (buf.len() + chunk.len()) > *limit {
-                            return Poll::Ready(Err(JsonPayloadError::Overflow));
+                        let buf_len = buf.len() + chunk.len();
+                        if buf_len > *limit {
+                            return Poll::Ready(Err(JsonPayloadError::Overflow {
+                                limit: *limit,
+                            }));
                         } else {
                             buf.extend_from_slice(&chunk);
                         }
                     }
                     None => {
-                        let json = serde_json::from_slice::<T>(&buf)?;
+                        let json = serde_json::from_slice::<T>(buf)
+                            .map_err(JsonPayloadError::Deserialize)?;
                         return Poll::Ready(Ok(json));
                     }
                 }
@@ -425,12 +449,13 @@ mod tests {
 
     use super::*;
     use crate::{
+        body,
         error::InternalError,
         http::{
             header::{self, CONTENT_LENGTH, CONTENT_TYPE},
             StatusCode,
         },
-        test::{load_stream, TestRequest},
+        test::{assert_body_eq, TestRequest},
     };
 
     #[derive(Serialize, Deserialize, PartialEq, Debug)]
@@ -440,10 +465,13 @@ mod tests {
 
     fn json_eq(err: JsonPayloadError, other: JsonPayloadError) -> bool {
         match err {
-            JsonPayloadError::Overflow => matches!(other, JsonPayloadError::Overflow),
-            JsonPayloadError::ContentType => {
-                matches!(other, JsonPayloadError::ContentType)
+            JsonPayloadError::Overflow { .. } => {
+                matches!(other, JsonPayloadError::Overflow { .. })
             }
+            JsonPayloadError::OverflowKnownLength { .. } => {
+                matches!(other, JsonPayloadError::OverflowKnownLength { .. })
+            }
+            JsonPayloadError::ContentType => matches!(other, JsonPayloadError::ContentType),
             _ => false,
         }
     }
@@ -455,15 +483,13 @@ mod tests {
         let j = Json(MyObject {
             name: "test".to_string(),
         });
-        let resp = j.respond_to(&req);
-        assert_eq!(resp.status(), StatusCode::OK);
+        let res = j.respond_to(&req);
+        assert_eq!(res.status(), StatusCode::OK);
         assert_eq!(
-            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            res.headers().get(header::CONTENT_TYPE).unwrap(),
             header::HeaderValue::from_static("application/json")
         );
-
-        use crate::responder::tests::BodyTest;
-        assert_eq!(resp.body().bin_ref(), b"{\"name\":\"test\"}");
+        assert_body_eq!(res, b"{\"name\":\"test\"}");
     }
 
     #[actix_rt::test]
@@ -489,10 +515,10 @@ mod tests {
             .to_http_parts();
 
         let s = Json::<MyObject>::from_request(&req, &mut pl).await;
-        let mut resp = HttpResponse::from_error(s.err().unwrap());
+        let resp = HttpResponse::from_error(s.unwrap_err());
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
-        let body = load_stream(resp.take_body()).await.unwrap();
+        let body = body::to_bytes(resp.into_body()).await.unwrap();
         let msg: MyObject = serde_json::from_slice(&body).unwrap();
         assert_eq!(msg.name, "invalid request");
     }
@@ -535,7 +561,7 @@ mod tests {
 
         let s = Json::<MyObject>::from_request(&req, &mut pl).await;
         assert!(format!("{}", s.err().unwrap())
-            .contains("Json payload size is bigger than allowed"));
+            .contains("JSON payload (16 bytes) is larger than allowed (limit: 10 bytes)."));
 
         let (req, mut pl) = TestRequest::default()
             .insert_header((
@@ -560,7 +586,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_json_body() {
         let (req, mut pl) = TestRequest::default().to_http_parts();
-        let json = JsonBody::<MyObject>::new(&req, &mut pl, None).await;
+        let json = JsonBody::<MyObject>::new(&req, &mut pl, None, true).await;
         assert!(json_eq(json.err().unwrap(), JsonPayloadError::ContentType));
 
         let (req, mut pl) = TestRequest::default()
@@ -569,7 +595,7 @@ mod tests {
                 header::HeaderValue::from_static("application/text"),
             ))
             .to_http_parts();
-        let json = JsonBody::<MyObject>::new(&req, &mut pl, None).await;
+        let json = JsonBody::<MyObject>::new(&req, &mut pl, None, true).await;
         assert!(json_eq(json.err().unwrap(), JsonPayloadError::ContentType));
 
         let (req, mut pl) = TestRequest::default()
@@ -583,10 +609,33 @@ mod tests {
             ))
             .to_http_parts();
 
-        let json = JsonBody::<MyObject>::new(&req, &mut pl, None)
+        let json = JsonBody::<MyObject>::new(&req, &mut pl, None, true)
             .limit(100)
             .await;
-        assert!(json_eq(json.err().unwrap(), JsonPayloadError::Overflow));
+        assert!(json_eq(
+            json.err().unwrap(),
+            JsonPayloadError::OverflowKnownLength {
+                length: 10000,
+                limit: 100
+            }
+        ));
+
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((
+                header::CONTENT_TYPE,
+                header::HeaderValue::from_static("application/json"),
+            ))
+            .set_payload(Bytes::from_static(&[0u8; 1000]))
+            .to_http_parts();
+
+        let json = JsonBody::<MyObject>::new(&req, &mut pl, None, true)
+            .limit(100)
+            .await;
+
+        assert!(json_eq(
+            json.err().unwrap(),
+            JsonPayloadError::Overflow { limit: 100 }
+        ));
 
         let (req, mut pl) = TestRequest::default()
             .insert_header((
@@ -600,7 +649,7 @@ mod tests {
             .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
             .to_http_parts();
 
-        let json = JsonBody::<MyObject>::new(&req, &mut pl, None).await;
+        let json = JsonBody::<MyObject>::new(&req, &mut pl, None, true).await;
         assert_eq!(
             json.ok().unwrap(),
             MyObject {
@@ -671,6 +720,21 @@ mod tests {
     }
 
     #[actix_rt::test]
+    async fn test_json_with_no_content_type() {
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((
+                header::CONTENT_LENGTH,
+                header::HeaderValue::from_static("16"),
+            ))
+            .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
+            .app_data(JsonConfig::default().content_type_required(false))
+            .to_http_parts();
+
+        let s = Json::<MyObject>::from_request(&req, &mut pl).await;
+        assert!(s.is_ok())
+    }
+
+    #[actix_rt::test]
     async fn test_with_config_in_data_wrapper() {
         let (req, mut pl) = TestRequest::default()
             .insert_header((CONTENT_TYPE, mime::APPLICATION_JSON))
@@ -683,6 +747,7 @@ mod tests {
         assert!(s.is_err());
 
         let err_str = s.err().unwrap().to_string();
-        assert!(err_str.contains("Json payload size is bigger than allowed"));
+        assert!(err_str
+            .contains("JSON payload (16 bytes) is larger than allowed (limit: 10 bytes)."));
     }
 }

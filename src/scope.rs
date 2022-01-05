@@ -1,159 +1,160 @@
-use std::cell::RefCell;
-use std::fmt;
-use std::future::Future;
-use std::rc::Rc;
-use std::task::Poll;
+use std::{cell::RefCell, fmt, future::Future, marker::PhantomData, mem, rc::Rc};
 
-use actix_http::Extensions;
+use actix_http::{
+    body::{BoxBody, MessageBody},
+    Extensions,
+};
 use actix_router::{ResourceDef, Router};
-use actix_service::boxed::{self, BoxService, BoxServiceFactory};
 use actix_service::{
-    apply, apply_fn_factory, IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt,
-    Transform,
+    apply, apply_fn_factory, boxed, IntoServiceFactory, Service, ServiceFactory,
+    ServiceFactoryExt, Transform,
 };
 use futures_core::future::LocalBoxFuture;
 use futures_util::future::join_all;
 
-use crate::config::ServiceConfig;
-use crate::data::Data;
-use crate::dev::{AppService, HttpServiceFactory};
-use crate::error::Error;
-use crate::guard::Guard;
-use crate::resource::Resource;
-use crate::rmap::ResourceMap;
-use crate::route::Route;
-use crate::service::{
-    AppServiceFactory, ServiceFactoryWrapper, ServiceRequest, ServiceResponse,
+use crate::{
+    config::ServiceConfig,
+    data::Data,
+    dev::AppService,
+    guard::Guard,
+    rmap::ResourceMap,
+    service::{
+        AppServiceFactory, BoxedHttpService, BoxedHttpServiceFactory, HttpServiceFactory,
+        ServiceFactoryWrapper, ServiceRequest, ServiceResponse,
+    },
+    Error, Resource, Route,
 };
 
 type Guards = Vec<Box<dyn Guard>>;
-type HttpService = BoxService<ServiceRequest, ServiceResponse, Error>;
-type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
 
-/// Resources scope.
+/// A collection of [`Route`]s, [`Resource`]s, or other services that share a common path prefix.
 ///
-/// Scope is a set of resources with common root path.
-/// Scopes collect multiple paths under a common path prefix.
-/// Scope path can contain variable path segments as resources.
-/// Scope prefix is always complete path segment, i.e `/app` would
-/// be converted to a `/app/` and it would not match `/app` path.
+/// The `Scope`'s path can contain [dynamic segments]. The dynamic segments can be extracted from
+/// requests using the [`Path`](crate::web::Path) extractor or
+/// with [`HttpRequest::match_info()`](crate::HttpRequest::match_info).
 ///
-/// You can get variable path segments from `HttpRequest::match_info()`.
-/// `Path` extractor also is able to extract scope level variable segments.
+/// # Avoid Trailing Slashes
+/// Avoid using trailing slashes in the scope prefix (e.g., `web::scope("/scope/")`). It will almost
+/// certainly not have the expected behavior. See the [documentation on resource definitions][pat]
+/// to understand why this is the case and how to correctly construct scope/prefix definitions.
 ///
-/// ```rust
+/// # Examples
+/// ```
 /// use actix_web::{web, App, HttpResponse};
 ///
-/// fn main() {
-///     let app = App::new().service(
-///         web::scope("/{project_id}/")
-///             .service(web::resource("/path1").to(|| async { HttpResponse::Ok() }))
-///             .service(web::resource("/path2").route(web::get().to(|| HttpResponse::Ok())))
-///             .service(web::resource("/path3").route(web::head().to(|| HttpResponse::MethodNotAllowed())))
-///     );
-/// }
+/// let app = App::new().service(
+///     web::scope("/{project_id}/")
+///         .service(web::resource("/path1").to(|| async { "OK" }))
+///         .service(web::resource("/path2").route(web::get().to(|| HttpResponse::Ok())))
+///         .service(web::resource("/path3").route(web::head().to(HttpResponse::MethodNotAllowed)))
+/// );
 /// ```
 ///
 /// In the above example three routes get registered:
-///  * /{project_id}/path1 - responds to all http method
-///  * /{project_id}/path2 - `GET` requests
-///  * /{project_id}/path3 - `HEAD` requests
-pub struct Scope<T = ScopeEndpoint> {
+/// - /{project_id}/path1 - responds to all HTTP methods
+/// - /{project_id}/path2 - responds to `GET` requests
+/// - /{project_id}/path3 - responds to `HEAD` requests
+///
+/// [pat]: crate::dev::ResourceDef#prefix-resources
+/// [dynamic segments]: crate::dev::ResourceDef#dynamic-segments
+pub struct Scope<T = ScopeEndpoint, B = BoxBody> {
     endpoint: T,
     rdef: String,
     app_data: Option<Extensions>,
     services: Vec<Box<dyn AppServiceFactory>>,
     guards: Vec<Box<dyn Guard>>,
-    default: Option<Rc<HttpNewService>>,
+    default: Option<Rc<BoxedHttpServiceFactory>>,
     external: Vec<ResourceDef>,
     factory_ref: Rc<RefCell<Option<ScopeFactory>>>,
+    _phantom: PhantomData<B>,
 }
 
 impl Scope {
     /// Create a new scope
     pub fn new(path: &str) -> Scope {
-        let fref = Rc::new(RefCell::new(None));
+        let factory_ref = Rc::new(RefCell::new(None));
+
         Scope {
-            endpoint: ScopeEndpoint::new(fref.clone()),
+            endpoint: ScopeEndpoint::new(Rc::clone(&factory_ref)),
             rdef: path.to_string(),
             app_data: None,
             guards: Vec::new(),
             services: Vec::new(),
             default: None,
             external: Vec::new(),
-            factory_ref: fref,
+            factory_ref,
+            _phantom: Default::default(),
         }
     }
 }
 
-impl<T> Scope<T>
+impl<T, B> Scope<T, B>
 where
     T: ServiceFactory<
         ServiceRequest,
         Config = (),
-        Response = ServiceResponse,
+        Response = ServiceResponse<B>,
         Error = Error,
         InitError = (),
     >,
+    B: 'static,
 {
     /// Add match guard to a scope.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{web, guard, App, HttpRequest, HttpResponse};
     ///
     /// async fn index(data: web::Path<(String, String)>) -> &'static str {
     ///     "Welcome!"
     /// }
     ///
-    /// fn main() {
-    ///     let app = App::new().service(
-    ///         web::scope("/app")
-    ///             .guard(guard::Header("content-type", "text/plain"))
-    ///             .route("/test1", web::get().to(index))
-    ///             .route("/test2", web::post().to(|r: HttpRequest| {
-    ///                 HttpResponse::MethodNotAllowed()
-    ///             }))
-    ///     );
-    /// }
+    /// let app = App::new().service(
+    ///     web::scope("/app")
+    ///         .guard(guard::Header("content-type", "text/plain"))
+    ///         .route("/test1", web::get().to(index))
+    ///         .route("/test2", web::post().to(|r: HttpRequest| {
+    ///             HttpResponse::MethodNotAllowed()
+    ///         }))
+    /// );
     /// ```
     pub fn guard<G: Guard + 'static>(mut self, guard: G) -> Self {
         self.guards.push(Box::new(guard));
         self
     }
 
-    /// Set or override application data. Application data could be accessed
-    /// by using `Data<T>` extractor where `T` is data type.
-    ///
-    /// ```rust
-    /// use std::cell::Cell;
-    /// use actix_web::{web, App, HttpResponse, Responder};
-    ///
-    /// struct MyData {
-    ///     counter: Cell<usize>,
-    /// }
-    ///
-    /// async fn index(data: web::Data<MyData>) -> impl Responder {
-    ///     data.counter.set(data.counter.get() + 1);
-    ///     HttpResponse::Ok()
-    /// }
-    ///
-    /// fn main() {
-    ///     let app = App::new().service(
-    ///         web::scope("/app")
-    ///             .data(MyData{ counter: Cell::new(0) })
-    ///             .service(
-    ///                 web::resource("/index.html").route(
-    ///                     web::get().to(index)))
-    ///     );
-    /// }
-    /// ```
-    pub fn data<U: 'static>(self, data: U) -> Self {
-        self.app_data(Data::new(data))
-    }
-
     /// Add scope data.
     ///
-    /// Data of different types from parent contexts will still be accessible.
+    /// Data of different types from parent contexts will still be accessible. Any `Data<T>` types
+    /// set here can be extracted in handlers using the `Data<T>` extractor.
+    ///
+    /// # Examples
+    /// ```
+    /// use std::cell::Cell;
+    /// use actix_web::{web, App, HttpRequest, HttpResponse, Responder};
+    ///
+    /// struct MyData {
+    ///     count: std::cell::Cell<usize>,
+    /// }
+    ///
+    /// async fn handler(req: HttpRequest, counter: web::Data<MyData>) -> impl Responder {
+    ///     // note this cannot use the Data<T> extractor because it was not added with it
+    ///     let incr = *req.app_data::<usize>().unwrap();
+    ///     assert_eq!(incr, 3);
+    ///
+    ///     // update counter using other value from app data
+    ///     counter.count.set(counter.count.get() + incr);
+    ///
+    ///     HttpResponse::Ok().body(counter.count.get().to_string())
+    /// }
+    ///
+    /// let app = App::new().service(
+    ///     web::scope("/app")
+    ///         .app_data(3usize)
+    ///         .app_data(web::Data::new(MyData { count: Default::default() }))
+    ///         .route("/", web::get().to(handler))
+    /// );
+    /// ```
+    #[doc(alias = "manage")]
     pub fn app_data<U: 'static>(mut self, data: U) -> Self {
         self.app_data
             .get_or_insert_with(Extensions::new)
@@ -162,15 +163,20 @@ where
         self
     }
 
-    /// Run external configuration as part of the scope building
-    /// process
+    /// Add scope data after wrapping in `Data<T>`.
     ///
-    /// This function is useful for moving parts of configuration to a
-    /// different module or even library. For example,
-    /// some of the resource's configuration could be moved to different module.
+    /// Deprecated in favor of [`app_data`](Self::app_data).
+    #[deprecated(since = "4.0.0", note = "Use `.app_data(Data::new(val))` instead.")]
+    pub fn data<U: 'static>(self, data: U) -> Self {
+        self.app_data(Data::new(data))
+    }
+
+    /// Run external configuration as part of the scope building process.
     ///
-    /// ```rust
-    /// # extern crate actix_web;
+    /// This function is useful for moving parts of configuration to a different module or library.
+    /// For example, some of the resource's configuration could be moved to different module.
+    ///
+    /// ```
     /// use actix_web::{web, middleware, App, HttpResponse};
     ///
     /// // this function could be located in different module
@@ -181,28 +187,29 @@ where
     ///     );
     /// }
     ///
-    /// fn main() {
-    ///     let app = App::new()
-    ///         .wrap(middleware::Logger::default())
-    ///         .service(
-    ///             web::scope("/api")
-    ///                 .configure(config)
-    ///         )
-    ///         .route("/index.html", web::get().to(|| HttpResponse::Ok()));
-    /// }
+    /// let app = App::new()
+    ///     .wrap(middleware::Logger::default())
+    ///     .service(
+    ///         web::scope("/api")
+    ///             .configure(config)
+    ///     )
+    ///     .route("/index.html", web::get().to(|| HttpResponse::Ok()));
     /// ```
-    pub fn configure<F>(mut self, f: F) -> Self
+    pub fn configure<F>(mut self, cfg_fn: F) -> Self
     where
         F: FnOnce(&mut ServiceConfig),
     {
         let mut cfg = ServiceConfig::new();
-        f(&mut cfg);
+        cfg_fn(&mut cfg);
+
         self.services.extend(cfg.services);
         self.external.extend(cfg.external);
 
+        // TODO: add Extensions::is_empty check and conditionally insert data
         self.app_data
             .get_or_insert_with(Extensions::new)
             .extend(cfg.app_data);
+
         self
     }
 
@@ -216,7 +223,7 @@ where
     /// * *Scope* is a set of resources with common root path.
     /// * "StaticFiles" is a service for static files support
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{web, App, HttpRequest};
     ///
     /// struct AppState;
@@ -225,13 +232,11 @@ where
     ///     "Welcome!"
     /// }
     ///
-    /// fn main() {
-    ///     let app = App::new().service(
-    ///         web::scope("/app").service(
-    ///             web::scope("/v1")
-    ///                 .service(web::resource("/test1").to(index)))
-    ///     );
-    /// }
+    /// let app = App::new().service(
+    ///     web::scope("/app").service(
+    ///         web::scope("/v1")
+    ///             .service(web::resource("/test1").to(index)))
+    /// );
     /// ```
     pub fn service<F>(mut self, factory: F) -> Self
     where
@@ -248,20 +253,18 @@ where
     /// This method can be called multiple times, in that case
     /// multiple resources with one route would be registered for same resource path.
     ///
-    /// ```rust
+    /// ```
     /// use actix_web::{web, App, HttpResponse};
     ///
     /// async fn index(data: web::Path<(String, String)>) -> &'static str {
     ///     "Welcome!"
     /// }
     ///
-    /// fn main() {
-    ///     let app = App::new().service(
-    ///         web::scope("/app")
-    ///             .route("/test1", web::get().to(index))
-    ///             .route("/test2", web::post().to(|| HttpResponse::MethodNotAllowed()))
-    ///     );
-    /// }
+    /// let app = App::new().service(
+    ///     web::scope("/app")
+    ///         .route("/test1", web::get().to(index))
+    ///         .route("/test2", web::post().to(|| HttpResponse::MethodNotAllowed()))
+    /// );
     /// ```
     pub fn route(self, path: &str, mut route: Route) -> Self {
         self.service(
@@ -293,32 +296,29 @@ where
         self
     }
 
-    /// Registers middleware, in the form of a middleware component (type),
-    /// that runs during inbound processing in the request
-    /// life-cycle (request -> response), modifying request as
-    /// necessary, across all requests managed by the *Scope*.  Scope-level
-    /// middleware is more limited in what it can modify, relative to Route or
-    /// Application level middleware, in that Scope-level middleware can not modify
-    /// ServiceResponse.
+    /// Registers middleware, in the form of a middleware component (type), that runs during inbound
+    /// processing in the request life-cycle (request -> response), modifying request as necessary,
+    /// across all requests managed by the *Scope*.
     ///
     /// Use middleware when you need to read or modify *every* request in some way.
-    pub fn wrap<M>(
+    pub fn wrap<M, B1>(
         self,
         mw: M,
     ) -> Scope<
         impl ServiceFactory<
             ServiceRequest,
             Config = (),
-            Response = ServiceResponse,
+            Response = ServiceResponse<B1>,
             Error = Error,
             InitError = (),
         >,
+        B1,
     >
     where
         M: Transform<
             T::Service,
             ServiceRequest,
-            Response = ServiceResponse,
+            Response = ServiceResponse<B1>,
             Error = Error,
             InitError = (),
         >,
@@ -332,56 +332,54 @@ where
             default: self.default,
             external: self.external,
             factory_ref: self.factory_ref,
+            _phantom: PhantomData,
         }
     }
 
-    /// Registers middleware, in the form of a closure, that runs during inbound
-    /// processing in the request life-cycle (request -> response), modifying
-    /// request as necessary, across all requests managed by the *Scope*.
-    /// Scope-level middleware is more limited in what it can modify, relative
-    /// to Route or Application level middleware, in that Scope-level middleware
-    /// can not modify ServiceResponse.
+    /// Registers middleware, in the form of a closure, that runs during inbound processing in the
+    /// request life-cycle (request -> response), modifying request as necessary, across all
+    /// requests managed by the *Scope*.
     ///
-    /// ```rust
+    /// # Examples
+    /// ```
     /// use actix_service::Service;
     /// use actix_web::{web, App};
-    /// use actix_web::http::{header::CONTENT_TYPE, HeaderValue};
+    /// use actix_web::http::header::{CONTENT_TYPE, HeaderValue};
     ///
     /// async fn index() -> &'static str {
     ///     "Welcome!"
     /// }
     ///
-    /// fn main() {
-    ///     let app = App::new().service(
-    ///         web::scope("/app")
-    ///             .wrap_fn(|req, srv| {
-    ///                 let fut = srv.call(req);
-    ///                 async {
-    ///                     let mut res = fut.await?;
-    ///                     res.headers_mut().insert(
-    ///                        CONTENT_TYPE, HeaderValue::from_static("text/plain"),
-    ///                     );
-    ///                     Ok(res)
-    ///                 }
-    ///             })
-    ///             .route("/index.html", web::get().to(index)));
-    /// }
+    /// let app = App::new().service(
+    ///     web::scope("/app")
+    ///         .wrap_fn(|req, srv| {
+    ///             let fut = srv.call(req);
+    ///             async {
+    ///                 let mut res = fut.await?;
+    ///                 res.headers_mut().insert(
+    ///                    CONTENT_TYPE, HeaderValue::from_static("text/plain"),
+    ///                 );
+    ///                 Ok(res)
+    ///             }
+    ///         })
+    ///         .route("/index.html", web::get().to(index)));
     /// ```
-    pub fn wrap_fn<F, R>(
+    pub fn wrap_fn<F, R, B1>(
         self,
         mw: F,
     ) -> Scope<
         impl ServiceFactory<
             ServiceRequest,
             Config = (),
-            Response = ServiceResponse,
+            Response = ServiceResponse<B1>,
             Error = Error,
             InitError = (),
         >,
+        B1,
     >
     where
         F: Fn(ServiceRequest, &T::Service) -> R + Clone,
-        R: Future<Output = Result<ServiceResponse, Error>>,
+        R: Future<Output = Result<ServiceResponse<B1>, Error>>,
     {
         Scope {
             endpoint: apply_fn_factory(self.endpoint, mw),
@@ -392,19 +390,21 @@ where
             default: self.default,
             external: self.external,
             factory_ref: self.factory_ref,
+            _phantom: PhantomData,
         }
     }
 }
 
-impl<T> HttpServiceFactory for Scope<T>
+impl<T, B> HttpServiceFactory for Scope<T, B>
 where
     T: ServiceFactory<
             ServiceRequest,
             Config = (),
-            Response = ServiceResponse,
+            Response = ServiceResponse<B>,
             Error = Error,
             InitError = (),
         > + 'static,
+    B: MessageBody + 'static,
 {
     fn register(mut self, config: &mut AppService) {
         // update default resource if needed
@@ -419,13 +419,12 @@ where
         let mut rmap = ResourceMap::new(ResourceDef::root_prefix(&self.rdef));
 
         // external resources
-        for mut rdef in std::mem::take(&mut self.external) {
+        for mut rdef in mem::take(&mut self.external) {
             rmap.add(&mut rdef, None);
         }
 
         // complete scope pipeline creation
         *self.factory_ref.borrow_mut() = Some(ScopeFactory {
-            app_data: self.app_data.take().map(Rc::new),
             default,
             services: cfg
                 .into_services()
@@ -447,20 +446,39 @@ where
             Some(self.guards)
         };
 
+        let scope_data = self.app_data.map(Rc::new);
+
+        // wraps endpoint service (including middleware) call and injects app data for this scope
+        let endpoint = apply_fn_factory(self.endpoint, move |mut req: ServiceRequest, srv| {
+            if let Some(ref data) = scope_data {
+                req.add_data_container(Rc::clone(data));
+            }
+
+            let fut = srv.call(req);
+
+            async { Ok(fut.await?.map_into_boxed_body()) }
+        });
+
         // register final service
         config.register_service(
             ResourceDef::root_prefix(&self.rdef),
             guards,
-            self.endpoint,
+            endpoint,
             Some(Rc::new(rmap)),
         )
     }
 }
 
 pub struct ScopeFactory {
-    app_data: Option<Rc<Extensions>>,
-    services: Rc<[(ResourceDef, HttpNewService, RefCell<Option<Guards>>)]>,
-    default: Rc<HttpNewService>,
+    #[allow(clippy::type_complexity)]
+    services: Rc<
+        [(
+            ResourceDef,
+            BoxedHttpServiceFactory,
+            RefCell<Option<Guards>>,
+        )],
+    >,
+    default: Rc<BoxedHttpServiceFactory>,
 }
 
 impl ServiceFactory<ServiceRequest> for ScopeFactory {
@@ -486,8 +504,6 @@ impl ServiceFactory<ServiceRequest> for ScopeFactory {
             }
         }));
 
-        let app_data = self.app_data.clone();
-
         Box::pin(async move {
             let default = default_fut.await?;
 
@@ -503,19 +519,14 @@ impl ServiceFactory<ServiceRequest> for ScopeFactory {
                 })
                 .finish();
 
-            Ok(ScopeService {
-                app_data,
-                router,
-                default,
-            })
+            Ok(ScopeService { router, default })
         })
     }
 }
 
 pub struct ScopeService {
-    app_data: Option<Rc<Extensions>>,
-    router: Router<HttpService, Vec<Box<dyn Guard>>>,
-    default: HttpService,
+    router: Router<BoxedHttpService, Vec<Box<dyn Guard>>>,
+    default: BoxedHttpService,
 }
 
 impl Service<ServiceRequest> for ScopeService {
@@ -526,20 +537,19 @@ impl Service<ServiceRequest> for ScopeService {
     actix_service::always_ready!();
 
     fn call(&self, mut req: ServiceRequest) -> Self::Future {
-        let res = self.router.recognize_checked(&mut req, |req, guards| {
+        let res = self.router.recognize_fn(&mut req, |req, guards| {
             if let Some(ref guards) = guards {
-                for f in guards {
-                    if !f.check(req.head()) {
+                let guard_ctx = req.guard_ctx();
+
+                for guard in guards {
+                    if !guard.check(&guard_ctx) {
                         return false;
                     }
                 }
             }
+
             true
         });
-
-        if let Some(ref app_data) = self.app_data {
-            req.add_data_container(app_data.clone());
-        }
 
         if let Some((srv, _info)) = res {
             srv.call(req)
@@ -576,15 +586,49 @@ impl ServiceFactory<ServiceRequest> for ScopeEndpoint {
 #[cfg(test)]
 mod tests {
     use actix_service::Service;
+    use actix_utils::future::ok;
     use bytes::Bytes;
-    use futures_util::future::ok;
 
-    use crate::dev::{Body, ResponseBody};
-    use crate::http::{header, HeaderValue, Method, StatusCode};
-    use crate::middleware::DefaultHeaders;
-    use crate::service::ServiceRequest;
-    use crate::test::{call_service, init_service, read_body, TestRequest};
-    use crate::{guard, web, App, HttpRequest, HttpResponse};
+    use super::*;
+    use crate::{
+        guard,
+        http::{
+            header::{self, HeaderValue},
+            Method, StatusCode,
+        },
+        middleware::{Compat, DefaultHeaders},
+        service::{ServiceRequest, ServiceResponse},
+        test::{assert_body_eq, call_service, init_service, read_body, TestRequest},
+        web, App, HttpMessage, HttpRequest, HttpResponse,
+    };
+
+    #[test]
+    fn can_be_returned_from_fn() {
+        fn my_scope() -> Scope {
+            web::scope("/test")
+                .service(web::resource("").route(web::get().to(|| async { "hello" })))
+        }
+
+        fn my_compat_scope() -> Scope<
+            impl ServiceFactory<
+                ServiceRequest,
+                Config = (),
+                Response = ServiceResponse,
+                Error = Error,
+                InitError = (),
+            >,
+        > {
+            web::scope("/test-compat")
+                .wrap_fn(|req, srv| {
+                    let fut = srv.call(req);
+                    async { Ok(fut.await?.map_into_right_body::<()>()) }
+                })
+                .wrap(Compat::noop())
+                .service(web::resource("").route(web::get().to(|| async { "hello" })))
+        }
+
+        App::new().service(my_scope()).service(my_compat_scope());
+    }
 
     #[actix_rt::test]
     async fn test_scope() {
@@ -745,20 +789,13 @@ mod tests {
         .await;
 
         let req = TestRequest::with_uri("/ab-project1/path1").to_request();
-        let resp = srv.call(req).await.unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
-
-        match resp.response().body() {
-            ResponseBody::Body(Body::Bytes(ref b)) => {
-                let bytes = b.clone();
-                assert_eq!(bytes, Bytes::from_static(b"project: project1"));
-            }
-            _ => panic!(),
-        }
+        let res = srv.call(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_body_eq!(res, b"project: project1");
 
         let req = TestRequest::with_uri("/aa-project1/path1").to_request();
-        let resp = srv.call(req).await.unwrap();
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        let res = srv.call(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::NOT_FOUND);
     }
 
     #[actix_rt::test]
@@ -846,16 +883,9 @@ mod tests {
         .await;
 
         let req = TestRequest::with_uri("/app/project_1/path1").to_request();
-        let resp = srv.call(req).await.unwrap();
-        assert_eq!(resp.status(), StatusCode::CREATED);
-
-        match resp.response().body() {
-            ResponseBody::Body(Body::Bytes(ref b)) => {
-                let bytes = b.clone();
-                assert_eq!(bytes, Bytes::from_static(b"project: project_1"));
-            }
-            _ => panic!(),
-        }
+        let res = srv.call(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::CREATED);
+        assert_body_eq!(res, b"project: project_1");
     }
 
     #[actix_rt::test]
@@ -874,20 +904,13 @@ mod tests {
         .await;
 
         let req = TestRequest::with_uri("/app/test/1/path1").to_request();
-        let resp = srv.call(req).await.unwrap();
-        assert_eq!(resp.status(), StatusCode::CREATED);
-
-        match resp.response().body() {
-            ResponseBody::Body(Body::Bytes(ref b)) => {
-                let bytes = b.clone();
-                assert_eq!(bytes, Bytes::from_static(b"project: test - 1"));
-            }
-            _ => panic!(),
-        }
+        let res = srv.call(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::CREATED);
+        assert_body_eq!(res, b"project: test - 1");
 
         let req = TestRequest::with_uri("/app/test/1/path2").to_request();
-        let resp = srv.call(req).await.unwrap();
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        let res = srv.call(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::NOT_FOUND);
     }
 
     #[actix_rt::test]
@@ -916,10 +939,7 @@ mod tests {
     async fn test_default_resource_propagation() {
         let srv = init_service(
             App::new()
-                .service(
-                    web::scope("/app1")
-                        .default_service(web::resource("").to(HttpResponse::BadRequest)),
-                )
+                .service(web::scope("/app1").default_service(web::to(HttpResponse::BadRequest)))
                 .service(web::scope("/app2"))
                 .default_service(|r: ServiceRequest| {
                     ok(r.into_response(HttpResponse::MethodNotAllowed()))
@@ -947,7 +967,7 @@ mod tests {
                 web::scope("app")
                     .wrap(
                         DefaultHeaders::new()
-                            .header(header::CONTENT_TYPE, HeaderValue::from_static("0001")),
+                            .add((header::CONTENT_TYPE, HeaderValue::from_static("0001"))),
                     )
                     .service(web::resource("/test").route(web::get().to(HttpResponse::Ok))),
             ),
@@ -961,6 +981,29 @@ mod tests {
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             HeaderValue::from_static("0001")
         );
+    }
+
+    #[actix_rt::test]
+    async fn test_middleware_body_type() {
+        // Compile test that Scope accepts any body type; test for `EitherBody`
+        let srv = init_service(
+            App::new().service(
+                web::scope("app")
+                    .wrap_fn(|req, srv| {
+                        let fut = srv.call(req);
+                        async { Ok(fut.await?.map_into_right_body::<()>()) }
+                    })
+                    .service(web::resource("/test").route(web::get().to(|| async { "hello" }))),
+            ),
+        )
+        .await;
+
+        // test if `MessageBody::try_into_bytes()` is preserved across scope layer
+        use actix_http::body::MessageBody as _;
+        let req = TestRequest::with_uri("/app/test").to_request();
+        let resp = call_service(&srv, req).await;
+        let body = resp.into_body();
+        assert_eq!(body.try_into_bytes().unwrap(), b"hello".as_ref());
     }
 
     #[actix_rt::test]
@@ -992,6 +1035,43 @@ mod tests {
     }
 
     #[actix_rt::test]
+    async fn test_middleware_app_data() {
+        let srv = init_service(
+            App::new().service(
+                web::scope("app")
+                    .app_data(1usize)
+                    .wrap_fn(|req, srv| {
+                        assert_eq!(req.app_data::<usize>(), Some(&1usize));
+                        req.extensions_mut().insert(1usize);
+                        srv.call(req)
+                    })
+                    .route("/test", web::get().to(HttpResponse::Ok))
+                    .default_service(|req: ServiceRequest| async move {
+                        let (req, _) = req.into_parts();
+
+                        assert_eq!(req.extensions().get::<usize>(), Some(&1));
+
+                        Ok(ServiceResponse::new(
+                            req,
+                            HttpResponse::BadRequest().finish(),
+                        ))
+                    }),
+            ),
+        )
+        .await;
+
+        let req = TestRequest::with_uri("/app/test").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/app/default").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
+    // allow deprecated {App, Scope}::data
+    #[allow(deprecated)]
+    #[actix_rt::test]
     async fn test_override_data() {
         let srv = init_service(App::new().data(1usize).service(
             web::scope("app").data(10usize).route(
@@ -1009,6 +1089,8 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
+    // allow deprecated `{App, Scope}::data`
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_override_data_default_service() {
         let srv = init_service(App::new().data(1usize).service(
@@ -1113,5 +1195,71 @@ mod tests {
             body,
             Bytes::from_static(b"http://localhost:8080/a/b/c/12345")
         );
+    }
+
+    #[actix_rt::test]
+    async fn dynamic_scopes() {
+        let srv = init_service(
+            App::new().service(
+                web::scope("/{a}/").service(
+                    web::scope("/{b}/")
+                        .route("", web::get().to(|_: HttpRequest| HttpResponse::Created()))
+                        .route(
+                            "/",
+                            web::get().to(|_: HttpRequest| HttpResponse::Accepted()),
+                        )
+                        .route("/{c}", web::get().to(|_: HttpRequest| HttpResponse::Ok())),
+                ),
+            ),
+        )
+        .await;
+
+        // note the unintuitive behavior with trailing slashes on scopes with dynamic segments
+        let req = TestRequest::with_uri("/a//b//c").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/a//b/").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::CREATED);
+
+        let req = TestRequest::with_uri("/a//b//").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::ACCEPTED);
+
+        let req = TestRequest::with_uri("/a//b//c/d").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+
+        let srv = init_service(
+            App::new().service(
+                web::scope("/{a}").service(
+                    web::scope("/{b}")
+                        .route("", web::get().to(|_: HttpRequest| HttpResponse::Created()))
+                        .route(
+                            "/",
+                            web::get().to(|_: HttpRequest| HttpResponse::Accepted()),
+                        )
+                        .route("/{c}", web::get().to(|_: HttpRequest| HttpResponse::Ok())),
+                ),
+            ),
+        )
+        .await;
+
+        let req = TestRequest::with_uri("/a/b/c").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/a/b").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::CREATED);
+
+        let req = TestRequest::with_uri("/a/b/").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::ACCEPTED);
+
+        let req = TestRequest::with_uri("/a/b/c/d").to_request();
+        let resp = call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 }

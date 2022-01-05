@@ -16,8 +16,7 @@ impl Parser {
         src: &[u8],
         server: bool,
         max_size: usize,
-    ) -> Result<Option<(usize, bool, OpCode, usize, Option<[u8; 4]>)>, ProtocolError>
-    {
+    ) -> Result<Option<(usize, bool, OpCode, usize, Option<[u8; 4]>)>, ProtocolError> {
         let chunk_len = src.len();
 
         let mut idx = 2;
@@ -228,15 +227,11 @@ mod tests {
         payload: Bytes,
     }
 
-    fn is_none(
-        frm: &Result<Option<(bool, OpCode, Option<BytesMut>)>, ProtocolError>,
-    ) -> bool {
+    fn is_none(frm: &Result<Option<(bool, OpCode, Option<BytesMut>)>, ProtocolError>) -> bool {
         matches!(*frm, Ok(None))
     }
 
-    fn extract(
-        frm: Result<Option<(bool, OpCode, Option<BytesMut>)>, ProtocolError>,
-    ) -> F {
+    fn extract(frm: Result<Option<(bool, OpCode, Option<BytesMut>)>, ProtocolError>) -> F {
         match frm {
             Ok(Some((finished, opcode, payload))) => F {
                 finished,

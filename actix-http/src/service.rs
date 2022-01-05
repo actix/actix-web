@@ -1,23 +1,28 @@
-use std::marker::PhantomData;
-use std::pin::Pin;
-use std::task::{Context, Poll};
-use std::{fmt, net, rc::Rc};
+use std::{
+    fmt,
+    future::Future,
+    marker::PhantomData,
+    net,
+    pin::Pin,
+    rc::Rc,
+    task::{Context, Poll},
+};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_rt::net::TcpStream;
-use actix_service::{pipeline_factory, IntoServiceFactory, Service, ServiceFactory};
-use bytes::Bytes;
-use futures_core::{ready, Future};
-use h2::server::{self, Handshake};
-use pin_project::pin_project;
+use actix_service::{
+    fn_service, IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt as _,
+};
+use futures_core::{future::LocalBoxFuture, ready};
+use pin_project_lite::pin_project;
 
-use crate::body::MessageBody;
-use crate::builder::HttpServiceBuilder;
-use crate::config::{KeepAlive, ServiceConfig};
-use crate::error::{DispatchError, Error};
-use crate::request::Request;
-use crate::response::Response;
-use crate::{h1, h2::Dispatcher, ConnectCallback, OnConnectData, Protocol};
+use crate::{
+    body::{BoxBody, MessageBody},
+    builder::HttpServiceBuilder,
+    config::{KeepAlive, ServiceConfig},
+    error::DispatchError,
+    h1, h2, ConnectCallback, OnConnectData, Protocol, Request, Response,
+};
 
 /// A `ServiceFactory` for HTTP/1.1 or HTTP/2 protocol.
 pub struct HttpService<T, S, B, X = h1::ExpectHandler, U = h1::UpgradeHandler> {
@@ -32,7 +37,7 @@ pub struct HttpService<T, S, B, X = h1::ExpectHandler, U = h1::UpgradeHandler> {
 impl<T, S, B> HttpService<T, S, B>
 where
     S: ServiceFactory<Request, Config = ()>,
-    S::Error: Into<Error> + 'static,
+    S::Error: Into<Response<BoxBody>> + 'static,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
@@ -47,7 +52,7 @@ where
 impl<T, S, B> HttpService<T, S, B>
 where
     S: ServiceFactory<Request, Config = ()>,
-    S::Error: Into<Error> + 'static,
+    S::Error: Into<Response<BoxBody>> + 'static,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
@@ -86,7 +91,7 @@ where
 impl<T, S, B, X, U> HttpService<T, S, B, X, U>
 where
     S: ServiceFactory<Request, Config = ()>,
-    S::Error: Into<Error> + 'static,
+    S::Error: Into<Response<BoxBody>> + 'static,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
@@ -100,9 +105,8 @@ where
     pub fn expect<X1>(self, expect: X1) -> HttpService<T, S, B, X1, U>
     where
         X1: ServiceFactory<Request, Config = (), Response = Request>,
-        X1::Error: Into<Error>,
+        X1::Error: Into<Response<BoxBody>>,
         X1::InitError: fmt::Debug,
-        <X1::Service as Service<Request>>::Future: 'static,
     {
         HttpService {
             expect,
@@ -123,7 +127,6 @@ where
         U1: ServiceFactory<(Request, Framed<T, h1::Codec>), Config = (), Response = ()>,
         U1::Error: fmt::Display,
         U1::InitError: fmt::Debug,
-        <U1::Service as Service<(Request, Framed<T, h1::Codec>)>>::Future: 'static,
     {
         HttpService {
             upgrade,
@@ -145,23 +148,23 @@ where
 impl<S, B, X, U> HttpService<TcpStream, S, B, X, U>
 where
     S: ServiceFactory<Request, Config = ()>,
-    S::Error: Into<Error> + 'static,
+    S::Future: 'static,
+    S::Error: Into<Response<BoxBody>> + 'static,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
+
     B: MessageBody + 'static,
+
     X: ServiceFactory<Request, Config = (), Response = Request>,
-    X::Error: Into<Error>,
+    X::Future: 'static,
+    X::Error: Into<Response<BoxBody>>,
     X::InitError: fmt::Debug,
-    <X::Service as Service<Request>>::Future: 'static,
-    U: ServiceFactory<
-        (Request, Framed<TcpStream, h1::Codec>),
-        Config = (),
-        Response = (),
-    >,
-    U::Error: fmt::Display + Into<Error>,
+
+    U: ServiceFactory<(Request, Framed<TcpStream, h1::Codec>), Config = (), Response = ()>,
+    U::Future: 'static,
+    U::Error: fmt::Display + Into<Response<BoxBody>>,
     U::InitError: fmt::Debug,
-    <U::Service as Service<(Request, Framed<TcpStream, h1::Codec>)>>::Future: 'static,
 {
     /// Create simple tcp stream service
     pub fn tcp(
@@ -173,7 +176,7 @@ where
         Error = DispatchError,
         InitError = (),
     > {
-        pipeline_factory(|io: TcpStream| async {
+        fn_service(|io: TcpStream| async {
             let peer_addr = io.peer_addr().ok();
             Ok((io, Protocol::Http1, peer_addr))
         })
@@ -183,33 +186,43 @@ where
 
 #[cfg(feature = "openssl")]
 mod openssl {
-    use super::*;
-    use actix_service::ServiceFactoryExt;
-    use actix_tls::accept::openssl::{Acceptor, SslAcceptor, SslError, SslStream};
-    use actix_tls::accept::TlsError;
+    use actix_service::ServiceFactoryExt as _;
+    use actix_tls::accept::{
+        openssl::{
+            reexports::{Error as SslError, SslAcceptor},
+            Acceptor, TlsStream,
+        },
+        TlsError,
+    };
 
-    impl<S, B, X, U> HttpService<SslStream<TcpStream>, S, B, X, U>
+    use super::*;
+
+    impl<S, B, X, U> HttpService<TlsStream<TcpStream>, S, B, X, U>
     where
         S: ServiceFactory<Request, Config = ()>,
-        S::Error: Into<Error> + 'static,
+        S::Future: 'static,
+        S::Error: Into<Response<BoxBody>> + 'static,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>> + 'static,
         <S::Service as Service<Request>>::Future: 'static,
+
         B: MessageBody + 'static,
+
         X: ServiceFactory<Request, Config = (), Response = Request>,
-        X::Error: Into<Error>,
+        X::Future: 'static,
+        X::Error: Into<Response<BoxBody>>,
         X::InitError: fmt::Debug,
-        <X::Service as Service<Request>>::Future: 'static,
+
         U: ServiceFactory<
-            (Request, Framed<SslStream<TcpStream>, h1::Codec>),
+            (Request, Framed<TlsStream<TcpStream>, h1::Codec>),
             Config = (),
             Response = (),
         >,
-        U::Error: fmt::Display + Into<Error>,
+        U::Future: 'static,
+        U::Error: fmt::Display + Into<Response<BoxBody>>,
         U::InitError: fmt::Debug,
-        <U::Service as Service<(Request, Framed<SslStream<TcpStream>, h1::Codec>)>>::Future: 'static,
     {
-        /// Create openssl based service
+        /// Create OpenSSL based service.
         pub fn openssl(
             self,
             acceptor: SslAcceptor,
@@ -220,25 +233,26 @@ mod openssl {
             Error = TlsError<SslError, DispatchError>,
             InitError = (),
         > {
-            pipeline_factory(
-                Acceptor::new(acceptor)
-                    .map_err(TlsError::Tls)
-                    .map_init_err(|_| panic!()),
-            )
-            .and_then(|io: SslStream<TcpStream>| async {
-                let proto = if let Some(protos) = io.ssl().selected_alpn_protocol() {
-                    if protos.windows(2).any(|window| window == b"h2") {
-                        Protocol::Http2
+            Acceptor::new(acceptor)
+                .map_init_err(|_| {
+                    unreachable!("TLS acceptor service factory does not error on init")
+                })
+                .map_err(TlsError::into_service_error)
+                .map(|io: TlsStream<TcpStream>| {
+                    let proto = if let Some(protos) = io.ssl().selected_alpn_protocol() {
+                        if protos.windows(2).any(|window| window == b"h2") {
+                            Protocol::Http2
+                        } else {
+                            Protocol::Http1
+                        }
                     } else {
                         Protocol::Http1
-                    }
-                } else {
-                    Protocol::Http1
-                };
-                let peer_addr = io.get_ref().peer_addr().ok();
-                Ok((io, proto, peer_addr))
-            })
-            .and_then(self.map_err(TlsError::Service))
+                    };
+
+                    let peer_addr = io.get_ref().peer_addr().ok();
+                    (io, proto, peer_addr)
+                })
+                .and_then(self.map_err(TlsError::Service))
         }
     }
 }
@@ -247,34 +261,40 @@ mod openssl {
 mod rustls {
     use std::io;
 
-    use actix_tls::accept::rustls::{Acceptor, ServerConfig, Session, TlsStream};
-    use actix_tls::accept::TlsError;
+    use actix_service::ServiceFactoryExt as _;
+    use actix_tls::accept::{
+        rustls::{reexports::ServerConfig, Acceptor, TlsStream},
+        TlsError,
+    };
 
     use super::*;
-    use actix_service::ServiceFactoryExt;
 
     impl<S, B, X, U> HttpService<TlsStream<TcpStream>, S, B, X, U>
     where
         S: ServiceFactory<Request, Config = ()>,
-        S::Error: Into<Error> + 'static,
+        S::Future: 'static,
+        S::Error: Into<Response<BoxBody>> + 'static,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>> + 'static,
         <S::Service as Service<Request>>::Future: 'static,
+
         B: MessageBody + 'static,
+
         X: ServiceFactory<Request, Config = (), Response = Request>,
-        X::Error: Into<Error>,
+        X::Future: 'static,
+        X::Error: Into<Response<BoxBody>>,
         X::InitError: fmt::Debug,
-        <X::Service as Service<Request>>::Future: 'static,
+
         U: ServiceFactory<
             (Request, Framed<TlsStream<TcpStream>, h1::Codec>),
             Config = (),
             Response = (),
         >,
-        U::Error: fmt::Display + Into<Error>,
+        U::Future: 'static,
+        U::Error: fmt::Display + Into<Response<BoxBody>>,
         U::InitError: fmt::Debug,
-        <U::Service as Service<(Request, Framed<TlsStream<TcpStream>, h1::Codec>)>>::Future: 'static,
     {
-        /// Create openssl based service
+        /// Create Rustls based service.
         pub fn rustls(
             self,
             mut config: ServerConfig,
@@ -285,28 +305,29 @@ mod rustls {
             Error = TlsError<io::Error, DispatchError>,
             InitError = (),
         > {
-            let protos = vec!["h2".to_string().into(), "http/1.1".to_string().into()];
-            config.set_protocols(&protos);
+            let mut protos = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+            protos.extend_from_slice(&config.alpn_protocols);
+            config.alpn_protocols = protos;
 
-            pipeline_factory(
-                Acceptor::new(config)
-                    .map_err(TlsError::Tls)
-                    .map_init_err(|_| panic!()),
-            )
-            .and_then(|io: TlsStream<TcpStream>| async {
-                let proto = if let Some(protos) = io.get_ref().1.get_alpn_protocol() {
-                    if protos.windows(2).any(|window| window == b"h2") {
-                        Protocol::Http2
+            Acceptor::new(config)
+                .map_init_err(|_| {
+                    unreachable!("TLS acceptor service factory does not error on init")
+                })
+                .map_err(TlsError::into_service_error)
+                .and_then(|io: TlsStream<TcpStream>| async {
+                    let proto = if let Some(protos) = io.get_ref().1.alpn_protocol() {
+                        if protos.windows(2).any(|window| window == b"h2") {
+                            Protocol::Http2
+                        } else {
+                            Protocol::Http1
+                        }
                     } else {
                         Protocol::Http1
-                    }
-                } else {
-                    Protocol::Http1
-                };
-                let peer_addr = io.get_ref().0.peer_addr().ok();
-                Ok((io, proto, peer_addr))
-            })
-            .and_then(self.map_err(TlsError::Service))
+                    };
+                    let peer_addr = io.get_ref().0.peer_addr().ok();
+                    Ok((io, proto, peer_addr))
+                })
+                .and_then(self.map_err(TlsError::Service))
         }
     }
 }
@@ -314,135 +335,122 @@ mod rustls {
 impl<T, S, B, X, U> ServiceFactory<(T, Protocol, Option<net::SocketAddr>)>
     for HttpService<T, S, B, X, U>
 where
-    T: AsyncRead + AsyncWrite + Unpin,
+    T: AsyncRead + AsyncWrite + Unpin + 'static,
+
     S: ServiceFactory<Request, Config = ()>,
-    S::Error: Into<Error> + 'static,
+    S::Future: 'static,
+    S::Error: Into<Response<BoxBody>> + 'static,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>> + 'static,
     <S::Service as Service<Request>>::Future: 'static,
+
     B: MessageBody + 'static,
+
     X: ServiceFactory<Request, Config = (), Response = Request>,
-    X::Error: Into<Error>,
+    X::Future: 'static,
+    X::Error: Into<Response<BoxBody>>,
     X::InitError: fmt::Debug,
-    <X::Service as Service<Request>>::Future: 'static,
+
     U: ServiceFactory<(Request, Framed<T, h1::Codec>), Config = (), Response = ()>,
-    U::Error: fmt::Display + Into<Error>,
+    U::Future: 'static,
+    U::Error: fmt::Display + Into<Response<BoxBody>>,
     U::InitError: fmt::Debug,
-    <U::Service as Service<(Request, Framed<T, h1::Codec>)>>::Future: 'static,
 {
     type Response = ();
     type Error = DispatchError;
     type Config = ();
     type Service = HttpServiceHandler<T, S::Service, B, X::Service, U::Service>;
     type InitError = ();
-    type Future = HttpServiceResponse<T, S, B, X, U>;
+    type Future = LocalBoxFuture<'static, Result<Self::Service, Self::InitError>>;
 
     fn new_service(&self, _: ()) -> Self::Future {
-        HttpServiceResponse {
-            fut: self.srv.new_service(()),
-            fut_ex: Some(self.expect.new_service(())),
-            fut_upg: self.upgrade.as_ref().map(|f| f.new_service(())),
-            expect: None,
-            upgrade: None,
-            on_connect_ext: self.on_connect_ext.clone(),
-            cfg: self.cfg.clone(),
-            _phantom: PhantomData,
-        }
-    }
-}
+        let service = self.srv.new_service(());
+        let expect = self.expect.new_service(());
+        let upgrade = self.upgrade.as_ref().map(|s| s.new_service(()));
+        let on_connect_ext = self.on_connect_ext.clone();
+        let cfg = self.cfg.clone();
 
-#[doc(hidden)]
-#[pin_project]
-pub struct HttpServiceResponse<T, S, B, X, U>
-where
-    S: ServiceFactory<Request>,
-    X: ServiceFactory<Request>,
-    U: ServiceFactory<(Request, Framed<T, h1::Codec>)>,
-{
-    #[pin]
-    fut: S::Future,
-    #[pin]
-    fut_ex: Option<X::Future>,
-    #[pin]
-    fut_upg: Option<U::Future>,
-    expect: Option<X::Service>,
-    upgrade: Option<U::Service>,
-    on_connect_ext: Option<Rc<ConnectCallback<T>>>,
-    cfg: ServiceConfig,
-    _phantom: PhantomData<B>,
-}
+        Box::pin(async move {
+            let expect = expect
+                .await
+                .map_err(|e| log::error!("Init http expect service error: {:?}", e))?;
 
-impl<T, S, B, X, U> Future for HttpServiceResponse<T, S, B, X, U>
-where
-    T: AsyncRead + AsyncWrite + Unpin,
-    S: ServiceFactory<Request>,
-    S::Error: Into<Error> + 'static,
-    S::InitError: fmt::Debug,
-    S::Response: Into<Response<B>> + 'static,
-    <S::Service as Service<Request>>::Future: 'static,
-    B: MessageBody + 'static,
-    X: ServiceFactory<Request, Response = Request>,
-    X::Error: Into<Error>,
-    X::InitError: fmt::Debug,
-    <X::Service as Service<Request>>::Future: 'static,
-    U: ServiceFactory<(Request, Framed<T, h1::Codec>), Response = ()>,
-    U::Error: fmt::Display,
-    U::InitError: fmt::Debug,
-    <U::Service as Service<(Request, Framed<T, h1::Codec>)>>::Future: 'static,
-{
-    type Output =
-        Result<HttpServiceHandler<T, S::Service, B, X::Service, U::Service>, ()>;
+            let upgrade = match upgrade {
+                Some(upgrade) => {
+                    let upgrade = upgrade
+                        .await
+                        .map_err(|e| log::error!("Init http upgrade service error: {:?}", e))?;
+                    Some(upgrade)
+                }
+                None => None,
+            };
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut this = self.as_mut().project();
+            let service = service
+                .await
+                .map_err(|e| log::error!("Init http service error: {:?}", e))?;
 
-        if let Some(fut) = this.fut_ex.as_pin_mut() {
-            let expect = ready!(fut
-                .poll(cx)
-                .map_err(|e| log::error!("Init http service error: {:?}", e)))?;
-            this = self.as_mut().project();
-            *this.expect = Some(expect);
-            this.fut_ex.set(None);
-        }
-
-        if let Some(fut) = this.fut_upg.as_pin_mut() {
-            let upgrade = ready!(fut
-                .poll(cx)
-                .map_err(|e| log::error!("Init http service error: {:?}", e)))?;
-            this = self.as_mut().project();
-            *this.upgrade = Some(upgrade);
-            this.fut_upg.set(None);
-        }
-
-        let result = ready!(this
-            .fut
-            .poll(cx)
-            .map_err(|e| log::error!("Init http service error: {:?}", e)));
-
-        Poll::Ready(result.map(|service| {
-            let this = self.as_mut().project();
-            HttpServiceHandler::new(
-                this.cfg.clone(),
+            Ok(HttpServiceHandler::new(
+                cfg,
                 service,
-                this.expect.take().unwrap(),
-                this.upgrade.take(),
-                this.on_connect_ext.clone(),
-            )
-        }))
+                expect,
+                upgrade,
+                on_connect_ext,
+            ))
+        })
     }
 }
 
-/// `Service` implementation for HTTP transport
+/// `Service` implementation for HTTP/1 and HTTP/2 transport
 pub struct HttpServiceHandler<T, S, B, X, U>
 where
     S: Service<Request>,
     X: Service<Request>,
     U: Service<(Request, Framed<T, h1::Codec>)>,
 {
-    flow: Rc<HttpFlow<S, X, U>>,
-    cfg: ServiceConfig,
-    on_connect_ext: Option<Rc<ConnectCallback<T>>>,
+    pub(super) flow: Rc<HttpFlow<S, X, U>>,
+    pub(super) cfg: ServiceConfig,
+    pub(super) on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     _phantom: PhantomData<B>,
+}
+
+impl<T, S, B, X, U> HttpServiceHandler<T, S, B, X, U>
+where
+    S: Service<Request>,
+    S::Error: Into<Response<BoxBody>>,
+    X: Service<Request>,
+    X::Error: Into<Response<BoxBody>>,
+    U: Service<(Request, Framed<T, h1::Codec>)>,
+    U::Error: Into<Response<BoxBody>>,
+{
+    pub(super) fn new(
+        cfg: ServiceConfig,
+        service: S,
+        expect: X,
+        upgrade: Option<U>,
+        on_connect_ext: Option<Rc<ConnectCallback<T>>>,
+    ) -> HttpServiceHandler<T, S, B, X, U> {
+        HttpServiceHandler {
+            cfg,
+            on_connect_ext,
+            flow: HttpFlow::new(service, expect, upgrade),
+            _phantom: PhantomData,
+        }
+    }
+
+    pub(super) fn _poll_ready(
+        &self,
+        cx: &mut Context<'_>,
+    ) -> Poll<Result<(), Response<BoxBody>>> {
+        ready!(self.flow.expect.poll_ready(cx).map_err(Into::into))?;
+
+        ready!(self.flow.service.poll_ready(cx).map_err(Into::into))?;
+
+        if let Some(ref upg) = self.flow.upgrade {
+            ready!(upg.poll_ready(cx).map_err(Into::into))?;
+        };
+
+        Poll::Ready(Ok(()))
+    }
 }
 
 /// A collection of services that describe an HTTP request flow.
@@ -462,122 +470,64 @@ impl<S, X, U> HttpFlow<S, X, U> {
     }
 }
 
-impl<T, S, B, X, U> HttpServiceHandler<T, S, B, X, U>
-where
-    S: Service<Request>,
-    S::Error: Into<Error> + 'static,
-    S::Future: 'static,
-    S::Response: Into<Response<B>> + 'static,
-    B: MessageBody + 'static,
-    X: Service<Request, Response = Request>,
-    X::Error: Into<Error>,
-    U: Service<(Request, Framed<T, h1::Codec>), Response = ()>,
-    U::Error: fmt::Display,
-{
-    fn new(
-        cfg: ServiceConfig,
-        service: S,
-        expect: X,
-        upgrade: Option<U>,
-        on_connect_ext: Option<Rc<ConnectCallback<T>>>,
-    ) -> HttpServiceHandler<T, S, B, X, U> {
-        HttpServiceHandler {
-            cfg,
-            on_connect_ext,
-            flow: HttpFlow::new(service, expect, upgrade),
-            _phantom: PhantomData,
-        }
-    }
-}
-
 impl<T, S, B, X, U> Service<(T, Protocol, Option<net::SocketAddr>)>
     for HttpServiceHandler<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
+
     S: Service<Request>,
-    S::Error: Into<Error> + 'static,
+    S::Error: Into<Response<BoxBody>> + 'static,
     S::Future: 'static,
     S::Response: Into<Response<B>> + 'static,
+
     B: MessageBody + 'static,
+
     X: Service<Request, Response = Request>,
-    X::Error: Into<Error>,
+    X::Error: Into<Response<BoxBody>>,
+
     U: Service<(Request, Framed<T, h1::Codec>), Response = ()>,
-    U::Error: fmt::Display + Into<Error>,
+    U::Error: fmt::Display + Into<Response<BoxBody>>,
 {
     type Response = ();
     type Error = DispatchError;
     type Future = HttpServiceHandlerResponse<T, S, B, X, U>;
 
     fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        let ready = self
-            .flow
-            .expect
-            .poll_ready(cx)
-            .map_err(|e| {
-                let e = e.into();
-                log::error!("Http service readiness error: {:?}", e);
-                DispatchError::Service(e)
-            })?
-            .is_ready();
-
-        let ready = self
-            .flow
-            .service
-            .poll_ready(cx)
-            .map_err(|e| {
-                let e = e.into();
-                log::error!("Http service readiness error: {:?}", e);
-                DispatchError::Service(e)
-            })?
-            .is_ready()
-            && ready;
-
-        let ready = if let Some(ref upg) = self.flow.upgrade {
-            upg.poll_ready(cx)
-                .map_err(|e| {
-                    let e = e.into();
-                    log::error!("Http service readiness error: {:?}", e);
-                    DispatchError::Service(e)
-                })?
-                .is_ready()
-                && ready
-        } else {
-            ready
-        };
-
-        if ready {
-            Poll::Ready(Ok(()))
-        } else {
-            Poll::Pending
-        }
+        self._poll_ready(cx).map_err(|err| {
+            log::error!("HTTP service readiness error: {:?}", err);
+            DispatchError::Service(err)
+        })
     }
 
     fn call(
         &self,
         (io, proto, peer_addr): (T, Protocol, Option<net::SocketAddr>),
     ) -> Self::Future {
-        let on_connect_data =
-            OnConnectData::from_io(&io, self.on_connect_ext.as_deref());
+        let conn_data = OnConnectData::from_io(&io, self.on_connect_ext.as_deref());
 
         match proto {
             Protocol::Http2 => HttpServiceHandlerResponse {
-                state: State::H2Handshake(Some((
-                    server::handshake(io),
-                    self.cfg.clone(),
-                    self.flow.clone(),
-                    on_connect_data,
-                    peer_addr,
-                ))),
+                state: State::H2Handshake {
+                    handshake: Some((
+                        h2::handshake_with_timeout(io, &self.cfg),
+                        self.cfg.clone(),
+                        self.flow.clone(),
+                        conn_data,
+                        peer_addr,
+                    )),
+                },
             },
 
             Protocol::Http1 => HttpServiceHandlerResponse {
-                state: State::H1(h1::Dispatcher::new(
-                    io,
-                    self.cfg.clone(),
-                    self.flow.clone(),
-                    on_connect_data,
-                    peer_addr,
-                )),
+                state: State::H1 {
+                    dispatcher: h1::Dispatcher::new(
+                        io,
+                        self.flow.clone(),
+                        self.cfg.clone(),
+                        peer_addr,
+                        conn_data,
+                    ),
+                },
             },
 
             proto => unimplemented!("Unsupported HTTP version: {:?}.", proto),
@@ -585,60 +535,81 @@ where
     }
 }
 
-#[pin_project(project = StateProj)]
-enum State<T, S, B, X, U>
-where
-    S: Service<Request>,
-    S::Future: 'static,
-    S::Error: Into<Error>,
-    T: AsyncRead + AsyncWrite + Unpin,
-    B: MessageBody,
-    X: Service<Request, Response = Request>,
-    X::Error: Into<Error>,
-    U: Service<(Request, Framed<T, h1::Codec>), Response = ()>,
-    U::Error: fmt::Display,
-{
-    H1(#[pin] h1::Dispatcher<T, S, B, X, U>),
-    H2(#[pin] Dispatcher<T, S, B, X, U>),
-    H2Handshake(
-        Option<(
-            Handshake<T, Bytes>,
-            ServiceConfig,
-            Rc<HttpFlow<S, X, U>>,
-            OnConnectData,
-            Option<net::SocketAddr>,
-        )>,
-    ),
+pin_project! {
+    #[project = StateProj]
+    enum State<T, S, B, X, U>
+    where
+        T: AsyncRead,
+        T: AsyncWrite,
+        T: Unpin,
+
+        S: Service<Request>,
+        S::Future: 'static,
+        S::Error: Into<Response<BoxBody>>,
+
+        B: MessageBody,
+
+        X: Service<Request, Response = Request>,
+        X::Error: Into<Response<BoxBody>>,
+
+        U: Service<(Request, Framed<T, h1::Codec>), Response = ()>,
+        U::Error: fmt::Display,
+    {
+        H1 { #[pin] dispatcher: h1::Dispatcher<T, S, B, X, U> },
+        H2 { #[pin] dispatcher: h2::Dispatcher<T, S, B, X, U> },
+        H2Handshake {
+            handshake: Option<(
+                h2::HandshakeWithTimeout<T>,
+                ServiceConfig,
+                Rc<HttpFlow<S, X, U>>,
+                OnConnectData,
+                Option<net::SocketAddr>,
+            )>,
+        },
+    }
 }
 
-#[pin_project]
-pub struct HttpServiceHandlerResponse<T, S, B, X, U>
-where
-    T: AsyncRead + AsyncWrite + Unpin,
-    S: Service<Request>,
-    S::Error: Into<Error> + 'static,
-    S::Future: 'static,
-    S::Response: Into<Response<B>> + 'static,
-    B: MessageBody + 'static,
-    X: Service<Request, Response = Request>,
-    X::Error: Into<Error>,
-    U: Service<(Request, Framed<T, h1::Codec>), Response = ()>,
-    U::Error: fmt::Display,
-{
-    #[pin]
-    state: State<T, S, B, X, U>,
+pin_project! {
+    pub struct HttpServiceHandlerResponse<T, S, B, X, U>
+    where
+        T: AsyncRead,
+        T: AsyncWrite,
+        T: Unpin,
+
+        S: Service<Request>,
+        S::Error: Into<Response<BoxBody>>,
+        S::Error: 'static,
+        S::Future: 'static,
+        S::Response: Into<Response<B>>,
+        S::Response: 'static,
+
+        B: MessageBody,
+
+        X: Service<Request, Response = Request>,
+        X::Error: Into<Response<BoxBody>>,
+
+        U: Service<(Request, Framed<T, h1::Codec>), Response = ()>,
+        U::Error: fmt::Display,
+    {
+        #[pin]
+        state: State<T, S, B, X, U>,
+    }
 }
 
 impl<T, S, B, X, U> Future for HttpServiceHandlerResponse<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
+
     S: Service<Request>,
-    S::Error: Into<Error> + 'static,
+    S::Error: Into<Response<BoxBody>> + 'static,
     S::Future: 'static,
     S::Response: Into<Response<B>> + 'static,
-    B: MessageBody,
+
+    B: MessageBody + 'static,
+
     X: Service<Request, Response = Request>,
-    X::Error: Into<Error>,
+    X::Error: Into<Response<BoxBody>>,
+
     U: Service<(Request, Framed<T, h1::Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
@@ -646,26 +617,23 @@ where
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.as_mut().project().state.project() {
-            StateProj::H1(disp) => disp.poll(cx),
-            StateProj::H2(disp) => disp.poll(cx),
-            StateProj::H2Handshake(data) => {
+            StateProj::H1 { dispatcher } => dispatcher.poll(cx),
+            StateProj::H2 { dispatcher } => dispatcher.poll(cx),
+            StateProj::H2Handshake { handshake: data } => {
                 match ready!(Pin::new(&mut data.as_mut().unwrap().0).poll(cx)) {
-                    Ok(conn) => {
-                        let (_, cfg, srv, on_connect_data, peer_addr) =
-                            data.take().unwrap();
-                        self.as_mut().project().state.set(State::H2(Dispatcher::new(
-                            srv,
-                            conn,
-                            on_connect_data,
-                            cfg,
-                            None,
-                            peer_addr,
-                        )));
+                    Ok((conn, timer)) => {
+                        let (_, config, flow, conn_data, peer_addr) = data.take().unwrap();
+
+                        self.as_mut().project().state.set(State::H2 {
+                            dispatcher: h2::Dispatcher::new(
+                                conn, flow, config, peer_addr, conn_data, timer,
+                            ),
+                        });
                         self.poll(cx)
                     }
                     Err(err) => {
                         trace!("H2 handshake error: {}", err);
-                        Poll::Ready(Err(err.into()))
+                        Poll::Ready(Err(err))
                     }
                 }
             }

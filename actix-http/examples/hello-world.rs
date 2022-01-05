@@ -1,29 +1,35 @@
-use std::{env, io};
+use std::{convert::Infallible, io};
 
-use actix_http::{HttpService, Response};
+use actix_http::{
+    header::HeaderValue, HttpMessage, HttpService, Request, Response, StatusCode,
+};
 use actix_server::Server;
-use futures_util::future;
-use http::header::HeaderValue;
-use log::info;
 
 #[actix_rt::main]
 async fn main() -> io::Result<()> {
-    env::set_var("RUST_LOG", "hello_world=info");
-    env_logger::init();
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
     Server::build()
-        .bind("hello-world", "127.0.0.1:8080", || {
+        .bind("hello-world", ("127.0.0.1", 8080), || {
             HttpService::build()
                 .client_timeout(1000)
                 .client_disconnect(1000)
-                .finish(|_req| {
-                    info!("{:?}", _req);
-                    let mut res = Response::Ok();
+                .on_connect_ext(|_, ext| {
+                    ext.insert(42u32);
+                })
+                .finish(|req: Request| async move {
+                    log::info!("{:?}", req);
+
+                    let mut res = Response::build(StatusCode::OK);
+                    res.insert_header(("x-head", HeaderValue::from_static("dummy value!")));
+
+                    let forty_two = req.extensions().get::<u32>().unwrap().to_string();
                     res.insert_header((
-                        "x-head",
-                        HeaderValue::from_static("dummy value!"),
+                        "x-forty-two",
+                        HeaderValue::from_str(&forty_two).unwrap(),
                     ));
-                    future::ok::<_, ()>(res.body("Hello world!"))
+
+                    Ok::<_, Infallible>(res.body("Hello world!"))
                 })
                 .tcp()
         })?

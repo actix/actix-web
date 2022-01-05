@@ -1,24 +1,32 @@
-use std::cell::{Ref, RefCell, RefMut};
-use std::rc::Rc;
-use std::{fmt, net};
+use std::{
+    cell::{Ref, RefCell, RefMut},
+    fmt, net,
+    rc::Rc,
+    str,
+};
 
-use actix_http::http::{HeaderMap, Method, Uri, Version};
-use actix_http::{Error, Extensions, HttpMessage, Message, Payload, RequestHead};
+use actix_http::{
+    header::HeaderMap, Extensions, HttpMessage, Message, Method, Payload, RequestHead, Uri,
+    Version,
+};
 use actix_router::{Path, Url};
-use futures_util::future::{ok, Ready};
+use actix_utils::future::{ok, Ready};
+#[cfg(feature = "cookies")]
+use cookie::{Cookie, ParseError as CookieParseError};
 use smallvec::SmallVec;
 
-use crate::app_service::AppInitServiceState;
-use crate::config::AppConfig;
-use crate::error::UrlGenerationError;
-use crate::extract::FromRequest;
-use crate::info::ConnectionInfo;
-use crate::rmap::ResourceMap;
+use crate::{
+    app_service::AppInitServiceState, config::AppConfig, error::UrlGenerationError,
+    info::ConnectionInfo, rmap::ResourceMap, Error, FromRequest,
+};
 
+#[cfg(feature = "cookies")]
+struct Cookies(Vec<Cookie<'static>>);
+
+/// An incoming request.
 #[derive(Clone)]
-/// An HTTP Request
 pub struct HttpRequest {
-    /// # Panics
+    /// # Invariant
     /// `Rc<HttpRequestInner>` is used exclusively and NO `Weak<HttpRequestInner>`
     /// is allowed anywhere in the code. Weak pointer is purposely ignored when
     /// doing `Rc`'s ref counter check. Expect panics if this invariant is violated.
@@ -29,6 +37,8 @@ pub(crate) struct HttpRequestInner {
     pub(crate) head: Message<RequestHead>,
     pub(crate) path: Path<Url>,
     pub(crate) app_data: SmallVec<[Rc<Extensions>; 4]>,
+    pub(crate) conn_data: Option<Rc<Extensions>>,
+    pub(crate) req_data: Rc<RefCell<Extensions>>,
     app_state: Rc<AppInitServiceState>,
 }
 
@@ -39,6 +49,8 @@ impl HttpRequest {
         head: Message<RequestHead>,
         app_state: Rc<AppInitServiceState>,
         app_data: Rc<Extensions>,
+        conn_data: Option<Rc<Extensions>>,
+        req_data: Rc<RefCell<Extensions>>,
     ) -> HttpRequest {
         let mut data = SmallVec::<[Rc<Extensions>; 4]>::new();
         data.push(app_data);
@@ -49,6 +61,8 @@ impl HttpRequest {
                 path,
                 app_state,
                 app_data: data,
+                conn_data,
+                req_data,
             }),
         }
     }
@@ -92,7 +106,7 @@ impl HttpRequest {
         &self.head().headers
     }
 
-    /// The target path of this Request.
+    /// The target path of this request.
     #[inline]
     pub fn path(&self) -> &str {
         self.head().uri.path()
@@ -100,22 +114,22 @@ impl HttpRequest {
 
     /// The query string in the URL.
     ///
-    /// E.g., id=10
+    /// Example: `id=10`
     #[inline]
     pub fn query_string(&self) -> &str {
-        if let Some(query) = self.uri().query().as_ref() {
-            query
-        } else {
-            ""
-        }
+        self.uri().query().unwrap_or_default()
     }
 
-    /// Get a reference to the Path parameters.
+    /// Returns a reference to the URL parameters container.
     ///
-    /// Params is a container for url parameters.
-    /// A variable segment is specified in the form `{identifier}`,
-    /// where the identifier can be used later in a request handler to
-    /// access the matched value for that segment.
+    /// A URL parameter is specified in the form `{identifier}`, where the identifier can be used
+    /// later in a request handler to access the matched value for that parameter.
+    ///
+    /// # Percent Encoding and URL Parameters
+    /// Because each URL parameter is able to capture multiple path segments, both `["%2F", "%25"]`
+    /// found in the request URI are not decoded into `["/", "%"]` in order to preserve path
+    /// segment boundaries. If a url parameter is expected to contain these characters, then it is
+    /// on the user to decode them.
     #[inline]
     pub fn match_info(&self) -> &Path<Url> {
         &self.inner.path
@@ -145,42 +159,58 @@ impl HttpRequest {
         self.resource_map().match_name(self.path())
     }
 
-    /// Request extensions
-    #[inline]
-    pub fn extensions(&self) -> Ref<'_, Extensions> {
-        self.head().extensions()
+    pub fn req_data(&self) -> Ref<'_, Extensions> {
+        self.inner.req_data.borrow()
     }
 
-    /// Mutable reference to a the request's extensions
-    #[inline]
-    pub fn extensions_mut(&self) -> RefMut<'_, Extensions> {
-        self.head().extensions_mut()
+    pub fn req_data_mut(&self) -> RefMut<'_, Extensions> {
+        self.inner.req_data.borrow_mut()
     }
 
-    /// Generate url for named resource
+    /// Returns a reference a piece of connection data set in an [on-connect] callback.
     ///
-    /// ```rust
+    /// ```ignore
+    /// let opt_t = req.conn_data::<PeerCertificate>();
+    /// ```
+    ///
+    /// [on-connect]: crate::HttpServer::on_connect
+    pub fn conn_data<T: 'static>(&self) -> Option<&T> {
+        self.inner
+            .conn_data
+            .as_deref()
+            .and_then(|container| container.get::<T>())
+    }
+
+    /// Generates URL for a named resource.
+    ///
+    /// This substitutes in sequence all URL parameters that appear in the resource itself and in
+    /// parent [scopes](crate::web::scope), if any.
+    ///
+    /// It is worth noting that the characters `['/', '%']` are not escaped and therefore a single
+    /// URL parameter may expand into multiple path segments and `elements` can be percent-encoded
+    /// beforehand without worrying about double encoding. Any other character that is not valid in
+    /// a URL path context is escaped using percent-encoding.
+    ///
+    /// # Examples
+    /// ```
     /// # use actix_web::{web, App, HttpRequest, HttpResponse};
-    /// #
     /// fn index(req: HttpRequest) -> HttpResponse {
-    ///     let url = req.url_for("foo", &["1", "2", "3"]); // <- generate url for "foo" resource
+    ///     let url = req.url_for("foo", &["1", "2", "3"]); // <- generate URL for "foo" resource
     ///     HttpResponse::Ok().into()
     /// }
     ///
-    /// fn main() {
-    ///     let app = App::new()
-    ///         .service(web::resource("/test/{one}/{two}/{three}")
-    ///              .name("foo")  // <- set resource name, then it could be used in `url_for`
-    ///              .route(web::get().to(|| HttpResponse::Ok()))
-    ///         );
-    /// }
+    /// let app = App::new()
+    ///     .service(web::resource("/test/{one}/{two}/{three}")
+    ///          .name("foo")  // <- set resource name so it can be used in `url_for`
+    ///          .route(web::get().to(|| HttpResponse::Ok()))
+    ///     );
     /// ```
     pub fn url_for<U, I>(&self, name: &str, elements: U) -> Result<url::Url, UrlGenerationError>
     where
         U: IntoIterator<Item = I>,
         I: AsRef<str>,
     {
-        self.resource_map().url_for(&self, name, elements)
+        self.resource_map().url_for(self, name, elements)
     }
 
     /// Generate url for named resource
@@ -192,32 +222,42 @@ impl HttpRequest {
         self.url_for(name, &NO_PARAMS)
     }
 
-    #[inline]
     /// Get a reference to a `ResourceMap` of current application.
+    #[inline]
     pub fn resource_map(&self) -> &ResourceMap {
-        &self.app_state().rmap()
+        self.app_state().rmap()
     }
 
-    /// Peer socket address.
+    /// Returns peer socket address.
     ///
     /// Peer address is the directly connected peer's socket address. If a proxy is used in front of
     /// the Actix Web server, then it would be address of this proxy.
     ///
-    /// To get client connection information `.connection_info()` should be used.
+    /// For expanded client connection information, use [`connection_info`] instead.
     ///
-    /// Will only return None when called in unit tests.
+    /// Will only return None when called in unit tests unless [`TestRequest::peer_addr`] is used.
+    ///
+    /// [`TestRequest::peer_addr`]: crate::test::TestRequest::peer_addr
+    /// [`connection_info`]: Self::connection_info
     #[inline]
     pub fn peer_addr(&self) -> Option<net::SocketAddr> {
         self.head().peer_addr
     }
 
-    /// Get *ConnectionInfo* for the current request.
+    /// Returns connection info for the current request.
     ///
-    /// This method panics if request's extensions container is already
-    /// borrowed.
+    /// The return type, [`ConnectionInfo`], can also be used as an extractor.
+    ///
+    /// # Panics
+    /// Panics if request's extensions container is already borrowed.
     #[inline]
     pub fn connection_info(&self) -> Ref<'_, ConnectionInfo> {
-        ConnectionInfo::get(self.head(), self.app_config())
+        if !self.extensions().contains::<ConnectionInfo>() {
+            let info = ConnectionInfo::new(self.head(), &*self.app_config());
+            self.extensions_mut().insert(info);
+        }
+
+        Ref::map(self.extensions(), |data| data.get().unwrap())
     }
 
     /// App config
@@ -226,14 +266,34 @@ impl HttpRequest {
         self.app_state().config()
     }
 
-    /// Get an application data object stored with `App::data` or `App::app_data`
-    /// methods during application configuration.
+    /// Retrieves a piece of application state.
     ///
-    /// If `App::data` was used to store object, use `Data<T>`:
+    /// Extracts any object stored with [`App::app_data()`](crate::App::app_data) (or the
+    /// counterpart methods on [`Scope`](crate::Scope::app_data) and
+    /// [`Resource`](crate::Resource::app_data)) during application configuration.
     ///
-    /// ```rust,ignore
-    /// let opt_t = req.app_data::<Data<T>>();
+    /// Since the Actix Web router layers application data, the returned object will reference the
+    /// "closest" instance of the type. For example, if an `App` stores a `u32`, a nested `Scope`
+    /// also stores a `u32`, and the delegated request handler falls within that `Scope`, then
+    /// calling `.app_data::<u32>()` on an `HttpRequest` within that handler will return the
+    /// `Scope`'s instance. However, using the same router set up and a request that does not get
+    /// captured by the `Scope`, `.app_data::<u32>()` would return the `App`'s instance.
+    ///
+    /// If the state was stored using the [`Data`] wrapper, then it must also be retrieved using
+    /// this same type.
+    ///
+    /// See also the [`Data`] extractor.
+    ///
+    /// # Examples
+    /// ```no_run
+    /// # use actix_web::{test::TestRequest, web::Data};
+    /// # let req = TestRequest::default().to_http_request();
+    /// # type T = u32;
+    /// let opt_t: Option<&Data<T>> = req.app_data::<Data<T>>();
     /// ```
+    ///
+    /// [`Data`]: crate::web::Data
+    #[doc(alias = "state")]
     pub fn app_data<T: 'static>(&self) -> Option<&T> {
         for container in self.inner.app_data.iter().rev() {
             if let Some(data) = container.get::<T>() {
@@ -248,27 +308,60 @@ impl HttpRequest {
     fn app_state(&self) -> &AppInitServiceState {
         &*self.inner.app_state
     }
+
+    /// Load request cookies.
+    #[cfg(feature = "cookies")]
+    pub fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
+        use actix_http::header::COOKIE;
+
+        if self.extensions().get::<Cookies>().is_none() {
+            let mut cookies = Vec::new();
+            for hdr in self.headers().get_all(COOKIE) {
+                let s = str::from_utf8(hdr.as_bytes()).map_err(CookieParseError::from)?;
+                for cookie_str in s.split(';').map(|s| s.trim()) {
+                    if !cookie_str.is_empty() {
+                        cookies.push(Cookie::parse_encoded(cookie_str)?.into_owned());
+                    }
+                }
+            }
+            self.extensions_mut().insert(Cookies(cookies));
+        }
+
+        Ok(Ref::map(self.extensions(), |ext| {
+            &ext.get::<Cookies>().unwrap().0
+        }))
+    }
+
+    /// Return request cookie.
+    #[cfg(feature = "cookies")]
+    pub fn cookie(&self, name: &str) -> Option<Cookie<'static>> {
+        if let Ok(cookies) = self.cookies() {
+            for cookie in cookies.iter() {
+                if cookie.name() == name {
+                    return Some(cookie.to_owned());
+                }
+            }
+        }
+        None
+    }
 }
 
 impl HttpMessage for HttpRequest {
     type Stream = ();
 
     #[inline]
-    /// Returns Request's headers.
     fn headers(&self) -> &HeaderMap {
         &self.head().headers
     }
 
-    /// Request extensions
     #[inline]
     fn extensions(&self) -> Ref<'_, Extensions> {
-        self.inner.head.extensions()
+        self.req_data()
     }
 
-    /// Mutable reference to a the request's extensions
     #[inline]
     fn extensions_mut(&self) -> RefMut<'_, Extensions> {
-        self.inner.head.extensions_mut()
+        self.req_data_mut()
     }
 
     #[inline]
@@ -281,17 +374,18 @@ impl Drop for HttpRequest {
     fn drop(&mut self) {
         // if possible, contribute to current worker's HttpRequest allocation pool
 
-        // This relies on no Weak<HttpRequestInner> exists anywhere.(There is none)
+        // This relies on no weak references to inner existing anywhere within the codebase.
         if let Some(inner) = Rc::get_mut(&mut self.inner) {
             if inner.app_state.pool().is_available() {
                 // clear additional app_data and keep the root one for reuse.
                 inner.app_data.truncate(1);
-                // inner is borrowed mut here. get head's Extension mutably
-                // to reduce borrow check
-                inner.head.extensions.get_mut().clear();
+
+                // Inner is borrowed mut here and; get req data mutably to reduce borrow check. Also
+                // we know the req_data Rc will not have any cloned at this point to unwrap is okay.
+                Rc::get_mut(&mut inner.req_data).unwrap().get_mut().clear();
 
                 // a re-borrow of pool is necessary here.
-                let req = self.inner.clone();
+                let req = Rc::clone(&self.inner);
                 self.app_state().pool().push(req);
             }
         }
@@ -300,11 +394,10 @@ impl Drop for HttpRequest {
 
 /// It is possible to get `HttpRequest` as an extractor handler parameter
 ///
-/// ## Example
-///
-/// ```rust
+/// # Examples
+/// ```
 /// use actix_web::{web, App, HttpRequest};
-/// use serde_derive::Deserialize;
+/// use serde::Deserialize;
 ///
 /// /// extract `Thing` from request
 /// async fn index(req: HttpRequest) -> String {
@@ -319,7 +412,6 @@ impl Drop for HttpRequest {
 /// }
 /// ```
 impl FromRequest for HttpRequest {
-    type Config = ();
     type Error = Error;
     type Future = Ready<Result<Self, Error>>;
 
@@ -470,9 +562,9 @@ mod tests {
     #[test]
     fn test_url_for() {
         let mut res = ResourceDef::new("/user/{name}.{ext}");
-        *res.name_mut() = "index".to_string();
+        res.set_name("index");
 
-        let mut rmap = ResourceMap::new(ResourceDef::new(""));
+        let mut rmap = ResourceMap::new(ResourceDef::prefix(""));
         rmap.add(&mut res, None);
         assert!(rmap.has_resource("/user/test.html"));
         assert!(!rmap.has_resource("/test/unknown"));
@@ -500,9 +592,9 @@ mod tests {
     #[test]
     fn test_url_for_static() {
         let mut rdef = ResourceDef::new("/index.html");
-        *rdef.name_mut() = "index".to_string();
+        rdef.set_name("index");
 
-        let mut rmap = ResourceMap::new(ResourceDef::new(""));
+        let mut rmap = ResourceMap::new(ResourceDef::prefix(""));
         rmap.add(&mut rdef, None);
 
         assert!(rmap.has_resource("/index.html"));
@@ -521,9 +613,9 @@ mod tests {
     #[test]
     fn test_match_name() {
         let mut rdef = ResourceDef::new("/index.html");
-        *rdef.name_mut() = "index".to_string();
+        rdef.set_name("index");
 
-        let mut rmap = ResourceMap::new(ResourceDef::new(""));
+        let mut rmap = ResourceMap::new(ResourceDef::prefix(""));
         rmap.add(&mut rdef, None);
 
         assert!(rmap.has_resource("/index.html"));
@@ -540,11 +632,10 @@ mod tests {
     fn test_url_for_external() {
         let mut rdef = ResourceDef::new("https://youtube.com/watch/{video_id}");
 
-        *rdef.name_mut() = "youtube".to_string();
+        rdef.set_name("youtube");
 
-        let mut rmap = ResourceMap::new(ResourceDef::new(""));
+        let mut rmap = ResourceMap::new(ResourceDef::prefix(""));
         rmap.add(&mut rdef, None);
-        assert!(rmap.has_resource("https://youtube.com/watch/unknown"));
 
         let req = TestRequest::default().rmap(rmap).to_http_request();
         let url = req.url_for("youtube", &["oHg5SJYRHA0"]);
@@ -668,6 +759,8 @@ mod tests {
         assert_eq!(body, Bytes::from_static(b"1"));
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_extensions_dropped() {
         struct Tracker {

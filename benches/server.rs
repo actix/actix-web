@@ -1,4 +1,4 @@
-use actix_web::{test, web, App, HttpResponse};
+use actix_web::{web, App, HttpResponse};
 use awc::Client;
 use criterion::{criterion_group, criterion_main, Criterion};
 use futures_util::future::join_all;
@@ -32,7 +32,7 @@ fn bench_async_burst(c: &mut Criterion) {
     let rt = actix_rt::System::new();
 
     let srv = rt.block_on(async {
-        test::start(|| {
+        actix_test::start(|| {
             App::new()
                 .service(web::resource("/").route(web::to(|| HttpResponse::Ok().body(STR))))
         })

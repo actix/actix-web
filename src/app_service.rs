@@ -1,27 +1,30 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-use std::task::Poll;
+use std::{cell::RefCell, mem, rc::Rc};
 
-use actix_http::{Extensions, Request, Response};
+use actix_http::Request;
 use actix_router::{Path, ResourceDef, Router, Url};
-use actix_service::boxed::{self, BoxService, BoxServiceFactory};
-use actix_service::{fn_service, Service, ServiceFactory};
+use actix_service::{boxed, fn_service, Service, ServiceFactory};
 use futures_core::future::LocalBoxFuture;
 use futures_util::future::join_all;
 
-use crate::config::{AppConfig, AppService};
-use crate::data::FnDataFactory;
-use crate::error::Error;
-use crate::guard::Guard;
-use crate::request::{HttpRequest, HttpRequestPool};
-use crate::rmap::ResourceMap;
-use crate::service::{AppServiceFactory, ServiceRequest, ServiceResponse};
+use crate::{
+    body::BoxBody,
+    config::{AppConfig, AppService},
+    data::FnDataFactory,
+    dev::Extensions,
+    guard::Guard,
+    request::{HttpRequest, HttpRequestPool},
+    rmap::ResourceMap,
+    service::{
+        AppServiceFactory, BoxedHttpService, BoxedHttpServiceFactory, ServiceRequest,
+        ServiceResponse,
+    },
+    Error, HttpResponse,
+};
 
 type Guards = Vec<Box<dyn Guard>>;
-type HttpService = BoxService<ServiceRequest, ServiceResponse, Error>;
-type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
 
 /// Service factory to convert `Request` to a `ServiceRequest<S>`.
+///
 /// It also executes data factories.
 pub struct AppInit<T, B>
 where
@@ -37,7 +40,7 @@ where
     pub(crate) extensions: RefCell<Option<Extensions>>,
     pub(crate) async_data_factories: Rc<[FnDataFactory]>,
     pub(crate) services: Rc<RefCell<Vec<Box<dyn AppServiceFactory>>>>,
-    pub(crate) default: Option<Rc<HttpNewService>>,
+    pub(crate) default: Option<Rc<BoxedHttpServiceFactory>>,
     pub(crate) factory_ref: Rc<RefCell<Option<AppRoutingFactory>>>,
     pub(crate) external: RefCell<Vec<ResourceDef>>,
 }
@@ -65,7 +68,7 @@ where
         // if no user defined default service exists.
         let default = self.default.clone().unwrap_or_else(|| {
             Rc::new(boxed::factory(fn_service(|req: ServiceRequest| async {
-                Ok(req.into_response(Response::NotFound().finish()))
+                Ok(req.into_response(HttpResponse::NotFound()))
             })))
         });
 
@@ -73,11 +76,11 @@ where
         let mut config = AppService::new(config, default.clone());
 
         // register services
-        std::mem::take(&mut *self.services.borrow_mut())
+        mem::take(&mut *self.services.borrow_mut())
             .into_iter()
             .for_each(|mut srv| srv.register(&mut config));
 
-        let mut rmap = ResourceMap::new(ResourceDef::new(""));
+        let mut rmap = ResourceMap::new(ResourceDef::prefix(""));
 
         let (config, services) = config.into_services();
 
@@ -96,13 +99,13 @@ where
         });
 
         // external resources
-        for mut rdef in std::mem::take(&mut *self.external.borrow_mut()) {
+        for mut rdef in mem::take(&mut *self.external.borrow_mut()) {
             rmap.add(&mut rdef, None);
         }
 
         // complete ResourceMap tree creation
         let rmap = Rc::new(rmap);
-        rmap.finish(rmap.clone());
+        ResourceMap::finish(&rmap);
 
         // construct all async data factory futures
         let factory_futs = join_all(self.async_data_factories.iter().map(|f| f()));
@@ -129,9 +132,9 @@ where
             let service = endpoint_fut.await?;
 
             // populate app data container from (async) data factories.
-            async_data_factories.iter().for_each(|factory| {
+            for factory in &async_data_factories {
                 factory.create(&mut app_data);
-            });
+            }
 
             Ok(AppInitService {
                 service,
@@ -142,7 +145,9 @@ where
     }
 }
 
-/// Service that takes a [`Request`] and delegates to a service that take a [`ServiceRequest`].
+/// The [`Service`] that is passed to `actix-http`'s server builder.
+///
+/// Wraps a service receiving a [`ServiceRequest`] into one receiving a [`Request`].
 pub struct AppInitService<T, B>
 where
     T: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
@@ -164,8 +169,7 @@ impl AppInitServiceState {
         Rc::new(AppInitServiceState {
             rmap,
             config,
-            // TODO: AppConfig can be used to pass user defined HttpRequestPool
-            // capacity.
+            // TODO: AppConfig can be used to pass user defined HttpRequestPool capacity.
             pool: HttpRequestPool::default(),
         })
     }
@@ -196,7 +200,9 @@ where
 
     actix_service::forward_ready!(service);
 
-    fn call(&self, req: Request) -> Self::Future {
+    fn call(&self, mut req: Request) -> Self::Future {
+        let req_data = Rc::new(RefCell::new(req.take_req_data()));
+        let conn_data = req.take_conn_data();
         let (head, payload) = req.into_parts();
 
         let req = if let Some(mut req) = self.app_state.pool().pop() {
@@ -204,6 +210,8 @@ where
             inner.path.get_mut().update(&head.uri);
             inner.path.reset();
             inner.head = head;
+            inner.conn_data = conn_data;
+            inner.req_data = req_data;
             req
         } else {
             HttpRequest::new(
@@ -211,8 +219,11 @@ where
                 head,
                 self.app_state.clone(),
                 self.app_data.clone(),
+                conn_data,
+                req_data,
             )
         };
+
         self.service.call(ServiceRequest::new(req, payload))
     }
 }
@@ -227,8 +238,15 @@ where
 }
 
 pub struct AppRoutingFactory {
-    services: Rc<[(ResourceDef, HttpNewService, RefCell<Option<Guards>>)]>,
-    default: Rc<HttpNewService>,
+    #[allow(clippy::type_complexity)]
+    services: Rc<
+        [(
+            ResourceDef,
+            BoxedHttpServiceFactory,
+            RefCell<Option<Guards>>,
+        )],
+    >,
+    default: Rc<BoxedHttpServiceFactory>,
 }
 
 impl ServiceFactory<ServiceRequest> for AppRoutingFactory {
@@ -274,27 +292,31 @@ impl ServiceFactory<ServiceRequest> for AppRoutingFactory {
     }
 }
 
+/// The Actix Web router default entry point.
 pub struct AppRouting {
-    router: Router<HttpService, Guards>,
-    default: HttpService,
+    router: Router<BoxedHttpService, Guards>,
+    default: BoxedHttpService,
 }
 
 impl Service<ServiceRequest> for AppRouting {
-    type Response = ServiceResponse;
+    type Response = ServiceResponse<BoxBody>;
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
     actix_service::always_ready!();
 
     fn call(&self, mut req: ServiceRequest) -> Self::Future {
-        let res = self.router.recognize_checked(&mut req, |req, guards| {
+        let res = self.router.recognize_fn(&mut req, |req, guards| {
             if let Some(ref guards) = guards {
-                for f in guards {
-                    if !f.check(req.head()) {
+                let guard_ctx = req.guard_ctx();
+
+                for guard in guards {
+                    if !guard.check(&guard_ctx) {
                         return false;
                     }
                 }
             }
+
             true
         });
 
@@ -348,6 +370,8 @@ mod tests {
         }
     }
 
+    // allow deprecated App::data
+    #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_drop_data() {
         let data = Arc::new(AtomicBool::new(false));

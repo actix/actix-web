@@ -6,17 +6,21 @@ use std::{
     task::{Context, Poll},
 };
 
-use actix_http::body::{Body, MessageBody, ResponseBody};
-use actix_service::{Service, Transform};
 use futures_core::{future::LocalBoxFuture, ready};
+use pin_project_lite::pin_project;
 
-use crate::{error::Error, service::ServiceResponse};
+use crate::{
+    body::{BoxBody, MessageBody},
+    dev::{Service, Transform},
+    error::Error,
+    service::ServiceResponse,
+};
 
 /// Middleware for enabling any middleware to be used in [`Resource::wrap`](crate::Resource::wrap),
-/// [`Scope::wrap`](crate::Scope::wrap) and [`Condition`](super::Condition).
+/// and [`Condition`](super::Condition).
 ///
 /// # Examples
-/// ```rust
+/// ```
 /// use actix_web::middleware::{Logger, Compat};
 /// use actix_web::{App, web};
 ///
@@ -34,6 +38,15 @@ pub struct Compat<T> {
     transform: T,
 }
 
+#[cfg(test)]
+impl Compat<super::Noop> {
+    pub(crate) fn noop() -> Self {
+        Self {
+            transform: super::Noop,
+        }
+    }
+}
+
 impl<T> Compat<T> {
     /// Wrap a middleware to give it broader compatibility.
     pub fn new(middleware: T) -> Self {
@@ -49,9 +62,9 @@ where
     T: Transform<S, Req>,
     T::Future: 'static,
     T::Response: MapServiceResponseBody,
-    Error: From<T::Error>,
+    T::Error: Into<Error>,
 {
-    type Response = ServiceResponse;
+    type Response = ServiceResponse<BoxBody>;
     type Error = Error;
     type Transform = CompatMiddleware<T::Transform>;
     type InitError = T::InitError;
@@ -74,15 +87,13 @@ impl<S, Req> Service<Req> for CompatMiddleware<S>
 where
     S: Service<Req>,
     S::Response: MapServiceResponseBody,
-    Error: From<S::Error>,
+    S::Error: Into<Error>,
 {
-    type Response = ServiceResponse;
+    type Response = ServiceResponse<BoxBody>;
     type Error = Error;
     type Future = CompatMiddlewareFuture<S::Future>;
 
-    fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.service.poll_ready(cx).map_err(From::from)
-    }
+    actix_service::forward_ready!(service);
 
     fn call(&self, req: Req) -> Self::Future {
         let fut = self.service.call(req);
@@ -90,34 +101,43 @@ where
     }
 }
 
-#[pin_project::pin_project]
-pub struct CompatMiddlewareFuture<Fut> {
-    #[pin]
-    fut: Fut,
+pin_project! {
+    pub struct CompatMiddlewareFuture<Fut> {
+        #[pin]
+        fut: Fut,
+    }
 }
 
 impl<Fut, T, E> Future for CompatMiddlewareFuture<Fut>
 where
     Fut: Future<Output = Result<T, E>>,
     T: MapServiceResponseBody,
-    Error: From<E>,
+    E: Into<Error>,
 {
-    type Output = Result<ServiceResponse, Error>;
+    type Output = Result<ServiceResponse<BoxBody>, Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let res = ready!(self.project().fut.poll(cx))?;
+        let res = match ready!(self.project().fut.poll(cx)) {
+            Ok(res) => res,
+            Err(err) => return Poll::Ready(Err(err.into())),
+        };
+
         Poll::Ready(Ok(res.map_body()))
     }
 }
 
 /// Convert `ServiceResponse`'s `ResponseBody<B>` generic type to `ResponseBody<Body>`.
 pub trait MapServiceResponseBody {
-    fn map_body(self) -> ServiceResponse;
+    fn map_body(self) -> ServiceResponse<BoxBody>;
 }
 
-impl<B: MessageBody + Unpin + 'static> MapServiceResponseBody for ServiceResponse<B> {
-    fn map_body(self) -> ServiceResponse {
-        self.map_body(|_, body| ResponseBody::Other(Body::from_message(body)))
+impl<B> MapServiceResponseBody for ServiceResponse<B>
+where
+    B: MessageBody + 'static,
+{
+    #[inline]
+    fn map_body(self) -> ServiceResponse<BoxBody> {
+        self.map_into_boxed_body()
     }
 }
 
@@ -137,7 +157,7 @@ mod tests {
     use crate::{web, App, HttpResponse};
 
     #[actix_rt::test]
-    #[cfg(feature = "cookies")]
+    #[cfg(all(feature = "cookies", feature = "__compress"))]
     async fn test_scope_middleware() {
         use crate::middleware::Compress;
 
@@ -147,7 +167,7 @@ mod tests {
         let srv = init_service(
             App::new().service(
                 web::scope("app")
-                    .wrap(Compat::new(logger))
+                    .wrap(logger)
                     .wrap(Compat::new(compress))
                     .service(web::resource("/test").route(web::get().to(HttpResponse::Ok))),
             ),
@@ -160,7 +180,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    #[cfg(feature = "cookies")]
+    #[cfg(all(feature = "cookies", feature = "__compress"))]
     async fn test_resource_scope_middleware() {
         use crate::middleware::Compress;
 

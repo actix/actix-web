@@ -1,13 +1,15 @@
 [package]
 name = "actix-files"
-version = "0.6.0-beta.2"
-authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
+version = "0.6.0-beta.13"
+authors = [
+    "Nikolay Kim <fafhrd91@gmail.com>",
+    "fakeshadow <24548779@qq.com>",
+    "Rob Ede <robjtede@icloud.com>",
+]
 description = "Static file serving for Actix Web"
-readme = "README.md"
 keywords = ["actix", "http", "async", "futures"]
 homepage = "https://actix.rs"
-repository = "https://github.com/actix/actix-web.git"
-documentation = "https://docs.rs/actix-files/"
+repository = "https://github.com/actix/actix-web"
 categories = ["asynchronous", "web-programming::http-server"]
 license = "MIT OR Apache-2.0"
 edition = "2018"
@@ -16,21 +18,31 @@ edition = "2018"
 name = "actix_files"
 path = "src/lib.rs"
 
+[features]
+experimental-io-uring = ["actix-web/experimental-io-uring", "tokio-uring"]
+
 [dependencies]
-actix-web = { version = "4.0.0-beta.3", default-features = false }
-actix-service = "2.0.0-beta.4"
+actix-http = "3.0.0-beta.18"
+actix-service = "2"
+actix-utils = "3"
+actix-web = { version = "4.0.0-beta.19", default-features = false }
 
 askama_escape = "0.10"
 bitflags = "1"
 bytes = "1"
-futures-core = { version = "0.3.7", default-features = false }
-futures-util = { version = "0.3.7", default-features = false }
 derive_more = "0.99.5"
+futures-core = { version = "0.3.7", default-features = false, features = ["alloc"] }
+http-range = "0.1.4"
 log = "0.4"
 mime = "0.3"
 mime_guess = "2.0.1"
 percent-encoding = "2.1"
+pin-project-lite = "0.2.7"
+
+tokio-uring = { version = "0.1", optional = true }
 
 [dev-dependencies]
-actix-rt = "2"
-actix-web = "4.0.0-beta.3"
+actix-rt = "2.2"
+actix-test = "0.1.0-beta.11"
+actix-web = "4.0.0-beta.19"
+tempfile = "3.2"

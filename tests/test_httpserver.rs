@@ -1,78 +1,62 @@
-use std::sync::mpsc;
-use std::{thread, time::Duration};
-
 #[cfg(feature = "openssl")]
 extern crate tls_openssl as openssl;
-#[cfg(feature = "rustls")]
-extern crate tls_rustls as rustls;
 
-#[cfg(feature = "openssl")]
-use openssl::ssl::SslAcceptorBuilder;
-
-use actix_web::{test, web, App, HttpResponse, HttpServer};
+#[cfg(any(unix, feature = "openssl"))]
+use {
+    actix_web::{web, App, HttpResponse, HttpServer},
+    std::{sync::mpsc, thread, time::Duration},
+};
 
 #[cfg(unix)]
 #[actix_rt::test]
 async fn test_start() {
-    let addr = test::unused_addr();
+    let addr = actix_test::unused_addr();
     let (tx, rx) = mpsc::channel();
 
     thread::spawn(move || {
-        let sys = actix_rt::System::new();
+        actix_rt::System::new()
+            .block_on(async {
+                let srv = HttpServer::new(|| {
+                    App::new().service(
+                        web::resource("/").route(web::to(|| HttpResponse::Ok().body("test"))),
+                    )
+                })
+                .workers(1)
+                .backlog(1)
+                .max_connections(10)
+                .max_connection_rate(10)
+                .keep_alive(10)
+                .client_timeout(5000)
+                .client_shutdown(0)
+                .server_hostname("localhost")
+                .system_exit()
+                .disable_signals()
+                .bind(format!("{}", addr))
+                .unwrap()
+                .run();
 
-        sys.block_on(async {
-            let srv = HttpServer::new(|| {
-                App::new().service(
-                    web::resource("/").route(web::to(|| HttpResponse::Ok().body("test"))),
-                )
+                tx.send(srv.handle()).unwrap();
+
+                srv.await
             })
-            .workers(1)
-            .backlog(1)
-            .max_connections(10)
-            .max_connection_rate(10)
-            .keep_alive(10)
-            .client_timeout(5000)
-            .client_shutdown(0)
-            .server_hostname("localhost")
-            .system_exit()
-            .disable_signals()
-            .bind(format!("{}", addr))
-            .unwrap()
-            .run();
-
-            let _ = tx.send((srv, actix_rt::System::current()));
-        });
-
-        let _ = sys.run();
+            .unwrap();
     });
-    let (srv, sys) = rx.recv().unwrap();
 
-    #[cfg(feature = "client")]
-    {
-        use actix_http::client;
+    let srv = rx.recv().unwrap();
 
-        let client = awc::Client::builder()
-            .connector(
-                client::Connector::new()
-                    .timeout(Duration::from_millis(100))
-                    .finish(),
-            )
-            .finish();
+    let client = awc::Client::builder()
+        .connector(awc::Connector::new().timeout(Duration::from_millis(100)))
+        .finish();
 
-        let host = format!("http://{}", addr);
-        let response = client.get(host.clone()).send().await.unwrap();
-        assert!(response.status().is_success());
-    }
+    let host = format!("http://{}", addr);
+    let response = client.get(host.clone()).send().await.unwrap();
+    assert!(response.status().is_success());
 
-    // stop
-    let _ = srv.stop(false);
-
-    thread::sleep(Duration::from_millis(100));
-    let _ = sys.stop();
+    srv.stop(false).await;
 }
 
 #[cfg(feature = "openssl")]
-fn ssl_acceptor() -> std::io::Result<SslAcceptorBuilder> {
+fn ssl_acceptor() -> openssl::ssl::SslAcceptorBuilder {
     use openssl::{
         pkey::PKey,
         ssl::{SslAcceptor, SslMethod},
@@ -89,44 +73,45 @@ fn ssl_acceptor() -> std::io::Result<SslAcceptorBuilder> {
     builder.set_certificate(&cert).unwrap();
     builder.set_private_key(&key).unwrap();
 
-    Ok(builder)
+    builder
 }
 
 #[actix_rt::test]
 #[cfg(feature = "openssl")]
 async fn test_start_ssl() {
     use actix_web::HttpRequest;
+    use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
 
-    let addr = test::unused_addr();
+    let addr = actix_test::unused_addr();
     let (tx, rx) = mpsc::channel();
 
     thread::spawn(move || {
-        let sys = actix_rt::System::new();
-        let builder = ssl_acceptor().unwrap();
+        actix_rt::System::new()
+            .block_on(async {
+                let builder = ssl_acceptor();
 
-        let srv = HttpServer::new(|| {
-            App::new().service(web::resource("/").route(web::to(|req: HttpRequest| {
-                assert!(req.app_config().secure());
-                HttpResponse::Ok().body("test")
-            })))
-        })
-        .workers(1)
-        .shutdown_timeout(1)
-        .system_exit()
-        .disable_signals()
-        .bind_openssl(format!("{}", addr), builder)
-        .unwrap();
+                let srv = HttpServer::new(|| {
+                    App::new().service(web::resource("/").route(web::to(|req: HttpRequest| {
+                        assert!(req.app_config().secure());
+                        HttpResponse::Ok().body("test")
+                    })))
+                })
+                .workers(1)
+                .shutdown_timeout(1)
+                .system_exit()
+                .disable_signals()
+                .bind_openssl(format!("{}", addr), builder)
+                .unwrap();
 
-        sys.block_on(async {
-            let srv = srv.run();
-            let _ = tx.send((srv, actix_rt::System::current()));
-        });
+                let srv = srv.run();
+                tx.send(srv.handle()).unwrap();
 
-        let _ = sys.run();
+                srv.await
+            })
+            .unwrap()
     });
-    let (srv, sys) = rx.recv().unwrap();
+    let srv = rx.recv().unwrap();
 
-    use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
     let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
     builder.set_verify(SslVerifyMode::NONE);
     let _ = builder
@@ -136,9 +121,8 @@ async fn test_start_ssl() {
     let client = awc::Client::builder()
         .connector(
             awc::Connector::new()
-                .ssl(builder.build())
-                .timeout(Duration::from_millis(100))
-                .finish(),
+                .openssl(builder.build())
+                .timeout(Duration::from_millis(100)),
         )
         .finish();
 
@@ -146,9 +130,5 @@ async fn test_start_ssl() {
     let response = client.get(host.clone()).send().await.unwrap();
     assert!(response.status().is_success());
 
-    // stop
-    let _ = srv.stop(false);
-
-    thread::sleep(Duration::from_millis(100));
-    let _ = sys.stop();
+    srv.stop(false).await;
 }

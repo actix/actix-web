@@ -1,17 +1,17 @@
+//! Originally taken from `hyper::header::parsing`.
+
 use std::{fmt, str::FromStr};
 
 use language_tags::LanguageTag;
 
 use crate::header::{Charset, HTTP_VALUE};
 
-// From hyper v0.11.27 src/header/parsing.rs
-
 /// The value part of an extended parameter consisting of three parts:
 /// - The REQUIRED character set name (`charset`).
 /// - The OPTIONAL language information (`language_tag`).
 /// - A character sequence representing the actual value (`value`), separated by single quotes.
 ///
-/// It is defined in [RFC 5987](https://tools.ietf.org/html/rfc5987#section-3.2).
+/// It is defined in [RFC 5987 §3.2](https://datatracker.ietf.org/doc/html/rfc5987#section-3.2).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ExtendedValue {
     /// The character set that is used to encode the `value` to a string.
@@ -24,17 +24,17 @@ pub struct ExtendedValue {
     pub value: Vec<u8>,
 }
 
-/// Parses extended header parameter values (`ext-value`), as defined in
-/// [RFC 5987](https://tools.ietf.org/html/rfc5987#section-3.2).
+/// Parses extended header parameter values (`ext-value`), as defined
+/// in [RFC 5987 §3.2](https://datatracker.ietf.org/doc/html/rfc5987#section-3.2).
 ///
 /// Extended values are denoted by parameter names that end with `*`.
 ///
 /// ## ABNF
 ///
-/// ```text
+/// ```plain
 /// ext-value     = charset  "'" [ language ] "'" value-chars
 ///               ; like RFC 2231's <extended-initial-value>
-///               ; (see [RFC2231], Section 7)
+///               ; (see [RFC 2231 §7])
 ///
 /// charset       = "UTF-8" / "ISO-8859-1" / mime-charset
 ///
@@ -43,25 +43,27 @@ pub struct ExtendedValue {
 ///               / "!" / "#" / "$" / "%" / "&"
 ///               / "+" / "-" / "^" / "_" / "`"
 ///               / "{" / "}" / "~"
-///               ; as <mime-charset> in Section 2.3 of [RFC2978]
+///               ; as <mime-charset> in [RFC 2978 §2.3]
 ///               ; except that the single quote is not included
 ///               ; SHOULD be registered in the IANA charset registry
 ///
-/// language      = <Language-Tag, defined in [RFC5646], Section 2.1>
+/// language      = <Language-Tag, defined in [RFC 5646 §2.1]>
 ///
 /// value-chars   = *( pct-encoded / attr-char )
 ///
 /// pct-encoded   = "%" HEXDIG HEXDIG
-///               ; see [RFC3986], Section 2.1
+///               ; see [RFC 3986 §2.1]
 ///
 /// attr-char     = ALPHA / DIGIT
 ///               / "!" / "#" / "$" / "&" / "+" / "-" / "."
 ///               / "^" / "_" / "`" / "|" / "~"
 ///               ; token except ( "*" / "'" / "%" )
 /// ```
-pub fn parse_extended_value(
-    val: &str,
-) -> Result<ExtendedValue, crate::error::ParseError> {
+///
+/// [RFC 2231 §7]: https://datatracker.ietf.org/doc/html/rfc2231#section-7
+/// [RFC 2978 §2.3]: https://datatracker.ietf.org/doc/html/rfc2978#section-2.3
+/// [RFC 3986 §2.1]: https://datatracker.ietf.org/doc/html/rfc5646#section-2.1
+pub fn parse_extended_value(val: &str) -> Result<ExtendedValue, crate::error::ParseError> {
     // Break into three pieces separated by the single-quote character
     let mut parts = val.splitn(3, '\'');
 
@@ -88,16 +90,15 @@ pub fn parse_extended_value(
     };
 
     Ok(ExtendedValue {
-        value,
         charset,
         language_tag,
+        value,
     })
 }
 
 impl fmt::Display for ExtendedValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let encoded_value =
-            percent_encoding::percent_encode(&self.value[..], HTTP_VALUE);
+        let encoded_value = percent_encoding::percent_encode(&self.value[..], HTTP_VALUE);
         if let Some(ref lang) = self.language_tag {
             write!(f, "{}'{}'{}", self.charset, lang, encoded_value)
         } else {
@@ -139,8 +140,8 @@ mod tests {
         assert!(extended_value.language_tag.is_none());
         assert_eq!(
             vec![
-                194, 163, b' ', b'a', b'n', b'd', b' ', 226, 130, 172, b' ', b'r', b'a',
-                b't', b'e', b's',
+                194, 163, b' ', b'a', b'n', b'd', b' ', 226, 130, 172, b' ', b'r', b'a', b't',
+                b'e', b's',
             ],
             extended_value.value
         );
@@ -181,8 +182,8 @@ mod tests {
             charset: Charset::Ext("UTF-8".to_string()),
             language_tag: None,
             value: vec![
-                194, 163, b' ', b'a', b'n', b'd', b' ', 226, 130, 172, b' ', b'r', b'a',
-                b't', b'e', b's',
+                194, 163, b' ', b'a', b'n', b'd', b' ', 226, 130, 172, b' ', b'r', b'a', b't',
+                b'e', b's',
             ],
         };
         assert_eq!(

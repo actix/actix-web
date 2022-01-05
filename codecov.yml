@@ -4,13 +4,12 @@ coverage:
   status:
     project:
       default:
-        threshold: 10% # make CI green
+        threshold: 100% # make CI green
     patch:
       default:
-        threshold: 10% # make CI green
+        threshold: 100% # make CI green
 
 ignore: # ignore code coverage on following paths
   - "**/tests"
-  - "test-server"
   - "**/benches"
   - "**/examples"

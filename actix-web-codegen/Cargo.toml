@@ -1,12 +1,13 @@
 [package]
 name = "actix-web-codegen"
-version = "0.5.0-beta.1"
+version = "0.5.0-rc.1"
 description = "Routing and runtime macros for Actix Web"
-readme = "README.md"
 homepage = "https://actix.rs"
-repository = "https://github.com/actix/actix-web"
-documentation = "https://docs.rs/actix-web-codegen"
-authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
+repository = "https://github.com/actix/actix-web.git"
+authors = [
+    "Nikolay Kim <fafhrd91@gmail.com>",
+    "Rob Ede <robjtede@icloud.com>",
+]
 license = "MIT OR Apache-2.0"
 edition = "2018"
 
@@ -14,13 +15,18 @@ edition = "2018"
 proc-macro = true
 
 [dependencies]
+actix-router = "0.5.0-beta.4"
+proc-macro2 = "1"
 quote = "1"
 syn = { version = "1", features = ["full", "parsing"] }
-proc-macro2 = "1"
 
 [dev-dependencies]
-actix-rt = "2"
-actix-web = "4.0.0-beta.3"
-futures-util = { version = "0.3.7", default-features = false }
+actix-macros = "0.2.3"
+actix-rt = "2.2"
+actix-test = "0.1.0-beta.11"
+actix-utils = "3.0.0"
+actix-web = "4.0.0-beta.19"
+
+futures-core = { version = "0.3.7", default-features = false, features = ["alloc"] }
 trybuild = "1"
 rustversion = "1"

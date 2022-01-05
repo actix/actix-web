@@ -1,25 +1,35 @@
-use std::{cell::RefCell, fmt, io, path::PathBuf, rc::Rc};
+use std::{
+    cell::RefCell,
+    fmt, io,
+    path::{Path, PathBuf},
+    rc::Rc,
+};
 
 use actix_service::{boxed, IntoServiceFactory, ServiceFactory, ServiceFactoryExt};
 use actix_web::{
-    dev::{AppService, HttpServiceFactory, ResourceDef, ServiceRequest, ServiceResponse},
+    dev::{
+        AppService, HttpServiceFactory, RequestHead, ResourceDef, ServiceRequest,
+        ServiceResponse,
+    },
     error::Error,
     guard::Guard,
     http::header::DispositionType,
     HttpRequest,
 };
-use futures_util::future::{ok, FutureExt, LocalBoxFuture};
+use futures_core::future::LocalBoxFuture;
 
 use crate::{
-    directory_listing, named, Directory, DirectoryRenderer, FilesService, HttpNewService,
-    MimeOverride,
+    directory_listing, named,
+    service::{FilesService, FilesServiceInner},
+    Directory, DirectoryRenderer, HttpNewService, MimeOverride, PathFilter,
 };
 
 /// Static files handling service.
 ///
 /// `Files` service must be registered with `App::service()` method.
 ///
-/// ```rust
+/// # Examples
+/// ```
 /// use actix_web::App;
 /// use actix_files::Files;
 ///
@@ -35,8 +45,10 @@ pub struct Files {
     default: Rc<RefCell<Option<Rc<HttpNewService>>>>,
     renderer: Rc<DirectoryRenderer>,
     mime_override: Option<Rc<MimeOverride>>,
+    path_filter: Option<Rc<PathFilter>>,
     file_flags: named::Flags,
-    guards: Option<Rc<dyn Guard>>,
+    use_guards: Option<Rc<dyn Guard>>,
+    guards: Vec<Rc<dyn Guard>>,
     hidden_files: bool,
 }
 
@@ -58,6 +70,8 @@ impl Clone for Files {
             file_flags: self.file_flags,
             path: self.path.clone(),
             mime_override: self.mime_override.clone(),
+            path_filter: self.path_filter.clone(),
+            use_guards: self.use_guards.clone(),
             guards: self.guards.clone(),
             hidden_files: self.hidden_files,
         }
@@ -79,10 +93,9 @@ impl Files {
     /// If the mount path is set as the root path `/`, services registered after this one will
     /// be inaccessible. Register more specific handlers and services first.
     ///
-    /// `Files` uses a threadpool for blocking filesystem operations. By default, the pool uses a
-    /// max number of threads equal to `512 * HttpServer::worker`. Real time thread count are
-    /// adjusted with work load. More threads would spawn when need and threads goes idle for a
-    /// period of time would be de-spawned.
+    /// `Files` utilizes the existing Tokio thread-pool for blocking filesystem operations.
+    /// The number of running threads is adjusted over time as needed, up to a maximum of 512 times
+    /// the number of server [workers](actix_web::HttpServer::workers), by default.
     pub fn new<T: Into<PathBuf>>(mount_path: &str, serve_from: T) -> Files {
         let orig_dir = serve_from.into();
         let dir = match orig_dir.canonicalize() {
@@ -94,7 +107,7 @@ impl Files {
         };
 
         Files {
-            path: mount_path.to_owned(),
+            path: mount_path.trim_end_matches('/').to_owned(),
             directory: dir,
             index: None,
             show_index: false,
@@ -102,8 +115,10 @@ impl Files {
             default: Rc::new(RefCell::new(None)),
             renderer: Rc::new(directory_listing),
             mime_override: None,
+            path_filter: None,
             file_flags: named::Flags::default(),
-            guards: None,
+            use_guards: None,
+            guards: Vec::new(),
             hidden_files: false,
         }
     }
@@ -111,6 +126,9 @@ impl Files {
     /// Show files listing for directories.
     ///
     /// By default show files listing is disabled.
+    ///
+    /// When used with [`Files::index_file()`], files listing is shown as a fallback
+    /// when the index file is not found.
     pub fn show_files_listing(mut self) -> Self {
         self.show_index = true;
         self
@@ -143,10 +161,45 @@ impl Files {
         self
     }
 
+    /// Sets path filtering closure.
+    ///
+    /// The path provided to the closure is relative to `serve_from` path.
+    /// You can safely join this path with the `serve_from` path to get the real path.
+    /// However, the real path may not exist since the filter is called before checking path existence.
+    ///
+    /// When a path doesn't pass the filter, [`Files::default_handler`] is called if set, otherwise,
+    /// `404 Not Found` is returned.
+    ///
+    /// # Examples
+    /// ```
+    /// use std::path::Path;
+    /// use actix_files::Files;
+    ///
+    /// // prevent searching subdirectories and following symlinks
+    /// let files_service = Files::new("/", "./static").path_filter(|path, _| {
+    ///     path.components().count() == 1
+    ///         && Path::new("./static")
+    ///             .join(path)
+    ///             .symlink_metadata()
+    ///             .map(|m| !m.file_type().is_symlink())
+    ///             .unwrap_or(false)
+    /// });
+    /// ```
+    pub fn path_filter<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&Path, &RequestHead) -> bool + 'static,
+    {
+        self.path_filter = Some(Rc::new(f));
+        self
+    }
+
     /// Set index file
     ///
-    /// Shows specific index file for directory "/" instead of
+    /// Shows specific index file for directories instead of
     /// showing files listing.
+    ///
+    /// If the index file is not found, files listing is shown as a fallback if
+    /// [`Files::show_files_listing()`] is set.
     pub fn index_file<T: Into<String>>(mut self, index: T) -> Self {
         self.index = Some(index.into());
         self
@@ -155,7 +208,6 @@ impl Files {
     /// Specifies whether to use ETag or not.
     ///
     /// Default is true.
-    #[inline]
     pub fn use_etag(mut self, value: bool) -> Self {
         self.file_flags.set(named::Flags::ETAG, value);
         self
@@ -164,7 +216,6 @@ impl Files {
     /// Specifies whether to use Last-Modified or not.
     ///
     /// Default is true.
-    #[inline]
     pub fn use_last_modified(mut self, value: bool) -> Self {
         self.file_flags.set(named::Flags::LAST_MD, value);
         self
@@ -173,31 +224,80 @@ impl Files {
     /// Specifies whether text responses should signal a UTF-8 encoding.
     ///
     /// Default is false (but will default to true in a future version).
-    #[inline]
     pub fn prefer_utf8(mut self, value: bool) -> Self {
         self.file_flags.set(named::Flags::PREFER_UTF8, value);
         self
     }
 
-    /// Specifies custom guards to use for directory listings and files.
+    /// Adds a routing guard.
     ///
-    /// Default behaviour allows GET and HEAD.
-    #[inline]
-    pub fn use_guards<G: Guard + 'static>(mut self, guards: G) -> Self {
-        self.guards = Some(Rc::new(guards));
+    /// Use this to allow multiple chained file services that respond to strictly different
+    /// properties of a request. Due to the way routing works, if a guard check returns true and the
+    /// request starts being handled by the file service, it will not be able to back-out and try
+    /// the next service, you will simply get a 404 (or 405) error response.
+    ///
+    /// To allow `POST` requests to retrieve files, see [`Files::use_guards`].
+    ///
+    /// # Examples
+    /// ```
+    /// use actix_web::{guard::Header, App};
+    /// use actix_files::Files;
+    ///
+    /// App::new().service(
+    ///     Files::new("/","/my/site/files")
+    ///         .guard(Header("Host", "example.com"))
+    /// );
+    /// ```
+    pub fn guard<G: Guard + 'static>(mut self, guard: G) -> Self {
+        self.guards.push(Rc::new(guard));
         self
+    }
+
+    /// Specifies guard to check before fetching directory listings or files.
+    ///
+    /// Note that this guard has no effect on routing; it's main use is to guard on the request's
+    /// method just before serving the file, only allowing `GET` and `HEAD` requests by default.
+    /// See [`Files::guard`] for routing guards.
+    pub fn method_guard<G: Guard + 'static>(mut self, guard: G) -> Self {
+        self.use_guards = Some(Rc::new(guard));
+        self
+    }
+
+    /// See [`Files::method_guard`].
+    #[doc(hidden)]
+    #[deprecated(since = "0.6.0", note = "Renamed to `method_guard`.")]
+    pub fn use_guards<G: Guard + 'static>(self, guard: G) -> Self {
+        self.method_guard(guard)
     }
 
     /// Disable `Content-Disposition` header.
     ///
     /// By default Content-Disposition` header is enabled.
-    #[inline]
     pub fn disable_content_disposition(mut self) -> Self {
         self.file_flags.remove(named::Flags::CONTENT_DISPOSITION);
         self
     }
 
     /// Sets default handler which is used when no matched file could be found.
+    ///
+    /// # Examples
+    /// Setting a fallback static file handler:
+    /// ```
+    /// use actix_files::{Files, NamedFile};
+    /// use actix_web::dev::{ServiceRequest, ServiceResponse, fn_service};
+    ///
+    /// # fn run() -> Result<(), actix_web::Error> {
+    /// let files = Files::new("/", "./static")
+    ///     .index_file("index.html")
+    ///     .default_handler(fn_service(|req: ServiceRequest| async {
+    ///         let (req, _) = req.into_parts();
+    ///         let file = NamedFile::open_async("./static/404.html").await?;
+    ///         let res = file.into_response(&req);
+    ///         Ok(ServiceResponse::new(req, res))
+    ///     }));
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn default_handler<F, U>(mut self, f: F) -> Self
     where
         F: IntoServiceFactory<U, ServiceRequest>,
@@ -217,7 +317,6 @@ impl Files {
     }
 
     /// Enables serving hidden files and directories, allowing a leading dots in url fragments.
-    #[inline]
     pub fn use_hidden_files(mut self) -> Self {
         self.hidden_files = true;
         self
@@ -225,7 +324,19 @@ impl Files {
 }
 
 impl HttpServiceFactory for Files {
-    fn register(self, config: &mut AppService) {
+    fn register(mut self, config: &mut AppService) {
+        let guards = if self.guards.is_empty() {
+            None
+        } else {
+            let guards = std::mem::take(&mut self.guards);
+            Some(
+                guards
+                    .into_iter()
+                    .map(|guard| -> Box<dyn Guard> { Box::new(guard) })
+                    .collect::<Vec<_>>(),
+            )
+        };
+
         if self.default.borrow().is_none() {
             *self.default.borrow_mut() = Some(config.default_service());
         }
@@ -236,7 +347,7 @@ impl HttpServiceFactory for Files {
             ResourceDef::prefix(&self.path)
         };
 
-        config.register_service(rdef, None, self, None)
+        config.register_service(rdef, guards, self, None)
     }
 }
 
@@ -249,7 +360,7 @@ impl ServiceFactory<ServiceRequest> for Files {
     type Future = LocalBoxFuture<'static, Result<Self::Service, Self::InitError>>;
 
     fn new_service(&self, _: ()) -> Self::Future {
-        let mut srv = FilesService {
+        let mut inner = FilesServiceInner {
             directory: self.directory.clone(),
             index: self.index.clone(),
             show_index: self.show_index,
@@ -257,24 +368,25 @@ impl ServiceFactory<ServiceRequest> for Files {
             default: None,
             renderer: self.renderer.clone(),
             mime_override: self.mime_override.clone(),
+            path_filter: self.path_filter.clone(),
             file_flags: self.file_flags,
-            guards: self.guards.clone(),
+            guards: self.use_guards.clone(),
             hidden_files: self.hidden_files,
         };
 
         if let Some(ref default) = *self.default.borrow() {
-            default
-                .new_service(())
-                .map(move |result| match result {
+            let fut = default.new_service(());
+            Box::pin(async {
+                match fut.await {
                     Ok(default) => {
-                        srv.default = Some(default);
-                        Ok(srv)
+                        inner.default = Some(default);
+                        Ok(FilesService(Rc::new(inner)))
                     }
                     Err(_) => Err(()),
-                })
-                .boxed_local()
+                }
+            })
         } else {
-            ok(srv).boxed_local()
+            Box::pin(async move { Ok(FilesService(Rc::new(inner))) })
         }
     }
 }

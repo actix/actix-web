@@ -54,15 +54,10 @@ const EMPTY_HEADER_INDEX: HeaderIndex = HeaderIndex {
     value: (0, 0),
 };
 
-const EMPTY_HEADER_INDEX_ARRAY: [HeaderIndex; MAX_HEADERS] =
-    [EMPTY_HEADER_INDEX; MAX_HEADERS];
+const EMPTY_HEADER_INDEX_ARRAY: [HeaderIndex; MAX_HEADERS] = [EMPTY_HEADER_INDEX; MAX_HEADERS];
 
 impl HeaderIndex {
-    fn record(
-        bytes: &[u8],
-        headers: &[httparse::Header<'_>],
-        indices: &mut [HeaderIndex],
-    ) {
+    fn record(bytes: &[u8], headers: &[httparse::Header<'_>], indices: &mut [HeaderIndex]) {
         let bytes_ptr = bytes.as_ptr() as usize;
         for (header, indices) in headers.iter().zip(indices.iter_mut()) {
             let name_start = header.name.as_ptr() as usize - bytes_ptr;
@@ -78,12 +73,12 @@ impl HeaderIndex {
 // test cases taken from:
 // https://github.com/seanmonstar/httparse/blob/master/benches/parse.rs
 
-const REQ_SHORT: &'static [u8] = b"\
+const REQ_SHORT: &[u8] = b"\
 GET / HTTP/1.0\r\n\
 Host: example.com\r\n\
 Cookie: session=60; user_id=1\r\n\r\n";
 
-const REQ: &'static [u8] = b"\
+const REQ: &[u8] = b"\
 GET /wp-content/uploads/2010/03/hello-kitty-darth-vader-pink.jpg HTTP/1.1\r\n\
 Host: www.kittyhell.com\r\n\
 User-Agent: Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.6; ja-JP-mac; rv:1.9.2.3) Gecko/20100401 Firefox/3.6.3 Pathtraq/0.9\r\n\
@@ -119,6 +114,8 @@ mod _original {
     use std::mem::MaybeUninit;
 
     pub fn parse_headers(src: &mut BytesMut) -> usize {
+        #![allow(clippy::uninit_assumed_init)]
+
         let mut headers: [HeaderIndex; MAX_HEADERS] =
             unsafe { MaybeUninit::uninit().assume_init() };
 

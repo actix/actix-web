@@ -1,19 +1,16 @@
-use std::marker::PhantomData;
-use std::rc::Rc;
-use std::{fmt, net};
+use std::{fmt, marker::PhantomData, net, rc::Rc};
 
 use actix_codec::Framed;
 use actix_service::{IntoServiceFactory, Service, ServiceFactory};
 
-use crate::body::MessageBody;
-use crate::config::{KeepAlive, ServiceConfig};
-use crate::error::Error;
-use crate::h1::{Codec, ExpectHandler, H1Service, UpgradeHandler};
-use crate::h2::H2Service;
-use crate::request::Request;
-use crate::response::Response;
-use crate::service::HttpService;
-use crate::{ConnectCallback, Extensions};
+use crate::{
+    body::{BoxBody, MessageBody},
+    config::{KeepAlive, ServiceConfig},
+    h1::{self, ExpectHandler, H1Service, UpgradeHandler},
+    h2::H2Service,
+    service::HttpService,
+    ConnectCallback, Extensions, Request, Response,
+};
 
 /// A HTTP service builder
 ///
@@ -34,11 +31,12 @@ pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler> {
 impl<T, S> HttpServiceBuilder<T, S, ExpectHandler, UpgradeHandler>
 where
     S: ServiceFactory<Request, Config = ()>,
-    S::Error: Into<Error> + 'static,
+    S::Error: Into<Response<BoxBody>> + 'static,
     S::InitError: fmt::Debug,
     <S::Service as Service<Request>>::Future: 'static,
 {
     /// Create instance of `ServiceConfigBuilder`
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         HttpServiceBuilder {
             keep_alive: KeepAlive::Timeout(5),
@@ -57,17 +55,15 @@ where
 impl<T, S, X, U> HttpServiceBuilder<T, S, X, U>
 where
     S: ServiceFactory<Request, Config = ()>,
-    S::Error: Into<Error> + 'static,
+    S::Error: Into<Response<BoxBody>> + 'static,
     S::InitError: fmt::Debug,
     <S::Service as Service<Request>>::Future: 'static,
     X: ServiceFactory<Request, Config = (), Response = Request>,
-    X::Error: Into<Error>,
+    X::Error: Into<Response<BoxBody>>,
     X::InitError: fmt::Debug,
-    <X::Service as Service<Request>>::Future: 'static,
-    U: ServiceFactory<(Request, Framed<T, Codec>), Config = (), Response = ()>,
+    U: ServiceFactory<(Request, Framed<T, h1::Codec>), Config = (), Response = ()>,
     U::Error: fmt::Display,
     U::InitError: fmt::Debug,
-    <U::Service as Service<(Request, Framed<T, Codec>)>>::Future: 'static,
 {
     /// Set server keep-alive setting.
     ///
@@ -125,9 +121,8 @@ where
     where
         F: IntoServiceFactory<X1, Request>,
         X1: ServiceFactory<Request, Config = (), Response = Request>,
-        X1::Error: Into<Error>,
+        X1::Error: Into<Response<BoxBody>>,
         X1::InitError: fmt::Debug,
-        <X1::Service as Service<Request>>::Future: 'static,
     {
         HttpServiceBuilder {
             keep_alive: self.keep_alive,
@@ -148,11 +143,10 @@ where
     /// and this service get called with original request and framed object.
     pub fn upgrade<F, U1>(self, upgrade: F) -> HttpServiceBuilder<T, S, X, U1>
     where
-        F: IntoServiceFactory<U1, (Request, Framed<T, Codec>)>,
-        U1: ServiceFactory<(Request, Framed<T, Codec>), Config = (), Response = ()>,
+        F: IntoServiceFactory<U1, (Request, Framed<T, h1::Codec>)>,
+        U1: ServiceFactory<(Request, Framed<T, h1::Codec>), Config = (), Response = ()>,
         U1::Error: fmt::Display,
         U1::InitError: fmt::Debug,
-        <U1::Service as Service<(Request, Framed<T, Codec>)>>::Future: 'static,
     {
         HttpServiceBuilder {
             keep_alive: self.keep_alive,
@@ -185,7 +179,7 @@ where
     where
         B: MessageBody,
         F: IntoServiceFactory<S, Request>,
-        S::Error: Into<Error>,
+        S::Error: Into<Response<BoxBody>>,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>>,
     {
@@ -206,12 +200,12 @@ where
     /// Finish service configuration and create a HTTP service for HTTP/2 protocol.
     pub fn h2<F, B>(self, service: F) -> H2Service<T, S, B>
     where
-        B: MessageBody + 'static,
         F: IntoServiceFactory<S, Request>,
-        S::Error: Into<Error> + 'static,
+        S::Error: Into<Response<BoxBody>> + 'static,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>> + 'static,
-        <S::Service as Service<Request>>::Future: 'static,
+
+        B: MessageBody + 'static,
     {
         let cfg = ServiceConfig::new(
             self.keep_alive,
@@ -221,19 +215,18 @@ where
             self.local_addr,
         );
 
-        H2Service::with_config(cfg, service.into_factory())
-            .on_connect_ext(self.on_connect_ext)
+        H2Service::with_config(cfg, service.into_factory()).on_connect_ext(self.on_connect_ext)
     }
 
     /// Finish service configuration and create `HttpService` instance.
     pub fn finish<F, B>(self, service: F) -> HttpService<T, S, B, X, U>
     where
-        B: MessageBody + 'static,
         F: IntoServiceFactory<S, Request>,
-        S::Error: Into<Error> + 'static,
+        S::Error: Into<Response<BoxBody>> + 'static,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>> + 'static,
-        <S::Service as Service<Request>>::Future: 'static,
+
+        B: MessageBody + 'static,
     {
         let cfg = ServiceConfig::new(
             self.keep_alive,

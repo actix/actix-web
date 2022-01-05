@@ -9,12 +9,16 @@ digraph {
         "actix-web-actors"
         "actix-web-codegen"
         "actix-http-test"
+        "actix-test"
+        "actix-router"
     }
 
-    "actix-web" -> { "actix-web-codegen" "actix-http" "awc" }
+    "actix-web" -> { "actix-web-codegen" "actix-http" "actix-router" }
     "awc" -> { "actix-http" }
+    "actix-web-codegen" -> { "actix-router" }
     "actix-web-actors" -> { "actix" "actix-web" "actix-http" }
     "actix-multipart" -> { "actix-web" }
     "actix-files" -> { "actix-web" }
     "actix-http-test" -> { "awc" }
+    "actix-test" -> { "actix-web" "awc" "actix-http-test" }
 }

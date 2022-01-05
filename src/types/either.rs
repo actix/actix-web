@@ -1,17 +1,24 @@
 //! For either helper, see [`Either`].
 
+use std::{
+    future::Future,
+    mem,
+    pin::Pin,
+    task::{Context, Poll},
+};
+
 use bytes::Bytes;
-use futures_util::{future::LocalBoxFuture, FutureExt, TryFutureExt};
+use futures_core::ready;
+use pin_project_lite::pin_project;
 
 use crate::{
+    body::EitherBody,
     dev,
     web::{Form, Json},
     Error, FromRequest, HttpRequest, HttpResponse, Responder,
 };
 
 /// Combines two extractor or responder types into a single type.
-///
-/// Can be converted to and from an [`either::Either`].
 ///
 /// # Extractor
 /// Provides a mechanism for trying two extractors, a primary and a fallback. Useful for
@@ -93,24 +100,6 @@ impl<T> Either<Json<T>, Form<T>> {
     }
 }
 
-impl<L, R> From<either::Either<L, R>> for Either<L, R> {
-    fn from(val: either::Either<L, R>) -> Self {
-        match val {
-            either::Either::Left(l) => Either::Left(l),
-            either::Either::Right(r) => Either::Right(r),
-        }
-    }
-}
-
-impl<L, R> From<Either<L, R>> for either::Either<L, R> {
-    fn from(val: Either<L, R>) -> Self {
-        match val {
-            Either::Left(l) => either::Either::Left(l),
-            Either::Right(r) => either::Either::Right(r),
-        }
-    }
-}
-
 #[cfg(test)]
 impl<L, R> Either<L, R> {
     pub(self) fn unwrap_left(self) -> L {
@@ -138,10 +127,12 @@ where
     L: Responder,
     R: Responder,
 {
-    fn respond_to(self, req: &HttpRequest) -> HttpResponse {
+    type Body = EitherBody<L::Body, R::Body>;
+
+    fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
         match self {
-            Either::Left(a) => a.respond_to(req),
-            Either::Right(b) => b.respond_to(req),
+            Either::Left(a) => a.respond_to(req).map_into_left_body(),
+            Either::Right(b) => b.respond_to(req).map_into_right_body(),
         }
     }
 }
@@ -155,7 +146,7 @@ pub enum EitherExtractError<L, R> {
     /// Error from payload buffering, such as exceeding payload max size limit.
     Bytes(Error),
 
-    /// Error from primary extractor.
+    /// Error from primary and fallback extractors.
     Extract(L, R),
 }
 
@@ -179,41 +170,113 @@ where
     R: FromRequest + 'static,
 {
     type Error = EitherExtractError<L::Error, R::Error>;
-    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
-    type Config = ();
+    type Future = EitherExtractFut<L, R>;
 
     fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
-        let req2 = req.clone();
-
-        Bytes::from_request(req, payload)
-            .map_err(EitherExtractError::Bytes)
-            .and_then(|bytes| bytes_to_l_or_r(req2, bytes))
-            .boxed_local()
+        EitherExtractFut {
+            req: req.clone(),
+            state: EitherExtractState::Bytes {
+                bytes: Bytes::from_request(req, payload),
+            },
+        }
     }
 }
 
-async fn bytes_to_l_or_r<L, R>(
-    req: HttpRequest,
-    bytes: Bytes,
-) -> Result<Either<L, R>, EitherExtractError<L::Error, R::Error>>
+pin_project! {
+    pub struct EitherExtractFut<L, R>
+    where
+        R: FromRequest,
+        L: FromRequest,
+    {
+        req: HttpRequest,
+        #[pin]
+        state: EitherExtractState<L, R>,
+    }
+}
+
+pin_project! {
+    #[project = EitherExtractProj]
+    pub enum EitherExtractState<L, R>
+    where
+        L: FromRequest,
+        R: FromRequest,
+    {
+        Bytes {
+            #[pin]
+            bytes: <Bytes as FromRequest>::Future,
+        },
+        Left {
+            #[pin]
+            left: L::Future,
+            fallback: Bytes,
+        },
+        Right {
+            #[pin]
+            right: R::Future,
+            left_err: Option<L::Error>,
+        },
+    }
+}
+
+impl<R, RF, RE, L, LF, LE> Future for EitherExtractFut<L, R>
 where
-    L: FromRequest + 'static,
-    R: FromRequest + 'static,
+    L: FromRequest<Future = LF, Error = LE>,
+    R: FromRequest<Future = RF, Error = RE>,
+    LF: Future<Output = Result<L, LE>> + 'static,
+    RF: Future<Output = Result<R, RE>> + 'static,
+    LE: Into<Error>,
+    RE: Into<Error>,
 {
-    let fallback = bytes.clone();
-    let a_err;
+    type Output = Result<Either<L, R>, EitherExtractError<LE, RE>>;
 
-    let mut pl = payload_from_bytes(bytes);
-    match L::from_request(&req, &mut pl).await {
-        Ok(a_data) => return Ok(Either::Left(a_data)),
-        // store A's error for returning if B also fails
-        Err(err) => a_err = err,
-    };
-
-    let mut pl = payload_from_bytes(fallback);
-    match R::from_request(&req, &mut pl).await {
-        Ok(b_data) => return Ok(Either::Right(b_data)),
-        Err(b_err) => Err(EitherExtractError::Extract(a_err, b_err)),
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let mut this = self.project();
+        let ready = loop {
+            let next = match this.state.as_mut().project() {
+                EitherExtractProj::Bytes { bytes } => {
+                    let res = ready!(bytes.poll(cx));
+                    match res {
+                        Ok(bytes) => {
+                            let fallback = bytes.clone();
+                            let left =
+                                L::from_request(this.req, &mut payload_from_bytes(bytes));
+                            EitherExtractState::Left { left, fallback }
+                        }
+                        Err(err) => break Err(EitherExtractError::Bytes(err)),
+                    }
+                }
+                EitherExtractProj::Left { left, fallback } => {
+                    let res = ready!(left.poll(cx));
+                    match res {
+                        Ok(extracted) => break Ok(Either::Left(extracted)),
+                        Err(left_err) => {
+                            let right = R::from_request(
+                                this.req,
+                                &mut payload_from_bytes(mem::take(fallback)),
+                            );
+                            EitherExtractState::Right {
+                                left_err: Some(left_err),
+                                right,
+                            }
+                        }
+                    }
+                }
+                EitherExtractProj::Right { right, left_err } => {
+                    let res = ready!(right.poll(cx));
+                    match res {
+                        Ok(data) => break Ok(Either::Right(data)),
+                        Err(err) => {
+                            break Err(EitherExtractError::Extract(
+                                left_err.take().unwrap(),
+                                err,
+                            ));
+                        }
+                    }
+                }
+            };
+            this.state.set(next);
+        };
+        Poll::Ready(ready)
     }
 }
 

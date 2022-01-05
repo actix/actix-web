@@ -40,14 +40,23 @@ impl Directory {
 pub(crate) type DirectoryRenderer =
     dyn Fn(&Directory, &HttpRequest) -> Result<ServiceResponse, io::Error>;
 
-// show file url as relative to static path
+/// Returns percent encoded file URL path.
 macro_rules! encode_file_url {
     ($path:ident) => {
         utf8_percent_encode(&$path, CONTROLS)
     };
 }
 
-// " -- &quot;  & -- &amp;  ' -- &#x27;  < -- &lt;  > -- &gt;  / -- &#x2f;
+/// Returns HTML entity encoded formatter.
+///
+/// ```plain
+/// " => &quot;
+/// & => &amp;
+/// ' => &#x27;
+/// < => &lt;
+/// > => &gt;
+/// / => &#x2f;
+/// ```
 macro_rules! encode_file_name {
     ($entry:ident) => {
         escape_html_entity(&$entry.file_name().to_string_lossy(), Html)

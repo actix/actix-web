@@ -1,16 +1,10 @@
 //! Test helpers for actix http client to use during testing.
-use std::convert::TryFrom;
 
-use actix_http::http::header::{Header, IntoHeaderValue};
-use actix_http::http::{Error as HttpError, HeaderName, StatusCode, Version};
-#[cfg(feature = "cookies")]
-use actix_http::{
-    cookie::{Cookie, CookieJar},
-    http::header::{self, HeaderValue},
-};
-use actix_http::{h1, Payload, ResponseHead};
+use actix_http::{h1, header::TryIntoHeaderPair, Payload, ResponseHead, StatusCode, Version};
 use bytes::Bytes;
 
+#[cfg(feature = "cookies")]
+use crate::cookie::{Cookie, CookieJar};
 use crate::ClientResponse;
 
 /// Test `ClientResponse` builder
@@ -34,13 +28,8 @@ impl Default for TestResponse {
 
 impl TestResponse {
     /// Create TestResponse and set header
-    pub fn with_header<K, V>(key: K, value: V) -> Self
-    where
-        HeaderName: TryFrom<K>,
-        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
-        V: IntoHeaderValue,
-    {
-        Self::default().header(key, value)
+    pub fn with_header(header: impl TryIntoHeaderPair) -> Self {
+        Self::default().insert_header(header)
     }
 
     /// Set HTTP version of this response
@@ -49,27 +38,20 @@ impl TestResponse {
         self
     }
 
-    /// Set a header
-    pub fn set<H: Header>(mut self, hdr: H) -> Self {
-        if let Ok(value) = hdr.try_into_value() {
-            self.head.headers.append(H::name(), value);
+    /// Insert a header
+    pub fn insert_header(mut self, header: impl TryIntoHeaderPair) -> Self {
+        if let Ok((key, value)) = header.try_into_pair() {
+            self.head.headers.insert(key, value);
             return self;
         }
         panic!("Can not set header");
     }
 
     /// Append a header
-    pub fn header<K, V>(mut self, key: K, value: V) -> Self
-    where
-        HeaderName: TryFrom<K>,
-        <HeaderName as TryFrom<K>>::Error: Into<HttpError>,
-        V: IntoHeaderValue,
-    {
-        if let Ok(key) = HeaderName::try_from(key) {
-            if let Ok(value) = value.try_into_value() {
-                self.head.headers.append(key, value);
-                return self;
-            }
+    pub fn append_header(mut self, header: impl TryIntoHeaderPair) -> Self {
+        if let Ok((key, value)) = header.try_into_pair() {
+            self.head.headers.append(key, value);
+            return self;
         }
         panic!("Can not create header");
     }
@@ -83,7 +65,7 @@ impl TestResponse {
 
     /// Set response's payload
     pub fn set_payload<B: Into<Bytes>>(mut self, data: B) -> Self {
-        let mut payload = h1::Payload::empty();
+        let (_, mut payload) = h1::Payload::create(true);
         payload.unread_data(data.into());
         self.payload = Some(payload.into());
         self
@@ -97,6 +79,8 @@ impl TestResponse {
 
         #[cfg(feature = "cookies")]
         for cookie in self.cookies.delta() {
+            use actix_http::header::{self, HeaderValue};
+
             head.headers.insert(
                 header::SET_COOKIE,
                 HeaderValue::from_str(&cookie.encoded().to_string()).unwrap(),
@@ -106,7 +90,8 @@ impl TestResponse {
         if let Some(pl) = self.payload {
             ClientResponse::new(head, pl)
         } else {
-            ClientResponse::new(head, h1::Payload::empty().into())
+            let (_, payload) = h1::Payload::create(true);
+            ClientResponse::new(head, payload.into())
         }
     }
 }
@@ -115,6 +100,8 @@ impl TestResponse {
 mod tests {
     use std::time::SystemTime;
 
+    use actix_http::header::HttpDate;
+
     use super::*;
     use crate::{cookie, http::header};
 
@@ -122,7 +109,7 @@ mod tests {
     fn test_basics() {
         let res = TestResponse::default()
             .version(Version::HTTP_2)
-            .set(header::Date(SystemTime::now().into()))
+            .insert_header((header::DATE, HttpDate::from(SystemTime::now())))
             .cookie(cookie::Cookie::build("name", "value").finish())
             .finish();
         assert!(res.headers().contains_key(header::SET_COOKIE));

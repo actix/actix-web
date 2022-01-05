@@ -13,20 +13,15 @@ use actix_codec::{AsyncRead, AsyncWrite, ReadBuf};
 use bytes::{Bytes, BytesMut};
 use http::{Method, Uri, Version};
 
-#[cfg(feature = "cookies")]
 use crate::{
-    cookie::{Cookie, CookieJar},
-    header::{self, HeaderValue},
-};
-use crate::{
-    header::{HeaderMap, IntoHeaderPair},
+    header::{HeaderMap, TryIntoHeaderPair},
     payload::Payload,
     Request,
 };
 
 /// Test `Request` builder
 ///
-/// ```rust,ignore
+/// ```ignore
 /// # use http::{header, StatusCode};
 /// # use actix_web::*;
 /// use actix_web::test::TestRequest;
@@ -54,8 +49,6 @@ struct Inner {
     method: Method,
     uri: Uri,
     headers: HeaderMap,
-    #[cfg(feature = "cookies")]
-    cookies: CookieJar,
     payload: Option<Payload>,
 }
 
@@ -66,8 +59,6 @@ impl Default for TestRequest {
             uri: Uri::from_str("/").unwrap(),
             version: Version::HTTP_11,
             headers: HeaderMap::new(),
-            #[cfg(feature = "cookies")]
-            cookies: CookieJar::new(),
             payload: None,
         }))
     }
@@ -101,11 +92,8 @@ impl TestRequest {
     }
 
     /// Insert a header, replacing any that were set with an equivalent field name.
-    pub fn insert_header<H>(&mut self, header: H) -> &mut Self
-    where
-        H: IntoHeaderPair,
-    {
-        match header.try_into_header_pair() {
+    pub fn insert_header(&mut self, header: impl TryIntoHeaderPair) -> &mut Self {
+        match header.try_into_pair() {
             Ok((key, value)) => {
                 parts(&mut self.0).headers.insert(key, value);
             }
@@ -118,11 +106,8 @@ impl TestRequest {
     }
 
     /// Append a header, keeping any that were set with an equivalent field name.
-    pub fn append_header<H>(&mut self, header: H) -> &mut Self
-    where
-        H: IntoHeaderPair,
-    {
-        match header.try_into_header_pair() {
+    pub fn append_header(&mut self, header: impl TryIntoHeaderPair) -> &mut Self {
+        match header.try_into_pair() {
             Ok((key, value)) => {
                 parts(&mut self.0).headers.append(key, value);
             }
@@ -134,15 +119,8 @@ impl TestRequest {
         self
     }
 
-    /// Set cookie for this request.
-    #[cfg(feature = "cookies")]
-    pub fn cookie<'a>(&mut self, cookie: Cookie<'a>) -> &mut Self {
-        parts(&mut self.0).cookies.add(cookie.into_owned());
-        self
-    }
-
     /// Set request payload.
-    pub fn set_payload<B: Into<Bytes>>(&mut self, data: B) -> &mut Self {
+    pub fn set_payload(&mut self, data: impl Into<Bytes>) -> &mut Self {
         let mut payload = crate::h1::Payload::empty();
         payload.unread_data(data.into());
         parts(&mut self.0).payload = Some(payload.into());
@@ -168,22 +146,6 @@ impl TestRequest {
         head.method = inner.method;
         head.version = inner.version;
         head.headers = inner.headers;
-
-        #[cfg(feature = "cookies")]
-        {
-            let cookie: String = inner
-                .cookies
-                .delta()
-                // ensure only name=value is written to cookie header
-                .map(|c| Cookie::new(c.name(), c.value()).encoded().to_string())
-                .collect::<Vec<_>>()
-                .join("; ");
-
-            if !cookie.is_empty() {
-                head.headers
-                    .insert(header::COOKIE, HeaderValue::from_str(&cookie).unwrap());
-            }
-        }
 
         req
     }
@@ -302,7 +264,7 @@ impl TestSeqBuffer {
 
     /// Create new empty `TestBuffer` instance.
     pub fn empty() -> Self {
-        Self::new("")
+        Self::new(BytesMut::new())
     }
 
     pub fn read_buf(&self) -> Ref<'_, BytesMut> {

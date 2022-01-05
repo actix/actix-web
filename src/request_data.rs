@@ -1,9 +1,8 @@
 use std::{any::type_name, ops::Deref};
 
-use actix_http::error::{Error, ErrorInternalServerError};
-use futures_util::future;
+use actix_utils::future::{err, ok, Ready};
 
-use crate::{dev::Payload, FromRequest, HttpRequest};
+use crate::{dev::Payload, error::ErrorInternalServerError, Error, FromRequest, HttpRequest};
 
 /// Request-local data extractor.
 ///
@@ -18,12 +17,12 @@ use crate::{dev::Payload, FromRequest, HttpRequest};
 /// # Mutating Request Data
 /// Note that since extractors must output owned data, only types that `impl Clone` can use this
 /// extractor. A clone is taken of the required request data and can, therefore, not be directly
-/// mutated in-place. To mutate request data, continue to use [`HttpRequest::extensions_mut`] or
+/// mutated in-place. To mutate request data, continue to use [`HttpRequest::req_data_mut`] or
 /// re-insert the cloned data back into the extensions map. A `DerefMut` impl is intentionally not
 /// provided to make this potential foot-gun more obvious.
 ///
 /// # Example
-/// ```rust,no_run
+/// ```no_run
 /// # use actix_web::{web, HttpResponse, HttpRequest, Responder};
 ///
 /// #[derive(Debug, Clone, PartialEq)]
@@ -34,12 +33,11 @@ use crate::{dev::Payload, FromRequest, HttpRequest};
 ///     req: HttpRequest,
 ///     opt_flag: Option<web::ReqData<FlagFromMiddleware>>,
 /// ) -> impl Responder {
-///     // use an optional extractor if the middleware is
-///     // not guaranteed to add this type of requests data
+///     // use an option extractor if middleware is not guaranteed to add this type of req data
 ///     if let Some(flag) = opt_flag {
-///         assert_eq!(&flag.into_inner(), req.extensions().get::<FlagFromMiddleware>().unwrap());
+///         assert_eq!(&flag.into_inner(), req.req_data().get::<FlagFromMiddleware>().unwrap());
 ///     }
-///     
+///
 ///     HttpResponse::Ok()
 /// }
 /// ```
@@ -65,13 +63,12 @@ impl<T: Clone + 'static> Deref for ReqData<T> {
 }
 
 impl<T: Clone + 'static> FromRequest for ReqData<T> {
-    type Config = ();
     type Error = Error;
-    type Future = future::Ready<Result<Self, Error>>;
+    type Future = Ready<Result<Self, Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        if let Some(st) = req.extensions().get::<T>() {
-            future::ok(ReqData(st.clone()))
+        if let Some(st) = req.req_data().get::<T>() {
+            ok(ReqData(st.clone()))
         } else {
             log::debug!(
                 "Failed to construct App-level ReqData extractor. \
@@ -79,7 +76,7 @@ impl<T: Clone + 'static> FromRequest for ReqData<T> {
                 req.path(),
                 type_name::<T>(),
             );
-            future::err(ErrorInternalServerError(
+            err(ErrorInternalServerError(
                 "Missing expected request extension data",
             ))
         }

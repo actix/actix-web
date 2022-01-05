@@ -8,12 +8,10 @@ use std::{
 };
 
 use actix_http::{
-    body::{Body, BodyStream},
-    http::{
-        header::{self, HeaderMap, HeaderName, IntoHeaderValue},
-        Error as HttpError,
-    },
-    Error, RequestHead, RequestHeadType,
+    body::{BodyStream, MessageBody},
+    error::HttpError,
+    header::{self, HeaderMap, HeaderName, TryIntoHeaderValue},
+    RequestHead, RequestHeadType,
 };
 use actix_rt::time::{sleep, Sleep};
 use bytes::Bytes;
@@ -21,28 +19,35 @@ use derive_more::From;
 use futures_core::Stream;
 use serde::Serialize;
 
-#[cfg(feature = "compress")]
-use actix_http::encoding::Decoder;
-#[cfg(feature = "compress")]
-use actix_http::http::header::ContentEncoding;
-#[cfg(feature = "compress")]
-use actix_http::{Payload, PayloadStream};
+#[cfg(feature = "__compress")]
+use actix_http::{encoding::Decoder, header::ContentEncoding, Payload};
 
-use crate::error::{FreezeRequestError, InvalidUrl, SendRequestError};
-use crate::response::ClientResponse;
-use crate::ClientConfig;
+use crate::{
+    any_body::AnyBody,
+    client::ClientConfig,
+    error::{FreezeRequestError, InvalidUrl, SendRequestError},
+    BoxError, ClientResponse, ConnectRequest, ConnectResponse,
+};
 
 #[derive(Debug, From)]
 pub(crate) enum PrepForSendingError {
     Url(InvalidUrl),
     Http(HttpError),
+    Json(serde_json::Error),
+    Form(serde_urlencoded::ser::Error),
 }
 
 impl From<PrepForSendingError> for FreezeRequestError {
     fn from(err: PrepForSendingError) -> FreezeRequestError {
         match err {
-            PrepForSendingError::Url(e) => FreezeRequestError::Url(e),
-            PrepForSendingError::Http(e) => FreezeRequestError::Http(e),
+            PrepForSendingError::Url(err) => FreezeRequestError::Url(err),
+            PrepForSendingError::Http(err) => FreezeRequestError::Http(err),
+            PrepForSendingError::Json(err) => {
+                FreezeRequestError::Custom(Box::new(err), Box::new("json serialization error"))
+            }
+            PrepForSendingError::Form(err) => {
+                FreezeRequestError::Custom(Box::new(err), Box::new("form serialization error"))
+            }
         }
     }
 }
@@ -52,6 +57,12 @@ impl From<PrepForSendingError> for SendRequestError {
         match err {
             PrepForSendingError::Url(e) => SendRequestError::Url(e),
             PrepForSendingError::Http(e) => SendRequestError::Http(e),
+            PrepForSendingError::Json(err) => {
+                SendRequestError::Custom(Box::new(err), Box::new("json serialization error"))
+            }
+            PrepForSendingError::Form(err) => {
+                SendRequestError::Custom(Box::new(err), Box::new("form serialization error"))
+            }
         }
     }
 }
@@ -60,7 +71,7 @@ impl From<PrepForSendingError> for SendRequestError {
 #[must_use = "futures do nothing unless polled"]
 pub enum SendClientRequest {
     Fut(
-        Pin<Box<dyn Future<Output = Result<ClientResponse, SendRequestError>>>>,
+        Pin<Box<dyn Future<Output = Result<ConnectResponse, SendRequestError>>>>,
         // FIXME: use a pinned Sleep instead of box.
         Option<Pin<Box<Sleep>>>,
         bool,
@@ -70,7 +81,7 @@ pub enum SendClientRequest {
 
 impl SendClientRequest {
     pub(crate) fn new(
-        send: Pin<Box<dyn Future<Output = Result<ClientResponse, SendRequestError>>>>,
+        send: Pin<Box<dyn Future<Output = Result<ConnectResponse, SendRequestError>>>>,
         response_decompress: bool,
         timeout: Option<Duration>,
     ) -> SendClientRequest {
@@ -79,30 +90,35 @@ impl SendClientRequest {
     }
 }
 
-#[cfg(feature = "compress")]
+#[cfg(feature = "__compress")]
 impl Future for SendClientRequest {
-    type Output = Result<ClientResponse<Decoder<Payload<PayloadStream>>>, SendRequestError>;
+    type Output = Result<ClientResponse<Decoder<Payload>>, SendRequestError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
 
         match this {
             SendClientRequest::Fut(send, delay, response_decompress) => {
-                if delay.is_some() {
-                    match Pin::new(delay.as_mut().unwrap()).poll(cx) {
-                        Poll::Pending => {}
-                        _ => return Poll::Ready(Err(SendRequestError::Timeout)),
+                if let Some(delay) = delay {
+                    if delay.as_mut().poll(cx).is_ready() {
+                        return Poll::Ready(Err(SendRequestError::Timeout));
                     }
                 }
 
-                let res = futures_core::ready!(Pin::new(send).poll(cx)).map(|res| {
-                    res.map_body(|head, payload| {
-                        if *response_decompress {
-                            Payload::Stream(Decoder::from_headers(payload, &head.headers))
-                        } else {
-                            Payload::Stream(Decoder::new(payload, ContentEncoding::Identity))
-                        }
-                    })
+                let res = futures_core::ready!(send.as_mut().poll(cx)).map(|res| {
+                    res.into_client_response()._timeout(delay.take()).map_body(
+                        |head, payload| {
+                            if *response_decompress {
+                                Payload::Stream {
+                                    payload: Decoder::from_headers(payload, &head.headers),
+                                }
+                            } else {
+                                Payload::Stream {
+                                    payload: Decoder::new(payload, ContentEncoding::Identity),
+                                }
+                            }
+                        },
+                    )
                 });
 
                 Poll::Ready(res)
@@ -115,7 +131,7 @@ impl Future for SendClientRequest {
     }
 }
 
-#[cfg(not(feature = "compress"))]
+#[cfg(not(feature = "__compress"))]
 impl Future for SendClientRequest {
     type Output = Result<ClientResponse, SendRequestError>;
 
@@ -123,13 +139,14 @@ impl Future for SendClientRequest {
         let this = self.get_mut();
         match this {
             SendClientRequest::Fut(send, delay, _) => {
-                if delay.is_some() {
-                    match Pin::new(delay.as_mut().unwrap()).poll(cx) {
-                        Poll::Pending => {}
-                        _ => return Poll::Ready(Err(SendRequestError::Timeout)),
+                if let Some(delay) = delay {
+                    if delay.as_mut().poll(cx).is_ready() {
+                        return Poll::Ready(Err(SendRequestError::Timeout));
                     }
                 }
-                Pin::new(send).poll(cx)
+                send.as_mut()
+                    .poll(cx)
+                    .map_ok(|res| res.into_client_response()._timeout(delay.take()))
             }
             SendClientRequest::Err(ref mut e) => match e.take() {
                 Some(e) => Poll::Ready(Err(e)),
@@ -142,12 +159,6 @@ impl Future for SendClientRequest {
 impl From<SendRequestError> for SendClientRequest {
     fn from(e: SendRequestError) -> Self {
         SendClientRequest::Err(Some(e))
-    }
-}
-
-impl From<Error> for SendClientRequest {
-    fn from(e: Error) -> Self {
-        SendClientRequest::Err(Some(e.into()))
     }
 }
 
@@ -170,86 +181,73 @@ pub(crate) enum RequestSender {
 }
 
 impl RequestSender {
-    pub(crate) fn send_body<B>(
+    pub(crate) fn send_body(
         self,
         addr: Option<net::SocketAddr>,
         response_decompress: bool,
         timeout: Option<Duration>,
         config: &ClientConfig,
-        body: B,
-    ) -> SendClientRequest
-    where
-        B: Into<Body>,
-    {
-        let fut = match self {
-            RequestSender::Owned(head) => {
-                config
-                    .connector
-                    .send_request(RequestHeadType::Owned(head), body.into(), addr)
-            }
-            RequestSender::Rc(head, extra_headers) => config.connector.send_request(
+        body: impl MessageBody + 'static,
+    ) -> SendClientRequest {
+        let req = match self {
+            RequestSender::Owned(head) => ConnectRequest::Client(
+                RequestHeadType::Owned(head),
+                AnyBody::from_message_body(body).into_boxed(),
+                addr,
+            ),
+            RequestSender::Rc(head, extra_headers) => ConnectRequest::Client(
                 RequestHeadType::Rc(head, extra_headers),
-                body.into(),
+                AnyBody::from_message_body(body).into_boxed(),
                 addr,
             ),
         };
 
+        let fut = config.connector.call(req);
+
         SendClientRequest::new(fut, response_decompress, timeout.or(config.timeout))
     }
 
-    pub(crate) fn send_json<T: Serialize>(
+    pub(crate) fn send_json(
         mut self,
         addr: Option<net::SocketAddr>,
         response_decompress: bool,
         timeout: Option<Duration>,
         config: &ClientConfig,
-        value: &T,
+        value: impl Serialize,
     ) -> SendClientRequest {
-        let body = match serde_json::to_string(value) {
+        let body = match serde_json::to_string(&value) {
             Ok(body) => body,
-            Err(e) => return Error::from(e).into(),
+            Err(err) => return PrepForSendingError::Json(err).into(),
         };
 
         if let Err(e) = self.set_header_if_none(header::CONTENT_TYPE, "application/json") {
             return e.into();
         }
 
-        self.send_body(
-            addr,
-            response_decompress,
-            timeout,
-            config,
-            Body::Bytes(Bytes::from(body)),
-        )
+        self.send_body(addr, response_decompress, timeout, config, body)
     }
 
-    pub(crate) fn send_form<T: Serialize>(
+    pub(crate) fn send_form(
         mut self,
         addr: Option<net::SocketAddr>,
         response_decompress: bool,
         timeout: Option<Duration>,
         config: &ClientConfig,
-        value: &T,
+        value: impl Serialize,
     ) -> SendClientRequest {
         let body = match serde_urlencoded::to_string(value) {
             Ok(body) => body,
-            Err(e) => return Error::from(e).into(),
+            Err(err) => return PrepForSendingError::Form(err).into(),
         };
 
         // set content-type
-        if let Err(e) =
+        if let Err(err) =
             self.set_header_if_none(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
         {
-            return e.into();
+            return err.into();
         }
 
-        self.send_body(
-            addr,
-            response_decompress,
-            timeout,
-            config,
-            Body::Bytes(Bytes::from(body)),
-        )
+        self.send_body(addr, response_decompress, timeout, config, body)
     }
 
     pub(crate) fn send_stream<S, E>(
@@ -261,15 +259,15 @@ impl RequestSender {
         stream: S,
     ) -> SendClientRequest
     where
-        S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
-        E: Into<Error> + 'static,
+        S: Stream<Item = Result<Bytes, E>> + 'static,
+        E: Into<BoxError> + 'static,
     {
         self.send_body(
             addr,
             response_decompress,
             timeout,
             config,
-            Body::from_message(BodyStream::new(stream)),
+            BodyStream::new(stream),
         )
     }
 
@@ -280,12 +278,12 @@ impl RequestSender {
         timeout: Option<Duration>,
         config: &ClientConfig,
     ) -> SendClientRequest {
-        self.send_body(addr, response_decompress, timeout, config, Body::Empty)
+        self.send_body(addr, response_decompress, timeout, config, ())
     }
 
     fn set_header_if_none<V>(&mut self, key: HeaderName, value: V) -> Result<(), HttpError>
     where
-        V: IntoHeaderValue,
+        V: TryIntoHeaderValue,
     {
         match self {
             RequestSender::Owned(head) => {

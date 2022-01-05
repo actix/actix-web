@@ -1,6 +1,8 @@
 //! HTTP/1 protocol implementation.
+
 use bytes::{Bytes, BytesMut};
 
+mod chunked;
 mod client;
 mod codec;
 mod decoder;
@@ -57,7 +59,7 @@ pub(crate) fn reserve_readbuf(src: &mut BytesMut) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::request::Request;
+    use crate::Request;
 
     impl Message<Request> {
         pub fn message(self) -> Request {

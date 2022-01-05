@@ -7,10 +7,10 @@ use std::sync::Arc;
 
 use actix_http::HttpService;
 use actix_http_test::test_server;
-use actix_service::{map_config, pipeline_factory, ServiceFactoryExt};
+use actix_service::{fn_service, map_config, ServiceFactoryExt};
+use actix_utils::future::ok;
 use actix_web::http::Version;
 use actix_web::{dev::AppConfig, web, App, HttpResponse};
-use futures_util::future::ok;
 use openssl::{
     pkey::PKey,
     ssl::{SslAcceptor, SslConnector, SslMethod, SslVerifyMode},
@@ -48,7 +48,7 @@ async fn test_connection_reuse_h2() {
 
     let srv = test_server(move || {
         let num2 = num2.clone();
-        pipeline_factory(move |io| {
+        fn_service(move |io| {
             num2.fetch_add(1, Ordering::Relaxed);
             ok(io)
         })
@@ -72,7 +72,7 @@ async fn test_connection_reuse_h2() {
         .map_err(|e| log::error!("Can not set alpn protocol: {:?}", e));
 
     let client = awc::Client::builder()
-        .connector(awc::Connector::new().ssl(builder.build()).finish())
+        .connector(awc::Connector::new().openssl(builder.build()))
         .finish();
 
     // req 1

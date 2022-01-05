@@ -1,6 +1,7 @@
 //! For URL encoded form helper documentation, see [`Form`].
 
 use std::{
+    borrow::Cow,
     fmt,
     future::Future,
     ops,
@@ -12,17 +13,16 @@ use std::{
 use actix_http::Payload;
 use bytes::BytesMut;
 use encoding_rs::{Encoding, UTF_8};
-use futures_util::{
-    future::{FutureExt, LocalBoxFuture},
-    StreamExt,
-};
+use futures_core::{future::LocalBoxFuture, ready};
+use futures_util::{FutureExt as _, StreamExt as _};
 use serde::{de::DeserializeOwned, Serialize};
 
-#[cfg(feature = "compress")]
+#[cfg(feature = "__compress")]
 use crate::dev::Decompress;
 use crate::{
-    error::UrlencodedError, extract::FromRequest, http::header::CONTENT_LENGTH, web, Error,
-    HttpMessage, HttpRequest, HttpResponse, Responder,
+    body::EitherBody, error::UrlencodedError, extract::FromRequest,
+    http::header::CONTENT_LENGTH, web, Error, HttpMessage, HttpRequest, HttpResponse,
+    Responder,
 };
 
 /// URL encoded payload extractor and responder.
@@ -31,9 +31,9 @@ use crate::{
 ///
 /// # Extractor
 /// To extract typed data from a request body, the inner type `T` must implement the
-/// [`serde::Deserialize`] trait.
+/// [`DeserializeOwned`] trait.
 ///
-/// Use [`FormConfig`] to configure extraction process.
+/// Use [`FormConfig`] to configure extraction options.
 ///
 /// ```
 /// use actix_web::{post, web};
@@ -82,7 +82,11 @@ use crate::{
 ///     })
 /// }
 /// ```
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
+///
+/// # Panics
+/// URL encoded forms consist of unordered `key=value` pairs, therefore they cannot be decoded into
+/// any type which depends upon data ordering (eg. tuples). Trying to do so will result in a panic.
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct Form<T>(pub T);
 
 impl<T> Form<T> {
@@ -106,43 +110,66 @@ impl<T> ops::DerefMut for Form<T> {
     }
 }
 
+impl<T> Serialize for Form<T>
+where
+    T: Serialize,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.0.serialize(serializer)
+    }
+}
+
 /// See [here](#extractor) for example of usage as an extractor.
 impl<T> FromRequest for Form<T>
 where
     T: DeserializeOwned + 'static,
 {
-    type Config = FormConfig;
     type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<Self, Error>>;
+    type Future = FormExtractFut<T>;
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-        let req2 = req.clone();
-        let (limit, err_handler) = req
-            .app_data::<Self::Config>()
-            .or_else(|| {
-                req.app_data::<web::Data<Self::Config>>()
-                    .map(|d| d.as_ref())
-            })
-            .map(|c| (c.limit, c.err_handler.clone()))
-            .unwrap_or((16384, None));
+        let FormConfig { limit, err_handler } = FormConfig::from_req(req).clone();
 
-        UrlEncoded::new(req, payload)
-            .limit(limit)
-            .map(move |res| match res {
-                Err(err) => match err_handler {
-                    Some(err_handler) => Err((err_handler)(err, &req2)),
-                    None => Err(err.into()),
-                },
-                Ok(item) => Ok(Form(item)),
-            })
-            .boxed_local()
+        FormExtractFut {
+            fut: UrlEncoded::new(req, payload).limit(limit),
+            req: req.clone(),
+            err_handler,
+        }
     }
 }
 
-impl<T: fmt::Debug> fmt::Debug for Form<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
+type FormErrHandler = Option<Rc<dyn Fn(UrlencodedError, &HttpRequest) -> Error>>;
+
+pub struct FormExtractFut<T> {
+    fut: UrlEncoded<T>,
+    err_handler: FormErrHandler,
+    req: HttpRequest,
+}
+
+impl<T> Future for FormExtractFut<T>
+where
+    T: DeserializeOwned + 'static,
+{
+    type Output = Result<Form<T>, Error>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+
+        let res = ready!(Pin::new(&mut this.fut).poll(cx));
+
+        let res = match res {
+            Err(err) => match &this.err_handler {
+                Some(err_handler) => Err((err_handler)(err, &this.req)),
+                None => Err(err.into()),
+            },
+            Ok(item) => Ok(Form(item)),
+        };
+
+        Poll::Ready(res)
     }
 }
 
@@ -154,12 +181,21 @@ impl<T: fmt::Display> fmt::Display for Form<T> {
 
 /// See [here](#responder) for example of usage as a handler return type.
 impl<T: Serialize> Responder for Form<T> {
-    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
+    type Body = EitherBody<String>;
+
+    fn respond_to(self, _: &HttpRequest) -> HttpResponse<Self::Body> {
         match serde_urlencoded::to_string(&self.0) {
-            Ok(body) => HttpResponse::Ok()
+            Ok(body) => match HttpResponse::Ok()
                 .content_type(mime::APPLICATION_WWW_FORM_URLENCODED)
-                .body(body),
-            Err(err) => HttpResponse::from_error(err.into()),
+                .message_body(body)
+            {
+                Ok(res) => res.map_into_left_body(),
+                Err(err) => HttpResponse::from_error(err).map_into_right_body(),
+            },
+
+            Err(err) => {
+                HttpResponse::from_error(UrlencodedError::Serialize(err)).map_into_right_body()
+            }
         }
     }
 }
@@ -189,7 +225,7 @@ impl<T: Serialize> Responder for Form<T> {
 #[derive(Clone)]
 pub struct FormConfig {
     limit: usize,
-    err_handler: Option<Rc<dyn Fn(UrlencodedError, &HttpRequest) -> Error>>,
+    err_handler: FormErrHandler,
 }
 
 impl FormConfig {
@@ -207,14 +243,26 @@ impl FormConfig {
         self.err_handler = Some(Rc::new(f));
         self
     }
+
+    /// Extract payload config from app data.
+    ///
+    /// Checks both `T` and `Data<T>`, in that order, and falls back to the default payload config.
+    fn from_req(req: &HttpRequest) -> &Self {
+        req.app_data::<Self>()
+            .or_else(|| req.app_data::<web::Data<Self>>().map(|d| d.as_ref()))
+            .unwrap_or(&DEFAULT_CONFIG)
+    }
 }
+
+/// Allow shared refs used as default.
+const DEFAULT_CONFIG: FormConfig = FormConfig {
+    limit: 16_384, // 2^14 bytes (~16kB)
+    err_handler: None,
+};
 
 impl Default for FormConfig {
     fn default() -> Self {
-        FormConfig {
-            limit: 16_384, // 2^14 bytes (~16kB)
-            err_handler: None,
-        }
+        DEFAULT_CONFIG
     }
 }
 
@@ -226,9 +274,9 @@ impl Default for FormConfig {
 /// - content type is not `application/x-www-form-urlencoded`
 /// - content length is greater than [limit](UrlEncoded::limit())
 pub struct UrlEncoded<T> {
-    #[cfg(feature = "compress")]
+    #[cfg(feature = "__compress")]
     stream: Option<Decompress<Payload>>,
-    #[cfg(not(feature = "compress"))]
+    #[cfg(not(feature = "__compress"))]
     stream: Option<Payload>,
 
     limit: usize,
@@ -264,10 +312,15 @@ impl<T> UrlEncoded<T> {
             }
         };
 
-        #[cfg(feature = "compress")]
-        let payload = Decompress::from_headers(payload.take(), req.headers());
-        #[cfg(not(feature = "compress"))]
-        let payload = payload.take();
+        let payload = {
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "__compress")] {
+                    Decompress::from_headers(payload.take(), req.headers())
+                } else {
+                    payload.take()
+                }
+            }
+        };
 
         UrlEncoded {
             encoding,
@@ -342,14 +395,14 @@ where
                 }
 
                 if encoding == UTF_8 {
-                    serde_urlencoded::from_bytes::<T>(&body).map_err(|_| UrlencodedError::Parse)
+                    serde_urlencoded::from_bytes::<T>(&body).map_err(UrlencodedError::Parse)
                 } else {
                     let body = encoding
                         .decode_without_bom_handling_and_without_replacement(&body)
-                        .map(|s| s.into_owned())
-                        .ok_or(UrlencodedError::Parse)?;
+                        .map(Cow::into_owned)
+                        .ok_or(UrlencodedError::Encoding)?;
 
-                    serde_urlencoded::from_str::<T>(&body).map_err(|_| UrlencodedError::Parse)
+                    serde_urlencoded::from_str::<T>(&body).map_err(UrlencodedError::Parse)
                 }
             }
             .boxed_local(),
@@ -365,11 +418,14 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::http::{
-        header::{HeaderValue, CONTENT_LENGTH, CONTENT_TYPE},
-        StatusCode,
-    };
     use crate::test::TestRequest;
+    use crate::{
+        http::{
+            header::{HeaderValue, CONTENT_LENGTH, CONTENT_TYPE},
+            StatusCode,
+        },
+        test::assert_body_eq,
+    };
 
     #[derive(Deserialize, Serialize, Debug, PartialEq)]
     struct Info {
@@ -400,12 +456,8 @@ mod tests {
             UrlencodedError::Overflow { .. } => {
                 matches!(other, UrlencodedError::Overflow { .. })
             }
-            UrlencodedError::UnknownLength => {
-                matches!(other, UrlencodedError::UnknownLength)
-            }
-            UrlencodedError::ContentType => {
-                matches!(other, UrlencodedError::ContentType)
-            }
+            UrlencodedError::UnknownLength => matches!(other, UrlencodedError::UnknownLength),
+            UrlencodedError::ContentType => matches!(other, UrlencodedError::ContentType),
             _ => false,
         }
     }
@@ -481,15 +533,13 @@ mod tests {
             hello: "world".to_string(),
             counter: 123,
         });
-        let resp = form.respond_to(&req);
-        assert_eq!(resp.status(), StatusCode::OK);
+        let res = form.respond_to(&req);
+        assert_eq!(res.status(), StatusCode::OK);
         assert_eq!(
-            resp.headers().get(CONTENT_TYPE).unwrap(),
+            res.headers().get(CONTENT_TYPE).unwrap(),
             HeaderValue::from_static("application/x-www-form-urlencoded")
         );
-
-        use crate::responder::tests::BodyTest;
-        assert_eq!(resp.body().bin_ref(), b"hello=world&counter=123");
+        assert_body_eq!(res, b"hello=world&counter=123");
     }
 
     #[actix_rt::test]

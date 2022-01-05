@@ -1,0 +1,48 @@
+[package]
+name = "actix-test"
+version = "0.1.0-beta.11"
+authors = [
+    "Nikolay Kim <fafhrd91@gmail.com>",
+    "Rob Ede <robjtede@icloud.com>",
+]
+description = "Integration testing tools for Actix Web applications"
+keywords = ["http", "web", "framework", "async", "futures"]
+homepage = "https://actix.rs"
+repository = "https://github.com/actix/actix-web.git"
+categories = [
+    "network-programming",
+    "asynchronous",
+    "web-programming::http-server",
+    "web-programming::websocket",
+]
+license = "MIT OR Apache-2.0"
+edition = "2018"
+
+[features]
+default = []
+
+# rustls
+rustls = ["tls-rustls", "actix-http/rustls", "awc/rustls"]
+
+# openssl
+openssl = ["tls-openssl", "actix-http/openssl", "awc/openssl"]
+
+[dependencies]
+actix-codec = "0.4.1"
+actix-http = "3.0.0-beta.18"
+actix-http-test = "3.0.0-beta.11"
+actix-rt = "2.1"
+actix-service = "2.0.0"
+actix-utils = "3.0.0"
+actix-web = { version = "4.0.0-beta.19", default-features = false, features = ["cookies"] }
+awc = { version = "3.0.0-beta.18", default-features = false, features = ["cookies"] }
+
+futures-core = { version = "0.3.7", default-features = false, features = ["std"] }
+futures-util = { version = "0.3.7", default-features = false, features = [] }
+log = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_urlencoded = "0.7"
+tls-openssl = { package = "openssl", version = "0.10.9", optional = true }
+tls-rustls = { package = "rustls", version = "0.20.0", optional = true }
+tokio = { version = "1.8.4", features = ["sync"] }
