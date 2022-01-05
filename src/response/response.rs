@@ -22,7 +22,7 @@ use {
     cookie::Cookie,
 };
 
-use crate::{error::Error, HttpResponseBuilder};
+use crate::{error::Error, HttpRequest, HttpResponseBuilder, Responder};
 
 /// An outgoing response.
 pub struct HttpResponse<B = BoxBody> {
@@ -311,6 +311,18 @@ impl Future for HttpResponse<BoxBody> {
     }
 }
 
+impl<B> Responder for HttpResponse<B>
+where
+    B: MessageBody + 'static,
+{
+    type Body = B;
+
+    #[inline]
+    fn respond_to(self, _: &HttpRequest) -> HttpResponse<Self::Body> {
+        self
+    }
+}
+
 #[cfg(feature = "cookies")]
 pub struct CookieIter<'a> {
     iter: std::slice::Iter<'a, HeaderValue>,
@@ -333,8 +345,15 @@ impl<'a> Iterator for CookieIter<'a> {
 
 #[cfg(test)]
 mod tests {
+    use static_assertions::assert_impl_all;
+
     use super::*;
     use crate::http::header::{HeaderValue, COOKIE};
+
+    assert_impl_all!(HttpResponse: Responder);
+    assert_impl_all!(HttpResponse<String>: Responder);
+    assert_impl_all!(HttpResponse<&'static str>: Responder);
+    assert_impl_all!(HttpResponse<crate::body::None>: Responder);
 
     #[test]
     fn test_debug() {

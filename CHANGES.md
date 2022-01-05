@@ -1,6 +1,10 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Changed
+- `HttpResponse` can now be used as a `Responder` with any body type.
+
+[#2501]: https://github.com/actix/actix-web/pull/2501
 
 
 ## 4.0.0-beta.19 - 2022-01-04
