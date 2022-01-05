@@ -232,3 +232,19 @@ where
         &mut *self
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::cell::RefCell;
+
+    use super::*;
+
+    #[test]
+    fn deref_impls() {
+        let mut foo = Path::new("/foo");
+        let _ = (&mut foo).resource_path();
+
+        let foo = RefCell::new(foo);
+        let _ = foo.borrow_mut().resource_path();
+    }
+}

@@ -3,6 +3,7 @@ use crate::Path;
 // TODO: this trait is necessary, document it
 // see impl Resource for ServiceRequest
 pub trait Resource {
+    /// Type of resource's path returned in `resource_path`.
     type Path: ResourcePath;
 
     fn resource_path(&mut self) -> &mut Path<Self::Path>;
