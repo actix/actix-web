@@ -99,8 +99,7 @@ impl<T: str::FromStr> str::FromStr for QualityItem<T> {
         let mut raw_item = q_item_str;
         let mut quality = Quality::MAX;
 
-        let parts = q_item_str
-            .rsplit_once(';')
+        let parts = str_rsplit_once(q_item_str, ';')
             .map(|(item, q_attr)| (item.trim(), q_attr.trim()));
 
         if let Some((val, q_attr)) = parts {
@@ -139,6 +138,14 @@ impl<T: str::FromStr> str::FromStr for QualityItem<T> {
 
         Ok(QualityItem::new(item, quality))
     }
+}
+
+// `str::rsplit_once` is stabilized in 1.52.0
+fn str_rsplit_once(s: &str, delimiter: char) -> Option<(&str, &str)> {
+    let mut rsplit = s.rsplitn(2, delimiter);
+    let suffix = rsplit.next()?;
+    let prefix = rsplit.next()?;
+    Some((prefix, suffix))
 }
 
 #[cfg(test)]

@@ -289,16 +289,27 @@ impl Guard for MethodGuard {
 }
 
 macro_rules! method_guard {
+    // Workaround for 1.52.0 compat. It's not great but any use of `concat!` must be done prior
+    // to insertion in a doc comment.
     ($method_fn:ident, $method_const:ident) => {
-        #[doc = concat!("Creates a guard that matches the `", stringify!($method_const), "` request method.")]
+        method_guard!(
+            $method_fn,
+            $method_const,
+            concat!("Creates a guard that matches the `", stringify!($method_const), "` request method."),
+            concat!("The route in this example will only respond to `", stringify!($method_const), "` requests."),
+            concat!("    .guard(guard::", stringify!($method_fn), "())")
+        );
+    };
+    ($method_fn:ident, $method_const:ident, $doc1:expr, $doc2:expr, $doc3:expr) => {
+        #[doc = $doc1]
         ///
         /// # Examples
-        #[doc = concat!("The route in this example will only respond to `", stringify!($method_const), "` requests.")]
+        #[doc = $doc2]
         /// ```
         /// use actix_web::{guard, web, HttpResponse};
         ///
         /// web::route()
-        #[doc = concat!("    .guard(guard::", stringify!($method_fn), "())")]
+        #[doc = $doc3]
         ///     .to(|| HttpResponse::Ok());
         /// ```
         #[allow(non_snake_case)]

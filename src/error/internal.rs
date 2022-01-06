@@ -117,8 +117,17 @@ where
 }
 
 macro_rules! error_helper {
+    // Workaround for 1.52.0 compat. It's not great but any use of `concat!` must be done prior
+    // to insertion in a doc comment.
     ($name:ident, $status:ident) => {
-        #[doc = concat!("Helper function that wraps any error and generates a `", stringify!($status), "` response.")]
+        error_helper!(
+            $name,
+            $status,
+            concat!("Helper function that wraps any error and generates a `", stringify!($status), "` response.")
+        );
+    };
+    ($name:ident, $status:ident, $doc:expr) => {
+        #[doc = $doc]
         #[allow(non_snake_case)]
         pub fn $name<T>(err: T) -> Error
         where

@@ -217,7 +217,7 @@ impl FromStr for Range {
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<Range, ParseError> {
-        let (unit, val) = s.split_once('=').ok_or(ParseError::Header)?;
+        let (unit, val) = str_split_once(s, '=').ok_or(ParseError::Header)?;
 
         match (unit, val) {
             ("bytes", ranges) => {
@@ -242,7 +242,7 @@ impl FromStr for ByteRangeSpec {
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<ByteRangeSpec, ParseError> {
-        let (start, end) = s.split_once('-').ok_or(ParseError::Header)?;
+        let (start, end) = str_split_once(s, '-').ok_or(ParseError::Header)?;
 
         match (start, end) {
             ("", end) => end
@@ -293,6 +293,14 @@ fn from_comma_delimited<T: FromStr>(s: &str) -> Vec<T> {
         })
         .filter_map(|x| x.parse().ok())
         .collect()
+}
+
+// `str::split_once` is stabilized in 1.52.0
+fn str_split_once(str: &str, delimiter: char) -> Option<(&str, &str)> {
+    let mut splitn = str.splitn(2, delimiter);
+    let prefix = splitn.next()?;
+    let suffix = splitn.next()?;
+    Some((prefix, suffix))
 }
 
 #[cfg(test)]

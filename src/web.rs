@@ -83,25 +83,37 @@ pub fn route() -> Route {
     Route::new()
 }
 
+
 macro_rules! method_route {
+    // Workaround for 1.52.0 compat. It's not great but any use of `concat!` must be done prior
+    // to insertion in a doc comment.
     ($method_fn:ident, $method_const:ident) => {
-        #[doc = concat!(" Creates a new route with `", stringify!($method_const), "` method guard.")]
+        method_route!(
+            $method_fn,
+            $method_const,
+            concat!(" Creates a new route with `", stringify!($method_const), "` method guard."),
+            concat!(" In this example, one `", stringify!($method_const), " /{project_id}` route is set up:"),
+            concat!("         .route(web::", stringify!($method_fn), "().to(|| HttpResponse::Ok()))")
+        );
+    };
+    ($method_fn:ident, $method_const:ident, $doc1:expr, $doc2:expr, $doc3:expr) => {
+        #[doc = $doc1]
         ///
         /// # Examples
-        #[doc = concat!(" In this example, one `", stringify!($method_const), " /{project_id}` route is set up:")]
+        #[doc = $doc2]
         /// ```
         /// use actix_web::{web, App, HttpResponse};
         ///
         /// let app = App::new().service(
         ///     web::resource("/{project_id}")
-        #[doc = concat!("         .route(web::", stringify!($method_fn), "().to(|| HttpResponse::Ok()))")]
+        #[doc = $doc3]
         ///
         /// );
         /// ```
         pub fn $method_fn() -> Route {
             method(Method::$method_const)
         }
-    };
+    }
 }
 
 method_route!(get, GET);
