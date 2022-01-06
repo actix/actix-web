@@ -99,8 +99,8 @@ impl<T: str::FromStr> str::FromStr for QualityItem<T> {
         let mut raw_item = q_item_str;
         let mut quality = Quality::MAX;
 
-        let parts = str_rsplit_once(q_item_str, ';')
-            .map(|(item, q_attr)| (item.trim(), q_attr.trim()));
+        let parts =
+            str_rsplit_once(q_item_str, ';').map(|(item, q_attr)| (item.trim(), q_attr.trim()));
 
         if let Some((val, q_attr)) = parts {
             // example for item with q-factor:

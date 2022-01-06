@@ -123,7 +123,11 @@ macro_rules! error_helper {
         error_helper!(
             $name,
             $status,
-            concat!("Helper function that wraps any error and generates a `", stringify!($status), "` response.")
+            concat!(
+                "Helper function that wraps any error and generates a `",
+                stringify!($status),
+                "` response."
+            )
         );
     };
     ($name:ident, $status:ident, $doc:expr) => {

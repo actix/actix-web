@@ -295,8 +295,16 @@ macro_rules! method_guard {
         method_guard!(
             $method_fn,
             $method_const,
-            concat!("Creates a guard that matches the `", stringify!($method_const), "` request method."),
-            concat!("The route in this example will only respond to `", stringify!($method_const), "` requests."),
+            concat!(
+                "Creates a guard that matches the `",
+                stringify!($method_const),
+                "` request method."
+            ),
+            concat!(
+                "The route in this example will only respond to `",
+                stringify!($method_const),
+                "` requests."
+            ),
             concat!("    .guard(guard::", stringify!($method_fn), "())")
         );
     };
