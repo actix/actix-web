@@ -7,13 +7,13 @@
 
 ### Changed
 - `HttpResponse` can now be used as a `Responder` with any body type. [#2567]
-- `Result` extractor wrapper can now convert error types. [#xxxx]
-- Associated types in `FromRequest` impl for `Option` and `Result` has changed. [#xxxx]
+- `Result` extractor wrapper can now convert error types. [#2581]
+- Associated types in `FromRequest` impl for `Option` and `Result` has changed. [#2581]
 
 [#1988]: https://github.com/actix/actix-web/pull/1988
 [#2567]: https://github.com/actix/actix-web/pull/2567
 [#2569]: https://github.com/actix/actix-web/pull/2569
-[#xxxx] https://github.com/actix/actix-web/pull/xxxx
+[#2581] https://github.com/actix/actix-web/pull/2581
 
 
 ## 4.0.0-beta.19 - 2022-01-04
