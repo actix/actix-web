@@ -11,18 +11,17 @@ use crate::{
 ///
 /// # What Is A Request Handler
 /// A request handler has three requirements:
-/// 1. It is an async function (or a function/closure that returns an appropriate future);
-/// 1. The function accepts zero or more parameters that implement [`FromRequest`];
-/// 1. The async function (or future) resolves to a type that can be converted into an
+/// 1. It is an async function (or a function/closure that returns an appropriate future)
+/// and has no more than 12 paramters;
+/// 2. The function parameters implement [`FromRequest`];
+/// 3. The async function (or future) resolves to a type that can be converted into an
 ///   [`HttpResponse`] (i.e., it implements the [`Responder`] trait).
 ///
 /// # Compiler Errors
 /// If you get the error `the trait Handler<_> is not implemented`, then your handler does not
-/// fulfill one or more of the above requirements.
-///
-/// Unfortunately we cannot provide a better compile error message (while keeping the trait's
-/// flexibility) unless a stable alternative to [`#[rustc_on_unimplemented]`][on_unimpl] is added
-/// to Rust.
+/// fulfill the _first_ of the above requirements.
+/// Missing other requirements manifest as errors on implementing [`FromRequest`] and [`Responder`]
+/// , respectively.
 ///
 /// # How Do Handlers Receive Variable Numbers Of Arguments
 /// Rest assured there is no macro magic here; it's just traits.
@@ -76,7 +75,6 @@ use crate::{
 ///
 /// [arity]: https://en.wikipedia.org/wiki/Arity
 /// [`from_request`]: FromRequest::from_request
-/// [on_unimpl]: https://github.com/rust-lang/rust/issues/29628
 pub trait Handler<Args>: Clone + 'static {
     type Output;
     type Future: Future<Output = Self::Output>;
@@ -148,3 +146,33 @@ factory_tuple! { A B C D E F G H I }
 factory_tuple! { A B C D E F G H I J }
 factory_tuple! { A B C D E F G H I J K }
 factory_tuple! { A B C D E F G H I J K L }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn assert_impl_handler<T: FromRequest>(_: impl Handler<T>) {}
+
+    #[test]
+    fn arg_number() {
+        async fn handler_min() {}
+        async fn handler_max(
+            _01: (),
+            _02: (),
+            _03: (),
+            _04: (),
+            _05: (),
+            _06: (),
+            _07: (),
+            _08: (),
+            _09: (),
+            _10: (),
+            _11: (),
+            _12: (),
+        ) {
+        }
+
+        assert_impl_handler(handler_min);
+        assert_impl_handler(handler_max);
+    }
+}
