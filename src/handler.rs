@@ -59,13 +59,15 @@ use crate::{
 /// This is the source code for the 2-parameter implementation of `Handler` to help illustrate the
 /// bounds of the handler call after argument extraction:
 /// ```ignore
-/// impl<Func, Arg1, Arg2, R> Handler<(Arg1, Arg2), R> for Func
+/// impl<Func, Arg1, Arg2, Fut> Handler<(Arg1, Arg2)> for Func
 /// where
-///     Func: Fn(Arg1, Arg2) -> R + Clone + 'static,
-///     R: Future,
-///     R::Output: Responder,
+///     Func: Fn(Arg1, Arg2) -> Fut + Clone + 'static,
+///     Fut: Future,
 /// {
-///     fn call(&self, (arg1, arg2): (Arg1, Arg2)) -> R {
+///     type Output = Fut::Output;
+///     type Future = Fut;
+///
+///     fn call(&self, (arg1, arg2): (Arg1, Arg2)) -> Self::Future {
 ///         (self)(arg1, arg2)
 ///     }
 /// }
@@ -117,8 +119,9 @@ where
 /// ```
 macro_rules! factory_tuple ({ $($param:ident)* } => {
     impl<Func, Fut, $($param,)*> Handler<($($param,)*)> for Func
-    where Func: Fn($($param),*) -> Fut + Clone + 'static,
-          Fut: Future,
+    where
+        Func: Fn($($param),*) -> Fut + Clone + 'static,
+        Fut: Future,
     {
         type Output = Fut::Output;
         type Future = Fut;
