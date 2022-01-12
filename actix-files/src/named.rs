@@ -1,15 +1,16 @@
 use std::{
-    fmt,
     fs::Metadata,
     io,
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use actix_service::{Service, ServiceFactory};
 use actix_web::{
     body::{self, BoxBody, SizedStream},
-    dev::{AppService, HttpServiceFactory, ResourceDef, ServiceRequest, ServiceResponse},
+    dev::{
+        self, AppService, HttpServiceFactory, ResourceDef, Service, ServiceFactory,
+        ServiceRequest, ServiceResponse,
+    },
     http::{
         header::{
             self, Charset, ContentDisposition, ContentEncoding, DispositionParam,
@@ -37,7 +38,7 @@ bitflags! {
 
 impl Default for Flags {
     fn default() -> Self {
-        Flags::from_bits_truncate(0b0000_0111)
+        Flags::from_bits_truncate(0b0000_1111)
     }
 }
 
@@ -65,12 +66,12 @@ impl Default for Flags {
 ///     NamedFile::open_async("./static/index.html").await
 /// }
 /// ```
-#[derive(Deref, DerefMut)]
+#[derive(Debug, Deref, DerefMut)]
 pub struct NamedFile {
-    path: PathBuf,
     #[deref]
     #[deref_mut]
     file: File,
+    path: PathBuf,
     modified: Option<SystemTime>,
     pub(crate) md: Metadata,
     pub(crate) flags: Flags,
@@ -78,32 +79,6 @@ pub struct NamedFile {
     pub(crate) content_type: mime::Mime,
     pub(crate) content_disposition: header::ContentDisposition,
     pub(crate) encoding: Option<ContentEncoding>,
-}
-
-impl fmt::Debug for NamedFile {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("NamedFile")
-            .field("path", &self.path)
-            .field(
-                "file",
-                #[cfg(feature = "experimental-io-uring")]
-                {
-                    &"tokio_uring::File"
-                },
-                #[cfg(not(feature = "experimental-io-uring"))]
-                {
-                    &self.file
-                },
-            )
-            .field("modified", &self.modified)
-            .field("md", &self.md)
-            .field("flags", &self.flags)
-            .field("status_code", &self.status_code)
-            .field("content_type", &self.content_type)
-            .field("content_disposition", &self.content_disposition)
-            .field("encoding", &self.encoding)
-            .finish()
-    }
 }
 
 #[cfg(not(feature = "experimental-io-uring"))]
@@ -627,7 +602,7 @@ impl Service<ServiceRequest> for NamedFileService {
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
-    actix_service::always_ready!();
+    dev::always_ready!();
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let (req, _) = req.into_parts();

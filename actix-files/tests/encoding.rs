@@ -19,12 +19,12 @@ async fn test_utf8_file_contents() {
     assert_eq!(res.status(), StatusCode::OK);
     assert_eq!(
         res.headers().get(header::CONTENT_TYPE),
-        Some(&HeaderValue::from_static("text/plain")),
+        Some(&HeaderValue::from_static("text/plain; charset=utf-8")),
     );
 
-    // prefer UTF-8 encoding
+    // disable UTF-8 attribute
     let srv =
-        test::init_service(App::new().service(Files::new("/", "./tests").prefer_utf8(true)))
+        test::init_service(App::new().service(Files::new("/", "./tests").prefer_utf8(false)))
             .await;
 
     let req = TestRequest::with_uri("/utf8.txt").to_request();
@@ -33,6 +33,6 @@ async fn test_utf8_file_contents() {
     assert_eq!(res.status(), StatusCode::OK);
     assert_eq!(
         res.headers().get(header::CONTENT_TYPE),
-        Some(&HeaderValue::from_static("text/plain; charset=utf-8")),
+        Some(&HeaderValue::from_static("text/plain")),
     );
 }

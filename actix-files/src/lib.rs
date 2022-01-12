@@ -67,8 +67,8 @@ mod tests {
         time::{Duration, SystemTime},
     };
 
-    use actix_service::ServiceFactory;
     use actix_web::{
+        dev::ServiceFactory,
         guard,
         http::{
             header::{self, ContentDisposition, DispositionParam, DispositionType},
@@ -303,7 +303,7 @@ mod tests {
         let resp = file.respond_to(&req).await.unwrap();
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
-            "application/javascript"
+            "application/javascript; charset=utf-8"
         );
         assert_eq!(
             resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
