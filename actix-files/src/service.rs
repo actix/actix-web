@@ -2,7 +2,7 @@ use std::{fmt, io, ops::Deref, path::PathBuf, rc::Rc};
 
 use actix_web::{
     body::BoxBody,
-    dev::{Service, ServiceRequest, ServiceResponse},
+    dev::{self, Service, ServiceRequest, ServiceResponse},
     error::Error,
     guard::Guard,
     http::{header, Method},
@@ -98,7 +98,7 @@ impl Service<ServiceRequest> for FilesService {
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
-    actix_service::always_ready!();
+    dev::always_ready!();
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let is_method_valid = if let Some(guard) = &self.guards {

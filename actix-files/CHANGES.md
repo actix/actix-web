@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+- The `prefer_utf8` option introduced in `0.4.0` is now true by default. [#2583]
+
+[#2583]: https://github.com/actix/actix-web/pull/2583
 
 
 ## 0.6.0-beta.13 - 2022-01-04
