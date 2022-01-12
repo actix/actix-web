@@ -291,16 +291,6 @@ impl FromRequest for Method {
 }
 
 #[doc(hidden)]
-impl FromRequest for () {
-    type Error = Infallible;
-    type Future = Ready<Result<Self, Self::Error>>;
-
-    fn from_request(_: &HttpRequest, _: &mut Payload) -> Self::Future {
-        ok(())
-    }
-}
-
-#[doc(hidden)]
 #[allow(non_snake_case)]
 mod tuple_from_req {
     use super::*;
@@ -388,6 +378,15 @@ mod tuple_from_req {
         }
     }
 
+    impl FromRequest for () {
+        type Error = Infallible;
+        type Future = Ready<Result<Self, Self::Error>>;
+
+        fn from_request(_: &HttpRequest, _: &mut Payload) -> Self::Future {
+            ok(())
+        }
+    }
+
     tuple_from_req! { TupleFromRequest1; A }
     tuple_from_req! { TupleFromRequest2; A, B }
     tuple_from_req! { TupleFromRequest3; A, B, C }
@@ -398,6 +397,8 @@ mod tuple_from_req {
     tuple_from_req! { TupleFromRequest8; A, B, C, D, E, F, G, H }
     tuple_from_req! { TupleFromRequest9; A, B, C, D, E, F, G, H, I }
     tuple_from_req! { TupleFromRequest10; A, B, C, D, E, F, G, H, I, J }
+    tuple_from_req! { TupleFromRequest11; A, B, C, D, E, F, G, H, I, J, K }
+    tuple_from_req! { TupleFromRequest12; A, B, C, D, E, F, G, H, I, J, K, L }
 }
 
 #[cfg(test)]

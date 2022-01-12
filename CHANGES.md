@@ -7,10 +7,12 @@
 
 ### Changed
 - `HttpResponse` can now be used as a `Responder` with any body type. [#2567]
+- Maximim number of extractors has changed from 10 to 12. [#2582]
 
 [#1988]: https://github.com/actix/actix-web/pull/1988
 [#2567]: https://github.com/actix/actix-web/pull/2567
 [#2569]: https://github.com/actix/actix-web/pull/2569
+[#2582]: https://github.com/actix/actix-web/pull/2582
 
 
 ## 4.0.0-beta.19 - 2022-01-04
