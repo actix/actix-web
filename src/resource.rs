@@ -510,7 +510,7 @@ mod tests {
         }
 
         fn my_resource_3() -> impl HttpServiceFactory {
-            web::resource("/test2").route(web::get().to(|| async { "hello" }))
+            web::resource("/test3").route(web::get().to(|| async { "hello" }))
         }
 
         App::new()

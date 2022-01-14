@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 0.5.0-rc.1 - 2022-01-14
 - `Resource` trait now have an associated type, `Path`, instead of the generic parameter. [#2568]
 - `Resource` is now implemented for `&mut Path<_>` and `RefMut<Path<_>>`. [#2568]
 
