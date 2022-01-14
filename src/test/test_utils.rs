@@ -471,6 +471,7 @@ mod tests {
     }
 
     #[actix_rt::test]
+    #[allow(dead_code)]
     async fn return_opaque_types() {
         fn test_app() -> App<
             impl ServiceFactory<
@@ -494,9 +495,9 @@ mod tests {
 
         async fn compile_test(mut req: Vec<Request>) {
             let svc = test_service().await;
-            call_service(&svc, req.pop().unwrap());
-            call_and_read_body(&svc, req.pop().unwrap());
-            read_body(call_service(&svc, req.pop().unwrap()).await);
+            call_service(&svc, req.pop().unwrap()).await;
+            call_and_read_body(&svc, req.pop().unwrap()).await;
+            read_body(call_service(&svc, req.pop().unwrap()).await).await;
             let _: String = call_and_read_body_json(&svc, req.pop().unwrap()).await;
             let _: String = read_body_json(call_service(&svc, req.pop().unwrap()).await).await;
         }
