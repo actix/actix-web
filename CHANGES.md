@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 4.0.0-beta.20 - 2022-01-14
 ### Added
 - `GuardContext::header` [#2569]
 - `ServiceConfig::configure` to allow easy nesting of configuration functions. [#1988]
