@@ -105,7 +105,7 @@ time = { version = "0.3", default-features = false, features = ["formatting"] }
 url = "2.1"
 
 [dev-dependencies]
-actix-files = "0.6.0-beta.13"
+actix-files = "0.6.0-beta.14"
 actix-test = { version = "0.1.0-beta.11", features = ["openssl", "rustls"] }
 awc = { version = "3.0.0-beta.18", features = ["openssl"] }
 

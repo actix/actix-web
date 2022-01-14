@@ -12,7 +12,7 @@
 - `HttpResponse` can now be used as a `Responder` with any body type. [#2567]
 - `Result` extractor wrapper can now convert error types. [#2581]
 - Associated types in `FromRequest` impl for `Option` and `Result` has changed. [#2581]
-- Maximim number of extractors has changed from 10 to 12. [#2582]
+- Maximum number of handler extractors has increased to 12. [#2582]
 - Removed bound `<B as MessageBody>::Error: Debug` in test utility functions in order to support returning opaque apps. [#2584]
 
 [#1988]: https://github.com/actix/actix-web/pull/1988
