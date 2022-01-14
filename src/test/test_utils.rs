@@ -1,4 +1,4 @@
-use std::fmt;
+use std::error::Error as StdError;
 
 use actix_http::Request;
 use actix_service::IntoServiceFactory;
@@ -135,7 +135,6 @@ pub async fn call_and_read_body<S, B>(app: &S, req: Request) -> Bytes
 where
     S: Service<Request, Response = ServiceResponse<B>, Error = Error>,
     B: MessageBody,
-    B::Error: fmt::Debug,
 {
     let res = call_service(app, req).await;
     read_body(res).await
@@ -147,7 +146,6 @@ pub async fn read_response<S, B>(app: &S, req: Request) -> Bytes
 where
     S: Service<Request, Response = ServiceResponse<B>, Error = Error>,
     B: MessageBody,
-    B::Error: fmt::Debug,
 {
     let res = call_service(app, req).await;
     read_body(res).await
@@ -186,11 +184,11 @@ where
 pub async fn read_body<B>(res: ServiceResponse<B>) -> Bytes
 where
     B: MessageBody,
-    B::Error: fmt::Debug,
 {
     let body = res.into_body();
     body::to_bytes(body)
         .await
+        .map_err(Into::<Box<dyn StdError>>::into)
         .expect("error reading test response body")
 }
 
@@ -240,7 +238,6 @@ where
 pub async fn read_body_json<T, B>(res: ServiceResponse<B>) -> T
 where
     B: MessageBody,
-    B::Error: fmt::Debug,
     T: DeserializeOwned,
 {
     let body = read_body(res).await;
@@ -300,7 +297,6 @@ pub async fn call_and_read_body_json<S, B, T>(app: &S, req: Request) -> T
 where
     S: Service<Request, Response = ServiceResponse<B>, Error = Error>,
     B: MessageBody,
-    B::Error: fmt::Debug,
     T: DeserializeOwned,
 {
     let res = call_service(app, req).await;
@@ -313,7 +309,6 @@ pub async fn read_response_json<S, B, T>(app: &S, req: Request) -> T
 where
     S: Service<Request, Response = ServiceResponse<B>, Error = Error>,
     B: MessageBody,
-    B::Error: fmt::Debug,
     T: DeserializeOwned,
 {
     call_and_read_body_json(app, req).await
@@ -325,7 +320,10 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::{http::header, test::TestRequest, web, App, HttpMessage, HttpResponse};
+    use crate::{
+        dev::ServiceRequest, http::header, test::TestRequest, web, App, HttpMessage,
+        HttpResponse,
+    };
 
     #[actix_rt::test]
     async fn test_request_methods() {
@@ -470,5 +468,37 @@ mod tests {
         let result: Person = call_and_read_body_json(&app, req).await;
         assert_eq!(&result.id, "12345");
         assert_eq!(&result.name, "User name");
+    }
+
+    #[actix_rt::test]
+    async fn return_opaque_types() {
+        fn test_app() -> App<
+            impl ServiceFactory<
+                ServiceRequest,
+                Config = (),
+                Response = ServiceResponse<impl MessageBody>,
+                Error = crate::Error,
+                InitError = (),
+            >,
+        > {
+            App::new().service(web::resource("/people").route(
+                web::post().to(|person: web::Json<Person>| HttpResponse::Ok().json(person)),
+            ))
+        }
+
+        async fn test_service(
+        ) -> impl Service<Request, Response = ServiceResponse<impl MessageBody>, Error = crate::Error>
+        {
+            init_service(test_app()).await
+        }
+
+        async fn compile_test(mut req: Vec<Request>) {
+            let svc = test_service().await;
+            call_service(&svc, req.pop().unwrap());
+            call_and_read_body(&svc, req.pop().unwrap());
+            read_body(call_service(&svc, req.pop().unwrap()).await);
+            let _: String = call_and_read_body_json(&svc, req.pop().unwrap()).await;
+            let _: String = read_body_json(call_service(&svc, req.pop().unwrap()).await).await;
+        }
     }
 }
