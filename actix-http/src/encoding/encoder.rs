@@ -4,7 +4,6 @@ use std::{
     error::Error as StdError,
     future::Future,
     io::{self, Write as _},
-    mem,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -290,7 +289,7 @@ impl ContentEncoder {
             ))),
 
             #[cfg(feature = "compress-brotli")]
-            ContentEncoding::Brotli => Some(ContentEncoder::Br(new_brotli_compressor())),
+            ContentEncoding::Brotli => Some(ContentEncoder::Brotli(new_brotli_compressor())),
 
             #[cfg(feature = "compress-zstd")]
             ContentEncoding::Zstd => {
@@ -306,12 +305,7 @@ impl ContentEncoder {
     pub(crate) fn take(&mut self) -> Bytes {
         match *self {
             #[cfg(feature = "compress-brotli")]
-            // ContentEncoder::Br(ref mut encoder) => encoder.get_mut().take(),
-            ContentEncoder::Brotli(ref mut encoder) => {
-                // `CompressorWriter` has no `get_mut` (yet)
-                let prev = mem::replace(encoder, new_brotli_compressor());
-                prev.into_inner().buf.freeze()
-            }
+            ContentEncoder::Brotli(ref mut encoder) => encoder.get_mut().take(),
 
             #[cfg(feature = "compress-gzip")]
             ContentEncoder::Deflate(ref mut encoder) => encoder.get_mut().take(),

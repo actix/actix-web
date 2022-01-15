@@ -41,16 +41,22 @@ pub mod deflate {
 
 pub mod brotli {
     use super::*;
-    use ::brotli2::{read::BrotliDecoder, write::BrotliEncoder};
+    use ::brotli::{reader::Decompressor as BrotliDecoder, CompressorWriter as BrotliEncoder};
 
     pub fn encode(bytes: impl AsRef<[u8]>) -> Vec<u8> {
-        let mut encoder = BrotliEncoder::new(Vec::new(), 3);
+        let mut encoder = BrotliEncoder::new(
+            Vec::new(),
+            8 * 1024, // 32 KiB buffer
+            3,        // BROTLI_PARAM_QUALITY
+            22,       // BROTLI_PARAM_LGWIN
+        );
         encoder.write_all(bytes.as_ref()).unwrap();
-        encoder.finish().unwrap()
+        encoder.flush().unwrap();
+        encoder.into_inner()
     }
 
     pub fn decode(bytes: impl AsRef<[u8]>) -> Vec<u8> {
-        let mut decoder = BrotliDecoder::new(bytes.as_ref());
+        let mut decoder = BrotliDecoder::new(bytes.as_ref(), 8_096);
         let mut buf = Vec::new();
         decoder.read_to_end(&mut buf).unwrap();
         buf

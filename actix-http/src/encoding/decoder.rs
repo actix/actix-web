@@ -44,7 +44,7 @@ where
     pub fn new(stream: S, encoding: ContentEncoding) -> Decoder<S> {
         let decoder = match encoding {
             #[cfg(feature = "compress-brotli")]
-            ContentEncoding::Br => Some(ContentDecoder::Brotli(Box::new(
+            ContentEncoding::Brotli => Some(ContentDecoder::Brotli(Box::new(
                 brotli::DecompressorWriter::new(Writer::new(), 8_096),
             ))),
             #[cfg(feature = "compress-gzip")]
