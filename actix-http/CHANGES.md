@@ -1,6 +1,10 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Changed
+- Brotli (de)compression support is now provided by the `brotli` crate. [#2538]
+
+[#2538]: https://github.com/actix/actix-web/pull/2538
 
 
 ## 3.0.0-beta.18 - 2022-01-04
@@ -15,8 +19,8 @@
 - `Quality::MIN` is now the smallest non-zero value. [#2501]
 - `QualityItem::min` semantics changed with `QualityItem::MIN`. [#2501]
 - Rename `ContentEncoding::{Br => Brotli}`. [#2501]
-- Minimum supported Rust version (MSRV) is now 1.54.
 - Rename `header::EntityTag::{weak => new_weak, strong => new_strong}`. [#2565]
+- Minimum supported Rust version (MSRV) is now 1.54.
 
 ### Fixed
 - `ContentEncoding::Identity` can now be parsed from a string. [#2501]
