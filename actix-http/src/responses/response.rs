@@ -128,18 +128,6 @@ impl<B> Response<B> {
         self.head.keep_alive()
     }
 
-    /// Returns a reference to the extensions of this response.
-    #[inline]
-    pub fn extensions(&self) -> Ref<'_, Extensions> {
-        self.extensions.borrow()
-    }
-
-    /// Returns a mutable reference to the extensions of this response.
-    #[inline]
-    pub fn extensions_mut(&self) -> RefMut<'_, Extensions> {
-        self.extensions.borrow_mut()
-    }
-
     /// Returns a reference to the body of this response.
     #[inline]
     pub fn body(&self) -> &B {
@@ -185,7 +173,9 @@ impl<B> Response<B> {
         self.replace_body(())
     }
 
-    /// Returns new response with mapped body.
+    /// Map the current body type to another using a closure. Returns a new response.
+    ///
+    /// Closure receives the response head and the current body type.
     #[inline]
     pub fn map_body<F, B2>(mut self, f: F) -> Response<B2>
     where

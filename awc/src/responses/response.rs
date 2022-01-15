@@ -67,7 +67,9 @@ impl<S> ClientResponse<S> {
         &self.head().headers
     }
 
-    /// Set a body and return previous body value
+    /// Map the current body type to another using a closure. Returns a new response.
+    ///
+    /// Closure receives the response head and the current body type.
     pub fn map_body<F, U>(mut self, f: F) -> ClientResponse<U>
     where
         F: FnOnce(&mut ResponseHead, Payload<S>) -> Payload<U>,
@@ -115,18 +117,6 @@ impl<S> ClientResponse<S> {
     pub(crate) fn _timeout(mut self, timeout: Option<Pin<Box<Sleep>>>) -> Self {
         self.timeout = ResponseTimeout::Disabled(timeout);
         self
-    }
-
-    /// Returns a reference to the extensions of this response.
-    #[inline]
-    pub fn req_data(&self) -> Ref<'_, Extensions> {
-        self.extensions.borrow()
-    }
-
-    /// Returns a mutable reference to the extensions of this response.
-    #[inline]
-    pub fn req_data_mut(&self) -> RefMut<'_, Extensions> {
-        self.extensions.borrow_mut()
     }
 
     /// Load request cookies.
@@ -241,11 +231,11 @@ impl<S> HttpMessage for ClientResponse<S> {
     }
 
     fn extensions(&self) -> Ref<'_, Extensions> {
-        self.req_data()
+        self.extensions.borrow()
     }
 
     fn extensions_mut(&self) -> RefMut<'_, Extensions> {
-        self.req_data_mut()
+        self.extensions.borrow_mut()
     }
 }
 

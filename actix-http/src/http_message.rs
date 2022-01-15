@@ -25,10 +25,10 @@ pub trait HttpMessage: Sized {
     /// Message payload stream
     fn take_payload(&mut self) -> Payload<Self::Stream>;
 
-    /// Request's extensions container
+    /// Returns a reference to the request-local data container.
     fn extensions(&self) -> Ref<'_, Extensions>;
 
-    /// Mutable reference to a the request's extensions container
+    /// Returns a mutable reference to the request-local data container.
     fn extensions_mut(&self) -> RefMut<'_, Extensions>;
 
     /// Get a header.

@@ -399,32 +399,32 @@ impl<B> ServiceResponse<B> {
         ServiceResponse::new(self.request, response)
     }
 
-    /// Get reference to original request
+    /// Returns reference to original request.
     #[inline]
     pub fn request(&self) -> &HttpRequest {
         &self.request
     }
 
-    /// Get reference to response
+    /// Returns reference to response.
     #[inline]
     pub fn response(&self) -> &HttpResponse<B> {
         &self.response
     }
 
-    /// Get mutable reference to response
+    /// Returns mutable reference to response.
     #[inline]
     pub fn response_mut(&mut self) -> &mut HttpResponse<B> {
         &mut self.response
     }
 
-    /// Get the response status code
+    /// Returns response status code.
     #[inline]
     pub fn status(&self) -> StatusCode {
         self.response.status()
     }
 
-    #[inline]
     /// Returns response's headers.
+    #[inline]
     pub fn headers(&self) -> &HeaderMap {
         self.response.headers()
     }
@@ -441,13 +441,9 @@ impl<B> ServiceResponse<B> {
         (self.request, self.response)
     }
 
-    /// Extract response body
-    #[inline]
-    pub fn into_body(self) -> B {
-        self.response.into_body()
-    }
-
-    /// Set a new body
+    /// Map the current body type to another using a closure. Returns a new response.
+    ///
+    /// Closure receives the response head and the current body type.
     #[inline]
     pub fn map_body<F, B2>(self, f: F) -> ServiceResponse<B2>
     where
@@ -477,6 +473,12 @@ impl<B> ServiceResponse<B> {
         B: MessageBody + 'static,
     {
         self.map_body(|_, body| body.boxed())
+    }
+
+    /// Consumes the response and returns its body.
+    #[inline]
+    pub fn into_body(self) -> B {
+        self.response.into_body()
     }
 }
 

@@ -22,7 +22,7 @@ use {
     cookie::Cookie,
 };
 
-use crate::{error::Error, HttpRequest, HttpResponseBuilder, Responder};
+use crate::{error::Error, HttpMessage, HttpRequest, HttpResponseBuilder, Responder};
 
 /// An outgoing response.
 pub struct HttpResponse<B = BoxBody> {
@@ -216,7 +216,9 @@ impl<B> HttpResponse<B> {
         }
     }
 
-    /// Set a body and return previous body value
+    /// Map the current body type to another using a closure. Returns a new response.
+    ///
+    /// Closure receives the response head and the current body type.
     pub fn map_body<F, B2>(self, f: F) -> HttpResponse<B2>
     where
         F: FnOnce(&mut ResponseHead, B) -> B2,

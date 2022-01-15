@@ -28,8 +28,6 @@ async fn main() -> io::Result<()> {
                         .insert_header(("x-head", HeaderValue::from_static("dummy value!")))
                         .body(body);
 
-                    res.req_data_mut().insert(5usize);
-
                     Ok::<_, Error>(res)
                 })
                 // No TLS

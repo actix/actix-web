@@ -387,6 +387,7 @@ impl StdError for DispatchError {
 
 /// A set of error that can occur during parsing content type.
 #[derive(Debug, Display, Error)]
+#[cfg_attr(test, derive(PartialEq))]
 #[non_exhaustive]
 pub enum ContentTypeError {
     /// Can not parse content type
@@ -399,26 +400,12 @@ pub enum ContentTypeError {
 }
 
 #[cfg(test)]
-mod content_type_test_impls {
-    use super::*;
-
-    impl std::cmp::PartialEq for ContentTypeError {
-        fn eq(&self, other: &Self) -> bool {
-            match self {
-                Self::ParseError => matches!(other, ContentTypeError::ParseError),
-                Self::UnknownEncoding => {
-                    matches!(other, ContentTypeError::UnknownEncoding)
-                }
-            }
-        }
-    }
-}
-
-#[cfg(test)]
 mod tests {
-    use super::*;
-    use http::{Error as HttpError, StatusCode};
     use std::io;
+
+    use http::{Error as HttpError, StatusCode};
+
+    use super::*;
 
     #[test]
     fn test_into_response() {
