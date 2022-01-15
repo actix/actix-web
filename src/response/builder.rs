@@ -1,5 +1,4 @@
 use std::{
-    cell::{Ref, RefMut},
     convert::TryInto,
     future::Future,
     pin::Pin,
@@ -7,21 +6,16 @@ use std::{
 };
 
 use actix_http::{
-    body::{BodyStream, BoxBody, MessageBody},
     error::HttpError,
     header::{self, HeaderName, TryIntoHeaderPair, TryIntoHeaderValue},
-    ConnectionType, Extensions, Response, ResponseHead, StatusCode,
+    ConnectionType, Response, ResponseHead, StatusCode,
 };
 use bytes::Bytes;
 use futures_core::Stream;
 use serde::Serialize;
 
-#[cfg(feature = "cookies")]
-use actix_http::header::HeaderValue;
-#[cfg(feature = "cookies")]
-use cookie::{Cookie, CookieJar};
-
 use crate::{
+    body::{BodyStream, BoxBody, MessageBody},
     error::{Error, JsonPayloadError},
     BoxError, HttpRequest, HttpResponse, Responder,
 };
@@ -33,7 +27,7 @@ pub struct HttpResponseBuilder {
     res: Option<Response<BoxBody>>,
     err: Option<HttpError>,
     #[cfg(feature = "cookies")]
-    cookies: Option<CookieJar>,
+    cookies: Option<cookie::CookieJar>,
 }
 
 impl HttpResponseBuilder {
@@ -242,9 +236,9 @@ impl HttpResponseBuilder {
     ///     .finish();
     /// ```
     #[cfg(feature = "cookies")]
-    pub fn cookie<'c>(&mut self, cookie: Cookie<'c>) -> &mut Self {
+    pub fn cookie<'c>(&mut self, cookie: cookie::Cookie<'c>) -> &mut Self {
         if self.cookies.is_none() {
-            let mut jar = CookieJar::new();
+            let mut jar = cookie::CookieJar::new();
             jar.add(cookie.into_owned());
             self.cookies = Some(jar)
         } else {
@@ -271,9 +265,9 @@ impl HttpResponseBuilder {
     /// }
     /// ```
     #[cfg(feature = "cookies")]
-    pub fn del_cookie(&mut self, cookie: &Cookie<'_>) -> &mut Self {
+    pub fn del_cookie(&mut self, cookie: &cookie::Cookie<'_>) -> &mut Self {
         if self.cookies.is_none() {
-            self.cookies = Some(CookieJar::new())
+            self.cookies = Some(cookie::CookieJar::new())
         }
         let jar = self.cookies.as_mut().unwrap();
         let cookie = cookie.clone().into_owned();
@@ -282,22 +276,22 @@ impl HttpResponseBuilder {
         self
     }
 
-    /// Responses extensions
-    #[inline]
-    pub fn extensions(&self) -> Ref<'_, Extensions> {
-        self.res
-            .as_ref()
-            .expect("cannot reuse response builder")
-            .extensions()
-    }
+    // /// Responses extensions
+    // #[inline]
+    // pub fn extensions(&self) -> Ref<'_, Extensions> {
+    //     self.res
+    //         .as_ref()
+    //         .expect("cannot reuse response builder")
+    //         .extensions()
+    // }
 
-    /// Mutable reference to a the response's extensions
-    pub fn extensions_mut(&mut self) -> RefMut<'_, Extensions> {
-        self.res
-            .as_mut()
-            .expect("cannot reuse response builder")
-            .extensions_mut()
-    }
+    // /// Mutable reference to a the response's extensions
+    // pub fn extensions_mut(&mut self) -> RefMut<'_, Extensions> {
+    //     self.res
+    //         .as_mut()
+    //         .expect("cannot reuse response builder")
+    //         .extensions_mut()
+    // }
 
     /// Set a body and build the `HttpResponse`.
     ///
@@ -332,7 +326,7 @@ impl HttpResponseBuilder {
         #[cfg(feature = "cookies")]
         if let Some(ref jar) = self.cookies {
             for cookie in jar.delta() {
-                match HeaderValue::from_str(&cookie.to_string()) {
+                match actix_http::header::HeaderValue::from_str(&cookie.to_string()) {
                     Ok(val) => res.headers_mut().append(header::SET_COOKIE, val),
                     Err(err) => return Err(err.into()),
                 };
@@ -435,10 +429,9 @@ impl Responder for HttpResponseBuilder {
 
 #[cfg(test)]
 mod tests {
-    use actix_http::body;
-
     use super::*;
     use crate::{
+        body,
         http::{
             header::{self, HeaderValue, CONTENT_TYPE},
             StatusCode,

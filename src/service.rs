@@ -103,6 +103,7 @@ impl ServiceRequest {
     /// Construct request from request.
     ///
     /// The returned `ServiceRequest` would have no payload.
+    #[inline]
     pub fn from_request(req: HttpRequest) -> Self {
         ServiceRequest {
             req,
@@ -546,14 +547,12 @@ impl WebService {
     ///     Ok(req.into_response(HttpResponse::Ok().finish()))
     /// }
     ///
-    /// fn main() {
-    ///     let app = App::new()
-    ///         .service(
-    ///             web::service("/app")
-    ///                 .guard(guard::Header("content-type", "text/plain"))
-    ///                 .finish(index)
-    ///         );
-    /// }
+    /// let app = App::new()
+    ///     .service(
+    ///         web::service("/app")
+    ///             .guard(guard::Header("content-type", "text/plain"))
+    ///             .finish(index)
+    ///     );
     /// ```
     pub fn guard<G: Guard + 'static>(mut self, guard: G) -> Self {
         self.guards.push(Box::new(guard));

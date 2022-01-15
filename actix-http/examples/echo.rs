@@ -15,6 +15,7 @@ async fn main() -> io::Result<()> {
             HttpService::build()
                 .client_timeout(1000)
                 .client_disconnect(1000)
+                // handles HTTP/1.1 and HTTP/2
                 .finish(|mut req: Request| async move {
                     let mut body = BytesMut::new();
                     while let Some(item) = req.payload().next().await {
@@ -23,12 +24,15 @@ async fn main() -> io::Result<()> {
 
                     log::info!("request body: {:?}", body);
 
-                    Ok::<_, Error>(
-                        Response::build(StatusCode::OK)
-                            .insert_header(("x-head", HeaderValue::from_static("dummy value!")))
-                            .body(body),
-                    )
+                    let res = Response::build(StatusCode::OK)
+                        .insert_header(("x-head", HeaderValue::from_static("dummy value!")))
+                        .body(body);
+
+                    res.req_data_mut().insert(5usize);
+
+                    Ok::<_, Error>(res)
                 })
+                // No TLS
                 .tcp()
         })?
         .run()

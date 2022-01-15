@@ -5,10 +5,7 @@ use std::{
     str,
 };
 
-use actix_http::{
-    header::HeaderMap, Extensions, HttpMessage, Message, Method, Payload, RequestHead, Uri,
-    Version,
-};
+use actix_http::{Message, RequestHead};
 use actix_router::{Path, Url};
 use actix_utils::future::{ok, Ready};
 #[cfg(feature = "cookies")]
@@ -16,8 +13,14 @@ use cookie::{Cookie, ParseError as CookieParseError};
 use smallvec::SmallVec;
 
 use crate::{
-    app_service::AppInitServiceState, config::AppConfig, error::UrlGenerationError,
-    info::ConnectionInfo, rmap::ResourceMap, Error, FromRequest,
+    app_service::AppInitServiceState,
+    config::AppConfig,
+    dev::{Extensions, Payload},
+    error::UrlGenerationError,
+    http::{header::HeaderMap, Method, Uri, Version},
+    info::ConnectionInfo,
+    rmap::ResourceMap,
+    Error, FromRequest, HttpMessage,
 };
 
 #[cfg(feature = "cookies")]

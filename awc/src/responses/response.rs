@@ -1,5 +1,5 @@
 use std::{
-    cell::{Ref, RefMut},
+    cell::{Ref, RefCell, RefMut},
     fmt, mem,
     pin::Pin,
     task::{Context, Poll},
@@ -28,6 +28,8 @@ pin_project! {
         #[pin]
         pub(crate) payload: Payload<S>,
         pub(crate) timeout: ResponseTimeout,
+        pub(crate) extensions: RefCell<Extensions>,
+
     }
 }
 
@@ -38,6 +40,7 @@ impl<S> ClientResponse<S> {
             head,
             payload,
             timeout: ResponseTimeout::default(),
+            extensions: RefCell::new(Extensions::new()),
         }
     }
 
@@ -75,6 +78,7 @@ impl<S> ClientResponse<S> {
             payload,
             head: self.head,
             timeout: self.timeout,
+            extensions: self.extensions,
         }
     }
 
@@ -101,6 +105,7 @@ impl<S> ClientResponse<S> {
             payload: self.payload,
             head: self.head,
             timeout,
+            extensions: self.extensions,
         }
     }
 
@@ -110,6 +115,18 @@ impl<S> ClientResponse<S> {
     pub(crate) fn _timeout(mut self, timeout: Option<Pin<Box<Sleep>>>) -> Self {
         self.timeout = ResponseTimeout::Disabled(timeout);
         self
+    }
+
+    /// Returns a reference to the extensions of this response.
+    #[inline]
+    pub fn req_data(&self) -> Ref<'_, Extensions> {
+        self.extensions.borrow()
+    }
+
+    /// Returns a mutable reference to the extensions of this response.
+    #[inline]
+    pub fn req_data_mut(&self) -> RefMut<'_, Extensions> {
+        self.extensions.borrow_mut()
     }
 
     /// Load request cookies.
@@ -224,11 +241,11 @@ impl<S> HttpMessage for ClientResponse<S> {
     }
 
     fn extensions(&self) -> Ref<'_, Extensions> {
-        self.head.extensions()
+        self.req_data()
     }
 
     fn extensions_mut(&self) -> RefMut<'_, Extensions> {
-        self.head.extensions_mut()
+        self.req_data_mut()
     }
 }
 
