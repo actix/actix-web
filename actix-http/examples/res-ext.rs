@@ -1,8 +1,6 @@
 use std::{convert::Infallible, io};
 
-use actix_http::{
-    body::EitherBody, HttpMessage as _, HttpService, Request, Response, StatusCode,
-};
+use actix_http::{body::EitherBody, HttpService, Request, Response, StatusCode};
 use actix_server::Server;
 
 #[actix_rt::main]

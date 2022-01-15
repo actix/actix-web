@@ -2,7 +2,10 @@ use std::{any::type_name, ops::Deref};
 
 use actix_utils::future::{err, ok, Ready};
 
-use crate::{dev::Payload, error::ErrorInternalServerError, Error, FromRequest, HttpRequest};
+use crate::{
+    dev::Payload, error::ErrorInternalServerError, Error, FromRequest, HttpMessage as _,
+    HttpRequest,
+};
 
 /// Request-local data extractor.
 ///
@@ -23,7 +26,7 @@ use crate::{dev::Payload, error::ErrorInternalServerError, Error, FromRequest, H
 ///
 /// # Example
 /// ```no_run
-/// # use actix_web::{web, HttpResponse, HttpRequest, Responder};
+/// # use actix_web::{web, HttpResponse, HttpRequest, Responder, HttpMessage as _};
 ///
 /// #[derive(Debug, Clone, PartialEq)]
 /// struct FlagFromMiddleware(String);
@@ -35,7 +38,7 @@ use crate::{dev::Payload, error::ErrorInternalServerError, Error, FromRequest, H
 /// ) -> impl Responder {
 ///     // use an option extractor if middleware is not guaranteed to add this type of req data
 ///     if let Some(flag) = opt_flag {
-///         assert_eq!(&flag.into_inner(), req.req_data().get::<FlagFromMiddleware>().unwrap());
+///         assert_eq!(&flag.into_inner(), req.extensions().get::<FlagFromMiddleware>().unwrap());
 ///     }
 ///
 ///     HttpResponse::Ok()
@@ -67,7 +70,7 @@ impl<T: Clone + 'static> FromRequest for ReqData<T> {
     type Future = Ready<Result<Self, Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        if let Some(st) = req.req_data().get::<T>() {
+        if let Some(st) = req.extensions().get::<T>() {
             ok(ReqData(st.clone()))
         } else {
             log::debug!(

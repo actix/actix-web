@@ -54,7 +54,7 @@ use std::{
 
 use actix_http::{header, uri::Uri, Extensions, Method as HttpMethod, RequestHead};
 
-use crate::{http::header::Header, service::ServiceRequest};
+use crate::{http::header::Header, service::ServiceRequest, HttpMessage as _};
 
 /// Provides access to request parts that are useful during routing.
 #[derive(Debug)]
@@ -71,14 +71,14 @@ impl<'a> GuardContext<'a> {
 
     /// Returns reference to the request-local data container.
     #[inline]
-    pub fn req_data(&self) -> Ref<'a, Extensions> {
-        self.req.req_data()
+    pub fn extensions(&self) -> Ref<'a, Extensions> {
+        self.req.extensions()
     }
 
     /// Returns mutable reference to the request-local data container.
     #[inline]
-    pub fn req_data_mut(&self) -> RefMut<'a, Extensions> {
-        self.req.req_data_mut()
+    pub fn extensions_mut(&self) -> RefMut<'a, Extensions> {
+        self.req.extensions_mut()
     }
 
     /// Extracts a typed header from the request.

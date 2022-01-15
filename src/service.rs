@@ -257,18 +257,6 @@ impl ServiceRequest {
         self.req.conn_data()
     }
 
-    /// Counterpart to [`HttpRequest::req_data`].
-    #[inline]
-    pub fn req_data(&self) -> Ref<'_, Extensions> {
-        self.req.req_data()
-    }
-
-    /// Counterpart to [`HttpRequest::req_data_mut`].
-    #[inline]
-    pub fn req_data_mut(&self) -> RefMut<'_, Extensions> {
-        self.req.req_data_mut()
-    }
-
     #[cfg(feature = "cookies")]
     #[inline]
     pub fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {

@@ -18,7 +18,7 @@ use crate::{
         AppServiceFactory, BoxedHttpService, BoxedHttpServiceFactory, ServiceRequest,
         ServiceResponse,
     },
-    Error, HttpMessage, HttpResponse,
+    Error, HttpResponse,
 };
 
 type Guards = Vec<Box<dyn Guard>>;

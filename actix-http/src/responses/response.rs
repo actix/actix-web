@@ -128,6 +128,18 @@ impl<B> Response<B> {
         self.head.keep_alive()
     }
 
+    /// Returns a reference to the request-local data/extensions container.
+    #[inline]
+    pub fn extensions(&self) -> Ref<'_, Extensions> {
+        self.extensions.borrow()
+    }
+
+    /// Returns a mutable reference to the request-local data/extensions container.
+    #[inline]
+    pub fn extensions_mut(&mut self) -> RefMut<'_, Extensions> {
+        self.extensions.borrow_mut()
+    }
+
     /// Returns a reference to the body of this response.
     #[inline]
     pub fn body(&self) -> &B {
