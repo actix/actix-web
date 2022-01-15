@@ -11,9 +11,6 @@ use actix_rt::task::{spawn_blocking, JoinHandle};
 use bytes::Bytes;
 use futures_core::{ready, Stream};
 
-#[cfg(feature = "compress-brotli")]
-use brotli2::write::BrotliDecoder;
-
 #[cfg(feature = "compress-gzip")]
 use flate2::write::{GzDecoder, ZlibDecoder};
 
@@ -48,7 +45,7 @@ where
         let decoder = match encoding {
             #[cfg(feature = "compress-brotli")]
             ContentEncoding::Brotli => Some(ContentDecoder::Brotli(Box::new(
-                BrotliDecoder::new(Writer::new()),
+                brotli::DecompressorWriter::new(Writer::new(), 8_096),
             ))),
             #[cfg(feature = "compress-gzip")]
             ContentEncoding::Deflate => Some(ContentDecoder::Deflate(Box::new(
@@ -165,7 +162,7 @@ enum ContentDecoder {
     #[cfg(feature = "compress-gzip")]
     Gzip(Box<GzDecoder<Writer>>),
     #[cfg(feature = "compress-brotli")]
-    Brotli(Box<BrotliDecoder<Writer>>),
+    Brotli(Box<brotli::DecompressorWriter<Writer>>),
     // We need explicit 'static lifetime here because ZstdDecoder need lifetime
     // argument, and we use `spawn_blocking` in `Decoder::poll_next` that require `FnOnce() -> R + Send + 'static`
     #[cfg(feature = "compress-zstd")]

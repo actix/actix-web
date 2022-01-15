@@ -33,7 +33,7 @@ openssl = ["actix-tls/accept", "actix-tls/openssl"]
 rustls = ["actix-tls/accept", "actix-tls/rustls"]
 
 # enable compression support
-compress-brotli = ["brotli2", "__compress"]
+compress-brotli = ["brotli", "__compress"]
 compress-gzip = ["flate2", "__compress"]
 compress-zstd = ["zstd", "__compress"]
 
@@ -74,7 +74,7 @@ smallvec = "1.6.1"
 actix-tls = { version = "3.0.0", default-features = false, optional = true }
 
 # compression
-brotli2 = { version="0.3.2", optional = true }
+brotli = { version = "3.3.3", optional = true }
 flate2 = { version = "1.0.13", optional = true }
 zstd = { version = "0.9", optional = true }
 

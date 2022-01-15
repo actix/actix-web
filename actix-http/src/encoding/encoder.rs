@@ -14,9 +14,6 @@ use derive_more::Display;
 use futures_core::ready;
 use pin_project_lite::pin_project;
 
-#[cfg(feature = "compress-brotli")]
-use brotli2::write::BrotliEncoder;
-
 #[cfg(feature = "compress-gzip")]
 use flate2::write::{GzEncoder, ZlibEncoder};
 
@@ -268,7 +265,7 @@ enum ContentEncoder {
     Gzip(GzEncoder<Writer>),
 
     #[cfg(feature = "compress-brotli")]
-    Brotli(BrotliEncoder<Writer>),
+    Brotli(Box<brotli::CompressorWriter<Writer>>),
 
     // Wwe need explicit 'static lifetime here because ZstdEncoder needs a lifetime argument and we
     // use `spawn_blocking` in `Encoder::poll_next` that requires `FnOnce() -> R + Send + 'static`.
@@ -292,9 +289,7 @@ impl ContentEncoder {
             ))),
 
             #[cfg(feature = "compress-brotli")]
-            ContentEncoding::Brotli => {
-                Some(ContentEncoder::Brotli(BrotliEncoder::new(Writer::new(), 3)))
-            }
+            ContentEncoding::Brotli => Some(ContentEncoder::Brotli(new_brotli_compressor())),
 
             #[cfg(feature = "compress-zstd")]
             ContentEncoding::Zstd => {
@@ -326,8 +321,8 @@ impl ContentEncoder {
     fn finish(self) -> Result<Bytes, io::Error> {
         match self {
             #[cfg(feature = "compress-brotli")]
-            ContentEncoder::Brotli(encoder) => match encoder.finish() {
-                Ok(writer) => Ok(writer.buf.freeze()),
+            ContentEncoder::Brotli(mut encoder) => match encoder.flush() {
+                Ok(()) => Ok(encoder.into_inner().buf.freeze()),
                 Err(err) => Err(err),
             },
 
@@ -390,6 +385,16 @@ impl ContentEncoder {
             },
         }
     }
+}
+
+#[cfg(feature = "compress-brotli")]
+fn new_brotli_compressor() -> Box<brotli::CompressorWriter<Writer>> {
+    Box::new(brotli::CompressorWriter::new(
+        Writer::new(),
+        8 * 1024, // 32 KiB buffer
+        3,        // BROTLI_PARAM_QUALITY
+        22,       // BROTLI_PARAM_LGWIN
+    ))
 }
 
 #[derive(Debug, Display)]
