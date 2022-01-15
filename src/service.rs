@@ -309,18 +309,15 @@ impl HttpMessage for ServiceRequest {
     type Stream = BoxedPayloadStream;
 
     #[inline]
-    /// Returns Request's headers.
     fn headers(&self) -> &HeaderMap {
         &self.head().headers
     }
 
-    /// Request extensions
     #[inline]
     fn extensions(&self) -> Ref<'_, Extensions> {
         self.req.extensions()
     }
 
-    /// Mutable reference to a the request's extensions
     #[inline]
     fn extensions_mut(&self) -> RefMut<'_, Extensions> {
         self.req.extensions_mut()

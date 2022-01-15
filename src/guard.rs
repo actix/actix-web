@@ -69,15 +69,15 @@ impl<'a> GuardContext<'a> {
         self.req.head()
     }
 
-    /// Returns reference to the request-local data container.
+    /// Returns reference to the request-local data/extensions container.
     #[inline]
-    pub fn extensions(&self) -> Ref<'a, Extensions> {
+    pub fn req_data(&self) -> Ref<'a, Extensions> {
         self.req.extensions()
     }
 
-    /// Returns mutable reference to the request-local data container.
+    /// Returns mutable reference to the request-local data/extensions container.
     #[inline]
-    pub fn extensions_mut(&self) -> RefMut<'a, Extensions> {
+    pub fn req_data_mut(&self) -> RefMut<'a, Extensions> {
         self.req.extensions_mut()
     }
 

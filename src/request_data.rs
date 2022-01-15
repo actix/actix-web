@@ -20,7 +20,7 @@ use crate::{
 /// # Mutating Request Data
 /// Note that since extractors must output owned data, only types that `impl Clone` can use this
 /// extractor. A clone is taken of the required request data and can, therefore, not be directly
-/// mutated in-place. To mutate request data, continue to use [`HttpRequest::req_data_mut`] or
+/// mutated in-place. To mutate request data, continue to use [`HttpRequest::extensions_mut`] or
 /// re-insert the cloned data back into the extensions map. A `DerefMut` impl is intentionally not
 /// provided to make this potential foot-gun more obvious.
 ///

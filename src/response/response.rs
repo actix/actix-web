@@ -168,13 +168,13 @@ impl<B> HttpResponse<B> {
         self.res.keep_alive()
     }
 
-    /// Responses extensions
+    /// Returns reference to the response-local data/extensions container.
     #[inline]
     pub fn extensions(&self) -> Ref<'_, Extensions> {
         self.res.extensions()
     }
 
-    /// Mutable reference to a the response's extensions
+    /// Returns reference to the response-local data/extensions container.
     #[inline]
     pub fn extensions_mut(&mut self) -> RefMut<'_, Extensions> {
         self.res.extensions_mut()
