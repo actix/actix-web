@@ -27,7 +27,8 @@ const MAX_QUALITY_FLOAT: f32 = 1.0;
 ///
 /// assert_eq!(q(0.42).to_string(), "0.42");
 /// assert_eq!(q(1.0).to_string(), "1");
-/// assert_eq!(Quality::MIN.to_string(), "0");
+/// assert_eq!(Quality::MIN.to_string(), "0.001");
+/// assert_eq!(Quality::ZERO.to_string(), "0");
 /// ```
 ///
 /// [RFC 7231 §5.3.1]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.1
@@ -38,8 +39,11 @@ impl Quality {
     /// The maximum quality value, equivalent to `q=1.0`.
     pub const MAX: Quality = Quality(MAX_QUALITY_INT);
 
-    /// The minimum quality value, equivalent to `q=0.0`.
-    pub const MIN: Quality = Quality(0);
+    /// The minimum, non-zero quality value, equivalent to `q=0.001`.
+    pub const MIN: Quality = Quality(1);
+
+    /// The zero quality value, equivalent to `q=0.0`.
+    pub const ZERO: Quality = Quality(0);
 
     /// Converts a float in the range 0.0–1.0 to a `Quality`.
     ///
@@ -51,7 +55,7 @@ impl Quality {
         // Check that `value` is within range should be done before calling this method.
         // Just in case, this debug_assert should catch if we were forgetful.
         debug_assert!(
-            (0.0f32..=1.0f32).contains(&value),
+            (0.0..=MAX_QUALITY_FLOAT).contains(&value),
             "q value must be between 0.0 and 1.0"
         );
 
@@ -154,10 +158,13 @@ impl TryFrom<f32> for Quality {
 /// let q1 = q(1.0);
 /// assert_eq!(q1, Quality::MAX);
 ///
-/// let q2 = q(0.0);
+/// let q2 = q(0.001);
 /// assert_eq!(q2, Quality::MIN);
 ///
-/// let q3 = q(0.42);
+/// let q3 = q(0.0);
+/// assert_eq!(q3, Quality::ZERO);
+///
+/// let q4 = q(0.42);
 /// ```
 ///
 /// An out-of-range `f32` quality will panic.
@@ -185,6 +192,10 @@ mod tests {
 
     #[test]
     fn display_output() {
+        assert_eq!(Quality::ZERO.to_string(), "0");
+        assert_eq!(Quality::MIN.to_string(), "0.001");
+        assert_eq!(Quality::MAX.to_string(), "1");
+
         assert_eq!(q(0.0).to_string(), "0");
         assert_eq!(q(1.0).to_string(), "1");
         assert_eq!(q(0.001).to_string(), "0.001");

@@ -1,6 +1,6 @@
 [package]
 name = "actix-multipart"
-version = "0.4.0-beta.10"
+version = "0.4.0-beta.12"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Multipart form support for Actix Web"
 keywords = ["http", "web", "framework", "async", "futures"]
@@ -15,7 +15,7 @@ path = "src/lib.rs"
 
 [dependencies]
 actix-utils = "3.0.0"
-actix-web = { version = "4.0.0-beta.15", default-features = false }
+actix-web = { version = "4.0.0-beta.20", default-features = false }
 
 bytes = "1"
 derive_more = "0.99.5"
@@ -28,7 +28,7 @@ twoway = "0.2"
 
 [dev-dependencies]
 actix-rt = "2.2"
-actix-http = "3.0.0-beta.16"
+actix-http = "3.0.0-beta.18"
 futures-util = { version = "0.3.7", default-features = false, features = ["alloc"] }
-tokio = { version = "1.8", features = ["sync"] }
+tokio = { version = "1.8.4", features = ["sync"] }
 tokio-stream = "0.1"

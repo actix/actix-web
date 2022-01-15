@@ -124,7 +124,7 @@ impl TestRequest {
         self
     }
 
-    /// Set HTTP Uri of this request
+    /// Set HTTP URI of this request
     pub fn uri(mut self, path: &str) -> Self {
         self.req.uri(path);
         self
@@ -174,25 +174,28 @@ impl TestRequest {
     }
 
     /// Set request payload.
-    pub fn set_payload<B: Into<Bytes>>(mut self, data: B) -> Self {
+    pub fn set_payload(mut self, data: impl Into<Bytes>) -> Self {
         self.req.set_payload(data);
         self
     }
 
-    /// Serialize `data` to a URL encoded form and set it as the request payload. The `Content-Type`
-    /// header is set to `application/x-www-form-urlencoded`.
-    pub fn set_form<T: Serialize>(mut self, data: &T) -> Self {
-        let bytes = serde_urlencoded::to_string(data)
+    /// Serialize `data` to a URL encoded form and set it as the request payload.
+    ///
+    /// The `Content-Type` header is set to `application/x-www-form-urlencoded`.
+    pub fn set_form(mut self, data: impl Serialize) -> Self {
+        let bytes = serde_urlencoded::to_string(&data)
             .expect("Failed to serialize test data as a urlencoded form");
         self.req.set_payload(bytes);
         self.req.insert_header(ContentType::form_url_encoded());
         self
     }
 
-    /// Serialize `data` to JSON and set it as the request payload. The `Content-Type` header is
-    /// set to `application/json`.
-    pub fn set_json<T: Serialize>(mut self, data: &T) -> Self {
-        let bytes = serde_json::to_string(data).expect("Failed to serialize test data to json");
+    /// Serialize `data` to JSON and set it as the request payload.
+    ///
+    /// The `Content-Type` header is set to `application/json`.
+    pub fn set_json(mut self, data: impl Serialize) -> Self {
+        let bytes =
+            serde_json::to_string(&data).expect("Failed to serialize test data to json");
         self.req.set_payload(bytes);
         self.req.insert_header(ContentType::json());
         self

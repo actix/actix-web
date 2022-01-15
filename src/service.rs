@@ -7,7 +7,7 @@ use std::{
 use actix_http::{
     body::{BoxBody, EitherBody, MessageBody},
     header::HeaderMap,
-    Extensions, HttpMessage, Method, Payload, PayloadStream, RequestHead, Response,
+    BoxedPayloadStream, Extensions, HttpMessage, Method, Payload, RequestHead, Response,
     ResponseHead, StatusCode, Uri, Version,
 };
 use actix_router::{IntoPatterns, Path, Patterns, Resource, ResourceDef, Url};
@@ -21,7 +21,7 @@ use cookie::{Cookie, ParseError as CookieParseError};
 use crate::{
     config::{AppConfig, AppService},
     dev::ensure_leading_slash,
-    guard::Guard,
+    guard::{Guard, GuardContext},
     info::ConnectionInfo,
     rmap::ResourceMap,
     Error, HttpRequest, HttpResponse,
@@ -172,7 +172,7 @@ impl ServiceRequest {
         self.head().uri.path()
     }
 
-    /// Counterpart to [`HttpRequest::query_string`](super::HttpRequest::query_string()).
+    /// Counterpart to [`HttpRequest::query_string`].
     #[inline]
     pub fn query_string(&self) -> &str {
         self.req.query_string()
@@ -208,13 +208,13 @@ impl ServiceRequest {
         self.req.match_info()
     }
 
-    /// Counterpart to [`HttpRequest::match_name`](super::HttpRequest::match_name()).
+    /// Counterpart to [`HttpRequest::match_name`].
     #[inline]
     pub fn match_name(&self) -> Option<&str> {
         self.req.match_name()
     }
 
-    /// Counterpart to [`HttpRequest::match_pattern`](super::HttpRequest::match_pattern()).
+    /// Counterpart to [`HttpRequest::match_pattern`].
     #[inline]
     pub fn match_pattern(&self) -> Option<String> {
         self.req.match_pattern()
@@ -238,7 +238,7 @@ impl ServiceRequest {
         self.req.app_config()
     }
 
-    /// Counterpart to [`HttpRequest::app_data`](super::HttpRequest::app_data()).
+    /// Counterpart to [`HttpRequest::app_data`].
     #[inline]
     pub fn app_data<T: 'static>(&self) -> Option<&T> {
         for container in self.req.inner.app_data.iter().rev() {
@@ -250,19 +250,33 @@ impl ServiceRequest {
         None
     }
 
-    /// Counterpart to [`HttpRequest::conn_data`](super::HttpRequest::conn_data()).
+    /// Counterpart to [`HttpRequest::conn_data`].
     #[inline]
     pub fn conn_data<T: 'static>(&self) -> Option<&T> {
         self.req.conn_data()
     }
 
+    /// Counterpart to [`HttpRequest::req_data`].
+    #[inline]
+    pub fn req_data(&self) -> Ref<'_, Extensions> {
+        self.req.req_data()
+    }
+
+    /// Counterpart to [`HttpRequest::req_data_mut`].
+    #[inline]
+    pub fn req_data_mut(&self) -> RefMut<'_, Extensions> {
+        self.req.req_data_mut()
+    }
+
     #[cfg(feature = "cookies")]
+    #[inline]
     pub fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
         self.req.cookies()
     }
 
     /// Return request cookie.
     #[cfg(feature = "cookies")]
+    #[inline]
     pub fn cookie(&self, name: &str) -> Option<Cookie<'static>> {
         self.req.cookie(name)
     }
@@ -283,17 +297,27 @@ impl ServiceRequest {
             .app_data
             .push(extensions);
     }
+
+    /// Creates a context object for use with a [guard](crate::guard).
+    ///
+    /// Useful if you are implementing
+    #[inline]
+    pub fn guard_ctx(&self) -> GuardContext<'_> {
+        GuardContext { req: self }
+    }
 }
 
-impl Resource<Url> for ServiceRequest {
+impl Resource for ServiceRequest {
+    type Path = Url;
+
     #[inline]
-    fn resource_path(&mut self) -> &mut Path<Url> {
+    fn resource_path(&mut self) -> &mut Path<Self::Path> {
         self.match_info_mut()
     }
 }
 
 impl HttpMessage for ServiceRequest {
-    type Stream = PayloadStream;
+    type Stream = BoxedPayloadStream;
 
     #[inline]
     /// Returns Request's headers.

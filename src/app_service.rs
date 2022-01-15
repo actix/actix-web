@@ -1,14 +1,16 @@
 use std::{cell::RefCell, mem, rc::Rc};
 
-use actix_http::{Extensions, Request};
+use actix_http::Request;
 use actix_router::{Path, ResourceDef, Router, Url};
 use actix_service::{boxed, fn_service, Service, ServiceFactory};
 use futures_core::future::LocalBoxFuture;
 use futures_util::future::join_all;
 
 use crate::{
+    body::BoxBody,
     config::{AppConfig, AppService},
     data::FnDataFactory,
+    dev::Extensions,
     guard::Guard,
     request::{HttpRequest, HttpRequestPool},
     rmap::ResourceMap,
@@ -236,6 +238,7 @@ where
 }
 
 pub struct AppRoutingFactory {
+    #[allow(clippy::type_complexity)]
     services: Rc<
         [(
             ResourceDef,
@@ -296,7 +299,7 @@ pub struct AppRouting {
 }
 
 impl Service<ServiceRequest> for AppRouting {
-    type Response = ServiceResponse;
+    type Response = ServiceResponse<BoxBody>;
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
@@ -305,12 +308,15 @@ impl Service<ServiceRequest> for AppRouting {
     fn call(&self, mut req: ServiceRequest) -> Self::Future {
         let res = self.router.recognize_fn(&mut req, |req, guards| {
             if let Some(ref guards) = guards {
-                for f in guards {
-                    if !f.check(req.head()) {
+                let guard_ctx = req.guard_ctx();
+
+                for guard in guards {
+                    if !guard.check(&guard_ctx) {
                         return false;
                     }
                 }
             }
+
             true
         });
 

@@ -1,8 +1,8 @@
 use std::{fmt, io, ops::Deref, path::PathBuf, rc::Rc};
 
-use actix_service::Service;
 use actix_web::{
-    dev::{ServiceRequest, ServiceResponse},
+    body::BoxBody,
+    dev::{self, Service, ServiceRequest, ServiceResponse},
     error::Error,
     guard::Guard,
     http::{header, Method},
@@ -94,16 +94,16 @@ impl fmt::Debug for FilesService {
 }
 
 impl Service<ServiceRequest> for FilesService {
-    type Response = ServiceResponse;
+    type Response = ServiceResponse<BoxBody>;
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
-    actix_service::always_ready!();
+    dev::always_ready!();
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let is_method_valid = if let Some(guard) = &self.guards {
             // execute user defined guards
-            (**guard).check(req.head())
+            (**guard).check(&req.guard_ctx())
         } else {
             // default behavior
             matches!(*req.method(), Method::HEAD | Method::GET)
@@ -114,7 +114,7 @@ impl Service<ServiceRequest> for FilesService {
         Box::pin(async move {
             if !is_method_valid {
                 return Ok(req.into_response(
-                    actix_web::HttpResponse::MethodNotAllowed()
+                    HttpResponse::MethodNotAllowed()
                         .insert_header(header::ContentType(mime::TEXT_PLAIN_UTF_8))
                         .body("Request did not meet this resource's requirements."),
                 ));
@@ -123,7 +123,7 @@ impl Service<ServiceRequest> for FilesService {
             let real_path =
                 match PathBufWrap::parse_path(req.match_info().path(), this.hidden_files) {
                     Ok(item) => item,
-                    Err(e) => return Ok(req.error_response(e)),
+                    Err(err) => return Ok(req.error_response(err)),
                 };
 
             if let Some(filter) = &this.path_filter {
@@ -131,9 +131,7 @@ impl Service<ServiceRequest> for FilesService {
                     if let Some(ref default) = this.default {
                         return default.call(req).await;
                     } else {
-                        return Ok(
-                            req.into_response(actix_web::HttpResponse::NotFound().finish())
-                        );
+                        return Ok(req.into_response(HttpResponse::NotFound().finish()));
                     }
                 }
             }

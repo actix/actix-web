@@ -67,8 +67,8 @@ mod tests {
         time::{Duration, SystemTime},
     };
 
-    use actix_service::ServiceFactory;
     use actix_web::{
+        dev::ServiceFactory,
         guard,
         http::{
             header::{self, ContentDisposition, DispositionParam, DispositionType},
@@ -303,7 +303,7 @@ mod tests {
         let resp = file.respond_to(&req).await.unwrap();
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
-            "application/javascript"
+            "application/javascript; charset=utf-8"
         );
         assert_eq!(
             resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
@@ -597,7 +597,8 @@ mod tests {
             .to_request();
         let res = test::call_service(&srv, request).await;
         assert_eq!(res.status(), StatusCode::OK);
-        assert!(!res.headers().contains_key(header::CONTENT_ENCODING));
+        assert!(res.headers().contains_key(header::CONTENT_ENCODING));
+        assert!(!test::read_body(res).await.is_empty());
     }
 
     #[actix_rt::test]
@@ -800,6 +801,38 @@ mod tests {
         .await;
 
         let req = TestRequest::get().uri("/test/%43argo.toml").to_request();
+        let res = test::call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+
+        // `%2F` == `/`
+        let req = TestRequest::get().uri("/test%2Ftest.binary").to_request();
+        let res = test::call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::get().uri("/test/Cargo.toml%00").to_request();
+        let res = test::call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[actix_rt::test]
+    async fn test_percent_encoding_2() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let filename = match cfg!(unix) {
+            true => "ض:?#[]{}<>()@!$&'`|*+,;= %20.test",
+            false => "ض#[]{}()@!$&'`+,;= %20.test",
+        };
+        let filename_encoded = filename
+            .as_bytes()
+            .iter()
+            .map(|c| format!("%{:02X}", c))
+            .collect::<String>();
+        std::fs::File::create(tmpdir.path().join(filename)).unwrap();
+
+        let srv = test::init_service(App::new().service(Files::new("", tmpdir.path()))).await;
+
+        let req = TestRequest::get()
+            .uri(&format!("/{}", filename_encoded))
+            .to_request();
         let res = test::call_service(&srv, req).await;
         assert_eq!(res.status(), StatusCode::OK);
     }

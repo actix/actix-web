@@ -15,6 +15,7 @@ digraph {
 
     "actix-web" -> { "actix-web-codegen" "actix-http" "actix-router" }
     "awc" -> { "actix-http" }
+    "actix-web-codegen" -> { "actix-router" }
     "actix-web-actors" -> { "actix" "actix-web" "actix-http" }
     "actix-multipart" -> { "actix-web" }
     "actix-files" -> { "actix-web" }

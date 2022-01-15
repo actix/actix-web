@@ -8,6 +8,7 @@
 mod de;
 mod path;
 mod pattern;
+mod quoter;
 mod resource;
 mod resource_path;
 mod router;
@@ -18,9 +19,10 @@ mod url;
 pub use self::de::PathDeserializer;
 pub use self::path::Path;
 pub use self::pattern::{IntoPatterns, Patterns};
+pub use self::quoter::Quoter;
 pub use self::resource::ResourceDef;
 pub use self::resource_path::{Resource, ResourcePath};
 pub use self::router::{ResourceInfo, Router, RouterBuilder};
 
 #[cfg(feature = "http")]
-pub use self::url::{Quoter, Url};
+pub use self::url::Url;

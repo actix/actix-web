@@ -28,6 +28,7 @@ use crate::{
 ///
 /// `Files` service must be registered with `App::service()` method.
 ///
+/// # Examples
 /// ```
 /// use actix_web::App;
 /// use actix_files::Files;

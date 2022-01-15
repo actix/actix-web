@@ -108,8 +108,8 @@ where
             match Pin::new(&mut this.connection).poll_accept(cx)? {
                 Poll::Ready(Some((req, tx))) => {
                     let (parts, body) = req.into_parts();
-                    let pl = crate::h2::Payload::new(body);
-                    let pl = Payload::H2(pl);
+                    let payload = crate::h2::Payload::new(body);
+                    let pl = Payload::H2 { payload };
                     let mut req = Request::with_payload(pl);
 
                     let head = req.head_mut();
@@ -288,9 +288,11 @@ fn prepare_response(
     let _ = match size {
         BodySize::None | BodySize::Stream => None,
 
-        BodySize::Sized(0) => res
-            .headers_mut()
-            .insert(CONTENT_LENGTH, HeaderValue::from_static("0")),
+        BodySize::Sized(0) => {
+            #[allow(clippy::declare_interior_mutable_const)]
+            const HV_ZERO: HeaderValue = HeaderValue::from_static("0");
+            res.headers_mut().insert(CONTENT_LENGTH, HV_ZERO)
+        }
 
         BodySize::Sized(len) => {
             let mut buf = itoa::Buffer::new();

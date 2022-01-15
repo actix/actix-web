@@ -1,6 +1,6 @@
 [package]
 name = "awc"
-version = "3.0.0-beta.14"
+version = "3.0.0-beta.18"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
     "fakeshadow <24548779@qq.com>",
@@ -60,9 +60,9 @@ dangerous-h2c = []
 [dependencies]
 actix-codec = "0.4.1"
 actix-service = "2.0.0"
-actix-http = "3.0.0-beta.16"
+actix-http = "3.0.0-beta.18"
 actix-rt = { version = "2.1", default-features = false }
-actix-tls = { version = "3.0.0-rc.2", features = ["connect", "uri"] }
+actix-tls = { version = "3.0.0", features = ["connect", "uri"] }
 actix-utils = "3.0.0"
 
 ahash = "0.7"
@@ -83,9 +83,9 @@ rand = "0.8"
 serde = "1.0"
 serde_json = "1.0"
 serde_urlencoded = "0.7"
-tokio = { version = "1.8", features = ["sync"] }
+tokio = { version = "1.8.4", features = ["sync"] }
 
-cookie = { version = "0.15", features = ["percent-encode"], optional = true }
+cookie = { version = "0.16", features = ["percent-encode"], optional = true }
 
 tls-openssl = { package = "openssl", version = "0.10.9", optional = true }
 tls-rustls = { package = "rustls", version = "0.20.0", optional = true, features = ["dangerous_configuration"] }
@@ -93,21 +93,23 @@ tls-rustls = { package = "rustls", version = "0.20.0", optional = true, features
 trust-dns-resolver = { version = "0.20.0", optional = true }
 
 [dev-dependencies]
-actix-http = { version = "3.0.0-beta.16", features = ["openssl"] }
-actix-http-test = { version = "3.0.0-beta.9", features = ["openssl"] }
-actix-server = "2.0.0-rc.1"
-actix-test = { version = "0.1.0-beta.9", features = ["openssl", "rustls"] }
-actix-tls = { version = "3.0.0-rc.1", features = ["openssl", "rustls"] }
+actix-http = { version = "3.0.0-beta.18", features = ["openssl"] }
+actix-http-test = { version = "3.0.0-beta.11", features = ["openssl"] }
+actix-server = "2.0.0-rc.2"
+actix-test = { version = "0.1.0-beta.11", features = ["openssl", "rustls"] }
+actix-tls = { version = "3.0.0", features = ["openssl", "rustls"] }
 actix-utils = "3.0.0"
-actix-web = { version = "4.0.0-beta.15", features = ["openssl"] }
+actix-web = { version = "4.0.0-beta.20", features = ["openssl"] }
 
-brotli = "3.3"
+brotli2 = "0.3.3"
+const-str = "0.3"
 env_logger = "0.9"
 flate2 = "1.0.13"
 futures-util = { version = "0.3.7", default-features = false }
 static_assertions = "1.1"
 rcgen = "0.8"
 rustls-pemfile = "0.2"
+zstd = "0.9"
 
 [[example]]
 name = "client"

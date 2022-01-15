@@ -100,10 +100,9 @@ impl DefaultHeaders {
     ///
     /// Default is `application/octet-stream`.
     pub fn add_content_type(self) -> Self {
-        self.add((
-            CONTENT_TYPE,
-            HeaderValue::from_static("application/octet-stream"),
-        ))
+        #[allow(clippy::declare_interior_mutable_const)]
+        const HV_MIME: HeaderValue = HeaderValue::from_static("application/octet-stream");
+        self.add((CONTENT_TYPE, HV_MIME))
     }
 }
 

@@ -1,6 +1,6 @@
 use firestorm::profile_method;
 
-use crate::{IntoPatterns, Resource, ResourceDef, ResourcePath};
+use crate::{IntoPatterns, Resource, ResourceDef};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct ResourceId(pub u16);
@@ -26,10 +26,9 @@ impl<T, U> Router<T, U> {
         }
     }
 
-    pub fn recognize<R, P>(&self, resource: &mut R) -> Option<(&T, ResourceId)>
+    pub fn recognize<R>(&self, resource: &mut R) -> Option<(&T, ResourceId)>
     where
-        R: Resource<P>,
-        P: ResourcePath,
+        R: Resource,
     {
         profile_method!(recognize);
 
@@ -42,10 +41,9 @@ impl<T, U> Router<T, U> {
         None
     }
 
-    pub fn recognize_mut<R, P>(&mut self, resource: &mut R) -> Option<(&mut T, ResourceId)>
+    pub fn recognize_mut<R>(&mut self, resource: &mut R) -> Option<(&mut T, ResourceId)>
     where
-        R: Resource<P>,
-        P: ResourcePath,
+        R: Resource,
     {
         profile_method!(recognize_mut);
 
@@ -58,11 +56,10 @@ impl<T, U> Router<T, U> {
         None
     }
 
-    pub fn recognize_fn<R, P, F>(&self, resource: &mut R, check: F) -> Option<(&T, ResourceId)>
+    pub fn recognize_fn<R, F>(&self, resource: &mut R, check: F) -> Option<(&T, ResourceId)>
     where
         F: Fn(&R, &Option<U>) -> bool,
-        R: Resource<P>,
-        P: ResourcePath,
+        R: Resource,
     {
         profile_method!(recognize_checked);
 
@@ -75,15 +72,14 @@ impl<T, U> Router<T, U> {
         None
     }
 
-    pub fn recognize_mut_fn<R, P, F>(
+    pub fn recognize_mut_fn<R, F>(
         &mut self,
         resource: &mut R,
         check: F,
     ) -> Option<(&mut T, ResourceId)>
     where
         F: Fn(&R, &Option<U>) -> bool,
-        R: Resource<P>,
-        P: ResourcePath,
+        R: Resource,
     {
         profile_method!(recognize_mut_checked);
 

@@ -13,16 +13,17 @@ use actix_http::{
     Payload, RequestHeadType, ResponseHead, StatusCode,
 };
 use actix_utils::future::poll_fn;
-use bytes::buf::BufMut;
-use bytes::{Bytes, BytesMut};
+use bytes::{buf::BufMut, Bytes, BytesMut};
 use futures_core::{ready, Stream};
 use futures_util::SinkExt as _;
 use pin_project_lite::pin_project;
 
 use crate::BoxError;
 
-use super::connection::{ConnectionIo, H1Connection};
-use super::error::{ConnectError, SendRequestError};
+use super::{
+    connection::{ConnectionIo, H1Connection},
+    error::{ConnectError, SendRequestError},
+};
 
 pub(crate) async fn send_request<Io, B>(
     io: H1Connection<Io>,
@@ -123,7 +124,12 @@ where
 
             Ok((head, Payload::None))
         }
-        _ => Ok((head, Payload::Stream(Box::pin(PlStream::new(framed))))),
+        _ => Ok((
+            head,
+            Payload::Stream {
+                payload: Box::pin(PlStream::new(framed)),
+            },
+        )),
     }
 }
 

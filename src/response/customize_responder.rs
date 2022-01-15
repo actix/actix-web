@@ -1,12 +1,9 @@
 use actix_http::{
-    body::{EitherBody, MessageBody},
-    error::HttpError,
-    header::HeaderMap,
-    header::TryIntoHeaderPair,
+    body::EitherBody, error::HttpError, header::HeaderMap, header::TryIntoHeaderPair,
     StatusCode,
 };
 
-use crate::{BoxError, HttpRequest, HttpResponse, Responder};
+use crate::{HttpRequest, HttpResponse, Responder};
 
 /// Allows overriding status code and headers for a [`Responder`].
 ///
@@ -143,7 +140,6 @@ impl<R: Responder> CustomizeResponder<R> {
 impl<T> Responder for CustomizeResponder<T>
 where
     T: Responder,
-    <T::Body as MessageBody>::Error: Into<BoxError>,
 {
     type Body = EitherBody<T::Body>;
 

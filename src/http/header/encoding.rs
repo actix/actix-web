@@ -1,69 +1,55 @@
 use std::{fmt, str};
 
-pub use self::Encoding::{
-    Brotli, Chunked, Compress, Deflate, EncodingExt, Gzip, Identity, Trailers, Zstd,
-};
+use actix_http::ContentEncoding;
 
-/// A value to represent an encoding used in `Transfer-Encoding` or `Accept-Encoding` header.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// A value to represent an encoding used in the `Accept-Encoding` and `Content-Encoding` header.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Encoding {
-    /// The `chunked` encoding.
-    Chunked,
+    /// A supported content encoding. See [`ContentEncoding`] for variants.
+    Known(ContentEncoding),
 
-    /// The `br` encoding.
-    Brotli,
+    /// Some other encoding that is less common, can be any string.
+    Unknown(String),
+}
 
-    /// The `gzip` encoding.
-    Gzip,
+impl Encoding {
+    pub const fn identity() -> Self {
+        Self::Known(ContentEncoding::Identity)
+    }
 
-    /// The `deflate` encoding.
-    Deflate,
+    pub const fn brotli() -> Self {
+        Self::Known(ContentEncoding::Brotli)
+    }
 
-    /// The `compress` encoding.
-    Compress,
+    pub const fn deflate() -> Self {
+        Self::Known(ContentEncoding::Deflate)
+    }
 
-    /// The `identity` encoding.
-    Identity,
+    pub const fn gzip() -> Self {
+        Self::Known(ContentEncoding::Gzip)
+    }
 
-    /// The `trailers` encoding.
-    Trailers,
-
-    /// The `zstd` encoding.
-    Zstd,
-
-    /// Some other encoding that is less common, can be any String.
-    EncodingExt(String),
+    pub const fn zstd() -> Self {
+        Self::Known(ContentEncoding::Zstd)
+    }
 }
 
 impl fmt::Display for Encoding {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match *self {
-            Chunked => "chunked",
-            Brotli => "br",
-            Gzip => "gzip",
-            Deflate => "deflate",
-            Compress => "compress",
-            Identity => "identity",
-            Trailers => "trailers",
-            Zstd => "zstd",
-            EncodingExt(ref s) => s.as_ref(),
+        f.write_str(match self {
+            Encoding::Known(enc) => enc.as_str(),
+            Encoding::Unknown(enc) => enc.as_str(),
         })
     }
 }
 
 impl str::FromStr for Encoding {
     type Err = crate::error::ParseError;
-    fn from_str(s: &str) -> Result<Encoding, crate::error::ParseError> {
-        match s {
-            "chunked" => Ok(Chunked),
-            "br" => Ok(Brotli),
-            "deflate" => Ok(Deflate),
-            "gzip" => Ok(Gzip),
-            "compress" => Ok(Compress),
-            "identity" => Ok(Identity),
-            "trailers" => Ok(Trailers),
-            "zstd" => Ok(Zstd),
-            _ => Ok(EncodingExt(s.to_owned())),
+
+    fn from_str(enc: &str) -> Result<Self, crate::error::ParseError> {
+        match enc.parse::<ContentEncoding>() {
+            Ok(enc) => Ok(Self::Known(enc)),
+            Err(_) => Ok(Self::Unknown(enc.to_owned())),
         }
     }
 }

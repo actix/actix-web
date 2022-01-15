@@ -53,7 +53,7 @@
 //! * SSL support using OpenSSL or Rustls
 //! * Middlewares ([Logger, Session, CORS, etc](https://actix.rs/docs/middleware/))
 //! * Includes an async [HTTP client](https://docs.rs/awc/)
-//! * Runs on stable Rust 1.52+
+//! * Runs on stable Rust 1.54+
 //!
 //! # Crate Features
 //! * `cookies` - cookies support (enabled by default)
@@ -66,7 +66,6 @@
 
 #![deny(rust_2018_idioms, nonstandard_style)]
 #![warn(future_incompatible)]
-#![allow(clippy::needless_doctest_main, clippy::type_complexity)]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 
@@ -106,6 +105,7 @@ pub use cookie;
 pub use crate::app::App;
 pub use crate::error::{Error, ResponseError, Result};
 pub use crate::extract::FromRequest;
+pub use crate::handler::Handler;
 pub use crate::request::HttpRequest;
 pub use crate::resource::Resource;
 pub use crate::response::{CustomizeResponder, HttpResponse, HttpResponseBuilder, Responder};

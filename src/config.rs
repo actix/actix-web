@@ -24,6 +24,7 @@ pub struct AppService {
     config: AppConfig,
     root: bool,
     default: Rc<HttpNewService>,
+    #[allow(clippy::type_complexity)]
     services: Vec<(
         ResourceDef,
         HttpNewService,
@@ -48,6 +49,7 @@ impl AppService {
         self.root
     }
 
+    #[allow(clippy::type_complexity)]
     pub(crate) fn into_services(
         self,
     ) -> (
@@ -126,7 +128,7 @@ impl AppConfig {
 
     /// Server host name.
     ///
-    /// Host name is used by application router as a hostname for url generation.
+    /// Host name is used by application router as a hostname for URL generation.
     /// Check [ConnectionInfo](super::dev::ConnectionInfo::host())
     /// documentation for more information.
     ///
@@ -135,7 +137,7 @@ impl AppConfig {
         &self.host
     }
 
-    /// Returns true if connection is secure(https)
+    /// Returns true if connection is secure (i.e., running over `https:`).
     pub fn secure(&self) -> bool {
         self.secure
     }
@@ -213,6 +215,17 @@ impl ServiceConfig {
         self
     }
 
+    /// Run external configuration as part of the application building process
+    ///
+    /// Counterpart to [`App::configure()`](crate::App::configure) that allows for easy nesting.
+    pub fn configure<F>(&mut self, f: F) -> &mut Self
+    where
+        F: FnOnce(&mut ServiceConfig),
+    {
+        f(self);
+        self
+    }
+
     /// Configure route for a specific path.
     ///
     /// Counterpart to [`App::route()`](crate::App::route).
@@ -262,7 +275,7 @@ mod tests {
 
     use super::*;
     use crate::http::{Method, StatusCode};
-    use crate::test::{call_service, init_service, read_body, TestRequest};
+    use crate::test::{assert_body_eq, call_service, init_service, read_body, TestRequest};
     use crate::{web, App, HttpRequest, HttpResponse};
 
     // allow deprecated `ServiceConfig::data`
@@ -285,38 +298,6 @@ mod tests {
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
     }
-
-    // #[actix_rt::test]
-    // async fn test_data_factory() {
-    //     let cfg = |cfg: &mut ServiceConfig| {
-    //         cfg.data_factory(|| {
-    //             sleep(std::time::Duration::from_millis(50)).then(|_| {
-    //                 println!("READY");
-    //                 Ok::<_, ()>(10usize)
-    //             })
-    //         });
-    //     };
-
-    //     let srv =
-    //         init_service(App::new().configure(cfg).service(
-    //             web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()),
-    //         ));
-    //     let req = TestRequest::default().to_request();
-    //     let resp = srv.call(req).await.unwrap();
-    //     assert_eq!(resp.status(), StatusCode::OK);
-
-    //     let cfg2 = |cfg: &mut ServiceConfig| {
-    //         cfg.data_factory(|| Ok::<_, ()>(10u32));
-    //     };
-    //     let srv = init_service(
-    //         App::new()
-    //             .service(web::resource("/").to(|_: web::Data<usize>| HttpResponse::Ok()))
-    //             .configure(cfg2),
-    //     );
-    //     let req = TestRequest::default().to_request();
-    //     let resp = srv.call(req).await.unwrap();
-    //     assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
-    // }
 
     #[actix_rt::test]
     async fn test_external_resource() {
@@ -360,5 +341,23 @@ mod tests {
             .to_request();
         let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[actix_rt::test]
+    async fn nested_service_configure() {
+        fn cfg_root(cfg: &mut ServiceConfig) {
+            cfg.configure(cfg_sub);
+        }
+
+        fn cfg_sub(cfg: &mut ServiceConfig) {
+            cfg.route("/", web::get().to(|| async { "hello world" }));
+        }
+
+        let srv = init_service(App::new().configure(cfg_root)).await;
+
+        let req = TestRequest::with_uri("/").to_request();
+        let res = call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_body_eq!(res, b"hello world");
     }
 }

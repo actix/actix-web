@@ -122,7 +122,7 @@ impl HttpRequest {
 
     /// Returns a reference to the URL parameters container.
     ///
-    /// A url parameter is specified in the form `{identifier}`, where the identifier can be used
+    /// A URL parameter is specified in the form `{identifier}`, where the identifier can be used
     /// later in a request handler to access the matched value for that parameter.
     ///
     /// # Percent Encoding and URL Parameters
@@ -228,23 +228,28 @@ impl HttpRequest {
         self.app_state().rmap()
     }
 
-    /// Peer socket address.
+    /// Returns peer socket address.
     ///
     /// Peer address is the directly connected peer's socket address. If a proxy is used in front of
     /// the Actix Web server, then it would be address of this proxy.
     ///
-    /// To get client connection information `.connection_info()` should be used.
+    /// For expanded client connection information, use [`connection_info`] instead.
     ///
-    /// Will only return None when called in unit tests.
+    /// Will only return None when called in unit tests unless [`TestRequest::peer_addr`] is used.
+    ///
+    /// [`TestRequest::peer_addr`]: crate::test::TestRequest::peer_addr
+    /// [`connection_info`]: Self::connection_info
     #[inline]
     pub fn peer_addr(&self) -> Option<net::SocketAddr> {
         self.head().peer_addr
     }
 
-    /// Get *ConnectionInfo* for the current request.
+    /// Returns connection info for the current request.
     ///
-    /// This method panics if request's extensions container is already
-    /// borrowed.
+    /// The return type, [`ConnectionInfo`], can also be used as an extractor.
+    ///
+    /// # Panics
+    /// Panics if request's extensions container is already borrowed.
     #[inline]
     pub fn connection_info(&self) -> Ref<'_, ConnectionInfo> {
         if !self.extensions().contains::<ConnectionInfo>() {
@@ -252,7 +257,7 @@ impl HttpRequest {
             self.extensions_mut().insert(info);
         }
 
-        Ref::map(self.extensions(), |e| e.get().unwrap())
+        Ref::map(self.extensions(), |data| data.get().unwrap())
     }
 
     /// App config
@@ -261,14 +266,34 @@ impl HttpRequest {
         self.app_state().config()
     }
 
-    /// Get an application data object stored with `App::data` or `App::app_data`
-    /// methods during application configuration.
+    /// Retrieves a piece of application state.
     ///
-    /// If `App::data` was used to store object, use `Data<T>`:
+    /// Extracts any object stored with [`App::app_data()`](crate::App::app_data) (or the
+    /// counterpart methods on [`Scope`](crate::Scope::app_data) and
+    /// [`Resource`](crate::Resource::app_data)) during application configuration.
     ///
-    /// ```ignore
-    /// let opt_t = req.app_data::<Data<T>>();
+    /// Since the Actix Web router layers application data, the returned object will reference the
+    /// "closest" instance of the type. For example, if an `App` stores a `u32`, a nested `Scope`
+    /// also stores a `u32`, and the delegated request handler falls within that `Scope`, then
+    /// calling `.app_data::<u32>()` on an `HttpRequest` within that handler will return the
+    /// `Scope`'s instance. However, using the same router set up and a request that does not get
+    /// captured by the `Scope`, `.app_data::<u32>()` would return the `App`'s instance.
+    ///
+    /// If the state was stored using the [`Data`] wrapper, then it must also be retrieved using
+    /// this same type.
+    ///
+    /// See also the [`Data`] extractor.
+    ///
+    /// # Examples
+    /// ```no_run
+    /// # use actix_web::{test::TestRequest, web::Data};
+    /// # let req = TestRequest::default().to_http_request();
+    /// # type T = u32;
+    /// let opt_t: Option<&Data<T>> = req.app_data::<Data<T>>();
     /// ```
+    ///
+    /// [`Data`]: crate::web::Data
+    #[doc(alias = "state")]
     pub fn app_data<T: 'static>(&self) -> Option<&T> {
         for container in self.inner.app_data.iter().rev() {
             if let Some(data) = container.get::<T>() {

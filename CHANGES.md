@@ -3,6 +3,88 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 4.0.0-beta.20 - 2022-01-14
+### Added
+- `GuardContext::header` [#2569]
+- `ServiceConfig::configure` to allow easy nesting of configuration functions. [#1988]
+
+### Changed
+- `HttpResponse` can now be used as a `Responder` with any body type. [#2567]
+- `Result` extractor wrapper can now convert error types. [#2581]
+- Associated types in `FromRequest` impl for `Option` and `Result` has changed. [#2581]
+- Maximum number of handler extractors has increased to 12. [#2582]
+- Removed bound `<B as MessageBody>::Error: Debug` in test utility functions in order to support returning opaque apps. [#2584]
+
+[#1988]: https://github.com/actix/actix-web/pull/1988
+[#2567]: https://github.com/actix/actix-web/pull/2567
+[#2569]: https://github.com/actix/actix-web/pull/2569
+[#2581]: https://github.com/actix/actix-web/pull/2581
+[#2582]: https://github.com/actix/actix-web/pull/2582
+[#2584]: https://github.com/actix/actix-web/pull/2584
+
+
+## 4.0.0-beta.19 - 2022-01-04
+### Added
+- `impl Hash` for `http::header::Encoding`. [#2501]
+- `AcceptEncoding::negotiate()`. [#2501]
+
+### Changed
+- `AcceptEncoding::preference` now returns `Option<Preference<Encoding>>`. [#2501]
+- Rename methods `BodyEncoding::{encoding => encode_with, get_encoding => preferred_encoding}`. [#2501]
+- `http::header::Encoding` now only represents `Content-Encoding` types. [#2501]
+
+### Fixed
+- Auto-negotiation of content encoding is more fault-tolerant when using the `Compress` middleware. [#2501]
+
+### Removed
+- `Compress::new`; restricting compression algorithm is done through feature flags. [#2501]
+- `BodyEncoding` trait; signalling content encoding is now only done via the `Content-Encoding` header. [#2565]
+
+[#2501]: https://github.com/actix/actix-web/pull/2501
+[#2565]: https://github.com/actix/actix-web/pull/2565
+
+
+## 4.0.0-beta.18 - 2021-12-29
+### Changed
+- Update `cookie` dependency (re-exported) to `0.16`. [#2555]
+- Minimum supported Rust version (MSRV) is now 1.54.
+
+### Security
+- `cookie` upgrade addresses [`RUSTSEC-2020-0071`].
+
+[#2555]: https://github.com/actix/actix-web/pull/2555
+[`RUSTSEC-2020-0071`]: https://rustsec.org/advisories/RUSTSEC-2020-0071.html
+
+
+## 4.0.0-beta.17 - 2021-12-29
+### Added
+- `guard::GuardContext` for use with the `Guard` trait. [#2552]
+- `ServiceRequest::guard_ctx` for obtaining a guard context. [#2552]
+
+### Changed
+- `Guard` trait now receives a `&GuardContext`. [#2552]
+- `guard::fn_guard` functions now receives a `&GuardContext`. [#2552]
+- Some guards now return `impl Guard` and their concrete types are made private: `guard::Header` and all the method guards. [#2552]
+- The `Not` guard is now generic over the type of guard it wraps. [#2552]
+
+### Fixed
+- Rename `ConnectionInfo::{remote_addr => peer_addr}`, deprecating the old name. [#2554]
+- `ConnectionInfo::peer_addr` will not return the port number. [#2554]
+- `ConnectionInfo::realip_remote_addr` will not return the port number if sourcing the IP from the peer's socket address. [#2554]
+
+[#2552]: https://github.com/actix/actix-web/pull/2552
+[#2554]: https://github.com/actix/actix-web/pull/2554
+
+
+## 4.0.0-beta.16 - 2021-12-27
+### Changed
+- No longer require `Scope` service body type to be boxed. [#2523]
+- No longer require `Resource` service body type to be boxed. [#2526]
+
+[#2523]: https://github.com/actix/actix-web/pull/2523
+[#2526]: https://github.com/actix/actix-web/pull/2526
+
+
 ## 4.0.0-beta.15 - 2021-12-17
 ### Added
 - Method on `Responder` trait (`customize`) for customizing responders and `CustomizeResponder` struct. [#2510]

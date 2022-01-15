@@ -10,6 +10,9 @@ use actix_web::{error::Error, web::Bytes};
 use futures_core::{ready, Stream};
 use pin_project_lite::pin_project;
 
+#[cfg(feature = "experimental-io-uring")]
+use bytes::BytesMut;
+
 use super::named::File;
 
 pin_project! {
@@ -210,67 +213,6 @@ where
                 *this.counter += bytes.len() as u64;
 
                 Poll::Ready(Some(Ok(bytes)))
-            }
-        }
-    }
-}
-
-#[cfg(feature = "experimental-io-uring")]
-use bytes_mut::BytesMut;
-
-// TODO: remove new type and use bytes::BytesMut directly
-#[doc(hidden)]
-#[cfg(feature = "experimental-io-uring")]
-mod bytes_mut {
-    use std::ops::{Deref, DerefMut};
-
-    use tokio_uring::buf::{IoBuf, IoBufMut};
-
-    #[derive(Debug)]
-    pub struct BytesMut(bytes::BytesMut);
-
-    impl BytesMut {
-        pub(super) fn new() -> Self {
-            Self(bytes::BytesMut::new())
-        }
-    }
-
-    impl Deref for BytesMut {
-        type Target = bytes::BytesMut;
-
-        fn deref(&self) -> &Self::Target {
-            &self.0
-        }
-    }
-
-    impl DerefMut for BytesMut {
-        fn deref_mut(&mut self) -> &mut Self::Target {
-            &mut self.0
-        }
-    }
-
-    unsafe impl IoBuf for BytesMut {
-        fn stable_ptr(&self) -> *const u8 {
-            self.0.as_ptr()
-        }
-
-        fn bytes_init(&self) -> usize {
-            self.0.len()
-        }
-
-        fn bytes_total(&self) -> usize {
-            self.0.capacity()
-        }
-    }
-
-    unsafe impl IoBufMut for BytesMut {
-        fn stable_mut_ptr(&mut self) -> *mut u8 {
-            self.0.as_mut_ptr()
-        }
-
-        unsafe fn set_init(&mut self, init_len: usize) {
-            if self.len() < init_len {
-                self.0.set_len(init_len);
             }
         }
     }

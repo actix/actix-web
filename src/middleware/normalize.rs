@@ -225,7 +225,7 @@ mod tests {
                 .service(web::resource("/v1/something").to(HttpResponse::Ok))
                 .service(
                     web::resource("/v2/something")
-                        .guard(fn_guard(|req| req.uri.query() == Some("query=test")))
+                        .guard(fn_guard(|ctx| ctx.head().uri.query() == Some("query=test")))
                         .to(HttpResponse::Ok),
                 ),
         )
@@ -261,7 +261,7 @@ mod tests {
                 .service(web::resource("/v1/something").to(HttpResponse::Ok))
                 .service(
                     web::resource("/v2/something")
-                        .guard(fn_guard(|req| req.uri.query() == Some("query=test")))
+                        .guard(fn_guard(|ctx| ctx.head().uri.query() == Some("query=test")))
                         .to(HttpResponse::Ok),
                 ),
         )
@@ -294,7 +294,7 @@ mod tests {
         let app = init_service(
             App::new().wrap(NormalizePath(TrailingSlash::Trim)).service(
                 web::resource("/")
-                    .guard(fn_guard(|req| req.uri.query() == Some("query=test")))
+                    .guard(fn_guard(|ctx| ctx.head().uri.query() == Some("query=test")))
                     .to(HttpResponse::Ok),
             ),
         )
@@ -318,7 +318,7 @@ mod tests {
                 .service(web::resource("/v1/something/").to(HttpResponse::Ok))
                 .service(
                     web::resource("/v2/something/")
-                        .guard(fn_guard(|req| req.uri.query() == Some("query=test")))
+                        .guard(fn_guard(|ctx| ctx.head().uri.query() == Some("query=test")))
                         .to(HttpResponse::Ok),
                 ),
         )
@@ -353,7 +353,7 @@ mod tests {
                 .wrap(NormalizePath(TrailingSlash::Always))
                 .service(
                     web::resource("/")
-                        .guard(fn_guard(|req| req.uri.query() == Some("query=test")))
+                        .guard(fn_guard(|ctx| ctx.head().uri.query() == Some("query=test")))
                         .to(HttpResponse::Ok),
                 ),
         )
@@ -378,7 +378,7 @@ mod tests {
                 .service(web::resource("/v1/").to(HttpResponse::Ok))
                 .service(
                     web::resource("/v2/something")
-                        .guard(fn_guard(|req| req.uri.query() == Some("query=test")))
+                        .guard(fn_guard(|ctx| ctx.head().uri.query() == Some("query=test")))
                         .to(HttpResponse::Ok),
                 ),
         )

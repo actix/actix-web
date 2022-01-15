@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::ops::Index;
+use std::ops::{DerefMut, Index};
 
 use firestorm::profile_method;
 use serde::de;
@@ -213,8 +213,38 @@ impl<T: ResourcePath> Index<usize> for Path<T> {
     }
 }
 
-impl<T: ResourcePath> Resource<T> for Path<T> {
-    fn resource_path(&mut self) -> &mut Self {
+impl<T: ResourcePath> Resource for Path<T> {
+    type Path = T;
+
+    fn resource_path(&mut self) -> &mut Path<Self::Path> {
         self
+    }
+}
+
+impl<T, P> Resource for T
+where
+    T: DerefMut<Target = Path<P>>,
+    P: ResourcePath,
+{
+    type Path = P;
+
+    fn resource_path(&mut self) -> &mut Path<Self::Path> {
+        &mut *self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::cell::RefCell;
+
+    use super::*;
+
+    #[test]
+    fn deref_impls() {
+        let mut foo = Path::new("/foo");
+        let _ = (&mut foo).resource_path();
+
+        let foo = RefCell::new(foo);
+        let _ = foo.borrow_mut().resource_path();
     }
 }

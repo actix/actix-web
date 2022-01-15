@@ -3,6 +3,7 @@
 use std::{
     convert::Infallible,
     future::Future,
+    marker::PhantomData,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -124,12 +125,11 @@ pub trait FromRequest: Sized {
 ///     );
 /// }
 /// ```
-impl<T: 'static> FromRequest for Option<T>
+impl<T> FromRequest for Option<T>
 where
     T: FromRequest,
-    T::Future: 'static,
 {
-    type Error = Error;
+    type Error = Infallible;
     type Future = FromRequestOptFuture<T::Future>;
 
     #[inline]
@@ -152,7 +152,7 @@ where
     Fut: Future<Output = Result<T, E>>,
     E: Into<Error>,
 {
-    type Output = Result<Option<T>, Error>;
+    type Output = Result<Option<T>, Infallible>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
@@ -211,40 +211,42 @@ where
 ///     );
 /// }
 /// ```
-impl<T> FromRequest for Result<T, T::Error>
+impl<T, E> FromRequest for Result<T, E>
 where
-    T: FromRequest + 'static,
-    T::Error: 'static,
-    T::Future: 'static,
+    T: FromRequest,
+    T::Error: Into<E>,
 {
-    type Error = Error;
-    type Future = FromRequestResFuture<T::Future>;
+    type Error = Infallible;
+    type Future = FromRequestResFuture<T::Future, E>;
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         FromRequestResFuture {
             fut: T::from_request(req, payload),
+            _phantom: PhantomData,
         }
     }
 }
 
 pin_project! {
-    pub struct FromRequestResFuture<Fut> {
+    pub struct FromRequestResFuture<Fut, E> {
         #[pin]
         fut: Fut,
+        _phantom: PhantomData<E>,
     }
 }
 
-impl<Fut, T, E> Future for FromRequestResFuture<Fut>
+impl<Fut, T, Ei, E> Future for FromRequestResFuture<Fut, E>
 where
-    Fut: Future<Output = Result<T, E>>,
+    Fut: Future<Output = Result<T, Ei>>,
+    Ei: Into<E>,
 {
-    type Output = Result<Result<T, E>, Error>;
+    type Output = Result<Result<T, E>, Infallible>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
         let res = ready!(this.fut.poll(cx));
-        Poll::Ready(Ok(res))
+        Poll::Ready(Ok(res.map_err(Into::into)))
     }
 }
 
@@ -287,16 +289,6 @@ impl FromRequest for Method {
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         ok(req.method().clone())
-    }
-}
-
-#[doc(hidden)]
-impl FromRequest for () {
-    type Error = Infallible;
-    type Future = Ready<Result<Self, Self::Error>>;
-
-    fn from_request(_: &HttpRequest, _: &mut Payload) -> Self::Future {
-        ok(())
     }
 }
 
@@ -388,6 +380,15 @@ mod tuple_from_req {
         }
     }
 
+    impl FromRequest for () {
+        type Error = Infallible;
+        type Future = Ready<Result<Self, Self::Error>>;
+
+        fn from_request(_: &HttpRequest, _: &mut Payload) -> Self::Future {
+            ok(())
+        }
+    }
+
     tuple_from_req! { TupleFromRequest1; A }
     tuple_from_req! { TupleFromRequest2; A, B }
     tuple_from_req! { TupleFromRequest3; A, B, C }
@@ -398,6 +399,8 @@ mod tuple_from_req {
     tuple_from_req! { TupleFromRequest8; A, B, C, D, E, F, G, H }
     tuple_from_req! { TupleFromRequest9; A, B, C, D, E, F, G, H, I }
     tuple_from_req! { TupleFromRequest10; A, B, C, D, E, F, G, H, I, J }
+    tuple_from_req! { TupleFromRequest11; A, B, C, D, E, F, G, H, I, J, K }
+    tuple_from_req! { TupleFromRequest12; A, B, C, D, E, F, G, H, I, J, K, L }
 }
 
 #[cfg(test)]
@@ -480,7 +483,14 @@ mod tests {
             .set_payload(Bytes::from_static(b"bye=world"))
             .to_http_parts();
 
-        let r = Result::<Form<Info>, Error>::from_request(&req, &mut pl)
+        struct MyError;
+        impl From<Error> for MyError {
+            fn from(_: Error) -> Self {
+                Self
+            }
+        }
+
+        let r = Result::<Form<Info>, MyError>::from_request(&req, &mut pl)
             .await
             .unwrap();
         assert!(r.is_err());

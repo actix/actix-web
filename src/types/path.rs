@@ -9,6 +9,7 @@ use serde::de;
 use crate::{
     dev::Payload,
     error::{Error, ErrorNotFound, PathError},
+    web::Data,
     FromRequest, HttpRequest,
 };
 
@@ -102,6 +103,7 @@ where
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let error_handler = req
             .app_data::<PathConfig>()
+            .or_else(|| req.app_data::<Data<PathConfig>>().map(Data::get_ref))
             .and_then(|c| c.err_handler.clone());
 
         ready(
@@ -113,6 +115,7 @@ where
                          Request path: {:?}",
                         req.path()
                     );
+
                     if let Some(error_handler) = error_handler {
                         let e = PathError::Deserialize(err);
                         (error_handler)(e, req)
@@ -135,6 +138,7 @@ where
 /// enum Folder {
 ///     #[serde(rename = "inbox")]
 ///     Inbox,
+///
 ///     #[serde(rename = "outbox")]
 ///     Outbox,
 /// }
@@ -144,19 +148,17 @@ where
 ///     format!("Selected folder: {:?}!", folder)
 /// }
 ///
-/// fn main() {
-///     let app = App::new().service(
-///         web::resource("/messages/{folder}")
-///             .app_data(PathConfig::default().error_handler(|err, req| {
-///                 error::InternalError::from_response(
-///                     err,
-///                     HttpResponse::Conflict().into(),
-///                 )
-///                 .into()
-///             }))
-///             .route(web::post().to(index)),
-///     );
-/// }
+/// let app = App::new().service(
+///     web::resource("/messages/{folder}")
+///         .app_data(PathConfig::default().error_handler(|err, req| {
+///             error::InternalError::from_response(
+///                 err,
+///                 HttpResponse::Conflict().into(),
+///             )
+///             .into()
+///         }))
+///         .route(web::post().to(index)),
+/// );
 /// ```
 #[derive(Clone, Default)]
 pub struct PathConfig {
@@ -164,7 +166,7 @@ pub struct PathConfig {
 }
 
 impl PathConfig {
-    /// Set custom error handler
+    /// Set custom error handler.
     pub fn error_handler<F>(mut self, f: F) -> Self
     where
         F: Fn(PathError, &HttpRequest) -> Error + Send + Sync + 'static,
@@ -281,6 +283,18 @@ mod tests {
             .unwrap();
         assert_eq!(res[0], "name".to_owned());
         assert_eq!(res[1], "32".to_owned());
+    }
+
+    #[actix_rt::test]
+    async fn paths_decoded() {
+        let resource = ResourceDef::new("/{key}/{value}");
+        let mut req = TestRequest::with_uri("/na%2Bme/us%2Fer%251").to_srv_request();
+        resource.capture_match_info(req.match_info_mut());
+
+        let (req, mut pl) = req.into_parts();
+        let path_items = Path::<MyStruct>::from_request(&req, &mut pl).await.unwrap();
+        assert_eq!(path_items.key, "na+me");
+        assert_eq!(path_items.value, "us/er%1");
     }
 
     #[actix_rt::test]

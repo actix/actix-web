@@ -20,14 +20,16 @@ pub struct ContentEncodingParseError;
 /// See [IANA HTTP Content Coding Registry].
 ///
 /// [IANA HTTP Content Coding Registry]: https://www.iana.org/assignments/http-parameters/http-parameters.xhtml
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ContentEncoding {
-    /// Automatically select encoding based on encoding negotiation.
-    Auto,
+    /// Indicates the no-op identity encoding.
+    ///
+    /// I.e., no compression or modification.
+    Identity,
 
     /// A format using the Brotli algorithm.
-    Br,
+    Brotli,
 
     /// A format using the zlib structure with deflate algorithm.
     Deflate,
@@ -37,32 +39,36 @@ pub enum ContentEncoding {
 
     /// Zstd algorithm.
     Zstd,
-
-    /// Indicates the identity function (i.e. no compression, nor modification).
-    Identity,
 }
 
 impl ContentEncoding {
-    /// Is the content compressed?
-    #[inline]
-    pub fn is_compression(self) -> bool {
-        matches!(self, ContentEncoding::Identity | ContentEncoding::Auto)
-    }
-
     /// Convert content encoding to string.
     #[inline]
-    pub fn as_str(self) -> &'static str {
+    pub const fn as_str(self) -> &'static str {
         match self {
-            ContentEncoding::Br => "br",
+            ContentEncoding::Brotli => "br",
             ContentEncoding::Gzip => "gzip",
             ContentEncoding::Deflate => "deflate",
             ContentEncoding::Zstd => "zstd",
-            ContentEncoding::Identity | ContentEncoding::Auto => "identity",
+            ContentEncoding::Identity => "identity",
+        }
+    }
+
+    /// Convert content encoding to header value.
+    #[inline]
+    pub const fn to_header_value(self) -> HeaderValue {
+        match self {
+            ContentEncoding::Brotli => HeaderValue::from_static("br"),
+            ContentEncoding::Gzip => HeaderValue::from_static("gzip"),
+            ContentEncoding::Deflate => HeaderValue::from_static("deflate"),
+            ContentEncoding::Zstd => HeaderValue::from_static("zstd"),
+            ContentEncoding::Identity => HeaderValue::from_static("identity"),
         }
     }
 }
 
 impl Default for ContentEncoding {
+    #[inline]
     fn default() -> Self {
         Self::Identity
     }
@@ -71,16 +77,18 @@ impl Default for ContentEncoding {
 impl FromStr for ContentEncoding {
     type Err = ContentEncodingParseError;
 
-    fn from_str(val: &str) -> Result<Self, Self::Err> {
-        let val = val.trim();
+    fn from_str(enc: &str) -> Result<Self, Self::Err> {
+        let enc = enc.trim();
 
-        if val.eq_ignore_ascii_case("br") {
-            Ok(ContentEncoding::Br)
-        } else if val.eq_ignore_ascii_case("gzip") {
+        if enc.eq_ignore_ascii_case("br") {
+            Ok(ContentEncoding::Brotli)
+        } else if enc.eq_ignore_ascii_case("gzip") {
             Ok(ContentEncoding::Gzip)
-        } else if val.eq_ignore_ascii_case("deflate") {
+        } else if enc.eq_ignore_ascii_case("deflate") {
             Ok(ContentEncoding::Deflate)
-        } else if val.eq_ignore_ascii_case("zstd") {
+        } else if enc.eq_ignore_ascii_case("identity") {
+            Ok(ContentEncoding::Identity)
+        } else if enc.eq_ignore_ascii_case("zstd") {
             Ok(ContentEncoding::Zstd)
         } else {
             Err(ContentEncodingParseError)

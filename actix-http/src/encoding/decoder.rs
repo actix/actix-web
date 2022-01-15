@@ -25,11 +25,14 @@ use crate::{
 
 const MAX_CHUNK_SIZE_DECODE_IN_PLACE: usize = 2049;
 
-pub struct Decoder<S> {
-    decoder: Option<ContentDecoder>,
-    stream: S,
-    eof: bool,
-    fut: Option<JoinHandle<Result<(Option<Bytes>, ContentDecoder), io::Error>>>,
+pin_project_lite::pin_project! {
+    pub struct Decoder<S> {
+        decoder: Option<ContentDecoder>,
+        #[pin]
+        stream: S,
+        eof: bool,
+        fut: Option<JoinHandle<Result<(Option<Bytes>, ContentDecoder), io::Error>>>,
+    }
 }
 
 impl<S> Decoder<S>
@@ -41,7 +44,7 @@ where
     pub fn new(stream: S, encoding: ContentEncoding) -> Decoder<S> {
         let decoder = match encoding {
             #[cfg(feature = "compress-brotli")]
-            ContentEncoding::Br => Some(ContentDecoder::Br(Box::new(
+            ContentEncoding::Br => Some(ContentDecoder::Brotli(Box::new(
                 brotli::DecompressorWriter::new(Writer::new(), 8_096),
             ))),
             #[cfg(feature = "compress-gzip")]
@@ -86,42 +89,44 @@ where
 
 impl<S> Stream for Decoder<S>
 where
-    S: Stream<Item = Result<Bytes, PayloadError>> + Unpin,
+    S: Stream<Item = Result<Bytes, PayloadError>>,
 {
     type Item = Result<Bytes, PayloadError>;
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let mut this = self.project();
+
         loop {
-            if let Some(ref mut fut) = self.fut {
+            if let Some(ref mut fut) = this.fut {
                 let (chunk, decoder) =
                     ready!(Pin::new(fut).poll(cx)).map_err(|_| BlockingError)??;
 
-                self.decoder = Some(decoder);
-                self.fut.take();
+                *this.decoder = Some(decoder);
+                this.fut.take();
 
                 if let Some(chunk) = chunk {
                     return Poll::Ready(Some(Ok(chunk)));
                 }
             }
 
-            if self.eof {
+            if *this.eof {
                 return Poll::Ready(None);
             }
 
-            match ready!(Pin::new(&mut self.stream).poll_next(cx)) {
+            match ready!(this.stream.as_mut().poll_next(cx)) {
                 Some(Err(err)) => return Poll::Ready(Some(Err(err))),
 
                 Some(Ok(chunk)) => {
-                    if let Some(mut decoder) = self.decoder.take() {
+                    if let Some(mut decoder) = this.decoder.take() {
                         if chunk.len() < MAX_CHUNK_SIZE_DECODE_IN_PLACE {
                             let chunk = decoder.feed_data(chunk)?;
-                            self.decoder = Some(decoder);
+                            *this.decoder = Some(decoder);
 
                             if let Some(chunk) = chunk {
                                 return Poll::Ready(Some(Ok(chunk)));
                             }
                         } else {
-                            self.fut = Some(spawn_blocking(move || {
+                            *this.fut = Some(spawn_blocking(move || {
                                 let chunk = decoder.feed_data(chunk)?;
                                 Ok((chunk, decoder))
                             }));
@@ -134,9 +139,9 @@ where
                 }
 
                 None => {
-                    self.eof = true;
+                    *this.eof = true;
 
-                    return if let Some(mut decoder) = self.decoder.take() {
+                    return if let Some(mut decoder) = this.decoder.take() {
                         match decoder.feed_eof() {
                             Ok(Some(res)) => Poll::Ready(Some(Ok(res))),
                             Ok(None) => Poll::Ready(None),
@@ -157,7 +162,7 @@ enum ContentDecoder {
     #[cfg(feature = "compress-gzip")]
     Gzip(Box<GzDecoder<Writer>>),
     #[cfg(feature = "compress-brotli")]
-    Br(Box<brotli::DecompressorWriter<Writer>>),
+    Brotli(Box<brotli::DecompressorWriter<Writer>>),
     // We need explicit 'static lifetime here because ZstdDecoder need lifetime
     // argument, and we use `spawn_blocking` in `Decoder::poll_next` that require `FnOnce() -> R + Send + 'static`
     #[cfg(feature = "compress-zstd")]
@@ -168,7 +173,7 @@ impl ContentDecoder {
     fn feed_eof(&mut self) -> io::Result<Option<Bytes>> {
         match self {
             #[cfg(feature = "compress-brotli")]
-            ContentDecoder::Br(ref mut decoder) => match decoder.flush() {
+            ContentDecoder::Brotli(ref mut decoder) => match decoder.flush() {
                 Ok(()) => {
                     let b = decoder.get_mut().take();
 
@@ -226,7 +231,7 @@ impl ContentDecoder {
     fn feed_data(&mut self, data: Bytes) -> io::Result<Option<Bytes>> {
         match self {
             #[cfg(feature = "compress-brotli")]
-            ContentDecoder::Br(ref mut decoder) => match decoder.write_all(&data) {
+            ContentDecoder::Brotli(ref mut decoder) => match decoder.write_all(&data) {
                 Ok(_) => {
                     decoder.flush()?;
                     let b = decoder.get_mut().take();

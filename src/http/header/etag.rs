@@ -31,7 +31,7 @@ crate::http::header::common_header! {
     ///
     /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
-    ///     ETag(EntityTag::new(false, "xyzzy".to_owned()))
+    ///     ETag(EntityTag::new_strong("xyzzy".to_owned()))
     /// );
     /// ```
     ///
@@ -41,7 +41,7 @@ crate::http::header::common_header! {
     ///
     /// let mut builder = HttpResponse::Ok();
     /// builder.insert_header(
-    ///     ETag(EntityTag::new(true, "xyzzy".to_owned()))
+    ///     ETag(EntityTag::new_weak("xyzzy".to_owned()))
     /// );
     /// ```
     (ETag, ETAG) => [EntityTag]
@@ -50,29 +50,29 @@ crate::http::header::common_header! {
         // From the RFC
         crate::http::header::common_header_test!(test1,
             vec![b"\"xyzzy\""],
-            Some(ETag(EntityTag::new(false, "xyzzy".to_owned()))));
+            Some(ETag(EntityTag::new_strong("xyzzy".to_owned()))));
         crate::http::header::common_header_test!(test2,
             vec![b"W/\"xyzzy\""],
-            Some(ETag(EntityTag::new(true, "xyzzy".to_owned()))));
+            Some(ETag(EntityTag::new_weak("xyzzy".to_owned()))));
         crate::http::header::common_header_test!(test3,
             vec![b"\"\""],
-            Some(ETag(EntityTag::new(false, "".to_owned()))));
+            Some(ETag(EntityTag::new_strong("".to_owned()))));
         // Own tests
         crate::http::header::common_header_test!(test4,
             vec![b"\"foobar\""],
-            Some(ETag(EntityTag::new(false, "foobar".to_owned()))));
+            Some(ETag(EntityTag::new_strong("foobar".to_owned()))));
         crate::http::header::common_header_test!(test5,
             vec![b"\"\""],
-            Some(ETag(EntityTag::new(false, "".to_owned()))));
+            Some(ETag(EntityTag::new_strong("".to_owned()))));
         crate::http::header::common_header_test!(test6,
             vec![b"W/\"weak-etag\""],
-            Some(ETag(EntityTag::new(true, "weak-etag".to_owned()))));
+            Some(ETag(EntityTag::new_weak("weak-etag".to_owned()))));
         crate::http::header::common_header_test!(test7,
             vec![b"W/\"\x65\x62\""],
-            Some(ETag(EntityTag::new(true, "\u{0065}\u{0062}".to_owned()))));
+            Some(ETag(EntityTag::new_weak("\u{0065}\u{0062}".to_owned()))));
         crate::http::header::common_header_test!(test8,
             vec![b"W/\"\""],
-            Some(ETag(EntityTag::new(true, "".to_owned()))));
+            Some(ETag(EntityTag::new_weak("".to_owned()))));
         crate::http::header::common_header_test!(test9,
             vec![b"no-dquotes"],
             None::<ETag>);
