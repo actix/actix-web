@@ -1,10 +1,14 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+- Response headers can be sent as camel case using `res.head_mut().set_camel_case_headers(true)`. [#2587]
+
 ### Changed
 - Brotli (de)compression support is now provided by the `brotli` crate. [#2538]
 
 [#2538]: https://github.com/actix/actix-web/pull/2538
+[#2587]: https://github.com/actix/actix-web/pull/2587
 
 
 ## 3.0.0-beta.18 - 2022-01-04

@@ -20,7 +20,7 @@ pub struct ResponseHead {
     pub headers: HeaderMap,
     pub reason: Option<&'static str>,
     pub(crate) extensions: RefCell<Extensions>,
-    flags: Flags,
+    pub(crate) flags: Flags,
 }
 
 impl ResponseHead {
@@ -47,6 +47,18 @@ impl ResponseHead {
     /// Mutable reference to the message headers.
     pub fn headers_mut(&mut self) -> &mut HeaderMap {
         &mut self.headers
+    }
+
+    /// Sets the flag that controls wether to send headers formatted as Camel-Case.
+    ///
+    /// Only applicable to HTTP/1.x responses; HTTP/2 header names are always lowercase.
+    #[inline]
+    pub fn set_camel_case_headers(&mut self, camel_case: bool) {
+        if camel_case {
+            self.flags.insert(Flags::CAMEL_CASE);
+        } else {
+            self.flags.remove(Flags::CAMEL_CASE);
+        }
     }
 
     /// Message extensions
@@ -204,5 +216,59 @@ impl BoxedResponsePool {
             msg.extensions.get_mut().clear();
             pool.push(msg);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        io::{Read as _, Write as _},
+        net,
+    };
+
+    use memchr::memmem;
+
+    use crate::{
+        header::{HeaderName, HeaderValue},
+        Error, HttpService, Request, Response,
+    };
+
+    #[actix_rt::test]
+    async fn camel_case_headers() {
+        let mut srv = actix_http_test::test_server(|| {
+            HttpService::new(|req: Request| async move {
+                let mut res = Response::ok();
+
+                if req.path().contains("camel") {
+                    res.head_mut().set_camel_case_headers(true);
+                }
+
+                res.headers_mut().insert(
+                    HeaderName::from_static("foo-bar"),
+                    HeaderValue::from_static("baz"),
+                );
+                Ok::<_, Error>(res)
+            })
+            .tcp()
+        })
+        .await;
+
+        let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
+        let _ = stream.write_all(b"GET /camel HTTP/1.1\r\nConnection: Close\r\n\r\n");
+        let mut data = vec![0; 1024];
+        let _ = stream.read(&mut data);
+        assert_eq!(&data[..17], b"HTTP/1.1 200 OK\r\n");
+        assert!(memmem::find(&data, b"Foo-Bar").is_some());
+        assert!(!memmem::find(&data, b"foo-bar").is_some());
+
+        let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
+        let _ = stream.write_all(b"GET /lower HTTP/1.1\r\nConnection: Close\r\n\r\n");
+        let mut data = vec![0; 1024];
+        let _ = stream.read(&mut data);
+        assert_eq!(&data[..17], b"HTTP/1.1 200 OK\r\n");
+        assert!(!memmem::find(&data, b"Foo-Bar").is_some());
+        assert!(memmem::find(&data, b"foo-bar").is_some());
+
+        srv.stop().await;
     }
 }
