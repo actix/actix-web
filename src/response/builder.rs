@@ -1,4 +1,5 @@
 use std::{
+    cell::{Ref, RefMut},
     convert::TryInto,
     future::Future,
     pin::Pin,
@@ -8,7 +9,7 @@ use std::{
 use actix_http::{
     error::HttpError,
     header::{self, HeaderName, TryIntoHeaderPair, TryIntoHeaderValue},
-    ConnectionType, Response, ResponseHead, StatusCode,
+    ConnectionType, Extensions, Response, ResponseHead, StatusCode,
 };
 use bytes::Bytes;
 use futures_core::Stream;
@@ -276,22 +277,23 @@ impl HttpResponseBuilder {
         self
     }
 
-    // /// Responses extensions
-    // #[inline]
-    // pub fn extensions(&self) -> Ref<'_, Extensions> {
-    //     self.res
-    //         .as_ref()
-    //         .expect("cannot reuse response builder")
-    //         .extensions()
-    // }
+    /// Returns a reference to the response-local data/extensions container.
+    #[inline]
+    pub fn extensions(&self) -> Ref<'_, Extensions> {
+        self.res
+            .as_ref()
+            .expect("cannot reuse response builder")
+            .extensions()
+    }
 
-    // /// Mutable reference to a the response's extensions
-    // pub fn extensions_mut(&mut self) -> RefMut<'_, Extensions> {
-    //     self.res
-    //         .as_mut()
-    //         .expect("cannot reuse response builder")
-    //         .extensions_mut()
-    // }
+    /// Returns a mutable reference to the response-local data/extensions container.
+    #[inline]
+    pub fn extensions_mut(&mut self) -> RefMut<'_, Extensions> {
+        self.res
+            .as_mut()
+            .expect("cannot reuse response builder")
+            .extensions_mut()
+    }
 
     /// Set a body and build the `HttpResponse`.
     ///
@@ -388,7 +390,6 @@ impl HttpResponseBuilder {
         }
     }
 
-    #[inline]
     fn inner(&mut self) -> Option<&mut ResponseHead> {
         if self.err.is_some() {
             return None;

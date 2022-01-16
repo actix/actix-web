@@ -31,7 +31,7 @@ fi
 
 # get current version
 PACKAGE_NAME="$(sed -nE 's/^name ?= ?"([^"]+)"$/\1/ p' "$CARGO_MANIFEST" | head -n 1)"
-CURRENT_VERSION="$(sed -nE 's/^version ?= ?"([^"]+)"$/\1/ p' "$CARGO_MANIFEST")"
+CURRENT_VERSION="$(sed -nE 's/^version ?= ?"([^"]+)"$/\1/ p' "$CARGO_MANIFEST" | head -n 1)"
 
 CHANGE_CHUNK_FILE="$(mktemp)"
 echo saving changelog to $CHANGE_CHUNK_FILE
