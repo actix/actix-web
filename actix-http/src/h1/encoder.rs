@@ -258,6 +258,12 @@ impl MessageType for Response<()> {
         None
     }
 
+    fn camel_case(&self) -> bool {
+        self.head()
+            .flags
+            .contains(crate::message::Flags::CAMEL_CASE)
+    }
+
     fn encode_status(&mut self, dst: &mut BytesMut) -> io::Result<()> {
         let head = self.head();
         let reason = head.reason().as_bytes();
