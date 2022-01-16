@@ -67,7 +67,7 @@ where
 {
     HandshakeWithTimeout {
         handshake: handshake(io),
-        timer: config.client_timer().map(Box::pin),
+        timer: config.client_request_timer().map(Box::pin),
     }
 }
 

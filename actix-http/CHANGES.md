@@ -10,6 +10,10 @@
 
 ### Changed
 - Brotli (de)compression support is now provided by the `brotli` crate. [#2538]
+- Rename `ServiceConfig::{client_timer_expire => client_request_deadline}`. [#????]
+- Rename `ServiceConfig::{client_timer => client_request_timer}`. [#????]
+- Rename `ServiceConfig::{client_disconnect_timer => client_disconnect_deadline}`. [#????]
+- Rename `ServiceConfig::{keep_alive_timer => keep_alive_deadline}`. [#????]
 
 ### Removed
 - `ResponseHead::extensions[_mut]()`. [#2585]
@@ -18,6 +22,7 @@
 [#2538]: https://github.com/actix/actix-web/pull/2538
 [#2585]: https://github.com/actix/actix-web/pull/2585
 [#2587]: https://github.com/actix/actix-web/pull/2587
+[#????]: https://github.com/actix/actix-web/pull/????
 
 
 ## 3.0.0-beta.18 - 2022-01-04

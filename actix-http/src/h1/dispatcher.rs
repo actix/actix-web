@@ -8,7 +8,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use actix_codec::{AsyncRead, AsyncWrite, Decoder, Encoder, Framed, FramedParts};
+use actix_codec::{AsyncRead, AsyncWrite, Decoder as _, Encoder as _, Framed, FramedParts};
 use actix_rt::time::{sleep_until, Instant, Sleep};
 use actix_service::Service;
 use bitflags::bitflags;
@@ -142,7 +142,7 @@ pin_project! {
         payload: Option<PayloadSender>,
         messages: VecDeque<DispatcherMessage>,
 
-        ka_expire: Instant,
+        ka_deadline: Instant,
         #[pin]
         ka_timer: Option<Sleep>,
 
@@ -244,7 +244,7 @@ where
                     payload: None,
                     messages: VecDeque::new(),
 
-                    ka_expire,
+                    ka_deadline: ka_expire,
                     ka_timer,
 
                     io: Some(io),
@@ -733,8 +733,8 @@ where
         }
 
         if updated && this.ka_timer.is_some() {
-            if let Some(expire) = this.codec.config().keep_alive_expire() {
-                *this.ka_expire = expire;
+            if let Some(expire) = this.codec.config().keep_alive_deadline() {
+                *this.ka_deadline = expire;
             }
         }
         Ok(updated)
@@ -753,7 +753,7 @@ where
             None => {
                 // conditionally go into shutdown timeout
                 if this.flags.contains(Flags::SHUTDOWN) {
-                    if let Some(deadline) = this.codec.config().client_disconnect_timer() {
+                    if let Some(deadline) = this.codec.config().client_disconnect_deadline() {
                         // write client disconnect time out and poll again to
                         // go into Some<Pin<&mut Sleep>> branch
                         this.ka_timer.set(Some(sleep_until(deadline)));
@@ -768,16 +768,16 @@ where
                     if this.flags.contains(Flags::SHUTDOWN) {
                         return Err(DispatchError::DisconnectTimeout);
                         // exceed deadline. check for any outstanding tasks
-                    } else if timer.deadline() >= *this.ka_expire {
-                        // have no task at hand.
+                    } else if timer.deadline() >= *this.ka_deadline {
                         if this.state.is_empty() && this.write_buf.is_empty() {
+                            // have no task at hand
                             if this.flags.contains(Flags::STARTED) {
                                 trace!("Keep-alive timeout, close connection");
                                 this.flags.insert(Flags::SHUTDOWN);
 
                                 // start shutdown timeout
                                 if let Some(deadline) =
-                                    this.codec.config().client_disconnect_timer()
+                                    this.codec.config().client_disconnect_deadline()
                                 {
                                     timer.as_mut().reset(deadline);
                                     let _ = timer.poll(cx);
@@ -795,15 +795,16 @@ where
                                 this = self.project();
                                 this.flags.insert(Flags::STARTED | Flags::SHUTDOWN);
                             }
-                            // still have unfinished task. try to reset and register keep-alive.
-                        } else if let Some(deadline) = this.codec.config().keep_alive_expire() {
+                        } else if let Some(deadline) = this.codec.config().keep_alive_deadline()
+                        {
+                            // still have unfinished task. try to reset and register keep-alive
                             timer.as_mut().reset(deadline);
                             let _ = timer.poll(cx);
                         }
-                        // timer resolved but still have not met the keep-alive expire deadline.
-                        // reset and register for later wakeup.
                     } else {
-                        timer.as_mut().reset(*this.ka_expire);
+                        // timer resolved but still have not met the keep-alive expire deadline
+                        // reset and register for later wakeup
+                        timer.as_mut().reset(*this.ka_deadline);
                         let _ = timer.poll(cx);
                     }
                 }
@@ -851,8 +852,7 @@ where
                 // Note:
                 // This is a perf choice to reduce branch on <Request as MessageType>::decode.
                 //
-                // A Request head too large to parse is only checked on
-                // `httparse::Status::Partial` condition.
+                // A Request head too large to parse is only checked on `httparse::Status::Partial`.
 
                 if this.payload.is_none() {
                     // When dispatcher has a payload the responsibility of wake up it would be shift

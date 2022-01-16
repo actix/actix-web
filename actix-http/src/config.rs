@@ -12,19 +12,19 @@ use actix_rt::{
 };
 use bytes::BytesMut;
 
-/// "Sun, 06 Nov 1994 08:49:37 GMT".len()
+/// "Thu, 01 Jan 1970 00:00:00 GMT".len()
 pub(crate) const DATE_VALUE_LENGTH: usize = 29;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 /// Server keep-alive setting
 pub enum KeepAlive {
-    /// Keep alive in seconds
+    /// Keep-alive time in seconds.
     Timeout(usize),
 
-    /// Rely on OS to shutdown tcp connection
+    /// Rely on OS to shutdown TCP connection.
     Os,
 
-    /// Disabled
+    /// Keep-alive is disabled.
     Disabled,
 }
 
@@ -44,13 +44,13 @@ impl From<Option<usize>> for KeepAlive {
     }
 }
 
-/// Http service configuration
+/// HTTP service configuration.
 pub struct ServiceConfig(Rc<Inner>);
 
 struct Inner {
     keep_alive: Option<Duration>,
-    client_timeout: u64,
-    client_disconnect: u64,
+    client_request_timeout: u64,
+    client_disconnect_timeout: u64,
     ka_enabled: bool,
     secure: bool,
     local_addr: Option<std::net::SocketAddr>,
@@ -73,8 +73,8 @@ impl ServiceConfig {
     /// Create instance of `ServiceConfig`
     pub fn new(
         keep_alive: KeepAlive,
-        client_timeout: u64,
-        client_disconnect: u64,
+        client_request_timeout: u64,
+        client_disconnect_timeout: u64,
         secure: bool,
         local_addr: Option<net::SocketAddr>,
     ) -> ServiceConfig {
@@ -83,24 +83,22 @@ impl ServiceConfig {
             KeepAlive::Os => (0, true),
             KeepAlive::Disabled => (0, false),
         };
-        let keep_alive = if ka_enabled && keep_alive > 0 {
-            Some(Duration::from_secs(keep_alive))
-        } else {
-            None
-        };
+
+        let keep_alive =
+            (ka_enabled && keep_alive > 0).then(|| Duration::from_secs(keep_alive));
 
         ServiceConfig(Rc::new(Inner {
             keep_alive,
             ka_enabled,
-            client_timeout,
-            client_disconnect,
+            client_request_timeout,
+            client_disconnect_timeout,
             secure,
             local_addr,
             date_service: DateService::new(),
         }))
     }
 
-    /// Returns true if connection is secure (HTTPS)
+    /// Returns `true` if connection is secure (i.e., using TLS / HTTPS).
     #[inline]
     pub fn secure(&self) -> bool {
         self.0.secure
@@ -114,32 +112,46 @@ impl ServiceConfig {
         self.0.local_addr
     }
 
-    /// Keep alive duration if configured.
+    /// Keep-alive duration, if configured.
     #[inline]
     pub fn keep_alive(&self) -> Option<Duration> {
         self.0.keep_alive
     }
 
-    /// Return state of connection keep-alive functionality
+    /// Returns `true` if connection if set to use keep-alive functionality.
     #[inline]
     pub fn keep_alive_enabled(&self) -> bool {
         self.0.ka_enabled
     }
 
-    /// Client timeout for first request.
+    /// Creates a time object representing the deadline for the client to finish sending the head of
+    /// its first request.
+    ///
+    /// Returns `None` if this `ServiceConfig was` constructed with `client_request_timeout: 0`.
+    pub fn client_request_deadline(&self) -> Option<Instant> {
+        let delay = self.0.client_request_timeout;
+
+        if delay != 0 {
+            Some(self.now() + Duration::from_millis(delay))
+        } else {
+            None
+        }
+    }
+
+    /// Creates a timer that resolves at the [client's first request deadline].
+    ///
+    /// Returns `None` if this `ServiceConfig was` constructed with `client_request_timeout: 0`.
+    ///
+    /// [client request deadline]: Self::client_deadline
     #[inline]
-    pub fn client_timer(&self) -> Option<Sleep> {
-        let delay_time = self.0.client_timeout;
-        if delay_time != 0 {
-            Some(sleep_until(self.now() + Duration::from_millis(delay_time)))
-        } else {
-            None
-        }
+    pub fn client_request_timer(&self) -> Option<Sleep> {
+        self.client_request_deadline().map(sleep_until)
     }
 
-    /// Client timeout for first request.
-    pub fn client_timer_expire(&self) -> Option<Instant> {
-        let delay = self.0.client_timeout;
+    /// Creates a time object representing the deadline for the client to disconnect.
+    pub fn client_disconnect_deadline(&self) -> Option<Instant> {
+        let delay = self.0.client_disconnect_timeout;
+
         if delay != 0 {
             Some(self.now() + Duration::from_millis(delay))
         } else {
@@ -147,25 +159,18 @@ impl ServiceConfig {
         }
     }
 
-    /// Client disconnect timer
-    pub fn client_disconnect_timer(&self) -> Option<Instant> {
-        let delay = self.0.client_disconnect;
-        if delay != 0 {
-            Some(self.now() + Duration::from_millis(delay))
-        } else {
-            None
-        }
+    /// Creates a time object representing the deadline for the connection keep-alive,
+    /// if configured.
+    pub fn keep_alive_deadline(&self) -> Option<Instant> {
+        self.keep_alive().map(|ka| self.now() + ka)
     }
 
-    /// Return keep-alive timer delay is configured.
+    /// Creates a timer that resolves at the [keep-alive deadline].
+    ///
+    /// [keep-alive deadline]: Self::keep_alive_deadline
     #[inline]
     pub fn keep_alive_timer(&self) -> Option<Sleep> {
-        self.keep_alive().map(|ka| sleep_until(self.now() + ka))
-    }
-
-    /// Keep-alive expire time
-    pub fn keep_alive_expire(&self) -> Option<Instant> {
-        self.keep_alive().map(|ka| self.now() + ka)
+        self.keep_alive_deadline().map(sleep_until)
     }
 
     #[inline]
@@ -243,7 +248,7 @@ impl DateService {
         // shared date and timer for DateService and update async task.
         let current = Rc::new(Cell::new((Date::new(), Instant::now())));
         let current_clone = Rc::clone(&current);
-        // spawn an async task sleep for 500 milli and update current date/timer in a loop.
+        // spawn an async task sleep for 500 millis and update current date/timer in a loop.
         // handle is used to stop the task on DateService drop.
         let handle = actix_rt::spawn(async move {
             #[cfg(test)]
@@ -296,9 +301,8 @@ mod notify_on_drop {
     pub(crate) struct NotifyOnDrop;
 
     impl NotifyOnDrop {
-        /// # Panic:
-        ///
-        /// When construct multiple instances on any given thread.
+        /// # Panics
+        /// Panics hen construct multiple instances on any given thread.
         pub(crate) fn new() -> Self {
             NOTIFY_DROPPED.with(|bool| {
                 let mut bool = bool.borrow_mut();

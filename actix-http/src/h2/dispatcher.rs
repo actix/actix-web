@@ -160,7 +160,7 @@ where
                                 Poll::Ready(_) => {
                                     ping_pong.on_flight = false;
 
-                                    let dead_line = this.config.keep_alive_expire().unwrap();
+                                    let dead_line = this.config.keep_alive_deadline().unwrap();
                                     ping_pong.timer.as_mut().reset(dead_line);
                                 }
                                 Poll::Pending => {
@@ -174,7 +174,7 @@ where
 
                             ping_pong.ping_pong.send_ping(Ping::opaque())?;
 
-                            let dead_line = this.config.keep_alive_expire().unwrap();
+                            let dead_line = this.config.keep_alive_deadline().unwrap();
                             ping_pong.timer.as_mut().reset(dead_line);
 
                             ping_pong.on_flight = true;
