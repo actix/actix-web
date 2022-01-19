@@ -1,9 +1,6 @@
 //! HTTP response builder.
 
-use std::{
-    cell::{Ref, RefMut},
-    fmt, str,
-};
+use std::{cell::RefCell, fmt, str};
 
 use crate::{
     body::{EitherBody, MessageBody},
@@ -202,20 +199,6 @@ impl ResponseBuilder {
         self
     }
 
-    /// Responses extensions
-    #[inline]
-    pub fn extensions(&self) -> Ref<'_, Extensions> {
-        let head = self.head.as_ref().expect("cannot reuse response builder");
-        head.extensions.borrow()
-    }
-
-    /// Mutable reference to a the response's extensions
-    #[inline]
-    pub fn extensions_mut(&mut self) -> RefMut<'_, Extensions> {
-        let head = self.head.as_ref().expect("cannot reuse response builder");
-        head.extensions.borrow_mut()
-    }
-
     /// Generate response with a wrapped body.
     ///
     /// This `ResponseBuilder` will be left in a useless state.
@@ -238,7 +221,12 @@ impl ResponseBuilder {
         }
 
         let head = self.head.take().expect("cannot reuse response builder");
-        Ok(Response { head, body })
+
+        Ok(Response {
+            head,
+            body,
+            extensions: RefCell::new(Extensions::new()),
+        })
     }
 
     /// Generate response with an empty body.

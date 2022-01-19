@@ -1,6 +1,10 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Removed
+- `HttpRequest::req_data[_mut]()`; request-local data is still available through `.extensions()`. [#2585]
+
+[#2585]: https://github.com/actix/actix-web/pull/2585
 
 
 ## 4.0.0-beta.20 - 2022-01-14

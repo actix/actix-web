@@ -103,6 +103,7 @@ impl ServiceRequest {
     /// Construct request from request.
     ///
     /// The returned `ServiceRequest` would have no payload.
+    #[inline]
     pub fn from_request(req: HttpRequest) -> Self {
         ServiceRequest {
             req,
@@ -256,18 +257,6 @@ impl ServiceRequest {
         self.req.conn_data()
     }
 
-    /// Counterpart to [`HttpRequest::req_data`].
-    #[inline]
-    pub fn req_data(&self) -> Ref<'_, Extensions> {
-        self.req.req_data()
-    }
-
-    /// Counterpart to [`HttpRequest::req_data_mut`].
-    #[inline]
-    pub fn req_data_mut(&self) -> RefMut<'_, Extensions> {
-        self.req.req_data_mut()
-    }
-
     #[cfg(feature = "cookies")]
     #[inline]
     pub fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
@@ -320,18 +309,15 @@ impl HttpMessage for ServiceRequest {
     type Stream = BoxedPayloadStream;
 
     #[inline]
-    /// Returns Request's headers.
     fn headers(&self) -> &HeaderMap {
         &self.head().headers
     }
 
-    /// Request extensions
     #[inline]
     fn extensions(&self) -> Ref<'_, Extensions> {
         self.req.extensions()
     }
 
-    /// Mutable reference to a the request's extensions
     #[inline]
     fn extensions_mut(&self) -> RefMut<'_, Extensions> {
         self.req.extensions_mut()
@@ -398,32 +384,32 @@ impl<B> ServiceResponse<B> {
         ServiceResponse::new(self.request, response)
     }
 
-    /// Get reference to original request
+    /// Returns reference to original request.
     #[inline]
     pub fn request(&self) -> &HttpRequest {
         &self.request
     }
 
-    /// Get reference to response
+    /// Returns reference to response.
     #[inline]
     pub fn response(&self) -> &HttpResponse<B> {
         &self.response
     }
 
-    /// Get mutable reference to response
+    /// Returns mutable reference to response.
     #[inline]
     pub fn response_mut(&mut self) -> &mut HttpResponse<B> {
         &mut self.response
     }
 
-    /// Get the response status code
+    /// Returns response status code.
     #[inline]
     pub fn status(&self) -> StatusCode {
         self.response.status()
     }
 
-    #[inline]
     /// Returns response's headers.
+    #[inline]
     pub fn headers(&self) -> &HeaderMap {
         self.response.headers()
     }
@@ -440,13 +426,9 @@ impl<B> ServiceResponse<B> {
         (self.request, self.response)
     }
 
-    /// Extract response body
-    #[inline]
-    pub fn into_body(self) -> B {
-        self.response.into_body()
-    }
-
-    /// Set a new body
+    /// Map the current body type to another using a closure. Returns a new response.
+    ///
+    /// Closure receives the response head and the current body type.
     #[inline]
     pub fn map_body<F, B2>(self, f: F) -> ServiceResponse<B2>
     where
@@ -476,6 +458,12 @@ impl<B> ServiceResponse<B> {
         B: MessageBody + 'static,
     {
         self.map_body(|_, body| body.boxed())
+    }
+
+    /// Consumes the response and returns its body.
+    #[inline]
+    pub fn into_body(self) -> B {
+        self.response.into_body()
     }
 }
 
@@ -546,14 +534,12 @@ impl WebService {
     ///     Ok(req.into_response(HttpResponse::Ok().finish()))
     /// }
     ///
-    /// fn main() {
-    ///     let app = App::new()
-    ///         .service(
-    ///             web::service("/app")
-    ///                 .guard(guard::Header("content-type", "text/plain"))
-    ///                 .finish(index)
-    ///         );
-    /// }
+    /// let app = App::new()
+    ///     .service(
+    ///         web::service("/app")
+    ///             .guard(guard::Header("content-type", "text/plain"))
+    ///             .finish(index)
+    ///     );
     /// ```
     pub fn guard<G: Guard + 'static>(mut self, guard: G) -> Self {
         self.guards.push(Box::new(guard));

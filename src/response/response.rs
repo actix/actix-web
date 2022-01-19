@@ -168,34 +168,37 @@ impl<B> HttpResponse<B> {
         self.res.keep_alive()
     }
 
-    /// Responses extensions
+    /// Returns reference to the response-local data/extensions container.
     #[inline]
     pub fn extensions(&self) -> Ref<'_, Extensions> {
         self.res.extensions()
     }
 
-    /// Mutable reference to a the response's extensions
+    /// Returns reference to the response-local data/extensions container.
     #[inline]
     pub fn extensions_mut(&mut self) -> RefMut<'_, Extensions> {
         self.res.extensions_mut()
     }
 
-    /// Get body of this response
+    /// Returns a reference to this response's body.
     #[inline]
     pub fn body(&self) -> &B {
         self.res.body()
     }
 
-    /// Set a body
+    /// Sets new body.
     pub fn set_body<B2>(self, body: B2) -> HttpResponse<B2> {
         HttpResponse {
             res: self.res.set_body(body),
-            error: None,
-            // error: self.error, ??
+            error: self.error,
         }
     }
 
-    /// Split response and body
+    /// Returns split head and body.
+    ///
+    /// # Implementation Notes
+    /// Due to internal performance optimizations, the first element of the returned tuple is an
+    /// `HttpResponse` as well but only contains the head of the response this was called on.
     pub fn into_parts(self) -> (HttpResponse<()>, B) {
         let (head, body) = self.res.into_parts();
 
@@ -208,7 +211,7 @@ impl<B> HttpResponse<B> {
         )
     }
 
-    /// Drop request's body
+    /// Drops body and returns new response.
     pub fn drop_body(self) -> HttpResponse<()> {
         HttpResponse {
             res: self.res.drop_body(),
@@ -216,7 +219,9 @@ impl<B> HttpResponse<B> {
         }
     }
 
-    /// Set a body and return previous body value
+    /// Map the current body type to another using a closure. Returns a new response.
+    ///
+    /// Closure receives the response head and the current body type.
     pub fn map_body<F, B2>(self, f: F) -> HttpResponse<B2>
     where
         F: FnOnce(&mut ResponseHead, B) -> B2,

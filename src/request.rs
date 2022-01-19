@@ -5,10 +5,7 @@ use std::{
     str,
 };
 
-use actix_http::{
-    header::HeaderMap, Extensions, HttpMessage, Message, Method, Payload, RequestHead, Uri,
-    Version,
-};
+use actix_http::{Message, RequestHead};
 use actix_router::{Path, Url};
 use actix_utils::future::{ok, Ready};
 #[cfg(feature = "cookies")]
@@ -16,8 +13,14 @@ use cookie::{Cookie, ParseError as CookieParseError};
 use smallvec::SmallVec;
 
 use crate::{
-    app_service::AppInitServiceState, config::AppConfig, error::UrlGenerationError,
-    info::ConnectionInfo, rmap::ResourceMap, Error, FromRequest,
+    app_service::AppInitServiceState,
+    config::AppConfig,
+    dev::{Extensions, Payload},
+    error::UrlGenerationError,
+    http::{header::HeaderMap, Method, Uri, Version},
+    info::ConnectionInfo,
+    rmap::ResourceMap,
+    Error, FromRequest, HttpMessage,
 };
 
 #[cfg(feature = "cookies")]
@@ -38,7 +41,7 @@ pub(crate) struct HttpRequestInner {
     pub(crate) path: Path<Url>,
     pub(crate) app_data: SmallVec<[Rc<Extensions>; 4]>,
     pub(crate) conn_data: Option<Rc<Extensions>>,
-    pub(crate) req_data: Rc<RefCell<Extensions>>,
+    pub(crate) extensions: Rc<RefCell<Extensions>>,
     app_state: Rc<AppInitServiceState>,
 }
 
@@ -50,7 +53,7 @@ impl HttpRequest {
         app_state: Rc<AppInitServiceState>,
         app_data: Rc<Extensions>,
         conn_data: Option<Rc<Extensions>>,
-        req_data: Rc<RefCell<Extensions>>,
+        extensions: Rc<RefCell<Extensions>>,
     ) -> HttpRequest {
         let mut data = SmallVec::<[Rc<Extensions>; 4]>::new();
         data.push(app_data);
@@ -62,7 +65,7 @@ impl HttpRequest {
                 app_state,
                 app_data: data,
                 conn_data,
-                req_data,
+                extensions,
             }),
         }
     }
@@ -157,14 +160,6 @@ impl HttpRequest {
     #[inline]
     pub fn match_name(&self) -> Option<&str> {
         self.resource_map().match_name(self.path())
-    }
-
-    pub fn req_data(&self) -> Ref<'_, Extensions> {
-        self.inner.req_data.borrow()
-    }
-
-    pub fn req_data_mut(&self) -> RefMut<'_, Extensions> {
-        self.inner.req_data.borrow_mut()
     }
 
     /// Returns a reference a piece of connection data set in an [on-connect] callback.
@@ -356,12 +351,12 @@ impl HttpMessage for HttpRequest {
 
     #[inline]
     fn extensions(&self) -> Ref<'_, Extensions> {
-        self.req_data()
+        self.inner.extensions.borrow()
     }
 
     #[inline]
     fn extensions_mut(&self) -> RefMut<'_, Extensions> {
-        self.req_data_mut()
+        self.inner.extensions.borrow_mut()
     }
 
     #[inline]
@@ -382,7 +377,10 @@ impl Drop for HttpRequest {
 
                 // Inner is borrowed mut here and; get req data mutably to reduce borrow check. Also
                 // we know the req_data Rc will not have any cloned at this point to unwrap is okay.
-                Rc::get_mut(&mut inner.req_data).unwrap().get_mut().clear();
+                Rc::get_mut(&mut inner.extensions)
+                    .unwrap()
+                    .get_mut()
+                    .clear();
 
                 // a re-borrow of pool is necessary here.
                 let req = Rc::clone(&self.inner);

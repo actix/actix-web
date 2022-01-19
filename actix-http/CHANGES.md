@@ -3,11 +3,17 @@
 ## Unreleased - 2021-xx-xx
 ### Added
 - Response headers can be sent as camel case using `res.head_mut().set_camel_case_headers(true)`. [#2587]
+- `ResponseHead` now implements `Clone`. [#2585]
 
 ### Changed
 - Brotli (de)compression support is now provided by the `brotli` crate. [#2538]
 
+### Removed
+- `ResponseHead::extensions[_mut]()`. [#2585]
+- `ResponseBuilder::extensions[_mut]()`. [#2585]
+
 [#2538]: https://github.com/actix/actix-web/pull/2538
+[#2585]: https://github.com/actix/actix-web/pull/2585
 [#2587]: https://github.com/actix/actix-web/pull/2587
 
 

@@ -5,13 +5,13 @@ use bitflags::bitflags;
 /// Represents various types of connection
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum ConnectionType {
-    /// Close connection after response
+    /// Close connection after response.
     Close,
 
-    /// Keep connection alive after response
+    /// Keep connection alive after response.
     KeepAlive,
 
-    /// Connection is upgraded to different type
+    /// Connection is upgraded to different type.
     Upgrade,
 }
 
@@ -69,8 +69,8 @@ impl<T: Head> Drop for Message<T> {
     }
 }
 
+/// Generic `Head` object pool.
 #[doc(hidden)]
-/// Request's objects pool
 pub struct MessagePool<T: Head>(RefCell<Vec<Rc<T>>>);
 
 impl<T: Head> MessagePool<T> {

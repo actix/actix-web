@@ -2,7 +2,10 @@ use std::{any::type_name, ops::Deref};
 
 use actix_utils::future::{err, ok, Ready};
 
-use crate::{dev::Payload, error::ErrorInternalServerError, Error, FromRequest, HttpRequest};
+use crate::{
+    dev::Payload, error::ErrorInternalServerError, Error, FromRequest, HttpMessage as _,
+    HttpRequest,
+};
 
 /// Request-local data extractor.
 ///
@@ -17,13 +20,13 @@ use crate::{dev::Payload, error::ErrorInternalServerError, Error, FromRequest, H
 /// # Mutating Request Data
 /// Note that since extractors must output owned data, only types that `impl Clone` can use this
 /// extractor. A clone is taken of the required request data and can, therefore, not be directly
-/// mutated in-place. To mutate request data, continue to use [`HttpRequest::req_data_mut`] or
+/// mutated in-place. To mutate request data, continue to use [`HttpRequest::extensions_mut`] or
 /// re-insert the cloned data back into the extensions map. A `DerefMut` impl is intentionally not
 /// provided to make this potential foot-gun more obvious.
 ///
 /// # Example
 /// ```no_run
-/// # use actix_web::{web, HttpResponse, HttpRequest, Responder};
+/// # use actix_web::{web, HttpResponse, HttpRequest, Responder, HttpMessage as _};
 ///
 /// #[derive(Debug, Clone, PartialEq)]
 /// struct FlagFromMiddleware(String);
@@ -35,7 +38,7 @@ use crate::{dev::Payload, error::ErrorInternalServerError, Error, FromRequest, H
 /// ) -> impl Responder {
 ///     // use an option extractor if middleware is not guaranteed to add this type of req data
 ///     if let Some(flag) = opt_flag {
-///         assert_eq!(&flag.into_inner(), req.req_data().get::<FlagFromMiddleware>().unwrap());
+///         assert_eq!(&flag.into_inner(), req.extensions().get::<FlagFromMiddleware>().unwrap());
 ///     }
 ///
 ///     HttpResponse::Ok()
@@ -67,7 +70,7 @@ impl<T: Clone + 'static> FromRequest for ReqData<T> {
     type Future = Ready<Result<Self, Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        if let Some(st) = req.req_data().get::<T>() {
+        if let Some(st) = req.extensions().get::<T>() {
             ok(ReqData(st.clone()))
         } else {
             log::debug!(

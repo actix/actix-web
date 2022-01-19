@@ -201,27 +201,29 @@ where
     actix_service::forward_ready!(service);
 
     fn call(&self, mut req: Request) -> Self::Future {
-        let req_data = Rc::new(RefCell::new(req.take_req_data()));
+        let extensions = Rc::new(RefCell::new(req.take_req_data()));
         let conn_data = req.take_conn_data();
         let (head, payload) = req.into_parts();
 
-        let req = if let Some(mut req) = self.app_state.pool().pop() {
-            let inner = Rc::get_mut(&mut req.inner).unwrap();
-            inner.path.get_mut().update(&head.uri);
-            inner.path.reset();
-            inner.head = head;
-            inner.conn_data = conn_data;
-            inner.req_data = req_data;
-            req
-        } else {
-            HttpRequest::new(
+        let req = match self.app_state.pool().pop() {
+            Some(mut req) => {
+                let inner = Rc::get_mut(&mut req.inner).unwrap();
+                inner.path.get_mut().update(&head.uri);
+                inner.path.reset();
+                inner.head = head;
+                inner.conn_data = conn_data;
+                inner.extensions = extensions;
+                req
+            }
+
+            None => HttpRequest::new(
                 Path::new(Url::new(head.uri.clone())),
                 head,
-                self.app_state.clone(),
-                self.app_data.clone(),
+                Rc::clone(&self.app_state),
+                Rc::clone(&self.app_data),
                 conn_data,
-                req_data,
-            )
+                extensions,
+            ),
         };
 
         self.service.call(ServiceRequest::new(req, payload))

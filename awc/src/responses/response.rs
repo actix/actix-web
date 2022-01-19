@@ -1,5 +1,5 @@
 use std::{
-    cell::{Ref, RefMut},
+    cell::{Ref, RefCell, RefMut},
     fmt, mem,
     pin::Pin,
     task::{Context, Poll},
@@ -28,6 +28,8 @@ pin_project! {
         #[pin]
         pub(crate) payload: Payload<S>,
         pub(crate) timeout: ResponseTimeout,
+        pub(crate) extensions: RefCell<Extensions>,
+
     }
 }
 
@@ -38,6 +40,7 @@ impl<S> ClientResponse<S> {
             head,
             payload,
             timeout: ResponseTimeout::default(),
+            extensions: RefCell::new(Extensions::new()),
         }
     }
 
@@ -64,7 +67,9 @@ impl<S> ClientResponse<S> {
         &self.head().headers
     }
 
-    /// Set a body and return previous body value
+    /// Map the current body type to another using a closure. Returns a new response.
+    ///
+    /// Closure receives the response head and the current body type.
     pub fn map_body<F, U>(mut self, f: F) -> ClientResponse<U>
     where
         F: FnOnce(&mut ResponseHead, Payload<S>) -> Payload<U>,
@@ -75,6 +80,7 @@ impl<S> ClientResponse<S> {
             payload,
             head: self.head,
             timeout: self.timeout,
+            extensions: self.extensions,
         }
     }
 
@@ -101,6 +107,7 @@ impl<S> ClientResponse<S> {
             payload: self.payload,
             head: self.head,
             timeout,
+            extensions: self.extensions,
         }
     }
 
@@ -224,11 +231,11 @@ impl<S> HttpMessage for ClientResponse<S> {
     }
 
     fn extensions(&self) -> Ref<'_, Extensions> {
-        self.head.extensions()
+        self.extensions.borrow()
     }
 
     fn extensions_mut(&self) -> RefMut<'_, Extensions> {
-        self.head.extensions_mut()
+        self.extensions.borrow_mut()
     }
 }
 
