@@ -207,7 +207,7 @@ where
         self
     }
 
-    /// Maximum supported HTTP major version.
+    /// Sets maximum supported HTTP major version.
     ///
     /// Supported versions are HTTP/1.1 and HTTP/2.
     pub fn max_http_version(mut self, val: http::Version) -> Self {
@@ -222,8 +222,8 @@ where
         self
     }
 
-    /// Indicates the initial window size (in octets) for
-    /// HTTP2 stream-level flow control for received data.
+    /// Sets the initial window size (in octets) for HTTP/2 stream-level flow control for
+    /// received data.
     ///
     /// The default value is 65,535 and is good for APIs, but not for big objects.
     pub fn initial_window_size(mut self, size: u32) -> Self {
@@ -231,8 +231,8 @@ where
         self
     }
 
-    /// Indicates the initial window size (in octets) for
-    /// HTTP2 connection-level flow control for received data.
+    /// Sets the initial window size (in octets) for HTTP/2 connection-level flow control for
+    /// received data.
     ///
     /// The default value is 65,535 and is good for APIs, but not for big objects.
     pub fn initial_connection_window_size(mut self, size: u32) -> Self {
@@ -243,6 +243,7 @@ where
     /// Set total number of simultaneous connections per type of scheme.
     ///
     /// If limit is 0, the connector has no limit.
+    ///
     /// The default limit size is 100.
     pub fn limit(mut self, limit: usize) -> Self {
         self.config.limit = limit;
