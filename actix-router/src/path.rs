@@ -62,6 +62,7 @@ impl<T: ResourcePath> Path<T> {
     #[inline]
     pub fn unprocessed(&self) -> &str {
         profile_method!(unprocessed);
+        // clamp skip to path length
         let skip = (self.skip as usize).min(self.as_str().len());
         &self.path.path()[skip..]
     }

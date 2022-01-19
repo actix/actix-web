@@ -85,8 +85,7 @@ impl FromRequest for PathBufWrap {
     type Future = Ready<Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        // preferred over `req.path()` for safe percent decoding
-        ready(req.match_info().as_str().parse())
+        ready(req.match_info().unprocessed().parse())
     }
 }
 

@@ -120,16 +120,16 @@ impl Service<ServiceRequest> for FilesService {
                 ));
             }
 
-            // `req.match_info().as_str()` preferred over `req.path()` for safe percent decoding
-
-            let real_path =
-                match PathBufWrap::parse_path(req.match_info().as_str(), this.hidden_files) {
-                    Ok(item) => item,
-                    Err(err) => return Ok(req.error_response(err)),
-                };
+            let path_on_disk = match PathBufWrap::parse_path(
+                req.match_info().unprocessed(),
+                this.hidden_files,
+            ) {
+                Ok(item) => item,
+                Err(err) => return Ok(req.error_response(err)),
+            };
 
             if let Some(filter) = &this.path_filter {
-                if !filter(real_path.as_ref(), req.head()) {
+                if !filter(path_on_disk.as_ref(), req.head()) {
                     if let Some(ref default) = this.default {
                         return default.call(req).await;
                     } else {
@@ -139,7 +139,7 @@ impl Service<ServiceRequest> for FilesService {
             }
 
             // full file path
-            let path = this.directory.join(&real_path);
+            let path = this.directory.join(&path_on_disk);
             if let Err(err) = path.canonicalize() {
                 return this.handle_err(err, req).await;
             }
