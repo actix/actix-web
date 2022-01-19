@@ -1,6 +1,10 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+- Add `Path::as_str`. [#2590]
+- Deprecate `Path::path`. [#2590]
+
+[#2590]: https://github.com/actix/actix-web/pull/2590
 
 
 ## 0.5.0-rc.1 - 2022-01-14

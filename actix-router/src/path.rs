@@ -50,16 +50,15 @@ impl<T: ResourcePath> Path<T> {
     }
 
     /// Returns full path as a string.
-    ///
-    /// Use this instead of `
+    #[inline]
     pub fn as_str(&self) -> &str {
+        profile_method!(as_str);
         self.path.path()
     }
 
     /// Returns unprocessed part of the path.
     ///
-    /// # Panics
-    /// Unlike [`path`](Self::path), this will panic if `skip` indexes further than the path length.
+    /// Returns empty string if no more is to be processed.
     #[inline]
     pub fn unprocessed(&self) -> &str {
         profile_method!(unprocessed);
