@@ -121,7 +121,7 @@ mod tests {
     }
 
     #[test]
-    fn valid_utf8_multibyte() {
+    fn valid_utf8_multi_byte() {
         let test = ('\u{FF00}'..='\u{FFFF}').collect::<String>();
         let encoded = percent_encode(test.as_bytes());
         let path = match_url("/a/{id}/b", format!("/a/{}/b", &encoded));
@@ -135,6 +135,6 @@ mod tests {
         let path = Path::new(Url::new(uri));
 
         // We should always get a valid utf8 string
-        assert!(String::from_utf8(path.path().as_bytes().to_owned()).is_ok());
+        assert!(String::from_utf8(path.as_str().as_bytes().to_owned()).is_ok());
     }
 }

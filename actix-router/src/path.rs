@@ -37,19 +37,39 @@ impl<T: ResourcePath> Path<T> {
         }
     }
 
-    /// Get reference to inner path instance.
+    /// Returns reference to inner path instance.
     #[inline]
     pub fn get_ref(&self) -> &T {
         &self.path
     }
 
-    /// Get mutable reference to inner path instance.
+    /// Returns mutable reference to inner path instance.
     #[inline]
     pub fn get_mut(&mut self) -> &mut T {
         &mut self.path
     }
 
+    /// Returns full path as a string.
+    ///
+    /// Use this instead of `
+    pub fn as_str(&self) -> &str {
+        self.path.path()
+    }
+
     /// Returns unprocessed part of the path.
+    ///
+    /// # Panics
+    /// Unlike [`path`](Self::path), this will panic if `skip` indexes further than the path length.
+    #[inline]
+    pub fn unprocessed(&self) -> &str {
+        profile_method!(unprocessed);
+        let skip = (self.skip as usize).min(self.as_str().len());
+        &self.path.path()[skip..]
+    }
+
+    /// Returns unprocessed part of the path.
+    #[doc(hidden)]
+    #[deprecated(since = "0.6.0", note = "Use `.as_str()` or `.unprocessed()`.")]
     #[inline]
     pub fn path(&self) -> &str {
         profile_method!(path);
@@ -61,16 +81,6 @@ impl<T: ResourcePath> Path<T> {
         } else {
             ""
         }
-    }
-
-    /// Returns unprocessed part of the path.
-    ///
-    /// # Panics
-    /// Unlike [`path`](Self::path), this will panic if `skip` indexes further than the path length.
-    #[inline]
-    pub fn unprocessed(&self) -> &str {
-        profile_method!(unprocessed);
-        &self.path.path()[(self.skip as usize)..]
     }
 
     /// Set new path.

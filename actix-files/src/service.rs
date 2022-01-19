@@ -120,8 +120,10 @@ impl Service<ServiceRequest> for FilesService {
                 ));
             }
 
+            // `req.match_info().as_str()` preferred over `req.path()` for safe percent decoding
+
             let real_path =
-                match PathBufWrap::parse_path(req.match_info().path(), this.hidden_files) {
+                match PathBufWrap::parse_path(req.match_info().as_str(), this.hidden_files) {
                     Ok(item) => item,
                     Err(err) => return Ok(req.error_response(err)),
                 };

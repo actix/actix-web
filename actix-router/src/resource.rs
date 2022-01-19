@@ -692,7 +692,7 @@ impl ResourceDef {
 
         let mut segments = <[PathItem; MAX_DYNAMIC_SEGMENTS]>::default();
         let path = resource.resource_path();
-        let path_str = path.path();
+        let path_str = path.unprocessed();
 
         let (matched_len, matched_vars) = match &self.pat_type {
             PatternType::Static(pattern) => {
@@ -710,7 +710,7 @@ impl ResourceDef {
                 let captures = {
                     profile_section!(pattern_dynamic_regex_exec);
 
-                    match re.captures(path.path()) {
+                    match re.captures(path.unprocessed()) {
                         Some(captures) => captures,
                         _ => return false,
                     }
@@ -738,7 +738,7 @@ impl ResourceDef {
             PatternType::DynamicSet(re, params) => {
                 profile_section!(pattern_dynamic_set);
 
-                let path = path.path();
+                let path = path.unprocessed();
                 let (pattern, names) = match re.matches(path).into_iter().next() {
                     Some(idx) => &params[idx],
                     _ => return false,
