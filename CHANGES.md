@@ -6,6 +6,7 @@
 
 ### Removed
 - `HttpRequest::req_data[_mut]()`; request-local data is still available through `.extensions()`. [#2585]
+- `HttpRequestBuilder::del_cookie
 
 [#2585]: https://github.com/actix/actix-web/pull/2585
 [#2586]: https://github.com/actix/actix-web/pull/2586
