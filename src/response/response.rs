@@ -127,20 +127,26 @@ impl<B> HttpResponse<B> {
             .map_err(Into::into)
     }
 
-    /// Add a "removal" cookie with the given name to this response.
+    /// Add a "removal" cookie to the response that matches attributes of given cookie.
     ///
     /// This will cause browsers/clients to remove stored cookies with this name.
     ///
     /// The `Set-Cookie` header added to the response will have:
+    /// - name matching given cookie;
+    /// - domain matching given cookie;
+    /// - path matching given cookie;
     /// - an empty value;
     /// - a max-age of `0`;
     /// - an expiration date far in the past.
     ///
+    /// If the cookie you're trying to remove has an explicit path or domain set, those attributes
+    /// will need to be included in the cookie passed in here.
+    ///
     /// # Errors
     /// Returns an error if the given name results in a malformed `Set-Cookie` header.
     #[cfg(feature = "cookies")]
-    pub fn add_removal_cookie(&mut self, name: &str) -> Result<(), HttpError> {
-        let mut removal_cookie = Cookie::new(name, "");
+    pub fn add_removal_cookie(&mut self, cookie: &Cookie<'_>) -> Result<(), HttpError> {
+        let mut removal_cookie = cookie.to_owned();
         removal_cookie.make_removal();
 
         HeaderValue::from_str(&removal_cookie.to_string())

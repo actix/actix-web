@@ -160,7 +160,6 @@ where
     ///
     /// # Errors
     /// `Future` implementation returns error if:
-    /// - content type is not `application/json`
     /// - content length is greater than [limit](JsonBody::limit) (default: 2 MiB)
     ///
     /// # Examples
