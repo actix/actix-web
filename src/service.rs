@@ -198,15 +198,21 @@ impl ServiceRequest {
         self.req.connection_info()
     }
 
-    /// Get a reference to the Path parameters.
+    /// Returns a reference to the Path parameters.
     ///
-    /// Params is a container for url parameters.
+    /// Params is a container for URL parameters.
     /// A variable segment is specified in the form `{identifier}`,
     /// where the identifier can be used later in a request handler to
     /// access the matched value for that segment.
     #[inline]
     pub fn match_info(&self) -> &Path<Url> {
         self.req.match_info()
+    }
+
+    /// Returns a mutable reference to the Path parameters.
+    #[inline]
+    pub fn match_info_mut(&mut self) -> &mut Path<Url> {
+        self.req.match_info_mut()
     }
 
     /// Counterpart to [`HttpRequest::match_name`].
@@ -219,12 +225,6 @@ impl ServiceRequest {
     #[inline]
     pub fn match_pattern(&self) -> Option<String> {
         self.req.match_pattern()
-    }
-
-    /// Get a mutable reference to the Path parameters.
-    #[inline]
-    pub fn match_info_mut(&mut self) -> &mut Path<Url> {
-        self.req.match_info_mut()
     }
 
     /// Get a reference to a `ResourceMap` of current application.
