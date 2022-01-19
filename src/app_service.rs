@@ -283,7 +283,7 @@ impl ServiceFactory<ServiceRequest> for AppRoutingFactory {
                 .collect::<Result<Vec<_>, _>>()?
                 .drain(..)
                 .fold(Router::build(), |mut router, (path, guards, service)| {
-                    router.rdef(path, service).2 = guards;
+                    router.push(path, service, guards);
                     router
                 })
                 .finish();
@@ -295,7 +295,7 @@ impl ServiceFactory<ServiceRequest> for AppRoutingFactory {
 
 /// The Actix Web router default entry point.
 pub struct AppRouting {
-    router: Router<BoxedHttpService, Guards>,
+    router: Router<BoxedHttpService, Option<Guards>>,
     default: BoxedHttpService,
 }
 
@@ -308,17 +308,8 @@ impl Service<ServiceRequest> for AppRouting {
 
     fn call(&self, mut req: ServiceRequest) -> Self::Future {
         let res = self.router.recognize_fn(&mut req, |req, guards| {
-            if let Some(ref guards) = guards {
-                let guard_ctx = req.guard_ctx();
-
-                for guard in guards {
-                    if !guard.check(&guard_ctx) {
-                        return false;
-                    }
-                }
-            }
-
-            true
+            let guard_ctx = req.guard_ctx();
+            guards.iter().flatten().all(|guard| guard.check(&guard_ctx))
         });
 
         if let Some((srv, _info)) = res {

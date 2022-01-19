@@ -8,10 +8,7 @@ use std::{
 use firestorm::{profile_fn, profile_method, profile_section};
 use regex::{escape, Regex, RegexSet};
 
-use crate::{
-    path::{Path, PathItem},
-    IntoPatterns, Patterns, Resource, ResourcePath,
-};
+use crate::{path::PathItem, IntoPatterns, Patterns, Resource, ResourcePath};
 
 const MAX_DYNAMIC_SEGMENTS: usize = 16;
 
@@ -615,7 +612,7 @@ impl ResourceDef {
         }
     }
 
-    /// Collects dynamic segment values into `path`.
+    /// Collects dynamic segment values into `resource`.
     ///
     /// Returns `true` if `path` matches this resource.
     ///
@@ -635,9 +632,9 @@ impl ResourceDef {
     /// assert_eq!(path.get("path").unwrap(), "HEAD/Cargo.toml");
     /// assert_eq!(path.unprocessed(), "");
     /// ```
-    pub fn capture_match_info<T: ResourcePath>(&self, path: &mut Path<T>) -> bool {
+    pub fn capture_match_info<R: Resource>(&self, path: &mut R) -> bool {
         profile_method!(capture_match_info);
-        self.capture_match_info_fn(path, |_, _| true, ())
+        self.capture_match_info_fn(path, |_| true)
     }
 
     /// Collects dynamic segment values into `resource` after matching paths and executing
@@ -655,13 +652,12 @@ impl ResourceDef {
     /// use actix_router::{Path, ResourceDef};
     ///
     /// fn try_match(resource: &ResourceDef, path: &mut Path<&str>) -> bool {
-    ///     let admin_allowed = std::env::var("ADMIN_ALLOWED").ok();
+    ///     let admin_allowed = std::env::var("ADMIN_ALLOWED").is_ok();
     ///
     ///     resource.capture_match_info_fn(
     ///         path,
     ///         // when env var is not set, reject when path contains "admin"
-    ///         |res, admin_allowed| !res.path().contains("admin"),
-    ///         &admin_allowed
+    ///         |res| !(!admin_allowed && res.path().contains("admin")),
     ///     )
     /// }
     ///
@@ -678,15 +674,10 @@ impl ResourceDef {
     /// assert!(!try_match(&resource, &mut path));
     /// assert_eq!(path.unprocessed(), "/user/admin/stars");
     /// ```
-    pub fn capture_match_info_fn<R, F, U>(
-        &self,
-        resource: &mut R,
-        check_fn: F,
-        user_data: U,
-    ) -> bool
+    pub fn capture_match_info_fn<R, F>(&self, resource: &mut R, check_fn: F) -> bool
     where
         R: Resource,
-        F: FnOnce(&R, U) -> bool,
+        F: FnOnce(&R) -> bool,
     {
         profile_method!(capture_match_info_fn);
 
@@ -762,7 +753,7 @@ impl ResourceDef {
             }
         };
 
-        if !check_fn(resource, user_data) {
+        if !check_fn(resource) {
             return false;
         }
 
@@ -857,7 +848,7 @@ impl ResourceDef {
         S: BuildHasher,
     {
         profile_method!(resource_path_from_map);
-        self.build_resource_path(path, |name| values.get(name).map(AsRef::<str>::as_ref))
+        self.build_resource_path(path, |name| values.get(name))
     }
 
     /// Returns true if `prefix` acts as a proper prefix (i.e., separated by a slash) in `path`.
@@ -1156,6 +1147,8 @@ pub(crate) fn insert_slash(path: &str) -> Cow<'_, str> {
 
 #[cfg(test)]
 mod tests {
+    use crate::Path;
+
     use super::*;
 
     #[test]
