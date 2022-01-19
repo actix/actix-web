@@ -208,7 +208,7 @@ impl HttpRequest {
         self.resource_map().url_for(self, name, elements)
     }
 
-    /// Generate url for named resource
+    /// Generate URL for named resource
     ///
     /// This method is similar to `HttpRequest::url_for()` but it can be used
     /// for urls that do not contain variable parts.

@@ -49,7 +49,7 @@ impl<T: ResourcePath> Path<T> {
         &mut self.path
     }
 
-    /// Path.
+    /// Returns unprocessed part of the path.
     #[inline]
     pub fn path(&self) -> &str {
         profile_method!(path);
@@ -63,9 +63,21 @@ impl<T: ResourcePath> Path<T> {
         }
     }
 
+    /// Returns unprocessed part of the path.
+    ///
+    /// # Panics
+    /// Unlike [`path`](Self::path), this will panic if `skip` indexes further than the path length.
+    #[inline]
+    pub fn unprocessed(&self) -> &str {
+        profile_method!(unprocessed);
+        &self.path.path()[(self.skip as usize)..]
+    }
+
     /// Set new path.
     #[inline]
     pub fn set(&mut self, path: T) {
+        profile_method!(set);
+
         self.skip = 0;
         self.path = path;
         self.segments.clear();
@@ -74,6 +86,8 @@ impl<T: ResourcePath> Path<T> {
     /// Reset state.
     #[inline]
     pub fn reset(&mut self) {
+        profile_method!(reset);
+
         self.skip = 0;
         self.segments.clear();
     }
@@ -81,6 +95,7 @@ impl<T: ResourcePath> Path<T> {
     /// Skip first `n` chars in path.
     #[inline]
     pub fn skip(&mut self, n: u16) {
+        profile_method!(skip);
         self.skip += n;
     }
 
@@ -102,6 +117,8 @@ impl<T: ResourcePath> Path<T> {
         name: impl Into<Cow<'static, str>>,
         value: impl Into<Cow<'static, str>>,
     ) {
+        profile_method!(add_static);
+
         self.segments
             .push((name.into(), PathItem::Static(value.into())));
     }
@@ -134,11 +151,6 @@ impl<T: ResourcePath> Path<T> {
         }
 
         None
-    }
-
-    /// Get unprocessed part of the path
-    pub fn unprocessed(&self) -> &str {
-        &self.path.path()[(self.skip as usize)..]
     }
 
     /// Get matched parameter by name.

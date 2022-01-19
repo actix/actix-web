@@ -256,6 +256,7 @@ mod tests {
         router.path("/name/{val}", 11);
         let mut router = router.finish();
 
+        // test skip beyond path length
         let mut path = Path::new("/name");
         path.skip(6);
         assert!(router.recognize_mut(&mut path).is_none());
