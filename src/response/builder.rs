@@ -282,6 +282,9 @@ impl HttpResponseBuilder {
 
     /// Set a body and build the `HttpResponse`.
     ///
+    /// Unlike [`message_body`](Self::message_body), errors are converted into error
+    /// responses immediately.
+    ///
     /// `HttpResponseBuilder` can not be used after this call.
     pub fn body<B>(&mut self, body: B) -> HttpResponse<BoxBody>
     where
@@ -307,10 +310,7 @@ impl HttpResponseBuilder {
             .expect("cannot reuse response builder")
             .set_body(body);
 
-        #[allow(unused_mut)] // mut is only unused when cookies are disabled
-        let mut res = HttpResponse::from(res);
-
-        Ok(res)
+        Ok(HttpResponse::from(res))
     }
 
     /// Set a streaming body and build the `HttpResponse`.
