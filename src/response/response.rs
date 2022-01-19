@@ -416,7 +416,8 @@ mod cookie_tests {
     #[test]
     fn removal_cookies() {
         let mut res = HttpResponse::Ok().finish();
-        res.add_removal_cookie("foo").unwrap();
+        let cookie = Cookie::new("foo", "");
+        res.add_removal_cookie(&cookie).unwrap();
         let set_cookie_hdr = res.headers().get(header::SET_COOKIE).unwrap();
         assert_eq!(
             &set_cookie_hdr.as_bytes()[..25],
