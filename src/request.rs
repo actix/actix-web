@@ -138,6 +138,10 @@ impl HttpRequest {
         &self.inner.path
     }
 
+    /// Returns a mutable reference to the URL parameters container.
+    ///
+    /// # Panics
+    /// Panics if this `HttpRequest` has been cloned.
     #[inline]
     pub(crate) fn match_info_mut(&mut self) -> &mut Path<Url> {
         &mut Rc::get_mut(&mut self.inner).unwrap().path

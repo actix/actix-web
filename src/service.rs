@@ -97,6 +97,11 @@ impl ServiceRequest {
 
     /// Construct request from parts.
     pub fn from_parts(req: HttpRequest, payload: Payload) -> Self {
+        #[cfg(debug_assertions)]
+        if Rc::strong_count(&req.inner) > 1 {
+            log::warn!("Cloning an `HttpRequest` might cause panics.");
+        }
+
         Self { req, payload }
     }
 
@@ -663,7 +668,7 @@ service_tuple! { A B C D E F G H I J K L }
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test::{init_service, TestRequest};
+    use crate::test::{self, init_service, TestRequest};
     use crate::{guard, http, web, App, HttpResponse};
     use actix_service::Service;
     use actix_utils::future::ok;
@@ -809,5 +814,30 @@ mod tests {
         let req = TestRequest::with_uri("/test3/scoped_test2").to_request();
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), http::StatusCode::OK);
+    }
+
+    #[actix_rt::test]
+    #[should_panic(expected = "called `Option::unwrap()` on a `None` value")]
+    async fn cloning_request_panics() {
+        async fn index(_name: web::Path<(String,)>) -> &'static str {
+            ""
+        }
+
+        let app = test::init_service(
+            App::new()
+                .wrap_fn(|req, svc| {
+                    let (req, pl) = req.into_parts();
+                    let _req2 = req.clone();
+                    let req = ServiceRequest::from_parts(req, pl);
+                    svc.call(req)
+                })
+                .service(
+                    web::resource("/resource1/{name}/index.html").route(web::get().to(index)),
+                ),
+        )
+        .await;
+
+        let req = test::TestRequest::default().to_request();
+        let _res = test::call_service(&app, req).await;
     }
 }
