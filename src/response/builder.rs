@@ -242,9 +242,10 @@ impl HttpResponseBuilder {
     /// use actix_web::{HttpResponse, cookie::Cookie};
     ///
     /// // the name, domain and path match the cookie created in the previous example
-    /// let mut cookie = Cookie::new("name", "value-does-not-matter");
+    /// let mut cookie = Cookie::build("name", "value-does-not-matter")
     ///     .domain("www.rust-lang.org")
-    ///     .path("/");
+    ///     .path("/")
+    ///     .finish();
     /// cookie.make_removal();
     ///
     /// let res = HttpResponse::Ok()
