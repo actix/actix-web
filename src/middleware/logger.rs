@@ -700,7 +700,6 @@ mod tests {
             Ok(())
         };
         let s = format!("{}", FormatDisplay(&render));
-        println!("{}", s);
         assert!(s.contains("/test/route/yeah"));
     }
 
@@ -794,7 +793,6 @@ mod tests {
             Ok(())
         };
         let s = format!("{}", FormatDisplay(&render));
-        println!("{}", s);
         assert!(s.contains("192.0.2.60"));
     }
 

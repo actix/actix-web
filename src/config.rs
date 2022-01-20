@@ -102,14 +102,8 @@ impl AppService {
                 InitError = (),
             > + 'static,
     {
-        dbg!(rdef.pattern());
-
-        self.services.push((
-            rdef,
-            boxed::factory(factory.into_factory()),
-            guards,
-            dbg!(nested),
-        ));
+        self.services
+            .push((rdef, boxed::factory(factory.into_factory()), guards, nested));
     }
 }
 
