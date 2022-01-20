@@ -106,38 +106,37 @@ pub fn route(args: TokenStream, input: TokenStream) -> TokenStream {
 
 macro_rules! method_macro {
     ($variant:ident, $method:ident) => {
-        #[doc = concat!("Creates route handler with `actix_web::guard::", stringify!($variant), "`.")]
-        ///
-        /// # Syntax
-        /// ```plain
-        #[doc = concat!("#[", stringify!($method), r#"("path"[, attributes])]"#)]
-        /// ```
-        ///
-        /// # Attributes
-        /// - `"path"`: Raw literal string with path for which to register handler.
-        /// - `name = "resource_name"`: Specifies resource name for the handler. If not set, the
-        ///   function name of handler is used.
-        /// - `guard = "function_name"`: Registers function as guard.
-        ///   using `actix_web::guard::fn_guard`.
-        /// - `wrap = "Middleware"`: Registers a resource middleware.
-        ///
-        /// # Notes
-        /// Function name can be specified as any expression that is going to be accessible to the generate
-        /// code, e.g `my_guard` or `my_module::my_guard`.
-        ///
-        /// # Example
-        /// ```
-        /// # use actix_web::HttpResponse;
-        #[doc = concat!("# use actix_web_codegen::", stringify!($method), ";")]
-        #[doc = concat!("#[", stringify!($method), r#"("/")]"#)]
-        /// async fn example() -> HttpResponse {
-        ///     HttpResponse::Ok().finish()
-        /// }
-        /// ```
-        #[proc_macro_attribute]
-        pub fn $method(args: TokenStream, input: TokenStream) -> TokenStream {
-            route::with_method(Some(route::MethodType::$variant), args, input)
-        }
+#[doc = concat!("Creates route handler with `actix_web::guard::", stringify!($variant), "`.")]
+///
+/// # Syntax
+/// ```plain
+#[doc = concat!("#[", stringify!($method), r#"("path"[, attributes])]"#)]
+/// ```
+///
+/// # Attributes
+/// - `"path"`: Raw literal string with path for which to register handler.
+/// - `name = "resource_name"`: Specifies resource name for the handler. If not set, the function
+///   name of handler is used.
+/// - `guard = "function_name"`: Registers function as guard using `actix_web::guard::fn_guard`.
+/// - `wrap = "Middleware"`: Registers a resource middleware.
+///
+/// # Notes
+/// Function name can be specified as any expression that is going to be accessible to the
+/// generate code, e.g `my_guard` or `my_module::my_guard`.
+///
+/// # Example
+/// ```
+/// # use actix_web::HttpResponse;
+#[doc = concat!("# use actix_web_codegen::", stringify!($method), ";")]
+#[doc = concat!("#[", stringify!($method), r#"("/")]"#)]
+/// async fn example() -> HttpResponse {
+///     HttpResponse::Ok().finish()
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn $method(args: TokenStream, input: TokenStream) -> TokenStream {
+    route::with_method(Some(route::MethodType::$variant), args, input)
+}
     };
 }
 
