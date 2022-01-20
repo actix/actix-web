@@ -899,8 +899,9 @@ mod tests {
             test::call_service(&srv, TestRequest::with_uri("/foo/nested").to_request()).await;
         assert_eq!(foo_resp.status(), StatusCode::OK);
         let body = read_body(foo_resp).await;
-        // XXX: body equals http://localhost:8080/bar/nested
+        // `body` equals http://localhost:8080/bar/nested
         // because nested from /bar overrides /foo's
+        // to do this any other way would require something like a custom tree search
         assert_eq!(body, "http://localhost:8080/bar/nested");
 
         let bar_resp =
