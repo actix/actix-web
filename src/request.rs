@@ -508,10 +508,12 @@ mod tests {
     use bytes::Bytes;
 
     use super::*;
-    use crate::dev::{ResourceDef, ResourceMap};
-    use crate::http::{header, StatusCode};
-    use crate::test::{call_service, init_service, read_body, TestRequest};
-    use crate::{web, App, HttpResponse};
+    use crate::{
+        dev::{ResourceDef, ResourceMap},
+        http::{header, StatusCode},
+        test::{self, call_service, init_service, read_body, TestRequest},
+        web, App, HttpResponse,
+    };
 
     #[test]
     fn test_debug() {
@@ -864,5 +866,47 @@ mod tests {
         let req = TestRequest::get().uri("/not-exist").to_request();
         let res = call_service(&srv, req).await;
         assert_eq!(res.status(), StatusCode::OK);
+    }
+
+    #[actix_rt::test]
+    async fn url_for_closest_named_resource() {
+        // we mount the route named 'nested' on 2 different scopes, 'a' and 'b'
+        let srv = test::init_service(
+            App::new()
+                .service(
+                    web::scope("/foo")
+                        .service(web::resource("/nested").name("nested").route(web::get().to(
+                            |req: HttpRequest| {
+                                HttpResponse::Ok()
+                                    .body(format!("{}", req.url_for_static("nested").unwrap()))
+                            },
+                        )))
+                        .service(web::scope("/baz").service(web::resource("deep")))
+                        .service(web::resource("{foo_param}")),
+                )
+                .service(web::scope("/bar").service(
+                    web::resource("/nested").name("nested").route(web::get().to(
+                        |req: HttpRequest| {
+                            HttpResponse::Ok()
+                                .body(format!("{}", req.url_for_static("nested").unwrap()))
+                        },
+                    )),
+                )),
+        )
+        .await;
+
+        let foo_resp =
+            test::call_service(&srv, TestRequest::with_uri("/foo/nested").to_request()).await;
+        assert_eq!(foo_resp.status(), StatusCode::OK);
+        let body = read_body(foo_resp).await;
+        // XXX: body equals http://localhost:8080/bar/nested
+        // because nested from /bar overrides /foo's
+        assert_eq!(body, "http://localhost:8080/bar/nested");
+
+        let bar_resp =
+            test::call_service(&srv, TestRequest::with_uri("/bar/nested").to_request()).await;
+        assert_eq!(bar_resp.status(), StatusCode::OK);
+        let body = read_body(bar_resp).await;
+        assert_eq!(body, "http://localhost:8080/bar/nested");
     }
 }

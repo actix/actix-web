@@ -39,7 +39,7 @@
 //! ```
 //! # use actix_web::HttpResponse;
 //! # use actix_web_codegen::route;
-//! #[route("/test", method="GET", method="HEAD")]
+//! #[route("/test", method = "GET", method = "HEAD")]
 //! async fn get_and_head_handler() -> HttpResponse {
 //!     HttpResponse::Ok().finish()
 //! }
@@ -74,10 +74,12 @@ mod route;
 ///
 /// # Attributes
 /// - `"path"` - Raw literal string with path for which to register handler.
-/// - `name="resource_name"` - Specifies resource name for the handler. If not set, the function name of handler is used.
-/// - `method="HTTP_METHOD"` - Registers HTTP method to provide guard for. Upper-case string, "GET", "POST" for example.
-/// - `guard="function_name"` - Registers function as guard using `actix_web::guard::fn_guard`
-/// - `wrap="Middleware"` - Registers a resource middleware.
+/// - `name = "resource_name"` - Specifies resource name for the handler. If not set, the function
+///   name of handler is used.
+/// - `method = "HTTP_METHOD"` - Registers HTTP method to provide guard for. Upper-case string,
+///   "GET", "POST" for example.
+/// - `guard = "function_name"` - Registers function as guard using `actix_web::guard::fn_guard`
+/// - `wrap = "Middleware"` - Registers a resource middleware.
 ///
 /// # Notes
 /// Function name can be specified as any expression that is going to be accessible to the generate
