@@ -31,7 +31,7 @@ openssl = ["actix-tls/openssl", "actix-connect/openssl"]
 rustls = ["actix-tls/rustls", "actix-connect/rustls"]
 
 # enable compressison support
-compress = ["flate2", "brotli2"]
+compress = ["flate2", "brotli"]
 
 # support for secure cookies
 secure-cookies = ["cookie/secure"]
@@ -82,7 +82,7 @@ serde_urlencoded = "0.7"
 time = { version = "0.2.7", default-features = false, features = ["std"] }
 
 # compression
-brotli2 = { version="0.3.2", optional = true }
+brotli = { version = "3.3.3", optional = true }
 flate2 = { version = "1.0.13", optional = true }
 
 [dev-dependencies]

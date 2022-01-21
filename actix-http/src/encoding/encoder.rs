@@ -5,7 +5,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use actix_threadpool::{run, CpuFuture};
-use brotli2::write::BrotliEncoder;
+use brotli::CompressorWriter as BrotliEncoder;
 use bytes::Bytes;
 use flate2::write::{GzEncoder, ZlibEncoder};
 use futures_core::ready;
@@ -212,9 +212,12 @@ impl ContentEncoder {
                 Writer::new(),
                 flate2::Compression::fast(),
             ))),
-            ContentEncoding::Br => {
-                Some(ContentEncoder::Br(BrotliEncoder::new(Writer::new(), 3)))
-            }
+            ContentEncoding::Br => Some(ContentEncoder::Br(BrotliEncoder::new(
+                Writer::new(),
+                32 * 1024,
+                3,
+                22,
+            ))),
             _ => None,
         }
     }
@@ -230,8 +233,8 @@ impl ContentEncoder {
 
     fn finish(self) -> Result<Bytes, io::Error> {
         match self {
-            ContentEncoder::Br(encoder) => match encoder.finish() {
-                Ok(writer) => Ok(writer.buf.freeze()),
+            ContentEncoder::Br(mut encoder) => match encoder.flush() {
+                Ok(()) => Ok(encoder.into_inner().buf.freeze()),
                 Err(err) => Err(err),
             },
             ContentEncoder::Gzip(encoder) => match encoder.finish() {

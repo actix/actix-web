@@ -7,7 +7,8 @@ use actix_http::http::header::{
     ContentEncoding, ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_LENGTH,
     TRANSFER_ENCODING,
 };
-use brotli2::write::{BrotliDecoder, BrotliEncoder};
+
+use brotli::{CompressorWriter as BrotliEncoder, DecompressorWriter as BrotliDecoder};
 use bytes::Bytes;
 use flate2::read::GzDecoder;
 use flate2::write::{GzEncoder, ZlibDecoder, ZlibEncoder};
@@ -340,9 +341,9 @@ async fn test_body_br_streaming() {
     println!("TEST: {:?}", bytes.len());
 
     // decode br
-    let mut e = BrotliDecoder::new(Vec::with_capacity(2048));
+    let mut e = BrotliDecoder::new(Vec::with_capacity(2048), 8096);
     e.write_all(bytes.as_ref()).unwrap();
-    let dec = e.finish().unwrap();
+    let dec = e.into_inner().unwrap();
     println!("T: {:?}", Bytes::copy_from_slice(&dec));
     assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
 }
@@ -439,9 +440,9 @@ async fn test_body_brotli() {
     let bytes = response.body().await.unwrap();
 
     // decode brotli
-    let mut e = BrotliDecoder::new(Vec::with_capacity(2048));
+    let mut e = BrotliDecoder::new(Vec::with_capacity(2048), 8096);
     e.write_all(bytes.as_ref()).unwrap();
-    let dec = e.finish().unwrap();
+    let dec = e.into_inner().unwrap();
     assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
 }
 
@@ -650,9 +651,10 @@ async fn test_brotli_encoding() {
         )
     });
 
-    let mut e = BrotliEncoder::new(Vec::new(), 5);
+    let mut e = BrotliEncoder::new(Vec::new(), 8096, 5, 22);
     e.write_all(STR.as_ref()).unwrap();
-    let enc = e.finish().unwrap();
+    e.flush().unwrap();
+    let enc = e.into_inner();
 
     // client request
     let request = srv
@@ -684,9 +686,10 @@ async fn test_brotli_encoding_large() {
         )
     });
 
-    let mut e = BrotliEncoder::new(Vec::new(), 5);
+    let mut e = BrotliEncoder::new(Vec::new(), 8096, 5, 22);
     e.write_all(data.as_ref()).unwrap();
-    let enc = e.finish().unwrap();
+    e.flush().unwrap();
+    let enc = e.into_inner();
 
     // client request
     let request = srv
@@ -724,9 +727,9 @@ async fn test_brotli_encoding_large_openssl() {
     });
 
     // body
-    let mut e = BrotliEncoder::new(Vec::new(), 3);
+    let mut e = BrotliEncoder::new(Vec::new(), 8096, 5, 22);
     e.write_all(data.as_ref()).unwrap();
-    let enc = e.finish().unwrap();
+    let enc = e.into_inner();
 
     // client request
     let mut response = srv

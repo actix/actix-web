@@ -4,7 +4,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use actix_threadpool::{run, CpuFuture};
-use brotli2::write::BrotliDecoder;
+use brotli::DecompressorWriter as BrotliDecoder;
 use bytes::Bytes;
 use flate2::write::{GzDecoder, ZlibDecoder};
 use futures_core::{ready, Stream};
@@ -31,7 +31,7 @@ where
     pub fn new(stream: S, encoding: ContentEncoding) -> Decoder<S> {
         let decoder = match encoding {
             ContentEncoding::Br => Some(ContentDecoder::Br(Box::new(
-                BrotliDecoder::new(Writer::new()),
+                BrotliDecoder::new(Writer::new(), 8 * 1024),
             ))),
             ContentEncoding::Deflate => Some(ContentDecoder::Deflate(Box::new(
                 ZlibDecoder::new(Writer::new()),

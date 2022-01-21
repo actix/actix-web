@@ -115,7 +115,7 @@ actix-http = { version = "2.1.0", features = ["actors"] }
 rand = "0.7"
 env_logger = "0.8"
 serde_derive = "1.0"
-brotli2 = "0.3.2"
+brotli = "3.3.3"
 flate2 = "1.0.13"
 criterion = "0.3"
 
