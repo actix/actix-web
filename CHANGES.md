@@ -2,7 +2,8 @@
 
 ## Unreleased - 2021-xx-xx
 ### Added
-- `HttpResponse::add_removal_cookie` [#2586]
+- `HttpResponse::add_removal_cookie`. [#2586]
+- `Logger::log_target`. [#2594]
 
 ### Removed
 - `HttpRequest::req_data[_mut]()`; request-local data is still available through `.extensions()`. [#2585]
@@ -11,6 +12,7 @@
 [#2585]: https://github.com/actix/actix-web/pull/2585
 [#2586]: https://github.com/actix/actix-web/pull/2586
 [#2591]: https://github.com/actix/actix-web/pull/2591
+[#2594]: https://github.com/actix/actix-web/pull/2594
 
 
 ## 4.0.0-beta.20 - 2022-01-14
