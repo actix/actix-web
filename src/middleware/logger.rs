@@ -124,7 +124,7 @@ impl Logger {
     ///
     /// It is convention to print "-" to indicate no output instead of an empty string.
     ///
-    /// # Example
+    /// # Examples
     /// ```
     /// # use actix_web::http::{header::HeaderValue};
     /// # use actix_web::middleware::Logger;

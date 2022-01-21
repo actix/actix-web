@@ -2,7 +2,7 @@
 //!
 //! Type definitions required to use [`awc::Client`](super::Client) as a WebSocket client.
 //!
-//! # Example
+//! # Examples
 //!
 //! ```no_run
 //! use awc::{Client, ws};

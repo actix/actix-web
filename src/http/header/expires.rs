@@ -19,7 +19,7 @@ crate::http::header::common_header! {
     /// # Example Values
     /// * `Thu, 01 Dec 1994 16:00:00 GMT`
     ///
-    /// # Example
+    /// # Examples
     ///
     /// ```
     /// use std::time::{SystemTime, Duration};

@@ -124,7 +124,7 @@ macro_rules! method_macro {
 /// Function name can be specified as any expression that is going to be accessible to the
 /// generate code, e.g `my_guard` or `my_module::my_guard`.
 ///
-/// # Example
+/// # Examples
 /// ```
 /// # use actix_web::HttpResponse;
 #[doc = concat!("# use actix_web_codegen::", stringify!($method), ";")]
