@@ -6,18 +6,17 @@ use std::{
     task::{Context, Poll},
 };
 
-use actix_http::{
-    error::HttpError,
-    header::{self, HeaderName, TryIntoHeaderPair, TryIntoHeaderValue},
-    ConnectionType, Extensions, Response, ResponseHead, StatusCode,
-};
+use actix_http::{error::HttpError, Response, ResponseHead};
 use bytes::Bytes;
 use futures_core::Stream;
 use serde::Serialize;
 
 use crate::{
     body::{BodyStream, BoxBody, MessageBody},
+    dev::Extensions,
     error::{Error, JsonPayloadError},
+    http::header::{self, HeaderName, TryIntoHeaderPair, TryIntoHeaderValue},
+    http::{ConnectionType, StatusCode},
     BoxError, HttpRequest, HttpResponse, Responder,
 };
 
@@ -26,9 +25,7 @@ use crate::{
 /// This type can be used to construct an instance of `Response` through a builder-like pattern.
 pub struct HttpResponseBuilder {
     res: Option<Response<BoxBody>>,
-    err: Option<HttpError>,
-    #[cfg(feature = "cookies")]
-    cookies: Option<cookie::CookieJar>,
+    error: Option<HttpError>,
 }
 
 impl HttpResponseBuilder {
@@ -37,9 +34,7 @@ impl HttpResponseBuilder {
     pub fn new(status: StatusCode) -> Self {
         Self {
             res: Some(Response::with_body(status, BoxBody::new(()))),
-            err: None,
-            #[cfg(feature = "cookies")]
-            cookies: None,
+            error: None,
         }
     }
 
@@ -68,7 +63,7 @@ impl HttpResponseBuilder {
                 Ok((key, value)) => {
                     parts.headers.insert(key, value);
                 }
-                Err(e) => self.err = Some(e.into()),
+                Err(e) => self.error = Some(e.into()),
             };
         }
 
@@ -90,7 +85,7 @@ impl HttpResponseBuilder {
         if let Some(parts) = self.inner() {
             match header.try_into_pair() {
                 Ok((key, value)) => parts.headers.append(key, value),
-                Err(e) => self.err = Some(e.into()),
+                Err(e) => self.error = Some(e.into()),
             };
         }
 
@@ -109,14 +104,14 @@ impl HttpResponseBuilder {
         K::Error: Into<HttpError>,
         V: TryIntoHeaderValue,
     {
-        if self.err.is_some() {
+        if self.error.is_some() {
             return self;
         }
 
         match (key.try_into(), value.try_into_value()) {
             (Ok(name), Ok(value)) => return self.insert_header((name, value)),
-            (Err(err), _) => self.err = Some(err.into()),
-            (_, Err(err)) => self.err = Some(err.into()),
+            (Err(err), _) => self.error = Some(err.into()),
+            (_, Err(err)) => self.error = Some(err.into()),
         }
 
         self
@@ -134,14 +129,14 @@ impl HttpResponseBuilder {
         K::Error: Into<HttpError>,
         V: TryIntoHeaderValue,
     {
-        if self.err.is_some() {
+        if self.error.is_some() {
             return self;
         }
 
         match (key.try_into(), value.try_into_value()) {
             (Ok(name), Ok(value)) => return self.append_header((name, value)),
-            (Err(err), _) => self.err = Some(err.into()),
-            (_, Err(err)) => self.err = Some(err.into()),
+            (Err(err), _) => self.error = Some(err.into()),
+            (_, Err(err)) => self.error = Some(err.into()),
         }
 
         self
@@ -214,18 +209,23 @@ impl HttpResponseBuilder {
                 Ok(value) => {
                     parts.headers.insert(header::CONTENT_TYPE, value);
                 }
-                Err(e) => self.err = Some(e.into()),
+                Err(e) => self.error = Some(e.into()),
             };
         }
         self
     }
 
-    /// Set a cookie.
+    /// Add a cookie to the response.
     ///
+    /// To send a "removal" cookie, call [`.make_removal()`](cookie::Cookie::make_removal) on the
+    /// given cookie. See [`HttpResponse::add_removal_cookie()`] to learn more.
+    ///
+    /// # Examples
+    /// Send a new cookie:
     /// ```
     /// use actix_web::{HttpResponse, cookie::Cookie};
     ///
-    /// HttpResponse::Ok()
+    /// let res = HttpResponse::Ok()
     ///     .cookie(
     ///         Cookie::build("name", "value")
     ///             .domain("www.rust-lang.org")
@@ -236,45 +236,31 @@ impl HttpResponseBuilder {
     ///     )
     ///     .finish();
     /// ```
-    #[cfg(feature = "cookies")]
-    pub fn cookie<'c>(&mut self, cookie: cookie::Cookie<'c>) -> &mut Self {
-        if self.cookies.is_none() {
-            let mut jar = cookie::CookieJar::new();
-            jar.add(cookie.into_owned());
-            self.cookies = Some(jar)
-        } else {
-            self.cookies.as_mut().unwrap().add(cookie.into_owned());
-        }
-        self
-    }
-
-    /// Remove cookie.
     ///
-    /// A `Set-Cookie` header is added that will delete a cookie with the same name from the client.
-    ///
+    /// Send a removal cookie:
     /// ```
-    /// use actix_web::{HttpRequest, HttpResponse, Responder};
+    /// use actix_web::{HttpResponse, cookie::Cookie};
     ///
-    /// async fn handler(req: HttpRequest) -> impl Responder {
-    ///     let mut builder = HttpResponse::Ok();
+    /// // the name, domain and path match the cookie created in the previous example
+    /// let mut cookie = Cookie::build("name", "value-does-not-matter")
+    ///     .domain("www.rust-lang.org")
+    ///     .path("/")
+    ///     .finish();
+    /// cookie.make_removal();
     ///
-    ///     if let Some(ref cookie) = req.cookie("name") {
-    ///         builder.del_cookie(cookie);
-    ///     }
-    ///
-    ///     builder.finish()
-    /// }
+    /// let res = HttpResponse::Ok()
+    ///     .cookie(cookie)
+    ///     .finish();
     /// ```
     #[cfg(feature = "cookies")]
-    pub fn del_cookie(&mut self, cookie: &cookie::Cookie<'_>) -> &mut Self {
-        if self.cookies.is_none() {
-            self.cookies = Some(cookie::CookieJar::new())
+    pub fn cookie(&mut self, cookie: cookie::Cookie<'_>) -> &mut Self {
+        match cookie.to_string().try_into_value() {
+            Ok(hdr_val) => self.append_header((header::SET_COOKIE, hdr_val)),
+            Err(err) => {
+                self.error = Some(err.into());
+                self
+            }
         }
-        let jar = self.cookies.as_mut().unwrap();
-        let cookie = cookie.clone().into_owned();
-        jar.add_original(cookie.clone());
-        jar.remove(cookie);
-        self
     }
 
     /// Returns a reference to the response-local data/extensions container.
@@ -297,6 +283,9 @@ impl HttpResponseBuilder {
 
     /// Set a body and build the `HttpResponse`.
     ///
+    /// Unlike [`message_body`](Self::message_body), errors are converted into error
+    /// responses immediately.
+    ///
     /// `HttpResponseBuilder` can not be used after this call.
     pub fn body<B>(&mut self, body: B) -> HttpResponse<BoxBody>
     where
@@ -312,7 +301,7 @@ impl HttpResponseBuilder {
     ///
     /// `HttpResponseBuilder` can not be used after this call.
     pub fn message_body<B>(&mut self, body: B) -> Result<HttpResponse<B>, Error> {
-        if let Some(err) = self.err.take() {
+        if let Some(err) = self.error.take() {
             return Err(err.into());
         }
 
@@ -322,20 +311,7 @@ impl HttpResponseBuilder {
             .expect("cannot reuse response builder")
             .set_body(body);
 
-        #[allow(unused_mut)] // mut is only unused when cookies are disabled
-        let mut res = HttpResponse::from(res);
-
-        #[cfg(feature = "cookies")]
-        if let Some(ref jar) = self.cookies {
-            for cookie in jar.delta() {
-                match actix_http::header::HeaderValue::from_str(&cookie.to_string()) {
-                    Ok(val) => res.headers_mut().append(header::SET_COOKIE, val),
-                    Err(err) => return Err(err.into()),
-                };
-            }
-        }
-
-        Ok(res)
+        Ok(HttpResponse::from(res))
     }
 
     /// Set a streaming body and build the `HttpResponse`.
@@ -384,14 +360,12 @@ impl HttpResponseBuilder {
     pub fn take(&mut self) -> Self {
         Self {
             res: self.res.take(),
-            err: self.err.take(),
-            #[cfg(feature = "cookies")]
-            cookies: self.cookies.take(),
+            error: self.error.take(),
         }
     }
 
     fn inner(&mut self) -> Option<&mut ResponseHead> {
-        if self.err.is_some() {
+        if self.error.is_some() {
             return None;
         }
 

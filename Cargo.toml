@@ -157,6 +157,10 @@ awc = { path = "awc" }
 name = "test_server"
 required-features = ["compress-brotli", "compress-gzip", "compress-zstd", "cookies"]
 
+[[test]]
+name = "compression"
+required-features = ["compress-brotli", "compress-gzip", "compress-zstd"]
+
 [[example]]
 name = "basic"
 required-features = ["compress-gzip"]
