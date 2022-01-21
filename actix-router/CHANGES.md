@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 0.5.0-rc.2 - 2022-01-21
 - Add `Path::as_str`. [#2590]
 - Deprecate `Path::path`. [#2590]
 
