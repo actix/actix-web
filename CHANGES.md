@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 4.0.0-beta.21 - 2022-01-21
 ### Added
 - `HttpResponse::add_removal_cookie`. [#2586]
 - `Logger::log_target`. [#2594]
