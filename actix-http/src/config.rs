@@ -174,12 +174,15 @@ impl ServiceConfig {
     }
 
     #[doc(hidden)]
-    pub fn set_date(&self, dst: &mut BytesMut) {
+    pub fn set_date(&self, dst: &mut BytesMut, camel_case: bool) {
         let mut buf: [u8; 39] = [0; 39];
-        buf[..6].copy_from_slice(b"date: ");
+
+        buf[..6].copy_from_slice(if camel_case { b"Date: " } else { b"date: " });
+
         self.0
             .date_service
             .set_date(|date| buf[6..35].copy_from_slice(&date.bytes));
+
         buf[35..].copy_from_slice(b"\r\n\r\n");
         dst.extend_from_slice(&buf);
     }
@@ -326,6 +329,7 @@ mod tests {
     use super::*;
 
     use actix_rt::{task::yield_now, time::sleep};
+    use memchr::memmem;
 
     #[actix_rt::test]
     async fn test_date_service_update() {
@@ -334,7 +338,7 @@ mod tests {
         yield_now().await;
 
         let mut buf1 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
-        settings.set_date(&mut buf1);
+        settings.set_date(&mut buf1, false);
         let now1 = settings.now();
 
         sleep_until(Instant::now() + Duration::from_secs(2)).await;
@@ -342,7 +346,7 @@ mod tests {
 
         let now2 = settings.now();
         let mut buf2 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
-        settings.set_date(&mut buf2);
+        settings.set_date(&mut buf2, false);
 
         assert_ne!(now1, now2);
 
@@ -395,11 +399,27 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_date() {
-        let settings = ServiceConfig::new(KeepAlive::Os, 0, 0, false, None);
+        let settings = ServiceConfig::default();
+
         let mut buf1 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
-        settings.set_date(&mut buf1);
+        settings.set_date(&mut buf1, false);
+
         let mut buf2 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
-        settings.set_date(&mut buf2);
+        settings.set_date(&mut buf2, false);
+
         assert_eq!(buf1, buf2);
+    }
+
+    #[actix_rt::test]
+    async fn test_date_camel_case() {
+        let settings = ServiceConfig::default();
+
+        let mut buf = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
+        settings.set_date(&mut buf, false);
+        assert!(memmem::find(&buf, b"date:").is_some());
+
+        let mut buf = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
+        settings.set_date(&mut buf, true);
+        assert!(memmem::find(&buf, b"Date:").is_some());
     }
 }

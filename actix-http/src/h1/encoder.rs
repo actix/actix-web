@@ -105,7 +105,7 @@ pub(crate) trait MessageType: Sized {
             }
             BodySize::Sized(0) if camel_case => dst.put_slice(b"\r\nContent-Length: 0\r\n"),
             BodySize::Sized(0) => dst.put_slice(b"\r\ncontent-length: 0\r\n"),
-            BodySize::Sized(len) => helpers::write_content_length(len, dst),
+            BodySize::Sized(len) => helpers::write_content_length(len, dst, camel_case),
             BodySize::None => dst.put_slice(b"\r\n"),
         }
 
@@ -213,7 +213,7 @@ pub(crate) trait MessageType: Sized {
 
         // optimized date header, set_date writes \r\n
         if !has_date {
-            config.set_date(dst);
+            config.set_date(dst, camel_case);
         } else {
             // msg eof
             dst.extend_from_slice(b"\r\n");

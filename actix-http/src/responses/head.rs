@@ -240,15 +240,23 @@ mod tests {
         let _ = stream.read(&mut data);
         assert_eq!(&data[..17], b"HTTP/1.1 200 OK\r\n");
         assert!(memmem::find(&data, b"Foo-Bar").is_some());
-        assert!(!memmem::find(&data, b"foo-bar").is_some());
+        assert!(memmem::find(&data, b"foo-bar").is_none());
+        assert!(memmem::find(&data, b"Date").is_some());
+        assert!(memmem::find(&data, b"date").is_none());
+        assert!(memmem::find(&data, b"Content-Length").is_some());
+        assert!(memmem::find(&data, b"content-length").is_none());
 
         let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
         let _ = stream.write_all(b"GET /lower HTTP/1.1\r\nConnection: Close\r\n\r\n");
         let mut data = vec![0; 1024];
         let _ = stream.read(&mut data);
         assert_eq!(&data[..17], b"HTTP/1.1 200 OK\r\n");
-        assert!(!memmem::find(&data, b"Foo-Bar").is_some());
+        assert!(memmem::find(&data, b"Foo-Bar").is_none());
         assert!(memmem::find(&data, b"foo-bar").is_some());
+        assert!(memmem::find(&data, b"Date").is_none());
+        assert!(memmem::find(&data, b"date").is_some());
+        assert!(memmem::find(&data, b"Content-Length").is_none());
+        assert!(memmem::find(&data, b"content-length").is_some());
 
         srv.stop().await;
     }
