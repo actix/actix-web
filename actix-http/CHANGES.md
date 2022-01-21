@@ -3,6 +3,18 @@
 ## Unreleased - 2020-xx-xx
 
 
+## 2.2.2 - 2022-01-21
+### Changed
+- Migrate to `brotli` crate. [ad7e3c06]
+
+[ad7e3c06]: https://github.com/actix/actix-web/commit/ad7e3c06
+
+
+## 2.2.1 - 2021-08-09
+### Fixed
+- Potential HTTP request smuggling vulnerabilities. [RUSTSEC-2021-0081](https://github.com/rustsec/advisory-db/pull/977)
+
+
 ## 2.2.0 - 2020-11-25
 ### Added
 * HttpResponse builders for 1xx status codes. [#1768]
