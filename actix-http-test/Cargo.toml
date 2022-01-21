@@ -35,7 +35,7 @@ actix-tls = "3.0.0"
 actix-utils = "3.0.0"
 actix-rt = "2.2"
 actix-server = "2"
-awc = { version = "3.0.0-beta.18", default-features = false }
+awc = { version = "3.0.0-beta.19", default-features = false }
 
 base64 = "0.13"
 bytes = "1"
