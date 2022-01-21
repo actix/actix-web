@@ -391,9 +391,9 @@ impl ContentEncoder {
 fn new_brotli_compressor() -> Box<brotli::CompressorWriter<Writer>> {
     Box::new(brotli::CompressorWriter::new(
         Writer::new(),
-        8 * 1024, // 32 KiB buffer
-        3,        // BROTLI_PARAM_QUALITY
-        22,       // BROTLI_PARAM_LGWIN
+        32 * 1024, // 32 KiB buffer
+        3,         // BROTLI_PARAM_QUALITY
+        22,        // BROTLI_PARAM_LGWIN
     ))
 }
 
