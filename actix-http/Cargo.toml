@@ -1,7 +1,10 @@
 [package]
 name = "actix-http"
-version = "3.0.0-beta.18"
-authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
+version = "3.0.0-beta.19"
+authors = [
+    "Nikolay Kim <fafhrd91@gmail.com>",
+    "Rob Ede <robjtede@icloud.com>",
+]
 description = "HTTP primitives for the Actix ecosystem"
 keywords = ["actix", "http", "framework", "async", "futures"]
 homepage = "https://actix.rs"

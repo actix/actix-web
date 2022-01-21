@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 3.0.0-beta.19 - 2022-01-21
 ### Added
 - Response headers can be sent as camel case using `res.head_mut().set_camel_case_headers(true)`. [#2587]
 - `ResponseHead` now implements `Clone`. [#2585]
