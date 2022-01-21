@@ -1,6 +1,7 @@
 //! For middleware documentation, see [`Logger`].
 
 use std::{
+    borrow::Cow,
     collections::HashSet,
     convert::TryFrom,
     env,
@@ -87,6 +88,7 @@ struct Inner {
     format: Format,
     exclude: HashSet<String>,
     exclude_regex: RegexSet,
+    log_target: Cow<'static, str>,
 }
 
 impl Logger {
@@ -96,6 +98,7 @@ impl Logger {
             format: Format::new(format),
             exclude: HashSet::new(),
             exclude_regex: RegexSet::empty(),
+            log_target: Cow::Borrowed(module_path!()),
         }))
     }
 
@@ -115,6 +118,24 @@ impl Logger {
         patterns.push(path.into());
         let regex_set = RegexSet::new(patterns).unwrap();
         inner.exclude_regex = regex_set;
+        self
+    }
+
+    /// Sets the logging target to `target`.
+    ///
+    /// By default, the log target is `module_path!()` of the log call location. In our case, that
+    /// would be `actix_web::middleware::logger`.
+    ///
+    /// # Examples
+    /// Using `.log_target("http_log")` would have this effect on request logs:
+    /// ```diff
+    /// - [2015-10-21T07:28:00Z INFO  actix_web::middleware::logger] 127.0.0.1 "GET / HTTP/1.1" 200 88 "-" "dmc/1.0" 0.001985
+    /// + [2015-10-21T07:28:00Z INFO  http_log] 127.0.0.1 "GET / HTTP/1.1" 200 88 "-" "dmc/1.0" 0.001985
+    ///                               ^^^^^^^^
+    /// ```
+    pub fn log_target(mut self, target: impl Into<Cow<'static, str>>) -> Self {
+        let inner = Rc::get_mut(&mut self.0).unwrap();
+        inner.log_target = target.into();
         self
     }
 
@@ -171,6 +192,7 @@ impl Default for Logger {
             format: Format::default(),
             exclude: HashSet::new(),
             exclude_regex: RegexSet::empty(),
+            log_target: Cow::Borrowed(module_path!()),
         }))
     }
 }
@@ -222,13 +244,15 @@ where
     actix_service::forward_ready!(service);
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
-        if self.inner.exclude.contains(req.path())
-            || self.inner.exclude_regex.is_match(req.path())
-        {
+        let excluded = self.inner.exclude.contains(req.path())
+            || self.inner.exclude_regex.is_match(req.path());
+
+        if excluded {
             LoggerResponse {
                 fut: self.service.call(req),
                 format: None,
                 time: OffsetDateTime::now_utc(),
+                log_target: Cow::Borrowed(""),
                 _phantom: PhantomData,
             }
         } else {
@@ -238,10 +262,12 @@ where
             for unit in &mut format.0 {
                 unit.render_request(now, &req);
             }
+
             LoggerResponse {
                 fut: self.service.call(req),
                 format: Some(format),
                 time: now,
+                log_target: self.inner.log_target.clone(),
                 _phantom: PhantomData,
             }
         }
@@ -258,6 +284,7 @@ pin_project! {
         fut: S::Future,
         time: OffsetDateTime,
         format: Option<Format>,
+        log_target: Cow<'static, str>,
         _phantom: PhantomData<B>,
     }
 }
@@ -289,12 +316,14 @@ where
 
         let time = *this.time;
         let format = this.format.take();
+        let log_target = this.log_target.clone();
 
         Poll::Ready(Ok(res.map_body(move |_, body| StreamLog {
             body,
             time,
             format,
             size: 0,
+            log_target,
         })))
     }
 }
@@ -306,7 +335,9 @@ pin_project! {
         format: Option<Format>,
         size: usize,
         time: OffsetDateTime,
+        log_target: Cow<'static, str>,
     }
+
     impl<B> PinnedDrop for StreamLog<B> {
         fn drop(this: Pin<&mut Self>) {
             if let Some(ref format) = this.format {
@@ -316,7 +347,11 @@ pin_project! {
                     }
                     Ok(())
                 };
-                log::info!("{}", FormatDisplay(&render));
+
+                log::info!(
+                    target: this.log_target.as_ref(),
+                    "{}", FormatDisplay(&render)
+                );
             }
         }
     }

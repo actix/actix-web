@@ -24,7 +24,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .wrap(middleware::DefaultHeaders::new().add(("X-Version", "0.2")))
             .wrap(middleware::Compress::default())
-            .wrap(middleware::Logger::default().log_target("1234"))
+            .wrap(middleware::Logger::default().log_target("http_log"))
             .service(index)
             .service(no_params)
             .service(
