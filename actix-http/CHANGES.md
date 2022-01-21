@@ -416,6 +416,13 @@
 [#1878]: https://github.com/actix/actix-web/pull/1878
 
 
+## 2.2.2 - 2022-01-21
+### Changed
+- Migrate to `brotli` crate. [ad7e3c06]
+
+[ad7e3c06]: https://github.com/actix/actix-web/commit/ad7e3c06
+
+
 ## 2.2.1 - 2021-08-09
 ### Fixed
 - Potential HTTP request smuggling vulnerabilities. [RUSTSEC-2021-0081](https://github.com/rustsec/advisory-db/pull/977)
