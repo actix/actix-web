@@ -24,7 +24,7 @@ use crate::{
 /// re-insert the cloned data back into the extensions map. A `DerefMut` impl is intentionally not
 /// provided to make this potential foot-gun more obvious.
 ///
-/// # Example
+/// # Examples
 /// ```no_run
 /// # use actix_web::{web, HttpResponse, HttpRequest, Responder, HttpMessage as _};
 ///

@@ -1,6 +1,7 @@
 use std::{
     borrow::Cow,
     cell::RefCell,
+    fmt::Write as _,
     rc::{Rc, Weak},
 };
 
@@ -10,12 +11,14 @@ use url::Url;
 
 use crate::{error::UrlGenerationError, request::HttpRequest};
 
+const AVG_PATH_LEN: usize = 24;
+
 #[derive(Clone, Debug)]
 pub struct ResourceMap {
     pattern: ResourceDef,
 
-    /// Named resources within the tree or, for external resources,
-    /// it points to isolated nodes outside the tree.
+    /// Named resources within the tree or, for external resources, it points to isolated nodes
+    /// outside the tree.
     named: AHashMap<String, Rc<ResourceMap>>,
 
     parent: RefCell<Weak<ResourceMap>>,
@@ -35,6 +38,35 @@ impl ResourceMap {
         }
     }
 
+    /// Format resource map as tree structure (unfinished).
+    #[allow(dead_code)]
+    pub(crate) fn tree(&self) -> String {
+        let mut buf = String::new();
+        self._tree(&mut buf, 0);
+        buf
+    }
+
+    pub(crate) fn _tree(&self, buf: &mut String, level: usize) {
+        if let Some(children) = &self.nodes {
+            for child in children {
+                writeln!(
+                    buf,
+                    "{}{} {}",
+                    "--".repeat(level),
+                    child.pattern.pattern().unwrap(),
+                    child
+                        .pattern
+                        .name()
+                        .map(|name| format!("({})", name))
+                        .unwrap_or_else(|| "".to_owned())
+                )
+                .unwrap();
+
+                ResourceMap::_tree(child, buf, level + 1);
+            }
+        }
+    }
+
     /// Adds a (possibly nested) resource.
     ///
     /// To add a non-prefix pattern, `nested` must be `None`.
@@ -44,7 +76,11 @@ impl ResourceMap {
         pattern.set_id(self.nodes.as_ref().unwrap().len() as u16);
 
         if let Some(new_node) = nested {
-            assert_eq!(&new_node.pattern, pattern, "`patern` and `nested` mismatch");
+            debug_assert_eq!(
+                &new_node.pattern, pattern,
+                "`pattern` and `nested` mismatch"
+            );
+            // parents absorb references to the named resources of children
             self.named.extend(new_node.named.clone().into_iter());
             self.nodes.as_mut().unwrap().push(new_node);
         } else {
@@ -64,7 +100,7 @@ impl ResourceMap {
                 None => false,
             };
 
-            // Don't add external resources to the tree
+            // don't add external resources to the tree
             if !is_external {
                 self.nodes.as_mut().unwrap().push(new_node);
             }
@@ -78,7 +114,7 @@ impl ResourceMap {
         }
     }
 
-    /// Generate url for named resource
+    /// Generate URL for named resource.
     ///
     /// Check [`HttpRequest::url_for`] for detailed information.
     pub fn url_for<U, I>(
@@ -97,7 +133,7 @@ impl ResourceMap {
             .named
             .get(name)
             .ok_or(UrlGenerationError::ResourceNotFound)?
-            .root_rmap_fn(String::with_capacity(24), |mut acc, node| {
+            .root_rmap_fn(String::with_capacity(AVG_PATH_LEN), |mut acc, node| {
                 node.pattern
                     .resource_path_from_iter(&mut acc, &mut elements)
                     .then(|| acc)
@@ -128,6 +164,7 @@ impl ResourceMap {
         Ok(url)
     }
 
+    /// Returns true if there is a resource that would match `path`.
     pub fn has_resource(&self, path: &str) -> bool {
         self.find_matching_node(path).is_some()
     }
@@ -142,9 +179,10 @@ impl ResourceMap {
     /// is possible.
     pub fn match_pattern(&self, path: &str) -> Option<String> {
         self.find_matching_node(path)?.root_rmap_fn(
-            String::with_capacity(24),
+            String::with_capacity(AVG_PATH_LEN),
             |mut acc, node| {
-                acc.push_str(node.pattern.pattern()?);
+                let pattern = node.pattern.pattern()?;
+                acc.push_str(pattern);
                 Some(acc)
             },
         )
@@ -489,5 +527,34 @@ mod tests {
             rmap.url_for(&req, "duck", &["abcd"]).unwrap().to_string(),
             "https://duck.com/abcd"
         );
+    }
+
+    #[test]
+    fn url_for_override_within_map() {
+        let mut root = ResourceMap::new(ResourceDef::prefix(""));
+
+        let mut foo_rdef = ResourceDef::prefix("/foo");
+        let mut foo_map = ResourceMap::new(foo_rdef.clone());
+        let mut nested_rdef = ResourceDef::new("/nested");
+        nested_rdef.set_name("nested");
+        foo_map.add(&mut nested_rdef, None);
+        root.add(&mut foo_rdef, Some(Rc::new(foo_map)));
+
+        let mut foo_rdef = ResourceDef::prefix("/bar");
+        let mut foo_map = ResourceMap::new(foo_rdef.clone());
+        let mut nested_rdef = ResourceDef::new("/nested");
+        nested_rdef.set_name("nested");
+        foo_map.add(&mut nested_rdef, None);
+        root.add(&mut foo_rdef, Some(Rc::new(foo_map)));
+
+        let rmap = Rc::new(root);
+        ResourceMap::finish(&rmap);
+
+        let req = crate::test::TestRequest::default().to_http_request();
+
+        let url = rmap.url_for(&req, "nested", &[""; 0]).unwrap().to_string();
+        assert_eq!(url, "http://localhost:8080/bar/nested");
+
+        assert!(rmap.url_for(&req, "missing", &["u123"]).is_err());
     }
 }

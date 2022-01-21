@@ -2,7 +2,7 @@
 //!
 //! Provides a non-blocking service for serving static files from disk.
 //!
-//! # Example
+//! # Examples
 //! ```
 //! use actix_web::App;
 //! use actix_files::Files;

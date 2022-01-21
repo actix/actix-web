@@ -831,6 +831,7 @@ mod tests {
                     let req = ServiceRequest::from_parts(req, pl);
                     svc.call(req)
                 })
+                .route("/", web::get().to(|| async { "" }))
                 .service(
                     web::resource("/resource1/{name}/index.html").route(web::get().to(index)),
                 ),
