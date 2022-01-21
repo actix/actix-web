@@ -3,6 +3,10 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 0.6.0-beta.15 - 2022-01-21
+- No significant changes since `0.6.0-beta.14`.
+
+
 ## 0.6.0-beta.14 - 2022-01-14
 - The `prefer_utf8` option introduced in `0.4.0` is now true by default. [#2583]
 
