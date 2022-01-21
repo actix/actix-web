@@ -11,7 +11,7 @@ use std::{
 };
 
 use actix_web::{
-    cookie::{Cookie, CookieBuilder},
+    cookie::Cookie,
     http::{header, StatusCode},
     middleware::{Compress, NormalizePath, TrailingSlash},
     web, App, Error, HttpResponse,
@@ -773,7 +773,7 @@ async fn test_server_cookies() {
         App::new().default_service(web::to(|| {
             HttpResponse::Ok()
                 .cookie(
-                    CookieBuilder::new("first", "first_value")
+                    Cookie::build("first", "first_value")
                         .http_only(true)
                         .finish(),
                 )
@@ -787,13 +787,13 @@ async fn test_server_cookies() {
     let res = req.send().await.unwrap();
     assert!(res.status().is_success());
 
-    let first_cookie = CookieBuilder::new("first", "first_value")
+    let first_cookie = Cookie::build("first", "first_value")
         .http_only(true)
         .finish();
-    let second_cookie = Cookie::new("second", "second_value");
+    let second_cookie = Cookie::new("second", "first_value");
 
     let cookies = res.cookies().expect("To have cookies");
-    assert_eq!(cookies.len(), 2);
+    assert_eq!(cookies.len(), 3);
     if cookies[0] == first_cookie {
         assert_eq!(cookies[1], second_cookie);
     } else {
@@ -809,7 +809,7 @@ async fn test_server_cookies() {
         .get_all(http::header::SET_COOKIE)
         .map(|header| header.to_str().expect("To str").to_string())
         .collect::<Vec<_>>();
-    assert_eq!(cookies.len(), 2);
+    assert_eq!(cookies.len(), 3);
     if cookies[0] == first_cookie {
         assert_eq!(cookies[1], second_cookie);
     } else {
