@@ -37,7 +37,7 @@ use crate::{
 ///     .service(Files::new("/static", "."));
 /// ```
 pub struct Files {
-    path: String,
+    mount_path: String,
     directory: PathBuf,
     index: Option<String>,
     show_index: bool,
@@ -68,7 +68,7 @@ impl Clone for Files {
             default: self.default.clone(),
             renderer: self.renderer.clone(),
             file_flags: self.file_flags,
-            path: self.path.clone(),
+            mount_path: self.mount_path.clone(),
             mime_override: self.mime_override.clone(),
             path_filter: self.path_filter.clone(),
             use_guards: self.use_guards.clone(),
@@ -107,7 +107,7 @@ impl Files {
         };
 
         Files {
-            path: mount_path.trim_end_matches('/').to_owned(),
+            mount_path: mount_path.trim_end_matches('/').to_owned(),
             directory: dir,
             index: None,
             show_index: false,
@@ -342,9 +342,9 @@ impl HttpServiceFactory for Files {
         }
 
         let rdef = if config.is_root() {
-            ResourceDef::root_prefix(&self.path)
+            ResourceDef::root_prefix(&self.mount_path)
         } else {
-            ResourceDef::prefix(&self.path)
+            ResourceDef::prefix(&self.mount_path)
         };
 
         config.register_service(rdef, guards, self, None)

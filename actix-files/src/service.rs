@@ -168,7 +168,7 @@ impl Service<ServiceRequest> for FilesService {
                         }
                     }
                     None if this.show_index => Ok(this.show_index(req, path)),
-                    _ => Ok(ServiceResponse::from_err(
+                    None => Ok(ServiceResponse::from_err(
                         FilesError::IsDirectory,
                         req.into_parts().0,
                     )),
