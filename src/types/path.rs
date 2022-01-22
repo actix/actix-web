@@ -18,6 +18,9 @@ use crate::{
 ///
 /// Use [`PathConfig`] to configure extraction option.
 ///
+/// Unlike, [`HttpRequest::match_info`], this extractor will fully percent-decode dynamic segments,
+/// including `/`, `%`, and `+`.
+///
 /// # Examples
 /// ```
 /// use actix_web::{get, web};
@@ -259,13 +262,14 @@ mod tests {
     #[actix_rt::test]
     async fn paths_decoded() {
         let resource = ResourceDef::new("/{key}/{value}");
-        let mut req = TestRequest::with_uri("/na%2Bme/us%2Fer%251").to_srv_request();
+        let mut req = TestRequest::with_uri("/na%2Bme/us%2Fer%254%32").to_srv_request();
         resource.capture_match_info(req.match_info_mut());
 
         let (req, mut pl) = req.into_parts();
         let path_items = Path::<MyStruct>::from_request(&req, &mut pl).await.unwrap();
         assert_eq!(path_items.key, "na+me");
-        assert_eq!(path_items.value, "us/er%1");
+        assert_eq!(path_items.value, "us/er%42");
+        assert_eq!(req.match_info().as_str(), "/na%2Bme/us%2Fer%2542");
     }
 
     #[actix_rt::test]

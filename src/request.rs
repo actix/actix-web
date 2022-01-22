@@ -129,10 +129,11 @@ impl HttpRequest {
     /// later in a request handler to access the matched value for that parameter.
     ///
     /// # Percent Encoding and URL Parameters
-    /// Because each URL parameter is able to capture multiple path segments, both `["%2F", "%25"]`
-    /// found in the request URI are not decoded into `["/", "%"]` in order to preserve path
-    /// segment boundaries. If a url parameter is expected to contain these characters, then it is
-    /// on the user to decode them.
+    /// Because each URL parameter is able to capture multiple path segments, none of
+    /// `["%2F", "%25", "%2B"]` found in the request URI are decoded into `["/", "%", "+"]` in order
+    /// to preserve path integrity. If a URL parameter is expected to contain these characters, then
+    /// it is on the user to decode them or use the [`web::Path`](crate::web::Path) extractor which
+    /// _will_ decode these special sequences.
     #[inline]
     pub fn match_info(&self) -> &Path<Url> {
         &self.inner.path
@@ -504,12 +505,11 @@ impl HttpRequestPool {
 
 #[cfg(test)]
 mod tests {
-    use actix_service::Service;
     use bytes::Bytes;
 
     use super::*;
     use crate::{
-        dev::{ResourceDef, ResourceMap},
+        dev::{ResourceDef, ResourceMap, Service},
         http::{header, StatusCode},
         test::{self, call_service, init_service, read_body, TestRequest},
         web, App, HttpResponse,
@@ -902,6 +902,7 @@ mod tests {
         // `body` equals http://localhost:8080/bar/nested
         // because nested from /bar overrides /foo's
         // to do this any other way would require something like a custom tree search
+        // see https://github.com/actix/actix-web/issues/1763
         assert_eq!(body, "http://localhost:8080/bar/nested");
 
         let bar_resp =
