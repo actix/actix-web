@@ -256,7 +256,7 @@ impl<B> HttpResponse<B> {
         }
     }
 
-    /// Map the current body type to another using a closure. Returns a new response.
+    /// Map the current body type to another using a closure, returning a new response.
     ///
     /// Closure receives the response head and the current body type.
     pub fn map_body<F, B2>(self, f: F) -> HttpResponse<B2>
@@ -269,18 +269,23 @@ impl<B> HttpResponse<B> {
         }
     }
 
-    // TODO: docs for the body map methods below
-
+    /// Map the current body type `B` to `EitherBody::Left(B)`.
+    ///
+    /// Useful for middleware which can generate their own responses.
     #[inline]
     pub fn map_into_left_body<R>(self) -> HttpResponse<EitherBody<B, R>> {
         self.map_body(|_, body| EitherBody::left(body))
     }
 
+    /// Map the current body type `B` to `EitherBody::Right(B)`.
+    ///
+    /// Useful for middleware which can generate their own responses.
     #[inline]
     pub fn map_into_right_body<L>(self) -> HttpResponse<EitherBody<L, B>> {
         self.map_body(|_, body| EitherBody::right(body))
     }
 
+    /// Map the current body to a type-erased `BoxBody`.
     #[inline]
     pub fn map_into_boxed_body(self) -> HttpResponse<BoxBody>
     where
@@ -289,7 +294,7 @@ impl<B> HttpResponse<B> {
         self.map_body(|_, body| body.boxed())
     }
 
-    /// Extract response body
+    /// Returns the response body, dropping all other parts.
     pub fn into_body(self) -> B {
         self.res.into_body()
     }

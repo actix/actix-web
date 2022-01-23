@@ -6,6 +6,7 @@ use std::{
 
 use bytes::Bytes;
 use futures_core::Stream;
+use pin_project_lite::pin_project;
 
 use crate::error::PayloadError;
 
@@ -15,7 +16,7 @@ pub type BoxedPayloadStream = Pin<Box<dyn Stream<Item = Result<Bytes, PayloadErr
 #[deprecated(since = "4.0.0", note = "Renamed to `BoxedPayloadStream`.")]
 pub type PayloadStream = BoxedPayloadStream;
 
-pin_project_lite::pin_project! {
+pin_project! {
     /// A streaming payload.
     #[project = PayloadProj]
     pub enum Payload<S = BoxedPayloadStream> {

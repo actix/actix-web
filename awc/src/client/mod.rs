@@ -94,10 +94,9 @@ impl Client {
         let mut req = ClientRequest::new(method, url, self.0.clone());
 
         for header in self.0.default_headers.iter() {
-            // header map is empty
-            // TODO: probably append instead
-            req = req.insert_header_if_none(header);
+            req = req.append_header(header);
         }
+
         req
     }
 

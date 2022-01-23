@@ -163,7 +163,7 @@ where
                     | StatusCode::PERMANENT_REDIRECT
                         if *max_redirect_times > 0 =>
                     {
-                        let is_redirect = res.head().status == StatusCode::TEMPORARY_REDIRECT
+                        let reuse_body = res.head().status == StatusCode::TEMPORARY_REDIRECT
                             || res.head().status == StatusCode::PERMANENT_REDIRECT;
 
                         let prev_uri = uri.take().unwrap();
@@ -176,7 +176,7 @@ where
                         let connector = connector.take();
 
                         // reset method
-                        let method = if is_redirect {
+                        let method = if reuse_body {
                             method.take().unwrap()
                         } else {
                             let method = method.take().unwrap();
@@ -187,18 +187,19 @@ where
                         };
 
                         let mut body = body.take();
-                        let body_new = if is_redirect {
-                            // try to reuse body
+                        let body_new = if reuse_body {
+                            // try to reuse saved body
                             match body {
                                 Some(ref bytes) => AnyBody::Bytes {
                                     body: bytes.clone(),
                                 },
-                                // TODO: should this be AnyBody::Empty or AnyBody::None.
+
+                                // body was a non-reusable type so send an empty body instead
                                 _ => AnyBody::empty(),
                             }
                         } else {
                             body = None;
-                            // remove body
+                            // remove body since we're downgrading to a GET
                             AnyBody::None
                         };
 

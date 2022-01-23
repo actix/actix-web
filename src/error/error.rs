@@ -4,16 +4,14 @@ use actix_http::{body::BoxBody, Response};
 
 use crate::{HttpResponse, ResponseError};
 
-/// General purpose actix web error.
+/// General purpose Actix Web error.
 ///
-/// An actix web error is used to carry errors from `std::error`
-/// through actix in a convenient way.  It can be created through
-/// converting errors with `into()`.
+/// An Actix Web error is used to carry errors from `std::error` through actix in a convenient way.
+/// It can be created through converting errors with `into()`.
 ///
-/// Whenever it is created from an external object a response error is created
-/// for it that can be used to create an HTTP response from it this means that
-/// if you have access to an actix `Error` you can always get a
-/// `ResponseError` reference from it.
+/// Whenever it is created from an external object a response error is created for it that can be
+/// used to create an HTTP response from it this means that if you have access to an actix `Error`
+/// you can always get a `ResponseError` reference from it.
 pub struct Error {
     cause: Box<dyn ResponseError>,
 }

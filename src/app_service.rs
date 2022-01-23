@@ -169,7 +169,6 @@ impl AppInitServiceState {
         Rc::new(AppInitServiceState {
             rmap,
             config,
-            // TODO: AppConfig can be used to pass user defined HttpRequestPool capacity.
             pool: HttpRequestPool::default(),
         })
     }

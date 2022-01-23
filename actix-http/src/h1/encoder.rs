@@ -152,7 +152,6 @@ pub(crate) trait MessageType: Sized {
             let k = key.as_str().as_bytes();
             let k_len = k.len();
 
-            // TODO: drain?
             for val in value.iter() {
                 let v = val.as_ref();
                 let v_len = v.len();

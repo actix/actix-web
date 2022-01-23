@@ -185,7 +185,7 @@ impl<B> Response<B> {
         self.replace_body(())
     }
 
-    /// Map the current body type to another using a closure. Returns a new response.
+    /// Map the current body type to another using a closure, returning a new response.
     ///
     /// Closure receives the response head and the current body type.
     #[inline]
@@ -202,6 +202,7 @@ impl<B> Response<B> {
         }
     }
 
+    /// Map the current body to a type-erased `BoxBody`.
     #[inline]
     pub fn map_into_boxed_body(self) -> Response<BoxBody>
     where
@@ -210,7 +211,7 @@ impl<B> Response<B> {
         self.map_body(|_, body| body.boxed())
     }
 
-    /// Returns body, consuming this response.
+    /// Returns the response body, dropping all other parts.
     #[inline]
     pub fn into_body(self) -> B {
         self.body
