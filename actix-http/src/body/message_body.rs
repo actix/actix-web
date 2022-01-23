@@ -14,8 +14,44 @@ use pin_project_lite::pin_project;
 
 use super::{BodySize, BoxBody};
 
-/// An interface types that can converted to bytes and used as response bodies.
-// TODO: examples
+/// An interface for types that can be used as a response body.
+///
+/// It is not usually necessary to create custom body types, this trait is already [implemented for
+/// a large number of sensible body types](#foreign-impls) including:
+/// - Empty body: `()`
+/// - Text-based: `String`, `&'static str`, `ByteString`.
+/// - Byte-based: `Bytes`, `BytesMut`, `Vec<u8>`, `&'static [u8]`;
+/// - Streams: [`BodyStream`](super::BodyStream), [`SizedStream`](super::SizedStream)
+///
+/// # Examples
+/// ```
+/// # use std::convert::Infallible;
+/// # use std::task::{Poll, Context};
+/// # use std::pin::Pin;
+/// # use bytes::Bytes;
+/// # use actix_http::body::{BodySize, MessageBody};
+/// struct Repeat {
+///     chunk: String,
+///     n_times: usize,
+/// }
+///
+/// impl MessageBody for Repeat {
+///     type Error = Infallible;
+///
+///     fn size(&self) -> BodySize {
+///         BodySize::Sized((self.chunk.len() * self.n_times) as u64)
+///     }
+///
+///     fn poll_next(
+///         self: Pin<&mut Self>,
+///         _cx: &mut Context<'_>,
+///     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
+///         let payload_string = self.chunk.repeat(self.n_times);
+///         let payload_bytes = Bytes::from(payload_string);
+///         Poll::Ready(Some(Ok(payload_bytes)))
+///     }
+/// }
+/// ```
 pub trait MessageBody {
     /// The type of error that will be returned if streaming body fails.
     ///
@@ -29,7 +65,22 @@ pub trait MessageBody {
     fn size(&self) -> BodySize;
 
     /// Attempt to pull out the next chunk of body bytes.
-    // TODO: expand documentation
+    ///
+    /// # Return Value
+    /// Similar to the `Stream` interface, there are several possible return values, each indicating
+    /// a distinct state:
+    /// - `Poll::Pending` means that this body's next chunk is not ready yet. Implementations must
+    ///   ensure that the current task will be notified when the next chunk may be ready.
+    /// - `Poll::Ready(Some(val))` means that the body has successfully produced a chunk, `val`,
+    ///   and may produce further values on subsequent `poll_next` calls.
+    /// - `Poll::Ready(None)` means that the body is complete, and `poll_next` should not be
+    ///   invoked again.
+    ///
+    /// # Panics
+    /// Once a body is complete (i.e., `poll_next` returned `Ready(None)`), calling its `poll_next`
+    /// method again may panic, block forever, or cause other kinds of problems; this trait places
+    /// no requirements on the effects of such a call. However, as the `poll_next` method is not
+    /// marked unsafe, Rust’s usual rules apply: calls must never cause UB, regardless of its state.
     fn poll_next(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -37,7 +88,7 @@ pub trait MessageBody {
 
     /// Try to convert into the complete chunk of body bytes.
     ///
-    /// Implement this method if the entire body can be trivially extracted. This is useful for
+    /// Override this method if the complete body can be trivially extracted. This is useful for
     /// optimizations where `poll_next` calls can be avoided.
     ///
     /// Body types with [`BodySize::None`] are allowed to return empty `Bytes`. Although, if calling
@@ -54,7 +105,11 @@ pub trait MessageBody {
         Err(self)
     }
 
-    /// Converts this body into `BoxBody`.
+    /// Wraps this body into a `BoxBody`.
+    ///
+    /// No-op when called on a `BoxBody`, meaning there is no risk of double boxing when calling
+    /// this on a generic `MessageBody`. Prefer this over [`BoxBody::new`] when a boxed body
+    /// is required.
     #[inline]
     fn boxed(self) -> BoxBody
     where

@@ -10,9 +10,12 @@ use super::{BodySize, MessageBody};
 
 /// Body type for responses that forbid payloads.
 ///
-/// Distinct from an empty response which would contain a Content-Length header.
-///
+/// This is distinct from an "empty" response which _would_ contain a `Content-Length` header.
 /// For an "empty" body, use `()` or `Bytes::new()`.
+///
+/// For example, the HTTP spec forbids a payload to be sent with a `204 No Content` response.
+/// In this case, the payload (or lack thereof) is implicit from the status code, so a
+/// `Content-Length` header is not required.
 #[derive(Debug, Clone, Copy, Default)]
 #[non_exhaustive]
 pub struct None;

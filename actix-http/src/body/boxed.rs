@@ -31,7 +31,7 @@ impl fmt::Debug for BoxBodyInner {
 }
 
 impl BoxBody {
-    /// Same as `MessageBody::boxed`.
+    /// Boxes body type, erasing type information.
     ///
     /// If the body type to wrap is unknown or generic it is better to use [`MessageBody::boxed`] to
     /// avoid double boxing.
