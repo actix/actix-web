@@ -238,7 +238,7 @@ impl<B> HttpResponse<B> {
         (
             HttpResponse {
                 res: head,
-                error: None,
+                error: self.error,
             },
             body,
         )
@@ -248,7 +248,7 @@ impl<B> HttpResponse<B> {
     pub fn drop_body(self) -> HttpResponse<()> {
         HttpResponse {
             res: self.res.drop_body(),
-            error: None,
+            error: self.error,
         }
     }
 
