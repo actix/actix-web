@@ -749,7 +749,7 @@ mod plus_rustls {
             .collect::<String>();
 
         let srv = actix_test::start_with(actix_test::config().rustls(tls_config()), || {
-            App::new().service(web::resource("/").route(web::to(|bytes: Bytes| {
+            App::new().service(web::resource("/").route(web::to(|bytes: Bytes| async {
                 // echo decompressed request body back in response
                 HttpResponse::Ok()
                     .insert_header(header::ContentEncoding::Identity)
