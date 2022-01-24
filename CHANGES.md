@@ -1,6 +1,10 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Removed
+- `impl Future for HttpResponse`. [#2601]
+
+[#2601]: https://github.com/actix/actix-web/pull/2601
 
 
 ## 4.0.0-beta.21 - 2022-01-21
