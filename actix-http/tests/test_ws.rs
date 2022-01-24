@@ -8,7 +8,7 @@ use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_http::{
     body::{BodySize, BoxBody},
     h1,
-    ws::{self, CloseCode, Frame, Item, Message},
+    ws::{self, CloseCode, ContinuationItem, Frame, Message},
     Error, HttpService, Request, Response,
 };
 use actix_http_test::test_server;
@@ -137,51 +137,61 @@ async fn test_simple() {
     assert_eq!(item, Frame::Pong("text".to_string().into()));
 
     framed
-        .send(Message::Continuation(Item::FirstText("text".into())))
+        .send(Message::Continuation(ContinuationItem::FirstText(
+            "text".into(),
+        )))
         .await
         .unwrap();
     let item = framed.next().await.unwrap().unwrap();
     assert_eq!(
         item,
-        Frame::Continuation(Item::FirstText(Bytes::from_static(b"text")))
+        Frame::Continuation(ContinuationItem::FirstText(Bytes::from_static(b"text")))
     );
 
     assert!(framed
-        .send(Message::Continuation(Item::FirstText("text".into())))
+        .send(Message::Continuation(ContinuationItem::FirstText(
+            "text".into()
+        )))
         .await
         .is_err());
     assert!(framed
-        .send(Message::Continuation(Item::FirstBinary("text".into())))
+        .send(Message::Continuation(ContinuationItem::FirstBinary(
+            "text".into()
+        )))
         .await
         .is_err());
 
     framed
-        .send(Message::Continuation(Item::Continue("text".into())))
+        .send(Message::Continuation(ContinuationItem::Continue(
+            "text".into(),
+        )))
         .await
         .unwrap();
     let item = framed.next().await.unwrap().unwrap();
     assert_eq!(
         item,
-        Frame::Continuation(Item::Continue(Bytes::from_static(b"text")))
+        Frame::Continuation(ContinuationItem::Continue(Bytes::from_static(b"text")))
     );
 
     framed
-        .send(Message::Continuation(Item::Last("text".into())))
+        .send(Message::Continuation(ContinuationItem::Last("text".into())))
         .await
         .unwrap();
     let item = framed.next().await.unwrap().unwrap();
     assert_eq!(
         item,
-        Frame::Continuation(Item::Last(Bytes::from_static(b"text")))
+        Frame::Continuation(ContinuationItem::Last(Bytes::from_static(b"text")))
     );
 
     assert!(framed
-        .send(Message::Continuation(Item::Continue("text".into())))
+        .send(Message::Continuation(ContinuationItem::Continue(
+            "text".into()
+        )))
         .await
         .is_err());
 
     assert!(framed
-        .send(Message::Continuation(Item::Last("text".into())))
+        .send(Message::Continuation(ContinuationItem::Last("text".into())))
         .await
         .is_err());
 

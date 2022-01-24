@@ -17,7 +17,7 @@ pub enum Message {
     Binary(Bytes),
 
     /// Continuation.
-    Continuation(Item),
+    Continuation(ContinuationItem),
 
     /// Ping message.
     Ping(Bytes),
@@ -42,7 +42,7 @@ pub enum Frame {
     Binary(Bytes),
 
     /// Continuation.
-    Continuation(Item),
+    Continuation(ContinuationItem),
 
     /// Ping message.
     Ping(Bytes),
@@ -56,12 +56,16 @@ pub enum Frame {
 
 /// A WebSocket continuation item.
 #[derive(Debug, PartialEq)]
-pub enum Item {
+pub enum ContinuationItem {
     FirstText(Bytes),
     FirstBinary(Bytes),
     Continue(Bytes),
     Last(Bytes),
 }
+
+#[doc(hidden)]
+#[deprecated(since = "4.0.0", note = "Renamed to `ContinuationItem`.")]
+pub type Item = ContinuationItem;
 
 /// WebSocket protocol codec.
 #[derive(Debug, Clone)]
@@ -149,7 +153,7 @@ impl Encoder<Message> for Codec {
                 Parser::write_close(dst, reason, !self.flags.contains(Flags::SERVER))
             }
             Message::Continuation(cont) => match cont {
-                Item::FirstText(data) => {
+                ContinuationItem::FirstText(data) => {
                     if self.flags.contains(Flags::W_CONTINUATION) {
                         return Err(ProtocolError::ContinuationStarted);
                     } else {
@@ -163,7 +167,7 @@ impl Encoder<Message> for Codec {
                         )
                     }
                 }
-                Item::FirstBinary(data) => {
+                ContinuationItem::FirstBinary(data) => {
                     if self.flags.contains(Flags::W_CONTINUATION) {
                         return Err(ProtocolError::ContinuationStarted);
                     } else {
@@ -177,7 +181,7 @@ impl Encoder<Message> for Codec {
                         )
                     }
                 }
-                Item::Continue(data) => {
+                ContinuationItem::Continue(data) => {
                     if self.flags.contains(Flags::W_CONTINUATION) {
                         Parser::write_message(
                             dst,
@@ -190,7 +194,7 @@ impl Encoder<Message> for Codec {
                         return Err(ProtocolError::ContinuationNotStarted);
                     }
                 }
-                Item::Last(data) => {
+                ContinuationItem::Last(data) => {
                     if self.flags.contains(Flags::W_CONTINUATION) {
                         self.flags.remove(Flags::W_CONTINUATION);
                         Parser::write_message(
@@ -223,7 +227,7 @@ impl Decoder for Codec {
                     return match opcode {
                         OpCode::Continue => {
                             if self.flags.contains(Flags::CONTINUATION) {
-                                Ok(Some(Frame::Continuation(Item::Continue(
+                                Ok(Some(Frame::Continuation(ContinuationItem::Continue(
                                     payload.map(|pl| pl.freeze()).unwrap_or_else(Bytes::new),
                                 ))))
                             } else {
@@ -233,7 +237,7 @@ impl Decoder for Codec {
                         OpCode::Binary => {
                             if !self.flags.contains(Flags::CONTINUATION) {
                                 self.flags.insert(Flags::CONTINUATION);
-                                Ok(Some(Frame::Continuation(Item::FirstBinary(
+                                Ok(Some(Frame::Continuation(ContinuationItem::FirstBinary(
                                     payload.map(|pl| pl.freeze()).unwrap_or_else(Bytes::new),
                                 ))))
                             } else {
@@ -243,7 +247,7 @@ impl Decoder for Codec {
                         OpCode::Text => {
                             if !self.flags.contains(Flags::CONTINUATION) {
                                 self.flags.insert(Flags::CONTINUATION);
-                                Ok(Some(Frame::Continuation(Item::FirstText(
+                                Ok(Some(Frame::Continuation(ContinuationItem::FirstText(
                                     payload.map(|pl| pl.freeze()).unwrap_or_else(Bytes::new),
                                 ))))
                             } else {
@@ -261,7 +265,7 @@ impl Decoder for Codec {
                     OpCode::Continue => {
                         if self.flags.contains(Flags::CONTINUATION) {
                             self.flags.remove(Flags::CONTINUATION);
-                            Ok(Some(Frame::Continuation(Item::Last(
+                            Ok(Some(Frame::Continuation(ContinuationItem::Last(
                                 payload.map(|pl| pl.freeze()).unwrap_or_else(Bytes::new),
                             ))))
                         } else {

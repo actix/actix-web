@@ -1,7 +1,7 @@
 //! WebSocket protocol implementation.
 //!
-//! To setup a WebSocket, first perform the WebSocket handshake then on success convert `Payload` into a
-//! `WsStream` stream and then use `WsWriter` to communicate with the peer.
+//! To setup a WebSocket, first perform the WebSocket handshake then on success convert `Payload`
+//! into a `WsStream` stream and then use `WsWriter` to communicate with the peer.
 
 use std::io;
 
@@ -17,7 +17,8 @@ mod frame;
 mod mask;
 mod proto;
 
-pub use self::codec::{Codec, Frame, Item, Message};
+#[allow(deprecated)] // Item is deprecated
+pub use self::codec::{Codec, ContinuationItem, Frame, Item, Message};
 pub use self::dispatcher::Dispatcher;
 pub use self::frame::Parser;
 pub use self::proto::{hash_key, CloseCode, CloseReason, OpCode};
