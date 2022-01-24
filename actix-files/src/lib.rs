@@ -106,7 +106,7 @@ mod tests {
         let req = TestRequest::default()
             .insert_header((header::IF_MODIFIED_SINCE, since))
             .to_http_request();
-        let resp = file.respond_to(&req).await.unwrap();
+        let resp = file.respond_to(&req);
         assert_eq!(resp.status(), StatusCode::NOT_MODIFIED);
     }
 
@@ -118,7 +118,7 @@ mod tests {
         let req = TestRequest::default()
             .insert_header((header::IF_MODIFIED_SINCE, since))
             .to_http_request();
-        let resp = file.respond_to(&req).await.unwrap();
+        let resp = file.respond_to(&req);
         assert_eq!(resp.status(), StatusCode::NOT_MODIFIED);
     }
 
@@ -131,7 +131,7 @@ mod tests {
             .insert_header((header::IF_NONE_MATCH, "miss_etag"))
             .insert_header((header::IF_MODIFIED_SINCE, since))
             .to_http_request();
-        let resp = file.respond_to(&req).await.unwrap();
+        let resp = file.respond_to(&req);
         assert_ne!(resp.status(), StatusCode::NOT_MODIFIED);
     }
 
@@ -143,7 +143,7 @@ mod tests {
         let req = TestRequest::default()
             .insert_header((header::IF_UNMODIFIED_SINCE, since))
             .to_http_request();
-        let resp = file.respond_to(&req).await.unwrap();
+        let resp = file.respond_to(&req);
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
@@ -155,7 +155,7 @@ mod tests {
         let req = TestRequest::default()
             .insert_header((header::IF_UNMODIFIED_SINCE, since))
             .to_http_request();
-        let resp = file.respond_to(&req).await.unwrap();
+        let resp = file.respond_to(&req);
         assert_eq!(resp.status(), StatusCode::PRECONDITION_FAILED);
     }
 
@@ -172,7 +172,7 @@ mod tests {
         }
 
         let req = TestRequest::default().to_http_request();
-        let resp = file.respond_to(&req).await.unwrap();
+        let resp = file.respond_to(&req);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "text/x-toml"
@@ -196,7 +196,7 @@ mod tests {
         }
 
         let req = TestRequest::default().to_http_request();
-        let resp = file.respond_to(&req).await.unwrap();
+        let resp = file.respond_to(&req);
         assert_eq!(
             resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
             "inline; filename=\"Cargo.toml\""
@@ -207,7 +207,7 @@ mod tests {
             .unwrap()
             .disable_content_disposition();
         let req = TestRequest::default().to_http_request();
-        let resp = file.respond_to(&req).await.unwrap();
+        let resp = file.respond_to(&req);
         assert!(resp.headers().get(header::CONTENT_DISPOSITION).is_none());
     }
 
@@ -235,7 +235,7 @@ mod tests {
         }
 
         let req = TestRequest::default().to_http_request();
-        let resp = file.respond_to(&req).await.unwrap();
+        let resp = file.respond_to(&req);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "text/x-toml"
@@ -261,7 +261,7 @@ mod tests {
         }
 
         let req = TestRequest::default().to_http_request();
-        let resp = file.respond_to(&req).await.unwrap();
+        let resp = file.respond_to(&req);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "text/xml"
@@ -284,7 +284,7 @@ mod tests {
         }
 
         let req = TestRequest::default().to_http_request();
-        let resp = file.respond_to(&req).await.unwrap();
+        let resp = file.respond_to(&req);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "image/png"
@@ -300,7 +300,7 @@ mod tests {
         let file = NamedFile::open_async("tests/test.js").await.unwrap();
 
         let req = TestRequest::default().to_http_request();
-        let resp = file.respond_to(&req).await.unwrap();
+        let resp = file.respond_to(&req);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "application/javascript; charset=utf-8"
@@ -330,7 +330,7 @@ mod tests {
         }
 
         let req = TestRequest::default().to_http_request();
-        let resp = file.respond_to(&req).await.unwrap();
+        let resp = file.respond_to(&req);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "image/png"
@@ -353,7 +353,7 @@ mod tests {
         }
 
         let req = TestRequest::default().to_http_request();
-        let resp = file.respond_to(&req).await.unwrap();
+        let resp = file.respond_to(&req);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "application/octet-stream"
@@ -379,7 +379,7 @@ mod tests {
         }
 
         let req = TestRequest::default().to_http_request();
-        let resp = file.respond_to(&req).await.unwrap();
+        let resp = file.respond_to(&req);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "text/x-toml"
@@ -633,7 +633,7 @@ mod tests {
     async fn test_named_file_allowed_method() {
         let req = TestRequest::default().method(Method::GET).to_http_request();
         let file = NamedFile::open_async("Cargo.toml").await.unwrap();
-        let resp = file.respond_to(&req).await.unwrap();
+        let resp = file.respond_to(&req);
         assert_eq!(resp.status(), StatusCode::OK);
     }
 

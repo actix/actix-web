@@ -52,7 +52,7 @@ use crate::{
 ///
 /// let app = App::new()
 ///     .wrap(middleware::Compress::default())
-///     .default_service(web::to(|| HttpResponse::Ok().body("hello world")));
+///     .default_service(web::to(|| async { HttpResponse::Ok().body("hello world") }));
 /// ```
 ///
 /// Pre-compressed Gzip file being served from disk with correct headers added to bypass middleware:

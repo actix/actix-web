@@ -373,7 +373,9 @@ impl Guard for HeaderGuard {
 ///
 /// web::scope("/admin")
 ///     .guard(Host("admin.rust-lang.org").scheme("https"))
-///     .default_service(web::to(|| HttpResponse::Ok().body("admin connection is secure")));
+///     .default_service(web::to(|| async {
+///         HttpResponse::Ok().body("admin connection is secure")
+///     }));
 /// ```
 ///
 /// The `Host` guard can be used to set up some form of [virtual hosting] within a single app.
@@ -388,12 +390,16 @@ impl Guard for HeaderGuard {
 ///     .service(
 ///         web::scope("")
 ///             .guard(guard::Host("www.rust-lang.org"))
-///             .default_service(web::to(|| HttpResponse::Ok().body("marketing site"))),
+///             .default_service(web::to(|| async {
+///                 HttpResponse::Ok().body("marketing site")
+///             })),
 ///     )
 ///     .service(
 ///         web::scope("")
 ///             .guard(guard::Host("play.rust-lang.org"))
-///             .default_service(web::to(|| HttpResponse::Ok().body("playground frontend"))),
+///             .default_service(web::to(|| async {
+///                 HttpResponse::Ok().body("playground frontend")
+///             })),
 ///     );
 /// ```
 ///
