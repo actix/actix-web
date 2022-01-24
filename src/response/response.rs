@@ -1,10 +1,6 @@
 use std::{
     cell::{Ref, RefMut},
     fmt,
-    future::Future,
-    mem,
-    pin::Pin,
-    task::{Context, Poll},
 };
 
 use actix_http::{
@@ -337,24 +333,39 @@ impl<B> From<HttpResponse<B>> for Response<B> {
     }
 }
 
-// Future is only implemented for BoxBody payload type because it's the most useful for making
-// simple handlers without async blocks. Making it generic over all MessageBody types requires a
-// future impl on Response which would cause it's body field to be, undesirably, Option<B>.
-//
-// This impl is not particularly efficient due to the Response construction and should probably
-// not be invoked if performance is important. Prefer an async fn/block in such cases.
-impl Future for HttpResponse<BoxBody> {
-    type Output = Result<Response<BoxBody>, Error>;
+// Rationale for cfg(test): this impl causes false positives on a clippy lint (async_yields_async)
+// when returning an HttpResponse from an async function/closure and it's not very useful outside of
+// tests anyway.
+#[cfg(test)]
+mod response_fut_impl {
+    use std::{
+        future::Future,
+        mem,
+        pin::Pin,
+        task::{Context, Poll},
+    };
 
-    fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
-        if let Some(err) = self.error.take() {
-            return Poll::Ready(Err(err));
+    use super::*;
+
+    // Future is only implemented for BoxBody payload type because it's the most useful for making
+    // simple handlers without async blocks. Making it generic over all MessageBody types requires a
+    // future impl on Response which would cause it's body field to be, undesirably, Option<B>.
+    //
+    // This impl is not particularly efficient due to the Response construction and should probably
+    // not be invoked if performance is important. Prefer an async fn/block in such cases.
+    impl Future for HttpResponse<BoxBody> {
+        type Output = Result<Response<BoxBody>, Error>;
+
+        fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
+            if let Some(err) = self.error.take() {
+                return Poll::Ready(Err(err));
+            }
+
+            Poll::Ready(Ok(mem::replace(
+                &mut self.res,
+                Response::new(StatusCode::default()),
+            )))
         }
-
-        Poll::Ready(Ok(mem::replace(
-            &mut self.res,
-            Response::new(StatusCode::default()),
-        )))
     }
 }
 

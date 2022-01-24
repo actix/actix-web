@@ -206,10 +206,10 @@ where
     /// Register a new route and add handler. This route matches all requests.
     ///
     /// ```
-    /// use actix_web::*;
+    /// use actix_web::{App, HttpRequest, HttpResponse, web};
     ///
-    /// fn index(req: HttpRequest) -> HttpResponse {
-    ///     unimplemented!()
+    /// async fn index(req: HttpRequest) -> HttpResponse {
+    ///     todo!()
     /// }
     ///
     /// App::new().service(web::resource("/").to(index));
@@ -219,7 +219,7 @@ where
     ///
     /// ```
     /// # use actix_web::*;
-    /// # fn index(req: HttpRequest) -> HttpResponse { unimplemented!() }
+    /// # async fn index(req: HttpRequest) -> HttpResponse { todo!() }
     /// App::new().service(web::resource("/").route(web::route().to(index)));
     /// ```
     pub fn to<F, Args>(mut self, handler: F) -> Self

@@ -219,7 +219,7 @@ impl PayloadConfig {
         }
     }
 
-    /// Set maximum accepted payload size in bytes. The default limit is 256kB.
+    /// Set maximum accepted payload size in bytes. The default limit is 256KiB.
     pub fn limit(mut self, limit: usize) -> Self {
         self.limit = limit;
         self
@@ -261,13 +261,13 @@ impl PayloadConfig {
     }
 }
 
+const DEFAULT_CONFIG_LIMIT: usize = 262_144; // 2^18 bytes (~256kB)
+
 /// Allow shared refs used as defaults.
 const DEFAULT_CONFIG: PayloadConfig = PayloadConfig {
     limit: DEFAULT_CONFIG_LIMIT,
     mimetype: None,
 };
-
-const DEFAULT_CONFIG_LIMIT: usize = 262_144; // 2^18 bytes (~256kB)
 
 impl Default for PayloadConfig {
     fn default() -> Self {

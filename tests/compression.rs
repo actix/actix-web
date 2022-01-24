@@ -19,10 +19,13 @@ macro_rules! test_server {
         actix_test::start(|| {
             App::new()
                 .wrap(Compress::default())
-                .route("/static", web::to(|| HttpResponse::Ok().body(LOREM)))
+                .route(
+                    "/static",
+                    web::to(|| async { HttpResponse::Ok().body(LOREM) }),
+                )
                 .route(
                     "/static-gzip",
-                    web::to(|| {
+                    web::to(|| async {
                         HttpResponse::Ok()
                             // signal to compressor that content should not be altered
                             // signal to client that content is encoded
@@ -32,7 +35,7 @@ macro_rules! test_server {
                 )
                 .route(
                     "/static-br",
-                    web::to(|| {
+                    web::to(|| async {
                         HttpResponse::Ok()
                             // signal to compressor that content should not be altered
                             // signal to client that content is encoded
@@ -42,7 +45,7 @@ macro_rules! test_server {
                 )
                 .route(
                     "/static-zstd",
-                    web::to(|| {
+                    web::to(|| async {
                         HttpResponse::Ok()
                             // signal to compressor that content should not be altered
                             // signal to client that content is encoded
@@ -52,7 +55,7 @@ macro_rules! test_server {
                 )
                 .route(
                     "/static-xz",
-                    web::to(|| {
+                    web::to(|| async {
                         HttpResponse::Ok()
                             // signal to compressor that content should not be altered
                             // signal to client that content is encoded as 7zip
@@ -62,7 +65,7 @@ macro_rules! test_server {
                 )
                 .route(
                     "/echo",
-                    web::to(|body: Bytes| HttpResponse::Ok().body(body)),
+                    web::to(|body: Bytes| async move { HttpResponse::Ok().body(body) }),
                 )
         })
     };
