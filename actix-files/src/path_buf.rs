@@ -66,7 +66,11 @@ impl PathBufWrap {
 
         // make sure we agree with stdlib parser
         for (i, component) in buf.components().enumerate() {
-            assert!(matches!(component, Component::Normal(_)));
+            assert!(
+                matches!(component, Component::Normal(_)),
+                "component `{:?}` is not normal",
+                component
+            );
             assert!(i < segment_count);
         }
 
@@ -168,8 +172,8 @@ mod tests {
         );
 
         assert_eq!(
-            PathBufWrap::parse_path("C:../whatever", false).unwrap().0,
-            PathBuf::from_iter(vec!["C:../whatever"])
+            PathBufWrap::parse_path("D:../whatever", false).unwrap().0,
+            PathBuf::from_iter(vec!["D:../whatever"])
         );
     }
 }
