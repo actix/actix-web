@@ -210,7 +210,11 @@ async fn test_slow_request() {
     let _ = stream.write_all(b"GET /test/tests/test HTTP/1.1\r\n");
     let mut data = String::new();
     let _ = stream.read_to_string(&mut data);
-    assert!(data.starts_with("HTTP/1.1 408 Request Timeout"));
+    assert!(
+        data.starts_with("HTTP/1.1 408 Request Timeout"),
+        "response was not 408: {}",
+        data
+    );
 
     srv.stop().await;
 }

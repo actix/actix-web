@@ -45,8 +45,10 @@ impl From<Option<usize>> for KeepAlive {
 }
 
 /// HTTP service configuration.
+#[derive(Debug, Clone)]
 pub struct ServiceConfig(Rc<Inner>);
 
+#[derive(Debug)]
 struct Inner {
     keep_alive: Option<Duration>,
     client_request_timeout: u64,
@@ -55,12 +57,6 @@ struct Inner {
     secure: bool,
     local_addr: Option<std::net::SocketAddr>,
     date_service: DateService,
-}
-
-impl Clone for ServiceConfig {
-    fn clone(&self) -> Self {
-        ServiceConfig(self.0.clone())
-    }
 }
 
 impl Default for ServiceConfig {
@@ -143,7 +139,6 @@ impl ServiceConfig {
     /// Returns `None` if this `ServiceConfig was` constructed with `client_request_timeout: 0`.
     ///
     /// [client request deadline]: Self::client_deadline
-    #[inline]
     pub fn client_request_timer(&self) -> Option<Sleep> {
         self.client_request_deadline().map(sleep_until)
     }
@@ -168,18 +163,15 @@ impl ServiceConfig {
     /// Creates a timer that resolves at the [keep-alive deadline].
     ///
     /// [keep-alive deadline]: Self::keep_alive_deadline
-    #[inline]
     pub fn keep_alive_timer(&self) -> Option<Sleep> {
         self.keep_alive_deadline().map(sleep_until)
     }
 
-    #[inline]
     pub(crate) fn now(&self) -> Instant {
         self.0.date_service.now()
     }
 
-    #[doc(hidden)]
-    pub fn set_date(&self, dst: &mut BytesMut, camel_case: bool) {
+    pub(crate) fn set_date(&self, dst: &mut BytesMut, camel_case: bool) {
         let mut buf: [u8; 39] = [0; 39];
 
         buf[..6].copy_from_slice(if camel_case { b"Date: " } else { b"date: " });
@@ -234,6 +226,12 @@ impl fmt::Write for Date {
 struct DateService {
     current: Rc<Cell<(Date, Instant)>>,
     handle: JoinHandle<()>,
+}
+
+impl fmt::Debug for DateService {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DateService").finish_non_exhaustive()
+    }
 }
 
 impl Drop for DateService {
