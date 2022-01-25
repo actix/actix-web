@@ -159,4 +159,17 @@ mod tests {
             PathBuf::from_iter(vec!["etc/passwd"])
         );
     }
+
+    #[test]
+    fn windows_drive_traversal() {
+        assert_eq!(
+            PathBufWrap::parse_path("D:test.txt", false).unwrap().0,
+            PathBuf::from_iter(vec!["D:test.txt"])
+        );
+
+        assert_eq!(
+            PathBufWrap::parse_path("C:../whatever", false).unwrap().0,
+            PathBuf::from_iter(vec!["C:../whatever"])
+        );
+    }
 }
