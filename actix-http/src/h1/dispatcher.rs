@@ -155,8 +155,10 @@ pin_project! {
         // Updated when messages are read from stream and after timer is used for
         // first-request timeout.
         ka_deadline: Instant,
+
+        // Timer used for first-request, keep-alive, and shutdown timeouts.
         #[pin]
-        ka_timer: Option<Sleep>,
+        timer: Option<Sleep>,
 
         io: Option<T>,
         read_buf: BytesMut,
@@ -257,7 +259,7 @@ where
                     messages: VecDeque::new(),
 
                     ka_deadline,
-                    ka_timer,
+                    timer: ka_timer,
 
                     io: Some(io),
                     read_buf: BytesMut::with_capacity(HW_BUFFER_SIZE),
@@ -770,7 +772,7 @@ where
             }
         }
 
-        if updated && this.ka_timer.is_some() {
+        if updated && this.timer.is_some() {
             if let Some(expire) = this.codec.config().keep_alive_deadline() {
                 *this.ka_deadline = expire;
             }
@@ -779,24 +781,19 @@ where
         Ok(updated)
     }
 
-    /// keep-alive timer
-    fn poll_keepalive(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Result<(), DispatchError> {
+    /// Poll first-request/keep-alive/disconnect timer.
+    fn poll_timer(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Result<(), DispatchError> {
         let mut this = self.as_mut().project();
 
-        // when a branch is not explicit return early it's meant to fall through
-        // and return as Ok(())
-        match this.ka_timer.as_mut().as_pin_mut() {
+        match this.timer.as_mut().as_pin_mut() {
             None => {
                 // conditionally go into shutdown timeout
                 if this.flags.contains(Flags::SHUTDOWN) {
                     if let Some(deadline) = this.codec.config().client_disconnect_deadline() {
                         // write client disconnect time out and poll again to
                         // go into Some(timer) branch
-                        this.ka_timer.set(Some(sleep_until(deadline)));
-                        return self.poll_keepalive(cx);
+                        this.timer.set(Some(sleep_until(deadline)));
+                        return self.poll_timer(cx);
                     }
                 }
             }
@@ -990,7 +987,7 @@ where
 
         match this.inner.project() {
             DispatcherStateProj::Normal { mut inner } => {
-                inner.as_mut().poll_keepalive(cx)?;
+                inner.as_mut().poll_timer(cx)?;
 
                 if inner.flags.contains(Flags::SHUTDOWN) {
                     if inner.flags.contains(Flags::WRITE_DISCONNECT) {
