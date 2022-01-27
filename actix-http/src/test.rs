@@ -212,6 +212,11 @@ impl TestBuffer {
         RefMut::map(self.write_buf.borrow_mut(), |b| b.as_mut())
     }
 
+    #[allow(dead_code)]
+    pub(crate) fn take_write_buf(&self) -> Bytes {
+        self.write_buf.borrow_mut().split().freeze()
+    }
+
     /// Add data to read buffer.
     pub fn extend_read_buf<T: AsRef<[u8]>>(&mut self, data: T) {
         self.read_buf.borrow_mut().extend_from_slice(data.as_ref())
