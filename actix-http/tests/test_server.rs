@@ -2,7 +2,7 @@ use std::{
     convert::Infallible,
     io::{Read, Write},
     net, thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use actix_http::{
@@ -201,10 +201,13 @@ async fn test_slow_request() {
     let mut srv = test_server(|| {
         HttpService::build()
             .client_timeout(100)
+            .keep_alive(2)
             .finish(|_| ok::<_, Infallible>(Response::ok()))
             .tcp()
     })
     .await;
+
+    let start = Instant::now();
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
     let _ = stream.write_all(b"GET /test/tests/test HTTP/1.1\r\n");
@@ -215,6 +218,17 @@ async fn test_slow_request() {
         "response was not 408: {}",
         data
     );
+
+    let end = Instant::now();
+    let diff = end - start;
+
+    if diff < Duration::from_secs(1) {
+        // test success
+    } else if diff < Duration::from_secs(3) {
+        panic!("request seems to have wrongly timed-out according to keep-alive");
+    } else {
+        panic!("request took way too long to time out");
+    }
 
     srv.stop().await;
 }

@@ -144,6 +144,7 @@ pin_project! {
         flags: Flags,
         peer_addr: Option<net::SocketAddr>,
         conn_data: Option<Rc<Extensions>>,
+        config: ServiceConfig,
         error: Option<DispatchError>,
 
         #[pin]
@@ -252,6 +253,7 @@ where
                     flags,
                     peer_addr,
                     conn_data: conn_data.0.map(Rc::new),
+                    config: config.clone(),
                     error: None,
 
                     state: State::None,
@@ -346,14 +348,17 @@ where
         message: Response<()>,
         body: &impl MessageBody,
     ) -> Result<BodySize, DispatchError> {
-        let size = body.size();
         let this = self.project();
+
+        let size = body.size();
+
         this.codec
             .encode(Message::Item((message, size)), this.write_buf)
             .map_err(|err| {
                 if let Some(mut payload) = this.payload.take() {
                     payload.set_error(PayloadError::Incomplete(None));
                 }
+
                 DispatchError::Io(err)
             })?;
 
@@ -373,6 +378,7 @@ where
             _ => State::SendPayload { body },
         };
         self.project().state.set(state);
+
         Ok(())
     }
 
@@ -773,7 +779,7 @@ where
         }
 
         if updated && this.timer.is_some() {
-            if let Some(expire) = this.codec.config().keep_alive_deadline() {
+            if let Some(expire) = this.config.keep_alive_deadline() {
                 *this.ka_deadline = expire;
             }
         }
@@ -789,7 +795,7 @@ where
             None => {
                 // conditionally go into shutdown timeout
                 if this.flags.contains(Flags::SHUTDOWN) {
-                    if let Some(deadline) = this.codec.config().client_disconnect_deadline() {
+                    if let Some(deadline) = this.config.client_disconnect_deadline() {
                         // write client disconnect time out and poll again to
                         // go into Some(timer) branch
                         this.timer.set(Some(sleep_until(deadline)));
@@ -815,8 +821,7 @@ where
                                 this.flags.insert(Flags::SHUTDOWN);
 
                                 // start shutdown timeout
-                                if let Some(deadline) =
-                                    this.codec.config().client_disconnect_deadline()
+                                if let Some(deadline) = this.config.client_disconnect_deadline()
                                 {
                                     timer.as_mut().reset(deadline);
                                     let _ = timer.poll(cx);
@@ -840,8 +845,7 @@ where
                                 this = self.project();
                                 this.flags.insert(Flags::STARTED | Flags::SHUTDOWN);
                             }
-                        } else if let Some(deadline) = this.codec.config().keep_alive_deadline()
-                        {
+                        } else if let Some(deadline) = this.config.keep_alive_deadline() {
                             // still have unfinished task. try to reset and register keep-alive
                             timer.as_mut().reset(deadline);
                             let _ = timer.poll(cx);
@@ -1015,11 +1019,13 @@ where
                     };
 
                     loop {
-                        // poll_response and populate write buffer.
-                        // drain indicate if write buffer should be emptied before next run.
+                        // poll response to populate write buffer
+                        // drain indicates whether write buffer should be emptied before next run
                         let drain = match inner.as_mut().poll_response(cx)? {
                             PollResponse::DrainWriteBuf => true,
+
                             PollResponse::DoNothing => false,
+
                             // upgrade request and goes Upgrade variant of DispatcherState.
                             PollResponse::Upgrade(req) => {
                                 let upgrade = inner.upgrade(req);

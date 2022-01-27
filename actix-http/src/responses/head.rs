@@ -42,7 +42,7 @@ impl ResponseHead {
         &mut self.headers
     }
 
-    /// Sets the flag that controls wether to send headers formatted as Camel-Case.
+    /// Sets the flag that controls whether to send headers formatted as Camel-Case.
     ///
     /// Only applicable to HTTP/1.x responses; HTTP/2 header names are always lowercase.
     #[inline]
