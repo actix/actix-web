@@ -59,6 +59,8 @@ impl PathBufWrap {
                 continue;
             } else if cfg!(windows) && segment.contains('\\') {
                 return Err(UriSegmentError::BadChar('\\'));
+            } else if cfg!(windows) && segment.contains(':') {
+                return Err(UriSegmentError::BadChar(':'));
             } else {
                 buf.push(segment)
             }
@@ -66,7 +68,11 @@ impl PathBufWrap {
 
         // make sure we agree with stdlib parser
         for (i, component) in buf.components().enumerate() {
-            assert!(matches!(component, Component::Normal(_)));
+            assert!(
+                matches!(component, Component::Normal(_)),
+                "component `{:?}` is not normal",
+                component
+            );
             assert!(i < segment_count);
         }
 
@@ -157,6 +163,28 @@ mod tests {
                 .unwrap()
                 .0,
             PathBuf::from_iter(vec!["etc/passwd"])
+        );
+    }
+
+    #[test]
+    #[cfg_attr(windows, should_panic)]
+    fn windows_drive_traversal() {
+        // detect issues in windows that could lead to path traversal
+        // see <https://github.com/SergioBenitez/Rocket/issues/1949
+
+        assert_eq!(
+            PathBufWrap::parse_path("C:test.txt", false).unwrap().0,
+            PathBuf::from_iter(vec!["C:test.txt"])
+        );
+
+        assert_eq!(
+            PathBufWrap::parse_path("C:../whatever", false).unwrap().0,
+            PathBuf::from_iter(vec!["C:../whatever"])
+        );
+
+        assert_eq!(
+            PathBufWrap::parse_path(":test.txt", false).unwrap().0,
+            PathBuf::from_iter(vec![":test.txt"])
         );
     }
 }

@@ -7,6 +7,8 @@ mod client;
 mod codec;
 mod decoder;
 mod dispatcher;
+#[cfg(test)]
+mod dispatcher_tests;
 mod encoder;
 mod expect;
 mod payload;
