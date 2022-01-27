@@ -106,6 +106,7 @@ smallvec = "1.6.1"
 socket2 = "0.4.0"
 time = { version = "0.3", default-features = false, features = ["formatting"] }
 url = "2.1"
+tokio = { version = "1.7.1", features = ["sync"] }
 
 [dev-dependencies]
 actix-files = "0.6.0-beta.15"
