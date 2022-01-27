@@ -64,6 +64,58 @@ fn echo_payload_service() -> impl Service<Request, Response = Response<Bytes>, E
 }
 
 #[actix_rt::test]
+async fn test_basic() {
+    let buf = TestBuffer::new("GET /abcd HTTP/1.1\r\n\r\n");
+
+    let cfg = ServiceConfig::new(KeepAlive::Disabled, 100, 0, false, None);
+    let services = HttpFlow::new(echo_path_service(), ExpectHandler, None);
+
+    let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+        buf.clone(),
+        services,
+        cfg,
+        None,
+        OnConnectData::default(),
+    );
+    actix_rt::pin!(h1);
+
+    lazy(|cx| {
+        assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
+
+        match h1.as_mut().poll(cx) {
+            Poll::Pending => panic!("first poll should not be pending"),
+            Poll::Ready(res) => assert!(res.is_ok()),
+        }
+
+        // polls: initial => shutdown
+        assert_eq!(h1.poll_count, 2);
+
+        let mut res = buf.take_write_buf().to_vec();
+        stabilize_date_header(&mut res);
+        let res = &res[..];
+
+        let exp = b"\
+                HTTP/1.1 200 OK\r\n\
+                content-length: 5\r\n\
+                connection: close\r\n\
+                date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\r\n\
+                /abcd\
+                ";
+
+        assert_eq!(
+            res,
+            exp,
+            "\nexpected response not in write buffer:\n\
+               response: {:?}\n\
+               expected: {:?}",
+            String::from_utf8_lossy(res),
+            String::from_utf8_lossy(exp)
+        );
+    })
+    .await;
+}
+
+#[actix_rt::test]
 async fn test_keep_alive_timeout() {
     let buf = TestBuffer::new("GET /abcd HTTP/1.1\r\n\r\n");
 
