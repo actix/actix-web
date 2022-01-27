@@ -1,10 +1,13 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
-- Remove the unused `ResourceInfo`.
-- Add `RouterBuilder::push`.
-- Change signature of `ResourceDef::capture_match_info_fn` to remove `user_data` parameter.
-- Relax bounds in `Router::recognize*` and `ResourceDef::capture_match_info`.
+- Remove the unused `ResourceInfo`. [#2612]
+- Add `RouterBuilder::push`. [#2612]
+- Change signature of `ResourceDef::capture_match_info_fn` to remove `user_data` parameter. [#2612]
+- Replace `Option<U>` with `U` in `Router` api. [#2612]
+- Relax bounds in `Router::recognize*` and `ResourceDef::capture_match_info`. [#2612]
+
+[#2612]: https://github.com/actix/actix-web/pull/2612
 
 
 ## 0.5.0-rc.2 - 2022-01-21
