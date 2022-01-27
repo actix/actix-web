@@ -64,6 +64,69 @@ fn echo_payload_service() -> impl Service<Request, Response = Response<Bytes>, E
 }
 
 #[actix_rt::test]
+async fn late_request() {
+    let _ = env_logger::try_init();
+
+    let mut buf = TestBuffer::empty();
+
+    let cfg = ServiceConfig::new(KeepAlive::Disabled, 100, 0, false, None);
+    let services = HttpFlow::new(ok_service(), ExpectHandler, None);
+
+    let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+        buf.clone(),
+        services,
+        cfg,
+        None,
+        OnConnectData::default(),
+    );
+    actix_rt::pin!(h1);
+
+    lazy(|cx| {
+        assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
+
+        match h1.as_mut().poll(cx) {
+            Poll::Ready(_) => panic!("first poll should not be ready"),
+            Poll::Pending => {}
+        }
+
+        // polls: initial
+        assert_eq!(h1.poll_count, 1);
+
+        buf.extend_read_buf("GET /abcd HTTP/1.1\r\nConnection: close\r\n\r\n");
+
+        match h1.as_mut().poll(cx) {
+            Poll::Pending => panic!("second poll should not be pending"),
+            Poll::Ready(res) => assert!(res.is_ok()),
+        }
+
+        // polls: initial pending => handle req => shutdown
+        assert_eq!(h1.poll_count, 3);
+
+        let mut res = buf.take_write_buf().to_vec();
+        stabilize_date_header(&mut res);
+        let res = &res[..];
+
+        let exp = b"\
+                HTTP/1.1 200 OK\r\n\
+                content-length: 0\r\n\
+                connection: close\r\n\
+                date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\r\n\
+                ";
+
+        assert_eq!(
+            res,
+            exp,
+            "\nexpected response not in write buffer:\n\
+               response: {:?}\n\
+               expected: {:?}",
+            String::from_utf8_lossy(res),
+            String::from_utf8_lossy(exp)
+        );
+    })
+    .await;
+}
+
+#[actix_rt::test]
 async fn test_basic() {
     let buf = TestBuffer::new("GET /abcd HTTP/1.1\r\n\r\n");
 
