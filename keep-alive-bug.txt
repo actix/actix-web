@@ -1,0 +1,135 @@
+behavior
+
+template
+========================
+client_timeout      0
+keep_alive          2
+
+unchanged
+req 1   
+req 2   
+
+set started on first I/O poll
+req 1   
+req 2   
+========================
+
+======================================================
+======================================================
+
+
+
+
+
+
+
+
+
+========================
+client_timeout      0
+keep_alive          0
+
+unchanged
+req 1   OK
+req 2   OK (~17s)
+
+set started on first I/O poll
+req 1   OK
+req 2   OK (~17s)
+========================
+========================
+client_timeout      2000
+keep_alive          0
+
+unchanged
+req 1   OK
+req 2   OK (~17s)
+
+set started on first I/O poll
+req 1   OK
+req 2   OK (~17s)
+========================
+
+
+========================
+client_timeout      2000
+keep_alive          2
+
+unchanged
+req 1   OK
+req 2   408 (~7s)
+
+set started on first I/O poll
+req 1   OK
+req 2   conn reset (~7s)
+
+attempt 1 (no good, 408 is broken)
+req 1   OK
+req 2   OK (~17s)
+========================
+========================
+client_timeout      0
+keep_alive          2
+
+unchanged
+req 1   OK
+req 2   408 (~7s)
+
+set started on first I/O poll
+req 1   OK
+req 2   conn reset (~7s)
+
+attempt 1 (no good, 408 is broken)
+req 1   OK
+req 2   OK (~17s)
+========================
+
+
+========================
+client_timeout      0
+keep_alive          Disabled
+
+unchanged
+req 1   OK
+req 2   OK (~17s)
+
+set started on first I/O poll
+req 1   conn reset (instant)
+req 2   -
+========================
+========================
+client_timeout      2000
+keep_alive          Disabled
+
+unchanged
+req 1   OK
+req 2   OK (~17s)
+
+set started on first I/O poll
+req 1   conn reset (instant)
+req 2   -
+========================
+========================
+client_timeout      0
+keep_alive          OS
+
+unchanged
+req 1   OK
+req 2   OK (~17s)
+
+set started on first I/O poll
+req 1   OK
+req 2   OK (~17s)
+========================
+========================
+client_timeout      0
+keep_alive          60
+
+unchanged
+req 1   OK
+req 2   OK (~17s)
+
+set started on first I/O poll
+req 1   OK
+req 2   OK (~17s)
+========================

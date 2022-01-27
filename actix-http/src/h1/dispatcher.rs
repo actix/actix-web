@@ -14,7 +14,7 @@ use actix_service::Service;
 use bitflags::bitflags;
 use bytes::{Buf, BytesMut};
 use futures_core::ready;
-use log::{error, trace};
+use log::error;
 use pin_project_lite::pin_project;
 
 use crate::{
@@ -38,20 +38,20 @@ const MAX_PIPELINED_MESSAGES: usize = 16;
 
 bitflags! {
     pub struct Flags: u8 {
-        /// Set when .... started?
-        const STARTED            = 0b0000_0001;
+        /// Set when first byte is read from stream.
+        const STARTED          = 0b0000_0001;
 
-        /// Set if keep-alive is active.
-        const KEEPALIVE          = 0b0000_0010;
+        /// Set if connection is in keep-alive state.
+        const KEEP_ALIVE       = 0b0000_0010;
 
         /// Set if in shutdown procedure.
-        const SHUTDOWN           = 0b0000_0100;
+        const SHUTDOWN         = 0b0000_0100;
 
         /// Set if read-half is disconnected.
-        const READ_DISCONNECT    = 0b0000_1000;
+        const READ_DISCONNECT  = 0b0000_1000;
 
         /// Set if write-half is disconnected.
-        const WRITE_DISCONNECT   = 0b0001_0000;
+        const WRITE_DISCONNECT = 0b0001_0000;
     }
 }
 
@@ -152,19 +152,69 @@ pin_project! {
         payload: Option<PayloadSender>,
         messages: VecDeque<DispatcherMessage>,
 
-        // Initialized as initial KA deadline or current time.
-        // Updated when messages are read from stream and after timer is used for
-        // first-request timeout.
-        ka_deadline: Instant,
+        // // Initialized as initial KA deadline or current time.
+        // // Updated when messages are read from stream and after timer is used for
+        // // first-request timeout.
+        // ka_deadline: Instant,
 
-        // Timer used for first-request, keep-alive, and shutdown timeouts.
-        #[pin]
-        timer: Option<Sleep>,
+        head_timer: TimerState,
+        ka_timer: TimerState,
+        shutdown_timer: TimerState,
 
         io: Option<T>,
         read_buf: BytesMut,
         write_buf: BytesMut,
         codec: Codec,
+    }
+}
+
+#[derive(Debug)]
+enum TimerState {
+    Disabled,
+    Inactive,
+    Active { timer: Pin<Box<Sleep>> },
+}
+
+impl TimerState {
+    fn new(enabled: bool) -> Self {
+        if enabled {
+            Self::Inactive
+        } else {
+            Self::Disabled
+        }
+    }
+
+    fn is_enabled(&self) -> bool {
+        matches!(self, Self::Active { .. } | Self::Inactive)
+    }
+
+    fn set(&mut self, timer: Sleep) {
+        *self = Self::Active {
+            timer: Box::pin(timer),
+        };
+    }
+}
+
+impl fmt::Display for TimerState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TimerState::Disabled => f.write_str("timer is disabled"),
+            TimerState::Inactive => f.write_str("timer is inactive"),
+            TimerState::Active { timer } => {
+                let deadline = timer.deadline();
+                let now = Instant::now();
+
+                if deadline < now {
+                    f.write_str("timer is active and has reached deadline")
+                } else {
+                    write!(
+                        f,
+                        "timer is active and due to expire in {} milliseconds",
+                        ((deadline - now).as_secs_f32() * 1000.0)
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -180,7 +230,6 @@ pin_project! {
     where
         S: Service<Request>,
         X: Service<Request, Response = Request>,
-
         B: MessageBody,
     {
         None,
@@ -194,16 +243,34 @@ pin_project! {
 impl<S, B, X> State<S, B, X>
 where
     S: Service<Request>,
-
     X: Service<Request, Response = Request>,
-
     B: MessageBody,
 {
-    fn is_empty(&self) -> bool {
+    fn is_none(&self) -> bool {
         matches!(self, State::None)
     }
 }
 
+impl<S, B, X> fmt::Debug for State<S, B, X>
+where
+    S: Service<Request>,
+    X: Service<Request, Response = Request>,
+    B: MessageBody,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::None => write!(f, "None"),
+            Self::ExpectCall { .. } => f.debug_struct("ExpectCall").finish_non_exhaustive(),
+            Self::ServiceCall { .. } => f.debug_struct("ServiceCall").finish_non_exhaustive(),
+            Self::SendPayload { .. } => f.debug_struct("SendPayload").finish_non_exhaustive(),
+            Self::SendErrorPayload { .. } => {
+                f.debug_struct("SendErrorPayload").finish_non_exhaustive()
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
 enum PollResponse {
     Upgrade(Request),
     DoNothing,
@@ -234,23 +301,11 @@ where
         peer_addr: Option<net::SocketAddr>,
         conn_data: OnConnectData,
     ) -> Self {
-        let flags = if config.keep_alive_enabled() {
-            Flags::KEEPALIVE
-        } else {
-            Flags::empty()
-        };
-
-        // keep-alive timer
-        let (ka_deadline, ka_timer) = match config.keep_alive_timer() {
-            Some(timer) => (timer.deadline(), Some(timer)),
-            None => (config.now(), None),
-        };
-
         Dispatcher {
             inner: DispatcherState::Normal {
                 inner: InnerDispatcher {
                     flow,
-                    flags,
+                    flags: Flags::empty(),
                     peer_addr,
                     conn_data: conn_data.0.map(Rc::new),
                     config: config.clone(),
@@ -260,8 +315,11 @@ where
                     payload: None,
                     messages: VecDeque::new(),
 
-                    ka_deadline,
-                    timer: ka_timer,
+                    head_timer: TimerState::new(config.client_request_deadline().is_some()),
+                    ka_timer: TimerState::new(config.keep_alive_enabled()),
+                    shutdown_timer: TimerState::new(
+                        config.client_disconnect_deadline().is_some(),
+                    ),
 
                     io: Some(io),
                     read_buf: BytesMut::with_capacity(HW_BUFFER_SIZE),
@@ -293,6 +351,8 @@ where
     U::Error: fmt::Display,
 {
     fn can_read(&self, cx: &mut Context<'_>) -> bool {
+        log::trace!("enter InnerDispatcher::can_read");
+
         if self.flags.contains(Flags::READ_DISCONNECT) {
             false
         } else if let Some(ref info) = self.payload {
@@ -304,6 +364,8 @@ where
 
     /// If checked is set to true, delay disconnect until all tasks have finished.
     fn client_disconnected(self: Pin<&mut Self>) {
+        log::trace!("enter InnerDispatcher::client_disconnect");
+
         let this = self.project();
 
         this.flags
@@ -315,6 +377,8 @@ where
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
+        log::trace!("enter InnerDispatcher::poll_flush");
+
         let InnerDispatcherProj { io, write_buf, .. } = self.project();
         let mut io = Pin::new(io.as_mut().unwrap());
 
@@ -324,7 +388,8 @@ where
         while written < len {
             match io.as_mut().poll_write(cx, &write_buf[written..])? {
                 Poll::Ready(0) => {
-                    return Poll::Ready(Err(io::Error::new(io::ErrorKind::WriteZero, "")))
+                    log::trace!("write zero error");
+                    return Poll::Ready(Err(io::Error::new(io::ErrorKind::WriteZero, "")));
                 }
 
                 Poll::Ready(n) => written += n,
@@ -348,6 +413,8 @@ where
         message: Response<()>,
         body: &impl MessageBody,
     ) -> Result<BodySize, DispatchError> {
+        log::trace!("enter InnerDispatcher::send_response_inner");
+
         let this = self.project();
 
         let size = body.size();
@@ -362,7 +429,7 @@ where
                 DispatchError::Io(err)
             })?;
 
-        this.flags.set(Flags::KEEPALIVE, this.codec.keepalive());
+        this.flags.set(Flags::KEEP_ALIVE, this.codec.keepalive());
 
         Ok(size)
     }
@@ -372,6 +439,8 @@ where
         message: Response<()>,
         body: B,
     ) -> Result<(), DispatchError> {
+        log::trace!("enter InnerDispatcher::send_response");
+
         let size = self.as_mut().send_response_inner(message, &body)?;
         let state = match size {
             BodySize::None | BodySize::Sized(0) => State::None,
@@ -387,6 +456,8 @@ where
         message: Response<()>,
         body: BoxBody,
     ) -> Result<(), DispatchError> {
+        log::trace!("enter InnerDispatcher::send_error_response");
+
         let size = self.as_mut().send_response_inner(message, &body)?;
 
         self.project().state.set(match size {
@@ -398,6 +469,8 @@ where
     }
 
     fn send_continue(self: Pin<&mut Self>) {
+        log::trace!("enter InnerDispatcher::send_continue");
+
         self.project()
             .write_buf
             .extend_from_slice(b"HTTP/1.1 100 Continue\r\n\r\n");
@@ -407,6 +480,8 @@ where
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Result<PollResponse, DispatchError> {
+        log::trace!("enter InnerDispatcher::poll_response");
+
         'res: loop {
             let mut this = self.as_mut().project();
             match this.state.as_mut().project() {
@@ -645,6 +720,8 @@ where
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Result<bool, DispatchError> {
+        log::trace!("enter InnerDispatcher::poll_request");
+
         let pipeline_queue_full = self.messages.len() >= MAX_PIPELINED_MESSAGES;
         let can_not_read = !self.can_read(cx);
 
@@ -657,10 +734,12 @@ where
         let mut this = self.as_mut().project();
 
         loop {
+            log::trace!("attempt to decode frame");
+
             match this.codec.decode(this.read_buf) {
                 Ok(Some(msg)) => {
                     updated = true;
-                    this.flags.insert(Flags::STARTED);
+                    // this.flags.insert(Flags::STARTED);
 
                     match msg {
                         Message::Item(mut req) => {
@@ -694,7 +773,7 @@ where
                             }
 
                             // handle request early when no future in InnerDispatcher state.
-                            if this.state.is_empty() {
+                            if this.state.is_none() {
                                 self.as_mut().handle_request(req, cx)?;
                                 this = self.as_mut().project();
                             } else {
@@ -734,7 +813,10 @@ where
 
                 // decode is partial and buffer is not full yet.
                 // break and wait for more read.
-                Ok(None) => break,
+                Ok(None) => {
+                    log::trace!("found partial frame");
+                    break;
+                }
 
                 Err(ParseError::Io(err)) => {
                     self.as_mut().client_disconnected();
@@ -778,87 +860,168 @@ where
             }
         }
 
-        if updated && this.timer.is_some() {
-            if let Some(expire) = this.config.keep_alive_deadline() {
-                *this.ka_deadline = expire;
-            }
-        }
+        // if updated && this.timer.is_some() {
+        //     if let Some(expire) = this.config.keep_alive_deadline() {
+        //         log::trace!("set keep-alive deadline");
+        //         *this.ka_deadline = expire;
+        //     }
+        // }
 
         Ok(updated)
     }
 
-    /// Poll first-request/keep-alive/disconnect timer.
-    fn poll_timer(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Result<(), DispatchError> {
-        let mut this = self.as_mut().project();
+    fn poll_head_timer(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Result<(), DispatchError> {
+        let this = self.as_mut().project();
 
-        match this.timer.as_mut().as_pin_mut() {
-            None => {
-                // conditionally go into shutdown timeout
-                if this.flags.contains(Flags::SHUTDOWN) {
-                    if let Some(deadline) = this.config.client_disconnect_deadline() {
-                        // write client disconnect time out and poll again to
-                        // go into Some(timer) branch
-                        this.timer.set(Some(sleep_until(deadline)));
-                        return self.poll_timer(cx);
-                    }
+        match this.head_timer {
+            TimerState::Active { timer } => {
+                if timer.as_mut().poll(cx).is_ready() {
+                    // timeout on first request (slow request) return 408
+
+                    log::trace!(
+                        "timed out on slow request; \
+                    replying with 408 and closing connection"
+                    );
+
+                    let _ = self.as_mut().send_error_response(
+                        Response::with_body(StatusCode::REQUEST_TIMEOUT, ()),
+                        BoxBody::new(()),
+                    );
+
+                    self.project().flags.insert(Flags::SHUTDOWN);
                 }
             }
+            TimerState::Inactive => {}
+            TimerState::Disabled => {}
+        };
 
-            Some(mut timer) => {
-                // only operate when keep-alive timer is resolved
+        Ok(())
+    }
+
+    fn poll_ka_timer(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Result<(), DispatchError> {
+        let this = self.as_mut().project();
+        match this.ka_timer {
+            TimerState::Disabled => {}
+            TimerState::Inactive => {}
+            TimerState::Active { timer } => {}
+        }
+
+        Ok(())
+    }
+
+    fn poll_shutdown_timer(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Result<(), DispatchError> {
+        let this = self.as_mut().project();
+        match this.shutdown_timer {
+            TimerState::Disabled => {}
+            TimerState::Inactive => {}
+            TimerState::Active { timer } => {
+                debug_assert!(
+                    this.flags.contains(Flags::SHUTDOWN),
+                    "shutdown flag should be set when timer is active"
+                );
+
                 if timer.as_mut().poll(cx).is_ready() {
-                    // timed-out during shutdown; drop connection
-                    if this.flags.contains(Flags::SHUTDOWN) {
-                        return Err(DispatchError::DisconnectTimeout);
-                    }
-
-                    // exceeded deadline; check for any outstanding tasks
-                    if timer.deadline() >= *this.ka_deadline {
-                        if this.state.is_empty() && this.write_buf.is_empty() {
-                            // have no task at hand
-                            if this.flags.contains(Flags::STARTED) {
-                                trace!("keep-alive timed out; closing connection");
-                                this.flags.insert(Flags::SHUTDOWN);
-
-                                // start shutdown timeout
-                                if let Some(deadline) = this.config.client_disconnect_deadline()
-                                {
-                                    timer.as_mut().reset(deadline);
-                                    let _ = timer.poll(cx);
-                                } else {
-                                    // no shutdown timeout, drop socket
-                                    this.flags.insert(Flags::WRITE_DISCONNECT);
-                                }
-                            } else {
-                                // timeout on first request (slow request) return 408
-
-                                trace!(
-                                    "timed out on slow request; \
-                                    replying with 408 and closing connection"
-                                );
-
-                                let _ = self.as_mut().send_error_response(
-                                    Response::with_body(StatusCode::REQUEST_TIMEOUT, ()),
-                                    BoxBody::new(()),
-                                );
-
-                                this = self.project();
-                                this.flags.insert(Flags::STARTED | Flags::SHUTDOWN);
-                            }
-                        } else if let Some(deadline) = this.config.keep_alive_deadline() {
-                            // still have unfinished task. try to reset and register keep-alive
-                            timer.as_mut().reset(deadline);
-                            let _ = timer.poll(cx);
-                        }
-                    } else {
-                        // timer resolved but still have not met the keep-alive expire deadline
-                        // reset and register for later wakeup
-                        timer.as_mut().reset(*this.ka_deadline);
-                        let _ = timer.poll(cx);
-                    }
+                    log::trace!("timed-out during shutdown");
+                    return Err(DispatchError::DisconnectTimeout);
                 }
+
+                // if this.flags.contains(Flags::SHUTDOWN) {
+                //     log::trace!("start shutdown timer");
+
+                //     if let Some(deadline) = this.config.client_disconnect_deadline() {
+                //         // write client disconnect time out and poll again to
+                //         // go into Some(timer) branch
+                //         this.timer.set(Some(sleep_until(deadline)));
+                //         return self.poll_timer(cx);
+                //     }
+                // }
             }
         }
+
+        Ok(())
+    }
+
+    /// Poll head/keep-alive/disconnect timer.
+    fn poll_timer(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Result<(), DispatchError> {
+        log::trace!("enter InnerDispatcher::poll_timer");
+        trace_timer_states(&self.head_timer, &self.ka_timer, &self.shutdown_timer);
+
+        self.as_mut().poll_head_timer(cx)?;
+        self.as_mut().poll_ka_timer(cx)?;
+        self.as_mut().poll_shutdown_timer(cx)?;
+
+        //     Some(mut timer) => {
+        //         let deadline = timer.deadline();
+
+        //         // only operate when timer is resolved
+        //         if timer.as_mut().poll(cx).is_ready() {
+        //             log::trace!("timer reached deadline");
+
+        //             // timed-out during shutdown; drop connection
+        //             if this.flags.contains(Flags::SHUTDOWN) {
+        //                 log::trace!("timed-out during shutdown");
+        //                 return Err(DispatchError::DisconnectTimeout);
+        //             }
+
+        //             // exceeded deadline; check for any outstanding tasks
+        //             if timer.deadline() >= *this.ka_deadline {
+        //                 if this.state.is_none() && this.write_buf.is_empty() {
+        //                     // no tasks at hand
+        //                     if this.flags.contains(Flags::KEEP_ALIVE) {
+        //                         log::trace!("timer timed out; closing connection");
+        //                         this.flags.insert(Flags::SHUTDOWN);
+
+        //                         // start shutdown timeout
+        //                         if let Some(deadline) = this.config.client_disconnect_deadline()
+        //                         {
+        //                             log::trace!("starting disconnect timer");
+        //                             timer.as_mut().reset(deadline);
+        //                             let _ = timer.poll(cx);
+        //                         } else {
+        //                             // no shutdown timeout, drop socket
+        //                             this.flags.insert(Flags::WRITE_DISCONNECT);
+        //                         }
+        //                     } else {
+        //                         // timeout on first request (slow request) return 408
+
+        //                         log::trace!(
+        //                             "timed out on slow request; \
+        //                             replying with 408 and closing connection"
+        //                         );
+
+        //                         let _ = self.as_mut().send_error_response(
+        //                             Response::with_body(StatusCode::REQUEST_TIMEOUT, ()),
+        //                             BoxBody::new(()),
+        //                         );
+
+        //                         this = self.project();
+        //                         this.flags.insert(Flags::STARTED | Flags::SHUTDOWN);
+        //                     }
+        //                 } else if let Some(deadline) = this.config.keep_alive_deadline() {
+        //                     // still have unfinished tasks; try to reset and register keep-alive
+        //                     log::trace!("starting keep-alive timer");
+        //                     timer.as_mut().reset(deadline);
+        //                     let _ = timer.poll(cx);
+        //                 }
+        //             } else {
+        //                 // timer resolved but still have not met the expire deadline
+        //                 // reset and register for later wakeup
+        //                 log::trace!("reset timer to keep-alive deadline");
+        //                 timer.as_mut().reset(*this.ka_deadline);
+        //                 let _ = timer.poll(cx);
+        //             }
+        //         }
+        //     }
+        // }
 
         Ok(())
     }
@@ -873,6 +1036,8 @@ where
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Result<bool, DispatchError> {
+        log::trace!("enter InnerDispatcher::read_available");
+
         let this = self.project();
 
         if this.flags.contains(Flags::READ_DISCONNECT) {
@@ -982,6 +1147,9 @@ where
 
     #[inline]
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        println!();
+        log::trace!("enter Dispatcher::poll");
+
         let this = self.as_mut().project();
 
         #[cfg(test)]
@@ -991,26 +1159,42 @@ where
 
         match this.inner.project() {
             DispatcherStateProj::Normal { mut inner } => {
+                log::trace!("current flags: {:?}", &inner.flags);
+
                 inner.as_mut().poll_timer(cx)?;
 
                 if inner.flags.contains(Flags::SHUTDOWN) {
                     if inner.flags.contains(Flags::WRITE_DISCONNECT) {
                         Poll::Ready(Ok(()))
                     } else {
-                        // flush buffer and wait on blocked.
+                        // flush buffer and wait on blocked
                         ready!(inner.as_mut().poll_flush(cx))?;
                         Pin::new(inner.project().io.as_mut().unwrap())
                             .poll_shutdown(cx)
                             .map_err(DispatchError::from)
                     }
                 } else {
-                    // read from io stream and fill read buffer.
+                    // read from I/O stream and fill read buffer
                     let should_disconnect = inner.as_mut().read_available(cx)?;
+
+                    if !inner.flags.contains(Flags::STARTED) {
+                        log::trace!("set started flag");
+                        inner.as_mut().project().flags.insert(Flags::STARTED);
+
+                        if let Some(deadline) = inner.config.client_request_deadline() {
+                            log::trace!("start head timer");
+                            inner
+                                .as_mut()
+                                .project()
+                                .head_timer
+                                .set(sleep_until(deadline));
+                        }
+                    }
 
                     inner.as_mut().poll_request(cx)?;
 
-                    // io stream should to be closed.
                     if should_disconnect {
+                        // I/O stream should to be closed
                         let inner = inner.as_mut().project();
                         inner.flags.insert(Flags::READ_DISCONNECT);
                         if let Some(mut payload) = inner.payload.take() {
@@ -1044,6 +1228,7 @@ where
                         // TODO: what? is WouldBlock good or bad?
                         // want to find a reference for this macOS behavior
                         if inner.as_mut().poll_flush(cx)?.is_pending() || !drain {
+                            log::trace!("break out of poll_response loop after poll_flush");
                             break;
                         }
                     }
@@ -1053,42 +1238,77 @@ where
                         return Poll::Ready(Ok(()));
                     }
 
-                    let is_empty = inner.state.is_empty();
+                    let state_is_none = inner.state.is_none();
 
                     let inner_p = inner.as_mut().project();
+
                     // read half is closed; we do not process any responses
-                    if inner_p.flags.contains(Flags::READ_DISCONNECT) && is_empty {
+                    if inner_p.flags.contains(Flags::READ_DISCONNECT) && state_is_none {
                         inner_p.flags.insert(Flags::SHUTDOWN);
                     }
 
                     // keep-alive and stream errors
-                    if is_empty && inner_p.write_buf.is_empty() {
+                    if state_is_none && inner_p.write_buf.is_empty() {
+                        log::trace!("state is None and write buf is empty");
+
                         if let Some(err) = inner_p.error.take() {
-                            Poll::Ready(Err(err))
+                            log::trace!("stream error {}", &err);
+                            return Poll::Ready(Err(err));
                         }
-                        // disconnect if keep-alive is not enabled
-                        else if inner_p.flags.contains(Flags::STARTED)
-                            && !inner_p.flags.intersects(Flags::KEEPALIVE)
-                        {
-                            inner_p.flags.insert(Flags::SHUTDOWN);
-                            self.poll(cx)
-                        }
+
+                        // // disconnect if keep-alive is not enabled
+                        // if inner_p.flags.contains(Flags::STARTED)
+                        //     && !inner_p.flags.contains(Flags::KEEP_ALIVE)
+                        // {
+                        //     log::trace!("shutdown because keep-alive is not enabled");
+                        //     inner_p.flags.insert(Flags::SHUTDOWN);
+                        //     return self.poll(cx);
+                        // }
+
                         // disconnect if shutdown
-                        else if inner_p.flags.contains(Flags::SHUTDOWN) {
-                            self.poll(cx)
-                        } else {
-                            Poll::Pending
+                        if inner_p.flags.contains(Flags::SHUTDOWN) {
+                            log::trace!("shutdown from shutdown flag");
+                            return self.poll(cx);
                         }
-                    } else {
-                        Poll::Pending
                     }
+
+                    log::trace!("but after all that, PENDING; wait for more data");
+
+                    trace_timer_states(
+                        inner_p.head_timer,
+                        inner_p.ka_timer,
+                        inner_p.shutdown_timer,
+                    );
+
+                    Poll::Pending
                 }
             }
+
             DispatcherStateProj::Upgrade { fut: upgrade } => upgrade.poll(cx).map_err(|err| {
                 error!("Upgrade handler error: {}", err);
                 DispatchError::Upgrade
             }),
         }
+    }
+}
+
+fn trace_timer_states(
+    head_timer: &TimerState,
+    ka_timer: &TimerState,
+    shutdown_timer: &TimerState,
+) {
+    log::trace!("timers:");
+
+    if head_timer.is_enabled() {
+        log::trace!("  head {}", &head_timer);
+    }
+
+    if ka_timer.is_enabled() {
+        log::trace!("  keep-alive {}", &ka_timer);
+    }
+
+    if shutdown_timer.is_enabled() {
+        log::trace!("  shutdown {}", &shutdown_timer);
     }
 }
 

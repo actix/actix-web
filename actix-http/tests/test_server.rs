@@ -200,7 +200,7 @@ async fn test_chunked_payload() {
 async fn test_slow_request() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .client_timeout(100)
+            .client_timeout(200)
             .keep_alive(2)
             .finish(|_| ok::<_, Infallible>(Response::ok()))
             .tcp()

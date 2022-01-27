@@ -228,19 +228,6 @@ struct DateService {
     handle: JoinHandle<()>,
 }
 
-impl fmt::Debug for DateService {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("DateService").finish_non_exhaustive()
-    }
-}
-
-impl Drop for DateService {
-    fn drop(&mut self) {
-        // stop the timer update async task on drop.
-        self.handle.abort();
-    }
-}
-
 impl DateService {
     fn new() -> Self {
         // shared date and timer for DateService and update async task.
@@ -269,6 +256,19 @@ impl DateService {
 
     fn set_date<F: FnMut(&Date)>(&self, mut f: F) {
         f(&self.current.get().0);
+    }
+}
+
+impl fmt::Debug for DateService {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DateService").finish_non_exhaustive()
+    }
+}
+
+impl Drop for DateService {
+    fn drop(&mut self) {
+        // stop the timer update async task on drop.
+        self.handle.abort();
     }
 }
 
