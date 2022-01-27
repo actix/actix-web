@@ -1147,7 +1147,6 @@ where
 
     #[inline]
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        println!();
         log::trace!("enter Dispatcher::poll");
 
         let this = self.as_mut().project();
