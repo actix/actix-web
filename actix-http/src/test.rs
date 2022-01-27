@@ -1,7 +1,7 @@
 //! Various testing helpers for use in internal and app tests.
 
 use std::{
-    cell::{Ref, RefCell},
+    cell::{Ref, RefCell, RefMut},
     io::{self, Read, Write},
     pin::Pin,
     rc::Rc,
@@ -157,10 +157,11 @@ fn parts(parts: &mut Option<Inner>) -> &mut Inner {
 }
 
 /// Async I/O test buffer.
+#[derive(Debug)]
 pub struct TestBuffer {
-    pub read_buf: BytesMut,
-    pub write_buf: BytesMut,
-    pub err: Option<io::Error>,
+    pub read_buf: Rc<RefCell<BytesMut>>,
+    pub write_buf: Rc<RefCell<BytesMut>>,
+    pub err: Option<Rc<io::Error>>,
 }
 
 impl TestBuffer {
@@ -170,9 +171,19 @@ impl TestBuffer {
         T: Into<BytesMut>,
     {
         Self {
-            read_buf: data.into(),
-            write_buf: BytesMut::new(),
+            read_buf: Rc::new(RefCell::new(data.into())),
+            write_buf: Rc::new(RefCell::new(BytesMut::new())),
             err: None,
+        }
+    }
+
+    // intentionally not using Clone trait
+    #[allow(dead_code)]
+    pub(crate) fn clone(&self) -> Self {
+        Self {
+            read_buf: self.read_buf.clone(),
+            write_buf: self.write_buf.clone(),
+            err: self.err.clone(),
         }
     }
 
@@ -181,23 +192,43 @@ impl TestBuffer {
         Self::new("")
     }
 
+    #[allow(dead_code)]
+    pub(crate) fn read_buf_slice(&self) -> Ref<'_, [u8]> {
+        Ref::map(self.read_buf.borrow(), |b| b.as_ref())
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn read_buf_slice_mut(&self) -> RefMut<'_, [u8]> {
+        RefMut::map(self.read_buf.borrow_mut(), |b| b.as_mut())
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn write_buf_slice(&self) -> Ref<'_, [u8]> {
+        Ref::map(self.write_buf.borrow(), |b| b.as_ref())
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn write_buf_slice_mut(&self) -> RefMut<'_, [u8]> {
+        RefMut::map(self.write_buf.borrow_mut(), |b| b.as_mut())
+    }
+
     /// Add data to read buffer.
     pub fn extend_read_buf<T: AsRef<[u8]>>(&mut self, data: T) {
-        self.read_buf.extend_from_slice(data.as_ref())
+        self.read_buf.borrow_mut().extend_from_slice(data.as_ref())
     }
 }
 
 impl io::Read for TestBuffer {
     fn read(&mut self, dst: &mut [u8]) -> Result<usize, io::Error> {
-        if self.read_buf.is_empty() {
+        if self.read_buf.borrow().is_empty() {
             if self.err.is_some() {
-                Err(self.err.take().unwrap())
+                Err(Rc::try_unwrap(self.err.take().unwrap()).unwrap())
             } else {
                 Err(io::Error::new(io::ErrorKind::WouldBlock, ""))
             }
         } else {
-            let size = std::cmp::min(self.read_buf.len(), dst.len());
-            let b = self.read_buf.split_to(size);
+            let size = std::cmp::min(self.read_buf.borrow().len(), dst.len());
+            let b = self.read_buf.borrow_mut().split_to(size);
             dst[..size].copy_from_slice(&b);
             Ok(size)
         }
@@ -206,7 +237,7 @@ impl io::Read for TestBuffer {
 
 impl io::Write for TestBuffer {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.write_buf.extend(buf);
+        RefCell::borrow_mut(&self.write_buf).extend(buf);
         Ok(buf.len())
     }
 
