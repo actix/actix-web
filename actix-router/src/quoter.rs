@@ -241,4 +241,16 @@ mod tests {
         let q = Quoter::new(b"", b"");
         assert_eq!(q.requote(b"/abc/../efg"), None);
     }
+
+    #[test]
+    fn pointless_safe_table() {
+        for safe_ch in 0..=127 {
+            let q = Quoter::new(&[safe_ch], b"");
+
+            for i in 0..=255 {
+                let test = format!("/%{:02X}/", i);
+                assert_eq!(q.requote(test.as_bytes()).unwrap(), &[b'/', i, b'/']);
+            }
+        }
+    }
 }
