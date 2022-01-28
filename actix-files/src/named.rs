@@ -301,7 +301,7 @@ impl NamedFile {
 
     /// Set content encoding for serving this file
     ///
-    /// Must be used with [`actix_web::middleware::Compress`] to take effect.
+    /// Must be used with `actix_web::middleware::Compress` to take effect.
     #[inline]
     pub fn set_content_encoding(mut self, enc: ContentEncoding) -> Self {
         self.encoding = Some(enc);
