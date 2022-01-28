@@ -21,7 +21,7 @@ jobs:
           RUSTDOCFLAGS: "-D warnings"
         with:
           command: doc
-          args: --no-deps --all-features --examples --workspace
+          args: --no-deps --all-features --workspace
 
   fmt:
     runs-on: ubuntu-latest
