@@ -50,6 +50,7 @@ pub struct Files {
     use_guards: Option<Rc<dyn Guard>>,
     guards: Vec<Rc<dyn Guard>>,
     hidden_files: bool,
+    try_compressed: bool,
 }
 
 impl fmt::Debug for Files {
@@ -74,6 +75,7 @@ impl Clone for Files {
             use_guards: self.use_guards.clone(),
             guards: self.guards.clone(),
             hidden_files: self.hidden_files,
+            try_compressed: self.try_compressed,
         }
     }
 }
@@ -120,6 +122,7 @@ impl Files {
             use_guards: None,
             guards: Vec::new(),
             hidden_files: false,
+            try_compressed: false,
         }
     }
 
@@ -321,6 +324,15 @@ impl Files {
         self.hidden_files = true;
         self
     }
+
+    /// Attempts to search for a suitable pre-compressed version of a file on disk before falling
+    /// back to the uncompressed version.
+    ///
+    /// Currently, `.gz`, `.br`, and `.zst` files are supported.
+    pub fn try_compressed(mut self) -> Self {
+        self.try_compressed = true;
+        self
+    }
 }
 
 impl HttpServiceFactory for Files {
@@ -372,6 +384,7 @@ impl ServiceFactory<ServiceRequest> for Files {
             file_flags: self.file_flags,
             guards: self.use_guards.clone(),
             hidden_files: self.hidden_files,
+            try_compressed: self.try_compressed,
         };
 
         if let Some(ref default) = *self.default.borrow() {

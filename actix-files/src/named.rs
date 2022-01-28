@@ -88,6 +88,49 @@ pub(crate) use tokio_uring::fs::File;
 
 use super::chunked;
 
+pub(crate) fn get_content_type_and_disposition(
+    path: &Path,
+) -> Result<(mime::Mime, ContentDisposition), io::Error> {
+    let filename = match path.file_name() {
+        Some(name) => name.to_string_lossy(),
+        None => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Provided path has no filename",
+            ));
+        }
+    };
+
+    let ct = from_path(&path).first_or_octet_stream();
+
+    let disposition = match ct.type_() {
+        mime::IMAGE | mime::TEXT | mime::VIDEO => DispositionType::Inline,
+        mime::APPLICATION => match ct.subtype() {
+            mime::JAVASCRIPT | mime::JSON => DispositionType::Inline,
+            name if name == "wasm" => DispositionType::Inline,
+            _ => DispositionType::Attachment,
+        },
+        _ => DispositionType::Attachment,
+    };
+
+    let mut parameters = vec![DispositionParam::Filename(String::from(filename.as_ref()))];
+
+    if !filename.is_ascii() {
+        parameters.push(DispositionParam::FilenameExt(ExtendedValue {
+            charset: Charset::Ext(String::from("UTF-8")),
+            language_tag: None,
+            value: filename.into_owned().into_bytes(),
+        }))
+    }
+
+    let cd = ContentDisposition {
+        disposition,
+        parameters,
+    };
+
+    Ok((ct, cd))
+}
+
 impl NamedFile {
     /// Creates an instance from a previously opened file.
     ///
@@ -114,47 +157,7 @@ impl NamedFile {
 
         // Get the name of the file and use it to construct default Content-Type
         // and Content-Disposition values
-        let (content_type, content_disposition) = {
-            let filename = match path.file_name() {
-                Some(name) => name.to_string_lossy(),
-                None => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        "Provided path has no filename",
-                    ));
-                }
-            };
-
-            let ct = from_path(&path).first_or_octet_stream();
-
-            let disposition = match ct.type_() {
-                mime::IMAGE | mime::TEXT | mime::VIDEO => DispositionType::Inline,
-                mime::APPLICATION => match ct.subtype() {
-                    mime::JAVASCRIPT | mime::JSON => DispositionType::Inline,
-                    name if name == "wasm" => DispositionType::Inline,
-                    _ => DispositionType::Attachment,
-                },
-                _ => DispositionType::Attachment,
-            };
-
-            let mut parameters =
-                vec![DispositionParam::Filename(String::from(filename.as_ref()))];
-
-            if !filename.is_ascii() {
-                parameters.push(DispositionParam::FilenameExt(ExtendedValue {
-                    charset: Charset::Ext(String::from("UTF-8")),
-                    language_tag: None,
-                    value: filename.into_owned().into_bytes(),
-                }))
-            }
-
-            let cd = ContentDisposition {
-                disposition,
-                parameters,
-            };
-
-            (ct, cd)
-        };
+        let (content_type, content_disposition) = get_content_type_and_disposition(&path)?;
 
         let md = {
             #[cfg(not(feature = "experimental-io-uring"))]

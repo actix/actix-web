@@ -1,4 +1,9 @@
-use std::{fmt, io, ops::Deref, path::PathBuf, rc::Rc};
+use std::{
+    fmt, io,
+    ops::Deref,
+    path::{Path, PathBuf},
+    rc::Rc,
+};
 
 use actix_web::{
     body::BoxBody,
@@ -39,6 +44,7 @@ pub struct FilesServiceInner {
     pub(crate) file_flags: named::Flags,
     pub(crate) guards: Option<Rc<dyn Guard>>,
     pub(crate) hidden_files: bool,
+    pub(crate) try_compressed: bool,
 }
 
 impl fmt::Debug for FilesServiceInner {
@@ -62,10 +68,11 @@ impl FilesService {
         }
     }
 
-    fn serve_named_file(
+    fn serve_named_file_with_encoding(
         &self,
         req: ServiceRequest,
         mut named_file: NamedFile,
+        encoding: header::ContentEncoding,
     ) -> ServiceResponse {
         if let Some(ref mime_override) = self.mime_override {
             let new_disposition = mime_override(&named_file.content_type.type_());
@@ -74,8 +81,28 @@ impl FilesService {
         named_file.flags = self.file_flags;
 
         let (req, _) = req.into_parts();
-        let res = named_file.into_response(&req);
+        let mut res = named_file.into_response(&req);
+
+        let header_value = match encoding {
+            header::ContentEncoding::Brotli => Some("br"),
+            header::ContentEncoding::Gzip => Some("gzip"),
+            header::ContentEncoding::Zstd => Some("zstd"),
+            header::ContentEncoding::Identity => None,
+            // Only variants in SUPPORTED_PRECOMPRESSION_ENCODINGS can occur here
+            _ => unreachable!(),
+        };
+        if let Some(header_value) = header_value {
+            res.headers_mut().insert(
+                actix_web::http::header::CONTENT_ENCODING,
+                actix_web::http::header::HeaderValue::from_static(header_value),
+            );
+        }
+
         ServiceResponse::new(req, res)
+    }
+
+    fn serve_named_file(&self, req: ServiceRequest, named_file: NamedFile) -> ServiceResponse {
+        self.serve_named_file_with_encoding(req, named_file, header::ContentEncoding::Identity)
     }
 
     fn show_index(&self, req: ServiceRequest, path: PathBuf) -> ServiceResponse {
@@ -161,6 +188,16 @@ impl Service<ServiceRequest> for FilesService {
                 match this.index {
                     Some(ref index) => {
                         let named_path = path.join(index);
+                        if this.try_compressed {
+                            if let Some((named_file, encoding)) =
+                                find_compressed(&req, &named_path).await
+                            {
+                                return Ok(this.serve_named_file_with_encoding(
+                                    req, named_file, encoding,
+                                ));
+                            }
+                        }
+                        // fallback to the uncompressed version
                         match NamedFile::open_async(named_path).await {
                             Ok(named_file) => Ok(this.serve_named_file(req, named_file)),
                             Err(_) if this.show_index => Ok(this.show_index(req, path)),
@@ -174,22 +211,95 @@ impl Service<ServiceRequest> for FilesService {
                     )),
                 }
             } else {
-                match NamedFile::open_async(&path).await {
-                    Ok(mut named_file) => {
-                        if let Some(ref mime_override) = this.mime_override {
-                            let new_disposition =
-                                mime_override(&named_file.content_type.type_());
-                            named_file.content_disposition.disposition = new_disposition;
-                        }
-                        named_file.flags = this.file_flags;
-
-                        let (req, _) = req.into_parts();
-                        let res = named_file.into_response(&req);
-                        Ok(ServiceResponse::new(req, res))
+                if this.try_compressed {
+                    if let Some((named_file, encoding)) = find_compressed(&req, &path).await {
+                        return Ok(
+                            this.serve_named_file_with_encoding(req, named_file, encoding)
+                        );
                     }
+                }
+                // fallback to the uncompressed version
+                match NamedFile::open_async(&path).await {
+                    Ok(named_file) => Ok(this.serve_named_file(req, named_file)),
                     Err(err) => this.handle_err(err, req).await,
                 }
             }
         })
     }
+}
+
+/// Flate doesn't have an accepted file extension, so it is not included here.
+const SUPPORTED_PRECOMPRESSION_ENCODINGS: &[header::ContentEncoding] = &[
+    header::ContentEncoding::Brotli,
+    header::ContentEncoding::Gzip,
+    header::ContentEncoding::Zstd,
+    header::ContentEncoding::Identity,
+];
+
+/// Searches disk for an acceptable alternate encoding of the content at the given path, as
+/// preferred by the request's `Accept-Encoding` header. Returns the corresponding `NamedFile` with
+/// the most appropriate supported encoding, if any exist.
+async fn find_compressed(
+    req: &ServiceRequest,
+    original_path: &Path,
+) -> Option<(NamedFile, header::ContentEncoding)> {
+    use actix_web::HttpMessage;
+    use header::{ContentEncoding, Encoding, Preference};
+
+    // Retrieve the content type and content disposition based on the original filename. If we
+    // can't get these successfully, don't even try to find a compressed file.
+    let (content_type, content_disposition) =
+        match crate::named::get_content_type_and_disposition(original_path) {
+            Ok(values) => values,
+            Err(_) => return None,
+        };
+
+    let accept_encoding = req.get_header::<actix_web::http::header::AcceptEncoding>();
+    let ranked_encodings = accept_encoding
+        .map(|encodings| encodings.ranked())
+        .unwrap_or_else(Vec::new);
+
+    let ranked_encodings_iter = ranked_encodings
+        .into_iter()
+        .filter_map(|e| match e {
+            Preference::Any | Preference::Specific(Encoding::Unknown(_)) => None,
+            Preference::Specific(Encoding::Known(encoding)) => Some(encoding),
+        })
+        .filter_map(|encoding| {
+            if !SUPPORTED_PRECOMPRESSION_ENCODINGS.contains(&encoding) {
+                return None;
+            }
+            let extension = match encoding {
+                ContentEncoding::Brotli => Some(".br"),
+                ContentEncoding::Gzip => Some(".gz"),
+                ContentEncoding::Zstd => Some(".zst"),
+                ContentEncoding::Identity => None,
+                // Only variants in SUPPORTED_PRECOMPRESSION_ENCODINGS can occur here
+                _ => unreachable!(),
+            };
+            let path = match extension {
+                Some(extension) => {
+                    let mut compressed_path = original_path.to_owned();
+                    let filename = compressed_path
+                        .file_name()
+                        .unwrap()
+                        .to_str()
+                        .unwrap()
+                        .to_string();
+                    compressed_path.set_file_name(filename + extension);
+                    compressed_path
+                }
+                None => original_path.to_owned(),
+            };
+            Some((path, encoding))
+        });
+    for (path, encoding) in ranked_encodings_iter {
+        // Ignore errors while searching disk for a suitable encoding
+        if let Ok(mut named_file) = NamedFile::open_async(&path).await {
+            named_file.content_type = content_type;
+            named_file.content_disposition = content_disposition;
+            return Some((named_file, encoding));
+        }
+    }
+    None
 }
