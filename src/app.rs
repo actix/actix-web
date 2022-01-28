@@ -238,8 +238,12 @@ where
 
     /// Default service that is invoked when no matching resource could be found.
     ///
-    /// You must use a [`Route`] as default service:
+    /// You can use a [`Route`] as default service.
     ///
+    /// If a default service is not registered, an empty `404 Not Found` response will be sent to
+    /// the client instead.
+    ///
+    /// # Examples
     /// ```
     /// use actix_web::{web, App, HttpResponse};
     ///
@@ -248,10 +252,8 @@ where
     /// }
     ///
     /// let app = App::new()
-    ///     .service(
-    ///         web::resource("/index.html").route(web::get().to(index)))
-    ///     .default_service(
-    ///         web::route().to(|| HttpResponse::NotFound()));
+    ///     .service(web::resource("/index.html").route(web::get().to(index)))
+    ///     .default_service(web::to(|| HttpResponse::NotFound()));
     /// ```
     pub fn default_service<F, U>(mut self, svc: F) -> Self
     where

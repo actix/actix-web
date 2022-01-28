@@ -262,10 +262,10 @@ where
         )
     }
 
-    /// Default service to be used if no matching route could be found.
+    /// Default service to be used if no matching resource could be found.
     ///
     /// If a default service is not registered, it will fall back to the default service of
-    /// the parent [`App`](crate::App) (see [`App::default_service`](crate::App::default_service).
+    /// the parent [`App`](crate::App) (see [`App::default_service`](crate::App::default_service)).
     pub fn default_service<F, U>(mut self, f: F) -> Self
     where
         F: IntoServiceFactory<U, ServiceRequest>,

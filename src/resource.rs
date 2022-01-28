@@ -312,11 +312,13 @@ where
         }
     }
 
-    /// Default service to be used if no matching route could be found.  
-    /// You can pass a [`Route`] as default_service.
+    /// Default service to be used if no matching route could be found.
     ///
-    /// If no default service is specified, a `405 Method Not Allowed` response will be returned to the caller.  
-    /// [`Resource`] does **not** inherit the default handler specified on the parent [`App`](crate::App) or [`Scope`](crate::Scope).
+    /// You can use a [`Route`] as default service.
+    ///
+    /// If a default service is not registered, an empty `405 Method Not Allowed` response will be
+    /// sent to the client instead. Unlike [`Scope`](crate::Scope)s, a [`Resource`] does **not**
+    /// inherit its parent's default service.
     pub fn default_service<F, U>(mut self, f: F) -> Self
     where
         F: IntoServiceFactory<U, ServiceRequest>,
