@@ -239,7 +239,7 @@ where
     /// Default service that is invoked when no matching resource could be found.
     ///
     /// You must use a [`Route`] as default service:
-    /// 
+    ///
     /// ```
     /// use actix_web::{web, App, HttpResponse};
     ///
