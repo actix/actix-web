@@ -197,7 +197,9 @@ async fn test_chunked_payload() {
 }
 
 #[actix_rt::test]
-async fn test_slow_request_close() {
+async fn slow_request_close() {
+    let _ = env_logger::try_init();
+
     let mut srv = test_server(|| {
         HttpService::build()
             .client_timeout(200)
@@ -309,8 +311,6 @@ async fn test_http1_keepalive() {
 
 #[actix_rt::test]
 async fn test_http1_keepalive_timeout() {
-    let _ = env_logger::try_init();
-
     let mut srv = test_server(|| {
         HttpService::build()
             .keep_alive(1)
