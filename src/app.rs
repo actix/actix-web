@@ -238,7 +238,9 @@ where
 
     /// Default service to be used if no matching resource could be found.
     ///
-    /// It is possible to use services like `Resource`, `Route`.
+    /// It is possible to use services like `Route` and [`NamedFile`].
+    ///
+    /// [`NamedFile`]: https://docs.rs/actix-files/latest/actix_files/struct.NamedFile.html
     ///
     /// ```
     /// use actix_web::{web, App, HttpResponse};

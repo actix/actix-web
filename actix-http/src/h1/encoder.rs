@@ -318,16 +318,17 @@ impl MessageType for RequestHeadType {
 }
 
 impl<T: MessageType> MessageEncoder<T> {
-    /// Encode message
+    /// Encode chunk.
     pub fn encode_chunk(&mut self, msg: &[u8], buf: &mut BytesMut) -> io::Result<bool> {
         self.te.encode(msg, buf)
     }
 
-    /// Encode eof
+    /// Encode EOF.
     pub fn encode_eof(&mut self, buf: &mut BytesMut) -> io::Result<()> {
         self.te.encode_eof(buf)
     }
 
+    /// Encode message.
     pub fn encode(
         &mut self,
         dst: &mut BytesMut,

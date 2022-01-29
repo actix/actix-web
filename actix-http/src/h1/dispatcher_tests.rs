@@ -17,7 +17,7 @@ use crate::{
     h1::{Codec, ExpectHandler, UpgradeHandler},
     service::HttpFlow,
     test::{TestBuffer, TestSeqBuffer},
-    Error, HttpMessage, KeepAlive, Method, OnConnectData, Request, Response,
+    Error, HttpMessage, KeepAlive, Method, OnConnectData, Request, Response, StatusCode,
 };
 
 fn find_slice(haystack: &[u8], needle: &[u8], from: usize) -> Option<usize> {
@@ -34,7 +34,13 @@ fn stabilize_date_header(payload: &mut [u8]) {
 }
 
 fn ok_service() -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error> {
-    fn_service(|_req: Request| ready(Ok::<_, Error>(Response::ok())))
+    status_service(StatusCode::OK)
+}
+
+fn status_service(
+    status: StatusCode,
+) -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error> {
+    fn_service(move |_req: Request| ready(Ok::<_, Error>(Response::new(status))))
 }
 
 fn echo_path_service(
@@ -127,7 +133,7 @@ async fn late_request() {
 }
 
 #[actix_rt::test]
-async fn test_basic() {
+async fn oneshot_connection() {
     let buf = TestBuffer::new("GET /abcd HTTP/1.1\r\n\r\n");
 
     let cfg = ServiceConfig::new(KeepAlive::Disabled, 100, 0, false, None);
@@ -179,7 +185,7 @@ async fn test_basic() {
 }
 
 #[actix_rt::test]
-async fn test_keep_alive_timeout() {
+async fn keep_alive_timeout() {
     let buf = TestBuffer::new("GET /abcd HTTP/1.1\r\n\r\n");
 
     let cfg = ServiceConfig::new(KeepAlive::Timeout(1), 100, 0, false, None);
@@ -252,7 +258,7 @@ async fn test_keep_alive_timeout() {
 }
 
 #[actix_rt::test]
-async fn test_keep_alive_follow_up_req() {
+async fn keep_alive_follow_up_req() {
     let mut buf = TestBuffer::new("GET /abcd HTTP/1.1\r\n\r\n");
 
     let cfg = ServiceConfig::new(KeepAlive::Timeout(2), 100, 0, false, None);
@@ -371,7 +377,7 @@ async fn test_keep_alive_follow_up_req() {
 }
 
 #[actix_rt::test]
-async fn test_req_parse_err() {
+async fn req_parse_err() {
     lazy(|cx| {
         let buf = TestBuffer::new("GET /test HTTP/1\r\n\r\n");
 
@@ -531,7 +537,7 @@ async fn pipelining_ok_then_bad() {
 }
 
 #[actix_rt::test]
-async fn test_expect() {
+async fn expect_handling() {
     lazy(|cx| {
         let mut buf = TestSeqBuffer::empty();
         let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
@@ -562,7 +568,6 @@ async fn test_expect() {
 
         // polls: manual
         assert_eq!(h1.poll_count, 1);
-        eprintln!("poll count: {}", h1.poll_count);
 
         if let DispatcherState::Normal { ref inner } = h1.inner {
             let io = inner.io.as_ref().unwrap();
@@ -603,7 +608,7 @@ async fn test_expect() {
 }
 
 #[actix_rt::test]
-async fn test_eager_expect() {
+async fn expect_eager() {
     lazy(|cx| {
         let mut buf = TestSeqBuffer::empty();
         let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
@@ -663,7 +668,7 @@ async fn test_eager_expect() {
 }
 
 #[actix_rt::test]
-async fn test_upgrade() {
+async fn upgrade_handling() {
     struct TestUpgrade;
 
     impl<T> Service<(Request, Framed<T, Codec>)> for TestUpgrade {

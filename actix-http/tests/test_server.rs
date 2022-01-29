@@ -197,7 +197,40 @@ async fn test_chunked_payload() {
 }
 
 #[actix_rt::test]
-async fn test_slow_request() {
+async fn test_slow_request_close() {
+    let mut srv = test_server(|| {
+        HttpService::build()
+            .client_timeout(200)
+            .keep_alive(2)
+            .finish(|_| ok::<_, Infallible>(Response::ok()))
+            .tcp()
+    })
+    .await;
+
+    let start = Instant::now();
+
+    let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
+
+    sleep(Duration::from_secs(1)).await;
+
+    let mut data = Vec::new();
+    let _ = stream.read(&mut data).unwrap();
+    assert!(
+        data.is_empty(),
+        "connection should close without writing a response"
+    );
+
+    let end = Instant::now();
+
+    if end.duration_since(start) > Duration::from_secs(1) {
+        panic!("request took way too long to time out");
+    }
+
+    srv.stop().await;
+}
+
+#[actix_rt::test]
+async fn test_slow_request_408() {
     let mut srv = test_server(|| {
         HttpService::build()
             .client_timeout(200)

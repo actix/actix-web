@@ -28,9 +28,10 @@ pub use self::utils::SendResponse;
 #[derive(Debug)]
 /// Codec message
 pub enum Message<T> {
-    /// Http message
+    /// HTTP message.
     Item(T),
-    /// Payload chunk
+
+    /// Payload chunk.
     Chunk(Option<Bytes>),
 }
 

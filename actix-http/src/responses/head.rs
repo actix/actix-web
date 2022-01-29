@@ -208,16 +208,20 @@ mod tests {
     };
 
     use memchr::memmem;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt, Interest};
 
     use crate::{
+        h1::H1Service,
         header::{HeaderName, HeaderValue},
-        Error, HttpService, Request, Response,
+        Error, Request, Response, ServiceConfig,
     };
 
     #[actix_rt::test]
     async fn camel_case_headers() {
+        let _ = env_logger::try_init();
+
         let mut srv = actix_http_test::test_server(|| {
-            HttpService::new(|req: Request| async move {
+            H1Service::with_config(ServiceConfig::default(), |req: Request| async move {
                 let mut res = Response::ok();
 
                 if req.path().contains("camel") {
@@ -228,16 +232,21 @@ mod tests {
                     HeaderName::from_static("foo-bar"),
                     HeaderValue::from_static("baz"),
                 );
+
                 Ok::<_, Error>(res)
             })
             .tcp()
         })
         .await;
 
-        let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
-        let _ = stream.write_all(b"GET /camel HTTP/1.1\r\nConnection: Close\r\n\r\n");
+        let mut stream = tokio::net::TcpStream::connect(srv.addr()).await.unwrap();
+        dbg!(stream.ready(Interest::WRITABLE).await.unwrap());
+        let _ = stream
+            .write_all(b"GET /camel HTTP/1.1\r\nConnection: Close\r\n\r\n")
+            .await
+            .unwrap();
         let mut data = vec![0; 1024];
-        let _ = stream.read(&mut data);
+        let _ = stream.read_to_end(&mut data).await.unwrap();
         assert_eq!(&data[..17], b"HTTP/1.1 200 OK\r\n");
         assert!(memmem::find(&data, b"Foo-Bar").is_some());
         assert!(memmem::find(&data, b"foo-bar").is_none());
@@ -247,9 +256,11 @@ mod tests {
         assert!(memmem::find(&data, b"content-length").is_none());
 
         let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
-        let _ = stream.write_all(b"GET /lower HTTP/1.1\r\nConnection: Close\r\n\r\n");
+        let _ = stream
+            .write_all(b"GET /lower HTTP/1.1\r\nConnection: Close\r\n\r\n")
+            .unwrap();
         let mut data = vec![0; 1024];
-        let _ = stream.read(&mut data);
+        let _ = stream.read_to_end(&mut data).unwrap();
         assert_eq!(&data[..17], b"HTTP/1.1 200 OK\r\n");
         assert!(memmem::find(&data, b"Foo-Bar").is_none());
         assert!(memmem::find(&data, b"foo-bar").is_some());

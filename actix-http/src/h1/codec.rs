@@ -179,9 +179,11 @@ impl Encoder<Message<(Response<()>, BodySize)>> for Codec {
                     &self.config,
                 )?;
             }
+
             Message::Chunk(Some(bytes)) => {
                 self.encoder.encode_chunk(bytes.as_ref(), dst)?;
             }
+
             Message::Chunk(None) => {
                 self.encoder.encode_eof(dst)?;
             }
