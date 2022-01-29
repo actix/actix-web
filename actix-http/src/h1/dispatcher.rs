@@ -195,6 +195,7 @@ impl TimerState {
         };
     }
 
+    #[allow(dead_code)]
     fn reset(&mut self, deadline: Instant, line: u32) {
         if !self.is_enabled() {
             log::warn!("resetting disabled timer from line {}", line);
@@ -999,7 +1000,8 @@ where
             );
             debug_assert!(
                 this.state.is_none(),
-                "dispatcher should not be in keep-alive phase if state is not none",
+                "dispatcher should not be in keep-alive phase if state is not none: {:?}",
+                this.state,
             );
             debug_assert!(
                 this.write_buf.is_empty(),
@@ -1134,6 +1136,8 @@ where
                 Poll::Ready(Ok(n)) => {
                     log::trace!("  read {} bytes", n);
 
+                    this.flags.remove(Flags::FINISHED);
+
                     if n == 0 {
                         log::trace!("  signalling should_disconnect");
                         return Ok(true);
@@ -1141,10 +1145,12 @@ where
 
                     read_some = true;
                 }
+
                 Poll::Pending => {
                     log::trace!("  read pending");
                     return Ok(false);
                 }
+
                 Poll::Ready(Err(err)) => {
                     log::trace!("  read err: {:?}", &err);
 
@@ -1259,7 +1265,7 @@ where
                             PollResponse::DrainWriteBuf => true,
 
                             PollResponse::DoNothing => {
-                                if inner.flags.contains(Flags::KEEP_ALIVE) {
+                                if inner.flags.contains(Flags::FINISHED | Flags::KEEP_ALIVE) {
                                     if let Some(deadline) = inner.config.keep_alive_timer() {
                                         log::trace!("setting keep-alive timer");
                                         inner.as_mut().project().ka_timer.set_and_init(

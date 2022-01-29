@@ -198,8 +198,6 @@ async fn test_chunked_payload() {
 
 #[actix_rt::test]
 async fn slow_request_close() {
-    let _ = env_logger::try_init();
-
     let mut srv = test_server(|| {
         HttpService::build()
             .client_timeout(200)
@@ -213,18 +211,21 @@ async fn slow_request_close() {
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
 
-    sleep(Duration::from_secs(1)).await;
-
-    let mut data = Vec::new();
-    let _ = stream.read(&mut data).unwrap();
+    let mut data = String::new();
+    let _ = stream.read_to_string(&mut data).unwrap();
     assert!(
-        data.is_empty(),
-        "connection should close without writing a response"
+        data.starts_with("HTTP/1.1 408 Request Timeout"),
+        "response was not 408: {}",
+        data
     );
 
-    let end = Instant::now();
+    let diff = Instant::now().duration_since(start);
 
-    if end.duration_since(start) > Duration::from_secs(1) {
+    if diff < Duration::from_secs(1) {
+        // test success
+    } else if diff < Duration::from_secs(3) {
+        panic!("request seems to have wrongly timed-out according to keep-alive");
+    } else {
         panic!("request took way too long to time out");
     }
 
@@ -232,7 +233,7 @@ async fn slow_request_close() {
 }
 
 #[actix_rt::test]
-async fn test_slow_request_408() {
+async fn slow_request_408() {
     let mut srv = test_server(|| {
         HttpService::build()
             .client_timeout(200)
@@ -245,7 +246,7 @@ async fn test_slow_request_408() {
     let start = Instant::now();
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
-    let _ = stream.write_all(b"GET /test/tests/test HTTP/1.1\r\n");
+    let _ = stream.write_all(b"GET /test HTTP/1.1\r\n");
     let mut data = String::new();
     let _ = stream.read_to_string(&mut data);
     assert!(
@@ -254,8 +255,7 @@ async fn test_slow_request_408() {
         data
     );
 
-    let end = Instant::now();
-    let diff = end - start;
+    let diff = Instant::now().duration_since(start);
 
     if diff < Duration::from_secs(1) {
         // test success
