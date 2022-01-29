@@ -13,6 +13,7 @@ mod encoder;
 mod expect;
 mod payload;
 mod service;
+mod timer;
 mod upgrade;
 mod utils;
 
