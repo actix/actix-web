@@ -18,8 +18,8 @@ pub(crate) const DATE_VALUE_LENGTH: usize = 29;
 #[derive(Debug, PartialEq, Clone, Copy)]
 /// Server keep-alive setting
 pub enum KeepAlive {
-    /// Keep-alive time in seconds.
-    Timeout(usize),
+    /// Keep-alive duration.
+    Timeout(Duration),
 
     /// Rely on OS to shutdown TCP connection.
     Os,
@@ -28,18 +28,23 @@ pub enum KeepAlive {
     Disabled,
 }
 
+impl Default for KeepAlive {
+    fn default() -> Self {
+        Self::Timeout(Duration::from_secs(5))
+    }
+}
+
 impl From<usize> for KeepAlive {
-    fn from(keepalive: usize) -> Self {
-        KeepAlive::Timeout(keepalive)
+    fn from(ka_secs: usize) -> Self {
+        KeepAlive::Timeout(Duration::from_secs(ka_secs as u64))
     }
 }
 
 impl From<Option<usize>> for KeepAlive {
-    fn from(keepalive: Option<usize>) -> Self {
-        if let Some(keepalive) = keepalive {
-            KeepAlive::Timeout(keepalive)
-        } else {
-            KeepAlive::Disabled
+    fn from(ka_secs_opt: Option<usize>) -> Self {
+        match ka_secs_opt {
+            Some(ka_secs) => KeepAlive::Timeout(Duration::from_secs(ka_secs as u64)),
+            None => KeepAlive::Disabled,
         }
     }
 }
@@ -61,7 +66,7 @@ struct Inner {
 
 impl Default for ServiceConfig {
     fn default() -> Self {
-        Self::new(KeepAlive::Timeout(5), 0, 0, false, None)
+        Self::new(KeepAlive::default(), 0, 0, false, None)
     }
 }
 
@@ -75,13 +80,13 @@ impl ServiceConfig {
         local_addr: Option<net::SocketAddr>,
     ) -> ServiceConfig {
         let (keep_alive, ka_enabled) = match keep_alive {
-            KeepAlive::Timeout(val) => (val as u64, true),
-            KeepAlive::Os => (0, true),
-            KeepAlive::Disabled => (0, false),
+            KeepAlive::Timeout(Duration::ZERO) => (Duration::ZERO, false),
+            KeepAlive::Timeout(val) => (val, true),
+            KeepAlive::Os => (Duration::ZERO, true),
+            KeepAlive::Disabled => (Duration::ZERO, false),
         };
 
-        let keep_alive =
-            (ka_enabled && keep_alive > 0).then(|| Duration::from_secs(keep_alive));
+        let keep_alive = ka_enabled.then(|| keep_alive);
 
         ServiceConfig(Rc::new(Inner {
             keep_alive,

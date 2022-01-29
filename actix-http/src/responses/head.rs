@@ -208,7 +208,6 @@ mod tests {
     };
 
     use memchr::memmem;
-    use tokio::io::{AsyncReadExt, AsyncWriteExt, Interest};
 
     use crate::{
         h1::H1Service,
@@ -239,14 +238,12 @@ mod tests {
         })
         .await;
 
-        let mut stream = tokio::net::TcpStream::connect(srv.addr()).await.unwrap();
-        dbg!(stream.ready(Interest::WRITABLE).await.unwrap());
+        let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
         let _ = stream
             .write_all(b"GET /camel HTTP/1.1\r\nConnection: Close\r\n\r\n")
-            .await
             .unwrap();
-        let mut data = vec![0; 1024];
-        let _ = stream.read_to_end(&mut data).await.unwrap();
+        let mut data = vec![0; 256];
+        let _ = stream.read(&mut data).unwrap();
         assert_eq!(&data[..17], b"HTTP/1.1 200 OK\r\n");
         assert!(memmem::find(&data, b"Foo-Bar").is_some());
         assert!(memmem::find(&data, b"foo-bar").is_none());
@@ -259,8 +256,8 @@ mod tests {
         let _ = stream
             .write_all(b"GET /lower HTTP/1.1\r\nConnection: Close\r\n\r\n")
             .unwrap();
-        let mut data = vec![0; 1024];
-        let _ = stream.read_to_end(&mut data).unwrap();
+        let mut data = vec![0; 256];
+        let _ = stream.read(&mut data).unwrap();
         assert_eq!(&data[..17], b"HTTP/1.1 200 OK\r\n");
         assert!(memmem::find(&data, b"Foo-Bar").is_none());
         assert!(memmem::find(&data, b"foo-bar").is_some());

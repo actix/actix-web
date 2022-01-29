@@ -188,7 +188,13 @@ async fn oneshot_connection() {
 async fn keep_alive_timeout() {
     let buf = TestBuffer::new("GET /abcd HTTP/1.1\r\n\r\n");
 
-    let cfg = ServiceConfig::new(KeepAlive::Timeout(1), 100, 0, false, None);
+    let cfg = ServiceConfig::new(
+        KeepAlive::Timeout(Duration::from_millis(200)),
+        100,
+        0,
+        false,
+        None,
+    );
     let services = HttpFlow::new(echo_path_service(), ExpectHandler, None);
 
     let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
@@ -235,7 +241,7 @@ async fn keep_alive_timeout() {
     .await;
 
     // sleep slightly longer than keep-alive timeout
-    sleep(Duration::from_millis(1100)).await;
+    sleep(Duration::from_millis(250)).await;
 
     lazy(|cx| {
         assert!(
@@ -261,7 +267,13 @@ async fn keep_alive_timeout() {
 async fn keep_alive_follow_up_req() {
     let mut buf = TestBuffer::new("GET /abcd HTTP/1.1\r\n\r\n");
 
-    let cfg = ServiceConfig::new(KeepAlive::Timeout(2), 100, 0, false, None);
+    let cfg = ServiceConfig::new(
+        KeepAlive::Timeout(Duration::from_millis(500)),
+        100,
+        0,
+        false,
+        None,
+    );
     let services = HttpFlow::new(echo_path_service(), ExpectHandler, None);
 
     let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
@@ -308,7 +320,7 @@ async fn keep_alive_follow_up_req() {
     .await;
 
     // sleep for less than KA timeout
-    sleep(Duration::from_millis(200)).await;
+    sleep(Duration::from_millis(100)).await;
 
     lazy(|cx| {
         assert!(

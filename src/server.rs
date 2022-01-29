@@ -88,7 +88,7 @@ where
             factory,
             config: Arc::new(Mutex::new(Config {
                 host: None,
-                keep_alive: KeepAlive::Timeout(5),
+                keep_alive: KeepAlive::default(),
                 client_timeout: 5000,
                 client_shutdown: 5000,
             })),

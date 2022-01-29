@@ -39,7 +39,7 @@ where
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         HttpServiceBuilder {
-            keep_alive: KeepAlive::Timeout(5),
+            keep_alive: KeepAlive::default(),
             client_timeout: 5000,
             client_disconnect: 0,
             secure: false,
