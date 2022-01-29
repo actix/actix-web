@@ -197,42 +197,6 @@ async fn test_chunked_payload() {
 }
 
 #[actix_rt::test]
-async fn slow_request_close() {
-    let mut srv = test_server(|| {
-        HttpService::build()
-            .client_timeout(200)
-            .keep_alive(2)
-            .finish(|_| ok::<_, Infallible>(Response::ok()))
-            .tcp()
-    })
-    .await;
-
-    let start = Instant::now();
-
-    let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
-
-    let mut data = String::new();
-    let _ = stream.read_to_string(&mut data).unwrap();
-    assert!(
-        data.starts_with("HTTP/1.1 408 Request Timeout"),
-        "response was not 408: {}",
-        data
-    );
-
-    let diff = Instant::now().duration_since(start);
-
-    if diff < Duration::from_secs(1) {
-        // test success
-    } else if diff < Duration::from_secs(3) {
-        panic!("request seems to have wrongly timed-out according to keep-alive");
-    } else {
-        panic!("request took way too long to time out");
-    }
-
-    srv.stop().await;
-}
-
-#[actix_rt::test]
 async fn slow_request_408() {
     let mut srv = test_server(|| {
         HttpService::build()
