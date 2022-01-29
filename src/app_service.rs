@@ -72,7 +72,7 @@ where
             })))
         });
 
-        // App config
+        // create App config to pass to child services
         let mut config = AppService::new(config, default.clone());
 
         // register services
