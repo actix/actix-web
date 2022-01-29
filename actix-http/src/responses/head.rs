@@ -217,8 +217,6 @@ mod tests {
 
     #[actix_rt::test]
     async fn camel_case_headers() {
-        let _ = env_logger::try_init();
-
         let mut srv = actix_http_test::test_server(|| {
             H1Service::with_config(ServiceConfig::default(), |req: Request| async move {
                 let mut res = Response::ok();

@@ -207,6 +207,12 @@ impl TimerState {
 
         *self = Self::Inactive;
     }
+
+    fn init(&mut self, cx: &mut Context<'_>) {
+        if let TimerState::Active { timer } = self {
+            let _ = timer.as_mut().poll(cx);
+        }
+    }
 }
 
 impl fmt::Display for TimerState {
@@ -770,6 +776,8 @@ where
     }
 
     /// Process one incoming request.
+    ///
+    /// Boolean in return type indicates if any meaningful work was done.
     fn poll_request(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -786,11 +794,15 @@ where
 
         let mut this = self.as_mut().project();
 
+        let mut updated = false;
+
         loop {
             log::trace!("attempt to decode frame");
 
             match this.codec.decode(this.read_buf) {
                 Ok(Some(msg)) => {
+                    updated = true;
+
                     log::trace!("found full frame (head)");
 
                     match msg {
@@ -919,8 +931,7 @@ where
             }
         }
 
-        // TODO: what's this boolean do now?
-        Ok(false)
+        Ok(updated)
     }
 
     fn poll_head_timer(
@@ -1241,10 +1252,7 @@ where
                         // poll response to populate write buffer
                         // drain indicates whether write buffer should be emptied before next run
                         let drain = match inner.as_mut().poll_response(cx)? {
-                            PollResponse::DrainWriteBuf => {
-                                inner.flags.contains(Flags::KEEP_ALIVE);
-                                true
-                            }
+                            PollResponse::DrainWriteBuf => true,
 
                             PollResponse::DoNothing => {
                                 if inner.flags.contains(Flags::KEEP_ALIVE) {
@@ -1255,6 +1263,8 @@ where
                                             .project()
                                             .ka_timer
                                             .set(deadline, line!());
+
+                                        inner.as_mut().project().ka_timer.init(cx);
                                     }
                                 }
 
@@ -1316,6 +1326,7 @@ where
                                 "start shutdown because keep-alive is disabled or opted \
                                 out for this connection"
                             );
+                            inner_p.flags.remove(Flags::FINISHED);
                             inner_p.flags.insert(Flags::SHUTDOWN);
                             return self.poll(cx);
                         }

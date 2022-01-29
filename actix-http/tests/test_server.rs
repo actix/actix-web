@@ -309,6 +309,8 @@ async fn test_http1_keepalive() {
 
 #[actix_rt::test]
 async fn test_http1_keepalive_timeout() {
+    let _ = env_logger::try_init();
+
     let mut srv = test_server(|| {
         HttpService::build()
             .keep_alive(1)
@@ -317,14 +319,21 @@ async fn test_http1_keepalive_timeout() {
     })
     .await;
 
+    log::debug!(target: "actix-test", "connect");
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
-    let _ = stream.write_all(b"GET /test/tests/test HTTP/1.1\r\n\r\n");
-    let mut data = vec![0; 1024];
+
+    log::debug!(target: "actix-test", "send req");
+    let _ = stream.write_all(b"GET /test HTTP/1.1\r\n\r\n");
+    let mut data = vec![0; 256];
+    log::debug!(target: "actix-test", "first read");
     let _ = stream.read(&mut data);
     assert_eq!(&data[..17], b"HTTP/1.1 200 OK\r\n");
+
+    log::debug!(target: "actix-test", "sleep");
     thread::sleep(Duration::from_millis(1100));
 
-    let mut data = vec![0; 1024];
+    log::debug!(target: "actix-test", "second read");
+    let mut data = vec![0; 256];
     let res = stream.read(&mut data).unwrap();
     assert_eq!(res, 0);
 

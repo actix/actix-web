@@ -80,13 +80,12 @@ impl ServiceConfig {
         local_addr: Option<net::SocketAddr>,
     ) -> ServiceConfig {
         let (keep_alive, ka_enabled) = match keep_alive {
-            KeepAlive::Timeout(Duration::ZERO) => (Duration::ZERO, false),
             KeepAlive::Timeout(val) => (val, true),
             KeepAlive::Os => (Duration::ZERO, true),
             KeepAlive::Disabled => (Duration::ZERO, false),
         };
 
-        let keep_alive = ka_enabled.then(|| keep_alive);
+        let keep_alive = (ka_enabled && keep_alive > Duration::ZERO).then(|| keep_alive);
 
         ServiceConfig(Rc::new(Inner {
             keep_alive,

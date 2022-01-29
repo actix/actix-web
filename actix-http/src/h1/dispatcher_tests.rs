@@ -71,8 +71,6 @@ fn echo_payload_service() -> impl Service<Request, Response = Response<Bytes>, E
 
 #[actix_rt::test]
 async fn late_request() {
-    let _ = env_logger::try_init();
-
     let mut buf = TestBuffer::empty();
 
     let cfg = ServiceConfig::new(KeepAlive::Disabled, 100, 0, false, None);
