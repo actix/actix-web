@@ -1,11 +1,17 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+- Implement `Default` for `KeepAlive`. [#2611]
+
 ### Changed
 - Rename `ServiceConfig::{client_timer_expire => client_request_deadline}`. [#2611]
 - Rename `ServiceConfig::{client_timer => client_request_timer}`. [#2611]
 - Rename `ServiceConfig::{client_disconnect_timer => client_disconnect_deadline}`. [#2611]
 - Rename `ServiceConfig::{keep_alive_timer => keep_alive_deadline}`. [#2611]
+
+### Fixed
+- HTTP/1.1 dispatcher correctly uses client request timeout. [#2611]
 
 [#2611]: https://github.com/actix/actix-web/pull/2611
 

@@ -219,7 +219,7 @@ async fn slow_request_408() {
         data
     );
 
-    let diff = Instant::now().duration_since(start);
+    let diff = start.elapsed();
 
     if diff < Duration::from_secs(1) {
         // test success
