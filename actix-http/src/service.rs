@@ -96,7 +96,7 @@ where
 {
     /// Sets service for `Expect: 100-Continue` handling.
     ///
-    /// AN expect service is called with the request that contains an `Expect` header. A successful
+    /// An expect service is called with requests that contain an `Expect` header. A successful
     /// response type is also a request which will be forwarded to the main service.
     pub fn expect<X1>(self, expect: X1) -> HttpService<T, S, B, X1, U>
     where
