@@ -31,7 +31,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World";
 
 #[actix_rt::test]
-async fn test_h1_v2() {
+async fn h1_v2() {
     let srv = test_server(move || {
         HttpService::build()
             .finish(|_| future::ok::<_, Infallible>(Response::ok().set_body(STR)))
@@ -59,7 +59,7 @@ async fn test_h1_v2() {
 }
 
 #[actix_rt::test]
-async fn test_connection_close() {
+async fn connection_close() {
     let srv = test_server(move || {
         HttpService::build()
             .finish(|_| future::ok::<_, Infallible>(Response::ok().set_body(STR)))
@@ -73,7 +73,7 @@ async fn test_connection_close() {
 }
 
 #[actix_rt::test]
-async fn test_with_query_parameter() {
+async fn with_query_parameter() {
     let srv = test_server(move || {
         HttpService::build()
             .finish(|req: Request| async move {
@@ -104,7 +104,7 @@ impl From<ExpectFailed> for Response<BoxBody> {
 }
 
 #[actix_rt::test]
-async fn test_h1_expect() {
+async fn h1_expect() {
     let srv = test_server(move || {
         HttpService::build()
             .expect(|req: Request| async {

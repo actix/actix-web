@@ -6,8 +6,10 @@
 - Change signature of `ResourceDef::capture_match_info_fn` to remove `user_data` parameter. [#2612]
 - Replace `Option<U>` with `U` in `Router` api. [#2612]
 - Relax bounds in `Router::recognize*` and `ResourceDef::capture_match_info`. [#2612]
+- `Quoter::requote` now returns `Option<Vec<u8>>`. [#2613]
 
 [#2612]: https://github.com/actix/actix-web/pull/2612
+[#2613]: https://github.com/actix/actix-web/pull/2613
 
 
 ## 0.5.0-rc.2 - 2022-01-21

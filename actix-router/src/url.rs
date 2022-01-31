@@ -15,14 +15,14 @@ pub struct Url {
 impl Url {
     #[inline]
     pub fn new(uri: http::Uri) -> Url {
-        let path = DEFAULT_QUOTER.with(|q| q.requote(uri.path().as_bytes()));
+        let path = DEFAULT_QUOTER.with(|q| q.requote_str_lossy(uri.path()));
         Url { uri, path }
     }
 
     #[inline]
     pub fn new_with_quoter(uri: http::Uri, quoter: &Quoter) -> Url {
         Url {
-            path: quoter.requote(uri.path().as_bytes()),
+            path: quoter.requote_str_lossy(uri.path()),
             uri,
         }
     }
@@ -45,13 +45,13 @@ impl Url {
     #[inline]
     pub fn update(&mut self, uri: &http::Uri) {
         self.uri = uri.clone();
-        self.path = DEFAULT_QUOTER.with(|q| q.requote(uri.path().as_bytes()));
+        self.path = DEFAULT_QUOTER.with(|q| q.requote_str_lossy(uri.path()));
     }
 
     #[inline]
     pub fn update_with_quoter(&mut self, uri: &http::Uri, quoter: &Quoter) {
         self.uri = uri.clone();
-        self.path = quoter.requote(uri.path().as_bytes());
+        self.path = quoter.requote_str_lossy(uri.path());
     }
 }
 

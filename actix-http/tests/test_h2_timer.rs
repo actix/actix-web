@@ -1,4 +1,4 @@
-use std::io;
+use std::{io, time::Duration};
 
 use actix_http::{error::Error, HttpService, Response};
 use actix_server::Server;
@@ -19,7 +19,7 @@ async fn h2_ping_pong() -> io::Result<()> {
                 .workers(1)
                 .listen("h2_ping_pong", lst, || {
                     HttpService::build()
-                        .keep_alive(3)
+                        .keep_alive(Duration::from_secs(3))
                         .h2(|_| async { Ok::<_, Error>(Response::ok()) })
                         .tcp()
                 })?
@@ -92,10 +92,10 @@ async fn h2_handshake_timeout() -> io::Result<()> {
                 .workers(1)
                 .listen("h2_ping_pong", lst, || {
                     HttpService::build()
-                        .keep_alive(30)
+                        .keep_alive(Duration::from_secs(30))
                         // set first request timeout to 5 seconds.
                         // this is the timeout used for http2 handshake.
-                        .client_timeout(5000)
+                        .client_request_timeout(Duration::from_secs(5))
                         .h2(|_| async { Ok::<_, Error>(Response::ok()) })
                         .tcp()
                 })?

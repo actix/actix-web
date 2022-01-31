@@ -630,7 +630,7 @@ impl Removed {
     /// Returns true if iterator contains no elements, without consuming it.
     ///
     /// If called immediately after [`HeaderMap::insert`] or [`HeaderMap::remove`], it will indicate
-    /// wether any items were actually replaced or removed, respectively.
+    /// whether any items were actually replaced or removed, respectively.
     pub fn is_empty(&self) -> bool {
         match self.inner {
             // size hint lower bound of smallvec is the correct length

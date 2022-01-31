@@ -17,7 +17,7 @@ use crate::{
     h1::{Codec, ExpectHandler, UpgradeHandler},
     service::HttpFlow,
     test::{TestBuffer, TestSeqBuffer},
-    Error, HttpMessage, KeepAlive, Method, OnConnectData, Request, Response,
+    Error, HttpMessage, KeepAlive, Method, OnConnectData, Request, Response, StatusCode,
 };
 
 fn find_slice(haystack: &[u8], needle: &[u8], from: usize) -> Option<usize> {
@@ -34,7 +34,13 @@ fn stabilize_date_header(payload: &mut [u8]) {
 }
 
 fn ok_service() -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error> {
-    fn_service(|_req: Request| ready(Ok::<_, Error>(Response::ok())))
+    status_service(StatusCode::OK)
+}
+
+fn status_service(
+    status: StatusCode,
+) -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error> {
+    fn_service(move |_req: Request| ready(Ok::<_, Error>(Response::new(status))))
 }
 
 fn echo_path_service(
@@ -64,10 +70,83 @@ fn echo_payload_service() -> impl Service<Request, Response = Response<Bytes>, E
 }
 
 #[actix_rt::test]
-async fn test_basic() {
+async fn late_request() {
+    let mut buf = TestBuffer::empty();
+
+    let cfg = ServiceConfig::new(
+        KeepAlive::Disabled,
+        Duration::from_millis(100),
+        Duration::ZERO,
+        false,
+        None,
+    );
+    let services = HttpFlow::new(ok_service(), ExpectHandler, None);
+
+    let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
+        buf.clone(),
+        services,
+        cfg,
+        None,
+        OnConnectData::default(),
+    );
+    actix_rt::pin!(h1);
+
+    lazy(|cx| {
+        assert!(matches!(&h1.inner, DispatcherState::Normal { .. }));
+
+        match h1.as_mut().poll(cx) {
+            Poll::Ready(_) => panic!("first poll should not be ready"),
+            Poll::Pending => {}
+        }
+
+        // polls: initial
+        assert_eq!(h1.poll_count, 1);
+
+        buf.extend_read_buf("GET /abcd HTTP/1.1\r\nConnection: close\r\n\r\n");
+
+        match h1.as_mut().poll(cx) {
+            Poll::Pending => panic!("second poll should not be pending"),
+            Poll::Ready(res) => assert!(res.is_ok()),
+        }
+
+        // polls: initial pending => handle req => shutdown
+        assert_eq!(h1.poll_count, 3);
+
+        let mut res = buf.take_write_buf().to_vec();
+        stabilize_date_header(&mut res);
+        let res = &res[..];
+
+        let exp = b"\
+                HTTP/1.1 200 OK\r\n\
+                content-length: 0\r\n\
+                connection: close\r\n\
+                date: Thu, 01 Jan 1970 12:34:56 UTC\r\n\r\n\
+                ";
+
+        assert_eq!(
+            res,
+            exp,
+            "\nexpected response not in write buffer:\n\
+               response: {:?}\n\
+               expected: {:?}",
+            String::from_utf8_lossy(res),
+            String::from_utf8_lossy(exp)
+        );
+    })
+    .await;
+}
+
+#[actix_rt::test]
+async fn oneshot_connection() {
     let buf = TestBuffer::new("GET /abcd HTTP/1.1\r\n\r\n");
 
-    let cfg = ServiceConfig::new(KeepAlive::Disabled, 100, 0, false, None);
+    let cfg = ServiceConfig::new(
+        KeepAlive::Disabled,
+        Duration::from_millis(100),
+        Duration::ZERO,
+        false,
+        None,
+    );
     let services = HttpFlow::new(echo_path_service(), ExpectHandler, None);
 
     let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
@@ -116,10 +195,16 @@ async fn test_basic() {
 }
 
 #[actix_rt::test]
-async fn test_keep_alive_timeout() {
+async fn keep_alive_timeout() {
     let buf = TestBuffer::new("GET /abcd HTTP/1.1\r\n\r\n");
 
-    let cfg = ServiceConfig::new(KeepAlive::Timeout(1), 100, 0, false, None);
+    let cfg = ServiceConfig::new(
+        KeepAlive::Timeout(Duration::from_millis(200)),
+        Duration::from_millis(100),
+        Duration::ZERO,
+        false,
+        None,
+    );
     let services = HttpFlow::new(echo_path_service(), ExpectHandler, None);
 
     let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
@@ -166,7 +251,7 @@ async fn test_keep_alive_timeout() {
     .await;
 
     // sleep slightly longer than keep-alive timeout
-    sleep(Duration::from_millis(1100)).await;
+    sleep(Duration::from_millis(250)).await;
 
     lazy(|cx| {
         assert!(
@@ -189,10 +274,16 @@ async fn test_keep_alive_timeout() {
 }
 
 #[actix_rt::test]
-async fn test_keep_alive_follow_up_req() {
+async fn keep_alive_follow_up_req() {
     let mut buf = TestBuffer::new("GET /abcd HTTP/1.1\r\n\r\n");
 
-    let cfg = ServiceConfig::new(KeepAlive::Timeout(2), 100, 0, false, None);
+    let cfg = ServiceConfig::new(
+        KeepAlive::Timeout(Duration::from_millis(500)),
+        Duration::from_millis(100),
+        Duration::ZERO,
+        false,
+        None,
+    );
     let services = HttpFlow::new(echo_path_service(), ExpectHandler, None);
 
     let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
@@ -239,7 +330,7 @@ async fn test_keep_alive_follow_up_req() {
     .await;
 
     // sleep for less than KA timeout
-    sleep(Duration::from_millis(200)).await;
+    sleep(Duration::from_millis(100)).await;
 
     lazy(|cx| {
         assert!(
@@ -308,7 +399,7 @@ async fn test_keep_alive_follow_up_req() {
 }
 
 #[actix_rt::test]
-async fn test_req_parse_err() {
+async fn req_parse_err() {
     lazy(|cx| {
         let buf = TestBuffer::new("GET /test HTTP/1\r\n\r\n");
 
@@ -350,7 +441,13 @@ async fn pipelining_ok_then_ok() {
                 ",
         );
 
-        let cfg = ServiceConfig::new(KeepAlive::Disabled, 1, 1, false, None);
+        let cfg = ServiceConfig::new(
+            KeepAlive::Disabled,
+            Duration::from_millis(1),
+            Duration::from_millis(1),
+            false,
+            None,
+        );
 
         let services = HttpFlow::new(echo_path_service(), ExpectHandler, None);
 
@@ -414,7 +511,13 @@ async fn pipelining_ok_then_bad() {
                 ",
         );
 
-        let cfg = ServiceConfig::new(KeepAlive::Disabled, 1, 1, false, None);
+        let cfg = ServiceConfig::new(
+            KeepAlive::Disabled,
+            Duration::from_millis(1),
+            Duration::from_millis(1),
+            false,
+            None,
+        );
 
         let services = HttpFlow::new(echo_path_service(), ExpectHandler, None);
 
@@ -468,10 +571,16 @@ async fn pipelining_ok_then_bad() {
 }
 
 #[actix_rt::test]
-async fn test_expect() {
+async fn expect_handling() {
     lazy(|cx| {
         let mut buf = TestSeqBuffer::empty();
-        let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
+        let cfg = ServiceConfig::new(
+            KeepAlive::Disabled,
+            Duration::ZERO,
+            Duration::ZERO,
+            false,
+            None,
+        );
 
         let services = HttpFlow::new(echo_payload_service(), ExpectHandler, None);
 
@@ -499,7 +608,6 @@ async fn test_expect() {
 
         // polls: manual
         assert_eq!(h1.poll_count, 1);
-        eprintln!("poll count: {}", h1.poll_count);
 
         if let DispatcherState::Normal { ref inner } = h1.inner {
             let io = inner.io.as_ref().unwrap();
@@ -540,10 +648,16 @@ async fn test_expect() {
 }
 
 #[actix_rt::test]
-async fn test_eager_expect() {
+async fn expect_eager() {
     lazy(|cx| {
         let mut buf = TestSeqBuffer::empty();
-        let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
+        let cfg = ServiceConfig::new(
+            KeepAlive::Disabled,
+            Duration::ZERO,
+            Duration::ZERO,
+            false,
+            None,
+        );
 
         let services = HttpFlow::new(echo_path_service(), ExpectHandler, None);
 
@@ -600,7 +714,7 @@ async fn test_eager_expect() {
 }
 
 #[actix_rt::test]
-async fn test_upgrade() {
+async fn upgrade_handling() {
     struct TestUpgrade;
 
     impl<T> Service<(Request, Framed<T, Codec>)> for TestUpgrade {
@@ -620,7 +734,13 @@ async fn test_upgrade() {
 
     lazy(|cx| {
         let mut buf = TestSeqBuffer::empty();
-        let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
+        let cfg = ServiceConfig::new(
+            KeepAlive::Disabled,
+            Duration::ZERO,
+            Duration::ZERO,
+            false,
+            None,
+        );
 
         let services = HttpFlow::new(ok_service(), ExpectHandler, Some(TestUpgrade));
 

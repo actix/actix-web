@@ -52,7 +52,7 @@ macro_rules! parse_value {
             V: Visitor<'de>,
         {
             let decoded = FULL_QUOTER
-                .with(|q| q.requote(self.value.as_bytes()))
+                .with(|q| q.requote_str_lossy(self.value))
                 .map(Cow::Owned)
                 .unwrap_or(Cow::Borrowed(self.value));
 
@@ -332,7 +332,7 @@ impl<'de> Deserializer<'de> for Value<'de> {
     where
         V: Visitor<'de>,
     {
-        match FULL_QUOTER.with(|q| q.requote(self.value.as_bytes())) {
+        match FULL_QUOTER.with(|q| q.requote_str_lossy(self.value)) {
             Some(s) => visitor.visit_string(s),
             None => visitor.visit_borrowed_str(self.value),
         }
@@ -342,7 +342,7 @@ impl<'de> Deserializer<'de> for Value<'de> {
     where
         V: Visitor<'de>,
     {
-        match FULL_QUOTER.with(|q| q.requote(self.value.as_bytes())) {
+        match FULL_QUOTER.with(|q| q.requote_str_lossy(self.value)) {
             Some(s) => visitor.visit_byte_buf(s.into()),
             None => visitor.visit_borrowed_bytes(self.value.as_bytes()),
         }

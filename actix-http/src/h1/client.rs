@@ -1,4 +1,4 @@
-use std::io;
+use std::{fmt, io};
 
 use actix_codec::{Decoder, Encoder};
 use bitflags::bitflags;
@@ -17,9 +17,9 @@ use crate::{
 
 bitflags! {
     struct Flags: u8 {
-        const HEAD              = 0b0000_0001;
-        const KEEPALIVE_ENABLED = 0b0000_1000;
-        const STREAM            = 0b0001_0000;
+        const HEAD               = 0b0000_0001;
+        const KEEP_ALIVE_ENABLED = 0b0000_1000;
+        const STREAM             = 0b0001_0000;
     }
 }
 
@@ -38,7 +38,7 @@ struct ClientCodecInner {
     decoder: decoder::MessageDecoder<ResponseHead>,
     payload: Option<PayloadDecoder>,
     version: Version,
-    ctype: ConnectionType,
+    conn_type: ConnectionType,
 
     // encoder part
     flags: Flags,
@@ -51,23 +51,32 @@ impl Default for ClientCodec {
     }
 }
 
+impl fmt::Debug for ClientCodec {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("h1::ClientCodec")
+            .field("flags", &self.inner.flags)
+            .finish_non_exhaustive()
+    }
+}
+
 impl ClientCodec {
     /// Create HTTP/1 codec.
     ///
     /// `keepalive_enabled` how response `connection` header get generated.
     pub fn new(config: ServiceConfig) -> Self {
-        let flags = if config.keep_alive_enabled() {
-            Flags::KEEPALIVE_ENABLED
+        let flags = if config.keep_alive().enabled() {
+            Flags::KEEP_ALIVE_ENABLED
         } else {
             Flags::empty()
         };
+
         ClientCodec {
             inner: ClientCodecInner {
                 config,
                 decoder: decoder::MessageDecoder::default(),
                 payload: None,
                 version: Version::HTTP_11,
-                ctype: ConnectionType::Close,
+                conn_type: ConnectionType::Close,
 
                 flags,
                 encoder: encoder::MessageEncoder::default(),
@@ -77,12 +86,12 @@ impl ClientCodec {
 
     /// Check if request is upgrade
     pub fn upgrade(&self) -> bool {
-        self.inner.ctype == ConnectionType::Upgrade
+        self.inner.conn_type == ConnectionType::Upgrade
     }
 
     /// Check if last response is keep-alive
-    pub fn keepalive(&self) -> bool {
-        self.inner.ctype == ConnectionType::KeepAlive
+    pub fn keep_alive(&self) -> bool {
+        self.inner.conn_type == ConnectionType::KeepAlive
     }
 
     /// Check last request's message type
@@ -104,8 +113,8 @@ impl ClientCodec {
 
 impl ClientPayloadCodec {
     /// Check if last response is keep-alive
-    pub fn keepalive(&self) -> bool {
-        self.inner.ctype == ConnectionType::KeepAlive
+    pub fn keep_alive(&self) -> bool {
+        self.inner.conn_type == ConnectionType::KeepAlive
     }
 
     /// Transform payload codec to a message codec
@@ -122,12 +131,12 @@ impl Decoder for ClientCodec {
         debug_assert!(!self.inner.payload.is_some(), "Payload decoder is set");
 
         if let Some((req, payload)) = self.inner.decoder.decode(src)? {
-            if let Some(ctype) = req.conn_type() {
+            if let Some(conn_type) = req.conn_type() {
                 // do not use peer's keep-alive
-                self.inner.ctype = if ctype == ConnectionType::KeepAlive {
-                    self.inner.ctype
+                self.inner.conn_type = if conn_type == ConnectionType::KeepAlive {
+                    self.inner.conn_type
                 } else {
-                    ctype
+                    conn_type
                 };
             }
 
@@ -192,9 +201,9 @@ impl Encoder<Message<(RequestHeadType, BodySize)>> for ClientCodec {
                     .set(Flags::HEAD, head.as_ref().method == Method::HEAD);
 
                 // connection status
-                inner.ctype = match head.as_ref().connection_type() {
+                inner.conn_type = match head.as_ref().connection_type() {
                     ConnectionType::KeepAlive => {
-                        if inner.flags.contains(Flags::KEEPALIVE_ENABLED) {
+                        if inner.flags.contains(Flags::KEEP_ALIVE_ENABLED) {
                             ConnectionType::KeepAlive
                         } else {
                             ConnectionType::Close
@@ -211,7 +220,7 @@ impl Encoder<Message<(RequestHeadType, BodySize)>> for ClientCodec {
                     false,
                     inner.version,
                     length,
-                    inner.ctype,
+                    inner.conn_type,
                     &inner.config,
                 )?;
             }
