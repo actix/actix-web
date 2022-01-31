@@ -423,8 +423,8 @@ where
 
                     let svc = HttpService::build()
                         .keep_alive(c.keep_alive)
-                        .client_timeout(c.client_timeout)
-                        .client_disconnect(c.client_shutdown);
+                        .client_request_timeout(c.client_request_timeout)
+                        .client_disconnect_timeout(c.client_disconnect_timeout);
 
                     let svc = if let Some(handler) = on_connect_fn.clone() {
                         svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
