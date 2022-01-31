@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 0.1.0-beta.12 - 2022-01-31
 - Rename `TestServerConfig::{client_timeout => client_request_timeout}`. [#2611]
 
 [#2611]: https://github.com/actix/actix-web/pull/2611
