@@ -253,7 +253,7 @@ impl Decoder for Codec {
                             }
                         }
                         _ => {
-                            error!("Unfinished fragment {:?}", opcode);
+                            log::error!("Unfinished fragment {:?}", opcode);
                             Err(ProtocolError::ContinuationFragment(opcode))
                         }
                     };
