@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 3.0.0-rc.1 - 2022-01-31
 ### Added
 - Implement `Default` for `KeepAlive`. [#2611]
 - Implement `From<Duration>` for `KeepAlive`. [#2611]
