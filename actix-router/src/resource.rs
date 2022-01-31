@@ -651,11 +651,11 @@ impl ResourceDef {
     /// ```
     /// use actix_router::{Path, ResourceDef};
     ///
-    /// fn try_match(resource: &ResourceDef, resource: &mut Path<&str>) -> bool {
+    /// fn try_match(resource: &ResourceDef, path: &mut Path<&str>) -> bool {
     ///     let admin_allowed = std::env::var("ADMIN_ALLOWED").is_ok();
     ///
     ///     resource.capture_match_info_fn(
-    ///         resource,
+    ///         path,
     ///         // when env var is not set, reject when path contains "admin"
     ///         |res| !(!admin_allowed && res.path().contains("admin")),
     ///     )
@@ -1147,9 +1147,8 @@ pub(crate) fn insert_slash(path: &str) -> Cow<'_, str> {
 
 #[cfg(test)]
 mod tests {
-    use crate::Path;
-
     use super::*;
+    use crate::Path;
 
     #[test]
     fn equivalence() {
