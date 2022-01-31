@@ -1,6 +1,6 @@
 [package]
 name = "actix-web-actors"
-version = "4.0.0-beta.10"
+version = "4.0.0-beta.11"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix actors support for Actix Web"
 keywords = ["actix", "http", "web", "framework", "async"]
