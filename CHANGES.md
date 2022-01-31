@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 4.0.0-rc.1 - 2022-01-31
 ### Changed
 - Rename `HttpServer::{client_timeout => client_request_timeout}`. [#2611]
 - Rename `HttpServer::{client_shutdown => client_disconnect_timeout}`. [#2611]

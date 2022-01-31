@@ -99,7 +99,7 @@ actix-server = "2"
 actix-test = { version = "0.1.0-beta.11", features = ["openssl", "rustls"] }
 actix-tls = { version = "3.0.0", features = ["openssl", "rustls"] }
 actix-utils = "3.0.0"
-actix-web = { version = "4.0.0-beta.21", features = ["openssl"] }
+actix-web = { version = "4.0.0-rc.1", features = ["openssl"] }
 
 brotli = "3.3.3"
 const-str = "0.3"
