@@ -21,7 +21,7 @@ pub enum KeepAlive {
 
 impl KeepAlive {
     pub(crate) fn enabled(&self) -> bool {
-        matches!(self, Self::Timeout(_) | Self::Os)
+        !matches!(self, Self::Disabled)
     }
 
     pub(crate) fn duration(&self) -> Option<Duration> {

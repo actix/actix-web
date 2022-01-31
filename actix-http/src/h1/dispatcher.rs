@@ -207,13 +207,19 @@ where
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::None => write!(f, "None"),
-            Self::ExpectCall { .. } => f.debug_struct("ExpectCall").finish_non_exhaustive(),
-            Self::ServiceCall { .. } => f.debug_struct("ServiceCall").finish_non_exhaustive(),
-            Self::SendPayload { .. } => f.debug_struct("SendPayload").finish_non_exhaustive(),
-            Self::SendErrorPayload { .. } => {
-                f.debug_struct("SendErrorPayload").finish_non_exhaustive()
+            Self::None => write!(f, "State::None"),
+            Self::ExpectCall { .. } => {
+                f.debug_struct("State::ExpectCall").finish_non_exhaustive()
             }
+            Self::ServiceCall { .. } => {
+                f.debug_struct("State::ServiceCall").finish_non_exhaustive()
+            }
+            Self::SendPayload { .. } => {
+                f.debug_struct("State::SendPayload").finish_non_exhaustive()
+            }
+            Self::SendErrorPayload { .. } => f
+                .debug_struct("State::SendErrorPayload")
+                .finish_non_exhaustive(),
         }
     }
 }
@@ -771,7 +777,7 @@ where
                 Ok(None) => break,
 
                 Err(ParseError::Io(err)) => {
-                    log::trace!("io error: {}", &err);
+                    log::trace!("I/O error: {}", &err);
                     self.as_mut().client_disconnected();
                     this = self.as_mut().project();
                     *this.error = Some(DispatchError::Io(err));

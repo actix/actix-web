@@ -91,23 +91,13 @@ impl ServiceConfig {
     /// Returns `None` if this `ServiceConfig was` constructed with `client_request_timeout: 0`.
     pub fn client_request_deadline(&self) -> Option<Instant> {
         let timeout = self.0.client_request_timeout;
-
-        if timeout != Duration::ZERO {
-            Some(self.now() + timeout)
-        } else {
-            None
-        }
+        (timeout != Duration::ZERO).then(|| self.now() + timeout)
     }
 
     /// Creates a time object representing the deadline for the client to disconnect.
     pub fn client_disconnect_deadline(&self) -> Option<Instant> {
         let timeout = self.0.client_disconnect_timeout;
-
-        if timeout != Duration::ZERO {
-            Some(self.now() + timeout)
-        } else {
-            None
-        }
+        (timeout != Duration::ZERO).then(|| self.now() + timeout)
     }
 
     pub(crate) fn now(&self) -> Instant {
