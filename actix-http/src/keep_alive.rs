@@ -24,6 +24,7 @@ impl KeepAlive {
         !matches!(self, Self::Disabled)
     }
 
+    #[allow(unused)] // used with `http2` feature flag
     pub(crate) fn duration(&self) -> Option<Duration> {
         match self {
             KeepAlive::Timeout(dur) => Some(*dur),

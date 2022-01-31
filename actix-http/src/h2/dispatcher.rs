@@ -141,7 +141,7 @@ where
                                 DispatchError::SendResponse(err) => {
                                     trace!("Error sending HTTP/2 response: {:?}", err)
                                 }
-                                DispatchError::SendData(err) => warn!("{:?}", err),
+                                DispatchError::SendData(err) => log::warn!("{:?}", err),
                                 DispatchError::ResponseBody(err) => {
                                     error!("Response payload stream error: {:?}", err)
                                 }

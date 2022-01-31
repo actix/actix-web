@@ -20,7 +20,7 @@ use crate::{
     body::{BoxBody, MessageBody},
     builder::HttpServiceBuilder,
     error::DispatchError,
-    h1, h2, ConnectCallback, OnConnectData, Protocol, Request, Response, ServiceConfig,
+    h1, ConnectCallback, OnConnectData, Protocol, Request, Response, ServiceConfig,
 };
 
 /// A `ServiceFactory` for HTTP/1.1 or HTTP/2 protocol.
@@ -502,10 +502,11 @@ where
         let conn_data = OnConnectData::from_io(&io, self.on_connect_ext.as_deref());
 
         match proto {
+            #[cfg(feature = "http2")]
             Protocol::Http2 => HttpServiceHandlerResponse {
                 state: State::H2Handshake {
                     handshake: Some((
-                        h2::handshake_with_timeout(io, &self.cfg),
+                        crate::h2::handshake_with_timeout(io, &self.cfg),
                         self.cfg.clone(),
                         self.flow.clone(),
                         conn_data,
@@ -513,6 +514,11 @@ where
                     )),
                 },
             },
+
+            #[cfg(not(feature = "http2"))]
+            Protocol::Http2 => {
+                panic!("HTTP/2 support is disabled (enable with the `http2` feature flag)")
+            }
 
             Protocol::Http1 => HttpServiceHandlerResponse {
                 state: State::H1 {
@@ -531,6 +537,7 @@ where
     }
 }
 
+#[cfg(not(feature = "http2"))]
 pin_project! {
     #[project = StateProj]
     enum State<T, S, B, X, U>
@@ -552,10 +559,37 @@ pin_project! {
         U::Error: fmt::Display,
     {
         H1 { #[pin] dispatcher: h1::Dispatcher<T, S, B, X, U> },
-        H2 { #[pin] dispatcher: h2::Dispatcher<T, S, B, X, U> },
+    }
+}
+
+#[cfg(feature = "http2")]
+pin_project! {
+    #[project = StateProj]
+    enum State<T, S, B, X, U>
+    where
+        T: AsyncRead,
+        T: AsyncWrite,
+        T: Unpin,
+
+        S: Service<Request>,
+        S::Future: 'static,
+        S::Error: Into<Response<BoxBody>>,
+
+        B: MessageBody,
+
+        X: Service<Request, Response = Request>,
+        X::Error: Into<Response<BoxBody>>,
+
+        U: Service<(Request, Framed<T, h1::Codec>), Response = ()>,
+        U::Error: fmt::Display,
+    {
+        H1 { #[pin] dispatcher: h1::Dispatcher<T, S, B, X, U> },
+
+        H2 { #[pin] dispatcher: crate::h2::Dispatcher<T, S, B, X, U> },
+
         H2Handshake {
             handshake: Option<(
-                h2::HandshakeWithTimeout<T>,
+                crate::h2::HandshakeWithTimeout<T>,
                 ServiceConfig,
                 Rc<HttpFlow<S, X, U>>,
                 OnConnectData,
@@ -614,21 +648,25 @@ where
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.as_mut().project().state.project() {
             StateProj::H1 { dispatcher } => dispatcher.poll(cx),
+
+            #[cfg(feature = "http2")]
             StateProj::H2 { dispatcher } => dispatcher.poll(cx),
+
+            #[cfg(feature = "http2")]
             StateProj::H2Handshake { handshake: data } => {
                 match ready!(Pin::new(&mut data.as_mut().unwrap().0).poll(cx)) {
                     Ok((conn, timer)) => {
                         let (_, config, flow, conn_data, peer_addr) = data.take().unwrap();
 
                         self.as_mut().project().state.set(State::H2 {
-                            dispatcher: h2::Dispatcher::new(
+                            dispatcher: crate::h2::Dispatcher::new(
                                 conn, flow, config, peer_addr, conn_data, timer,
                             ),
                         });
                         self.poll(cx)
                     }
                     Err(err) => {
-                        trace!("H2 handshake error: {}", err);
+                        log::trace!("H2 handshake error: {}", err);
                         Poll::Ready(Err(err))
                     }
                 }

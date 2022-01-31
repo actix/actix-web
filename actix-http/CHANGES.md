@@ -6,6 +6,8 @@
 - Implement `From<Duration>` for `KeepAlive`. [#2611]
 - Implement `From<Option<Duration>>` for `KeepAlive`. [#2611]
 - Implement `Default` for `HttpServiceBuilder`. [#2611]
+- Crate `ws` feature flag, disabled by default. [#2618]
+- Crate `http2` feature flag, disabled by default. [#2618]
 
 ### Changed
 - Rename `ServiceConfig::{client_timer_expire => client_request_deadline}`. [#2611]
@@ -27,6 +29,7 @@
 - `HttpServiceBuilder::new`; use `default` instead. [#2611]
 
 [#2611]: https://github.com/actix/actix-web/pull/2611
+[#2618]: https://github.com/actix/actix-web/pull/2618
 
 
 ## 3.0.0-beta.19 - 2022-01-21
