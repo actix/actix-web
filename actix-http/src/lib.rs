@@ -24,9 +24,6 @@
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 
-#[macro_use]
-extern crate log;
-
 pub use ::http::{uri, uri::Uri};
 pub use ::http::{Method, StatusCode, Version};
 
@@ -39,6 +36,7 @@ pub mod encoding;
 pub mod error;
 mod extensions;
 pub mod h1;
+#[cfg(feature = "http2")]
 pub mod h2;
 pub mod header;
 mod helpers;

@@ -117,6 +117,7 @@ impl ServiceConfig {
         dst.extend_from_slice(&buf);
     }
 
+    #[allow(unused)] // used with `http2` feature flag
     pub(crate) fn write_date_header_value(&self, dst: &mut BytesMut) {
         self.0
             .date_service

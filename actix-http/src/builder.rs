@@ -6,7 +6,6 @@ use actix_service::{IntoServiceFactory, Service, ServiceFactory};
 use crate::{
     body::{BoxBody, MessageBody},
     h1::{self, ExpectHandler, H1Service, UpgradeHandler},
-    h2::H2Service,
     service::HttpService,
     ConnectCallback, Extensions, KeepAlive, Request, Response, ServiceConfig,
 };
@@ -211,7 +210,8 @@ where
     }
 
     /// Finish service configuration and create a HTTP service for HTTP/2 protocol.
-    pub fn h2<F, B>(self, service: F) -> H2Service<T, S, B>
+    #[cfg(feature = "http2")]
+    pub fn h2<F, B>(self, service: F) -> crate::h2::H2Service<T, S, B>
     where
         F: IntoServiceFactory<S, Request>,
         S::Error: Into<Response<BoxBody>> + 'static,
@@ -228,7 +228,8 @@ where
             self.local_addr,
         );
 
-        H2Service::with_config(cfg, service.into_factory()).on_connect_ext(self.on_connect_ext)
+        crate::h2::H2Service::with_config(cfg, service.into_factory())
+            .on_connect_ext(self.on_connect_ext)
     }
 
     /// Finish service configuration and create `HttpService` instance.
