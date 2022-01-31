@@ -212,7 +212,7 @@ pub(crate) trait MessageType: Sized {
 
         // optimized date header, set_date writes \r\n
         if !has_date {
-            config.set_date(dst, camel_case);
+            config.write_date_header(dst, camel_case);
         } else {
             // msg eof
             dst.extend_from_slice(b"\r\n");

@@ -33,6 +33,7 @@ pub use ::http::{Method, StatusCode, Version};
 pub mod body;
 mod builder;
 mod config;
+mod date;
 #[cfg(feature = "__compress")]
 pub mod encoding;
 pub mod error;
@@ -44,6 +45,8 @@ mod helpers;
 mod http_message;
 mod keep_alive;
 mod message;
+#[cfg(test)]
+mod notify_on_drop;
 mod payload;
 mod requests;
 mod responses;

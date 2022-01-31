@@ -322,7 +322,7 @@ fn prepare_response(
     // set date header
     if !has_date {
         let mut bytes = BytesMut::with_capacity(29);
-        config.write_date_header(&mut bytes);
+        config.write_date_header_value(&mut bytes);
         res.headers_mut().insert(
             DATE,
             // SAFETY: serialized date-times are known ASCII strings

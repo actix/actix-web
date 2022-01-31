@@ -30,6 +30,14 @@ impl KeepAlive {
             _ => None,
         }
     }
+
+    /// Map zero duration to disabled.
+    pub(crate) fn normalize(self) -> KeepAlive {
+        match self {
+            KeepAlive::Timeout(Duration::ZERO) => KeepAlive::Disabled,
+            ka => ka,
+        }
+    }
 }
 
 impl Default for KeepAlive {
@@ -40,17 +48,17 @@ impl Default for KeepAlive {
 
 impl From<Duration> for KeepAlive {
     fn from(dur: Duration) -> Self {
-        KeepAlive::Timeout(dur)
+        KeepAlive::Timeout(dur).normalize()
     }
 }
 
 impl From<Option<Duration>> for KeepAlive {
     fn from(ka_dur: Option<Duration>) -> Self {
         match ka_dur {
-            Some(Duration::ZERO) => KeepAlive::Disabled,
-            Some(dur) => KeepAlive::Timeout(dur),
+            Some(dur) => KeepAlive::from(dur),
             None => KeepAlive::Disabled,
         }
+        .normalize()
     }
 }
 
@@ -64,6 +72,9 @@ mod tests {
         assert_eq!(test, KeepAlive::Timeout(Duration::from_secs(1)));
 
         let test: KeepAlive = Duration::from_secs(0).into();
+        assert_eq!(test, KeepAlive::Disabled);
+
+        let test: KeepAlive = Some(Duration::from_secs(0)).into();
         assert_eq!(test, KeepAlive::Disabled);
 
         let test: KeepAlive = None.into();
