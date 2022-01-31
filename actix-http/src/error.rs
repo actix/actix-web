@@ -5,7 +5,7 @@ use std::{error::Error as StdError, fmt, io, str::Utf8Error, string::FromUtf8Err
 use derive_more::{Display, Error, From};
 use http::{uri::InvalidUri, StatusCode};
 
-use crate::{body::BoxBody, ws, Response};
+use crate::{body::BoxBody, Response};
 
 pub use http::Error as HttpError;
 
@@ -61,6 +61,7 @@ impl Error {
         Self::new(Kind::Encoder)
     }
 
+    #[allow(unused)] // used with `ws` feature flag
     pub(crate) fn new_ws() -> Self {
         Self::new(Kind::Ws)
     }
@@ -139,14 +140,16 @@ impl From<HttpError> for Error {
     }
 }
 
-impl From<ws::HandshakeError> for Error {
-    fn from(err: ws::HandshakeError) -> Self {
+#[cfg(feature = "ws")]
+impl From<crate::ws::HandshakeError> for Error {
+    fn from(err: crate::ws::HandshakeError) -> Self {
         Self::new_ws().with_cause(err)
     }
 }
 
-impl From<ws::ProtocolError> for Error {
-    fn from(err: ws::ProtocolError) -> Self {
+#[cfg(feature = "ws")]
+impl From<crate::ws::ProtocolError> for Error {
+    fn from(err: crate::ws::ProtocolError) -> Self {
         Self::new_ws().with_cause(err)
     }
 }

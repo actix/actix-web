@@ -29,6 +29,14 @@ path = "src/lib.rs"
 [features]
 default = []
 
+
+ws = [
+    "local-channel",
+    "base64",
+    "rand",
+    "sha-1",
+]
+
 # openssl
 openssl = ["actix-tls/accept", "actix-tls/openssl"]
 
@@ -51,7 +59,6 @@ actix-utils = "3.0.0"
 actix-rt = { version = "2.2", default-features = false }
 
 ahash = "0.7"
-base64 = "0.13"
 bitflags = "1.2"
 bytes = "1"
 bytestring = "1"
@@ -64,14 +71,17 @@ httparse = "1.5.1"
 httpdate = "1.0.1"
 itoa = "1"
 language-tags = "0.3"
-local-channel = "0.1"
 log = "0.4"
 mime = "0.3"
 percent-encoding = "2.1"
 pin-project-lite = "0.2"
-rand = "0.8"
-sha-1 = "0.10"
 smallvec = "1.6.1"
+
+# websockets
+local-channel = { version = "0.1", optional = true }
+base64 = { version = "0.13", optional = true }
+rand = { version = "0.8", optional = true }
+sha-1 = { version = "0.10", optional = true }
 
 # tls
 actix-tls = { version = "3.0.0", default-features = false, optional = true }

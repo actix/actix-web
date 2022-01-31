@@ -52,6 +52,7 @@ mod requests;
 mod responses;
 mod service;
 pub mod test;
+#[cfg(feature = "ws")]
 pub mod ws;
 
 pub use self::builder::HttpServiceBuilder;
