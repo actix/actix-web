@@ -29,10 +29,10 @@ path = "src/lib.rs"
 [features]
 default = []
 
-http2 = [
-    "h2",
-]
+# HTTP/2 protocol support
+http2 = ["h2"]
 
+# WebSocket protocol implementation
 ws = [
     "local-channel",
     "base64",
@@ -40,25 +40,25 @@ ws = [
     "sha-1",
 ]
 
-# openssl
+# TLS via OpenSSL
 openssl = ["actix-tls/accept", "actix-tls/openssl"]
 
-# rustls support
+# TLS via Rustls
 rustls = ["actix-tls/accept", "actix-tls/rustls"]
 
-# enable compression support
-compress-brotli = ["brotli", "__compress"]
-compress-gzip = ["flate2", "__compress"]
-compress-zstd = ["zstd", "__compress"]
+# Compression codecs
+compress-brotli = ["__compress", "brotli"]
+compress-gzip   = ["__compress", "flate2"]
+compress-zstd   = ["__compress", "zstd"]
 
 # Internal (PRIVATE!) features used to aid testing and cheking feature status.
-# Don't rely on these whatsoever. They may disappear at anytime.
+# Don't rely on these whatsoever. They are semver-exempt and may disappear at anytime.
 __compress = []
 
 [dependencies]
-actix-service = "2.0.0"
+actix-service = "2"
 actix-codec = "0.4.1"
-actix-utils = "3.0.0"
+actix-utils = "3"
 actix-rt = { version = "2.2", default-features = false }
 
 ahash = "0.7"
@@ -88,10 +88,10 @@ base64 = { version = "0.13", optional = true }
 rand = { version = "0.8", optional = true }
 sha-1 = { version = "0.10", optional = true }
 
-# tls
+# openssl/rustls
 actix-tls = { version = "3.0.0", default-features = false, optional = true }
 
-# compression
+# compress-*
 brotli = { version = "3.3.3", optional = true }
 flate2 = { version = "1.0.13", optional = true }
 zstd = { version = "0.9", optional = true }
