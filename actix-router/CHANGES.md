@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+- `Quoter::requote` now returns `Option<Vec<u8>>`. [#2613]
+
+[#2613]: https://github.com/actix/actix-web/pull/2613
 
 
 ## 0.5.0-rc.2 - 2022-01-21

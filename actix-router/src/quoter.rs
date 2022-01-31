@@ -66,8 +66,13 @@ impl Quoter {
 
     /// Re-quotes... ?
     ///
-    /// Returns `None` when no modification to the original string was required.
-    pub fn requote(&self, val: &[u8]) -> Option<String> {
+    /// Returns `None` when no modification to the original byte string was required.
+    ///
+    /// Non-ASCII bytes are accepted as valid input.
+    ///
+    /// Behavior for invalid/incomplete percent-encoding sequences is unspecified and may include removing
+    /// the invalid sequence from the output or passing it as it is.
+    pub fn requote(&self, val: &[u8]) -> Option<Vec<u8>> {
         let mut has_pct = 0;
         let mut pct = [b'%', 0, 0];
         let mut idx = 0;
@@ -121,7 +126,12 @@ impl Quoter {
             idx += 1;
         }
 
-        cloned.map(|data| String::from_utf8_lossy(&data).into_owned())
+        cloned
+    }
+
+    pub(crate) fn requote_str_lossy(&self, val: &str) -> Option<String> {
+        self.requote(val.as_bytes())
+            .map(|data| String::from_utf8_lossy(&data).into_owned())
     }
 }
 
@@ -201,14 +211,29 @@ mod tests {
     #[test]
     fn custom_quoter() {
         let q = Quoter::new(b"", b"+");
-        assert_eq!(q.requote(b"/a%25c").unwrap(), "/a%c");
-        assert_eq!(q.requote(b"/a%2Bc").unwrap(), "/a%2Bc");
+        assert_eq!(q.requote(b"/a%25c").unwrap(), b"/a%c");
+        assert_eq!(q.requote(b"/a%2Bc").unwrap(), b"/a%2Bc");
 
         let q = Quoter::new(b"%+", b"/");
-        assert_eq!(q.requote(b"/a%25b%2Bc").unwrap(), "/a%b+c");
-        assert_eq!(q.requote(b"/a%2fb").unwrap(), "/a%2fb");
-        assert_eq!(q.requote(b"/a%2Fb").unwrap(), "/a%2Fb");
-        assert_eq!(q.requote(b"/a%0Ab").unwrap(), "/a\nb");
+        assert_eq!(q.requote(b"/a%25b%2Bc").unwrap(), b"/a%b+c");
+        assert_eq!(q.requote(b"/a%2fb").unwrap(), b"/a%2fb");
+        assert_eq!(q.requote(b"/a%2Fb").unwrap(), b"/a%2Fb");
+        assert_eq!(q.requote(b"/a%0Ab").unwrap(), b"/a\nb");
+        assert_eq!(q.requote(b"/a%FE\xffb").unwrap(), b"/a\xfe\xffb");
+        assert_eq!(q.requote(b"/a\xfe\xffb"), None);
+    }
+
+    #[test]
+    fn non_ascii() {
+        let q = Quoter::new(b"%+", b"/");
+        assert_eq!(q.requote(b"/a%FE\xffb").unwrap(), b"/a\xfe\xffb");
+        assert_eq!(q.requote(b"/a\xfe\xffb"), None);
+    }
+
+    #[test]
+    fn invalid_sequences() {
+        let q = Quoter::new(b"%+", b"/");
+        assert_eq!(q.requote(b"/a%2x%2X%%").unwrap(), b"/a%2x%2X");
     }
 
     #[test]
