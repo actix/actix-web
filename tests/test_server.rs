@@ -8,6 +8,7 @@ use std::{
     io::{Read, Write},
     pin::Pin,
     task::{Context, Poll},
+    time::Duration,
 };
 
 use actix_web::{
@@ -835,9 +836,10 @@ async fn test_server_cookies() {
 async fn test_slow_request() {
     use std::net;
 
-    let srv = actix_test::start_with(actix_test::config().client_timeout(200), || {
-        App::new().service(web::resource("/").route(web::to(HttpResponse::Ok)))
-    });
+    let srv = actix_test::start_with(
+        actix_test::config().client_request_timeout(Duration::from_millis(200)),
+        || App::new().service(web::resource("/").route(web::to(HttpResponse::Ok))),
+    );
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
     let mut data = String::new();

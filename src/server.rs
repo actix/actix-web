@@ -4,6 +4,7 @@ use std::{
     marker::PhantomData,
     net,
     sync::{Arc, Mutex},
+    time::Duration,
 };
 
 use actix_http::{body::MessageBody, Extensions, HttpService, KeepAlive, Request, Response};
@@ -27,8 +28,8 @@ struct Socket {
 struct Config {
     host: Option<String>,
     keep_alive: KeepAlive,
-    client_timeout: u64,
-    client_shutdown: u64,
+    client_request_timeout: Duration,
+    client_disconnect_timeout: Duration,
 }
 
 /// An HTTP Server.
@@ -88,9 +89,9 @@ where
             factory,
             config: Arc::new(Mutex::new(Config {
                 host: None,
-                keep_alive: KeepAlive::Timeout(5),
-                client_timeout: 5000,
-                client_shutdown: 5000,
+                keep_alive: KeepAlive::default(),
+                client_request_timeout: Duration::from_secs(5),
+                client_disconnect_timeout: Duration::from_secs(1),
             })),
             backlog: 1024,
             sockets: Vec::new(),
@@ -200,9 +201,15 @@ where
     /// To disable timeout set value to 0.
     ///
     /// By default client timeout is set to 5000 milliseconds.
-    pub fn client_timeout(self, val: u64) -> Self {
-        self.config.lock().unwrap().client_timeout = val;
+    pub fn client_request_timeout(self, dur: Duration) -> Self {
+        self.config.lock().unwrap().client_request_timeout = dur;
         self
+    }
+
+    #[doc(hidden)]
+    #[deprecated(since = "4.0.0", note = "Renamed to `client_request_timeout`.")]
+    pub fn client_timeout(self, dur: Duration) -> Self {
+        self.client_request_timeout(dur)
     }
 
     /// Set server connection shutdown timeout in milliseconds.
@@ -213,9 +220,15 @@ where
     /// To disable timeout set value to 0.
     ///
     /// By default client timeout is set to 5000 milliseconds.
-    pub fn client_shutdown(self, val: u64) -> Self {
-        self.config.lock().unwrap().client_shutdown = val;
+    pub fn client_disconnect_timeout(self, dur: Duration) -> Self {
+        self.config.lock().unwrap().client_disconnect_timeout = dur;
         self
+    }
+
+    #[doc(hidden)]
+    #[deprecated(since = "4.0.0", note = "Renamed to `client_request_timeout`.")]
+    pub fn client_shutdown(self, dur: u64) -> Self {
+        self.client_disconnect_timeout(Duration::from_millis(dur))
     }
 
     /// Set server host name.
@@ -291,8 +304,8 @@ where
 
                     let mut svc = HttpService::build()
                         .keep_alive(c.keep_alive)
-                        .client_timeout(c.client_timeout)
-                        .client_disconnect(c.client_shutdown)
+                        .client_request_timeout(c.client_request_timeout)
+                        .client_disconnect_timeout(c.client_disconnect_timeout)
                         .local_addr(addr);
 
                     if let Some(handler) = on_connect_fn.clone() {
@@ -349,8 +362,8 @@ where
 
                     let svc = HttpService::build()
                         .keep_alive(c.keep_alive)
-                        .client_timeout(c.client_timeout)
-                        .client_disconnect(c.client_shutdown)
+                        .client_request_timeout(c.client_request_timeout)
+                        .client_disconnect_timeout(c.client_disconnect_timeout)
                         .local_addr(addr);
 
                     let svc = if let Some(handler) = on_connect_fn.clone() {
@@ -410,8 +423,8 @@ where
 
                     let svc = HttpService::build()
                         .keep_alive(c.keep_alive)
-                        .client_timeout(c.client_timeout)
-                        .client_disconnect(c.client_shutdown);
+                        .client_request_timeout(c.client_request_timeout)
+                        .client_disconnect_timeout(c.client_disconnect_timeout);
 
                     let svc = if let Some(handler) = on_connect_fn.clone() {
                         svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
@@ -537,8 +550,8 @@ where
             fn_service(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) }).and_then({
                 let mut svc = HttpService::build()
                     .keep_alive(c.keep_alive)
-                    .client_timeout(c.client_timeout)
-                    .client_disconnect(c.client_shutdown);
+                    .client_request_timeout(c.client_request_timeout)
+                    .client_disconnect_timeout(c.client_disconnect_timeout);
 
                 if let Some(handler) = on_connect_fn.clone() {
                     svc = svc
@@ -593,8 +606,8 @@ where
                 fn_service(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) }).and_then(
                     HttpService::build()
                         .keep_alive(c.keep_alive)
-                        .client_timeout(c.client_timeout)
-                        .client_disconnect(c.client_shutdown)
+                        .client_request_timeout(c.client_request_timeout)
+                        .client_disconnect_timeout(c.client_disconnect_timeout)
                         .finish(map_config(fac, move |_| config.clone())),
                 )
             },

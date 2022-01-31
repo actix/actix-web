@@ -33,6 +33,7 @@ pub use ::http::{Method, StatusCode, Version};
 pub mod body;
 mod builder;
 mod config;
+mod date;
 #[cfg(feature = "__compress")]
 pub mod encoding;
 pub mod error;
@@ -42,7 +43,10 @@ pub mod h2;
 pub mod header;
 mod helpers;
 mod http_message;
+mod keep_alive;
 mod message;
+#[cfg(test)]
+mod notify_on_drop;
 mod payload;
 mod requests;
 mod responses;
@@ -51,11 +55,12 @@ pub mod test;
 pub mod ws;
 
 pub use self::builder::HttpServiceBuilder;
-pub use self::config::{KeepAlive, ServiceConfig};
+pub use self::config::ServiceConfig;
 pub use self::error::Error;
 pub use self::extensions::Extensions;
 pub use self::header::ContentEncoding;
 pub use self::http_message::HttpMessage;
+pub use self::keep_alive::KeepAlive;
 pub use self::message::ConnectionType;
 pub use self::message::Message;
 #[allow(deprecated)]

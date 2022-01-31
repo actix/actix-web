@@ -13,6 +13,7 @@ mod encoder;
 mod expect;
 mod payload;
 mod service;
+mod timer;
 mod upgrade;
 mod utils;
 
@@ -28,9 +29,10 @@ pub use self::utils::SendResponse;
 #[derive(Debug)]
 /// Codec message
 pub enum Message<T> {
-    /// Http message
+    /// HTTP message.
     Item(T),
-    /// Payload chunk
+
+    /// Payload chunk.
     Chunk(Option<Bytes>),
 }
 

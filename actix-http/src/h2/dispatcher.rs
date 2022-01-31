@@ -57,11 +57,11 @@ where
         conn_data: OnConnectData,
         timer: Option<Pin<Box<Sleep>>>,
     ) -> Self {
-        let ping_pong = config.keep_alive().map(|dur| H2PingPong {
+        let ping_pong = config.keep_alive().duration().map(|dur| H2PingPong {
             timer: timer
                 .map(|mut timer| {
-                    // reset timer if it's received from new function.
-                    timer.as_mut().reset(config.now() + dur);
+                    // reuse timer slot if it was initialized for handshake
+                    timer.as_mut().reset((config.now() + dur).into());
                     timer
                 })
                 .unwrap_or_else(|| Box::pin(sleep(dur))),
@@ -160,8 +160,8 @@ where
                                 Poll::Ready(_) => {
                                     ping_pong.on_flight = false;
 
-                                    let dead_line = this.config.keep_alive_expire().unwrap();
-                                    ping_pong.timer.as_mut().reset(dead_line);
+                                    let dead_line = this.config.keep_alive_deadline().unwrap();
+                                    ping_pong.timer.as_mut().reset(dead_line.into());
                                 }
                                 Poll::Pending => {
                                     return ping_pong.timer.as_mut().poll(cx).map(|_| Ok(()))
@@ -174,8 +174,8 @@ where
 
                             ping_pong.ping_pong.send_ping(Ping::opaque())?;
 
-                            let dead_line = this.config.keep_alive_expire().unwrap();
-                            ping_pong.timer.as_mut().reset(dead_line);
+                            let dead_line = this.config.keep_alive_deadline().unwrap();
+                            ping_pong.timer.as_mut().reset(dead_line.into());
 
                             ping_pong.on_flight = true;
                         }
@@ -322,7 +322,7 @@ fn prepare_response(
     // set date header
     if !has_date {
         let mut bytes = BytesMut::with_capacity(29);
-        config.set_date_header(&mut bytes);
+        config.write_date_header_value(&mut bytes);
         res.headers_mut().insert(
             DATE,
             // SAFETY: serialized date-times are known ASCII strings

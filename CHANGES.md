@@ -1,10 +1,15 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Changed
+- Rename `HttpServer::{client_timeout => client_request_timeout}`. [#2611]
+- Rename `HttpServer::{client_shutdown => client_disconnect_timeout}`. [#2611]
+
 ### Removed
 - `impl Future for HttpResponse`. [#2601]
 
 [#2601]: https://github.com/actix/actix-web/pull/2601
+[#2611]: https://github.com/actix/actix-web/pull/2611
 
 
 ## 4.0.0-beta.21 - 2022-01-21
