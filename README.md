@@ -21,12 +21,13 @@
 
 ## Features
 
-- Supports *HTTP/1.x* and *HTTP/2*
+- Supports _HTTP/1.x_ and _HTTP/2_
 - Streaming and pipelining
+- Powerful [request routing](https://actix.rs/docs/url-dispatch/) with optional macros
+- Full [Tokio](https://tokio.rs) compatibility
 - Keep-alive and slow requests handling
 - Client/server [WebSockets](https://actix.rs/docs/websockets/) support
 - Transparent content compression/decompression (br, gzip, deflate, zstd)
-- Powerful [request routing](https://actix.rs/docs/url-dispatch/)
 - Multipart streams
 - Static assets
 - SSL support using OpenSSL or Rustls
@@ -47,7 +48,7 @@ Dependencies:
 
 ```toml
 [dependencies]
-actix-web = "3"
+actix-web = "4.0.0-rc.1"
 ```
 
 Code:
@@ -56,14 +57,15 @@ Code:
 use actix_web::{get, web, App, HttpServer, Responder};
 
 #[get("/{id}/{name}/index.html")]
-async fn index(web::Path((id, name)): web::Path<(u32, String)>) -> impl Responder {
+async fn index(params: web::Path<(u32, String)>) -> impl Responder {
+    let (id, name) = params.into_inner();
     format!("Hello {}! id:{}", name, id)
 }
 
-#[actix_web::main]
+#[actix_web::main] // or #[tokio::main]
 async fn main() -> std::io::Result<()> {
     HttpServer::new(|| App::new().service(index))
-        .bind("127.0.0.1:8080")?
+        .bind(("127.0.0.1", 8080))?
         .run()
         .await
 }
@@ -84,24 +86,18 @@ async fn main() -> std::io::Result<()> {
 - [HTTPS using OpenSSL](https://github.com/actix/examples/tree/master/security/openssl/)
 - [WebSocket Chat](https://github.com/actix/examples/tree/master/websockets/chat/)
 
-You may consider checking out
-[this directory](https://github.com/actix/examples/tree/master/) for more examples.
+You may consider checking out [this directory](https://github.com/actix/examples/tree/master/) for more examples.
 
 ## Benchmarks
 
-One of the fastest web frameworks available according to the
-[TechEmpower Framework Benchmark](https://www.techempower.com/benchmarks/#section=data-r20&test=composite).
+One of the fastest web frameworks available according to the [TechEmpower Framework Benchmark](https://www.techempower.com/benchmarks/#section=data-r20&test=composite).
 
 ## License
 
-This project is licensed under either of
+This project is licensed under either of the following licenses, at your option:
 
-- Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
-  [http://www.apache.org/licenses/LICENSE-2.0])
-- MIT license ([LICENSE-MIT](LICENSE-MIT) or
-  [http://opensource.org/licenses/MIT])
-
-at your option.
+- Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or [http://www.apache.org/licenses/LICENSE-2.0])
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or [http://opensource.org/licenses/MIT])
 
 ## Code of Conduct
 

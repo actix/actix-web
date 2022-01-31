@@ -13,16 +13,26 @@ save_exit_code() {
 }
 
 save_exit_code cargo test --lib --tests -p=actix-router --all-features -- --nocapture
-save_exit_code cargo test --lib --tests -p=actix-http --all-features -- --nocapture
-save_exit_code cargo test --lib --tests -p=actix-web --features=rustls,openssl -- --nocapture --skip=test_reading_deflate_encoding_large_random_rustls
-save_exit_code cargo test --lib --tests -p=actix-web-codegen --all-features -- --nocapture
-save_exit_code cargo test --lib --tests -p=awc --all-features -- --nocapture
-save_exit_code cargo test --lib --tests -p=actix-http-test --all-features -- --nocapture
-save_exit_code cargo test --lib --tests -p=actix-test --all-features -- --nocapture
-save_exit_code cargo test --lib --tests -p=actix-files -- --nocapture
-save_exit_code cargo test --lib --tests -p=actix-multipart --all-features -- --nocapture
-save_exit_code cargo test --lib --tests -p=actix-web-actors --all-features -- --nocapture
+# save_exit_code cargo test --lib --tests -p=actix-http --all-features -- --nocapture
+# save_exit_code cargo test --lib --tests -p=actix-web --features=rustls,openssl -- --nocapture --skip=test_reading_deflate_encoding_large_random_rustls
+# save_exit_code cargo test --lib --tests -p=actix-web-codegen --all-features -- --nocapture
+# save_exit_code cargo test --lib --tests -p=awc --all-features -- --nocapture
+# save_exit_code cargo test --lib --tests -p=actix-http-test --all-features -- --nocapture
+# save_exit_code cargo test --lib --tests -p=actix-test --all-features -- --nocapture
+# save_exit_code cargo test --lib --tests -p=actix-files -- --nocapture
+# save_exit_code cargo test --lib --tests -p=actix-multipart --all-features -- --nocapture
+# save_exit_code cargo test --lib --tests -p=actix-web-actors --all-features -- --nocapture
 
-save_exit_code cargo test --workspace --doc
+# save_exit_code cargo test --workspace --doc
+
+if [ "$EXIT" = "0" ]; then
+    PASSED="All tests passed!"
+
+    if [ "$(command -v figlet)" ]; then
+        figlet "$PASSED"
+    else
+        echo "$PASSED"
+    fi
+fi
 
 exit $EXIT
