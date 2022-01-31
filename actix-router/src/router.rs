@@ -7,22 +7,25 @@ pub struct ResourceId(pub u16);
 
 /// Resource router.
 ///
-/// It matches a [routable resource](Resource) to an ordered list of _routes_,
-/// each is defined by an single [`ResourceDef`] and containes two types of custom data:
+/// It matches a [routing resource](Resource) to an ordered list of _routes_. Each is defined by a
+/// single [`ResourceDef`] and contains two types of custom data:
 /// 1. The route _value_, of the generic type `T`.
-/// 2. Some _context_ data, of the generic type `U`, which is only provided to the check function in
-///    [`recognize_fn`](Self::recognize_fn).
+/// 1. Some _context_ data, of the generic type `U`, which is only provided to the check function in
+///    [`recognize_fn`](Self::recognize_fn). This parameter defaults to `()` and can be omitted if
+///    not required.
 pub struct Router<T, U = ()> {
-    routes: Vec<(ResourceDef, (T, U))>,
+    routes: Vec<(ResourceDef, T, U)>,
 }
 
 impl<T, U> Router<T, U> {
+    /// Constructs new `RouterBuilder` with empty route list.
     pub fn build() -> RouterBuilder<T, U> {
         RouterBuilder { routes: Vec::new() }
     }
 
-    /// Finds the value in the router that matches a given [routable resource](Resource)
-    /// and stores the match result, including the captured dynamic segments, into the `resource`.
+    /// Finds the value in the router that matches a given [routing resource](Resource).
+    ///
+    /// The match result, including the captured dynamic segments, in the `resource`.
     pub fn recognize<R>(&self, resource: &mut R) -> Option<(&T, ResourceId)>
     where
         R: Resource,
@@ -31,8 +34,7 @@ impl<T, U> Router<T, U> {
         self.recognize_fn(resource, |_, _| true)
     }
 
-    /// Similar to [`recognize`](Self::recognize),
-    /// but returns a mutable reference to the matching value.
+    /// Same as [`recognize`](Self::recognize) but returns a mutable reference to the matched value.
     pub fn recognize_mut<R>(&mut self, resource: &mut R) -> Option<(&mut T, ResourceId)>
     where
         R: Resource,
@@ -41,12 +43,13 @@ impl<T, U> Router<T, U> {
         self.recognize_mut_fn(resource, |_, _| true)
     }
 
-    /// Similar to [`recognize`](Self::recognize),
-    /// but executes an additional check function before accepting the route
-    /// as fully matched and storing the match result into `resource`.
+    /// Finds the value in the router that matches a given [routing resource](Resource) and passes
+    /// an additional predicate check using context data.
     ///
-    /// The check function is provided with a reference to the `resource` itself
-    /// and to the context data of the route being matched.
+    /// Similar to [`recognize`](Self::recognize). However, before accepting the route as matched,
+    /// the `check` closure is executed, passing the resource and each route's context data. If the
+    /// closure returns true then the match result is stored into `resource` and a reference to
+    /// the matched _value_ is returned.
     pub fn recognize_fn<R, F>(&self, resource: &mut R, mut check: F) -> Option<(&T, ResourceId)>
     where
         R: Resource,
@@ -54,7 +57,7 @@ impl<T, U> Router<T, U> {
     {
         profile_method!(recognize_checked);
 
-        for (rdef, (val, ctx)) in self.routes.iter() {
+        for (rdef, val, ctx) in self.routes.iter() {
             if rdef.capture_match_info_fn(resource, |res| check(res, ctx)) {
                 return Some((val, ResourceId(rdef.id())));
             }
@@ -63,8 +66,8 @@ impl<T, U> Router<T, U> {
         None
     }
 
-    /// Similar to [`recognize_fn`](Self::recognize),
-    /// but returns a mutable reference to the matching value.
+    /// Same as [`recognize_fn`](Self::recognize_fn) but returns a mutable reference to the matched
+    /// value.
     pub fn recognize_mut_fn<R, F>(
         &mut self,
         resource: &mut R,
@@ -76,7 +79,7 @@ impl<T, U> Router<T, U> {
     {
         profile_method!(recognize_mut_checked);
 
-        for (rdef, (val, ctx)) in self.routes.iter_mut() {
+        for (rdef, val, ctx) in self.routes.iter_mut() {
             if rdef.capture_match_info_fn(resource, |res| check(res, ctx)) {
                 return Some((val, ResourceId(rdef.id())));
             }
@@ -86,25 +89,26 @@ impl<T, U> Router<T, U> {
     }
 }
 
-/// Builds the list of routes for a [resource router](Router).
+/// Builder for an ordered [routing](Router) list.
 pub struct RouterBuilder<T, U = ()> {
-    routes: Vec<(ResourceDef, (T, U))>,
+    routes: Vec<(ResourceDef, T, U)>,
 }
 
 impl<T, U> RouterBuilder<T, U> {
-    /// Adds a new route at the back of the routes list.
+    /// Adds a new route to the end of the routing list.
     ///
-    /// Returns a mutable reference to elements of the new route.
+    /// Returns mutable references to elements of the new route.
     pub fn push(
         &mut self,
         rdef: ResourceDef,
         val: T,
         ctx: U,
     ) -> (&mut ResourceDef, &mut T, &mut U) {
-        self.routes.push((rdef, (val, ctx)));
+        profile_method!(push);
+        self.routes.push((rdef, val, ctx));
         self.routes
             .last_mut()
-            .map(|(rdef, (val, ctx))| (rdef, val, ctx))
+            .map(|(rdef, val, ctx)| (rdef, val, ctx))
             .unwrap()
     }
 
@@ -141,7 +145,7 @@ where
         self.push(ResourceDef::prefix(prefix), val, U::default())
     }
 
-    /// Registers resource for ResourceDef.
+    /// Registers resource for [`ResourceDef`].
     pub fn rdef(&mut self, rdef: ResourceDef, val: T) -> (&mut ResourceDef, &mut T, &mut U) {
         profile_method!(rdef);
         self.push(rdef, val, U::default())

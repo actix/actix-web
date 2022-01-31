@@ -467,7 +467,7 @@ impl ServiceFactory<ServiceRequest> for ScopeFactory {
         // construct all services factory future with it's resource def and guards.
         let factory_fut = join_all(self.services.iter().map(|(path, factory, guards)| {
             let path = path.clone();
-            let guards = guards.borrow_mut().take();
+            let guards = guards.borrow_mut().take().unwrap_or_default();
             let factory_fut = factory.new_service(());
             async move {
                 let service = factory_fut.await?;
@@ -496,7 +496,7 @@ impl ServiceFactory<ServiceRequest> for ScopeFactory {
 }
 
 pub struct ScopeService {
-    router: Router<BoxedHttpService, Option<Vec<Box<dyn Guard>>>>,
+    router: Router<BoxedHttpService, Vec<Box<dyn Guard>>>,
     default: BoxedHttpService,
 }
 
@@ -510,7 +510,7 @@ impl Service<ServiceRequest> for ScopeService {
     fn call(&self, mut req: ServiceRequest) -> Self::Future {
         let res = self.router.recognize_fn(&mut req, |req, guards| {
             let guard_ctx = req.guard_ctx();
-            guards.iter().flatten().all(|guard| guard.check(&guard_ctx))
+            guards.iter().all(|guard| guard.check(&guard_ctx))
         });
 
         if let Some((srv, _info)) = res {

@@ -632,9 +632,9 @@ impl ResourceDef {
     /// assert_eq!(path.get("path").unwrap(), "HEAD/Cargo.toml");
     /// assert_eq!(path.unprocessed(), "");
     /// ```
-    pub fn capture_match_info<R: Resource>(&self, path: &mut R) -> bool {
+    pub fn capture_match_info<R: Resource>(&self, resource: &mut R) -> bool {
         profile_method!(capture_match_info);
-        self.capture_match_info_fn(path, |_| true)
+        self.capture_match_info_fn(resource, |_| true)
     }
 
     /// Collects dynamic segment values into `resource` after matching paths and executing
@@ -651,11 +651,11 @@ impl ResourceDef {
     /// ```
     /// use actix_router::{Path, ResourceDef};
     ///
-    /// fn try_match(resource: &ResourceDef, path: &mut Path<&str>) -> bool {
+    /// fn try_match(resource: &ResourceDef, resource: &mut Path<&str>) -> bool {
     ///     let admin_allowed = std::env::var("ADMIN_ALLOWED").is_ok();
     ///
     ///     resource.capture_match_info_fn(
-    ///         path,
+    ///         resource,
     ///         // when env var is not set, reject when path contains "admin"
     ///         |res| !(!admin_allowed && res.path().contains("admin")),
     ///     )

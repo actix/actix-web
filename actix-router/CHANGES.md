@@ -1,11 +1,11 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
-- Remove the unused `ResourceInfo`. [#2612]
+- Remove unused `ResourceInfo`. [#2612]
 - Add `RouterBuilder::push`. [#2612]
 - Change signature of `ResourceDef::capture_match_info_fn` to remove `user_data` parameter. [#2612]
-- Replace `Option<U>` with `U` in `Router` api. [#2612]
-- Relax bounds in `Router::recognize*` and `ResourceDef::capture_match_info`. [#2612]
+- Replace `Option<U>` with `U` in `Router` API. [#2612]
+- Relax bounds on `Router::recognize*` and `ResourceDef::capture_match_info`. [#2612]
 - `Quoter::requote` now returns `Option<Vec<u8>>`. [#2613]
 
 [#2612]: https://github.com/actix/actix-web/pull/2612
