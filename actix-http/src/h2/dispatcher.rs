@@ -60,7 +60,7 @@ where
         let ping_pong = config.keep_alive().duration().map(|dur| H2PingPong {
             timer: timer
                 .map(|mut timer| {
-                    // reuse timer slot if it was used for handshake
+                    // reuse timer slot if it was initialized for handshake
                     timer.as_mut().reset((config.now() + dur).into());
                     timer
                 })

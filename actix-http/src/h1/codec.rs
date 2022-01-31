@@ -42,7 +42,9 @@ impl Default for Codec {
 
 impl fmt::Debug for Codec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("h1::Codec").finish_non_exhaustive()
+        f.debug_struct("h1::Codec")
+            .field("flags", &self.flags)
+            .finish_non_exhaustive()
     }
 }
 

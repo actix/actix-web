@@ -13,6 +13,8 @@
 - Deadline methods in `ServiceConfig` now return `std::time::Instant`s instead of Tokio's wrapper type. [#2611]
 - Rename `h1::Codec::{keepalive => keep_alive}`. [#2611]
 - Rename `h1::Codec::{keepalive_enabled => keep_alive_enabled}`. [#2611]
+- Rename `h1::ClientCodec::{keepalive => keep_alive}`. [#2611]
+- Rename `h1::ClientPayloadCodec::{keepalive => keep_alive}`. [#2611]
 - `ServiceConfig::keep_alive` now returns a `KeepAlive`. [#2611]
 
 ### Fixed
