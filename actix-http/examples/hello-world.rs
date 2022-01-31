@@ -1,4 +1,4 @@
-use std::{convert::Infallible, io};
+use std::{convert::Infallible, io, time::Duration};
 
 use actix_http::{
     header::HeaderValue, HttpMessage, HttpService, Request, Response, StatusCode,
@@ -12,8 +12,8 @@ async fn main() -> io::Result<()> {
     Server::build()
         .bind("hello-world", ("127.0.0.1", 8080), || {
             HttpService::build()
-                .client_timeout(1000)
-                .client_disconnect(1000)
+                .client_request_timeout(Duration::from_secs(1))
+                .client_disconnect_timeout(Duration::from_secs(1))
                 .on_connect_ext(|_, ext| {
                     ext.insert(42u32);
                 })

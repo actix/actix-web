@@ -3,51 +3,16 @@ use std::{
     fmt::{self, Write},
     net,
     rc::Rc,
-    time::{Duration, SystemTime},
+    time::{Duration, Instant, SystemTime},
 };
 
-use actix_rt::{
-    task::JoinHandle,
-    time::{interval, sleep_until, Instant, Sleep},
-};
+use actix_rt::{task::JoinHandle, time::interval};
 use bytes::BytesMut;
+
+use crate::KeepAlive;
 
 /// "Thu, 01 Jan 1970 00:00:00 GMT".len()
 pub(crate) const DATE_VALUE_LENGTH: usize = 29;
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-/// Server keep-alive setting
-pub enum KeepAlive {
-    /// Keep-alive duration.
-    Timeout(Duration),
-
-    /// Rely on OS to shutdown TCP connection.
-    Os,
-
-    /// Keep-alive is disabled.
-    Disabled,
-}
-
-impl Default for KeepAlive {
-    fn default() -> Self {
-        Self::Timeout(Duration::from_secs(5))
-    }
-}
-
-impl From<usize> for KeepAlive {
-    fn from(ka_secs: usize) -> Self {
-        KeepAlive::Timeout(Duration::from_secs(ka_secs as u64))
-    }
-}
-
-impl From<Option<usize>> for KeepAlive {
-    fn from(ka_secs_opt: Option<usize>) -> Self {
-        match ka_secs_opt {
-            Some(ka_secs) => KeepAlive::Timeout(Duration::from_secs(ka_secs as u64)),
-            None => KeepAlive::Disabled,
-        }
-    }
-}
 
 /// HTTP service configuration.
 #[derive(Debug, Clone)]
@@ -55,10 +20,9 @@ pub struct ServiceConfig(Rc<Inner>);
 
 #[derive(Debug)]
 struct Inner {
-    keep_alive: Option<Duration>,
-    client_request_timeout: u64,
-    client_disconnect_timeout: u64,
-    ka_enabled: bool,
+    keep_alive: KeepAlive,
+    client_request_timeout: Duration,
+    client_disconnect_timeout: Duration,
     secure: bool,
     local_addr: Option<std::net::SocketAddr>,
     date_service: DateService,
@@ -66,7 +30,13 @@ struct Inner {
 
 impl Default for ServiceConfig {
     fn default() -> Self {
-        Self::new(KeepAlive::default(), 0, 0, false, None)
+        Self::new(
+            KeepAlive::default(),
+            Duration::from_secs(5),
+            Duration::ZERO,
+            false,
+            None,
+        )
     }
 }
 
@@ -74,22 +44,19 @@ impl ServiceConfig {
     /// Create instance of `ServiceConfig`
     pub fn new(
         keep_alive: KeepAlive,
-        client_request_timeout: u64,
-        client_disconnect_timeout: u64,
+        client_request_timeout: Duration,
+        client_disconnect_timeout: Duration,
         secure: bool,
         local_addr: Option<net::SocketAddr>,
     ) -> ServiceConfig {
-        let (keep_alive, ka_enabled) = match keep_alive {
-            KeepAlive::Timeout(val) => (val, true),
-            KeepAlive::Os => (Duration::ZERO, true),
-            KeepAlive::Disabled => (Duration::ZERO, false),
+        // zero timeout keep-alive maps to disabled
+        let keep_alive = match keep_alive {
+            KeepAlive::Timeout(Duration::ZERO) => KeepAlive::Disabled,
+            ka => ka,
         };
-
-        let keep_alive = (ka_enabled && keep_alive > Duration::ZERO).then(|| keep_alive);
 
         ServiceConfig(Rc::new(Inner {
             keep_alive,
-            ka_enabled,
             client_request_timeout,
             client_disconnect_timeout,
             secure,
@@ -112,16 +79,22 @@ impl ServiceConfig {
         self.0.local_addr
     }
 
-    /// Keep-alive duration, if configured.
+    /// Connection keep-alive setting.
     #[inline]
-    pub fn keep_alive(&self) -> Option<Duration> {
+    pub fn keep_alive(&self) -> KeepAlive {
         self.0.keep_alive
     }
 
-    /// Returns `true` if connection if set to use keep-alive functionality.
-    #[inline]
-    pub fn keep_alive_enabled(&self) -> bool {
-        self.0.ka_enabled
+    /// Creates a time object representing the deadline for this connection's keep-alive period, if
+    /// enabled.
+    ///
+    /// When [`KeepAlive::Os`] or [`KeepAlive::Disabled`] is set, this will return `None`.
+    pub fn keep_alive_deadline(&self) -> Option<Instant> {
+        match self.keep_alive() {
+            KeepAlive::Timeout(dur) => Some(self.now() + dur),
+            KeepAlive::Os => None,
+            KeepAlive::Disabled => None,
+        }
     }
 
     /// Creates a time object representing the deadline for the client to finish sending the head of
@@ -129,46 +102,24 @@ impl ServiceConfig {
     ///
     /// Returns `None` if this `ServiceConfig was` constructed with `client_request_timeout: 0`.
     pub fn client_request_deadline(&self) -> Option<Instant> {
-        let delay = self.0.client_request_timeout;
+        let timeout = self.0.client_request_timeout;
 
-        if delay != 0 {
-            Some(self.now() + Duration::from_millis(delay))
+        if timeout != Duration::ZERO {
+            Some(self.now() + timeout)
         } else {
             None
         }
-    }
-
-    /// Creates a timer that resolves at the [client's first request deadline].
-    ///
-    /// Returns `None` if this `ServiceConfig was` constructed with `client_request_timeout: 0`.
-    ///
-    /// [client request deadline]: Self::client_deadline
-    pub fn client_request_timer(&self) -> Option<Sleep> {
-        self.client_request_deadline().map(sleep_until)
     }
 
     /// Creates a time object representing the deadline for the client to disconnect.
     pub fn client_disconnect_deadline(&self) -> Option<Instant> {
-        let delay = self.0.client_disconnect_timeout;
+        let timeout = self.0.client_disconnect_timeout;
 
-        if delay != 0 {
-            Some(self.now() + Duration::from_millis(delay))
+        if timeout != Duration::ZERO {
+            Some(self.now() + timeout)
         } else {
             None
         }
-    }
-
-    /// Creates a time object representing the deadline for the connection keep-alive,
-    /// if configured.
-    pub fn keep_alive_deadline(&self) -> Option<Instant> {
-        self.keep_alive().map(|ka| self.now() + ka)
-    }
-
-    /// Creates a timer that resolves at the [keep-alive deadline].
-    ///
-    /// [keep-alive deadline]: Self::keep_alive_deadline
-    pub fn keep_alive_timer(&self) -> Option<Sleep> {
-        self.keep_alive_deadline().map(sleep_until)
     }
 
     pub(crate) fn now(&self) -> Instant {
@@ -188,7 +139,7 @@ impl ServiceConfig {
         dst.extend_from_slice(&buf);
     }
 
-    pub(crate) fn set_date_header(&self, dst: &mut BytesMut) {
+    pub(crate) fn write_date_header(&self, dst: &mut BytesMut) {
         self.0
             .date_service
             .set_date(|date| dst.extend_from_slice(&date.bytes));
@@ -247,7 +198,7 @@ impl DateService {
             loop {
                 let now = interval.tick().await;
                 let date = Date::new();
-                current_clone.set((date, now));
+                current_clone.set((date, now.into_std()));
             }
         });
 
@@ -334,12 +285,16 @@ mod notify_on_drop {
 mod tests {
     use super::*;
 
-    use actix_rt::{task::yield_now, time::sleep};
+    use actix_rt::{
+        task::yield_now,
+        time::{sleep, sleep_until},
+    };
     use memchr::memmem;
 
     #[actix_rt::test]
     async fn test_date_service_update() {
-        let settings = ServiceConfig::new(KeepAlive::Os, 0, 0, false, None);
+        let settings =
+            ServiceConfig::new(KeepAlive::Os, Duration::ZERO, Duration::ZERO, false, None);
 
         yield_now().await;
 
@@ -347,7 +302,7 @@ mod tests {
         settings.set_date(&mut buf1, false);
         let now1 = settings.now();
 
-        sleep_until(Instant::now() + Duration::from_secs(2)).await;
+        sleep_until((Instant::now() + Duration::from_secs(2)).into()).await;
         yield_now().await;
 
         let now2 = settings.now();

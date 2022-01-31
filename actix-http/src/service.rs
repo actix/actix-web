@@ -19,9 +19,8 @@ use pin_project_lite::pin_project;
 use crate::{
     body::{BoxBody, MessageBody},
     builder::HttpServiceBuilder,
-    config::{KeepAlive, ServiceConfig},
     error::DispatchError,
-    h1, h2, ConnectCallback, OnConnectData, Protocol, Request, Response,
+    h1, h2, ConnectCallback, OnConnectData, Protocol, Request, Response, ServiceConfig,
 };
 
 /// A `ServiceFactory` for HTTP/1.1 or HTTP/2 protocol.
@@ -43,9 +42,9 @@ where
     <S::Service as Service<Request>>::Future: 'static,
     B: MessageBody + 'static,
 {
-    /// Create builder for `HttpService` instance.
+    /// Constructs builder for `HttpService` instance.
     pub fn build() -> HttpServiceBuilder<T, S> {
-        HttpServiceBuilder::new()
+        HttpServiceBuilder::default()
     }
 }
 
@@ -58,12 +57,10 @@ where
     <S::Service as Service<Request>>::Future: 'static,
     B: MessageBody + 'static,
 {
-    /// Create new `HttpService` instance.
+    /// Constructs new `HttpService` instance from service with default config.
     pub fn new<F: IntoServiceFactory<S, Request>>(service: F) -> Self {
-        let cfg = ServiceConfig::new(KeepAlive::default(), 5000, 0, false, None);
-
         HttpService {
-            cfg,
+            cfg: ServiceConfig::default(),
             srv: service.into_factory(),
             expect: h1::ExpectHandler,
             upgrade: None,
@@ -72,7 +69,7 @@ where
         }
     }
 
-    /// Create new `HttpService` instance with config.
+    /// Constructs new `HttpService` instance from config and service.
     pub(crate) fn with_config<F: IntoServiceFactory<S, Request>>(
         cfg: ServiceConfig,
         service: F,
@@ -97,11 +94,10 @@ where
     <S::Service as Service<Request>>::Future: 'static,
     B: MessageBody,
 {
-    /// Provide service for `EXPECT: 100-Continue` support.
+    /// Sets service for `Expect: 100-Continue` handling.
     ///
-    /// Service get called with request that contains `EXPECT` header.
-    /// Service must return request in case of success, in that case
-    /// request will be forwarded to main service.
+    /// AN expect service is called with the request that contains an `Expect` header. A successful
+    /// response type is also a request which will be forwarded to the main service.
     pub fn expect<X1>(self, expect: X1) -> HttpService<T, S, B, X1, U>
     where
         X1: ServiceFactory<Request, Config = (), Response = Request>,
@@ -118,10 +114,10 @@ where
         }
     }
 
-    /// Provide service for custom `Connection: UPGRADE` support.
+    /// Sets service for custom `Connection: Upgrade` handling.
     ///
-    /// If service is provided then normal requests handling get halted
-    /// and this service get called with original request and framed object.
+    /// If service is provided then normal requests handling get halted and this service get called
+    /// with original request and framed object.
     pub fn upgrade<U1>(self, upgrade: Option<U1>) -> HttpService<T, S, B, X, U1>
     where
         U1: ServiceFactory<(Request, Framed<T, h1::Codec>), Config = (), Response = ()>,

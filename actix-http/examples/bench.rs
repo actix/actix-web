@@ -1,4 +1,4 @@
-use std::{convert::Infallible, io};
+use std::{convert::Infallible, io, time::Duration};
 
 use actix_http::{HttpService, Request, Response, StatusCode};
 use actix_server::Server;
@@ -13,7 +13,7 @@ async fn main() -> io::Result<()> {
     Server::build()
         .bind("dispatcher-benchmark", ("127.0.0.1", 8080), || {
             HttpService::build()
-                .client_timeout(1000)
+                .client_request_timeout(Duration::from_secs(1))
                 .finish(|_: Request| async move {
                     let mut res = Response::build(StatusCode::OK);
                     Ok::<_, Infallible>(res.body(&**STR))

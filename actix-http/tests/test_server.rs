@@ -26,8 +26,8 @@ async fn h1_basic() {
     let mut srv = test_server(|| {
         HttpService::build()
             .keep_alive(KeepAlive::Disabled)
-            .client_timeout(1000)
-            .client_disconnect(1000)
+            .client_request_timeout(Duration::from_secs(1))
+            .client_disconnect_timeout(Duration::from_secs(1))
             .h1(|req: Request| {
                 assert!(req.peer_addr().is_some());
                 ok::<_, Infallible>(Response::ok())
@@ -47,8 +47,8 @@ async fn h1_2() {
     let mut srv = test_server(|| {
         HttpService::build()
             .keep_alive(KeepAlive::Disabled)
-            .client_timeout(1000)
-            .client_disconnect(1000)
+            .client_request_timeout(Duration::from_secs(1))
+            .client_disconnect_timeout(Duration::from_secs(1))
             .finish(|req: Request| {
                 assert!(req.peer_addr().is_some());
                 assert_eq!(req.version(), http::Version::HTTP_11);
@@ -200,8 +200,8 @@ async fn chunked_payload() {
 async fn slow_request_408() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .client_timeout(200)
-            .keep_alive(2)
+            .client_request_timeout(Duration::from_millis(200))
+            .keep_alive(Duration::from_secs(2))
             .finish(|_| ok::<_, Infallible>(Response::ok()))
             .tcp()
     })
@@ -277,7 +277,7 @@ async fn http1_keepalive() {
 async fn http1_keepalive_timeout() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .keep_alive(1)
+            .keep_alive(Duration::from_secs(1))
             .h1(|_| ok::<_, Infallible>(Response::ok()))
             .tcp()
     })

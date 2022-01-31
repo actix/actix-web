@@ -1,25 +1,23 @@
-use std::{fmt, marker::PhantomData, net, rc::Rc};
+use std::{fmt, marker::PhantomData, net, rc::Rc, time::Duration};
 
 use actix_codec::Framed;
 use actix_service::{IntoServiceFactory, Service, ServiceFactory};
 
 use crate::{
     body::{BoxBody, MessageBody},
-    config::{KeepAlive, ServiceConfig},
     h1::{self, ExpectHandler, H1Service, UpgradeHandler},
     h2::H2Service,
     service::HttpService,
-    ConnectCallback, Extensions, Request, Response,
+    ConnectCallback, Extensions, KeepAlive, Request, Response, ServiceConfig,
 };
 
-/// A HTTP service builder
+/// An HTTP service builder.
 ///
-/// This type can be used to construct an instance of [`HttpService`] through a
-/// builder-like pattern.
+/// This type can construct an instance of [`HttpService`] through a builder-like pattern.
 pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler> {
     keep_alive: KeepAlive,
-    client_timeout: u64,
-    client_disconnect: u64,
+    client_request_timeout: Duration,
+    client_disconnect_timeout: Duration,
     secure: bool,
     local_addr: Option<net::SocketAddr>,
     expect: X,
@@ -28,22 +26,23 @@ pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler> {
     _phantom: PhantomData<S>,
 }
 
-impl<T, S> HttpServiceBuilder<T, S, ExpectHandler, UpgradeHandler>
+impl<T, S> Default for HttpServiceBuilder<T, S, ExpectHandler, UpgradeHandler>
 where
     S: ServiceFactory<Request, Config = ()>,
     S::Error: Into<Response<BoxBody>> + 'static,
     S::InitError: fmt::Debug,
     <S::Service as Service<Request>>::Future: 'static,
 {
-    /// Create instance of `ServiceConfigBuilder`
-    #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
+    fn default() -> Self {
         HttpServiceBuilder {
+            // ServiceConfig parts (make sure defaults match)
             keep_alive: KeepAlive::default(),
-            client_timeout: 5000,
-            client_disconnect: 0,
+            client_request_timeout: Duration::from_secs(5),
+            client_disconnect_timeout: Duration::ZERO,
             secure: false,
             local_addr: None,
+
+            // dispatcher parts
             expect: ExpectHandler,
             upgrade: None,
             on_connect_ext: None,
@@ -65,9 +64,11 @@ where
     U::Error: fmt::Display,
     U::InitError: fmt::Debug,
 {
-    /// Set server keep-alive setting.
+    /// Set connection keep-alive setting.
     ///
-    /// By default keep alive is set to a 5 seconds.
+    /// Applies to HTTP/1.1 keep-alive and HTTP/2 ping-pong.
+    ///
+    /// By default keep-alive is 5 seconds.
     pub fn keep_alive<W: Into<KeepAlive>>(mut self, val: W) -> Self {
         self.keep_alive = val.into();
         self
@@ -85,31 +86,43 @@ where
         self
     }
 
-    /// Set server client timeout in milliseconds for first request.
+    /// Set client request timeout (for first request).
     ///
-    /// Defines a timeout for reading client request header. If a client does not transmit
-    /// the entire set headers within this time, the request is terminated with
-    /// the 408 (Request Time-out) error.
+    /// Defines a timeout for reading client request header. If the client does not transmit the
+    /// request head within this duration, the connection is terminated with a `408 Request Timeout`
+    /// response error.
     ///
-    /// To disable timeout set value to 0.
+    /// A duration of zero disables the timeout.
     ///
-    /// By default client timeout is set to 5000 milliseconds.
-    pub fn client_timeout(mut self, val: u64) -> Self {
-        self.client_timeout = val;
+    /// By default, the client timeout is 5 seconds.
+    pub fn client_request_timeout(mut self, dur: Duration) -> Self {
+        self.client_request_timeout = dur;
         self
     }
 
-    /// Set server connection disconnect timeout in milliseconds.
+    #[doc(hidden)]
+    #[deprecated(since = "3.0.0", note = "Renamed to `client_request_timeout`.")]
+    pub fn client_timeout(self, dur: Duration) -> Self {
+        self.client_request_timeout(dur)
+    }
+
+    /// Set client connection disconnect timeout.
     ///
     /// Defines a timeout for disconnect connection. If a disconnect procedure does not complete
     /// within this time, the request get dropped. This timeout affects secure connections.
     ///
-    /// To disable timeout set value to 0.
+    /// A duration of zero disables the timeout.
     ///
-    /// By default disconnect timeout is set to 0.
-    pub fn client_disconnect(mut self, val: u64) -> Self {
-        self.client_disconnect = val;
+    /// By default, the disconnect timeout is disabled.
+    pub fn client_disconnect_timeout(mut self, dur: Duration) -> Self {
+        self.client_disconnect_timeout = dur;
         self
+    }
+
+    #[doc(hidden)]
+    #[deprecated(since = "3.0.0", note = "Renamed to `client_disconnect_timeout`.")]
+    pub fn client_disconnect(self, dur: Duration) -> Self {
+        self.client_disconnect_timeout(dur)
     }
 
     /// Provide service for `EXPECT: 100-Continue` support.
@@ -126,8 +139,8 @@ where
     {
         HttpServiceBuilder {
             keep_alive: self.keep_alive,
-            client_timeout: self.client_timeout,
-            client_disconnect: self.client_disconnect,
+            client_request_timeout: self.client_request_timeout,
+            client_disconnect_timeout: self.client_disconnect_timeout,
             secure: self.secure,
             local_addr: self.local_addr,
             expect: expect.into_factory(),
@@ -150,8 +163,8 @@ where
     {
         HttpServiceBuilder {
             keep_alive: self.keep_alive,
-            client_timeout: self.client_timeout,
-            client_disconnect: self.client_disconnect,
+            client_request_timeout: self.client_request_timeout,
+            client_disconnect_timeout: self.client_disconnect_timeout,
             secure: self.secure,
             local_addr: self.local_addr,
             expect: self.expect,
@@ -185,8 +198,8 @@ where
     {
         let cfg = ServiceConfig::new(
             self.keep_alive,
-            self.client_timeout,
-            self.client_disconnect,
+            self.client_request_timeout,
+            self.client_disconnect_timeout,
             self.secure,
             self.local_addr,
         );
@@ -209,8 +222,8 @@ where
     {
         let cfg = ServiceConfig::new(
             self.keep_alive,
-            self.client_timeout,
-            self.client_disconnect,
+            self.client_request_timeout,
+            self.client_disconnect_timeout,
             self.secure,
             self.local_addr,
         );
@@ -230,8 +243,8 @@ where
     {
         let cfg = ServiceConfig::new(
             self.keep_alive,
-            self.client_timeout,
-            self.client_disconnect,
+            self.client_request_timeout,
+            self.client_disconnect_timeout,
             self.secure,
             self.local_addr,
         );

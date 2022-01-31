@@ -3,15 +3,24 @@
 ## Unreleased - 2021-xx-xx
 ### Added
 - Implement `Default` for `KeepAlive`. [#2611]
+- Implement `From<Option<Duration>> for KeepAlive`. [#2611]
 
 ### Changed
 - Rename `ServiceConfig::{client_timer_expire => client_request_deadline}`. [#2611]
 - Rename `ServiceConfig::{client_timer => client_request_timer}`. [#2611]
 - Rename `ServiceConfig::{client_disconnect_timer => client_disconnect_deadline}`. [#2611]
 - Rename `ServiceConfig::{keep_alive_timer => keep_alive_deadline}`. [#2611]
+- Deadline methods in `ServiceConfig` now return `std::time::Instant`s instead of Tokio's wrapper type. [#2611]
+- Rename `h1::Codec::{keepalive => keep_alive}`. [#2611]
+- Rename `h1::Codec::{keepalive_enabled => keep_alive_enabled}`. [#2611]
+- `HttpServiceBuilder::keep_alive` now receives a `Duration` instead of an integer number of seconds. [#2611]
 
 ### Fixed
 - HTTP/1.1 dispatcher correctly uses client request timeout. [#2611]
+
+### Removed
+- `impl From<usize> for KeepAlive`; use `Duration`s instead. [#2611]
+- `impl From<Option<usize>> for KeepAlive`; use `Duration`s instead. [#2611]
 
 [#2611]: https://github.com/actix/actix-web/pull/2611
 

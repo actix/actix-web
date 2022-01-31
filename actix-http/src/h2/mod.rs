@@ -7,7 +7,7 @@ use std::{
 };
 
 use actix_codec::{AsyncRead, AsyncWrite};
-use actix_rt::time::Sleep;
+use actix_rt::time::{sleep_until, Sleep};
 use bytes::Bytes;
 use futures_core::{ready, Stream};
 use h2::{
@@ -67,7 +67,9 @@ where
 {
     HandshakeWithTimeout {
         handshake: handshake(io),
-        timer: config.client_request_timer().map(Box::pin),
+        timer: config
+            .client_request_deadline()
+            .map(|deadline| Box::pin(sleep_until(deadline.into()))),
     }
 }
 

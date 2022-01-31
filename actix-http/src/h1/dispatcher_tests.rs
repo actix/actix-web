@@ -73,7 +73,13 @@ fn echo_payload_service() -> impl Service<Request, Response = Response<Bytes>, E
 async fn late_request() {
     let mut buf = TestBuffer::empty();
 
-    let cfg = ServiceConfig::new(KeepAlive::Disabled, 100, 0, false, None);
+    let cfg = ServiceConfig::new(
+        KeepAlive::Disabled,
+        Duration::from_millis(100),
+        Duration::ZERO,
+        false,
+        None,
+    );
     let services = HttpFlow::new(ok_service(), ExpectHandler, None);
 
     let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
@@ -134,7 +140,13 @@ async fn late_request() {
 async fn oneshot_connection() {
     let buf = TestBuffer::new("GET /abcd HTTP/1.1\r\n\r\n");
 
-    let cfg = ServiceConfig::new(KeepAlive::Disabled, 100, 0, false, None);
+    let cfg = ServiceConfig::new(
+        KeepAlive::Disabled,
+        Duration::from_millis(100),
+        Duration::ZERO,
+        false,
+        None,
+    );
     let services = HttpFlow::new(echo_path_service(), ExpectHandler, None);
 
     let h1 = Dispatcher::<_, _, _, _, UpgradeHandler>::new(
@@ -188,8 +200,8 @@ async fn keep_alive_timeout() {
 
     let cfg = ServiceConfig::new(
         KeepAlive::Timeout(Duration::from_millis(200)),
-        100,
-        0,
+        Duration::from_millis(100),
+        Duration::ZERO,
         false,
         None,
     );
@@ -267,8 +279,8 @@ async fn keep_alive_follow_up_req() {
 
     let cfg = ServiceConfig::new(
         KeepAlive::Timeout(Duration::from_millis(500)),
-        100,
-        0,
+        Duration::from_millis(100),
+        Duration::ZERO,
         false,
         None,
     );
@@ -429,7 +441,13 @@ async fn pipelining_ok_then_ok() {
                 ",
         );
 
-        let cfg = ServiceConfig::new(KeepAlive::Disabled, 1, 1, false, None);
+        let cfg = ServiceConfig::new(
+            KeepAlive::Disabled,
+            Duration::from_millis(1),
+            Duration::from_millis(1),
+            false,
+            None,
+        );
 
         let services = HttpFlow::new(echo_path_service(), ExpectHandler, None);
 
@@ -493,7 +511,13 @@ async fn pipelining_ok_then_bad() {
                 ",
         );
 
-        let cfg = ServiceConfig::new(KeepAlive::Disabled, 1, 1, false, None);
+        let cfg = ServiceConfig::new(
+            KeepAlive::Disabled,
+            Duration::from_millis(1),
+            Duration::from_millis(1),
+            false,
+            None,
+        );
 
         let services = HttpFlow::new(echo_path_service(), ExpectHandler, None);
 
@@ -550,7 +574,13 @@ async fn pipelining_ok_then_bad() {
 async fn expect_handling() {
     lazy(|cx| {
         let mut buf = TestSeqBuffer::empty();
-        let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
+        let cfg = ServiceConfig::new(
+            KeepAlive::Disabled,
+            Duration::ZERO,
+            Duration::ZERO,
+            false,
+            None,
+        );
 
         let services = HttpFlow::new(echo_payload_service(), ExpectHandler, None);
 
@@ -621,7 +651,13 @@ async fn expect_handling() {
 async fn expect_eager() {
     lazy(|cx| {
         let mut buf = TestSeqBuffer::empty();
-        let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
+        let cfg = ServiceConfig::new(
+            KeepAlive::Disabled,
+            Duration::ZERO,
+            Duration::ZERO,
+            false,
+            None,
+        );
 
         let services = HttpFlow::new(echo_path_service(), ExpectHandler, None);
 
@@ -698,7 +734,13 @@ async fn upgrade_handling() {
 
     lazy(|cx| {
         let mut buf = TestSeqBuffer::empty();
-        let cfg = ServiceConfig::new(KeepAlive::Disabled, 0, 0, false, None);
+        let cfg = ServiceConfig::new(
+            KeepAlive::Disabled,
+            Duration::ZERO,
+            Duration::ZERO,
+            false,
+            None,
+        );
 
         let services = HttpFlow::new(ok_service(), ExpectHandler, Some(TestUpgrade));
 

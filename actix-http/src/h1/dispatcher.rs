@@ -264,7 +264,7 @@ where
                     messages: VecDeque::new(),
 
                     head_timer: TimerState::new(config.client_request_deadline().is_some()),
-                    ka_timer: TimerState::new(config.keep_alive_enabled()),
+                    ka_timer: TimerState::new(config.keep_alive().enabled()),
                     shutdown_timer: TimerState::new(
                         config.client_disconnect_deadline().is_some(),
                     ),
@@ -876,7 +876,7 @@ where
                 if let Some(deadline) = this.config.client_disconnect_deadline() {
                     // start shutdown timeout if enabled
                     this.shutdown_timer
-                        .set_and_init(cx, sleep_until(deadline), line!());
+                        .set_and_init(cx, sleep_until(deadline.into()), line!());
                 } else {
                     // no shutdown timeout, drop socket
                     this.flags.insert(Flags::WRITE_DISCONNECT);
@@ -1100,7 +1100,7 @@ where
                         if let Some(deadline) = inner.config.client_request_deadline() {
                             inner.as_mut().project().head_timer.set_and_init(
                                 cx,
-                                sleep_until(deadline),
+                                sleep_until(deadline.into()),
                                 line!(),
                             );
                         }
@@ -1125,10 +1125,10 @@ where
 
                             PollResponse::DoNothing => {
                                 if inner.flags.contains(Flags::FINISHED | Flags::KEEP_ALIVE) {
-                                    if let Some(timer) = inner.config.keep_alive_timer() {
+                                    if let Some(timer) = inner.config.keep_alive_deadline() {
                                         inner.as_mut().project().ka_timer.set_and_init(
                                             cx,
-                                            timer,
+                                            sleep_until(timer.into()),
                                             line!(),
                                         );
                                     }

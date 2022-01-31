@@ -38,7 +38,7 @@ struct ClientCodecInner {
     decoder: decoder::MessageDecoder<ResponseHead>,
     payload: Option<PayloadDecoder>,
     version: Version,
-    ctype: ConnectionType,
+    conn_type: ConnectionType,
 
     // encoder part
     flags: Flags,
@@ -56,18 +56,19 @@ impl ClientCodec {
     ///
     /// `keepalive_enabled` how response `connection` header get generated.
     pub fn new(config: ServiceConfig) -> Self {
-        let flags = if config.keep_alive_enabled() {
+        let flags = if config.keep_alive().enabled() {
             Flags::KEEPALIVE_ENABLED
         } else {
             Flags::empty()
         };
+
         ClientCodec {
             inner: ClientCodecInner {
                 config,
                 decoder: decoder::MessageDecoder::default(),
                 payload: None,
                 version: Version::HTTP_11,
-                ctype: ConnectionType::Close,
+                conn_type: ConnectionType::Close,
 
                 flags,
                 encoder: encoder::MessageEncoder::default(),
@@ -77,12 +78,12 @@ impl ClientCodec {
 
     /// Check if request is upgrade
     pub fn upgrade(&self) -> bool {
-        self.inner.ctype == ConnectionType::Upgrade
+        self.inner.conn_type == ConnectionType::Upgrade
     }
 
     /// Check if last response is keep-alive
     pub fn keepalive(&self) -> bool {
-        self.inner.ctype == ConnectionType::KeepAlive
+        self.inner.conn_type == ConnectionType::KeepAlive
     }
 
     /// Check last request's message type
@@ -105,7 +106,7 @@ impl ClientCodec {
 impl ClientPayloadCodec {
     /// Check if last response is keep-alive
     pub fn keepalive(&self) -> bool {
-        self.inner.ctype == ConnectionType::KeepAlive
+        self.inner.conn_type == ConnectionType::KeepAlive
     }
 
     /// Transform payload codec to a message codec
@@ -122,12 +123,12 @@ impl Decoder for ClientCodec {
         debug_assert!(!self.inner.payload.is_some(), "Payload decoder is set");
 
         if let Some((req, payload)) = self.inner.decoder.decode(src)? {
-            if let Some(ctype) = req.conn_type() {
+            if let Some(conn_type) = req.conn_type() {
                 // do not use peer's keep-alive
-                self.inner.ctype = if ctype == ConnectionType::KeepAlive {
-                    self.inner.ctype
+                self.inner.conn_type = if conn_type == ConnectionType::KeepAlive {
+                    self.inner.conn_type
                 } else {
-                    ctype
+                    conn_type
                 };
             }
 
@@ -192,7 +193,7 @@ impl Encoder<Message<(RequestHeadType, BodySize)>> for ClientCodec {
                     .set(Flags::HEAD, head.as_ref().method == Method::HEAD);
 
                 // connection status
-                inner.ctype = match head.as_ref().connection_type() {
+                inner.conn_type = match head.as_ref().connection_type() {
                     ConnectionType::KeepAlive => {
                         if inner.flags.contains(Flags::KEEPALIVE_ENABLED) {
                             ConnectionType::KeepAlive
@@ -211,7 +212,7 @@ impl Encoder<Message<(RequestHeadType, BodySize)>> for ClientCodec {
                     false,
                     inner.version,
                     length,
-                    inner.ctype,
+                    inner.conn_type,
                     &inner.config,
                 )?;
             }

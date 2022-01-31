@@ -51,7 +51,7 @@ impl Codec {
     ///
     /// `keepalive_enabled` how response `connection` header get generated.
     pub fn new(config: ServiceConfig) -> Self {
-        let flags = if config.keep_alive_enabled() {
+        let flags = if config.keep_alive().enabled() {
             Flags::KEEP_ALIVE_ENABLED
         } else {
             Flags::empty()
