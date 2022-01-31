@@ -785,7 +785,7 @@ where
                 }
 
                 Err(ParseError::TooLarge) => {
-                    log::trace!("request head is too big");
+                    log::trace!("request head was too big; returning 431 response");
 
                     if let Some(mut payload) = this.payload.take() {
                         payload.set_error(PayloadError::Overflow);
@@ -1097,7 +1097,9 @@ where
 
                     // after reading something from stream, clear keep-alive timer
                     if !inner.read_buf.is_empty() && inner.flags.contains(Flags::KEEP_ALIVE) {
-                        inner.as_mut().project().ka_timer.clear(line!());
+                        let inner = inner.as_mut().project();
+                        inner.flags.remove(Flags::KEEP_ALIVE);
+                        inner.ka_timer.clear(line!());
                     }
 
                     if !inner.flags.contains(Flags::STARTED) {
@@ -1130,7 +1132,9 @@ where
                             PollResponse::DrainWriteBuf => true,
 
                             PollResponse::DoNothing => {
-                                if inner.flags.contains(Flags::FINISHED | Flags::KEEP_ALIVE) {
+                                // KEEP_ALIVE is set in send_response_inner if client allows it
+                                // FINISHED is set after writing last chunk of response
+                                if inner.flags.contains(Flags::KEEP_ALIVE | Flags::FINISHED) {
                                     if let Some(timer) = inner.config.keep_alive_deadline() {
                                         inner.as_mut().project().ka_timer.set_and_init(
                                             cx,
@@ -1154,13 +1158,19 @@ where
                             }
                         };
 
-                        // we didn't get WouldBlock from write operation,
-                        // so data get written to kernel completely (macOS)
-                        // and we have to write again otherwise response can get stuck
+                        // we didn't get WouldBlock from write operation, so data get written to
+                        // kernel completely (macOS) and we have to write again otherwise response
+                        // can get stuck
                         //
-                        // TODO: what? is WouldBlock good or bad?
-                        // want to find a reference for this macOS behavior
-                        if inner.as_mut().poll_flush(cx)?.is_pending() || !drain {
+                        // TODO: want to find a reference for this behavior
+                        // see introduced commit: 3872d3ba
+                        let flush_was_ready = inner.as_mut().poll_flush(cx)?.is_ready();
+
+                        // this assert seems to always be true but not willing to commit to it until
+                        // we understand what Nikolay meant when writing the above comment
+                        // debug_assert!(flush_was_ready);
+
+                        if !flush_was_ready || !drain {
                             break;
                         }
                     }
