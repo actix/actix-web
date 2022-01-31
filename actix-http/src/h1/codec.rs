@@ -15,9 +15,9 @@ use crate::{
 
 bitflags! {
     struct Flags: u8 {
-        const HEAD              = 0b0000_0001;
-        const KEEPALIVE_ENABLED = 0b0000_0010;
-        const STREAM            = 0b0000_0100;
+        const HEAD               = 0b0000_0001;
+        const KEEP_ALIVE_ENABLED = 0b0000_0010;
+        const STREAM             = 0b0000_0100;
     }
 }
 
@@ -52,7 +52,7 @@ impl Codec {
     /// `keepalive_enabled` how response `connection` header get generated.
     pub fn new(config: ServiceConfig) -> Self {
         let flags = if config.keep_alive_enabled() {
-            Flags::KEEPALIVE_ENABLED
+            Flags::KEEP_ALIVE_ENABLED
         } else {
             Flags::empty()
         };
@@ -76,14 +76,14 @@ impl Codec {
 
     /// Check if last response is keep-alive.
     #[inline]
-    pub fn keepalive(&self) -> bool {
+    pub fn keep_alive(&self) -> bool {
         self.conn_type == ConnectionType::KeepAlive
     }
 
     /// Check if keep-alive enabled on server level.
     #[inline]
-    pub fn keepalive_enabled(&self) -> bool {
-        self.flags.contains(Flags::KEEPALIVE_ENABLED)
+    pub fn keep_alive_enabled(&self) -> bool {
+        self.flags.contains(Flags::KEEP_ALIVE_ENABLED)
     }
 
     /// Check last request's message type.
@@ -124,7 +124,7 @@ impl Decoder for Codec {
             self.version = head.version;
             self.conn_type = head.connection_type();
             if self.conn_type == ConnectionType::KeepAlive
-                && !self.flags.contains(Flags::KEEPALIVE_ENABLED)
+                && !self.flags.contains(Flags::KEEP_ALIVE_ENABLED)
             {
                 self.conn_type = ConnectionType::Close
             }

@@ -23,8 +23,8 @@ impl TimerState {
     }
 
     pub(super) fn set(&mut self, timer: Sleep, line: u32) {
-        if !self.is_enabled() {
-            log::warn!("setting disabled timer from line {}", line);
+        if matches!(self, Self::Disabled) {
+            log::trace!("setting disabled timer from line {}", line);
         }
 
         *self = Self::Active {
@@ -38,12 +38,12 @@ impl TimerState {
     }
 
     pub(super) fn clear(&mut self, line: u32) {
-        if !self.is_enabled() {
-            log::warn!("trying to clear a disabled timer from line {}", line);
+        if matches!(self, Self::Disabled) {
+            log::trace!("trying to clear a disabled timer from line {}", line);
         }
 
         if matches!(self, Self::Inactive) {
-            log::warn!("trying to clear an inactive timer from line {}", line);
+            log::trace!("trying to clear an inactive timer from line {}", line);
         }
 
         *self = Self::Inactive;

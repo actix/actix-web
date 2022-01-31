@@ -299,8 +299,6 @@ where
     U::Error: fmt::Display,
 {
     fn can_read(&self, cx: &mut Context<'_>) -> bool {
-        log::trace!("enter InnerDispatcher::can_read");
-
         if self.flags.contains(Flags::READ_DISCONNECT) {
             false
         } else if let Some(ref info) = self.payload {
@@ -310,10 +308,7 @@ where
         }
     }
 
-    /// If checked is set to true, delay disconnect until all tasks have finished.
     fn client_disconnected(self: Pin<&mut Self>) {
-        log::trace!("enter InnerDispatcher::client_disconnect");
-
         let this = self.project();
 
         this.flags
@@ -325,8 +320,6 @@ where
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
-        log::trace!("enter InnerDispatcher::poll_flush");
-
         let InnerDispatcherProj { io, write_buf, .. } = self.project();
         let mut io = Pin::new(io.as_mut().unwrap());
 
@@ -336,17 +329,13 @@ where
         while written < len {
             match io.as_mut().poll_write(cx, &write_buf[written..])? {
                 Poll::Ready(0) => {
-                    log::trace!("write zero error");
+                    log::error!("write zero; closing");
                     return Poll::Ready(Err(io::Error::new(io::ErrorKind::WriteZero, "")));
                 }
 
-                Poll::Ready(n) => {
-                    log::trace!("  written {} bytes", n);
-                    written += n
-                }
+                Poll::Ready(n) => written += n,
 
                 Poll::Pending => {
-                    log::trace!("  pending");
                     write_buf.advance(written);
                     return Poll::Pending;
                 }
@@ -365,8 +354,6 @@ where
         res: Response<()>,
         body: &impl MessageBody,
     ) -> Result<BodySize, DispatchError> {
-        log::trace!("enter InnerDispatcher::send_response_inner");
-
         let this = self.project();
 
         let size = body.size();
@@ -381,13 +368,7 @@ where
                 DispatchError::Io(err)
             })?;
 
-        let conn_keep_alive = this.codec.keepalive();
-        this.flags.set(Flags::KEEP_ALIVE, conn_keep_alive);
-
-        if !conn_keep_alive {
-            log::trace!("clearing keep-alive timer");
-            this.ka_timer.clear(line!());
-        }
+        this.flags.set(Flags::KEEP_ALIVE, this.codec.keep_alive());
 
         Ok(size)
     }
@@ -397,8 +378,6 @@ where
         res: Response<()>,
         body: B,
     ) -> Result<(), DispatchError> {
-        log::trace!("enter InnerDispatcher::send_response");
-
         let size = self.as_mut().send_response_inner(res, &body)?;
         let mut this = self.project();
         this.state.set(match size {
@@ -417,8 +396,6 @@ where
         res: Response<()>,
         body: BoxBody,
     ) -> Result<(), DispatchError> {
-        log::trace!("enter InnerDispatcher::send_error_response");
-
         let size = self.as_mut().send_response_inner(res, &body)?;
         let mut this = self.project();
         this.state.set(match size {
@@ -433,8 +410,6 @@ where
     }
 
     fn send_continue(self: Pin<&mut Self>) {
-        log::trace!("enter InnerDispatcher::send_continue");
-
         self.project()
             .write_buf
             .extend_from_slice(b"HTTP/1.1 100 Continue\r\n\r\n");
@@ -445,8 +420,6 @@ where
         cx: &mut Context<'_>,
     ) -> Result<PollResponse, DispatchError> {
         'res: loop {
-            log::trace!("enter InnerDispatcher::poll_response loop iteration");
-
             let mut this = self.as_mut().project();
             match this.state.as_mut().project() {
                 // no future is in InnerDispatcher state; pop next message
@@ -455,12 +428,10 @@ where
                     Some(DispatcherMessage::Item(req)) => {
                         // Handle `EXPECT: 100-Continue` header
                         if req.head().expect() {
-                            log::trace!("  passing request to expect handler");
                             // set InnerDispatcher state and continue loop to poll it
                             let fut = this.flow.expect.call(req);
                             this.state.set(State::ExpectCall { fut });
                         } else {
-                            log::trace!("  passing request to service handler");
                             // set InnerDispatcher state and continue loop to poll it
                             let fut = this.flow.service.call(req);
                             this.state.set(State::ServiceCall { fut });
@@ -469,7 +440,6 @@ where
 
                     // handle error message
                     Some(DispatcherMessage::Error(res)) => {
-                        log::trace!("  handling dispatcher error message");
                         // send_response would update InnerDispatcher state to SendPayload or None
                         // (If response body is empty)
                         // continue loop to poll it
@@ -478,31 +448,23 @@ where
 
                     // return with upgrade request and poll it exclusively
                     Some(DispatcherMessage::Upgrade(req)) => {
-                        // return upgrade
-                        return Ok(PollResponse::Upgrade(req));
+                        return Ok(PollResponse::Upgrade(req))
                     }
 
                     // all messages are dealt with
-                    None => {
-                        log::trace!("all messages handled");
-                        return Ok(PollResponse::DoNothing);
-                    }
+                    None => return Ok(PollResponse::DoNothing),
                 },
 
                 StateProj::ServiceCall { fut } => {
-                    log::trace!("  calling request handler service");
-
                     match fut.poll(cx) {
                         // service call resolved. send response.
                         Poll::Ready(Ok(res)) => {
-                            log::trace!("  ok");
                             let (res, body) = res.into().replace_body(());
                             self.as_mut().send_response(res, body)?;
                         }
 
                         // send service call error as response
                         Poll::Ready(Err(err)) => {
-                            log::trace!("  error");
                             let res: Response<BoxBody> = err.into();
                             let (res, body) = res.replace_body(());
                             self.as_mut().send_error_response(res, body)?;
@@ -511,7 +473,6 @@ where
                         // service call pending and could be waiting for more chunk messages
                         // (pipeline message limit and/or payload can_read limit)
                         Poll::Pending => {
-                            log::trace!("  pending");
                             // no new message is decoded and no new payload is fed
                             // nothing to do except waiting for new incoming data from client
                             if !self.as_mut().poll_request(cx)? {
@@ -523,8 +484,6 @@ where
                 }
 
                 StateProj::SendPayload { mut body } => {
-                    log::trace!("sending payload");
-
                     // keep populate writer buffer until buffer size limit hit,
                     // get blocked or finished.
                     while this.write_buf.len() < super::payload::MAX_BUFFER_SIZE {
@@ -553,14 +512,13 @@ where
                             Poll::Pending => return Ok(PollResponse::DoNothing),
                         }
                     }
-                    // buffer is beyond max size.
-                    // return and try to write the whole buffer to io stream.
+
+                    // buffer is beyond max size
+                    // return and try to write the whole buffer to I/O stream.
                     return Ok(PollResponse::DrainWriteBuf);
                 }
 
                 StateProj::SendErrorPayload { mut body } => {
-                    log::trace!("  sending error payload");
-
                     // TODO: de-dupe impl with SendPayload
 
                     // keep populate writer buffer until buffer size limit hit,
@@ -713,13 +671,11 @@ where
 
     /// Process one incoming request.
     ///
-    /// Boolean in return type indicates if any meaningful work was done.
+    /// Returns true if any meaningful work was done.
     fn poll_request(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Result<bool, DispatchError> {
-        log::trace!("enter InnerDispatcher::poll_request");
-
         let pipeline_queue_full = self.messages.len() >= MAX_PIPELINED_MESSAGES;
         let can_not_read = !self.can_read(cx);
 
@@ -733,16 +689,13 @@ where
         let mut updated = false;
 
         loop {
-            log::trace!("attempt to decode frame");
-
             match this.codec.decode(this.read_buf) {
                 Ok(Some(msg)) => {
                     updated = true;
 
-                    log::trace!("found full frame (head)");
-
                     match msg {
                         Message::Item(mut req) => {
+                            // head timer only applies to first request on connection
                             this.head_timer.clear(line!());
 
                             req.head_mut().peer_addr = *this.peer_addr;
@@ -815,10 +768,7 @@ where
 
                 // decode is partial and buffer is not full yet
                 // break and wait for more read
-                Ok(None) => {
-                    log::trace!("found partial frame");
-                    break;
-                }
+                Ok(None) => break,
 
                 Err(ParseError::Io(err)) => {
                     log::trace!("io error: {}", &err);
@@ -925,7 +875,6 @@ where
 
                 if let Some(deadline) = this.config.client_disconnect_deadline() {
                     // start shutdown timeout if enabled
-                    log::trace!("starting disconnect timer");
                     this.shutdown_timer
                         .set_and_init(cx, sleep_until(deadline), line!());
                 } else {
@@ -960,10 +909,10 @@ where
     }
 
     /// Poll head, keep-alive, and disconnect timer.
-    fn poll_timer(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Result<(), DispatchError> {
-        log::trace!("enter InnerDispatcher::poll_timer");
-        trace_timer_states(&self.head_timer, &self.ka_timer, &self.shutdown_timer);
-
+    fn poll_timers(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Result<(), DispatchError> {
         self.as_mut().poll_head_timer(cx)?;
         self.as_mut().poll_ka_timer(cx)?;
         self.as_mut().poll_shutdown_timer(cx)?;
@@ -981,13 +930,9 @@ where
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Result<bool, DispatchError> {
-        log::trace!("enter InnerDispatcher::read_available");
-        log::trace!("  reading from a {}", core::any::type_name::<T>());
-
         let this = self.project();
 
         if this.flags.contains(Flags::READ_DISCONNECT) {
-            log::trace!("  read DC");
             return Ok(false);
         };
 
@@ -1043,12 +988,9 @@ where
 
             match actix_codec::poll_read_buf(io.as_mut(), cx, this.read_buf) {
                 Poll::Ready(Ok(n)) => {
-                    log::trace!("  read {} bytes", n);
-
                     this.flags.remove(Flags::FINISHED);
 
                     if n == 0 {
-                        log::trace!("  signalling should_disconnect");
                         return Ok(true);
                     }
 
@@ -1056,13 +998,10 @@ where
                 }
 
                 Poll::Pending => {
-                    log::trace!("  read pending");
                     return Ok(false);
                 }
 
                 Poll::Ready(Err(err)) => {
-                    log::trace!("  read err: {:?}", &err);
-
                     return match err.kind() {
                         // convert WouldBlock error to the same as Pending return
                         io::ErrorKind::WouldBlock => Ok(false),
@@ -1111,9 +1050,6 @@ where
 
     #[inline]
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        log::trace!(target: "actix*", "");
-        log::trace!("enter Dispatcher::poll");
-
         let this = self.as_mut().project();
 
         #[cfg(test)]
@@ -1122,10 +1058,22 @@ where
         }
 
         match this.inner.project() {
-            DispatcherStateProj::Normal { mut inner } => {
-                log::trace!("current flags: {:?}", &inner.flags);
+            DispatcherStateProj::Upgrade { fut: upgrade } => upgrade.poll(cx).map_err(|err| {
+                log::error!("Upgrade handler error: {}", err);
+                DispatchError::Upgrade
+            }),
 
-                inner.as_mut().poll_timer(cx)?;
+            DispatcherStateProj::Normal { mut inner } => {
+                log::trace!("start flags: {:?}", &inner.flags);
+
+                trace_timer_states(
+                    "start",
+                    &inner.head_timer,
+                    &inner.ka_timer,
+                    &inner.shutdown_timer,
+                );
+
+                inner.as_mut().poll_timers(cx)?;
 
                 let poll = if inner.flags.contains(Flags::SHUTDOWN) {
                     if inner.flags.contains(Flags::WRITE_DISCONNECT) {
@@ -1141,12 +1089,15 @@ where
                     // read from I/O stream and fill read buffer
                     let should_disconnect = inner.as_mut().read_available(cx)?;
 
+                    // after reading something from stream, clear keep-alive timer
+                    if !inner.read_buf.is_empty() && inner.flags.contains(Flags::KEEP_ALIVE) {
+                        inner.as_mut().project().ka_timer.clear(line!());
+                    }
+
                     if !inner.flags.contains(Flags::STARTED) {
-                        log::trace!("set started flag");
                         inner.as_mut().project().flags.insert(Flags::STARTED);
 
                         if let Some(deadline) = inner.config.client_request_deadline() {
-                            log::trace!("start head timer");
                             inner.as_mut().project().head_timer.set_and_init(
                                 cx,
                                 sleep_until(deadline),
@@ -1158,7 +1109,6 @@ where
                     inner.as_mut().poll_request(cx)?;
 
                     if should_disconnect {
-                        log::trace!("should_disconnect = true");
                         // I/O stream should to be closed
                         let inner = inner.as_mut().project();
                         inner.flags.insert(Flags::READ_DISCONNECT);
@@ -1175,11 +1125,10 @@ where
 
                             PollResponse::DoNothing => {
                                 if inner.flags.contains(Flags::FINISHED | Flags::KEEP_ALIVE) {
-                                    if let Some(deadline) = inner.config.keep_alive_timer() {
-                                        log::trace!("setting keep-alive timer");
+                                    if let Some(timer) = inner.config.keep_alive_timer() {
                                         inner.as_mut().project().ka_timer.set_and_init(
                                             cx,
-                                            deadline,
+                                            timer,
                                             line!(),
                                         );
                                     }
@@ -1206,7 +1155,6 @@ where
                         // TODO: what? is WouldBlock good or bad?
                         // want to find a reference for this macOS behavior
                         if inner.as_mut().poll_flush(cx)?.is_pending() || !drain {
-                            log::trace!("break out of poll_response loop after poll_flush");
                             break;
                         }
                     }
@@ -1228,10 +1176,8 @@ where
 
                     // keep-alive and stream errors
                     if state_is_none && inner_p.write_buf.is_empty() {
-                        log::trace!("state is None and write buf is empty");
-
                         if let Some(err) = inner_p.error.take() {
-                            log::trace!("stream error {}", &err);
+                            log::error!("stream error: {}", &err);
                             return Poll::Ready(Err(err));
                         }
 
@@ -1239,10 +1185,6 @@ where
                         if inner_p.flags.contains(Flags::FINISHED)
                             && !inner_p.flags.contains(Flags::KEEP_ALIVE)
                         {
-                            log::trace!(
-                                "start shutdown because keep-alive is disabled or opted \
-                                out for this connection"
-                            );
                             inner_p.flags.remove(Flags::FINISHED);
                             inner_p.flags.insert(Flags::SHUTDOWN);
                             return self.poll(cx);
@@ -1250,14 +1192,12 @@ where
 
                         // disconnect if shutdown
                         if inner_p.flags.contains(Flags::SHUTDOWN) {
-                            log::trace!("shutdown from shutdown flag");
                             return self.poll(cx);
                         }
                     }
 
-                    log::trace!("dispatcher going to sleep; wait for next event");
-
                     trace_timer_states(
+                        "end",
                         inner_p.head_timer,
                         inner_p.ka_timer,
                         inner_p.shutdown_timer,
@@ -1266,25 +1206,22 @@ where
                     Poll::Pending
                 };
 
-                log::trace!("current flags: {:?}", &inner.flags);
+                log::trace!("end flags: {:?}", &inner.flags);
 
                 poll
             }
-
-            DispatcherStateProj::Upgrade { fut: upgrade } => upgrade.poll(cx).map_err(|err| {
-                log::error!("Upgrade handler error: {}", err);
-                DispatchError::Upgrade
-            }),
         }
     }
 }
 
+#[allow(dead_code)]
 fn trace_timer_states(
+    label: &str,
     head_timer: &TimerState,
     ka_timer: &TimerState,
     shutdown_timer: &TimerState,
 ) {
-    log::trace!("timers:");
+    log::trace!("{} timers:", label);
 
     if head_timer.is_enabled() {
         log::trace!("  head {}", &head_timer);

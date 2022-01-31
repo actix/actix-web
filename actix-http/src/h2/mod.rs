@@ -15,16 +15,16 @@ use h2::{
     RecvStream,
 };
 
+use crate::{
+    config::ServiceConfig,
+    error::{DispatchError, PayloadError},
+};
+
 mod dispatcher;
 mod service;
 
 pub use self::dispatcher::Dispatcher;
 pub use self::service::H2Service;
-
-use crate::{
-    config::ServiceConfig,
-    error::{DispatchError, PayloadError},
-};
 
 /// HTTP/2 peer stream.
 pub struct Payload {
