@@ -21,8 +21,6 @@ use crate::{
     Error, HttpResponse,
 };
 
-type Guards = Vec<Box<dyn Guard>>;
-
 /// Service factory to convert `Request` to a `ServiceRequest<S>`.
 ///
 /// It also executes data factories.
@@ -244,7 +242,7 @@ pub struct AppRoutingFactory {
         [(
             ResourceDef,
             BoxedHttpServiceFactory,
-            RefCell<Option<Guards>>,
+            RefCell<Option<Vec<Box<dyn Guard>>>>,
         )],
     >,
     default: Rc<BoxedHttpServiceFactory>,
@@ -262,7 +260,7 @@ impl ServiceFactory<ServiceRequest> for AppRoutingFactory {
         // construct all services factory future with it's resource def and guards.
         let factory_fut = join_all(self.services.iter().map(|(path, factory, guards)| {
             let path = path.clone();
-            let guards = guards.borrow_mut().take();
+            let guards = guards.borrow_mut().take().unwrap_or_default();
             let factory_fut = factory.new_service(());
             async move {
                 let service = factory_fut.await?;
@@ -283,7 +281,7 @@ impl ServiceFactory<ServiceRequest> for AppRoutingFactory {
                 .collect::<Result<Vec<_>, _>>()?
                 .drain(..)
                 .fold(Router::build(), |mut router, (path, guards, service)| {
-                    router.rdef(path, service).2 = guards;
+                    router.push(path, service, guards);
                     router
                 })
                 .finish();
@@ -295,7 +293,7 @@ impl ServiceFactory<ServiceRequest> for AppRoutingFactory {
 
 /// The Actix Web router default entry point.
 pub struct AppRouting {
-    router: Router<BoxedHttpService, Guards>,
+    router: Router<BoxedHttpService, Vec<Box<dyn Guard>>>,
     default: BoxedHttpService,
 }
 
@@ -308,17 +306,8 @@ impl Service<ServiceRequest> for AppRouting {
 
     fn call(&self, mut req: ServiceRequest) -> Self::Future {
         let res = self.router.recognize_fn(&mut req, |req, guards| {
-            if let Some(ref guards) = guards {
-                let guard_ctx = req.guard_ctx();
-
-                for guard in guards {
-                    if !guard.check(&guard_ctx) {
-                        return false;
-                    }
-                }
-            }
-
-            true
+            let guard_ctx = req.guard_ctx();
+            guards.iter().all(|guard| guard.check(&guard_ctx))
         });
 
         if let Some((srv, _info)) = res {

@@ -64,14 +64,14 @@ impl Quoter {
         quoter
     }
 
-    /// Re-quotes... ?
+    /// Decodes safe percent-encoded sequences from `val`.
     ///
     /// Returns `None` when no modification to the original byte string was required.
     ///
     /// Non-ASCII bytes are accepted as valid input.
     ///
-    /// Behavior for invalid/incomplete percent-encoding sequences is unspecified and may include removing
-    /// the invalid sequence from the output or passing it as it is.
+    /// Behavior for invalid/incomplete percent-encoding sequences is unspecified and may include
+    /// removing the invalid sequence from the output or passing it as-is.
     pub fn requote(&self, val: &[u8]) -> Option<Vec<u8>> {
         let mut has_pct = 0;
         let mut pct = [b'%', 0, 0];
