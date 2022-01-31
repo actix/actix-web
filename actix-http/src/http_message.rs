@@ -55,7 +55,7 @@ pub trait HttpMessage: Sized {
         ""
     }
 
-    /// Get content type encoding
+    /// Get content type encoding.
     ///
     /// UTF-8 is used by default, If request charset is not set.
     fn encoding(&self) -> Result<&'static Encoding, ContentTypeError> {

@@ -242,7 +242,7 @@ impl io::Read for TestBuffer {
 
 impl io::Write for TestBuffer {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        RefCell::borrow_mut(&self.write_buf).extend(buf);
+        self.write_buf.borrow_mut().extend(buf);
         Ok(buf.len())
     }
 

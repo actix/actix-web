@@ -7,7 +7,7 @@ use std::{
 };
 
 use actix_codec::{AsyncRead, AsyncWrite};
-use actix_rt::time::Sleep;
+use actix_rt::time::{sleep_until, Sleep};
 use bytes::Bytes;
 use futures_core::{ready, Stream};
 use h2::{
@@ -15,16 +15,16 @@ use h2::{
     RecvStream,
 };
 
+use crate::{
+    config::ServiceConfig,
+    error::{DispatchError, PayloadError},
+};
+
 mod dispatcher;
 mod service;
 
 pub use self::dispatcher::Dispatcher;
 pub use self::service::H2Service;
-
-use crate::{
-    config::ServiceConfig,
-    error::{DispatchError, PayloadError},
-};
 
 /// HTTP/2 peer stream.
 pub struct Payload {
@@ -67,7 +67,9 @@ where
 {
     HandshakeWithTimeout {
         handshake: handshake(io),
-        timer: config.client_timer().map(Box::pin),
+        timer: config
+            .client_request_deadline()
+            .map(|deadline| Box::pin(sleep_until(deadline.into()))),
     }
 }
 
@@ -86,7 +88,7 @@ where
         let this = self.get_mut();
 
         match Pin::new(&mut this.handshake).poll(cx)? {
-            // return the timer on success handshake. It can be re-used for h2 ping-pong.
+            // return the timer on success handshake; its slot can be re-used for h2 ping-pong
             Poll::Ready(conn) => Poll::Ready(Ok((conn, this.timer.take()))),
             Poll::Pending => match this.timer.as_mut() {
                 Some(timer) => {

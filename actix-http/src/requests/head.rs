@@ -130,8 +130,8 @@ impl RequestHead {
         }
     }
 
+    /// Request contains `EXPECT` header.
     #[inline]
-    /// Request contains `EXPECT` header
     pub fn expect(&self) -> bool {
         self.flags.contains(Flags::EXPECT)
     }

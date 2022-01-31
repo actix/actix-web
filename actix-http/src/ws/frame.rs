@@ -3,9 +3,11 @@ use std::convert::TryFrom;
 use bytes::{Buf, BufMut, BytesMut};
 use log::debug;
 
-use crate::ws::mask::apply_mask;
-use crate::ws::proto::{CloseCode, CloseReason, OpCode};
-use crate::ws::ProtocolError;
+use super::{
+    mask::apply_mask,
+    proto::{CloseCode, CloseReason, OpCode},
+    ProtocolError,
+};
 
 /// A struct representing a WebSocket frame.
 #[derive(Debug)]

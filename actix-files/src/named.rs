@@ -209,6 +209,7 @@ impl NamedFile {
         Self::from_file(file, path)
     }
 
+    #[allow(rustdoc::broken_intra_doc_links)]
     /// Attempts to open a file asynchronously in read-only mode.
     ///
     /// When the `experimental-io-uring` crate feature is enabled, this will be async.
@@ -298,9 +299,11 @@ impl NamedFile {
         self
     }
 
-    /// Set content encoding for serving this file
+    /// Sets content encoding for this file.
     ///
-    /// Must be used with [`actix_web::middleware::Compress`] to take effect.
+    /// This prevents the `Compress` middleware from modifying the file contents and signals to
+    /// browsers/clients how to decode it. For example, if serving a compressed HTML file (e.g.,
+    /// `index.html.gz`) then use `.set_content_encoding(ContentEncoding::Gzip)`.
     #[inline]
     pub fn set_content_encoding(mut self, enc: ContentEncoding) -> Self {
         self.encoding = Some(enc);

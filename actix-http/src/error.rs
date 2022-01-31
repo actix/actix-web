@@ -5,7 +5,7 @@ use std::{error::Error as StdError, fmt, io, str::Utf8Error, string::FromUtf8Err
 use derive_more::{Display, Error, From};
 use http::{uri::InvalidUri, StatusCode};
 
-use crate::{body::BoxBody, ws, Response};
+use crate::{body::BoxBody, Response};
 
 pub use http::Error as HttpError;
 
@@ -61,6 +61,7 @@ impl Error {
         Self::new(Kind::Encoder)
     }
 
+    #[allow(unused)] // used with `ws` feature flag
     pub(crate) fn new_ws() -> Self {
         Self::new(Kind::Ws)
     }
@@ -139,14 +140,16 @@ impl From<HttpError> for Error {
     }
 }
 
-impl From<ws::HandshakeError> for Error {
-    fn from(err: ws::HandshakeError) -> Self {
+#[cfg(feature = "ws")]
+impl From<crate::ws::HandshakeError> for Error {
+    fn from(err: crate::ws::HandshakeError) -> Self {
         Self::new_ws().with_cause(err)
     }
 }
 
-impl From<ws::ProtocolError> for Error {
-    fn from(err: ws::ProtocolError) -> Self {
+#[cfg(feature = "ws")]
+impl From<crate::ws::ProtocolError> for Error {
+    fn from(err: crate::ws::ProtocolError) -> Self {
         Self::new_ws().with_cause(err)
     }
 }
@@ -277,8 +280,9 @@ pub enum PayloadError {
     UnknownLength,
 
     /// HTTP/2 payload error.
+    #[cfg(feature = "http2")]
     #[display(fmt = "{}", _0)]
-    Http2Payload(h2::Error),
+    Http2Payload(::h2::Error),
 
     /// Generic I/O error.
     #[display(fmt = "{}", _0)]
@@ -293,14 +297,16 @@ impl std::error::Error for PayloadError {
             PayloadError::EncodingCorrupted => None,
             PayloadError::Overflow => None,
             PayloadError::UnknownLength => None,
+            #[cfg(feature = "http2")]
             PayloadError::Http2Payload(err) => Some(err as &dyn std::error::Error),
             PayloadError::Io(err) => Some(err as &dyn std::error::Error),
         }
     }
 }
 
-impl From<h2::Error> for PayloadError {
-    fn from(err: h2::Error) -> Self {
+#[cfg(feature = "http2")]
+impl From<::h2::Error> for PayloadError {
+    fn from(err: ::h2::Error) -> Self {
         PayloadError::Http2Payload(err)
     }
 }
@@ -356,6 +362,7 @@ pub enum DispatchError {
 
     /// HTTP/2 error.
     #[display(fmt = "{}", _0)]
+    #[cfg(feature = "http2")]
     H2(h2::Error),
 
     /// The first request did not complete within the specified timeout.
@@ -379,7 +386,10 @@ impl StdError for DispatchError {
             DispatchError::Body(err) => Some(&**err),
             DispatchError::Io(err) => Some(err),
             DispatchError::Parse(err) => Some(err),
+
+            #[cfg(feature = "http2")]
             DispatchError::H2(err) => Some(err),
+
             _ => None,
         }
     }
