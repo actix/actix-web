@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 0.5.0-rc.3 - 2022-01-31
 - Remove unused `ResourceInfo`. [#2612]
 - Add `RouterBuilder::push`. [#2612]
 - Change signature of `ResourceDef::capture_match_info_fn` to remove `user_data` parameter. [#2612]
