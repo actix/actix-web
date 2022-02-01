@@ -29,7 +29,7 @@ actix-http-test = { path = "actix-http-test" }
 actix-multipart = { path = "actix-multipart" }
 actix-router = { path = "actix-router" }
 actix-test = { path = "actix-test" }
-actix-web = { path = "." }
+actix-web = { path = "actix-web" }
 actix-web-actors = { path = "actix-web-actors" }
 actix-web-codegen = { path = "actix-web-codegen" }
 awc = { path = "awc" }
