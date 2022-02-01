@@ -19,6 +19,7 @@ digraph {
 
     "web" -> { "codec" "service" "utils" "router" "rt" "server" "macros" "web-codegen" "http" "awc" }
     "web" -> { "tls" }[color=blue] // optional
+    "web-codegen" -> { "router" }
     "awc" -> { "codec" "service" "http" "rt" }
     "web-actors" -> { "actix" "web" "http" "codec" }
     "multipart" -> { "web" "service" "utils" }
