@@ -20,7 +20,7 @@ edition = "2018"
 
 [package.metadata.docs.rs]
 # features that docs.rs will build with
-features = ["openssl", "rustls", "compress-brotli", "compress-gzip", "compress-zstd", "cookies", "secure-cookies"]
+features = ["macros", "openssl", "rustls", "compress-brotli", "compress-gzip", "compress-zstd", "cookies", "secure-cookies"]
 rustdoc-args = ["--cfg", "docsrs"]
 
 [lib]
@@ -28,7 +28,7 @@ name = "actix_web"
 path = "src/lib.rs"
 
 [features]
-default = ["compress-brotli", "compress-gzip", "compress-zstd", "cookies"]
+default = ["macros", "compress-brotli", "compress-gzip", "compress-zstd", "cookies"]
 
 # Brotli algorithm content-encoding support
 compress-brotli = ["actix-http/compress-brotli", "__compress"]
@@ -37,16 +37,22 @@ compress-gzip = ["actix-http/compress-gzip", "__compress"]
 # Zstd algorithm content-encoding support
 compress-zstd = ["actix-http/compress-zstd", "__compress"]
 
-# support for cookies
+# Routing and runtime proc macros
+macros = [
+    "actix-macros",
+    "actix-web-codegen",
+]
+
+# Cookies support
 cookies = ["cookie"]
 
-# secure cookies feature
-secure-cookies = ["cookie/secure"]
+# Secure & signed cookies
+secure-cookies = ["cookies", "cookie/secure"]
 
-# openssl
+# TLS via OpenSSL
 openssl = ["actix-http/openssl", "actix-tls/accept", "actix-tls/openssl"]
 
-# rustls
+# TLS via Rustls
 rustls = ["actix-http/rustls", "actix-tls/accept", "actix-tls/rustls"]
 
 # Internal (PRIVATE!) features used to aid testing and checking feature status.
@@ -58,8 +64,8 @@ experimental-io-uring = ["actix-server/io-uring"]
 
 [dependencies]
 actix-codec = "0.4.1"
-actix-macros = "0.2.3"
-actix-rt = "2.6"
+actix-macros = { version = "0.2.3", optional = true }
+actix-rt = { version = "2.6", default-features = false }
 actix-server = "2"
 actix-service = "2.0.0"
 actix-utils = "3.0.0"
@@ -67,7 +73,7 @@ actix-tls = { version = "3.0.0", default-features = false, optional = true }
 
 actix-http = { version = "3.0.0-rc.1", features = ["http2", "ws"] }
 actix-router = "0.5.0-rc.3"
-actix-web-codegen = "0.5.0-rc.2"
+actix-web-codegen = { version = "0.5.0-rc.2", optional = true }
 
 ahash = "0.7"
 bytes = "1"
@@ -84,7 +90,7 @@ log = "0.4"
 mime = "0.3"
 pin-project-lite = "0.2.7"
 regex = "1.4"
-serde = { version = "1.0", features = ["derive"] }
+serde = "1.0"
 serde_json = "1.0"
 serde_urlencoded = "0.7"
 smallvec = "1.6.1"
@@ -106,6 +112,7 @@ futures-util = { version = "0.3.7", default-features = false, features = ["std"]
 rand = "0.8"
 rcgen = "0.8"
 rustls-pemfile = "0.2"
+serde = { version = "1.0", features = ["derive"] }
 static_assertions = "1"
 tls-openssl = { package = "openssl", version = "0.10.9" }
 tls-rustls = { package = "rustls", version = "0.20.0" }

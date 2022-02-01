@@ -21,8 +21,7 @@ use crate::{
     },
 };
 
-/// Application builder - structure that follows the builder pattern
-/// for building application instances.
+/// The top-level builder for an Actix Web web application.
 pub struct App<T> {
     endpoint: T,
     services: Vec<Box<dyn AppServiceFactory>>,
