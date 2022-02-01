@@ -57,6 +57,7 @@
 //!
 //! # Crate Features
 //! * `cookies` - cookies support (enabled by default)
+//! * `macros` - routing and runtime macros (enabled by default)
 //! * `compress-brotli` - brotli content encoding compression support (enabled by default)
 //! * `compress-gzip` - gzip and deflate content encoding compression support (enabled by default)
 //! * `compress-zstd` - zstd content encoding compression support (enabled by default)
@@ -68,6 +69,7 @@
 #![warn(future_incompatible)]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 mod app;
 mod app_service;
@@ -88,6 +90,7 @@ mod resource;
 mod response;
 mod rmap;
 mod route;
+pub mod rt;
 mod scope;
 mod server;
 mod service;
@@ -95,15 +98,10 @@ pub mod test;
 pub(crate) mod types;
 pub mod web;
 
-pub use actix_http::{body, HttpMessage};
-#[doc(inline)]
-pub use actix_rt as rt;
-pub use actix_web_codegen::*;
-#[cfg(feature = "cookies")]
-pub use cookie;
-
 pub use crate::app::App;
-pub use crate::error::{Error, ResponseError, Result};
+#[doc(inline)]
+pub use crate::error::Result;
+pub use crate::error::{Error, ResponseError};
 pub use crate::extract::FromRequest;
 pub use crate::handler::Handler;
 pub use crate::request::HttpRequest;
@@ -113,5 +111,33 @@ pub use crate::route::Route;
 pub use crate::scope::Scope;
 pub use crate::server::HttpServer;
 pub use crate::types::Either;
+
+pub use actix_http::{body, HttpMessage};
+
+#[cfg(feature = "cookies")]
+#[cfg_attr(docsrs, doc(cfg(feature = "cookies")))]
+#[doc(inline)]
+pub use cookie;
+
+macro_rules! codegen_reexport {
+    ($name:ident) => {
+        #[cfg(feature = "macros")]
+        #[cfg_attr(docsrs, doc(cfg(feature = "macros")))]
+        pub use actix_web_codegen::$name;
+    };
+}
+
+codegen_reexport!(main);
+codegen_reexport!(test);
+codegen_reexport!(route);
+codegen_reexport!(head);
+codegen_reexport!(get);
+codegen_reexport!(post);
+codegen_reexport!(patch);
+codegen_reexport!(put);
+codegen_reexport!(delete);
+codegen_reexport!(trace);
+codegen_reexport!(connect);
+codegen_reexport!(options);
 
 pub(crate) type BoxError = Box<dyn std::error::Error>;

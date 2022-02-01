@@ -610,11 +610,10 @@ where
     }
 }
 
-/// Macro helping register different types of services at the sametime.
+/// Macro to help register different types of services at the same time.
 ///
-/// The service type must be implementing [`HttpServiceFactory`](self::HttpServiceFactory) trait.
-///
-/// The max number of services can be grouped together is 12.
+/// The max number of services that can be grouped together is 12 and all must implement the
+/// [`HttpServiceFactory`] trait.
 ///
 /// # Examples
 /// ```

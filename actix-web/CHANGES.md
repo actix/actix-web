@@ -1,6 +1,13 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+- On-by-default `macros` feature flag to enable routing and runtime macros. [#2619]
+
+### Removed
+- `rt::{Arbiter, ArbiterHandle}` re-exports. [#2619]
+
+[#2601]: https://github.com/actix/actix-web/pull/2601
 
 
 ## 4.0.0-rc.1 - 2022-01-31
