@@ -39,6 +39,7 @@ compress-zstd = ["actix-http/compress-zstd", "__compress"]
 
 # Routing and runtime proc macros
 macros = [
+    "actix-rt/macros",
     "actix-macros",
     "actix-web-codegen",
 ]
@@ -67,9 +68,9 @@ actix-codec = "0.4.1"
 actix-macros = { version = "0.2.3", optional = true }
 actix-rt = { version = "2.6", default-features = false }
 actix-server = "2"
-actix-service = "2.0.0"
-actix-utils = "3.0.0"
-actix-tls = { version = "3.0.0", default-features = false, optional = true }
+actix-service = "2"
+actix-utils = "3"
+actix-tls = { version = "3", default-features = false, optional = true }
 
 actix-http = { version = "3.0.0-rc.1", features = ["http2", "ws"] }
 actix-router = "0.5.0-rc.3"

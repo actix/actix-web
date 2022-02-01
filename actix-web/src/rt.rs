@@ -26,7 +26,13 @@
 //! # }
 //! ```
 
-// In particular, omit the runtime macros because they won't work and are re-exported directly
-// at the top-level anyway. Also omit the `Arbiter` types because they have limited value here.
+// In particular:
+// - Omit the `Arbiter` types because they have limited value here.
+// - Re-export but hide the runtime macros because they won't work directly but are required for
+//   `#[actix_web::main]` and `#[actix_web::test]` to work.
 
 pub use actix_rt::{net, pin, signal, spawn, task, time, Runtime, System, SystemRunner};
+
+#[cfg(feature = "macros")]
+#[doc(hidden)]
+pub use actix_rt::{main, test};
