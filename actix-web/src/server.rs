@@ -226,7 +226,7 @@ where
     }
 
     #[doc(hidden)]
-    #[deprecated(since = "4.0.0", note = "Renamed to `client_request_timeout`.")]
+    #[deprecated(since = "4.0.0", note = "Renamed to `client_disconnect_timeout`.")]
     pub fn client_shutdown(self, dur: u64) -> Self {
         self.client_disconnect_timeout(Duration::from_millis(dur))
     }
