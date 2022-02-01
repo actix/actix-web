@@ -35,4 +35,4 @@ pub use actix_rt::{net, pin, signal, spawn, task, time, Runtime, System, SystemR
 
 #[cfg(feature = "macros")]
 #[doc(hidden)]
-pub use actix_rt::{main, test};
+pub use actix_macros::{main, test};

@@ -39,7 +39,6 @@ compress-zstd = ["actix-http/compress-zstd", "__compress"]
 
 # Routing and runtime proc macros
 macros = [
-    "actix-rt/macros",
     "actix-macros",
     "actix-web-codegen",
 ]
