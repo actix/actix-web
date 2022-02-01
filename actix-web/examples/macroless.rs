@@ -8,7 +8,7 @@ async fn index(req: HttpRequest) -> &'static str {
 fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
-    rt::System::new().block_on(
+    rt::block_on(
         HttpServer::new(|| {
             App::new()
                 .wrap(middleware::Logger::default())

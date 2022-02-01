@@ -13,7 +13,7 @@
 //! }
 //!
 //! # fn main() -> std::io::Result<()> {
-//! rt::System::new().block_on(
+//! rt::block_on(
 //!     HttpServer::new(|| {
 //!         App::new()
 //!             .wrap(middleware::Logger::default())
