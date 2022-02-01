@@ -21,7 +21,7 @@ use crate::{
     },
 };
 
-/// The top-level builder for an Actix Web web application.
+/// The top-level builder for an Actix Web application.
 pub struct App<T> {
     endpoint: T,
     services: Vec<Box<dyn AppServiceFactory>>,
