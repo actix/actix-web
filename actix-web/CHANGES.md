@@ -292,7 +292,6 @@
 
 ### Changed
 - Adjusted default JSON payload limit to 2MB (from 32kb) and included size and limits in the `JsonPayloadError::Overflow` error variant. [#2162]
-[#2162]: (https://github.com/actix/actix-web/pull/2162)
 - `ServiceResponse::error_response` now uses body type of `Body`. [#2201]
 - `ServiceResponse::checked_expr` now returns a `Result`. [#2201]
 - Update `language-tags` to `0.3`.
@@ -300,12 +299,13 @@
 - `ServiceResponse::map_body` closure receives and returns `B` instead of `ResponseBody<B>` types. [#2201]
 - All error trait bounds in server service builders have changed from `Into<Error>` to `Into<Response<AnyBody>>`. [#2253]
 - All error trait bounds in message body and stream impls changed from `Into<Error>` to `Into<Box<dyn std::error::Error>>`. [#2253]
-- `HttpServer::{listen_rustls(), bind_rustls()}` now honor the ALPN protocols in the configuation parameter. [#2226]
+- `HttpServer::{listen_rustls(), bind_rustls()}` now honor the ALPN protocols in the configuration parameter. [#2226]
 - `middleware::normalize` now will not try to normalize URIs with no valid path [#2246]
 
 ### Removed
 - `HttpResponse::take_body` and old `HttpResponse::into_body` method that casted body type. [#2201]
 
+[#2162]: https://github.com/actix/actix-web/pull/2162
 [#2200]: https://github.com/actix/actix-web/pull/2200
 [#2201]: https://github.com/actix/actix-web/pull/2201
 [#2253]: https://github.com/actix/actix-web/pull/2253
@@ -314,7 +314,7 @@
 
 ## 4.0.0-beta.6 - 2021-04-17
 ### Added
-- `HttpResponse` and `HttpResponseBuilder` structs. [#2065]
+- `HttpResponse` and `HttpResponseBuilder` types. [#2065]
 
 ### Changed
 - Most error types are now marked `#[non_exhaustive]`. [#2148]
@@ -329,12 +329,12 @@
 - `Header` extractor for extracting common HTTP headers in handlers. [#2094]
 - Added `TestServer::client_headers` method. [#2097]
 
-### Fixed
-- Double ampersand in Logger format is escaped correctly. [#2067]
-
 ### Changed
 - `CustomResponder` would return error as `HttpResponse` when `CustomResponder::with_header` failed
   instead of skipping. (Only the first error is kept when multiple error occur) [#2093]
+
+### Fixed
+- Double ampersand in Logger format is escaped correctly. [#2067]
 
 ### Removed
 - The `client` mod was removed. Clients should now use `awc` directly.
@@ -422,7 +422,7 @@
 - Added the underlying parse error to `test::read_body_json`'s panic message. [#1812]
 
 ### Removed
-- Public modules `middleware::{normalize, err_handlers}`. All necessary middleware structs are now
+- Public modules `middleware::{normalize, err_handlers}`. All necessary middleware types are now
   exposed directly by the `middleware` module.
 - Remove `actix-threadpool` as dependency. `actix_threadpool::BlockingError` error type can be imported 
   from `actix_web::error` module. [#1878]

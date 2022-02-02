@@ -2,6 +2,8 @@
 
 It is assumed that migration is happening _from_ v3.x. If migration from older version of Actix Web, see the other historical migration notes in this folder.
 
+This is not an exhaustive list of changes. Smaller or less impactful code changes are outlined, with links to the PRs that introduced them, are shown in [CHANGES.md](./CHANGES.md). If you think any of the changes not mentioned here deserve to be, submit an issue or PR.
+
 Headings marked with :warning: are **breaking behavioral changes** and will probably not surface as compile-time errors. Automated tests _might_ detect their effects on your app.
 
 ## Table of Contents:
@@ -26,8 +28,6 @@ Lots of modules has been organized in this release. If a compile error refers to
 
 The default `NormalizePath` behavior now strips trailing slashes by default. This was previously documented to be the case in v3 but the behavior now matches. The effect is that routes defined with trailing slashes will become inaccessible when using `NormalizePath::default()`. As such, calling `NormalizePath::default()` will log a warning. It is advised that the `new` or `trim` methods be used instead.
 
-### Recommended Migration
-
 ```diff
 - #[get("/test/")]`
 + #[get("/test")]`
@@ -43,8 +43,6 @@ Alternatively, explicitly require trailing slashes: `NormalizePath::new(Trailing
 ## `FromRequest` Trait
 
 The associated type `Config` of `FromRequest` was removed. If you have custom extractors, you can just remove this implementation and refer to config types directly, if required.
-
-### Recommended Migration
 
 ```diff
   impl FromRequest for MyExtractor {
@@ -66,8 +64,6 @@ If you have set in your `Cargo.toml` dedicated `actix-web` features and you stil
 
 The inner field for `web::Path` was made private because It was causing too many issues when used with inner tuple types due to its `Deref` impl.
 
-### Recommended Migration
-
 ```diff
 - async fn handler(web::Path((foo, bar)): web::Path<(String, String)>) {
 + async fn handler(params: web::Path<(String, String)>) {
@@ -77,3 +73,61 @@ The inner field for `web::Path` was made private because It was causing too many
 ## Rustls Crate Upgrade
 
 Required version of `rustls` dependency was bumped to the latest version 0.20. As a result, the new server config builder has changed. [See the updated example project &rarr;.](https://github.com/actix/examples/tree/HEAD/security/rustls/)
+
+## Removed `awc` Client Re-export
+
+Actix Web's sister crate `awc` is no longer re-exported through the `client` module. This allows `awc` its own release cadence and prevents its own breaking changes from being blocked due to a re-export.
+
+```diff
+- use actix_web::client::Client;
++ use awc::Client;
+```
+
+## Integration Testing Utils Moved to `actix-test`
+
+Actix Web's `test` module used to contain `TestServer`. Since this required the `awc` client and it was removed as a re-export (see above), it was moved to its own crate [`actix-test`](https://docs.rs/actix-test).
+
+```diff
+- use use actix_web::test::start;
++ use use actix_test::start;
+```
+
+## Header APIs
+
+TODO
+
+## Body Types / Removal of Body+ResponseBody types / Addition of EitherBody
+
+TODO
+
+In particular, folks seem to be struggling with the `ErrorHandlers` middleware because of this change and the obscured nature of `EitherBody` within its types.
+
+## Middleware Trait APIs
+
+TODO
+
+TODO: Also write the Middleware author's guide.
+
+## `Responder` Trait
+
+TODO
+
+## `App::data` deprecation
+
+TODO
+
+## It's probably not necessary to import `actix-rt` or `actix-service` any more
+
+TODO
+
+## Server must be awaited in order to run :warning:
+
+TODO
+
+## Guards API
+
+TODO
+
+## HttpResponse no longer implements Future
+
+TODO
