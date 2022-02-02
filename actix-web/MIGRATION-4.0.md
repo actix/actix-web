@@ -6,8 +6,13 @@ Headings marked with :warning: are **breaking behavioral changes** and will prob
 
 ## Table of Contents:
 
-- [MSRV](#MSRV)
-- [Module Structure](#Module-Structure)
+- [MSRV](#msrv)
+- [Module Structure](#module-structure)
+- [`NormalizePath` Middleware :warning:](#normalizepath-middleware-warning)
+- [`FromRequest` Trait](#fromrequest-trait)
+- [Compression Feature Flags](#compression-feature-flags)
+- [`web::Path`](#webpath)
+- [Rustls](#rustls-crate-upgrade)
 
 ## MSRV
 
@@ -17,7 +22,7 @@ The MSRV of Actix Web has been raised from 1.42 to 1.54.
 
 Lots of modules has been organized in this release. If a compile error refers to "item XYZ not found in module..." or "module XYZ not found", refer to the [documentation on docs.rs](https://docs.rs/actix-web) to to search for items' new locations.
 
-## :warning: `NormalizePath` middleware
+## `NormalizePath` Middleware :warning:
 
 The default `NormalizePath` behavior now strips trailing slashes by default. This was previously documented to be the case in v3 but the behavior now matches. The effect is that routes defined with trailing slashes will become inaccessible when using `NormalizePath::default()`. As such, calling `NormalizePath::default()` will log a warning. It is advised that the `new` or `trim` methods be used instead.
 
