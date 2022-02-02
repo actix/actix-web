@@ -2,13 +2,13 @@
 
 ## Unreleased - 2021-xx-xx
 ### Changed
-- `error::DispatcherError` enum is now marked `#[non_exhaustive]`. [#????]
+- `error::DispatcherError` enum is now marked `#[non_exhaustive]`. [#2624]
 
 
 ### Fixed
-- Issue where handlers that took payload but then dropped without reading it to EOF it would cause keep-alive connections to become stuck. [#????]
+- Issue where handlers that took payload but then dropped without reading it to EOF it would cause keep-alive connections to become stuck. [#2624]
 
-[#2611]: https://github.com/actix/actix-web/pull/2611
+[#2624]: https://github.com/actix/actix-web/pull/2624
 
 
 ## 3.0.0-rc.1 - 2022-01-31
