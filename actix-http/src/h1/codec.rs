@@ -125,11 +125,13 @@ impl Decoder for Codec {
             self.flags.set(Flags::HEAD, head.method == Method::HEAD);
             self.version = head.version;
             self.conn_type = head.connection_type();
+
             if self.conn_type == ConnectionType::KeepAlive
                 && !self.flags.contains(Flags::KEEP_ALIVE_ENABLED)
             {
                 self.conn_type = ConnectionType::Close
             }
+
             match payload {
                 PayloadType::None => self.payload = None,
                 PayloadType::Payload(pl) => self.payload = Some(pl),

@@ -152,6 +152,7 @@ pin_project! {
 
         #[pin]
         state: State<S, B, X>,
+        // when Some(_) dispatcher is in state of receiving request payload
         payload: Option<PayloadSender>,
         messages: VecDeque<DispatcherMessage>,
 
@@ -686,11 +687,63 @@ where
         let can_not_read = !self.can_read(cx);
 
         // limit amount of non-processed requests
-        if pipeline_queue_full || can_not_read {
+        if pipeline_queue_full {
             return Ok(false);
         }
 
         let mut this = self.as_mut().project();
+
+        if can_not_read {
+            log::debug!("cannot read request payload");
+
+            // if we cannot read request payload...
+            if let Some(sender) = &this.payload {
+                // ...maybe handler does not want to read any more payload...
+                if let PayloadStatus::Dropped = sender.need_read(cx) {
+                    log::warn!("handler dropped payload early");
+                    // ...in which case poll request payload a few times
+                    loop {
+                        match this.codec.decode(this.read_buf)? {
+                            Some(msg) => {
+                                match msg {
+                                    // payload decoded did not yield EOF yet
+                                    Message::Chunk(Some(_)) => {
+                                        // if non-clean connection, next loop iter will detect empty
+                                        // read buffer and close connection
+                                    }
+
+                                    // connection is in clean state for next request
+                                    Message::Chunk(None) => {
+                                        // reset dispatcher state
+                                        let _ = this.payload.take();
+                                        this.state.set(State::None);
+
+                                        // break out of payload decode loop
+                                        break;
+                                    }
+
+                                    // Either whole payload is read and loop is broken or more data
+                                    // was expected in which case connection is closed. In both
+                                    // situations dispatcher cannot get here.
+                                    Message::Item(_) => {
+                                        unreachable!("dispatcher is in payload receive state")
+                                    }
+                                }
+                            }
+
+                            // not enough info to decide if connection is going to be clean or not
+                            None => {
+                                log::error!(
+                                    "handler did not read whole payload; closing connection"
+                                );
+
+                                return Err(DispatchError::HandlerDroppedPayload);
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         let mut updated = false;
 

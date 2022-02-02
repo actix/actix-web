@@ -340,6 +340,7 @@ impl From<PayloadError> for Error {
 
 /// A set of errors that can occur during dispatching HTTP requests.
 #[derive(Debug, Display, From)]
+#[non_exhaustive]
 pub enum DispatchError {
     /// Service error.
     #[display(fmt = "Service Error")]
@@ -372,6 +373,10 @@ pub enum DispatchError {
     /// Disconnect timeout. Makes sense for ssl streams.
     #[display(fmt = "Connection shutdown timeout")]
     DisconnectTimeout,
+
+    /// Handler dropped payload before reading EOF.
+    #[display(fmt = "Handler dropped payload before reading EOF")]
+    HandlerDroppedPayload,
 
     /// Internal error.
     #[display(fmt = "Internal error")]
