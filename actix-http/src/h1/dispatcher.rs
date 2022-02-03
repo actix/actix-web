@@ -696,7 +696,6 @@ where
         if can_not_read {
             log::debug!("cannot read request payload");
 
-            // if we cannot read request payload...
             if let Some(sender) = &this.payload {
                 // ...maybe handler does not want to read any more payload...
                 if let PayloadStatus::Dropped = sender.need_read(cx) {
@@ -750,6 +749,9 @@ where
                         }
                     }
                 }
+            } else {
+                // can_not_read and no request payload
+                return Ok(false);
             }
         }
 
