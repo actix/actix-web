@@ -21,7 +21,7 @@ use crate::{
     config::ServiceConfig,
     error::{DispatchError, ParseError, PayloadError},
     service::HttpFlow,
-    Error, Extensions, OnConnectData, Request, Response, StatusCode,
+    ConnectionType, Error, Extensions, OnConnectData, Request, Response, StatusCode,
 };
 
 use super::{
@@ -151,7 +151,7 @@ pin_project! {
         error: Option<DispatchError>,
 
         #[pin]
-        state: State<S, B, X>,
+        pub(super) state: State<S, B, X>,
         // when Some(_) dispatcher is in state of receiving request payload
         payload: Option<PayloadSender>,
         messages: VecDeque<DispatcherMessage>,
@@ -175,7 +175,7 @@ enum DispatcherMessage {
 
 pin_project! {
     #[project = StateProj]
-    enum State<S, B, X>
+    pub(super) enum State<S, B, X>
     where
         S: Service<Request>,
         X: Service<Request, Response = Request>,
@@ -195,7 +195,7 @@ where
     X: Service<Request, Response = Request>,
     B: MessageBody,
 {
-    fn is_none(&self) -> bool {
+    pub(super) fn is_none(&self) -> bool {
         matches!(self, State::None)
     }
 }
@@ -700,7 +700,7 @@ where
             if let Some(sender) = &this.payload {
                 // ...maybe handler does not want to read any more payload...
                 if let PayloadStatus::Dropped = sender.need_read(cx) {
-                    log::warn!("handler dropped payload early");
+                    log::debug!("handler dropped payload early; attempt to clean connection");
                     // ...in which case poll request payload a few times
                     loop {
                         match this.codec.decode(this.read_buf)? {
@@ -714,6 +714,8 @@ where
 
                                     // connection is in clean state for next request
                                     Message::Chunk(None) => {
+                                        log::debug!("connection successfully cleaned");
+
                                         // reset dispatcher state
                                         let _ = this.payload.take();
                                         this.state.set(State::None);
@@ -734,10 +736,16 @@ where
                             // not enough info to decide if connection is going to be clean or not
                             None => {
                                 log::error!(
-                                    "handler did not read whole payload; closing connection"
+                                    "handler did not read whole payload and dispatcher could not \
+                                    drain read buf; return 500 and close connection"
                                 );
 
-                                return Err(DispatchError::HandlerDroppedPayload);
+                                this.flags.insert(Flags::SHUTDOWN);
+                                let mut res = Response::internal_server_error().drop_body();
+                                res.head_mut().set_connection_type(ConnectionType::Close);
+                                this.messages.push_back(DispatcherMessage::Error(res));
+                                *this.error = Some(DispatchError::HandlerDroppedPayload);
+                                return Ok(true);
                             }
                         }
                     }
