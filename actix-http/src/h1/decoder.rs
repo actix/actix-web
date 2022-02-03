@@ -209,15 +209,16 @@ impl MessageType for Request {
 
         let (len, method, uri, ver, h_len) = {
             // SAFETY:
-            // Create an uninitialized array of `MaybeUninit`. The `assume_init` is
-            // safe because the type we are claiming to have initialized here is a
-            // bunch of `MaybeUninit`s, which do not require initialization.
+            // Create an uninitialized array of `MaybeUninit`. The `assume_init` is safe because the
+            // type we are claiming to have initialized here is a bunch of `MaybeUninit`s, which
+            // do not require initialization.
             let mut parsed = unsafe {
                 MaybeUninit::<[MaybeUninit<httparse::Header<'_>>; MAX_HEADERS]>::uninit()
                     .assume_init()
             };
 
             let mut req = httparse::Request::new(&mut []);
+
             match req.parse_with_uninit_headers(src, &mut parsed)? {
                 httparse::Status::Complete(len) => {
                     let method = Method::from_bytes(req.method.unwrap().as_bytes())
@@ -232,6 +233,7 @@ impl MessageType for Request {
 
                     (len, method, uri, version, req.headers.len())
                 }
+
                 httparse::Status::Partial => {
                     return if src.len() >= MAX_BUFFER_SIZE {
                         trace!("MAX_BUFFER_SIZE unprocessed data reached, closing");
