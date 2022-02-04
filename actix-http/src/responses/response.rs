@@ -285,6 +285,24 @@ impl From<&'static [u8]> for Response<&'static [u8]> {
     }
 }
 
+impl From<Vec<u8>> for Response<Vec<u8>> {
+    fn from(val: Vec<u8>) -> Self {
+        let mut res = Response::with_body(StatusCode::OK, val);
+        let mime = mime::APPLICATION_OCTET_STREAM.try_into_value().unwrap();
+        res.headers_mut().insert(header::CONTENT_TYPE, mime);
+        res
+    }
+}
+
+impl From<&Vec<u8>> for Response<Vec<u8>> {
+    fn from(val: &Vec<u8>) -> Self {
+        let mut res = Response::with_body(StatusCode::OK, val.clone());
+        let mime = mime::APPLICATION_OCTET_STREAM.try_into_value().unwrap();
+        res.headers_mut().insert(header::CONTENT_TYPE, mime);
+        res
+    }
+}
+
 impl From<String> for Response<String> {
     fn from(val: String) -> Self {
         let mut res = Response::with_body(StatusCode::OK, val);

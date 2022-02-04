@@ -132,6 +132,7 @@ macro_rules! impl_responder_by_forward_into_base_response {
 }
 
 impl_responder_by_forward_into_base_response!(&'static [u8]);
+impl_responder_by_forward_into_base_response!(Vec<u8>);
 impl_responder_by_forward_into_base_response!(Bytes);
 impl_responder_by_forward_into_base_response!(BytesMut);
 

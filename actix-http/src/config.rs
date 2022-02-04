@@ -104,8 +104,13 @@ impl ServiceConfig {
         self.0.date_service.now()
     }
 
-    pub(crate) fn write_date_header(&self, dst: &mut BytesMut, camel_case: bool) {
-        let mut buf: [u8; 39] = [0; 39];
+    /// Writes date header to `dst` buffer.
+    ///
+    /// Low-level method that utilizes the built-in efficient date service, requiring fewer syscalls
+    /// than normal. Note that a CRLF (`\r\n`) is included in what is written.
+    #[doc(hidden)]
+    pub fn write_date_header(&self, dst: &mut BytesMut, camel_case: bool) {
+        let mut buf: [u8; 37] = [0; 37];
 
         buf[..6].copy_from_slice(if camel_case { b"Date: " } else { b"date: " });
 
@@ -113,7 +118,7 @@ impl ServiceConfig {
             .date_service
             .with_date(|date| buf[6..35].copy_from_slice(&date.bytes));
 
-        buf[35..].copy_from_slice(b"\r\n\r\n");
+        buf[35..].copy_from_slice(b"\r\n");
         dst.extend_from_slice(&buf);
     }
 
