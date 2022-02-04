@@ -50,6 +50,8 @@ The associated type `Config` of `FromRequest` was removed. If you have custom ex
   }
 ```
 
+Consequently, the `FromRequest::configure` method was also removed. Config for extractors is still provided using `App::app_data` but should now be constructed in a standalone way.
+
 ## Compression Feature Flags
 
 Feature flag `compress` has been split into its supported algorithm (brotli, gzip, zstd). By default, all compression algorithms are enabled. The new flags are:
