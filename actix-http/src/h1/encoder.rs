@@ -210,13 +210,13 @@ pub(crate) trait MessageType: Sized {
             dst.advance_mut(pos);
         }
 
-        // optimized date header, set_date writes \r\n
         if !has_date {
+            // optimized date header, write_date_header writes its own \r\n
             config.write_date_header(dst, camel_case);
-        } else {
-            // msg eof
-            dst.extend_from_slice(b"\r\n");
         }
+
+        // end-of-headers marker
+        dst.extend_from_slice(b"\r\n");
 
         Ok(())
     }
