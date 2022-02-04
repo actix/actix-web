@@ -29,13 +29,13 @@ Lots of modules has been organized in this release. If a compile error refers to
 The default `NormalizePath` behavior now strips trailing slashes by default. This was previously documented to be the case in v3 but the behavior now matches. The effect is that routes defined with trailing slashes will become inaccessible when using `NormalizePath::default()`. As such, calling `NormalizePath::default()` will log a warning. It is advised that the `new` or `trim` methods be used instead.
 
 ```diff
-- #[get("/test/")]`
-+ #[get("/test")]`
+- #[get("/test/")]
++ #[get("/test")]
   async fn handler() {
 
   App::new()
--   .wrap(NormalizePath::default())`
-+   .wrap(NormalizePath::trim())`
+-   .wrap(NormalizePath::default())
++   .wrap(NormalizePath::trim())
 ```
 
 Alternatively, explicitly require trailing slashes: `NormalizePath::new(TrailingSlash::Always)`.
@@ -46,7 +46,7 @@ The associated type `Config` of `FromRequest` was removed. If you have custom ex
 
 ```diff
   impl FromRequest for MyExtractor {
--   `type Config = ();`
+-   type Config = ();
   }
 ```
 
