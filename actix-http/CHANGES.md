@@ -1,14 +1,17 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+- Implement `From<Vec<u8>>` for `Response<Vec<u8>>`. [#????]
+
 ### Changed
 - `error::DispatcherError` enum is now marked `#[non_exhaustive]`. [#2624]
-
 
 ### Fixed
 - Issue where handlers that took payload but then dropped without reading it to EOF it would cause keep-alive connections to become stuck. [#2624]
 
 [#2624]: https://github.com/actix/actix-web/pull/2624
+[#????]: https://github.com/actix/actix-web/pull/????
 
 
 ## 3.0.0-rc.1 - 2022-01-31

@@ -1,7 +1,10 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Added
+- Implement `Responder` for `Vec<u8>`. [#????]
 
+[#????]: https://github.com/actix/actix-web/pull/????
 
 ## 4.0.0-rc.2 - 2022-02-02
 ### Added
