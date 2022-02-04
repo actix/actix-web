@@ -3,6 +3,7 @@
 ## Unreleased - 2021-xx-xx
 ### Added
 - Implement `Responder` for `Vec<u8>`. [#2625]
+- Re-export `KeepAlive` in `http` mod. [#2625]
 
 [#2625]: https://github.com/actix/actix-web/pull/2625
 
