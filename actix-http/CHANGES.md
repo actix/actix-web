@@ -3,7 +3,6 @@
 ## Unreleased - 2021-xx-xx
 ### Added
 - Implement `From<Vec<u8>>` for `Response<Vec<u8>>`. [#2625]
-- Expose `ServiceConfig::write_date_header`. [#2625]
 
 ### Changed
 - `error::DispatcherError` enum is now marked `#[non_exhaustive]`. [#2624]

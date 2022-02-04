@@ -108,6 +108,7 @@ impl ServiceConfig {
     ///
     /// Low-level method that utilizes the built-in efficient date service, requiring fewer syscalls
     /// than normal. Note that a CRLF (`\r\n`) is included in what is written.
+    #[doc(hidden)]
     pub fn write_date_header(&self, dst: &mut BytesMut, camel_case: bool) {
         let mut buf: [u8; 37] = [0; 37];
 
