@@ -2,11 +2,11 @@
 
 ## Unreleased - 2021-xx-xx
 ### Added
-- Implement `From<Vec<u8>>` for `Response<Vec<u8>>`. [#????]
+- Implement `From<Vec<u8>>` for `Response<Vec<u8>>`. [#2625]
+- Expose `ServiceConfig::write_date_header`. [#2625]
 
 ### Changed
 - `error::DispatcherError` enum is now marked `#[non_exhaustive]`. [#2624]
-- Expose `ServiceConfig::write_date_header`. [#2625]
 
 ### Fixed
 - Issue where handlers that took payload but then dropped without reading it to EOF it would cause keep-alive connections to become stuck. [#2624]
