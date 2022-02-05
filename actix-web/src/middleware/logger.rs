@@ -557,8 +557,8 @@ struct CustomStatusFn {
 }
 
 impl CustomStatusFn {
-    fn call(&self, res: &StatusCode) -> String {
-        (self.inner_fn)(res)
+    fn call(&self, sc: &StatusCode) -> String {
+        (self.inner_fn)(sc)
     }
 }
 
@@ -617,8 +617,8 @@ impl FormatText {
                 };
                 *self = FormatText::Str(s.to_string())
             }
-            FormatText::CustomStatus(_, response_fn) => {
-                let s = match response_fn {
+            FormatText::CustomStatus(_, status_fn) => {
+                let s = match status_fn {
                     Some(f) => FormatText::Str(f.call(&res.status())),
                     None => FormatText::Str("-".to_owned()),
                 };
