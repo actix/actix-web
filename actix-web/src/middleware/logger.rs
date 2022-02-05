@@ -73,7 +73,7 @@ use crate::{
 /// `%{FOO}o` | `response.headers["FOO"]`
 /// `%{FOO}e` | `env_var["FOO"]`
 /// `%{FOO}xi` | [Custom request replacement](Logger::custom_request_replace) labelled "FOO"
-/// `%{FOO}xo` | [Custom response replacement](Logger::custom_response_replace) labelled "FOO"
+/// `%{FOO}xs` | [Custom status replacement](Logger::custom_status_replace) labelled "FOO"
 ///
 /// # Security
 /// **\*** "Real IP" remote address is calculated using
@@ -183,7 +183,7 @@ impl Logger {
 
     /// Register a function that receives a StatusCode and returns a String for use in the
     /// log line. The label passed as the first argument should match a replacement substring in
-    /// the logger format like `%{label}xo`.
+    /// the logger format like `%{label}xs`.
     ///
     /// It is convention to print "-" to indicate no output instead of an empty string.
     ///
@@ -199,9 +199,9 @@ impl Logger {
     ///     }
     /// }
     /// Logger::new("example %{ERROR_STATUS}xo")
-    ///     .custom_response_replace("ERROR_STATUS", |status| log_if_error(status) );
+    ///     .custom_status_replace("ERROR_STATUS", |status| log_if_error(status) );
     /// ```
-    pub fn custom_response_replace(
+    pub fn custom_status_replace(
         mut self,
         label: &str,
         f: impl Fn(&StatusCode) -> String + 'static,
@@ -209,18 +209,18 @@ impl Logger {
         let inner = Rc::get_mut(&mut self.0).unwrap();
 
         let ft = inner.format.0.iter_mut().find(
-            |ft| matches!(ft, FormatText::CustomResponse(unit_label, _) if label == unit_label),
+            |ft| matches!(ft, FormatText::CustomStatus(unit_label, _) if label == unit_label),
         );
 
-        if let Some(FormatText::CustomResponse(_, response_fn)) = ft {
+        if let Some(FormatText::CustomStatus(_, status_fn)) = ft {
             // replace into None or previously registered fn using same label
-            response_fn.replace(CustomResponseFn {
+            status_fn.replace(CustomStatusFn {
                 inner_fn: Rc::new(f),
             });
         } else {
             // non-printed response replacement function diagnostic
             debug!(
-                "Attempted to register custom response logging function for nonexistent label: {}",
+                "Attempted to register custom status logging function for nonexistent label: {}",
                 label
             );
         }
@@ -266,9 +266,9 @@ where
                 );
             }
             // missing response replacement function diagnostic
-            if let FormatText::CustomResponse(label, None) = unit {
+            if let FormatText::CustomStatus(label, None) = unit {
                 warn!(
-                    "No custom response replacement function was registered for label \"{}\".",
+                    "No custom status replacement function was registered for label \"{}\".",
                     label
                 );
             }
@@ -454,7 +454,7 @@ impl Format {
     /// Returns `None` if the format string syntax is incorrect.
     pub fn new(s: &str) -> Format {
         log::trace!("Access log format: {}", s);
-        let fmt = Regex::new(r"%(\{([A-Za-z0-9\-_]+)\}([aioe]|x[io])|[%atPrUsbTD]?)").unwrap();
+        let fmt = Regex::new(r"%(\{([A-Za-z0-9\-_]+)\}([aioe]|x[is])|[%atPrUsbTD]?)").unwrap();
 
         let mut idx = 0;
         let mut results = Vec::new();
@@ -483,7 +483,7 @@ impl Format {
                     }
                     "e" => FormatText::EnvironHeader(key.as_str().to_owned()),
                     "xi" => FormatText::CustomRequest(key.as_str().to_owned(), None),
-                    "xo" => FormatText::CustomResponse(key.as_str().to_owned(), None),
+                    "xs" => FormatText::CustomStatus(key.as_str().to_owned(), None),
                     _ => unreachable!(),
                 })
             } else {
@@ -531,7 +531,7 @@ enum FormatText {
     ResponseHeader(HeaderName),
     EnvironHeader(String),
     CustomRequest(String, Option<CustomRequestFn>),
-    CustomResponse(String, Option<CustomResponseFn>),
+    CustomStatus(String, Option<CustomStatusFn>),
 }
 
 #[derive(Clone)]
@@ -552,19 +552,19 @@ impl fmt::Debug for CustomRequestFn {
 }
 
 #[derive(Clone)]
-struct CustomResponseFn {
+struct CustomStatusFn {
     inner_fn: Rc<dyn Fn(&StatusCode) -> String>,
 }
 
-impl CustomResponseFn {
+impl CustomStatusFn {
     fn call(&self, res: &StatusCode) -> String {
         (self.inner_fn)(res)
     }
 }
 
-impl fmt::Debug for CustomResponseFn {
+impl fmt::Debug for CustomStatusFn {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("custom_response_fn")
+        f.write_str("custom_status_fn")
     }
 }
 
@@ -617,7 +617,7 @@ impl FormatText {
                 };
                 *self = FormatText::Str(s.to_string())
             }
-            FormatText::CustomResponse(_, response_fn) => {
+            FormatText::CustomStatus(_, response_fn) => {
                 let s = match response_fn {
                     Some(f) => FormatText::Str(f.call(&res.status())),
                     None => FormatText::Str("-".to_owned()),
@@ -940,8 +940,8 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_custom_closure_res_log() {
-        let mut logger = Logger::new("test %{CUSTOM}xo").custom_response_replace(
+    async fn test_custom_closure_status_log() {
+        let mut logger = Logger::new("test %{CUSTOM}xs").custom_status_replace(
             "CUSTOM",
             |sc: &StatusCode| -> String {
                 if sc.as_u16() == 200 {
@@ -954,8 +954,8 @@ mod tests {
         let mut unit = Rc::get_mut(&mut logger.0).unwrap().format.0[1].clone();
 
         let label = match &unit {
-            FormatText::CustomResponse(label, _) => label,
-            ft => panic!("expected CustomResponse, found {:?}", ft),
+            FormatText::CustomStatus(label, _) => label,
+            ft => panic!("expected CustomStatus, found {:?}", ft),
         };
 
         assert_eq!(label, "CUSTOM");
