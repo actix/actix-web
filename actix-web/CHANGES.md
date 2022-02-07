@@ -1,11 +1,15 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Changed
+- `middleware::Condition` gained a broader compatiblity; It no longer requires `Compat`. [#2635]
+
 ### Added
 - Implement `Responder` for `Vec<u8>`. [#2625]
 - Re-export `KeepAlive` in `http` mod. [#2625]
 
 [#2625]: https://github.com/actix/actix-web/pull/2625
+[#2635]: https://github.com/actix/actix-web/pull/2635
 
 
 ## 4.0.0-rc.2 - 2022-02-02
