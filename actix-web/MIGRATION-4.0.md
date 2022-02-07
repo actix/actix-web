@@ -9,6 +9,7 @@ Headings marked with :warning: are **breaking behavioral changes** and will prob
 ## Table of Contents:
 
 - [MSRV](#msrv)
+- [Server Settings](#server-settings)
 - [Module Structure](#module-structure)
 - [`NormalizePath` Middleware :warning:](#normalizepath-middleware-warning)
 - [`FromRequest` Trait](#fromrequest-trait)
@@ -19,6 +20,11 @@ Headings marked with :warning: are **breaking behavioral changes** and will prob
 ## MSRV
 
 The MSRV of Actix Web has been raised from 1.42 to 1.54.
+
+## Server Settings
+
+Until actix-web v4, actix-server used the total number of available logical cores as the default number of worker threads.  The new default number of worker threads for actix-server is the number of [physical CPU cores available](https://github.com/actix/actix-net/commit/3a3d654cea5e55b169f6fd05693b765799733b1b#diff-96893e8cb2125e6eefc96105a8462c4fd834943ef5129ffbead1a114133ebb78).  For more information about this change, refer to [this analysis](https://github.com/actix/actix-web/issues/957).
+
 
 ## Module Structure
 
