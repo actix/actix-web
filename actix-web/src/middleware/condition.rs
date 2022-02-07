@@ -1,17 +1,19 @@
 //! For middleware documentation, see [`Condition`].
 
-use std::task::{Context, Poll};
+use std::{
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 use actix_service::{Service, Transform};
-use actix_utils::future::Either;
-use futures_core::future::LocalBoxFuture;
+use futures_core::{future::LocalBoxFuture, ready};
 use futures_util::future::FutureExt as _;
+use pin_project_lite::pin_project;
+
+use crate::{body::EitherBody, dev::ServiceResponse};
 
 /// Middleware for conditionally enabling other middleware.
-///
-/// The controlled middleware must not change the `Service` interfaces. This means you cannot
-/// control such middlewares like `Logger` or `Compress` directly. See the [`Compat`](super::Compat)
-/// middleware for a workaround.
 ///
 /// # Examples
 /// ```
@@ -36,16 +38,16 @@ impl<T> Condition<T> {
     }
 }
 
-impl<S, T, Req> Transform<S, Req> for Condition<T>
+impl<S, T, Req, BE, BD, Err> Transform<S, Req> for Condition<T>
 where
-    S: Service<Req> + 'static,
-    T: Transform<S, Req, Response = S::Response, Error = S::Error>,
+    S: Service<Req, Response = ServiceResponse<BD>, Error = Err> + 'static,
+    T: Transform<S, Req, Response = ServiceResponse<BE>, Error = Err>,
     T::Future: 'static,
     T::InitError: 'static,
     T::Transform: 'static,
 {
-    type Response = S::Response;
-    type Error = S::Error;
+    type Response = ServiceResponse<EitherBody<BE, BD>>;
+    type Error = Err;
     type Transform = ConditionMiddleware<T::Transform, S>;
     type InitError = T::InitError;
     type Future = LocalBoxFuture<'static, Result<Self::Transform, Self::InitError>>;
@@ -69,14 +71,14 @@ pub enum ConditionMiddleware<E, D> {
     Disable(D),
 }
 
-impl<E, D, Req> Service<Req> for ConditionMiddleware<E, D>
+impl<E, D, Req, BE, BD, Err> Service<Req> for ConditionMiddleware<E, D>
 where
-    E: Service<Req>,
-    D: Service<Req, Response = E::Response, Error = E::Error>,
+    E: Service<Req, Response = ServiceResponse<BE>, Error = Err>,
+    D: Service<Req, Response = ServiceResponse<BD>, Error = Err>,
 {
-    type Response = E::Response;
-    type Error = E::Error;
-    type Future = Either<E::Future, D::Future>;
+    type Response = ServiceResponse<EitherBody<BE, BD>>;
+    type Error = Err;
+    type Future = ConditionMiddlewareFuture<E::Future, D::Future>;
 
     fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         match self {
@@ -87,16 +89,45 @@ where
 
     fn call(&self, req: Req) -> Self::Future {
         match self {
-            ConditionMiddleware::Enable(service) => Either::left(service.call(req)),
-            ConditionMiddleware::Disable(service) => Either::right(service.call(req)),
+            ConditionMiddleware::Enable(service) => ConditionMiddlewareFuture::Left {
+                fut: service.call(req),
+            },
+            ConditionMiddleware::Disable(service) => ConditionMiddlewareFuture::Right {
+                fut: service.call(req),
+            },
         }
+    }
+}
+
+pin_project! {
+    #[project = EitherProj]
+    pub enum ConditionMiddlewareFuture<L, R> {
+        Left { #[pin] fut: L, },
+        Right { #[pin] fut: R, },
+    }
+}
+
+impl<L, R, BL, BR, Err> Future for ConditionMiddlewareFuture<L, R>
+where
+    L: Future<Output = Result<ServiceResponse<BL>, Err>>,
+    R: Future<Output = Result<ServiceResponse<BR>, Err>>,
+{
+    type Output = Result<ServiceResponse<EitherBody<BL, BR>>, Err>;
+
+    #[inline]
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let res = match self.project() {
+            EitherProj::Left { fut } => ready!(fut.poll(cx))?.map_into_left_body(),
+            EitherProj::Right { fut } => ready!(fut.poll(cx))?.map_into_right_body(),
+        };
+
+        Poll::Ready(Ok(res))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use actix_service::IntoService;
-    use actix_utils::future::ok;
 
     use super::*;
     use crate::{
@@ -106,10 +137,12 @@ mod tests {
             header::{HeaderValue, CONTENT_TYPE},
             StatusCode,
         },
-        middleware::{err_handlers::*, Compat},
+        middleware::err_handlers::*,
         test::{self, TestRequest},
         HttpResponse,
     };
+
+    fn assert_type<T>(_: &T) {}
 
     #[allow(clippy::unnecessary_wraps)]
     fn render_500<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
@@ -122,31 +155,31 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_handler_enabled() {
-        let srv = |req: ServiceRequest| {
-            ok(req.into_response(HttpResponse::InternalServerError().finish()))
+        let srv = |req: ServiceRequest| async move {
+            let resp = HttpResponse::InternalServerError().message_body(String::new())?;
+            Ok(req.into_response(resp))
         };
 
-        let mw = Compat::new(
-            ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, render_500),
-        );
+        let mw = ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, render_500);
 
         let mw = Condition::new(true, mw)
             .new_transform(srv.into_service())
             .await
             .unwrap();
+
         let resp = test::call_service(&mw, TestRequest::default().to_srv_request()).await;
+        assert_type::<ServiceResponse<EitherBody<EitherBody<_, _>, String>>>(&resp);
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
     }
 
     #[actix_rt::test]
     async fn test_handler_disabled() {
-        let srv = |req: ServiceRequest| {
-            ok(req.into_response(HttpResponse::InternalServerError().finish()))
+        let srv = |req: ServiceRequest| async move {
+            let resp = HttpResponse::InternalServerError().message_body(String::new())?;
+            Ok(req.into_response(resp))
         };
 
-        let mw = Compat::new(
-            ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, render_500),
-        );
+        let mw = ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, render_500);
 
         let mw = Condition::new(false, mw)
             .new_transform(srv.into_service())
@@ -154,6 +187,7 @@ mod tests {
             .unwrap();
 
         let resp = test::call_service(&mw, TestRequest::default().to_srv_request()).await;
+        assert_type::<ServiceResponse<EitherBody<EitherBody<_, _>, String>>>(&resp);
         assert_eq!(resp.headers().get(CONTENT_TYPE), None);
     }
 }
