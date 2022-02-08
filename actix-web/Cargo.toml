@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "4.0.0-rc.2"
+version = "4.0.0-rc.3"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
     "Rob Ede <robjtede@icloud.com>",
