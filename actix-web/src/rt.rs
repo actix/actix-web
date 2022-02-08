@@ -55,7 +55,7 @@
 //! [^compat]: Crates that use Tokio's [`block_in_place`] will not work with Actix Web. Fortunately,
 //!   the vast majority of Tokio-based crates do not use it.
 //!
-//! [`actix-rt`]: https://docs.rs/actix_rt
+//! [`actix-rt`]: https://docs.rs/actix-rt
 //! [`tokio`]: https://docs.rs/tokio
 //! [Tokio]: https://docs.rs/tokio
 //! [`spawn`]: https://docs.rs/tokio/1/tokio/fn.spawn.html
