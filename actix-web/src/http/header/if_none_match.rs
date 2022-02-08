@@ -62,18 +62,18 @@ crate::http::header::common_header! {
 
 #[cfg(test)]
 mod tests {
+    use actix_http::test::TestRequest;
+
     use super::IfNoneMatch;
     use crate::http::header::{EntityTag, Header, IF_NONE_MATCH};
-    use actix_http::test::TestRequest;
 
     #[test]
     fn test_if_none_match() {
-        let mut if_none_match: Result<IfNoneMatch, _>;
-
         let req = TestRequest::default()
             .insert_header((IF_NONE_MATCH, "*"))
             .finish();
-        if_none_match = Header::parse(&req);
+
+        let mut if_none_match = IfNoneMatch::parse(&req);
         assert_eq!(if_none_match.ok(), Some(IfNoneMatch::Any));
 
         let req = TestRequest::default()

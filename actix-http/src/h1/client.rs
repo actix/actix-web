@@ -128,7 +128,10 @@ impl Decoder for ClientCodec {
     type Error = ParseError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        debug_assert!(!self.inner.payload.is_some(), "Payload decoder is set");
+        debug_assert!(
+            self.inner.payload.is_none(),
+            "Payload decoder should not be set"
+        );
 
         if let Some((req, payload)) = self.inner.decoder.decode(src)? {
             if let Some(conn_type) = req.conn_type() {

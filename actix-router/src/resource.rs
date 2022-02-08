@@ -898,7 +898,7 @@ impl ResourceDef {
                 }
 
                 let pattern_re_set = RegexSet::new(re_set).unwrap();
-                let segments = segments.unwrap_or_else(Vec::new);
+                let segments = segments.unwrap_or_default();
 
                 (
                     PatternType::DynamicSet(pattern_re_set, pattern_data),
