@@ -42,28 +42,29 @@
 //!   and otherwise utilizing them.
 //!
 //! # Features
-//! * Supports *HTTP/1.x* and *HTTP/2*
-//! * Streaming and pipelining
-//! * Keep-alive and slow requests handling
-//! * Client/server [WebSockets](https://actix.rs/docs/websockets/) support
-//! * Transparent content compression/decompression (br, gzip, deflate, zstd)
-//! * Powerful [request routing](https://actix.rs/docs/url-dispatch/)
-//! * Multipart streams
-//! * Static assets
-//! * SSL support using OpenSSL or Rustls
-//! * Middlewares ([Logger, Session, CORS, etc](https://actix.rs/docs/middleware/))
-//! * Includes an async [HTTP client](https://docs.rs/awc/)
-//! * Runs on stable Rust 1.54+
+//! - Supports HTTP/1.x and HTTP/2
+//! - Streaming and pipelining
+//! - Powerful [request routing](https://actix.rs/docs/url-dispatch/) with optional macros
+//! - Full [Tokio](https://tokio.rs) compatibility
+//! - Keep-alive and slow requests handling
+//! - Client/server [WebSockets](https://actix.rs/docs/websockets/) support
+//! - Transparent content compression/decompression (br, gzip, deflate, zstd)
+//! - Multipart streams
+//! - Static assets
+//! - SSL support using OpenSSL or Rustls
+//! - Middlewares ([Logger, Session, CORS, etc](middleware))
+//! - Integrates with the [`awc` HTTP client](https://docs.rs/awc/)
+//! - Runs on stable Rust 1.54+
 //!
 //! # Crate Features
-//! * `cookies` - cookies support (enabled by default)
-//! * `macros` - routing and runtime macros (enabled by default)
-//! * `compress-brotli` - brotli content encoding compression support (enabled by default)
-//! * `compress-gzip` - gzip and deflate content encoding compression support (enabled by default)
-//! * `compress-zstd` - zstd content encoding compression support (enabled by default)
-//! * `openssl` - HTTPS support via `openssl` crate, supports `HTTP/2`
-//! * `rustls` - HTTPS support via `rustls` crate, supports `HTTP/2`
-//! * `secure-cookies` - secure cookies support
+//! - `cookies` - cookies support (enabled by default)
+//! - `macros` - routing and runtime macros (enabled by default)
+//! - `compress-brotli` - brotli content encoding compression support (enabled by default)
+//! - `compress-gzip` - gzip and deflate content encoding compression support (enabled by default)
+//! - `compress-zstd` - zstd content encoding compression support (enabled by default)
+//! - `openssl` - HTTPS support via `openssl` crate, supports `HTTP/2`
+//! - `rustls` - HTTPS support via `rustls` crate, supports `HTTP/2`
+//! - `secure-cookies` - secure cookies support
 
 #![deny(rust_2018_idioms, nonstandard_style)]
 #![warn(future_incompatible)]

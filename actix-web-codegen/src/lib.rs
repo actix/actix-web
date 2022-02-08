@@ -152,6 +152,10 @@ method_macro!(Patch, patch);
 
 /// Marks async main function as the Actix Web system entry-point.
 ///
+/// Note that Actix Web also works under `#[tokio::main]` since version 4.0. However, this macro is
+/// still necessary for actor support (since actors use a `System`). Read more in the
+/// [`actix_web::rt`](https://docs.rs/actix-web/4/actix_web/rt) module docs.
+///
 /// # Examples
 /// ```
 /// #[actix_web::main]

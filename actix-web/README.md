@@ -32,7 +32,7 @@
 - Static assets
 - SSL support using OpenSSL or Rustls
 - Middlewares ([Logger, Session, CORS, etc](https://actix.rs/docs/middleware/))
-- Includes an async [HTTP client](https://docs.rs/awc/)
+- Integrates with the [`awc` HTTP client](https://docs.rs/awc/)
 - Runs on stable Rust 1.54+
 
 ## Documentation
