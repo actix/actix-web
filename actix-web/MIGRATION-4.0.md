@@ -23,8 +23,7 @@ The MSRV of Actix Web has been raised from 1.42 to 1.54.
 
 ## Server Settings
 
-Until actix-web v4, actix-server used the total number of available logical cores as the default number of worker threads.  The new default number of worker threads for actix-server is the number of [physical CPU cores available](https://github.com/actix/actix-net/commit/3a3d654cea5e55b169f6fd05693b765799733b1b#diff-96893e8cb2125e6eefc96105a8462c4fd834943ef5129ffbead1a114133ebb78).  For more information about this change, refer to [this analysis](https://github.com/actix/actix-web/issues/957).
-
+Until actix-web v4, actix-server used the total number of available logical cores as the default number of worker threads. The new default number of worker threads for actix-server is the number of [physical CPU cores available](https://github.com/actix/actix-net/commit/3a3d654cea5e55b169f6fd05693b765799733b1b#diff-96893e8cb2125e6eefc96105a8462c4fd834943ef5129ffbead1a114133ebb78). For more information about this change, refer to [this analysis](https://github.com/actix/actix-web/issues/957).
 
 ## Module Structure
 
@@ -136,10 +135,32 @@ TODO
 
 TODO
 
-## HttpResponse no longer implements Future
+## Returning `HttpResponse` synchronously.
 
-TODO
+The implementation of `Future` for `HttpResponse` was removed because it was largely useless for all but the simplest handlers like `web::to(|| HttpResponse::Ok().finish())`. It also caused false positives on the `async_yields_async` clippy lint in reasonable scenarios. The compiler errors will looks something like:
+
+```
+web::to(|| HttpResponse::Ok().finish())
+^^^^^^^ the trait `Handler<_>` is not implemented for `[closure@...]`
+```
+
+This form should be replaced with the a more explicit async fn:
+
+```diff
+- web::to(|| HttpResponse::Ok().finish())
++ web::to(|| async { HttpResponse::Ok().finish() })
+```
+
+Or, for these extremely simple cases, utilise an `HttpResponseBuilder`:
+
+```diff
+- web::to(|| HttpResponse::Ok().finish())
++ web::to(HttpResponse::Ok)
+```
+
 
 ## `#[actix_web::main]` and `#[tokio::main]`
 
-TODO
+Actix Web now works seamlessly with the primary way of starting a multi-threaded Tokio runtime, `#[tokio::main]`. Therefore, it is no longer necessary to spawn a thread when you need to run something alongside Actix Web that uses of Tokio's multi-threaded mode; you can simply await the server within this context or, if preferred, use `tokio::spawn` just like any other async task.
+
+For now, `actix` actor support (and therefore WebSocket support via `actix-web-actors`) still requires `#[actix_web::main]` so that a `System` context is created. Designs are being created for an alternative WebSocket interface that does not require actors that should land sometime in the v4.x cycle.
