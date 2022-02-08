@@ -9,9 +9,9 @@ Headings marked with :warning: are **breaking behavioral changes** and will prob
 ## Table of Contents:
 
 - [MSRV](#msrv)
-- [Server Settings](#server-settings)
 - [Module Structure](#module-structure)
 - [`NormalizePath` Middleware :warning:](#normalizepath-middleware-warning)
+- [Server Settings :warning:](#server-settings-warning)
 - [`FromRequest` Trait](#fromrequest-trait)
 - [Compression Feature Flags](#compression-feature-flags)
 - [`web::Path`](#webpath)
@@ -20,10 +20,6 @@ Headings marked with :warning: are **breaking behavioral changes** and will prob
 ## MSRV
 
 The MSRV of Actix Web has been raised from 1.42 to 1.54.
-
-## Server Settings
-
-Until actix-web v4, actix-server used the total number of available logical cores as the default number of worker threads. The new default number of worker threads for actix-server is the number of [physical CPU cores available](https://github.com/actix/actix-net/commit/3a3d654cea5e55b169f6fd05693b765799733b1b#diff-96893e8cb2125e6eefc96105a8462c4fd834943ef5129ffbead1a114133ebb78). For more information about this change, refer to [this analysis](https://github.com/actix/actix-web/issues/957).
 
 ## Module Structure
 
@@ -45,6 +41,12 @@ The default `NormalizePath` behavior now strips trailing slashes by default. Thi
 
 Alternatively, explicitly require trailing slashes: `NormalizePath::new(TrailingSlash::Always)`.
 
+## Server Settings :warning:
+
+Until Actix Web v4, the underlying `actix-server` crate used the number of available **logical** cores as the default number of worker threads. The new default is the number of [physical CPU cores available](https://github.com/actix/actix-net/commit/3a3d654c). For more information about this change, refer to [this analysis](https://github.com/actix/actix-web/issues/957).
+
+If you notice performance regressions, please open a new issue detailing your observations.
+
 ## `FromRequest` Trait
 
 The associated type `Config` of `FromRequest` was removed. If you have custom extractors, you can just remove this implementation and refer to config types directly, if required.
@@ -59,13 +61,11 @@ Consequently, the `FromRequest::configure` method was also removed. Config for e
 
 ## Compression Feature Flags
 
-Feature flag `compress` has been split into its supported algorithm (brotli, gzip, zstd). By default, all compression algorithms are enabled. The new flags are:
+Feature flag `compress` has been split into its supported algorithm (brotli, gzip, zstd). By default, all compression algorithms are enabled. If you want to select specific compression codecs, the new flags are:
 
 - `compress-brotli`
 - `compress-gzip`
 - `compress-zstd`
-
-If you have set in your `Cargo.toml` dedicated `actix-web` features and you still want to have compression enabled.
 
 ## `web::Path`
 
@@ -90,7 +90,7 @@ Actix Web's sister crate `awc` is no longer re-exported through the `client` mod
 + use awc::Client;
 ```
 
-## Integration Testing Utils Moved to `actix-test`
+## Integration Testing Utils Moved To `actix-test`
 
 Actix Web's `test` module used to contain `TestServer`. Since this required the `awc` client and it was removed as a re-export (see above), it was moved to its own crate [`actix-test`](https://docs.rs/actix-test).
 
@@ -101,7 +101,22 @@ Actix Web's `test` module used to contain `TestServer`. Since this required the 
 
 ## Header APIs
 
-TODO
+Header related APIs have been standardized across all `actix-*` crates. The terminology now better matches the underlying `HeaderMap` naming conventions. Most of the the old methods have only been deprecated with notes that will guide how to update.
+
+In short, "insert" always indicates that existing any existing headers with the same name are overridden and "append" indicates adding with no removal.
+
+For request and response builder APIs, the new methods provide a unified interface for adding key-value pairs _and_ typed headers, which can often be more expressive.
+
+```diff
+- .set_header("Api-Key", "1234")
++ .insert_header(("Api-Key", "1234"))
+
+- .header("Api-Key", "1234")
++ .append_header(("Api-Key", "1234"))
+
+- .set(ContentType::json())
++ .insert_header(ContentType::json())
+```
 
 ## Body Types / Removal of Body+ResponseBody types / Addition of EitherBody
 
@@ -117,25 +132,103 @@ TODO: Also write the Middleware author's guide.
 
 ## `Responder` Trait
 
-TODO
+The `Responder` trait's interface has changed. Errors should be handled and converted to responses within the `respond_to` method. It's also no longer async so the associated `type Future` has been removed; there was no compelling use case found for it. These changes simplify the interface and implementation a lot.
 
-## `App::data` deprecation
+Now that more emphasis is placed on expressive body types, as explained in the [body types migration section](#body-types--removal-of-bodyresponsebody-types--addition-of-eitherbody), this trait has introduced an associated `type Body`. The simplest migration will be to use `BoxBody` + `.map_into_boxed_body()` but if there is a more expressive type for your responder then try to use that instead.
 
-TODO
+```diff
+  impl Responder for &'static str {
+-     type Error = Error;
+-     type Future = Ready<Result<HttpResponse, Error>>;
++     type Body = &'static str;
 
-## It's probably not necessary to import `actix-rt` or `actix-service` any more
+-     fn respond_to(self, req: &HttpRequest) -> Self::Future {
++     fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
+          let res = HttpResponse::build(StatusCode::OK)
+              .content_type("text/plain; charset=utf-8")
+              .body(self);
 
-TODO
+-         ok(res)
++         res
+      }
+  }
+```
 
-## Server must be awaited in order to run :warning:
+## `App::data` deprecation :warning:
 
-TODO
+The `App::data` method is deprecated. Replace instances of this with `App::app_data`. Exposing both methods was a footgun and lead to lots of confusion when trying to extract the data in handlers. Now, when using the `Data` wrapper, the type you put in to `app_data` is the same type you extract in handler arguments.
+
+You may need to review the [guidance on shared mutable state](https://docs.rs/actix-web/4/actix_web/struct.App.html#shared-mutable-state) in order to migrate this correctly.
+
+```diff
+  use actix_web::web::Data;
+
+  #[get("/")]
+  async fn handler(my_state: Data<MyState>) -> { todo!() }
+
+  HttpServer::new(|| {
+-     App::new()
+-         .data(MyState::default())
+-         .service(hander)
+
++     let my_state: Data<MyState> = Data::new(MyState::default());
++
++     App::new()
++         .app_data(my_state)
++         .service(hander)
+  })
+```
+
+## Direct Dependency On `actix-rt` And `actix-service`
+
+Improvements to module management and re-exports have resulted in not needing direct dependencies on these underlying crates for the vast majority of cases. In particular, all traits necessary for creating middleware are re-exported through the `dev` modules and `#[actix_web::test]` now exists for async test definitions. Relying on the these re-exports will ease transition to future versions of Actix Web.
+
+```diff
+- use actix_service::{Service, Transform};
++ use actix_web::dev::{Service, Transform};
+```
+
+```diff
+- #[actix_rt::test]
++ #[actix_web::test]
+  async fn test_thing() {
+```
+
+## Server Must Be Polled :warning:
+
+In order to _start_ serving requests, the `Server` object returned from `run` **must** be `poll`ed, `await`ed, or `spawn`ed. This was done to prevent unexpected behavior and ensure that things like signal handlers are able to function correctly when enabled.
+
+For example, in this contrived example where the server is started and then the main thread is sent to sleep, the server will no longer be able to serve requests with v4.0:
+
+```rust
+#[actix_web::main]
+async fn main() {
+    HttpServer::new(|| App::new().default_service(web::to(HttpResponse::Conflict)))
+        .bind(("127.0.0.1", 8080))
+        .unwrap()
+        .run();
+
+    thread::sleep(Duration::from_secs(1000));
+}
+```
 
 ## Guards API
 
-TODO
+Implementors of routing guards will need to use the modified interface of the `Guard` trait. The API provided is more flexible than before. See [guard module docs](https://docs.rs/actix-web/4/actix_web/guard/struct.GuardContext.html) for more details.
 
-## Returning `HttpResponse` synchronously.
+```diff
+  struct MethodGuard(HttpMethod);
+  
+  impl Guard for MethodGuard {
+-     fn check(&self, request: &RequestHead) -> bool {
++     fn check(&self, ctx: &GuardContext<'_>) -> bool {
+-         request.method == self.0
++         ctx.head().method == self.0
+      }
+  }
+```
+
+## Returning `HttpResponse` synchronously
 
 The implementation of `Future` for `HttpResponse` was removed because it was largely useless for all but the simplest handlers like `web::to(|| HttpResponse::Ok().finish())`. It also caused false positives on the `async_yields_async` clippy lint in reasonable scenarios. The compiler errors will looks something like:
 
@@ -157,7 +250,6 @@ Or, for these extremely simple cases, utilise an `HttpResponseBuilder`:
 - web::to(|| HttpResponse::Ok().finish())
 + web::to(HttpResponse::Ok)
 ```
-
 
 ## `#[actix_web::main]` and `#[tokio::main]`
 
