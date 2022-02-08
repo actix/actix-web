@@ -110,9 +110,8 @@ mod tests {
     use super::*;
     use crate::body::to_bytes;
 
-    assert_impl_all!(BoxBody: MessageBody, fmt::Debug, Unpin);
-
-    assert_not_impl_any!(BoxBody: Send, Sync, Unpin);
+    assert_impl_all!(BoxBody: fmt::Debug, MessageBody, Unpin);
+    assert_not_impl_any!(BoxBody: Send, Sync);
 
     #[actix_rt::test]
     async fn nested_boxed_body() {

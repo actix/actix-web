@@ -181,12 +181,12 @@ mod tests {
         }
     }
 
-    assert_impl_all!(AnyBody<()>: MessageBody, fmt::Debug, Send, Sync, Unpin);
-    assert_impl_all!(AnyBody<AnyBody<()>>: MessageBody, fmt::Debug, Send, Sync, Unpin);
-    assert_impl_all!(AnyBody<Bytes>: MessageBody, fmt::Debug, Send, Sync, Unpin);
-    assert_impl_all!(AnyBody: MessageBody, fmt::Debug, Unpin);
-    assert_impl_all!(AnyBody<PinType>: MessageBody);
+    assert_impl_all!(AnyBody<()>: Send, Sync, Unpin, fmt::Debug, MessageBody);
+    assert_impl_all!(AnyBody<AnyBody<()>>: Send, Sync, Unpin, fmt::Debug, MessageBody);
+    assert_impl_all!(AnyBody<Bytes>: Send, Sync, Unpin, fmt::Debug, MessageBody);
+    assert_impl_all!(AnyBody: Unpin, fmt::Debug, MessageBody);
+    assert_impl_all!(AnyBody<PinType>: Send, Sync, MessageBody);
 
-    assert_not_impl_any!(AnyBody: Send, Sync, Unpin);
-    assert_not_impl_any!(AnyBody<PinType>: Send, Sync, Unpin);
+    assert_not_impl_any!(AnyBody: Send, Sync);
+    assert_not_impl_any!(AnyBody<PinType>: Unpin);
 }
