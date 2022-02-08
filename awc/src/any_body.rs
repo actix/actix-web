@@ -160,7 +160,7 @@ impl<S: fmt::Debug> fmt::Debug for AnyBody<S> {
 mod tests {
     use std::marker::PhantomPinned;
 
-    use static_assertions::{assert_impl_all, assert_not_impl_all};
+    use static_assertions::{assert_impl_all, assert_not_impl_any};
 
     use super::*;
 
@@ -187,6 +187,6 @@ mod tests {
     assert_impl_all!(AnyBody: MessageBody, fmt::Debug, Unpin);
     assert_impl_all!(AnyBody<PinType>: MessageBody);
 
-    assert_not_impl_all!(AnyBody: Send, Sync, Unpin);
-    assert_not_impl_all!(AnyBody<PinType>: Send, Sync, Unpin);
+    assert_not_impl_any!(AnyBody: Send, Sync, Unpin);
+    assert_not_impl_any!(AnyBody<PinType>: Send, Sync, Unpin);
 }

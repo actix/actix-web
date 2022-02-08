@@ -105,14 +105,14 @@ impl MessageBody for BoxBody {
 #[cfg(test)]
 mod tests {
 
-    use static_assertions::{assert_impl_all, assert_not_impl_all};
+    use static_assertions::{assert_impl_all, assert_not_impl_any};
 
     use super::*;
     use crate::body::to_bytes;
 
     assert_impl_all!(BoxBody: MessageBody, fmt::Debug, Unpin);
 
-    assert_not_impl_all!(BoxBody: Send, Sync, Unpin);
+    assert_not_impl_any!(BoxBody: Send, Sync, Unpin);
 
     #[actix_rt::test]
     async fn nested_boxed_body() {
