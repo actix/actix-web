@@ -6,12 +6,14 @@ use std::{
     task::{Context, Poll},
 };
 
-use actix_service::{Service, Transform};
 use futures_core::{future::LocalBoxFuture, ready};
 use futures_util::future::FutureExt as _;
 use pin_project_lite::pin_project;
 
-use crate::{body::EitherBody, dev::ServiceResponse};
+use crate::{
+    body::EitherBody,
+    dev::{Service, ServiceResponse, Transform},
+};
 
 /// Middleware for conditionally enabling other middleware.
 ///
@@ -89,10 +91,10 @@ where
 
     fn call(&self, req: Req) -> Self::Future {
         match self {
-            ConditionMiddleware::Enable(service) => ConditionMiddlewareFuture::Left {
+            ConditionMiddleware::Enable(service) => ConditionMiddlewareFuture::Enabled {
                 fut: service.call(req),
             },
-            ConditionMiddleware::Disable(service) => ConditionMiddlewareFuture::Right {
+            ConditionMiddleware::Disable(service) => ConditionMiddlewareFuture::Disabled {
                 fut: service.call(req),
             },
         }
@@ -100,25 +102,26 @@ where
 }
 
 pin_project! {
-    #[project = EitherProj]
-    pub enum ConditionMiddlewareFuture<L, R> {
-        Left { #[pin] fut: L, },
-        Right { #[pin] fut: R, },
+    #[doc(hidden)]
+    #[project = ConditionProj]
+    pub enum ConditionMiddlewareFuture<E, D> {
+        Enabled { #[pin] fut: E, },
+        Disabled { #[pin] fut: D, },
     }
 }
 
-impl<L, R, BL, BR, Err> Future for ConditionMiddlewareFuture<L, R>
+impl<E, D, BE, BD, Err> Future for ConditionMiddlewareFuture<E, D>
 where
-    L: Future<Output = Result<ServiceResponse<BL>, Err>>,
-    R: Future<Output = Result<ServiceResponse<BR>, Err>>,
+    E: Future<Output = Result<ServiceResponse<BE>, Err>>,
+    D: Future<Output = Result<ServiceResponse<BD>, Err>>,
 {
-    type Output = Result<ServiceResponse<EitherBody<BL, BR>>, Err>;
+    type Output = Result<ServiceResponse<EitherBody<BE, BD>>, Err>;
 
     #[inline]
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let res = match self.project() {
-            EitherProj::Left { fut } => ready!(fut.poll(cx))?.map_into_left_body(),
-            EitherProj::Right { fut } => ready!(fut.poll(cx))?.map_into_right_body(),
+            ConditionProj::Enabled { fut } => ready!(fut.poll(cx))?.map_into_left_body(),
+            ConditionProj::Disabled { fut } => ready!(fut.poll(cx))?.map_into_right_body(),
         };
 
         Poll::Ready(Ok(res))
@@ -127,22 +130,22 @@ where
 
 #[cfg(test)]
 mod tests {
-    use actix_service::IntoService;
+    use actix_service::IntoService as _;
 
     use super::*;
     use crate::{
+        body::BoxBody,
         dev::{ServiceRequest, ServiceResponse},
         error::Result,
         http::{
             header::{HeaderValue, CONTENT_TYPE},
             StatusCode,
         },
-        middleware::err_handlers::*,
+        middleware::{self, ErrorHandlerResponse, ErrorHandlers},
         test::{self, TestRequest},
+        web::Bytes,
         HttpResponse,
     };
-
-    fn assert_type<T>(_: &T) {}
 
     #[allow(clippy::unnecessary_wraps)]
     fn render_500<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
@@ -151,6 +154,17 @@ mod tests {
             .insert(CONTENT_TYPE, HeaderValue::from_static("0001"));
 
         Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
+    }
+
+    #[test]
+    fn compat_with_builtin_middleware() {
+        let _ = Condition::new(true, middleware::Compat::noop());
+        let _ = Condition::new(true, middleware::Logger::default());
+        let _ = Condition::new(true, middleware::Compress::default());
+        let _ = Condition::new(true, middleware::NormalizePath::trim());
+        let _ = Condition::new(true, middleware::DefaultHeaders::new());
+        let _ = Condition::new(true, middleware::ErrorHandlers::<BoxBody>::new());
+        let _ = Condition::new(true, middleware::ErrorHandlers::<Bytes>::new());
     }
 
     #[actix_rt::test]
@@ -167,8 +181,8 @@ mod tests {
             .await
             .unwrap();
 
-        let resp = test::call_service(&mw, TestRequest::default().to_srv_request()).await;
-        assert_type::<ServiceResponse<EitherBody<EitherBody<_, _>, String>>>(&resp);
+        let resp: ServiceResponse<EitherBody<EitherBody<_, _>, String>> =
+            test::call_service(&mw, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
     }
 
@@ -186,8 +200,8 @@ mod tests {
             .await
             .unwrap();
 
-        let resp = test::call_service(&mw, TestRequest::default().to_srv_request()).await;
-        assert_type::<ServiceResponse<EitherBody<EitherBody<_, _>, String>>>(&resp);
+        let resp: ServiceResponse<EitherBody<EitherBody<_, _>, String>> =
+            test::call_service(&mw, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.headers().get(CONTENT_TYPE), None);
     }
 }

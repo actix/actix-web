@@ -2,7 +2,7 @@
 
 ## Unreleased - 2021-xx-xx
 ### Changed
-- `middleware::Condition` gained a broader compatiblity; It no longer requires `Compat`. [#2635]
+- `middleware::Condition` gained a broader compatibility; `Compat` is needed in fewer cases. [#2635]
 
 ### Added
 - Implement `Responder` for `Vec<u8>`. [#2625]
