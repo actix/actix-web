@@ -54,7 +54,7 @@ use crate::{
 /// }
 /// ```
 #[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deref, DerefMut, AsRef, Display, From,
+    Debug, PartialEq, Eq, PartialOrd, Ord, Deref, DerefMut, AsRef, Display, From,
 )]
 pub struct Path<T>(T);
 
