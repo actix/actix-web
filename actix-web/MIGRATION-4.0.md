@@ -19,7 +19,7 @@ Headings marked with :warning: are **breaking behavioral changes** and will prob
 - [Removed `awc` Client Re-export](#removed-awc-client-re-export)
 - [Integration Testing Utils Moved To `actix-test`](#integration-testing-utils-moved-to-actix-test)
 - [Header APIs](#header-apis)
-- [Body Types / Removal of Body+ResponseBody types / Addition of EitherBody](#body-types--removal-of-bodyresponsebody-types--addition-of-eitherbody)
+- [Response Body Types](#response-body-types)
 - [Middleware Trait APIs](#middleware-trait-apis)
 - [`Responder` Trait](#responder-trait)
 - [`App::data` Deprecation :warning:](#appdata-deprecation-warning)
@@ -131,15 +131,40 @@ For request and response builder APIs, the new methods provide a unified interfa
 + .insert_header(ContentType::json())
 ```
 
-## Body Types / Removal of Body+ResponseBody types / Addition of EitherBody
+## Response Body Types
 
-TODO
+There have been a lot of changes to response body types. The general theme is that they are now more expressive and their purposes are more obvious.
 
-In particular, folks seem to be struggling with the `ErrorHandlers` middleware because of this change and the obscured nature of `EitherBody` within its types.
+All items in the [`body` module](https://docs.rs/actix-web/4/actix_web/body) have much better documentation now.
+
+### `ResponseBody`
+
+`ResponseBody` is gone. Its purpose was confusing and has been replaced by better components.
+
+### `Body`
+
+`Body` is also gone. In combination with `ResponseBody`, the API it provided was sub-optimal and did not encourage expressive types. Here are the equivalents in the new system (check docs):
+
+- `Body::None` => `body::None::new()`
+- `Body::Empty` => `()` / `web::Bytes::new()`
+- `Body::Bytes` => `web::Bytes::from(...)`
+- `Body::Message` => `.boxed()` / `BoxBody`
+
+### `BoxBody`
+
+`BoxBody` is a new type erased body type. It's used for all error response bodies use this. Creating a boxed body is best done by calling [`.boxed()`](https://docs.rs/actix-web/4/actix_web/body/trait.MessageBody.html#method.boxed) on a `MessageBody` type.
+
+### `EitherBody`
+
+`EitherBody` is a new "either" type that is particularly useful in middleware that can bail early, returning their own response plus body type.
+
+### Error Handlers
+
+TODO In particular, folks seem to be struggling with the `ErrorHandlers` middleware because of this change and the obscured nature of `EitherBody` within its types.
 
 ## Middleware Trait APIs
 
-> This section builds upon guidance from the [response body types](#body-types--removal-of-bodyresponsebody-types--addition-of-eitherbody) section.
+This section builds upon guidance from the [response body types](#response-body-types) section.
 
 TODO
 
@@ -149,7 +174,7 @@ TODO: Also write the Middleware author's guide.
 
 The `Responder` trait's interface has changed. Errors should be handled and converted to responses within the `respond_to` method. It's also no longer async so the associated `type Future` has been removed; there was no compelling use case found for it. These changes simplify the interface and implementation a lot.
 
-Now that more emphasis is placed on expressive body types, as explained in the [body types migration section](#body-types--removal-of-bodyresponsebody-types--addition-of-eitherbody), this trait has introduced an associated `type Body`. The simplest migration will be to use `BoxBody` + `.map_into_boxed_body()` but if there is a more expressive type for your responder then try to use that instead.
+Now that more emphasis is placed on expressive body types, as explained in the [body types migration section](#response-body-types), this trait has introduced an associated `type Body`. The simplest migration will be to use `BoxBody` + `.map_into_boxed_body()` but if there is a more expressive type for your responder then try to use that instead.
 
 ```diff
   impl Responder for &'static str {
