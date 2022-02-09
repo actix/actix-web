@@ -53,9 +53,7 @@ use crate::{
 ///     format!("Welcome {}!", info.name)
 /// }
 /// ```
-#[derive(
-    Debug, PartialEq, Eq, PartialOrd, Ord, Deref, DerefMut, AsRef, Display, From,
-)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Deref, DerefMut, AsRef, Display, From)]
 pub struct Path<T>(T);
 
 impl<T> Path<T> {
