@@ -15,7 +15,20 @@ Headings marked with :warning: are **breaking behavioral changes** and will prob
 - [`FromRequest` Trait](#fromrequest-trait)
 - [Compression Feature Flags](#compression-feature-flags)
 - [`web::Path`](#webpath)
-- [Rustls](#rustls-crate-upgrade)
+- [Rustls Crate Upgrade](#rustls-crate-upgrade)
+- [Removed `awc` Client Re-export](#removed-awc-client-re-export)
+- [Integration Testing Utils Moved To `actix-test`](#integration-testing-utils-moved-to-actix-test)
+- [Header APIs](#header-apis)
+- [Body Types / Removal of Body+ResponseBody types / Addition of EitherBody](#body-types--removal-of-bodyresponsebody-types--addition-of-eitherbody)
+- [Middleware Trait APIs](#middleware-trait-apis)
+- [`Responder` Trait](#responder-trait)
+- [`App::data` Deprecation :warning:](#appdata-deprecation-warning)
+- [Direct Dependency On `actix-rt` And `actix-service`](#direct-dependency-on-actix-rt-and-actix-service)
+- [Server Must Be Polled :warning:](#server-must-be-polled-warning)
+- [Guards API](#guards-api)
+- [Returning `HttpResponse` synchronously](#returning-httpresponse-synchronously)
+- [`#[actix_web::main]` and `#[tokio::main]`](#actixwebmain-and-tokiomain)
+- [`web::block`](#webblock)
 
 ## MSRV
 
@@ -126,6 +139,8 @@ In particular, folks seem to be struggling with the `ErrorHandlers` middleware b
 
 ## Middleware Trait APIs
 
+> This section builds upon guidance from the [response body types](#body-types--removal-of-bodyresponsebody-types--addition-of-eitherbody) section.
+
 TODO
 
 TODO: Also write the Middleware author's guide.
@@ -154,7 +169,7 @@ Now that more emphasis is placed on expressive body types, as explained in the [
   }
 ```
 
-## `App::data` deprecation :warning:
+## `App::data` Deprecation :warning:
 
 The `App::data` method is deprecated. Replace instances of this with `App::app_data`. Exposing both methods was a footgun and lead to lots of confusion when trying to extract the data in handlers. Now, when using the `Data` wrapper, the type you put in to `app_data` is the same type you extract in handler arguments.
 
@@ -218,7 +233,7 @@ Implementors of routing guards will need to use the modified interface of the `G
 
 ```diff
   struct MethodGuard(HttpMethod);
-  
+
   impl Guard for MethodGuard {
 -     fn check(&self, request: &RequestHead) -> bool {
 +     fn check(&self, ctx: &GuardContext<'_>) -> bool {
@@ -256,3 +271,15 @@ Or, for these extremely simple cases, utilise an `HttpResponseBuilder`:
 Actix Web now works seamlessly with the primary way of starting a multi-threaded Tokio runtime, `#[tokio::main]`. Therefore, it is no longer necessary to spawn a thread when you need to run something alongside Actix Web that uses of Tokio's multi-threaded mode; you can simply await the server within this context or, if preferred, use `tokio::spawn` just like any other async task.
 
 For now, `actix` actor support (and therefore WebSocket support via `actix-web-actors`) still requires `#[actix_web::main]` so that a `System` context is created. Designs are being created for an alternative WebSocket interface that does not require actors that should land sometime in the v4.x cycle.
+
+## `web::block`
+
+The `web::block` helper has changed return type from roughly `async fn(fn() -> Result<T, E>) Result<T, BlockingError<E>>` to `async fn(fn() -> T) Result<T, BlockingError>`. That's to say that the blocking function can now return things that are not `Result`s and it does not wrap error types anymore. If you still need to return `Result`s then you'll likely want to use double `?` after the `.await`.
+
+```diff
+- let n: u32 = web::block(|| Ok(123)).await?;
++ let n: u32 = web::block(|| 123).await?;
+
+- let n: u32 = web::block(|| Ok(123)).await?;
++ let n: u32 = web::block(|| Ok(123)).await??;
+```
