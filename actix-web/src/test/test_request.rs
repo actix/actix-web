@@ -43,14 +43,14 @@ use crate::cookie::{Cookie, CookieJar};
 ///
 /// #[actix_web::test]
 /// async fn test_index() {
-///     let req = test::TestRequest::default().insert_header("content-type", "text/plain")
+///     let req = test::TestRequest::default().insert_header(("content-type", "text/plain"))
 ///         .to_http_request();
 ///
-///     let resp = index(req).await.unwrap();
+///     let resp = index(req).await;
 ///     assert_eq!(resp.status(), StatusCode::OK);
 ///
 ///     let req = test::TestRequest::default().to_http_request();
-///     let resp = index(req).await.unwrap();
+///     let resp = index(req).await;
 ///     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 /// }
 /// ```
