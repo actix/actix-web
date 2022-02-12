@@ -1,7 +1,7 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
-
+- Add `ServiceRequest::extract` to make it easier to use extractors when writing middlewares.
 
 ## 4.0.0-rc.3 - 2022-02-08
 ### Changed
