@@ -24,7 +24,7 @@ use crate::{
     guard::{Guard, GuardContext},
     info::ConnectionInfo,
     rmap::ResourceMap,
-    Error, HttpRequest, HttpResponse, FromRequest
+    Error, FromRequest, HttpRequest, HttpResponse,
 };
 
 pub(crate) type BoxedHttpService = BoxService<ServiceRequest, ServiceResponse<BoxBody>, Error>;
@@ -96,17 +96,17 @@ impl ServiceRequest {
     }
 
     /// Use an [extractor](crate::FromRequest) to build a type out of the incoming request.  
-    /// 
-    /// `extract` is particularly handy when you need to use an extractor inside 
+    ///
+    /// `extract` is particularly handy when you need to use an extractor inside
     /// a middleware implementation.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```rust
     /// use actix_web::dev::{ServiceRequest, ServiceResponse};
     /// use actix_web::web::Path;
     /// use actix_web::Error;
-    /// 
+    ///
     /// fn f(service_request: ServiceRequest) -> Result<ServiceResponse, Error> {
     ///     let path: Path<(String, u32)> = service_request.extract()?;
     ///     // [...]
@@ -114,8 +114,8 @@ impl ServiceRequest {
     /// }
     /// ```
     pub fn extract<T>(&mut self) -> <T as FromRequest>::Future
-    where 
-        T: FromRequest
+    where
+        T: FromRequest,
     {
         T::from_request(&self.req, &mut self.payload)
     }

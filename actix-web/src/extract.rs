@@ -18,7 +18,7 @@ use crate::{dev::Payload, Error, HttpRequest};
 /// A type that implements [`FromRequest`] is called an **extractor** and can extract data from
 /// the request. Some types that implement this trait are: [`Json`], [`Header`], and [`Path`].
 ///
-/// Check out [`ServiceRequest::extract`](crate::dev::ServiceRequest::extract) if you want to leverage 
+/// Check out [`ServiceRequest::extract`](crate::dev::ServiceRequest::extract) if you want to leverage
 /// extractors when implementing middlewares.
 ///
 /// # Configuration
