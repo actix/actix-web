@@ -107,8 +107,8 @@ impl ServiceRequest {
     /// use actix_web::web::Path;
     /// use actix_web::Error;
     ///
-    /// fn f(service_request: ServiceRequest) -> Result<ServiceResponse, Error> {
-    ///     let path: Path<(String, u32)> = service_request.extract()?;
+    /// async fn f(mut service_request: ServiceRequest) -> Result<ServiceResponse, Error> {
+    ///     let path = service_request.extract::<Path<(String, u32)>>().await?;
     ///     // [...]
     /// #   todo!()
     /// }
