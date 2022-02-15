@@ -63,7 +63,7 @@ __compress = []
 experimental-io-uring = ["actix-server/io-uring"]
 
 [dependencies]
-actix-codec = "0.4.1"
+actix-codec = "0.5"
 actix-macros = { version = "0.2.3", optional = true }
 actix-rt = { version = "2.6", default-features = false }
 actix-server = "2"

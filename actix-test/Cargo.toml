@@ -28,7 +28,7 @@ rustls = ["tls-rustls", "actix-http/rustls", "awc/rustls"]
 openssl = ["tls-openssl", "actix-http/openssl", "awc/openssl"]
 
 [dependencies]
-actix-codec = "0.4.1"
+actix-codec = "0.5"
 actix-http = "3.0.0-rc.2"
 actix-http-test = "3.0.0-beta.12"
 actix-rt = "2.1"
