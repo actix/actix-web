@@ -2,13 +2,14 @@
 
 It is assumed that migration is happening _from_ v3.x. If migration from older version of Actix Web, see the other historical migration notes in this folder.
 
-This is not an exhaustive list of changes. Smaller or less impactful code changes are outlined, with links to the PRs that introduced them, are shown in [CHANGES.md](./CHANGES.md). If you think any of the changes not mentioned here deserve to be, submit an issue or PR.
+This is not an exhaustive list of changes. Smaller or less impactful code changes are outlined, with links to the PRs that introduced them, in [CHANGES.md](./CHANGES.md). If you think any of the changes not mentioned here deserve to be, submit an issue or PR.
 
-Headings marked with :warning: are **breaking behavioral changes** and will probably not surface as compile-time errors. Automated tests _might_ detect their effects on your app.
+Headings marked with :warning: are **breaking behavioral changes** that will probably not surface as compile-time errors though automated tests _might_ detect their effects on your app.
 
 ## Table of Contents:
 
 - [MSRV](#msrv)
+- [Tokio v1 Ecosystem](#tokio-v1-ecosystem)
 - [Module Structure](#module-structure)
 - [`NormalizePath` Middleware :warning:](#normalizepath-middleware-warning)
 - [Server Settings :warning:](#server-settings-warning)
@@ -33,6 +34,17 @@ Headings marked with :warning: are **breaking behavioral changes** and will prob
 ## MSRV
 
 The MSRV of Actix Web has been raised from 1.42 to 1.54.
+
+## Tokio v1 Ecosystem
+
+Actix Web v4 is now underpinned by the the Tokio v1 ecosystem of crates. If you have dependencies that might utilize Tokio directly, it is worth checking to see if an update is available. The following command will assist in finding such dependencies:
+
+```sh
+cargo tree -i tokio
+
+# if multiple tokio versions are depended on, show the older ones with:
+cargo tree -i tokio:0.2.25
+```
 
 ## Module Structure
 
