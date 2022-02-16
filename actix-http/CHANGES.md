@@ -3,6 +3,10 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 3.0.0-rc.3 - 2022-02-16
+- No significant changes since `3.0.0-rc.2`.
+
+
 ## 3.0.0-rc.2 - 2022-02-08
 ### Added
 - Implement `From<Vec<u8>>` for `Response<Vec<u8>>`. [#2625]
