@@ -43,6 +43,6 @@ tokio-uring = { version = "0.2", optional = true, features = ["bytes"] }
 
 [dev-dependencies]
 actix-rt = "2.2"
-actix-test = "0.1.0-beta.12"
+actix-test = "0.1.0-beta.13"
 actix-web = "4.0.0-rc.3"
 tempfile = "3.2"

@@ -100,7 +100,7 @@ url = "2.1"
 
 [dev-dependencies]
 actix-files = "0.6.0-beta.16"
-actix-test = { version = "0.1.0-beta.12", features = ["openssl", "rustls"] }
+actix-test = { version = "0.1.0-beta.13", features = ["openssl", "rustls"] }
 awc = { version = "3.0.0-beta.21", features = ["openssl"] }
 
 brotli = "3.3.3"
