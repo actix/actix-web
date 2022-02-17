@@ -48,7 +48,7 @@ cargo tree -i tokio:0.2.25
 
 ## Module Structure
 
-Lots of modules has been organized in this release. If a compile error refers to "item XYZ not found in module..." or "module XYZ not found", refer to the [documentation on docs.rs](https://docs.rs/actix-web) to to search for items' new locations.
+Lots of modules has been organized in this release. If a compile error refers to "item XYZ not found in module..." or "module XYZ not found", refer to the [documentation on docs.rs](https://docs.rs/actix-web) to search for items' new locations.
 
 ## `NormalizePath` Middleware :warning:
 
@@ -289,7 +289,14 @@ web::to(|| HttpResponse::Ok().finish())
 ^^^^^^^ the trait `Handler<_>` is not implemented for `[closure@...]`
 ```
 
-This form should be replaced with the a more explicit async fn:
+This form should be replaced with explicit async functions and closures:
+
+```diff
+- fn handler() -> HttpResponse {
++ async fn handler() -> HttpResponse {
+      HttpResponse::Ok().finish()
+  }
+```
 
 ```diff
 - web::to(|| HttpResponse::Ok().finish())
