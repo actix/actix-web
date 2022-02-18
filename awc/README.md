@@ -11,7 +11,7 @@
 ## Documentation & Resources
 
 - [API Documentation](https://docs.rs/awc)
-- [Example Project](https://github.com/actix/examples/tree/HEAD/security/awc_https)
+- [Example Project](https://github.com/actix/examples/tree/master/https-tls/awc-https)
 - Minimum Supported Rust Version (MSRV): 1.54
 
 ## Example

@@ -104,7 +104,7 @@ The inner field for `web::Path` was made private because It was causing too many
 
 ## Rustls Crate Upgrade
 
-Required version of `rustls` dependency was bumped to the latest version 0.20. As a result, the new server config builder has changed. [See the updated example project &rarr;.](https://github.com/actix/examples/tree/HEAD/security/rustls/)
+Required version of `rustls` dependency was bumped to the latest version 0.20. As a result, the new server config builder has changed. [See the updated example project &rarr;.](https://github.com/actix/examples/tree/master/https-tls/rustls/)
 
 ## Removed `awc` Client Re-export
 

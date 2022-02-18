@@ -71,26 +71,24 @@ async fn main() -> std::io::Result<()> {
 }
 ```
 
-### More examples
+### More Examples
 
-- [Basic Setup](https://github.com/actix/examples/tree/master/basics/basics/)
-- [Application State](https://github.com/actix/examples/tree/master/basics/state/)
-- [JSON Handling](https://github.com/actix/examples/tree/master/json/json/)
-- [Multipart Streams](https://github.com/actix/examples/tree/master/forms/multipart/)
-- [Diesel Integration](https://github.com/actix/examples/tree/master/databases/diesel/)
-- [MongoDB Integration](https://github.com/actix/examples/tree/master/databases/mongodb/)
-- [Postgres Integration](https://github.com/actix/examples/tree/master/databases/postgres/)
-- [Rbatis Integration](https://github.com/actix/examples/tree/master/databases/rbatis/)
-- [Redis Integration](https://github.com/actix/examples/tree/master/databases/redis/)
-- [SQLite Integration](https://github.com/actix/examples/tree/master/databases/sqlite/)
-- [Simple WebSocket](https://github.com/actix/examples/tree/master/websockets/)
-- [WebSocket Chat](https://github.com/actix/examples/tree/master/websockets/chat/)
-- [Tera Templates](https://github.com/actix/examples/tree/master/templating/tera/)
-- [Askama Templates](https://github.com/actix/examples/tree/master/templating/askama/)
-- [HTTPS using Rustls](https://github.com/actix/examples/tree/master/https-tls/rustls/)
-- [HTTPS using OpenSSL](https://github.com/actix/examples/tree/master/https-tls/openssl/)
+- [Hello World](https://github.com/actix/examples/tree/master/basics/hello-world)
+- [Basic Setup](https://github.com/actix/examples/tree/master/basics/basics)
+- [Application State](https://github.com/actix/examples/tree/master/basics/state)
+- [JSON Handling](https://github.com/actix/examples/tree/master/json/json)
+- [Multipart Streams](https://github.com/actix/examples/tree/master/forms/multipart)
+- [Diesel Integration](https://github.com/actix/examples/tree/master/databases/diesel)
+- [SQLite Integration](https://github.com/actix/examples/tree/master/databases/sqlite)
+- [Postgres Integration](https://github.com/actix/examples/tree/master/databases/postgres)
+- [Tera Templates](https://github.com/actix/examples/tree/master/templating/tera)
+- [Askama Templates](https://github.com/actix/examples/tree/master/templating/askama)
+- [HTTPS using Rustls](https://github.com/actix/examples/tree/master/https-tls/rustls)
+- [HTTPS using OpenSSL](https://github.com/actix/examples/tree/master/https-tls/openssl)
+- [Simple WebSocket](https://github.com/actix/examples/tree/master/websockets)
+- [WebSocket Chat](https://github.com/actix/examples/tree/master/websockets/chat)
 
-You may consider checking out [this directory](https://github.com/actix/examples/tree/master/) for more examples.
+You may consider checking out [this directory](https://github.com/actix/examples/tree/master) for more examples.
 
 ## Benchmarks
 
@@ -105,5 +103,4 @@ This project is licensed under either of the following licenses, at your option:
 
 ## Code of Conduct
 
-Contribution to the actix-web repo is organized under the terms of the Contributor Covenant.
-The Actix team promises to intervene to uphold that code of conduct.
+Contribution to the actix-web repo is organized under the terms of the Contributor Covenant. The Actix team promises to intervene to uphold that code of conduct.
