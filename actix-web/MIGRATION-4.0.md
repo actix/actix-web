@@ -3,8 +3,8 @@
 This guide walks you through the process of migrating from v3.x.y to v4.x.y.  
 If you are migrating to v4.x.y from an older version of Actix Web (v2.x.y or earlier), check out the other historical migration notes in this folder.
 
-This document is not exhaustive - it focuses on the most significant and impactful changes coming in v4.  
-You can find a complete list in [CHANGES.md](./CHANGES.md), complete of PR links. If you think that one of the changes that we omitted deserves to be called out in this document, please open an issue or submit a PR. 
+This document is not designed to be exhaustive - it focuses on the most significant changes coming in v4.  
+You can find an exhaustive changelog in [CHANGES.md](./CHANGES.md), complete of PR links. If you think that some of the changes that we omitted deserve to be called out in this document, please open an issue or submit a PR. 
 
 Headings marked with :warning: are **breaking behavioral changes**. They will probably not surface as compile-time errors though automated tests _might_ detect their effects on your app.
 
