@@ -55,7 +55,7 @@ cargo tree -i tokio:0.2.25
 
 ## Module Structure
 
-Lots of modules have been organized in this release. If a compile error refers to "item XYZ not found in module..." or "module XYZ not found", check the [documentation on docs.rs](https://docs.rs/actix-web) to search for items' new locations.
+Lots of modules have been re-organized in this release. If a compile error refers to "item XYZ not found in module..." or "module XYZ not found", check the [documentation on docs.rs](https://docs.rs/actix-web) to search for items' new locations.
 
 ## `NormalizePath` Middleware :warning:
 
