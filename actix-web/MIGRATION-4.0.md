@@ -1,10 +1,12 @@
 # Migrating to 4.0.0
 
-It is assumed that migration is happening _from_ v3.x. If migration from older version of Actix Web, see the other historical migration notes in this folder.
+This guide walks you through the process of migrating from v3.x.y to v4.x.y.  
+If you are migrating to v4.x.y from an older version of Actix Web (v2.x.y or earlier), check out the other historical migration notes in this folder.
 
-This is not an exhaustive list of changes. Smaller or less impactful code changes are outlined, with links to the PRs that introduced them, in [CHANGES.md](./CHANGES.md). If you think any of the changes not mentioned here deserve to be, submit an issue or PR.
+This document is not designed to be exhaustive - it focuses on the most significant changes coming in v4.  
+You can find an exhaustive changelog in [CHANGES.md](./CHANGES.md), complete of PR links. If you think that some of the changes that we omitted deserve to be called out in this document, please open an issue or submit a PR. 
 
-Headings marked with :warning: are **breaking behavioral changes** that will probably not surface as compile-time errors though automated tests _might_ detect their effects on your app.
+Headings marked with :warning: are **breaking behavioral changes**. They will probably not surface as compile-time errors though automated tests _might_ detect their effects on your app.
 
 ## Table of Contents:
 
@@ -37,22 +39,29 @@ The MSRV of Actix Web has been raised from 1.42 to 1.54.
 
 ## Tokio v1 Ecosystem
 
-Actix Web v4 is now underpinned by the the Tokio v1 ecosystem of crates. If you have dependencies that might utilize Tokio directly, it is worth checking to see if an update is available. The following command will assist in finding such dependencies:
+Actix Web v4 is now underpinned by `tokio`'s v1 ecosystem.  
+`cargo` supports having multiple versions of the same crate within the same dependency tree, but `tokio` v1 does not interoperate transparently with its previous versions (v0.2, v0.1). Some of your dependencies might rely on `tokio`, either directly or indirectly - if they are using an older version of `tokio`, check if an update is available.  
+The following command can help you to identify these dependencies:
 
 ```sh
+# Find all crates in your dependency tree that depend on `tokio`
+# It also reports the different versions of `tokio` in your dependency tree.
 cargo tree -i tokio
 
-# if multiple tokio versions are depended on, show the older ones with:
+# if you depend on multiple versions of tokio, use this command to
+# list the dependencies relying on a specific version of tokio:
 cargo tree -i tokio:0.2.25
 ```
 
 ## Module Structure
 
-Lots of modules has been organized in this release. If a compile error refers to "item XYZ not found in module..." or "module XYZ not found", refer to the [documentation on docs.rs](https://docs.rs/actix-web) to search for items' new locations.
+Lots of modules have been re-organized in this release. If a compile error refers to "item XYZ not found in module..." or "module XYZ not found", check the [documentation on docs.rs](https://docs.rs/actix-web) to search for items' new locations.
 
 ## `NormalizePath` Middleware :warning:
 
-The default `NormalizePath` behavior now strips trailing slashes by default. This was previously documented to be the case in v3 but the behavior now matches. The effect is that routes defined with trailing slashes will become inaccessible when using `NormalizePath::default()`. As such, calling `NormalizePath::default()` will log a warning. It is advised that the `new` or `trim` methods be used instead.
+The default `NormalizePath` behavior now strips trailing slashes by default.  
+This was the _documented_ behaviour in Actix Web v3, but the _actual_ behaviour differed - the discrepancy has now been fixed.  
+As a consequence of this change, routes defined with trailing slashes will become inaccessible when using `NormalizePath::default()`. Calling `NormalizePath::default()` will log a warning. We suggest to use `new` or `trim`.
 
 ```diff
 - #[get("/test/")]
@@ -86,7 +95,7 @@ Consequently, the `FromRequest::configure` method was also removed. Config for e
 
 ## Compression Feature Flags
 
-Feature flag `compress` has been split into its supported algorithm (brotli, gzip, zstd). By default, all compression algorithms are enabled. If you want to select specific compression codecs, the new flags are:
+The `compress` feature flag has been split into more granular feature flags, one for each supported algorithm (brotli, gzip, zstd). By default, all compression algorithms are enabled. If you want to select specific compression codecs, the new flags are:
 
 - `compress-brotli`
 - `compress-gzip`
@@ -94,7 +103,8 @@ Feature flag `compress` has been split into its supported algorithm (brotli, gzi
 
 ## `web::Path`
 
-The inner field for `web::Path` was made private because It was causing too many issues when used with inner tuple types due to its `Deref` impl.
+The inner field for `web::Path` is now private.  
+It was causing too many issues when used with inner tuple types due to its `Deref` implementation.
 
 ```diff
 - async fn handler(web::Path((foo, bar)): web::Path<(String, String)>) {
@@ -104,11 +114,11 @@ The inner field for `web::Path` was made private because It was causing too many
 
 ## Rustls Crate Upgrade
 
-Required version of `rustls` dependency was bumped to the latest version 0.20. As a result, the new server config builder has changed. [See the updated example project &rarr;.](https://github.com/actix/examples/tree/master/https-tls/rustls/)
+Actix Web now depends on version 0.20 of `rustls`. As a result, the server config builder has changed. [See the updated example project.](https://github.com/actix/examples/tree/master/https-tls/rustls/)
 
 ## Removed `awc` Client Re-export
 
-Actix Web's sister crate `awc` is no longer re-exported through the `client` module. This allows `awc` its own release cadence and prevents its own breaking changes from being blocked due to a re-export.
+Actix Web's sister crate `awc` is no longer re-exported through the `client` module. This allows `awc` to have its own release cadence - its breaking changes are no longer blocked by Actix Web's (more conservative) release schedule.
 
 ```diff
 - use actix_web::client::Client;
@@ -117,18 +127,20 @@ Actix Web's sister crate `awc` is no longer re-exported through the `client` mod
 
 ## Integration Testing Utils Moved To `actix-test`
 
-Actix Web's `test` module used to contain `TestServer`. Since this required the `awc` client and it was removed as a re-export (see above), it was moved to its own crate [`actix-test`](https://docs.rs/actix-test).
+`TestServer` has been moved to its own crate, [`actix-test`](https://docs.rs/actix-test).
 
 ```diff
 - use use actix_web::test::start;
 + use use actix_test::start;
 ```
 
+`TestServer` previously lived in `actix_web::test`, but it depends on `awc` which is no longer part of Actix Web's public API (see above). 
+
 ## Header APIs
 
-Header related APIs have been standardized across all `actix-*` crates. The terminology now better matches the underlying `HeaderMap` naming conventions. Most of the the old methods have only been deprecated with notes that will guide how to update.
+Header related APIs have been standardized across all `actix-*` crates. The terminology now better matches the underlying `HeaderMap` naming conventions. 
 
-In short, "insert" always indicates that existing any existing headers with the same name are overridden and "append" indicates adding with no removal.
+In short, "insert" always indicates that any existing headers with the same name are overridden, while "append" is used for adding with no removal (e.g. multi-valued headers).
 
 For request and response builder APIs, the new methods provide a unified interface for adding key-value pairs _and_ typed headers, which can often be more expressive.
 
@@ -143,11 +155,13 @@ For request and response builder APIs, the new methods provide a unified interfa
 + .insert_header(ContentType::json())
 ```
 
+We chose to deprecate most of the old methods instead of removing them immediately - the warning notes will guide you on how to update. 
+
 ## Response Body Types
 
-There have been a lot of changes to response body types. The general theme is that they are now more expressive and their purposes are more obvious.
+There have been a lot of changes to response body types. They are now more expressive and their purpose should be more intuitive.
 
-All items in the [`body` module](https://docs.rs/actix-web/4/actix_web/body) have much better documentation now.
+We have boosted the quality and completeness of the documentation for all items in the [`body` module](https://docs.rs/actix-web/4/actix_web/body).
 
 ### `ResponseBody`
 
@@ -164,11 +178,12 @@ All items in the [`body` module](https://docs.rs/actix-web/4/actix_web/body) hav
 
 ### `BoxBody`
 
-`BoxBody` is a new type erased body type. It's used for all error response bodies use this. Creating a boxed body is best done by calling [`.boxed()`](https://docs.rs/actix-web/4/actix_web/body/trait.MessageBody.html#method.boxed) on a `MessageBody` type.
+`BoxBody` is a new type-erased body type. It's used for all error response bodies.  
+Creating a boxed body is best done by calling [`.boxed()`](https://docs.rs/actix-web/4/actix_web/body/trait.MessageBody.html#method.boxed) on a `MessageBody` type.
 
 ### `EitherBody`
 
-`EitherBody` is a new "either" type that is particularly useful in middleware that can bail early, returning their own response plus body type.
+`EitherBody` is a new "either" type that is particularly useful in middlewares that can bail early, returning their own response plus body type.
 
 ### Error Handlers
 
@@ -208,7 +223,7 @@ Now that more emphasis is placed on expressive body types, as explained in the [
 
 ## `App::data` Deprecation :warning:
 
-The `App::data` method is deprecated. Replace instances of this with `App::app_data`. Exposing both methods was a footgun and lead to lots of confusion when trying to extract the data in handlers. Now, when using the `Data` wrapper, the type you put in to `app_data` is the same type you extract in handler arguments.
+The `App::data` method is deprecated. Replace instances of this with `App::app_data`. Exposing both methods led to lots of confusion when trying to extract the data in handlers. Now, when using the `Data` wrapper, the type you put in to `app_data` is the same type you extract in handler arguments.
 
 You may need to review the [guidance on shared mutable state](https://docs.rs/actix-web/4/actix_web/struct.App.html#shared-mutable-state) in order to migrate this correctly.
 
@@ -233,7 +248,12 @@ You may need to review the [guidance on shared mutable state](https://docs.rs/ac
 
 ## Direct Dependency On `actix-rt` And `actix-service`
 
-Improvements to module management and re-exports have resulted in not needing direct dependencies on these underlying crates for the vast majority of cases. In particular, all traits necessary for creating middleware are re-exported through the `dev` modules and `#[actix_web::test]` now exists for async test definitions. Relying on the these re-exports will ease transition to future versions of Actix Web.
+Improvements to module management and re-exports have resulted in not needing direct dependencies on these underlying crates for the vast majority of cases. In particular:
+
+- all traits necessary for creating middlewares are now re-exported through the `dev` modules;
+- `#[actix_web::test]` now exists for async test definitions. 
+
+Relying on these re-exports will ease the transition to future versions of Actix Web.
 
 ```diff
 - use actix_service::{Service, Transform};
@@ -266,7 +286,7 @@ async fn main() {
 
 ## Guards API
 
-Implementors of routing guards will need to use the modified interface of the `Guard` trait. The API provided is more flexible than before. See [guard module docs](https://docs.rs/actix-web/4/actix_web/guard/struct.GuardContext.html) for more details.
+Implementors of routing guards will need to use the modified interface of the `Guard` trait. The API is more flexible than before. See [guard module docs](https://docs.rs/actix-web/4/actix_web/guard/struct.GuardContext.html) for more details.
 
 ```diff
   struct MethodGuard(HttpMethod);
@@ -312,7 +332,7 @@ Or, for these extremely simple cases, utilise an `HttpResponseBuilder`:
 
 ## `#[actix_web::main]` and `#[tokio::main]`
 
-Actix Web now works seamlessly with the primary way of starting a multi-threaded Tokio runtime, `#[tokio::main]`. Therefore, it is no longer necessary to spawn a thread when you need to run something alongside Actix Web that uses of Tokio's multi-threaded mode; you can simply await the server within this context or, if preferred, use `tokio::spawn` just like any other async task.
+Actix Web now works seamlessly with the primary way of starting a multi-threaded Tokio runtime, `#[tokio::main]`. Therefore, it is no longer necessary to spawn a thread when you need to run something alongside Actix Web that uses Tokio's multi-threaded mode; you can simply await the server within this context or, if preferred, use `tokio::spawn` just like any other async task.
 
 For now, `actix` actor support (and therefore WebSocket support via `actix-web-actors`) still requires `#[actix_web::main]` so that a `System` context is created. Designs are being created for an alternative WebSocket interface that does not require actors that should land sometime in the v4.x cycle.
 
