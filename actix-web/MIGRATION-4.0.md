@@ -1,6 +1,6 @@
 # Migrating to 4.0.0
 
-This guide walks through the process of migrating from v3.x.y to v4.x.y.  
+This guide walks you through the process of migrating from v3.x.y to v4.x.y.  
 If you are migrating to v4.x.y from an older version of Actix Web (v2.x.y or earlier), check out the other historical migration notes in this folder.
 
 This document is not exhaustive - it focuses on the most significant and impactful changes coming in v4.  
