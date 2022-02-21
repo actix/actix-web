@@ -80,7 +80,7 @@ mod tests {
     use futures_core::ready;
     use futures_util::{stream, FutureExt as _};
     use pin_project_lite::pin_project;
-    use static_assertions::{assert_impl_all, assert_not_impl_all};
+    use static_assertions::{assert_impl_all, assert_not_impl_any};
 
     use super::*;
     use crate::body::to_bytes;
@@ -91,10 +91,10 @@ mod tests {
     assert_impl_all!(BodyStream<stream::Empty<Result<Bytes, Infallible>>>: MessageBody);
     assert_impl_all!(BodyStream<stream::Repeat<Result<Bytes, Infallible>>>: MessageBody);
 
-    assert_not_impl_all!(BodyStream<stream::Empty<Bytes>>: MessageBody);
-    assert_not_impl_all!(BodyStream<stream::Repeat<Bytes>>: MessageBody);
+    assert_not_impl_any!(BodyStream<stream::Empty<Bytes>>: MessageBody);
+    assert_not_impl_any!(BodyStream<stream::Repeat<Bytes>>: MessageBody);
     // crate::Error is not Clone
-    assert_not_impl_all!(BodyStream<stream::Repeat<Result<Bytes, crate::Error>>>: MessageBody);
+    assert_not_impl_any!(BodyStream<stream::Repeat<Result<Bytes, crate::Error>>>: MessageBody);
 
     #[actix_rt::test]
     async fn skips_empty_chunks() {

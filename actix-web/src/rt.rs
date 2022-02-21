@@ -1,9 +1,10 @@
-//! A selection of re-exports from [`actix-rt`] and [`tokio`].
+//! A selection of re-exports from [`tokio`] and [`actix-rt`].
 //!
-//! [`actix-rt`]: https://docs.rs/actix_rt
-//! [`tokio`]: https://docs.rs/tokio
+//! Actix Web runs on [Tokio], providing full[^compat] compatibility with its huge ecosystem of
+//! crates. Each of the server's workers uses a single-threaded runtime. Read more about the
+//! architecture in [`actix-rt`]'s docs.
 //!
-//! # Running Actix Web Macro-less
+//! # Running Actix Web Without Macros
 //! ```no_run
 //! use actix_web::{middleware, rt, web, App, HttpRequest, HttpServer};
 //!
@@ -12,19 +13,53 @@
 //!     "Hello world!\r\n"
 //! }
 //!
-//! # fn main() -> std::io::Result<()> {
-//! rt::System::new().block_on(
+//! fn main() -> std::io::Result<()> {
+//!     rt::System::new().block_on(
+//!         HttpServer::new(|| {
+//!             App::new().service(web::resource("/").route(web::get().to(index)))
+//!         })
+//!         .bind(("127.0.0.1", 8080))?
+//!         .run()
+//!     )
+//! }
+//! ```
+//!
+//! # Running Actix Web Using `#[tokio::main]`
+//! If you need to run something alongside Actix Web that uses Tokio's work stealing functionality,
+//! you can run Actix Web under `#[tokio::main]`. The [`Server`](crate::dev::Server) object returned
+//! from [`HttpServer::run`](crate::HttpServer::run) can also be [`spawn`]ed, if preferred.
+//!
+//! Note that `actix` actor support (and therefore WebSocket support through `actix-web-actors`)
+//! still require `#[actix_web::main]` since they require a [`System`] to be set up.
+//!
+//! ```no_run
+//! use actix_web::{get, middleware, rt, web, App, HttpRequest, HttpServer};
+//!
+//! #[get("/")]
+//! async fn index(req: HttpRequest) -> &'static str {
+//!     println!("REQ: {:?}", req);
+//!     "Hello world!\r\n"
+//! }
+//!
+//! #[tokio::main]
+//! async fn main() -> std::io::Result<()> {
 //!     HttpServer::new(|| {
-//!         App::new()
-//!             .wrap(middleware::Logger::default())
-//!             .service(web::resource("/").route(web::get().to(index)))
+//!         App::new().service(index)
 //!     })
 //!     .bind(("127.0.0.1", 8080))?
-//!     .workers(1)
 //!     .run()
-//! )
-//! # }
+//!     .await
+//! }
 //! ```
+//!
+//! [^compat]: Crates that use Tokio's [`block_in_place`] will not work with Actix Web. Fortunately,
+//!   the vast majority of Tokio-based crates do not use it.
+//!
+//! [`actix-rt`]: https://docs.rs/actix-rt
+//! [`tokio`]: https://docs.rs/tokio
+//! [Tokio]: https://docs.rs/tokio
+//! [`spawn`]: https://docs.rs/tokio/1/tokio/fn.spawn.html
+//! [`block_in_place`]: https://docs.rs/tokio/1/tokio/task/fn.block_in_place.html
 
 // In particular:
 // - Omit the `Arbiter` types because they have limited value here.

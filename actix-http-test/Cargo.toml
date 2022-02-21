@@ -1,6 +1,6 @@
 [package]
 name = "actix-http-test"
-version = "3.0.0-beta.12"
+version = "3.0.0-beta.13"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Various helpers for Actix applications to use during testing"
 keywords = ["http", "web", "framework", "async", "futures"]
@@ -30,12 +30,12 @@ openssl = ["tls-openssl", "awc/openssl"]
 
 [dependencies]
 actix-service = "2.0.0"
-actix-codec = "0.4.1"
-actix-tls = "3.0.0"
+actix-codec = "0.5"
+actix-tls = "3"
 actix-utils = "3.0.0"
 actix-rt = "2.2"
 actix-server = "2"
-awc = { version = "3.0.0-beta.20", default-features = false }
+awc = { version = "3.0.0-beta.21", default-features = false }
 
 base64 = "0.13"
 bytes = "1"
@@ -51,5 +51,5 @@ tls-openssl = { version = "0.10.9", package = "openssl", optional = true }
 tokio = { version = "1.8.4", features = ["sync"] }
 
 [dev-dependencies]
-actix-web = { version = "4.0.0-rc.2", default-features = false, features = ["cookies"] }
-actix-http = "3.0.0-rc.1"
+actix-web = { version = "4.0.0-rc.3", default-features = false, features = ["cookies"] }
+actix-http = "3.0.0-rc.3"

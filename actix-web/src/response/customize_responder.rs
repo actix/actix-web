@@ -7,7 +7,7 @@ use crate::{HttpRequest, HttpResponse, Responder};
 
 /// Allows overriding status code and headers for a [`Responder`].
 ///
-/// Created by the [`Responder::customize`] method.
+/// Created by calling the [`customize`](Responder::customize) method on a [`Responder`] type.
 pub struct CustomizeResponder<R> {
     inner: CustomizeResponderInner<R>,
     error: Option<HttpError>,

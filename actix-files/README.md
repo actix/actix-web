@@ -13,6 +13,6 @@
 
 ## Documentation & Resources
 
-- [API Documentation](https://docs.rs/actix-files/)
-- [Example Project](https://github.com/actix/examples/tree/master/basics/static_index)
+- [API Documentation](https://docs.rs/actix-files)
+- [Example Project](https://github.com/actix/examples/tree/master/basics/static-files)
 - Minimum Supported Rust Version (MSRV): 1.54

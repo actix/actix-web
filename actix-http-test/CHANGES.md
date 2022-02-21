@@ -3,6 +3,10 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 3.0.0-beta.13 - 2022-02-16
+- No significant changes since `3.0.0-beta.12`.
+
+
 ## 3.0.0-beta.12 - 2022-01-31
 - No significant changes since `3.0.0-beta.11`.
 

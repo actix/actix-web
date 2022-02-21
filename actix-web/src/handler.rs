@@ -10,11 +10,15 @@ use crate::{
 /// The interface for request handlers.
 ///
 /// # What Is A Request Handler
-/// A request handler has three requirements:
+/// In short, a handler is just an async function that receives request-based arguments, in any
+/// order, and returns something that can be converted to a response.
+///
+/// In particular, a request handler has three requirements:
 /// 1. It is an async function (or a function/closure that returns an appropriate future);
 /// 1. The function parameters (up to 12) implement [`FromRequest`];
 /// 1. The async function (or future) resolves to a type that can be converted into an
 ///   [`HttpResponse`] (i.e., it implements the [`Responder`] trait).
+///
 ///
 /// # Compiler Errors
 /// If you get the error `the trait Handler<_> is not implemented`, then your handler does not

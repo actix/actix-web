@@ -1,6 +1,6 @@
 [package]
 name = "actix-web-actors"
-version = "4.0.0-beta.11"
+version = "4.0.0-beta.12"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix actors support for Actix Web"
 keywords = ["actix", "http", "web", "framework", "async"]
@@ -15,9 +15,9 @@ path = "src/lib.rs"
 
 [dependencies]
 actix = { version = "0.12.0", default-features = false }
-actix-codec = "0.4.1"
-actix-http = "3.0.0-rc.1"
-actix-web = { version = "4.0.0-rc.2", default-features = false }
+actix-codec = "0.5"
+actix-http = "3.0.0-rc.3"
+actix-web = { version = "4.0.0-rc.3", default-features = false }
 
 bytes = "1"
 bytestring = "1"
@@ -27,8 +27,8 @@ tokio = { version = "1.8.4", features = ["sync"] }
 
 [dev-dependencies]
 actix-rt = "2.2"
-actix-test = "0.1.0-beta.12"
-awc = { version = "3.0.0-beta.20", default-features = false }
+actix-test = "0.1.0-beta.13"
+awc = { version = "3.0.0-beta.21", default-features = false }
 
 env_logger = "0.9"
 futures-util = { version = "0.3.7", default-features = false }

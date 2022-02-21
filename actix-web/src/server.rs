@@ -128,7 +128,7 @@ where
 
     /// Set number of workers to start.
     ///
-    /// By default, server uses number of available logical CPU as thread count.
+    /// By default, the number of available physical CPUs is used as the worker count.
     pub fn workers(mut self, num: usize) -> Self {
         self.builder = self.builder.workers(num);
         self

@@ -48,6 +48,15 @@ pub trait Responder {
     }
 
     #[doc(hidden)]
+    #[deprecated(since = "4.0.0", note = "Prefer `.customize().with_status(header)`.")]
+    fn with_status(self, status: StatusCode) -> CustomizeResponder<Self>
+    where
+        Self: Sized,
+    {
+        self.customize().with_status(status)
+    }
+
+    #[doc(hidden)]
     #[deprecated(since = "4.0.0", note = "Prefer `.customize().insert_header(header)`.")]
     fn with_header(self, header: impl TryIntoHeaderPair) -> CustomizeResponder<Self>
     where
