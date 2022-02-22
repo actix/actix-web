@@ -5,29 +5,27 @@
 
 ## 0.5.0 - 2022-02-22
 ### Added
-- `Resource` is now implemented for `&mut Path<_>` and `RefMut<Path<_>>`. [#2568]
 - Add `Path::as_str`. [#2590]
 - Add `ResourceDef::set_name`. [#373][net#373]
 - Add `RouterBuilder::push`. [#2612]
 - Implement `IntoPatterns` for `bytestring::ByteString`. [#372][net#372]
 - Introduce `ResourceDef::join`. [#380][net#380]
 - Introduce `ResourceDef::pattern_iter` to get an iterator over all patterns in a multi-pattern resource. [#373][net#373]
+- `Resource` is now implemented for `&mut Path<_>` and `RefMut<Path<_>>`. [#2568]
 - Support `build_resource_path` on multi-pattern resources. [#2356]
 - Support multi-pattern prefixes and joins. [#2356]
 
 ### Changed
-- `Quoter::requote` now returns `Option<Vec<u8>>`. [#2613]
-- `Resource` trait now uses an associated type, `Path`, instead of a generic parameter. [#2568]
-- `ResourceDef::pattern` now returns the first pattern in multi-pattern resources. [#2356]
-- `ResourceDef::resource_path_from_iter` now takes an `IntoIterator`. [#373][net#373]
 - Change signature of `ResourceDef::capture_match_info_fn` to remove `user_data` parameter. [#2612]
 - Deprecate `Path::path`. [#2590]
 - Disallow prefix routes with tail segments. [#379][net#379]
 - Enforce path separators on dynamic prefixes. [#378][net#378]
+- Minimum supported Rust version (MSRV) is now 1.54.
 - Prefix segments now always end with with a segment delimiter or end-of-input. [#2355]
 - Prefix segments with trailing slashes define a trailing empty segment. [#2355]
+- `Quoter::requote` now returns `Option<Vec<u8>>`. [#2613]
 - Re-work `IntoPatterns` trait, adding a `Patterns` enum. [#372][net#372]
-- Rename `Path::{len => segment_count}` to be more descriptive of it's purpose. [#370][net#370]
+- Rename `Path::{len => segment_count}` to be more descriptive of its purpose. [#370][net#370]
 - Rename `ResourceDef::{is_prefix_match => find_match}`. [#373][net#373]
 - Rename `ResourceDef::{match_path => capture_match_info}`. [#373][net#373]
 - Rename `ResourceDef::{match_path_checked => capture_match_info_fn}`. [#373][net#373]
@@ -35,17 +33,19 @@
 - Rename `ResourceDef::{resource_path_named => resource_path_from_map}`. [#371][net#371]
 - Rename `Router::{*_checked => *_fn}`. [#373][net#373]
 - Replace `Option<U>` with `U` in `Router` API. [#2612]
+- `Resource` trait now uses an associated type, `Path`, instead of a generic parameter. [#2568]
+- `ResourceDef::pattern` now returns the first pattern in multi-pattern resources. [#2356]
+- `ResourceDef::resource_path_from_iter` now takes an `IntoIterator`. [#373][net#373]
 - Return type of `ResourceDef::name` is now `Option<&str>`. [#373][net#373]
 - Return type of `ResourceDef::pattern` is now `Option<&str>`. [#373][net#373]
-- Minimum supported Rust version (MSRV) is now 1.54.
 
 ### Fixed
-- `PathDeserializer` now decodes all percent encoded characters in dynamic segments. [#2566]
-- Fix `ResourceDef` `PartialEq` implementation. [#373][net#373]
-- Fix a bug in multi-patterns where static patterns are interpreted as regex. [#366][net#366]
+- Fix `ResourceDef`'s `PartialEq` implementation. [#373][net#373]
 - Fix segment interpolation leaving `Path` in unintended state after matching. [#368][net#368]
 - Improve malformed path error message. [#384][net#384]
+- `PathDeserializer` now decodes all percent encoded characters in dynamic segments. [#2566]
 - Relax bounds on `Router::recognize*` and `ResourceDef::capture_match_info`. [#2612]
+- Static patterns in multi-patterns are no longer interpreted as regex. [#366][net#366]
 
 ### Removed
 - `ResourceDef::name_mut`. [#373][net#373]
