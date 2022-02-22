@@ -72,7 +72,7 @@ actix-utils = "3"
 actix-tls = { version = "3", default-features = false, optional = true }
 
 actix-http = { version = "3.0.0-rc.4", features = ["http2", "ws"] }
-actix-router = "0.5.0-rc.3"
+actix-router = "0.5.0"
 actix-web-codegen = { version = "0.5.0-rc.2", optional = true }
 
 ahash = "0.7"
