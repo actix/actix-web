@@ -51,7 +51,7 @@ impl Error {
         Self::new(Kind::SendResponse)
     }
 
-    #[allow(unused)] // reserved for future use (TODO: remove allow when being used)
+    #[allow(unused)] // available for future use
     pub(crate) fn new_io() -> Self {
         Self::new(Kind::Io)
     }
@@ -252,12 +252,6 @@ impl From<ParseError> for Response<BoxBody> {
     }
 }
 
-/// A set of errors that can occur running blocking tasks in thread pool.
-#[derive(Debug, Display, Error)]
-#[display(fmt = "Blocking thread pool is gone")]
-// TODO: non-exhaustive
-pub struct BlockingError;
-
 /// A set of errors that can occur during payload parsing.
 #[derive(Debug, Display)]
 #[non_exhaustive]
@@ -295,13 +289,13 @@ impl std::error::Error for PayloadError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             PayloadError::Incomplete(None) => None,
-            PayloadError::Incomplete(Some(err)) => Some(err as &dyn std::error::Error),
+            PayloadError::Incomplete(Some(err)) => Some(err),
             PayloadError::EncodingCorrupted => None,
             PayloadError::Overflow => None,
             PayloadError::UnknownLength => None,
             #[cfg(feature = "http2")]
-            PayloadError::Http2Payload(err) => Some(err as &dyn std::error::Error),
-            PayloadError::Io(err) => Some(err as &dyn std::error::Error),
+            PayloadError::Http2Payload(err) => Some(err),
+            PayloadError::Io(err) => Some(err),
         }
     }
 }
@@ -322,15 +316,6 @@ impl From<Option<io::Error>> for PayloadError {
 impl From<io::Error> for PayloadError {
     fn from(err: io::Error) -> Self {
         PayloadError::Incomplete(Some(err))
-    }
-}
-
-impl From<BlockingError> for PayloadError {
-    fn from(_: BlockingError) -> Self {
-        PayloadError::Io(io::Error::new(
-            io::ErrorKind::Other,
-            "Operation is canceled",
-        ))
     }
 }
 
