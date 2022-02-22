@@ -19,10 +19,6 @@ jobs:
     name: ${{ matrix.target.name }} / ${{ matrix.version }}
     runs-on: ${{ matrix.target.os }}
 
-    concurrency:
-      group: ${{ github.head_ref || github.run_id }}-${{ github.workflow }}-${{ github.job }}-${{ github.job.name }}
-      cancel-in-progress: true
-
     env:
       CI: 1
       CARGO_INCREMENTAL: 0
@@ -99,11 +95,6 @@ jobs:
   ci_feature_powerset_check:
     name: Verify Feature Combinations
     runs-on: ubuntu-latest
-
-    concurrency:
-      group: ${{ github.head_ref || github.run_id }}-${{ github.workflow }}-${{ github.job }}-${{ github.job.name }}
-      cancel-in-progress: true
-
     steps:
       - uses: actions/checkout@v2
 
@@ -165,11 +156,6 @@ jobs:
   nextest:
     name: nextest
     runs-on: ubuntu-latest
-
-    concurrency:
-      group: ${{ github.head_ref || github.run_id }}-${{ github.workflow }}-${{ github.job }}-${{ github.job.name }}
-      cancel-in-progress: true
-
     steps:
       - uses: actions/checkout@v2
 
