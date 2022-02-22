@@ -2,9 +2,9 @@
 
 ## Unreleased - 2021-xx-xx
 ### Removed
-- `error::BlockingError` [#????]
+- `error::BlockingError` [#2660]
 
-[#????]: https://github.com/actix/actix-web/pull/????
+[#2660]: https://github.com/actix/actix-web/pull/2660
 
 
 ## 3.0.0-rc.4 - 2022-02-22
