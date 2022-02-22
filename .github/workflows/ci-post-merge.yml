@@ -20,7 +20,7 @@ jobs:
     runs-on: ${{ matrix.target.os }}
 
     concurrency:
-      group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+      group: ${{ github.head_ref || github.run_id }}-${{ github.workflow }}-${{ github.job }}-${{ github.job.name }}
       cancel-in-progress: true
 
     env:
@@ -101,7 +101,7 @@ jobs:
     runs-on: ubuntu-latest
 
     concurrency:
-      group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+      group: ${{ github.head_ref || github.run_id }}-${{ github.workflow }}-${{ github.job }}-${{ github.job.name }}
       cancel-in-progress: true
 
     steps:
@@ -167,7 +167,7 @@ jobs:
     runs-on: ubuntu-latest
 
     concurrency:
-      group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+      group: ${{ github.head_ref || github.run_id }}-${{ github.workflow }}-${{ github.job }}-${{ github.job.name }}
       cancel-in-progress: true
 
     steps:
