@@ -47,7 +47,6 @@ impl fmt::Debug for Error {
 
 impl StdError for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        // TODO: populate if replacement for Box<dyn Error> is found
         None
     }
 }

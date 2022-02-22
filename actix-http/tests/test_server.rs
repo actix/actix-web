@@ -850,7 +850,8 @@ async fn not_modified_spec_h1() {
         Some(&header::HeaderValue::from_static("4")),
     );
     // server does not prevent payload from being sent but clients may choose not to read it
-    // TODO: this is probably a bug, especially since CL header can differ in length from the body
+    // TODO: this is probably a bug in the client, especially since CL header can differ in length
+    // from the body
     assert!(!srv.load_body(res).await.unwrap().is_empty());
 
     // TODO: add stream response tests
