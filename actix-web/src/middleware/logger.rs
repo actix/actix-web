@@ -198,7 +198,7 @@ impl Logger {
     ///         "-".to_string()
     ///     }
     /// }
-    /// Logger::new("example %{ERROR_STATUS}xo")
+    /// Logger::new("example %{ERROR_STATUS}xs")
     ///     .custom_status_replace("ERROR_STATUS", |status| log_if_error(status) );
     /// ```
     pub fn custom_status_replace(
