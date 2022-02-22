@@ -77,6 +77,7 @@ actix-web-codegen = { version = "0.5.0-rc.2", optional = true }
 
 ahash = "0.7"
 bytes = "1"
+bytestring = "1"
 cfg-if = "1"
 cookie = { version = "0.16", features = ["percent-encode"], optional = true }
 derive_more = "0.99.5"
