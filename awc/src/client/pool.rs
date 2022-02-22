@@ -232,7 +232,7 @@ where
                 None => {
                     let (io, proto) = connector.call(req).await?;
 
-                    // TODO: remove when http3 is added in support.
+                    // NOTE: remove when http3 is added in support.
                     assert!(proto != Protocol::Http3);
 
                     if proto == Protocol::Http1 {

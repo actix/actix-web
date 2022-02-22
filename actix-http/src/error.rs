@@ -108,8 +108,10 @@ pub(crate) enum Kind {
 
 impl fmt::Debug for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // TODO: more detail
-        f.write_str("actix_http::Error")
+        f.debug_struct("actix_http::Error")
+            .field("kind", &self.inner.kind)
+            .field("cause", &self.inner.cause)
+            .finish()
     }
 }
 
@@ -386,7 +388,6 @@ pub enum DispatchError {
 impl StdError for DispatchError {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
-            // TODO: error source extraction?
             DispatchError::Service(_res) => None,
             DispatchError::Body(err) => Some(&**err),
             DispatchError::Io(err) => Some(err),
