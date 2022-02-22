@@ -3,8 +3,7 @@
 This guide walks you through the process of migrating from v3.x.y to v4.x.y.  
 If you are migrating to v4.x.y from an older version of Actix Web (v2.x.y or earlier), check out the other historical migration notes in this folder.
 
-This document is not designed to be exhaustive - it focuses on the most significant changes coming in v4.  
-You can find an exhaustive changelog in [CHANGES.md](./CHANGES.md), complete of PR links. If you think that some of the changes that we omitted deserve to be called out in this document, please open an issue or submit a PR. 
+This document is not designed to be exhaustive—it focuses on the most significant changes coming in v4. You can find an exhaustive changelog in [CHANGES.md](./CHANGES.md), complete of PR links. If you think that some of the changes that we omitted deserve to be called out in this document, please open an issue or submit a PR.
 
 Headings marked with :warning: are **breaking behavioral changes**. They will probably not surface as compile-time errors though automated tests _might_ detect their effects on your app.
 
@@ -39,8 +38,9 @@ The MSRV of Actix Web has been raised from 1.42 to 1.54.
 
 ## Tokio v1 Ecosystem
 
-Actix Web v4 is now underpinned by `tokio`'s v1 ecosystem.  
-`cargo` supports having multiple versions of the same crate within the same dependency tree, but `tokio` v1 does not interoperate transparently with its previous versions (v0.2, v0.1). Some of your dependencies might rely on `tokio`, either directly or indirectly - if they are using an older version of `tokio`, check if an update is available.  
+Actix Web v4 is now underpinned by `tokio`'s v1 ecosystem.
+
+`cargo` supports having multiple versions of the same crate within the same dependency tree, but `tokio` v1 does not interoperate transparently with its previous versions (v0.2, v0.1). Some of your dependencies might rely on `tokio`, either directly or indirectly—if they are using an older version of `tokio`, check if an update is available.  
 The following command can help you to identify these dependencies:
 
 ```sh
@@ -59,8 +59,8 @@ Lots of modules have been re-organized in this release. If a compile error refer
 
 ## `NormalizePath` Middleware :warning:
 
-The default `NormalizePath` behavior now strips trailing slashes by default.  
-This was the _documented_ behaviour in Actix Web v3, but the _actual_ behaviour differed - the discrepancy has now been fixed.  
+The default `NormalizePath` behavior now strips trailing slashes by default. This was the _documented_ behaviour in Actix Web v3, but the _actual_ behaviour differed. The discrepancy has now been resolved.
+
 As a consequence of this change, routes defined with trailing slashes will become inaccessible when using `NormalizePath::default()`. Calling `NormalizePath::default()` will log a warning. We suggest to use `new` or `trim`.
 
 ```diff
@@ -103,8 +103,7 @@ The `compress` feature flag has been split into more granular feature flags, one
 
 ## `web::Path`
 
-The inner field for `web::Path` is now private.  
-It was causing too many issues when used with inner tuple types due to its `Deref` implementation.
+The inner field for `web::Path` is now private. It was causing ambiguity when trying to use tuple indexing due to its `Deref` implementation.
 
 ```diff
 - async fn handler(web::Path((foo, bar)): web::Path<(String, String)>) {
@@ -118,7 +117,7 @@ Actix Web now depends on version 0.20 of `rustls`. As a result, the server confi
 
 ## Removed `awc` Client Re-export
 
-Actix Web's sister crate `awc` is no longer re-exported through the `client` module. This allows `awc` to have its own release cadence - its breaking changes are no longer blocked by Actix Web's (more conservative) release schedule.
+Actix Web's sister crate `awc` is no longer re-exported through the `client` module. This allows `awc` to have its own release cadence—its breaking changes are no longer blocked by Actix Web's (more conservative) release schedule.
 
 ```diff
 - use actix_web::client::Client;
@@ -134,11 +133,11 @@ Actix Web's sister crate `awc` is no longer re-exported through the `client` mod
 + use use actix_test::start;
 ```
 
-`TestServer` previously lived in `actix_web::test`, but it depends on `awc` which is no longer part of Actix Web's public API (see above). 
+`TestServer` previously lived in `actix_web::test`, but it depends on `awc` which is no longer part of Actix Web's public API (see above).
 
 ## Header APIs
 
-Header related APIs have been standardized across all `actix-*` crates. The terminology now better matches the underlying `HeaderMap` naming conventions. 
+Header related APIs have been standardized across all `actix-*` crates. The terminology now better matches the underlying `HeaderMap` naming conventions.
 
 In short, "insert" always indicates that any existing headers with the same name are overridden, while "append" is used for adding with no removal (e.g. multi-valued headers).
 
@@ -155,7 +154,7 @@ For request and response builder APIs, the new methods provide a unified interfa
 + .insert_header(ContentType::json())
 ```
 
-We chose to deprecate most of the old methods instead of removing them immediately - the warning notes will guide you on how to update. 
+We chose to deprecate most of the old methods instead of removing them immediately—the warning notes will guide you on how to update.
 
 ## Response Body Types
 
@@ -178,16 +177,65 @@ We have boosted the quality and completeness of the documentation for all items 
 
 ### `BoxBody`
 
-`BoxBody` is a new type-erased body type. It's used for all error response bodies.  
-Creating a boxed body is best done by calling [`.boxed()`](https://docs.rs/actix-web/4/actix_web/body/trait.MessageBody.html#method.boxed) on a `MessageBody` type.
+`BoxBody` is a new type-erased body type.
+
+It can be useful when writing handlers, responders, and middleware when you want to trade a (very) small amount of performance for a simpler type.
+
+Creating a boxed body is done most efficiently by calling [`.boxed()`](https://docs.rs/actix-web/4/actix_web/body/trait.MessageBody.html#method.boxed) on a `MessageBody` type.
 
 ### `EitherBody`
 
-`EitherBody` is a new "either" type that is particularly useful in middlewares that can bail early, returning their own response plus body type.
+`EitherBody` is a new "either" type that implements `MessageBody`
+
+It is particularly useful in middleware that can bail early, returning their own response plus body type. By default the "right" variant is `BoxBody` (i.e., `EitherBody<B>` === `EitherBody<B, BoxBody>`) but it can be anything that implements `MessageBody`.
+
+For example, it will be common among middleware which value performance of the hot path to use:
+
+```rust
+type Response = Result<ServiceResponse<EitherBody<B>>, Error>
+```
+
+This can be read (ignoring the `Result`) as "resolves with a `ServiceResponse` that is either the inner service's `B` body type or a boxed body type from elsewhere, likely constructed within the middleware itself". Of course, if your middleware contains only simple string other/error responses, it's possible to use them without boxes at the cost of a less simple implementation:
+
+```rust
+type Response = Result<ServiceResponse<EitherBody<B, String>>, Error>
+```
 
 ### Error Handlers
 
-TODO In particular, folks seem to be struggling with the `ErrorHandlers` middleware because of this change and the obscured nature of `EitherBody` within its types.
+`ErrorHandlers` is a commonly used middleware that has changed in design slightly due to the other body type changes.
+
+In particular, an implicit `EitherBody` is used in the `ErrorHandlerResponse<B>` type. An `ErrorHandlerResponse<B>` now expects a `ServiceResponse<EitherBody<B>>` to be returned within response variants. The following is a migration for an error handler that **only modifies** the response argument (left body).
+
+```diff
+  fn add_error_header<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>, Error> {
+      res.response_mut().headers_mut().insert(
+          header::CONTENT_TYPE,
+          header::HeaderValue::from_static("Error"),
+      );
+-     Ok(ErrorHandlerResponse::Response(res))
++     Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
+  }
+```
+
+The following is a migration for an error handler that creates a new response instead (right body).
+
+```diff
+  fn error_handler<B>(res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>, Error> {
+-     let req = res.request().clone();
++     let (req, _res) = res.into_parts();
+
+      let res = actix_files::NamedFile::open("./templates/404.html")?
+          .set_status_code(StatusCode::NOT_FOUND)
+-         .into_response(&req)?
+-         .into_body();
++         .into_response(&req);
+
+-     let res = ServiceResponse::new(req, res);
++     let res = ServiceResponse::new(req, res).map_into_right_body();
+      Ok(ErrorHandlerResponse::Response(res))
+  }
+```
 
 ## Middleware Trait APIs
 
@@ -251,7 +299,7 @@ You may need to review the [guidance on shared mutable state](https://docs.rs/ac
 Improvements to module management and re-exports have resulted in not needing direct dependencies on these underlying crates for the vast majority of cases. In particular:
 
 - all traits necessary for creating middlewares are now re-exported through the `dev` modules;
-- `#[actix_web::test]` now exists for async test definitions. 
+- `#[actix_web::test]` now exists for async test definitions.
 
 Relying on these re-exports will ease the transition to future versions of Actix Web.
 
