@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+- Rename `test::{simple_service => status_service}`. [#????]
+
+[#????]: https://github.com/actix/actix-web/pull/????
 
 
 ## 4.0.0-rc.3 - 2022-02-08
