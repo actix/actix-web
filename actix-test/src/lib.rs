@@ -43,7 +43,7 @@ pub use actix_http_test::unused_addr;
 use actix_service::{map_config, IntoServiceFactory, ServiceFactory, ServiceFactoryExt as _};
 pub use actix_web::test::{
     call_and_read_body, call_and_read_body_json, call_service, init_service, ok_service,
-    read_body, read_body_json, simple_service, TestRequest,
+    read_body, read_body_json, status_service, TestRequest,
 };
 use actix_web::{
     body::MessageBody,
