@@ -52,4 +52,4 @@ tokio = { version = "1.8.4", features = ["sync"] }
 
 [dev-dependencies]
 actix-web = { version = "4.0.0-rc.3", default-features = false, features = ["cookies"] }
-actix-http = "3.0.0-rc.3"
+actix-http = "3.0.0-rc.4"
