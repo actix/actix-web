@@ -239,11 +239,97 @@ The following is a migration for an error handler that creates a new response in
 
 ## Middleware Trait APIs
 
-This section builds upon guidance from the [response body types](#response-body-types) section.
+The underlying traits that are used for creating middleware, `Service`, `ServiceFactory`, and `Transform`, have changed in design.
 
-TODO
+- The associated `Request` type has moved to the type parameter position in order to allow multiple request implementations in other areas of the service stack.
+- The `self` arguments in `Service` have changed from exclusive (mutable) borrows to shared (immutable) borrows. Since most service layers, such as middleware, do not host mutable state, it reduces the runtime overhead in places where a `RefCell` used to be required for wrapping an inner service.
+- We've also introduced some macros that reduce boilerplate when implementing `poll_ready`.
+- Further to the guidance on [response body types](#response-body-types), any use of the old methods on `ServiceResponse` designed to match up body types (e.g., the old `into_body` method), should be replaced with an explicit response body type utilizing `EitherBody<B>`.
 
-TODO: Also write the Middleware author's guide.
+A typical migration would look like this:
+
+```diff
+  use std::{
+-     cell::RefCell,
+      future::Future,
+      pin::Pin,
+      rc::Rc,
+-     task::{Context, Poll},
+  };
+
+  use actix_web::{
+      dev::{Service, ServiceRequest, ServiceResponse, Transform},
+      Error,
+  };
+  use futures_util::future::{ok, LocalBoxFuture, Ready};
+
+  pub struct SayHi;
+
+- impl<S, B> Transform<S> for SayHi
++ impl<S, B> Transform<S, ServiceRequest> for SayHi
+  where
+-     S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
++     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+      S::Future: 'static,
+      B: 'static,
+  {
+-     type Request = ServiceRequest;
+      type Response = ServiceResponse<B>;
+      type Error = Error;
+      type InitError = ();
+      type Transform = SayHiMiddleware<S>;
+      type Future = Ready<Result<Self::Transform, Self::InitError>>;
+
+      fn new_transform(&self, service: S) -> Self::Future {
+          ok(SayHiMiddleware {
+-             service: Rc::new(RefCell::new(service)),
++             service: Rc::new(service),
+          })
+      }
+  }
+
+  pub struct SayHiMiddleware<S> {
+-     service: Rc<RefCell<S>>,
++     service: Rc<S>,
+  }
+
+- impl<S, B> Service for SayHiMiddleware<S>
++ impl<S, B> Service<ServiceRequest> for SayHiMiddleware<S>
+  where
+-     S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
++     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+      S::Future: 'static,
+      B: 'static,
+  {
+-     type Request = ServiceRequest;
+      type Response = ServiceResponse<B>;
+      type Error = Error;
+      type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
+
+-     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+-         self.service.poll_ready(cx)
+-     }
++     actix_web::dev::forward_ready!(service);
+
+-     fn call(&mut self, req: ServiceRequest) -> Self::Future {
++     fn call(&self, req: ServiceRequest) -> Self::Future {
+          println!("Hi from start. You requested: {}", req.path());
+
+          let fut = self.service.call(req);
+
+          Box::pin(async move {
+              let res = fut.await?;
+
+              println!("Hi from response");
+              Ok(res)
+          })
+      }
+  }
+```
+
+This new design is forward-looking and should ease transition to traits that support the upcoming Generic Associated Type (GAT) feature in Rust while also trimming down the boilerplate required to implement middleware.
+
+We understand that creating middleware is still a pain point for Actix Web and we hope to provide [an even more ergonomic solution](https://docs.rs/actix-web-lab/0.11.0/actix_web_lab/middleware/fn.from_fn.html) in a v4.x release.
 
 ## `Responder` Trait
 
