@@ -47,40 +47,6 @@ pub fn apply_mask_fast32(buf: &mut [u8], mask: [u8; 4]) {
 mod tests {
     use super::*;
 
-    // legacy test from old apply mask test. kept for now for back compat test.
-    // TODO: remove it and favor the other test.
-    #[test]
-    fn test_apply_mask_legacy() {
-        let mask = [0x6d, 0xb6, 0xb2, 0x80];
-
-        let unmasked = vec![
-            0xf3, 0x00, 0x01, 0x02, 0x03, 0x80, 0x81, 0x82, 0xff, 0xfe, 0x00, 0x17, 0x74, 0xf9,
-            0x12, 0x03,
-        ];
-
-        // Check masking with proper alignment.
-        {
-            let mut masked = unmasked.clone();
-            apply_mask_fallback(&mut masked, mask);
-
-            let mut masked_fast = unmasked.clone();
-            apply_mask(&mut masked_fast, mask);
-
-            assert_eq!(masked, masked_fast);
-        }
-
-        // Check masking without alignment.
-        {
-            let mut masked = unmasked.clone();
-            apply_mask_fallback(&mut masked[1..], mask);
-
-            let mut masked_fast = unmasked;
-            apply_mask(&mut masked_fast[1..], mask);
-
-            assert_eq!(masked, masked_fast);
-        }
-    }
-
     #[test]
     fn test_apply_mask() {
         let mask = [0x6d, 0xb6, 0xb2, 0x80];
