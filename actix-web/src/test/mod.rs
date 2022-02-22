@@ -5,7 +5,7 @@
 //!
 //! # Off-The-Shelf Test Services
 //! - [`ok_service`]
-//! - [`simple_service`]
+//! - [`status_service`]
 //!
 //! # Calling Test Service
 //! - [`TestRequest`]
@@ -27,7 +27,7 @@ mod test_utils;
 
 pub use self::test_request::TestRequest;
 #[allow(deprecated)]
-pub use self::test_services::{default_service, ok_service, simple_service};
+pub use self::test_services::{default_service, ok_service, simple_service, status_service};
 #[allow(deprecated)]
 pub use self::test_utils::{
     call_and_read_body, call_and_read_body_json, call_service, init_service, read_body,
