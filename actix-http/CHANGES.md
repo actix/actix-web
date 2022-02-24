@@ -11,6 +11,7 @@
 
 
 ## 3.0.0-rc.4 - 2022-02-22
+### Fixed
 - Fix h1 dispatcher panic. [1ce58ecb]
 
 [1ce58ecb]: https://github.com/actix/actix-web/commit/1ce58ecb305c60e51db06e6c913b7a1344e229ca

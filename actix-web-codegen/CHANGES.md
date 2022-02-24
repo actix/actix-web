@@ -3,6 +3,10 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 0.5.0 - 2022-02-24
+- No significant changes since `0.5.0-rc.2`.
+
+
 ## 0.5.0-rc.2 - 2022-02-01
 - No significant changes since `0.5.0-rc.1`.
 
