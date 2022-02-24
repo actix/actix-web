@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 3.0.0 - 2022-02-24
 ### Removed
 - `error::BlockingError` [#2660]
 

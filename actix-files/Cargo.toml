@@ -22,7 +22,7 @@ path = "src/lib.rs"
 experimental-io-uring = ["actix-web/experimental-io-uring", "tokio-uring"]
 
 [dependencies]
-actix-http = "3.0.0-rc.4"
+actix-http = "3.0.0"
 actix-service = "2"
 actix-utils = "3"
 actix-web = { version = "4.0.0-rc.3", default-features = false }
