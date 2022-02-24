@@ -25,7 +25,7 @@ experimental-io-uring = ["actix-web/experimental-io-uring", "tokio-uring"]
 actix-http = "3.0.0"
 actix-service = "2"
 actix-utils = "3"
-actix-web = { version = "4.0.0-rc.3", default-features = false }
+actix-web = { version = "4.0.0", default-features = false }
 
 askama_escape = "0.10"
 bitflags = "1"
@@ -44,5 +44,5 @@ tokio-uring = { version = "0.2", optional = true, features = ["bytes"] }
 [dev-dependencies]
 actix-rt = "2.2"
 actix-test = "0.1.0-beta.13"
-actix-web = "4.0.0-rc.3"
+actix-web = "4.0.0"
 tempfile = "3.2"

@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 4.0.0 - 2022-02-24
 ### Changed
 - Rename `test::{simple_service => status_service}`. [#2659]
 
