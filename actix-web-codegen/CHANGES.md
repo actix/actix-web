@@ -4,6 +4,7 @@
 
 
 ## 4.0.0 - 2022-02-24
+- Version aligned with `actix-web` and will remain in sync going forward.
 - No significant changes since `0.5.0`.
 
 
