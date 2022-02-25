@@ -48,7 +48,7 @@ Dependencies:
 
 ```toml
 [dependencies]
-actix-web = "4.0.0"
+actix-web = "4"
 ```
 
 Code:
