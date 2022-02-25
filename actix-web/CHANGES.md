@@ -4,7 +4,8 @@
 
 
 ## 4.0.1 - 2022-02-25
-- No significant changes since `4.0.0`.
+### Fixed
+- Use stable version in readme example.
 
 
 ## 4.0.0 - 2022-02-25
