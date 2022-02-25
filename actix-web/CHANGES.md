@@ -3,6 +3,10 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 4.0.1 - 2022-02-25
+- No significant changes since `4.0.0`.
+
+
 ## 4.0.0 - 2022-02-25
 ### Dependencies
 - Updated `actix-*` to Tokio v1-based versions. [#1813]
