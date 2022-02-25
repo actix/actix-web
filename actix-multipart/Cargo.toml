@@ -15,7 +15,7 @@ path = "src/lib.rs"
 
 [dependencies]
 actix-utils = "3.0.0"
-actix-web = { version = "4.0.0-rc.3", default-features = false }
+actix-web = { version = "4.0.0", default-features = false }
 
 bytes = "1"
 derive_more = "0.99.5"
@@ -28,7 +28,7 @@ twoway = "0.2"
 
 [dev-dependencies]
 actix-rt = "2.2"
-actix-http = "3.0.0-rc.4"
+actix-http = "3.0.0"
 futures-util = { version = "0.3.7", default-features = false, features = ["alloc"] }
 tokio = { version = "1.8.4", features = ["sync"] }
 tokio-stream = "0.1"
