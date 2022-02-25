@@ -1,14 +1,279 @@
-# Changes
+# Changelog
 
 ## Unreleased - 2021-xx-xx
 
 
-## 4.0.0 - 2022-02-24
+## 4.0.0 - 2022-02-25
+### Dependencies
+- Updated `actix-*` to Tokio v1-based versions. [#1813]
+- Updated `actix-web-codegen` to `4.0.0`.
+- Updated `cookie` to `0.16`. [#2555]
+- Updated `language-tags` to `0.3`.
+- Updated `rand` to `0.8`.
+- Updated `rustls` to `0.20.0`. [#2414]
+- Updated `tokio` to `1`.
+
+### Added
+- Crate Features:
+  - `cookies`; enabled by default. [#2619]
+  - `compress-brotli`; enabled by default. [#2618]
+  - `compress-gzip`; enabled by default. [#2618]
+  - `compress-zstd`; enabled by default. [#2618]
+  - `macros`; enables routing and runtime macros, enabled by default. [#2619]
+- Types:
+  - `CustomizeResponder` for customizing response. [#2510]
+  - `dev::ServerHandle` re-export from `actix-server`. [#2442]
+  - `dev::ServiceFactory` re-export from `actix-service`. [#2325]
+  - `guard::GuardContext` for use with the `Guard` trait. [#2552]
+  - `http::header::AcceptEncoding` typed header. [#2482]
+  - `http::header::Range` typed header. [#2485]
+  - `http::KeepAlive` re-export from `actix-http`. [#2625]
+  - `middleware::Compat` that boxes middleware types like `Logger` and `Compress` to be used with constrained type bounds. [#1865]
+  - `web::Header` extractor for extracting typed HTTP headers in handlers. [#2094]
+- Methods:
+  - `dev::ServiceRequest::guard_ctx()` for obtaining a guard context. [#2552]
+  - `dev::ServiceRequest::parts_mut()`. [#2177]
+  - `dev::ServiceResponse::map_into_{left,right}_body()` and `HttpResponse::map_into_boxed_body()`. [#2468]
+  - `Either<web::Json<T>, web::Form<T>>::into_inner()` which returns the inner type for whichever variant was created. Also works for `Either<web::Form<T>, web::Json<T>>`. [#1894]
+  - `http::header::AcceptLanguage::{ranked, preference}()`. [#2480]
+  - `HttpResponse::add_removal_cookie()`. [#2586]
+  - `HttpResponse::map_into_{left,right}_body()` and `HttpResponse::map_into_boxed_body()`. [#2468]
+  - `HttpServer::worker_max_blocking_threads` for setting block thread pool. [#2200]
+  - `middleware::Logger::log_target()` to allow customize. [#2594]
+  - `Responder::customize()` trait method that wraps responder in `CustomizeResponder`. [#2510]
+  - `Route::service()` for using hand-written services as handlers. [#2262]
+  - `ServiceResponse::into_parts()`. [#2499]
+  - `TestServer::client_headers()` method. [#2097]
+  - `web::ServiceConfig::configure()` to allow easy nesting of configuration functions. [#1988]
+- Trait Implementations:
+  - Implement `Debug` for `DefaultHeaders`. [#2510]
+  - Implement `FromRequest` for `ConnectionInfo` and `PeerAddr`. [#2263]
+  - Implement `FromRequest` for `Method`. [#2263]
+  - Implement `FromRequest` for `Uri`. [#2263]
+  - Implement `Hash` for `http::header::Encoding`. [#2501]
+  - Implement `Responder` for `Vec<u8>`. [#2625]
+- Misc:
+  - `#[actix_web::test]` macro for setting up tests with a runtime. [#2409]
+  - Enable registering a vec of services of the same type to `App` [#1933]
+  - Add `services!` macro for helping register multiple services to `App`. [#1933]
+  - Option to allow `Json` extractor to work without a `Content-Type` header present. [#2362]
+  - Connection data set through the `HttpServer::on_connect` callback is now accessible only from the new `HttpRequest::conn_data()` and `ServiceRequest::conn_data()` methods. [#2491]
+
 ### Changed
-- Rename `test::{simple_service => status_service}`. [#2659]
+- Functions:
+  - `guard::fn_guard` functions now receives a `&GuardContext`. [#2552]
+  - `guard::Not` is now generic over the type of guard it wraps. [#2552]
+  - `test::{call_service, read_response, read_response_json, send_request}()` now receive a `&Service`. [#1905]
+  - Some guard functions now return `impl Guard` and their concrete types are made private: `guard::Header` and all the method guards. [#2552]
+  - Rename `test::{default_service => status_service}()`. Old name is deprecated. [#2518]
+  - Rename `test::{read_response_json => call_and_read_body_json}()`. Old name is deprecated. [#2518]
+  - Rename `test::{read_response => call_and_read_body}()`. Old name is deprecated. [#2518]
+- Traits:
+  - `guard::Guard::check` now receives a `&GuardContext`. [#2552]
+  - `FromRequest::Config` associated type was removed. [#2233]
+  - `Responder` trait has been reworked and now `Response`/`HttpResponse` synchronously, making it simpler and more performant. [#1891]
+  - Rename `Factory` trait to `Handler`. [#1852]
+- Types:
+  - `App`'s `B` (body) type parameter been removed. As a result, `App`s can be returned from functions now. [#2493]
+  - `Compress` middleware's response type is now `EitherBody<Encoder<B>>`. [#2448]
+  - `error::BlockingError` is now a unit struct. It's now only triggered when blocking thread pool has shutdown. [#1957]
+  - `ErrorHandlerResponse`'s response variants now use `ServiceResponse<EitherBody<B>>`. [#2515]
+  - `ErrorHandlers` middleware's response types now use `ServiceResponse<EitherBody<B>>`. [#2515]
+  - `http::header::Encoding` now only represents `Content-Encoding` types. [#2501]
+  - `middleware::Condition` gained a broader middleware compatibility. [#2635]
+  - `Resource` no longer require service body type to be boxed. [#2526]
+  - `Scope` no longer require service body type to be boxed. [#2523]
+  - `web::Path`s inner field is now private. [#1894]
+  - `web::Payload`'s inner field is now private. [#2384]
+  - Error enums are now marked `#[non_exhaustive]`. [#2148]
+- Enum Variants:
+  - `Either` now uses `Left`/`Right` variants (instead of `A`/`B`) [#1894]
+  - Include size and limits in `JsonPayloadError::Overflow`. [#2162]
+- Methods:
+  - `App::data()` is deprecated; `App::app_data()` should be preferred. [#2271]
+  - `dev::JsonBody::new()` returns a default limit of 32kB to be consistent with `JsonConfig` and the default behaviour of the `web::Json<T>` extractor. [#2010]
+  - `dev::ServiceRequest::{into_parts, from_parts}()` can no longer fail. [#1893]
+  - `dev::ServiceRequest::from_request` can no longer fail. [#1893]
+  - `dev::ServiceResponse::error_response()` now uses body type of `BoxBody`. [#2201]
+  - `dev::ServiceResponse::map_body()` closure receives and returns `B` instead of `ResponseBody<B>`. [#2201]
+  - `http::header::ContentType::html()` now produces `text/html; charset=utf-8` instead of `text/html`. [#2423]
+  - `HttpRequest::url_for`'s constructed URLs no longer contain query or fragment. [#2430]
+  - `HttpResponseBuilder::json()` can now receive data by value and reference. [#1903]
+  - `HttpServer::{listen_rustls, bind_rustls}()` now honor the ALPN protocols in the configuration parameter. [#2226]
+  - `middleware::NormalizePath()` now will not try to normalize URIs with no valid path [#2246]
+  - `test::TestRequest::param()` now accepts more than just static strings. [#2172]
+  - `web::Data::into_inner()` and `Data::get_ref()` no longer require `T: Sized`. [#2403]
+  - Rename `HttpServer::{client_timeout => client_request_timeout}()`. [#2611]
+  - Rename `HttpServer::{client_shutdown => client_disconnect_timeout}()`. [#2611]
+  - Rename `http::header::Accept::{mime_precedence => ranked}()`. [#2480]
+  - Rename `http::header::Accept::{mime_preference => preference}()`. [#2480]
+  - Rename `middleware::DefaultHeaders::{content_type => add_content_type}()`. [#1875]
+  - Rename `dev::ConnectionInfo::{remote_addr => peer_addr}`, deprecating the old name. [#2554]
+- Trait Implementations:
+  - `HttpResponse` can now be used as a `Responder` with any body type. [#2567]
+- Misc:
+  - Maximum number of handler extractors has increased to 12. [#2582]
+  - The default `TrailingSlash` behavior is now `Trim`, in line with existing documentation. See migration guide for implications. [#1875]
+  - `Result` extractor wrapper can now convert error types. [#2581]
+  - Compress middleware will return `406 Not Acceptable` when no content encoding is acceptable to the client. [#2344]
+  - Adjusted default JSON payload limit to 2MB (from 32kb). [#2162]
+  - All error trait bounds in server service builders have changed from `Into<Error>` to `Into<Response<BoxBody>>`. [#2253]
+  - All error trait bounds in message body and stream impls changed from `Into<Error>` to `Into<Box<dyn std::error::Error>>`. [#2253]
+  - Improve spec compliance of `dev::ConnectionInfo` extractor. [#2282]
+  - Associated types in `FromRequest` implementation for `Option` and `Result` have changed. [#2581]
+  - Reduce the level from `error` to `debug` for the log line that is emitted when a `500 Internal Server Error` is built using `HttpResponse::from_error`. [#2201]
+  - Minimum supported Rust version (MSRV) is now 1.54.
 
+### Fixed
+- Auto-negotiation of content encoding is more fault-tolerant when using the `Compress` middleware. [#2501]
+- Scope and Resource middleware can access data items set on their own layer. [#2288]
+- Multiple calls to `App::data()` with the same type now keeps the latest call's data. [#1906]
+- Typed headers containing lists that require one or more items now enforce this minimum. [#2482]
+- `dev::ConnectionInfo::peer_addr` will no longer return the port number. [#2554]
+- `dev::ConnectionInfo::realip_remote_addr` will no longer return the port number if sourcing the IP from the peer's socket address. [#2554]
+- Accept wildcard `*` items in `AcceptLanguage`. [#2480]
+- Relax `Unpin` bound on `S` (stream) parameter of `HttpResponseBuilder::streaming`. [#2448]
+- Fix quality parse error in `http::header::AcceptEncoding` typed header. [#2344]
+- Double ampersand in `middleware::Logger` format is escaped correctly. [#2067]
+- Added the underlying parse error to `test::read_body_json`'s panic message. [#1812]
+
+### Security
+- `cookie` upgrade addresses [`RUSTSEC-2020-0071`].
+
+[`rustsec-2020-0071`]: https://rustsec.org/advisories/RUSTSEC-2020-0071.html
+
+### Removed
+- Crate Features:
+  - `compress` feature. [#2065]
+- Functions:
+  - `test::load_stream` and `test::load_body`; replace usage with `body::to_bytes`. [#2518]
+  - `test::start_with`; moved to new `actix-test` crate. [#2112]
+  - `test::start`; moved to new `actix-test` crate. [#2112]
+  - `test::unused_addr`; moved to new `actix-test` crate. [#2112]
+- Traits:
+  - `BodyEncoding`; signalling content encoding is now only done via the `Content-Encoding` header. [#2565]
+- Types:
+  - `dev::{BodySize, MessageBody, SizedStream}` re-exports; they are exposed through the `body` module. [#2468]
+  - `EitherExtractError` direct export. [#2510]
+  - `rt::{Arbiter, ArbiterHandle}` re-exports. [#2619]
+  - `test::TestServer`; moved to new `actix-test` crate. [#2112]
+  - `test::TestServerConfig`; moved to new `actix-test` crate. [#2112]
+  - `web::HttpRequest` re-export. [#2663]
+  - `web::HttpResponse` re-export. [#2663]
+- Methods:
+  - `AppService::set_service_data`; for custom HTTP service factories adding application data, use the layered data model by calling `ServiceRequest::add_data_container` when handling requests instead. [#1906]
+  - `dev::ConnectionInfo::get`. [#2487]
+  - `dev::ServiceResponse::checked_expr`. [#2401]
+  - `HttpRequestBuilder::del_cookie`. [#2591]
+  - `HttpResponse::take_body` and old `HttpResponse::into_body` method that casted body type. [#2201]
+  - `HttpResponseBuilder::json2()`. [#1903]
+  - `middleware::Compress::new`; restricting compression algorithm is done through feature flags. [#2501]
+  - `test::TestRequest::with_header()`; use `test::TestRequest::default().insert_header()`. [#1869]
+- Trait Implementations:
+  - Implementation of `From<either::Either>` for `Either` crate. [#2516]
+  - Implementation of `Future` for `HttpResponse`. [#2601]
+- Misc:
+  - The `client` module was removed; use the `awc` crate directly. [871ca5e4]
+  - `middleware::{normalize, err_handlers}` modules; all necessary middleware types are now exposed in the `middleware` module.
+
+[#1812]: https://github.com/actix/actix-web/pull/1812
+[#1813]: https://github.com/actix/actix-web/pull/1813
+[#1852]: https://github.com/actix/actix-web/pull/1852
+[#1865]: https://github.com/actix/actix-web/pull/1865
+[#1869]: https://github.com/actix/actix-web/pull/1869
+[#1875]: https://github.com/actix/actix-web/pull/1875
+[#1878]: https://github.com/actix/actix-web/pull/1878
+[#1891]: https://github.com/actix/actix-web/pull/1891
+[#1893]: https://github.com/actix/actix-web/pull/1893
+[#1894]: https://github.com/actix/actix-web/pull/1894
+[#1903]: https://github.com/actix/actix-web/pull/1903
+[#1905]: https://github.com/actix/actix-web/pull/1905
+[#1906]: https://github.com/actix/actix-web/pull/1906
+[#1933]: https://github.com/actix/actix-web/pull/1933
+[#1957]: https://github.com/actix/actix-web/pull/1957
+[#1957]: https://github.com/actix/actix-web/pull/1957
+[#1981]: https://github.com/actix/actix-web/pull/1981
+[#1988]: https://github.com/actix/actix-web/pull/1988
+[#2010]: https://github.com/actix/actix-web/pull/2010
+[#2065]: https://github.com/actix/actix-web/pull/2065
+[#2067]: https://github.com/actix/actix-web/pull/2067
+[#2093]: https://github.com/actix/actix-web/pull/2093
+[#2094]: https://github.com/actix/actix-web/pull/2094
+[#2097]: https://github.com/actix/actix-web/pull/2097
+[#2112]: https://github.com/actix/actix-web/pull/2112
+[#2148]: https://github.com/actix/actix-web/pull/2148
+[#2162]: https://github.com/actix/actix-web/pull/2162
+[#2172]: https://github.com/actix/actix-web/pull/2172
+[#2177]: https://github.com/actix/actix-web/pull/2177
+[#2200]: https://github.com/actix/actix-web/pull/2200
+[#2201]: https://github.com/actix/actix-web/pull/2201
+[#2201]: https://github.com/actix/actix-web/pull/2201
+[#2233]: https://github.com/actix/actix-web/pull/2233
+[#2246]: https://github.com/actix/actix-web/pull/2246
+[#2250]: https://github.com/actix/actix-web/pull/2250
+[#2253]: https://github.com/actix/actix-web/pull/2253
+[#2262]: https://github.com/actix/actix-web/pull/2262
+[#2263]: https://github.com/actix/actix-web/pull/2263
+[#2271]: https://github.com/actix/actix-web/pull/2271
+[#2282]: https://github.com/actix/actix-web/pull/2282
+[#2288]: https://github.com/actix/actix-web/pull/2288
+[#2325]: https://github.com/actix/actix-web/pull/2325
+[#2344]: https://github.com/actix/actix-web/pull/2344
+[#2362]: https://github.com/actix/actix-web/pull/2362
+[#2379]: https://github.com/actix/actix-web/pull/2379
+[#2384]: https://github.com/actix/actix-web/pull/2384
+[#2401]: https://github.com/actix/actix-web/pull/2401
+[#2403]: https://github.com/actix/actix-web/pull/2403
+[#2409]: https://github.com/actix/actix-web/pull/2409
+[#2414]: https://github.com/actix/actix-web/pull/2414
+[#2423]: https://github.com/actix/actix-web/pull/2423
+[#2430]: https://github.com/actix/actix-web/pull/2430
+[#2442]: https://github.com/actix/actix-web/pull/2442
+[#2446]: https://github.com/actix/actix-web/pull/2446
+[#2448]: https://github.com/actix/actix-web/pull/2448
+[#2468]: https://github.com/actix/actix-web/pull/2468
+[#2474]: https://github.com/actix/actix-web/pull/2474
+[#2480]: https://github.com/actix/actix-web/pull/2480
+[#2482]: https://github.com/actix/actix-web/pull/2482
+[#2484]: https://github.com/actix/actix-web/pull/2484
+[#2485]: https://github.com/actix/actix-web/pull/2485
+[#2487]: https://github.com/actix/actix-web/pull/2487
+[#2491]: https://github.com/actix/actix-web/pull/2491
+[#2492]: https://github.com/actix/actix-web/pull/2492
+[#2493]: https://github.com/actix/actix-web/pull/2493
+[#2499]: https://github.com/actix/actix-web/pull/2499
+[#2501]: https://github.com/actix/actix-web/pull/2501
+[#2510]: https://github.com/actix/actix-web/pull/2510
+[#2515]: https://github.com/actix/actix-web/pull/2515
+[#2516]: https://github.com/actix/actix-web/pull/2516
+[#2518]: https://github.com/actix/actix-web/pull/2518
+[#2523]: https://github.com/actix/actix-web/pull/2523
+[#2526]: https://github.com/actix/actix-web/pull/2526
+[#2552]: https://github.com/actix/actix-web/pull/2552
+[#2554]: https://github.com/actix/actix-web/pull/2554
+[#2555]: https://github.com/actix/actix-web/pull/2555
+[#2565]: https://github.com/actix/actix-web/pull/2565
+[#2567]: https://github.com/actix/actix-web/pull/2567
+[#2569]: https://github.com/actix/actix-web/pull/2569
+[#2581]: https://github.com/actix/actix-web/pull/2581
+[#2582]: https://github.com/actix/actix-web/pull/2582
+[#2584]: https://github.com/actix/actix-web/pull/2584
+[#2585]: https://github.com/actix/actix-web/pull/2585
+[#2586]: https://github.com/actix/actix-web/pull/2586
+[#2591]: https://github.com/actix/actix-web/pull/2591
+[#2594]: https://github.com/actix/actix-web/pull/2594
+[#2601]: https://github.com/actix/actix-web/pull/2601
+[#2611]: https://github.com/actix/actix-web/pull/2611
+[#2619]: https://github.com/actix/actix-web/pull/2619
+[#2625]: https://github.com/actix/actix-web/pull/2625
+[#2635]: https://github.com/actix/actix-web/pull/2635
 [#2659]: https://github.com/actix/actix-web/pull/2659
+[#2663]: https://github.com/actix/actix-web/pull/2663
+[871ca5e4]: https://github.com/actix/actix-web/commit/871ca5e4ae2bdc22d1ea02701c2992fa8d04aed7
 
+
+<details>
+<summary>4.0.0 Pre-Releases</summary>
 
 ## 4.0.0-rc.3 - 2022-02-08
 ### Changed
@@ -456,6 +721,7 @@
 [#1875]: https://github.com/actix/actix-web/pull/1875
 [#1878]: https://github.com/actix/actix-web/pull/1878
 
+</details>
 
 ## 3.3.3 - 2021-12-18
 ### Changed

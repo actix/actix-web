@@ -4,6 +4,14 @@
 
 
 ## 3.0.0 - 2022-02-25
+### Dependencies
+- Updated `actix-*` to Tokio v1-based versions. [#1813]
+- Updated `bytes` to `1.0`. [#1813]
+- Updated `h2` to `0.3`. [#1813]
+- Updated `rustls` to `0.20.0`. [#2414]
+- Updated `language-tags` to `0.3`.
+- Updated `tokio` to `1`.
+
 ### Added
 - Crate Features:
   - `ws`; disabled by default. [#2618]
@@ -54,6 +62,7 @@
   - Implement `Default` for `ws::Codec`. [#1920]
   - Implement `Display` for `header::Quality`. [#2486]
   - Implement `Eq` for `header::ContentEncoding`. [#2501]
+  - Implement `ExactSizeIterator` and `FusedIterator` for all `HeaderMap` iterators. [#2470]
   - Implement `From<Duration>` for `KeepAlive`. [#2611]
   - Implement `From<Option<Duration>>` for `KeepAlive`. [#2611]
   - Implement `From<Vec<u8>>` for `Response<Vec<u8>>`. [#2625]
@@ -72,7 +81,6 @@
   - `#[must_use]` for `ws::Codec` to prevent subtle bugs. [#1920]
 
 ### Changed
-- Functions:
 - Traits:
   - Rename `IntoHeaderValue => TryIntoHeaderValue`. [#2510]
   - `MessageBody` now has an associated `Error` type. [#2183]
@@ -80,7 +88,7 @@
   - `Protocol` enum is now marked `#[non_exhaustive]`.
   - `error::DispatcherError` enum is now marked `#[non_exhaustive]`. [#2624]
   - `ContentEncoding` is now marked `#[non_exhaustive]`. [#2377]
-  - Error enum types are marked `#[non_exhaustive]`. [#2161]
+  - Error enums are marked `#[non_exhaustive]`. [#2161]
   - Rename `PayloadStream` to `BoxedPayloadStream`. [#2545]
   - The body type parameter of `Response` no longer has a default. [#2152]
 - Enum Variants:
@@ -88,7 +96,6 @@
   - `Payload` inner fields are now named. [#2545]
   - `ws::Message::Text` now contains a `bytestring::ByteString`. [#1864]
 - Methods:
-  - `ServiceConfig::keep_alive` now returns a `KeepAlive`. [#2611]
   - Rename `ServiceConfig::{client_timer_expire => client_request_deadline}`. [#2611]
   - Rename `ServiceConfig::{client_disconnect_timer => client_disconnect_deadline}`. [#2611]
   - Rename `h1::Codec::{keepalive => keep_alive}`. [#2611]
@@ -98,34 +105,29 @@
   - Rename `header::EntityTag::{weak => new_weak, strong => new_strong}`. [#2565]
   - Rename `TryIntoHeaderValue::{try_into => try_into_value}` to avoid ambiguity with std `TryInto` trait. [#1894]
   - Deadline methods in `ServiceConfig` now return `std::time::Instant`s instead of Tokio's wrapper type. [#2611]
-  - `HeaderMap::get_all` now returns a `std::slice::Iter`. [#2527]
-  - `ResponseBuilder::body(B)` now returns `Response<EitherBody<B>>`. [#2468]
-  - `ResponseBuilder::finish()` now returns `Response<EitherBody<()>>`. [#2468]
-  - `Encoder::response` now returns `AnyBody<Encoder<B>>`. [#2448]
-  - `ResponseBuilder::message_body` now returns a `Result`. [#2201]∑
   - Places in `Response` where `ResponseBody<B>` was received or returned now simply use `B`. [#2201]
-  - `ws::hash_key` now returns array. [#2035]
-  - `ResponseBuilder::json` now takes `impl Serialize`. [#2052]
-  - `ResponseBuilder::content_type` now takes an `impl TryIntoHeaderValue` to support using typed `mime` types. [#1894]
+  - `encoding::Encoder::response` now returns `AnyBody<Encoder<B>>`. [#2448]
   - `Extensions::insert` returns replaced item. [#1904]
-  - `HeaderMap::len` now returns number of values instead of number of keys. [#1964]
+  - `HeaderMap::get_all` now returns a `std::slice::Iter`. [#2527]
   - `HeaderMap::insert` now returns iterator of removed values. [#1964]
+  - `HeaderMap::len` now returns number of values instead of number of keys. [#1964]
   - `HeaderMap::remove` now returns iterator of removed values. [#1964]
+  - `ResponseBuilder::body(B)` now returns `Response<EitherBody<B>>`. [#2468]
+  - `ResponseBuilder::content_type` now takes an `impl TryIntoHeaderValue` to support using typed `mime` types. [#1894]
+  - `ResponseBuilder::finish()` now returns `Response<EitherBody<()>>`. [#2468]
+  - `ResponseBuilder::json` now takes `impl Serialize`. [#2052]
+  - `ResponseBuilder::message_body` now returns a `Result`. [#2201]∑
+  - `ServiceConfig::keep_alive` now returns a `KeepAlive`. [#2611]
+  - `ws::hash_key` now returns array. [#2035]
 - Trait Implementations:
   - Implementation of `Stream` for `Payload` no longer requires the `Stream` variant be `Unpin`. [#2545]
   - Implementation of `Future` for `h1::SendResponse` no longer requires the body type be `Unpin`. [#2545]
   - Implementation of `Stream` for `encoding::Decoder` no longer requires the stream type be `Unpin`. [#2545]
-  - `From` implementations on error types now return a `Response<BoxBody>`. [#2468]
-  - Implement `ExactSizeIterator` and `FusedIterator` for all `HeaderMap` iterators. [#2470]
-- Dependencies:
-  - Updated `actix-*` dependencies to tokio `1.0` based versions. [#1813]
-  - Updated `bytes` to `1.0`. [#1813]
-  - Updated `h2` to `0.3`. [#1813]
-  - Updated `rustls` to `0.20.0`. [#2414]
-  - Updated `language-tags` to `0.3`.
+  - Implementation of `From` for error types now return a `Response<BoxBody>`. [#2468]
 - Misc:
-  - `header` mod is now public. [#2171]
-  - `uri` mod is now public. [#2171]
+  - `header` module is now public. [#2171]
+  - `uri` module is now public. [#2171]
+  - Request-local data container is no longer part of a `RequestHead`. Instead it is a distinct part of a `Request`. [#2487]
   - All error trait bounds in server service builders have changed from `Into<Error>` to `Into<Response<BoxBody>>`. [#2253]
   - All error trait bounds in message body and stream impls changed from `Into<Error>` to `Into<Box<dyn std::error::Error>>`. [#2253]
   - Guarantee ordering of `header::GetAll` iterator to be same as insertion order. [#2467]
