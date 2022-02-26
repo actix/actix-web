@@ -111,6 +111,8 @@ The inner field for `web::Path` is now private. It was causing ambiguity when tr
 +   let (foo, bar) = params.into_inner();
 ```
 
+An alternative [path param type with public field but no `Deref` impl is available in `actix-web-lab`](https://docs.rs/actix-web-lab/0.12.0/actix_web_lab/extract/struct.Path.html).
+
 ## Rustls Crate Upgrade
 
 Actix Web now depends on version 0.20 of `rustls`. As a result, the server config builder has changed. [See the updated example project.](https://github.com/actix/examples/tree/master/https-tls/rustls/)
