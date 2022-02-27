@@ -3,6 +3,7 @@
 //! ## Crate Features
 //! | Feature             | Functionality                               |
 //! | ------------------- | ------------------------------------------- |
+//! | `http2`             | HTTP/2 support via [h2].                    |
 //! | `openssl`           | TLS support via [OpenSSL].                  |
 //! | `rustls`            | TLS support via [rustls].                   |
 //! | `compress-brotli`   | Payload compression support: Brotli.        |
@@ -10,6 +11,7 @@
 //! | `compress-zstd`     | Payload compression support: Zstd.          |
 //! | `trust-dns`         | Use [trust-dns] as the client DNS resolver. |
 //!
+//! [h2]: https://crates.io/crates/h2
 //! [OpenSSL]: https://crates.io/crates/openssl
 //! [rustls]: https://crates.io/crates/rustls
 //! [trust-dns]: https://crates.io/crates/trust-dns

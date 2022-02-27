@@ -121,12 +121,10 @@ pub trait FromRequest: Sized {
 ///     }
 /// }
 ///
-/// fn main() {
-///     let app = App::new().service(
-///         web::resource("/users/:first").route(
-///             web::post().to(index))
-///     );
-/// }
+/// let app = App::new().service(
+///     web::resource("/users/:first").route(
+///         web::post().to(index))
+/// );
 /// ```
 impl<T> FromRequest for Option<T>
 where
@@ -208,11 +206,9 @@ where
 ///     }
 /// }
 ///
-/// fn main() {
-///     let app = App::new().service(
-///         web::resource("/users/:first").route(web::post().to(index))
-///     );
-/// }
+/// let app = App::new().service(
+///     web::resource("/users/:first").route(web::post().to(index))
+/// );
 /// ```
 impl<T, E> FromRequest for Result<T, E>
 where

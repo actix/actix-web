@@ -89,7 +89,7 @@ where
 /// ```
 ///
 /// # Panics
-/// Panics if service call returns error.
+/// Panics if service call returns error. To handle errors use `app.call(req)`.
 pub async fn call_service<S, R, B, E>(app: &S, req: R) -> S::Response
 where
     S: Service<R, Response = ServiceResponse<B>, Error = E>,

@@ -1,4 +1,4 @@
-# Changes
+# Changelog
 
 Changelogs are kept separately for each crate in this repo.
 

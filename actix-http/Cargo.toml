@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "3.0.0-rc.2"
+version = "3.0.0"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
     "Rob Ede <robjtede@icloud.com>",
@@ -20,7 +20,7 @@ edition = "2018"
 
 [package.metadata.docs.rs]
 # features that docs.rs will build with
-features = ["openssl", "rustls", "compress-brotli", "compress-gzip", "compress-zstd"]
+features = ["http2", "openssl", "rustls", "compress-brotli", "compress-gzip", "compress-zstd"]
 
 [lib]
 name = "actix_http"
@@ -57,7 +57,7 @@ __compress = []
 
 [dependencies]
 actix-service = "2"
-actix-codec = "0.4.1"
+actix-codec = "0.5"
 actix-utils = "3"
 actix-rt = { version = "2.2", default-features = false }
 
@@ -89,7 +89,7 @@ rand = { version = "0.8", optional = true }
 sha-1 = { version = "0.10", optional = true }
 
 # openssl/rustls
-actix-tls = { version = "3.0.0", default-features = false, optional = true }
+actix-tls = { version = "3", default-features = false, optional = true }
 
 # compress-*
 brotli = { version = "3.3.3", optional = true }
@@ -97,10 +97,10 @@ flate2 = { version = "1.0.13", optional = true }
 zstd = { version = "0.10", optional = true }
 
 [dev-dependencies]
-actix-http-test = { version = "3.0.0-beta.12", features = ["openssl"] }
+actix-http-test = { version = "3.0.0-beta.13", features = ["openssl"] }
 actix-server = "2"
-actix-tls = { version = "3.0.0", features = ["openssl"] }
-actix-web = "4.0.0-rc.3"
+actix-tls = { version = "3", features = ["openssl"] }
+actix-web = "4.0.0"
 
 async-stream = "0.3"
 criterion = { version = "0.3", features = ["html_reports"] }

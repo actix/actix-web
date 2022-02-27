@@ -290,12 +290,10 @@ where
     ///     Ok(HttpResponse::Ok().into())
     /// }
     ///
-    /// fn main() {
-    ///     let app = App::new()
-    ///         .service(web::resource("/index.html").route(
-    ///             web::get().to(index)))
-    ///         .external_resource("youtube", "https://youtube.com/watch/{video_id}");
-    /// }
+    /// let app = App::new()
+    ///     .service(web::resource("/index.html").route(
+    ///         web::get().to(index)))
+    ///     .external_resource("youtube", "https://youtube.com/watch/{video_id}");
     /// ```
     pub fn external_resource<N, U>(mut self, name: N, url: U) -> Self
     where

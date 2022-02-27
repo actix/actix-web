@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "4.0.0-rc.3"
+version = "4.0.1"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
     "Rob Ede <robjtede@icloud.com>",
@@ -63,7 +63,7 @@ __compress = []
 experimental-io-uring = ["actix-server/io-uring"]
 
 [dependencies]
-actix-codec = "0.4.1"
+actix-codec = "0.5"
 actix-macros = { version = "0.2.3", optional = true }
 actix-rt = { version = "2.6", default-features = false }
 actix-server = "2"
@@ -71,12 +71,13 @@ actix-service = "2"
 actix-utils = "3"
 actix-tls = { version = "3", default-features = false, optional = true }
 
-actix-http = { version = "3.0.0-rc.2", features = ["http2", "ws"] }
-actix-router = "0.5.0-rc.3"
-actix-web-codegen = { version = "0.5.0-rc.2", optional = true }
+actix-http = { version = "3.0.0", features = ["http2", "ws"] }
+actix-router = "0.5.0"
+actix-web-codegen = { version = "4.0.0", optional = true }
 
 ahash = "0.7"
 bytes = "1"
+bytestring = "1"
 cfg-if = "1"
 cookie = { version = "0.16", features = ["percent-encode"], optional = true }
 derive_more = "0.99.5"
@@ -99,9 +100,9 @@ time = { version = "0.3", default-features = false, features = ["formatting"] }
 url = "2.1"
 
 [dev-dependencies]
-actix-files = "0.6.0-beta.16"
-actix-test = { version = "0.1.0-beta.12", features = ["openssl", "rustls"] }
-awc = { version = "3.0.0-beta.20", features = ["openssl"] }
+actix-files = "0.6.0"
+actix-test = { version = "0.1.0-beta.13", features = ["openssl", "rustls"] }
+awc = { version = "3.0.0-beta.21", features = ["openssl"] }
 
 brotli = "3.3.3"
 const-str = "0.3"

@@ -81,7 +81,7 @@ async fn chunked_read_file_callback(
 ) -> Result<(File, Bytes), Error> {
     use io::{Read as _, Seek as _};
 
-    let res = actix_web::rt::task::spawn_blocking(move || {
+    let res = actix_web::web::block(move || {
         let mut buf = Vec::with_capacity(max_bytes);
 
         file.seek(io::SeekFrom::Start(offset))?;
@@ -94,8 +94,7 @@ async fn chunked_read_file_callback(
             Ok((file, Bytes::from(buf)))
         }
     })
-    .await
-    .map_err(|_| actix_web::error::BlockingError)??;
+    .await??;
 
     Ok(res)
 }
