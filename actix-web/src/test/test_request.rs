@@ -24,10 +24,10 @@ use crate::cookie::{Cookie, CookieJar};
 ///
 /// For unit testing, actix provides a request builder type and a simple handler runner. TestRequest implements a builder-like pattern.
 /// You can generate various types of request via TestRequest's methods:
-///  * `TestRequest::to_request` creates `actix_http::Request` instance.
-///  * `TestRequest::to_srv_request` creates `ServiceRequest` instance, which is used for testing middlewares and chain adapters.
-///  * `TestRequest::to_srv_response` creates `ServiceResponse` instance.
-///  * `TestRequest::to_http_request` creates `HttpRequest` instance, which is used for testing handlers.
+/// - [`TestRequest::to_request`] creates an [`actix_http::Request`](Request).
+/// - [`TestRequest::to_srv_request`] creates a [`ServiceRequest`], which is used for testing middlewares and chain adapters.
+/// - [`TestRequest::to_srv_response`] creates a [`ServiceResponse`].
+/// - [`TestRequest::to_http_request`] creates an [`HttpRequest`], which is used for testing handlers.
 ///
 /// ```
 /// use actix_web::{test, HttpRequest, HttpResponse, HttpMessage};
@@ -42,8 +42,10 @@ use crate::cookie::{Cookie, CookieJar};
 /// }
 ///
 /// #[actix_web::test]
+/// # // force rustdoc to display the correct thing and also compile check the test
+/// # async fn _test() {}
 /// async fn test_index() {
-///     let req = test::TestRequest::default().insert_header(("content-type", "text/plain"))
+///     let req = test::TestRequest::default().insert_header(header::ContentType::plaintext())
 ///         .to_http_request();
 ///
 ///     let resp = index(req).await;
