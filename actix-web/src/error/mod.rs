@@ -6,7 +6,7 @@
 //
 // See <https://github.com/rust-lang/rust/issues/83375>
 pub use actix_http::error::{
-    BlockingError, ContentTypeError, DispatchError, HttpError, ParseError, PayloadError,
+    ContentTypeError, DispatchError, HttpError, ParseError, PayloadError,
 };
 
 use derive_more::{Display, Error, From};
@@ -32,6 +32,14 @@ pub(crate) use macros::{downcast_dyn, downcast_get_type_id};
 ///
 /// This type alias is generally used to avoid writing out `actix_http::Error` directly.
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// An error representing a problem running a blocking task on a thread pool.
+#[derive(Debug, Display, Error)]
+#[display(fmt = "Blocking thread pool is shut down unexpectedly")]
+#[non_exhaustive]
+pub struct BlockingError;
+
+impl ResponseError for crate::error::BlockingError {}
 
 /// Errors which can occur when attempting to generate resource uri.
 #[derive(Debug, PartialEq, Display, Error, From)]

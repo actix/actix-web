@@ -407,12 +407,10 @@ impl Drop for HttpRequest {
 ///    format!("Got thing: {:?}", req)
 /// }
 ///
-/// fn main() {
-///     let app = App::new().service(
-///         web::resource("/users/{first}").route(
-///             web::get().to(index))
-///     );
-/// }
+/// let app = App::new().service(
+///     web::resource("/users/{first}").route(
+///         web::get().to(index))
+/// );
 /// ```
 impl FromRequest for HttpRequest {
     type Error = Error;

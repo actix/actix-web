@@ -1,4 +1,18 @@
 //! Essentials helper functions and types for application registration.
+//!
+//! # Request Extractors
+//! - [`Data`]: Application data item
+//! - [`ReqData`]: Request-local data item
+//! - [`Path`]: URL path parameters / dynamic segments
+//! - [`Query`]: URL query parameters
+//! - [`Header`]: Typed header
+//! - [`Json`]: JSON payload
+//! - [`Form`]: URL-encoded payload
+//! - [`Bytes`]: Raw payload
+//!
+//! # Responders
+//! - [`Json`]: JSON request payload
+//! - [`Bytes`]: Raw request payload
 
 use std::future::Future;
 
@@ -12,9 +26,7 @@ use crate::{
 
 pub use crate::config::ServiceConfig;
 pub use crate::data::Data;
-pub use crate::request::HttpRequest;
 pub use crate::request_data::ReqData;
-pub use crate::response::HttpResponse;
 pub use crate::types::*;
 
 /// Creates a new resource for a specific path.

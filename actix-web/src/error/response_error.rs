@@ -6,20 +6,22 @@ use std::{
     io::{self, Write as _},
 };
 
-use actix_http::{
-    body::BoxBody,
-    header::{self, TryIntoHeaderValue},
-    Response, StatusCode,
-};
+use actix_http::Response;
 use bytes::BytesMut;
 
 use crate::{
+    body::BoxBody,
     error::{downcast_dyn, downcast_get_type_id},
-    helpers, HttpResponse,
+    helpers,
+    http::{
+        header::{self, TryIntoHeaderValue},
+        StatusCode,
+    },
+    HttpResponse,
 };
 
 /// Errors that can generate responses.
-// TODO: add std::error::Error bound when replacement for Box<dyn Error> is found
+// TODO: flesh out documentation
 pub trait ResponseError: fmt::Debug + fmt::Display {
     /// Returns appropriate status code for error.
     ///
@@ -73,7 +75,6 @@ impl ResponseError for std::str::Utf8Error {
 
 impl ResponseError for std::io::Error {
     fn status_code(&self) -> StatusCode {
-        // TODO: decide if these errors should consider not found or permission errors
         match self.kind() {
             io::ErrorKind::NotFound => StatusCode::NOT_FOUND,
             io::ErrorKind::PermissionDenied => StatusCode::FORBIDDEN,
@@ -86,7 +87,6 @@ impl ResponseError for actix_http::error::HttpError {}
 
 impl ResponseError for actix_http::Error {
     fn status_code(&self) -> StatusCode {
-        // TODO: map error kinds to status code better
         StatusCode::INTERNAL_SERVER_ERROR
     }
 
@@ -106,8 +106,6 @@ impl ResponseError for actix_http::error::ParseError {
         StatusCode::BAD_REQUEST
     }
 }
-
-impl ResponseError for actix_http::error::BlockingError {}
 
 impl ResponseError for actix_http::error::PayloadError {
     fn status_code(&self) -> StatusCode {

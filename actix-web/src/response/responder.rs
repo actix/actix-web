@@ -7,14 +7,35 @@ use actix_http::{
 };
 use bytes::{Bytes, BytesMut};
 
-use crate::{Error, HttpRequest, HttpResponse};
-
 use super::CustomizeResponder;
+use crate::{Error, HttpRequest, HttpResponse};
 
 /// Trait implemented by types that can be converted to an HTTP response.
 ///
-/// Any types that implement this trait can be used in the return type of a handler.
-// # TODO: more about implementation notes and foreign impls
+/// Any types that implement this trait can be used in the return type of a handler. Since handlers
+/// will only have one return type, it is idiomatic to use opaque return types `-> impl Responder`.
+///
+/// # Implementations
+/// It is often not required to implement `Responder` for your own types due to a broad base of
+/// built-in implementations:
+/// - `HttpResponse` and `HttpResponseBuilder`
+/// - `Option<R>` where `R: Responder`
+/// - `Result<R, E>` where `R: Responder` and [`E: ResponseError`](crate::ResponseError)
+/// - `(R, StatusCode) where `R: Responder`
+/// - `&'static str`, `String`, `&'_ String`, `Cow<'_, str>`, [`ByteString`](bytestring::ByteString)
+/// - `&'static [u8]`, `Vec<u8>`, `Bytes`, `BytesMut`
+/// - [`Json<T>`](crate::web::Json) and [`Form<T>`](crate::web::Form) where `T: Serialize`
+/// - [`Either<L, R>`](crate::web::Either) where `L: Serialize` and `R: Serialize`
+/// - [`CustomizeResponder<R>`]
+/// - [`actix_files::NamedFile`](https://docs.rs/actix-files/latest/actix_files/struct.NamedFile.html)
+/// - [Experimental responders from `actix-web-lab`](https://docs.rs/actix-web-lab/latest/actix_web_lab/respond/index.html)
+/// - Third party integrations may also have implemented `Responder` where appropriate. For example,
+///   HTML templating engines.
+///
+/// # Customizing Responder Output
+/// Calling [`.customize()`](Responder::customize) on any responder type will wrap it in a
+/// [`CustomizeResponder`] capable of overriding various parts of the response such as the status
+/// code and header map.
 pub trait Responder {
     type Body: MessageBody + 'static;
 
@@ -23,7 +44,7 @@ pub trait Responder {
 
     /// Wraps responder to allow alteration of its response.
     ///
-    /// See [`CustomizeResponder`] docs for its capabilities.
+    /// See [`CustomizeResponder`] docs for more details on its capabilities.
     ///
     /// # Examples
     /// ```
@@ -84,11 +105,8 @@ impl Responder for actix_http::ResponseBuilder {
     }
 }
 
-impl<T> Responder for Option<T>
-where
-    T: Responder,
-{
-    type Body = EitherBody<T::Body>;
+impl<R: Responder> Responder for Option<R> {
+    type Body = EitherBody<R::Body>;
 
     fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
         match self {
@@ -98,12 +116,12 @@ where
     }
 }
 
-impl<T, E> Responder for Result<T, E>
+impl<R, E> Responder for Result<R, E>
 where
-    T: Responder,
+    R: Responder,
     E: Into<Error>,
 {
-    type Body = EitherBody<T::Body>;
+    type Body = EitherBody<R::Body>;
 
     fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
         match self {
@@ -113,8 +131,8 @@ where
     }
 }
 
-impl<T: Responder> Responder for (T, StatusCode) {
-    type Body = T::Body;
+impl<R: Responder> Responder for (R, StatusCode) {
+    type Body = R::Body;
 
     fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
         let mut res = self.0.respond_to(req);
@@ -147,6 +165,7 @@ impl_responder_by_forward_into_base_response!(BytesMut);
 
 impl_responder_by_forward_into_base_response!(&'static str);
 impl_responder_by_forward_into_base_response!(String);
+impl_responder_by_forward_into_base_response!(bytestring::ByteString);
 
 macro_rules! impl_into_string_responder {
     ($res:ty) => {

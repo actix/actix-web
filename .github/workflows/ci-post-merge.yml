@@ -152,3 +152,34 @@ jobs:
   #     - name: Upload to Codecov
   #       uses: codecov/codecov-action@v1
   #       with: { file: cobertura.xml }
+
+  nextest:
+    name: nextest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - name: Generate Cargo.lock
+        uses: actions-rs/cargo@v1
+        with: { command: generate-lockfile }
+      - name: Cache Dependencies
+        uses: Swatinem/rust-cache@v1.3.0
+
+      - name: Install cargo-nextest
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-nextest
+
+      - name: Test with cargo-nextest
+        uses: actions-rs/cargo@v1
+        with:
+          command: nextest
+          args: run
