@@ -2,6 +2,10 @@
 //!
 //! Most users will not have to interact with the types in this module, but it is useful for those
 //! writing extractors, middleware, libraries, or interacting with the service API directly.
+//!
+//! # Request Extractors
+//! - [`ConnectionInfo`]: Connection information
+//! - [`PeerAddr`]: Connection information
 
 pub use actix_http::{Extensions, Payload, RequestHead, Response, ResponseHead};
 pub use actix_router::{Path, ResourceDef, ResourcePath, Url};

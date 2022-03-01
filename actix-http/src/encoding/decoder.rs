@@ -19,7 +19,7 @@ use zstd::stream::write::Decoder as ZstdDecoder;
 
 use crate::{
     encoding::Writer,
-    error::{BlockingError, PayloadError},
+    error::PayloadError,
     header::{ContentEncoding, HeaderMap, CONTENT_ENCODING},
 };
 
@@ -47,14 +47,17 @@ where
             ContentEncoding::Brotli => Some(ContentDecoder::Brotli(Box::new(
                 brotli::DecompressorWriter::new(Writer::new(), 8_096),
             ))),
+
             #[cfg(feature = "compress-gzip")]
             ContentEncoding::Deflate => Some(ContentDecoder::Deflate(Box::new(
                 ZlibDecoder::new(Writer::new()),
             ))),
+
             #[cfg(feature = "compress-gzip")]
             ContentEncoding::Gzip => Some(ContentDecoder::Gzip(Box::new(GzDecoder::new(
                 Writer::new(),
             )))),
+
             #[cfg(feature = "compress-zstd")]
             ContentEncoding::Zstd => Some(ContentDecoder::Zstd(Box::new(
                 ZstdDecoder::new(Writer::new()).expect(
@@ -98,8 +101,12 @@ where
 
         loop {
             if let Some(ref mut fut) = this.fut {
-                let (chunk, decoder) =
-                    ready!(Pin::new(fut).poll(cx)).map_err(|_| BlockingError)??;
+                let (chunk, decoder) = ready!(Pin::new(fut).poll(cx)).map_err(|_| {
+                    PayloadError::Io(io::Error::new(
+                        io::ErrorKind::Other,
+                        "Blocking task was cancelled unexpectedly",
+                    ))
+                })??;
 
                 *this.decoder = Some(decoder);
                 this.fut.take();
@@ -159,10 +166,13 @@ where
 enum ContentDecoder {
     #[cfg(feature = "compress-gzip")]
     Deflate(Box<ZlibDecoder<Writer>>),
+
     #[cfg(feature = "compress-gzip")]
     Gzip(Box<GzDecoder<Writer>>),
+
     #[cfg(feature = "compress-brotli")]
     Brotli(Box<brotli::DecompressorWriter<Writer>>),
+
     // We need explicit 'static lifetime here because ZstdDecoder need lifetime
     // argument, and we use `spawn_blocking` in `Decoder::poll_next` that require `FnOnce() -> R + Send + 'static`
     #[cfg(feature = "compress-zstd")]

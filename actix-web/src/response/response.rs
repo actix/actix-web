@@ -323,12 +323,6 @@ impl From<Error> for HttpResponse {
 impl<B> From<HttpResponse<B>> for Response<B> {
     fn from(res: HttpResponse<B>) -> Self {
         // this impl will always be called as part of dispatcher
-
-        // TODO: expose cause somewhere?
-        // if let Some(err) = res.error {
-        //     return Response::from_error(err);
-        // }
-
         res.res
     }
 }

@@ -931,10 +931,16 @@ where
                 "dispatcher should not be in keep-alive phase if state is not none: {:?}",
                 this.state,
             );
-            debug_assert!(
-                this.write_buf.is_empty(),
-                "dispatcher should not be in keep-alive phase if write_buf is not empty",
-            );
+
+            // Assert removed by @robjtede on account of issue #2655. There are cases where an I/O
+            // flush can be pending after entering the keep-alive state causing the subsequent flush
+            // wake up to panic here. This appears to be a Linux-only problem. Leaving original code
+            // below for posterity because a simple and reliable test could not be found to trigger
+            // the behavior.
+            // debug_assert!(
+            //     this.write_buf.is_empty(),
+            //     "dispatcher should not be in keep-alive phase if write_buf is not empty",
+            // );
 
             // keep-alive timer has timed out
             if timer.as_mut().poll(cx).is_ready() {

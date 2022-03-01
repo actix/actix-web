@@ -96,18 +96,18 @@ impl NamedFile {
     ///
     /// # Examples
     /// ```ignore
+    /// use std::{
+    ///     io::{self, Write as _},
+    ///     env,
+    ///     fs::File
+    /// };
     /// use actix_files::NamedFile;
-    /// use std::io::{self, Write};
-    /// use std::env;
-    /// use std::fs::File;
     ///
-    /// fn main() -> io::Result<()> {
-    ///     let mut file = File::create("foo.txt")?;
-    ///     file.write_all(b"Hello, world!")?;
-    ///     let named_file = NamedFile::from_file(file, "bar.txt")?;
-    ///     # std::fs::remove_file("foo.txt");
-    ///     Ok(())
-    /// }
+    /// let mut file = File::create("foo.txt")?;
+    /// file.write_all(b"Hello, world!")?;
+    /// let named_file = NamedFile::from_file(file, "bar.txt")?;
+    /// # std::fs::remove_file("foo.txt");
+    /// Ok(())
     /// ```
     pub fn from_file<P: AsRef<Path>>(file: File, path: P) -> io::Result<NamedFile> {
         let path = path.as_ref().to_path_buf();
