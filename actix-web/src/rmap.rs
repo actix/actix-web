@@ -151,7 +151,7 @@ impl ResourceMap {
                 .char_indices()
                 .filter_map(|(i, c)| (c == '/').then(|| i))
                 .nth(2)
-                .unwrap_or_else(|| path.len());
+                .unwrap_or(path.len());
 
             (
                 Cow::Borrowed(&path[..third_slash_index]),
