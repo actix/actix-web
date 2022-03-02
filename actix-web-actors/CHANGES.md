@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+- Add support for `actix` version `0.13`. [#????]
+
+[#????]: https://github.com/actix/actix-web/pull/????
 
 
 ## 4.0.0 - 2022-02-25
