@@ -29,7 +29,7 @@ Headings marked with :warning: are **breaking behavioral changes**. They will pr
 - [Server Must Be Polled :warning:](#server-must-be-polled-warning)
 - [Guards API](#guards-api)
 - [Returning `HttpResponse` synchronously](#returning-httpresponse-synchronously)
-- [`#[actix_web::main]` and `#[tokio::main]`](#actixwebmain-and-tokiomain)
+- [`#[actix_web::main]` and `#[tokio::main]`](#actix_webmain-and-tokiomain)
 - [`web::block`](#webblock)
 
 ## MSRV
