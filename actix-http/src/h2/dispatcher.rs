@@ -25,7 +25,9 @@ use pin_project_lite::pin_project;
 use crate::{
     body::{BodySize, BoxBody, MessageBody},
     config::ServiceConfig,
-    header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING},
+    header::{
+        HeaderName, HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING, UPGRADE,
+    },
     service::HttpFlow,
     Extensions, OnConnectData, Payload, Request, Response, ResponseHead,
 };
@@ -306,13 +308,22 @@ fn prepare_response(
 
     // copy headers
     for (key, value) in head.headers.iter() {
-        match *key {
-            // TODO: consider skipping other headers according to:
-            //       https://datatracker.ietf.org/doc/html/rfc7540#section-8.1.2.2
-            // omit HTTP/1.x only headers
-            CONNECTION | TRANSFER_ENCODING => continue,
-            CONTENT_LENGTH if skip_len => continue,
-            DATE => has_date = true,
+        match key {
+            // omit HTTP/1.x only headers according to:
+            // https://datatracker.ietf.org/doc/html/rfc7540#section-8.1.2.2
+            &CONNECTION | &TRANSFER_ENCODING | &UPGRADE => continue,
+
+            &CONTENT_LENGTH if skip_len => continue,
+            &DATE => has_date = true,
+
+            // omit HTTP/1.x only headers according to:
+            // https://datatracker.ietf.org/doc/html/rfc7540#section-8.1.2.2
+            hdr if hdr == HeaderName::from_static("keep-alive")
+                || hdr == HeaderName::from_static("proxy-connection") =>
+            {
+                continue
+            }
+
             _ => {}
         }
 

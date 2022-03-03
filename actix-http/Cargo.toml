@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "3.0.0-rc.3"
+version = "3.0.0"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
     "Rob Ede <robjtede@icloud.com>",
@@ -100,7 +100,7 @@ zstd = { version = "0.10", optional = true }
 actix-http-test = { version = "3.0.0-beta.13", features = ["openssl"] }
 actix-server = "2"
 actix-tls = { version = "3", features = ["openssl"] }
-actix-web = "4.0.0-rc.3"
+actix-web = "4.0.0"
 
 async-stream = "0.3"
 criterion = { version = "0.3", features = ["html_reports"] }

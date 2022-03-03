@@ -185,6 +185,7 @@ mod tests {
 
     use super::*;
     use crate::{
+        body,
         http::{
             header::{HeaderValue, CONTENT_TYPE},
             StatusCode,
@@ -203,7 +204,7 @@ mod tests {
             Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
         }
 
-        let srv = test::simple_service(StatusCode::INTERNAL_SERVER_ERROR);
+        let srv = test::status_service(StatusCode::INTERNAL_SERVER_ERROR);
 
         let mw = ErrorHandlers::new()
             .handler(StatusCode::INTERNAL_SERVER_ERROR, error_handler)
@@ -230,7 +231,7 @@ mod tests {
             ))
         }
 
-        let srv = test::simple_service(StatusCode::INTERNAL_SERVER_ERROR);
+        let srv = test::status_service(StatusCode::INTERNAL_SERVER_ERROR);
 
         let mw = ErrorHandlers::new()
             .handler(StatusCode::INTERNAL_SERVER_ERROR, error_handler)
@@ -245,9 +246,7 @@ mod tests {
     #[actix_rt::test]
     async fn changes_body_type() {
         #[allow(clippy::unnecessary_wraps)]
-        fn error_handler<B: 'static>(
-            res: ServiceResponse<B>,
-        ) -> Result<ErrorHandlerResponse<B>> {
+        fn error_handler<B>(res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
             let (req, res) = res.into_parts();
             let res = res.set_body(Bytes::from("sorry, that's no bueno"));
 
@@ -258,7 +257,7 @@ mod tests {
             Ok(ErrorHandlerResponse::Response(res))
         }
 
-        let srv = test::simple_service(StatusCode::INTERNAL_SERVER_ERROR);
+        let srv = test::status_service(StatusCode::INTERNAL_SERVER_ERROR);
 
         let mw = ErrorHandlers::new()
             .handler(StatusCode::INTERNAL_SERVER_ERROR, error_handler)
@@ -270,5 +269,33 @@ mod tests {
         assert_eq!(test::read_body(res).await, "sorry, that's no bueno");
     }
 
-    // TODO: test where error is thrown
+    #[actix_rt::test]
+    async fn error_thrown() {
+        #[allow(clippy::unnecessary_wraps)]
+        fn error_handler<B>(_res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
+            Err(crate::error::ErrorInternalServerError(
+                "error in error handler",
+            ))
+        }
+
+        let srv = test::status_service(StatusCode::BAD_REQUEST);
+
+        let mw = ErrorHandlers::new()
+            .handler(StatusCode::BAD_REQUEST, error_handler)
+            .new_transform(srv.into_service())
+            .await
+            .unwrap();
+
+        let err = mw
+            .call(TestRequest::default().to_srv_request())
+            .await
+            .unwrap_err();
+        let res = err.error_response();
+
+        assert_eq!(res.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(
+            body::to_bytes(res.into_body()).await.unwrap(),
+            "error in error handler"
+        );
+    }
 }

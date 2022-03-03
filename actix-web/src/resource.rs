@@ -93,19 +93,17 @@ where
     ///     "Welcome!"
     /// }
     ///
-    /// fn main() {
-    ///     let app = App::new()
-    ///         .service(
-    ///             web::resource("/app")
-    ///                 .guard(guard::Header("content-type", "text/plain"))
-    ///                 .route(web::get().to(index))
-    ///         )
-    ///         .service(
-    ///             web::resource("/app")
-    ///                 .guard(guard::Header("content-type", "text/json"))
-    ///                 .route(web::get().to(|| HttpResponse::MethodNotAllowed()))
-    ///         );
-    /// }
+    /// let app = App::new()
+    ///     .service(
+    ///         web::resource("/app")
+    ///             .guard(guard::Header("content-type", "text/plain"))
+    ///             .route(web::get().to(index))
+    ///     )
+    ///     .service(
+    ///         web::resource("/app")
+    ///             .guard(guard::Header("content-type", "text/json"))
+    ///             .route(web::get().to(|| HttpResponse::MethodNotAllowed()))
+    ///     );
     /// ```
     pub fn guard<G: Guard + 'static>(mut self, guard: G) -> Self {
         self.guards.push(Box::new(guard));
@@ -137,14 +135,13 @@ where
     /// ```
     /// use actix_web::{web, guard, App};
     ///
-    /// fn main() {
-    ///     let app = App::new().service(
-    ///         web::resource("/container/")
-    ///              .route(web::get().to(get_handler))
-    ///              .route(web::post().to(post_handler))
-    ///              .route(web::delete().to(delete_handler))
-    ///     );
-    /// }
+    /// let app = App::new().service(
+    ///     web::resource("/container/")
+    ///          .route(web::get().to(get_handler))
+    ///          .route(web::post().to(post_handler))
+    ///          .route(web::delete().to(delete_handler))
+    /// );
+    ///
     /// # async fn get_handler() -> impl actix_web::Responder { actix_web::HttpResponse::Ok() }
     /// # async fn post_handler() -> impl actix_web::Responder { actix_web::HttpResponse::Ok() }
     /// # async fn delete_handler() -> impl actix_web::Responder { actix_web::HttpResponse::Ok() }

@@ -159,7 +159,7 @@ impl ConnectionInfo {
     pub fn realip_remote_addr(&self) -> Option<&str> {
         self.realip_remote_addr
             .as_deref()
-            .or_else(|| self.peer_addr.as_deref())
+            .or(self.peer_addr.as_deref())
     }
 
     /// Returns serialized IP address of the peer connection.

@@ -3,6 +3,297 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 3.0.0 - 2022-02-25
+### Dependencies
+- Updated `actix-*` to Tokio v1-based versions. [#1813]
+- Updated `bytes` to `1.0`. [#1813]
+- Updated `h2` to `0.3`. [#1813]
+- Updated `rustls` to `0.20.0`. [#2414]
+- Updated `language-tags` to `0.3`.
+- Updated `tokio` to `1`.
+
+### Added
+- Crate Features:
+  - `ws`; disabled by default. [#2618]
+  - `http2`; disabled by default. [#2618]
+  - `compress-brotli`; disabled by default. [#2618]
+  - `compress-gzip`; disabled by default. [#2618]
+  - `compress-zstd`; disabled by default. [#2618]
+- Functions:
+  - `body::to_bytes` for async collecting message body into Bytes. [#2158]
+- Traits:
+  - `TryIntoHeaderPair`; allows using typed and untyped headers in the same methods. [#1869]
+- Types:
+  - `body::BoxBody`; a boxed message body with boxed errors. [#2183]
+  - `body::EitherBody` enum. [#2468]
+  - `body::None` struct. [#2468]
+  - Re-export `http` crate's `Error` type as `error::HttpError`. [#2171]
+- Variants:
+  - `ContentEncoding::Zstd` along with . [#2244]
+  - `Protocol::Http3` for future compatibility and also mark `#[non_exhaustive]`. [00ba8d55]
+- Methods:
+  - `ContentEncoding::to_header_value()`. [#2501]
+  - `header::QualityItem::{max, min}()`. [#2486]
+  - `header::QualityItem::zero()` that uses `Quality::ZERO`. [#2501]
+  - `HeaderMap::drain()` as an efficient draining iterator. [#1964]
+  - `HeaderMap::len_keys()` has the behavior of the old `len` method. [#1964]
+  - `MessageBody::boxed` trait method for wrapping boxing types efficiently. [#2520]
+  - `MessageBody::try_into_bytes` trait method, with default implementation, for optimizations on body types that complete in exactly one poll. [#2522]
+  - `Request::conn_data()`. [#2491]
+  - `Request::take_conn_data()`. [#2491]
+  - `Request::take_req_data()`. [#2487]
+  - `Response::{ok, bad_request, not_found, internal_server_error}()`. [#2159]
+  - `Response::into_body()` that consumes response and returns body type. [#2201]
+  - `Response::map_into_boxed_body()`. [#2468]
+  - `ResponseBuilder::append_header()` method which allows using typed and untyped headers. [#1869]
+  - `ResponseBuilder::insert_header()` method which allows using typed and untyped headers. [#1869]
+  - `ResponseHead::set_camel_case_headers()`. [#2587]
+  - `TestRequest::insert_header()` method which allows using typed and untyped headers. [#1869]
+- Implementations:
+  - Implement `Clone for ws::HandshakeError`. [#2468]
+  - Implement `Clone` for `body::AnyBody<S> where S: Clone`. [#2448]
+  - Implement `Clone` for `RequestHead`. [#2487]
+  - Implement `Clone` for `ResponseHead`. [#2585]
+  - Implement `Copy` for `QualityItem<T> where T: Copy`. [#2501]
+  - Implement `Default` for `ContentEncoding`. [#1912]
+  - Implement `Default` for `HttpServiceBuilder`. [#2611]
+  - Implement `Default` for `KeepAlive`. [#2611]
+  - Implement `Default` for `Response`. [#2201]
+  - Implement `Default` for `ws::Codec`. [#1920]
+  - Implement `Display` for `header::Quality`. [#2486]
+  - Implement `Eq` for `header::ContentEncoding`. [#2501]
+  - Implement `ExactSizeIterator` and `FusedIterator` for all `HeaderMap` iterators. [#2470]
+  - Implement `From<Duration>` for `KeepAlive`. [#2611]
+  - Implement `From<Option<Duration>>` for `KeepAlive`. [#2611]
+  - Implement `From<Vec<u8>>` for `Response<Vec<u8>>`. [#2625]
+  - Implement `FromStr` for `ContentEncoding`. [#1912]
+  - Implement `Header` for `ContentEncoding`. [#1912]
+  - Implement `IntoHeaderValue` for `ContentEncoding`. [#1912]
+  - Implement `IntoIterator` for `HeaderMap`. [#1964]
+  - Implement `MessageBody` for `bytestring::ByteString`. [#2468]
+  - Implement `MessageBody` for `Pin<Box<T>> where T: MessageBody`. [#2152]
+- Misc:
+  - Re-export `StatusCode`, `Method`, `Version` and `Uri` at the crate root. [#2171]
+  - Re-export `ContentEncoding` and `ConnectionType` at the crate root. [#2171]
+  - `Quality::ZERO` associated constant equivalent to `q=0`. [#2501]
+  - `header::Quality::{MAX, MIN}` associated constants equivalent to `q=1` and `q=0.001`, respectively. [#2486]
+  - Timeout for canceling HTTP/2 server side connection handshake. Configurable with `ServiceConfig::client_timeout`; defaults to 5 seconds. [#2483]
+  - `#[must_use]` for `ws::Codec` to prevent subtle bugs. [#1920]
+
+### Changed
+- Traits:
+  - Rename `IntoHeaderValue => TryIntoHeaderValue`. [#2510]
+  - `MessageBody` now has an associated `Error` type. [#2183]
+- Types:
+  - `Protocol` enum is now marked `#[non_exhaustive]`.
+  - `error::DispatcherError` enum is now marked `#[non_exhaustive]`. [#2624]
+  - `ContentEncoding` is now marked `#[non_exhaustive]`. [#2377]
+  - Error enums are marked `#[non_exhaustive]`. [#2161]
+  - Rename `PayloadStream` to `BoxedPayloadStream`. [#2545]
+  - The body type parameter of `Response` no longer has a default. [#2152]
+- Enum Variants:
+  - Rename `ContentEncoding::{Br => Brotli}`. [#2501]
+  - `Payload` inner fields are now named. [#2545]
+  - `ws::Message::Text` now contains a `bytestring::ByteString`. [#1864]
+- Methods:
+  - Rename `ServiceConfig::{client_timer_expire => client_request_deadline}`. [#2611]
+  - Rename `ServiceConfig::{client_disconnect_timer => client_disconnect_deadline}`. [#2611]
+  - Rename `h1::Codec::{keepalive => keep_alive}`. [#2611]
+  - Rename `h1::Codec::{keepalive_enabled => keep_alive_enabled}`. [#2611]
+  - Rename `h1::ClientCodec::{keepalive => keep_alive}`. [#2611]
+  - Rename `h1::ClientPayloadCodec::{keepalive => keep_alive}`. [#2611]
+  - Rename `header::EntityTag::{weak => new_weak, strong => new_strong}`. [#2565]
+  - Rename `TryIntoHeaderValue::{try_into => try_into_value}` to avoid ambiguity with std `TryInto` trait. [#1894]
+  - Deadline methods in `ServiceConfig` now return `std::time::Instant`s instead of Tokio's wrapper type. [#2611]
+  - Places in `Response` where `ResponseBody<B>` was received or returned now simply use `B`. [#2201]
+  - `encoding::Encoder::response` now returns `AnyBody<Encoder<B>>`. [#2448]
+  - `Extensions::insert` returns replaced item. [#1904]
+  - `HeaderMap::get_all` now returns a `std::slice::Iter`. [#2527]
+  - `HeaderMap::insert` now returns iterator of removed values. [#1964]
+  - `HeaderMap::len` now returns number of values instead of number of keys. [#1964]
+  - `HeaderMap::remove` now returns iterator of removed values. [#1964]
+  - `ResponseBuilder::body(B)` now returns `Response<EitherBody<B>>`. [#2468]
+  - `ResponseBuilder::content_type` now takes an `impl TryIntoHeaderValue` to support using typed `mime` types. [#1894]
+  - `ResponseBuilder::finish()` now returns `Response<EitherBody<()>>`. [#2468]
+  - `ResponseBuilder::json` now takes `impl Serialize`. [#2052]
+  - `ResponseBuilder::message_body` now returns a `Result`. [#2201]∑
+  - `ServiceConfig::keep_alive` now returns a `KeepAlive`. [#2611]
+  - `ws::hash_key` now returns array. [#2035]
+- Trait Implementations:
+  - Implementation of `Stream` for `Payload` no longer requires the `Stream` variant be `Unpin`. [#2545]
+  - Implementation of `Future` for `h1::SendResponse` no longer requires the body type be `Unpin`. [#2545]
+  - Implementation of `Stream` for `encoding::Decoder` no longer requires the stream type be `Unpin`. [#2545]
+  - Implementation of `From` for error types now return a `Response<BoxBody>`. [#2468]
+- Misc:
+  - `header` module is now public. [#2171]
+  - `uri` module is now public. [#2171]
+  - Request-local data container is no longer part of a `RequestHead`. Instead it is a distinct part of a `Request`. [#2487]
+  - All error trait bounds in server service builders have changed from `Into<Error>` to `Into<Response<BoxBody>>`. [#2253]
+  - All error trait bounds in message body and stream impls changed from `Into<Error>` to `Into<Box<dyn std::error::Error>>`. [#2253]
+  - Guarantee ordering of `header::GetAll` iterator to be same as insertion order. [#2467]
+  - Connection data set through the `on_connect_ext` callbacks is now accessible only from the new `Request::conn_data()` method. [#2491]
+  - Brotli (de)compression support is now provided by the `brotli` crate. [#2538]
+  - Minimum supported Rust version (MSRV) is now 1.54.
+
+### Fixed
+- A `Vary` header is now correctly sent along with compressed content. [#2501]
+- HTTP/1.1 dispatcher correctly uses client request timeout. [#2611]
+- Fixed issue where handlers that took payload but then dropped without reading it to EOF it would cause keep-alive connections to become stuck. [#2624]
+- `ContentEncoding`'s `Identity` variant can now be parsed from a string. [#2501]
+- `HttpServer::{listen_rustls(), bind_rustls()}` now honor the ALPN protocols in the configuration parameter. [#2226]
+- Remove unnecessary `Into<Error>` bound on `Encoder` body types. [#2375]
+- Remove unnecessary `Unpin` bound on `ResponseBuilder::streaming`. [#2253]
+- `BodyStream` and `SizedStream` are no longer restricted to `Unpin` types. [#2152]
+- Fixed slice creation pointing to potential uninitialized data on h1 encoder. [#2364]
+- Fixed quality parse error in Accept-Encoding header. [#2344]
+
+### Removed
+- Crate Features:
+  - `compress` feature. [#2065]
+  - `cookies` feature. [#2065]
+  - `trust-dns` feature. [#2425]
+  - `actors` optional feature and trait implementation for `actix` types. [#1969]
+- Functions:
+  - `header::qitem` helper. Replaced with `header::QualityItem::max`. [#2486]
+- Types:
+  - `body::Body`; replaced with `EitherBody` and `BoxBody`. [#2468]
+  - `body::ResponseBody`. [#2446]
+  - `ConnectError::SslHandshakeError` and re-export of `HandshakeError`. Due to the removal of this type from `tokio-openssl` crate. OpenSSL handshake error now returns `ConnectError::SslError`. [#1813]
+  - `error::Canceled` re-export. [#1994]
+  - `error::Result` type alias. [#2201]
+  - `error::BlockingError` [#2660]
+  - `InternalError` and all the error types it constructed were moved up to `actix-web`. [#2215]
+  - Typed HTTP headers; they have moved up to `actix-web`. [2094]
+  - Re-export of `http` crate's `HeaderMap` types in addition to ours. [#2171]
+- Enum Variants:
+  - `body::BodySize::Empty`; an empty body can now only be represented as a `Sized(0)` variant. [#2446]
+  - `ContentEncoding::Auto`. [#2501]
+  - `EncoderError::Boxed`. [#2446]
+- Methods:
+  - `ContentEncoding::is_compression()`. [#2501]
+  - `h1::Payload::readany()`. [#2545]
+  - `HttpMessage::cookie[s]()` trait methods. [#2065]
+  - `HttpServiceBuilder::new()`; use `default` instead. [#2611]
+  - `on_connect` (previously deprecated) methods have been removed; use `on_connect_ext`. [#1857]
+  - `Response::build_from()`. [#2159]
+  - `Response::error()` [#2205]
+  - `Response::take_body()` and old `Response::into_body()` method that casted body type. [#2201]
+  - `Response`'s status code builders. [#2159]
+  - `ResponseBuilder::{if_true, if_some}()` (previously deprecated). [#2148]
+  - `ResponseBuilder::{set, set_header}()`; use `ResponseBuilder::insert_header()`. [#1869]
+  - `ResponseBuilder::extensions[_mut]()`. [#2585]
+  - `ResponseBuilder::header()`; use `ResponseBuilder::append_header()`. [#1869]
+  - `ResponseBuilder::json()`. [#2148]
+  - `ResponseBuilder::json2()`. [#1903]
+  - `ResponseBuilder::streaming()`. [#2468]
+  - `ResponseHead::extensions[_mut]()`. [#2585]
+  - `ServiceConfig::{client_timer, keep_alive_timer}()`. [#2611]
+  - `TestRequest::with_hdr()`; use `TestRequest::default().insert_header()`. [#1869]
+  - `TestRequest::with_header()`; use `TestRequest::default().insert_header()`. [#1869]
+- Trait implementations:
+  - Implementation of `Copy` for `ws::Codec`. [#1920]
+  - Implementation of `From<Option<usize>> for KeepAlive`; use `Duration`s instead. [#2611]
+  - Implementation of `From<serde_json::Value>` for `Body`. [#2148]
+  - Implementation of `From<usize> for KeepAlive`; use `Duration`s instead. [#2611]
+  - Implementation of `Future` for `Response`. [#2201]
+  - Implementation of `Future` for `ResponseBuilder`. [#2468]
+  - Implementation of `Into<Error>` for `Response<Body>`. [#2215]
+  - Implementation of `Into<Error>` for `ResponseBuilder`. [#2215]
+  - Implementation of `ResponseError` for `actix_utils::timeout::TimeoutError`. [#2127]
+  - Implementation of `ResponseError` for `CookieParseError`. [#2065]
+  - Implementation of `TryFrom<u16>` for `header::Quality`. [#2486]
+- Misc:
+  - `http` module; most everything it contained is exported at the crate root. [#2488]
+  - `cookies` module (re-export). [#2065]
+  - `client` module. Connector types now live in `awc`. [#2425]
+  - `error` field from `Response`. [#2205]
+  - `downcast` and `downcast_get_type_id` macros. [#2291]
+  - Down-casting for `MessageBody` types; use standard `Any` trait. [#2183]
+
+
+[#1813]: https://github.com/actix/actix-web/pull/1813
+[#1845]: https://github.com/actix/actix-web/pull/1845
+[#1857]: https://github.com/actix/actix-web/pull/1857
+[#1864]: https://github.com/actix/actix-web/pull/1864
+[#1869]: https://github.com/actix/actix-web/pull/1869
+[#1878]: https://github.com/actix/actix-web/pull/1878
+[#1894]: https://github.com/actix/actix-web/pull/1894
+[#1903]: https://github.com/actix/actix-web/pull/1903
+[#1904]: https://github.com/actix/actix-web/pull/1904
+[#1912]: https://github.com/actix/actix-web/pull/1912
+[#1920]: https://github.com/actix/actix-web/pull/1920
+[#1964]: https://github.com/actix/actix-web/pull/1964
+[#1969]: https://github.com/actix/actix-web/pull/1969
+[#1981]: https://github.com/actix/actix-web/pull/1981
+[#1994]: https://github.com/actix/actix-web/pull/1994
+[#2035]: https://github.com/actix/actix-web/pull/2035
+[#2052]: https://github.com/actix/actix-web/pull/2052
+[#2065]: https://github.com/actix/actix-web/pull/2065
+[#2094]: https://github.com/actix/actix-web/pull/2094
+[#2127]: https://github.com/actix/actix-web/pull/2127
+[#2148]: https://github.com/actix/actix-web/pull/2148
+[#2152]: https://github.com/actix/actix-web/pull/2152
+[#2158]: https://github.com/actix/actix-web/pull/2158
+[#2159]: https://github.com/actix/actix-web/pull/2159
+[#2161]: https://github.com/actix/actix-web/pull/2161
+[#2171]: https://github.com/actix/actix-web/pull/2171
+[#2183]: https://github.com/actix/actix-web/pull/2183
+[#2196]: https://github.com/actix/actix-web/pull/2196
+[#2201]: https://github.com/actix/actix-web/pull/2201
+[#2205]: https://github.com/actix/actix-web/pull/2205
+[#2215]: https://github.com/actix/actix-web/pull/2215
+[#2244]: https://github.com/actix/actix-web/pull/2244
+[#2250]: https://github.com/actix/actix-web/pull/2250
+[#2253]: https://github.com/actix/actix-web/pull/2253
+[#2291]: https://github.com/actix/actix-web/pull/2291
+[#2344]: https://github.com/actix/actix-web/pull/2344
+[#2364]: https://github.com/actix/actix-web/pull/2364
+[#2375]: https://github.com/actix/actix-web/pull/2375
+[#2377]: https://github.com/actix/actix-web/pull/2377
+[#2414]: https://github.com/actix/actix-web/pull/2414
+[#2425]: https://github.com/actix/actix-web/pull/2425
+[#2442]: https://github.com/actix/actix-web/pull/2442
+[#2446]: https://github.com/actix/actix-web/pull/2446
+[#2448]: https://github.com/actix/actix-web/pull/2448
+[#2456]: https://github.com/actix/actix-web/pull/2456
+[#2467]: https://github.com/actix/actix-web/pull/2467
+[#2468]: https://github.com/actix/actix-web/pull/2468
+[#2470]: https://github.com/actix/actix-web/pull/2470
+[#2474]: https://github.com/actix/actix-web/pull/2474
+[#2483]: https://github.com/actix/actix-web/pull/2483
+[#2486]: https://github.com/actix/actix-web/pull/2486
+[#2487]: https://github.com/actix/actix-web/pull/2487
+[#2488]: https://github.com/actix/actix-web/pull/2488
+[#2491]: https://github.com/actix/actix-web/pull/2491
+[#2497]: https://github.com/actix/actix-web/pull/2497
+[#2501]: https://github.com/actix/actix-web/pull/2501
+[#2510]: https://github.com/actix/actix-web/pull/2510
+[#2520]: https://github.com/actix/actix-web/pull/2520
+[#2522]: https://github.com/actix/actix-web/pull/2522
+[#2527]: https://github.com/actix/actix-web/pull/2527
+[#2538]: https://github.com/actix/actix-web/pull/2538
+[#2545]: https://github.com/actix/actix-web/pull/2545
+[#2565]: https://github.com/actix/actix-web/pull/2565
+[#2585]: https://github.com/actix/actix-web/pull/2585
+[#2587]: https://github.com/actix/actix-web/pull/2587
+[#2611]: https://github.com/actix/actix-web/pull/2611
+[#2618]: https://github.com/actix/actix-web/pull/2618
+[#2624]: https://github.com/actix/actix-web/pull/2624
+[#2625]: https://github.com/actix/actix-web/pull/2625
+[#2660]: https://github.com/actix/actix-web/pull/2660
+[00ba8d55]: https://github.com/actix/actix-web/commit/00ba8d55492284581695d824648590715a8bd386
+
+
+<details>
+<summary>3.0.0 Pre-Releases</summary>
+
+## 3.0.0-rc.4 - 2022-02-22
+### Fixed
+- Fix h1 dispatcher panic. [1ce58ecb]
+
+[1ce58ecb]: https://github.com/actix/actix-web/commit/1ce58ecb305c60e51db06e6c913b7a1344e229ca
+
+
 ## 3.0.0-rc.3 - 2022-02-16
 - No significant changes since `3.0.0-rc.2`.
 
@@ -98,7 +389,7 @@
 
 
 ## 3.0.0-beta.17 - 2021-12-27
-### Changes
+### Changed
 - `HeaderMap::get_all` now returns a `std::slice::Iter`. [#2527]
 - `Payload` inner fields are now named. [#2545]
 - `impl Stream` for `Payload` no longer requires the `Stream` variant be `Unpin`. [#2545]
@@ -321,7 +612,7 @@
 - `Response::{ok, bad_request, not_found, internal_server_error}`. [#2159]
 - Helper `body::to_bytes` for async collecting message body into Bytes. [#2158]
 
-### Changes
+### Changed
 - The type parameter of `Response` no longer has a default. [#2152]
 - The `Message` variant of `body::Body` is now `Pin<Box<dyn MessageBody>>`. [#2152]
 - `BodyStream` and `SizedStream` are no longer restricted to Unpin types. [#2152]
@@ -464,6 +755,8 @@
 [#1857]: https://github.com/actix/actix-web/pull/1857
 [#1864]: https://github.com/actix/actix-web/pull/1864
 [#1878]: https://github.com/actix/actix-web/pull/1878
+
+</details>
 
 
 ## 2.2.2 - 2022-01-21
