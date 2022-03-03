@@ -128,7 +128,7 @@ impl NamedFile {
             let ct = from_path(&path).first_or_octet_stream();
 
             let disposition = match ct.type_() {
-                mime::IMAGE | mime::TEXT | mime::VIDEO => DispositionType::Inline,
+                mime::IMAGE | mime::TEXT | mime::AUDIO | mime::VIDEO => DispositionType::Inline,
                 mime::APPLICATION => match ct.subtype() {
                     mime::JAVASCRIPT | mime::JSON => DispositionType::Inline,
                     name if name == "wasm" => DispositionType::Inline,
