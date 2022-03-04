@@ -375,8 +375,6 @@ where
                 DispatchError::Io(err)
             })?;
 
-        this.flags.set(Flags::KEEP_ALIVE, this.codec.keep_alive());
-
         Ok(size)
     }
 
@@ -459,7 +457,12 @@ where
                     }
 
                     // all messages are dealt with
-                    None => return Ok(PollResponse::DoNothing),
+                    None => {
+                        // start keep-alive if last request allowed it
+                        this.flags.set(Flags::KEEP_ALIVE, this.codec.keep_alive());
+
+                        return Ok(PollResponse::DoNothing);
+                    }
                 },
 
                 StateProj::ServiceCall { fut } => {
@@ -757,6 +760,7 @@ where
 
         let mut updated = false;
 
+        // decode from read buf as many full requests as possible
         loop {
             match this.codec.decode(this.read_buf) {
                 Ok(Some(msg)) => {
