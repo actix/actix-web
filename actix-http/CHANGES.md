@@ -3,6 +3,11 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 3.0.1 - 2022-03-04
+- Fix panic in H1 dispatcher when pipelining is used with keep-alive. [#2678]
+
+[#2678]: https://github.com/actix/actix-web/issues/2678
+
 ## 3.0.0 - 2022-02-25
 ### Dependencies
 - Updated `actix-*` to Tokio v1-based versions. [#1813]
