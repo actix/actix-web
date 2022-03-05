@@ -1,10 +1,10 @@
 # Changes
 
-## Unreleased
-### Fixed
-- Encode correctly camel case header with n+2 hyphens [#2674]
-
 ## Unreleased - 2021-xx-xx
+### Fixed
+- Encode correctly camel case header with n+2 hyphens [#2683]
+
+[#2683]: https://github.com/actix/actix-web/issues/2683
 
 
 ## 3.0.1 - 2022-03-04
