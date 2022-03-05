@@ -5,7 +5,7 @@ authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
     "fakeshadow <24548779@qq.com>",
 ]
-description = "Async HTTP and WebSocket client library built on the Actix ecosystem"
+description = "Async HTTP and WebSocket client library"
 keywords = ["actix", "http", "framework", "async", "web"]
 categories = [
     "network-programming",

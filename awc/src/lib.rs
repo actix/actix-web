@@ -1,4 +1,4 @@
-//! `awc` is a HTTP and WebSocket client library built on the Actix ecosystem.
+//! `awc` is an asynchronous HTTP and WebSocket client library.
 //!
 //! # Making a GET request
 //! ```no_run
