@@ -105,7 +105,7 @@ pub(crate) trait MessageType: Sized {
             }
             BodySize::Sized(0) if camel_case => dst.put_slice(b"\r\nContent-Length: 0\r\n"),
             BodySize::Sized(0) => dst.put_slice(b"\r\ncontent-length: 0\r\n"),
-            BodySize::Sized(len) => helpers::write_content_length(len, dst),
+            BodySize::Sized(len) => helpers::write_content_length(len, dst, camel_case),
             BodySize::None => dst.put_slice(b"\r\n"),
         }
 
@@ -152,7 +152,6 @@ pub(crate) trait MessageType: Sized {
             let k = key.as_str().as_bytes();
             let k_len = k.len();
 
-            // TODO: drain?
             for val in value.iter() {
                 let v = val.as_ref();
                 let v_len = v.len();
@@ -211,13 +210,13 @@ pub(crate) trait MessageType: Sized {
             dst.advance_mut(pos);
         }
 
-        // optimized date header, set_date writes \r\n
         if !has_date {
-            config.set_date(dst);
-        } else {
-            // msg eof
-            dst.extend_from_slice(b"\r\n");
+            // optimized date header, write_date_header writes its own \r\n
+            config.write_date_header(dst, camel_case);
         }
+
+        // end-of-headers marker
+        dst.extend_from_slice(b"\r\n");
 
         Ok(())
     }
@@ -319,16 +318,17 @@ impl MessageType for RequestHeadType {
 }
 
 impl<T: MessageType> MessageEncoder<T> {
-    /// Encode message
+    /// Encode chunk.
     pub fn encode_chunk(&mut self, msg: &[u8], buf: &mut BytesMut) -> io::Result<bool> {
         self.te.encode(msg, buf)
     }
 
-    /// Encode eof
+    /// Encode EOF.
     pub fn encode_eof(&mut self, buf: &mut BytesMut) -> io::Result<()> {
         self.te.encode_eof(buf)
     }
 
+    /// Encode message.
     pub fn encode(
         &mut self,
         dst: &mut BytesMut,

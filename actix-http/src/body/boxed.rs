@@ -31,7 +31,7 @@ impl fmt::Debug for BoxBodyInner {
 }
 
 impl BoxBody {
-    /// Same as `MessageBody::boxed`.
+    /// Boxes body type, erasing type information.
     ///
     /// If the body type to wrap is unknown or generic it is better to use [`MessageBody::boxed`] to
     /// avoid double boxing.
@@ -105,14 +105,13 @@ impl MessageBody for BoxBody {
 #[cfg(test)]
 mod tests {
 
-    use static_assertions::{assert_impl_all, assert_not_impl_all};
+    use static_assertions::{assert_impl_all, assert_not_impl_any};
 
     use super::*;
     use crate::body::to_bytes;
 
-    assert_impl_all!(BoxBody: MessageBody, fmt::Debug, Unpin);
-
-    assert_not_impl_all!(BoxBody: Send, Sync, Unpin);
+    assert_impl_all!(BoxBody: fmt::Debug, MessageBody, Unpin);
+    assert_not_impl_any!(BoxBody: Send, Sync);
 
     #[actix_rt::test]
     async fn nested_boxed_body() {

@@ -39,13 +39,18 @@
 //! ```
 //! # use actix_web::HttpResponse;
 //! # use actix_web_codegen::route;
-//! #[route("/test", method="GET", method="HEAD")]
+//! #[route("/test", method = "GET", method = "HEAD")]
 //! async fn get_and_head_handler() -> HttpResponse {
 //!     HttpResponse::Ok().finish()
 //! }
 //! ```
 //!
-//! [actix-web attributes docs]: https://docs.rs/actix-web/*/actix_web/#attributes
+//! # Multiple Path Handlers
+//! There are no macros to generate multi-path handlers. Let us know in [this issue].
+//!
+//! [this issue]: https://github.com/actix/actix-web/issues/1709
+//!
+//! [actix-web attributes docs]: https://docs.rs/actix-web/latest/actix_web/#attributes
 //! [GET]: macro@get
 //! [POST]: macro@post
 //! [PUT]: macro@put
@@ -73,22 +78,23 @@ mod route;
 /// ```
 ///
 /// # Attributes
-/// - `"path"` - Raw literal string with path for which to register handler.
-/// - `name="resource_name"` - Specifies resource name for the handler. If not set, the function name of handler is used.
-/// - `method="HTTP_METHOD"` - Registers HTTP method to provide guard for. Upper-case string, "GET", "POST" for example.
-/// - `guard="function_name"` - Registers function as guard using `actix_web::guard::fn_guard`
-/// - `wrap="Middleware"` - Registers a resource middleware.
+/// - `"path"`: Raw literal string with path for which to register handler.
+/// - `name = "resource_name"`: Specifies resource name for the handler. If not set, the function
+///   name of handler is used.
+/// - `method = "HTTP_METHOD"`: Registers HTTP method to provide guard for. Upper-case string,
+///   "GET", "POST" for example.
+/// - `guard = "function_name"`: Registers function as guard using `actix_web::guard::fn_guard`.
+/// - `wrap = "Middleware"`: Registers a resource middleware.
 ///
 /// # Notes
 /// Function name can be specified as any expression that is going to be accessible to the generate
 /// code, e.g `my_guard` or `my_module::my_guard`.
 ///
-/// # Example
-///
+/// # Examples
 /// ```
 /// # use actix_web::HttpResponse;
 /// # use actix_web_codegen::route;
-/// #[route("/test", method="GET", method="HEAD")]
+/// #[route("/test", method = "GET", method = "HEAD")]
 /// async fn example() -> HttpResponse {
 ///     HttpResponse::Ok().finish()
 /// }
@@ -98,69 +104,58 @@ pub fn route(args: TokenStream, input: TokenStream) -> TokenStream {
     route::with_method(None, args, input)
 }
 
-macro_rules! doc_comment {
-    ($x:expr; $($tt:tt)*) => {
-        #[doc = $x]
-        $($tt)*
-    };
-}
-
 macro_rules! method_macro {
-    (
-        $($variant:ident, $method:ident,)+
-    ) => {
-        $(doc_comment! {
-concat!("
-Creates route handler with `actix_web::guard::", stringify!($variant), "`.
-
-# Syntax
-```plain
-#[", stringify!($method), r#"("path"[, attributes])]
-```
-
-# Attributes
-- `"path"` - Raw literal string with path for which to register handler.
-- `name="resource_name"` - Specifies resource name for the handler. If not set, the function name of handler is used.
-- `guard="function_name"` - Registers function as guard using `actix_web::guard::fn_guard`.
-- `wrap="Middleware"` - Registers a resource middleware.
-
-# Notes
-Function name can be specified as any expression that is going to be accessible to the generate
-code, e.g `my_guard` or `my_module::my_guard`.
-
-# Example
-
-```
-# use actix_web::HttpResponse;
-# use actix_web_codegen::"#, stringify!($method), ";
-#[", stringify!($method), r#"("/")]
-async fn example() -> HttpResponse {
-    HttpResponse::Ok().finish()
+    ($variant:ident, $method:ident) => {
+#[doc = concat!("Creates route handler with `actix_web::guard::", stringify!($variant), "`.")]
+///
+/// # Syntax
+/// ```plain
+#[doc = concat!("#[", stringify!($method), r#"("path"[, attributes])]"#)]
+/// ```
+///
+/// # Attributes
+/// - `"path"`: Raw literal string with path for which to register handler.
+/// - `name = "resource_name"`: Specifies resource name for the handler. If not set, the function
+///   name of handler is used.
+/// - `guard = "function_name"`: Registers function as guard using `actix_web::guard::fn_guard`.
+/// - `wrap = "Middleware"`: Registers a resource middleware.
+///
+/// # Notes
+/// Function name can be specified as any expression that is going to be accessible to the
+/// generate code, e.g `my_guard` or `my_module::my_guard`.
+///
+/// # Examples
+/// ```
+/// # use actix_web::HttpResponse;
+#[doc = concat!("# use actix_web_codegen::", stringify!($method), ";")]
+#[doc = concat!("#[", stringify!($method), r#"("/")]"#)]
+/// async fn example() -> HttpResponse {
+///     HttpResponse::Ok().finish()
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn $method(args: TokenStream, input: TokenStream) -> TokenStream {
+    route::with_method(Some(route::MethodType::$variant), args, input)
 }
-```
-"#);
-            #[proc_macro_attribute]
-            pub fn $method(args: TokenStream, input: TokenStream) -> TokenStream {
-                route::with_method(Some(route::MethodType::$variant), args, input)
-            }
-        })+
     };
 }
 
-method_macro! {
-    Get,       get,
-    Post,      post,
-    Put,       put,
-    Delete,    delete,
-    Head,      head,
-    Connect,   connect,
-    Options,   options,
-    Trace,     trace,
-    Patch,     patch,
-}
+method_macro!(Get, get);
+method_macro!(Post, post);
+method_macro!(Put, put);
+method_macro!(Delete, delete);
+method_macro!(Head, head);
+method_macro!(Connect, connect);
+method_macro!(Options, options);
+method_macro!(Trace, trace);
+method_macro!(Patch, patch);
 
-/// Marks async main function as the actix system entry-point.
-
+/// Marks async main function as the Actix Web system entry-point.
+///
+/// Note that Actix Web also works under `#[tokio::main]` since version 4.0. However, this macro is
+/// still necessary for actor support (since actors use a `System`). Read more in the
+/// [`actix_web::rt`](https://docs.rs/actix-web/4/actix_web/rt) module docs.
+///
 /// # Examples
 /// ```
 /// #[actix_web::main]

@@ -209,15 +209,16 @@ impl MessageType for Request {
 
         let (len, method, uri, ver, h_len) = {
             // SAFETY:
-            // Create an uninitialized array of `MaybeUninit`. The `assume_init` is
-            // safe because the type we are claiming to have initialized here is a
-            // bunch of `MaybeUninit`s, which do not require initialization.
+            // Create an uninitialized array of `MaybeUninit`. The `assume_init` is safe because the
+            // type we are claiming to have initialized here is a bunch of `MaybeUninit`s, which
+            // do not require initialization.
             let mut parsed = unsafe {
                 MaybeUninit::<[MaybeUninit<httparse::Header<'_>>; MAX_HEADERS]>::uninit()
                     .assume_init()
             };
 
             let mut req = httparse::Request::new(&mut []);
+
             match req.parse_with_uninit_headers(src, &mut parsed)? {
                 httparse::Status::Complete(len) => {
                     let method = Method::from_bytes(req.method.unwrap().as_bytes())
@@ -232,6 +233,7 @@ impl MessageType for Request {
 
                     (len, method, uri, version, req.headers.len())
                 }
+
                 httparse::Status::Partial => {
                     return if src.len() >= MAX_BUFFER_SIZE {
                         trace!("MAX_BUFFER_SIZE unprocessed data reached, closing");
@@ -380,34 +382,36 @@ impl HeaderIndex {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-/// Http payload item
+/// Chunk type yielded while decoding a payload.
 pub enum PayloadItem {
     Chunk(Bytes),
     Eof,
 }
 
-/// Decoders to handle different Transfer-Encodings.
+/// Decoder that can handle different payload types.
 ///
-/// If a message body does not include a Transfer-Encoding, it *should*
-/// include a Content-Length header.
+/// If a message body does not use `Transfer-Encoding`, it should include a `Content-Length`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PayloadDecoder {
     kind: Kind,
 }
 
 impl PayloadDecoder {
+    /// Constructs a fixed-length payload decoder.
     pub fn length(x: u64) -> PayloadDecoder {
         PayloadDecoder {
             kind: Kind::Length(x),
         }
     }
 
+    /// Constructs a chunked encoding decoder.
     pub fn chunked() -> PayloadDecoder {
         PayloadDecoder {
             kind: Kind::Chunked(ChunkedState::Size, 0),
         }
     }
 
+    /// Creates an decoder that yields chunks until the stream returns EOF.
     pub fn eof() -> PayloadDecoder {
         PayloadDecoder { kind: Kind::Eof }
     }
@@ -415,25 +419,26 @@ impl PayloadDecoder {
 
 #[derive(Debug, Clone, PartialEq)]
 enum Kind {
-    /// A Reader used when a Content-Length header is passed with a positive
-    /// integer.
+    /// A reader used when a `Content-Length` header is passed with a positive integer.
     Length(u64),
-    /// A Reader used when Transfer-Encoding is `chunked`.
+
+    /// A reader used when `Transfer-Encoding` is `chunked`.
     Chunked(ChunkedState, u64),
-    /// A Reader used for responses that don't indicate a length or chunked.
+
+    /// A reader used for responses that don't indicate a length or chunked.
     ///
-    /// Note: This should only used for `Response`s. It is illegal for a
-    /// `Request` to be made with both `Content-Length` and
-    /// `Transfer-Encoding: chunked` missing, as explained from the spec:
+    /// Note: This should only used for `Response`s. It is illegal for a `Request` to be made
+    /// without either of `Content-Length` and `Transfer-Encoding: chunked` missing, as explained
+    /// in [RFC 7230 §3.3.3]:
     ///
-    /// > If a Transfer-Encoding header field is present in a response and
-    /// > the chunked transfer coding is not the final encoding, the
-    /// > message body length is determined by reading the connection until
-    /// > it is closed by the server.  If a Transfer-Encoding header field
-    /// > is present in a request and the chunked transfer coding is not
-    /// > the final encoding, the message body length cannot be determined
-    /// > reliably; the server MUST respond with the 400 (Bad Request)
-    /// > status code and then close the connection.
+    /// > If a Transfer-Encoding header field is present in a response and the chunked transfer
+    /// > coding is not the final encoding, the message body length is determined by reading the
+    /// > connection until it is closed by the server. If a Transfer-Encoding header field is
+    /// > present in a request and the chunked transfer coding is not the final encoding, the
+    /// > message body length cannot be determined reliably; the server MUST respond with the 400
+    /// > (Bad Request) status code and then close the connection.
+    ///
+    /// [RFC 7230 §3.3.3]: https://datatracker.ietf.org/doc/html/rfc7230#section-3.3.3
     Eof,
 }
 
@@ -463,6 +468,7 @@ impl Decoder for PayloadDecoder {
                     Ok(Some(PayloadItem::Chunk(buf)))
                 }
             }
+
             Kind::Chunked(ref mut state, ref mut size) => {
                 loop {
                     let mut buf = None;
@@ -488,6 +494,7 @@ impl Decoder for PayloadDecoder {
                     }
                 }
             }
+
             Kind::Eof => {
                 if src.is_empty() {
                     Ok(None)

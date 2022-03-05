@@ -2,7 +2,7 @@ use std::{
     convert::Infallible,
     io::{Read, Write},
     net, thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use actix_http::{
@@ -22,12 +22,12 @@ use futures_util::{
 use regex::Regex;
 
 #[actix_rt::test]
-async fn test_h1() {
+async fn h1_basic() {
     let mut srv = test_server(|| {
         HttpService::build()
             .keep_alive(KeepAlive::Disabled)
-            .client_timeout(1000)
-            .client_disconnect(1000)
+            .client_request_timeout(Duration::from_secs(1))
+            .client_disconnect_timeout(Duration::from_secs(1))
             .h1(|req: Request| {
                 assert!(req.peer_addr().is_some());
                 ok::<_, Infallible>(Response::ok())
@@ -43,12 +43,12 @@ async fn test_h1() {
 }
 
 #[actix_rt::test]
-async fn test_h1_2() {
+async fn h1_2() {
     let mut srv = test_server(|| {
         HttpService::build()
             .keep_alive(KeepAlive::Disabled)
-            .client_timeout(1000)
-            .client_disconnect(1000)
+            .client_request_timeout(Duration::from_secs(1))
+            .client_disconnect_timeout(Duration::from_secs(1))
             .finish(|req: Request| {
                 assert!(req.peer_addr().is_some());
                 assert_eq!(req.version(), http::Version::HTTP_11);
@@ -75,7 +75,7 @@ impl From<ExpectFailed> for Response<BoxBody> {
 }
 
 #[actix_rt::test]
-async fn test_expect_continue() {
+async fn expect_continue() {
     let mut srv = test_server(|| {
         HttpService::build()
             .expect(fn_service(|req: Request| {
@@ -106,7 +106,7 @@ async fn test_expect_continue() {
 }
 
 #[actix_rt::test]
-async fn test_expect_continue_h1() {
+async fn expect_continue_h1() {
     let mut srv = test_server(|| {
         HttpService::build()
             .expect(fn_service(|req: Request| {
@@ -139,7 +139,7 @@ async fn test_expect_continue_h1() {
 }
 
 #[actix_rt::test]
-async fn test_chunked_payload() {
+async fn chunked_payload() {
     let chunk_sizes = vec![32768, 32, 32768];
     let total_size: usize = chunk_sizes.iter().sum();
 
@@ -197,26 +197,43 @@ async fn test_chunked_payload() {
 }
 
 #[actix_rt::test]
-async fn test_slow_request() {
+async fn slow_request_408() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .client_timeout(100)
+            .client_request_timeout(Duration::from_millis(200))
+            .keep_alive(Duration::from_secs(2))
             .finish(|_| ok::<_, Infallible>(Response::ok()))
             .tcp()
     })
     .await;
 
+    let start = Instant::now();
+
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
-    let _ = stream.write_all(b"GET /test/tests/test HTTP/1.1\r\n");
+    let _ = stream.write_all(b"GET /test HTTP/1.1\r\n");
     let mut data = String::new();
     let _ = stream.read_to_string(&mut data);
-    assert!(data.starts_with("HTTP/1.1 408 Request Timeout"));
+    assert!(
+        data.starts_with("HTTP/1.1 408 Request Timeout"),
+        "response was not 408: {}",
+        data
+    );
+
+    let diff = start.elapsed();
+
+    if diff < Duration::from_secs(1) {
+        // test success
+    } else if diff < Duration::from_secs(3) {
+        panic!("request seems to have wrongly timed-out according to keep-alive");
+    } else {
+        panic!("request took way too long to time out");
+    }
 
     srv.stop().await;
 }
 
 #[actix_rt::test]
-async fn test_http1_malformed_request() {
+async fn http1_malformed_request() {
     let mut srv = test_server(|| {
         HttpService::build()
             .h1(|_| ok::<_, Infallible>(Response::ok()))
@@ -234,7 +251,7 @@ async fn test_http1_malformed_request() {
 }
 
 #[actix_rt::test]
-async fn test_http1_keepalive() {
+async fn http1_keepalive() {
     let mut srv = test_server(|| {
         HttpService::build()
             .h1(|_| ok::<_, Infallible>(Response::ok()))
@@ -257,23 +274,25 @@ async fn test_http1_keepalive() {
 }
 
 #[actix_rt::test]
-async fn test_http1_keepalive_timeout() {
+async fn http1_keepalive_timeout() {
     let mut srv = test_server(|| {
         HttpService::build()
-            .keep_alive(1)
+            .keep_alive(Duration::from_secs(1))
             .h1(|_| ok::<_, Infallible>(Response::ok()))
             .tcp()
     })
     .await;
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
-    let _ = stream.write_all(b"GET /test/tests/test HTTP/1.1\r\n\r\n");
-    let mut data = vec![0; 1024];
+
+    let _ = stream.write_all(b"GET /test HTTP/1.1\r\n\r\n");
+    let mut data = vec![0; 256];
     let _ = stream.read(&mut data);
     assert_eq!(&data[..17], b"HTTP/1.1 200 OK\r\n");
+
     thread::sleep(Duration::from_millis(1100));
 
-    let mut data = vec![0; 1024];
+    let mut data = vec![0; 256];
     let res = stream.read(&mut data).unwrap();
     assert_eq!(res, 0);
 
@@ -281,7 +300,7 @@ async fn test_http1_keepalive_timeout() {
 }
 
 #[actix_rt::test]
-async fn test_http1_keepalive_close() {
+async fn http1_keepalive_close() {
     let mut srv = test_server(|| {
         HttpService::build()
             .h1(|_| ok::<_, Infallible>(Response::ok()))
@@ -303,7 +322,7 @@ async fn test_http1_keepalive_close() {
 }
 
 #[actix_rt::test]
-async fn test_http10_keepalive_default_close() {
+async fn http10_keepalive_default_close() {
     let mut srv = test_server(|| {
         HttpService::build()
             .h1(|_| ok::<_, Infallible>(Response::ok()))
@@ -325,7 +344,7 @@ async fn test_http10_keepalive_default_close() {
 }
 
 #[actix_rt::test]
-async fn test_http10_keepalive() {
+async fn http10_keepalive() {
     let mut srv = test_server(|| {
         HttpService::build()
             .h1(|_| ok::<_, Infallible>(Response::ok()))
@@ -354,7 +373,7 @@ async fn test_http10_keepalive() {
 }
 
 #[actix_rt::test]
-async fn test_http1_keepalive_disabled() {
+async fn http1_keepalive_disabled() {
     let mut srv = test_server(|| {
         HttpService::build()
             .keep_alive(KeepAlive::Disabled)
@@ -377,7 +396,7 @@ async fn test_http1_keepalive_disabled() {
 }
 
 #[actix_rt::test]
-async fn test_content_length() {
+async fn content_length() {
     use actix_http::{
         header::{HeaderName, HeaderValue},
         StatusCode,
@@ -426,7 +445,7 @@ async fn test_content_length() {
 }
 
 #[actix_rt::test]
-async fn test_h1_headers() {
+async fn h1_headers() {
     let data = STR.repeat(10);
     let data2 = data.clone();
 
@@ -492,7 +511,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World";
 
 #[actix_rt::test]
-async fn test_h1_body() {
+async fn h1_body() {
     let mut srv = test_server(|| {
         HttpService::build()
             .h1(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
@@ -511,7 +530,7 @@ async fn test_h1_body() {
 }
 
 #[actix_rt::test]
-async fn test_h1_head_empty() {
+async fn h1_head_empty() {
     let mut srv = test_server(|| {
         HttpService::build()
             .h1(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
@@ -538,7 +557,7 @@ async fn test_h1_head_empty() {
 }
 
 #[actix_rt::test]
-async fn test_h1_head_binary() {
+async fn h1_head_binary() {
     let mut srv = test_server(|| {
         HttpService::build()
             .h1(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
@@ -565,7 +584,7 @@ async fn test_h1_head_binary() {
 }
 
 #[actix_rt::test]
-async fn test_h1_head_binary2() {
+async fn h1_head_binary2() {
     let mut srv = test_server(|| {
         HttpService::build()
             .h1(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
@@ -588,7 +607,7 @@ async fn test_h1_head_binary2() {
 }
 
 #[actix_rt::test]
-async fn test_h1_body_length() {
+async fn h1_body_length() {
     let mut srv = test_server(|| {
         HttpService::build()
             .h1(|_| {
@@ -612,7 +631,7 @@ async fn test_h1_body_length() {
 }
 
 #[actix_rt::test]
-async fn test_h1_body_chunked_explicit() {
+async fn h1_body_chunked_explicit() {
     let mut srv = test_server(|| {
         HttpService::build()
             .h1(|_| {
@@ -649,7 +668,7 @@ async fn test_h1_body_chunked_explicit() {
 }
 
 #[actix_rt::test]
-async fn test_h1_body_chunked_implicit() {
+async fn h1_body_chunked_implicit() {
     let mut srv = test_server(|| {
         HttpService::build()
             .h1(|_| {
@@ -680,7 +699,7 @@ async fn test_h1_body_chunked_implicit() {
 }
 
 #[actix_rt::test]
-async fn test_h1_response_http_error_handling() {
+async fn h1_response_http_error_handling() {
     let mut srv = test_server(|| {
         HttpService::build()
             .h1(fn_service(|_| {
@@ -719,7 +738,7 @@ impl From<BadRequest> for Response<BoxBody> {
 }
 
 #[actix_rt::test]
-async fn test_h1_service_error() {
+async fn h1_service_error() {
     let mut srv = test_server(|| {
         HttpService::build()
             .h1(|_| err::<Response<()>, _>(BadRequest))
@@ -738,7 +757,7 @@ async fn test_h1_service_error() {
 }
 
 #[actix_rt::test]
-async fn test_h1_on_connect() {
+async fn h1_on_connect() {
     let mut srv = test_server(|| {
         HttpService::build()
             .on_connect_ext(|_, data| {
@@ -761,7 +780,7 @@ async fn test_h1_on_connect() {
 /// Tests compliance with 304 Not Modified spec in RFC 7232 §4.1.
 /// https://datatracker.ietf.org/doc/html/rfc7232#section-4.1
 #[actix_rt::test]
-async fn test_not_modified_spec_h1() {
+async fn not_modified_spec_h1() {
     // TODO: this test needing a few seconds to complete reveals some weirdness with either the
     // dispatcher or the client, though similar hangs occur on other tests in this file, only
     // succeeding, it seems, because of the keepalive timer
@@ -831,7 +850,8 @@ async fn test_not_modified_spec_h1() {
         Some(&header::HeaderValue::from_static("4")),
     );
     // server does not prevent payload from being sent but clients may choose not to read it
-    // TODO: this is probably a bug, especially since CL header can differ in length from the body
+    // TODO: this is probably a bug in the client, especially since CL header can differ in length
+    // from the body
     assert!(!srv.load_body(res).await.unwrap().is_empty());
 
     // TODO: add stream response tests

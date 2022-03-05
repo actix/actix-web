@@ -3,6 +3,16 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 0.1.0-beta.13 - 2022-02-16
+- No significant changes since `0.1.0-beta.12`.
+
+
+## 0.1.0-beta.12 - 2022-01-31
+- Rename `TestServerConfig::{client_timeout => client_request_timeout}`. [#2611]
+
+[#2611]: https://github.com/actix/actix-web/pull/2611
+
+
 ## 0.1.0-beta.11 - 2022-01-04
 - Minimum supported Rust version (MSRV) is now 1.54.
 

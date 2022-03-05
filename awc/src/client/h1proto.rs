@@ -70,7 +70,7 @@ where
     let is_expect = if head.as_ref().headers.contains_key(EXPECT) {
         match body.size() {
             BodySize::None | BodySize::Sized(0) => {
-                let keep_alive = framed.codec_ref().keepalive();
+                let keep_alive = framed.codec_ref().keep_alive();
                 framed.io_mut().on_release(keep_alive);
 
                 // TODO: use a new variant or a new type better describing error violate
@@ -119,7 +119,7 @@ where
 
     match pin_framed.codec_ref().message_type() {
         h1::MessageType::None => {
-            let keep_alive = pin_framed.codec_ref().keepalive();
+            let keep_alive = pin_framed.codec_ref().keep_alive();
             pin_framed.io_mut().on_release(keep_alive);
 
             Ok((head, Payload::None))
@@ -223,7 +223,7 @@ impl<Io: ConnectionIo> Stream for PlStream<Io> {
         match ready!(this.framed.as_mut().next_item(cx)?) {
             Some(Some(chunk)) => Poll::Ready(Some(Ok(chunk))),
             Some(None) => {
-                let keep_alive = this.framed.codec_ref().keepalive();
+                let keep_alive = this.framed.codec_ref().keep_alive();
                 this.framed.io_mut().on_release(keep_alive);
                 Poll::Ready(None)
             }

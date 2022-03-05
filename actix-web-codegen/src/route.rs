@@ -302,13 +302,13 @@ impl ToTokens for Route {
             if methods.len() > 1 {
                 quote! {
                     .guard(
-                        actix_web::guard::Any(actix_web::guard::#first())
-                            #(.or(actix_web::guard::#others()))*
+                        ::actix_web::guard::Any(::actix_web::guard::#first())
+                            #(.or(::actix_web::guard::#others()))*
                     )
                 }
             } else {
                 quote! {
-                    .guard(actix_web::guard::#first())
+                    .guard(::actix_web::guard::#first())
                 }
             }
         };
@@ -318,17 +318,17 @@ impl ToTokens for Route {
             #[allow(non_camel_case_types, missing_docs)]
             pub struct #name;
 
-            impl actix_web::dev::HttpServiceFactory for #name {
+            impl ::actix_web::dev::HttpServiceFactory for #name {
                 fn register(self, __config: &mut actix_web::dev::AppService) {
                     #ast
-                    let __resource = actix_web::Resource::new(#path)
+                    let __resource = ::actix_web::Resource::new(#path)
                         .name(#resource_name)
                         #method_guards
-                        #(.guard(actix_web::guard::fn_guard(#guards)))*
+                        #(.guard(::actix_web::guard::fn_guard(#guards)))*
                         #(.wrap(#wrappers))*
                         .#resource_type(#name);
 
-                    actix_web::dev::HttpServiceFactory::register(__resource, __config)
+                    ::actix_web::dev::HttpServiceFactory::register(__resource, __config)
                 }
             }
         };

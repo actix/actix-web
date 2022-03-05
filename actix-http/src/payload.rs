@@ -6,6 +6,7 @@ use std::{
 
 use bytes::Bytes;
 use futures_core::Stream;
+use pin_project_lite::pin_project;
 
 use crate::error::PayloadError;
 
@@ -15,7 +16,19 @@ pub type BoxedPayloadStream = Pin<Box<dyn Stream<Item = Result<Bytes, PayloadErr
 #[deprecated(since = "4.0.0", note = "Renamed to `BoxedPayloadStream`.")]
 pub type PayloadStream = BoxedPayloadStream;
 
-pin_project_lite::pin_project! {
+#[cfg(not(feature = "http2"))]
+pin_project! {
+    /// A streaming payload.
+    #[project = PayloadProj]
+    pub enum Payload<S = BoxedPayloadStream> {
+        None,
+        H1 { payload: crate::h1::Payload },
+        Stream { #[pin] payload: S },
+    }
+}
+
+#[cfg(feature = "http2")]
+pin_project! {
     /// A streaming payload.
     #[project = PayloadProj]
     pub enum Payload<S = BoxedPayloadStream> {
@@ -32,14 +45,16 @@ impl<S> From<crate::h1::Payload> for Payload<S> {
     }
 }
 
+#[cfg(feature = "http2")]
 impl<S> From<crate::h2::Payload> for Payload<S> {
     fn from(payload: crate::h2::Payload) -> Self {
         Payload::H2 { payload }
     }
 }
 
-impl<S> From<h2::RecvStream> for Payload<S> {
-    fn from(stream: h2::RecvStream) -> Self {
+#[cfg(feature = "http2")]
+impl<S> From<::h2::RecvStream> for Payload<S> {
+    fn from(stream: ::h2::RecvStream) -> Self {
         Payload::H2 {
             payload: crate::h2::Payload::new(stream),
         }
@@ -70,7 +85,10 @@ where
         match self.project() {
             PayloadProj::None => Poll::Ready(None),
             PayloadProj::H1 { payload } => Pin::new(payload).poll_next(cx),
+
+            #[cfg(feature = "http2")]
             PayloadProj::H2 { payload } => Pin::new(payload).poll_next(cx),
+
             PayloadProj::Stream { payload } => payload.poll_next(cx),
         }
     }

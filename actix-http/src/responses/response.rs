@@ -1,7 +1,7 @@
 //! HTTP response.
 
 use std::{
-    cell::{Ref, RefMut},
+    cell::{Ref, RefCell, RefMut},
     fmt, str,
 };
 
@@ -9,7 +9,7 @@ use bytes::{Bytes, BytesMut};
 use bytestring::ByteString;
 
 use crate::{
-    body::{BoxBody, MessageBody},
+    body::{BoxBody, EitherBody, MessageBody},
     header::{self, HeaderMap, TryIntoHeaderValue},
     responses::BoxedResponseHead,
     Error, Extensions, ResponseBuilder, ResponseHead, StatusCode,
@@ -19,6 +19,7 @@ use crate::{
 pub struct Response<B> {
     pub(crate) head: BoxedResponseHead,
     pub(crate) body: B,
+    pub(crate) extensions: RefCell<Extensions>,
 }
 
 impl Response<BoxBody> {
@@ -28,6 +29,7 @@ impl Response<BoxBody> {
         Response {
             head: BoxedResponseHead::new(status),
             body: BoxBody::new(()),
+            extensions: RefCell::new(Extensions::new()),
         }
     }
 
@@ -74,6 +76,7 @@ impl<B> Response<B> {
         Response {
             head: BoxedResponseHead::new(status),
             body,
+            extensions: RefCell::new(Extensions::new()),
         }
     }
 
@@ -120,20 +123,21 @@ impl<B> Response<B> {
     }
 
     /// Returns true if keep-alive is enabled.
+    #[inline]
     pub fn keep_alive(&self) -> bool {
         self.head.keep_alive()
     }
 
-    /// Returns a reference to the extensions of this response.
+    /// Returns a reference to the request-local data/extensions container.
     #[inline]
     pub fn extensions(&self) -> Ref<'_, Extensions> {
-        self.head.extensions.borrow()
+        self.extensions.borrow()
     }
 
-    /// Returns a mutable reference to the extensions of this response.
+    /// Returns a mutable reference to the request-local data/extensions container.
     #[inline]
     pub fn extensions_mut(&mut self) -> RefMut<'_, Extensions> {
-        self.head.extensions.borrow_mut()
+        self.extensions.borrow_mut()
     }
 
     /// Returns a reference to the body of this response.
@@ -143,24 +147,29 @@ impl<B> Response<B> {
     }
 
     /// Sets new body.
+    #[inline]
     pub fn set_body<B2>(self, body: B2) -> Response<B2> {
         Response {
             head: self.head,
             body,
+            extensions: self.extensions,
         }
     }
 
     /// Drops body and returns new response.
+    #[inline]
     pub fn drop_body(self) -> Response<()> {
         self.set_body(())
     }
 
     /// Sets new body, returning new response and previous body value.
+    #[inline]
     pub(crate) fn replace_body<B2>(self, body: B2) -> (Response<B2>, B) {
         (
             Response {
                 head: self.head,
                 body,
+                extensions: self.extensions,
             },
             self.body,
         )
@@ -171,11 +180,15 @@ impl<B> Response<B> {
     /// # Implementation Notes
     /// Due to internal performance optimizations, the first element of the returned tuple is a
     /// `Response` as well but only contains the head of the response this was called on.
+    #[inline]
     pub fn into_parts(self) -> (Response<()>, B) {
         self.replace_body(())
     }
 
-    /// Returns new response with mapped body.
+    /// Map the current body type to another using a closure, returning a new response.
+    ///
+    /// Closure receives the response head and the current body type.
+    #[inline]
     pub fn map_body<F, B2>(mut self, f: F) -> Response<B2>
     where
         F: FnOnce(&mut ResponseHead, B) -> B2,
@@ -185,9 +198,11 @@ impl<B> Response<B> {
         Response {
             head: self.head,
             body,
+            extensions: self.extensions,
         }
     }
 
+    /// Map the current body to a type-erased `BoxBody`.
     #[inline]
     pub fn map_into_boxed_body(self) -> Response<BoxBody>
     where
@@ -196,7 +211,8 @@ impl<B> Response<B> {
         self.map_body(|_, body| body.boxed())
     }
 
-    /// Returns body, consuming this response.
+    /// Returns the response body, dropping all other parts.
+    #[inline]
     pub fn into_body(self) -> B {
         self.body
     }
@@ -239,9 +255,9 @@ impl<I: Into<Response<BoxBody>>, E: Into<Error>> From<Result<I, E>> for Response
     }
 }
 
-impl From<ResponseBuilder> for Response<BoxBody> {
+impl From<ResponseBuilder> for Response<EitherBody<()>> {
     fn from(mut builder: ResponseBuilder) -> Self {
-        builder.finish().map_into_boxed_body()
+        builder.finish()
     }
 }
 
@@ -263,6 +279,24 @@ impl From<&'static str> for Response<&'static str> {
 impl From<&'static [u8]> for Response<&'static [u8]> {
     fn from(val: &'static [u8]) -> Self {
         let mut res = Response::with_body(StatusCode::OK, val);
+        let mime = mime::APPLICATION_OCTET_STREAM.try_into_value().unwrap();
+        res.headers_mut().insert(header::CONTENT_TYPE, mime);
+        res
+    }
+}
+
+impl From<Vec<u8>> for Response<Vec<u8>> {
+    fn from(val: Vec<u8>) -> Self {
+        let mut res = Response::with_body(StatusCode::OK, val);
+        let mime = mime::APPLICATION_OCTET_STREAM.try_into_value().unwrap();
+        res.headers_mut().insert(header::CONTENT_TYPE, mime);
+        res
+    }
+}
+
+impl From<&Vec<u8>> for Response<Vec<u8>> {
+    fn from(val: &Vec<u8>) -> Self {
+        let mut res = Response::with_body(StatusCode::OK, val.clone());
         let mime = mime::APPLICATION_OCTET_STREAM.try_into_value().unwrap();
         res.headers_mut().insert(header::CONTENT_TYPE, mime);
         res

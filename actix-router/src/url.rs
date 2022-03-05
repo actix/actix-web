@@ -15,14 +15,14 @@ pub struct Url {
 impl Url {
     #[inline]
     pub fn new(uri: http::Uri) -> Url {
-        let path = DEFAULT_QUOTER.with(|q| q.requote(uri.path().as_bytes()));
+        let path = DEFAULT_QUOTER.with(|q| q.requote_str_lossy(uri.path()));
         Url { uri, path }
     }
 
     #[inline]
     pub fn new_with_quoter(uri: http::Uri, quoter: &Quoter) -> Url {
         Url {
-            path: quoter.requote(uri.path().as_bytes()),
+            path: quoter.requote_str_lossy(uri.path()),
             uri,
         }
     }
@@ -45,13 +45,13 @@ impl Url {
     #[inline]
     pub fn update(&mut self, uri: &http::Uri) {
         self.uri = uri.clone();
-        self.path = DEFAULT_QUOTER.with(|q| q.requote(uri.path().as_bytes()));
+        self.path = DEFAULT_QUOTER.with(|q| q.requote_str_lossy(uri.path()));
     }
 
     #[inline]
     pub fn update_with_quoter(&mut self, uri: &http::Uri, quoter: &Quoter) {
         self.uri = uri.clone();
-        self.path = quoter.requote(uri.path().as_bytes());
+        self.path = quoter.requote_str_lossy(uri.path());
     }
 }
 
@@ -121,7 +121,7 @@ mod tests {
     }
 
     #[test]
-    fn valid_utf8_multibyte() {
+    fn valid_utf8_multi_byte() {
         let test = ('\u{FF00}'..='\u{FFFF}').collect::<String>();
         let encoded = percent_encode(test.as_bytes());
         let path = match_url("/a/{id}/b", format!("/a/{}/b", &encoded));
@@ -135,6 +135,6 @@ mod tests {
         let path = Path::new(Url::new(uri));
 
         // We should always get a valid utf8 string
-        assert!(String::from_utf8(path.path().as_bytes().to_owned()).is_ok());
+        assert!(String::from_utf8(path.as_str().as_bytes().to_owned()).is_ok());
     }
 }

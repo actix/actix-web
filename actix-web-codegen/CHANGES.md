@@ -3,6 +3,19 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 4.0.0 - 2022-02-24
+- Version aligned with `actix-web` and will remain in sync going forward.
+- No significant changes since `0.5.0`.
+
+
+## 0.5.0 - 2022-02-24
+- No significant changes since `0.5.0-rc.2`.
+
+
+## 0.5.0-rc.2 - 2022-02-01
+- No significant changes since `0.5.0-rc.1`.
+
+
 ## 0.5.0-rc.1 - 2022-01-04
 - Minimum supported Rust version (MSRV) is now 1.54.
 

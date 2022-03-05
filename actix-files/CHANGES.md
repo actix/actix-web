@@ -1,6 +1,21 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+- Add support for streaming audio files by setting the `content-disposition` header `inline` instead of `attachement`. [#2645]
+
+[#2645]: https://github.com/actix/actix-web/pull/2645
+
+
+## 0.6.0 - 2022-02-25
+- No significant changes since `0.6.0-beta.16`.
+
+
+## 0.6.0-beta.16 - 2022-01-31
+- No significant changes since `0.6.0-beta.15`.
+
+
+## 0.6.0-beta.15 - 2022-01-21
+- No significant changes since `0.6.0-beta.14`.
 
 
 ## 0.6.0-beta.14 - 2022-01-14

@@ -3,9 +3,11 @@ use bitflags::bitflags;
 use bytes::{Bytes, BytesMut};
 use bytestring::ByteString;
 
-use super::frame::Parser;
-use super::proto::{CloseReason, OpCode};
-use super::ProtocolError;
+use super::{
+    frame::Parser,
+    proto::{CloseReason, OpCode},
+    ProtocolError,
+};
 
 /// A WebSocket message.
 #[derive(Debug, PartialEq)]
@@ -251,7 +253,7 @@ impl Decoder for Codec {
                             }
                         }
                         _ => {
-                            error!("Unfinished fragment {:?}", opcode);
+                            log::error!("Unfinished fragment {:?}", opcode);
                             Err(ProtocolError::ContinuationFragment(opcode))
                         }
                     };

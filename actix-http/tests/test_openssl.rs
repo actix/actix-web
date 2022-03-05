@@ -66,7 +66,7 @@ fn tls_config() -> SslAcceptor {
 }
 
 #[actix_rt::test]
-async fn test_h2() -> io::Result<()> {
+async fn h2() -> io::Result<()> {
     let srv = test_server(move || {
         HttpService::build()
             .h2(|_| ok::<_, Error>(Response::ok()))
@@ -81,7 +81,7 @@ async fn test_h2() -> io::Result<()> {
 }
 
 #[actix_rt::test]
-async fn test_h2_1() -> io::Result<()> {
+async fn h2_1() -> io::Result<()> {
     let srv = test_server(move || {
         HttpService::build()
             .finish(|req: Request| {
@@ -100,7 +100,7 @@ async fn test_h2_1() -> io::Result<()> {
 }
 
 #[actix_rt::test]
-async fn test_h2_body() -> io::Result<()> {
+async fn h2_body() -> io::Result<()> {
     let data = "HELLOWORLD".to_owned().repeat(64 * 1024); // 640 KiB
     let mut srv = test_server(move || {
         HttpService::build()
@@ -122,7 +122,7 @@ async fn test_h2_body() -> io::Result<()> {
 }
 
 #[actix_rt::test]
-async fn test_h2_content_length() {
+async fn h2_content_length() {
     let srv = test_server(move || {
         HttpService::build()
             .h2(|req: Request| {
@@ -164,7 +164,7 @@ async fn test_h2_content_length() {
 }
 
 #[actix_rt::test]
-async fn test_h2_headers() {
+async fn h2_headers() {
     let data = STR.repeat(10);
     let data2 = data.clone();
 
@@ -229,7 +229,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World";
 
 #[actix_rt::test]
-async fn test_h2_body2() {
+async fn h2_body2() {
     let mut srv = test_server(move || {
         HttpService::build()
             .h2(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
@@ -247,7 +247,7 @@ async fn test_h2_body2() {
 }
 
 #[actix_rt::test]
-async fn test_h2_head_empty() {
+async fn h2_head_empty() {
     let mut srv = test_server(move || {
         HttpService::build()
             .finish(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
@@ -271,7 +271,7 @@ async fn test_h2_head_empty() {
 }
 
 #[actix_rt::test]
-async fn test_h2_head_binary() {
+async fn h2_head_binary() {
     let mut srv = test_server(move || {
         HttpService::build()
             .h2(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
@@ -294,7 +294,7 @@ async fn test_h2_head_binary() {
 }
 
 #[actix_rt::test]
-async fn test_h2_head_binary2() {
+async fn h2_head_binary2() {
     let srv = test_server(move || {
         HttpService::build()
             .h2(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
@@ -313,7 +313,7 @@ async fn test_h2_head_binary2() {
 }
 
 #[actix_rt::test]
-async fn test_h2_body_length() {
+async fn h2_body_length() {
     let mut srv = test_server(move || {
         HttpService::build()
             .h2(|_| async {
@@ -338,7 +338,7 @@ async fn test_h2_body_length() {
 }
 
 #[actix_rt::test]
-async fn test_h2_body_chunked_explicit() {
+async fn h2_body_chunked_explicit() {
     let mut srv = test_server(move || {
         HttpService::build()
             .h2(|_| {
@@ -366,7 +366,7 @@ async fn test_h2_body_chunked_explicit() {
 }
 
 #[actix_rt::test]
-async fn test_h2_response_http_error_handling() {
+async fn h2_response_http_error_handling() {
     let mut srv = test_server(move || {
         HttpService::build()
             .h2(fn_service(|_| {
@@ -406,7 +406,7 @@ impl From<BadRequest> for Response<BoxBody> {
 }
 
 #[actix_rt::test]
-async fn test_h2_service_error() {
+async fn h2_service_error() {
     let mut srv = test_server(move || {
         HttpService::build()
             .h2(|_| err::<Response<BoxBody>, _>(BadRequest))
@@ -424,7 +424,7 @@ async fn test_h2_service_error() {
 }
 
 #[actix_rt::test]
-async fn test_h2_on_connect() {
+async fn h2_on_connect() {
     let srv = test_server(move || {
         HttpService::build()
             .on_connect_ext(|_, data| {

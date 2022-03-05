@@ -3,6 +3,24 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 4.1.0 - 2022-03-02
+- Add support for `actix` version `0.13`. [#2675]
+
+[#2675]: https://github.com/actix/actix-web/pull/2675
+
+
+## 4.0.0 - 2022-02-25
+- No significant changes since `4.0.0-beta.12`.
+
+
+## 4.0.0-beta.12 - 2022-02-16
+- No significant changes since `4.0.0-beta.11`.
+
+
+## 4.0.0-beta.11 - 2022-01-31
+- No significant changes since `4.0.0-beta.10`.
+
+
 ## 4.0.0-beta.10 - 2022-01-04
 - Minimum supported Rust version (MSRV) is now 1.54.
 

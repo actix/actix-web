@@ -130,8 +130,8 @@ impl RequestHead {
         }
     }
 
+    /// Request contains `EXPECT` header.
     #[inline]
-    /// Request contains `EXPECT` header
     pub fn expect(&self) -> bool {
         self.flags.contains(Flags::EXPECT)
     }
@@ -142,8 +142,8 @@ impl RequestHead {
     }
 }
 
-#[derive(Debug)]
 #[allow(clippy::large_enum_variant)]
+#[derive(Debug)]
 pub enum RequestHeadType {
     Owned(RequestHead),
     Rc(Rc<RequestHead>, Option<HeaderMap>),

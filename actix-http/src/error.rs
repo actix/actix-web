@@ -5,7 +5,7 @@ use std::{error::Error as StdError, fmt, io, str::Utf8Error, string::FromUtf8Err
 use derive_more::{Display, Error, From};
 use http::{uri::InvalidUri, StatusCode};
 
-use crate::{body::BoxBody, ws, Response};
+use crate::{body::BoxBody, Response};
 
 pub use http::Error as HttpError;
 
@@ -51,7 +51,7 @@ impl Error {
         Self::new(Kind::SendResponse)
     }
 
-    #[allow(unused)] // reserved for future use (TODO: remove allow when being used)
+    #[allow(unused)] // available for future use
     pub(crate) fn new_io() -> Self {
         Self::new(Kind::Io)
     }
@@ -61,6 +61,7 @@ impl Error {
         Self::new(Kind::Encoder)
     }
 
+    #[allow(unused)] // used with `ws` feature flag
     pub(crate) fn new_ws() -> Self {
         Self::new(Kind::Ws)
     }
@@ -107,8 +108,10 @@ pub(crate) enum Kind {
 
 impl fmt::Debug for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // TODO: more detail
-        f.write_str("actix_http::Error")
+        f.debug_struct("actix_http::Error")
+            .field("kind", &self.inner.kind)
+            .field("cause", &self.inner.cause)
+            .finish()
     }
 }
 
@@ -139,14 +142,16 @@ impl From<HttpError> for Error {
     }
 }
 
-impl From<ws::HandshakeError> for Error {
-    fn from(err: ws::HandshakeError) -> Self {
+#[cfg(feature = "ws")]
+impl From<crate::ws::HandshakeError> for Error {
+    fn from(err: crate::ws::HandshakeError) -> Self {
         Self::new_ws().with_cause(err)
     }
 }
 
-impl From<ws::ProtocolError> for Error {
-    fn from(err: ws::ProtocolError) -> Self {
+#[cfg(feature = "ws")]
+impl From<crate::ws::ProtocolError> for Error {
+    fn from(err: crate::ws::ProtocolError) -> Self {
         Self::new_ws().with_cause(err)
     }
 }
@@ -247,12 +252,6 @@ impl From<ParseError> for Response<BoxBody> {
     }
 }
 
-/// A set of errors that can occur running blocking tasks in thread pool.
-#[derive(Debug, Display, Error)]
-#[display(fmt = "Blocking thread pool is gone")]
-// TODO: non-exhaustive
-pub struct BlockingError;
-
 /// A set of errors that can occur during payload parsing.
 #[derive(Debug, Display)]
 #[non_exhaustive]
@@ -277,8 +276,9 @@ pub enum PayloadError {
     UnknownLength,
 
     /// HTTP/2 payload error.
+    #[cfg(feature = "http2")]
     #[display(fmt = "{}", _0)]
-    Http2Payload(h2::Error),
+    Http2Payload(::h2::Error),
 
     /// Generic I/O error.
     #[display(fmt = "{}", _0)]
@@ -289,18 +289,20 @@ impl std::error::Error for PayloadError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             PayloadError::Incomplete(None) => None,
-            PayloadError::Incomplete(Some(err)) => Some(err as &dyn std::error::Error),
+            PayloadError::Incomplete(Some(err)) => Some(err),
             PayloadError::EncodingCorrupted => None,
             PayloadError::Overflow => None,
             PayloadError::UnknownLength => None,
-            PayloadError::Http2Payload(err) => Some(err as &dyn std::error::Error),
-            PayloadError::Io(err) => Some(err as &dyn std::error::Error),
+            #[cfg(feature = "http2")]
+            PayloadError::Http2Payload(err) => Some(err),
+            PayloadError::Io(err) => Some(err),
         }
     }
 }
 
-impl From<h2::Error> for PayloadError {
-    fn from(err: h2::Error) -> Self {
+#[cfg(feature = "http2")]
+impl From<::h2::Error> for PayloadError {
+    fn from(err: ::h2::Error) -> Self {
         PayloadError::Http2Payload(err)
     }
 }
@@ -317,15 +319,6 @@ impl From<io::Error> for PayloadError {
     }
 }
 
-impl From<BlockingError> for PayloadError {
-    fn from(_: BlockingError) -> Self {
-        PayloadError::Io(io::Error::new(
-            io::ErrorKind::Other,
-            "Operation is canceled",
-        ))
-    }
-}
-
 impl From<PayloadError> for Error {
     fn from(err: PayloadError) -> Self {
         Self::new_payload().with_cause(err)
@@ -334,6 +327,7 @@ impl From<PayloadError> for Error {
 
 /// A set of errors that can occur during dispatching HTTP requests.
 #[derive(Debug, Display, From)]
+#[non_exhaustive]
 pub enum DispatchError {
     /// Service error.
     #[display(fmt = "Service Error")]
@@ -356,6 +350,7 @@ pub enum DispatchError {
 
     /// HTTP/2 error.
     #[display(fmt = "{}", _0)]
+    #[cfg(feature = "http2")]
     H2(h2::Error),
 
     /// The first request did not complete within the specified timeout.
@@ -366,6 +361,10 @@ pub enum DispatchError {
     #[display(fmt = "Connection shutdown timeout")]
     DisconnectTimeout,
 
+    /// Handler dropped payload before reading EOF.
+    #[display(fmt = "Handler dropped payload before reading EOF")]
+    HandlerDroppedPayload,
+
     /// Internal error.
     #[display(fmt = "Internal error")]
     InternalError,
@@ -374,12 +373,14 @@ pub enum DispatchError {
 impl StdError for DispatchError {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
-            // TODO: error source extraction?
             DispatchError::Service(_res) => None,
             DispatchError::Body(err) => Some(&**err),
             DispatchError::Io(err) => Some(err),
             DispatchError::Parse(err) => Some(err),
+
+            #[cfg(feature = "http2")]
             DispatchError::H2(err) => Some(err),
+
             _ => None,
         }
     }
@@ -387,6 +388,7 @@ impl StdError for DispatchError {
 
 /// A set of error that can occur during parsing content type.
 #[derive(Debug, Display, Error)]
+#[cfg_attr(test, derive(PartialEq))]
 #[non_exhaustive]
 pub enum ContentTypeError {
     /// Can not parse content type
@@ -399,26 +401,12 @@ pub enum ContentTypeError {
 }
 
 #[cfg(test)]
-mod content_type_test_impls {
-    use super::*;
-
-    impl std::cmp::PartialEq for ContentTypeError {
-        fn eq(&self, other: &Self) -> bool {
-            match self {
-                Self::ParseError => matches!(other, ContentTypeError::ParseError),
-                Self::UnknownEncoding => {
-                    matches!(other, ContentTypeError::UnknownEncoding)
-                }
-            }
-        }
-    }
-}
-
-#[cfg(test)]
 mod tests {
-    use super::*;
-    use http::{Error as HttpError, StatusCode};
     use std::io;
+
+    use http::{Error as HttpError, StatusCode};
+
+    use super::*;
 
     #[test]
     fn test_into_response() {

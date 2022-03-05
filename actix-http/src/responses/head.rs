@@ -1,25 +1,19 @@
 //! Response head type and caching pool.
 
-use std::{
-    cell::{Ref, RefCell, RefMut},
-    ops,
-};
+use std::{cell::RefCell, ops};
 
-use crate::{
-    header::HeaderMap, message::Flags, ConnectionType, Extensions, StatusCode, Version,
-};
+use crate::{header::HeaderMap, message::Flags, ConnectionType, StatusCode, Version};
 
 thread_local! {
     static RESPONSE_POOL: BoxedResponsePool = BoxedResponsePool::create();
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ResponseHead {
     pub version: Version,
     pub status: StatusCode,
     pub headers: HeaderMap,
     pub reason: Option<&'static str>,
-    pub(crate) extensions: RefCell<Extensions>,
     pub(crate) flags: Flags,
 }
 
@@ -33,23 +27,22 @@ impl ResponseHead {
             headers: HeaderMap::with_capacity(12),
             reason: None,
             flags: Flags::empty(),
-            extensions: RefCell::new(Extensions::new()),
         }
     }
 
-    #[inline]
     /// Read the message headers.
+    #[inline]
     pub fn headers(&self) -> &HeaderMap {
         &self.headers
     }
 
-    #[inline]
     /// Mutable reference to the message headers.
+    #[inline]
     pub fn headers_mut(&mut self) -> &mut HeaderMap {
         &mut self.headers
     }
 
-    /// Sets the flag that controls wether to send headers formatted as Camel-Case.
+    /// Sets the flag that controls whether to send headers formatted as Camel-Case.
     ///
     /// Only applicable to HTTP/1.x responses; HTTP/2 header names are always lowercase.
     #[inline]
@@ -61,20 +54,8 @@ impl ResponseHead {
         }
     }
 
-    /// Message extensions
-    #[inline]
-    pub fn extensions(&self) -> Ref<'_, Extensions> {
-        self.extensions.borrow()
-    }
-
-    /// Mutable reference to a the message's extensions
-    #[inline]
-    pub fn extensions_mut(&self) -> RefMut<'_, Extensions> {
-        self.extensions.borrow_mut()
-    }
-
-    #[inline]
     /// Set connection type of the message
+    #[inline]
     pub fn set_connection_type(&mut self, ctype: ConnectionType) {
         match ctype {
             ConnectionType::Close => self.flags.insert(Flags::CLOSE),
@@ -133,14 +114,14 @@ impl ResponseHead {
         }
     }
 
-    #[inline]
     /// Get response body chunking state
+    #[inline]
     pub fn chunked(&self) -> bool {
         !self.flags.contains(Flags::NO_CHUNKING)
     }
 
-    #[inline]
     /// Set no chunking for payload
+    #[inline]
     pub fn no_chunking(&mut self, val: bool) {
         if val {
             self.flags.insert(Flags::NO_CHUNKING);
@@ -183,7 +164,7 @@ impl Drop for BoxedResponseHead {
     }
 }
 
-/// Request's objects pool
+/// Response head object pool.
 #[doc(hidden)]
 pub struct BoxedResponsePool(#[allow(clippy::vec_box)] RefCell<Vec<Box<ResponseHead>>>);
 
@@ -192,7 +173,7 @@ impl BoxedResponsePool {
         BoxedResponsePool(RefCell::new(Vec::with_capacity(128)))
     }
 
-    /// Get message from the pool
+    /// Get message from the pool.
     #[inline]
     fn get_message(&self, status: StatusCode) -> BoxedResponseHead {
         if let Some(mut head) = self.0.borrow_mut().pop() {
@@ -208,12 +189,12 @@ impl BoxedResponsePool {
         }
     }
 
-    /// Release request instance
+    /// Release request instance.
     #[inline]
-    fn release(&self, mut msg: Box<ResponseHead>) {
+    fn release(&self, msg: Box<ResponseHead>) {
         let pool = &mut self.0.borrow_mut();
+
         if pool.len() < 128 {
-            msg.extensions.get_mut().clear();
             pool.push(msg);
         }
     }
@@ -229,14 +210,15 @@ mod tests {
     use memchr::memmem;
 
     use crate::{
+        h1::H1Service,
         header::{HeaderName, HeaderValue},
-        Error, HttpService, Request, Response,
+        Error, Request, Response, ServiceConfig,
     };
 
     #[actix_rt::test]
     async fn camel_case_headers() {
         let mut srv = actix_http_test::test_server(|| {
-            HttpService::new(|req: Request| async move {
+            H1Service::with_config(ServiceConfig::default(), |req: Request| async move {
                 let mut res = Response::ok();
 
                 if req.path().contains("camel") {
@@ -247,6 +229,7 @@ mod tests {
                     HeaderName::from_static("foo-bar"),
                     HeaderValue::from_static("baz"),
                 );
+
                 Ok::<_, Error>(res)
             })
             .tcp()
@@ -254,20 +237,32 @@ mod tests {
         .await;
 
         let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
-        let _ = stream.write_all(b"GET /camel HTTP/1.1\r\nConnection: Close\r\n\r\n");
-        let mut data = vec![0; 1024];
-        let _ = stream.read(&mut data);
+        let _ = stream
+            .write_all(b"GET /camel HTTP/1.1\r\nConnection: Close\r\n\r\n")
+            .unwrap();
+        let mut data = vec![];
+        let _ = stream.read_to_end(&mut data).unwrap();
         assert_eq!(&data[..17], b"HTTP/1.1 200 OK\r\n");
         assert!(memmem::find(&data, b"Foo-Bar").is_some());
-        assert!(!memmem::find(&data, b"foo-bar").is_some());
+        assert!(memmem::find(&data, b"foo-bar").is_none());
+        assert!(memmem::find(&data, b"Date").is_some());
+        assert!(memmem::find(&data, b"date").is_none());
+        assert!(memmem::find(&data, b"Content-Length").is_some());
+        assert!(memmem::find(&data, b"content-length").is_none());
 
         let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
-        let _ = stream.write_all(b"GET /lower HTTP/1.1\r\nConnection: Close\r\n\r\n");
-        let mut data = vec![0; 1024];
-        let _ = stream.read(&mut data);
+        let _ = stream
+            .write_all(b"GET /lower HTTP/1.1\r\nConnection: Close\r\n\r\n")
+            .unwrap();
+        let mut data = vec![];
+        let _ = stream.read_to_end(&mut data).unwrap();
         assert_eq!(&data[..17], b"HTTP/1.1 200 OK\r\n");
-        assert!(!memmem::find(&data, b"Foo-Bar").is_some());
+        assert!(memmem::find(&data, b"Foo-Bar").is_none());
         assert!(memmem::find(&data, b"foo-bar").is_some());
+        assert!(memmem::find(&data, b"Date").is_none());
+        assert!(memmem::find(&data, b"date").is_some());
+        assert!(memmem::find(&data, b"Content-Length").is_none());
+        assert!(memmem::find(&data, b"content-length").is_some());
 
         srv.stop().await;
     }

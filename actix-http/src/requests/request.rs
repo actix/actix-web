@@ -19,7 +19,7 @@ pub struct Request<P = BoxedPayloadStream> {
     pub(crate) payload: Payload<P>,
     pub(crate) head: Message<RequestHead>,
     pub(crate) conn_data: Option<Rc<Extensions>>,
-    pub(crate) req_data: RefCell<Extensions>,
+    pub(crate) extensions: RefCell<Extensions>,
 }
 
 impl<P> HttpMessage for Request<P> {
@@ -34,16 +34,14 @@ impl<P> HttpMessage for Request<P> {
         mem::replace(&mut self.payload, Payload::None)
     }
 
-    /// Request extensions
     #[inline]
     fn extensions(&self) -> Ref<'_, Extensions> {
-        self.req_data.borrow()
+        self.extensions.borrow()
     }
 
-    /// Mutable reference to a the request's extensions
     #[inline]
     fn extensions_mut(&self) -> RefMut<'_, Extensions> {
-        self.req_data.borrow_mut()
+        self.extensions.borrow_mut()
     }
 }
 
@@ -52,7 +50,7 @@ impl From<Message<RequestHead>> for Request<BoxedPayloadStream> {
         Request {
             head,
             payload: Payload::None,
-            req_data: RefCell::new(Extensions::default()),
+            extensions: RefCell::new(Extensions::default()),
             conn_data: None,
         }
     }
@@ -65,7 +63,7 @@ impl Request<BoxedPayloadStream> {
         Request {
             head: Message::new(),
             payload: Payload::None,
-            req_data: RefCell::new(Extensions::default()),
+            extensions: RefCell::new(Extensions::default()),
             conn_data: None,
         }
     }
@@ -77,7 +75,7 @@ impl<P> Request<P> {
         Request {
             payload,
             head: Message::new(),
-            req_data: RefCell::new(Extensions::default()),
+            extensions: RefCell::new(Extensions::default()),
             conn_data: None,
         }
     }
@@ -90,7 +88,7 @@ impl<P> Request<P> {
             Request {
                 payload,
                 head: self.head,
-                req_data: self.req_data,
+                extensions: self.extensions,
                 conn_data: self.conn_data,
             },
             pl,
@@ -195,16 +193,17 @@ impl<P> Request<P> {
             .and_then(|container| container.get::<T>())
     }
 
-    /// Returns the connection data container if an [on-connect] callback was registered.
+    /// Returns the connection-level data/extensions container if an [on-connect] callback was
+    /// registered, leaving an empty one in its place.
     ///
     /// [on-connect]: crate::HttpServiceBuilder::on_connect_ext
     pub fn take_conn_data(&mut self) -> Option<Rc<Extensions>> {
         self.conn_data.take()
     }
 
-    /// Returns the request data container, leaving an empty one in it's place.
+    /// Returns the request-local data/extensions container, leaving an empty one in its place.
     pub fn take_req_data(&mut self) -> Extensions {
-        mem::take(self.req_data.get_mut())
+        mem::take(self.extensions.get_mut())
     }
 }
 

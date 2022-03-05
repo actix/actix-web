@@ -23,7 +23,6 @@ use zstd::stream::write::Encoder as ZstdEncoder;
 use super::Writer;
 use crate::{
     body::{self, BodySize, MessageBody},
-    error::BlockingError,
     header::{self, ContentEncoding, HeaderValue, CONTENT_ENCODING},
     ResponseHead, StatusCode,
 };
@@ -173,7 +172,12 @@ where
 
             if let Some(ref mut fut) = this.fut {
                 let mut encoder = ready!(Pin::new(fut).poll(cx))
-                    .map_err(|_| EncoderError::Blocking(BlockingError))?
+                    .map_err(|_| {
+                        EncoderError::Io(io::Error::new(
+                            io::ErrorKind::Other,
+                            "Blocking task was cancelled unexpectedly",
+                        ))
+                    })?
                     .map_err(EncoderError::Io)?;
 
                 let chunk = encoder.take();
@@ -352,7 +356,7 @@ impl ContentEncoder {
             ContentEncoder::Brotli(ref mut encoder) => match encoder.write_all(data) {
                 Ok(_) => Ok(()),
                 Err(err) => {
-                    trace!("Error decoding br encoding: {}", err);
+                    log::trace!("Error decoding br encoding: {}", err);
                     Err(err)
                 }
             },
@@ -361,7 +365,7 @@ impl ContentEncoder {
             ContentEncoder::Gzip(ref mut encoder) => match encoder.write_all(data) {
                 Ok(_) => Ok(()),
                 Err(err) => {
-                    trace!("Error decoding gzip encoding: {}", err);
+                    log::trace!("Error decoding gzip encoding: {}", err);
                     Err(err)
                 }
             },
@@ -370,7 +374,7 @@ impl ContentEncoder {
             ContentEncoder::Deflate(ref mut encoder) => match encoder.write_all(data) {
                 Ok(_) => Ok(()),
                 Err(err) => {
-                    trace!("Error decoding deflate encoding: {}", err);
+                    log::trace!("Error decoding deflate encoding: {}", err);
                     Err(err)
                 }
             },
@@ -379,7 +383,7 @@ impl ContentEncoder {
             ContentEncoder::Zstd(ref mut encoder) => match encoder.write_all(data) {
                 Ok(_) => Ok(()),
                 Err(err) => {
-                    trace!("Error decoding ztsd encoding: {}", err);
+                    log::trace!("Error decoding ztsd encoding: {}", err);
                     Err(err)
                 }
             },
@@ -391,21 +395,20 @@ impl ContentEncoder {
 fn new_brotli_compressor() -> Box<brotli::CompressorWriter<Writer>> {
     Box::new(brotli::CompressorWriter::new(
         Writer::new(),
-        8 * 1024, // 32 KiB buffer
-        3,        // BROTLI_PARAM_QUALITY
-        22,       // BROTLI_PARAM_LGWIN
+        32 * 1024, // 32 KiB buffer
+        3,         // BROTLI_PARAM_QUALITY
+        22,        // BROTLI_PARAM_LGWIN
     ))
 }
 
 #[derive(Debug, Display)]
 #[non_exhaustive]
 pub enum EncoderError {
+    /// Wrapped body stream error.
     #[display(fmt = "body")]
     Body(Box<dyn StdError>),
 
-    #[display(fmt = "blocking")]
-    Blocking(BlockingError),
-
+    /// Generic I/O error.
     #[display(fmt = "io")]
     Io(io::Error),
 }
@@ -414,7 +417,6 @@ impl StdError for EncoderError {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
             EncoderError::Body(err) => Some(&**err),
-            EncoderError::Blocking(err) => Some(err),
             EncoderError::Io(err) => Some(err),
         }
     }

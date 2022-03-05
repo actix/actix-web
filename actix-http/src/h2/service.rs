@@ -355,7 +355,7 @@ where
                 }
 
                 Err(err) => {
-                    trace!("H2 handshake error: {}", err);
+                    log::trace!("H2 handshake error: {}", err);
                     Poll::Ready(Err(err))
                 }
             },

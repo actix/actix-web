@@ -1,32 +1,34 @@
 use std::io;
 
 use actix_http::{
-    body::MessageBody, header::HeaderValue, Error, HttpService, Request, Response, StatusCode,
+    body::{BodyStream, MessageBody},
+    header, Error, HttpMessage, HttpService, Request, Response, StatusCode,
 };
-use actix_server::Server;
-use bytes::BytesMut;
-use futures_util::StreamExt as _;
 
 async fn handle_request(mut req: Request) -> Result<Response<impl MessageBody>, Error> {
-    let mut body = BytesMut::new();
-    while let Some(item) = req.payload().next().await {
-        body.extend_from_slice(&item?)
+    let mut res = Response::build(StatusCode::OK);
+
+    if let Some(ct) = req.headers().get(header::CONTENT_TYPE) {
+        res.insert_header((header::CONTENT_TYPE, ct));
     }
 
-    log::info!("request body: {:?}", body);
+    // echo request payload stream as (chunked) response body
+    let res = res.message_body(BodyStream::new(req.payload().take()))?;
 
-    Ok(Response::build(StatusCode::OK)
-        .insert_header(("x-head", HeaderValue::from_static("dummy value!")))
-        .body(body))
+    Ok(res)
 }
 
 #[actix_rt::main]
 async fn main() -> io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
-    Server::build()
+    actix_server::Server::build()
         .bind("echo", ("127.0.0.1", 8080), || {
-            HttpService::build().finish(handle_request).tcp()
+            HttpService::build()
+                // handles HTTP/1.1 only
+                .h1(handle_request)
+                // No TLS
+                .tcp()
         })?
         .run()
         .await
