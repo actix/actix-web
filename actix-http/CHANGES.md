@@ -369,6 +369,7 @@
 [#2585]: https://github.com/actix/actix-web/pull/2585
 [#2587]: https://github.com/actix/actix-web/pull/2587
 
+
 ## 3.0.0-beta.18 - 2022-01-04
 ### Added
 - `impl Eq` for `header::ContentEncoding`. [#2501]
