@@ -1,6 +1,10 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Fixed
+- Encode correctly camel case header with n+2 hyphens [#2683]
+
+[#2683]: https://github.com/actix/actix-web/issues/2683
 
 
 ## 3.0.1 - 2022-03-04
@@ -750,10 +754,10 @@
 - Remove `ResponseError` impl for `actix::actors::resolver::ResolverError`
   due to deprecate of resolver actor. [#1813]
 - Remove `ConnectError::SslHandshakeError` and re-export of `HandshakeError`.
-  due to the removal of this type from `tokio-openssl` crate. openssl handshake 
+  due to the removal of this type from `tokio-openssl` crate. openssl handshake
   error would return as `ConnectError::SslError`. [#1813]
 - Remove `actix-threadpool` dependency. Use `actix_rt::task::spawn_blocking`.
-  Due to this change `actix_threadpool::BlockingError` type is moved into 
+  Due to this change `actix_threadpool::BlockingError` type is moved into
   `actix_http::error` module. [#1878]
 
 [#1813]: https://github.com/actix/actix-web/pull/1813
