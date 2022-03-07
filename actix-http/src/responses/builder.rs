@@ -144,7 +144,7 @@ impl ResponseBuilder {
         self
     }
 
-    /// Set connection type to Upgrade
+    /// Set connection type to `Upgrade`.
     #[inline]
     pub fn upgrade<V>(&mut self, value: V) -> &mut Self
     where
@@ -161,7 +161,7 @@ impl ResponseBuilder {
         self
     }
 
-    /// Force close connection, even if it is marked as keep-alive
+    /// Force-close connection, even if it is marked as keep-alive.
     #[inline]
     pub fn force_close(&mut self) -> &mut Self {
         if let Some(parts) = self.inner() {
