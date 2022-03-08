@@ -295,8 +295,11 @@ impl MessageType for ResponseHead {
         let (len, ver, status, h_len) = {
             let mut parsed: [httparse::Header<'_>; MAX_HEADERS] = EMPTY_HEADER_ARRAY;
 
+            let mut config = httparse::ParserConfig::default();
+            config.allow_spaces_after_header_name_in_responses(true);
+
             let mut res = httparse::Response::new(&mut parsed);
-            match res.parse(src)? {
+            match config.parse_response(&mut res, src)? {
                 httparse::Status::Complete(len) => {
                     let version = if res.version.unwrap() == 1 {
                         Version::HTTP_11

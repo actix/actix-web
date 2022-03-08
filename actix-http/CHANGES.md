@@ -1,6 +1,10 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Fixed
+- Allow spaces between header name and colon when parsing responses. [#2684]
+
+[#2684]: https://github.com/actix/actix-web/issues/2684
 
 
 ## 3.0.2 - 2022-03-05
