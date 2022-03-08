@@ -30,17 +30,35 @@ pub type BoxConnectorService = Rc<
 
 pub type BoxedSocket = Box<dyn ConnectionIo>;
 
+/// Combined HTTP and WebSocket request type received by connection service.
 pub enum ConnectRequest {
+    /// Standard HTTP request.
+    ///
+    /// Contains the request head, body type, and optional pre-resolved socket address.
     Client(RequestHeadType, AnyBody, Option<net::SocketAddr>),
+
+    /// Tunnel used by WebSocket connection requests.
+    ///
+    /// Contains the request head and optional pre-resolved socket address.
     Tunnel(RequestHead, Option<net::SocketAddr>),
 }
 
+/// Combined HTTP response & WebSocket tunnel type returned from connection service.
 pub enum ConnectResponse {
+    /// Standard HTTP response.
     Client(ClientResponse),
+
+    /// Tunnel used for WebSocket communication.
+    ///
+    /// Contains response head and framed HTTP/1.1 codec.
     Tunnel(ResponseHead, Framed<BoxedSocket, ClientCodec>),
 }
 
 impl ConnectResponse {
+    /// Unwraps type into HTTP response.
+    ///
+    /// # Panics
+    /// Panics if enum variant is not `Client`.
     pub fn into_client_response(self) -> ClientResponse {
         match self {
             ConnectResponse::Client(res) => res,
@@ -50,6 +68,10 @@ impl ConnectResponse {
         }
     }
 
+    /// Unwraps type into WebSocket tunnel response.
+    ///
+    /// # Panics
+    /// Panics if enum variant is not `Tunnel`.
     pub fn into_tunnel_response(self) -> (ResponseHead, Framed<BoxedSocket, ClientCodec>) {
         match self {
             ConnectResponse::Tunnel(head, framed) => (head, framed),
@@ -136,30 +158,37 @@ where
             ConnectRequestProj::Connection { fut, req } => {
                 let connection = ready!(fut.poll(cx))?;
                 let req = req.take().unwrap();
+
                 match req {
                     ConnectRequest::Client(head, body, ..) => {
                         // send request
                         let fut = ConnectRequestFuture::Client {
                             fut: connection.send_request(head, body),
                         };
+
                         self.set(fut);
                     }
+
                     ConnectRequest::Tunnel(head, ..) => {
                         // send request
                         let fut = ConnectRequestFuture::Tunnel {
                             fut: connection.open_tunnel(RequestHeadType::from(head)),
                         };
+
                         self.set(fut);
                     }
                 }
+
                 self.poll(cx)
             }
+
             ConnectRequestProj::Client { fut } => {
                 let (head, payload) = ready!(fut.as_mut().poll(cx))?;
                 Poll::Ready(Ok(ConnectResponse::Client(ClientResponse::new(
                     head, payload,
                 ))))
             }
+
             ConnectRequestProj::Tunnel { fut } => {
                 let (head, framed) = ready!(fut.as_mut().poll(cx))?;
                 let framed = framed.into_map_io(|io| Box::new(io) as _);

@@ -1,42 +1,31 @@
 //! `awc` is an asynchronous HTTP and WebSocket client library.
 //!
-//! # Making a GET request
+//! # `GET` Requests
 //! ```no_run
 //! # #[actix_rt::main]
 //! # async fn main() -> Result<(), awc::error::SendRequestError> {
+//! // create client
 //! let mut client = awc::Client::default();
-//! let response = client.get("http://www.rust-lang.org") // <- Create request builder
-//!     .insert_header(("User-Agent", "Actix-web"))
-//!     .send()                                            // <- Send http request
-//!     .await?;
 //!
-//!  println!("Response: {:?}", response);
+//! // construct request
+//! let req = client.get("http://www.rust-lang.org")
+//!     .insert_header(("User-Agent", "awc/3.0"));
+//!
+//! // send request and await response
+//! let res = req.send().await?;
+//! println!("Response: {:?}", res);
 //! # Ok(())
 //! # }
 //! ```
 //!
-//! # Making POST requests
-//! ## Raw body contents
+//! # `POST` Requests
+//! ## Raw Body
 //! ```no_run
 //! # #[actix_rt::main]
 //! # async fn main() -> Result<(), awc::error::SendRequestError> {
 //! let mut client = awc::Client::default();
 //! let response = client.post("http://httpbin.org/post")
 //!     .send_body("Raw body contents")
-//!     .await?;
-//! # Ok(())
-//! # }
-//! ```
-//!
-//! ## Forms
-//! ```no_run
-//! # #[actix_rt::main]
-//! # async fn main() -> Result<(), awc::error::SendRequestError> {
-//! let params = [("foo", "bar"), ("baz", "quux")];
-//!
-//! let mut client = awc::Client::default();
-//! let response = client.post("http://httpbin.org/post")
-//!     .send_form(&params)
 //!     .await?;
 //! # Ok(())
 //! # }
@@ -59,6 +48,20 @@
 //! # }
 //! ```
 //!
+//! ## URL Encoded Form
+//! ```no_run
+//! # #[actix_rt::main]
+//! # async fn main() -> Result<(), awc::error::SendRequestError> {
+//! let params = [("foo", "bar"), ("baz", "quux")];
+//!
+//! let mut client = awc::Client::default();
+//! let response = client.post("http://httpbin.org/post")
+//!     .send_form(&params)
+//!     .await?;
+//! # Ok(())
+//! # }
+//! ```
+//!
 //! # Response Compression
 //! All [official][iana-encodings] and common content encoding codecs are supported, optionally.
 //!
@@ -76,11 +79,12 @@
 //!
 //! [iana-encodings]: https://www.iana.org/assignments/http-parameters/http-parameters.xhtml#content-coding
 //!
-//! # WebSocket support
+//! # WebSockets
 //! ```no_run
 //! # #[actix_rt::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! use futures_util::{sink::SinkExt, stream::StreamExt};
+//! use futures_util::{sink::SinkExt as _, stream::StreamExt as _};
+//!
 //! let (_resp, mut connection) = awc::Client::new()
 //!     .ws("ws://echo.websocket.org")
 //!     .connect()
@@ -89,8 +93,9 @@
 //! connection
 //!     .send(awc::ws::Message::Text("Echo".into()))
 //!     .await?;
+//!
 //! let response = connection.next().await.unwrap()?;
-//! # assert_eq!(response, awc::ws::Frame::Text("Echo".as_bytes().into()));
+//! assert_eq!(response, awc::ws::Frame::Text("Echo".into()));
 //! # Ok(())
 //! # }
 //! ```

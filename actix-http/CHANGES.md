@@ -3,6 +3,13 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 3.0.3 - 2022-03-08
+### Fixed
+- Allow spaces between header name and colon when parsing responses. [#2684]
+
+[#2684]: https://github.com/actix/actix-web/issues/2684
+
+
 ## 3.0.2 - 2022-03-05
 ### Fixed
 - Fix encoding camel-case header names with more than one hyphen. [#2683]
