@@ -246,7 +246,12 @@ where
     ///
     /// The default limit size is 100.
     pub fn limit(mut self, limit: usize) -> Self {
-        self.config.limit = limit;
+        if limit == 0 {
+            self.config.limit = u32::MAX as usize;
+        } else {
+            self.config.limit = limit;
+        }
+
         self
     }
 
