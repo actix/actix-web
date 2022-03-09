@@ -3,6 +3,11 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 3.0.4 - 2022-03-09
+### Fixed
+- Document on docs.rs with `ws` feature enabled.
+
+
 ## 3.0.3 - 2022-03-08
 ### Fixed
 - Allow spaces between header name and colon when parsing responses. [#2684]
