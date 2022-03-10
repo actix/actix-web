@@ -210,11 +210,10 @@ impl NamedFile {
         Self::from_file(file, path)
     }
 
-    #[allow(rustdoc::broken_intra_doc_links)]
     /// Attempts to open a file asynchronously in read-only mode.
     ///
-    /// When the `experimental-io-uring` crate feature is enabled, this will be async.
-    /// Otherwise, it will be just like [`open`][Self::open].
+    /// When the `experimental-io-uring` crate feature is enabled, this will be async. Otherwise, it
+    /// will behave just like `open`.
     ///
     /// # Examples
     /// ```
