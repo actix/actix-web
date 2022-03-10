@@ -298,20 +298,15 @@ impl NamedFile {
         self.encoding
     }
 
-    /// Returns the status code for serving this file.
-    #[inline]
-    pub fn status_code(&self) -> &StatusCode {
-        &self.status_code
-    }
-
-    /// Set response **Status Code**
+    /// Set response status code.
+    #[deprecated(since = "0.7.0", note = "Prefer `Responder::customize()`.")]
     pub fn set_status_code(mut self, status: StatusCode) -> Self {
         self.status_code = status;
         self
     }
 
-    /// Set the MIME Content-Type for serving this file. By default the Content-Type is inferred
-    /// from the filename extension.
+    /// Sets the `Content-Type` header that will be used when serving this file. By default the
+    /// `Content-Type` is inferred from the filename extension.
     #[inline]
     pub fn set_content_type(mut self, mime_type: Mime) -> Self {
         self.content_type = mime_type;
@@ -332,9 +327,9 @@ impl NamedFile {
         self
     }
 
-    /// Disable `Content-Disposition` header.
+    /// Disables `Content-Disposition` header.
     ///
-    /// By default Content-Disposition` header is enabled.
+    /// By default, the `Content-Disposition` header is sent.
     #[inline]
     pub fn disable_content_disposition(mut self) -> Self {
         self.flags.remove(Flags::CONTENT_DISPOSITION);
