@@ -7,6 +7,7 @@ use std::{
 
 use firestorm::{profile_fn, profile_method, profile_section};
 use regex::{escape, Regex, RegexSet};
+use tracing::error;
 
 use crate::{path::PathItem, IntoPatterns, Patterns, Resource, ResourcePath};
 
@@ -714,10 +715,7 @@ impl ResourceDef {
                         if let Some(m) = captures.name(name) {
                             segments[no] = PathItem::Segment(m.start() as u16, m.end() as u16);
                         } else {
-                            log::error!(
-                                "Dynamic path match but not all segments found: {}",
-                                name
-                            );
+                            error!("Dynamic path match but not all segments found: {}", name);
                             return false;
                         }
                     }
@@ -744,7 +742,7 @@ impl ResourceDef {
                     if let Some(m) = captures.name(name) {
                         segments[no] = PathItem::Segment(m.start() as u16, m.end() as u16);
                     } else {
-                        log::error!("Dynamic path match but not all segments found: {}", name);
+                        error!("Dynamic path match but not all segments found: {}", name);
                         return false;
                     }
                 }
@@ -1038,7 +1036,7 @@ impl ResourceDef {
             // tail segments in prefixes have no defined semantics
 
             #[cfg(not(test))]
-            log::warn!(
+            tracing::warn!(
                 "Prefix resources should not have tail segments. \
                 Use `ResourceDef::new` constructor. \
                 This may become a panic in the future."
@@ -1053,7 +1051,7 @@ impl ResourceDef {
             // unnamed tail segment
 
             #[cfg(not(test))]
-            log::warn!(
+            tracing::warn!(
                 "Tail segments must have names. \
                 Consider `.../{{tail}}*`. \
                 This may become a panic in the future."
