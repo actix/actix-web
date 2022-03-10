@@ -60,10 +60,7 @@ impl Heartbeat {
 impl Stream for Heartbeat {
     type Item = Result<Bytes, Error>;
 
-    fn poll_next(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         log::trace!("poll");
 
         ready!(self.as_mut().interval.poll_tick(cx));
@@ -85,22 +82,31 @@ impl Stream for Heartbeat {
 fn tls_config() -> rustls::ServerConfig {
     use std::io::BufReader;
 
-    use rustls::{
-        internal::pemfile::{certs, pkcs8_private_keys},
-        NoClientAuth, ServerConfig,
-    };
+    use rustls::{Certificate, PrivateKey};
+    use rustls_pemfile::{certs, pkcs8_private_keys};
 
     let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()]).unwrap();
     let cert_file = cert.serialize_pem().unwrap();
     let key_file = cert.serialize_private_key_pem();
 
-    let mut config = ServerConfig::new(NoClientAuth::new());
     let cert_file = &mut BufReader::new(cert_file.as_bytes());
     let key_file = &mut BufReader::new(key_file.as_bytes());
 
-    let cert_chain = certs(cert_file).unwrap();
+    let cert_chain = certs(cert_file)
+        .unwrap()
+        .into_iter()
+        .map(Certificate)
+        .collect();
     let mut keys = pkcs8_private_keys(key_file).unwrap();
-    config.set_single_cert(cert_chain, keys.remove(0)).unwrap();
+
+    let mut config = rustls::ServerConfig::builder()
+        .with_safe_defaults()
+        .with_no_client_auth()
+        .with_single_cert(cert_chain, PrivateKey(keys.remove(0)))
+        .unwrap();
+
+    config.alpn_protocols.push(b"http/1.1".to_vec());
+    config.alpn_protocols.push(b"h2".to_vec());
 
     config
 }

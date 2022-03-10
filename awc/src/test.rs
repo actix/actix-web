@@ -1,7 +1,6 @@
 //! Test helpers for actix http client to use during testing.
-use actix_http::http::header::IntoHeaderPair;
-use actix_http::http::{StatusCode, Version};
-use actix_http::{h1, Payload, ResponseHead};
+
+use actix_http::{h1, header::TryIntoHeaderPair, Payload, ResponseHead, StatusCode, Version};
 use bytes::Bytes;
 
 #[cfg(feature = "cookies")]
@@ -29,10 +28,7 @@ impl Default for TestResponse {
 
 impl TestResponse {
     /// Create TestResponse and set header
-    pub fn with_header<H>(header: H) -> Self
-    where
-        H: IntoHeaderPair,
-    {
+    pub fn with_header(header: impl TryIntoHeaderPair) -> Self {
         Self::default().insert_header(header)
     }
 
@@ -43,11 +39,8 @@ impl TestResponse {
     }
 
     /// Insert a header
-    pub fn insert_header<H>(mut self, header: H) -> Self
-    where
-        H: IntoHeaderPair,
-    {
-        if let Ok((key, value)) = header.try_into_header_pair() {
+    pub fn insert_header(mut self, header: impl TryIntoHeaderPair) -> Self {
+        if let Ok((key, value)) = header.try_into_pair() {
             self.head.headers.insert(key, value);
             return self;
         }
@@ -55,11 +48,8 @@ impl TestResponse {
     }
 
     /// Append a header
-    pub fn append_header<H>(mut self, header: H) -> Self
-    where
-        H: IntoHeaderPair,
-    {
-        if let Ok((key, value)) = header.try_into_header_pair() {
+    pub fn append_header(mut self, header: impl TryIntoHeaderPair) -> Self {
+        if let Ok((key, value)) = header.try_into_pair() {
             self.head.headers.append(key, value);
             return self;
         }
@@ -75,7 +65,7 @@ impl TestResponse {
 
     /// Set response's payload
     pub fn set_payload<B: Into<Bytes>>(mut self, data: B) -> Self {
-        let mut payload = h1::Payload::empty();
+        let (_, mut payload) = h1::Payload::create(true);
         payload.unread_data(data.into());
         self.payload = Some(payload.into());
         self
@@ -89,7 +79,7 @@ impl TestResponse {
 
         #[cfg(feature = "cookies")]
         for cookie in self.cookies.delta() {
-            use actix_http::http::header::{self, HeaderValue};
+            use actix_http::header::{self, HeaderValue};
 
             head.headers.insert(
                 header::SET_COOKIE,
@@ -100,7 +90,8 @@ impl TestResponse {
         if let Some(pl) = self.payload {
             ClientResponse::new(head, pl)
         } else {
-            ClientResponse::new(head, h1::Payload::empty().into())
+            let (_, payload) = h1::Payload::create(true);
+            ClientResponse::new(head, payload.into())
         }
     }
 }
@@ -109,7 +100,7 @@ impl TestResponse {
 mod tests {
     use std::time::SystemTime;
 
-    use actix_http::http::header::HttpDate;
+    use actix_http::header::HttpDate;
 
     use super::*;
     use crate::{cookie, http::header};

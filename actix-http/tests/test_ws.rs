@@ -6,7 +6,7 @@ use std::{
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_http::{
-    body::{AnyBody, BodySize},
+    body::{BodySize, BoxBody},
     h1,
     ws::{self, CloseCode, Frame, Item, Message},
     Error, HttpService, Request, Response,
@@ -50,14 +50,15 @@ enum WsServiceError {
     Dispatcher,
 }
 
-impl From<WsServiceError> for Response<AnyBody> {
+impl From<WsServiceError> for Response<BoxBody> {
     fn from(err: WsServiceError) -> Self {
         match err {
             WsServiceError::Http(err) => err.into(),
             WsServiceError::Ws(err) => err.into(),
             WsServiceError::Io(_err) => unreachable!(),
-            WsServiceError::Dispatcher => Response::internal_server_error()
-                .set_body(AnyBody::from(format!("{}", err))),
+            WsServiceError::Dispatcher => {
+                Response::internal_server_error().set_body(BoxBody::new(format!("{}", err)))
+            }
         }
     }
 }
@@ -97,9 +98,7 @@ where
 async fn service(msg: Frame) -> Result<Message, Error> {
     let msg = match msg {
         Frame::Ping(msg) => Message::Pong(msg),
-        Frame::Text(text) => {
-            Message::Text(String::from_utf8_lossy(&text).into_owned().into())
-        }
+        Frame::Text(text) => Message::Text(String::from_utf8_lossy(&text).into_owned().into()),
         Frame::Binary(bin) => Message::Binary(bin),
         Frame::Continuation(item) => Message::Continuation(item),
         Frame::Close(reason) => Message::Close(reason),
@@ -110,7 +109,7 @@ async fn service(msg: Frame) -> Result<Message, Error> {
 }
 
 #[actix_rt::test]
-async fn test_simple() {
+async fn simple() {
     let mut srv = test_server(|| {
         HttpService::build()
             .upgrade(fn_factory(|| async {

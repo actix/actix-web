@@ -1,70 +1,108 @@
-use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::{
+    mem,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 use bytes::Bytes;
 use futures_core::Stream;
-use h2::RecvStream;
+use pin_project_lite::pin_project;
 
 use crate::error::PayloadError;
 
-/// Type represent boxed payload
-pub type PayloadStream = Pin<Box<dyn Stream<Item = Result<Bytes, PayloadError>>>>;
+/// A boxed payload stream.
+pub type BoxedPayloadStream = Pin<Box<dyn Stream<Item = Result<Bytes, PayloadError>>>>;
 
-/// Type represent streaming payload
-pub enum Payload<S = PayloadStream> {
-    None,
-    H1(crate::h1::Payload),
-    H2(crate::h2::Payload),
-    Stream(S),
+#[doc(hidden)]
+#[deprecated(since = "3.0.0", note = "Renamed to `BoxedPayloadStream`.")]
+pub type PayloadStream = BoxedPayloadStream;
+
+#[cfg(not(feature = "http2"))]
+pin_project! {
+    /// A streaming payload.
+    #[project = PayloadProj]
+    pub enum Payload<S = BoxedPayloadStream> {
+        None,
+        H1 { payload: crate::h1::Payload },
+        Stream { #[pin] payload: S },
+    }
+}
+
+#[cfg(feature = "http2")]
+pin_project! {
+    /// A streaming payload.
+    #[project = PayloadProj]
+    pub enum Payload<S = BoxedPayloadStream> {
+        None,
+        H1 { payload: crate::h1::Payload },
+        H2 { payload: crate::h2::Payload },
+        Stream { #[pin] payload: S },
+    }
 }
 
 impl<S> From<crate::h1::Payload> for Payload<S> {
-    fn from(v: crate::h1::Payload) -> Self {
-        Payload::H1(v)
+    fn from(payload: crate::h1::Payload) -> Self {
+        Payload::H1 { payload }
     }
 }
 
+#[cfg(feature = "http2")]
 impl<S> From<crate::h2::Payload> for Payload<S> {
-    fn from(v: crate::h2::Payload) -> Self {
-        Payload::H2(v)
+    fn from(payload: crate::h2::Payload) -> Self {
+        Payload::H2 { payload }
     }
 }
 
-impl<S> From<RecvStream> for Payload<S> {
-    fn from(v: RecvStream) -> Self {
-        Payload::H2(crate::h2::Payload::new(v))
+#[cfg(feature = "http2")]
+impl<S> From<::h2::RecvStream> for Payload<S> {
+    fn from(stream: ::h2::RecvStream) -> Self {
+        Payload::H2 {
+            payload: crate::h2::Payload::new(stream),
+        }
     }
 }
 
-impl From<PayloadStream> for Payload {
-    fn from(pl: PayloadStream) -> Self {
-        Payload::Stream(pl)
+impl From<BoxedPayloadStream> for Payload {
+    fn from(payload: BoxedPayloadStream) -> Self {
+        Payload::Stream { payload }
     }
 }
 
 impl<S> Payload<S> {
     /// Takes current payload and replaces it with `None` value
     pub fn take(&mut self) -> Payload<S> {
-        std::mem::replace(self, Payload::None)
+        mem::replace(self, Payload::None)
     }
 }
 
 impl<S> Stream for Payload<S>
 where
-    S: Stream<Item = Result<Bytes, PayloadError>> + Unpin,
+    S: Stream<Item = Result<Bytes, PayloadError>>,
 {
     type Item = Result<Bytes, PayloadError>;
 
     #[inline]
-    fn poll_next(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
-        match self.get_mut() {
-            Payload::None => Poll::Ready(None),
-            Payload::H1(ref mut pl) => pl.readany(cx),
-            Payload::H2(ref mut pl) => Pin::new(pl).poll_next(cx),
-            Payload::Stream(ref mut pl) => Pin::new(pl).poll_next(cx),
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        match self.project() {
+            PayloadProj::None => Poll::Ready(None),
+            PayloadProj::H1 { payload } => Pin::new(payload).poll_next(cx),
+
+            #[cfg(feature = "http2")]
+            PayloadProj::H2 { payload } => Pin::new(payload).poll_next(cx),
+
+            PayloadProj::Stream { payload } => payload.poll_next(cx),
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::panic::{RefUnwindSafe, UnwindSafe};
+
+    use static_assertions::{assert_impl_all, assert_not_impl_any};
+
+    use super::*;
+
+    assert_impl_all!(Payload: Unpin);
+    assert_not_impl_any!(Payload: Send, Sync, UnwindSafe, RefUnwindSafe);
 }

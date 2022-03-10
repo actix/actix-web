@@ -1,25 +1,26 @@
-use std::io::Write;
-use std::marker::PhantomData;
-use std::ptr::copy_nonoverlapping;
-use std::slice::from_raw_parts_mut;
-use std::{cmp, io};
+use std::{
+    cmp,
+    io::{self, Write as _},
+    marker::PhantomData,
+    ptr::copy_nonoverlapping,
+    slice::from_raw_parts_mut,
+};
 
 use bytes::{BufMut, BytesMut};
 
 use crate::{
     body::BodySize,
-    config::ServiceConfig,
-    header::{map::Value, HeaderMap, HeaderName},
-    header::{CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING},
-    helpers,
-    message::{ConnectionType, RequestHeadType},
-    Response, StatusCode, Version,
+    header::{
+        map::Value, HeaderMap, HeaderName, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING,
+    },
+    helpers, ConnectionType, RequestHeadType, Response, ServiceConfig, StatusCode, Version,
 };
 
 const AVERAGE_HEADER_SIZE: usize = 30;
 
 #[derive(Debug)]
 pub(crate) struct MessageEncoder<T: MessageType> {
+    #[allow(dead_code)]
     pub length: BodySize,
     pub te: TransferEncoding,
     _phantom: PhantomData<T>,
@@ -55,7 +56,7 @@ pub(crate) trait MessageType: Sized {
         dst: &mut BytesMut,
         version: Version,
         mut length: BodySize,
-        ctype: ConnectionType,
+        conn_type: ConnectionType,
         config: &ServiceConfig,
     ) -> io::Result<()> {
         let chunked = self.chunked();
@@ -70,17 +71,28 @@ pub(crate) trait MessageType: Sized {
                 | StatusCode::PROCESSING
                 | StatusCode::NO_CONTENT => {
                     // skip content-length and transfer-encoding headers
-                    // See https://tools.ietf.org/html/rfc7230#section-3.3.1
-                    // and https://tools.ietf.org/html/rfc7230#section-3.3.2
+                    // see https://datatracker.ietf.org/doc/html/rfc7230#section-3.3.1
+                    // and https://datatracker.ietf.org/doc/html/rfc7230#section-3.3.2
                     skip_len = true;
                     length = BodySize::None
                 }
+
+                StatusCode::NOT_MODIFIED => {
+                    // 304 responses should never have a body but should retain a manually set
+                    // content-length header
+                    // see https://datatracker.ietf.org/doc/html/rfc7232#section-4.1
+                    skip_len = false;
+                    length = BodySize::None;
+                }
+
                 _ => {}
             }
         }
+
         match length {
             BodySize::Stream => {
                 if chunked {
+                    skip_len = true;
                     if camel_case {
                         dst.put_slice(b"\r\nTransfer-Encoding: chunked\r\n")
                     } else {
@@ -91,19 +103,14 @@ pub(crate) trait MessageType: Sized {
                     dst.put_slice(b"\r\n");
                 }
             }
-            BodySize::Empty => {
-                if camel_case {
-                    dst.put_slice(b"\r\nContent-Length: 0\r\n");
-                } else {
-                    dst.put_slice(b"\r\ncontent-length: 0\r\n");
-                }
-            }
-            BodySize::Sized(len) => helpers::write_content_length(len, dst),
+            BodySize::Sized(0) if camel_case => dst.put_slice(b"\r\nContent-Length: 0\r\n"),
+            BodySize::Sized(0) => dst.put_slice(b"\r\ncontent-length: 0\r\n"),
+            BodySize::Sized(len) => helpers::write_content_length(len, dst, camel_case),
             BodySize::None => dst.put_slice(b"\r\n"),
         }
 
         // Connection
-        match ctype {
+        match conn_type {
             ConnectionType::Upgrade => dst.put_slice(b"connection: upgrade\r\n"),
             ConnectionType::KeepAlive if version < Version::HTTP_11 => {
                 if camel_case {
@@ -145,7 +152,6 @@ pub(crate) trait MessageType: Sized {
             let k = key.as_str().as_bytes();
             let k_len = k.len();
 
-            // TODO: drain?
             for val in value.iter() {
                 let v = val.as_ref();
                 let v_len = v.len();
@@ -174,7 +180,7 @@ pub(crate) trait MessageType: Sized {
                 unsafe {
                     if camel_case {
                         // use Camel-Case headers
-                        write_camel_case(k, from_raw_parts_mut(buf, k_len));
+                        write_camel_case(k, buf, k_len);
                     } else {
                         write_data(k, buf, k_len);
                     }
@@ -204,13 +210,13 @@ pub(crate) trait MessageType: Sized {
             dst.advance_mut(pos);
         }
 
-        // optimized date header, set_date writes \r\n
         if !has_date {
-            config.set_date(dst);
-        } else {
-            // msg eof
-            dst.extend_from_slice(b"\r\n");
+            // optimized date header, write_date_header writes its own \r\n
+            config.write_date_header(dst, camel_case);
         }
+
+        // end-of-headers marker
+        dst.extend_from_slice(b"\r\n");
 
         Ok(())
     }
@@ -249,6 +255,12 @@ impl MessageType for Response<()> {
 
     fn extra_headers(&self) -> Option<&HeaderMap> {
         None
+    }
+
+    fn camel_case(&self) -> bool {
+        self.head()
+            .flags
+            .contains(crate::message::Flags::CAMEL_CASE)
     }
 
     fn encode_status(&mut self, dst: &mut BytesMut) -> io::Result<()> {
@@ -298,11 +310,7 @@ impl MessageType for RequestHeadType {
                 Version::HTTP_11 => "HTTP/1.1",
                 Version::HTTP_2 => "HTTP/2.0",
                 Version::HTTP_3 => "HTTP/3.0",
-                _ =>
-                    return Err(io::Error::new(
-                        io::ErrorKind::Other,
-                        "unsupported version"
-                    )),
+                _ => return Err(io::Error::new(io::ErrorKind::Other, "unsupported version")),
             }
         )
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
@@ -310,16 +318,17 @@ impl MessageType for RequestHeadType {
 }
 
 impl<T: MessageType> MessageEncoder<T> {
-    /// Encode message
+    /// Encode chunk.
     pub fn encode_chunk(&mut self, msg: &[u8], buf: &mut BytesMut) -> io::Result<bool> {
         self.te.encode(msg, buf)
     }
 
-    /// Encode eof
+    /// Encode EOF.
     pub fn encode_eof(&mut self, buf: &mut BytesMut) -> io::Result<()> {
         self.te.encode_eof(buf)
     }
 
+    /// Encode message.
     pub fn encode(
         &mut self,
         dst: &mut BytesMut,
@@ -328,13 +337,13 @@ impl<T: MessageType> MessageEncoder<T> {
         stream: bool,
         version: Version,
         length: BodySize,
-        ctype: ConnectionType,
+        conn_type: ConnectionType,
         config: &ServiceConfig,
     ) -> io::Result<()> {
         // transfer encoding
         if !head {
             self.te = match length {
-                BodySize::Empty => TransferEncoding::empty(),
+                BodySize::Sized(0) => TransferEncoding::empty(),
                 BodySize::Sized(len) => TransferEncoding::length(len),
                 BodySize::Stream => {
                     if message.chunked() && !stream {
@@ -350,7 +359,7 @@ impl<T: MessageType> MessageEncoder<T> {
         }
 
         message.encode_status(dst)?;
-        message.encode_headers(dst, version, length, ctype, config)
+        message.encode_headers(dst, version, length, conn_type, config)
     }
 }
 
@@ -364,10 +373,12 @@ pub(crate) struct TransferEncoding {
 enum TransferEncodingKind {
     /// An Encoder for when Transfer-Encoding includes `chunked`.
     Chunked(bool),
+
     /// An Encoder for when Content-Length is set.
     ///
     /// Enforces that the body is not longer than the Content-Length header.
     Length(u64),
+
     /// An Encoder for when Content-Length is not known.
     ///
     /// Application decides when to stop writing.
@@ -472,15 +483,22 @@ impl TransferEncoding {
 }
 
 /// # Safety
-/// Callers must ensure that the given length matches given value length.
+/// Callers must ensure that the given `len` matches the given `value` length and that `buf` is
+/// valid for writes of at least `len` bytes.
 unsafe fn write_data(value: &[u8], buf: *mut u8, len: usize) {
     debug_assert_eq!(value.len(), len);
     copy_nonoverlapping(value.as_ptr(), buf, len);
 }
 
-fn write_camel_case(value: &[u8], buffer: &mut [u8]) {
+/// # Safety
+/// Callers must ensure that the given `len` matches the given `value` length and that `buf` is
+/// valid for writes of at least `len` bytes.
+unsafe fn write_camel_case(value: &[u8], buf: *mut u8, len: usize) {
     // first copy entire (potentially wrong) slice to output
-    buffer[..value.len()].copy_from_slice(value);
+    write_data(value, buf, len);
+
+    // SAFETY: We just initialized the buffer with `value`
+    let buffer = from_raw_parts_mut(buf, len);
 
     let mut iter = value.iter();
 
@@ -499,6 +517,7 @@ fn write_camel_case(value: &[u8], buffer: &mut [u8]) {
             if let Some(c @ b'a'..=b'z') = iter.next() {
                 buffer[index] = c & 0b1101_1111;
             }
+            index += 1;
         }
 
         index += 1;
@@ -510,11 +529,13 @@ mod tests {
     use std::rc::Rc;
 
     use bytes::Bytes;
-    use http::header::AUTHORIZATION;
+    use http::header::{AUTHORIZATION, UPGRADE_INSECURE_REQUESTS};
 
     use super::*;
-    use crate::http::header::{HeaderValue, CONTENT_TYPE};
-    use crate::RequestHead;
+    use crate::{
+        header::{HeaderValue, CONTENT_TYPE},
+        RequestHead,
+    };
 
     #[test]
     fn test_chunked_te() {
@@ -539,22 +560,25 @@ mod tests {
         head.headers
             .insert(CONTENT_TYPE, HeaderValue::from_static("plain/text"));
 
+        head.headers
+            .insert(UPGRADE_INSECURE_REQUESTS, HeaderValue::from_static("1"));
+
         let mut head = RequestHeadType::Owned(head);
 
         let _ = head.encode_headers(
             &mut bytes,
             Version::HTTP_11,
-            BodySize::Empty,
+            BodySize::Sized(0),
             ConnectionType::Close,
             &ServiceConfig::default(),
         );
-        let data =
-            String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
+        let data = String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
 
         assert!(data.contains("Content-Length: 0\r\n"));
         assert!(data.contains("Connection: close\r\n"));
         assert!(data.contains("Content-Type: plain/text\r\n"));
         assert!(data.contains("Date: date\r\n"));
+        assert!(data.contains("Upgrade-Insecure-Requests: 1\r\n"));
 
         let _ = head.encode_headers(
             &mut bytes,
@@ -563,8 +587,7 @@ mod tests {
             ConnectionType::KeepAlive,
             &ServiceConfig::default(),
         );
-        let data =
-            String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
+        let data = String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
         assert!(data.contains("Transfer-Encoding: chunked\r\n"));
         assert!(data.contains("Content-Type: plain/text\r\n"));
         assert!(data.contains("Date: date\r\n"));
@@ -585,8 +608,7 @@ mod tests {
             ConnectionType::KeepAlive,
             &ServiceConfig::default(),
         );
-        let data =
-            String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
+        let data = String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
         assert!(data.contains("transfer-encoding: chunked\r\n"));
         assert!(data.contains("content-type: xml\r\n"));
         assert!(data.contains("content-type: plain/text\r\n"));
@@ -615,12 +637,11 @@ mod tests {
         let _ = head.encode_headers(
             &mut bytes,
             Version::HTTP_11,
-            BodySize::Empty,
+            BodySize::Sized(0),
             ConnectionType::Close,
             &ServiceConfig::default(),
         );
-        let data =
-            String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
+        let data = String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
         assert!(data.contains("content-length: 0\r\n"));
         assert!(data.contains("connection: close\r\n"));
         assert!(data.contains("authorization: another authorization\r\n"));
@@ -643,8 +664,7 @@ mod tests {
             ConnectionType::Upgrade,
             &ServiceConfig::default(),
         );
-        let data =
-            String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
+        let data = String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
         assert!(!data.contains("content-length: 0\r\n"));
         assert!(!data.contains("transfer-encoding: chunked\r\n"));
     }

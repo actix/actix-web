@@ -1,48 +1,48 @@
 //! Various helpers for Actix applications to use during testing.
 
-#![deny(rust_2018_idioms)]
+#![deny(rust_2018_idioms, nonstandard_style)]
+#![warn(future_incompatible)]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 
 #[cfg(feature = "openssl")]
 extern crate tls_openssl as openssl;
 
-use std::sync::mpsc;
-use std::{net, thread, time};
+use std::{net, thread, time::Duration};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_rt::{net::TcpStream, System};
-use actix_server::{Server, ServiceFactory};
+use actix_server::{Server, ServerServiceFactory};
 use awc::{
-    error::PayloadError, http::HeaderMap, ws, Client, ClientRequest, ClientResponse, Connector,
+    error::PayloadError, http::header::HeaderMap, ws, Client, ClientRequest, ClientResponse,
+    Connector,
 };
 use bytes::Bytes;
 use futures_core::stream::Stream;
 use http::Method;
 use socket2::{Domain, Protocol, Socket, Type};
+use tokio::sync::mpsc;
 
-/// Start test server
+/// Start test server.
 ///
-/// `TestServer` is very simple test server that simplify process of writing
-/// integration tests cases for actix web applications.
+/// `TestServer` is very simple test server that simplify process of writing integration tests cases
+/// for HTTP applications.
 ///
 /// # Examples
-///
-/// ```
+/// ```no_run
 /// use actix_http::HttpService;
-/// use actix_http_test::TestServer;
+/// use actix_http_test::test_server;
 /// use actix_web::{web, App, HttpResponse, Error};
 ///
 /// async fn my_handler() -> Result<HttpResponse, Error> {
 ///     Ok(HttpResponse::Ok().into())
 /// }
 ///
-/// #[actix_rt::test]
+/// #[actix_web::test]
 /// async fn test_example() {
-///     let mut srv = TestServer::start(
-///         || HttpService::new(
-///             App::new().service(
-///                 web::resource("/").to(my_handler))
+///     let mut srv = TestServer::start(||
+///         HttpService::new(
+///             App::new().service(web::resource("/").to(my_handler))
 ///         )
 ///     );
 ///
@@ -51,77 +51,91 @@ use socket2::{Domain, Protocol, Socket, Type};
 ///     assert!(response.status().is_success());
 /// }
 /// ```
-pub async fn test_server<F: ServiceFactory<TcpStream>>(factory: F) -> TestServer {
+pub async fn test_server<F: ServerServiceFactory<TcpStream>>(factory: F) -> TestServer {
     let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
     test_server_with_addr(tcp, factory).await
 }
 
-/// Start [`test server`](test_server()) on a concrete Address
-pub async fn test_server_with_addr<F: ServiceFactory<TcpStream>>(
+/// Start [`test server`](test_server()) on an existing address binding.
+pub async fn test_server_with_addr<F: ServerServiceFactory<TcpStream>>(
     tcp: net::TcpListener,
     factory: F,
 ) -> TestServer {
-    let (tx, rx) = mpsc::channel();
+    let (started_tx, started_rx) = std::sync::mpsc::channel();
+    let (thread_stop_tx, thread_stop_rx) = mpsc::channel(1);
 
     // run server in separate thread
     thread::spawn(move || {
-        let sys = System::new();
-        let local_addr = tcp.local_addr().unwrap();
+        System::new().block_on(async move {
+            let local_addr = tcp.local_addr().unwrap();
 
-        let srv = Server::build()
-            .listen("test", tcp, factory)?
-            .workers(1)
-            .disable_signals();
+            let srv = Server::build()
+                .workers(1)
+                .disable_signals()
+                .system_exit()
+                .listen("test", tcp, factory)
+                .expect("test server could not be created");
 
-        sys.block_on(async {
-            srv.run();
-            tx.send((System::current(), local_addr)).unwrap();
+            let srv = srv.run();
+            started_tx
+                .send((System::current(), srv.handle(), local_addr))
+                .unwrap();
+
+            // drive server loop
+            srv.await.unwrap();
         });
 
-        sys.run()
+        // notify TestServer that server and system have shut down
+        // all thread managed resources should be dropped at this point
+        let _ = thread_stop_tx.send(());
     });
 
-    let (system, addr) = rx.recv().unwrap();
+    let (system, server, addr) = started_rx.recv().unwrap();
 
     let client = {
+        #[cfg(feature = "openssl")]
         let connector = {
-            #[cfg(feature = "openssl")]
-            {
-                use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
+            use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
 
-                let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
-                builder.set_verify(SslVerifyMode::NONE);
-                let _ = builder
-                    .set_alpn_protos(b"\x02h2\x08http/1.1")
-                    .map_err(|e| log::error!("Can not set alpn protocol: {:?}", e));
-                Connector::new()
-                    .conn_lifetime(time::Duration::from_secs(0))
-                    .timeout(time::Duration::from_millis(30000))
-                    .ssl(builder.build())
-            }
-            #[cfg(not(feature = "openssl"))]
-            {
-                Connector::new()
-                    .conn_lifetime(time::Duration::from_secs(0))
-                    .timeout(time::Duration::from_millis(30000))
-            }
+            let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
+
+            builder.set_verify(SslVerifyMode::NONE);
+            let _ = builder
+                .set_alpn_protos(b"\x02h2\x08http/1.1")
+                .map_err(|e| log::error!("Can not set alpn protocol: {:?}", e));
+
+            Connector::new()
+                .conn_lifetime(Duration::from_secs(0))
+                .timeout(Duration::from_millis(30000))
+                .openssl(builder.build())
+        };
+
+        #[cfg(not(feature = "openssl"))]
+        let connector = {
+            Connector::new()
+                .conn_lifetime(Duration::from_secs(0))
+                .timeout(Duration::from_millis(30000))
         };
 
         Client::builder().connector(connector).finish()
     };
 
     TestServer {
-        addr,
+        server,
         client,
         system,
+        addr,
+        thread_stop_rx,
     }
 }
 
 /// Test server controller
 pub struct TestServer {
+    server: actix_server::ServerHandle,
+    client: awc::Client,
+    system: actix_rt::System,
     addr: net::SocketAddr,
-    client: Client,
-    system: System,
+    thread_stop_rx: mpsc::Receiver<()>,
 }
 
 impl TestServer {
@@ -258,15 +272,32 @@ impl TestServer {
         self.client.headers()
     }
 
-    /// Stop HTTP server
-    fn stop(&mut self) {
+    /// Stop HTTP server.
+    ///
+    /// Waits for spawned `Server` and `System` to (force) shutdown.
+    pub async fn stop(&mut self) {
+        // signal server to stop
+        self.server.stop(false).await;
+
+        // also signal system to stop
+        // though this is handled by `ServerBuilder::exit_system` too
         self.system.stop();
+
+        // wait for thread to be stopped but don't care about result
+        let _ = self.thread_stop_rx.recv().await;
     }
 }
 
 impl Drop for TestServer {
     fn drop(&mut self) {
-        self.stop()
+        // calls in this Drop impl should be enough to shut down the server, system, and thread
+        // without needing to await anything
+
+        // signal server to stop
+        let _ = self.server.stop(true);
+
+        // signal system to stop
+        self.system.stop();
     }
 }
 

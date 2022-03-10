@@ -1,18 +1,15 @@
-use std::convert::TryFrom;
-use std::io;
-use std::marker::PhantomData;
-use std::task::Poll;
+use std::{convert::TryFrom, io, marker::PhantomData, mem::MaybeUninit, task::Poll};
 
 use actix_codec::Decoder;
-use bytes::{Buf, Bytes, BytesMut};
-use http::header::{HeaderName, HeaderValue};
-use http::{header, Method, StatusCode, Uri, Version};
+use bytes::{Bytes, BytesMut};
+use http::{
+    header::{self, HeaderName, HeaderValue},
+    Method, StatusCode, Uri, Version,
+};
 use log::{debug, error, trace};
 
-use crate::error::ParseError;
-use crate::header::HeaderMap;
-use crate::message::{ConnectionType, ResponseHead};
-use crate::request::Request;
+use super::chunked::ChunkedState;
+use crate::{error::ParseError, header::HeaderMap, ConnectionType, Request, ResponseHead};
 
 pub(crate) const MAX_BUFFER_SIZE: usize = 131_072;
 const MAX_HEADERS: usize = 96;
@@ -50,7 +47,7 @@ pub(crate) enum PayloadLength {
 }
 
 pub(crate) trait MessageType: Sized {
-    fn set_connection_type(&mut self, ctype: Option<ConnectionType>);
+    fn set_connection_type(&mut self, conn_type: Option<ConnectionType>);
 
     fn set_expect(&mut self);
 
@@ -67,14 +64,14 @@ pub(crate) trait MessageType: Sized {
         let mut has_upgrade_websocket = false;
         let mut expect = false;
         let mut chunked = false;
+        let mut seen_te = false;
         let mut content_length = None;
 
         {
             let headers = self.headers_mut();
 
             for idx in raw_headers.iter() {
-                let name =
-                    HeaderName::from_bytes(&slice[idx.name.0..idx.name.1]).unwrap();
+                let name = HeaderName::from_bytes(&slice[idx.name.0..idx.name.1]).unwrap();
 
                 // SAFETY: httparse already checks header value is only visible ASCII bytes
                 // from_maybe_shared_unchecked contains debug assertions so they are omitted here
@@ -85,8 +82,17 @@ pub(crate) trait MessageType: Sized {
                 };
 
                 match name {
-                    header::CONTENT_LENGTH => {
-                        if let Ok(s) = value.to_str() {
+                    header::CONTENT_LENGTH if content_length.is_some() => {
+                        debug!("multiple Content-Length");
+                        return Err(ParseError::Header);
+                    }
+
+                    header::CONTENT_LENGTH => match value.to_str() {
+                        Ok(s) if s.trim().starts_with('+') => {
+                            debug!("illegal Content-Length: {:?}", s);
+                            return Err(ParseError::Header);
+                        }
+                        Ok(s) => {
                             if let Ok(len) = s.parse::<u64>() {
                                 if len != 0 {
                                     content_length = Some(len);
@@ -95,15 +101,31 @@ pub(crate) trait MessageType: Sized {
                                 debug!("illegal Content-Length: {:?}", s);
                                 return Err(ParseError::Header);
                             }
-                        } else {
+                        }
+                        Err(_) => {
                             debug!("illegal Content-Length: {:?}", value);
                             return Err(ParseError::Header);
                         }
-                    }
+                    },
+
                     // transfer-encoding
+                    header::TRANSFER_ENCODING if seen_te => {
+                        debug!("multiple Transfer-Encoding not allowed");
+                        return Err(ParseError::Header);
+                    }
+
                     header::TRANSFER_ENCODING => {
+                        seen_te = true;
+
                         if let Ok(s) = value.to_str().map(str::trim) {
-                            chunked = s.eq_ignore_ascii_case("chunked");
+                            if s.eq_ignore_ascii_case("chunked") {
+                                chunked = true;
+                            } else if s.eq_ignore_ascii_case("identity") {
+                                // allow silently since multiple TE headers are already checked
+                            } else {
+                                debug!("illegal Transfer-Encoding: {:?}", s);
+                                return Err(ParseError::Header);
+                            }
                         } else {
                             return Err(ParseError::Header);
                         }
@@ -148,7 +170,7 @@ pub(crate) trait MessageType: Sized {
             self.set_expect()
         }
 
-        // https://tools.ietf.org/html/rfc7230#section-3.3.3
+        // https://datatracker.ietf.org/doc/html/rfc7230#section-3.3.3
         if chunked {
             // Chunked encoding
             Ok(PayloadLength::Payload(PayloadType::Payload(
@@ -168,8 +190,8 @@ pub(crate) trait MessageType: Sized {
 }
 
 impl MessageType for Request {
-    fn set_connection_type(&mut self, ctype: Option<ConnectionType>) {
-        if let Some(ctype) = ctype {
+    fn set_connection_type(&mut self, conn_type: Option<ConnectionType>) {
+        if let Some(ctype) = conn_type {
             self.head_mut().set_connection_type(ctype);
         }
     }
@@ -186,10 +208,18 @@ impl MessageType for Request {
         let mut headers: [HeaderIndex; MAX_HEADERS] = EMPTY_HEADER_INDEX_ARRAY;
 
         let (len, method, uri, ver, h_len) = {
-            let mut parsed: [httparse::Header<'_>; MAX_HEADERS] = EMPTY_HEADER_ARRAY;
+            // SAFETY:
+            // Create an uninitialized array of `MaybeUninit`. The `assume_init` is safe because the
+            // type we are claiming to have initialized here is a bunch of `MaybeUninit`s, which
+            // do not require initialization.
+            let mut parsed = unsafe {
+                MaybeUninit::<[MaybeUninit<httparse::Header<'_>>; MAX_HEADERS]>::uninit()
+                    .assume_init()
+            };
 
-            let mut req = httparse::Request::new(&mut parsed);
-            match req.parse(src)? {
+            let mut req = httparse::Request::new(&mut []);
+
+            match req.parse_with_uninit_headers(src, &mut parsed)? {
                 httparse::Status::Complete(len) => {
                     let method = Method::from_bytes(req.method.unwrap().as_bytes())
                         .map_err(|_| ParseError::Method)?;
@@ -203,6 +233,7 @@ impl MessageType for Request {
 
                     (len, method, uri, version, req.headers.len())
                 }
+
                 httparse::Status::Partial => {
                     return if src.len() >= MAX_BUFFER_SIZE {
                         trace!("MAX_BUFFER_SIZE unprocessed data reached, closing");
@@ -246,8 +277,8 @@ impl MessageType for Request {
 }
 
 impl MessageType for ResponseHead {
-    fn set_connection_type(&mut self, ctype: Option<ConnectionType>) {
-        if let Some(ctype) = ctype {
+    fn set_connection_type(&mut self, conn_type: Option<ConnectionType>) {
+        if let Some(ctype) = conn_type {
             ResponseHead::set_connection_type(self, ctype);
         }
     }
@@ -262,22 +293,35 @@ impl MessageType for ResponseHead {
         let mut headers: [HeaderIndex; MAX_HEADERS] = EMPTY_HEADER_INDEX_ARRAY;
 
         let (len, ver, status, h_len) = {
-            let mut parsed: [httparse::Header<'_>; MAX_HEADERS] = EMPTY_HEADER_ARRAY;
+            // SAFETY:
+            // Create an uninitialized array of `MaybeUninit`. The `assume_init` is safe because the
+            // type we are claiming to have initialized here is a bunch of `MaybeUninit`s, which
+            // do not require initialization.
+            let mut parsed = unsafe {
+                MaybeUninit::<[MaybeUninit<httparse::Header<'_>>; MAX_HEADERS]>::uninit()
+                    .assume_init()
+            };
 
-            let mut res = httparse::Response::new(&mut parsed);
-            match res.parse(src)? {
+            let mut res = httparse::Response::new(&mut []);
+
+            let mut config = httparse::ParserConfig::default();
+            config.allow_spaces_after_header_name_in_responses(true);
+
+            match config.parse_response_with_uninit_headers(&mut res, src, &mut parsed)? {
                 httparse::Status::Complete(len) => {
                     let version = if res.version.unwrap() == 1 {
                         Version::HTTP_11
                     } else {
                         Version::HTTP_10
                     };
+
                     let status = StatusCode::from_u16(res.code.unwrap())
                         .map_err(|_| ParseError::Status)?;
                     HeaderIndex::record(src, res.headers, &mut headers);
 
                     (len, version, status, res.headers.len())
                 }
+
                 httparse::Status::Partial => {
                     return if src.len() >= MAX_BUFFER_SIZE {
                         error!("MAX_BUFFER_SIZE unprocessed data reached, closing");
@@ -329,9 +373,6 @@ pub(crate) const EMPTY_HEADER_INDEX: HeaderIndex = HeaderIndex {
 pub(crate) const EMPTY_HEADER_INDEX_ARRAY: [HeaderIndex; MAX_HEADERS] =
     [EMPTY_HEADER_INDEX; MAX_HEADERS];
 
-pub(crate) const EMPTY_HEADER_ARRAY: [httparse::Header<'static>; MAX_HEADERS] =
-    [httparse::EMPTY_HEADER; MAX_HEADERS];
-
 impl HeaderIndex {
     pub(crate) fn record(
         bytes: &[u8],
@@ -351,34 +392,36 @@ impl HeaderIndex {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-/// Http payload item
+/// Chunk type yielded while decoding a payload.
 pub enum PayloadItem {
     Chunk(Bytes),
     Eof,
 }
 
-/// Decoders to handle different Transfer-Encodings.
+/// Decoder that can handle different payload types.
 ///
-/// If a message body does not include a Transfer-Encoding, it *should*
-/// include a Content-Length header.
+/// If a message body does not use `Transfer-Encoding`, it should include a `Content-Length`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PayloadDecoder {
     kind: Kind,
 }
 
 impl PayloadDecoder {
+    /// Constructs a fixed-length payload decoder.
     pub fn length(x: u64) -> PayloadDecoder {
         PayloadDecoder {
             kind: Kind::Length(x),
         }
     }
 
+    /// Constructs a chunked encoding decoder.
     pub fn chunked() -> PayloadDecoder {
         PayloadDecoder {
             kind: Kind::Chunked(ChunkedState::Size, 0),
         }
     }
 
+    /// Creates an decoder that yields chunks until the stream returns EOF.
     pub fn eof() -> PayloadDecoder {
         PayloadDecoder { kind: Kind::Eof }
     }
@@ -386,40 +429,27 @@ impl PayloadDecoder {
 
 #[derive(Debug, Clone, PartialEq)]
 enum Kind {
-    /// A Reader used when a Content-Length header is passed with a positive
-    /// integer.
+    /// A reader used when a `Content-Length` header is passed with a positive integer.
     Length(u64),
-    /// A Reader used when Transfer-Encoding is `chunked`.
-    Chunked(ChunkedState, u64),
-    /// A Reader used for responses that don't indicate a length or chunked.
-    ///
-    /// Note: This should only used for `Response`s. It is illegal for a
-    /// `Request` to be made with both `Content-Length` and
-    /// `Transfer-Encoding: chunked` missing, as explained from the spec:
-    ///
-    /// > If a Transfer-Encoding header field is present in a response and
-    /// > the chunked transfer coding is not the final encoding, the
-    /// > message body length is determined by reading the connection until
-    /// > it is closed by the server.  If a Transfer-Encoding header field
-    /// > is present in a request and the chunked transfer coding is not
-    /// > the final encoding, the message body length cannot be determined
-    /// > reliably; the server MUST respond with the 400 (Bad Request)
-    /// > status code and then close the connection.
-    Eof,
-}
 
-#[derive(Debug, PartialEq, Clone)]
-enum ChunkedState {
-    Size,
-    SizeLws,
-    Extension,
-    SizeLf,
-    Body,
-    BodyCr,
-    BodyLf,
-    EndCr,
-    EndLf,
-    End,
+    /// A reader used when `Transfer-Encoding` is `chunked`.
+    Chunked(ChunkedState, u64),
+
+    /// A reader used for responses that don't indicate a length or chunked.
+    ///
+    /// Note: This should only used for `Response`s. It is illegal for a `Request` to be made
+    /// without either of `Content-Length` and `Transfer-Encoding: chunked` missing, as explained
+    /// in [RFC 7230 §3.3.3]:
+    ///
+    /// > If a Transfer-Encoding header field is present in a response and the chunked transfer
+    /// > coding is not the final encoding, the message body length is determined by reading the
+    /// > connection until it is closed by the server. If a Transfer-Encoding header field is
+    /// > present in a request and the chunked transfer coding is not the final encoding, the
+    /// > message body length cannot be determined reliably; the server MUST respond with the 400
+    /// > (Bad Request) status code and then close the connection.
+    ///
+    /// [RFC 7230 §3.3.3]: https://datatracker.ietf.org/doc/html/rfc7230#section-3.3.3
+    Eof,
 }
 
 impl Decoder for PayloadDecoder {
@@ -448,27 +478,33 @@ impl Decoder for PayloadDecoder {
                     Ok(Some(PayloadItem::Chunk(buf)))
                 }
             }
+
             Kind::Chunked(ref mut state, ref mut size) => {
                 loop {
                     let mut buf = None;
+
                     // advances the chunked state
                     *state = match state.step(src, size, &mut buf) {
                         Poll::Pending => return Ok(None),
                         Poll::Ready(Ok(state)) => state,
                         Poll::Ready(Err(e)) => return Err(e),
                     };
+
                     if *state == ChunkedState::End {
                         trace!("End of chunked stream");
                         return Ok(Some(PayloadItem::Eof));
                     }
+
                     if let Some(buf) = buf {
                         return Ok(Some(PayloadItem::Chunk(buf)));
                     }
+
                     if src.is_empty() {
                         return Ok(None);
                     }
                 }
             }
+
             Kind::Eof => {
                 if src.is_empty() {
                     Ok(None)
@@ -480,201 +516,40 @@ impl Decoder for PayloadDecoder {
     }
 }
 
-macro_rules! byte (
-    ($rdr:ident) => ({
-        if $rdr.len() > 0 {
-            let b = $rdr[0];
-            $rdr.advance(1);
-            b
-        } else {
-            return Poll::Pending
-        }
-    })
-);
-
-impl ChunkedState {
-    fn step(
-        &self,
-        body: &mut BytesMut,
-        size: &mut u64,
-        buf: &mut Option<Bytes>,
-    ) -> Poll<Result<ChunkedState, io::Error>> {
-        use self::ChunkedState::*;
-        match *self {
-            Size => ChunkedState::read_size(body, size),
-            SizeLws => ChunkedState::read_size_lws(body),
-            Extension => ChunkedState::read_extension(body),
-            SizeLf => ChunkedState::read_size_lf(body, size),
-            Body => ChunkedState::read_body(body, size, buf),
-            BodyCr => ChunkedState::read_body_cr(body),
-            BodyLf => ChunkedState::read_body_lf(body),
-            EndCr => ChunkedState::read_end_cr(body),
-            EndLf => ChunkedState::read_end_lf(body),
-            End => Poll::Ready(Ok(ChunkedState::End)),
-        }
-    }
-
-    fn read_size(
-        rdr: &mut BytesMut,
-        size: &mut u64,
-    ) -> Poll<Result<ChunkedState, io::Error>> {
-        let radix = 16;
-        match byte!(rdr) {
-            b @ b'0'..=b'9' => {
-                *size *= radix;
-                *size += u64::from(b - b'0');
-            }
-            b @ b'a'..=b'f' => {
-                *size *= radix;
-                *size += u64::from(b + 10 - b'a');
-            }
-            b @ b'A'..=b'F' => {
-                *size *= radix;
-                *size += u64::from(b + 10 - b'A');
-            }
-            b'\t' | b' ' => return Poll::Ready(Ok(ChunkedState::SizeLws)),
-            b';' => return Poll::Ready(Ok(ChunkedState::Extension)),
-            b'\r' => return Poll::Ready(Ok(ChunkedState::SizeLf)),
-            _ => {
-                return Poll::Ready(Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "Invalid chunk size line: Invalid Size",
-                )));
-            }
-        }
-        Poll::Ready(Ok(ChunkedState::Size))
-    }
-
-    fn read_size_lws(rdr: &mut BytesMut) -> Poll<Result<ChunkedState, io::Error>> {
-        trace!("read_size_lws");
-        match byte!(rdr) {
-            // LWS can follow the chunk size, but no more digits can come
-            b'\t' | b' ' => Poll::Ready(Ok(ChunkedState::SizeLws)),
-            b';' => Poll::Ready(Ok(ChunkedState::Extension)),
-            b'\r' => Poll::Ready(Ok(ChunkedState::SizeLf)),
-            _ => Poll::Ready(Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Invalid chunk size linear white space",
-            ))),
-        }
-    }
-    fn read_extension(rdr: &mut BytesMut) -> Poll<Result<ChunkedState, io::Error>> {
-        match byte!(rdr) {
-            b'\r' => Poll::Ready(Ok(ChunkedState::SizeLf)),
-            _ => Poll::Ready(Ok(ChunkedState::Extension)), // no supported extensions
-        }
-    }
-    fn read_size_lf(
-        rdr: &mut BytesMut,
-        size: &mut u64,
-    ) -> Poll<Result<ChunkedState, io::Error>> {
-        match byte!(rdr) {
-            b'\n' if *size > 0 => Poll::Ready(Ok(ChunkedState::Body)),
-            b'\n' if *size == 0 => Poll::Ready(Ok(ChunkedState::EndCr)),
-            _ => Poll::Ready(Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Invalid chunk size LF",
-            ))),
-        }
-    }
-
-    fn read_body(
-        rdr: &mut BytesMut,
-        rem: &mut u64,
-        buf: &mut Option<Bytes>,
-    ) -> Poll<Result<ChunkedState, io::Error>> {
-        trace!("Chunked read, remaining={:?}", rem);
-
-        let len = rdr.len() as u64;
-        if len == 0 {
-            Poll::Ready(Ok(ChunkedState::Body))
-        } else {
-            let slice;
-            if *rem > len {
-                slice = rdr.split().freeze();
-                *rem -= len;
-            } else {
-                slice = rdr.split_to(*rem as usize).freeze();
-                *rem = 0;
-            }
-            *buf = Some(slice);
-            if *rem > 0 {
-                Poll::Ready(Ok(ChunkedState::Body))
-            } else {
-                Poll::Ready(Ok(ChunkedState::BodyCr))
-            }
-        }
-    }
-
-    fn read_body_cr(rdr: &mut BytesMut) -> Poll<Result<ChunkedState, io::Error>> {
-        match byte!(rdr) {
-            b'\r' => Poll::Ready(Ok(ChunkedState::BodyLf)),
-            _ => Poll::Ready(Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Invalid chunk body CR",
-            ))),
-        }
-    }
-    fn read_body_lf(rdr: &mut BytesMut) -> Poll<Result<ChunkedState, io::Error>> {
-        match byte!(rdr) {
-            b'\n' => Poll::Ready(Ok(ChunkedState::Size)),
-            _ => Poll::Ready(Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Invalid chunk body LF",
-            ))),
-        }
-    }
-    fn read_end_cr(rdr: &mut BytesMut) -> Poll<Result<ChunkedState, io::Error>> {
-        match byte!(rdr) {
-            b'\r' => Poll::Ready(Ok(ChunkedState::EndLf)),
-            _ => Poll::Ready(Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Invalid chunk end CR",
-            ))),
-        }
-    }
-    fn read_end_lf(rdr: &mut BytesMut) -> Poll<Result<ChunkedState, io::Error>> {
-        match byte!(rdr) {
-            b'\n' => Poll::Ready(Ok(ChunkedState::End)),
-            _ => Poll::Ready(Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Invalid chunk end LF",
-            ))),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use bytes::{Bytes, BytesMut};
     use http::{Method, Version};
 
     use super::*;
-    use crate::error::ParseError;
-    use crate::http::header::{HeaderName, SET_COOKIE};
-    use crate::HttpMessage;
+    use crate::{
+        error::ParseError,
+        header::{HeaderName, SET_COOKIE},
+        HttpMessage as _,
+    };
 
     impl PayloadType {
-        fn unwrap(self) -> PayloadDecoder {
+        pub(crate) fn unwrap(self) -> PayloadDecoder {
             match self {
                 PayloadType::Payload(pl) => pl,
                 _ => panic!(),
             }
         }
 
-        fn is_unhandled(&self) -> bool {
+        pub(crate) fn is_unhandled(&self) -> bool {
             matches!(self, PayloadType::Stream(_))
         }
     }
 
     impl PayloadItem {
-        fn chunk(self) -> Bytes {
+        pub(crate) fn chunk(self) -> Bytes {
             match self {
                 PayloadItem::Chunk(chunk) => chunk,
                 _ => panic!("error"),
             }
         }
-        fn eof(&self) -> bool {
+
+        pub(crate) fn eof(&self) -> bool {
             matches!(*self, PayloadItem::Eof)
         }
     }
@@ -743,8 +618,7 @@ mod tests {
 
     #[test]
     fn test_parse_body() {
-        let mut buf =
-            BytesMut::from("GET /test HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody");
+        let mut buf = BytesMut::from("GET /test HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody");
 
         let mut reader = MessageDecoder::<Request>::default();
         let (req, pl) = reader.decode(&mut buf).unwrap().unwrap();
@@ -760,8 +634,7 @@ mod tests {
 
     #[test]
     fn test_parse_body_crlf() {
-        let mut buf =
-            BytesMut::from("\r\nGET /test HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody");
+        let mut buf = BytesMut::from("\r\nGET /test HTTP/1.1\r\nContent-Length: 4\r\n\r\nbody");
 
         let mut reader = MessageDecoder::<Request>::default();
         let (req, pl) = reader.decode(&mut buf).unwrap().unwrap();
@@ -968,34 +841,6 @@ mod tests {
     }
 
     #[test]
-    fn test_request_chunked() {
-        let mut buf = BytesMut::from(
-            "GET /test HTTP/1.1\r\n\
-             transfer-encoding: chunked\r\n\r\n",
-        );
-        let req = parse_ready!(&mut buf);
-
-        if let Ok(val) = req.chunked() {
-            assert!(val);
-        } else {
-            unreachable!("Error");
-        }
-
-        // intentional typo in "chunked"
-        let mut buf = BytesMut::from(
-            "GET /test HTTP/1.1\r\n\
-             transfer-encoding: chnked\r\n\r\n",
-        );
-        let req = parse_ready!(&mut buf);
-
-        if let Ok(val) = req.chunked() {
-            assert!(!val);
-        } else {
-            unreachable!("Error");
-        }
-    }
-
-    #[test]
     fn test_headers_content_length_err_1() {
         let mut buf = BytesMut::from(
             "GET /test HTTP/1.1\r\n\
@@ -1113,126 +958,6 @@ mod tests {
     }
 
     #[test]
-    fn test_http_request_chunked_payload() {
-        let mut buf = BytesMut::from(
-            "GET /test HTTP/1.1\r\n\
-             transfer-encoding: chunked\r\n\r\n",
-        );
-        let mut reader = MessageDecoder::<Request>::default();
-        let (req, pl) = reader.decode(&mut buf).unwrap().unwrap();
-        let mut pl = pl.unwrap();
-        assert!(req.chunked().unwrap());
-
-        buf.extend(b"4\r\ndata\r\n4\r\nline\r\n0\r\n\r\n");
-        assert_eq!(
-            pl.decode(&mut buf).unwrap().unwrap().chunk().as_ref(),
-            b"data"
-        );
-        assert_eq!(
-            pl.decode(&mut buf).unwrap().unwrap().chunk().as_ref(),
-            b"line"
-        );
-        assert!(pl.decode(&mut buf).unwrap().unwrap().eof());
-    }
-
-    #[test]
-    fn test_http_request_chunked_payload_and_next_message() {
-        let mut buf = BytesMut::from(
-            "GET /test HTTP/1.1\r\n\
-             transfer-encoding: chunked\r\n\r\n",
-        );
-        let mut reader = MessageDecoder::<Request>::default();
-        let (req, pl) = reader.decode(&mut buf).unwrap().unwrap();
-        let mut pl = pl.unwrap();
-        assert!(req.chunked().unwrap());
-
-        buf.extend(
-            b"4\r\ndata\r\n4\r\nline\r\n0\r\n\r\n\
-              POST /test2 HTTP/1.1\r\n\
-              transfer-encoding: chunked\r\n\r\n"
-                .iter(),
-        );
-        let msg = pl.decode(&mut buf).unwrap().unwrap();
-        assert_eq!(msg.chunk().as_ref(), b"data");
-        let msg = pl.decode(&mut buf).unwrap().unwrap();
-        assert_eq!(msg.chunk().as_ref(), b"line");
-        let msg = pl.decode(&mut buf).unwrap().unwrap();
-        assert!(msg.eof());
-
-        let (req, _) = reader.decode(&mut buf).unwrap().unwrap();
-        assert!(req.chunked().unwrap());
-        assert_eq!(*req.method(), Method::POST);
-        assert!(req.chunked().unwrap());
-    }
-
-    #[test]
-    fn test_http_request_chunked_payload_chunks() {
-        let mut buf = BytesMut::from(
-            "GET /test HTTP/1.1\r\n\
-             transfer-encoding: chunked\r\n\r\n",
-        );
-
-        let mut reader = MessageDecoder::<Request>::default();
-        let (req, pl) = reader.decode(&mut buf).unwrap().unwrap();
-        let mut pl = pl.unwrap();
-        assert!(req.chunked().unwrap());
-
-        buf.extend(b"4\r\n1111\r\n");
-        let msg = pl.decode(&mut buf).unwrap().unwrap();
-        assert_eq!(msg.chunk().as_ref(), b"1111");
-
-        buf.extend(b"4\r\ndata\r");
-        let msg = pl.decode(&mut buf).unwrap().unwrap();
-        assert_eq!(msg.chunk().as_ref(), b"data");
-
-        buf.extend(b"\n4");
-        assert!(pl.decode(&mut buf).unwrap().is_none());
-
-        buf.extend(b"\r");
-        assert!(pl.decode(&mut buf).unwrap().is_none());
-        buf.extend(b"\n");
-        assert!(pl.decode(&mut buf).unwrap().is_none());
-
-        buf.extend(b"li");
-        let msg = pl.decode(&mut buf).unwrap().unwrap();
-        assert_eq!(msg.chunk().as_ref(), b"li");
-
-        //trailers
-        //buf.feed_data("test: test\r\n");
-        //not_ready!(reader.parse(&mut buf, &mut readbuf));
-
-        buf.extend(b"ne\r\n0\r\n");
-        let msg = pl.decode(&mut buf).unwrap().unwrap();
-        assert_eq!(msg.chunk().as_ref(), b"ne");
-        assert!(pl.decode(&mut buf).unwrap().is_none());
-
-        buf.extend(b"\r\n");
-        assert!(pl.decode(&mut buf).unwrap().unwrap().eof());
-    }
-
-    #[test]
-    fn test_parse_chunked_payload_chunk_extension() {
-        let mut buf = BytesMut::from(
-            "GET /test HTTP/1.1\r\n\
-            transfer-encoding: chunked\r\n\
-            \r\n",
-        );
-
-        let mut reader = MessageDecoder::<Request>::default();
-        let (msg, pl) = reader.decode(&mut buf).unwrap().unwrap();
-        let mut pl = pl.unwrap();
-        assert!(msg.chunked().unwrap());
-
-        buf.extend(b"4;test\r\ndata\r\n4\r\nline\r\n0\r\n\r\n"); // test: test\r\n\r\n")
-        let chunk = pl.decode(&mut buf).unwrap().unwrap().chunk();
-        assert_eq!(chunk, Bytes::from_static(b"data"));
-        let chunk = pl.decode(&mut buf).unwrap().unwrap().chunk();
-        assert_eq!(chunk, Bytes::from_static(b"line"));
-        let msg = pl.decode(&mut buf).unwrap().unwrap();
-        assert!(msg.eof());
-    }
-
-    #[test]
     fn test_response_http10_read_until_eof() {
         let mut buf = BytesMut::from("HTTP/1.0 200 Ok\r\n\r\ntest data");
 
@@ -1242,5 +967,85 @@ mod tests {
 
         let chunk = pl.decode(&mut buf).unwrap().unwrap();
         assert_eq!(chunk, PayloadItem::Chunk(Bytes::from_static(b"test data")));
+    }
+
+    #[test]
+    fn hrs_multiple_content_length() {
+        let mut buf = BytesMut::from(
+            "GET / HTTP/1.1\r\n\
+            Host: example.com\r\n\
+            Content-Length: 4\r\n\
+            Content-Length: 2\r\n\
+            \r\n\
+            abcd",
+        );
+
+        expect_parse_err!(&mut buf);
+    }
+
+    #[test]
+    fn hrs_content_length_plus() {
+        let mut buf = BytesMut::from(
+            "GET / HTTP/1.1\r\n\
+            Host: example.com\r\n\
+            Content-Length: +3\r\n\
+            \r\n\
+            000",
+        );
+
+        expect_parse_err!(&mut buf);
+    }
+
+    #[test]
+    fn hrs_unknown_transfer_encoding() {
+        let mut buf = BytesMut::from(
+            "GET / HTTP/1.1\r\n\
+            Host: example.com\r\n\
+            Transfer-Encoding: JUNK\r\n\
+            Transfer-Encoding: chunked\r\n\
+            \r\n\
+            5\r\n\
+            hello\r\n\
+            0",
+        );
+
+        expect_parse_err!(&mut buf);
+    }
+
+    #[test]
+    fn hrs_multiple_transfer_encoding() {
+        let mut buf = BytesMut::from(
+            "GET / HTTP/1.1\r\n\
+            Host: example.com\r\n\
+            Content-Length: 51\r\n\
+            Transfer-Encoding: identity\r\n\
+            Transfer-Encoding: chunked\r\n\
+            \r\n\
+            0\r\n\
+            \r\n\
+            GET /forbidden HTTP/1.1\r\n\
+            Host: example.com\r\n\r\n",
+        );
+
+        expect_parse_err!(&mut buf);
+    }
+
+    #[test]
+    fn transfer_encoding_agrees() {
+        let mut buf = BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+            Host: example.com\r\n\
+            Content-Length: 3\r\n\
+            Transfer-Encoding: identity\r\n\
+            \r\n\
+            0\r\n",
+        );
+
+        let mut reader = MessageDecoder::<Request>::default();
+        let (_msg, pl) = reader.decode(&mut buf).unwrap().unwrap();
+        let mut pl = pl.unwrap();
+
+        let chunk = pl.decode(&mut buf).unwrap().unwrap();
+        assert_eq!(chunk, PayloadItem::Chunk(Bytes::from_static(b"0\r\n")));
     }
 }

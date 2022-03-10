@@ -2,9 +2,7 @@ use actix_codec::Framed;
 use actix_service::{Service, ServiceFactory};
 use futures_core::future::LocalBoxFuture;
 
-use crate::error::Error;
-use crate::h1::Codec;
-use crate::request::Request;
+use crate::{h1::Codec, Error, Request};
 
 pub struct UpgradeHandler;
 

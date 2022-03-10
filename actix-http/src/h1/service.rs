@@ -1,5 +1,4 @@
 use std::{
-    error::Error as StdError,
     fmt,
     marker::PhantomData,
     net,
@@ -16,7 +15,7 @@ use actix_utils::future::ready;
 use futures_core::future::LocalBoxFuture;
 
 use crate::{
-    body::{AnyBody, MessageBody},
+    body::{BoxBody, MessageBody},
     config::ServiceConfig,
     error::DispatchError,
     service::HttpServiceHandler,
@@ -38,7 +37,7 @@ pub struct H1Service<T, S, B, X = ExpectHandler, U = UpgradeHandler> {
 impl<T, S, B> H1Service<T, S, B>
 where
     S: ServiceFactory<Request, Config = ()>,
-    S::Error: Into<Response<AnyBody>>,
+    S::Error: Into<Response<BoxBody>>,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
     B: MessageBody,
@@ -63,21 +62,20 @@ impl<S, B, X, U> H1Service<TcpStream, S, B, X, U>
 where
     S: ServiceFactory<Request, Config = ()>,
     S::Future: 'static,
-    S::Error: Into<Response<AnyBody>>,
+    S::Error: Into<Response<BoxBody>>,
     S::InitError: fmt::Debug,
     S::Response: Into<Response<B>>,
 
     B: MessageBody,
-    B::Error: Into<Box<dyn StdError>>,
 
     X: ServiceFactory<Request, Config = (), Response = Request>,
     X::Future: 'static,
-    X::Error: Into<Response<AnyBody>>,
+    X::Error: Into<Response<BoxBody>>,
     X::InitError: fmt::Debug,
 
     U: ServiceFactory<(Request, Framed<TcpStream, Codec>), Config = (), Response = ()>,
     U::Future: 'static,
-    U::Error: fmt::Display + Into<Response<AnyBody>>,
+    U::Error: fmt::Display + Into<Response<BoxBody>>,
     U::InitError: fmt::Debug,
 {
     /// Create simple tcp stream service
@@ -102,9 +100,11 @@ where
 mod openssl {
     use super::*;
 
-    use actix_service::ServiceFactoryExt;
     use actix_tls::accept::{
-        openssl::{Acceptor, SslAcceptor, SslError, TlsStream},
+        openssl::{
+            reexports::{Error as SslError, SslAcceptor},
+            Acceptor, TlsStream,
+        },
         TlsError,
     };
 
@@ -112,16 +112,15 @@ mod openssl {
     where
         S: ServiceFactory<Request, Config = ()>,
         S::Future: 'static,
-        S::Error: Into<Response<AnyBody>>,
+        S::Error: Into<Response<BoxBody>>,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>>,
 
         B: MessageBody,
-        B::Error: Into<Box<dyn StdError>>,
 
         X: ServiceFactory<Request, Config = (), Response = Request>,
         X::Future: 'static,
-        X::Error: Into<Response<AnyBody>>,
+        X::Error: Into<Response<BoxBody>>,
         X::InitError: fmt::Debug,
 
         U: ServiceFactory<
@@ -130,10 +129,10 @@ mod openssl {
             Response = (),
         >,
         U::Future: 'static,
-        U::Error: fmt::Display + Into<Response<AnyBody>>,
+        U::Error: fmt::Display + Into<Response<BoxBody>>,
         U::InitError: fmt::Debug,
     {
-        /// Create openssl based service
+        /// Create OpenSSL based service.
         pub fn openssl(
             self,
             acceptor: SslAcceptor,
@@ -145,11 +144,13 @@ mod openssl {
             InitError = (),
         > {
             Acceptor::new(acceptor)
-                .map_err(TlsError::Tls)
-                .map_init_err(|_| panic!())
-                .and_then(|io: TlsStream<TcpStream>| {
+                .map_init_err(|_| {
+                    unreachable!("TLS acceptor service factory does not error on init")
+                })
+                .map_err(TlsError::into_service_error)
+                .map(|io: TlsStream<TcpStream>| {
                     let peer_addr = io.get_ref().peer_addr().ok();
-                    ready(Ok((io, peer_addr)))
+                    (io, peer_addr)
                 })
                 .and_then(self.map_err(TlsError::Service))
         }
@@ -158,30 +159,30 @@ mod openssl {
 
 #[cfg(feature = "rustls")]
 mod rustls {
-    use super::*;
 
     use std::io;
 
-    use actix_service::ServiceFactoryExt;
+    use actix_service::ServiceFactoryExt as _;
     use actix_tls::accept::{
-        rustls::{Acceptor, ServerConfig, TlsStream},
+        rustls::{reexports::ServerConfig, Acceptor, TlsStream},
         TlsError,
     };
+
+    use super::*;
 
     impl<S, B, X, U> H1Service<TlsStream<TcpStream>, S, B, X, U>
     where
         S: ServiceFactory<Request, Config = ()>,
         S::Future: 'static,
-        S::Error: Into<Response<AnyBody>>,
+        S::Error: Into<Response<BoxBody>>,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>>,
 
         B: MessageBody,
-        B::Error: Into<Box<dyn StdError>>,
 
         X: ServiceFactory<Request, Config = (), Response = Request>,
         X::Future: 'static,
-        X::Error: Into<Response<AnyBody>>,
+        X::Error: Into<Response<BoxBody>>,
         X::InitError: fmt::Debug,
 
         U: ServiceFactory<
@@ -190,10 +191,10 @@ mod rustls {
             Response = (),
         >,
         U::Future: 'static,
-        U::Error: fmt::Display + Into<Response<AnyBody>>,
+        U::Error: fmt::Display + Into<Response<BoxBody>>,
         U::InitError: fmt::Debug,
     {
-        /// Create rustls based service
+        /// Create Rustls based service.
         pub fn rustls(
             self,
             config: ServerConfig,
@@ -205,11 +206,13 @@ mod rustls {
             InitError = (),
         > {
             Acceptor::new(config)
-                .map_err(TlsError::Tls)
-                .map_init_err(|_| panic!())
-                .and_then(|io: TlsStream<TcpStream>| {
+                .map_init_err(|_| {
+                    unreachable!("TLS acceptor service factory does not error on init")
+                })
+                .map_err(TlsError::into_service_error)
+                .map(|io: TlsStream<TcpStream>| {
                     let peer_addr = io.get_ref().0.peer_addr().ok();
-                    ready(Ok((io, peer_addr)))
+                    (io, peer_addr)
                 })
                 .and_then(self.map_err(TlsError::Service))
         }
@@ -219,7 +222,7 @@ mod rustls {
 impl<T, S, B, X, U> H1Service<T, S, B, X, U>
 where
     S: ServiceFactory<Request, Config = ()>,
-    S::Error: Into<Response<AnyBody>>,
+    S::Error: Into<Response<BoxBody>>,
     S::Response: Into<Response<B>>,
     S::InitError: fmt::Debug,
     B: MessageBody,
@@ -227,7 +230,7 @@ where
     pub fn expect<X1>(self, expect: X1) -> H1Service<T, S, B, X1, U>
     where
         X1: ServiceFactory<Request, Response = Request>,
-        X1::Error: Into<Response<AnyBody>>,
+        X1::Error: Into<Response<BoxBody>>,
         X1::InitError: fmt::Debug,
     {
         H1Service {
@@ -263,28 +266,26 @@ where
     }
 }
 
-impl<T, S, B, X, U> ServiceFactory<(T, Option<net::SocketAddr>)>
-    for H1Service<T, S, B, X, U>
+impl<T, S, B, X, U> ServiceFactory<(T, Option<net::SocketAddr>)> for H1Service<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin + 'static,
 
     S: ServiceFactory<Request, Config = ()>,
     S::Future: 'static,
-    S::Error: Into<Response<AnyBody>>,
+    S::Error: Into<Response<BoxBody>>,
     S::Response: Into<Response<B>>,
     S::InitError: fmt::Debug,
 
     B: MessageBody,
-    B::Error: Into<Box<dyn StdError>>,
 
     X: ServiceFactory<Request, Config = (), Response = Request>,
     X::Future: 'static,
-    X::Error: Into<Response<AnyBody>>,
+    X::Error: Into<Response<BoxBody>>,
     X::InitError: fmt::Debug,
 
     U: ServiceFactory<(Request, Framed<T, Codec>), Config = (), Response = ()>,
     U::Future: 'static,
-    U::Error: fmt::Display + Into<Response<AnyBody>>,
+    U::Error: fmt::Display + Into<Response<BoxBody>>,
     U::InitError: fmt::Debug,
 {
     type Response = ();
@@ -308,9 +309,9 @@ where
 
             let upgrade = match upgrade {
                 Some(upgrade) => {
-                    let upgrade = upgrade.await.map_err(|e| {
-                        log::error!("Init http upgrade service error: {:?}", e)
-                    })?;
+                    let upgrade = upgrade
+                        .await
+                        .map_err(|e| log::error!("Init http upgrade service error: {:?}", e))?;
                     Some(upgrade)
                 }
                 None => None,
@@ -334,45 +335,35 @@ where
 /// `Service` implementation for HTTP/1 transport
 pub type H1ServiceHandler<T, S, B, X, U> = HttpServiceHandler<T, S, B, X, U>;
 
-impl<T, S, B, X, U> Service<(T, Option<net::SocketAddr>)>
-    for HttpServiceHandler<T, S, B, X, U>
+impl<T, S, B, X, U> Service<(T, Option<net::SocketAddr>)> for HttpServiceHandler<T, S, B, X, U>
 where
     T: AsyncRead + AsyncWrite + Unpin,
 
     S: Service<Request>,
-    S::Error: Into<Response<AnyBody>>,
+    S::Error: Into<Response<BoxBody>>,
     S::Response: Into<Response<B>>,
 
     B: MessageBody,
-    B::Error: Into<Box<dyn StdError>>,
 
     X: Service<Request, Response = Request>,
-    X::Error: Into<Response<AnyBody>>,
+    X::Error: Into<Response<BoxBody>>,
 
     U: Service<(Request, Framed<T, Codec>), Response = ()>,
-    U::Error: fmt::Display + Into<Response<AnyBody>>,
+    U::Error: fmt::Display + Into<Response<BoxBody>>,
 {
     type Response = ();
     type Error = DispatchError;
     type Future = Dispatcher<T, S, B, X, U>;
 
     fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self._poll_ready(cx).map_err(|e| {
-            log::error!("HTTP/1 service readiness error: {:?}", e);
-            DispatchError::Service(e)
+        self._poll_ready(cx).map_err(|err| {
+            log::error!("HTTP/1 service readiness error: {:?}", err);
+            DispatchError::Service(err)
         })
     }
 
     fn call(&self, (io, addr): (T, Option<net::SocketAddr>)) -> Self::Future {
-        let on_connect_data =
-            OnConnectData::from_io(&io, self.on_connect_ext.as_deref());
-
-        Dispatcher::new(
-            io,
-            self.cfg.clone(),
-            self.flow.clone(),
-            on_connect_data,
-            addr,
-        )
+        let conn_data = OnConnectData::from_io(&io, self.on_connect_ext.as_deref());
+        Dispatcher::new(io, self.flow.clone(), self.cfg.clone(), addr, conn_data)
     }
 }

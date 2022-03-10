@@ -1,101 +1,70 @@
-use std::{
-    cmp,
-    convert::{TryFrom, TryInto},
-    fmt, str,
-};
+use std::{cmp, convert::TryFrom as _, fmt, str};
 
-use derive_more::{Display, Error};
+use crate::error::ParseError;
 
-const MAX_QUALITY: u16 = 1000;
-const MAX_FLOAT_QUALITY: f32 = 1.0;
+use super::Quality;
 
-/// Represents a quality used in quality values.
+/// Represents an item with a quality value as defined
+/// in [RFC 7231 §5.3.1](https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.1).
 ///
-/// Can be created with the [`q`] function.
+/// # Parsing and Formatting
+/// This wrapper be used to parse header value items that have a q-factor annotation as well as
+/// serialize items with a their q-factor.
 ///
-/// # Implementation notes
+/// # Ordering
+/// Since this context of use for this type is header value items, ordering is defined for
+/// `QualityItem`s but _only_ considers the item's quality. Order of appearance should be used as
+/// the secondary sorting parameter; i.e., a stable sort over the quality values will produce a
+/// correctly sorted sequence.
 ///
-/// The quality value is defined as a number between 0 and 1 with three decimal
-/// places. This means there are 1001 possible values. Since floating point
-/// numbers are not exact and the smallest floating point data type (`f32`)
-/// consumes four bytes, hyper uses an `u16` value to store the
-/// quality internally. For performance reasons you may set quality directly to
-/// a value between 0 and 1000 e.g. `Quality(532)` matches the quality
-/// `q=0.532`.
+/// # Examples
+/// ```
+/// # use actix_http::header::{QualityItem, q};
+/// let q_item: QualityItem<String> = "hello;q=0.3".parse().unwrap();
+/// assert_eq!(&q_item.item, "hello");
+/// assert_eq!(q_item.quality, q(0.3));
 ///
-/// [RFC7231 Section 5.3.1](https://tools.ietf.org/html/rfc7231#section-5.3.1)
-/// gives more information on quality values in HTTP header fields.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Quality(u16);
-
-impl Quality {
-    /// # Panics
-    /// Panics in debug mode when value is not in the range 0.0 <= n <= 1.0.
-    fn from_f32(value: f32) -> Self {
-        // Check that `value` is within range should be done before calling this method.
-        // Just in case, this debug_assert should catch if we were forgetful.
-        debug_assert!(
-            (0.0f32..=1.0f32).contains(&value),
-            "q value must be between 0.0 and 1.0"
-        );
-
-        Quality((value * MAX_QUALITY as f32) as u16)
-    }
-}
-
-impl Default for Quality {
-    fn default() -> Quality {
-        Quality(MAX_QUALITY)
-    }
-}
-
-#[derive(Debug, Clone, Display, Error)]
-pub struct QualityOutOfBounds;
-
-impl TryFrom<u16> for Quality {
-    type Error = QualityOutOfBounds;
-
-    fn try_from(value: u16) -> Result<Self, Self::Error> {
-        if (0..=MAX_QUALITY).contains(&value) {
-            Ok(Quality(value))
-        } else {
-            Err(QualityOutOfBounds)
-        }
-    }
-}
-
-impl TryFrom<f32> for Quality {
-    type Error = QualityOutOfBounds;
-
-    fn try_from(value: f32) -> Result<Self, Self::Error> {
-        if (0.0..=MAX_FLOAT_QUALITY).contains(&value) {
-            Ok(Quality::from_f32(value))
-        } else {
-            Err(QualityOutOfBounds)
-        }
-    }
-}
-
-/// Represents an item with a quality value as defined in
-/// [RFC7231](https://tools.ietf.org/html/rfc7231#section-5.3.1).
-#[derive(Clone, PartialEq, Debug)]
+/// // note that format is normalized compared to parsed item
+/// assert_eq!(q_item.to_string(), "hello; q=0.3");
+///
+/// // item with q=0.3 is greater than item with q=0.1
+/// let q_item_fallback: QualityItem<String> = "abc;q=0.1".parse().unwrap();
+/// assert!(q_item > q_item_fallback);
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct QualityItem<T> {
-    /// The actual contents of the field.
+    /// The wrapped contents of the field.
     pub item: T,
+
     /// The quality (client or server preference) for the value.
     pub quality: Quality,
 }
 
 impl<T> QualityItem<T> {
-    /// Creates a new `QualityItem` from an item and a quality.
-    /// The item can be of any type.
-    /// The quality should be a value in the range [0, 1].
-    pub fn new(item: T, quality: Quality) -> QualityItem<T> {
+    /// Constructs a new `QualityItem` from an item and a quality value.
+    ///
+    /// The item can be of any type. The quality should be a value in the range [0, 1].
+    pub fn new(item: T, quality: Quality) -> Self {
         QualityItem { item, quality }
+    }
+
+    /// Constructs a new `QualityItem` from an item, using the maximum q-value.
+    pub fn max(item: T) -> Self {
+        Self::new(item, Quality::MAX)
+    }
+
+    /// Constructs a new `QualityItem` from an item, using the minimum, non-zero q-value.
+    pub fn min(item: T) -> Self {
+        Self::new(item, Quality::MIN)
+    }
+
+    /// Constructs a new `QualityItem` from an item, using zero q-value of zero.
+    pub fn zero(item: T) -> Self {
+        Self::new(item, Quality::ZERO)
     }
 }
 
-impl<T: PartialEq> cmp::PartialOrd for QualityItem<T> {
+impl<T: PartialEq> PartialOrd for QualityItem<T> {
     fn partial_cmp(&self, other: &QualityItem<T>) -> Option<cmp::Ordering> {
         self.quality.partial_cmp(&other.quality)
     }
@@ -105,90 +74,71 @@ impl<T: fmt::Display> fmt::Display for QualityItem<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self.item, f)?;
 
-        match self.quality.0 {
-            MAX_QUALITY => Ok(()),
-            0 => f.write_str("; q=0"),
-            x => write!(f, "; q=0.{}", format!("{:03}", x).trim_end_matches('0')),
+        match self.quality {
+            // q-factor value is implied for max value
+            Quality::MAX => Ok(()),
+
+            // fast path for zero
+            Quality::ZERO => f.write_str("; q=0"),
+
+            // quality formatting is already using itoa
+            q => write!(f, "; q={}", q),
         }
     }
 }
 
 impl<T: str::FromStr> str::FromStr for QualityItem<T> {
-    type Err = crate::error::ParseError;
+    type Err = ParseError;
 
-    fn from_str(qitem_str: &str) -> Result<QualityItem<T>, crate::error::ParseError> {
-        if !qitem_str.is_ascii() {
-            return Err(crate::error::ParseError::Header);
+    fn from_str(q_item_str: &str) -> Result<Self, Self::Err> {
+        if !q_item_str.is_ascii() {
+            return Err(ParseError::Header);
         }
 
-        // Set defaults used if parsing fails.
-        let mut raw_item = qitem_str;
-        let mut quality = 1f32;
+        // set defaults used if quality-item parsing fails, i.e., item has no q attribute
+        let mut raw_item = q_item_str;
+        let mut quality = Quality::MAX;
 
-        let parts: Vec<_> = qitem_str.rsplitn(2, ';').map(str::trim).collect();
+        let parts = q_item_str
+            .rsplit_once(';')
+            .map(|(item, q_attr)| (item.trim(), q_attr.trim()));
 
-        if parts.len() == 2 {
+        if let Some((val, q_attr)) = parts {
             // example for item with q-factor:
             //
-            // gzip; q=0.65
-            //       ^^^^^^  parts[0]
-            //       ^^      start
-            //         ^^^^  q_val
-            // ^^^^          parts[1]
+            // gzip;q=0.65
+            // ^^^^         val
+            //      ^^^^^^  q_attr
+            //      ^^      q
+            //        ^^^^  q_val
 
-            if parts[0].len() < 2 {
+            if q_attr.len() < 2 {
                 // Can't possibly be an attribute since an attribute needs at least a name followed
                 // by an equals sign. And bare identifiers are forbidden.
-                return Err(crate::error::ParseError::Header);
+                return Err(ParseError::Header);
             }
 
-            let start = &parts[0][0..2];
+            let q = &q_attr[0..2];
 
-            if start == "q=" || start == "Q=" {
-                let q_val = &parts[0][2..];
+            if q == "q=" || q == "Q=" {
+                let q_val = &q_attr[2..];
                 if q_val.len() > 5 {
                     // longer than 5 indicates an over-precise q-factor
-                    return Err(crate::error::ParseError::Header);
+                    return Err(ParseError::Header);
                 }
 
-                let q_value = q_val
-                    .parse::<f32>()
-                    .map_err(|_| crate::error::ParseError::Header)?;
+                let q_value = q_val.parse::<f32>().map_err(|_| ParseError::Header)?;
+                let q_value = Quality::try_from(q_value).map_err(|_| ParseError::Header)?;
 
-                if (0f32..=1f32).contains(&q_value) {
-                    quality = q_value;
-                    raw_item = parts[1];
-                } else {
-                    return Err(crate::error::ParseError::Header);
-                }
+                quality = q_value;
+                raw_item = val;
             }
         }
 
-        let item = raw_item
-            .parse::<T>()
-            .map_err(|_| crate::error::ParseError::Header)?;
+        let item = raw_item.parse::<T>().map_err(|_| ParseError::Header)?;
 
-        // we already checked above that the quality is within range
-        Ok(QualityItem::new(item, Quality::from_f32(quality)))
+        Ok(QualityItem::new(item, quality))
     }
-}
-
-/// Convenience function to wrap a value in a `QualityItem`
-/// Sets `q` to the default 1.0
-pub fn qitem<T>(item: T) -> QualityItem<T> {
-    QualityItem::new(item, Quality::default())
-}
-
-/// Convenience function to create a `Quality` from a float or integer.
-///
-/// Implemented for `u16` and `f32`. Panics if value is out of range.
-pub fn q<T>(val: T) -> Quality
-where
-    T: TryInto<Quality>,
-    T::Error: fmt::Debug,
-{
-    // TODO: on next breaking change, handle unwrap differently
-    val.try_into().unwrap()
 }
 
 #[cfg(test)]
@@ -196,6 +146,7 @@ mod tests {
     use super::*;
 
     // copy of encoding from actix-web headers
+    #[allow(clippy::enum_variant_names)] // allow Encoding prefix on EncodingExt
     #[derive(Clone, PartialEq, Debug)]
     pub enum Encoding {
         Chunked,
@@ -244,7 +195,7 @@ mod tests {
     #[test]
     fn test_quality_item_fmt_q_1() {
         use Encoding::*;
-        let x = qitem(Chunked);
+        let x = QualityItem::max(Chunked);
         assert_eq!(format!("{}", x), "chunked");
     }
     #[test]
@@ -343,25 +294,8 @@ mod tests {
     fn test_quality_item_ordering() {
         let x: QualityItem<Encoding> = "gzip; q=0.5".parse().ok().unwrap();
         let y: QualityItem<Encoding> = "gzip; q=0.273".parse().ok().unwrap();
-        let comparision_result: bool = x.gt(&y);
-        assert!(comparision_result)
-    }
-
-    #[test]
-    fn test_quality() {
-        assert_eq!(q(0.5), Quality(500));
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_quality_invalid() {
-        q(-1.0);
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_quality_invalid2() {
-        q(2.0);
+        let comparison_result: bool = x.gt(&y);
+        assert!(comparison_result)
     }
 
     #[test]

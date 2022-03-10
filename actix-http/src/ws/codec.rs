@@ -3,9 +3,11 @@ use bitflags::bitflags;
 use bytes::{Bytes, BytesMut};
 use bytestring::ByteString;
 
-use super::frame::Parser;
-use super::proto::{CloseReason, OpCode};
-use super::ProtocolError;
+use super::{
+    frame::Parser,
+    proto::{CloseReason, OpCode},
+    ProtocolError,
+};
 
 /// A WebSocket message.
 #[derive(Debug, PartialEq)]
@@ -63,8 +65,8 @@ pub enum Item {
     Last(Bytes),
 }
 
-#[derive(Debug, Copy, Clone)]
 /// WebSocket protocol codec.
+#[derive(Debug, Clone)]
 pub struct Codec {
     flags: Flags,
     max_size: usize,
@@ -89,7 +91,8 @@ impl Codec {
 
     /// Set max frame size.
     ///
-    /// By default max size is set to 64kB.
+    /// By default max size is set to 64KiB.
+    #[must_use = "This returns the a new Codec, without modifying the original."]
     pub fn max_size(mut self, size: usize) -> Self {
         self.max_size = size;
         self
@@ -98,9 +101,16 @@ impl Codec {
     /// Set decoder to client mode.
     ///
     /// By default decoder works in server mode.
+    #[must_use = "This returns the a new Codec, without modifying the original."]
     pub fn client_mode(mut self) -> Self {
         self.flags.remove(Flags::SERVER);
         self
+    }
+}
+
+impl Default for Codec {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -216,9 +226,7 @@ impl Decoder for Codec {
                         OpCode::Continue => {
                             if self.flags.contains(Flags::CONTINUATION) {
                                 Ok(Some(Frame::Continuation(Item::Continue(
-                                    payload
-                                        .map(|pl| pl.freeze())
-                                        .unwrap_or_else(Bytes::new),
+                                    payload.map(|pl| pl.freeze()).unwrap_or_else(Bytes::new),
                                 ))))
                             } else {
                                 Err(ProtocolError::ContinuationNotStarted)
@@ -228,9 +236,7 @@ impl Decoder for Codec {
                             if !self.flags.contains(Flags::CONTINUATION) {
                                 self.flags.insert(Flags::CONTINUATION);
                                 Ok(Some(Frame::Continuation(Item::FirstBinary(
-                                    payload
-                                        .map(|pl| pl.freeze())
-                                        .unwrap_or_else(Bytes::new),
+                                    payload.map(|pl| pl.freeze()).unwrap_or_else(Bytes::new),
                                 ))))
                             } else {
                                 Err(ProtocolError::ContinuationStarted)
@@ -240,16 +246,14 @@ impl Decoder for Codec {
                             if !self.flags.contains(Flags::CONTINUATION) {
                                 self.flags.insert(Flags::CONTINUATION);
                                 Ok(Some(Frame::Continuation(Item::FirstText(
-                                    payload
-                                        .map(|pl| pl.freeze())
-                                        .unwrap_or_else(Bytes::new),
+                                    payload.map(|pl| pl.freeze()).unwrap_or_else(Bytes::new),
                                 ))))
                             } else {
                                 Err(ProtocolError::ContinuationStarted)
                             }
                         }
                         _ => {
-                            error!("Unfinished fragment {:?}", opcode);
+                            log::error!("Unfinished fragment {:?}", opcode);
                             Err(ProtocolError::ContinuationFragment(opcode))
                         }
                     };

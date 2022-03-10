@@ -1,6 +1,6 @@
-use std::io;
+use std::{io, time::Duration};
 
-use actix_http::{http::StatusCode, Error, HttpService, Request, Response};
+use actix_http::{Error, HttpService, Request, Response, StatusCode};
 use actix_server::Server;
 use bytes::BytesMut;
 use futures_util::StreamExt as _;
@@ -13,8 +13,9 @@ async fn main() -> io::Result<()> {
     Server::build()
         .bind("echo", ("127.0.0.1", 8080), || {
             HttpService::build()
-                .client_timeout(1000)
-                .client_disconnect(1000)
+                .client_request_timeout(Duration::from_secs(1))
+                .client_disconnect_timeout(Duration::from_secs(1))
+                // handles HTTP/1.1 and HTTP/2
                 .finish(|mut req: Request| async move {
                     let mut body = BytesMut::new();
                     while let Some(item) = req.payload().next().await {
@@ -23,15 +24,13 @@ async fn main() -> io::Result<()> {
 
                     log::info!("request body: {:?}", body);
 
-                    Ok::<_, Error>(
-                        Response::build(StatusCode::OK)
-                            .insert_header((
-                                "x-head",
-                                HeaderValue::from_static("dummy value!"),
-                            ))
-                            .body(body),
-                    )
+                    let res = Response::build(StatusCode::OK)
+                        .insert_header(("x-head", HeaderValue::from_static("dummy value!")))
+                        .body(body);
+
+                    Ok::<_, Error>(res)
                 })
+                // No TLS
                 .tcp()
         })?
         .run()

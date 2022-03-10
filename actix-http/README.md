@@ -3,18 +3,18 @@
 > HTTP primitives for the Actix ecosystem.
 
 [![crates.io](https://img.shields.io/crates/v/actix-http?label=latest)](https://crates.io/crates/actix-http)
-[![Documentation](https://docs.rs/actix-http/badge.svg?version=3.0.0-beta.8)](https://docs.rs/actix-http/3.0.0-beta.8)
-[![Version](https://img.shields.io/badge/rustc-1.46+-ab6000.svg)](https://blog.rust-lang.org/2020/03/12/Rust-1.46.html)
+[![Documentation](https://docs.rs/actix-http/badge.svg?version=3.0.4)](https://docs.rs/actix-http/3.0.4)
+[![Version](https://img.shields.io/badge/rustc-1.54+-ab6000.svg)](https://blog.rust-lang.org/2021/05/06/Rust-1.54.0.html)
 ![MIT or Apache 2.0 licensed](https://img.shields.io/crates/l/actix-http.svg)
 <br />
-[![dependency status](https://deps.rs/crate/actix-http/3.0.0-beta.8/status.svg)](https://deps.rs/crate/actix-http/3.0.0-beta.8)
+[![dependency status](https://deps.rs/crate/actix-http/3.0.4/status.svg)](https://deps.rs/crate/actix-http/3.0.4)
 [![Download](https://img.shields.io/crates/d/actix-http.svg)](https://crates.io/crates/actix-http)
 [![Chat on Discord](https://img.shields.io/discord/771444961383153695?label=chat&logo=discord)](https://discord.gg/NWpN5mmg3x)
 
 ## Documentation & Resources
 
 - [API Documentation](https://docs.rs/actix-http)
-- Minimum Supported Rust Version (MSRV): 1.46.0
+- Minimum Supported Rust Version (MSRV): 1.54
 
 ## Example
 
@@ -54,8 +54,8 @@ async fn main() -> io::Result<()> {
 
 This project is licensed under either of
 
-* Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0))
-* MIT license ([LICENSE-MIT](LICENSE-MIT) or [http://opensource.org/licenses/MIT](http://opensource.org/licenses/MIT))
+- Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0))
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or [http://opensource.org/licenses/MIT](http://opensource.org/licenses/MIT))
 
 at your option.
 

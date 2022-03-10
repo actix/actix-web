@@ -1,0 +1,38 @@
+[package]
+name = "actix-router"
+version = "0.5.0"
+authors = [
+    "Nikolay Kim <fafhrd91@gmail.com>",
+    "Ali MJ Al-Nasrawy <alimjalnasrawy@gmail.com>",
+    "Rob Ede <robjtede@icloud.com>",
+]
+description = "Resource path matching and router"
+keywords = ["actix", "router", "routing"]
+repository = "https://github.com/actix/actix-web.git"
+license = "MIT OR Apache-2.0"
+edition = "2018"
+
+[lib]
+name = "actix_router"
+path = "src/lib.rs"
+
+[features]
+default = ["http"]
+
+[dependencies]
+bytestring = ">=0.1.5, <2"
+firestorm = "0.5"
+http = { version = "0.2.3", optional = true }
+log = "0.4"
+regex = "1.5"
+serde = "1"
+
+[dev-dependencies]
+criterion = { version = "0.3", features = ["html_reports"] }
+firestorm = { version = "0.5", features = ["enable_system_time"] }
+http = "0.2.5"
+serde = { version = "1", features = ["derive"] }
+
+[[bench]]
+name = "router"
+harness = false

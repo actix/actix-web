@@ -1,20 +1,26 @@
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::{
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_service::{IntoService, Service};
+use pin_project_lite::pin_project;
 
 use super::{Codec, Frame, Message};
 
-#[pin_project::pin_project]
-pub struct Dispatcher<S, T>
-where
-    S: Service<Frame, Response = Message> + 'static,
-    T: AsyncRead + AsyncWrite,
-{
-    #[pin]
-    inner: inner::Dispatcher<S, T, Codec, Message>,
+pin_project! {
+    pub struct Dispatcher<S, T>
+    where
+        S: Service<Frame, Response = Message>,
+        S: 'static,
+        T: AsyncRead,
+        T: AsyncWrite,
+    {
+        #[pin]
+        inner: inner::Dispatcher<S, T, Codec, Message>,
+    }
 }
 
 impl<S, T> Dispatcher<S, T>
@@ -72,7 +78,7 @@ mod inner {
 
     use actix_codec::{AsyncRead, AsyncWrite, Decoder, Encoder, Framed};
 
-    use crate::{body::AnyBody, Response};
+    use crate::{body::BoxBody, Response};
 
     /// Framed transport errors
     pub enum DispatcherError<E, U, I>
@@ -136,7 +142,7 @@ mod inner {
         }
     }
 
-    impl<E, U, I> From<DispatcherError<E, U, I>> for Response<AnyBody>
+    impl<E, U, I> From<DispatcherError<E, U, I>> for Response<BoxBody>
     where
         E: fmt::Debug + fmt::Display,
         U: Encoder<I> + Decoder,
@@ -144,7 +150,7 @@ mod inner {
         <U as Decoder>::Error: fmt::Debug,
     {
         fn from(err: DispatcherError<E, U, I>) -> Self {
-            Response::internal_server_error().set_body(AnyBody::from(err.to_string()))
+            Response::internal_server_error().set_body(BoxBody::new(err.to_string()))
         }
     }
 
@@ -300,8 +306,7 @@ mod inner {
                         let item = match this.framed.next_item(cx) {
                             Poll::Ready(Some(Ok(el))) => el,
                             Poll::Ready(Some(Err(err))) => {
-                                *this.state =
-                                    State::FramedError(DispatcherError::Decoder(err));
+                                *this.state = State::FramedError(DispatcherError::Decoder(err));
                                 return true;
                             }
                             Poll::Pending => return false,
@@ -344,8 +349,7 @@ mod inner {
                     match Pin::new(&mut this.rx).poll_next(cx) {
                         Poll::Ready(Some(Ok(Message::Item(msg)))) => {
                             if let Err(err) = this.framed.as_mut().write(msg) {
-                                *this.state =
-                                    State::FramedError(DispatcherError::Encoder(err));
+                                *this.state = State::FramedError(DispatcherError::Encoder(err));
                                 return true;
                             }
                         }
@@ -367,8 +371,7 @@ mod inner {
                         Poll::Ready(Ok(_)) => {}
                         Poll::Ready(Err(err)) => {
                             debug!("Error sending data: {:?}", err);
-                            *this.state =
-                                State::FramedError(DispatcherError::Encoder(err));
+                            *this.state = State::FramedError(DispatcherError::Encoder(err));
                             return true;
                         }
                     }
@@ -428,9 +431,7 @@ mod inner {
                             Poll::Ready(Ok(()))
                         }
                     }
-                    State::FramedError(_) => {
-                        Poll::Ready(Err(this.state.take_framed_error()))
-                    }
+                    State::FramedError(_) => Poll::Ready(Err(this.state.take_framed_error())),
                     State::Stopping => Poll::Ready(Ok(())),
                 };
             }

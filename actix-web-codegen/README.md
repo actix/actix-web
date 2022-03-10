@@ -3,18 +3,18 @@
 > Routing and runtime macros for Actix Web.
 
 [![crates.io](https://img.shields.io/crates/v/actix-web-codegen?label=latest)](https://crates.io/crates/actix-web-codegen)
-[![Documentation](https://docs.rs/actix-web-codegen/badge.svg?version=0.5.0-beta.3)](https://docs.rs/actix-web-codegen/0.5.0-beta.3)
-[![Version](https://img.shields.io/badge/rustc-1.46+-ab6000.svg)](https://blog.rust-lang.org/2020/03/12/Rust-1.46.html)
+[![Documentation](https://docs.rs/actix-web-codegen/badge.svg?version=4.0.0)](https://docs.rs/actix-web-codegen/4.0.0)
+[![Version](https://img.shields.io/badge/rustc-1.54+-ab6000.svg)](https://blog.rust-lang.org/2021/05/06/Rust-1.54.0.html)
 ![License](https://img.shields.io/crates/l/actix-web-codegen.svg)
 <br />
-[![dependency status](https://deps.rs/crate/actix-web-codegen/0.5.0-beta.3/status.svg)](https://deps.rs/crate/actix-web-codegen/0.5.0-beta.3)
+[![dependency status](https://deps.rs/crate/actix-web-codegen/4.0.0/status.svg)](https://deps.rs/crate/actix-web-codegen/4.0.0)
 [![Download](https://img.shields.io/crates/d/actix-web-codegen.svg)](https://crates.io/crates/actix-web-codegen)
 [![Chat on Discord](https://img.shields.io/discord/771444961383153695?label=chat&logo=discord)](https://discord.gg/NWpN5mmg3x)
 
 ## Documentation & Resources
 
 - [API Documentation](https://docs.rs/actix-web-codegen)
-- Minimum supported Rust version: 1.46 or later.
+- Minimum Supported Rust Version (MSRV): 1.54
 
 ## Compile Testing
 

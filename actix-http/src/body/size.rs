@@ -1,19 +1,16 @@
 /// Body size hint.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BodySize {
-    /// Absence of body can be assumed from method or status code.
+    /// Implicitly empty body.
     ///
-    /// Will skip writing Content-Length header.
+    /// Will omit the Content-Length header. Used for responses to certain methods (e.g., `HEAD`) or
+    /// with particular status codes (e.g., 204 No Content). Consumers that read this as a body size
+    /// hint are allowed to make optimizations that skip reading or writing the payload.
     None,
-
-    /// Zero size body.
-    ///
-    /// Will write `Content-Length: 0` header.
-    Empty,
 
     /// Known size body.
     ///
-    /// Will write `Content-Length: N` header. `Sized(0)` is treated the same as `Empty`.
+    /// Will write `Content-Length: N` header.
     Sized(u64),
 
     /// Unknown size body.
@@ -23,18 +20,22 @@ pub enum BodySize {
 }
 
 impl BodySize {
-    /// Returns true if size hint indicates no or empty body.
+    /// Equivalent to `BodySize::Sized(0)`;
+    pub const ZERO: Self = Self::Sized(0);
+
+    /// Returns true if size hint indicates omitted or empty body.
+    ///
+    /// Streams will return false because it cannot be known without reading the stream.
     ///
     /// ```
     /// # use actix_http::body::BodySize;
     /// assert!(BodySize::None.is_eof());
-    /// assert!(BodySize::Empty.is_eof());
     /// assert!(BodySize::Sized(0).is_eof());
     ///
     /// assert!(!BodySize::Sized(64).is_eof());
     /// assert!(!BodySize::Stream.is_eof());
     /// ```
     pub fn is_eof(&self) -> bool {
-        matches!(self, BodySize::None | BodySize::Empty | BodySize::Sized(0))
+        matches!(self, BodySize::None | BodySize::Sized(0))
     }
 }

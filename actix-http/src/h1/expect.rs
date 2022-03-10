@@ -1,8 +1,7 @@
 use actix_service::{Service, ServiceFactory};
 use actix_utils::future::{ready, Ready};
 
-use crate::error::Error;
-use crate::request::Request;
+use crate::{Error, Request};
 
 pub struct ExpectHandler;
 

@@ -1,22 +1,29 @@
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::{
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
+use pin_project_lite::pin_project;
 
-use crate::body::{BodySize, MessageBody};
-use crate::error::Error;
-use crate::h1::{Codec, Message};
-use crate::response::Response;
+use crate::{
+    body::{BodySize, MessageBody},
+    h1::{Codec, Message},
+    Error, Response,
+};
 
-/// Send HTTP/1 response
-#[pin_project::pin_project]
-pub struct SendResponse<T, B> {
-    res: Option<Message<(Response<()>, BodySize)>>,
-    #[pin]
-    body: Option<B>,
-    #[pin]
-    framed: Option<Framed<T, Codec>>,
+pin_project! {
+    /// Send HTTP/1 response
+    pub struct SendResponse<T, B> {
+        res: Option<Message<(Response<()>, BodySize)>>,
+
+        #[pin]
+        body: Option<B>,
+
+        #[pin]
+        framed: Option<Framed<T, Codec>>,
+    }
 }
 
 impl<T, B> SendResponse<T, B>
@@ -38,7 +45,7 @@ where
 impl<T, B> Future for SendResponse<T, B>
 where
     T: AsyncRead + AsyncWrite + Unpin,
-    B: MessageBody + Unpin,
+    B: MessageBody,
     B::Error: Into<Error>,
 {
     type Output = Result<Framed<T, Codec>, Error>;
@@ -62,28 +69,24 @@ where
                         .unwrap()
                         .is_write_buf_full()
                 {
-                    let next =
-                        // TODO: MSRV 1.51: poll_map_err
-                        match this.body.as_mut().as_pin_mut().unwrap().poll_next(cx) {
-                            Poll::Ready(Some(Ok(item))) => Poll::Ready(Some(item)),
-                            Poll::Ready(Some(Err(err))) => {
-                                return Poll::Ready(Err(err.into()))
-                            }
-                            Poll::Ready(None) => Poll::Ready(None),
-                            Poll::Pending => Poll::Pending,
-                        };
+                    let next = match this.body.as_mut().as_pin_mut().unwrap().poll_next(cx) {
+                        Poll::Ready(Some(Ok(item))) => Poll::Ready(Some(item)),
+                        Poll::Ready(Some(Err(err))) => return Poll::Ready(Err(err.into())),
+                        Poll::Ready(None) => Poll::Ready(None),
+                        Poll::Pending => Poll::Pending,
+                    };
 
                     match next {
                         Poll::Ready(item) => {
                             // body is done when item is None
                             body_done = item.is_none();
                             if body_done {
-                                let _ = this.body.take();
+                                this.body.set(None);
                             }
                             let framed = this.framed.as_mut().as_pin_mut().unwrap();
-                            framed.write(Message::Chunk(item)).map_err(|err| {
-                                Error::new_send_response().with_cause(err)
-                            })?;
+                            framed
+                                .write(Message::Chunk(item))
+                                .map_err(|err| Error::new_send_response().with_cause(err))?;
                         }
                         Poll::Pending => body_ready = false,
                     }

@@ -6,7 +6,6 @@ use std::{
 };
 
 use actix_service::{boxed, IntoServiceFactory, ServiceFactory, ServiceFactoryExt};
-use actix_utils::future::ok;
 use actix_web::{
     dev::{
         AppService, HttpServiceFactory, RequestHead, ResourceDef, ServiceRequest,
@@ -20,14 +19,16 @@ use actix_web::{
 use futures_core::future::LocalBoxFuture;
 
 use crate::{
-    directory_listing, named, Directory, DirectoryRenderer, FilesService, HttpNewService,
-    MimeOverride, PathFilter,
+    directory_listing, named,
+    service::{FilesService, FilesServiceInner},
+    Directory, DirectoryRenderer, HttpNewService, MimeOverride, PathFilter,
 };
 
 /// Static files handling service.
 ///
 /// `Files` service must be registered with `App::service()` method.
 ///
+/// # Examples
 /// ```
 /// use actix_web::App;
 /// use actix_files::Files;
@@ -36,7 +37,7 @@ use crate::{
 ///     .service(Files::new("/static", "."));
 /// ```
 pub struct Files {
-    path: String,
+    mount_path: String,
     directory: PathBuf,
     index: Option<String>,
     show_index: bool,
@@ -67,7 +68,7 @@ impl Clone for Files {
             default: self.default.clone(),
             renderer: self.renderer.clone(),
             file_flags: self.file_flags,
-            path: self.path.clone(),
+            mount_path: self.mount_path.clone(),
             mime_override: self.mime_override.clone(),
             path_filter: self.path_filter.clone(),
             use_guards: self.use_guards.clone(),
@@ -106,7 +107,7 @@ impl Files {
         };
 
         Files {
-            path: mount_path.to_owned(),
+            mount_path: mount_path.trim_end_matches('/').to_owned(),
             directory: dir,
             index: None,
             show_index: false,
@@ -262,9 +263,9 @@ impl Files {
         self
     }
 
+    /// See [`Files::method_guard`].
     #[doc(hidden)]
     #[deprecated(since = "0.6.0", note = "Renamed to `method_guard`.")]
-    /// See [`Files::method_guard`].
     pub fn use_guards<G: Guard + 'static>(self, guard: G) -> Self {
         self.method_guard(guard)
     }
@@ -283,11 +284,17 @@ impl Files {
     /// Setting a fallback static file handler:
     /// ```
     /// use actix_files::{Files, NamedFile};
+    /// use actix_web::dev::{ServiceRequest, ServiceResponse, fn_service};
     ///
     /// # fn run() -> Result<(), actix_web::Error> {
     /// let files = Files::new("/", "./static")
     ///     .index_file("index.html")
-    ///     .default_handler(NamedFile::open("./static/404.html")?);
+    ///     .default_handler(fn_service(|req: ServiceRequest| async {
+    ///         let (req, _) = req.into_parts();
+    ///         let file = NamedFile::open_async("./static/404.html").await?;
+    ///         let res = file.into_response(&req);
+    ///         Ok(ServiceResponse::new(req, res))
+    ///     }));
     /// # Ok(())
     /// # }
     /// ```
@@ -335,9 +342,9 @@ impl HttpServiceFactory for Files {
         }
 
         let rdef = if config.is_root() {
-            ResourceDef::root_prefix(&self.path)
+            ResourceDef::root_prefix(&self.mount_path)
         } else {
-            ResourceDef::prefix(&self.path)
+            ResourceDef::prefix(&self.mount_path)
         };
 
         config.register_service(rdef, guards, self, None)
@@ -353,7 +360,7 @@ impl ServiceFactory<ServiceRequest> for Files {
     type Future = LocalBoxFuture<'static, Result<Self::Service, Self::InitError>>;
 
     fn new_service(&self, _: ()) -> Self::Future {
-        let mut srv = FilesService {
+        let mut inner = FilesServiceInner {
             directory: self.directory.clone(),
             index: self.index.clone(),
             show_index: self.show_index,
@@ -372,14 +379,14 @@ impl ServiceFactory<ServiceRequest> for Files {
             Box::pin(async {
                 match fut.await {
                     Ok(default) => {
-                        srv.default = Some(default);
-                        Ok(srv)
+                        inner.default = Some(default);
+                        Ok(FilesService(Rc::new(inner)))
                     }
                     Err(_) => Err(()),
                 }
             })
         } else {
-            Box::pin(ok(srv))
+            Box::pin(async move { Ok(FilesService(Rc::new(inner))) })
         }
     }
 }

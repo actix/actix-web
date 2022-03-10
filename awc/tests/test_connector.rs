@@ -39,7 +39,7 @@ fn tls_config() -> SslAcceptor {
 
 #[actix_rt::test]
 async fn test_connection_window_size() {
-    let srv = test_server(move || {
+    let srv = test_server(|| {
         HttpService::build()
             .h2(map_config(
                 App::new().service(web::resource("/").route(web::to(HttpResponse::Ok))),
@@ -58,7 +58,7 @@ async fn test_connection_window_size() {
         .map_err(|e| log::error!("Can not set alpn protocol: {:?}", e));
 
     let client = awc::Client::builder()
-        .connector(awc::Connector::new().ssl(builder.build()))
+        .connector(awc::Connector::new().openssl(builder.build()))
         .initial_window_size(100)
         .initial_connection_window_size(100)
         .finish();

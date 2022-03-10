@@ -1,0 +1,185 @@
+name: CI (post-merge)
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  build_and_test_nightly:
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - { name: Linux, os: ubuntu-latest, triple: x86_64-unknown-linux-gnu }
+          - { name: macOS, os: macos-latest, triple: x86_64-apple-darwin }
+          - { name: Windows, os: windows-2022, triple: x86_64-pc-windows-msvc }
+        version:
+          - nightly
+
+    name: ${{ matrix.target.name }} / ${{ matrix.version }}
+    runs-on: ${{ matrix.target.os }}
+
+    env:
+      CI: 1
+      CARGO_INCREMENTAL: 0
+      VCPKGRS_DYNAMIC: 1
+
+    steps:
+      - uses: actions/checkout@v2
+
+      # install OpenSSL on Windows
+      # TODO: GitHub actions docs state that OpenSSL is
+      # already installed on these Windows machines somewhere
+      - name: Set vcpkg root
+        if: matrix.target.triple == 'x86_64-pc-windows-msvc'
+        run: echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Install OpenSSL
+        if: matrix.target.triple == 'x86_64-pc-windows-msvc'
+        run: vcpkg install openssl:x64-windows
+
+      - name: Install ${{ matrix.version }}
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.version }}-${{ matrix.target.triple }}
+          profile: minimal
+          override: true
+
+      - name: Generate Cargo.lock
+        uses: actions-rs/cargo@v1
+        with: { command: generate-lockfile }
+      - name: Cache Dependencies
+        uses: Swatinem/rust-cache@v1.2.0
+
+      - name: Install cargo-hack
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-hack
+
+      - name: check minimal
+        uses: actions-rs/cargo@v1
+        with: { command: ci-check-min }
+
+      - name: check default
+        uses: actions-rs/cargo@v1
+        with: { command: ci-check-default }
+
+      - name: tests
+        timeout-minutes: 60
+        run: |
+          cargo test --lib --tests -p=actix-router --all-features
+          cargo test --lib --tests -p=actix-http --all-features
+          cargo test --lib --tests -p=actix-web --features=rustls,openssl -- --skip=test_reading_deflate_encoding_large_random_rustls
+          cargo test --lib --tests -p=actix-web-codegen --all-features
+          cargo test --lib --tests -p=awc --all-features
+          cargo test --lib --tests -p=actix-http-test --all-features
+          cargo test --lib --tests -p=actix-test --all-features
+          cargo test --lib --tests -p=actix-files
+          cargo test --lib --tests -p=actix-multipart --all-features
+          cargo test --lib --tests -p=actix-web-actors --all-features
+
+      - name: tests (io-uring)
+        if: matrix.target.os == 'ubuntu-latest'
+        timeout-minutes: 60
+        run: >
+          sudo bash -c "ulimit -Sl 512
+          && ulimit -Hl 512
+          && PATH=$PATH:/usr/share/rust/.cargo/bin
+          && RUSTUP_TOOLCHAIN=${{ matrix.version }} cargo test --lib --tests -p=actix-files --all-features"
+
+      - name: Clear the cargo caches
+        run: |
+          cargo install cargo-cache --version 0.6.3 --no-default-features --features ci-autoclean
+          cargo-cache
+
+  ci_feature_powerset_check:
+    name: Verify Feature Combinations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install stable
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable-x86_64-unknown-linux-gnu
+          profile: minimal
+          override: true
+
+      - name: Generate Cargo.lock
+        uses: actions-rs/cargo@v1
+        with: { command: generate-lockfile }
+      - name: Cache Dependencies
+        uses: Swatinem/rust-cache@v1.2.0
+
+      - name: Install cargo-hack
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-hack
+
+      - name: check feature combinations
+        uses: actions-rs/cargo@v1
+        with: { command: ci-check-all-feature-powerset }
+      
+      - name: check feature combinations
+        uses: actions-rs/cargo@v1
+        with: { command: ci-check-all-feature-powerset-linux }
+
+  # job currently (1st Feb 2022) segfaults
+  # coverage:
+  #   name: coverage
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v2
+
+  #     - name: Install stable
+  #       uses: actions-rs/toolchain@v1
+  #       with:
+  #         toolchain: stable-x86_64-unknown-linux-gnu
+  #         profile: minimal
+  #         override: true
+
+  #     - name: Generate Cargo.lock
+  #       uses: actions-rs/cargo@v1
+  #       with: { command: generate-lockfile }
+  #     - name: Cache Dependencies
+  #       uses: Swatinem/rust-cache@v1.2.0
+
+  #     - name: Generate coverage file
+  #       run: |
+  #         cargo install cargo-tarpaulin --vers "^0.13"
+  #         cargo tarpaulin --workspace --features=rustls,openssl --out Xml --verbose
+  #     - name: Upload to Codecov
+  #       uses: codecov/codecov-action@v1
+  #       with: { file: cobertura.xml }
+
+  nextest:
+    name: nextest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - name: Generate Cargo.lock
+        uses: actions-rs/cargo@v1
+        with: { command: generate-lockfile }
+      - name: Cache Dependencies
+        uses: Swatinem/rust-cache@v1.3.0
+
+      - name: Install cargo-nextest
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-nextest
+
+      - name: Test with cargo-nextest
+        uses: actions-rs/cargo@v1
+        with:
+          command: nextest
+          args: run

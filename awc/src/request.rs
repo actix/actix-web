@@ -1,46 +1,46 @@
-use std::{convert::TryFrom, error::Error as StdError, fmt, net, rc::Rc, time::Duration};
+use std::{convert::TryFrom, fmt, net, rc::Rc, time::Duration};
 
 use bytes::Bytes;
 use futures_core::Stream;
 use serde::Serialize;
 
 use actix_http::{
-    body::Body,
-    http::{
-        header::{self, IntoHeaderPair},
-        ConnectionType, Error as HttpError, HeaderMap, HeaderValue, Method, Uri, Version,
-    },
-    RequestHead,
+    body::MessageBody,
+    error::HttpError,
+    header::{self, HeaderMap, HeaderValue, TryIntoHeaderPair},
+    ConnectionType, Method, RequestHead, Uri, Version,
+};
+
+use crate::{
+    client::ClientConfig,
+    error::{FreezeRequestError, InvalidUrl},
+    frozen::FrozenClientRequest,
+    sender::{PrepForSendingError, RequestSender, SendClientRequest},
+    BoxError,
 };
 
 #[cfg(feature = "cookies")]
 use crate::cookie::{Cookie, CookieJar};
-use crate::{
-    error::{FreezeRequestError, InvalidUrl},
-    frozen::FrozenClientRequest,
-    sender::{PrepForSendingError, RequestSender, SendClientRequest},
-    ClientConfig,
-};
 
 /// An HTTP Client request builder
 ///
 /// This type can be used to construct an instance of `ClientRequest` through a
 /// builder-like pattern.
 ///
-/// ```
-/// #[actix_rt::main]
-/// async fn main() {
-///    let response = awc::Client::new()
-///         .get("http://www.rust-lang.org") // <- Create request builder
-///         .insert_header(("User-Agent", "Actix-web"))
-///         .send()                          // <- Send HTTP request
-///         .await;
+/// ```no_run
+/// # #[actix_rt::main]
+/// # async fn main() {
+/// let response = awc::Client::new()
+///      .get("http://www.rust-lang.org") // <- Create request builder
+///      .insert_header(("User-Agent", "Actix-web"))
+///      .send()                          // <- Send HTTP request
+///      .await;
 ///
-///    response.and_then(|response| {   // <- server HTTP response
-///         println!("Response: {:?}", response);
-///         Ok(())
-///    });
-/// }
+/// response.and_then(|response| {   // <- server HTTP response
+///      println!("Response: {:?}", response);
+///      Ok(())
+/// });
+/// # }
 /// ```
 pub struct ClientRequest {
     pub(crate) head: RequestHead,
@@ -115,10 +115,10 @@ impl ClientRequest {
         &self.head.method
     }
 
-    #[doc(hidden)]
     /// Set HTTP version of this request.
     ///
     /// By default requests's HTTP version depends on network stream
+    #[doc(hidden)]
     #[inline]
     pub fn version(mut self, version: Version) -> Self {
         self.head.version = version;
@@ -148,11 +148,8 @@ impl ClientRequest {
     }
 
     /// Insert a header, replacing any that were set with an equivalent field name.
-    pub fn insert_header<H>(mut self, header: H) -> Self
-    where
-        H: IntoHeaderPair,
-    {
-        match header.try_into_header_pair() {
+    pub fn insert_header(mut self, header: impl TryIntoHeaderPair) -> Self {
+        match header.try_into_pair() {
             Ok((key, value)) => {
                 self.head.headers.insert(key, value);
             }
@@ -163,11 +160,8 @@ impl ClientRequest {
     }
 
     /// Insert a header only if it is not yet set.
-    pub fn insert_header_if_none<H>(mut self, header: H) -> Self
-    where
-        H: IntoHeaderPair,
-    {
-        match header.try_into_header_pair() {
+    pub fn insert_header_if_none(mut self, header: impl TryIntoHeaderPair) -> Self {
+        match header.try_into_pair() {
             Ok((key, value)) => {
                 if !self.head.headers.contains_key(&key) {
                     self.head.headers.insert(key, value);
@@ -181,23 +175,16 @@ impl ClientRequest {
 
     /// Append a header, keeping any that were set with an equivalent field name.
     ///
-    /// ```
-    /// # #[actix_rt::main]
-    /// # async fn main() {
-    /// # use awc::Client;
-    /// use awc::http::header::CONTENT_TYPE;
+    /// ```no_run
+    /// use awc::{http::header, Client};
     ///
     /// Client::new()
     ///     .get("http://www.rust-lang.org")
     ///     .insert_header(("X-TEST", "value"))
-    ///     .insert_header((CONTENT_TYPE, mime::APPLICATION_JSON));
-    /// # }
+    ///     .insert_header((header::CONTENT_TYPE, mime::APPLICATION_JSON));
     /// ```
-    pub fn append_header<H>(mut self, header: H) -> Self
-    where
-        H: IntoHeaderPair,
-    {
-        match header.try_into_header_pair() {
+    pub fn append_header(mut self, header: impl TryIntoHeaderPair) -> Self {
+        match header.try_into_pair() {
             Ok((key, value)) => self.head.headers.append(key, value),
             Err(e) => self.err = Some(e.into()),
         };
@@ -262,23 +249,18 @@ impl ClientRequest {
 
     /// Set a cookie
     ///
-    /// ```
-    /// #[actix_rt::main]
-    /// async fn main() {
-    ///     let resp = awc::Client::new().get("https://www.rust-lang.org")
-    ///         .cookie(
-    ///             awc::cookie::Cookie::build("name", "value")
-    ///                 .domain("www.rust-lang.org")
-    ///                 .path("/")
-    ///                 .secure(true)
-    ///                 .http_only(true)
-    ///                 .finish(),
-    ///          )
-    ///          .send()
-    ///          .await;
+    /// ```no_run
+    /// use awc::{cookie::Cookie, Client};
     ///
-    ///     println!("Response: {:?}", resp);
-    /// }
+    /// # #[actix_rt::main]
+    /// # async fn main() {
+    /// let res = Client::new().get("https://httpbin.org/cookies")
+    ///     .cookie(Cookie::new("name", "value"))
+    ///     .send()
+    ///     .await;
+    ///
+    /// println!("Response: {:?}", res);
+    /// # }
     /// ```
     #[cfg(feature = "cookies")]
     pub fn cookie(mut self, cookie: Cookie<'_>) -> Self {
@@ -350,7 +332,7 @@ impl ClientRequest {
     /// Complete request construction and send body.
     pub fn send_body<B>(self, body: B) -> SendClientRequest
     where
-        B: Into<Body>,
+        B: MessageBody + 'static,
     {
         let slf = match self.prep_for_sending() {
             Ok(slf) => slf,
@@ -403,8 +385,8 @@ impl ClientRequest {
     /// Set an streaming body and generate `ClientRequest`.
     pub fn send_stream<S, E>(self, stream: S) -> SendClientRequest
     where
-        S: Stream<Item = Result<Bytes, E>> + Unpin + 'static,
-        E: Into<Box<dyn StdError>> + 'static,
+        S: Stream<Item = Result<Bytes, E>> + 'static,
+        E: Into<BoxError> + 'static,
     {
         let slf = match self.prep_for_sending() {
             Ok(slf) => slf,
@@ -523,7 +505,7 @@ impl fmt::Debug for ClientRequest {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(
             f,
-            "\nClientRequest {:?} {}:{}",
+            "\nClientRequest {:?} {} {}",
             self.head.version, self.head.method, self.head.uri
         )?;
         writeln!(f, "  headers:")?;
@@ -538,7 +520,7 @@ impl fmt::Debug for ClientRequest {
 mod tests {
     use std::time::SystemTime;
 
-    use actix_http::http::header::HttpDate;
+    use actix_http::header::HttpDate;
 
     use super::*;
     use crate::Client;
@@ -589,7 +571,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_client_header() {
         let req = Client::builder()
-            .header(header::CONTENT_TYPE, "111")
+            .add_default_header((header::CONTENT_TYPE, "111"))
             .finish()
             .get("/");
 
@@ -607,7 +589,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_client_header_override() {
         let req = Client::builder()
-            .header(header::CONTENT_TYPE, "111")
+            .add_default_header((header::CONTENT_TYPE, "111"))
             .finish()
             .get("/")
             .insert_header((header::CONTENT_TYPE, "222"));

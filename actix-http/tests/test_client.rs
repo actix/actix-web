@@ -1,8 +1,6 @@
 use std::convert::Infallible;
 
-use actix_http::{
-    body::AnyBody, http, http::StatusCode, HttpMessage, HttpService, Request, Response,
-};
+use actix_http::{body::BoxBody, HttpMessage, HttpService, Request, Response, StatusCode};
 use actix_http_test::test_server;
 use actix_service::ServiceFactoryExt;
 use actix_utils::future;
@@ -33,7 +31,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World";
 
 #[actix_rt::test]
-async fn test_h1_v2() {
+async fn h1_v2() {
     let srv = test_server(move || {
         HttpService::build()
             .finish(|_| future::ok::<_, Infallible>(Response::ok().set_body(STR)))
@@ -61,7 +59,7 @@ async fn test_h1_v2() {
 }
 
 #[actix_rt::test]
-async fn test_connection_close() {
+async fn connection_close() {
     let srv = test_server(move || {
         HttpService::build()
             .finish(|_| future::ok::<_, Infallible>(Response::ok().set_body(STR)))
@@ -75,7 +73,7 @@ async fn test_connection_close() {
 }
 
 #[actix_rt::test]
-async fn test_with_query_parameter() {
+async fn with_query_parameter() {
     let srv = test_server(move || {
         HttpService::build()
             .finish(|req: Request| async move {
@@ -99,14 +97,14 @@ async fn test_with_query_parameter() {
 #[display(fmt = "expect failed")]
 struct ExpectFailed;
 
-impl From<ExpectFailed> for Response<AnyBody> {
+impl From<ExpectFailed> for Response<BoxBody> {
     fn from(_: ExpectFailed) -> Self {
         Response::new(StatusCode::EXPECTATION_FAILED)
     }
 }
 
 #[actix_rt::test]
-async fn test_h1_expect() {
+async fn h1_expect() {
     let srv = test_server(move || {
         HttpService::build()
             .expect(|req: Request| async {

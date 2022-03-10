@@ -1,7 +1,7 @@
 //! Various testing helpers for use in internal and app tests.
 
 use std::{
-    cell::{Ref, RefCell},
+    cell::{Ref, RefCell, RefMut},
     io::{self, Read, Write},
     pin::Pin,
     rc::Rc,
@@ -14,7 +14,7 @@ use bytes::{Bytes, BytesMut};
 use http::{Method, Uri, Version};
 
 use crate::{
-    header::{HeaderMap, IntoHeaderPair},
+    header::{HeaderMap, TryIntoHeaderPair},
     payload::Payload,
     Request,
 };
@@ -92,11 +92,8 @@ impl TestRequest {
     }
 
     /// Insert a header, replacing any that were set with an equivalent field name.
-    pub fn insert_header<H>(&mut self, header: H) -> &mut Self
-    where
-        H: IntoHeaderPair,
-    {
-        match header.try_into_header_pair() {
+    pub fn insert_header(&mut self, header: impl TryIntoHeaderPair) -> &mut Self {
+        match header.try_into_pair() {
             Ok((key, value)) => {
                 parts(&mut self.0).headers.insert(key, value);
             }
@@ -109,11 +106,8 @@ impl TestRequest {
     }
 
     /// Append a header, keeping any that were set with an equivalent field name.
-    pub fn append_header<H>(&mut self, header: H) -> &mut Self
-    where
-        H: IntoHeaderPair,
-    {
-        match header.try_into_header_pair() {
+    pub fn append_header(&mut self, header: impl TryIntoHeaderPair) -> &mut Self {
+        match header.try_into_pair() {
             Ok((key, value)) => {
                 parts(&mut self.0).headers.append(key, value);
             }
@@ -126,7 +120,7 @@ impl TestRequest {
     }
 
     /// Set request payload.
-    pub fn set_payload<B: Into<Bytes>>(&mut self, data: B) -> &mut Self {
+    pub fn set_payload(&mut self, data: impl Into<Bytes>) -> &mut Self {
         let mut payload = crate::h1::Payload::empty();
         payload.unread_data(data.into());
         parts(&mut self.0).payload = Some(payload.into());
@@ -163,10 +157,11 @@ fn parts(parts: &mut Option<Inner>) -> &mut Inner {
 }
 
 /// Async I/O test buffer.
+#[derive(Debug)]
 pub struct TestBuffer {
-    pub read_buf: BytesMut,
-    pub write_buf: BytesMut,
-    pub err: Option<io::Error>,
+    pub read_buf: Rc<RefCell<BytesMut>>,
+    pub write_buf: Rc<RefCell<BytesMut>>,
+    pub err: Option<Rc<io::Error>>,
 }
 
 impl TestBuffer {
@@ -176,9 +171,19 @@ impl TestBuffer {
         T: Into<BytesMut>,
     {
         Self {
-            read_buf: data.into(),
-            write_buf: BytesMut::new(),
+            read_buf: Rc::new(RefCell::new(data.into())),
+            write_buf: Rc::new(RefCell::new(BytesMut::new())),
             err: None,
+        }
+    }
+
+    // intentionally not using Clone trait
+    #[allow(dead_code)]
+    pub(crate) fn clone(&self) -> Self {
+        Self {
+            read_buf: self.read_buf.clone(),
+            write_buf: self.write_buf.clone(),
+            err: self.err.clone(),
         }
     }
 
@@ -187,23 +192,48 @@ impl TestBuffer {
         Self::new("")
     }
 
+    #[allow(dead_code)]
+    pub(crate) fn read_buf_slice(&self) -> Ref<'_, [u8]> {
+        Ref::map(self.read_buf.borrow(), |b| b.as_ref())
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn read_buf_slice_mut(&self) -> RefMut<'_, [u8]> {
+        RefMut::map(self.read_buf.borrow_mut(), |b| b.as_mut())
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn write_buf_slice(&self) -> Ref<'_, [u8]> {
+        Ref::map(self.write_buf.borrow(), |b| b.as_ref())
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn write_buf_slice_mut(&self) -> RefMut<'_, [u8]> {
+        RefMut::map(self.write_buf.borrow_mut(), |b| b.as_mut())
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn take_write_buf(&self) -> Bytes {
+        self.write_buf.borrow_mut().split().freeze()
+    }
+
     /// Add data to read buffer.
     pub fn extend_read_buf<T: AsRef<[u8]>>(&mut self, data: T) {
-        self.read_buf.extend_from_slice(data.as_ref())
+        self.read_buf.borrow_mut().extend_from_slice(data.as_ref())
     }
 }
 
 impl io::Read for TestBuffer {
     fn read(&mut self, dst: &mut [u8]) -> Result<usize, io::Error> {
-        if self.read_buf.is_empty() {
+        if self.read_buf.borrow().is_empty() {
             if self.err.is_some() {
-                Err(self.err.take().unwrap())
+                Err(Rc::try_unwrap(self.err.take().unwrap()).unwrap())
             } else {
                 Err(io::Error::new(io::ErrorKind::WouldBlock, ""))
             }
         } else {
-            let size = std::cmp::min(self.read_buf.len(), dst.len());
-            let b = self.read_buf.split_to(size);
+            let size = std::cmp::min(self.read_buf.borrow().len(), dst.len());
+            let b = self.read_buf.borrow_mut().split_to(size);
             dst[..size].copy_from_slice(&b);
             Ok(size)
         }
@@ -212,7 +242,7 @@ impl io::Read for TestBuffer {
 
 impl io::Write for TestBuffer {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.write_buf.extend(buf);
+        self.write_buf.borrow_mut().extend(buf);
         Ok(buf.len())
     }
 
@@ -270,7 +300,7 @@ impl TestSeqBuffer {
 
     /// Create new empty `TestBuffer` instance.
     pub fn empty() -> Self {
-        Self::new("")
+        Self::new(BytesMut::new())
     }
 
     pub fn read_buf(&self) -> Ref<'_, BytesMut> {

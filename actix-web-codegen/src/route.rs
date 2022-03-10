@@ -1,8 +1,6 @@
-extern crate proc_macro;
+use std::{collections::HashSet, convert::TryFrom};
 
-use std::collections::HashSet;
-use std::convert::TryFrom;
-
+use actix_router::ResourceDef;
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote, ToTokens, TokenStreamExt};
@@ -101,6 +99,7 @@ impl Args {
             match arg {
                 NestedMeta::Lit(syn::Lit::Str(lit)) => match path {
                     None => {
+                        let _ = ResourceDef::new(lit.value());
                         path = Some(lit);
                     }
                     _ => {
@@ -218,7 +217,7 @@ fn guess_resource_type(typ: &syn::Type) -> ResourceType {
 impl Route {
     pub fn new(
         args: AttributeArgs,
-        input: TokenStream,
+        ast: syn::ItemFn,
         method: Option<MethodType>,
     ) -> syn::Result<Self> {
         if args.is_empty() {
@@ -232,14 +231,11 @@ impl Route {
                 ),
             ));
         }
-        let ast: syn::ItemFn = syn::parse(input)?;
+
         let name = ast.sig.ident.clone();
 
-        // Try and pull out the doc comments so that we can reapply them to the
-        // generated struct.
-        //
-        // Note that multi line doc comments are converted to multiple doc
-        // attributes.
+        // Try and pull out the doc comments so that we can reapply them to the generated struct.
+        // Note that multi line doc comments are converted to multiple doc attributes.
         let doc_attributes = ast
             .attrs
             .iter()
@@ -306,13 +302,13 @@ impl ToTokens for Route {
             if methods.len() > 1 {
                 quote! {
                     .guard(
-                        actix_web::guard::Any(actix_web::guard::#first())
-                            #(.or(actix_web::guard::#others()))*
+                        ::actix_web::guard::Any(::actix_web::guard::#first())
+                            #(.or(::actix_web::guard::#others()))*
                     )
                 }
             } else {
                 quote! {
-                    .guard(actix_web::guard::#first())
+                    .guard(::actix_web::guard::#first())
                 }
             }
         };
@@ -322,17 +318,17 @@ impl ToTokens for Route {
             #[allow(non_camel_case_types, missing_docs)]
             pub struct #name;
 
-            impl actix_web::dev::HttpServiceFactory for #name {
+            impl ::actix_web::dev::HttpServiceFactory for #name {
                 fn register(self, __config: &mut actix_web::dev::AppService) {
                     #ast
-                    let __resource = actix_web::Resource::new(#path)
+                    let __resource = ::actix_web::Resource::new(#path)
                         .name(#resource_name)
                         #method_guards
-                        #(.guard(actix_web::guard::fn_guard(#guards)))*
+                        #(.guard(::actix_web::guard::fn_guard(#guards)))*
                         #(.wrap(#wrappers))*
                         .#resource_type(#name);
 
-                    actix_web::dev::HttpServiceFactory::register(__resource, __config)
+                    ::actix_web::dev::HttpServiceFactory::register(__resource, __config)
                 }
             }
         };
@@ -347,8 +343,28 @@ pub(crate) fn with_method(
     input: TokenStream,
 ) -> TokenStream {
     let args = parse_macro_input!(args as syn::AttributeArgs);
-    match Route::new(args, input, method) {
+
+    let ast = match syn::parse::<syn::ItemFn>(input.clone()) {
+        Ok(ast) => ast,
+        // on parse error, make IDEs happy; see fn docs
+        Err(err) => return input_and_compile_error(input, err),
+    };
+
+    match Route::new(args, ast, method) {
         Ok(route) => route.into_token_stream().into(),
-        Err(err) => err.to_compile_error().into(),
+        // on macro related error, make IDEs happy; see fn docs
+        Err(err) => input_and_compile_error(input, err),
     }
+}
+
+/// Converts the error to a token stream and appends it to the original input.
+///
+/// Returning the original input in addition to the error is good for IDEs which can gracefully
+/// recover and show more precise errors within the macro body.
+///
+/// See <https://github.com/rust-analyzer/rust-analyzer/issues/10468> for more info.
+fn input_and_compile_error(mut item: TokenStream, err: syn::Error) -> TokenStream {
+    let compile_err = TokenStream::from(err.to_compile_error());
+    item.extend(compile_err);
+    item
 }

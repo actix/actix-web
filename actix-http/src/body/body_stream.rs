@@ -20,11 +20,14 @@ pin_project! {
     }
 }
 
+// TODO: from_infallible method
+
 impl<S, E> BodyStream<S>
 where
     S: Stream<Item = Result<Bytes, E>>,
     E: Into<Box<dyn StdError>> + 'static,
 {
+    #[inline]
     pub fn new(stream: S) -> Self {
         BodyStream { stream }
     }
@@ -37,6 +40,7 @@ where
 {
     type Error = E;
 
+    #[inline]
     fn size(&self) -> BodySize {
         BodySize::Stream
     }
@@ -75,9 +79,22 @@ mod tests {
     use derive_more::{Display, Error};
     use futures_core::ready;
     use futures_util::{stream, FutureExt as _};
+    use pin_project_lite::pin_project;
+    use static_assertions::{assert_impl_all, assert_not_impl_any};
 
     use super::*;
     use crate::body::to_bytes;
+
+    assert_impl_all!(BodyStream<stream::Empty<Result<Bytes, crate::Error>>>: MessageBody);
+    assert_impl_all!(BodyStream<stream::Empty<Result<Bytes, &'static str>>>: MessageBody);
+    assert_impl_all!(BodyStream<stream::Repeat<Result<Bytes, &'static str>>>: MessageBody);
+    assert_impl_all!(BodyStream<stream::Empty<Result<Bytes, Infallible>>>: MessageBody);
+    assert_impl_all!(BodyStream<stream::Repeat<Result<Bytes, Infallible>>>: MessageBody);
+
+    assert_not_impl_any!(BodyStream<stream::Empty<Bytes>>: MessageBody);
+    assert_not_impl_any!(BodyStream<stream::Repeat<Bytes>>: MessageBody);
+    // crate::Error is not Clone
+    assert_not_impl_any!(BodyStream<stream::Repeat<Result<Bytes, crate::Error>>>: MessageBody);
 
     #[actix_rt::test]
     async fn skips_empty_chunks() {
@@ -125,17 +142,42 @@ mod tests {
     }
 
     #[actix_rt::test]
+    async fn stream_string_error() {
+        // `&'static str` does not impl `Error`
+        // but it does impl `Into<Box<dyn Error>>`
+
+        let body = BodyStream::new(stream::once(async { Err("stringy error") }));
+        assert!(matches!(to_bytes(body).await, Err("stringy error")));
+    }
+
+    #[actix_rt::test]
+    async fn stream_boxed_error() {
+        // `Box<dyn Error>` does not impl `Error`
+        // but it does impl `Into<Box<dyn Error>>`
+
+        let body = BodyStream::new(stream::once(async {
+            Err(Box::<dyn StdError>::from("stringy error"))
+        }));
+
+        assert_eq!(
+            to_bytes(body).await.unwrap_err().to_string(),
+            "stringy error"
+        );
+    }
+
+    #[actix_rt::test]
     async fn stream_delayed_error() {
-        let body =
-            BodyStream::new(stream::iter(vec![Ok(Bytes::from("1")), Err(StreamErr)]));
+        let body = BodyStream::new(stream::iter(vec![Ok(Bytes::from("1")), Err(StreamErr)]));
         assert!(matches!(to_bytes(body).await, Err(StreamErr)));
 
-        #[pin_project::pin_project(project = TimeDelayStreamProj)]
-        #[derive(Debug)]
-        enum TimeDelayStream {
-            Start,
-            Sleep(Pin<Box<Sleep>>),
-            Done,
+        pin_project! {
+            #[derive(Debug)]
+            #[project = TimeDelayStreamProj]
+            enum TimeDelayStream {
+                Start,
+                Sleep { delay: Pin<Box<Sleep>> },
+                Done,
+            }
         }
 
         impl Stream for TimeDelayStream {
@@ -148,12 +190,14 @@ mod tests {
                 match self.as_mut().get_mut() {
                     TimeDelayStream::Start => {
                         let sleep = sleep(Duration::from_millis(1));
-                        self.as_mut().set(TimeDelayStream::Sleep(Box::pin(sleep)));
+                        self.as_mut().set(TimeDelayStream::Sleep {
+                            delay: Box::pin(sleep),
+                        });
                         cx.waker().wake_by_ref();
                         Poll::Pending
                     }
 
-                    TimeDelayStream::Sleep(ref mut delay) => {
+                    TimeDelayStream::Sleep { ref mut delay } => {
                         ready!(delay.poll_unpin(cx));
                         self.set(TimeDelayStream::Done);
                         cx.waker().wake_by_ref();
