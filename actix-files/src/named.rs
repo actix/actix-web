@@ -23,6 +23,7 @@ use actix_web::{
 use bitflags::bitflags;
 use derive_more::{Deref, DerefMut};
 use futures_core::future::LocalBoxFuture;
+use mime::Mime;
 use mime_guess::from_path;
 
 use crate::{encoding::equiv_utf8_text, range::HttpRange};
@@ -76,8 +77,8 @@ pub struct NamedFile {
     pub(crate) md: Metadata,
     pub(crate) flags: Flags,
     pub(crate) status_code: StatusCode,
-    pub(crate) content_type: mime::Mime,
-    pub(crate) content_disposition: header::ContentDisposition,
+    pub(crate) content_type: Mime,
+    pub(crate) content_disposition: ContentDisposition,
     pub(crate) encoding: Option<ContentEncoding>,
 }
 
@@ -238,13 +239,13 @@ impl NamedFile {
         Self::from_file(file, path)
     }
 
-    /// Returns reference to the underlying `File` object.
+    /// Returns reference to the underlying file object.
     #[inline]
     pub fn file(&self) -> &File {
         &self.file
     }
 
-    /// Retrieve the path of this file.
+    /// Returns the filesystem path to this file.
     ///
     /// # Examples
     /// ```
@@ -262,37 +263,43 @@ impl NamedFile {
         self.path.as_path()
     }
 
-    /// Retrieve the time the file was modified.
+    /// Returns the time the file was last modified.
+    ///
+    /// Returns `None` only on unsupported platforms; see [`std::fs::Metadata::modified()`].
+    /// Therefore, it is usually safe to unwrap this.
     #[inline]
-    pub fn modified(&self) -> Option<&SystemTime> {
-        self.modified.as_ref()
+    pub fn modified(&self) -> Option<SystemTime> {
+        self.modified
     }
 
-    /// Retrieve the metadata associated with this file.
+    /// Returns the filesystem metadata associated with this file.
     #[inline]
-    pub fn md(&self) -> &Metadata {
+    pub fn metadata(&self) -> &Metadata {
         &self.md
     }
 
-    /// Retrieve the value of the `ContentType` header for serving this file.
+    /// Returns the `Content-Type` header that will be used when serving this file.
     #[inline]
-    pub fn content_type(&self) -> &mime::Mime {
+    pub fn content_type(&self) -> &Mime {
         &self.content_type
     }
 
-    /// Retrieve the value of the `ContentDisposition` header for serving this file.
+    /// Returns the `Content-Disposition` that will be used when serving this file.
     #[inline]
-    pub fn content_disposition(&self) -> &header::ContentDisposition {
+    pub fn content_disposition(&self) -> &ContentDisposition {
         &self.content_disposition
     }
 
-    /// Retrieve the content encoding for serving this file.
+    /// Returns the `Content-Encoding` that will be used when serving this file.
+    ///
+    /// A return value of `None` indicates that the content is not already using a compressed
+    /// representation and may be subject to compression downstream.
     #[inline]
-    pub fn encoding(&self) -> Option<&ContentEncoding> {
-        self.encoding.as_ref()
+    pub fn content_encoding(&self) -> Option<ContentEncoding> {
+        self.encoding
     }
 
-    /// Retrieve the status code for serving this file.
+    /// Returns the status code for serving this file.
     #[inline]
     pub fn status_code(&self) -> &StatusCode {
         &self.status_code
@@ -307,7 +314,7 @@ impl NamedFile {
     /// Set the MIME Content-Type for serving this file. By default the Content-Type is inferred
     /// from the filename extension.
     #[inline]
-    pub fn set_content_type(mut self, mime_type: mime::Mime) -> Self {
+    pub fn set_content_type(mut self, mime_type: Mime) -> Self {
         self.content_type = mime_type;
         self
     }
@@ -320,7 +327,7 @@ impl NamedFile {
     /// filename is taken from the path provided in the `open` method after converting it to UTF-8
     /// (using `to_string_lossy`).
     #[inline]
-    pub fn set_content_disposition(mut self, cd: header::ContentDisposition) -> Self {
+    pub fn set_content_disposition(mut self, cd: ContentDisposition) -> Self {
         self.content_disposition = cd;
         self.flags.insert(Flags::CONTENT_DISPOSITION);
         self
