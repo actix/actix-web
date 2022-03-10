@@ -12,6 +12,7 @@ use actix_http::{body::BodyStream, HttpService, Response};
 use actix_server::Server;
 use async_stream::stream;
 use bytes::Bytes;
+use tracing::info;
 
 #[actix_rt::main]
 async fn main() -> io::Result<()> {
@@ -21,7 +22,7 @@ async fn main() -> io::Result<()> {
         .bind("streaming-error", ("127.0.0.1", 8080), || {
             HttpService::build()
                 .finish(|req| async move {
-                    log::info!("{:?}", req);
+                    info!("{:?}", req);
                     let res = Response::ok();
 
                     Ok::<_, Infallible>(res.set_body(BodyStream::new(stream! {

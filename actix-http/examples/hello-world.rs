@@ -1,9 +1,8 @@
 use std::{convert::Infallible, io, time::Duration};
 
-use actix_http::{
-    header::HeaderValue, HttpMessage, HttpService, Request, Response, StatusCode,
-};
+use actix_http::{header::HeaderValue, HttpService, Request, Response, StatusCode};
 use actix_server::Server;
+use tracing::info;
 
 #[actix_rt::main]
 async fn main() -> io::Result<()> {
@@ -18,12 +17,12 @@ async fn main() -> io::Result<()> {
                     ext.insert(42u32);
                 })
                 .finish(|req: Request| async move {
-                    log::info!("{:?}", req);
+                    info!("{:?}", req);
 
                     let mut res = Response::build(StatusCode::OK);
                     res.insert_header(("x-head", HeaderValue::from_static("dummy value!")));
 
-                    let forty_two = req.extensions().get::<u32>().unwrap().to_string();
+                    let forty_two = req.conn_data::<u32>().unwrap().to_string();
                     res.insert_header((
                         "x-forty-two",
                         HeaderValue::from_str(&forty_two).unwrap(),

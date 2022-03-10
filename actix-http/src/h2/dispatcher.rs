@@ -19,8 +19,8 @@ use h2::{
     server::{Connection, SendResponse},
     Ping, PingPong,
 };
-use log::{error, trace};
 use pin_project_lite::pin_project;
+use tracing::{error, trace, warn};
 
 use crate::{
     body::{BodySize, BoxBody, MessageBody},
@@ -143,7 +143,7 @@ where
                                 DispatchError::SendResponse(err) => {
                                     trace!("Error sending HTTP/2 response: {:?}", err)
                                 }
-                                DispatchError::SendData(err) => log::warn!("{:?}", err),
+                                DispatchError::SendData(err) => warn!("{:?}", err),
                                 DispatchError::ResponseBody(err) => {
                                     error!("Response payload stream error: {:?}", err)
                                 }

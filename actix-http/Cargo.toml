@@ -73,11 +73,11 @@ httparse = "1.5.1"
 httpdate = "1.0.1"
 itoa = "1"
 language-tags = "0.3"
-log = "0.4"
 mime = "0.3"
 percent-encoding = "2.1"
 pin-project-lite = "0.2"
 smallvec = "1.6.1"
+tracing = { version = "0.1.30", default-features = false, features = ["log"] }
 
 # http2
 h2 = { version = "0.3.9", optional = true }
@@ -121,7 +121,7 @@ tokio = { version = "1.8.4", features = ["net", "rt", "macros"] }
 
 [[example]]
 name = "ws"
-required-features = ["rustls"]
+required-features = ["ws", "rustls"]
 
 [[bench]]
 name = "write-camel-case"

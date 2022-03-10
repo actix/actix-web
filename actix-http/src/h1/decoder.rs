@@ -6,7 +6,7 @@ use http::{
     header::{self, HeaderName, HeaderValue},
     Method, StatusCode, Uri, Version,
 };
-use log::{debug, error, trace};
+use tracing::{debug, error, trace};
 
 use super::chunked::ChunkedState;
 use crate::{error::ParseError, header::HeaderMap, ConnectionType, Request, ResponseHead};
