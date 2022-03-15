@@ -1,7 +1,8 @@
 # Changelog
 
 ## Unreleased - 2021-xx-xx
-
+### Dependencies
+- Updated `zstd` to `0.11` [#2694] 
 
 ## 4.0.1 - 2022-02-25
 ### Fixed
