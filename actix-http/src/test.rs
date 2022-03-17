@@ -21,26 +21,31 @@ use crate::{
 
 /// Test `Request` builder
 ///
-/// ```ignore
-/// # use http::{header, StatusCode};
-/// # use actix_web::*;
-/// use actix_web::test::TestRequest;
+/// ```
+/// use actix_web::http::{header, StatusCode};
+/// use actix_web::{test, HttpRequest, HttpResponse};
 ///
-/// fn index(req: &HttpRequest) -> Response {
+/// async fn index(req: HttpRequest) -> HttpResponse {
 ///     if let Some(hdr) = req.headers().get(header::CONTENT_TYPE) {
-///         Response::Ok().into()
+///         HttpResponse::Ok().into()
 ///     } else {
-///         Response::BadRequest().into()
+///         HttpResponse::BadRequest().into()
 ///     }
 /// }
 ///
-/// let resp = TestRequest::default().insert_header("content-type", "text/plain")
-///     .run(&index)
-///     .unwrap();
-/// assert_eq!(resp.status(), StatusCode::OK);
+/// #[actix_web::test]
+/// async fn test_index() {
+///     let req = test::TestRequest::default()
+///         .insert_header(("content-type", "text/plain"))
+///         .to_http_request();
 ///
-/// let resp = TestRequest::default().run(&index).unwrap();
-/// assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+///     let resp = index(req).await;
+///     assert_eq!(resp.status(), StatusCode::OK);
+///
+///     let req = test::TestRequest::default().to_http_request();
+///     let resp = index(req).await;
+///     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+/// }
 /// ```
 pub struct TestRequest(Option<Inner>);
 
