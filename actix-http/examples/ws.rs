@@ -17,6 +17,7 @@ use actix_server::Server;
 use bytes::{Bytes, BytesMut};
 use bytestring::ByteString;
 use futures_core::{ready, Stream};
+use tracing::{info, trace};
 
 #[actix_rt::main]
 async fn main() -> io::Result<()> {
@@ -34,13 +35,13 @@ async fn main() -> io::Result<()> {
 }
 
 async fn handler(req: Request) -> Result<Response<BodyStream<Heartbeat>>, Error> {
-    log::info!("handshaking");
+    info!("handshaking");
     let mut res = ws::handshake(req.head())?;
 
     // handshake will always fail under HTTP/2
 
-    log::info!("responding");
-    Ok(res.message_body(BodyStream::new(Heartbeat::new(ws::Codec::new())))?)
+    info!("responding");
+    res.message_body(BodyStream::new(Heartbeat::new(ws::Codec::new())))
 }
 
 struct Heartbeat {
@@ -61,7 +62,7 @@ impl Stream for Heartbeat {
     type Item = Result<Bytes, Error>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        log::trace!("poll");
+        trace!("poll");
 
         ready!(self.as_mut().interval.poll_tick(cx));
 

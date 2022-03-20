@@ -15,6 +15,7 @@ use actix_service::{
 };
 use futures_core::{future::LocalBoxFuture, ready};
 use pin_project_lite::pin_project;
+use tracing::error;
 
 use crate::{
     body::{BoxBody, MessageBody},
@@ -369,13 +370,13 @@ where
         Box::pin(async move {
             let expect = expect
                 .await
-                .map_err(|e| log::error!("Init http expect service error: {:?}", e))?;
+                .map_err(|e| error!("Init http expect service error: {:?}", e))?;
 
             let upgrade = match upgrade {
                 Some(upgrade) => {
                     let upgrade = upgrade
                         .await
-                        .map_err(|e| log::error!("Init http upgrade service error: {:?}", e))?;
+                        .map_err(|e| error!("Init http upgrade service error: {:?}", e))?;
                     Some(upgrade)
                 }
                 None => None,
@@ -383,7 +384,7 @@ where
 
             let service = service
                 .await
-                .map_err(|e| log::error!("Init http service error: {:?}", e))?;
+                .map_err(|e| error!("Init http service error: {:?}", e))?;
 
             Ok(HttpServiceHandler::new(
                 cfg,
@@ -490,7 +491,7 @@ where
 
     fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self._poll_ready(cx).map_err(|err| {
-            log::error!("HTTP service readiness error: {:?}", err);
+            error!("HTTP service readiness error: {:?}", err);
             DispatchError::Service(err)
         })
     }
@@ -666,7 +667,7 @@ where
                         self.poll(cx)
                     }
                     Err(err) => {
-                        log::trace!("H2 handshake error: {}", err);
+                        tracing::trace!("H2 handshake error: {}", err);
                         Poll::Ready(Err(err))
                     }
                 }

@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "3.0.0"
+version = "3.0.4"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
     "Rob Ede <robjtede@icloud.com>",
@@ -20,7 +20,7 @@ edition = "2018"
 
 [package.metadata.docs.rs]
 # features that docs.rs will build with
-features = ["http2", "openssl", "rustls", "compress-brotli", "compress-gzip", "compress-zstd"]
+features = ["http2", "ws", "openssl", "rustls", "compress-brotli", "compress-gzip", "compress-zstd"]
 
 [lib]
 name = "actix_http"
@@ -73,11 +73,11 @@ httparse = "1.5.1"
 httpdate = "1.0.1"
 itoa = "1"
 language-tags = "0.3"
-log = "0.4"
 mime = "0.3"
 percent-encoding = "2.1"
 pin-project-lite = "0.2"
 smallvec = "1.6.1"
+tracing = { version = "0.1.30", default-features = false, features = ["log"] }
 
 # http2
 h2 = { version = "0.3.9", optional = true }
@@ -110,6 +110,7 @@ memchr = "2.4"
 once_cell = "1.9"
 rcgen = "0.8"
 regex = "1.3"
+rustversion = "1"
 rustls-pemfile = "0.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -120,7 +121,7 @@ tokio = { version = "1.8.4", features = ["net", "rt", "macros"] }
 
 [[example]]
 name = "ws"
-required-features = ["rustls"]
+required-features = ["ws", "rustls"]
 
 [[bench]]
 name = "write-camel-case"

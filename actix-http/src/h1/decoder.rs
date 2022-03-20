@@ -6,7 +6,7 @@ use http::{
     header::{self, HeaderName, HeaderValue},
     Method, StatusCode, Uri, Version,
 };
-use log::{debug, error, trace};
+use tracing::{debug, error, trace};
 
 use super::chunked::ChunkedState;
 use crate::{error::ParseError, header::HeaderMap, ConnectionType, Request, ResponseHead};
@@ -293,22 +293,35 @@ impl MessageType for ResponseHead {
         let mut headers: [HeaderIndex; MAX_HEADERS] = EMPTY_HEADER_INDEX_ARRAY;
 
         let (len, ver, status, h_len) = {
-            let mut parsed: [httparse::Header<'_>; MAX_HEADERS] = EMPTY_HEADER_ARRAY;
+            // SAFETY:
+            // Create an uninitialized array of `MaybeUninit`. The `assume_init` is safe because the
+            // type we are claiming to have initialized here is a bunch of `MaybeUninit`s, which
+            // do not require initialization.
+            let mut parsed = unsafe {
+                MaybeUninit::<[MaybeUninit<httparse::Header<'_>>; MAX_HEADERS]>::uninit()
+                    .assume_init()
+            };
 
-            let mut res = httparse::Response::new(&mut parsed);
-            match res.parse(src)? {
+            let mut res = httparse::Response::new(&mut []);
+
+            let mut config = httparse::ParserConfig::default();
+            config.allow_spaces_after_header_name_in_responses(true);
+
+            match config.parse_response_with_uninit_headers(&mut res, src, &mut parsed)? {
                 httparse::Status::Complete(len) => {
                     let version = if res.version.unwrap() == 1 {
                         Version::HTTP_11
                     } else {
                         Version::HTTP_10
                     };
+
                     let status = StatusCode::from_u16(res.code.unwrap())
                         .map_err(|_| ParseError::Status)?;
                     HeaderIndex::record(src, res.headers, &mut headers);
 
                     (len, version, status, res.headers.len())
                 }
+
                 httparse::Status::Partial => {
                     return if src.len() >= MAX_BUFFER_SIZE {
                         error!("MAX_BUFFER_SIZE unprocessed data reached, closing");
@@ -359,9 +372,6 @@ pub(crate) const EMPTY_HEADER_INDEX: HeaderIndex = HeaderIndex {
 
 pub(crate) const EMPTY_HEADER_INDEX_ARRAY: [HeaderIndex; MAX_HEADERS] =
     [EMPTY_HEADER_INDEX; MAX_HEADERS];
-
-pub(crate) const EMPTY_HEADER_ARRAY: [httparse::Header<'static>; MAX_HEADERS] =
-    [httparse::EMPTY_HEADER; MAX_HEADERS];
 
 impl HeaderIndex {
     pub(crate) fn record(

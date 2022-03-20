@@ -1,8 +1,11 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
-- Add support for streaming audio files by setting the `content-disposition` header `inline` instead of `attachement`. [#2645]
+- Add `NamedFile::{modified, metadata, content_type, content_disposition, encoding}()` getters. [#2021]
+- Update `tokio-uring` dependency to `0.3`.
+- Audio files now use `Content-Disposition: inline` instead of `attachment`. [#2645]
 
+[#2021]: https://github.com/actix/actix-web/pull/2021
 [#2645]: https://github.com/actix/actix-web/pull/2645
 
 

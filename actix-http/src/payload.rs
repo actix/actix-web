@@ -13,7 +13,8 @@ use crate::error::PayloadError;
 /// A boxed payload stream.
 pub type BoxedPayloadStream = Pin<Box<dyn Stream<Item = Result<Bytes, PayloadError>>>>;
 
-#[deprecated(since = "4.0.0", note = "Renamed to `BoxedPayloadStream`.")]
+#[doc(hidden)]
+#[deprecated(since = "3.0.0", note = "Renamed to `BoxedPayloadStream`.")]
 pub type PayloadStream = BoxedPayloadStream;
 
 #[cfg(not(feature = "http2"))]

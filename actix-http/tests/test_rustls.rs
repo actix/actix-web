@@ -212,6 +212,7 @@ async fn h2_content_length() {
     let value = HeaderValue::from_static("0");
 
     {
+        #[allow(clippy::single_element_loop)]
         for &i in &[0] {
             let req = srv
                 .request(Method::HEAD, srv.surl(&format!("/{}", i)))
@@ -226,6 +227,7 @@ async fn h2_content_length() {
             // assert_eq!(response.headers().get(&header), None);
         }
 
+        #[allow(clippy::single_element_loop)]
         for &i in &[1] {
             let req = srv
                 .request(Method::GET, srv.surl(&format!("/{}", i)))

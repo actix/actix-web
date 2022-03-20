@@ -364,19 +364,42 @@ mod tests {
         );
     }
 
+    #[allow(deprecated)]
     #[actix_rt::test]
-    async fn test_named_file_status_code_text() {
-        let mut file = NamedFile::open_async("Cargo.toml")
+    async fn status_code_customize_same_output() {
+        let file1 = NamedFile::open_async("Cargo.toml")
             .await
             .unwrap()
             .set_status_code(StatusCode::NOT_FOUND);
+
+        let file2 = NamedFile::open_async("Cargo.toml")
+            .await
+            .unwrap()
+            .customize()
+            .with_status(StatusCode::NOT_FOUND);
+
+        let req = TestRequest::default().to_http_request();
+        let res1 = file1.respond_to(&req);
+        let res2 = file2.respond_to(&req);
+
+        assert_eq!(res1.status(), StatusCode::NOT_FOUND);
+        assert_eq!(res2.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[actix_rt::test]
+    async fn test_named_file_status_code_text() {
+        let mut file = NamedFile::open_async("Cargo.toml").await.unwrap();
+
         {
             file.file();
             let _f: &File = &file;
         }
+
         {
             let _f: &mut File = &mut file;
         }
+
+        let file = file.customize().with_status(StatusCode::NOT_FOUND);
 
         let req = TestRequest::default().to_http_request();
         let resp = file.respond_to(&req);

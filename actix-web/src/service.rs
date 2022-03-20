@@ -78,18 +78,18 @@ pub struct ServiceRequest {
 }
 
 impl ServiceRequest {
-    /// Construct service request
+    /// Construct `ServiceRequest` from parts.
     pub(crate) fn new(req: HttpRequest, payload: Payload) -> Self {
         Self { req, payload }
     }
 
-    /// Deconstruct request into parts
+    /// Deconstruct `ServiceRequest` into inner parts.
     #[inline]
     pub fn into_parts(self) -> (HttpRequest, Payload) {
         (self.req, self.payload)
     }
 
-    /// Get mutable access to inner `HttpRequest` and `Payload`
+    /// Returns mutable accessors to inner parts.
     #[inline]
     pub fn parts_mut(&mut self) -> (&mut HttpRequest, &mut Payload) {
         (&mut self.req, &mut self.payload)
@@ -105,9 +105,7 @@ impl ServiceRequest {
         Self { req, payload }
     }
 
-    /// Construct request from request.
-    ///
-    /// The returned `ServiceRequest` would have no payload.
+    /// Construct `ServiceRequest` with no payload from given `HttpRequest`.
     #[inline]
     pub fn from_request(req: HttpRequest) -> Self {
         ServiceRequest {
@@ -116,63 +114,63 @@ impl ServiceRequest {
         }
     }
 
-    /// Create service response
+    /// Create `ServiceResponse` from this request and given response.
     #[inline]
     pub fn into_response<B, R: Into<Response<B>>>(self, res: R) -> ServiceResponse<B> {
         let res = HttpResponse::from(res.into());
         ServiceResponse::new(self.req, res)
     }
 
-    /// Create service response for error
+    /// Create `ServiceResponse` from this request and given error.
     #[inline]
     pub fn error_response<E: Into<Error>>(self, err: E) -> ServiceResponse {
         let res = HttpResponse::from_error(err.into());
         ServiceResponse::new(self.req, res)
     }
 
-    /// This method returns reference to the request head
+    /// Returns a reference to the request head.
     #[inline]
     pub fn head(&self) -> &RequestHead {
         self.req.head()
     }
 
-    /// This method returns reference to the request head
+    /// Returns a mutable reference to the request head.
     #[inline]
     pub fn head_mut(&mut self) -> &mut RequestHead {
         self.req.head_mut()
     }
 
-    /// Request's uri.
+    /// Returns the request URI.
     #[inline]
     pub fn uri(&self) -> &Uri {
         &self.head().uri
     }
 
-    /// Read the Request method.
+    /// Returns the request method.
     #[inline]
     pub fn method(&self) -> &Method {
         &self.head().method
     }
 
-    /// Read the Request Version.
+    /// Returns the request version.
     #[inline]
     pub fn version(&self) -> Version {
         self.head().version
     }
 
+    /// Returns a reference to request headers.
     #[inline]
-    /// Returns request's headers.
     pub fn headers(&self) -> &HeaderMap {
         &self.head().headers
     }
 
+    /// Returns a mutable reference to request headers.
     #[inline]
-    /// Returns mutable request's headers.
     pub fn headers_mut(&mut self) -> &mut HeaderMap {
         &mut self.head_mut().headers
     }
 
-    /// The target path of this Request.
+    /// Returns request path.
     #[inline]
     pub fn path(&self) -> &str {
         self.head().uri.path()
@@ -184,7 +182,7 @@ impl ServiceRequest {
         self.req.query_string()
     }
 
-    /// Peer socket address.
+    /// Returns peer's socket address.
     ///
     /// Peer address is the directly connected peer's socket address. If a proxy is used in front of
     /// the Actix Web server, then it would be address of this proxy.
@@ -197,24 +195,23 @@ impl ServiceRequest {
         self.head().peer_addr
     }
 
-    /// Get *ConnectionInfo* for the current request.
+    /// Returns a reference to connection info.
     #[inline]
     pub fn connection_info(&self) -> Ref<'_, ConnectionInfo> {
         self.req.connection_info()
     }
 
-    /// Returns a reference to the Path parameters.
+    /// Returns reference to the Path parameters.
     ///
-    /// Params is a container for URL parameters.
-    /// A variable segment is specified in the form `{identifier}`,
-    /// where the identifier can be used later in a request handler to
-    /// access the matched value for that segment.
+    /// Params is a container for URL parameters. A variable segment is specified in the form
+    /// `{identifier}`, where the identifier can be used later in a request handler to access the
+    /// matched value for that segment.
     #[inline]
     pub fn match_info(&self) -> &Path<Url> {
         self.req.match_info()
     }
 
-    /// Returns a mutable reference to the Path parameters.
+    /// Returns a mutable reference to the path match information.
     #[inline]
     pub fn match_info_mut(&mut self) -> &mut Path<Url> {
         self.req.match_info_mut()
@@ -232,13 +229,13 @@ impl ServiceRequest {
         self.req.match_pattern()
     }
 
-    /// Get a reference to a `ResourceMap` of current application.
+    /// Returns a reference to the application's resource map.
     #[inline]
     pub fn resource_map(&self) -> &ResourceMap {
         self.req.resource_map()
     }
 
-    /// Service configuration
+    /// Returns a reference to the application's configuration.
     #[inline]
     pub fn app_config(&self) -> &AppConfig {
         self.req.app_config()
@@ -262,6 +259,7 @@ impl ServiceRequest {
         self.req.conn_data()
     }
 
+    /// Return request cookies.
     #[cfg(feature = "cookies")]
     #[inline]
     pub fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
