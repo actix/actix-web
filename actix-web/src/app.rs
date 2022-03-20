@@ -308,7 +308,7 @@ where
 
     /// Registers an app-wide middleware.
     ///
-    /// Registers middleware, in the form of a middleware compo nen t (type), that runs during
+    /// Registers middleware, in the form of a middleware component (type), that runs during
     /// inbound and/or outbound processing in the request life-cycle (request -> response),
     /// modifying request/response as necessary, across all requests managed by the `App`.
     ///
