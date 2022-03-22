@@ -6,7 +6,9 @@ fn compare_quoters(c: &mut Criterion) {
     let mut group = c.benchmark_group("Compare Quoters");
 
     let quoter = actix_router::Quoter::new(b"", b"");
-    let path_quoted = (0..=0x7f).map(|c| format!("%{:02X}", c)).collect::<String>();
+    let path_quoted = (0..=0x7f)
+        .map(|c| format!("%{:02X}", c))
+        .collect::<String>();
     let path_unquoted = ('\u{00}'..='\u{7f}').collect::<String>();
 
     group.bench_function("quoter_unquoted", |b| {
