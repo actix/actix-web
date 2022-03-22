@@ -2,8 +2,6 @@
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-use std::borrow::Cow;
-
 macro_rules! register {
     (colon) => {{
         register!(finish => ":p1", ":p2", ":p3", ":p4")
@@ -164,49 +162,6 @@ fn call() -> impl Iterator<Item = &'static str> {
     IntoIterator::into_iter(arr)
 }
 
-fn compare_quoters(c: &mut Criterion) {
-    let mut group = c.benchmark_group("Compare Quoters");
-
-    let quoter = actix_router::Quoter::new(b"", b"");
-    let path = (0..=127).map(|c| format!("%{:02X}", c)).collect::<String>();
-
-    group.bench_function("quoter_x", |b| {
-        b.iter(|| {
-            for route in call() {
-                black_box(quoter.requote(route.as_bytes()));
-            }
-        });
-    });
-
-    group.bench_function("percent_encode", |b| {
-        b.iter(|| {
-            for route in call() {
-                let decode = percent_encoding::percent_decode(route.as_bytes());
-                black_box(Into::<Cow<'_, [u8]>>::into(decode));
-            }
-        });
-    });
-
-    group.bench_function("quoter_x_stat", |b| {
-        b.iter(|| {
-            for _ in 0..10 {
-                black_box(quoter.requote(path.as_bytes()));
-            }
-        });
-    });
-
-    group.bench_function("percent_encode_stat", |b| {
-        b.iter(|| {
-            for _ in 0..10 {
-                let decode = percent_encoding::percent_decode(path.as_bytes());
-                black_box(Into::<Cow<'_, [u8]>>::into(decode));
-            }
-        });
-    });
-
-    group.finish();
-}
-
 fn compare_routers(c: &mut Criterion) {
     let mut group = c.benchmark_group("Compare Routers");
 
@@ -236,5 +191,5 @@ fn compare_routers(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, compare_quoters);
+criterion_group!(benches, compare_routers);
 criterion_main!(benches);

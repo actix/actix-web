@@ -37,3 +37,7 @@ percent-encoding = "2.1"
 [[bench]]
 name = "router"
 harness = false
+
+[[bench]]
+name = "quoter"
+harness = false

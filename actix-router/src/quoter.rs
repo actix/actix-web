@@ -46,7 +46,7 @@ impl Quoter {
         for i in 0..val.len() {
             if let (prev, [b'%', p1, p2, rem @ ..]) = val.split_at(i) {
                 if let Some(ch) = hex_pair_to_char(*p1, *p2)
-                    // ingore protected ascii bytes
+                    // ignore protected ascii bytes
                     .filter(|&ch| !(ch < 128 && bit_at(&self.protected_table, ch)))
                 {
                     *val = rem;
