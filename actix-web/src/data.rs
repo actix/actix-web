@@ -5,10 +5,7 @@ use actix_utils::future::{err, ok, Ready};
 use futures_core::future::LocalBoxFuture;
 use serde::Serialize;
 
-use crate::{
-    dev::Payload, error::ErrorInternalServerError, extract::FromRequest, request::HttpRequest,
-    Error,
-};
+use crate::{dev::Payload, error, Error, FromRequest, HttpRequest};
 
 /// Data factory.
 pub(crate) trait DataFactory {
@@ -160,7 +157,7 @@ impl<T: ?Sized + 'static> FromRequest for Data<T> {
                 req.match_name().unwrap_or_else(|| req.path())
             );
 
-            err(ErrorInternalServerError(
+            err(error::ErrorInternalServerError(
                 "Requested application data is not configured correctly. \
                 View/enable debug logs for more details.",
             ))
