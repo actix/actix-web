@@ -95,20 +95,20 @@ impl ServiceRequest {
         (&mut self.req, &mut self.payload)
     }
 
-    /// Use an [extractor](crate::FromRequest) to build a type out of the incoming request.  
+    /// Derives a type from this request using an [extractor](crate::FromRequest).
     ///
-    /// `extract` is particularly handy when you need to use an extractor inside
-    /// a middleware implementation.
+    /// Returns the `T` extractor's `Future` type which can be `await`ed. This is particularly handy
+    /// when you want to use an extractor in a middleware implementation.
     ///
-    /// # Example
+    /// # Examples
+    /// ```
+    /// use actix_web::{
+    ///     dev::{ServiceRequest, ServiceResponse},
+    ///     web::Path, Error
+    /// };
     ///
-    /// ```rust
-    /// use actix_web::dev::{ServiceRequest, ServiceResponse};
-    /// use actix_web::web::Path;
-    /// use actix_web::Error;
-    ///
-    /// async fn f(mut service_request: ServiceRequest) -> Result<ServiceResponse, Error> {
-    ///     let path = service_request.extract::<Path<(String, u32)>>().await?;
+    /// async fn my_helper(mut srv_req: ServiceRequest) -> Result<ServiceResponse, Error> {
+    ///     let path = srv_req.extract::<Path<(String, u32)>>().await?;
     ///     // [...]
     /// #   todo!()
     /// }
