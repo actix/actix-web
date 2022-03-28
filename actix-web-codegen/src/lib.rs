@@ -19,7 +19,8 @@
 //!
 //! # Single Method Handler
 //! There is a macro to set up a handler for each of the most common HTTP methods that also define
-//! additional guards and route-specific middleware.
+//! additional guards and route-specific middleware. This macros will inherit the visibility
+//! of the underlying handler.
 //!
 //! See docs for: [GET], [POST], [PATCH], [PUT], [DELETE], [HEAD], [CONNECT], [OPTIONS], [TRACE]
 //!
