@@ -1,4 +1,16 @@
-/// Partial Percent-decoding.
+/// Partial percent-decoding.
+///
+/// Performs percent-decoding on a slice but can selectively skip decoding certain sequences.
+///
+/// # Examples
+/// ```
+/// # use actix_router::Quoter;
+/// // + is set as a protected character and will not be decoded...
+/// let q = Quoter::new(&[], b"+");
+///
+/// // ...but the other encoded characters (like the hyphen below) will.
+/// assert_eq!(q.requote(b"/a%2Db%2Bc").unwrap(), b"/a-b%2Bc");
+/// ```
 pub struct Quoter {
     /// Simple bit-map of protected values in the 0-127 ASCII range.
     protected_table: AsciiBitmap,
@@ -7,10 +19,10 @@ pub struct Quoter {
 impl Quoter {
     /// Constructs a new `Quoter` instance given a set of protected ASCII bytes.
     ///
-    /// The first argument is ignored and is kept for backward compatibility only.
+    /// The first argument is ignored but is kept for backward compatibility.
     ///
-    /// # Panic
-    /// Panics if any of the `protected` bytes is not in the 0-127 ASCII range.
+    /// # Panics
+    /// Panics if any of the `protected` bytes are not in the 0-127 ASCII range.
     pub fn new(_: &[u8], protected: &[u8]) -> Quoter {
         let mut protected_table = AsciiBitmap::default();
 
@@ -41,6 +53,7 @@ impl Quoter {
     }
 
     /// Partially percent-decodes the given bytes.
+    ///
     /// Escape sequences of the protected set are *not* decoded.
     ///
     /// Returns `None` when no modification to the original bytes was required.
@@ -49,21 +62,28 @@ impl Quoter {
     pub fn requote(&self, val: &[u8]) -> Option<Vec<u8>> {
         let mut remaining = val;
 
-        let (prev, ch) = self.decode_next(&mut remaining)?;
-        let mut buf = Vec::<u8>::with_capacity(val.len());
-        buf.extend_from_slice(prev);
-        buf.push(ch);
+        // early return indicates that no percent-encoded sequences exist and we can skip allocation
+        let (pre, decoded_char) = self.decode_next(&mut remaining)?;
 
+        // decoded output will always be shorter than the input
+        let mut decoded = Vec::<u8>::with_capacity(val.len());
+
+        // push first segment and decoded char
+        decoded.extend_from_slice(pre);
+        decoded.push(decoded_char);
+
+        // decode and push rest of segments and decoded chars
         while let Some((prev, ch)) = self.decode_next(&mut remaining) {
             // this ugly conditional achieves +50% perf in cases where this is a tight loop.
             if !prev.is_empty() {
-                buf.extend_from_slice(prev);
+                decoded.extend_from_slice(prev);
             }
-            buf.push(ch);
+            decoded.push(ch);
         }
 
-        buf.extend_from_slice(remaining);
-        Some(buf)
+        decoded.extend_from_slice(remaining);
+
+        Some(decoded)
     }
 
     pub(crate) fn requote_str_lossy(&self, val: &str) -> Option<String> {
