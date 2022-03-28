@@ -3,6 +3,30 @@
 ## Unreleased - 2021-xx-xx
 
 
+## 3.0.4 - 2022-03-09
+### Fixed
+- Document on docs.rs with `ws` feature enabled.
+
+
+## 3.0.3 - 2022-03-08
+### Fixed
+- Allow spaces between header name and colon when parsing responses. [#2684]
+
+[#2684]: https://github.com/actix/actix-web/issues/2684
+
+
+## 3.0.2 - 2022-03-05
+### Fixed
+- Fix encoding camel-case header names with more than one hyphen. [#2683]
+
+[#2683]: https://github.com/actix/actix-web/issues/2683
+
+
+## 3.0.1 - 2022-03-04
+- Fix panic in H1 dispatcher when pipelining is used with keep-alive. [#2678]
+
+[#2678]: https://github.com/actix/actix-web/issues/2678
+
 ## 3.0.0 - 2022-02-25
 ### Dependencies
 - Updated `actix-*` to Tokio v1-based versions. [#1813]
@@ -745,10 +769,10 @@
 - Remove `ResponseError` impl for `actix::actors::resolver::ResolverError`
   due to deprecate of resolver actor. [#1813]
 - Remove `ConnectError::SslHandshakeError` and re-export of `HandshakeError`.
-  due to the removal of this type from `tokio-openssl` crate. openssl handshake 
+  due to the removal of this type from `tokio-openssl` crate. openssl handshake
   error would return as `ConnectError::SslError`. [#1813]
 - Remove `actix-threadpool` dependency. Use `actix_rt::task::spawn_blocking`.
-  Due to this change `actix_threadpool::BlockingError` type is moved into 
+  Due to this change `actix_threadpool::BlockingError` type is moved into
   `actix_http::error` module. [#1878]
 
 [#1813]: https://github.com/actix/actix-web/pull/1813

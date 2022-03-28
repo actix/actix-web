@@ -23,6 +23,7 @@ use actix_web::{
 use bitflags::bitflags;
 use derive_more::{Deref, DerefMut};
 use futures_core::future::LocalBoxFuture;
+use mime::Mime;
 use mime_guess::from_path;
 
 use crate::{encoding::equiv_utf8_text, range::HttpRange};
@@ -76,8 +77,8 @@ pub struct NamedFile {
     pub(crate) md: Metadata,
     pub(crate) flags: Flags,
     pub(crate) status_code: StatusCode,
-    pub(crate) content_type: mime::Mime,
-    pub(crate) content_disposition: header::ContentDisposition,
+    pub(crate) content_type: Mime,
+    pub(crate) content_disposition: ContentDisposition,
     pub(crate) encoding: Option<ContentEncoding>,
 }
 
@@ -128,7 +129,7 @@ impl NamedFile {
             let ct = from_path(&path).first_or_octet_stream();
 
             let disposition = match ct.type_() {
-                mime::IMAGE | mime::TEXT | mime::VIDEO => DispositionType::Inline,
+                mime::IMAGE | mime::TEXT | mime::AUDIO | mime::VIDEO => DispositionType::Inline,
                 mime::APPLICATION => match ct.subtype() {
                     mime::JAVASCRIPT | mime::JSON => DispositionType::Inline,
                     name if name == "wasm" => DispositionType::Inline,
@@ -209,11 +210,10 @@ impl NamedFile {
         Self::from_file(file, path)
     }
 
-    #[allow(rustdoc::broken_intra_doc_links)]
     /// Attempts to open a file asynchronously in read-only mode.
     ///
-    /// When the `experimental-io-uring` crate feature is enabled, this will be async.
-    /// Otherwise, it will be just like [`open`][Self::open].
+    /// When the `experimental-io-uring` crate feature is enabled, this will be async. Otherwise, it
+    /// will behave just like `open`.
     ///
     /// # Examples
     /// ```
@@ -238,13 +238,13 @@ impl NamedFile {
         Self::from_file(file, path)
     }
 
-    /// Returns reference to the underlying `File` object.
+    /// Returns reference to the underlying file object.
     #[inline]
     pub fn file(&self) -> &File {
         &self.file
     }
 
-    /// Retrieve the path of this file.
+    /// Returns the filesystem path to this file.
     ///
     /// # Examples
     /// ```
@@ -262,16 +262,53 @@ impl NamedFile {
         self.path.as_path()
     }
 
-    /// Set response **Status Code**
+    /// Returns the time the file was last modified.
+    ///
+    /// Returns `None` only on unsupported platforms; see [`std::fs::Metadata::modified()`].
+    /// Therefore, it is usually safe to unwrap this.
+    #[inline]
+    pub fn modified(&self) -> Option<SystemTime> {
+        self.modified
+    }
+
+    /// Returns the filesystem metadata associated with this file.
+    #[inline]
+    pub fn metadata(&self) -> &Metadata {
+        &self.md
+    }
+
+    /// Returns the `Content-Type` header that will be used when serving this file.
+    #[inline]
+    pub fn content_type(&self) -> &Mime {
+        &self.content_type
+    }
+
+    /// Returns the `Content-Disposition` that will be used when serving this file.
+    #[inline]
+    pub fn content_disposition(&self) -> &ContentDisposition {
+        &self.content_disposition
+    }
+
+    /// Returns the `Content-Encoding` that will be used when serving this file.
+    ///
+    /// A return value of `None` indicates that the content is not already using a compressed
+    /// representation and may be subject to compression downstream.
+    #[inline]
+    pub fn content_encoding(&self) -> Option<ContentEncoding> {
+        self.encoding
+    }
+
+    /// Set response status code.
+    #[deprecated(since = "0.7.0", note = "Prefer `Responder::customize()`.")]
     pub fn set_status_code(mut self, status: StatusCode) -> Self {
         self.status_code = status;
         self
     }
 
-    /// Set the MIME Content-Type for serving this file. By default the Content-Type is inferred
-    /// from the filename extension.
+    /// Sets the `Content-Type` header that will be used when serving this file. By default the
+    /// `Content-Type` is inferred from the filename extension.
     #[inline]
-    pub fn set_content_type(mut self, mime_type: mime::Mime) -> Self {
+    pub fn set_content_type(mut self, mime_type: Mime) -> Self {
         self.content_type = mime_type;
         self
     }
@@ -284,15 +321,15 @@ impl NamedFile {
     /// filename is taken from the path provided in the `open` method after converting it to UTF-8
     /// (using `to_string_lossy`).
     #[inline]
-    pub fn set_content_disposition(mut self, cd: header::ContentDisposition) -> Self {
+    pub fn set_content_disposition(mut self, cd: ContentDisposition) -> Self {
         self.content_disposition = cd;
         self.flags.insert(Flags::CONTENT_DISPOSITION);
         self
     }
 
-    /// Disable `Content-Disposition` header.
+    /// Disables `Content-Disposition` header.
     ///
-    /// By default Content-Disposition` header is enabled.
+    /// By default, the `Content-Disposition` header is sent.
     #[inline]
     pub fn disable_content_disposition(mut self) -> Self {
         self.flags.remove(Flags::CONTENT_DISPOSITION);

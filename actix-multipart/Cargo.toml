@@ -14,7 +14,7 @@ name = "actix_multipart"
 path = "src/lib.rs"
 
 [dependencies]
-actix-utils = "3.0.0"
+actix-utils = "3"
 actix-web = { version = "4.0.0", default-features = false }
 
 bytes = "1"

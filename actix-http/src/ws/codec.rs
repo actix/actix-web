@@ -2,6 +2,7 @@ use actix_codec::{Decoder, Encoder};
 use bitflags::bitflags;
 use bytes::{Bytes, BytesMut};
 use bytestring::ByteString;
+use tracing::error;
 
 use super::{
     frame::Parser,
@@ -253,7 +254,7 @@ impl Decoder for Codec {
                             }
                         }
                         _ => {
-                            log::error!("Unfinished fragment {:?}", opcode);
+                            error!("Unfinished fragment {:?}", opcode);
                             Err(ProtocolError::ContinuationFragment(opcode))
                         }
                     };

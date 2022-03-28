@@ -5,6 +5,7 @@ use actix_server::Server;
 use bytes::BytesMut;
 use futures_util::StreamExt as _;
 use http::header::HeaderValue;
+use tracing::info;
 
 #[actix_rt::main]
 async fn main() -> io::Result<()> {
@@ -22,7 +23,7 @@ async fn main() -> io::Result<()> {
                         body.extend_from_slice(&item?);
                     }
 
-                    log::info!("request body: {:?}", body);
+                    info!("request body: {:?}", body);
 
                     let res = Response::build(StatusCode::OK)
                         .insert_header(("x-head", HeaderValue::from_static("dummy value!")))

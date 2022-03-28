@@ -14,7 +14,7 @@ use actix_service::{
 };
 use actix_utils::future::ready;
 use futures_core::{future::LocalBoxFuture, ready};
-use log::error;
+use tracing::{error, trace};
 
 use crate::{
     body::{BoxBody, MessageBody},
@@ -355,7 +355,7 @@ where
                 }
 
                 Err(err) => {
-                    log::trace!("H2 handshake error: {}", err);
+                    trace!("H2 handshake error: {}", err);
                     Poll::Ready(Err(err))
                 }
             },

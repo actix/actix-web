@@ -367,9 +367,7 @@ where
                         .local_addr(addr);
 
                     let svc = if let Some(handler) = on_connect_fn.clone() {
-                        svc.on_connect_ext(move |io: &_, ext: _| {
-                            (&*handler)(io as &dyn Any, ext)
-                        })
+                        svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
                     } else {
                         svc
                     };
@@ -555,7 +553,7 @@ where
 
                 if let Some(handler) = on_connect_fn.clone() {
                     svc = svc
-                        .on_connect_ext(move |io: &_, ext: _| (&*handler)(io as &dyn Any, ext));
+                        .on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext));
                 }
 
                 let fac = factory()

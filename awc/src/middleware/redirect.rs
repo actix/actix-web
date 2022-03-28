@@ -161,7 +161,8 @@ where
                     | StatusCode::SEE_OTHER
                     | StatusCode::TEMPORARY_REDIRECT
                     | StatusCode::PERMANENT_REDIRECT
-                        if *max_redirect_times > 0 =>
+                        if *max_redirect_times > 0
+                            && res.headers().contains_key(header::LOCATION) =>
                     {
                         let reuse_body = res.head().status == StatusCode::TEMPORARY_REDIRECT
                             || res.head().status == StatusCode::PERMANENT_REDIRECT;
@@ -245,26 +246,32 @@ where
 }
 
 fn build_next_uri(res: &ClientResponse, prev_uri: &Uri) -> Result<Uri, SendRequestError> {
-    let uri = res
-        .headers()
-        .get(header::LOCATION)
-        .map(|value| {
-            // try to parse the location to a full uri
-            let uri = Uri::try_from(value.as_bytes())
-                .map_err(|e| SendRequestError::Url(InvalidUrl::HttpError(e.into())))?;
-            if uri.scheme().is_none() || uri.authority().is_none() {
-                let uri = Uri::builder()
-                    .scheme(prev_uri.scheme().cloned().unwrap())
-                    .authority(prev_uri.authority().cloned().unwrap())
-                    .path_and_query(value.as_bytes())
-                    .build()?;
-                Ok::<_, SendRequestError>(uri)
-            } else {
-                Ok(uri)
-            }
-        })
-        // TODO: this error type is wrong.
-        .ok_or(SendRequestError::Url(InvalidUrl::MissingScheme))??;
+    // responses without this header are not processed
+    let location = res.headers().get(header::LOCATION).unwrap();
+
+    // try to parse the location and resolve to a full URI but fall back to default if it fails
+    let uri = Uri::try_from(location.as_bytes()).unwrap_or_else(|_| Uri::default());
+
+    let uri = if uri.scheme().is_none() || uri.authority().is_none() {
+        let builder = Uri::builder()
+            .scheme(prev_uri.scheme().cloned().unwrap())
+            .authority(prev_uri.authority().cloned().unwrap());
+
+        // when scheme or authority is missing treat the location value as path and query
+        // recover error where location does not have leading slash
+        let path = if location.as_bytes().starts_with(b"/") {
+            location.as_bytes().to_owned()
+        } else {
+            [b"/", location.as_bytes()].concat()
+        };
+
+        builder
+            .path_and_query(path)
+            .build()
+            .map_err(|err| SendRequestError::Url(InvalidUrl::HttpError(err)))?
+    } else {
+        uri
+    };
 
     Ok(uri)
 }
@@ -287,10 +294,13 @@ mod tests {
     use actix_web::{web, App, Error, HttpRequest, HttpResponse};
 
     use super::*;
-    use crate::{http::header::HeaderValue, ClientBuilder};
+    use crate::{
+        http::{header::HeaderValue, StatusCode},
+        ClientBuilder,
+    };
 
     #[actix_rt::test]
-    async fn test_basic_redirect() {
+    async fn basic_redirect() {
         let client = ClientBuilder::new()
             .disable_redirects()
             .wrap(Redirect::new().max_redirect_times(10))
@@ -316,6 +326,44 @@ mod tests {
     }
 
     #[actix_rt::test]
+    async fn redirect_relative_without_leading_slash() {
+        let client = ClientBuilder::new().finish();
+
+        let srv = actix_test::start(|| {
+            App::new()
+                .service(web::resource("/").route(web::to(|| async {
+                    HttpResponse::Found()
+                        .insert_header(("location", "abc/"))
+                        .finish()
+                })))
+                .service(
+                    web::resource("/abc/")
+                        .route(web::to(|| async { HttpResponse::Accepted().finish() })),
+                )
+        });
+
+        let res = client.get(srv.url("/")).send().await.unwrap();
+        assert_eq!(res.status(), StatusCode::ACCEPTED);
+    }
+
+    #[actix_rt::test]
+    async fn redirect_without_location() {
+        let client = ClientBuilder::new()
+            .disable_redirects()
+            .wrap(Redirect::new().max_redirect_times(10))
+            .finish();
+
+        let srv = actix_test::start(|| {
+            App::new().service(web::resource("/").route(web::to(|| async {
+                Ok::<_, Error>(HttpResponse::Found().finish())
+            })))
+        });
+
+        let res = client.get(srv.url("/")).send().await.unwrap();
+        assert_eq!(res.status(), StatusCode::FOUND);
+    }
+
+    #[actix_rt::test]
     async fn test_redirect_limit() {
         let client = ClientBuilder::new()
             .disable_redirects()
@@ -328,14 +376,14 @@ mod tests {
                 .service(web::resource("/").route(web::to(|| async {
                     Ok::<_, Error>(
                         HttpResponse::Found()
-                            .append_header(("location", "/test"))
+                            .insert_header(("location", "/test"))
                             .finish(),
                     )
                 })))
                 .service(web::resource("/test").route(web::to(|| async {
                     Ok::<_, Error>(
                         HttpResponse::Found()
-                            .append_header(("location", "/test2"))
+                            .insert_header(("location", "/test2"))
                             .finish(),
                     )
                 })))
@@ -345,8 +393,15 @@ mod tests {
         });
 
         let res = client.get(srv.url("/")).send().await.unwrap();
-
-        assert_eq!(res.status().as_u16(), 302);
+        assert_eq!(res.status(), StatusCode::FOUND);
+        assert_eq!(
+            res.headers()
+                .get(header::LOCATION)
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "/test2"
+        );
     }
 
     #[actix_rt::test]

@@ -29,8 +29,9 @@ Headings marked with :warning: are **breaking behavioral changes**. They will pr
 - [Server Must Be Polled :warning:](#server-must-be-polled-warning)
 - [Guards API](#guards-api)
 - [Returning `HttpResponse` synchronously](#returning-httpresponse-synchronously)
-- [`#[actix_web::main]` and `#[tokio::main]`](#actixwebmain-and-tokiomain)
+- [`#[actix_web::main]` and `#[tokio::main]`](#actix_webmain-and-tokiomain)
 - [`web::block`](#webblock)
+- 
 
 ## MSRV
 
@@ -482,4 +483,25 @@ The `web::block` helper has changed return type from roughly `async fn(fn() -> R
 
 - let n: u32 = web::block(|| Ok(123)).await?;
 + let n: u32 = web::block(|| Ok(123)).await??;
+```
+
+## `HttpResponse` as a `ResponseError`
+
+The implementation of `ResponseError` for `HttpResponse` has been removed.
+
+It was common in v3 to use `HttpResponse` as an error type in fallible handlers. The problem is that `HttpResponse` contains no knowledge or reference to the source error. Being able to guarantee that an "error" response actually contains an error reference makes middleware and other parts of Actix Web more effective.
+
+The error response builders in the `error` module were available in v3 but are now the best method for simple error responses without requiring you to implement the trait on your own custom error types. These builders can receive simple strings and third party errors that can not implement the `ResponseError` trait.
+
+A few common patterns are affected by this change:
+
+```diff
+- Err(HttpResponse::InternalServerError().finish())
++ Err(error::ErrorInternalServerError("reason"))
+
+- Err(HttpResponse::InternalServerError().body(third_party_error.to_string()))
++ Err(error::ErrorInternalServerError(err))
+
+- .map_err(|err| HttpResponse::InternalServerError().finish())?
++ .map_err(error::ErrorInternalServerError)?
 ```

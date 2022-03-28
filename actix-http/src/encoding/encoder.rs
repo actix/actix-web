@@ -17,6 +17,7 @@ use pin_project_lite::pin_project;
 #[cfg(feature = "compress-gzip")]
 use flate2::write::{GzEncoder, ZlibEncoder};
 
+use tracing::trace;
 #[cfg(feature = "compress-zstd")]
 use zstd::stream::write::Encoder as ZstdEncoder;
 
@@ -356,7 +357,7 @@ impl ContentEncoder {
             ContentEncoder::Brotli(ref mut encoder) => match encoder.write_all(data) {
                 Ok(_) => Ok(()),
                 Err(err) => {
-                    log::trace!("Error decoding br encoding: {}", err);
+                    trace!("Error decoding br encoding: {}", err);
                     Err(err)
                 }
             },
@@ -365,7 +366,7 @@ impl ContentEncoder {
             ContentEncoder::Gzip(ref mut encoder) => match encoder.write_all(data) {
                 Ok(_) => Ok(()),
                 Err(err) => {
-                    log::trace!("Error decoding gzip encoding: {}", err);
+                    trace!("Error decoding gzip encoding: {}", err);
                     Err(err)
                 }
             },
@@ -374,7 +375,7 @@ impl ContentEncoder {
             ContentEncoder::Deflate(ref mut encoder) => match encoder.write_all(data) {
                 Ok(_) => Ok(()),
                 Err(err) => {
-                    log::trace!("Error decoding deflate encoding: {}", err);
+                    trace!("Error decoding deflate encoding: {}", err);
                     Err(err)
                 }
             },
@@ -383,7 +384,7 @@ impl ContentEncoder {
             ContentEncoder::Zstd(ref mut encoder) => match encoder.write_all(data) {
                 Ok(_) => Ok(()),
                 Err(err) => {
-                    log::trace!("Error decoding ztsd encoding: {}", err);
+                    trace!("Error decoding ztsd encoding: {}", err);
                     Err(err)
                 }
             },

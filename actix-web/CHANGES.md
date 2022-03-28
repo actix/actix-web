@@ -18,7 +18,7 @@
 - Updated `cookie` to `0.16`. [#2555]
 - Updated `language-tags` to `0.3`.
 - Updated `rand` to `0.8`.
-- Updated `rustls` to `0.20.0`. [#2414]
+- Updated `rustls` to `0.20`. [#2414]
 - Updated `tokio` to `1`.
 
 ### Added

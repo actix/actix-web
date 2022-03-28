@@ -505,7 +505,7 @@ impl fmt::Debug for ClientRequest {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(
             f,
-            "\nClientRequest {:?} {}:{}",
+            "\nClientRequest {:?} {} {}",
             self.head.version, self.head.method, self.head.uri
         )?;
         writeln!(f, "  headers:")?;

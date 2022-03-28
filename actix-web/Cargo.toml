@@ -71,9 +71,9 @@ actix-service = "2"
 actix-utils = "3"
 actix-tls = { version = "3", default-features = false, optional = true }
 
-actix-http = { version = "3.0.0", features = ["http2", "ws"] }
-actix-router = "0.5.0"
-actix-web-codegen = { version = "4.0.0", optional = true }
+actix-http = { version = "3", features = ["http2", "ws"] }
+actix-router = "0.5"
+actix-web-codegen = { version = "4", optional = true }
 
 ahash = "0.7"
 bytes = "1"
@@ -90,7 +90,7 @@ once_cell = "1.5"
 log = "0.4"
 mime = "0.3"
 pin-project-lite = "0.2.7"
-regex = "1.4"
+regex = "1.5.5"
 serde = "1.0"
 serde_json = "1.0"
 serde_urlencoded = "0.7"
@@ -100,9 +100,9 @@ time = { version = "0.3", default-features = false, features = ["formatting"] }
 url = "2.1"
 
 [dev-dependencies]
-actix-files = "0.6.0"
+actix-files = "0.6"
 actix-test = { version = "0.1.0-beta.13", features = ["openssl", "rustls"] }
-awc = { version = "3.0.0-beta.21", features = ["openssl"] }
+awc = { version = "3", features = ["openssl"] }
 
 brotli = "3.3.3"
 const-str = "0.3"
@@ -118,7 +118,7 @@ static_assertions = "1"
 tls-openssl = { package = "openssl", version = "0.10.9" }
 tls-rustls = { package = "rustls", version = "0.20.0" }
 tokio = { version = "1.13.1", features = ["rt-multi-thread", "macros"] }
-zstd = "0.10"
+zstd = "0.11"
 
 [[test]]
 name = "test_server"
