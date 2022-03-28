@@ -7,7 +7,7 @@ use crate::path::{Path, PathIter};
 use crate::{Quoter, ResourcePath};
 
 thread_local! {
-    static FULL_QUOTER: Quoter = Quoter::new(b"+/%", b"");
+    static FULL_QUOTER: Quoter = Quoter::new(b"", b"");
 }
 
 macro_rules! unsupported_type {
