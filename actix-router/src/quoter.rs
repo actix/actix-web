@@ -74,7 +74,7 @@ impl Quoter {
 
         while let Some((prev, ch)) = self.decode_next(&mut remaining) {
             // this ugly conditional achieves +50% perf in cases where this is a tight loop.
-            if prev.len() != 0 {
+            if !prev.is_empty() {
                 buf.extend_from_slice(prev);
             }
             buf.push(ch);
