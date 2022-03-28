@@ -1,21 +1,3 @@
-#[allow(dead_code)]
-mod charsets {
-    pub const GEN_DELIMS: &[u8] = b":/?#[]@";
-    pub const SUB_DELIMS_WITHOUT_QS: &[u8] = b"!$'()*,";
-    pub const SUB_DELIMS: &[u8] = b"!$'()*,+?=;";
-    pub const RESERVED: &[u8] = b":/?#[]@!$'()*,+?=;";
-    pub const UNRESERVED: &[u8] = b"abcdefghijklmnopqrstuvwxyz
-    ABCDEFGHIJKLMNOPQRSTUVWXYZ
-    1234567890
-    -._~";
-    pub const ALLOWED: &[u8] = b"abcdefghijklmnopqrstuvwxyz
-    ABCDEFGHIJKLMNOPQRSTUVWXYZ
-    1234567890
-    -._~
-    !$'()*,";
-    pub const QS: &[u8] = b"+&=;b";
-}
-
 /// Partial Percent-decoding.
 pub struct Quoter {
     /// Simple bit-map of protected values in the 0-127 ASCII range.
