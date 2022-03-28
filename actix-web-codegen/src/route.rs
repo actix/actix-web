@@ -291,6 +291,7 @@ impl ToTokens for Route {
             resource_type,
             doc_attributes,
         } = self;
+        let visibility = &ast.vis;
         let resource_name = resource_name
             .as_ref()
             .map_or_else(|| name.to_string(), LitStr::value);
@@ -316,7 +317,7 @@ impl ToTokens for Route {
         let stream = quote! {
             #(#doc_attributes)*
             #[allow(non_camel_case_types, missing_docs)]
-            pub struct #name;
+            #visibility struct #name;
 
             impl ::actix_web::dev::HttpServiceFactory for #name {
                 fn register(self, __config: &mut actix_web::dev::AppService) {
