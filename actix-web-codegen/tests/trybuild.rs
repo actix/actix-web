@@ -6,6 +6,9 @@ fn compile_macros() {
     t.pass("tests/trybuild/simple.rs");
     t.compile_fail("tests/trybuild/simple-fail.rs");
 
+    t.pass("tests/trybuild/visibility-ok.rs");
+    t.compile_fail("tests/trybuild/visibility-fail.rs");
+
     t.pass("tests/trybuild/route-ok.rs");
     t.compile_fail("tests/trybuild/route-missing-method-fail.rs");
     t.compile_fail("tests/trybuild/route-duplicate-method-fail.rs");

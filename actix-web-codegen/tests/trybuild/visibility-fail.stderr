@@ -1,0 +1,12 @@
+error[E0603]: unit struct `config` is private
+  --> tests/trybuild/visibility-fail.rs:15:63
+   |
+15 |     let srv = actix_test::start(|| App::new().service(config::config));
+   |                                                               ^^^^^^ private unit struct
+   |
+note: the unit struct `config` is defined here
+  --> tests/trybuild/visibility-fail.rs:7:5
+   |
+7  |     #[get("/config")]
+   |     ^^^^^^^^^^^^^^^^^
+   = note: this error originates in the attribute macro `get` (in Nightly builds, run with -Z macro-backtrace for more info)
