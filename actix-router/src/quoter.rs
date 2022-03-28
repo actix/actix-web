@@ -19,7 +19,7 @@ mod charsets {
 /// Partial Percent-decoding.
 pub struct Quoter {
     /// Simple bit-map of protected values in the 0-127 ASCII range.
-    protected_table: [u8; 16],
+    protected_table: AsciiBitmap,
 }
 
 impl Quoter {
@@ -30,11 +30,11 @@ impl Quoter {
     /// # Panic
     /// Panics if any of the `protected` bytes is not in the 0-127 ASCII range.
     pub fn new(_: &[u8], protected: &[u8]) -> Quoter {
-        let mut protected_table = [0; 16];
+        let mut protected_table = AsciiBitmap::default();
 
         // prepare protected table
         for &ch in protected {
-            set_bit(&mut protected_table, ch);
+            protected_table.set_bit(ch);
         }
 
         Quoter { protected_table }
@@ -47,7 +47,7 @@ impl Quoter {
             if let (prev, [b'%', p1, p2, rem @ ..]) = val.split_at(i) {
                 if let Some(ch) = hex_pair_to_char(*p1, *p2)
                     // ignore protected ascii bytes
-                    .filter(|&ch| !(ch < 128 && bit_at(&self.protected_table, ch)))
+                    .filter(|&ch| !(ch < 128 && self.protected_table.bit_at(ch)))
                 {
                     *val = rem;
                     return Some((prev, ch));
@@ -106,20 +106,27 @@ fn hex_pair_to_char(d1: u8, d2: u8) -> Option<u8> {
     Some((d_high as u8) << 4 | (d_low as u8))
 }
 
-/// Sets bit in given bit-map to 1=true.
-///
-/// # Panics
-/// Panics if `ch` index is out of bounds.
-fn set_bit(array: &mut [u8], ch: u8) {
-    array[(ch >> 3) as usize] |= 0b1 << (ch & 0b111)
+#[derive(Debug, Default, Clone)]
+struct AsciiBitmap {
+    array: [u8; 16],
 }
 
-/// Returns true if bit to true in given bit-map.
-///
-/// # Panics
-/// Panics if `ch` index is out of bounds.
-fn bit_at(array: &[u8; 16], ch: u8) -> bool {
-    array[(ch >> 3) as usize] & (0b1 << (ch & 0b111)) != 0
+impl AsciiBitmap {
+    /// Sets bit in given bit-map to 1=true.
+    ///
+    /// # Panics
+    /// Panics if `ch` index is out of bounds.
+    fn set_bit(&mut self, ch: u8) {
+        self.array[(ch >> 3) as usize] |= 0b1 << (ch & 0b111)
+    }
+
+    /// Returns true if bit to true in given bit-map.
+    ///
+    /// # Panics
+    /// Panics if `ch` index is out of bounds.
+    fn bit_at(&self, ch: u8) -> bool {
+        self.array[(ch >> 3) as usize] & (0b1 << (ch & 0b111)) != 0
+    }
 }
 
 #[cfg(test)]
