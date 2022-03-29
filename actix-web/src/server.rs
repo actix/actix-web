@@ -1,16 +1,21 @@
 use std::{
     any::Any,
-    cmp, fmt, io,
+    cmp, fmt,
+    future::Future,
+    io,
     marker::PhantomData,
     net,
     sync::{Arc, Mutex},
     time::Duration,
 };
 
-use actix_http::{body::MessageBody, Extensions, HttpService, KeepAlive, Request, Response};
+use actix_http::{
+    body::BoxBody, body::MessageBody, Extensions, HttpService, KeepAlive, Request, Response,
+};
 use actix_server::{Server, ServerBuilder};
 use actix_service::{
-    map_config, IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt as _,
+    fn_factory_with_config, map_config, IntoServiceFactory, ServiceFactory,
+    ServiceFactoryExt as _,
 };
 
 #[cfg(feature = "openssl")]
@@ -18,7 +23,7 @@ use actix_tls::accept::openssl::reexports::{AlpnError, SslAcceptor, SslAcceptorB
 #[cfg(feature = "rustls")]
 use actix_tls::accept::rustls::reexports::ServerConfig as RustlsServerConfig;
 
-use crate::{config::AppConfig, Error};
+use crate::{config::AppConfig, Error, HttpResponse};
 
 struct Socket {
     scheme: &'static str,
@@ -49,42 +54,92 @@ struct Config {
 ///         .await
 /// }
 /// ```
-pub struct HttpServer<F, I, S, B>
-where
-    F: Fn() -> I + Send + Clone + 'static,
-    I: IntoServiceFactory<S, Request>,
-    S: ServiceFactory<Request, Config = AppConfig>,
-    S::Error: Into<Error>,
-    S::InitError: fmt::Debug,
-    S::Response: Into<Response<B>>,
-    B: MessageBody,
-{
-    pub(super) factory: F,
+pub struct HttpServer<SF = (), B = ()> {
+    pub(super) factory: SF,
     config: Arc<Mutex<Config>>,
     backlog: u32,
     sockets: Vec<Socket>,
     builder: ServerBuilder,
     #[allow(clippy::type_complexity)]
     on_connect_fn: Option<Arc<dyn Fn(&dyn Any, &mut Extensions) + Send + Sync>>,
-    _phantom: PhantomData<(S, B)>,
+    _phantom: PhantomData<(B,)>,
 }
 
-impl<F, I, S, B> HttpServer<F, I, S, B>
+impl HttpServer {
+    /// Create new HTTP server with application factory
+    pub fn new<F, I, SF, B>(
+        factory_fn: F,
+    ) -> HttpServer<
+        impl ServiceFactory<
+                Request,
+                Config = AppConfig,
+                Error = HttpResponse,
+                InitError = SF::InitError,
+                Response = SF::Response,
+            > + Send
+            + Clone,
+        B,
+    >
+    where
+        F: FnOnce() -> I + Send + Clone + 'static,
+        I: IntoServiceFactory<SF, Request>,
+        SF: ServiceFactory<Request, Config = AppConfig> + 'static,
+        SF::Error: Into<Error>,
+        SF::InitError: fmt::Debug,
+        SF::Response: Into<Response<B>>,
+        B: MessageBody + 'static,
+    {
+        let factory = fn_factory_with_config(move |cfg| {
+            let factory_fn = factory_fn.clone();
+            async move { factory_fn().into_factory().new_service(cfg).await }
+        })
+        .map_err(|err| err.into().error_response());
+
+        HttpServer::new2(factory)
+    }
+
+    pub fn new_async<F, Fut, SF, B>(
+        factory_fn: F,
+    ) -> HttpServer<
+        impl ServiceFactory<
+                Request,
+                Config = AppConfig,
+                Error = HttpResponse,
+                InitError = SF::InitError,
+                Response = SF::Response,
+            > + Send
+            + Clone,
+        B,
+    >
+    where
+        F: FnOnce() -> Fut + Send + Clone + 'static,
+        Fut: Future,
+        Fut::Output: IntoServiceFactory<SF, Request>,
+        SF: ServiceFactory<Request, Config = AppConfig> + 'static,
+        SF::Error: Into<Error>,
+        SF::InitError: fmt::Debug,
+        SF::Response: Into<Response<B>>,
+        B: MessageBody + 'static,
+    {
+        let factory = fn_factory_with_config(move |cfg| {
+            let factory_fn = factory_fn.clone();
+            async move { factory_fn().await.into_factory().new_service(cfg).await }
+        })
+        .map_err(|err| err.into().error_response());
+
+        HttpServer::new2(factory)
+    }
+}
+
+impl<SF, B> HttpServer<SF, B>
 where
-    F: Fn() -> I + Send + Clone + 'static,
-    I: IntoServiceFactory<S, Request>,
-
-    S: ServiceFactory<Request, Config = AppConfig> + 'static,
-    S::Error: Into<Error> + 'static,
-    S::InitError: fmt::Debug,
-    S::Response: Into<Response<B>> + 'static,
-    <S::Service as Service<Request>>::Future: 'static,
-    S::Service: 'static,
-
+    SF: ServiceFactory<Request, Config = AppConfig> + Send + Clone + 'static,
+    SF::Error: Into<Response<BoxBody>>,
+    SF::InitError: fmt::Debug,
+    SF::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
-    /// Create new HTTP server with application factory
-    pub fn new(factory: F) -> Self {
+    fn new2(factory: SF) -> Self {
         HttpServer {
             factory,
             config: Arc::new(Mutex::new(Config {
@@ -111,7 +166,7 @@ where
     /// - `actix_web::rt::net::TcpStream` when no encryption is used.
     ///
     /// See the `on_connect` example for additional details.
-    pub fn on_connect<CB>(self, f: CB) -> HttpServer<F, I, S, B>
+    pub fn on_connect<CB>(self, f: CB) -> Self
     where
         CB: Fn(&dyn Any, &mut Extensions) + Send + Sync + 'static,
     {
@@ -314,11 +369,7 @@ where
                         })
                     };
 
-                    let fac = factory()
-                        .into_factory()
-                        .map_err(|err| err.into().error_response());
-
-                    svc.finish(map_config(fac, move |_| {
+                    svc.finish(map_config(factory.clone(), move |_| {
                         AppConfig::new(false, host.clone(), addr)
                     }))
                     .tcp()
@@ -372,11 +423,7 @@ where
                         svc
                     };
 
-                    let fac = factory()
-                        .into_factory()
-                        .map_err(|err| err.into().error_response());
-
-                    svc.finish(map_config(fac, move |_| {
+                    svc.finish(map_config(factory.clone(), move |_| {
                         AppConfig::new(true, host.clone(), addr)
                     }))
                     .openssl(acceptor.clone())
@@ -430,11 +477,7 @@ where
                         svc
                     };
 
-                    let fac = factory()
-                        .into_factory()
-                        .map_err(|err| err.into().error_response());
-
-                    svc.finish(map_config(fac, move |_| {
+                    svc.finish(map_config(factory.clone(), move |_| {
                         AppConfig::new(true, host.clone(), addr)
                     }))
                     .rustls(config.clone())
@@ -556,11 +599,7 @@ where
                         .on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext));
                 }
 
-                let fac = factory()
-                    .into_factory()
-                    .map_err(|err| err.into().error_response());
-
-                svc.finish(map_config(fac, move |_| config.clone()))
+                svc.finish(map_config(factory.clone(), move |_| config.clone()))
             })
         })?;
         Ok(self)
@@ -597,35 +636,19 @@ where
                     socket_addr,
                 );
 
-                let fac = factory()
-                    .into_factory()
-                    .map_err(|err| err.into().error_response());
-
                 fn_service(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) }).and_then(
                     HttpService::build()
                         .keep_alive(c.keep_alive)
                         .client_request_timeout(c.client_request_timeout)
                         .client_disconnect_timeout(c.client_disconnect_timeout)
-                        .finish(map_config(fac, move |_| config.clone())),
+                        .finish(map_config(factory.clone(), move |_| config.clone())),
                 )
             },
         )?;
 
         Ok(self)
     }
-}
 
-impl<F, I, S, B> HttpServer<F, I, S, B>
-where
-    F: Fn() -> I + Send + Clone + 'static,
-    I: IntoServiceFactory<S, Request>,
-    S: ServiceFactory<Request, Config = AppConfig>,
-    S::Error: Into<Error>,
-    S::InitError: fmt::Debug,
-    S::Response: Into<Response<B>>,
-    S::Service: 'static,
-    B: MessageBody,
-{
     /// Start listening for incoming connections.
     ///
     /// This method starts number of HTTP workers in separate threads.
