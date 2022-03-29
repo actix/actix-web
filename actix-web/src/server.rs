@@ -2,9 +2,7 @@ use std::{
     any::Any,
     cmp, fmt,
     future::Future,
-    io,
-    marker::PhantomData,
-    net,
+    io, net,
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -23,7 +21,7 @@ use actix_tls::accept::openssl::reexports::{AlpnError, SslAcceptor, SslAcceptorB
 #[cfg(feature = "rustls")]
 use actix_tls::accept::rustls::reexports::ServerConfig as RustlsServerConfig;
 
-use crate::{config::AppConfig, Error, HttpResponse};
+use crate::{config::AppConfig, Error};
 
 struct Socket {
     scheme: &'static str,
@@ -54,7 +52,7 @@ struct Config {
 ///         .await
 /// }
 /// ```
-pub struct HttpServer<SF = (), B = ()> {
+pub struct HttpServer<SF> {
     pub(super) factory: SF,
     config: Arc<Mutex<Config>>,
     backlog: u32,
@@ -62,10 +60,9 @@ pub struct HttpServer<SF = (), B = ()> {
     builder: ServerBuilder,
     #[allow(clippy::type_complexity)]
     on_connect_fn: Option<Arc<dyn Fn(&dyn Any, &mut Extensions) + Send + Sync>>,
-    _phantom: PhantomData<(B,)>,
 }
 
-impl HttpServer {
+impl HttpServer<()> {
     /// Create new HTTP server with application factory
     pub fn new<F, I, SF, B>(
         factory_fn: F,
@@ -73,12 +70,11 @@ impl HttpServer {
         impl ServiceFactory<
                 Request,
                 Config = AppConfig,
-                Error = HttpResponse,
+                Error = Response<BoxBody>,
                 InitError = SF::InitError,
-                Response = SF::Response,
+                Response = Response<B>,
             > + Send
             + Clone,
-        B,
     >
     where
         F: FnOnce() -> I + Send + Clone + 'static,
@@ -93,7 +89,8 @@ impl HttpServer {
             let factory_fn = factory_fn.clone();
             async move { factory_fn().into_factory().new_service(cfg).await }
         })
-        .map_err(|err| err.into().error_response());
+        .map(|resp| resp.into())
+        .map_err(|err| err.into().error_response().into());
 
         HttpServer::new2(factory)
     }
@@ -104,12 +101,11 @@ impl HttpServer {
         impl ServiceFactory<
                 Request,
                 Config = AppConfig,
-                Error = HttpResponse,
+                Error = Response<BoxBody>,
                 InitError = SF::InitError,
-                Response = SF::Response,
+                Response = Response<B>,
             > + Send
             + Clone,
-        B,
     >
     where
         F: FnOnce() -> Fut + Send + Clone + 'static,
@@ -125,18 +121,24 @@ impl HttpServer {
             let factory_fn = factory_fn.clone();
             async move { factory_fn().await.into_factory().new_service(cfg).await }
         })
-        .map_err(|err| err.into().error_response());
+        .map(|resp| resp.into())
+        .map_err(|err| err.into().error_response().into());
 
         HttpServer::new2(factory)
     }
 }
 
-impl<SF, B> HttpServer<SF, B>
+impl<SF, B> HttpServer<SF>
 where
-    SF: ServiceFactory<Request, Config = AppConfig> + Send + Clone + 'static,
-    SF::Error: Into<Response<BoxBody>>,
+    SF: ServiceFactory<
+            Request,
+            Config = AppConfig,
+            Response = Response<B>,
+            Error = Response<BoxBody>,
+        > + Send
+        + Clone
+        + 'static,
     SF::InitError: fmt::Debug,
-    SF::Response: Into<Response<B>>,
     B: MessageBody + 'static,
 {
     fn new2(factory: SF) -> Self {
@@ -152,7 +154,6 @@ where
             sockets: Vec::new(),
             builder: ServerBuilder::default(),
             on_connect_fn: None,
-            _phantom: PhantomData,
         }
     }
 
@@ -177,7 +178,6 @@ where
             sockets: self.sockets,
             builder: self.builder,
             on_connect_fn: Some(Arc::new(f)),
-            _phantom: PhantomData,
         }
     }
 
