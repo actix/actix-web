@@ -104,6 +104,11 @@ pub fn route(args: TokenStream, input: TokenStream) -> TokenStream {
     route::with_method(None, args, input)
 }
 
+#[proc_macro_attribute]
+pub fn routes(_: TokenStream, input: TokenStream) -> TokenStream {
+    route::with_methods(input)
+}
+
 macro_rules! method_macro {
     ($variant:ident, $method:ident) => {
 #[doc = concat!("Creates route handler with `actix_web::guard::", stringify!($variant), "`.")]
