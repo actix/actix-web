@@ -37,6 +37,12 @@ impl Route {
         }
     }
 
+    /// Registers a route middleware.
+    ///
+    /// `mw` is a middleware component (type), that can modify the requests and responses handled by
+    /// this `Route`.
+    ///
+    /// See [`App::wrap`](crate::App::wrap) for more details.
     #[doc(alias = "middleware")]
     #[doc(alias = "use")] // nodejs terminology
     pub fn wrap<M, B>(self, mw: M) -> Route
@@ -267,11 +273,15 @@ mod tests {
     use futures_core::future::LocalBoxFuture;
     use serde::Serialize;
 
-    use crate::dev::{always_ready, fn_factory, fn_service, Service};
-    use crate::http::{header, Method, StatusCode};
-    use crate::service::{ServiceRequest, ServiceResponse};
-    use crate::test::{call_service, init_service, read_body, TestRequest};
-    use crate::{error, web, App, HttpResponse};
+    use crate::{
+        dev::{always_ready, fn_factory, fn_service, Service},
+        error,
+        http::{header, Method, StatusCode},
+        middleware::{DefaultHeaders, Logger},
+        service::{ServiceRequest, ServiceResponse},
+        test::{call_service, init_service, read_body, TestRequest},
+        web, App, HttpResponse,
+    };
 
     #[derive(Serialize, PartialEq, Debug)]
     struct MyObject {
@@ -342,6 +352,42 @@ mod tests {
 
         let body = read_body(resp).await;
         assert_eq!(body, Bytes::from_static(b"{\"name\":\"test\"}"));
+    }
+
+    #[actix_rt::test]
+    async fn route_middleware() {
+        let srv = init_service(
+            App::new().service(
+                web::resource("/test")
+                    .route(web::get().to(HttpResponse::Ok))
+                    .route(
+                        web::post()
+                            .to(HttpResponse::Created)
+                            .wrap(DefaultHeaders::new().add(("x-test", "x-posted"))),
+                    )
+                    .route(
+                        web::delete()
+                            .to(HttpResponse::Accepted)
+                            // logger changes body type, proving Compat is not needed
+                            .wrap(Logger::default()),
+                    ),
+            ),
+        )
+        .await;
+
+        let req = TestRequest::get().uri("/test").to_request();
+        let res = call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+        assert!(!res.headers().contains_key("x-test"));
+
+        let req = TestRequest::post().uri("/test").to_request();
+        let res = call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::CREATED);
+        assert_eq!(res.headers().get("x-test").unwrap(), "x-posted");
+
+        let req = TestRequest::delete().uri("/test").to_request();
+        let res = call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::ACCEPTED);
     }
 
     #[actix_rt::test]
