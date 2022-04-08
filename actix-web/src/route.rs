@@ -1,15 +1,17 @@
 use std::{mem, rc::Rc};
 
-use actix_http::Method;
+use actix_http::{body::MessageBody, Method};
 use actix_service::{
+    apply,
     boxed::{self, BoxService},
-    fn_service, Service, ServiceFactory, ServiceFactoryExt,
+    fn_service, Service, ServiceFactory, ServiceFactoryExt, Transform,
 };
 use futures_core::future::LocalBoxFuture;
 
 use crate::{
     guard::{self, Guard},
     handler::{handler_service, Handler},
+    middleware::Compat,
     service::{BoxedHttpServiceFactory, ServiceRequest, ServiceResponse},
     Error, FromRequest, HttpResponse, Responder,
 };
@@ -32,6 +34,25 @@ impl Route {
                 Ok(req.into_response(HttpResponse::NotFound()))
             })),
             guards: Rc::new(Vec::new()),
+        }
+    }
+
+    #[doc(alias = "middleware")]
+    #[doc(alias = "use")] // nodejs terminology
+    pub fn wrap<M, B>(self, mw: M) -> Route
+    where
+        M: Transform<
+                BoxService<ServiceRequest, ServiceResponse, Error>,
+                ServiceRequest,
+                Response = ServiceResponse<B>,
+                Error = Error,
+                InitError = (),
+            > + 'static,
+        B: MessageBody + 'static,
+    {
+        Route {
+            service: boxed::factory(apply(Compat::new(mw), self.service)),
+            guards: self.guards,
         }
     }
 
