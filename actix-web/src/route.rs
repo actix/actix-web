@@ -357,21 +357,23 @@ mod tests {
     #[actix_rt::test]
     async fn route_middleware() {
         let srv = init_service(
-            App::new().service(
-                web::resource("/test")
-                    .route(web::get().to(HttpResponse::Ok))
-                    .route(
-                        web::post()
-                            .to(HttpResponse::Created)
-                            .wrap(DefaultHeaders::new().add(("x-test", "x-posted"))),
-                    )
-                    .route(
-                        web::delete()
-                            .to(HttpResponse::Accepted)
-                            // logger changes body type, proving Compat is not needed
-                            .wrap(Logger::default()),
-                    ),
-            ),
+            App::new()
+                .route("/", web::get().to(HttpResponse::Ok).wrap(Logger::default()))
+                .service(
+                    web::resource("/test")
+                        .route(web::get().to(HttpResponse::Ok))
+                        .route(
+                            web::post()
+                                .to(HttpResponse::Created)
+                                .wrap(DefaultHeaders::new().add(("x-test", "x-posted"))),
+                        )
+                        .route(
+                            web::delete()
+                                .to(HttpResponse::Accepted)
+                                // logger changes body type, proving Compat is not needed
+                                .wrap(Logger::default()),
+                        ),
+                ),
         )
         .await;
 

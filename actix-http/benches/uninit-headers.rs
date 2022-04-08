@@ -119,6 +119,7 @@ mod _original {
         let mut headers: [HeaderIndex; MAX_HEADERS] =
             unsafe { MaybeUninit::uninit().assume_init() };
 
+        #[allow(invalid_value)]
         let mut parsed: [httparse::Header<'_>; MAX_HEADERS] =
             unsafe { MaybeUninit::uninit().assume_init() };
 
