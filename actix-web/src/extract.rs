@@ -67,6 +67,10 @@ pub trait FromRequest: Sized {
     type Error: Into<Error>;
 
     /// Future that resolves to a Self.
+    ///
+    /// To refer to the type of an async function or block here, you have two options.
+    /// The first is to use a boxed future such as `futures::future::BoxFuture`. This works on stable and nightly.
+    /// The second is to use `impl Future`, which requires `#![feature(type_alias_impl_trait)]` so only works on nightly.
     type Future: Future<Output = Result<Self, Self::Error>>;
 
     /// Create a Self from request parts asynchronously.
