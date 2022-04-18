@@ -68,9 +68,13 @@ pub trait FromRequest: Sized {
 
     /// Future that resolves to a Self.
     ///
-    /// To refer to the type of an async function or block here, you have two options.
-    /// The first is to use a boxed future such as `futures::future::BoxFuture`. This works on stable and nightly.
-    /// The second is to use `impl Future`, which requires `#![feature(type_alias_impl_trait)]` so only works on nightly.
+    /// To use an async function or block here, you can a boxed future such as `futures::future::LocalBoxFuture`.
+    /// This is an alias for a pinned Box, so you can create it with the following syntax:
+    /// ```
+    /// Box::pin(async {
+    ///     ...
+    /// })
+    /// ```
     type Future: Future<Output = Result<Self, Self::Error>>;
 
     /// Create a Self from request parts asynchronously.
