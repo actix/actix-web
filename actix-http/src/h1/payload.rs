@@ -263,10 +263,8 @@ mod tests {
     assert_not_impl_any!(Payload: Send, Sync, UnwindSafe, RefUnwindSafe);
 
     assert_impl_all!(Inner: Unpin, Send, Sync);
-    #[rustversion::before(1.60)]
-    assert_not_impl_any!(Inner: UnwindSafe, RefUnwindSafe);
-    #[rustversion::since(1.60)]
-    assert_impl_all!(Inner: UnwindSafe, RefUnwindSafe);
+    // assertion not stable wrt rustc versions yet
+    // assert_impl_all!(Inner: UnwindSafe, RefUnwindSafe);
 
     #[actix_rt::test]
     async fn test_unread_data() {
