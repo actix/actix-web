@@ -53,7 +53,7 @@ use crate::cookie::{Cookie, CookieJar};
 ///     assert_eq!(resp.status(), StatusCode::OK);
 ///
 ///     let req = test::TestRequest::default().to_http_request();
-///     let resp = index(req).await;
+///     let resp = handler(req).await;
 ///     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 /// }
 /// ```

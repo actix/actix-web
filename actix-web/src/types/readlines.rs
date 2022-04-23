@@ -20,7 +20,7 @@ use crate::{
 /// Stream that reads request line by line.
 pub struct Readlines<T: HttpMessage> {
     stream: Payload<T::Stream>,
-    buff: BytesMut,
+    buf: BytesMut,
     limit: usize,
     checked_buff: bool,
     encoding: &'static Encoding,
@@ -41,7 +41,7 @@ where
 
         Readlines {
             stream: req.take_payload(),
-            buff: BytesMut::with_capacity(262_144),
+            buf: BytesMut::with_capacity(262_144),
             limit: 262_144,
             checked_buff: true,
             err: None,
@@ -58,7 +58,7 @@ where
     fn err(err: ReadlinesError) -> Self {
         Readlines {
             stream: Payload::None,
-            buff: BytesMut::new(),
+            buf: BytesMut::new(),
             limit: 262_144,
             checked_buff: true,
             encoding: UTF_8,
@@ -84,7 +84,7 @@ where
         // check if there is a newline in the buffer
         if !this.checked_buff {
             let mut found: Option<usize> = None;
-            for (ind, b) in this.buff.iter().enumerate() {
+            for (ind, b) in this.buf.iter().enumerate() {
                 if *b == b'\n' {
                     found = Some(ind);
                     break;
@@ -96,13 +96,13 @@ where
                     return Poll::Ready(Some(Err(ReadlinesError::LimitOverflow)));
                 }
                 let line = if this.encoding == UTF_8 {
-                    str::from_utf8(&this.buff.split_to(ind + 1))
+                    str::from_utf8(&this.buf.split_to(ind + 1))
                         .map_err(|_| ReadlinesError::EncodingError)?
                         .to_owned()
                 } else {
                     this.encoding
                         .decode_without_bom_handling_and_without_replacement(
-                            &this.buff.split_to(ind + 1),
+                            &this.buf.split_to(ind + 1),
                         )
                         .map(Cow::into_owned)
                         .ok_or(ReadlinesError::EncodingError)?
@@ -141,32 +141,32 @@ where
                             .ok_or(ReadlinesError::EncodingError)?
                     };
                     // extend buffer with rest of the bytes;
-                    this.buff.extend_from_slice(&bytes);
+                    this.buf.extend_from_slice(&bytes);
                     this.checked_buff = false;
                     return Poll::Ready(Some(Ok(line)));
                 }
-                this.buff.extend_from_slice(&bytes);
+                this.buf.extend_from_slice(&bytes);
                 Poll::Pending
             }
 
             None => {
-                if this.buff.is_empty() {
+                if this.buf.is_empty() {
                     return Poll::Ready(None);
                 }
-                if this.buff.len() > this.limit {
+                if this.buf.len() > this.limit {
                     return Poll::Ready(Some(Err(ReadlinesError::LimitOverflow)));
                 }
                 let line = if this.encoding == UTF_8 {
-                    str::from_utf8(&this.buff)
+                    str::from_utf8(&this.buf)
                         .map_err(|_| ReadlinesError::EncodingError)?
                         .to_owned()
                 } else {
                     this.encoding
-                        .decode_without_bom_handling_and_without_replacement(&this.buff)
+                        .decode_without_bom_handling_and_without_replacement(&this.buf)
                         .map(Cow::into_owned)
                         .ok_or(ReadlinesError::EncodingError)?
                 };
-                this.buff.clear();
+                this.buf.clear();
                 Poll::Ready(Some(Ok(line)))
             }
 
