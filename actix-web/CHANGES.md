@@ -1,11 +1,16 @@
 # Changelog
 
 ## Unreleased - 2021-xx-xx
+### Added
 - Add `ServiceRequest::extract()` to make it easier to use extractors when writing middlewares. [#2647]
 - Add `Route::wrap()` to allow individual routes to use middleware. [#2725]
 
+### Fixed
+- Clear connection-level data on `HttpRequest` drop. [#2742]
+
 [#2647]: https://github.com/actix/actix-web/pull/2647
 [#2725]: https://github.com/actix/actix-web/pull/2725
+[#2742]: https://github.com/actix/actix-web/pull/2742
 
 
 ## 4.0.1 - 2022-02-25

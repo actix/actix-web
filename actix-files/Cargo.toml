@@ -40,8 +40,9 @@ percent-encoding = "2.1"
 pin-project-lite = "0.2.7"
 
 # experimental-io-uring
-tokio-uring = { version = "0.2", optional = true, features = ["bytes"] }
-actix-server = "2.1" # ensure matching tokio-uring versions
+[target.'cfg(target_os = "linux")'.dependencies]
+tokio-uring = { version = "0.3", optional = true, features = ["bytes"] }
+actix-server = { version = "2.1", optional = true } # ensure matching tokio-uring versions
 
 [dev-dependencies]
 actix-rt = "2.7"

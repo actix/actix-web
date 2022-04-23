@@ -381,11 +381,15 @@ impl Drop for HttpRequest {
                 inner.app_data.truncate(1);
 
                 // Inner is borrowed mut here and; get req data mutably to reduce borrow check. Also
-                // we know the req_data Rc will not have any cloned at this point to unwrap is okay.
+                // we know the req_data Rc will not have any clones at this point to unwrap is okay.
                 Rc::get_mut(&mut inner.extensions)
                     .unwrap()
                     .get_mut()
                     .clear();
+
+                // We can't use the same trick as req data because the conn_data is held by the
+                // dispatcher, too.
+                inner.conn_data = None;
 
                 // a re-borrow of pool is necessary here.
                 let req = Rc::clone(&self.inner);
@@ -761,10 +765,8 @@ mod tests {
         assert_eq!(body, Bytes::from_static(b"1"));
     }
 
-    // allow deprecated App::data
-    #[allow(deprecated)]
     #[actix_rt::test]
-    async fn test_extensions_dropped() {
+    async fn test_app_data_dropped() {
         struct Tracker {
             pub dropped: bool,
         }
@@ -780,7 +782,7 @@ mod tests {
         let tracker = Rc::new(RefCell::new(Tracker { dropped: false }));
         {
             let tracker2 = Rc::clone(&tracker);
-            let srv = init_service(App::new().data(10u32).service(web::resource("/").to(
+            let srv = init_service(App::new().service(web::resource("/").to(
                 move |req: HttpRequest| {
                     req.extensions_mut().insert(Foo {
                         tracker: Rc::clone(&tracker2),
