@@ -66,13 +66,29 @@ pub trait FromRequest: Sized {
     /// The associated error which can be returned.
     type Error: Into<Error>;
 
-    /// Future that resolves to a Self.
+    /// Future that resolves to a `Self`.
+    ///
+    /// To use an async function or block, the futures must be boxed. The following snippet will be
+    /// common when creating async/await extractors (that do not consume the body).
+    ///
+    /// ```ignore
+    /// type Future = Pin<Box<dyn Future<Output = Result<Self, Self::Error>>>>;
+    /// // or
+    /// type Future = futures_util::future::LocalBoxFuture<'static, Result<Self, Self::Error>>;
+    ///
+    /// fn from_request(req: HttpRequest, ...) -> Self::Future {
+    ///     let req = req.clone();
+    ///     Box::pin(async move {
+    ///         ...
+    ///     })
+    /// }
+    /// ```
     type Future: Future<Output = Result<Self, Self::Error>>;
 
-    /// Create a Self from request parts asynchronously.
+    /// Create a `Self` from request parts asynchronously.
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future;
 
-    /// Create a Self from request head asynchronously.
+    /// Create a `Self` from request head asynchronously.
     ///
     /// This method is short for `T::from_request(req, &mut Payload::None)`.
     fn extract(req: &HttpRequest) -> Self::Future {
