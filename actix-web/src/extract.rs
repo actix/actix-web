@@ -96,9 +96,9 @@ pub trait FromRequest: Sized {
     }
 }
 
-/// Optionally extract a field from the request
+/// Optionally extract from the request.
 ///
-/// If the FromRequest for T fails, return None rather than returning an error response
+/// If the inner `T::from_request` returns an error, handler will receive `None` instead.
 ///
 /// # Examples
 /// ```
@@ -183,9 +183,10 @@ where
     }
 }
 
-/// Optionally extract a field from the request or extract the Error if unsuccessful
+/// Extract from the request, passing error type through to handler.
 ///
-/// If the `FromRequest` for T fails, inject Err into handler rather than returning an error response
+/// If the inner `T::from_request` returns an error, allow handler to receive the error rather than
+/// immediately returning an error response.
 ///
 /// # Examples
 /// ```
