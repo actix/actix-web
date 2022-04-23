@@ -185,10 +185,17 @@ where
         F: FnOnce(&mut ServiceConfig),
     {
         let mut cfg = ServiceConfig::new();
+
         f(&mut cfg);
+
         self.services.extend(cfg.services);
         self.external.extend(cfg.external);
         self.extensions.extend(cfg.app_data);
+
+        if let Some(default) = cfg.default {
+            self.default = Some(default);
+        }
+
         self
     }
 
@@ -267,7 +274,6 @@ where
     {
         let svc = svc
             .into_factory()
-            .map(|res| res.map_into_boxed_body())
             .map_init_err(|e| log::error!("Can not construct default service: {:?}", e));
 
         self.default = Some(Rc::new(boxed::factory(svc)));

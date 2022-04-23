@@ -4,13 +4,16 @@
 ### Added
 - Add `ServiceRequest::extract()` to make it easier to use extractors when writing middlewares. [#2647]
 - Add `Route::wrap()` to allow individual routes to use middleware. [#2725]
+- Add `ServiceConfig::default_service()`. [#2338] [#2743]
 
 ### Fixed
 - Clear connection-level data on `HttpRequest` drop. [#2742]
 
+[#2338]: https://github.com/actix/actix-web/pull/2338
 [#2647]: https://github.com/actix/actix-web/pull/2647
 [#2725]: https://github.com/actix/actix-web/pull/2725
 [#2742]: https://github.com/actix/actix-web/pull/2742
+[#2743]: https://github.com/actix/actix-web/pull/2743
 
 
 ## 4.0.1 - 2022-02-25
@@ -726,7 +729,7 @@
 ### Removed
 - Public modules `middleware::{normalize, err_handlers}`. All necessary middleware types are now
   exposed directly by the `middleware` module.
-- Remove `actix-threadpool` as dependency. `actix_threadpool::BlockingError` error type can be imported 
+- Remove `actix-threadpool` as dependency. `actix_threadpool::BlockingError` error type can be imported
   from `actix_web::error` module. [#1878]
 
 [#1812]: https://github.com/actix/actix-web/pull/1812
@@ -828,7 +831,7 @@
 
 ## 3.0.0-beta.4 - 2020-09-09
 ### Added
-- `middleware::NormalizePath` now has configurable behavior for either always having a trailing 
+- `middleware::NormalizePath` now has configurable behavior for either always having a trailing
   slash, or as the new addition, always trimming trailing slashes. [#1639]
 
 ### Changed

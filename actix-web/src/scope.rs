@@ -198,6 +198,10 @@ where
             .get_or_insert_with(Extensions::new)
             .extend(cfg.app_data);
 
+        if let Some(default) = cfg.default {
+            self.default = Some(default);
+        }
+
         self
     }
 
