@@ -165,7 +165,7 @@ where
 
     /// Add default header.
     ///
-    /// Headers added by this method get added to every request unless overriden by .
+    /// Headers added by this method get added to every request unless overridden by .
     ///
     /// # Panics
     /// Panics if header name or value is invalid.
