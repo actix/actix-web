@@ -1,6 +1,9 @@
 # Changes
 
-## Unreleased - 2021-xx-xx
+## Unreleased - 2022-xx-xx
+- Added `#[actix_web::routes]` macro to support multiple routes on one handler
+
+[#2718]: https://github.com/actix/actix-web/pull/2718
 
 
 ## 4.0.0 - 2022-02-24

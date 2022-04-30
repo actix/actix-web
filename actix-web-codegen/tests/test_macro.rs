@@ -10,7 +10,9 @@ use actix_web::{
     },
     web, App, Error, HttpResponse, Responder,
 };
-use actix_web_codegen::{connect, delete, get, head, options, patch, post, put, route, trace};
+use actix_web_codegen::{
+    connect, delete, get, head, options, patch, post, put, route, routes, trace,
+};
 use futures_core::future::LocalBoxFuture;
 
 // Make sure that we can name function as 'config'
@@ -86,6 +88,14 @@ async fn get_param_test(_: web::Path<String>) -> impl Responder {
 
 #[route("/multi", method = "GET", method = "POST", method = "HEAD")]
 async fn route_test() -> impl Responder {
+    HttpResponse::Ok()
+}
+
+#[routes]
+#[get("/routes/test")]
+#[get("/routes/test2")]
+#[post("/routes/test")]
+async fn routes_test() -> impl Responder {
     HttpResponse::Ok()
 }
 
@@ -186,6 +196,7 @@ async fn test_body() {
             .service(patch_test)
             .service(test_handler)
             .service(route_test)
+            .service(routes_test)
             .service(custom_resource_name_test)
     });
     let request = srv.request(http::Method::GET, srv.url("/test"));
@@ -241,6 +252,18 @@ async fn test_body() {
     let request = srv.request(http::Method::PATCH, srv.url("/multi"));
     let response = request.send().await.unwrap();
     assert!(!response.status().is_success());
+
+    let request = srv.request(http::Method::GET, srv.url("/routes/test"));
+    let response = request.send().await.unwrap();
+    assert!(response.status().is_success());
+
+    let request = srv.request(http::Method::GET, srv.url("/routes/test2"));
+    let response = request.send().await.unwrap();
+    assert!(response.status().is_success());
+
+    let request = srv.request(http::Method::POST, srv.url("/routes/test"));
+    let response = request.send().await.unwrap();
+    assert!(response.status().is_success());
 
     let request = srv.request(http::Method::GET, srv.url("/custom_resource_name"));
     let response = request.send().await.unwrap();
