@@ -126,8 +126,8 @@ pub fn route(args: TokenStream, input: TokenStream) -> TokenStream {
 /// ```
 ///
 /// # Attributes
-/// The `routes` macro it self has no parameters, but allows specifying the attribute macros for
-/// the different methods, e.g. [`GET`](macro@get) or [`POST`](macro@post).
+/// The `routes` macro itself has no parameters, but allows specifying the attribute macros for
+/// the multiple paths and/or methods, e.g. [`GET`](macro@get) and [`POST`](macro@post).
 ///
 /// These helper attributes take the same parameters as the [single method handlers](crate#single-method-handler).
 ///
