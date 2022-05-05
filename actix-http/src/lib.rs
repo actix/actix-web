@@ -69,6 +69,8 @@ pub use self::payload::{BoxedPayloadStream, Payload, PayloadStream};
 pub use self::requests::{Request, RequestHead, RequestHeadType};
 pub use self::responses::{Response, ResponseBuilder, ResponseHead};
 pub use self::service::HttpService;
+#[cfg(any(feature = "openssl", feature = "rustls"))]
+pub use self::service::TlsAcceptorConfig;
 
 /// A major HTTP protocol version.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]

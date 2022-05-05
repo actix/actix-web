@@ -6,6 +6,7 @@
 - Add `Route::wrap()` to allow individual routes to use middleware. [#2725]
 - Add `ServiceConfig::default_service()`. [#2338] [#2743]
 - Implement `ResponseError` for `std::convert::Infallible`
+- Add `tls_handshake_timeout` server configuration option to configure TLS handshake timeout [#2752]
 
 ### Fixed
 - Clear connection-level data on `HttpRequest` drop. [#2742]

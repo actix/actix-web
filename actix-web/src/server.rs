@@ -18,6 +18,9 @@ use actix_tls::accept::openssl::reexports::{AlpnError, SslAcceptor, SslAcceptorB
 #[cfg(feature = "rustls")]
 use actix_tls::accept::rustls::reexports::ServerConfig as RustlsServerConfig;
 
+#[cfg(any(feature = "openssl", feature = "rustls"))]
+use actix_http::TlsAcceptorConfig;
+
 use crate::{config::AppConfig, Error};
 
 struct Socket {
@@ -30,6 +33,8 @@ struct Config {
     keep_alive: KeepAlive,
     client_request_timeout: Duration,
     client_disconnect_timeout: Duration,
+    #[cfg(any(feature = "openssl", feature = "rustls"))]
+    tls_handshake_timeout: Option<Duration>,
 }
 
 /// An HTTP Server.
@@ -92,6 +97,8 @@ where
                 keep_alive: KeepAlive::default(),
                 client_request_timeout: Duration::from_secs(5),
                 client_disconnect_timeout: Duration::from_secs(1),
+                #[cfg(any(feature = "rustls", feature = "openssl"))]
+                tls_handshake_timeout: None,
             })),
             backlog: 1024,
             sockets: Vec::new(),
@@ -222,6 +229,22 @@ where
     /// By default client timeout is set to 5000 milliseconds.
     pub fn client_disconnect_timeout(self, dur: Duration) -> Self {
         self.config.lock().unwrap().client_disconnect_timeout = dur;
+        self
+    }
+
+    #[cfg(any(feature = "openssl", feature = "rustls"))]
+    /// Set TLS handshake timeout.
+    ///
+    /// Defines a timeout for TLS handshake. If the TLS handshake does not complete
+    /// within this time, the connection is closed.
+    ///
+    /// By default handshake timeout is set to 3000 milliseconds.
+    pub fn tls_handshake_timeout(self, dur: Duration) -> Self {
+        self.config
+            .lock()
+            .unwrap()
+            .tls_handshake_timeout
+            .replace(dur);
         self
     }
 
@@ -379,7 +402,10 @@ where
                     svc.finish(map_config(fac, move |_| {
                         AppConfig::new(true, host.clone(), addr)
                     }))
-                    .openssl(acceptor.clone())
+                    .openssl_with_config(
+                        acceptor.clone(),
+                        TlsAcceptorConfig::new(c.tls_handshake_timeout),
+                    )
                 })?;
 
         Ok(self)
@@ -437,7 +463,10 @@ where
                     svc.finish(map_config(fac, move |_| {
                         AppConfig::new(true, host.clone(), addr)
                     }))
-                    .rustls(config.clone())
+                    .rustls_with_config(
+                        config.clone(),
+                        TlsAcceptorConfig::new(c.tls_handshake_timeout),
+                    )
                 })?;
 
         Ok(self)

@@ -2,13 +2,14 @@
 
 extern crate tls_openssl as openssl;
 
+use std::time::Duration;
 use std::{convert::Infallible, io};
 
 use actix_http::{
     body::{BodyStream, BoxBody, SizedStream},
     error::PayloadError,
     header::{self, HeaderValue},
-    Error, HttpService, Method, Request, Response, StatusCode, Version,
+    Error, HttpService, Method, Request, Response, StatusCode, TlsAcceptorConfig, Version,
 };
 use actix_http_test::test_server;
 use actix_service::{fn_service, ServiceFactoryExt};
@@ -89,7 +90,10 @@ async fn h2_1() -> io::Result<()> {
                 assert_eq!(req.version(), Version::HTTP_2);
                 ok::<_, Error>(Response::ok())
             })
-            .openssl(tls_config())
+            .openssl_with_config(
+                tls_config(),
+                TlsAcceptorConfig::new(Some(Duration::from_secs(5))),
+            )
             .map_err(|_| ())
     })
     .await;
