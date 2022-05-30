@@ -5,6 +5,7 @@
 - Add `ServiceRequest::extract()` to make it easier to use extractors when writing middlewares. [#2647]
 - Add `Route::wrap()` to allow individual routes to use middleware. [#2725]
 - Add `ServiceConfig::default_service()`. [#2338] [#2743]
+- Implement `ResponseError` for `std::convert::Infallible`
 
 ### Fixed
 - Clear connection-level data on `HttpRequest` drop. [#2742]
