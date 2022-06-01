@@ -96,6 +96,21 @@ async fn custom_resource_name_test<'a>(req: actix_web::HttpRequest) -> impl Resp
     HttpResponse::Ok()
 }
 
+mod guard_module {
+    use actix_web::{guard::GuardContext, http::header};
+
+    pub fn guard(ctx: &GuardContext) -> bool {
+        ctx.header::<header::Accept>()
+            .map(|h| h.preference() == "image/*")
+            .unwrap_or(false)
+    }
+}
+
+#[get("/test/guard", guard = "guard_module::guard")]
+async fn guard_test() -> impl Responder {
+    HttpResponse::Ok()
+}
+
 pub struct ChangeStatusCode;
 
 impl<S, B> Transform<S, ServiceRequest> for ChangeStatusCode
@@ -187,6 +202,7 @@ async fn test_body() {
             .service(test_handler)
             .service(route_test)
             .service(custom_resource_name_test)
+            .service(guard_test)
     });
     let request = srv.request(http::Method::GET, srv.url("/test"));
     let response = request.send().await.unwrap();
@@ -243,6 +259,12 @@ async fn test_body() {
     assert!(!response.status().is_success());
 
     let request = srv.request(http::Method::GET, srv.url("/custom_resource_name"));
+    let response = request.send().await.unwrap();
+    assert!(response.status().is_success());
+
+    let request = srv
+        .request(http::Method::GET, srv.url("/test/guard"))
+        .insert_header(("Accept", "image/*"));
     let response = request.send().await.unwrap();
     assert!(response.status().is_success());
 }

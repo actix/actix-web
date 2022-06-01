@@ -1,7 +1,8 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
-
+### Fixed
+- Allow a path as a guard in route handler macro, such as `get`, `post`, as the `actix-web` document says
 
 ## 4.0.0 - 2022-02-24
 - Version aligned with `actix-web` and will remain in sync going forward.
