@@ -706,6 +706,9 @@ where
                     debug!("handler dropped payload early; attempt to clean connection");
                     // ...in which case poll request payload a few times
                     loop {
+                        if this.read_buf.is_empty() {
+                            Self::read_available_projected(&mut this, cx)?;
+                        }
                         match this.codec.decode(this.read_buf)? {
                             Some(msg) => {
                                 match msg {
@@ -1010,8 +1013,22 @@ where
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Result<bool, DispatchError> {
-        let this = self.project();
+        let mut this = self.project();
+        Self::read_available_projected(&mut this, cx)
+    }
 
+    /// Returns true when I/O stream can be disconnected after write to it.
+    /// Meant to be called when there is already access to a projected
+    /// `InnerDispatcher` available.
+    ///
+    /// It covers these conditions:
+    /// - `std::io::ErrorKind::ConnectionReset` after partial read;
+    /// - all data read done.
+    #[inline(always)] // TODO: bench this inline
+    fn read_available_projected(
+        this: &mut InnerDispatcherProj<'_, T, S, B, X, U>,
+        cx: &mut Context<'_>,
+    ) -> Result<bool, DispatchError> {
         if this.flags.contains(Flags::READ_DISCONNECT) {
             return Ok(false);
         };
