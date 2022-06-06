@@ -7,6 +7,9 @@
 - Add `ServiceConfig::default_service()`. [#2338] [#2743]
 - Implement `ResponseError` for `std::convert::Infallible`
 
+### Changed
+- Minimum supported Rust version (MSRV) is now 1.56.
+
 ### Fixed
 - Clear connection-level data on `HttpRequest` drop. [#2742]
 
