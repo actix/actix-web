@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+- Fix support for guard paths in route handler macros. [#2771]
+
+[#2771] https://github.com/actix/actix-web/pull/2771
 
 
 ## 4.0.0 - 2022-02-24
