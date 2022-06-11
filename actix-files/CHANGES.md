@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 0.6.1 - 2022-06-11
 - Add `NamedFile::{modified, metadata, content_type, content_disposition, encoding}()` getters. [#2021]
 - Update `tokio-uring` dependency to `0.3`.
 - Audio files now use `Content-Disposition: inline` instead of `attachment`. [#2645]

@@ -1,12 +1,17 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+
+
+## 3.1.0 - 2022-06-11
 ### Changed
 - Minimum supported Rust version (MSRV) is now 1.56 due to transitive `hashbrown` dependency.
 
 ### Fixed
 - Revert broken fix in [#2624] that caused erroneous 500 error responses. Temporarily re-introduces [#2357] bug. [#2779]
 
+[#2357]: https://github.com/actix/actix-web/issues/2357
+[#2624]: https://github.com/actix/actix-web/issues/2624
 [#2779]: https://github.com/actix/actix-web/issues/2779
 
 
