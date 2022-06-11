@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased - 2021-xx-xx
+
+
+## 4.1.0 - 2022-06-11
 ### Added
 - Add `ServiceRequest::extract()` to make it easier to use extractors when writing middlewares. [#2647]
 - Add `Route::wrap()` to allow individual routes to use middleware. [#2725]
