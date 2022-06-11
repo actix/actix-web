@@ -100,7 +100,7 @@ zstd = { version = "0.11", optional = true }
 actix-http-test = { version = "3.0.0-beta.13", features = ["openssl"] }
 actix-server = "2"
 actix-tls = { version = "3", features = ["openssl"] }
-actix-web = "4"
+actix-web = { git = "https://github.com/actix/actix-web", rev = "43671ae4aaf2c20150fd1e5ca54055eb5d114273" }
 
 async-stream = "0.3"
 criterion = { version = "0.3", features = ["html_reports"] }
