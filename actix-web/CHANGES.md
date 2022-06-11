@@ -8,7 +8,7 @@
 - Implement `ResponseError` for `std::convert::Infallible`
 
 ### Changed
-- Minimum supported Rust version (MSRV) is now 1.56.
+- Minimum supported Rust version (MSRV) is now 1.56 due to transitive `hashbrown` dependency.
 
 ### Fixed
 - Clear connection-level data on `HttpRequest` drop. [#2742]
