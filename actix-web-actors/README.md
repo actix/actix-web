@@ -4,7 +4,7 @@
 
 [![crates.io](https://img.shields.io/crates/v/actix-web-actors?label=latest)](https://crates.io/crates/actix-web-actors)
 [![Documentation](https://docs.rs/actix-web-actors/badge.svg?version=4.1.0)](https://docs.rs/actix-web-actors/4.1.0)
-[![Version](https://img.shields.io/badge/rustc-1.54+-ab6000.svg)](https://blog.rust-lang.org/2021/05/06/Rust-1.54.0.html)
+![Version](https://img.shields.io/badge/rustc-1.56+-ab6000.svg)
 ![License](https://img.shields.io/crates/l/actix-web-actors.svg)
 <br />
 [![dependency status](https://deps.rs/crate/actix-web-actors/4.1.0/status.svg)](https://deps.rs/crate/actix-web-actors/4.1.0)

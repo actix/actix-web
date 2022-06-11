@@ -1,6 +1,8 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
+### Changed
+- Minimum supported Rust version (MSRV) is now 1.56 due to transitive `hashbrown` dependency.
 
 
 ## 3.0.4 - 2022-03-09

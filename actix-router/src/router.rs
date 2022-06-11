@@ -1,5 +1,3 @@
-use firestorm::profile_method;
-
 use crate::{IntoPatterns, Resource, ResourceDef};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -30,7 +28,6 @@ impl<T, U> Router<T, U> {
     where
         R: Resource,
     {
-        profile_method!(recognize);
         self.recognize_fn(resource, |_, _| true)
     }
 
@@ -39,7 +36,6 @@ impl<T, U> Router<T, U> {
     where
         R: Resource,
     {
-        profile_method!(recognize_mut);
         self.recognize_mut_fn(resource, |_, _| true)
     }
 
@@ -55,8 +51,6 @@ impl<T, U> Router<T, U> {
         R: Resource,
         F: FnMut(&R, &U) -> bool,
     {
-        profile_method!(recognize_checked);
-
         for (rdef, val, ctx) in self.routes.iter() {
             if rdef.capture_match_info_fn(resource, |res| check(res, ctx)) {
                 return Some((val, ResourceId(rdef.id())));
@@ -77,8 +71,6 @@ impl<T, U> Router<T, U> {
         R: Resource,
         F: FnMut(&R, &U) -> bool,
     {
-        profile_method!(recognize_mut_checked);
-
         for (rdef, val, ctx) in self.routes.iter_mut() {
             if rdef.capture_match_info_fn(resource, |res| check(res, ctx)) {
                 return Some((val, ResourceId(rdef.id())));
@@ -104,7 +96,6 @@ impl<T, U> RouterBuilder<T, U> {
         val: T,
         ctx: U,
     ) -> (&mut ResourceDef, &mut T, &mut U) {
-        profile_method!(push);
         self.routes.push((rdef, val, ctx));
         self.routes
             .last_mut()
@@ -131,7 +122,6 @@ where
         path: impl IntoPatterns,
         val: T,
     ) -> (&mut ResourceDef, &mut T, &mut U) {
-        profile_method!(path);
         self.push(ResourceDef::new(path), val, U::default())
     }
 
@@ -141,13 +131,11 @@ where
         prefix: impl IntoPatterns,
         val: T,
     ) -> (&mut ResourceDef, &mut T, &mut U) {
-        profile_method!(prefix);
         self.push(ResourceDef::prefix(prefix), val, U::default())
     }
 
     /// Registers resource for [`ResourceDef`].
     pub fn rdef(&mut self, rdef: ResourceDef, val: T) -> (&mut ResourceDef, &mut T, &mut U) {
-        profile_method!(rdef);
         self.push(rdef, val, U::default())
     }
 }
