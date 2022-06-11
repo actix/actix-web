@@ -22,7 +22,7 @@ use crate::{
     config::ServiceConfig,
     error::{DispatchError, ParseError, PayloadError},
     service::HttpFlow,
-    ConnectionType, Error, Extensions, OnConnectData, Request, Response, StatusCode,
+    Error, Extensions, OnConnectData, Request, Response, StatusCode,
 };
 
 use super::{
@@ -724,7 +724,7 @@ where
                                         this.state.set(State::None);
 
                                         // break out of payload decode loop
-                                        break;
+                                        return Ok(true);
                                     }
 
                                     // Either whole payload is read and loop is broken or more data
@@ -736,18 +736,18 @@ where
                                 }
                             }
 
-                            // not enough info to decide if connection is going to be clean or not
+                            // no bytes in the read buffer, but there are still bytes to be read
+                            // according to the content-length header. The client has stopped
+                            // sending data early. Reset the state, set disconnection flag,
+                            // and stop reading.
                             None => {
-                                error!(
-                                    "handler did not read whole payload and dispatcher could not \
-                                    drain read buf; return 500 and close connection"
-                                );
-
+                                debug!("client stopped sending data; disconnecting");
+                                // reset dispatcher state
                                 this.flags.insert(Flags::SHUTDOWN);
-                                let mut res = Response::internal_server_error().drop_body();
-                                res.head_mut().set_connection_type(ConnectionType::Close);
-                                this.messages.push_back(DispatcherMessage::Error(res));
-                                *this.error = Some(DispatchError::HandlerDroppedPayload);
+                                let _ = this.payload.take();
+                                this.state.set(State::None);
+
+                                // break out of payload decode loop
                                 return Ok(true);
                             }
                         }
@@ -1010,8 +1010,22 @@ where
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Result<bool, DispatchError> {
-        let this = self.project();
+        let mut this = self.project();
+        Self::read_available_projected(&mut this, cx)
+    }
 
+    /// Returns true when I/O stream can be disconnected after write to it.
+    /// Meant to be called when there is already access to a projected
+    /// `InnerDispatcher` available.
+    ///
+    /// It covers these conditions:
+    /// - `std::io::ErrorKind::ConnectionReset` after partial read;
+    /// - all data read done.
+    #[inline(always)] // TODO: bench this inline
+    fn read_available_projected(
+        this: &mut InnerDispatcherProj<'_, T, S, B, X, U>,
+        cx: &mut Context<'_>,
+    ) -> Result<bool, DispatchError> {
         if this.flags.contains(Flags::READ_DISCONNECT) {
             return Ok(false);
         };

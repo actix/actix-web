@@ -1,6 +1,8 @@
 # Changes
 
-## Unreleased - 2021-xx-xx
+## Unreleased - 2022-xx-xx
+### Fixed
+- Consume bytes from read buffer when `Payload` is dropped early. [#2764]
 
 
 ## 3.0.4 - 2022-03-09
