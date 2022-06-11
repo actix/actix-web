@@ -10,6 +10,8 @@
 ### Fixed
 - Revert broken fix in [#2624] that caused erroneous 500 error responses. Temporarily re-introduces [#2357] bug. [#2779]
 
+[#2357]: https://github.com/actix/actix-web/issues/2357
+[#2624]: https://github.com/actix/actix-web/issues/2624
 [#2779]: https://github.com/actix/actix-web/issues/2779
 
 
