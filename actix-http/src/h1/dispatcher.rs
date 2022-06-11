@@ -706,9 +706,6 @@ where
                     debug!("handler dropped payload early; attempt to clean connection");
                     // ...in which case poll request payload a few times
                     loop {
-                        if this.read_buf.is_empty() {
-                            Self::read_available_projected(&mut this, cx)?;
-                        }
                         match this.codec.decode(this.read_buf)? {
                             Some(msg) => {
                                 match msg {
