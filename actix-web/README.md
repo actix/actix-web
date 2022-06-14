@@ -79,6 +79,7 @@ async fn main() -> std::io::Result<()> {
 - [Application State](https://github.com/actix/examples/tree/master/basics/state)
 - [JSON Handling](https://github.com/actix/examples/tree/master/json/json)
 - [Multipart Streams](https://github.com/actix/examples/tree/master/forms/multipart)
+- [MongoDB Integration](https://github.com/actix/examples/tree/master/databases/mongodb)
 - [Diesel Integration](https://github.com/actix/examples/tree/master/databases/diesel)
 - [SQLite Integration](https://github.com/actix/examples/tree/master/databases/sqlite)
 - [Postgres Integration](https://github.com/actix/examples/tree/master/databases/postgres)
