@@ -1,7 +1,8 @@
 # Changelog
 
 ## Unreleased - 2021-xx-xx
-
+### Added
+- Add `ErrorHandlers::default_handler` (as well as `default_handler_{server, client}`) to make registering handlers with the `ErrorHandlers` middleware easier.
 
 ## 4.1.0 - 2022-06-11
 ### Added
