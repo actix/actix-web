@@ -2,7 +2,7 @@
 
 ## Unreleased - 2021-xx-xx
 ### Added
-- Add `ErrorHandlers::default_handler` (as well as `default_handler_{server, client}`) to make registering handlers with the `ErrorHandlers` middleware easier.
+- Add `ErrorHandlers::default_handler` (as well as `default_handler_{server, client}`) to make registering handlers with the `ErrorHandlers` middleware easier. [#2784]
 
 ## 4.1.0 - 2022-06-11
 ### Added
@@ -22,7 +22,7 @@
 [#2725]: https://github.com/actix/actix-web/pull/2725
 [#2742]: https://github.com/actix/actix-web/pull/2742
 [#2743]: https://github.com/actix/actix-web/pull/2743
-
+[#2784]: https://github.com/actix/actix-web/pull/2784
 
 ## 4.0.1 - 2022-02-25
 ### Fixed
