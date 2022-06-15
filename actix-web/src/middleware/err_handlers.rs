@@ -55,6 +55,35 @@ type DefaultHandler<B> = Option<Rc<ErrorHandler<B>>>;
 ///     .wrap(ErrorHandlers::new().handler(StatusCode::INTERNAL_SERVER_ERROR, add_error_header))
 ///     .service(web::resource("/").route(web::get().to(HttpResponse::InternalServerError)));
 /// ```
+/// ## Registering default handler
+/// ```
+/// # use actix_web::http::{header, StatusCode};
+/// # use actix_web::middleware::{ErrorHandlerResponse, ErrorHandlers};
+/// # use actix_web::{dev, web, App, HttpResponse, Result};
+/// fn add_error_header<B>(mut res: dev::ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
+///     res.response_mut().headers_mut().insert(
+///         header::CONTENT_TYPE,
+///         header::HeaderValue::from_static("Error"),
+///     );
+///     Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
+/// }
+///
+/// fn handle_bad_request<B>(mut res: dev::ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
+///     res.response_mut().headers_mut().insert(
+///         header::CONTENT_TYPE,
+///         header::HeaderValue::from_static("Bad Request Error"),
+///     );
+///     Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
+/// }
+///
+/// let app = App::new()
+///     .wrap(
+///         ErrorHandlers::new()
+///             .default_handler(add_error_header)
+///             .handler(StatusCode::BAD_REQUEST, handle_bad_request)
+///     )
+///     .service(web::resource("/").route(web::get().to(HttpResponse::InternalServerError)));
+/// ```
 pub struct ErrorHandlers<B> {
     default_client: DefaultHandler<B>,
     default_server: DefaultHandler<B>,
@@ -90,6 +119,11 @@ impl<B> ErrorHandlers<B> {
         self
     }
 
+
+    /// Register a default error handler.
+    ///
+    /// Any request with a status code that hasn't been given a specific other handler (by calling
+    /// [`.handler()`][ErrorHandlers::handler]) will fall back on this.
     pub fn default_handler<F>(self, handler: F) -> Self
     where
         F: Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> + 'static,
@@ -102,13 +136,7 @@ impl<B> ErrorHandlers<B> {
         }
     }
 
-    pub fn default_handler_server<F>(self, handler: F) -> Self
-    where
-        F: Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> + 'static,
-    {
-        Self { default_server: Some(Rc::new(handler)), ..self }
-    }
-
+    /// Register a handler on which to fall back for client error status codes (400-499).
     pub fn default_handler_client<F>(self, handler: F) -> Self
     where
         F: Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> + 'static,
@@ -116,6 +144,19 @@ impl<B> ErrorHandlers<B> {
         Self { default_client: Some(Rc::new(handler)), ..self }
     }
 
+    /// Register a handler on which to fall back for server error status codes (500-599).
+    pub fn default_handler_server<F>(self, handler: F) -> Self
+    where
+        F: Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> + 'static,
+    {
+        Self { default_server: Some(Rc::new(handler)), ..self }
+    }
+
+
+    /// Selects the most appropriate handler for the given status code.
+    ///
+    /// If the `handlers` map has an entry for that status code, that handler is returned.
+    /// Otherwise, fall back on the appropriate default handler.
     fn get_handler<'a>(
         status: &StatusCode,
         default_client: Option<&'a dyn Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>>>,
