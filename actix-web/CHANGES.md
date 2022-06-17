@@ -1,7 +1,7 @@
 # Changelog
 
 ## Unreleased - 2021-xx-xx
-
+- Add `ServiceRequest::{parts, request}()` to make it easier to use middlewares that only have access to a `&ServiceRequest`.
 
 ## 4.1.0 - 2022-06-11
 ### Added
