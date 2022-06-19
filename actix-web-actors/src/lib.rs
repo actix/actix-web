@@ -1,19 +1,19 @@
 //! Actix actors support for Actix Web.
-//! 
+//!
 //! # Examples
-//! 
+//!
 //! ```no_run
 //! use actix::{Actor, StreamHandler};
 //! use actix_web::{get, web, App, Error, HttpRequest, HttpResponse, HttpServer};
 //! use actix_web_actors::ws;
-//! 
+//!
 //! /// Define Websocket actor
 //! struct MyWs;
-//! 
+//!
 //! impl Actor for MyWs {
 //!     type Context = ws::WebsocketContext<Self>;
 //! }
-//! 
+//!
 //! /// Handler for ws::Message message
 //! impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MyWs {
 //!     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
@@ -25,12 +25,12 @@
 //!         }
 //!     }
 //! }
-//! 
+//!
 //! #[get("/ws")]
 //! async fn index(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
 //!     ws::start(MyWs, &req, stream)
 //! }
-//! 
+//!
 //! #[actix_web::main]
 //! async fn main() -> std::io::Result<()> {
 //!     HttpServer::new(|| App::new().service(index))
@@ -39,7 +39,7 @@
 //!         .await
 //! }
 //! ```
-//! 
+//!
 //! # Documentation & Community Resources
 //! In addition to this API documentation, several other resources are available:
 //!
@@ -53,7 +53,7 @@
 //! * [`ws`]: This module provides actor support for WebSockets.
 //!
 //! * [`HttpContext`]: This struct provides actor support for streaming HTTP responses.
-//! 
+//!
 
 #![deny(rust_2018_idioms, nonstandard_style)]
 #![warn(future_incompatible)]

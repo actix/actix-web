@@ -14,31 +14,31 @@ use futures_core::Stream;
 use tokio::sync::oneshot::Sender;
 
 /// Execution context for HTTP actors
-/// 
+///
 /// # Example
-/// 
+///
 /// A demonstration of [server-sent events](https://developer.mozilla.org/docs/Web/API/Server-sent_events) using actors:
-/// 
+///
 /// ```no_run
 /// use std::time::Duration;
-/// 
+///
 /// use actix::{Actor, AsyncContext};
 /// use actix_web::{get, http::header, App, HttpResponse, HttpServer};
 /// use actix_web_actors::HttpContext;
 /// use bytes::Bytes;
-/// 
+///
 /// struct MyActor {
 ///     count: usize,
 /// }
-/// 
+///
 /// impl Actor for MyActor {
 ///     type Context = HttpContext<Self>;
-/// 
+///
 ///     fn started(&mut self, ctx: &mut Self::Context) {
 ///         ctx.run_later(Duration::from_millis(100), Self::write);
 ///     }
 /// }
-/// 
+///
 /// impl MyActor {
 ///     fn write(&mut self, ctx: &mut HttpContext<Self>) {
 ///         self.count += 1;
@@ -50,14 +50,14 @@ use tokio::sync::oneshot::Sender;
 ///         }
 ///     }
 /// }
-/// 
+///
 /// #[get("/")]
 /// async fn index() -> HttpResponse {
 ///     HttpResponse::Ok()
 ///         .insert_header(header::ContentType(mime::TEXT_EVENT_STREAM))
 ///         .streaming(HttpContext::create(MyActor { count: 0 }))
 /// }
-/// 
+///
 /// #[actix_web::main]
 /// async fn main() -> std::io::Result<()> {
 ///     HttpServer::new(|| App::new().service(index))

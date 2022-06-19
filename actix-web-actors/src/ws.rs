@@ -1,19 +1,19 @@
 //! Websocket integration.
-//! 
+//!
 //! # Examples
-//! 
+//!
 //! ```no_run
 //! use actix::{Actor, StreamHandler};
 //! use actix_web::{get, web, App, Error, HttpRequest, HttpResponse, HttpServer};
 //! use actix_web_actors::ws;
-//! 
+//!
 //! /// Define Websocket actor
 //! struct MyWs;
-//! 
+//!
 //! impl Actor for MyWs {
 //!     type Context = ws::WebsocketContext<Self>;
 //! }
-//! 
+//!
 //! /// Handler for ws::Message message
 //! impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MyWs {
 //!     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
@@ -25,14 +25,14 @@
 //!         }
 //!     }
 //! }
-//! 
+//!
 //! #[get("/ws")]
 //! async fn websocket(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
 //!     ws::start(MyWs, &req, stream)
 //! }
-//! 
+//!
 //! const MAX_FRAME_SIZE: usize = 16_384; // 16KiB
-//! 
+//!
 //! #[get("/custom-ws")]
 //! async fn custom_websocket(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
 //!     // Create a Websocket session with a specific max frame size, and protocols.
@@ -41,7 +41,7 @@
 //!         .protocols(&["A", "B"])
 //!         .start()
 //! }
-//! 
+//!
 //! #[actix_web::main]
 //! async fn main() -> std::io::Result<()> {
 //!     HttpServer::new(|| {
@@ -54,7 +54,7 @@
 //!         .await
 //! }
 //! ```
-//! 
+//!
 
 use std::{
     collections::VecDeque,
@@ -101,25 +101,25 @@ use tokio::sync::oneshot;
 /// # use actix::{Actor, StreamHandler};
 /// # use actix_web::{get, web, App, Error, HttpRequest, HttpResponse, HttpServer};
 /// # use actix_web_actors::ws;
-/// # 
+/// #
 /// # struct MyWs;
-/// # 
+/// #
 /// # impl Actor for MyWs {
 /// #     type Context = ws::WebsocketContext<Self>;
 /// # }
-/// # 
+/// #
 /// # /// Handler for ws::Message message
 /// # impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MyWs {
 /// #     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {}
 /// # }
-/// # 
+/// #
 /// #[get("/ws")]
 /// async fn websocket(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
 ///     ws::WsResponseBuilder::new(MyWs, &req, stream).start()
 /// }
-/// 
+///
 /// const MAX_FRAME_SIZE: usize = 16_384; // 16KiB
-/// 
+///
 /// #[get("/custom-ws")]
 /// async fn custom_websocket(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
 ///     // Create a Websocket session with a specific max frame size, codec, and protocols.
@@ -130,7 +130,7 @@ use tokio::sync::oneshot;
 ///         .protocols(&["A", "B"])
 ///         .start()
 /// }
-/// # 
+/// #
 /// # #[actix_web::main]
 /// # async fn main() -> std::io::Result<()> {
 /// #     HttpServer::new(|| {
