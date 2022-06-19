@@ -97,20 +97,51 @@ use tokio::sync::oneshot;
 ///
 /// # Examples
 ///
-/// Create a Websocket session response with default configuration.
-/// ```ignore
-/// WsResponseBuilder::new(WsActor, &req, stream).start()
-/// ```
-///
-/// Create a Websocket session with a specific max frame size, [`Codec`], and protocols.
-/// ```ignore
+/// ```no_run
+/// # use actix::{Actor, StreamHandler};
+/// # use actix_web::{get, web, App, Error, HttpRequest, HttpResponse, HttpServer};
+/// # use actix_web_actors::ws;
+/// # 
+/// # struct MyWs;
+/// # 
+/// # impl Actor for MyWs {
+/// #     type Context = ws::WebsocketContext<Self>;
+/// # }
+/// # 
+/// # /// Handler for ws::Message message
+/// # impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MyWs {
+/// #     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {}
+/// # }
+/// # 
+/// #[get("/ws")]
+/// async fn websocket(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
+///     ws::WsResponseBuilder::new(MyWs, &req, stream).start()
+/// }
+/// 
 /// const MAX_FRAME_SIZE: usize = 16_384; // 16KiB
-///
-/// ws::WsResponseBuilder::new(WsActor, &req, stream)
-///     .codec(Codec::new())
-///     .protocols(&["A", "B"])
-///     .frame_size(MAX_FRAME_SIZE)
-///     .start()
+/// 
+/// #[get("/custom-ws")]
+/// async fn custom_websocket(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
+///     // Create a Websocket session with a specific max frame size, codec, and protocols.
+///     ws::WsResponseBuilder::new(MyWs, &req, stream)
+///         .codec(actix_http::ws::Codec::new())
+///         // This will overwrite the codec's max frame-size
+///         .frame_size(MAX_FRAME_SIZE)
+///         .protocols(&["A", "B"])
+///         .start()
+/// }
+/// # 
+/// # #[actix_web::main]
+/// # async fn main() -> std::io::Result<()> {
+/// #     HttpServer::new(|| {
+/// #             App::new()
+/// #                 .service(websocket)
+/// #                 .service(custom_websocket)
+/// #         })
+/// #         .bind(("127.0.0.1", 8080))?
+/// #         .run()
+/// #         .await
+/// # }
 /// ```
 pub struct WsResponseBuilder<'a, A, T>
 where
