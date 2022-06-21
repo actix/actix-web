@@ -1,7 +1,10 @@
 # Changelog
 
 ## Unreleased - 2021-xx-xx
-- Add `ServiceRequest::{parts, request}()` to make it easier to use middlewares that only have access to a `&ServiceRequest`.
+### Added
+- Add `ServiceRequest::{parts, request}()` getter methods. [#2786]
+
+[#2786]: https://github.com/actix/actix-web/pull/2786
 
 ## 4.1.0 - 2022-06-11
 ### Added
