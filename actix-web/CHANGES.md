@@ -1,6 +1,7 @@
 # Changelog
 
-## Unreleased - 2021-xx-xx
+## Unreleased - 2022-xx-xx
+- Minimum supported Rust version (MSRV) is now 1.57 due to transitive `time` dependency.
 ### Added
 - Add `ServiceRequest::{parts, request}()` getter methods. [#2786]
 
