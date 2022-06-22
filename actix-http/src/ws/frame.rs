@@ -17,7 +17,6 @@ impl Parser {
     fn parse_metadata(
         src: &[u8],
         server: bool,
-        max_size: usize,
     ) -> Result<Option<(usize, bool, OpCode, usize, Option<[u8; 4]>)>, ProtocolError> {
         let chunk_len = src.len();
 
@@ -60,19 +59,11 @@ impl Parser {
                 return Ok(None);
             }
             let len = u64::from_be_bytes(TryFrom::try_from(&src[idx..idx + 8]).unwrap());
-            if len > max_size as u64 {
-                return Err(ProtocolError::Overflow);
-            }
             idx += 8;
             len as usize
         } else {
             len as usize
         };
-
-        // check for max allowed size
-        if length > max_size {
-            return Err(ProtocolError::Overflow);
-        }
 
         let mask = if server {
             if chunk_len < idx + 4 {
@@ -98,11 +89,10 @@ impl Parser {
         max_size: usize,
     ) -> Result<Option<(bool, OpCode, Option<BytesMut>)>, ProtocolError> {
         // try to parse ws frame metadata
-        let (idx, finished, opcode, length, mask) =
-            match Parser::parse_metadata(src, server, max_size)? {
-                None => return Ok(None),
-                Some(res) => res,
-            };
+        let (idx, finished, opcode, length, mask) = match Parser::parse_metadata(src, server)? {
+            None => return Ok(None),
+            Some(res) => res,
+        };
 
         // not enough data
         if src.len() < idx + length {
@@ -111,6 +101,12 @@ impl Parser {
 
         // remove prefix
         src.advance(idx);
+
+        // check for max allowed size
+        if length > max_size {
+            src.advance(length);
+            return Err(ProtocolError::Overflow);
+        }
 
         // no need for body
         if length == 0 {
@@ -337,6 +333,25 @@ mod tests {
         } else {
             unreachable!("error");
         }
+    }
+
+    #[test]
+    fn test_parse_frame_max_size_recoverability() {
+        let mut buf =
+            BytesMut::from(&[0b0000_0001u8, 0b0000_0010u8, 0b0000_0000u8, 0b0000_0000u8][..]);
+        buf.extend(&[0b0000_0010u8, 0b0000_0010u8, 0xffu8, 0xffu8]);
+
+        assert_eq!(buf.len(), 8);
+        if let Err(ProtocolError::Overflow) = Parser::parse(&mut buf, false, 1) {
+        } else {
+            unreachable!("error");
+        }
+        assert_eq!(buf.len(), 4);
+        let frame = extract(Parser::parse(&mut buf, false, 2));
+        assert!(!frame.finished);
+        assert_eq!(frame.opcode, OpCode::Binary);
+        assert_eq!(frame.payload, Bytes::from(vec![0xffu8, 0xffu8]));
+        assert_eq!(buf.len(), 0);
     }
 
     #[test]

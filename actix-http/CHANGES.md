@@ -1,7 +1,8 @@
 # Changes
 
 ## Unreleased - 2021-xx-xx
-
+### Fixed
+- Websocket parser throw endless Overflow after received oversized frame.
 
 ## 3.1.0 - 2022-06-11
 ### Changed
