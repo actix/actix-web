@@ -6,6 +6,7 @@
 
 [#2788]: https://github.com/actix/actix-web/pull/2788
 
+
 ## 4.1.0 - 2022-03-02
 - Add support for `actix` version `0.13`. [#2675]
 
