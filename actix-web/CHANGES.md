@@ -1,10 +1,17 @@
 # Changelog
 
-## Unreleased - 2021-xx-xx
+## Unreleased - 2022-xx-xx
 ### Added
 - Add `ErrorHandlers::default_handler` (as well as `default_handler_{server, client}`) to make registering handlers with the `ErrorHandlers` middleware easier. [#2784]
 
+### Changed
+- Minimum supported Rust version (MSRV) is now 1.57 due to transitive `time` dependency.
+### Added
+- Add `ServiceRequest::{parts, request}()` getter methods. [#2786]
+
 [#2784]: https://github.com/actix/actix-web/pull/2784
+[#2786]: https://github.com/actix/actix-web/pull/2786
+
 
 ## 4.1.0 - 2022-06-11
 ### Added
@@ -24,6 +31,7 @@
 [#2725]: https://github.com/actix/actix-web/pull/2725
 [#2742]: https://github.com/actix/actix-web/pull/2742
 [#2743]: https://github.com/actix/actix-web/pull/2743
+
 
 ## 4.0.1 - 2022-02-25
 ### Fixed
