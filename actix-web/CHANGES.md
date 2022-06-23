@@ -1,11 +1,14 @@
 # Changelog
 
 ## Unreleased - 2022-xx-xx
-- Minimum supported Rust version (MSRV) is now 1.57 due to transitive `time` dependency.
 ### Added
 - Add `ErrorHandlers::default_handler` (as well as `default_handler_{server, client}`) to make registering handlers with the `ErrorHandlers` middleware easier. [#2784]
 
+### Changed
+- Minimum supported Rust version (MSRV) is now 1.57 due to transitive `time` dependency.
+
 [#2784]: https://github.com/actix/actix-web/pull/2784
+
 
 ## 4.1.0 - 2022-06-11
 ### Added
