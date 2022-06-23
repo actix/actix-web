@@ -212,14 +212,10 @@ impl<B> ErrorHandlers<B> {
     /// Otherwise, fall back on the appropriate default handler.
     fn get_handler<'a>(
         status: &StatusCode,
-        default_client: Option<
-            &'a dyn Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>>,
-        >,
-        default_server: Option<
-            &'a dyn Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>>,
-        >,
+        default_client: Option<&'a ErrorHandler<B>>,
+        default_server: Option<&'a ErrorHandler<B>>,
         handlers: &'a Handlers<B>,
-    ) -> Option<&'a dyn Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>>> {
+    ) -> Option<&'a ErrorHandler<B>> {
         handlers
             .get(status)
             .map(|h| h.as_ref())
