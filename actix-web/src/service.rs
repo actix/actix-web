@@ -95,6 +95,18 @@ impl ServiceRequest {
         (&mut self.req, &mut self.payload)
     }
 
+    /// Returns immutable accessors to inner parts.
+    #[inline]
+    pub fn parts(&self) -> (&HttpRequest, &Payload) {
+        (&self.req, &self.payload)
+    }
+
+    /// Returns immutable accessor to inner [`HttpRequest`].
+    #[inline]
+    pub fn request(&self) -> &HttpRequest {
+        &self.req
+    }
+
     /// Derives a type from this request using an [extractor](crate::FromRequest).
     ///
     /// Returns the `T` extractor's `Future` type which can be `await`ed. This is particularly handy
