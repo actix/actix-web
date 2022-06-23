@@ -34,8 +34,20 @@ type DefaultHandler<B> = Option<Rc<ErrorHandler<B>>>;
 
 /// Middleware for registering custom status code based error handlers.
 ///
-/// Register handlers with the `ErrorHandlers::handler()` method to register a custom error handler
+/// Register handlers with the [`ErrorHandlers::handler()`] method to register a custom error handler
 /// for a given status code. Handlers can modify existing responses or create completely new ones.
+///
+/// To register a default handler, use the [`ErrorHandlers::default_handler()`] method. This
+/// handler will be used only if a response has an error status code (400-599) that isn't covered by
+/// a more specific handler (set with the [`handler()`][ErrorHandlers::handler] method). See examples
+/// below.
+///
+/// To register a default for only client errors (400-499) or only server errors (500-599), use the
+/// [`ErrorHandlers::default_handler_client()`] and [`ErrorHandlers::default_handler_server()`]
+/// methods, respectively.
+///
+/// Any response with a status code that isn't covered by a specific handler or a default handler
+/// will pass by unchanged by this middleware.
 ///
 /// # Examples
 /// ```
@@ -76,10 +88,42 @@ type DefaultHandler<B> = Option<Rc<ErrorHandler<B>>>;
 ///     Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
 /// }
 ///
+/// // Bad Request errors will hit `handle_bad_request()`, while all other errors will hit
+/// // `add_error_header()`. The order in which the methods are called is not meaningful.
 /// let app = App::new()
 ///     .wrap(
 ///         ErrorHandlers::new()
 ///             .default_handler(add_error_header)
+///             .handler(StatusCode::BAD_REQUEST, handle_bad_request)
+///     )
+///     .service(web::resource("/").route(web::get().to(HttpResponse::InternalServerError)));
+/// ```
+/// Alternatively, you can set default handlers for only client or only server errors:
+///
+/// ```rust
+/// # use actix_web::http::{header, StatusCode};
+/// # use actix_web::middleware::{ErrorHandlerResponse, ErrorHandlers};
+/// # use actix_web::{dev, web, App, HttpResponse, Result};
+/// # fn add_error_header<B>(mut res: dev::ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
+/// #     res.response_mut().headers_mut().insert(
+/// #         header::CONTENT_TYPE,
+/// #         header::HeaderValue::from_static("Error"),
+/// #     );
+/// #     Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
+/// # }
+/// # fn handle_bad_request<B>(mut res: dev::ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
+/// #     res.response_mut().headers_mut().insert(
+/// #         header::CONTENT_TYPE,
+/// #         header::HeaderValue::from_static("Bad Request Error"),
+/// #     );
+/// #     Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
+/// # }
+/// // Bad request errors will hit `handle_bad_request()`, other client errors will hit
+/// // `add_error_header()`, and server errors will pass through unchanged
+/// let app = App::new()
+///     .wrap(
+///         ErrorHandlers::new()
+///             .default_handler_client(add_error_header) // or .default_handler_server
 ///             .handler(StatusCode::BAD_REQUEST, handle_bad_request)
 ///     )
 ///     .service(web::resource("/").route(web::get().to(HttpResponse::InternalServerError)));
@@ -123,6 +167,11 @@ impl<B> ErrorHandlers<B> {
     ///
     /// Any request with a status code that hasn't been given a specific other handler (by calling
     /// [`.handler()`][ErrorHandlers::handler]) will fall back on this.
+    ///
+    /// Note that this will overwrite any default handlers previously set by calling
+    /// [`.default_handler_client()`][ErrorHandlers::default_handler_client] or
+    /// [`.default_handler_server()`][ErrorHandlers::default_handler_server], but not any set by
+    /// calling [`.handler()`][ErrorHandlers::handler].
     pub fn default_handler<F>(self, handler: F) -> Self
     where
         F: Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> + 'static,
