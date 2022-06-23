@@ -2,7 +2,10 @@
 
 ## Unreleased - 2021-xx-xx
 ### Fixed
-- Websocket parser throw endless Overflow after received oversized frame.
+- Websocket parser no longer throws endless overflow errors after receiving an oversized frame. [#2790]
+
+[#2790]: https://github.com/actix/actix-web/pull/2790
+
 
 ## 3.1.0 - 2022-06-11
 ### Changed
