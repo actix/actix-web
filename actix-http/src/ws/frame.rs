@@ -104,6 +104,7 @@ impl Parser {
 
         // check for max allowed size
         if length > max_size {
+            // drop the payload
             src.advance(length);
             return Err(ProtocolError::Overflow);
         }
@@ -337,20 +338,25 @@ mod tests {
 
     #[test]
     fn test_parse_frame_max_size_recoverability() {
-        let mut buf =
-            BytesMut::from(&[0b0000_0001u8, 0b0000_0010u8, 0b0000_0000u8, 0b0000_0000u8][..]);
-        buf.extend(&[0b0000_0010u8, 0b0000_0010u8, 0xffu8, 0xffu8]);
+        let mut buf = BytesMut::new();
+        // The first text frame with length == 2, payload doesn't matter.
+        buf.extend(&[0b0000_0001u8, 0b0000_0010u8, 0b0000_0000u8, 0b0000_0000u8]);
+        // Next binary frame with length == 2 and payload == `[0x1111_1111u8, 0x1111_1111u8]`.
+        buf.extend(&[0b0000_0010u8, 0b0000_0010u8, 0b1111_1111u8, 0b1111_1111u8]);
 
         assert_eq!(buf.len(), 8);
-        if let Err(ProtocolError::Overflow) = Parser::parse(&mut buf, false, 1) {
-        } else {
-            unreachable!("error");
-        }
+        assert!(matches!(
+            Parser::parse(&mut buf, false, 1),
+            Err(ProtocolError::Overflow)
+        ));
         assert_eq!(buf.len(), 4);
         let frame = extract(Parser::parse(&mut buf, false, 2));
         assert!(!frame.finished);
         assert_eq!(frame.opcode, OpCode::Binary);
-        assert_eq!(frame.payload, Bytes::from(vec![0xffu8, 0xffu8]));
+        assert_eq!(
+            frame.payload,
+            Bytes::from(vec![0b1111_1111u8, 0b1111_1111u8])
+        );
         assert_eq!(buf.len(), 0);
     }
 
