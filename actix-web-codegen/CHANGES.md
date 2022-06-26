@@ -1,9 +1,17 @@
 # Changes
 
 ## Unreleased - 2022-xx-xx
-- Added `#[actix_web::routes]` macro to support multiple routes on one handler
+- Added `#[routes]` macro to support multiple paths for one handler. [#2718]
+- Minimum supported Rust version (MSRV) is now 1.57 due to transitive `time` dependency.
 
 [#2718]: https://github.com/actix/actix-web/pull/2718
+
+
+## 4.0.1 - 2022-06-11
+- Fix support for guard paths in route handler macros. [#2771]
+- Minimum supported Rust version (MSRV) is now 1.56 due to transitive `hashbrown` dependency.
+
+[#2771]: https://github.com/actix/actix-web/pull/2771
 
 
 ## 4.0.0 - 2022-02-24

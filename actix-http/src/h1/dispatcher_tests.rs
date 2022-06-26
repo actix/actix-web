@@ -783,6 +783,9 @@ async fn upgrade_handling() {
     .await;
 }
 
+// fix in #2624 reverted temporarily
+// complete fix tracked in #2745
+#[ignore]
 #[actix_rt::test]
 async fn handler_drop_payload() {
     let _ = env_logger::try_init();
