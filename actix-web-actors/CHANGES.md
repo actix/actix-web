@@ -2,9 +2,6 @@
 
 ## Unreleased - 2022-xx-xx
 - Minimum supported Rust version (MSRV) is now 1.57 due to transitive `time` dependency.
-- Improve crate documentation. [#2788]
-
-[#2788]: https://github.com/actix/actix-web/pull/2788
 
 
 ## 4.1.0 - 2022-03-02
