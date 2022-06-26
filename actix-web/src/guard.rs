@@ -254,7 +254,7 @@ impl Guard for AllGuard {
     }
 }
 
-/// Wraps a guard and inverts the outcome of it's `Guard` implementation.
+/// Wraps a guard and inverts the outcome of its `Guard` implementation.
 ///
 /// # Examples
 /// The handler below will be called for any request method apart from `GET`.
@@ -459,7 +459,7 @@ impl Guard for HostGuard {
                 return scheme == req_host_uri_scheme;
             }
 
-            // TODO: is the the correct behavior?
+            // TODO: is this the correct behavior?
             // falls through if scheme cannot be determined
         }
 

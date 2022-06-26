@@ -2,7 +2,10 @@
 
 ## Unreleased - 2022-xx-xx
 - Minimum supported Rust version (MSRV) is now 1.57 due to transitive `time` dependency.
+### Added
+- Add `ServiceRequest::{parts, request}()` getter methods. [#2786]
 
+[#2786]: https://github.com/actix/actix-web/pull/2786
 
 ## 4.1.0 - 2022-06-11
 ### Added

@@ -257,7 +257,7 @@ impl ServiceFactory<ServiceRequest> for AppRoutingFactory {
     type Future = LocalBoxFuture<'static, Result<Self::Service, Self::InitError>>;
 
     fn new_service(&self, _: ()) -> Self::Future {
-        // construct all services factory future with it's resource def and guards.
+        // construct all services factory future with its resource def and guards.
         let factory_fut = join_all(self.services.iter().map(|(path, factory, guards)| {
             let path = path.clone();
             let guards = guards.borrow_mut().take().unwrap_or_default();
