@@ -481,6 +481,7 @@ mod tests {
         assert_poll_next_none!(pl);
     }
 
+    #[allow(clippy::let_unit_value)]
     #[actix_rt::test]
     async fn test_unit() {
         let pl = ();

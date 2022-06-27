@@ -113,7 +113,7 @@ pub struct BytesExtractFut {
     body_fut: HttpMessageBody,
 }
 
-impl<'a> Future for BytesExtractFut {
+impl Future for BytesExtractFut {
     type Output = Result<Bytes, Error>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -167,7 +167,7 @@ pub struct StringExtractFut {
     encoding: &'static Encoding,
 }
 
-impl<'a> Future for StringExtractFut {
+impl Future for StringExtractFut {
     type Output = Result<String, Error>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
