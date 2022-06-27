@@ -153,6 +153,16 @@ impl AppConfig {
 }
 
 impl Default for AppConfig {
+    /// Returns the default AppConfig.
+    /// Note: The included socket address is "127.0.0.1".
+    ///
+    /// 127.0.0.1: non-routable meta address that denotes an unknown, invalid or non-applicable target.
+    /// If you need a service only accessed by itself, use a loopback address.
+    /// A loopback address for IPv4 is any loopback address that begins with "127".
+    /// Loopback addresses should be only used to test your application locally.
+    /// The default configuration provides a loopback address.
+    ///
+    /// 0.0.0.0: if configured to use this special address, the application will listen to any IP address configured on the machine.
     fn default() -> Self {
         AppConfig::new(
             false,

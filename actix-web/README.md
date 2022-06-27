@@ -6,10 +6,10 @@
   <p>
 
 [![crates.io](https://img.shields.io/crates/v/actix-web?label=latest)](https://crates.io/crates/actix-web)
-[![Documentation](https://docs.rs/actix-web/badge.svg?version=4.0.1)](https://docs.rs/actix-web/4.0.1)
-![MSRV](https://img.shields.io/badge/rustc-1.54+-ab6000.svg)
+[![Documentation](https://docs.rs/actix-web/badge.svg?version=4.1.0)](https://docs.rs/actix-web/4.1.0)
+![MSRV](https://img.shields.io/badge/rustc-1.57+-ab6000.svg)
 ![MIT or Apache 2.0 licensed](https://img.shields.io/crates/l/actix-web.svg)
-[![Dependency Status](https://deps.rs/crate/actix-web/4.0.1/status.svg)](https://deps.rs/crate/actix-web/4.0.1)
+[![Dependency Status](https://deps.rs/crate/actix-web/4.1.0/status.svg)](https://deps.rs/crate/actix-web/4.1.0)
 <br />
 [![CI](https://github.com/actix/actix-web/actions/workflows/ci.yml/badge.svg)](https://github.com/actix/actix-web/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web)
@@ -33,7 +33,7 @@
 - SSL support using OpenSSL or Rustls
 - Middlewares ([Logger, Session, CORS, etc](https://actix.rs/docs/middleware/))
 - Integrates with the [`awc` HTTP client](https://docs.rs/awc/)
-- Runs on stable Rust 1.54+
+- Runs on stable Rust 1.57+
 
 ## Documentation
 
@@ -79,6 +79,7 @@ async fn main() -> std::io::Result<()> {
 - [Application State](https://github.com/actix/examples/tree/master/basics/state)
 - [JSON Handling](https://github.com/actix/examples/tree/master/json/json)
 - [Multipart Streams](https://github.com/actix/examples/tree/master/forms/multipart)
+- [MongoDB Integration](https://github.com/actix/examples/tree/master/databases/mongodb)
 - [Diesel Integration](https://github.com/actix/examples/tree/master/databases/diesel)
 - [SQLite Integration](https://github.com/actix/examples/tree/master/databases/sqlite)
 - [Postgres Integration](https://github.com/actix/examples/tree/master/databases/postgres)

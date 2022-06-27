@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "3.0.4"
+version = "3.1.0"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
     "Rob Ede <robjtede@icloud.com>",
@@ -37,7 +37,7 @@ ws = [
     "local-channel",
     "base64",
     "rand",
-    "sha-1",
+    "sha1",
 ]
 
 # TLS via OpenSSL
@@ -86,7 +86,7 @@ h2 = { version = "0.3.9", optional = true }
 local-channel = { version = "0.1", optional = true }
 base64 = { version = "0.13", optional = true }
 rand = { version = "0.8", optional = true }
-sha-1 = { version = "0.10", optional = true }
+sha1 = { version = "0.10", optional = true }
 
 # openssl/rustls
 actix-tls = { version = "3", default-features = false, optional = true }
@@ -100,7 +100,7 @@ zstd = { version = "0.11", optional = true }
 actix-http-test = { version = "3.0.0-beta.13", features = ["openssl"] }
 actix-server = "2"
 actix-tls = { version = "3", features = ["openssl"] }
-actix-web = "4.0.0"
+actix-web = "4"
 
 async-stream = "0.3"
 criterion = { version = "0.3", features = ["html_reports"] }

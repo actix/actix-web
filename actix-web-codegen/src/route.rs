@@ -4,7 +4,7 @@ use actix_router::ResourceDef;
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote, ToTokens, TokenStreamExt};
-use syn::{parse_macro_input, AttributeArgs, Ident, LitStr, NestedMeta};
+use syn::{parse_macro_input, AttributeArgs, Ident, LitStr, NestedMeta, Path};
 
 enum ResourceType {
     Async,
@@ -77,7 +77,7 @@ impl TryFrom<&syn::LitStr> for MethodType {
 struct Args {
     path: syn::LitStr,
     resource_name: Option<syn::LitStr>,
-    guards: Vec<Ident>,
+    guards: Vec<Path>,
     wrappers: Vec<syn::Type>,
     methods: HashSet<MethodType>,
 }
@@ -121,7 +121,7 @@ impl Args {
                         }
                     } else if nv.path.is_ident("guard") {
                         if let syn::Lit::Str(lit) = nv.lit {
-                            guards.push(Ident::new(&lit.value(), Span::call_site()));
+                            guards.push(lit.parse::<Path>()?);
                         } else {
                             return Err(syn::Error::new_spanned(
                                 nv.lit,

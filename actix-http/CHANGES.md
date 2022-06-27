@@ -1,6 +1,25 @@
 # Changes
 
-## Unreleased - 2021-xx-xx
+## Unreleased - 2022-xx-xx
+### Fixed
+- Websocket parser no longer throws endless overflow errors after receiving an oversized frame. [#2790]
+
+### Changed
+- Minimum supported Rust version (MSRV) is now 1.57 due to transitive `time` dependency.
+
+[#2790]: https://github.com/actix/actix-web/pull/2790
+
+
+## 3.1.0 - 2022-06-11
+### Changed
+- Minimum supported Rust version (MSRV) is now 1.56 due to transitive `hashbrown` dependency.
+
+### Fixed
+- Revert broken fix in [#2624] that caused erroneous 500 error responses. Temporarily re-introduces [#2357] bug. [#2779]
+
+[#2357]: https://github.com/actix/actix-web/issues/2357
+[#2624]: https://github.com/actix/actix-web/issues/2624
+[#2779]: https://github.com/actix/actix-web/issues/2779
 
 
 ## 3.0.4 - 2022-03-09
