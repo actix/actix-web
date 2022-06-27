@@ -59,6 +59,7 @@ pub(crate) trait MessageType: Sized {
         &mut self,
         slice: &Bytes,
         raw_headers: &[HeaderIndex],
+        version: Version,
     ) -> Result<PayloadLength, ParseError> {
         let mut ka = None;
         let mut has_upgrade_websocket = false;
@@ -87,14 +88,14 @@ pub(crate) trait MessageType: Sized {
                         return Err(ParseError::Header);
                     }
 
-                    header::CONTENT_LENGTH => match value.to_str() {
-                        Ok(val) if val.trim().starts_with('+') => {
+                    header::CONTENT_LENGTH => match value.to_str().map(str::trim) {
+                        Ok(val) if val.starts_with('+') => {
                             debug!("illegal Content-Length: {:?}", val);
                             return Err(ParseError::Header);
                         }
 
                         Ok(val) => {
-                            if let Ok(len) = val.trim().parse::<u64>() {
+                            if let Ok(len) = val.parse::<u64>() {
                                 // accept 0 lengths here and remove them later in this method after
                                 // all headers have been processed
                                 content_length = Some(len);
@@ -116,16 +117,16 @@ pub(crate) trait MessageType: Sized {
                         return Err(ParseError::Header);
                     }
 
-                    header::TRANSFER_ENCODING => {
+                    header::TRANSFER_ENCODING if version == Version::HTTP_11 => {
                         seen_te = true;
 
-                        if let Ok(s) = value.to_str().map(str::trim) {
-                            if s.eq_ignore_ascii_case("chunked") {
+                        if let Ok(val) = value.to_str().map(str::trim) {
+                            if val.eq_ignore_ascii_case("chunked") {
                                 chunked = true;
-                            } else if s.eq_ignore_ascii_case("identity") {
+                            } else if val.eq_ignore_ascii_case("identity") {
                                 // allow silently since multiple TE headers are already checked
                             } else {
-                                debug!("illegal Transfer-Encoding: {:?}", s);
+                                debug!("illegal Transfer-Encoding: {:?}", val);
                                 return Err(ParseError::Header);
                             }
                         } else {
@@ -263,7 +264,7 @@ impl MessageType for Request {
         let mut msg = Request::new();
 
         // convert headers
-        let length = msg.set_headers(&src.split_to(len).freeze(), &headers[..h_len])?;
+        let length = msg.set_headers(&src.split_to(len).freeze(), &headers[..h_len], ver)?;
 
         // payload decoder
         let decoder = match length {
@@ -351,7 +352,7 @@ impl MessageType for ResponseHead {
         msg.version = ver;
 
         // convert headers
-        let length = msg.set_headers(&src.split_to(len).freeze(), &headers[..h_len])?;
+        let length = msg.set_headers(&src.split_to(len).freeze(), &headers[..h_len], ver)?;
 
         // message payload
         let decoder = if let PayloadLength::Payload(pl) = length {
@@ -995,6 +996,17 @@ mod tests {
         );
 
         expect_parse_err!(&mut buf);
+
+        let mut buf = BytesMut::from(
+            "GET / HTTP/1.1\r\n\
+            Host: example.com\r\n\
+            Content-Length: 0\r\n\
+            Content-Length: 2\r\n\
+            \r\n\
+            ab",
+        );
+
+        expect_parse_err!(&mut buf);
     }
 
     #[test]
@@ -1008,6 +1020,40 @@ mod tests {
         );
 
         expect_parse_err!(&mut buf);
+    }
+
+    #[test]
+    fn hrs_te_http10() {
+        // in HTTP/1.0 transfer encoding is ignored so body is read as raw chunked payload
+
+        let mut buf = BytesMut::from(
+            "GET / HTTP/1.0\r\n\
+            Host: example.com\r\n\
+            Transfer-Encoding: chunked\r\n\
+            \r\n\
+            3\r\n\
+            aaa\r\n\
+            0\r\n\
+            ",
+        );
+
+        parse_ready!(&mut buf);
+    }
+
+    #[test]
+    fn hrs_cl_and_te_http10() {
+        // in HTTP/1.0 transfer encoding is simply ignored so it's fine to have both
+
+        let mut buf = BytesMut::from(
+            "GET / HTTP/1.0\r\n\
+            Host: example.com\r\n\
+            Content-Length: 3\r\n\
+            Transfer-Encoding: chunked\r\n\
+            \r\n\
+            000",
+        );
+
+        parse_ready!(&mut buf);
     }
 
     #[test]
