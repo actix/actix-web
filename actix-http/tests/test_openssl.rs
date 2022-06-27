@@ -2,8 +2,7 @@
 
 extern crate tls_openssl as openssl;
 
-use std::time::Duration;
-use std::{convert::Infallible, io};
+use std::{convert::Infallible, io, time::Duration};
 
 use actix_http::{
     body::{BodyStream, BoxBody, SizedStream},
@@ -92,7 +91,7 @@ async fn h2_1() -> io::Result<()> {
             })
             .openssl_with_config(
                 tls_config(),
-                TlsAcceptorConfig::new(Some(Duration::from_secs(5))),
+                TlsAcceptorConfig::default().handshake_timeout(Duration::from_secs(5)),
             )
             .map_err(|_| ())
     })

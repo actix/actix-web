@@ -195,7 +195,7 @@ impl TlsAcceptorConfig {
     pub fn handshake_timeout(self, dur: std::time::Duration) -> Self {
         Self {
             handshake_timeout: Some(dur),
-            ..self
+            // ..self
         }
     }
 }
