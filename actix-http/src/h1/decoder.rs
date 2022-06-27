@@ -185,6 +185,13 @@ pub(crate) trait MessageType: Sized {
             content_length = None;
         }
 
+        // disallow HTTP/1.0 request that do not contain a Content-Length headers
+        // see https://datatracker.ietf.org/doc/html/rfc1945#section-7.2.2
+        if version == Version::HTTP_10 && content_length.is_none() {
+            debug!("no Content-Length specified for HTTP/1.0 request");
+            return Err(ParseError::Header);
+        }
+
         // https://datatracker.ietf.org/doc/html/rfc7230#section-3.3.3
         if chunked {
             // Chunked encoding
