@@ -1031,7 +1031,7 @@ mod tests {
 
     #[test]
     fn hrs_te_http10() {
-        // in HTTP/1.0 transfer encoding is ignored so body is read as raw chunked payload
+        // in HTTP/1.0 transfer encoding is ignored and must therefore contain a CL header
 
         let mut buf = BytesMut::from(
             "GET / HTTP/1.0\r\n\
@@ -1044,7 +1044,7 @@ mod tests {
             ",
         );
 
-        parse_ready!(&mut buf);
+        expect_parse_err!(&mut buf);
     }
 
     #[test]
