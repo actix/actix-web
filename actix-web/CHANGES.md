@@ -1,11 +1,16 @@
 # Changelog
 
 ## Unreleased - 2022-xx-xx
-- Minimum supported Rust version (MSRV) is now 1.57 due to transitive `time` dependency.
 ### Added
 - Add `ServiceRequest::{parts, request}()` getter methods. [#2786]
+- Add configuration options for TLS handshake timeout via `HttpServer::{rustls, openssl}_with_config` methods. [#2752]
 
+### Changed
+- Minimum supported Rust version (MSRV) is now 1.57 due to transitive `time` dependency.
+
+[#2752]: https://github.com/actix/actix-web/pull/2752
 [#2786]: https://github.com/actix/actix-web/pull/2786
+
 
 ## 4.1.0 - 2022-06-11
 ### Added
@@ -13,7 +18,6 @@
 - Add `Route::wrap()` to allow individual routes to use middleware. [#2725]
 - Add `ServiceConfig::default_service()`. [#2338] [#2743]
 - Implement `ResponseError` for `std::convert::Infallible`
-- Add `tls_handshake_timeout` server configuration option to configure TLS handshake timeout [#2752]
 
 ### Changed
 - Minimum supported Rust version (MSRV) is now 1.56 due to transitive `hashbrown` dependency.
