@@ -46,6 +46,23 @@ pub(crate) enum PayloadLength {
     None,
 }
 
+impl PayloadLength {
+    /// Returns true if variant is `None`.
+    fn is_none(&self) -> bool {
+        matches!(self, Self::None)
+    }
+
+    /// Returns true if variant is represents zero-length (not none) payload.
+    fn is_zero(&self) -> bool {
+        matches!(
+            self,
+            PayloadLength::Payload(PayloadType::Payload(PayloadDecoder {
+                kind: Kind::Length(0)
+            }))
+        )
+    }
+}
+
 pub(crate) trait MessageType: Sized {
     fn set_connection_type(&mut self, conn_type: Option<ConnectionType>);
 
@@ -96,8 +113,8 @@ pub(crate) trait MessageType: Sized {
 
                         Ok(val) => {
                             if let Ok(len) = val.parse::<u64>() {
-                                // accept 0 lengths here and remove them later in this method after
-                                // all headers have been processed
+                                // accept 0 lengths here and remove them in `decode` after all
+                                // headers have been processed to prevent request smuggling issues
                                 content_length = Some(len);
                             } else {
                                 debug!("illegal Content-Length: {:?}", val);
@@ -179,19 +196,6 @@ pub(crate) trait MessageType: Sized {
             self.set_expect()
         }
 
-        // Remove CL value if 0 now that all headers are processed. Protects against some request
-        // smuggling attacks. See https://github.com/actix/actix-web/issues/2767.
-        if matches!(content_length, Some(0)) {
-            content_length = None;
-        }
-
-        // disallow HTTP/1.0 request that do not contain a Content-Length headers
-        // see https://datatracker.ietf.org/doc/html/rfc1945#section-7.2.2
-        if version == Version::HTTP_10 && content_length.is_none() {
-            debug!("no Content-Length specified for HTTP/1.0 request");
-            return Err(ParseError::Header);
-        }
-
         // https://datatracker.ietf.org/doc/html/rfc7230#section-3.3.3
         if chunked {
             // Chunked encoding
@@ -271,7 +275,22 @@ impl MessageType for Request {
         let mut msg = Request::new();
 
         // convert headers
-        let length = msg.set_headers(&src.split_to(len).freeze(), &headers[..h_len], ver)?;
+        let mut length =
+            msg.set_headers(&src.split_to(len).freeze(), &headers[..h_len], ver)?;
+
+        // disallow HTTP/1.0 POST requests that do not contain a Content-Length headers
+        // see https://datatracker.ietf.org/doc/html/rfc1945#section-7.2.2
+        if ver == Version::HTTP_10 && method == Method::POST && length.is_none() {
+            debug!("no Content-Length specified for HTTP/1.0 POST request");
+            return Err(ParseError::Header);
+        }
+
+        // Remove CL value if 0 now that all headers and HTTP/1.0 special cases are processed.
+        // Protects against some request smuggling attacks.
+        // See https://github.com/actix/actix-web/issues/2767.
+        if length.is_zero() {
+            length = PayloadLength::None;
+        }
 
         // payload decoder
         let decoder = match length {
@@ -359,7 +378,15 @@ impl MessageType for ResponseHead {
         msg.version = ver;
 
         // convert headers
-        let length = msg.set_headers(&src.split_to(len).freeze(), &headers[..h_len], ver)?;
+        let mut length =
+            msg.set_headers(&src.split_to(len).freeze(), &headers[..h_len], ver)?;
+
+        // Remove CL value if 0 now that all headers and HTTP/1.0 special cases are processed.
+        // Protects against some request smuggling attacks.
+        // See https://github.com/actix/actix-web/issues/2767.
+        if length.is_zero() {
+            length = PayloadLength::None;
+        }
 
         // message payload
         let decoder = if let PayloadLength::Payload(pl) = length {
@@ -628,14 +655,40 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_post() {
-        let mut buf = BytesMut::from("POST /test2 HTTP/1.0\r\n\r\n");
+    fn parse_h10_post() {
+        let mut buf = BytesMut::from(
+            "POST /test1 HTTP/1.0\r\n\
+            Content-Length: 3\r\n\
+            \r\n\
+            abc",
+        );
+
+        let mut reader = MessageDecoder::<Request>::default();
+        let (req, _) = reader.decode(&mut buf).unwrap().unwrap();
+        assert_eq!(req.version(), Version::HTTP_10);
+        assert_eq!(*req.method(), Method::POST);
+        assert_eq!(req.path(), "/test1");
+
+        let mut buf = BytesMut::from(
+            "POST /test2 HTTP/1.0\r\n\
+            Content-Length: 0\r\n\
+            \r\n",
+        );
 
         let mut reader = MessageDecoder::<Request>::default();
         let (req, _) = reader.decode(&mut buf).unwrap().unwrap();
         assert_eq!(req.version(), Version::HTTP_10);
         assert_eq!(*req.method(), Method::POST);
         assert_eq!(req.path(), "/test2");
+
+        let mut buf = BytesMut::from(
+            "POST /test3 HTTP/1.0\r\n\
+            \r\n",
+        );
+
+        let mut reader = MessageDecoder::<Request>::default();
+        let err = reader.decode(&mut buf).unwrap_err();
+        assert!(err.to_string().contains("Header"))
     }
 
     #[test]
@@ -1034,7 +1087,7 @@ mod tests {
         // in HTTP/1.0 transfer encoding is ignored and must therefore contain a CL header
 
         let mut buf = BytesMut::from(
-            "GET / HTTP/1.0\r\n\
+            "POST / HTTP/1.0\r\n\
             Host: example.com\r\n\
             Transfer-Encoding: chunked\r\n\
             \r\n\
