@@ -88,20 +88,22 @@ pub(crate) trait MessageType: Sized {
                     }
 
                     header::CONTENT_LENGTH => match value.to_str() {
-                        Ok(s) if s.trim().starts_with('+') => {
-                            debug!("illegal Content-Length: {:?}", s);
+                        Ok(val) if val.trim().starts_with('+') => {
+                            debug!("illegal Content-Length: {:?}", val);
                             return Err(ParseError::Header);
                         }
-                        Ok(s) => {
-                            if let Ok(len) = s.parse::<u64>() {
-                                if len != 0 {
-                                    content_length = Some(len);
-                                }
+
+                        Ok(val) => {
+                            if let Ok(len) = val.trim().parse::<u64>() {
+                                // accept 0 lengths here and remove them later in this method after
+                                // all headers have been processed
+                                content_length = Some(len);
                             } else {
-                                debug!("illegal Content-Length: {:?}", s);
+                                debug!("illegal Content-Length: {:?}", val);
                                 return Err(ParseError::Header);
                             }
                         }
+
                         Err(_) => {
                             debug!("illegal Content-Length: {:?}", value);
                             return Err(ParseError::Header);
@@ -130,6 +132,7 @@ pub(crate) trait MessageType: Sized {
                             return Err(ParseError::Header);
                         }
                     }
+
                     // connection keep-alive state
                     header::CONNECTION => {
                         ka = if let Ok(conn) = value.to_str().map(str::trim) {
@@ -146,6 +149,7 @@ pub(crate) trait MessageType: Sized {
                             None
                         };
                     }
+
                     header::UPGRADE => {
                         if let Ok(val) = value.to_str().map(str::trim) {
                             if val.eq_ignore_ascii_case("websocket") {
@@ -153,21 +157,31 @@ pub(crate) trait MessageType: Sized {
                             }
                         }
                     }
+
                     header::EXPECT => {
                         let bytes = value.as_bytes();
                         if bytes.len() >= 4 && &bytes[0..4] == b"100-" {
                             expect = true;
                         }
                     }
+
                     _ => {}
                 }
 
                 headers.append(name, value);
             }
         }
+
         self.set_connection_type(ka);
+
         if expect {
             self.set_expect()
+        }
+
+        // Remove CL value if 0 now that all headers are processed. Protects against some request
+        // smuggling attacks. See https://github.com/actix/actix-web/issues/2767.
+        if matches!(content_length, Some(0)) {
+            content_length = None;
         }
 
         // https://datatracker.ietf.org/doc/html/rfc7230#section-3.3.3
