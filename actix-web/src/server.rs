@@ -232,19 +232,21 @@ where
         self
     }
 
-    #[cfg(any(feature = "openssl", feature = "rustls"))]
     /// Set TLS handshake timeout.
     ///
     /// Defines a timeout for TLS handshake. If the TLS handshake does not complete
     /// within this time, the connection is closed.
     ///
     /// By default handshake timeout is set to 3000 milliseconds.
+    #[cfg(any(feature = "openssl", feature = "rustls"))]
+    #[cfg_attr(docsrs, doc(cfg(any(feature = "openssl", feature = "rustls"))))]
     pub fn tls_handshake_timeout(self, dur: Duration) -> Self {
         self.config
             .lock()
             .unwrap()
             .tls_handshake_timeout
             .replace(dur);
+
         self
     }
 
@@ -399,13 +401,15 @@ where
                         .into_factory()
                         .map_err(|err| err.into().error_response());
 
+                    let acceptor_config = match c.tls_handshake_timeout {
+                        Some(dur) => TlsAcceptorConfig::default().handshake_timeout(dur),
+                        None => TlsAcceptorConfig::default(),
+                    };
+
                     svc.finish(map_config(fac, move |_| {
                         AppConfig::new(true, host.clone(), addr)
                     }))
-                    .openssl_with_config(
-                        acceptor.clone(),
-                        TlsAcceptorConfig::new(c.tls_handshake_timeout),
-                    )
+                    .openssl_with_config(acceptor.clone(), acceptor_config)
                 })?;
 
         Ok(self)
@@ -460,13 +464,15 @@ where
                         .into_factory()
                         .map_err(|err| err.into().error_response());
 
+                    let acceptor_config = match c.tls_handshake_timeout {
+                        Some(dur) => TlsAcceptorConfig::default().handshake_timeout(dur),
+                        None => TlsAcceptorConfig::default(),
+                    };
+
                     svc.finish(map_config(fac, move |_| {
                         AppConfig::new(true, host.clone(), addr)
                     }))
-                    .rustls_with_config(
-                        config.clone(),
-                        TlsAcceptorConfig::new(c.tls_handshake_timeout),
-                    )
+                    .rustls_with_config(config.clone(), acceptor_config)
                 })?;
 
         Ok(self)
