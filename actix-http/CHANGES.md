@@ -1,6 +1,10 @@
 # Changes
 
 ## Unreleased - 2022-xx-xx
+### Fixed
+- Fix parsing ambiguity in Transfer-Encoding and Content-Length headers for HTTP/1.0 requests. [#2794]
+
+[#2794]: https://github.com/actix/actix-web/pull/2794
 
 
 ## 3.2.0 - 2022-06-30
