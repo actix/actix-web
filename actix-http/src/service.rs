@@ -181,6 +181,25 @@ where
     }
 }
 
+/// Configuration options used when accepting TLS connection.
+#[cfg(any(feature = "openssl", feature = "rustls"))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "openssl", feature = "rustls"))))]
+#[derive(Debug, Default)]
+pub struct TlsAcceptorConfig {
+    pub(crate) handshake_timeout: Option<std::time::Duration>,
+}
+
+#[cfg(any(feature = "openssl", feature = "rustls"))]
+impl TlsAcceptorConfig {
+    /// Set TLS handshake timeout duration.
+    pub fn handshake_timeout(self, dur: std::time::Duration) -> Self {
+        Self {
+            handshake_timeout: Some(dur),
+            // ..self
+        }
+    }
+}
+
 #[cfg(feature = "openssl")]
 mod openssl {
     use actix_service::ServiceFactoryExt as _;
@@ -230,7 +249,28 @@ mod openssl {
             Error = TlsError<SslError, DispatchError>,
             InitError = (),
         > {
-            Acceptor::new(acceptor)
+            self.openssl_with_config(acceptor, TlsAcceptorConfig::default())
+        }
+
+        /// Create OpenSSL based service with custom TLS acceptor configuration.
+        pub fn openssl_with_config(
+            self,
+            acceptor: SslAcceptor,
+            tls_acceptor_config: TlsAcceptorConfig,
+        ) -> impl ServiceFactory<
+            TcpStream,
+            Config = (),
+            Response = (),
+            Error = TlsError<SslError, DispatchError>,
+            InitError = (),
+        > {
+            let mut acceptor = Acceptor::new(acceptor);
+
+            if let Some(handshake_timeout) = tls_acceptor_config.handshake_timeout {
+                acceptor.set_handshake_timeout(handshake_timeout);
+            }
+
+            acceptor
                 .map_init_err(|_| {
                     unreachable!("TLS acceptor service factory does not error on init")
                 })
@@ -294,7 +334,22 @@ mod rustls {
         /// Create Rustls based service.
         pub fn rustls(
             self,
+            config: ServerConfig,
+        ) -> impl ServiceFactory<
+            TcpStream,
+            Config = (),
+            Response = (),
+            Error = TlsError<io::Error, DispatchError>,
+            InitError = (),
+        > {
+            self.rustls_with_config(config, TlsAcceptorConfig::default())
+        }
+
+        /// Create Rustls based service with custom TLS acceptor configuration.
+        pub fn rustls_with_config(
+            self,
             mut config: ServerConfig,
+            tls_acceptor_config: TlsAcceptorConfig,
         ) -> impl ServiceFactory<
             TcpStream,
             Config = (),
@@ -306,7 +361,13 @@ mod rustls {
             protos.extend_from_slice(&config.alpn_protocols);
             config.alpn_protocols = protos;
 
-            Acceptor::new(config)
+            let mut acceptor = Acceptor::new(config);
+
+            if let Some(handshake_timeout) = tls_acceptor_config.handshake_timeout {
+                acceptor.set_handshake_timeout(handshake_timeout);
+            }
+
+            acceptor
                 .map_init_err(|_| {
                     unreachable!("TLS acceptor service factory does not error on init")
                 })

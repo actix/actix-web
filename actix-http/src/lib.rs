@@ -25,6 +25,7 @@
 )]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub use ::http::{uri, uri::Uri};
 pub use ::http::{Method, StatusCode, Version};
@@ -69,6 +70,8 @@ pub use self::payload::{BoxedPayloadStream, Payload, PayloadStream};
 pub use self::requests::{Request, RequestHead, RequestHeadType};
 pub use self::responses::{Response, ResponseBuilder, ResponseHead};
 pub use self::service::HttpService;
+#[cfg(any(feature = "openssl", feature = "rustls"))]
+pub use self::service::TlsAcceptorConfig;
 
 /// A major HTTP protocol version.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]

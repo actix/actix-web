@@ -37,7 +37,7 @@ use crate::{
 /// Thanks to Rust's type system, Actix Web can infer the function parameter types. During the
 /// extraction step, the parameter types are described as a tuple type, [`from_request`] is run on
 /// that tuple, and the `Handler::call` implementation for that particular function arity
-/// destructures the tuple into it's component types and calls your handler function with them.
+/// destructures the tuple into its component types and calls your handler function with them.
 ///
 /// In pseudo-code the process looks something like this:
 /// ```ignore

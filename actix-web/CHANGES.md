@@ -1,12 +1,15 @@
 # Changelog
 
 ## Unreleased - 2022-xx-xx
+### Added
+- Add configuration options for TLS handshake timeout via `HttpServer::{rustls, openssl}_with_config` methods. [#2752]
+- Add `ErrorHandlers::default_handler()` (as well as `default_handler_{server, client}()`) to make registering handlers with the `ErrorHandlers` middleware easier. [#2784]
+- Add `ServiceRequest::{parts, request}()` getter methods. [#2786]
+
 ### Changed
 - Minimum supported Rust version (MSRV) is now 1.57 due to transitive `time` dependency.
-### Added
-- Add `ServiceRequest::{parts, request}()` getter methods. [#2786]
-- Add `ErrorHandlers::default_handler()` (as well as `default_handler_{server, client}()`) to make registering handlers with the `ErrorHandlers` middleware easier. [#2784]
 
+[#2752]: https://github.com/actix/actix-web/pull/2752
 [#2784]: https://github.com/actix/actix-web/pull/2784
 [#2786]: https://github.com/actix/actix-web/pull/2786
 
