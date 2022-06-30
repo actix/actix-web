@@ -251,6 +251,8 @@ static SUPPORTED_ENCODINGS: Lazy<Vec<Encoding>> = Lazy::new(|| {
 #[cfg(feature = "compress-gzip")]
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use super::*;
     use crate::{middleware::DefaultHeaders, test, web, App};
 
@@ -304,5 +306,29 @@ mod tests {
         assert_eq!(res.headers().get(header::CONTENT_ENCODING).unwrap(), "gzip");
         let bytes = test::read_body(res).await;
         assert_eq!(gzip_decode(bytes), DATA.as_bytes());
+    }
+
+    #[actix_rt::test]
+    async fn retains_previously_set_vary_header() {
+        let app = test::init_service({
+            App::new()
+                .wrap(Compress::default())
+                .default_service(web::to(move || {
+                    HttpResponse::Ok()
+                        .insert_header((header::VARY, "x-test"))
+                        .finish()
+                }))
+        })
+        .await;
+
+        let req = test::TestRequest::default()
+            .uri("/single")
+            .insert_header((header::ACCEPT_ENCODING, "gzip"))
+            .to_request();
+        let res = test::call_service(&app, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+        let vary_headers = res.headers().get_all(header::VARY).collect::<HashSet<_>>();
+        assert!(vary_headers.contains(&HeaderValue::from_static("x-test")));
+        assert!(vary_headers.contains(&HeaderValue::from_static("accept-encoding")));
     }
 }
