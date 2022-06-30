@@ -322,7 +322,6 @@ mod tests {
         .await;
 
         let req = test::TestRequest::default()
-            .uri("/single")
             .insert_header((header::ACCEPT_ENCODING, "gzip"))
             .to_request();
         let res = test::call_service(&app, req).await;
