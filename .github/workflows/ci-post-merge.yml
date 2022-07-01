@@ -23,6 +23,7 @@ jobs:
       CI: 1
       CARGO_INCREMENTAL: 0
       VCPKGRS_DYNAMIC: 1
+      CARGO_UNSTABLE_SPARSE_REGISTRY: true
 
     steps:
       - uses: actions/checkout@v2
@@ -86,6 +87,11 @@ jobs:
   ci_feature_powerset_check:
     name: Verify Feature Combinations
     runs-on: ubuntu-latest
+
+    env:
+      CI: 1
+      CARGO_INCREMENTAL: 0
+
     steps:
       - uses: actions/checkout@v2
 
@@ -119,6 +125,11 @@ jobs:
   nextest:
     name: nextest
     runs-on: ubuntu-latest
+
+    env:
+      CI: 1
+      CARGO_INCREMENTAL: 0
+
     steps:
       - uses: actions/checkout@v2
 
