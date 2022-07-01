@@ -2,12 +2,21 @@
 
 ## Unreleased - 2022-xx-xx
 ### Fixed
-- Websocket parser no longer throws endless overflow errors after receiving an oversized frame. [#2790]
+- Fix parsing ambiguity in Transfer-Encoding and Content-Length headers for HTTP/1.0 requests. [#2794]
 
+[#2794]: https://github.com/actix/actix-web/pull/2794
+
+
+## 3.2.0 - 2022-06-30
 ### Changed
 - Minimum supported Rust version (MSRV) is now 1.57 due to transitive `time` dependency.
 
+### Fixed
+- Websocket parser no longer throws endless overflow errors after receiving an oversized frame. [#2790]
+- Retain previously set Vary headers when using compression encoder. [#2798]
+
 [#2790]: https://github.com/actix/actix-web/pull/2790
+[#2798]: https://github.com/actix/actix-web/pull/2798
 
 
 ## 3.1.0 - 2022-06-11

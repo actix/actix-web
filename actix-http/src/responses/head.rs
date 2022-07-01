@@ -237,7 +237,7 @@ mod tests {
         .await;
 
         let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
-        let _ = stream
+        stream
             .write_all(b"GET /camel HTTP/1.1\r\nConnection: Close\r\n\r\n")
             .unwrap();
         let mut data = vec![];
@@ -251,7 +251,7 @@ mod tests {
         assert!(memmem::find(&data, b"content-length").is_none());
 
         let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
-        let _ = stream
+        stream
             .write_all(b"GET /lower HTTP/1.1\r\nConnection: Close\r\n\r\n")
             .unwrap();
         let mut data = vec![];

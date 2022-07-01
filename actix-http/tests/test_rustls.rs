@@ -8,13 +8,14 @@ use std::{
     net::{SocketAddr, TcpStream as StdTcpStream},
     sync::Arc,
     task::Poll,
+    time::Duration,
 };
 
 use actix_http::{
     body::{BodyStream, BoxBody, SizedStream},
     error::PayloadError,
     header::{self, HeaderName, HeaderValue},
-    Error, HttpService, Method, Request, Response, StatusCode, Version,
+    Error, HttpService, Method, Request, Response, StatusCode, TlsAcceptorConfig, Version,
 };
 use actix_http_test::test_server;
 use actix_rt::pin;
@@ -160,7 +161,10 @@ async fn h2_1() -> io::Result<()> {
                 assert_eq!(req.version(), Version::HTTP_2);
                 ok::<_, Error>(Response::ok())
             })
-            .rustls(tls_config())
+            .rustls_with_config(
+                tls_config(),
+                TlsAcceptorConfig::default().handshake_timeout(Duration::from_secs(5)),
+            )
     })
     .await;
 

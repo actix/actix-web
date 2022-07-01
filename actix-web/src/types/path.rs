@@ -183,6 +183,7 @@ mod tests {
         assert!(Path::<MyStruct>::from_request(&req, &mut pl).await.is_err());
     }
 
+    #[allow(clippy::let_unit_value)]
     #[actix_rt::test]
     async fn test_tuple_extract() {
         let resource = ResourceDef::new("/{key}/{value}/");
