@@ -655,6 +655,46 @@ mod tests {
     }
 
     #[test]
+    fn parse_h10_get() {
+        let mut buf = BytesMut::from(
+            "GET /test1 HTTP/1.0\r\n\
+            \r\n\
+            abc",
+        );
+
+        let mut reader = MessageDecoder::<Request>::default();
+        let (req, _) = reader.decode(&mut buf).unwrap().unwrap();
+        assert_eq!(req.version(), Version::HTTP_10);
+        assert_eq!(*req.method(), Method::GET);
+        assert_eq!(req.path(), "/test1");
+
+        let mut buf = BytesMut::from(
+            "GET /test2 HTTP/1.0\r\n\
+            Content-Length: 0\r\n\
+            \r\n",
+        );
+
+        let mut reader = MessageDecoder::<Request>::default();
+        let (req, _) = reader.decode(&mut buf).unwrap().unwrap();
+        assert_eq!(req.version(), Version::HTTP_10);
+        assert_eq!(*req.method(), Method::GET);
+        assert_eq!(req.path(), "/test2");
+
+        let mut buf = BytesMut::from(
+            "GET /test3 HTTP/1.0\r\n\
+            Content-Length: 3\r\n\
+            \r\n
+            abc",
+        );
+
+        let mut reader = MessageDecoder::<Request>::default();
+        let (req, _) = reader.decode(&mut buf).unwrap().unwrap();
+        assert_eq!(req.version(), Version::HTTP_10);
+        assert_eq!(*req.method(), Method::GET);
+        assert_eq!(req.path(), "/test3");
+    }
+
+    #[test]
     fn parse_h10_post() {
         let mut buf = BytesMut::from(
             "POST /test1 HTTP/1.0\r\n\
