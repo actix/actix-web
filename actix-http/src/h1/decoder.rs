@@ -655,11 +655,31 @@ mod tests {
     }
 
     #[test]
+    fn parse_h09_reject() {
+        let mut buf = BytesMut::from(
+            "GET /test1 HTTP/0.9\r\n\
+            \r\n",
+        );
+
+        let mut reader = MessageDecoder::<Request>::default();
+        reader.decode(&mut buf).unwrap_err();
+
+        let mut buf = BytesMut::from(
+            "POST /test2 HTTP/0.9\r\n\
+            Content-Length: 3\r\n\
+            \r\n
+            abc",
+        );
+
+        let mut reader = MessageDecoder::<Request>::default();
+        reader.decode(&mut buf).unwrap_err();
+    }
+
+    #[test]
     fn parse_h10_get() {
         let mut buf = BytesMut::from(
             "GET /test1 HTTP/1.0\r\n\
-            \r\n\
-            abc",
+            \r\n",
         );
 
         let mut reader = MessageDecoder::<Request>::default();
