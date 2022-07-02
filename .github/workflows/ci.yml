@@ -50,6 +50,7 @@ jobs:
       - name: workaround MSRV issues
         if: matrix.version != 'stable'
         run: |
+          cargo install cargo-add
           cargo add const-str@0.3 --dev -p=actix-web
           cargo add const-str@0.3 --dev -p=awc
 
