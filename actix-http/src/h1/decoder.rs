@@ -964,12 +964,20 @@ mod tests {
             "GET /test HTTP/1.1\r\n\
              content-length: -1\r\n\r\n",
         ));
+    }
 
-        // octal CL
-        // expect_parse_err!(&mut BytesMut::from(
-        //     "GET /test HTTP/1.1\r\n\
-        //      content-length: 0123\r\n\r\n",
-        // ));
+    #[test]
+    fn octal_ish_cl_parsed_as_decimal() {
+        let mut buf = BytesMut::from(
+            "POST /test HTTP/1.1\r\n\
+             content-length: 011\r\n\r\n",
+        );
+        let mut reader = MessageDecoder::<Request>::default();
+        let (_req, pl) = reader.decode(&mut buf).unwrap().unwrap();
+        assert!(matches!(
+            pl,
+            PayloadType::Payload(pl) if pl == PayloadDecoder::length(11)
+        ));
     }
 
     #[test]
