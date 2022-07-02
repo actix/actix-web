@@ -47,6 +47,9 @@ jobs:
           profile: minimal
           override: true
 
+      - name: Install cargo-hack
+        uses: taiki-e/install-action@cargo-hack
+
       - name: workaround MSRV issues
         if: matrix.version != 'stable'
         run: |
@@ -59,12 +62,6 @@ jobs:
         with: { command: generate-lockfile }
       - name: Cache Dependencies
         uses: Swatinem/rust-cache@v1.2.0
-
-      - name: Install cargo-hack
-        uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: cargo-hack
 
       - name: check minimal
         uses: actions-rs/cargo@v1
