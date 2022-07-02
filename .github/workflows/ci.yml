@@ -47,6 +47,12 @@ jobs:
           profile: minimal
           override: true
 
+      - name: workaround MSRV issues
+        if: matrix.version != 'stable'
+        run: |
+          cargo add const-str@0.3 --dev -p=actix-web
+          cargo add const-str@0.3 --dev -p=awc
+
       - name: Generate Cargo.lock
         uses: actions-rs/cargo@v1
         with: { command: generate-lockfile }
@@ -68,7 +74,6 @@ jobs:
         with: { command: ci-check-default }
 
       - name: tests
-        if: matrix.version == 'stable' # temp?
         timeout-minutes: 60
         run: |
           cargo test --lib --tests -p=actix-router --all-features
