@@ -146,11 +146,8 @@ jobs:
       - name: Cache Dependencies
         uses: Swatinem/rust-cache@v1.3.0
 
-      - name: Install cargo-nextest
-        uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: cargo-nextest
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
 
       - name: Test with cargo-nextest
         uses: actions-rs/cargo@v1
