@@ -68,6 +68,7 @@ jobs:
         with: { command: ci-check-default }
 
       - name: tests
+        if: matrix.version == 'stable' # temp?
         timeout-minutes: 60
         run: |
           cargo test --lib --tests -p=actix-router --all-features
