@@ -14,7 +14,6 @@ fn compile_macros() {
 
     t.pass("tests/trybuild/routes-ok.rs");
     t.compile_fail("tests/trybuild/routes-missing-method-fail.rs");
-    t.compile_fail("tests/trybuild/routes-invalid-method-fail.rs");
     t.compile_fail("tests/trybuild/routes-missing-args-fail.rs");
 
     t.pass("tests/trybuild/docstring-ok.rs");
