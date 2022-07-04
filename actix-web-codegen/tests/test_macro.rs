@@ -8,7 +8,7 @@ use actix_web::{
         header::{HeaderName, HeaderValue},
         StatusCode,
     },
-    web, App, Error, HttpResponse, Responder,
+    web, App, Error, HttpRequest, HttpResponse, Responder,
 };
 use actix_web_codegen::{
     connect, delete, get, head, options, patch, post, put, route, routes, trace,
@@ -99,8 +99,33 @@ async fn routes_test() -> impl Responder {
     HttpResponse::Ok()
 }
 
+// routes overlap with the more specific route first, therefore accessible
+#[routes]
+#[get("/routes/overlap/test")]
+#[get("/routes/overlap/{foo}")]
+async fn routes_overlapping_test(req: HttpRequest) -> impl Responder {
+    // foo is only populated when route is not /routes/overlap/test
+    match req.match_info().get("foo") {
+        None => assert!(req.uri() == "/routes/overlap/test"),
+        Some(_) => assert!(req.uri() != "/routes/overlap/test"),
+    }
+
+    HttpResponse::Ok()
+}
+
+// routes overlap with the more specific route last, therefore inaccessible
+#[routes]
+#[get("/routes/overlap2/{foo}")]
+#[get("/routes/overlap2/test")]
+async fn routes_overlapping_inaccessible_test(req: HttpRequest) -> impl Responder {
+    // foo is always populated even when path is /routes/overlap2/test
+    assert!(req.match_info().get("foo").is_some());
+
+    HttpResponse::Ok()
+}
+
 #[get("/custom_resource_name", name = "custom")]
-async fn custom_resource_name_test<'a>(req: actix_web::HttpRequest) -> impl Responder {
+async fn custom_resource_name_test<'a>(req: HttpRequest) -> impl Responder {
     assert!(req.url_for_static("custom").is_ok());
     assert!(req.url_for_static("custom_resource_name_test").is_err());
     HttpResponse::Ok()
@@ -211,6 +236,8 @@ async fn test_body() {
             .service(patch_test)
             .service(test_handler)
             .service(route_test)
+            .service(routes_overlapping_test)
+            .service(routes_overlapping_inaccessible_test)
             .service(routes_test)
             .service(custom_resource_name_test)
             .service(guard_test)
@@ -278,6 +305,26 @@ async fn test_body() {
     assert!(response.status().is_success());
 
     let request = srv.request(http::Method::POST, srv.url("/routes/test"));
+    let response = request.send().await.unwrap();
+    assert!(response.status().is_success());
+
+    let request = srv.request(http::Method::GET, srv.url("/routes/not-set"));
+    let response = request.send().await.unwrap();
+    assert!(response.status().is_client_error());
+
+    let request = srv.request(http::Method::GET, srv.url("/routes/overlap/test"));
+    let response = request.send().await.unwrap();
+    assert!(response.status().is_success());
+
+    let request = srv.request(http::Method::GET, srv.url("/routes/overlap/bar"));
+    let response = request.send().await.unwrap();
+    assert!(response.status().is_success());
+
+    let request = srv.request(http::Method::GET, srv.url("/routes/overlap2/test"));
+    let response = request.send().await.unwrap();
+    assert!(response.status().is_success());
+
+    let request = srv.request(http::Method::GET, srv.url("/routes/overlap2/bar"));
     let response = request.send().await.unwrap();
     assert!(response.status().is_success());
 

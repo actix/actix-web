@@ -4,7 +4,7 @@ use actix_router::ResourceDef;
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote, ToTokens, TokenStreamExt};
-use syn::{parse_macro_input, Attribute, AttributeArgs, Ident, LitStr, Meta, NestedMeta, Path};
+use syn::{parse_macro_input, AttributeArgs, Ident, LitStr, Meta, NestedMeta, Path};
 
 enum ResourceType {
     Async,
@@ -101,7 +101,7 @@ impl Args {
             return Err(syn::Error::new(
                 Span::call_site(),
                 format!(
-                    r#"invalid service definition, expected #[{}("<some path>")]"#,
+                    r#"invalid service definition, expected #[{}("<path>")]"#,
                     method
                         .map_or("route", |it| it.as_str())
                         .to_ascii_lowercase()
@@ -202,9 +202,18 @@ impl Args {
 }
 
 pub struct Route {
+    /// Name of the handler function being annotated.
     name: syn::Ident,
+
+    /// Args passed to routing macro.
+    ///
+    /// When using `#[routes]`, this will contain args for each specific routing macro.
     args: Vec<Args>,
+
+    /// AST of the handler function being annotated.
     ast: syn::ItemFn,
+
+    /// TODO: remove
     resource_type: ResourceType,
 
     /// The doc comment attributes to copy to generated struct, if any.
@@ -251,6 +260,7 @@ impl Route {
             .collect();
 
         let args = Args::new(args, method)?;
+
         if args.methods.is_empty() {
             return Err(syn::Error::new(
                 Span::call_site(),
@@ -329,47 +339,50 @@ impl ToTokens for Route {
 
         let registrations: TokenStream2 = args
             .iter()
-            .map(
-                |Args {
-                     path,
-                     resource_name,
-                     guards,
-                     wrappers,
-                     methods,
-                 }| {
-                    let resource_name = resource_name
-                        .as_ref()
-                        .map_or_else(|| name.to_string(), LitStr::value);
-                    let method_guards = {
-                        let mut others = methods.iter();
-                        // unwrapping since length is checked to be at least one
-                        let first = others.next().unwrap();
+            .map(|args| {
+                let Args {
+                    path,
+                    resource_name,
+                    guards,
+                    wrappers,
+                    methods,
+                } = args;
 
-                        if methods.len() > 1 {
-                            quote! {
-                                .guard(
-                                    ::actix_web::guard::Any(::actix_web::guard::#first())
-                                        #(.or(::actix_web::guard::#others()))*
-                                )
-                            }
-                        } else {
-                            quote! {
-                                .guard(::actix_web::guard::#first())
-                            }
+                let resource_name = resource_name
+                    .as_ref()
+                    .map_or_else(|| name.to_string(), LitStr::value);
+
+                let method_guards = {
+                    let mut others = methods.iter();
+
+                    // unwrapping since length is checked to be at least one
+                    let first = others.next().unwrap();
+
+                    if methods.len() > 1 {
+                        quote! {
+                            .guard(
+                                ::actix_web::guard::Any(::actix_web::guard::#first())
+                                    #(.or(::actix_web::guard::#others()))*
+                            )
                         }
-                    };
-                    quote! {
-                        let __resource = ::actix_web::Resource::new(#path)
-                            .name(#resource_name)
-                            #method_guards
-                            #(.guard(::actix_web::guard::fn_guard(#guards)))*
-                            #(.wrap(#wrappers))*
-                            .#resource_type(#name);
-
-                        ::actix_web::dev::HttpServiceFactory::register(__resource, __config);
+                    } else {
+                        quote! {
+                            .guard(::actix_web::guard::#first())
+                        }
                     }
-                },
-            )
+                };
+
+                quote! {
+                    let __resource = ::actix_web::Resource::new(#path)
+                        .name(#resource_name)
+                        #method_guards
+                        #(.guard(::actix_web::guard::fn_guard(#guards)))*
+                        #(.wrap(#wrappers))*
+                        .#resource_type(#name);
+
+                    ::actix_web::dev::HttpServiceFactory::register(__resource, __config);
+                }
+            })
             .collect();
 
         let stream = quote! {
@@ -416,14 +429,14 @@ pub(crate) fn with_methods(input: TokenStream) -> TokenStream {
         Err(err) => return input_and_compile_error(input, err),
     };
 
-    let (methods, others): (Vec<Result<(MethodType, Attribute), Attribute>>, _) = ast
+    let (methods, others) = ast
         .attrs
         .into_iter()
         .map(|attr| match MethodType::from_path(&attr.path) {
             Ok(method) => Ok((method, attr)),
             Err(_) => Err(attr),
         })
-        .partition(Result::is_ok);
+        .partition::<Vec<_>, _>(Result::is_ok);
 
     ast.attrs = others.into_iter().map(Result::unwrap_err).collect();
 

@@ -9,6 +9,7 @@
 ### Changed
 - Minimum supported Rust version (MSRV) is now 1.57 due to transitive `time` dependency.
 
+[#2718]: https://github.com/actix/actix-web/pull/2718
 [#2752]: https://github.com/actix/actix-web/pull/2752
 [#2786]: https://github.com/actix/actix-web/pull/2786
 
