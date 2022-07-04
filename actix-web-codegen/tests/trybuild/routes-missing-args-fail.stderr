@@ -1,0 +1,21 @@
+error: invalid service definition, expected #[get("<path>")]
+ --> tests/trybuild/routes-missing-args-fail.rs:4:1
+  |
+4 | #[get]
+  | ^^^^^^
+  |
+  = note: this error originates in the attribute macro `get` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: Invalid input for macro
+ --> tests/trybuild/routes-missing-args-fail.rs:4:1
+  |
+4 | #[get]
+  | ^^^^^^
+
+error[E0277]: the trait bound `fn() -> impl std::future::Future {index}: HttpServiceFactory` is not satisfied
+  --> tests/trybuild/routes-missing-args-fail.rs:13:55
+   |
+13 |     let srv = actix_test::start(|| App::new().service(index));
+   |                                               ------- ^^^^^ the trait `HttpServiceFactory` is not implemented for `fn() -> impl std::future::Future {index}`
+   |                                               |
+   |                                               required by a bound introduced by this call
