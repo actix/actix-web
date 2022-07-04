@@ -3,20 +3,8 @@ use std::{collections::HashSet, convert::TryFrom};
 use actix_router::ResourceDef;
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
-use quote::{format_ident, quote, ToTokens, TokenStreamExt};
+use quote::{quote, ToTokens, TokenStreamExt};
 use syn::{parse_macro_input, AttributeArgs, Ident, LitStr, Meta, NestedMeta, Path};
-
-enum ResourceType {
-    Async,
-    Sync,
-}
-
-impl ToTokens for ResourceType {
-    fn to_tokens(&self, stream: &mut TokenStream2) {
-        let ident = format_ident!("to");
-        stream.append(ident);
-    }
-}
 
 macro_rules! method_type {
     (
@@ -213,33 +201,8 @@ pub struct Route {
     /// AST of the handler function being annotated.
     ast: syn::ItemFn,
 
-    /// TODO: remove
-    resource_type: ResourceType,
-
     /// The doc comment attributes to copy to generated struct, if any.
     doc_attributes: Vec<syn::Attribute>,
-}
-
-fn guess_resource_type(typ: &syn::Type) -> ResourceType {
-    let mut guess = ResourceType::Sync;
-
-    if let syn::Type::ImplTrait(typ) = typ {
-        for bound in typ.bounds.iter() {
-            if let syn::TypeParamBound::Trait(bound) = bound {
-                for bound in bound.path.segments.iter() {
-                    if bound.ident == "Future" {
-                        guess = ResourceType::Async;
-                        break;
-                    } else if bound.ident == "Responder" {
-                        guess = ResourceType::Sync;
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    guess
 }
 
 impl Route {
@@ -268,25 +231,17 @@ impl Route {
             ));
         }
 
-        let resource_type = if ast.sig.asyncness.is_some() {
-            ResourceType::Async
-        } else {
-            match ast.sig.output {
-                syn::ReturnType::Default => {
-                    return Err(syn::Error::new_spanned(
-                        ast,
-                        "Function has no return type. Cannot be used as handler",
-                    ));
-                }
-                syn::ReturnType::Type(_, ref typ) => guess_resource_type(typ.as_ref()),
-            }
-        };
+        if matches!(ast.sig.output, syn::ReturnType::Default) {
+            return Err(syn::Error::new_spanned(
+                ast,
+                "Function has no return type. Cannot be used as handler",
+            ));
+        }
 
         Ok(Self {
             name,
             args: vec![args],
             ast,
-            resource_type,
             doc_attributes,
         })
     }
@@ -303,25 +258,17 @@ impl Route {
             .cloned()
             .collect();
 
-        let resource_type = if ast.sig.asyncness.is_some() {
-            ResourceType::Async
-        } else {
-            match ast.sig.output {
-                syn::ReturnType::Default => {
-                    return Err(syn::Error::new_spanned(
-                        ast,
-                        "Function has no return type. Cannot be used as handler",
-                    ));
-                }
-                syn::ReturnType::Type(_, ref typ) => guess_resource_type(typ.as_ref()),
-            }
-        };
+        if matches!(ast.sig.output, syn::ReturnType::Default) {
+            return Err(syn::Error::new_spanned(
+                ast,
+                "Function has no return type. Cannot be used as handler",
+            ));
+        }
 
         Ok(Self {
             name,
             args,
             ast,
-            resource_type,
             doc_attributes,
         })
     }
@@ -333,7 +280,6 @@ impl ToTokens for Route {
             name,
             ast,
             args,
-            resource_type,
             doc_attributes,
         } = self;
 
@@ -378,7 +324,7 @@ impl ToTokens for Route {
                         #method_guards
                         #(.guard(::actix_web::guard::fn_guard(#guards)))*
                         #(.wrap(#wrappers))*
-                        .#resource_type(#name);
+                        .to(#name);
 
                     ::actix_web::dev::HttpServiceFactory::register(__resource, __config);
                 }
