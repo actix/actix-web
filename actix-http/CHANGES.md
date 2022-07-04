@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2022-xx-xx
+
+
+## 3.2.1 - 2022-07-02
 ### Fixed
 - Fix parsing ambiguity in Transfer-Encoding and Content-Length headers for HTTP/1.0 requests. [#2794]
 

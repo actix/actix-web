@@ -844,121 +844,98 @@ mod tests {
 
     #[test]
     fn test_conn_default_1_0() {
-        let mut buf = BytesMut::from("GET /test HTTP/1.0\r\n\r\n");
-        let req = parse_ready!(&mut buf);
-
+        let req = parse_ready!(&mut BytesMut::from("GET /test HTTP/1.0\r\n\r\n"));
         assert_eq!(req.head().connection_type(), ConnectionType::Close);
     }
 
     #[test]
     fn test_conn_default_1_1() {
-        let mut buf = BytesMut::from("GET /test HTTP/1.1\r\n\r\n");
-        let req = parse_ready!(&mut buf);
-
+        let req = parse_ready!(&mut BytesMut::from("GET /test HTTP/1.1\r\n\r\n"));
         assert_eq!(req.head().connection_type(), ConnectionType::KeepAlive);
     }
 
     #[test]
     fn test_conn_close() {
-        let mut buf = BytesMut::from(
+        let req = parse_ready!(&mut BytesMut::from(
             "GET /test HTTP/1.1\r\n\
              connection: close\r\n\r\n",
-        );
-        let req = parse_ready!(&mut buf);
-
+        ));
         assert_eq!(req.head().connection_type(), ConnectionType::Close);
 
-        let mut buf = BytesMut::from(
+        let req = parse_ready!(&mut BytesMut::from(
             "GET /test HTTP/1.1\r\n\
              connection: Close\r\n\r\n",
-        );
-        let req = parse_ready!(&mut buf);
-
+        ));
         assert_eq!(req.head().connection_type(), ConnectionType::Close);
     }
 
     #[test]
     fn test_conn_close_1_0() {
-        let mut buf = BytesMut::from(
+        let req = parse_ready!(&mut BytesMut::from(
             "GET /test HTTP/1.0\r\n\
              connection: close\r\n\r\n",
-        );
-
-        let req = parse_ready!(&mut buf);
-
+        ));
         assert_eq!(req.head().connection_type(), ConnectionType::Close);
     }
 
     #[test]
     fn test_conn_keep_alive_1_0() {
-        let mut buf = BytesMut::from(
+        let req = parse_ready!(&mut BytesMut::from(
             "GET /test HTTP/1.0\r\n\
              connection: keep-alive\r\n\r\n",
-        );
-        let req = parse_ready!(&mut buf);
-
+        ));
         assert_eq!(req.head().connection_type(), ConnectionType::KeepAlive);
 
-        let mut buf = BytesMut::from(
+        let req = parse_ready!(&mut BytesMut::from(
             "GET /test HTTP/1.0\r\n\
              connection: Keep-Alive\r\n\r\n",
-        );
-        let req = parse_ready!(&mut buf);
-
+        ));
         assert_eq!(req.head().connection_type(), ConnectionType::KeepAlive);
     }
 
     #[test]
     fn test_conn_keep_alive_1_1() {
-        let mut buf = BytesMut::from(
+        let req = parse_ready!(&mut BytesMut::from(
             "GET /test HTTP/1.1\r\n\
              connection: keep-alive\r\n\r\n",
-        );
-        let req = parse_ready!(&mut buf);
-
+        ));
         assert_eq!(req.head().connection_type(), ConnectionType::KeepAlive);
     }
 
     #[test]
     fn test_conn_other_1_0() {
-        let mut buf = BytesMut::from(
+        let req = parse_ready!(&mut BytesMut::from(
             "GET /test HTTP/1.0\r\n\
              connection: other\r\n\r\n",
-        );
-        let req = parse_ready!(&mut buf);
-
+        ));
         assert_eq!(req.head().connection_type(), ConnectionType::Close);
     }
 
     #[test]
     fn test_conn_other_1_1() {
-        let mut buf = BytesMut::from(
+        let req = parse_ready!(&mut BytesMut::from(
             "GET /test HTTP/1.1\r\n\
              connection: other\r\n\r\n",
-        );
-        let req = parse_ready!(&mut buf);
-
+        ));
         assert_eq!(req.head().connection_type(), ConnectionType::KeepAlive);
     }
 
     #[test]
     fn test_conn_upgrade() {
-        let mut buf = BytesMut::from(
+        let req = parse_ready!(&mut BytesMut::from(
             "GET /test HTTP/1.1\r\n\
              upgrade: websockets\r\n\
              connection: upgrade\r\n\r\n",
-        );
-        let req = parse_ready!(&mut buf);
+        ));
 
         assert!(req.upgrade());
         assert_eq!(req.head().connection_type(), ConnectionType::Upgrade);
 
-        let mut buf = BytesMut::from(
+        let req = parse_ready!(&mut BytesMut::from(
             "GET /test HTTP/1.1\r\n\
              upgrade: Websockets\r\n\
              connection: Upgrade\r\n\r\n",
-        );
-        let req = parse_ready!(&mut buf);
+        ));
 
         assert!(req.upgrade());
         assert_eq!(req.head().connection_type(), ConnectionType::Upgrade);
@@ -966,59 +943,62 @@ mod tests {
 
     #[test]
     fn test_conn_upgrade_connect_method() {
-        let mut buf = BytesMut::from(
+        let req = parse_ready!(&mut BytesMut::from(
             "CONNECT /test HTTP/1.1\r\n\
              content-type: text/plain\r\n\r\n",
-        );
-        let req = parse_ready!(&mut buf);
+        ));
 
         assert!(req.upgrade());
     }
 
     #[test]
-    fn test_headers_content_length_err_1() {
-        let mut buf = BytesMut::from(
+    fn test_headers_bad_content_length() {
+        // string CL
+        expect_parse_err!(&mut BytesMut::from(
             "GET /test HTTP/1.1\r\n\
              content-length: line\r\n\r\n",
-        );
+        ));
 
-        expect_parse_err!(&mut buf)
+        // negative CL
+        expect_parse_err!(&mut BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             content-length: -1\r\n\r\n",
+        ));
     }
 
     #[test]
-    fn test_headers_content_length_err_2() {
+    fn octal_ish_cl_parsed_as_decimal() {
         let mut buf = BytesMut::from(
-            "GET /test HTTP/1.1\r\n\
-             content-length: -1\r\n\r\n",
+            "POST /test HTTP/1.1\r\n\
+             content-length: 011\r\n\r\n",
         );
-
-        expect_parse_err!(&mut buf);
+        let mut reader = MessageDecoder::<Request>::default();
+        let (_req, pl) = reader.decode(&mut buf).unwrap().unwrap();
+        assert!(matches!(
+            pl,
+            PayloadType::Payload(pl) if pl == PayloadDecoder::length(11)
+        ));
     }
 
     #[test]
     fn test_invalid_header() {
-        let mut buf = BytesMut::from(
+        expect_parse_err!(&mut BytesMut::from(
             "GET /test HTTP/1.1\r\n\
              test line\r\n\r\n",
-        );
-
-        expect_parse_err!(&mut buf);
+        ));
     }
 
     #[test]
     fn test_invalid_name() {
-        let mut buf = BytesMut::from(
+        expect_parse_err!(&mut BytesMut::from(
             "GET /test HTTP/1.1\r\n\
              test[]: line\r\n\r\n",
-        );
-
-        expect_parse_err!(&mut buf);
+        ));
     }
 
     #[test]
     fn test_http_request_bad_status_line() {
-        let mut buf = BytesMut::from("getpath \r\n\r\n");
-        expect_parse_err!(&mut buf);
+        expect_parse_err!(&mut BytesMut::from("getpath \r\n\r\n"));
     }
 
     #[test]
@@ -1058,11 +1038,10 @@ mod tests {
 
     #[test]
     fn test_http_request_parser_utf8() {
-        let mut buf = BytesMut::from(
+        let req = parse_ready!(&mut BytesMut::from(
             "GET /test HTTP/1.1\r\n\
              x-test: тест\r\n\r\n",
-        );
-        let req = parse_ready!(&mut buf);
+        ));
 
         assert_eq!(
             req.headers().get("x-test").unwrap().as_bytes(),
@@ -1072,24 +1051,18 @@ mod tests {
 
     #[test]
     fn test_http_request_parser_two_slashes() {
-        let mut buf = BytesMut::from("GET //path HTTP/1.1\r\n\r\n");
-        let req = parse_ready!(&mut buf);
-
+        let req = parse_ready!(&mut BytesMut::from("GET //path HTTP/1.1\r\n\r\n"));
         assert_eq!(req.path(), "//path");
     }
 
     #[test]
     fn test_http_request_parser_bad_method() {
-        let mut buf = BytesMut::from("!12%()+=~$ /get HTTP/1.1\r\n\r\n");
-
-        expect_parse_err!(&mut buf);
+        expect_parse_err!(&mut BytesMut::from("!12%()+=~$ /get HTTP/1.1\r\n\r\n"));
     }
 
     #[test]
     fn test_http_request_parser_bad_version() {
-        let mut buf = BytesMut::from("GET //get HT/11\r\n\r\n");
-
-        expect_parse_err!(&mut buf);
+        expect_parse_err!(&mut BytesMut::from("GET //get HT/11\r\n\r\n"));
     }
 
     #[test]
@@ -1106,47 +1079,41 @@ mod tests {
 
     #[test]
     fn hrs_multiple_content_length() {
-        let mut buf = BytesMut::from(
+        expect_parse_err!(&mut BytesMut::from(
             "GET / HTTP/1.1\r\n\
             Host: example.com\r\n\
             Content-Length: 4\r\n\
             Content-Length: 2\r\n\
             \r\n\
             abcd",
-        );
+        ));
 
-        expect_parse_err!(&mut buf);
-
-        let mut buf = BytesMut::from(
+        expect_parse_err!(&mut BytesMut::from(
             "GET / HTTP/1.1\r\n\
             Host: example.com\r\n\
             Content-Length: 0\r\n\
             Content-Length: 2\r\n\
             \r\n\
             ab",
-        );
-
-        expect_parse_err!(&mut buf);
+        ));
     }
 
     #[test]
     fn hrs_content_length_plus() {
-        let mut buf = BytesMut::from(
+        expect_parse_err!(&mut BytesMut::from(
             "GET / HTTP/1.1\r\n\
             Host: example.com\r\n\
             Content-Length: +3\r\n\
             \r\n\
             000",
-        );
-
-        expect_parse_err!(&mut buf);
+        ));
     }
 
     #[test]
     fn hrs_te_http10() {
         // in HTTP/1.0 transfer encoding is ignored and must therefore contain a CL header
 
-        let mut buf = BytesMut::from(
+        expect_parse_err!(&mut BytesMut::from(
             "POST / HTTP/1.0\r\n\
             Host: example.com\r\n\
             Transfer-Encoding: chunked\r\n\
@@ -1155,9 +1122,7 @@ mod tests {
             aaa\r\n\
             0\r\n\
             ",
-        );
-
-        expect_parse_err!(&mut buf);
+        ));
     }
 
     #[test]

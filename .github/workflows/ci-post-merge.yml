@@ -23,6 +23,7 @@ jobs:
       CI: 1
       CARGO_INCREMENTAL: 0
       VCPKGRS_DYNAMIC: 1
+      CARGO_UNSTABLE_SPARSE_REGISTRY: true
 
     steps:
       - uses: actions/checkout@v2
@@ -44,17 +45,14 @@ jobs:
           profile: minimal
           override: true
 
+      - name: Install cargo-hack
+        uses: taiki-e/install-action@cargo-hack
+
       - name: Generate Cargo.lock
         uses: actions-rs/cargo@v1
         with: { command: generate-lockfile }
       - name: Cache Dependencies
         uses: Swatinem/rust-cache@v1.2.0
-
-      - name: Install cargo-hack
-        uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: cargo-hack
 
       - name: check minimal
         uses: actions-rs/cargo@v1
@@ -80,12 +78,17 @@ jobs:
 
       - name: Clear the cargo caches
         run: |
-          cargo install cargo-cache --version 0.6.3 --no-default-features --features ci-autoclean
+          cargo install cargo-cache --version 0.8.2 --no-default-features --features ci-autoclean
           cargo-cache
 
   ci_feature_powerset_check:
     name: Verify Feature Combinations
     runs-on: ubuntu-latest
+
+    env:
+      CI: 1
+      CARGO_INCREMENTAL: 0
+
     steps:
       - uses: actions/checkout@v2
 
@@ -96,17 +99,14 @@ jobs:
           profile: minimal
           override: true
 
+      - name: Install cargo-hack
+        uses: taiki-e/install-action@cargo-hack
+
       - name: Generate Cargo.lock
         uses: actions-rs/cargo@v1
         with: { command: generate-lockfile }
       - name: Cache Dependencies
         uses: Swatinem/rust-cache@v1.2.0
-
-      - name: Install cargo-hack
-        uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: cargo-hack
 
       - name: check feature combinations
         uses: actions-rs/cargo@v1
@@ -119,6 +119,11 @@ jobs:
   nextest:
     name: nextest
     runs-on: ubuntu-latest
+
+    env:
+      CI: 1
+      CARGO_INCREMENTAL: 0
+
     steps:
       - uses: actions/checkout@v2
 
@@ -129,17 +134,14 @@ jobs:
           profile: minimal
           override: true
 
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
+
       - name: Generate Cargo.lock
         uses: actions-rs/cargo@v1
         with: { command: generate-lockfile }
       - name: Cache Dependencies
         uses: Swatinem/rust-cache@v1.3.0
-
-      - name: Install cargo-nextest
-        uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: cargo-nextest
 
       - name: Test with cargo-nextest
         uses: actions-rs/cargo@v1
