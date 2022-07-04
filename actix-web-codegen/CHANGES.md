@@ -1,7 +1,7 @@
 # Changes
 
 ## Unreleased - 2022-xx-xx
-- Added `#[routes]` macro to support multiple paths for one handler. [#2718]
+- Add `#[routes]` macro to support multiple paths for one handler. [#2718]
 - Minimum supported Rust version (MSRV) is now 1.57 due to transitive `time` dependency.
 
 [#2718]: https://github.com/actix/actix-web/pull/2718

@@ -2,6 +2,7 @@
 
 ## Unreleased - 2022-xx-xx
 ### Added
+- Add `#[routes]` macro to support multiple paths for one handler. [#2718]
 - Add `ServiceRequest::{parts, request}()` getter methods. [#2786]
 - Add configuration options for TLS handshake timeout via `HttpServer::{rustls, openssl}_with_config` methods. [#2752]
 
