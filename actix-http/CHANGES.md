@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2022-xx-xx
+- Rename `ws::{Item => ContinuationItem}`. [#????]
+
+[#????]: https://github.com/actix/actix-web/pull/????
 
 
 ## 3.2.1 - 2022-07-02
