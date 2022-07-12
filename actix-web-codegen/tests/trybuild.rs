@@ -1,4 +1,4 @@
-#[rustversion::stable(1.54)] // MSRV
+#[rustversion::stable(1.57)] // MSRV
 #[test]
 fn compile_macros() {
     let t = trybuild::TestCases::new();
@@ -11,6 +11,10 @@ fn compile_macros() {
     t.compile_fail("tests/trybuild/route-duplicate-method-fail.rs");
     t.compile_fail("tests/trybuild/route-unexpected-method-fail.rs");
     t.compile_fail("tests/trybuild/route-malformed-path-fail.rs");
+
+    t.pass("tests/trybuild/routes-ok.rs");
+    t.compile_fail("tests/trybuild/routes-missing-method-fail.rs");
+    t.compile_fail("tests/trybuild/routes-missing-args-fail.rs");
 
     t.pass("tests/trybuild/docstring-ok.rs");
 

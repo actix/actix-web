@@ -1,11 +1,13 @@
 error: Unexpected HTTP method: `UNEXPECTED`
- --> $DIR/route-unexpected-method-fail.rs:3:21
+ --> tests/trybuild/route-unexpected-method-fail.rs:3:21
   |
 3 | #[route("/", method="UNEXPECTED")]
   |                     ^^^^^^^^^^^^
 
 error[E0277]: the trait bound `fn() -> impl std::future::Future {index}: HttpServiceFactory` is not satisfied
-  --> $DIR/route-unexpected-method-fail.rs:12:55
+  --> tests/trybuild/route-unexpected-method-fail.rs:12:55
    |
 12 |     let srv = actix_test::start(|| App::new().service(index));
-   |                                                       ^^^^^ the trait `HttpServiceFactory` is not implemented for `fn() -> impl std::future::Future {index}`
+   |                                               ------- ^^^^^ the trait `HttpServiceFactory` is not implemented for `fn() -> impl std::future::Future {index}`
+   |                                               |
+   |                                               required by a bound introduced by this call

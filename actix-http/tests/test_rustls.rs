@@ -8,13 +8,14 @@ use std::{
     net::{SocketAddr, TcpStream as StdTcpStream},
     sync::Arc,
     task::Poll,
+    time::Duration,
 };
 
 use actix_http::{
     body::{BodyStream, BoxBody, SizedStream},
     error::PayloadError,
     header::{self, HeaderName, HeaderValue},
-    Error, HttpService, Method, Request, Response, StatusCode, Version,
+    Error, HttpService, Method, Request, Response, StatusCode, TlsAcceptorConfig, Version,
 };
 use actix_http_test::test_server;
 use actix_rt::pin;
@@ -106,7 +107,7 @@ pub fn get_negotiated_alpn_protocol(
 }
 
 #[actix_rt::test]
-async fn test_h1() -> io::Result<()> {
+async fn h1() -> io::Result<()> {
     let srv = test_server(move || {
         HttpService::build()
             .h1(|_| ok::<_, Error>(Response::ok()))
@@ -120,7 +121,7 @@ async fn test_h1() -> io::Result<()> {
 }
 
 #[actix_rt::test]
-async fn test_h2() -> io::Result<()> {
+async fn h2() -> io::Result<()> {
     let srv = test_server(move || {
         HttpService::build()
             .h2(|_| ok::<_, Error>(Response::ok()))
@@ -134,7 +135,7 @@ async fn test_h2() -> io::Result<()> {
 }
 
 #[actix_rt::test]
-async fn test_h1_1() -> io::Result<()> {
+async fn h1_1() -> io::Result<()> {
     let srv = test_server(move || {
         HttpService::build()
             .h1(|req: Request| {
@@ -152,7 +153,7 @@ async fn test_h1_1() -> io::Result<()> {
 }
 
 #[actix_rt::test]
-async fn test_h2_1() -> io::Result<()> {
+async fn h2_1() -> io::Result<()> {
     let srv = test_server(move || {
         HttpService::build()
             .finish(|req: Request| {
@@ -160,7 +161,10 @@ async fn test_h2_1() -> io::Result<()> {
                 assert_eq!(req.version(), Version::HTTP_2);
                 ok::<_, Error>(Response::ok())
             })
-            .rustls(tls_config())
+            .rustls_with_config(
+                tls_config(),
+                TlsAcceptorConfig::default().handshake_timeout(Duration::from_secs(5)),
+            )
     })
     .await;
 
@@ -170,7 +174,7 @@ async fn test_h2_1() -> io::Result<()> {
 }
 
 #[actix_rt::test]
-async fn test_h2_body1() -> io::Result<()> {
+async fn h2_body1() -> io::Result<()> {
     let data = "HELLOWORLD".to_owned().repeat(64 * 1024);
     let mut srv = test_server(move || {
         HttpService::build()
@@ -191,7 +195,7 @@ async fn test_h2_body1() -> io::Result<()> {
 }
 
 #[actix_rt::test]
-async fn test_h2_content_length() {
+async fn h2_content_length() {
     let srv = test_server(move || {
         HttpService::build()
             .h2(|req: Request| {
@@ -212,6 +216,7 @@ async fn test_h2_content_length() {
     let value = HeaderValue::from_static("0");
 
     {
+        #[allow(clippy::single_element_loop)]
         for &i in &[0] {
             let req = srv
                 .request(Method::HEAD, srv.surl(&format!("/{}", i)))
@@ -226,6 +231,7 @@ async fn test_h2_content_length() {
             // assert_eq!(response.headers().get(&header), None);
         }
 
+        #[allow(clippy::single_element_loop)]
         for &i in &[1] {
             let req = srv
                 .request(Method::GET, srv.surl(&format!("/{}", i)))
@@ -245,7 +251,7 @@ async fn test_h2_content_length() {
 }
 
 #[actix_rt::test]
-async fn test_h2_headers() {
+async fn h2_headers() {
     let data = STR.repeat(10);
     let data2 = data.clone();
 
@@ -309,7 +315,7 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World";
 
 #[actix_rt::test]
-async fn test_h2_body2() {
+async fn h2_body2() {
     let mut srv = test_server(move || {
         HttpService::build()
             .h2(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
@@ -326,7 +332,7 @@ async fn test_h2_body2() {
 }
 
 #[actix_rt::test]
-async fn test_h2_head_empty() {
+async fn h2_head_empty() {
     let mut srv = test_server(move || {
         HttpService::build()
             .finish(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
@@ -352,7 +358,7 @@ async fn test_h2_head_empty() {
 }
 
 #[actix_rt::test]
-async fn test_h2_head_binary() {
+async fn h2_head_binary() {
     let mut srv = test_server(move || {
         HttpService::build()
             .h2(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
@@ -377,7 +383,7 @@ async fn test_h2_head_binary() {
 }
 
 #[actix_rt::test]
-async fn test_h2_head_binary2() {
+async fn h2_head_binary2() {
     let srv = test_server(move || {
         HttpService::build()
             .h2(|_| ok::<_, Infallible>(Response::ok().set_body(STR)))
@@ -398,7 +404,7 @@ async fn test_h2_head_binary2() {
 }
 
 #[actix_rt::test]
-async fn test_h2_body_length() {
+async fn h2_body_length() {
     let mut srv = test_server(move || {
         HttpService::build()
             .h2(|_| {
@@ -420,7 +426,7 @@ async fn test_h2_body_length() {
 }
 
 #[actix_rt::test]
-async fn test_h2_body_chunked_explicit() {
+async fn h2_body_chunked_explicit() {
     let mut srv = test_server(move || {
         HttpService::build()
             .h2(|_| {
@@ -447,7 +453,7 @@ async fn test_h2_body_chunked_explicit() {
 }
 
 #[actix_rt::test]
-async fn test_h2_response_http_error_handling() {
+async fn h2_response_http_error_handling() {
     let mut srv = test_server(move || {
         HttpService::build()
             .h2(fn_factory_with_config(|_: ()| {
@@ -486,7 +492,7 @@ impl From<BadRequest> for Response<BoxBody> {
 }
 
 #[actix_rt::test]
-async fn test_h2_service_error() {
+async fn h2_service_error() {
     let mut srv = test_server(move || {
         HttpService::build()
             .h2(|_| err::<Response<BoxBody>, _>(BadRequest))
@@ -503,7 +509,7 @@ async fn test_h2_service_error() {
 }
 
 #[actix_rt::test]
-async fn test_h1_service_error() {
+async fn h1_service_error() {
     let mut srv = test_server(move || {
         HttpService::build()
             .h1(|_| err::<Response<BoxBody>, _>(BadRequest))
@@ -524,7 +530,7 @@ const HTTP1_1_ALPN_PROTOCOL: &[u8] = b"http/1.1";
 const CUSTOM_ALPN_PROTOCOL: &[u8] = b"custom";
 
 #[actix_rt::test]
-async fn test_alpn_h1() -> io::Result<()> {
+async fn alpn_h1() -> io::Result<()> {
     let srv = test_server(move || {
         let mut config = tls_config();
         config.alpn_protocols.push(CUSTOM_ALPN_PROTOCOL.to_vec());
@@ -546,7 +552,7 @@ async fn test_alpn_h1() -> io::Result<()> {
 }
 
 #[actix_rt::test]
-async fn test_alpn_h2() -> io::Result<()> {
+async fn alpn_h2() -> io::Result<()> {
     let srv = test_server(move || {
         let mut config = tls_config();
         config.alpn_protocols.push(CUSTOM_ALPN_PROTOCOL.to_vec());
@@ -572,7 +578,7 @@ async fn test_alpn_h2() -> io::Result<()> {
 }
 
 #[actix_rt::test]
-async fn test_alpn_h2_1() -> io::Result<()> {
+async fn alpn_h2_1() -> io::Result<()> {
     let srv = test_server(move || {
         let mut config = tls_config();
         config.alpn_protocols.push(CUSTOM_ALPN_PROTOCOL.to_vec());

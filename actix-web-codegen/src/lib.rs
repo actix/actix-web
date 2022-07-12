@@ -46,9 +46,20 @@
 //! ```
 //!
 //! # Multiple Path Handlers
-//! There are no macros to generate multi-path handlers. Let us know in [this issue].
+//! Acts as a wrapper for multiple single method handler macros. It takes no arguments and
+//! delegates those to the macros for the individual methods. See [macro@routes] macro docs.
 //!
-//! [this issue]: https://github.com/actix/actix-web/issues/1709
+//! ```
+//! # use actix_web::HttpResponse;
+//! # use actix_web_codegen::routes;
+//! #[routes]
+//! #[get("/test")]
+//! #[get("/test2")]
+//! #[delete("/test")]
+//! async fn example() -> HttpResponse {
+//!     HttpResponse::Ok().finish()
+//! }
+//! ```
 //!
 //! [actix-web attributes docs]: https://docs.rs/actix-web/latest/actix_web/#attributes
 //! [GET]: macro@get
@@ -104,6 +115,39 @@ pub fn route(args: TokenStream, input: TokenStream) -> TokenStream {
     route::with_method(None, args, input)
 }
 
+/// Creates resource handler, allowing multiple HTTP methods and paths.
+///
+/// # Syntax
+/// ```plain
+/// #[routes]
+/// #[<method>("path", ...)]
+/// #[<method>("path", ...)]
+/// ...
+/// ```
+///
+/// # Attributes
+/// The `routes` macro itself has no parameters, but allows specifying the attribute macros for
+/// the multiple paths and/or methods, e.g. [`GET`](macro@get) and [`POST`](macro@post).
+///
+/// These helper attributes take the same parameters as the [single method handlers](crate#single-method-handler).
+///
+/// # Examples
+/// ```
+/// # use actix_web::HttpResponse;
+/// # use actix_web_codegen::routes;
+/// #[routes]
+/// #[get("/test")]
+/// #[get("/test2")]
+/// #[delete("/test")]
+/// async fn example() -> HttpResponse {
+///     HttpResponse::Ok().finish()
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn routes(_: TokenStream, input: TokenStream) -> TokenStream {
+    route::with_methods(input)
+}
+
 macro_rules! method_macro {
     ($variant:ident, $method:ident) => {
 #[doc = concat!("Creates route handler with `actix_web::guard::", stringify!($variant), "`.")]
@@ -151,6 +195,10 @@ method_macro!(Trace, trace);
 method_macro!(Patch, patch);
 
 /// Marks async main function as the Actix Web system entry-point.
+///
+/// Note that Actix Web also works under `#[tokio::main]` since version 4.0. However, this macro is
+/// still necessary for actor support (since actors use a `System`). Read more in the
+/// [`actix_web::rt`](https://docs.rs/actix-web/4/actix_web/rt) module docs.
 ///
 /// # Examples
 /// ```

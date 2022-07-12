@@ -2,10 +2,13 @@ use actix_codec::{Decoder, Encoder};
 use bitflags::bitflags;
 use bytes::{Bytes, BytesMut};
 use bytestring::ByteString;
+use tracing::error;
 
-use super::frame::Parser;
-use super::proto::{CloseReason, OpCode};
-use super::ProtocolError;
+use super::{
+    frame::Parser,
+    proto::{CloseReason, OpCode},
+    ProtocolError,
+};
 
 /// A WebSocket message.
 #[derive(Debug, PartialEq)]

@@ -109,7 +109,7 @@ async fn service(msg: Frame) -> Result<Message, Error> {
 }
 
 #[actix_rt::test]
-async fn test_simple() {
+async fn simple() {
     let mut srv = test_server(|| {
         HttpService::build()
             .upgrade(fn_factory(|| async {

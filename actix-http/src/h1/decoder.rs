@@ -6,7 +6,7 @@ use http::{
     header::{self, HeaderName, HeaderValue},
     Method, StatusCode, Uri, Version,
 };
-use log::{debug, error, trace};
+use tracing::{debug, error, trace};
 
 use super::chunked::ChunkedState;
 use crate::{error::ParseError, header::HeaderMap, ConnectionType, Request, ResponseHead};
@@ -46,6 +46,23 @@ pub(crate) enum PayloadLength {
     None,
 }
 
+impl PayloadLength {
+    /// Returns true if variant is `None`.
+    fn is_none(&self) -> bool {
+        matches!(self, Self::None)
+    }
+
+    /// Returns true if variant is represents zero-length (not none) payload.
+    fn is_zero(&self) -> bool {
+        matches!(
+            self,
+            PayloadLength::Payload(PayloadType::Payload(PayloadDecoder {
+                kind: Kind::Length(0)
+            }))
+        )
+    }
+}
+
 pub(crate) trait MessageType: Sized {
     fn set_connection_type(&mut self, conn_type: Option<ConnectionType>);
 
@@ -59,6 +76,7 @@ pub(crate) trait MessageType: Sized {
         &mut self,
         slice: &Bytes,
         raw_headers: &[HeaderIndex],
+        version: Version,
     ) -> Result<PayloadLength, ParseError> {
         let mut ka = None;
         let mut has_upgrade_websocket = false;
@@ -87,21 +105,23 @@ pub(crate) trait MessageType: Sized {
                         return Err(ParseError::Header);
                     }
 
-                    header::CONTENT_LENGTH => match value.to_str() {
-                        Ok(s) if s.trim().starts_with('+') => {
-                            debug!("illegal Content-Length: {:?}", s);
+                    header::CONTENT_LENGTH => match value.to_str().map(str::trim) {
+                        Ok(val) if val.starts_with('+') => {
+                            debug!("illegal Content-Length: {:?}", val);
                             return Err(ParseError::Header);
                         }
-                        Ok(s) => {
-                            if let Ok(len) = s.parse::<u64>() {
-                                if len != 0 {
-                                    content_length = Some(len);
-                                }
+
+                        Ok(val) => {
+                            if let Ok(len) = val.parse::<u64>() {
+                                // accept 0 lengths here and remove them in `decode` after all
+                                // headers have been processed to prevent request smuggling issues
+                                content_length = Some(len);
                             } else {
-                                debug!("illegal Content-Length: {:?}", s);
+                                debug!("illegal Content-Length: {:?}", val);
                                 return Err(ParseError::Header);
                             }
                         }
+
                         Err(_) => {
                             debug!("illegal Content-Length: {:?}", value);
                             return Err(ParseError::Header);
@@ -114,22 +134,23 @@ pub(crate) trait MessageType: Sized {
                         return Err(ParseError::Header);
                     }
 
-                    header::TRANSFER_ENCODING => {
+                    header::TRANSFER_ENCODING if version == Version::HTTP_11 => {
                         seen_te = true;
 
-                        if let Ok(s) = value.to_str().map(str::trim) {
-                            if s.eq_ignore_ascii_case("chunked") {
+                        if let Ok(val) = value.to_str().map(str::trim) {
+                            if val.eq_ignore_ascii_case("chunked") {
                                 chunked = true;
-                            } else if s.eq_ignore_ascii_case("identity") {
+                            } else if val.eq_ignore_ascii_case("identity") {
                                 // allow silently since multiple TE headers are already checked
                             } else {
-                                debug!("illegal Transfer-Encoding: {:?}", s);
+                                debug!("illegal Transfer-Encoding: {:?}", val);
                                 return Err(ParseError::Header);
                             }
                         } else {
                             return Err(ParseError::Header);
                         }
                     }
+
                     // connection keep-alive state
                     header::CONNECTION => {
                         ka = if let Ok(conn) = value.to_str().map(str::trim) {
@@ -146,6 +167,7 @@ pub(crate) trait MessageType: Sized {
                             None
                         };
                     }
+
                     header::UPGRADE => {
                         if let Ok(val) = value.to_str().map(str::trim) {
                             if val.eq_ignore_ascii_case("websocket") {
@@ -153,19 +175,23 @@ pub(crate) trait MessageType: Sized {
                             }
                         }
                     }
+
                     header::EXPECT => {
                         let bytes = value.as_bytes();
                         if bytes.len() >= 4 && &bytes[0..4] == b"100-" {
                             expect = true;
                         }
                     }
+
                     _ => {}
                 }
 
                 headers.append(name, value);
             }
         }
+
         self.set_connection_type(ka);
+
         if expect {
             self.set_expect()
         }
@@ -209,15 +235,16 @@ impl MessageType for Request {
 
         let (len, method, uri, ver, h_len) = {
             // SAFETY:
-            // Create an uninitialized array of `MaybeUninit`. The `assume_init` is
-            // safe because the type we are claiming to have initialized here is a
-            // bunch of `MaybeUninit`s, which do not require initialization.
+            // Create an uninitialized array of `MaybeUninit`. The `assume_init` is safe because the
+            // type we are claiming to have initialized here is a bunch of `MaybeUninit`s, which
+            // do not require initialization.
             let mut parsed = unsafe {
                 MaybeUninit::<[MaybeUninit<httparse::Header<'_>>; MAX_HEADERS]>::uninit()
                     .assume_init()
             };
 
             let mut req = httparse::Request::new(&mut []);
+
             match req.parse_with_uninit_headers(src, &mut parsed)? {
                 httparse::Status::Complete(len) => {
                     let method = Method::from_bytes(req.method.unwrap().as_bytes())
@@ -232,6 +259,7 @@ impl MessageType for Request {
 
                     (len, method, uri, version, req.headers.len())
                 }
+
                 httparse::Status::Partial => {
                     return if src.len() >= MAX_BUFFER_SIZE {
                         trace!("MAX_BUFFER_SIZE unprocessed data reached, closing");
@@ -247,7 +275,22 @@ impl MessageType for Request {
         let mut msg = Request::new();
 
         // convert headers
-        let length = msg.set_headers(&src.split_to(len).freeze(), &headers[..h_len])?;
+        let mut length =
+            msg.set_headers(&src.split_to(len).freeze(), &headers[..h_len], ver)?;
+
+        // disallow HTTP/1.0 POST requests that do not contain a Content-Length headers
+        // see https://datatracker.ietf.org/doc/html/rfc1945#section-7.2.2
+        if ver == Version::HTTP_10 && method == Method::POST && length.is_none() {
+            debug!("no Content-Length specified for HTTP/1.0 POST request");
+            return Err(ParseError::Header);
+        }
+
+        // Remove CL value if 0 now that all headers and HTTP/1.0 special cases are processed.
+        // Protects against some request smuggling attacks.
+        // See https://github.com/actix/actix-web/issues/2767.
+        if length.is_zero() {
+            length = PayloadLength::None;
+        }
 
         // payload decoder
         let decoder = match length {
@@ -291,22 +334,35 @@ impl MessageType for ResponseHead {
         let mut headers: [HeaderIndex; MAX_HEADERS] = EMPTY_HEADER_INDEX_ARRAY;
 
         let (len, ver, status, h_len) = {
-            let mut parsed: [httparse::Header<'_>; MAX_HEADERS] = EMPTY_HEADER_ARRAY;
+            // SAFETY:
+            // Create an uninitialized array of `MaybeUninit`. The `assume_init` is safe because the
+            // type we are claiming to have initialized here is a bunch of `MaybeUninit`s, which
+            // do not require initialization.
+            let mut parsed = unsafe {
+                MaybeUninit::<[MaybeUninit<httparse::Header<'_>>; MAX_HEADERS]>::uninit()
+                    .assume_init()
+            };
 
-            let mut res = httparse::Response::new(&mut parsed);
-            match res.parse(src)? {
+            let mut res = httparse::Response::new(&mut []);
+
+            let mut config = httparse::ParserConfig::default();
+            config.allow_spaces_after_header_name_in_responses(true);
+
+            match config.parse_response_with_uninit_headers(&mut res, src, &mut parsed)? {
                 httparse::Status::Complete(len) => {
                     let version = if res.version.unwrap() == 1 {
                         Version::HTTP_11
                     } else {
                         Version::HTTP_10
                     };
+
                     let status = StatusCode::from_u16(res.code.unwrap())
                         .map_err(|_| ParseError::Status)?;
                     HeaderIndex::record(src, res.headers, &mut headers);
 
                     (len, version, status, res.headers.len())
                 }
+
                 httparse::Status::Partial => {
                     return if src.len() >= MAX_BUFFER_SIZE {
                         error!("MAX_BUFFER_SIZE unprocessed data reached, closing");
@@ -322,7 +378,15 @@ impl MessageType for ResponseHead {
         msg.version = ver;
 
         // convert headers
-        let length = msg.set_headers(&src.split_to(len).freeze(), &headers[..h_len])?;
+        let mut length =
+            msg.set_headers(&src.split_to(len).freeze(), &headers[..h_len], ver)?;
+
+        // Remove CL value if 0 now that all headers and HTTP/1.0 special cases are processed.
+        // Protects against some request smuggling attacks.
+        // See https://github.com/actix/actix-web/issues/2767.
+        if length.is_zero() {
+            length = PayloadLength::None;
+        }
 
         // message payload
         let decoder = if let PayloadLength::Payload(pl) = length {
@@ -357,9 +421,6 @@ pub(crate) const EMPTY_HEADER_INDEX: HeaderIndex = HeaderIndex {
 
 pub(crate) const EMPTY_HEADER_INDEX_ARRAY: [HeaderIndex; MAX_HEADERS] =
     [EMPTY_HEADER_INDEX; MAX_HEADERS];
-
-pub(crate) const EMPTY_HEADER_ARRAY: [httparse::Header<'static>; MAX_HEADERS] =
-    [httparse::EMPTY_HEADER; MAX_HEADERS];
 
 impl HeaderIndex {
     pub(crate) fn record(
@@ -594,14 +655,100 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_post() {
-        let mut buf = BytesMut::from("POST /test2 HTTP/1.0\r\n\r\n");
+    fn parse_h09_reject() {
+        let mut buf = BytesMut::from(
+            "GET /test1 HTTP/0.9\r\n\
+            \r\n",
+        );
+
+        let mut reader = MessageDecoder::<Request>::default();
+        reader.decode(&mut buf).unwrap_err();
+
+        let mut buf = BytesMut::from(
+            "POST /test2 HTTP/0.9\r\n\
+            Content-Length: 3\r\n\
+            \r\n
+            abc",
+        );
+
+        let mut reader = MessageDecoder::<Request>::default();
+        reader.decode(&mut buf).unwrap_err();
+    }
+
+    #[test]
+    fn parse_h10_get() {
+        let mut buf = BytesMut::from(
+            "GET /test1 HTTP/1.0\r\n\
+            \r\n",
+        );
+
+        let mut reader = MessageDecoder::<Request>::default();
+        let (req, _) = reader.decode(&mut buf).unwrap().unwrap();
+        assert_eq!(req.version(), Version::HTTP_10);
+        assert_eq!(*req.method(), Method::GET);
+        assert_eq!(req.path(), "/test1");
+
+        let mut buf = BytesMut::from(
+            "GET /test2 HTTP/1.0\r\n\
+            Content-Length: 0\r\n\
+            \r\n",
+        );
+
+        let mut reader = MessageDecoder::<Request>::default();
+        let (req, _) = reader.decode(&mut buf).unwrap().unwrap();
+        assert_eq!(req.version(), Version::HTTP_10);
+        assert_eq!(*req.method(), Method::GET);
+        assert_eq!(req.path(), "/test2");
+
+        let mut buf = BytesMut::from(
+            "GET /test3 HTTP/1.0\r\n\
+            Content-Length: 3\r\n\
+            \r\n
+            abc",
+        );
+
+        let mut reader = MessageDecoder::<Request>::default();
+        let (req, _) = reader.decode(&mut buf).unwrap().unwrap();
+        assert_eq!(req.version(), Version::HTTP_10);
+        assert_eq!(*req.method(), Method::GET);
+        assert_eq!(req.path(), "/test3");
+    }
+
+    #[test]
+    fn parse_h10_post() {
+        let mut buf = BytesMut::from(
+            "POST /test1 HTTP/1.0\r\n\
+            Content-Length: 3\r\n\
+            \r\n\
+            abc",
+        );
+
+        let mut reader = MessageDecoder::<Request>::default();
+        let (req, _) = reader.decode(&mut buf).unwrap().unwrap();
+        assert_eq!(req.version(), Version::HTTP_10);
+        assert_eq!(*req.method(), Method::POST);
+        assert_eq!(req.path(), "/test1");
+
+        let mut buf = BytesMut::from(
+            "POST /test2 HTTP/1.0\r\n\
+            Content-Length: 0\r\n\
+            \r\n",
+        );
 
         let mut reader = MessageDecoder::<Request>::default();
         let (req, _) = reader.decode(&mut buf).unwrap().unwrap();
         assert_eq!(req.version(), Version::HTTP_10);
         assert_eq!(*req.method(), Method::POST);
         assert_eq!(req.path(), "/test2");
+
+        let mut buf = BytesMut::from(
+            "POST /test3 HTTP/1.0\r\n\
+            \r\n",
+        );
+
+        let mut reader = MessageDecoder::<Request>::default();
+        let err = reader.decode(&mut buf).unwrap_err();
+        assert!(err.to_string().contains("Header"))
     }
 
     #[test]
@@ -697,121 +844,98 @@ mod tests {
 
     #[test]
     fn test_conn_default_1_0() {
-        let mut buf = BytesMut::from("GET /test HTTP/1.0\r\n\r\n");
-        let req = parse_ready!(&mut buf);
-
+        let req = parse_ready!(&mut BytesMut::from("GET /test HTTP/1.0\r\n\r\n"));
         assert_eq!(req.head().connection_type(), ConnectionType::Close);
     }
 
     #[test]
     fn test_conn_default_1_1() {
-        let mut buf = BytesMut::from("GET /test HTTP/1.1\r\n\r\n");
-        let req = parse_ready!(&mut buf);
-
+        let req = parse_ready!(&mut BytesMut::from("GET /test HTTP/1.1\r\n\r\n"));
         assert_eq!(req.head().connection_type(), ConnectionType::KeepAlive);
     }
 
     #[test]
     fn test_conn_close() {
-        let mut buf = BytesMut::from(
+        let req = parse_ready!(&mut BytesMut::from(
             "GET /test HTTP/1.1\r\n\
              connection: close\r\n\r\n",
-        );
-        let req = parse_ready!(&mut buf);
-
+        ));
         assert_eq!(req.head().connection_type(), ConnectionType::Close);
 
-        let mut buf = BytesMut::from(
+        let req = parse_ready!(&mut BytesMut::from(
             "GET /test HTTP/1.1\r\n\
              connection: Close\r\n\r\n",
-        );
-        let req = parse_ready!(&mut buf);
-
+        ));
         assert_eq!(req.head().connection_type(), ConnectionType::Close);
     }
 
     #[test]
     fn test_conn_close_1_0() {
-        let mut buf = BytesMut::from(
+        let req = parse_ready!(&mut BytesMut::from(
             "GET /test HTTP/1.0\r\n\
              connection: close\r\n\r\n",
-        );
-
-        let req = parse_ready!(&mut buf);
-
+        ));
         assert_eq!(req.head().connection_type(), ConnectionType::Close);
     }
 
     #[test]
     fn test_conn_keep_alive_1_0() {
-        let mut buf = BytesMut::from(
+        let req = parse_ready!(&mut BytesMut::from(
             "GET /test HTTP/1.0\r\n\
              connection: keep-alive\r\n\r\n",
-        );
-        let req = parse_ready!(&mut buf);
-
+        ));
         assert_eq!(req.head().connection_type(), ConnectionType::KeepAlive);
 
-        let mut buf = BytesMut::from(
+        let req = parse_ready!(&mut BytesMut::from(
             "GET /test HTTP/1.0\r\n\
              connection: Keep-Alive\r\n\r\n",
-        );
-        let req = parse_ready!(&mut buf);
-
+        ));
         assert_eq!(req.head().connection_type(), ConnectionType::KeepAlive);
     }
 
     #[test]
     fn test_conn_keep_alive_1_1() {
-        let mut buf = BytesMut::from(
+        let req = parse_ready!(&mut BytesMut::from(
             "GET /test HTTP/1.1\r\n\
              connection: keep-alive\r\n\r\n",
-        );
-        let req = parse_ready!(&mut buf);
-
+        ));
         assert_eq!(req.head().connection_type(), ConnectionType::KeepAlive);
     }
 
     #[test]
     fn test_conn_other_1_0() {
-        let mut buf = BytesMut::from(
+        let req = parse_ready!(&mut BytesMut::from(
             "GET /test HTTP/1.0\r\n\
              connection: other\r\n\r\n",
-        );
-        let req = parse_ready!(&mut buf);
-
+        ));
         assert_eq!(req.head().connection_type(), ConnectionType::Close);
     }
 
     #[test]
     fn test_conn_other_1_1() {
-        let mut buf = BytesMut::from(
+        let req = parse_ready!(&mut BytesMut::from(
             "GET /test HTTP/1.1\r\n\
              connection: other\r\n\r\n",
-        );
-        let req = parse_ready!(&mut buf);
-
+        ));
         assert_eq!(req.head().connection_type(), ConnectionType::KeepAlive);
     }
 
     #[test]
     fn test_conn_upgrade() {
-        let mut buf = BytesMut::from(
+        let req = parse_ready!(&mut BytesMut::from(
             "GET /test HTTP/1.1\r\n\
              upgrade: websockets\r\n\
              connection: upgrade\r\n\r\n",
-        );
-        let req = parse_ready!(&mut buf);
+        ));
 
         assert!(req.upgrade());
         assert_eq!(req.head().connection_type(), ConnectionType::Upgrade);
 
-        let mut buf = BytesMut::from(
+        let req = parse_ready!(&mut BytesMut::from(
             "GET /test HTTP/1.1\r\n\
              upgrade: Websockets\r\n\
              connection: Upgrade\r\n\r\n",
-        );
-        let req = parse_ready!(&mut buf);
+        ));
 
         assert!(req.upgrade());
         assert_eq!(req.head().connection_type(), ConnectionType::Upgrade);
@@ -819,59 +943,62 @@ mod tests {
 
     #[test]
     fn test_conn_upgrade_connect_method() {
-        let mut buf = BytesMut::from(
+        let req = parse_ready!(&mut BytesMut::from(
             "CONNECT /test HTTP/1.1\r\n\
              content-type: text/plain\r\n\r\n",
-        );
-        let req = parse_ready!(&mut buf);
+        ));
 
         assert!(req.upgrade());
     }
 
     #[test]
-    fn test_headers_content_length_err_1() {
-        let mut buf = BytesMut::from(
+    fn test_headers_bad_content_length() {
+        // string CL
+        expect_parse_err!(&mut BytesMut::from(
             "GET /test HTTP/1.1\r\n\
              content-length: line\r\n\r\n",
-        );
+        ));
 
-        expect_parse_err!(&mut buf)
+        // negative CL
+        expect_parse_err!(&mut BytesMut::from(
+            "GET /test HTTP/1.1\r\n\
+             content-length: -1\r\n\r\n",
+        ));
     }
 
     #[test]
-    fn test_headers_content_length_err_2() {
+    fn octal_ish_cl_parsed_as_decimal() {
         let mut buf = BytesMut::from(
-            "GET /test HTTP/1.1\r\n\
-             content-length: -1\r\n\r\n",
+            "POST /test HTTP/1.1\r\n\
+             content-length: 011\r\n\r\n",
         );
-
-        expect_parse_err!(&mut buf);
+        let mut reader = MessageDecoder::<Request>::default();
+        let (_req, pl) = reader.decode(&mut buf).unwrap().unwrap();
+        assert!(matches!(
+            pl,
+            PayloadType::Payload(pl) if pl == PayloadDecoder::length(11)
+        ));
     }
 
     #[test]
     fn test_invalid_header() {
-        let mut buf = BytesMut::from(
+        expect_parse_err!(&mut BytesMut::from(
             "GET /test HTTP/1.1\r\n\
              test line\r\n\r\n",
-        );
-
-        expect_parse_err!(&mut buf);
+        ));
     }
 
     #[test]
     fn test_invalid_name() {
-        let mut buf = BytesMut::from(
+        expect_parse_err!(&mut BytesMut::from(
             "GET /test HTTP/1.1\r\n\
              test[]: line\r\n\r\n",
-        );
-
-        expect_parse_err!(&mut buf);
+        ));
     }
 
     #[test]
     fn test_http_request_bad_status_line() {
-        let mut buf = BytesMut::from("getpath \r\n\r\n");
-        expect_parse_err!(&mut buf);
+        expect_parse_err!(&mut BytesMut::from("getpath \r\n\r\n"));
     }
 
     #[test]
@@ -911,11 +1038,10 @@ mod tests {
 
     #[test]
     fn test_http_request_parser_utf8() {
-        let mut buf = BytesMut::from(
+        let req = parse_ready!(&mut BytesMut::from(
             "GET /test HTTP/1.1\r\n\
              x-test: тест\r\n\r\n",
-        );
-        let req = parse_ready!(&mut buf);
+        ));
 
         assert_eq!(
             req.headers().get("x-test").unwrap().as_bytes(),
@@ -925,24 +1051,18 @@ mod tests {
 
     #[test]
     fn test_http_request_parser_two_slashes() {
-        let mut buf = BytesMut::from("GET //path HTTP/1.1\r\n\r\n");
-        let req = parse_ready!(&mut buf);
-
+        let req = parse_ready!(&mut BytesMut::from("GET //path HTTP/1.1\r\n\r\n"));
         assert_eq!(req.path(), "//path");
     }
 
     #[test]
     fn test_http_request_parser_bad_method() {
-        let mut buf = BytesMut::from("!12%()+=~$ /get HTTP/1.1\r\n\r\n");
-
-        expect_parse_err!(&mut buf);
+        expect_parse_err!(&mut BytesMut::from("!12%()+=~$ /get HTTP/1.1\r\n\r\n"));
     }
 
     #[test]
     fn test_http_request_parser_bad_version() {
-        let mut buf = BytesMut::from("GET //get HT/11\r\n\r\n");
-
-        expect_parse_err!(&mut buf);
+        expect_parse_err!(&mut BytesMut::from("GET //get HT/11\r\n\r\n"));
     }
 
     #[test]
@@ -959,29 +1079,66 @@ mod tests {
 
     #[test]
     fn hrs_multiple_content_length() {
-        let mut buf = BytesMut::from(
+        expect_parse_err!(&mut BytesMut::from(
             "GET / HTTP/1.1\r\n\
             Host: example.com\r\n\
             Content-Length: 4\r\n\
             Content-Length: 2\r\n\
             \r\n\
             abcd",
-        );
+        ));
 
-        expect_parse_err!(&mut buf);
+        expect_parse_err!(&mut BytesMut::from(
+            "GET / HTTP/1.1\r\n\
+            Host: example.com\r\n\
+            Content-Length: 0\r\n\
+            Content-Length: 2\r\n\
+            \r\n\
+            ab",
+        ));
     }
 
     #[test]
     fn hrs_content_length_plus() {
-        let mut buf = BytesMut::from(
+        expect_parse_err!(&mut BytesMut::from(
             "GET / HTTP/1.1\r\n\
             Host: example.com\r\n\
             Content-Length: +3\r\n\
             \r\n\
             000",
+        ));
+    }
+
+    #[test]
+    fn hrs_te_http10() {
+        // in HTTP/1.0 transfer encoding is ignored and must therefore contain a CL header
+
+        expect_parse_err!(&mut BytesMut::from(
+            "POST / HTTP/1.0\r\n\
+            Host: example.com\r\n\
+            Transfer-Encoding: chunked\r\n\
+            \r\n\
+            3\r\n\
+            aaa\r\n\
+            0\r\n\
+            ",
+        ));
+    }
+
+    #[test]
+    fn hrs_cl_and_te_http10() {
+        // in HTTP/1.0 transfer encoding is simply ignored so it's fine to have both
+
+        let mut buf = BytesMut::from(
+            "GET / HTTP/1.0\r\n\
+            Host: example.com\r\n\
+            Content-Length: 3\r\n\
+            Transfer-Encoding: chunked\r\n\
+            \r\n\
+            000",
         );
 
-        expect_parse_err!(&mut buf);
+        parse_ready!(&mut buf);
     }
 
     #[test]

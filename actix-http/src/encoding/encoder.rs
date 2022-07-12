@@ -17,13 +17,13 @@ use pin_project_lite::pin_project;
 #[cfg(feature = "compress-gzip")]
 use flate2::write::{GzEncoder, ZlibEncoder};
 
+use tracing::trace;
 #[cfg(feature = "compress-zstd")]
 use zstd::stream::write::Encoder as ZstdEncoder;
 
 use super::Writer;
 use crate::{
     body::{self, BodySize, MessageBody},
-    error::BlockingError,
     header::{self, ContentEncoding, HeaderValue, CONTENT_ENCODING},
     ResponseHead, StatusCode,
 };
@@ -173,7 +173,12 @@ where
 
             if let Some(ref mut fut) = this.fut {
                 let mut encoder = ready!(Pin::new(fut).poll(cx))
-                    .map_err(|_| EncoderError::Blocking(BlockingError))?
+                    .map_err(|_| {
+                        EncoderError::Io(io::Error::new(
+                            io::ErrorKind::Other,
+                            "Blocking task was cancelled unexpectedly",
+                        ))
+                    })?
                     .map_err(EncoderError::Io)?;
 
                 let chunk = encoder.take();
@@ -252,7 +257,7 @@ fn update_head(encoding: ContentEncoding, head: &mut ResponseHead) {
     head.headers_mut()
         .insert(header::CONTENT_ENCODING, encoding.to_header_value());
     head.headers_mut()
-        .insert(header::VARY, HeaderValue::from_static("accept-encoding"));
+        .append(header::VARY, HeaderValue::from_static("accept-encoding"));
 
     head.no_chunking(false);
 }
@@ -400,12 +405,11 @@ fn new_brotli_compressor() -> Box<brotli::CompressorWriter<Writer>> {
 #[derive(Debug, Display)]
 #[non_exhaustive]
 pub enum EncoderError {
+    /// Wrapped body stream error.
     #[display(fmt = "body")]
     Body(Box<dyn StdError>),
 
-    #[display(fmt = "blocking")]
-    Blocking(BlockingError),
-
+    /// Generic I/O error.
     #[display(fmt = "io")]
     Io(io::Error),
 }
@@ -414,7 +418,6 @@ impl StdError for EncoderError {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
             EncoderError::Body(err) => Some(&**err),
-            EncoderError::Blocking(err) => Some(err),
             EncoderError::Io(err) => Some(err),
         }
     }

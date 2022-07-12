@@ -160,7 +160,7 @@ where
     ///
     /// # Errors
     /// `Future` implementation returns error if:
-    /// - content length is greater than [limit](JsonBody::limit) (default: 2 MiB)
+    /// - content length is greater than [limit](ResponseBody::limit) (default: 2 MiB)
     ///
     /// # Examples
     /// ```no_run

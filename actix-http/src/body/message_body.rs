@@ -19,7 +19,7 @@ use super::{BodySize, BoxBody};
 /// It is not usually necessary to create custom body types, this trait is already [implemented for
 /// a large number of sensible body types](#foreign-impls) including:
 /// - Empty body: `()`
-/// - Text-based: `String`, `&'static str`, `ByteString`.
+/// - Text-based: `String`, `&'static str`, [`ByteString`](https://docs.rs/bytestring/1).
 /// - Byte-based: `Bytes`, `BytesMut`, `Vec<u8>`, `&'static [u8]`;
 /// - Streams: [`BodyStream`](super::BodyStream), [`SizedStream`](super::SizedStream)
 ///
@@ -481,6 +481,7 @@ mod tests {
         assert_poll_next_none!(pl);
     }
 
+    #[allow(clippy::let_unit_value)]
     #[actix_rt::test]
     async fn test_unit() {
         let pl = ();

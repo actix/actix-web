@@ -1,6 +1,113 @@
 # Changes
 
-## Unreleased - 2021-xx-xx
+## Unreleased - 2022-xx-xx
+### Changed
+- Minimum supported Rust version (MSRV) is now 1.57 due to transitive `time` dependency.
+
+
+## 3.0.0 - 2022-03-07
+### Dependencies
+- Updated `actix-*` to Tokio v1-based versions. [#1813]
+- Updated `bytes` to `1.0`. [#1813]
+- Updated `cookie` to `0.16`. [#2555]
+- Updated `rand` to `0.8`.
+- Updated `rustls` to `0.20`. [#2414]
+- Updated `tokio` to `1`.
+
+### Added
+- `trust-dns` crate feature to enable `trust-dns-resolver` as client DNS resolver; disabled by default. [#1969]
+- `cookies` crate feature; enabled by default. [#2619]
+- `compress-brotli` crate feature; enabled by default. [#2250]
+- `compress-gzip` crate feature; enabled by default. [#2250]
+- `compress-zstd` crate feature; enabled by default. [#2250]
+- `client::Connector::handshake_timeout()` for customizing TLS connection handshake timeout. [#2081]
+- `client::ConnectorService` as `client::Connector::finish` method's return type [#2081]
+- `client::ConnectionIo` trait alias [#2081]
+- `Client::headers()` to get default mut reference of `HeaderMap` of client object. [#2114]
+- `ClientResponse::timeout()` for set the timeout of collecting response body. [#1931]
+- `ClientBuilder::local_address()` for binding to a local IP address for this client. [#2024]
+- `ClientRequest::insert_header()` method which allows using typed and untyped headers. [#1869]
+- `ClientRequest::append_header()` method which allows using typed and untyped headers. [#1869]
+- `ClientBuilder::add_default_header()` (and deprecate `ClientBuilder::header()`). [#2510]
+
+### Changed
+- `client::Connector` type now only has one generic type for `actix_service::Service`. [#2063]
+- `client::error::ConnectError` Resolver variant contains `Box<dyn std::error::Error>` type. [#1905]
+- `client::ConnectorConfig` default timeout changed to 5 seconds. [#1905]
+- `ConnectorService` type is renamed to `BoxConnectorService`. [#2081]
+- Fix http/https encoding when enabling `compress` feature. [#2116]
+- Rename `TestResponse::{header => append_header, set => insert_header}`. These methods now take a `TryIntoHeaderPair`. [#2094]
+- `ClientBuilder::connector()` method now takes `Connector<T, U>` type. [#2008]
+- Basic auth now accepts blank passwords as an empty string instead of an `Option`. [#2050]
+- Relax default timeout for `Connector` to 5 seconds (up from 1 second). [#1905]
+- `*::send_json()` and `*::send_form()` methods now receive `impl Serialize`. [#2553]
+- `FrozenClientRequest::extra_header()` now uses receives an `impl TryIntoHeaderPair`. [#2553]
+- Rename `Connector::{ssl => openssl}()`. [#2503]
+- `ClientRequest::send_body` now takes an `impl MessageBody`. [#2546]
+- Rename `MessageBody => ResponseBody` to avoid conflicts with `MessageBody` trait. [#2546]
+- Minimum supported Rust version (MSRV) is now 1.54.
+
+### Fixed
+- Send headers along with redirected requests. [#2310]
+- Improve `Client` instantiation efficiency when using `openssl` by only building connectors once. [#2503]
+- Remove unnecessary `Unpin` bounds on `*::send_stream`. [#2553]
+- `impl Future` for `ResponseBody` no longer requires the body type be `Unpin`. [#2546]
+- `impl Future` for `JsonBody` no longer requires the body type be `Unpin`. [#2546]
+- `impl Stream` for `ClientResponse` no longer requires the body type be `Unpin`. [#2546]
+
+### Removed
+- `compress` crate feature. [#2250]
+- `ClientRequest::set`; use `ClientRequest::insert_header`. [#1869]
+- `ClientRequest::set_header`; use `ClientRequest::insert_header`. [#1869]
+- `ClientRequest::set_header_if_none`; use `ClientRequest::insert_header_if_none`. [#1869]
+- `ClientRequest::header`; use `ClientRequest::append_header`. [#1869]
+- Deprecated methods on `ClientRequest`: `if_true`, `if_some`. [#2148]
+- `ClientBuilder::default` function [#2008]
+
+### Security
+- `cookie` upgrade addresses [`RUSTSEC-2020-0071`].
+
+[`RUSTSEC-2020-0071`]: https://rustsec.org/advisories/RUSTSEC-2020-0071.html
+
+[#1813]: https://github.com/actix/actix-web/pull/1813
+[#1869]: https://github.com/actix/actix-web/pull/1869
+[#1905]: https://github.com/actix/actix-web/pull/1905
+[#1905]: https://github.com/actix/actix-web/pull/1905
+[#1931]: https://github.com/actix/actix-web/pull/1931
+[#1969]: https://github.com/actix/actix-web/pull/1969
+[#1969]: https://github.com/actix/actix-web/pull/1969
+[#1981]: https://github.com/actix/actix-web/pull/1981
+[#2008]: https://github.com/actix/actix-web/pull/2008
+[#2024]: https://github.com/actix/actix-web/pull/2024
+[#2050]: https://github.com/actix/actix-web/pull/2050
+[#2063]: https://github.com/actix/actix-web/pull/2063
+[#2081]: https://github.com/actix/actix-web/pull/2081
+[#2081]: https://github.com/actix/actix-web/pull/2081
+[#2094]: https://github.com/actix/actix-web/pull/2094
+[#2114]: https://github.com/actix/actix-web/pull/2114
+[#2116]: https://github.com/actix/actix-web/pull/2116
+[#2148]: https://github.com/actix/actix-web/pull/2148
+[#2250]: https://github.com/actix/actix-web/pull/2250
+[#2310]: https://github.com/actix/actix-web/pull/2310
+[#2414]: https://github.com/actix/actix-web/pull/2414
+[#2425]: https://github.com/actix/actix-web/pull/2425
+[#2474]: https://github.com/actix/actix-web/pull/2474
+[#2503]: https://github.com/actix/actix-web/pull/2503
+[#2510]: https://github.com/actix/actix-web/pull/2510
+[#2546]: https://github.com/actix/actix-web/pull/2546
+[#2553]: https://github.com/actix/actix-web/pull/2553
+[#2555]: https://github.com/actix/actix-web/pull/2555
+
+
+<details>
+<summary>3.0.0 Pre-Releases</summary>
+
+## 3.0.0-beta.21 - 2022-02-16
+- No significant changes since `3.0.0-beta.20`.
+
+
+## 3.0.0-beta.20 - 2022-01-31
+- No significant changes since `3.0.0-beta.19`.
 
 
 ## 3.0.0-beta.19 - 2022-01-21
@@ -162,6 +269,7 @@
 
 [#1813]: https://github.com/actix/actix-web/pull/1813
 
+</details>
 
 ## 2.0.3 - 2020-11-29
 ### Fixed

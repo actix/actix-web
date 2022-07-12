@@ -14,7 +14,7 @@ use actix_service::{
 };
 use actix_utils::future::ready;
 use futures_core::{future::LocalBoxFuture, ready};
-use log::error;
+use tracing::{error, trace};
 
 use crate::{
     body::{BoxBody, MessageBody},

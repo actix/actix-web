@@ -43,7 +43,7 @@ pub use actix_http_test::unused_addr;
 use actix_service::{map_config, IntoServiceFactory, ServiceFactory, ServiceFactoryExt as _};
 pub use actix_web::test::{
     call_and_read_body, call_and_read_body_json, call_service, init_service, ok_service,
-    read_body, read_body_json, simple_service, TestRequest,
+    read_body, read_body_json, status_service, TestRequest,
 };
 use actix_web::{
     body::MessageBody,
@@ -149,7 +149,7 @@ where
             let local_addr = tcp.local_addr().unwrap();
             let factory = factory.clone();
             let srv_cfg = cfg.clone();
-            let timeout = cfg.client_timeout;
+            let timeout = cfg.client_request_timeout;
 
             let builder = Server::build().workers(1).disable_signals().system_exit();
 
@@ -167,7 +167,7 @@ where
                             .map_err(|err| err.into().error_response());
 
                         HttpService::build()
-                            .client_timeout(timeout)
+                            .client_request_timeout(timeout)
                             .h1(map_config(fac, move |_| app_cfg.clone()))
                             .tcp()
                     }),
@@ -183,7 +183,7 @@ where
                             .map_err(|err| err.into().error_response());
 
                         HttpService::build()
-                            .client_timeout(timeout)
+                            .client_request_timeout(timeout)
                             .h2(map_config(fac, move |_| app_cfg.clone()))
                             .tcp()
                     }),
@@ -199,7 +199,7 @@ where
                             .map_err(|err| err.into().error_response());
 
                         HttpService::build()
-                            .client_timeout(timeout)
+                            .client_request_timeout(timeout)
                             .finish(map_config(fac, move |_| app_cfg.clone()))
                             .tcp()
                     }),
@@ -218,7 +218,7 @@ where
                             .map_err(|err| err.into().error_response());
 
                         HttpService::build()
-                            .client_timeout(timeout)
+                            .client_request_timeout(timeout)
                             .h1(map_config(fac, move |_| app_cfg.clone()))
                             .openssl(acceptor.clone())
                     }),
@@ -234,7 +234,7 @@ where
                             .map_err(|err| err.into().error_response());
 
                         HttpService::build()
-                            .client_timeout(timeout)
+                            .client_request_timeout(timeout)
                             .h2(map_config(fac, move |_| app_cfg.clone()))
                             .openssl(acceptor.clone())
                     }),
@@ -250,7 +250,7 @@ where
                             .map_err(|err| err.into().error_response());
 
                         HttpService::build()
-                            .client_timeout(timeout)
+                            .client_request_timeout(timeout)
                             .finish(map_config(fac, move |_| app_cfg.clone()))
                             .openssl(acceptor.clone())
                     }),
@@ -269,7 +269,7 @@ where
                             .map_err(|err| err.into().error_response());
 
                         HttpService::build()
-                            .client_timeout(timeout)
+                            .client_request_timeout(timeout)
                             .h1(map_config(fac, move |_| app_cfg.clone()))
                             .rustls(config.clone())
                     }),
@@ -285,7 +285,7 @@ where
                             .map_err(|err| err.into().error_response());
 
                         HttpService::build()
-                            .client_timeout(timeout)
+                            .client_request_timeout(timeout)
                             .h2(map_config(fac, move |_| app_cfg.clone()))
                             .rustls(config.clone())
                     }),
@@ -301,7 +301,7 @@ where
                             .map_err(|err| err.into().error_response());
 
                         HttpService::build()
-                            .client_timeout(timeout)
+                            .client_request_timeout(timeout)
                             .finish(map_config(fac, move |_| app_cfg.clone()))
                             .rustls(config.clone())
                     }),
@@ -388,7 +388,7 @@ pub fn config() -> TestServerConfig {
 pub struct TestServerConfig {
     tp: HttpVer,
     stream: StreamType,
-    client_timeout: u64,
+    client_request_timeout: Duration,
 }
 
 impl Default for TestServerConfig {
@@ -403,7 +403,7 @@ impl TestServerConfig {
         TestServerConfig {
             tp: HttpVer::Both,
             stream: StreamType::Tcp,
-            client_timeout: 5000,
+            client_request_timeout: Duration::from_secs(5),
         }
     }
 
@@ -433,9 +433,9 @@ impl TestServerConfig {
         self
     }
 
-    /// Set client timeout in milliseconds for first request.
-    pub fn client_timeout(mut self, val: u64) -> Self {
-        self.client_timeout = val;
+    /// Set client timeout for first request.
+    pub fn client_request_timeout(mut self, dur: Duration) -> Self {
+        self.client_request_timeout = dur;
         self
     }
 }

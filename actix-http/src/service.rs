@@ -15,13 +15,13 @@ use actix_service::{
 };
 use futures_core::{future::LocalBoxFuture, ready};
 use pin_project_lite::pin_project;
+use tracing::error;
 
 use crate::{
     body::{BoxBody, MessageBody},
     builder::HttpServiceBuilder,
-    config::{KeepAlive, ServiceConfig},
     error::DispatchError,
-    h1, h2, ConnectCallback, OnConnectData, Protocol, Request, Response,
+    h1, ConnectCallback, OnConnectData, Protocol, Request, Response, ServiceConfig,
 };
 
 /// A `ServiceFactory` for HTTP/1.1 or HTTP/2 protocol.
@@ -43,9 +43,9 @@ where
     <S::Service as Service<Request>>::Future: 'static,
     B: MessageBody + 'static,
 {
-    /// Create builder for `HttpService` instance.
+    /// Constructs builder for `HttpService` instance.
     pub fn build() -> HttpServiceBuilder<T, S> {
-        HttpServiceBuilder::new()
+        HttpServiceBuilder::default()
     }
 }
 
@@ -58,12 +58,10 @@ where
     <S::Service as Service<Request>>::Future: 'static,
     B: MessageBody + 'static,
 {
-    /// Create new `HttpService` instance.
+    /// Constructs new `HttpService` instance from service with default config.
     pub fn new<F: IntoServiceFactory<S, Request>>(service: F) -> Self {
-        let cfg = ServiceConfig::new(KeepAlive::Timeout(5), 5000, 0, false, None);
-
         HttpService {
-            cfg,
+            cfg: ServiceConfig::default(),
             srv: service.into_factory(),
             expect: h1::ExpectHandler,
             upgrade: None,
@@ -72,7 +70,7 @@ where
         }
     }
 
-    /// Create new `HttpService` instance with config.
+    /// Constructs new `HttpService` instance from config and service.
     pub(crate) fn with_config<F: IntoServiceFactory<S, Request>>(
         cfg: ServiceConfig,
         service: F,
@@ -97,11 +95,10 @@ where
     <S::Service as Service<Request>>::Future: 'static,
     B: MessageBody,
 {
-    /// Provide service for `EXPECT: 100-Continue` support.
+    /// Sets service for `Expect: 100-Continue` handling.
     ///
-    /// Service get called with request that contains `EXPECT` header.
-    /// Service must return request in case of success, in that case
-    /// request will be forwarded to main service.
+    /// An expect service is called with requests that contain an `Expect` header. A successful
+    /// response type is also a request which will be forwarded to the main service.
     pub fn expect<X1>(self, expect: X1) -> HttpService<T, S, B, X1, U>
     where
         X1: ServiceFactory<Request, Config = (), Response = Request>,
@@ -118,10 +115,10 @@ where
         }
     }
 
-    /// Provide service for custom `Connection: UPGRADE` support.
+    /// Sets service for custom `Connection: Upgrade` handling.
     ///
-    /// If service is provided then normal requests handling get halted
-    /// and this service get called with original request and framed object.
+    /// If service is provided then normal requests handling get halted and this service get called
+    /// with original request and framed object.
     pub fn upgrade<U1>(self, upgrade: Option<U1>) -> HttpService<T, S, B, X, U1>
     where
         U1: ServiceFactory<(Request, Framed<T, h1::Codec>), Config = (), Response = ()>,
@@ -184,6 +181,25 @@ where
     }
 }
 
+/// Configuration options used when accepting TLS connection.
+#[cfg(any(feature = "openssl", feature = "rustls"))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "openssl", feature = "rustls"))))]
+#[derive(Debug, Default)]
+pub struct TlsAcceptorConfig {
+    pub(crate) handshake_timeout: Option<std::time::Duration>,
+}
+
+#[cfg(any(feature = "openssl", feature = "rustls"))]
+impl TlsAcceptorConfig {
+    /// Set TLS handshake timeout duration.
+    pub fn handshake_timeout(self, dur: std::time::Duration) -> Self {
+        Self {
+            handshake_timeout: Some(dur),
+            // ..self
+        }
+    }
+}
+
 #[cfg(feature = "openssl")]
 mod openssl {
     use actix_service::ServiceFactoryExt as _;
@@ -233,7 +249,28 @@ mod openssl {
             Error = TlsError<SslError, DispatchError>,
             InitError = (),
         > {
-            Acceptor::new(acceptor)
+            self.openssl_with_config(acceptor, TlsAcceptorConfig::default())
+        }
+
+        /// Create OpenSSL based service with custom TLS acceptor configuration.
+        pub fn openssl_with_config(
+            self,
+            acceptor: SslAcceptor,
+            tls_acceptor_config: TlsAcceptorConfig,
+        ) -> impl ServiceFactory<
+            TcpStream,
+            Config = (),
+            Response = (),
+            Error = TlsError<SslError, DispatchError>,
+            InitError = (),
+        > {
+            let mut acceptor = Acceptor::new(acceptor);
+
+            if let Some(handshake_timeout) = tls_acceptor_config.handshake_timeout {
+                acceptor.set_handshake_timeout(handshake_timeout);
+            }
+
+            acceptor
                 .map_init_err(|_| {
                     unreachable!("TLS acceptor service factory does not error on init")
                 })
@@ -297,7 +334,22 @@ mod rustls {
         /// Create Rustls based service.
         pub fn rustls(
             self,
+            config: ServerConfig,
+        ) -> impl ServiceFactory<
+            TcpStream,
+            Config = (),
+            Response = (),
+            Error = TlsError<io::Error, DispatchError>,
+            InitError = (),
+        > {
+            self.rustls_with_config(config, TlsAcceptorConfig::default())
+        }
+
+        /// Create Rustls based service with custom TLS acceptor configuration.
+        pub fn rustls_with_config(
+            self,
             mut config: ServerConfig,
+            tls_acceptor_config: TlsAcceptorConfig,
         ) -> impl ServiceFactory<
             TcpStream,
             Config = (),
@@ -309,7 +361,13 @@ mod rustls {
             protos.extend_from_slice(&config.alpn_protocols);
             config.alpn_protocols = protos;
 
-            Acceptor::new(config)
+            let mut acceptor = Acceptor::new(config);
+
+            if let Some(handshake_timeout) = tls_acceptor_config.handshake_timeout {
+                acceptor.set_handshake_timeout(handshake_timeout);
+            }
+
+            acceptor
                 .map_init_err(|_| {
                     unreachable!("TLS acceptor service factory does not error on init")
                 })
@@ -373,13 +431,13 @@ where
         Box::pin(async move {
             let expect = expect
                 .await
-                .map_err(|e| log::error!("Init http expect service error: {:?}", e))?;
+                .map_err(|e| error!("Init http expect service error: {:?}", e))?;
 
             let upgrade = match upgrade {
                 Some(upgrade) => {
                     let upgrade = upgrade
                         .await
-                        .map_err(|e| log::error!("Init http upgrade service error: {:?}", e))?;
+                        .map_err(|e| error!("Init http upgrade service error: {:?}", e))?;
                     Some(upgrade)
                 }
                 None => None,
@@ -387,7 +445,7 @@ where
 
             let service = service
                 .await
-                .map_err(|e| log::error!("Init http service error: {:?}", e))?;
+                .map_err(|e| error!("Init http service error: {:?}", e))?;
 
             Ok(HttpServiceHandler::new(
                 cfg,
@@ -494,7 +552,7 @@ where
 
     fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self._poll_ready(cx).map_err(|err| {
-            log::error!("HTTP service readiness error: {:?}", err);
+            error!("HTTP service readiness error: {:?}", err);
             DispatchError::Service(err)
         })
     }
@@ -506,10 +564,11 @@ where
         let conn_data = OnConnectData::from_io(&io, self.on_connect_ext.as_deref());
 
         match proto {
+            #[cfg(feature = "http2")]
             Protocol::Http2 => HttpServiceHandlerResponse {
                 state: State::H2Handshake {
                     handshake: Some((
-                        h2::handshake_with_timeout(io, &self.cfg),
+                        crate::h2::handshake_with_timeout(io, &self.cfg),
                         self.cfg.clone(),
                         self.flow.clone(),
                         conn_data,
@@ -517,6 +576,11 @@ where
                     )),
                 },
             },
+
+            #[cfg(not(feature = "http2"))]
+            Protocol::Http2 => {
+                panic!("HTTP/2 support is disabled (enable with the `http2` feature flag)")
+            }
 
             Protocol::Http1 => HttpServiceHandlerResponse {
                 state: State::H1 {
@@ -535,6 +599,7 @@ where
     }
 }
 
+#[cfg(not(feature = "http2"))]
 pin_project! {
     #[project = StateProj]
     enum State<T, S, B, X, U>
@@ -556,10 +621,37 @@ pin_project! {
         U::Error: fmt::Display,
     {
         H1 { #[pin] dispatcher: h1::Dispatcher<T, S, B, X, U> },
-        H2 { #[pin] dispatcher: h2::Dispatcher<T, S, B, X, U> },
+    }
+}
+
+#[cfg(feature = "http2")]
+pin_project! {
+    #[project = StateProj]
+    enum State<T, S, B, X, U>
+    where
+        T: AsyncRead,
+        T: AsyncWrite,
+        T: Unpin,
+
+        S: Service<Request>,
+        S::Future: 'static,
+        S::Error: Into<Response<BoxBody>>,
+
+        B: MessageBody,
+
+        X: Service<Request, Response = Request>,
+        X::Error: Into<Response<BoxBody>>,
+
+        U: Service<(Request, Framed<T, h1::Codec>), Response = ()>,
+        U::Error: fmt::Display,
+    {
+        H1 { #[pin] dispatcher: h1::Dispatcher<T, S, B, X, U> },
+
+        H2 { #[pin] dispatcher: crate::h2::Dispatcher<T, S, B, X, U> },
+
         H2Handshake {
             handshake: Option<(
-                h2::HandshakeWithTimeout<T>,
+                crate::h2::HandshakeWithTimeout<T>,
                 ServiceConfig,
                 Rc<HttpFlow<S, X, U>>,
                 OnConnectData,
@@ -618,21 +710,25 @@ where
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.as_mut().project().state.project() {
             StateProj::H1 { dispatcher } => dispatcher.poll(cx),
+
+            #[cfg(feature = "http2")]
             StateProj::H2 { dispatcher } => dispatcher.poll(cx),
+
+            #[cfg(feature = "http2")]
             StateProj::H2Handshake { handshake: data } => {
                 match ready!(Pin::new(&mut data.as_mut().unwrap().0).poll(cx)) {
                     Ok((conn, timer)) => {
                         let (_, config, flow, conn_data, peer_addr) = data.take().unwrap();
 
                         self.as_mut().project().state.set(State::H2 {
-                            dispatcher: h2::Dispatcher::new(
+                            dispatcher: crate::h2::Dispatcher::new(
                                 conn, flow, config, peer_addr, conn_data, timer,
                             ),
                         });
                         self.poll(cx)
                     }
                     Err(err) => {
-                        trace!("H2 handshake error: {}", err);
+                        tracing::trace!("H2 handshake error: {}", err);
                         Poll::Ready(Err(err))
                     }
                 }
