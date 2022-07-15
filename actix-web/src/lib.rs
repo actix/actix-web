@@ -132,6 +132,7 @@ macro_rules! codegen_reexport {
 codegen_reexport!(main);
 codegen_reexport!(test);
 codegen_reexport!(route);
+codegen_reexport!(routes);
 codegen_reexport!(head);
 codegen_reexport!(get);
 codegen_reexport!(post);

@@ -649,7 +649,7 @@ impl ResourceDef {
     ///     resource.capture_match_info_fn(
     ///         path,
     ///         // when env var is not set, reject when path contains "admin"
-    ///         |res| !(!admin_allowed && res.path().contains("admin")),
+    ///         |path| !(!admin_allowed && path.as_str().contains("admin")),
     ///     )
     /// }
     ///

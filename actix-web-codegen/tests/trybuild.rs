@@ -12,6 +12,10 @@ fn compile_macros() {
     t.compile_fail("tests/trybuild/route-unexpected-method-fail.rs");
     t.compile_fail("tests/trybuild/route-malformed-path-fail.rs");
 
+    t.pass("tests/trybuild/routes-ok.rs");
+    t.compile_fail("tests/trybuild/routes-missing-method-fail.rs");
+    t.compile_fail("tests/trybuild/routes-missing-args-fail.rs");
+
     t.pass("tests/trybuild/docstring-ok.rs");
 
     t.pass("tests/trybuild/test-runtime.rs");
