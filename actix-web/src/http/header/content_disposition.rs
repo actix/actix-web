@@ -10,9 +10,10 @@
 //! - Browser conformance tests at: <http://greenbytes.de/tech/tc2231/>
 //! - IANA assignment: <http://www.iana.org/assignments/cont-disp/cont-disp.xhtml>
 
+use std::fmt::{self, Write};
+
 use once_cell::sync::Lazy;
 use regex::Regex;
-use std::fmt::{self, Write};
 
 use super::{ExtendedValue, Header, TryIntoHeaderValue, Writer};
 use crate::http::header;
