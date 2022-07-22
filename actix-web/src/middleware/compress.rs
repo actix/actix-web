@@ -220,32 +220,25 @@ static SUPPORTED_ENCODINGS_STRING: Lazy<String> = Lazy::new(|| {
     encoding.join(", ")
 });
 
-static SUPPORTED_ENCODINGS: Lazy<Vec<Encoding>> = Lazy::new(|| {
-    let mut encodings = vec![Encoding::identity()];
-
+static SUPPORTED_ENCODINGS: &[Encoding] = &[
+    Encoding::identity(),
     #[cfg(feature = "compress-brotli")]
     {
-        encodings.push(Encoding::brotli());
-    }
-
+        Encoding::brotli()
+    },
     #[cfg(feature = "compress-gzip")]
     {
-        encodings.push(Encoding::gzip());
-        encodings.push(Encoding::deflate());
-    }
-
+        Encoding::gzip()
+    },
+    #[cfg(feature = "compress-gzip")]
+    {
+        Encoding::deflate()
+    },
     #[cfg(feature = "compress-zstd")]
     {
-        encodings.push(Encoding::zstd());
-    }
-
-    assert!(
-        !encodings.is_empty(),
-        "encodings can not be empty unless __compress feature has been explicitly enabled by itself"
-    );
-
-    encodings
-});
+        Encoding::zstd()
+    },
+];
 
 // move cfg(feature) to prevents_double_compressing if more tests are added
 #[cfg(feature = "compress-gzip")]
