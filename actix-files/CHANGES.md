@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2022-xx-xx
+
+
+## 0.6.2 - 2022-07-23
 - Allow partial range responses for video content to start streaming sooner. [#2817]
 - Minimum supported Rust version (MSRV) is now 1.57 due to transitive `time` dependency.
 
