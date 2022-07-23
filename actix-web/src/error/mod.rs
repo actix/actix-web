@@ -42,7 +42,7 @@ pub struct BlockingError;
 impl ResponseError for crate::error::BlockingError {}
 
 /// Errors which can occur when attempting to generate resource uri.
-#[derive(Debug, PartialEq, Display, Error, From)]
+#[derive(Debug, PartialEq, Eq, Display, Error, From)]
 #[non_exhaustive]
 pub enum UrlGenerationError {
     /// Resource not found.

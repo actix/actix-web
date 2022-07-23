@@ -440,7 +440,7 @@ impl HeaderIndex {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 /// Chunk type yielded while decoding a payload.
 pub enum PayloadItem {
     Chunk(Bytes),
@@ -450,7 +450,7 @@ pub enum PayloadItem {
 /// Decoder that can handle different payload types.
 ///
 /// If a message body does not use `Transfer-Encoding`, it should include a `Content-Length`.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PayloadDecoder {
     kind: Kind,
 }
@@ -476,7 +476,7 @@ impl PayloadDecoder {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum Kind {
     /// A reader used when a `Content-Length` header is passed with a positive integer.
     Length(u64),

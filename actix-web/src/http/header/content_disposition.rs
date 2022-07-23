@@ -37,7 +37,7 @@ fn split_once_and_trim(haystack: &str, needle: char) -> (&str, &str) {
 }
 
 /// The implied disposition of the content of the HTTP body.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DispositionType {
     /// Inline implies default processing.
     Inline,
@@ -79,7 +79,7 @@ impl<'a> From<&'a str> for DispositionType {
 /// assert!(param.is_filename());
 /// assert_eq!(param.as_filename().unwrap(), "sample.txt");
 /// ```
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 #[allow(clippy::large_enum_variant)]
 pub enum DispositionParam {
     /// For [`DispositionType::FormData`] (i.e. *multipart/form-data*), the name of an field from
@@ -302,7 +302,7 @@ impl DispositionParam {
 /// change to match local file system conventions if applicable, and do not use directory path
 /// information that may be present.
 /// See [RFC 2183 §2.3](https://datatracker.ietf.org/doc/html/rfc2183#section-2.3).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ContentDisposition {
     /// The disposition type
     pub disposition: DispositionType,

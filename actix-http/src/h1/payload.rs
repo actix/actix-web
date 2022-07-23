@@ -16,7 +16,7 @@ use crate::error::PayloadError;
 /// max buffer size 32k
 pub(crate) const MAX_BUFFER_SIZE: usize = 32_768;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum PayloadStatus {
     Read,
     Pause,

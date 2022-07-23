@@ -401,6 +401,8 @@ where
                         .into_factory()
                         .map_err(|err| err.into().error_response());
 
+                    // false positive lint (?)
+                    #[allow(clippy::significant_drop_in_scrutinee)]
                     let acceptor_config = match c.tls_handshake_timeout {
                         Some(dur) => TlsAcceptorConfig::default().handshake_timeout(dur),
                         None => TlsAcceptorConfig::default(),
