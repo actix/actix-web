@@ -253,7 +253,7 @@ impl HttpRequest {
     #[inline]
     pub fn connection_info(&self) -> Ref<'_, ConnectionInfo> {
         if !self.extensions().contains::<ConnectionInfo>() {
-            let info = ConnectionInfo::new(self.head(), &*self.app_config());
+            let info = ConnectionInfo::new(self.head(), self.app_config());
             self.extensions_mut().insert(info);
         }
 

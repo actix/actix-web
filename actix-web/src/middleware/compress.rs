@@ -319,6 +319,7 @@ mod tests {
             .to_request();
         let res = test::call_service(&app, req).await;
         assert_eq!(res.status(), StatusCode::OK);
+        #[allow(clippy::mutable_key_type)]
         let vary_headers = res.headers().get_all(header::VARY).collect::<HashSet<_>>();
         assert!(vary_headers.contains(&HeaderValue::from_static("x-test")));
         assert!(vary_headers.contains(&HeaderValue::from_static("accept-encoding")));

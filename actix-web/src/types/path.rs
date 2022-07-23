@@ -134,6 +134,7 @@ where
 /// ```
 #[derive(Clone, Default)]
 pub struct PathConfig {
+    #[allow(clippy::type_complexity)]
     err_handler: Option<Arc<dyn Fn(PathError, &HttpRequest) -> Error + Send + Sync>>,
 }
 
