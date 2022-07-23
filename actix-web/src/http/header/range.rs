@@ -53,7 +53,7 @@ use super::{Header, HeaderName, HeaderValue, InvalidHeaderValue, TryIntoHeaderVa
 /// builder.insert_header(Range::bytes(1, 100));
 /// builder.insert_header(Range::bytes_multi(vec![(1, 100), (200, 300)]));
 /// ```
-#[derive(PartialEq, Clone, Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Range {
     /// Byte range.
     Bytes(Vec<ByteRangeSpec>),

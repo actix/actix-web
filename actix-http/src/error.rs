@@ -388,7 +388,7 @@ impl StdError for DispatchError {
 
 /// A set of error that can occur during parsing content type.
 #[derive(Debug, Display, Error)]
-#[cfg_attr(test, derive(PartialEq))]
+#[cfg_attr(test, derive(PartialEq, Eq))]
 #[non_exhaustive]
 pub enum ContentTypeError {
     /// Can not parse content type

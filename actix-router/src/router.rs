@@ -1,6 +1,6 @@
 use crate::{IntoPatterns, Resource, ResourceDef};
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct ResourceId(pub u16);
 
 /// Resource router.
