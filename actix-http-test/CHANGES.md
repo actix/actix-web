@@ -1,8 +1,23 @@
 # Changes
 
 ## Unreleased - 2022-xx-xx
-- Minimum supported Rust version (MSRV) is now 1.57 due to transitive `time` dependency.
 
+
+## 3.0.0 - 2022-07-24
+- `TestServer::stop` is now async and will wait for the server and system to shutdown. [#2442]
+- Added `TestServer::client_headers` method. [#2097]
+- Update `actix-server` dependency to `2`.
+- Update `actix-tls` dependency to `3`.
+- Update `bytes` to `1.0`. [#1813]
+- Minimum supported Rust version (MSRV) is now 1.57.
+
+[#2442]: https://github.com/actix/actix-web/pull/2442
+[#2097]: https://github.com/actix/actix-web/pull/2097
+[#1813]: https://github.com/actix/actix-web/pull/1813
+
+
+<details>
+<summary>3.0.0 Pre-Releases</summary>
 
 ## 3.0.0-beta.13 - 2022-02-16
 - No significant changes since `3.0.0-beta.12`.
@@ -69,6 +84,7 @@
 
 [#1813]: https://github.com/actix/actix-web/pull/1813
 
+</details>
 
 ## 2.1.0 - 2020-11-25
 - Add ability to set address for `TestServer`. [#1645]
