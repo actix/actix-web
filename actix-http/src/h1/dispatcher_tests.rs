@@ -861,56 +861,26 @@ async fn handler_drop_payload() {
             ",
         ));
 
-        assert!(h1.as_mut().poll(cx).is_pending());
-
-        // polls: manual => manual
-        assert_eq!(h1.poll_count, 2);
-
-        let mut res = BytesMut::from(buf.take_write_buf().as_ref());
-        stabilize_date_header(&mut res);
-        let res = &res[..];
-
-        // expect response immediately even though request side has not finished reading payload
-        let exp = http_msg(
-            r"
-            HTTP/1.1 200 OK
-            content-length: 15
-            date: Thu, 01 Jan 1970 12:34:56 UTC
-
-            payload dropped
-            ",
-        );
-
-        assert_eq!(
-            res,
-            exp,
-            "\nexpected response not in write buffer:\n\
-               response: {:?}\n\
-               expected: {:?}",
-            String::from_utf8_lossy(res),
-            String::from_utf8_lossy(&exp)
-        );
-    })
-    .await;
-
-    lazy(|cx| {
         assert!(h1.as_mut().poll(cx).is_ready());
 
-        // polls: manual => manual => manual
+        // polls: manual => manual => shutdown
         assert_eq!(h1.poll_count, 3);
 
         let mut res = BytesMut::from(buf.take_write_buf().as_ref());
         stabilize_date_header(&mut res);
         let res = &res[..];
 
-        // expect that unrequested error response is sent back since connection could not be cleaned
+        // expect response immediately even though request side has not finished reading payload
+        // since write buffer was "too short" we should expect a closed connection hint
         let exp = http_msg(
+            // connection: close
             r"
-            HTTP/1.1 500 Internal Server Error
-            content-length: 0
+            HTTP/1.1 200 OK
+            content-length: 15
             connection: close
             date: Thu, 01 Jan 1970 12:34:56 UTC
 
+            payload dropped
             ",
         );
 
