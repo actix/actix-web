@@ -46,6 +46,6 @@ actix-server = { version = "2.1", optional = true } # ensure matching tokio-urin
 
 [dev-dependencies]
 actix-rt = "2.7"
-actix-test = "0.1.0-beta.13"
+actix-test = "0.1"
 actix-web = "4"
 tempfile = "3.2"
