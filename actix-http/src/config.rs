@@ -35,7 +35,7 @@ impl Default for ServiceConfig {
 }
 
 impl ServiceConfig {
-    /// Create instance of `ServiceConfig`
+    /// Create instance of `ServiceConfig`.
     pub fn new(
         keep_alive: KeepAlive,
         client_request_timeout: Duration,
