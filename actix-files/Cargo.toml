@@ -27,7 +27,6 @@ actix-service = "2"
 actix-utils = "3"
 actix-web = { version = "4", default-features = false }
 
-askama_escape = "0.10"
 bitflags = "1"
 bytes = "1"
 derive_more = "0.99.5"
@@ -38,6 +37,7 @@ mime = "0.3"
 mime_guess = "2.0.1"
 percent-encoding = "2.1"
 pin-project-lite = "0.2.7"
+v_htmlescape= "0.15"
 
 # experimental-io-uring
 [target.'cfg(target_os = "linux")'.dependencies]
