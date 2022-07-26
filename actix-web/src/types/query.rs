@@ -169,6 +169,7 @@ impl<T: DeserializeOwned> FromRequest for Query<T> {
 /// ```
 #[derive(Clone, Default)]
 pub struct QueryConfig {
+    #[allow(clippy::type_complexity)]
     err_handler: Option<Arc<dyn Fn(QueryPayloadError, &HttpRequest) -> Error + Send + Sync>>,
 }
 

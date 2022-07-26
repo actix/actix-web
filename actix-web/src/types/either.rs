@@ -73,7 +73,7 @@ use crate::{
 ///     }
 /// }
 /// ```
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Either<L, R> {
     /// A value of type `L`.
     Left(L),

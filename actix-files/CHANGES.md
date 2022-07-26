@@ -1,7 +1,13 @@
 # Changes
 
 ## Unreleased - 2022-xx-xx
+
+
+## 0.6.2 - 2022-07-23
+- Allow partial range responses for video content to start streaming sooner. [#2817]
 - Minimum supported Rust version (MSRV) is now 1.57 due to transitive `time` dependency.
+
+[#2817]: https://github.com/actix/actix-web/pull/2817
 
 
 ## 0.6.1 - 2022-06-11

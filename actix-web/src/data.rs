@@ -118,7 +118,7 @@ impl<T: ?Sized> Deref for Data<T> {
 
 impl<T: ?Sized> Clone for Data<T> {
     fn clone(&self) -> Data<T> {
-        Data(self.0.clone())
+        Data(Arc::clone(&self.0))
     }
 }
 

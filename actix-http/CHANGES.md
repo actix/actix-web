@@ -1,6 +1,10 @@
 # Changes
 
 ## Unreleased - 2022-xx-xx
+### Fixed
+- Avoid possibility of dispatcher getting stuck while back-pressuring I/O. [#2369]
+
+[#2369]: https://github.com/actix/actix-web/pull/2369
 
 
 ## 3.2.1 - 2022-07-02
@@ -29,9 +33,9 @@
 ### Fixed
 - Revert broken fix in [#2624] that caused erroneous 500 error responses. Temporarily re-introduces [#2357] bug. [#2779]
 
+[#2624]: https://github.com/actix/actix-web/pull/2624
 [#2357]: https://github.com/actix/actix-web/issues/2357
-[#2624]: https://github.com/actix/actix-web/issues/2624
-[#2779]: https://github.com/actix/actix-web/issues/2779
+[#2779]: https://github.com/actix/actix-web/pull/2779
 
 
 ## 3.0.4 - 2022-03-09
@@ -43,14 +47,14 @@
 ### Fixed
 - Allow spaces between header name and colon when parsing responses. [#2684]
 
-[#2684]: https://github.com/actix/actix-web/issues/2684
+[#2684]: https://github.com/actix/actix-web/pull/2684
 
 
 ## 3.0.2 - 2022-03-05
 ### Fixed
 - Fix encoding camel-case header names with more than one hyphen. [#2683]
 
-[#2683]: https://github.com/actix/actix-web/issues/2683
+[#2683]: https://github.com/actix/actix-web/pull/2683
 
 
 ## 3.0.1 - 2022-03-04

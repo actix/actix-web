@@ -98,7 +98,7 @@ rm -f $README_FILE.bak
 echo "manifest, changelog, and readme updated"
 echo
 echo "check other references:"
-rg --glob='**/Cargo.toml' "\
+rg --glob='**/{Cargo.toml,README.md}' "\
 ${PACKAGE_NAME} ?= ?\"[^\"]+\"\
 |${PACKAGE_NAME} ?=.*version ?= ?\"([^\"]+)\"\
 |package ?= ?\"${PACKAGE_NAME}\".*version ?= ?\"([^\"]+)\"\
