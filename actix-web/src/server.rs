@@ -41,17 +41,22 @@ struct Config {
 ///
 /// Create new HTTP server with application factory.
 ///
+/// # HTTP/2
+/// Currently, HTTP/2 is only supported when using TLS (HTTPS). See `bind_rustls` or `bind_openssl`.
+///
+/// # Examples
 /// ```no_run
 /// use actix_web::{web, App, HttpResponse, HttpServer};
 ///
-/// #[actix_rt::main]
+/// #[actix_web::main]
 /// async fn main() -> std::io::Result<()> {
-///     HttpServer::new(
-///         || App::new()
-///             .service(web::resource("/").to(|| HttpResponse::Ok())))
-///         .bind("127.0.0.1:59090")?
-///         .run()
-///         .await
+///     HttpServer::new(|| {
+///         App::new()
+///             .service(web::resource("/").to(|| async { "hello world" }))
+///     })
+///     .bind(("127.0.0.1", 8080))?
+///     .run()
+///     .await
 /// }
 /// ```
 pub struct HttpServer<F, I, S, B>
@@ -133,7 +138,7 @@ where
         }
     }
 
-    /// Set number of workers to start.
+    /// Sets number of workers to start (per bind address).
     ///
     /// By default, the number of available physical CPUs is used as the worker count.
     pub fn workers(mut self, num: usize) -> Self {
@@ -141,7 +146,7 @@ where
         self
     }
 
-    /// Set the maximum number of pending connections.
+    /// Sets the maximum number of pending connections.
     ///
     /// This refers to the number of clients that can be waiting to be served.
     /// Exceeding this number results in the client getting an error when
@@ -157,7 +162,7 @@ where
         self
     }
 
-    /// Sets the maximum per-worker number of concurrent connections.
+    /// Sets the per-worker maximum number of concurrent connections.
     ///
     /// All socket listeners will stop accepting connections when this limit is reached for
     /// each worker.
@@ -168,7 +173,7 @@ where
         self
     }
 
-    /// Sets the maximum per-worker concurrent connection establish process.
+    /// Sets the per-worker maximum concurrent TLS connection limit.
     ///
     /// All listeners will stop accepting connections when this limit is reached. It can be used to
     /// limit the global TLS CPU usage.
@@ -181,7 +186,7 @@ where
         self
     }
 
-    /// Set max number of threads for each worker's blocking task thread pool.
+    /// Sets max number of threads for each worker's blocking task thread pool.
     ///
     /// One thread pool is set up **per worker**; not shared across workers.
     ///
@@ -191,7 +196,7 @@ where
         self
     }
 
-    /// Set server keep-alive setting.
+    /// Sets server keep-alive preference.
     ///
     /// By default keep alive is set to a 5 seconds.
     pub fn keep_alive<T: Into<KeepAlive>>(self, val: T) -> Self {
@@ -199,11 +204,10 @@ where
         self
     }
 
-    /// Set server client timeout in milliseconds for first request.
+    /// Sets server client timeout for first request.
     ///
-    /// Defines a timeout for reading client request header. If a client does not transmit
-    /// the entire set headers within this time, the request is terminated with
-    /// the 408 (Request Time-out) error.
+    /// Defines a timeout for reading client request head. If a client does not transmit the entire
+    /// set headers within this time, the request is terminated with a 408 (Request Timeout) error.
     ///
     /// To disable timeout set value to 0.
     ///
@@ -219,10 +223,10 @@ where
         self.client_request_timeout(dur)
     }
 
-    /// Set server connection shutdown timeout in milliseconds.
+    /// Sets server connection shutdown timeout.
     ///
-    /// Defines a timeout for shutdown connection. If a shutdown procedure does not complete
-    /// within this time, the request is dropped.
+    /// Defines a timeout for connection shutdown. If a shutdown procedure does not complete within
+    /// this time, the request is dropped.
     ///
     /// To disable timeout set value to 0.
     ///
@@ -232,10 +236,10 @@ where
         self
     }
 
-    /// Set TLS handshake timeout.
+    /// Sets TLS handshake timeout.
     ///
-    /// Defines a timeout for TLS handshake. If the TLS handshake does not complete
-    /// within this time, the connection is closed.
+    /// Defines a timeout for TLS handshake. If the TLS handshake does not complete within this
+    /// time, the connection is closed.
     ///
     /// By default handshake timeout is set to 3000 milliseconds.
     #[cfg(any(feature = "openssl", feature = "rustls"))]
@@ -256,35 +260,35 @@ where
         self.client_disconnect_timeout(Duration::from_millis(dur))
     }
 
-    /// Set server host name.
+    /// Sets server host name.
     ///
-    /// Host name is used by application router as a hostname for url generation.
-    /// Check [ConnectionInfo](super::dev::ConnectionInfo::host())
-    /// documentation for more information.
+    /// Host name is used by application router as a hostname for url generation. Check
+    /// [`ConnectionInfo`](crate::dev::ConnectionInfo::host()) docs for more info.
     ///
-    /// By default host name is set to a "localhost" value.
+    /// By default, hostname is set to "localhost".
     pub fn server_hostname<T: AsRef<str>>(self, val: T) -> Self {
         self.config.lock().unwrap().host = Some(val.as_ref().to_owned());
         self
     }
 
-    /// Stop Actix `System` after server shutdown.
+    /// Stops `actix_rt` `System` after server shutdown.
+    ///
+    /// Does nothing when running under `#[tokio::main]` runtime.
     pub fn system_exit(mut self) -> Self {
         self.builder = self.builder.system_exit();
         self
     }
 
-    /// Disable signal handling
+    /// Disables signal handling.
     pub fn disable_signals(mut self) -> Self {
         self.builder = self.builder.disable_signals();
         self
     }
 
-    /// Timeout for graceful workers shutdown.
+    /// Sets timeout for graceful worker shutdown of workers.
     ///
-    /// After receiving a stop signal, workers have this much time to finish
-    /// serving requests. Workers still alive after the timeout are force
-    /// dropped.
+    /// After receiving a stop signal, workers have this much time to finish serving requests.
+    /// Workers still alive after the timeout are force dropped.
     ///
     /// By default shutdown timeout sets to 30 seconds.
     pub fn shutdown_timeout(mut self, sec: u64) -> Self {
@@ -292,33 +296,34 @@ where
         self
     }
 
-    /// Get addresses of bound sockets.
+    /// Returns addresses of bound sockets.
     pub fn addrs(&self) -> Vec<net::SocketAddr> {
         self.sockets.iter().map(|s| s.addr).collect()
     }
 
-    /// Get addresses of bound sockets and the scheme for it.
+    /// Returns addresses of bound sockets and the scheme for it.
     ///
-    /// This is useful when the server is bound from different sources
-    /// with some sockets listening on HTTP and some listening on HTTPS
-    /// and the user should be presented with an enumeration of which
-    /// socket requires which protocol.
+    /// This is useful when the server is bound from different sources with some sockets listening
+    /// on HTTP and some listening on HTTPS and the user should be presented with an enumeration of
+    /// which socket requires which protocol.
     pub fn addrs_with_scheme(&self) -> Vec<(net::SocketAddr, &str)> {
         self.sockets.iter().map(|s| (s.addr, s.scheme)).collect()
     }
 
-    /// Use listener for accepting incoming connection requests
+    /// Binds to existing listener for accepting incoming connection requests.
     ///
-    /// HttpServer does not change any configuration for TcpListener,
-    /// it needs to be configured before passing it to listen() method.
+    /// No changes are made to `lst`'s configuration. Ensure it is configured properly before
+    /// passing ownership to `listen()`.
     pub fn listen(mut self, lst: net::TcpListener) -> io::Result<Self> {
         let cfg = self.config.clone();
         let factory = self.factory.clone();
         let addr = lst.local_addr().unwrap();
+
         self.sockets.push(Socket {
             addr,
             scheme: "http",
         });
+
         let on_connect_fn = self.on_connect_fn.clone();
 
         self.builder =
@@ -351,20 +356,23 @@ where
         Ok(self)
     }
 
-    #[cfg(feature = "openssl")]
-    /// Use listener for accepting incoming tls connection requests
+    /// Binds to existing listener for accepting incoming TLS connection requests using OpenSSL.
     ///
-    /// This method sets alpn protocols to "h2" and "http/1.1"
+    /// See [listen()](Self::listen) for more details on the `lst` argument.
+    ///
+    /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
+    #[cfg(feature = "openssl")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "openssl")))]
     pub fn listen_openssl(
         self,
         lst: net::TcpListener,
         builder: SslAcceptorBuilder,
     ) -> io::Result<Self> {
-        self.listen_ssl_inner(lst, openssl_acceptor(builder)?)
+        self.listen_openssl_inner(lst, openssl_acceptor(builder)?)
     }
 
     #[cfg(feature = "openssl")]
-    fn listen_ssl_inner(
+    fn listen_openssl_inner(
         mut self,
         lst: net::TcpListener,
         acceptor: SslAcceptor,
@@ -417,10 +425,13 @@ where
         Ok(self)
     }
 
-    #[cfg(feature = "rustls")]
-    /// Use listener for accepting incoming tls connection requests
+    /// Binds to existing listening for accepting incoming TLS connection requests using Rustls.
     ///
-    /// This method prepends alpn protocols "h2" and "http/1.1" to configured ones
+    /// See [listen()](Self::listen) for more details on the `lst` argument.
+    ///
+    /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
+    #[cfg(feature = "rustls")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "rustls")))]
     pub fn listen_rustls(
         self,
         lst: net::TcpListener,
@@ -480,11 +491,36 @@ where
         Ok(self)
     }
 
-    /// The socket address to bind
+    /// Resolves socket address(es) and binds server to created listener(s).
     ///
-    /// To bind multiple addresses this method can be called multiple times.
-    pub fn bind<A: net::ToSocketAddrs>(mut self, addr: A) -> io::Result<Self> {
-        let sockets = self.bind2(addr)?;
+    /// # Hostname Resolution
+    /// When `addr` includes a hostname, it is possible for this method to bind to both the IPv4 and
+    /// IPv6 addresses that result from a DNS lookup. You can test this by passing `localhost:8080`
+    /// and noting that the server binds to `127.0.0.1:8080` _and_ `[::1]:8080`. To bind additional
+    /// addresses, call this method multiple times.
+    ///
+    /// Note that, if a DNS lookup is required, resolving hostnames is a blocking operation.
+    ///
+    /// # Typical Usage
+    /// In general, use `127.0.0.1:<port>` when testing locally and `0.0.0.0:<port>` when deploying
+    /// (with or without a reverse proxy or load balancer) so that the server is accessible.
+    ///
+    /// # Errors
+    /// Returns an `io::Error` if:
+    /// - `addrs` cannot be resolved into one or more socket addresses;
+    /// - all the resolved socket addresses are already bound.
+    ///
+    /// # Example
+    /// ```
+    /// # use actix_web::{App, HttpServer};
+    /// # fn inner() -> std::io::Result<()> {
+    /// HttpServer::new(|| App::new())
+    ///     .bind(("127.0.0.1", 8080))?
+    ///     .bind("[::1]:9000")?
+    /// # ; Ok(()) }
+    /// ```
+    pub fn bind<A: net::ToSocketAddrs>(mut self, addrs: A) -> io::Result<Self> {
+        let sockets = self.bind2(addrs)?;
 
         for lst in sockets {
             self = self.listen(lst)?;
@@ -493,12 +529,12 @@ where
         Ok(self)
     }
 
-    fn bind2<A: net::ToSocketAddrs>(&self, addr: A) -> io::Result<Vec<net::TcpListener>> {
+    fn bind2<A: net::ToSocketAddrs>(&self, addrs: A) -> io::Result<Vec<net::TcpListener>> {
         let mut err = None;
         let mut success = false;
         let mut sockets = Vec::new();
 
-        for addr in addr.to_socket_addrs()? {
+        for addr in addrs.to_socket_addrs()? {
             match create_tcp_listener(addr, self.backlog) {
                 Ok(lst) => {
                     success = true;
@@ -520,42 +556,50 @@ where
         }
     }
 
-    #[cfg(feature = "openssl")]
-    /// Start listening for incoming tls connections.
+    /// Resolves socket address(es) and binds server to created listener(s) for TLS connections
+    /// using OpenSSL.
     ///
-    /// This method sets alpn protocols to "h2" and "http/1.1"
-    pub fn bind_openssl<A>(mut self, addr: A, builder: SslAcceptorBuilder) -> io::Result<Self>
+    /// See [bind()](Self::bind) for more details on `addrs` argument.
+    ///
+    /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
+    #[cfg(feature = "openssl")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "openssl")))]
+    pub fn bind_openssl<A>(mut self, addrs: A, builder: SslAcceptorBuilder) -> io::Result<Self>
     where
         A: net::ToSocketAddrs,
     {
-        let sockets = self.bind2(addr)?;
+        let sockets = self.bind2(addrs)?;
         let acceptor = openssl_acceptor(builder)?;
 
         for lst in sockets {
-            self = self.listen_ssl_inner(lst, acceptor.clone())?;
+            self = self.listen_openssl_inner(lst, acceptor.clone())?;
         }
 
         Ok(self)
     }
 
-    #[cfg(feature = "rustls")]
-    /// Start listening for incoming tls connections.
+    /// Resolves socket address(es) and binds server to created listener(s) for TLS connections
+    /// using Rustls.
     ///
-    /// This method prepends alpn protocols "h2" and "http/1.1" to configured ones
+    /// See [bind()](Self::bind) for more details on `addrs` argument.
+    ///
+    /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
+    #[cfg(feature = "rustls")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "rustls")))]
     pub fn bind_rustls<A: net::ToSocketAddrs>(
         mut self,
-        addr: A,
+        addrs: A,
         config: RustlsServerConfig,
     ) -> io::Result<Self> {
-        let sockets = self.bind2(addr)?;
+        let sockets = self.bind2(addrs)?;
         for lst in sockets {
             self = self.listen_rustls_inner(lst, config.clone())?;
         }
         Ok(self)
     }
 
-    #[cfg(unix)]
     /// Start listening for unix domain (UDS) connections on existing listener.
+    #[cfg(unix)]
     pub fn listen_uds(mut self, lst: std::os::unix::net::UnixListener) -> io::Result<Self> {
         use actix_http::Protocol;
         use actix_rt::net::UnixStream;
@@ -665,25 +709,16 @@ where
 {
     /// Start listening for incoming connections.
     ///
-    /// This method starts number of HTTP workers in separate threads.
-    /// For each address this method starts separate thread which does
-    /// `accept()` in a loop.
+    /// # Workers
+    /// This method starts a number of HTTP workers in separate threads. The number of workers in a
+    /// set is defined by [`workers()`](Self::workers) or, by default, the number of the machine's
+    /// physical cores. One worker set is created for each socket address to be bound. For example,
+    /// if workers is set to 4, and there are 2 addresses to bind, then 8 worker threads will be
+    /// spawned.
     ///
-    /// This methods panics if no socket address can be bound or an `Actix` system is not yet
-    /// configured.
-    ///
-    /// ```no_run
-    /// use std::io;
-    /// use actix_web::{web, App, HttpResponse, HttpServer};
-    ///
-    /// #[actix_rt::main]
-    /// async fn main() -> io::Result<()> {
-    ///     HttpServer::new(|| App::new().service(web::resource("/").to(|| HttpResponse::Ok())))
-    ///         .bind("127.0.0.1:0")?
-    ///         .run()
-    ///         .await
-    /// }
-    /// ```
+    /// # Panics
+    /// This methods panics if no socket addresses were successfully bound or if no Tokio runtime
+    /// is set up.
     pub fn run(self) -> Server {
         self.builder.run()
     }
