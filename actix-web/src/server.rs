@@ -113,31 +113,6 @@ where
         }
     }
 
-    /// Sets function that will be called once before each connection is handled.
-    /// It will receive a `&std::any::Any`, which contains underlying connection type and an
-    /// [Extensions] container so that connection data can be accessed in middleware and handlers.
-    ///
-    /// # Connection Types
-    /// - `actix_tls::accept::openssl::TlsStream<actix_web::rt::net::TcpStream>` when using openssl.
-    /// - `actix_tls::accept::rustls::TlsStream<actix_web::rt::net::TcpStream>` when using rustls.
-    /// - `actix_web::rt::net::TcpStream` when no encryption is used.
-    ///
-    /// See the `on_connect` example for additional details.
-    pub fn on_connect<CB>(self, f: CB) -> HttpServer<F, I, S, B>
-    where
-        CB: Fn(&dyn Any, &mut Extensions) + Send + Sync + 'static,
-    {
-        HttpServer {
-            factory: self.factory,
-            config: self.config,
-            backlog: self.backlog,
-            sockets: self.sockets,
-            builder: self.builder,
-            on_connect_fn: Some(Arc::new(f)),
-            _phantom: PhantomData,
-        }
-    }
-
     /// Sets number of workers to start (per bind address).
     ///
     /// By default, the number of available physical CPUs is used as the worker count.
@@ -146,16 +121,23 @@ where
         self
     }
 
+    /// Sets server keep-alive preference.
+    ///
+    /// By default keep-alive is set to 5 seconds.
+    pub fn keep_alive<T: Into<KeepAlive>>(self, val: T) -> Self {
+        self.config.lock().unwrap().keep_alive = val.into();
+        self
+    }
+
     /// Sets the maximum number of pending connections.
     ///
-    /// This refers to the number of clients that can be waiting to be served.
-    /// Exceeding this number results in the client getting an error when
-    /// attempting to connect. It should only affect servers under significant
-    /// load.
+    /// This refers to the number of clients that can be waiting to be served. Exceeding this number
+    /// results in the client getting an error when attempting to connect. It should only affect
+    /// servers under significant load.
     ///
-    /// Generally set in the 64-2048 range. Default value is 2048.
+    /// Generally set in the 64–2048 range. Default value is 2048.
     ///
-    /// This method should be called before `bind()` method call.
+    /// This method will have no effect if called after a `bind()`.
     pub fn backlog(mut self, backlog: u32) -> Self {
         self.backlog = backlog;
         self.builder = self.builder.backlog(backlog);
@@ -193,14 +175,6 @@ where
     /// By default set to 512 / workers.
     pub fn worker_max_blocking_threads(mut self, num: usize) -> Self {
         self.builder = self.builder.worker_max_blocking_threads(num);
-        self
-    }
-
-    /// Sets server keep-alive preference.
-    ///
-    /// By default keep alive is set to a 5 seconds.
-    pub fn keep_alive<T: Into<KeepAlive>>(self, val: T) -> Self {
-        self.config.lock().unwrap().keep_alive = val.into();
         self
     }
 
@@ -260,6 +234,32 @@ where
         self.client_disconnect_timeout(Duration::from_millis(dur))
     }
 
+    /// Sets function that will be called once before each connection is handled.
+    ///
+    /// It will receive a `&std::any::Any`, which contains underlying connection type and an
+    /// [Extensions] container so that connection data can be accessed in middleware and handlers.
+    ///
+    /// # Connection Types
+    /// - `actix_tls::accept::openssl::TlsStream<actix_web::rt::net::TcpStream>` when using OpenSSL.
+    /// - `actix_tls::accept::rustls::TlsStream<actix_web::rt::net::TcpStream>` when using Rustls.
+    /// - `actix_web::rt::net::TcpStream` when no encryption is used.
+    ///
+    /// See the `on_connect` example for additional details.
+    pub fn on_connect<CB>(self, f: CB) -> HttpServer<F, I, S, B>
+    where
+        CB: Fn(&dyn Any, &mut Extensions) + Send + Sync + 'static,
+    {
+        HttpServer {
+            factory: self.factory,
+            config: self.config,
+            backlog: self.backlog,
+            sockets: self.sockets,
+            builder: self.builder,
+            on_connect_fn: Some(Arc::new(f)),
+            _phantom: PhantomData,
+        }
+    }
+
     /// Sets server host name.
     ///
     /// Host name is used by application router as a hostname for url generation. Check
@@ -271,7 +271,7 @@ where
         self
     }
 
-    /// Stops `actix_rt` `System` after server shutdown.
+    /// Flags the `System` to exit after server shutdown.
     ///
     /// Does nothing when running under `#[tokio::main]` runtime.
     pub fn system_exit(mut self) -> Self {
@@ -308,187 +308,6 @@ where
     /// which socket requires which protocol.
     pub fn addrs_with_scheme(&self) -> Vec<(net::SocketAddr, &str)> {
         self.sockets.iter().map(|s| (s.addr, s.scheme)).collect()
-    }
-
-    /// Binds to existing listener for accepting incoming connection requests.
-    ///
-    /// No changes are made to `lst`'s configuration. Ensure it is configured properly before
-    /// passing ownership to `listen()`.
-    pub fn listen(mut self, lst: net::TcpListener) -> io::Result<Self> {
-        let cfg = self.config.clone();
-        let factory = self.factory.clone();
-        let addr = lst.local_addr().unwrap();
-
-        self.sockets.push(Socket {
-            addr,
-            scheme: "http",
-        });
-
-        let on_connect_fn = self.on_connect_fn.clone();
-
-        self.builder =
-            self.builder
-                .listen(format!("actix-web-service-{}", addr), lst, move || {
-                    let c = cfg.lock().unwrap();
-                    let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
-
-                    let mut svc = HttpService::build()
-                        .keep_alive(c.keep_alive)
-                        .client_request_timeout(c.client_request_timeout)
-                        .client_disconnect_timeout(c.client_disconnect_timeout)
-                        .local_addr(addr);
-
-                    if let Some(handler) = on_connect_fn.clone() {
-                        svc = svc.on_connect_ext(move |io: &_, ext: _| {
-                            (handler)(io as &dyn Any, ext)
-                        })
-                    };
-
-                    let fac = factory()
-                        .into_factory()
-                        .map_err(|err| err.into().error_response());
-
-                    svc.finish(map_config(fac, move |_| {
-                        AppConfig::new(false, host.clone(), addr)
-                    }))
-                    .tcp()
-                })?;
-        Ok(self)
-    }
-
-    /// Binds to existing listener for accepting incoming TLS connection requests using OpenSSL.
-    ///
-    /// See [listen()](Self::listen) for more details on the `lst` argument.
-    ///
-    /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
-    #[cfg(feature = "openssl")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "openssl")))]
-    pub fn listen_openssl(
-        self,
-        lst: net::TcpListener,
-        builder: SslAcceptorBuilder,
-    ) -> io::Result<Self> {
-        self.listen_openssl_inner(lst, openssl_acceptor(builder)?)
-    }
-
-    #[cfg(feature = "openssl")]
-    fn listen_openssl_inner(
-        mut self,
-        lst: net::TcpListener,
-        acceptor: SslAcceptor,
-    ) -> io::Result<Self> {
-        let factory = self.factory.clone();
-        let cfg = self.config.clone();
-        let addr = lst.local_addr().unwrap();
-        self.sockets.push(Socket {
-            addr,
-            scheme: "https",
-        });
-
-        let on_connect_fn = self.on_connect_fn.clone();
-
-        self.builder =
-            self.builder
-                .listen(format!("actix-web-service-{}", addr), lst, move || {
-                    let c = cfg.lock().unwrap();
-                    let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
-
-                    let svc = HttpService::build()
-                        .keep_alive(c.keep_alive)
-                        .client_request_timeout(c.client_request_timeout)
-                        .client_disconnect_timeout(c.client_disconnect_timeout)
-                        .local_addr(addr);
-
-                    let svc = if let Some(handler) = on_connect_fn.clone() {
-                        svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
-                    } else {
-                        svc
-                    };
-
-                    let fac = factory()
-                        .into_factory()
-                        .map_err(|err| err.into().error_response());
-
-                    // false positive lint (?)
-                    #[allow(clippy::significant_drop_in_scrutinee)]
-                    let acceptor_config = match c.tls_handshake_timeout {
-                        Some(dur) => TlsAcceptorConfig::default().handshake_timeout(dur),
-                        None => TlsAcceptorConfig::default(),
-                    };
-
-                    svc.finish(map_config(fac, move |_| {
-                        AppConfig::new(true, host.clone(), addr)
-                    }))
-                    .openssl_with_config(acceptor.clone(), acceptor_config)
-                })?;
-
-        Ok(self)
-    }
-
-    /// Binds to existing listening for accepting incoming TLS connection requests using Rustls.
-    ///
-    /// See [listen()](Self::listen) for more details on the `lst` argument.
-    ///
-    /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
-    #[cfg(feature = "rustls")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "rustls")))]
-    pub fn listen_rustls(
-        self,
-        lst: net::TcpListener,
-        config: RustlsServerConfig,
-    ) -> io::Result<Self> {
-        self.listen_rustls_inner(lst, config)
-    }
-
-    #[cfg(feature = "rustls")]
-    fn listen_rustls_inner(
-        mut self,
-        lst: net::TcpListener,
-        config: RustlsServerConfig,
-    ) -> io::Result<Self> {
-        let factory = self.factory.clone();
-        let cfg = self.config.clone();
-        let addr = lst.local_addr().unwrap();
-        self.sockets.push(Socket {
-            addr,
-            scheme: "https",
-        });
-
-        let on_connect_fn = self.on_connect_fn.clone();
-
-        self.builder =
-            self.builder
-                .listen(format!("actix-web-service-{}", addr), lst, move || {
-                    let c = cfg.lock().unwrap();
-                    let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
-
-                    let svc = HttpService::build()
-                        .keep_alive(c.keep_alive)
-                        .client_request_timeout(c.client_request_timeout)
-                        .client_disconnect_timeout(c.client_disconnect_timeout);
-
-                    let svc = if let Some(handler) = on_connect_fn.clone() {
-                        svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
-                    } else {
-                        svc
-                    };
-
-                    let fac = factory()
-                        .into_factory()
-                        .map_err(|err| err.into().error_response());
-
-                    let acceptor_config = match c.tls_handshake_timeout {
-                        Some(dur) => TlsAcceptorConfig::default().handshake_timeout(dur),
-                        None => TlsAcceptorConfig::default(),
-                    };
-
-                    svc.finish(map_config(fac, move |_| {
-                        AppConfig::new(true, host.clone(), addr)
-                    }))
-                    .rustls_with_config(config.clone(), acceptor_config)
-                })?;
-
-        Ok(self)
     }
 
     /// Resolves socket address(es) and binds server to created listener(s).
@@ -557,9 +376,29 @@ where
     }
 
     /// Resolves socket address(es) and binds server to created listener(s) for TLS connections
+    /// using Rustls.
+    ///
+    /// See [`bind()`](Self::bind) for more details on `addrs` argument.
+    ///
+    /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
+    #[cfg(feature = "rustls")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "rustls")))]
+    pub fn bind_rustls<A: net::ToSocketAddrs>(
+        mut self,
+        addrs: A,
+        config: RustlsServerConfig,
+    ) -> io::Result<Self> {
+        let sockets = self.bind2(addrs)?;
+        for lst in sockets {
+            self = self.listen_rustls_inner(lst, config.clone())?;
+        }
+        Ok(self)
+    }
+
+    /// Resolves socket address(es) and binds server to created listener(s) for TLS connections
     /// using OpenSSL.
     ///
-    /// See [bind()](Self::bind) for more details on `addrs` argument.
+    /// See [`bind()`](Self::bind) for more details on `addrs` argument.
     ///
     /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
     #[cfg(feature = "openssl")]
@@ -578,27 +417,236 @@ where
         Ok(self)
     }
 
-    /// Resolves socket address(es) and binds server to created listener(s) for TLS connections
-    /// using Rustls.
+    /// Binds to existing listener for accepting incoming connection requests.
     ///
-    /// See [bind()](Self::bind) for more details on `addrs` argument.
+    /// No changes are made to `lst`'s configuration. Ensure it is configured properly before
+    /// passing ownership to `listen()`.
+    pub fn listen(mut self, lst: net::TcpListener) -> io::Result<Self> {
+        let cfg = self.config.clone();
+        let factory = self.factory.clone();
+        let addr = lst.local_addr().unwrap();
+
+        self.sockets.push(Socket {
+            addr,
+            scheme: "http",
+        });
+
+        let on_connect_fn = self.on_connect_fn.clone();
+
+        self.builder =
+            self.builder
+                .listen(format!("actix-web-service-{}", addr), lst, move || {
+                    let c = cfg.lock().unwrap();
+                    let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
+
+                    let mut svc = HttpService::build()
+                        .keep_alive(c.keep_alive)
+                        .client_request_timeout(c.client_request_timeout)
+                        .client_disconnect_timeout(c.client_disconnect_timeout)
+                        .local_addr(addr);
+
+                    if let Some(handler) = on_connect_fn.clone() {
+                        svc = svc.on_connect_ext(move |io: &_, ext: _| {
+                            (handler)(io as &dyn Any, ext)
+                        })
+                    };
+
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
+
+                    svc.finish(map_config(fac, move |_| {
+                        AppConfig::new(false, host.clone(), addr)
+                    }))
+                    .tcp()
+                })?;
+        Ok(self)
+    }
+
+    /// Binds to existing listener for accepting incoming TLS connection requests using Rustls.
+    ///
+    /// See [`listen()`](Self::listen) for more details on the `lst` argument.
     ///
     /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
     #[cfg(feature = "rustls")]
     #[cfg_attr(docsrs, doc(cfg(feature = "rustls")))]
-    pub fn bind_rustls<A: net::ToSocketAddrs>(
-        mut self,
-        addrs: A,
+    pub fn listen_rustls(
+        self,
+        lst: net::TcpListener,
         config: RustlsServerConfig,
     ) -> io::Result<Self> {
-        let sockets = self.bind2(addrs)?;
-        for lst in sockets {
-            self = self.listen_rustls_inner(lst, config.clone())?;
-        }
+        self.listen_rustls_inner(lst, config)
+    }
+
+    #[cfg(feature = "rustls")]
+    fn listen_rustls_inner(
+        mut self,
+        lst: net::TcpListener,
+        config: RustlsServerConfig,
+    ) -> io::Result<Self> {
+        let factory = self.factory.clone();
+        let cfg = self.config.clone();
+        let addr = lst.local_addr().unwrap();
+        self.sockets.push(Socket {
+            addr,
+            scheme: "https",
+        });
+
+        let on_connect_fn = self.on_connect_fn.clone();
+
+        self.builder =
+            self.builder
+                .listen(format!("actix-web-service-{}", addr), lst, move || {
+                    let c = cfg.lock().unwrap();
+                    let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
+
+                    let svc = HttpService::build()
+                        .keep_alive(c.keep_alive)
+                        .client_request_timeout(c.client_request_timeout)
+                        .client_disconnect_timeout(c.client_disconnect_timeout);
+
+                    let svc = if let Some(handler) = on_connect_fn.clone() {
+                        svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
+                    } else {
+                        svc
+                    };
+
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
+
+                    let acceptor_config = match c.tls_handshake_timeout {
+                        Some(dur) => TlsAcceptorConfig::default().handshake_timeout(dur),
+                        None => TlsAcceptorConfig::default(),
+                    };
+
+                    svc.finish(map_config(fac, move |_| {
+                        AppConfig::new(true, host.clone(), addr)
+                    }))
+                    .rustls_with_config(config.clone(), acceptor_config)
+                })?;
+
         Ok(self)
     }
 
-    /// Start listening for unix domain (UDS) connections on existing listener.
+    /// Binds to existing listener for accepting incoming TLS connection requests using OpenSSL.
+    ///
+    /// See [`listen()`](Self::listen) for more details on the `lst` argument.
+    ///
+    /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
+    #[cfg(feature = "openssl")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "openssl")))]
+    pub fn listen_openssl(
+        self,
+        lst: net::TcpListener,
+        builder: SslAcceptorBuilder,
+    ) -> io::Result<Self> {
+        self.listen_openssl_inner(lst, openssl_acceptor(builder)?)
+    }
+
+    #[cfg(feature = "openssl")]
+    fn listen_openssl_inner(
+        mut self,
+        lst: net::TcpListener,
+        acceptor: SslAcceptor,
+    ) -> io::Result<Self> {
+        let factory = self.factory.clone();
+        let cfg = self.config.clone();
+        let addr = lst.local_addr().unwrap();
+        self.sockets.push(Socket {
+            addr,
+            scheme: "https",
+        });
+
+        let on_connect_fn = self.on_connect_fn.clone();
+
+        self.builder =
+            self.builder
+                .listen(format!("actix-web-service-{}", addr), lst, move || {
+                    let c = cfg.lock().unwrap();
+                    let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
+
+                    let svc = HttpService::build()
+                        .keep_alive(c.keep_alive)
+                        .client_request_timeout(c.client_request_timeout)
+                        .client_disconnect_timeout(c.client_disconnect_timeout)
+                        .local_addr(addr);
+
+                    let svc = if let Some(handler) = on_connect_fn.clone() {
+                        svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
+                    } else {
+                        svc
+                    };
+
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
+
+                    // false positive lint (?)
+                    #[allow(clippy::significant_drop_in_scrutinee)]
+                    let acceptor_config = match c.tls_handshake_timeout {
+                        Some(dur) => TlsAcceptorConfig::default().handshake_timeout(dur),
+                        None => TlsAcceptorConfig::default(),
+                    };
+
+                    svc.finish(map_config(fac, move |_| {
+                        AppConfig::new(true, host.clone(), addr)
+                    }))
+                    .openssl_with_config(acceptor.clone(), acceptor_config)
+                })?;
+
+        Ok(self)
+    }
+
+    /// Opens Unix Domain Socket (UDS) from `uds` path and binds server to created listener.
+    #[cfg(unix)]
+    pub fn bind_uds<A>(mut self, uds_path: A) -> io::Result<Self>
+    where
+        A: AsRef<std::path::Path>,
+    {
+        use actix_http::Protocol;
+        use actix_rt::net::UnixStream;
+        use actix_service::{fn_service, ServiceFactoryExt as _};
+
+        let cfg = self.config.clone();
+        let factory = self.factory.clone();
+        let socket_addr =
+            net::SocketAddr::new(net::IpAddr::V4(net::Ipv4Addr::new(127, 0, 0, 1)), 8080);
+
+        self.sockets.push(Socket {
+            scheme: "http",
+            addr: socket_addr,
+        });
+
+        self.builder = self.builder.bind_uds(
+            format!("actix-web-service-{:?}", uds_path.as_ref()),
+            uds_path,
+            move || {
+                let c = cfg.lock().unwrap();
+                let config = AppConfig::new(
+                    false,
+                    c.host.clone().unwrap_or_else(|| format!("{}", socket_addr)),
+                    socket_addr,
+                );
+
+                let fac = factory()
+                    .into_factory()
+                    .map_err(|err| err.into().error_response());
+
+                fn_service(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) }).and_then(
+                    HttpService::build()
+                        .keep_alive(c.keep_alive)
+                        .client_request_timeout(c.client_request_timeout)
+                        .client_disconnect_timeout(c.client_disconnect_timeout)
+                        .finish(map_config(fac, move |_| config.clone())),
+                )
+            },
+        )?;
+
+        Ok(self)
+    }
+
+    /// Binds to existing Unix Domain Socket (UDS) listener.
     #[cfg(unix)]
     pub fn listen_uds(mut self, lst: std::os::unix::net::UnixListener) -> io::Result<Self> {
         use actix_http::Protocol;
@@ -644,54 +692,6 @@ where
                 svc.finish(map_config(fac, move |_| config.clone()))
             })
         })?;
-        Ok(self)
-    }
-
-    /// Start listening for incoming unix domain connections.
-    #[cfg(unix)]
-    pub fn bind_uds<A>(mut self, addr: A) -> io::Result<Self>
-    where
-        A: AsRef<std::path::Path>,
-    {
-        use actix_http::Protocol;
-        use actix_rt::net::UnixStream;
-        use actix_service::{fn_service, ServiceFactoryExt as _};
-
-        let cfg = self.config.clone();
-        let factory = self.factory.clone();
-        let socket_addr =
-            net::SocketAddr::new(net::IpAddr::V4(net::Ipv4Addr::new(127, 0, 0, 1)), 8080);
-
-        self.sockets.push(Socket {
-            scheme: "http",
-            addr: socket_addr,
-        });
-
-        self.builder = self.builder.bind_uds(
-            format!("actix-web-service-{:?}", addr.as_ref()),
-            addr,
-            move || {
-                let c = cfg.lock().unwrap();
-                let config = AppConfig::new(
-                    false,
-                    c.host.clone().unwrap_or_else(|| format!("{}", socket_addr)),
-                    socket_addr,
-                );
-
-                let fac = factory()
-                    .into_factory()
-                    .map_err(|err| err.into().error_response());
-
-                fn_service(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) }).and_then(
-                    HttpService::build()
-                        .keep_alive(c.keep_alive)
-                        .client_request_timeout(c.client_request_timeout)
-                        .client_disconnect_timeout(c.client_disconnect_timeout)
-                        .finish(map_config(fac, move |_| config.clone())),
-                )
-            },
-        )?;
-
         Ok(self)
     }
 }
