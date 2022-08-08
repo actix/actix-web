@@ -14,8 +14,10 @@
 
 ### Fixed
 - Avoid possibility of dispatcher getting stuck while back-pressuring I/O. [#2369]
+- Fix pending stream drop [#2830]
 
 [#2369]: https://github.com/actix/actix-web/pull/2369
+[#2830]: https://github.com/actix/actix-web/pull/2830
 
 
 ## 3.2.1 - 2022-07-02
