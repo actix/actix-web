@@ -239,6 +239,7 @@ mod openssl {
         U::InitError: fmt::Debug,
     {
         /// Create OpenSSL based service.
+        #[cfg_attr(docsrs, doc(cfg(feature = "openssl")))]
         pub fn openssl(
             self,
             acceptor: SslAcceptor,
@@ -253,6 +254,7 @@ mod openssl {
         }
 
         /// Create OpenSSL based service with custom TLS acceptor configuration.
+        #[cfg_attr(docsrs, doc(cfg(feature = "openssl")))]
         pub fn openssl_with_config(
             self,
             acceptor: SslAcceptor,
@@ -332,6 +334,7 @@ mod rustls {
         U::InitError: fmt::Debug,
     {
         /// Create Rustls based service.
+        #[cfg_attr(docsrs, doc(cfg(feature = "rustls")))]
         pub fn rustls(
             self,
             config: ServerConfig,
@@ -346,6 +349,7 @@ mod rustls {
         }
 
         /// Create Rustls based service with custom TLS acceptor configuration.
+        #[cfg_attr(docsrs, doc(cfg(feature = "rustls")))]
         pub fn rustls_with_config(
             self,
             mut config: ServerConfig,

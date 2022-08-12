@@ -103,11 +103,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::panic::{RefUnwindSafe, UnwindSafe};
-
     use static_assertions::assert_impl_all;
 
     use super::*;
 
-    assert_impl_all!(Payload: Unpin, Send, Sync, UnwindSafe, RefUnwindSafe);
+    assert_impl_all!(Payload: Unpin, Send, Sync);
 }

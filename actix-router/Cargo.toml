@@ -21,7 +21,7 @@ default = ["http"]
 
 [dependencies]
 bytestring = ">=0.1.5, <2"
-http = { version = "0.2.3", optional = true }
+http = { version = "0.2.5", optional = true }
 regex = "1.5"
 serde = "1"
 tracing = { version = "0.1.30", default-features = false, features = ["log"] }

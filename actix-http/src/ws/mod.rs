@@ -67,7 +67,7 @@ pub enum ProtocolError {
 }
 
 /// WebSocket handshake errors
-#[derive(Debug, Clone, Copy, PartialEq, Display, Error)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Display, Error)]
 pub enum HandshakeError {
     /// Only get method is allowed.
     #[display(fmt = "Method not allowed.")]

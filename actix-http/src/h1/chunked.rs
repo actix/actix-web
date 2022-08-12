@@ -15,7 +15,7 @@ macro_rules! byte (
     })
 );
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum ChunkedState {
     Size,
     SizeLws,

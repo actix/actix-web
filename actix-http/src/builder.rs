@@ -211,6 +211,7 @@ where
 
     /// Finish service configuration and create a HTTP service for HTTP/2 protocol.
     #[cfg(feature = "http2")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn h2<F, B>(self, service: F) -> crate::h2::H2Service<T, S, B>
     where
         F: IntoServiceFactory<S, Request>,

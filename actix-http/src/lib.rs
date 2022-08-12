@@ -40,6 +40,7 @@ pub mod error;
 mod extensions;
 pub mod h1;
 #[cfg(feature = "http2")]
+#[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
 pub mod h2;
 pub mod header;
 mod helpers;
@@ -54,6 +55,7 @@ mod responses;
 mod service;
 pub mod test;
 #[cfg(feature = "ws")]
+#[cfg_attr(docsrs, doc(cfg(feature = "ws")))]
 pub mod ws;
 
 pub use self::builder::HttpServiceBuilder;
@@ -71,6 +73,7 @@ pub use self::requests::{Request, RequestHead, RequestHeadType};
 pub use self::responses::{Response, ResponseBuilder, ResponseHead};
 pub use self::service::HttpService;
 #[cfg(any(feature = "openssl", feature = "rustls"))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "openssl", feature = "rustls"))))]
 pub use self::service::TlsAcceptorConfig;
 
 /// A major HTTP protocol version.

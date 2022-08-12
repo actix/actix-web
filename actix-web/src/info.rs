@@ -2,7 +2,6 @@ use std::{convert::Infallible, net::SocketAddr};
 
 use actix_utils::future::{err, ok, Ready};
 use derive_more::{Display, Error};
-use once_cell::sync::Lazy;
 
 use crate::{
     dev::{AppConfig, Payload, RequestHead},
@@ -13,12 +12,9 @@ use crate::{
     FromRequest, HttpRequest, ResponseError,
 };
 
-static X_FORWARDED_FOR: Lazy<HeaderName> =
-    Lazy::new(|| HeaderName::from_static("x-forwarded-for"));
-static X_FORWARDED_HOST: Lazy<HeaderName> =
-    Lazy::new(|| HeaderName::from_static("x-forwarded-host"));
-static X_FORWARDED_PROTO: Lazy<HeaderName> =
-    Lazy::new(|| HeaderName::from_static("x-forwarded-proto"));
+static X_FORWARDED_FOR: HeaderName = HeaderName::from_static("x-forwarded-for");
+static X_FORWARDED_HOST: HeaderName = HeaderName::from_static("x-forwarded-host");
+static X_FORWARDED_PROTO: HeaderName = HeaderName::from_static("x-forwarded-proto");
 
 /// Trim whitespace then any quote marks.
 fn unquote(val: &str) -> &str {
@@ -117,21 +113,21 @@ impl ConnectionInfo {
         }
 
         let scheme = scheme
-            .or_else(|| first_header_value(req, &*X_FORWARDED_PROTO))
+            .or_else(|| first_header_value(req, &X_FORWARDED_PROTO))
             .or_else(|| req.uri.scheme().map(Scheme::as_str))
             .or_else(|| Some("https").filter(|_| cfg.secure()))
             .unwrap_or("http")
             .to_owned();
 
         let host = host
-            .or_else(|| first_header_value(req, &*X_FORWARDED_HOST))
+            .or_else(|| first_header_value(req, &X_FORWARDED_HOST))
             .or_else(|| req.headers.get(&header::HOST)?.to_str().ok())
             .or_else(|| req.uri.authority().map(Authority::as_str))
             .unwrap_or_else(|| cfg.host())
             .to_owned();
 
         let realip_remote_addr = realip_remote_addr
-            .or_else(|| first_header_value(req, &*X_FORWARDED_FOR))
+            .or_else(|| first_header_value(req, &X_FORWARDED_FOR))
             .map(str::to_owned);
 
         let peer_addr = req.peer_addr.map(|addr| addr.ip().to_string());

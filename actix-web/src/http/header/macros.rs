@@ -224,10 +224,11 @@ macro_rules! common_header {
     // List header, one or more items with "*" option
     ($(#[$attrs:meta])*($id:ident, $name:expr) => {Any / ($item:ty)+}) => {
         $(#[$attrs])*
-        #[derive(Clone, Debug, PartialEq)]
+        #[derive(Clone, Debug, PartialEq, Eq)]
         pub enum $id {
             /// Any value is a match
             Any,
+
             /// Only the listed items are a match
             Items(Vec<$item>),
         }
