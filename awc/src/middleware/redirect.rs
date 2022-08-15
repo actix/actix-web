@@ -257,6 +257,16 @@ fn build_next_uri(res: &ClientResponse, prev_uri: &Uri) -> Result<Uri, SendReque
             .scheme(prev_uri.scheme().cloned().unwrap())
             .authority(prev_uri.authority().cloned().unwrap());
 
+        // scheme-relative address
+        if location.as_bytes().starts_with(b"//") {
+            let scheme = prev_uri.scheme_str().unwrap();
+            let mut full_url: Vec<u8> = scheme.as_bytes().to_vec();
+            full_url.push(b':');
+            full_url.extend(location.as_bytes());
+
+            return Uri::try_from(full_url)
+                .map_err(|_| SendRequestError::Url(InvalidUrl::MissingScheme));
+        }
         // when scheme or authority is missing treat the location value as path and query
         // recover error where location does not have leading slash
         let path = if location.as_bytes().starts_with(b"/") {
@@ -586,6 +596,41 @@ mod tests {
         // send a request to same origin, http://srv1/test1 then http://srv1/test2. So it should NOT remove any header
         let res = client.get(srv1.url("/test1")).send().await.unwrap();
         assert_eq!(res.status().as_u16(), 200);
+    }
+
+    #[actix_rt::test]
+    async fn test_double_slash_redirect() {
+        let client = ClientBuilder::new()
+            .disable_redirects()
+            .wrap(Redirect::new().max_redirect_times(10))
+            .finish();
+
+        let srv = actix_test::start(|| {
+            App::new()
+                .service(web::resource("/test").route(web::to(|| async {
+                    Ok::<_, Error>(HttpResponse::BadRequest())
+                })))
+                .service(
+                    web::resource("/").route(web::to(|req: HttpRequest| async move {
+                        Ok::<_, Error>(
+                            HttpResponse::Found()
+                                .append_header((
+                                    "location",
+                                    format!(
+                                        "//localhost:{}/test",
+                                        req.app_config().local_addr().port()
+                                    )
+                                    .as_str(),
+                                ))
+                                .finish(),
+                        )
+                    })),
+                )
+        });
+
+        let res = client.get(srv.url("/")).send().await.unwrap();
+
+        assert_eq!(res.status().as_u16(), 400);
     }
 
     #[actix_rt::test]
