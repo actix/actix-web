@@ -5,7 +5,10 @@
 - Minimum supported Rust version (MSRV) is now 1.57 due to transitive `time` dependency.
 
 ### Fixed
-- Fixed handling of redirection requests that begin with `//`. [#XXXX]
+- Fixed handling of redirection requests that begin with `//`. [#2840]
+
+[#2840]: https://github.com/actix/actix-web/pull/2840
+
 
 ## 3.0.0 - 2022-03-07
 ### Dependencies
