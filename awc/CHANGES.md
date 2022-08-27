@@ -1,6 +1,8 @@
 # Changes
 
 ## Unreleased - 2022-xx-xx
+### Changed
+- Minimum supported Rust version (MSRV) is now 1.59 due to transitive `time` dependency.
 
 
 ## 3.0.1 - 2022-08-25
