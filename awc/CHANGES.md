@@ -2,7 +2,17 @@
 
 ## Unreleased - 2022-xx-xx
 ### Changed
+- Minimum supported Rust version (MSRV) is now 1.59 due to transitive `time` dependency.
+
+
+## 3.0.1 - 2022-08-25
+### Changed
 - Minimum supported Rust version (MSRV) is now 1.57 due to transitive `time` dependency.
+
+### Fixed
+- Fixed handling of redirection requests that begin with `//`. [#2840]
+
+[#2840]: https://github.com/actix/actix-web/pull/2840
 
 
 ## 3.0.0 - 2022-03-07
