@@ -2,6 +2,7 @@
 
 mod compat;
 mod condition;
+mod condition_option;
 mod default_headers;
 mod err_handlers;
 mod logger;
@@ -11,6 +12,7 @@ mod normalize;
 
 pub use self::compat::Compat;
 pub use self::condition::Condition;
+pub use self::condition_option::ConditionOption;
 pub use self::default_headers::DefaultHeaders;
 pub use self::err_handlers::{ErrorHandlerResponse, ErrorHandlers};
 pub use self::logger::Logger;
