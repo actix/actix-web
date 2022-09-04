@@ -94,7 +94,7 @@ You may consider checking out [this directory](https://github.com/actix/examples
 
 ## Benchmarks
 
-One of the fastest web frameworks available according to the [TechEmpower Framework Benchmark](https://www.techempower.com/benchmarks/#section=data-r20&test=composite).
+One of the fastest web frameworks available according to the [TechEmpower Framework Benchmark](https://www.techempower.com/benchmarks/#section=data-r21&test=composite).
 
 ## License
 
