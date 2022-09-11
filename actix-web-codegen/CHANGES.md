@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2022-xx-xx
+
+
+## 4.1.0 - 2022-09-11
 - Add `#[routes]` macro to support multiple paths for one handler. [#2718]
 - Minimum supported Rust version (MSRV) is now 1.59 due to transitive `time` dependency.
 
