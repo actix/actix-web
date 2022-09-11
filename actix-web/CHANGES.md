@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased - 2022-xx-xx
+
+
+## 4.2.0 - 2022-09-11
 ### Added
 - Add `#[routes]` macro to support multiple paths for one handler. [#2718]
 - Add `ServiceRequest::{parts, request}()` getter methods. [#2786]
