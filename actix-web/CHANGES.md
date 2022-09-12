@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased - 2022-xx-xx
+
+
+## 4.2.1 - 2022-09-12
 ### Fixed
 - Bump minimum version of `actix-http` dependency to fix compatibility issue. [#2871]
 
