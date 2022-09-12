@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased - 2022-xx-xx
+### Fixed
+- Bump minimum version of `actix-http` dependency to fix compatibility issue. [#2871]
+
+[#2871]: https://github.com/actix/actix-web/pull/2871
 
 
 ## 4.2.0 - 2022-09-11
