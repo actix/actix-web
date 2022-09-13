@@ -1,6 +1,12 @@
 # Changes
 
 ## Unreleased - 2022-xx-xx
+
+
+## 3.2.2 - 2022-09-11
+### Changed
+- Minimum supported Rust version (MSRV) is now 1.59 due to transitive `time` dependency.
+
 ### Fixed
 - Avoid possibility of dispatcher getting stuck while back-pressuring I/O. [#2369]
 

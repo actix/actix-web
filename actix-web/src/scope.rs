@@ -40,7 +40,7 @@ type Guards = Vec<Box<dyn Guard>>;
 /// use actix_web::{web, App, HttpResponse};
 ///
 /// let app = App::new().service(
-///     web::scope("/{project_id}/")
+///     web::scope("/{project_id}")
 ///         .service(web::resource("/path1").to(|| async { "OK" }))
 ///         .service(web::resource("/path2").route(web::get().to(|| HttpResponse::Ok())))
 ///         .service(web::resource("/path3").route(web::head().to(HttpResponse::MethodNotAllowed)))

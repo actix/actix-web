@@ -2,13 +2,27 @@
 
 ## Unreleased - 2022-xx-xx
 ### Added
+- Add `ContentDisposition::attachment` constructor. [#2867]
+
+[#2867]: https://github.com/actix/actix-web/pull/2867
+
+
+## 4.2.1 - 2022-09-12
+### Fixed
+- Bump minimum version of `actix-http` dependency to fix compatibility issue. [#2871]
+
+[#2871]: https://github.com/actix/actix-web/pull/2871
+
+
+## 4.2.0 - 2022-09-11
+### Added
 - Add `#[routes]` macro to support multiple paths for one handler. [#2718]
 - Add configuration options for TLS handshake timeout via `HttpServer::{rustls, openssl}_with_config` methods. [#2752]
 - Add `ErrorHandlers::default_handler()` (as well as `default_handler_{server, client}()`) to make registering handlers with the `ErrorHandlers` middleware easier. [#2784]
 - Add `ServiceRequest::{parts, request}()` getter methods. [#2786]
 
 ### Changed
-- Minimum supported Rust version (MSRV) is now 1.57 due to transitive `time` dependency.
+- Minimum supported Rust version (MSRV) is now 1.59 due to transitive `time` dependency.
 
 [#2718]: https://github.com/actix/actix-web/pull/2718
 [#2752]: https://github.com/actix/actix-web/pull/2752

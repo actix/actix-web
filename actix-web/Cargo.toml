@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "4.1.0"
+version = "4.2.1"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
     "Rob Ede <robjtede@icloud.com>",
@@ -71,9 +71,9 @@ actix-service = "2"
 actix-utils = "3"
 actix-tls = { version = "3", default-features = false, optional = true }
 
-actix-http = { version = "3", features = ["http2", "ws"] }
+actix-http = { version = "3.2.2", features = ["http2", "ws"] }
 actix-router = "0.5"
-actix-web-codegen = { version = "4", optional = true }
+actix-web-codegen = { version = "4.1", optional = true }
 
 ahash = "0.7"
 bytes = "1"

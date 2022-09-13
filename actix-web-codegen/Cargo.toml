@@ -1,6 +1,6 @@
 [package]
 name = "actix-web-codegen"
-version = "4.0.1"
+version = "4.1.0"
 description = "Routing and runtime macros for Actix Web"
 homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-web.git"
@@ -24,8 +24,8 @@ syn = { version = "1", features = ["full", "extra-traits"] }
 actix-macros = "0.2.3"
 actix-rt = "2.2"
 actix-test = "0.1"
-actix-utils = "3.0.0"
-actix-web = "4.0.0"
+actix-utils = "3"
+actix-web = "4"
 
 futures-core = { version = "0.3.7", default-features = false, features = ["alloc"] }
 trybuild = "1"
