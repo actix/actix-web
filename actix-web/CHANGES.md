@@ -1,6 +1,17 @@
 # Changelog
 
 ## Unreleased - 2022-xx-xx
+### Added
+- Add `ContentDisposition::attachment` constructor. [#2867]
+
+[#2867]: https://github.com/actix/actix-web/pull/2867
+
+
+## 4.2.1 - 2022-09-12
+### Fixed
+- Bump minimum version of `actix-http` dependency to fix compatibility issue. [#2871]
+
+[#2871]: https://github.com/actix/actix-web/pull/2871
 
 
 ## 4.2.0 - 2022-09-11
