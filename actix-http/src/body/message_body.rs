@@ -120,7 +120,27 @@ pub trait MessageBody {
 }
 
 mod foreign_impls {
+    use std::ops::DerefMut;
+
     use super::*;
+
+    impl<B> MessageBody for &mut B
+    where
+        B: MessageBody + Unpin + ?Sized,
+    {
+        type Error = B::Error;
+
+        fn size(&self) -> BodySize {
+            (&**self).size()
+        }
+
+        fn poll_next(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+        ) -> Poll<Option<Result<Bytes, Self::Error>>> {
+            Pin::new(&mut **self).poll_next(cx)
+        }
+    }
 
     impl MessageBody for Infallible {
         type Error = Infallible;
@@ -179,8 +199,9 @@ mod foreign_impls {
         }
     }
 
-    impl<B> MessageBody for Pin<Box<B>>
+    impl<T, B> MessageBody for Pin<T>
     where
+        T: DerefMut<Target = B> + Unpin,
         B: MessageBody + ?Sized,
     {
         type Error = B::Error;
@@ -445,6 +466,7 @@ mod tests {
     use actix_rt::pin;
     use actix_utils::future::poll_fn;
     use bytes::{Bytes, BytesMut};
+    use futures_util::stream;
 
     use super::*;
     use crate::body::{self, EitherBody};
@@ -479,6 +501,34 @@ mod tests {
 
         let mut pl = Box::pin(());
         assert_poll_next_none!(pl);
+    }
+
+    #[actix_rt::test]
+    async fn mut_equivalence() {
+        assert_eq!(().size(), BodySize::Sized(0));
+        assert_eq!(().size(), (&(&mut ())).size());
+
+        let pl = &mut ();
+        pin!(pl);
+        assert_poll_next_none!(pl);
+
+        let pl = &mut Box::new(());
+        pin!(pl);
+        assert_poll_next_none!(pl);
+
+        let mut body = body::SizedStream::new(
+            8,
+            stream::iter([
+                Ok::<_, std::io::Error>(Bytes::from("1234")),
+                Ok(Bytes::from("5678")),
+            ]),
+        );
+        let body = &mut body;
+        assert_eq!(body.size(), BodySize::Sized(8));
+        pin!(body);
+        assert_poll_next!(body, Bytes::from_static(b"1234"));
+        assert_poll_next!(body, Bytes::from_static(b"5678"));
+        assert_poll_next_none!(body);
     }
 
     #[allow(clippy::let_unit_value)]
@@ -606,5 +656,19 @@ mod tests {
         assert_eq!(body, "hello cast!");
         let not_body = resp_body.downcast_ref::<()>();
         assert!(not_body.is_none());
+    }
+
+    #[actix_rt::test]
+    async fn non_owning_to_bytes() {
+        let mut body = BoxBody::new(());
+        let bytes = body::to_bytes(&mut body).await.unwrap();
+        assert_eq!(bytes, Bytes::new());
+
+        let mut body = body::BodyStream::new(stream::iter([
+            Ok::<_, std::io::Error>(Bytes::from("1234")),
+            Ok(Bytes::from("5678")),
+        ]));
+        let bytes = body::to_bytes(&mut body).await.unwrap();
+        assert_eq!(bytes, Bytes::from_static(b"12345678"));
     }
 }

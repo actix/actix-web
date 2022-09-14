@@ -1,6 +1,11 @@
 # Changes
 
 ## Unreleased - 2022-xx-xx
+### Added
+- Implement `MessageBody` for `&mut B` where `B: MessageBody + Unpin`. [#2868]
+- Implement `MessageBody` for `Pin<B>` where `B::Target: MessageBody`. [#2868]
+
+[#2868]: https://github.com/actix/actix-web/pull/2868
 
 
 ## 3.2.2 - 2022-09-11
