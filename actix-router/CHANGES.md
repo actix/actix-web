@@ -1,6 +1,7 @@
 # Changes
 
 ## Unreleased - 2022-xx-xx
+- Fix typo in error string in `Deserializer::deserialize_i32` implementation for `Value`. [#2876]
 - Minimum supported Rust version (MSRV) is now 1.59 due to transitive `time` dependency.
 
 
