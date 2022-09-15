@@ -3,7 +3,9 @@
 ## Unreleased - 2022-xx-xx
 ### Added
 - Add `ContentDisposition::attachment` constructor. [#2867]
+- Add `ErrorHandlers::default_handler()` (as well as `default_handler_{server, client}()`) to make registering handlers for groups of response statuses easier. [#2784]
 
+[#2784]: https://github.com/actix/actix-web/pull/2784
 [#2867]: https://github.com/actix/actix-web/pull/2867
 
 
