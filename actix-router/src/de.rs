@@ -23,6 +23,9 @@ macro_rules! unsupported_type {
 
 macro_rules! parse_single_value {
     ($trait_fn:ident) => {
+        parse_single_value!($trait_fn, $trait_fn);
+    };
+    ($trait_fn:ident, $visit_fn:ident) => {
         fn $trait_fn<V>(self, visitor: V) -> Result<V::Value, Self::Error>
         where
             V: Visitor<'de>,
@@ -39,7 +42,7 @@ macro_rules! parse_single_value {
                 Value {
                     value: &self.path[0],
                 }
-                .$trait_fn(visitor)
+                .$visit_fn(visitor)
             }
         }
     };
@@ -201,11 +204,11 @@ impl<'de, T: ResourcePath + 'de> Deserializer<'de> for PathDeserializer<'de, T> 
         })
     }
 
-    unsupported_type!(deserialize_any, "'any'");
     unsupported_type!(deserialize_option, "Option<T>");
     unsupported_type!(deserialize_identifier, "identifier");
     unsupported_type!(deserialize_ignored_any, "ignored_any");
 
+    parse_single_value!(deserialize_any, deserialize_str);
     parse_single_value!(deserialize_bool);
     parse_single_value!(deserialize_i8);
     parse_single_value!(deserialize_i16);
