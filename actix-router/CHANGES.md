@@ -4,6 +4,8 @@
 - Fix typo in error string in `Deserializer::deserialize_i32` implementation for `Value`. [#2876]
 - Minimum supported Rust version (MSRV) is now 1.59 due to transitive `time` dependency.
 
+[#2876]: https://github.com/actix/actix-web/pull/2876
+
 
 ## 0.5.0 - 2022-02-22
 ### Added
