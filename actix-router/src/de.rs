@@ -426,7 +426,13 @@ impl<'de> Deserializer<'de> for Value<'de> {
         Err(de::value::Error::custom("unsupported type: tuple struct"))
     }
 
-    unsupported_type!(deserialize_any, "any");
+    fn deserialize_any<V>(self, v: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        self.deserialize_str(v)
+    }
+
     unsupported_type!(deserialize_seq, "seq");
     unsupported_type!(deserialize_map, "map");
     unsupported_type!(deserialize_identifier, "identifier");
