@@ -4,6 +4,8 @@
 - Minimum supported Rust version (MSRV) is now 1.59 due to transitive `time` dependency.
 - `Field::content_type()` now returns `Option<&mime::Mime>` [#2880]
 
+[#2880]: https://github.com/actix/actix-web/pull/2880
+
 
 ## 0.4.0 - 2022-02-25
 - No significant changes since `0.4.0-beta.13`.
