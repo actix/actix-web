@@ -5,6 +5,7 @@ members = [
     "actix-http-test",
     "actix-http",
     "actix-multipart",
+    "actix-multipart-derive",
     "actix-router",
     "actix-test",
     "actix-web-actors",
