@@ -361,17 +361,18 @@ impl InnerMultipart {
                 return Poll::Ready(Some(Err(MultipartError::NoContentDisposition)));
             };
 
-            let ct: mime::Mime = headers
+            let ct: Option<mime::Mime> = headers
                 .get(&header::CONTENT_TYPE)
                 .and_then(|ct| ct.to_str().ok())
-                .and_then(|ct| ct.parse().ok())
-                .unwrap_or(mime::APPLICATION_OCTET_STREAM);
+                .and_then(|ct| ct.parse().ok());
 
             self.state = InnerState::Boundary;
 
             // nested multipart stream is not supported
-            if ct.type_() == mime::MULTIPART {
-                return Poll::Ready(Some(Err(MultipartError::Nested)));
+            if let Some(mime) = &ct {
+                if mime.type_() == mime::MULTIPART {
+                    return Poll::Ready(Some(Err(MultipartError::Nested)));
+                }
             }
 
             let field =
@@ -399,7 +400,7 @@ impl Drop for InnerMultipart {
 
 /// A single field in a multipart stream
 pub struct Field {
-    ct: mime::Mime,
+    ct: Option<mime::Mime>,
     cd: ContentDisposition,
     headers: HeaderMap,
     inner: Rc<RefCell<InnerField>>,
@@ -410,7 +411,7 @@ impl Field {
     fn new(
         safety: Safety,
         headers: HeaderMap,
-        ct: mime::Mime,
+        ct: Option<mime::Mime>,
         cd: ContentDisposition,
         inner: Rc<RefCell<InnerField>>,
     ) -> Self {
@@ -428,9 +429,13 @@ impl Field {
         &self.headers
     }
 
-    /// Returns a reference to the field's content (mime) type.
-    pub fn content_type(&self) -> &mime::Mime {
-        &self.ct
+    /// Returns a reference to the field's content (mime) type, if it is supplied by the client.
+    ///
+    /// According to [RFC 7578](https://www.rfc-editor.org/rfc/rfc7578#section-4.4), if it is not
+    /// present, it should default to "text/plain". Note it is the responsibility of the client to
+    /// provide the appropriate content type, there is no attempt to validate this by the server.
+    pub fn content_type(&self) -> Option<&mime::Mime> {
+        self.ct.as_ref()
     }
 
     /// Returns the field's Content-Disposition.
@@ -482,7 +487,11 @@ impl Stream for Field {
 
 impl fmt::Debug for Field {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "\nField: {}", self.ct)?;
+        if let Some(ct) = &self.ct {
+            writeln!(f, "\nField: {}", ct)?;
+        } else {
+            writeln!(f, "\nField:")?;
+        }
         writeln!(f, "  boundary: {}", self.inner.borrow().boundary)?;
         writeln!(f, "  headers:")?;
         for (key, val) in self.headers.iter() {
@@ -1024,8 +1033,8 @@ mod tests {
                 assert_eq!(cd.disposition, DispositionType::FormData);
                 assert_eq!(cd.parameters[0], DispositionParam::Name("file".into()));
 
-                assert_eq!(field.content_type().type_(), mime::TEXT);
-                assert_eq!(field.content_type().subtype(), mime::PLAIN);
+                assert_eq!(field.content_type().unwrap().type_(), mime::TEXT);
+                assert_eq!(field.content_type().unwrap().subtype(), mime::PLAIN);
 
                 match field.next().await.unwrap() {
                     Ok(chunk) => assert_eq!(chunk, "test"),
@@ -1041,8 +1050,8 @@ mod tests {
 
         match multipart.next().await.unwrap() {
             Ok(mut field) => {
-                assert_eq!(field.content_type().type_(), mime::TEXT);
-                assert_eq!(field.content_type().subtype(), mime::PLAIN);
+                assert_eq!(field.content_type().unwrap().type_(), mime::TEXT);
+                assert_eq!(field.content_type().unwrap().subtype(), mime::PLAIN);
 
                 match field.next().await {
                     Some(Ok(chunk)) => assert_eq!(chunk, "data"),
@@ -1086,8 +1095,8 @@ mod tests {
                 assert_eq!(cd.disposition, DispositionType::FormData);
                 assert_eq!(cd.parameters[0], DispositionParam::Name("file".into()));
 
-                assert_eq!(field.content_type().type_(), mime::TEXT);
-                assert_eq!(field.content_type().subtype(), mime::PLAIN);
+                assert_eq!(field.content_type().unwrap().type_(), mime::TEXT);
+                assert_eq!(field.content_type().unwrap().subtype(), mime::PLAIN);
 
                 assert_eq!(get_whole_field(&mut field).await, "test");
             }
@@ -1096,8 +1105,8 @@ mod tests {
 
         match multipart.next().await {
             Some(Ok(mut field)) => {
-                assert_eq!(field.content_type().type_(), mime::TEXT);
-                assert_eq!(field.content_type().subtype(), mime::PLAIN);
+                assert_eq!(field.content_type().unwrap().type_(), mime::TEXT);
+                assert_eq!(field.content_type().unwrap().subtype(), mime::PLAIN);
 
                 assert_eq!(get_whole_field(&mut field).await, "data");
             }
