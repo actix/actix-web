@@ -16,7 +16,7 @@ use crate::error::PayloadError;
 /// max buffer size 32k
 pub(crate) const MAX_BUFFER_SIZE: usize = 32_768;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum PayloadStatus {
     Read,
     Pause,
@@ -252,21 +252,15 @@ impl Inner {
 
 #[cfg(test)]
 mod tests {
-    use std::panic::{RefUnwindSafe, UnwindSafe};
-
     use actix_utils::future::poll_fn;
     use static_assertions::{assert_impl_all, assert_not_impl_any};
 
     use super::*;
 
     assert_impl_all!(Payload: Unpin);
-    assert_not_impl_any!(Payload: Send, Sync, UnwindSafe, RefUnwindSafe);
+    assert_not_impl_any!(Payload: Send, Sync);
 
     assert_impl_all!(Inner: Unpin, Send, Sync);
-    #[rustversion::before(1.60)]
-    assert_not_impl_any!(Inner: UnwindSafe, RefUnwindSafe);
-    #[rustversion::since(1.60)]
-    assert_impl_all!(Inner: UnwindSafe, RefUnwindSafe);
 
     #[actix_rt::test]
     async fn test_unread_data() {

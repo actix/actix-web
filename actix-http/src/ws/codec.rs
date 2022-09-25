@@ -11,7 +11,7 @@ use super::{
 };
 
 /// A WebSocket message.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Message {
     /// Text message.
     Text(ByteString),
@@ -36,7 +36,7 @@ pub enum Message {
 }
 
 /// A WebSocket frame.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Frame {
     /// Text frame. Note that the codec does not validate UTF-8 encoding.
     Text(Bytes),
@@ -58,7 +58,7 @@ pub enum Frame {
 }
 
 /// A WebSocket continuation item.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Item {
     FirstText(Bytes),
     FirstBinary(Bytes),

@@ -3,11 +3,11 @@
 > Static file serving for Actix Web
 
 [![crates.io](https://img.shields.io/crates/v/actix-files?label=latest)](https://crates.io/crates/actix-files)
-[![Documentation](https://docs.rs/actix-files/badge.svg?version=0.6.0)](https://docs.rs/actix-files/0.6.0)
-[![Version](https://img.shields.io/badge/rustc-1.54+-ab6000.svg)](https://blog.rust-lang.org/2021/05/06/Rust-1.54.0.html)
+[![Documentation](https://docs.rs/actix-files/badge.svg?version=0.6.2)](https://docs.rs/actix-files/0.6.2)
+![Version](https://img.shields.io/badge/rustc-1.59+-ab6000.svg)
 ![License](https://img.shields.io/crates/l/actix-files.svg)
 <br />
-[![dependency status](https://deps.rs/crate/actix-files/0.6.0/status.svg)](https://deps.rs/crate/actix-files/0.6.0)
+[![dependency status](https://deps.rs/crate/actix-files/0.6.2/status.svg)](https://deps.rs/crate/actix-files/0.6.2)
 [![Download](https://img.shields.io/crates/d/actix-files.svg)](https://crates.io/crates/actix-files)
 [![Chat on Discord](https://img.shields.io/discord/771444961383153695?label=chat&logo=discord)](https://discord.gg/NWpN5mmg3x)
 

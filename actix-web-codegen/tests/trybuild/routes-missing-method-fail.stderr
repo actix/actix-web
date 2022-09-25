@@ -1,11 +1,13 @@
-error: Unexpected HTTP method: `UNEXPECTED`
- --> tests/trybuild/route-unexpected-method-fail.rs:3:21
+error: The #[routes] macro requires at least one `#[<method>(..)]` attribute.
+ --> tests/trybuild/routes-missing-method-fail.rs:3:1
   |
-3 | #[route("/", method="UNEXPECTED")]
-  |                     ^^^^^^^^^^^^
+3 | #[routes]
+  | ^^^^^^^^^
+  |
+  = note: this error originates in the attribute macro `routes` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `fn() -> impl std::future::Future<Output = String> {index}: HttpServiceFactory` is not satisfied
-   --> tests/trybuild/route-unexpected-method-fail.rs:12:55
+   --> tests/trybuild/routes-missing-method-fail.rs:12:55
     |
 12  |     let srv = actix_test::start(|| App::new().service(index));
     |                                               ------- ^^^^^ the trait `HttpServiceFactory` is not implemented for `fn() -> impl std::future::Future<Output = String> {index}`

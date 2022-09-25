@@ -3,7 +3,7 @@ use crate::ResourcePath;
 use crate::Quoter;
 
 thread_local! {
-    static DEFAULT_QUOTER: Quoter = Quoter::new(b"@:", b"%/+");
+    static DEFAULT_QUOTER: Quoter = Quoter::new(b"", b"%/+");
 }
 
 #[derive(Debug, Clone, Default)]

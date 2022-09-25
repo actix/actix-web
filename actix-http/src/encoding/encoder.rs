@@ -257,7 +257,7 @@ fn update_head(encoding: ContentEncoding, head: &mut ResponseHead) {
     head.headers_mut()
         .insert(header::CONTENT_ENCODING, encoding.to_header_value());
     head.headers_mut()
-        .insert(header::VARY, HeaderValue::from_static("accept-encoding"));
+        .append(header::VARY, HeaderValue::from_static("accept-encoding"));
 
     head.no_chunking(false);
 }

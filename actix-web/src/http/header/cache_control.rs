@@ -176,7 +176,7 @@ impl str::FromStr for CacheDirective {
 
             _ => match s.find('=') {
                 Some(idx) if idx + 1 < s.len() => {
-                    match (&s[..idx], (&s[idx + 1..]).trim_matches('"')) {
+                    match (&s[..idx], s[idx + 1..].trim_matches('"')) {
                         ("max-age", secs) => secs.parse().map(MaxAge).map_err(Some),
                         ("max-stale", secs) => secs.parse().map(MaxStale).map_err(Some),
                         ("min-fresh", secs) => secs.parse().map(MinFresh).map_err(Some),

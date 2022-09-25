@@ -18,9 +18,11 @@ use crate::{dev::Payload, Error, HttpRequest};
 /// A type that implements [`FromRequest`] is called an **extractor** and can extract data from
 /// the request. Some types that implement this trait are: [`Json`], [`Header`], and [`Path`].
 ///
+/// Check out [`ServiceRequest::extract`](crate::dev::ServiceRequest::extract) if you want to
+/// leverage extractors when implementing middlewares.
+///
 /// # Configuration
 /// An extractor can be customized by injecting the corresponding configuration with one of:
-///
 /// - [`App::app_data()`][crate::App::app_data]
 /// - [`Scope::app_data()`][crate::Scope::app_data]
 /// - [`Resource::app_data()`][crate::Resource::app_data]
@@ -64,13 +66,29 @@ pub trait FromRequest: Sized {
     /// The associated error which can be returned.
     type Error: Into<Error>;
 
-    /// Future that resolves to a Self.
+    /// Future that resolves to a `Self`.
+    ///
+    /// To use an async function or block, the futures must be boxed. The following snippet will be
+    /// common when creating async/await extractors (that do not consume the body).
+    ///
+    /// ```ignore
+    /// type Future = Pin<Box<dyn Future<Output = Result<Self, Self::Error>>>>;
+    /// // or
+    /// type Future = futures_util::future::LocalBoxFuture<'static, Result<Self, Self::Error>>;
+    ///
+    /// fn from_request(req: HttpRequest, ...) -> Self::Future {
+    ///     let req = req.clone();
+    ///     Box::pin(async move {
+    ///         ...
+    ///     })
+    /// }
+    /// ```
     type Future: Future<Output = Result<Self, Self::Error>>;
 
-    /// Create a Self from request parts asynchronously.
+    /// Create a `Self` from request parts asynchronously.
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future;
 
-    /// Create a Self from request head asynchronously.
+    /// Create a `Self` from request head asynchronously.
     ///
     /// This method is short for `T::from_request(req, &mut Payload::None)`.
     fn extract(req: &HttpRequest) -> Self::Future {
@@ -78,9 +96,9 @@ pub trait FromRequest: Sized {
     }
 }
 
-/// Optionally extract a field from the request
+/// Optionally extract from the request.
 ///
-/// If the FromRequest for T fails, return None rather than returning an error response
+/// If the inner `T::from_request` returns an error, handler will receive `None` instead.
 ///
 /// # Examples
 /// ```
@@ -165,9 +183,10 @@ where
     }
 }
 
-/// Optionally extract a field from the request or extract the Error if unsuccessful
+/// Extract from the request, passing error type through to handler.
 ///
-/// If the `FromRequest` for T fails, inject Err into handler rather than returning an error response
+/// If the inner `T::from_request` returns an error, allow handler to receive the error rather than
+/// immediately returning an error response.
 ///
 /// # Examples
 /// ```

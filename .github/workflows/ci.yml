@@ -16,7 +16,7 @@ jobs:
           - { name: macOS, os: macos-latest, triple: x86_64-apple-darwin }
           - { name: Windows, os: windows-2022, triple: x86_64-pc-windows-msvc }
         version:
-          - 1.54.0 # MSRV
+          - 1.59.0 # MSRV
           - stable
 
     name: ${{ matrix.target.name }} / ${{ matrix.version }}
@@ -47,17 +47,21 @@ jobs:
           profile: minimal
           override: true
 
+      - name: Install cargo-hack
+        uses: taiki-e/install-action@cargo-hack
+
+      - name: workaround MSRV issues
+        if: matrix.version != 'stable'
+        run: |
+          cargo install cargo-edit --version=0.8.0
+          cargo add const-str@0.3 --dev -p=actix-web
+          cargo add const-str@0.3 --dev -p=awc
+
       - name: Generate Cargo.lock
         uses: actions-rs/cargo@v1
         with: { command: generate-lockfile }
       - name: Cache Dependencies
         uses: Swatinem/rust-cache@v1.2.0
-
-      - name: Install cargo-hack
-        uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: cargo-hack
 
       - name: check minimal
         uses: actions-rs/cargo@v1
@@ -83,7 +87,7 @@ jobs:
 
       - name: Clear the cargo caches
         run: |
-          cargo install cargo-cache --version 0.6.3 --no-default-features --features ci-autoclean
+          cargo install cargo-cache --version 0.8.2 --no-default-features --features ci-autoclean
           cargo-cache
 
   io-uring:

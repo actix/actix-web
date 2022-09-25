@@ -67,7 +67,7 @@ where
                     timer
                 })
                 .unwrap_or_else(|| Box::pin(sleep(dur))),
-            on_flight: false,
+            in_flight: false,
             ping_pong: conn.ping_pong().unwrap(),
         });
 
@@ -84,9 +84,14 @@ where
 }
 
 struct H2PingPong {
-    timer: Pin<Box<Sleep>>,
-    on_flight: bool,
+    /// Handle to send ping frames from the peer.
     ping_pong: PingPong,
+
+    /// True when a ping has been sent and is waiting for a reply.
+    in_flight: bool,
+
+    /// Timeout for pong response.
+    timer: Pin<Box<Sleep>>,
 }
 
 impl<T, S, B, X, U> Future for Dispatcher<T, S, B, X, U>
@@ -152,26 +157,28 @@ where
                     });
                 }
                 Poll::Ready(None) => return Poll::Ready(Ok(())),
+
                 Poll::Pending => match this.ping_pong.as_mut() {
                     Some(ping_pong) => loop {
-                        if ping_pong.on_flight {
-                            // When have on flight ping pong. poll pong and and keep alive timer.
-                            // on success pong received update keep alive timer to determine the next timing of
-                            // ping pong.
+                        if ping_pong.in_flight {
+                            // When there is an in-flight ping-pong, poll pong and and keep-alive
+                            // timer. On successful pong received, update keep-alive timer to
+                            // determine the next timing of ping pong.
                             match ping_pong.ping_pong.poll_pong(cx)? {
                                 Poll::Ready(_) => {
-                                    ping_pong.on_flight = false;
+                                    ping_pong.in_flight = false;
 
                                     let dead_line = this.config.keep_alive_deadline().unwrap();
                                     ping_pong.timer.as_mut().reset(dead_line.into());
                                 }
                                 Poll::Pending => {
-                                    return ping_pong.timer.as_mut().poll(cx).map(|_| Ok(()))
+                                    return ping_pong.timer.as_mut().poll(cx).map(|_| Ok(()));
                                 }
                             }
                         } else {
-                            // When there is no on flight ping pong. keep alive timer is used to wait for next
-                            // timing of ping pong. Therefore at this point it serves as an interval instead.
+                            // When there is no in-flight ping-pong, keep-alive timer is used to
+                            // wait for next timing of ping-pong. Therefore, at this point it serves
+                            // as an interval instead.
                             ready!(ping_pong.timer.as_mut().poll(cx));
 
                             ping_pong.ping_pong.send_ping(Ping::opaque())?;
@@ -179,7 +186,7 @@ where
                             let dead_line = this.config.keep_alive_deadline().unwrap();
                             ping_pong.timer.as_mut().reset(dead_line.into());
 
-                            ping_pong.on_flight = true;
+                            ping_pong.in_flight = true;
                         }
                     },
                     None => return Poll::Pending,
@@ -287,13 +294,13 @@ fn prepare_response(
         _ => {}
     }
 
-    let _ = match size {
-        BodySize::None | BodySize::Stream => None,
+    match size {
+        BodySize::None | BodySize::Stream => {}
 
         BodySize::Sized(0) => {
             #[allow(clippy::declare_interior_mutable_const)]
             const HV_ZERO: HeaderValue = HeaderValue::from_static("0");
-            res.headers_mut().insert(CONTENT_LENGTH, HV_ZERO)
+            res.headers_mut().insert(CONTENT_LENGTH, HV_ZERO);
         }
 
         BodySize::Sized(len) => {
@@ -302,7 +309,7 @@ fn prepare_response(
             res.headers_mut().insert(
                 CONTENT_LENGTH,
                 HeaderValue::from_str(buf.format(*len)).unwrap(),
-            )
+            );
         }
     };
 

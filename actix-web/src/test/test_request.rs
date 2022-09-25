@@ -33,7 +33,7 @@ use crate::cookie::{Cookie, CookieJar};
 /// use actix_web::{test, HttpRequest, HttpResponse, HttpMessage};
 /// use actix_web::http::{header, StatusCode};
 ///
-/// async fn index(req: HttpRequest) -> HttpResponse {
+/// async fn handler(req: HttpRequest) -> HttpResponse {
 ///     if let Some(hdr) = req.headers().get(header::CONTENT_TYPE) {
 ///         HttpResponse::Ok().into()
 ///     } else {
@@ -45,14 +45,15 @@ use crate::cookie::{Cookie, CookieJar};
 /// # // force rustdoc to display the correct thing and also compile check the test
 /// # async fn _test() {}
 /// async fn test_index() {
-///     let req = test::TestRequest::default().insert_header(header::ContentType::plaintext())
+///     let req = test::TestRequest::default()
+///         .insert_header(header::ContentType::plaintext())
 ///         .to_http_request();
 ///
-///     let resp = index(req).await;
+///     let resp = handler(req).await;
 ///     assert_eq!(resp.status(), StatusCode::OK);
 ///
 ///     let req = test::TestRequest::default().to_http_request();
-///     let resp = index(req).await;
+///     let resp = handler(req).await;
 ///     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 /// }
 /// ```

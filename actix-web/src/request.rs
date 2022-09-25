@@ -219,7 +219,7 @@ impl HttpRequest {
     /// for urls that do not contain variable parts.
     pub fn url_for_static(&self, name: &str) -> Result<url::Url, UrlGenerationError> {
         const NO_PARAMS: [&str; 0] = [];
-        self.url_for(name, &NO_PARAMS)
+        self.url_for(name, NO_PARAMS)
     }
 
     /// Get a reference to a `ResourceMap` of current application.
@@ -253,7 +253,7 @@ impl HttpRequest {
     #[inline]
     pub fn connection_info(&self) -> Ref<'_, ConnectionInfo> {
         if !self.extensions().contains::<ConnectionInfo>() {
-            let info = ConnectionInfo::new(self.head(), &*self.app_config());
+            let info = ConnectionInfo::new(self.head(), self.app_config());
             self.extensions_mut().insert(info);
         }
 
@@ -306,11 +306,12 @@ impl HttpRequest {
 
     #[inline]
     fn app_state(&self) -> &AppInitServiceState {
-        &*self.inner.app_state
+        &self.inner.app_state
     }
 
     /// Load request cookies.
     #[cfg(feature = "cookies")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "cookies")))]
     pub fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
         use actix_http::header::COOKIE;
 
@@ -334,6 +335,7 @@ impl HttpRequest {
 
     /// Return request cookie.
     #[cfg(feature = "cookies")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "cookies")))]
     pub fn cookie(&self, name: &str) -> Option<Cookie<'static>> {
         if let Ok(cookies) = self.cookies() {
             for cookie in cookies.iter() {
@@ -381,11 +383,15 @@ impl Drop for HttpRequest {
                 inner.app_data.truncate(1);
 
                 // Inner is borrowed mut here and; get req data mutably to reduce borrow check. Also
-                // we know the req_data Rc will not have any cloned at this point to unwrap is okay.
+                // we know the req_data Rc will not have any clones at this point to unwrap is okay.
                 Rc::get_mut(&mut inner.extensions)
                     .unwrap()
                     .get_mut()
                     .clear();
+
+                // We can't use the same trick as req data because the conn_data is held by the
+                // dispatcher, too.
+                inner.conn_data = None;
 
                 // a re-borrow of pool is necessary here.
                 let req = Rc::clone(&self.inner);
@@ -577,14 +583,14 @@ mod tests {
             .to_http_request();
 
         assert_eq!(
-            req.url_for("unknown", &["test"]),
+            req.url_for("unknown", ["test"]),
             Err(UrlGenerationError::ResourceNotFound)
         );
         assert_eq!(
-            req.url_for("index", &["test"]),
+            req.url_for("index", ["test"]),
             Err(UrlGenerationError::NotEnoughElements)
         );
-        let url = req.url_for("index", &["test", "html"]);
+        let url = req.url_for("index", ["test", "html"]);
         assert_eq!(
             url.ok().unwrap().as_str(),
             "http://www.rust-lang.org/user/test.html"
@@ -640,7 +646,7 @@ mod tests {
         rmap.add(&mut rdef, None);
 
         let req = TestRequest::default().rmap(rmap).to_http_request();
-        let url = req.url_for("youtube", &["oHg5SJYRHA0"]);
+        let url = req.url_for("youtube", ["oHg5SJYRHA0"]);
         assert_eq!(
             url.ok().unwrap().as_str(),
             "https://youtube.com/watch/oHg5SJYRHA0"
@@ -761,10 +767,8 @@ mod tests {
         assert_eq!(body, Bytes::from_static(b"1"));
     }
 
-    // allow deprecated App::data
-    #[allow(deprecated)]
     #[actix_rt::test]
-    async fn test_extensions_dropped() {
+    async fn test_app_data_dropped() {
         struct Tracker {
             pub dropped: bool,
         }
@@ -780,7 +784,7 @@ mod tests {
         let tracker = Rc::new(RefCell::new(Tracker { dropped: false }));
         {
             let tracker2 = Rc::clone(&tracker);
-            let srv = init_service(App::new().data(10u32).service(web::resource("/").to(
+            let srv = init_service(App::new().service(web::resource("/").to(
                 move |req: HttpRequest| {
                     req.extensions_mut().insert(Foo {
                         tracker: Rc::clone(&tracker2),

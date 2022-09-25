@@ -51,12 +51,6 @@ impl StdError for Error {
     }
 }
 
-impl From<std::convert::Infallible> for Error {
-    fn from(val: std::convert::Infallible) -> Self {
-        match val {}
-    }
-}
-
 /// `Error` for any error that implements `ResponseError`
 impl<T: ResponseError + 'static> From<T> for Error {
     fn from(err: T) -> Error {

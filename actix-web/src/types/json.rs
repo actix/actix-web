@@ -290,7 +290,7 @@ const DEFAULT_CONFIG: JsonConfig = JsonConfig {
 
 impl Default for JsonConfig {
     fn default() -> Self {
-        DEFAULT_CONFIG.clone()
+        DEFAULT_CONFIG
     }
 }
 

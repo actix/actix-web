@@ -15,14 +15,14 @@ use bitflags::bitflags;
 use bytes::{Buf, BytesMut};
 use futures_core::ready;
 use pin_project_lite::pin_project;
-use tracing::{debug, error, trace};
+use tracing::{error, trace};
 
 use crate::{
     body::{BodySize, BoxBody, MessageBody},
     config::ServiceConfig,
     error::{DispatchError, ParseError, PayloadError},
     service::HttpFlow,
-    ConnectionType, Error, Extensions, OnConnectData, Request, Response, StatusCode,
+    Error, Extensions, OnConnectData, Request, Response, StatusCode,
 };
 
 use super::{
@@ -691,73 +691,11 @@ where
         let can_not_read = !self.can_read(cx);
 
         // limit amount of non-processed requests
-        if pipeline_queue_full {
+        if pipeline_queue_full || can_not_read {
             return Ok(false);
         }
 
         let mut this = self.as_mut().project();
-
-        if can_not_read {
-            debug!("cannot read request payload");
-
-            if let Some(sender) = &this.payload {
-                // ...maybe handler does not want to read any more payload...
-                if let PayloadStatus::Dropped = sender.need_read(cx) {
-                    debug!("handler dropped payload early; attempt to clean connection");
-                    // ...in which case poll request payload a few times
-                    loop {
-                        match this.codec.decode(this.read_buf)? {
-                            Some(msg) => {
-                                match msg {
-                                    // payload decoded did not yield EOF yet
-                                    Message::Chunk(Some(_)) => {
-                                        // if non-clean connection, next loop iter will detect empty
-                                        // read buffer and close connection
-                                    }
-
-                                    // connection is in clean state for next request
-                                    Message::Chunk(None) => {
-                                        debug!("connection successfully cleaned");
-
-                                        // reset dispatcher state
-                                        let _ = this.payload.take();
-                                        this.state.set(State::None);
-
-                                        // break out of payload decode loop
-                                        break;
-                                    }
-
-                                    // Either whole payload is read and loop is broken or more data
-                                    // was expected in which case connection is closed. In both
-                                    // situations dispatcher cannot get here.
-                                    Message::Item(_) => {
-                                        unreachable!("dispatcher is in payload receive state")
-                                    }
-                                }
-                            }
-
-                            // not enough info to decide if connection is going to be clean or not
-                            None => {
-                                error!(
-                                    "handler did not read whole payload and dispatcher could not \
-                                    drain read buf; return 500 and close connection"
-                                );
-
-                                this.flags.insert(Flags::SHUTDOWN);
-                                let mut res = Response::internal_server_error().drop_body();
-                                res.head_mut().set_connection_type(ConnectionType::Close);
-                                this.messages.push_back(DispatcherMessage::Error(res));
-                                *this.error = Some(DispatchError::HandlerDroppedPayload);
-                                return Ok(true);
-                            }
-                        }
-                    }
-                }
-            } else {
-                // can_not_read and no request payload
-                return Ok(false);
-            }
-        }
 
         let mut updated = false;
 
@@ -904,10 +842,7 @@ where
             if timer.as_mut().poll(cx).is_ready() {
                 // timeout on first request (slow request) return 408
 
-                trace!(
-                    "timed out on slow request; \
-                        replying with 408 and closing connection"
-                );
+                trace!("timed out on slow request; replying with 408 and closing connection");
 
                 let _ = self.as_mut().send_error_response(
                     Response::with_body(StatusCode::REQUEST_TIMEOUT, ()),
@@ -1041,9 +976,11 @@ where
                 //
                 // A Request head too large to parse is only checked on `httparse::Status::Partial`.
 
-                if this.payload.is_none() {
-                    // When dispatcher has a payload the responsibility of wake up it would be shift
-                    // to h1::payload::Payload.
+                match this.payload {
+                    // When dispatcher has a payload the responsibility of wake ups is shifted to
+                    // `h1::payload::Payload` unless the payload is needing a read, in which case it
+                    // might not have access to the waker and could result in the dispatcher
+                    // getting stuck until timeout.
                     //
                     // Reason:
                     // Self wake up when there is payload would waste poll and/or result in
@@ -1054,7 +991,8 @@ where
                     // read anymore. At this case read_buf could always remain beyond
                     // MAX_BUFFER_SIZE and self wake up would be busy poll dispatcher and
                     // waste resources.
-                    cx.waker().wake_by_ref();
+                    Some(ref p) if p.need_read(cx) != PayloadStatus::Read => {}
+                    _ => cx.waker().wake_by_ref(),
                 }
 
                 return Ok(false);

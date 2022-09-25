@@ -114,11 +114,12 @@ mod _original {
     use std::mem::MaybeUninit;
 
     pub fn parse_headers(src: &mut BytesMut) -> usize {
-        #![allow(clippy::uninit_assumed_init)]
+        #![allow(invalid_value, clippy::uninit_assumed_init)]
 
         let mut headers: [HeaderIndex; MAX_HEADERS] =
             unsafe { MaybeUninit::uninit().assume_init() };
 
+        #[allow(invalid_value)]
         let mut parsed: [httparse::Header<'_>; MAX_HEADERS] =
             unsafe { MaybeUninit::uninit().assume_init() };
 

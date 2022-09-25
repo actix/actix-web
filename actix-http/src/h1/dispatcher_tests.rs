@@ -637,7 +637,7 @@ async fn expect_handling() {
 
         if let DispatcherState::Normal { ref inner } = h1.inner {
             let io = inner.io.as_ref().unwrap();
-            let mut res = (&io.write_buf()[..]).to_owned();
+            let mut res = io.write_buf()[..].to_owned();
             stabilize_date_header(&mut res);
 
             assert_eq!(
@@ -699,7 +699,7 @@ async fn expect_eager() {
 
         if let DispatcherState::Normal { ref inner } = h1.inner {
             let io = inner.io.as_ref().unwrap();
-            let mut res = (&io.write_buf()[..]).to_owned();
+            let mut res = io.write_buf()[..].to_owned();
             stabilize_date_header(&mut res);
 
             // Despite the content-length header and even though the request payload has not
@@ -783,6 +783,9 @@ async fn upgrade_handling() {
     .await;
 }
 
+// fix in #2624 reverted temporarily
+// complete fix tracked in #2745
+#[ignore]
 #[actix_rt::test]
 async fn handler_drop_payload() {
     let _ = env_logger::try_init();

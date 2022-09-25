@@ -1,8 +1,8 @@
 use std::{fmt::Write, fs::DirEntry, io, path::Path, path::PathBuf};
 
 use actix_web::{dev::ServiceResponse, HttpRequest, HttpResponse};
-use askama_escape::{escape as escape_html_entity, Html};
 use percent_encoding::{utf8_percent_encode, CONTROLS};
+use v_htmlescape::escape as escape_html_entity;
 
 /// A directory; responds with the generated directory listing.
 #[derive(Debug)]
@@ -59,7 +59,7 @@ macro_rules! encode_file_url {
 /// ```
 macro_rules! encode_file_name {
     ($entry:ident) => {
-        escape_html_entity(&$entry.file_name().to_string_lossy(), Html)
+        escape_html_entity(&$entry.file_name().to_string_lossy())
     };
 }
 

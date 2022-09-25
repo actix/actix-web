@@ -1,6 +1,7 @@
 //! `ResponseError` trait and foreign impls.
 
 use std::{
+    convert::Infallible,
     error::Error as StdError,
     fmt,
     io::{self, Write as _},
@@ -53,6 +54,15 @@ pub trait ResponseError: fmt::Debug + fmt::Display {
 downcast_dyn!(ResponseError);
 
 impl ResponseError for Box<dyn StdError + 'static> {}
+
+impl ResponseError for Infallible {
+    fn status_code(&self) -> StatusCode {
+        match *self {}
+    }
+    fn error_response(&self) -> HttpResponse<BoxBody> {
+        match *self {}
+    }
+}
 
 #[cfg(feature = "openssl")]
 impl ResponseError for actix_tls::accept::openssl::reexports::Error {}

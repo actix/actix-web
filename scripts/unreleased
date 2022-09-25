@@ -45,6 +45,8 @@ unreleased_for() {
     cat "$CHANGE_CHUNK_FILE"
 }
 
-for f in $(fd --absolute-path 'CHANGE\w+.md'); do
-    unreleased_for $(dirname $f)
+files=$(fd --threads=1 --min-depth=2 --absolute-path 'CHANGE\w+.md')
+
+for f in $files; do
+    unreleased_for $(dirname $f) || true
 done

@@ -1,9 +1,21 @@
 # Changes
 
-## Unreleased - 2021-xx-xx
+## Unreleased - 2022-xx-xx
+- Minimum supported Rust version (MSRV) is now 1.59 due to transitive `time` dependency.
+
+
+## 0.6.2 - 2022-07-23
+- Allow partial range responses for video content to start streaming sooner. [#2817]
+- Minimum supported Rust version (MSRV) is now 1.57 due to transitive `time` dependency.
+
+[#2817]: https://github.com/actix/actix-web/pull/2817
+
+
+## 0.6.1 - 2022-06-11
 - Add `NamedFile::{modified, metadata, content_type, content_disposition, encoding}()` getters. [#2021]
 - Update `tokio-uring` dependency to `0.3`.
 - Audio files now use `Content-Disposition: inline` instead of `attachment`. [#2645]
+- Minimum supported Rust version (MSRV) is now 1.56 due to transitive `hashbrown` dependency.
 
 [#2021]: https://github.com/actix/actix-web/pull/2021
 [#2645]: https://github.com/actix/actix-web/pull/2645

@@ -57,7 +57,7 @@ use crate::HttpMessage;
 ///     IfRange::Date(fetched.into())
 /// );
 /// ```
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum IfRange {
     /// The entity-tag the client has of the resource.
     EntityTag(EntityTag),

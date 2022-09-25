@@ -24,7 +24,7 @@ use crate::{
     guard::{Guard, GuardContext},
     info::ConnectionInfo,
     rmap::ResourceMap,
-    Error, HttpRequest, HttpResponse,
+    Error, FromRequest, HttpRequest, HttpResponse,
 };
 
 pub(crate) type BoxedHttpService = BoxService<ServiceRequest, ServiceResponse<BoxBody>, Error>;
@@ -93,6 +93,43 @@ impl ServiceRequest {
     #[inline]
     pub fn parts_mut(&mut self) -> (&mut HttpRequest, &mut Payload) {
         (&mut self.req, &mut self.payload)
+    }
+
+    /// Returns immutable accessors to inner parts.
+    #[inline]
+    pub fn parts(&self) -> (&HttpRequest, &Payload) {
+        (&self.req, &self.payload)
+    }
+
+    /// Returns immutable accessor to inner [`HttpRequest`].
+    #[inline]
+    pub fn request(&self) -> &HttpRequest {
+        &self.req
+    }
+
+    /// Derives a type from this request using an [extractor](crate::FromRequest).
+    ///
+    /// Returns the `T` extractor's `Future` type which can be `await`ed. This is particularly handy
+    /// when you want to use an extractor in a middleware implementation.
+    ///
+    /// # Examples
+    /// ```
+    /// use actix_web::{
+    ///     dev::{ServiceRequest, ServiceResponse},
+    ///     web::Path, Error
+    /// };
+    ///
+    /// async fn my_helper(mut srv_req: ServiceRequest) -> Result<ServiceResponse, Error> {
+    ///     let path = srv_req.extract::<Path<(String, u32)>>().await?;
+    ///     // [...]
+    /// #   todo!()
+    /// }
+    /// ```
+    pub fn extract<T>(&mut self) -> <T as FromRequest>::Future
+    where
+        T: FromRequest,
+    {
+        T::from_request(&self.req, &mut self.payload)
     }
 
     /// Construct request from parts.

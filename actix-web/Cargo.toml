@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "4.0.1"
+version = "4.2.1"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
     "Rob Ede <robjtede@icloud.com>",
@@ -59,7 +59,7 @@ rustls = ["actix-http/rustls", "actix-tls/accept", "actix-tls/rustls"]
 # Don't rely on these whatsoever. They may disappear at anytime.
 __compress = []
 
-# io-uring feature only avaiable for Linux OSes.
+# io-uring feature only available for Linux OSes.
 experimental-io-uring = ["actix-server/io-uring"]
 
 [dependencies]
@@ -71,24 +71,25 @@ actix-service = "2"
 actix-utils = "3"
 actix-tls = { version = "3", default-features = false, optional = true }
 
-actix-http = { version = "3", features = ["http2", "ws"] }
+actix-http = { version = "3.2.2", features = ["http2", "ws"] }
 actix-router = "0.5"
-actix-web-codegen = { version = "4", optional = true }
+actix-web-codegen = { version = "4.1", optional = true }
 
 ahash = "0.7"
 bytes = "1"
 bytestring = "1"
 cfg-if = "1"
 cookie = { version = "0.16", features = ["percent-encode"], optional = true }
-derive_more = "0.99.5"
+derive_more = "0.99.8"
 encoding_rs = "0.8"
 futures-core = { version = "0.3.7", default-features = false }
 futures-util = { version = "0.3.7", default-features = false }
+http = "0.2.8"
 itoa = "1"
 language-tags = "0.3"
-once_cell = "1.5"
 log = "0.4"
 mime = "0.3"
+once_cell = "1.5"
 pin-project-lite = "0.2.7"
 regex = "1.5.5"
 serde = "1.0"
@@ -101,24 +102,24 @@ url = "2.1"
 
 [dev-dependencies]
 actix-files = "0.6"
-actix-test = { version = "0.1.0-beta.13", features = ["openssl", "rustls"] }
+actix-test = { version = "0.1", features = ["openssl", "rustls"] }
 awc = { version = "3", features = ["openssl"] }
 
 brotli = "3.3.3"
-const-str = "0.3"
+const-str = "0.4"
 criterion = { version = "0.3", features = ["html_reports"] }
 env_logger = "0.9"
 flate2 = "1.0.13"
 futures-util = { version = "0.3.7", default-features = false, features = ["std"] }
 rand = "0.8"
-rcgen = "0.8"
-rustls-pemfile = "0.2"
+rcgen = "0.9"
+rustls-pemfile = "1"
 serde = { version = "1.0", features = ["derive"] }
 static_assertions = "1"
 tls-openssl = { package = "openssl", version = "0.10.9" }
 tls-rustls = { package = "rustls", version = "0.20.0" }
 tokio = { version = "1.13.1", features = ["rt-multi-thread", "macros"] }
-zstd = "0.10"
+zstd = "0.11"
 
 [[test]]
 name = "test_server"

@@ -5,7 +5,6 @@ use std::{
     mem,
 };
 
-use firestorm::{profile_fn, profile_method, profile_section};
 use regex::{escape, Regex, RegexSet};
 use tracing::error;
 
@@ -272,7 +271,6 @@ impl ResourceDef {
     /// assert!(!resource.is_match("/foo"));
     /// ```
     pub fn new<T: IntoPatterns>(paths: T) -> Self {
-        profile_method!(new);
         Self::construct(paths, false)
     }
 
@@ -300,7 +298,6 @@ impl ResourceDef {
     /// assert!(!resource.is_match("/foo"));
     /// ```
     pub fn prefix<T: IntoPatterns>(paths: T) -> Self {
-        profile_method!(prefix);
         ResourceDef::construct(paths, true)
     }
 
@@ -325,7 +322,6 @@ impl ResourceDef {
     /// assert!(!resource.is_match("user/123"));
     /// ```
     pub fn root_prefix(path: &str) -> Self {
-        profile_method!(root_prefix);
         ResourceDef::prefix(insert_slash(path).into_owned())
     }
 
@@ -549,8 +545,6 @@ impl ResourceDef {
     /// ```
     #[inline]
     pub fn is_match(&self, path: &str) -> bool {
-        profile_method!(is_match);
-
         // this function could be expressed as:
         // `self.find_match(path).is_some()`
         // but this skips some checks and uses potentially faster regex methods
@@ -598,8 +592,6 @@ impl ResourceDef {
     /// assert_eq!(resource.find_match("/profile/1234"), Some(13));
     /// ```
     pub fn find_match(&self, path: &str) -> Option<usize> {
-        profile_method!(find_match);
-
         match &self.pat_type {
             PatternType::Static(pattern) => self.static_match(pattern, path),
 
@@ -634,7 +626,6 @@ impl ResourceDef {
     /// assert_eq!(path.unprocessed(), "");
     /// ```
     pub fn capture_match_info<R: Resource>(&self, resource: &mut R) -> bool {
-        profile_method!(capture_match_info);
         self.capture_match_info_fn(resource, |_| true)
     }
 
@@ -658,7 +649,7 @@ impl ResourceDef {
     ///     resource.capture_match_info_fn(
     ///         path,
     ///         // when env var is not set, reject when path contains "admin"
-    ///         |res| !(!admin_allowed && res.path().contains("admin")),
+    ///         |path| !(!admin_allowed && path.as_str().contains("admin")),
     ///     )
     /// }
     ///
@@ -680,53 +671,35 @@ impl ResourceDef {
         R: Resource,
         F: FnOnce(&R) -> bool,
     {
-        profile_method!(capture_match_info_fn);
-
         let mut segments = <[PathItem; MAX_DYNAMIC_SEGMENTS]>::default();
         let path = resource.resource_path();
         let path_str = path.unprocessed();
 
         let (matched_len, matched_vars) = match &self.pat_type {
-            PatternType::Static(pattern) => {
-                profile_section!(pattern_static_or_prefix);
-
-                match self.static_match(pattern, path_str) {
-                    Some(len) => (len, None),
-                    None => return false,
-                }
-            }
+            PatternType::Static(pattern) => match self.static_match(pattern, path_str) {
+                Some(len) => (len, None),
+                None => return false,
+            },
 
             PatternType::Dynamic(re, names) => {
-                profile_section!(pattern_dynamic);
-
-                let captures = {
-                    profile_section!(pattern_dynamic_regex_exec);
-
-                    match re.captures(path.unprocessed()) {
-                        Some(captures) => captures,
-                        _ => return false,
-                    }
+                let captures = match re.captures(path.unprocessed()) {
+                    Some(captures) => captures,
+                    _ => return false,
                 };
 
-                {
-                    profile_section!(pattern_dynamic_extract_captures);
-
-                    for (no, name) in names.iter().enumerate() {
-                        if let Some(m) = captures.name(name) {
-                            segments[no] = PathItem::Segment(m.start() as u16, m.end() as u16);
-                        } else {
-                            error!("Dynamic path match but not all segments found: {}", name);
-                            return false;
-                        }
+                for (no, name) in names.iter().enumerate() {
+                    if let Some(m) = captures.name(name) {
+                        segments[no] = PathItem::Segment(m.start() as u16, m.end() as u16);
+                    } else {
+                        error!("Dynamic path match but not all segments found: {}", name);
+                        return false;
                     }
-                };
+                }
 
                 (captures[1].len(), Some(names))
             }
 
             PatternType::DynamicSet(re, params) => {
-                profile_section!(pattern_dynamic_set);
-
                 let path = path.unprocessed();
                 let (pattern, names) = match re.matches(path).into_iter().next() {
                     Some(idx) => &params[idx],
@@ -809,7 +782,6 @@ impl ResourceDef {
         I: IntoIterator,
         I::Item: AsRef<str>,
     {
-        profile_method!(resource_path_from_iter);
         let mut iter = values.into_iter();
         self.build_resource_path(path, |_| iter.next())
     }
@@ -845,7 +817,6 @@ impl ResourceDef {
         V: AsRef<str>,
         S: BuildHasher,
     {
-        profile_method!(resource_path_from_map);
         self.build_resource_path(path, |name| values.get(name))
     }
 
@@ -866,8 +837,6 @@ impl ResourceDef {
     }
 
     fn construct<T: IntoPatterns>(paths: T, is_prefix: bool) -> Self {
-        profile_method!(construct);
-
         let patterns = paths.patterns();
         let (pat_type, segments) = match &patterns {
             Patterns::Single(pattern) => ResourceDef::parse(pattern, is_prefix, false),
@@ -926,8 +895,6 @@ impl ResourceDef {
     /// # Panics
     /// Panics if given patterns does not contain a dynamic segment.
     fn parse_param(pattern: &str) -> (PatternSegment, String, &str, bool) {
-        profile_method!(parse_param);
-
         const DEFAULT_PATTERN: &str = "[^/]+";
         const DEFAULT_PATTERN_TAIL: &str = ".*";
 
@@ -997,8 +964,6 @@ impl ResourceDef {
         is_prefix: bool,
         force_dynamic: bool,
     ) -> (PatternType, Vec<PatternSegment>) {
-        profile_method!(parse);
-
         if !force_dynamic && pattern.find('{').is_none() && !pattern.ends_with('*') {
             // pattern is static
             return (
@@ -1131,8 +1096,6 @@ impl From<String> for ResourceDef {
 }
 
 pub(crate) fn insert_slash(path: &str) -> Cow<'_, str> {
-    profile_fn!(insert_slash);
-
     if !path.is_empty() && !path.starts_with('/') {
         let mut new_path = String::with_capacity(path.len() + 1);
         new_path.push('/');
@@ -1540,31 +1503,31 @@ mod tests {
     fn build_path_list() {
         let mut s = String::new();
         let resource = ResourceDef::new("/user/{item1}/test");
-        assert!(resource.resource_path_from_iter(&mut s, &mut (&["user1"]).iter()));
+        assert!(resource.resource_path_from_iter(&mut s, &mut ["user1"].iter()));
         assert_eq!(s, "/user/user1/test");
 
         let mut s = String::new();
         let resource = ResourceDef::new("/user/{item1}/{item2}/test");
-        assert!(resource.resource_path_from_iter(&mut s, &mut (&["item", "item2"]).iter()));
+        assert!(resource.resource_path_from_iter(&mut s, &mut ["item", "item2"].iter()));
         assert_eq!(s, "/user/item/item2/test");
 
         let mut s = String::new();
         let resource = ResourceDef::new("/user/{item1}/{item2}");
-        assert!(resource.resource_path_from_iter(&mut s, &mut (&["item", "item2"]).iter()));
+        assert!(resource.resource_path_from_iter(&mut s, &mut ["item", "item2"].iter()));
         assert_eq!(s, "/user/item/item2");
 
         let mut s = String::new();
         let resource = ResourceDef::new("/user/{item1}/{item2}/");
-        assert!(resource.resource_path_from_iter(&mut s, &mut (&["item", "item2"]).iter()));
+        assert!(resource.resource_path_from_iter(&mut s, &mut ["item", "item2"].iter()));
         assert_eq!(s, "/user/item/item2/");
 
         let mut s = String::new();
-        assert!(!resource.resource_path_from_iter(&mut s, &mut (&["item"]).iter()));
+        assert!(!resource.resource_path_from_iter(&mut s, &mut ["item"].iter()));
 
         let mut s = String::new();
-        assert!(resource.resource_path_from_iter(&mut s, &mut (&["item", "item2"]).iter()));
+        assert!(resource.resource_path_from_iter(&mut s, &mut ["item", "item2"].iter()));
         assert_eq!(s, "/user/item/item2/");
-        assert!(!resource.resource_path_from_iter(&mut s, &mut (&["item"]).iter()));
+        assert!(!resource.resource_path_from_iter(&mut s, &mut ["item"].iter()));
 
         let mut s = String::new();
         assert!(resource.resource_path_from_iter(&mut s, &mut vec!["item", "item2"].iter()));
@@ -1641,10 +1604,10 @@ mod tests {
         let resource = ResourceDef::new("/user/{item1}*");
 
         let mut s = String::new();
-        assert!(!resource.resource_path_from_iter(&mut s, &mut (&[""; 0]).iter()));
+        assert!(!resource.resource_path_from_iter(&mut s, &mut [""; 0].iter()));
 
         let mut s = String::new();
-        assert!(resource.resource_path_from_iter(&mut s, &mut (&["user1"]).iter()));
+        assert!(resource.resource_path_from_iter(&mut s, &mut ["user1"].iter()));
         assert_eq!(s, "/user/user1");
 
         let mut s = String::new();

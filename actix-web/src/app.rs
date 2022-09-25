@@ -60,7 +60,7 @@ where
     /// [`HttpRequest::app_data`](crate::HttpRequest::app_data) method at runtime.
     ///
     /// # [`Data<T>`]
-    /// Any [`Data<T>`] type added here can utilize it's extractor implementation in handlers.
+    /// Any [`Data<T>`] type added here can utilize its extractor implementation in handlers.
     /// Types not wrapped in `Data<T>` cannot use this extractor. See [its docs](Data<T>) for more
     /// about its usage and patterns.
     ///
@@ -185,10 +185,17 @@ where
         F: FnOnce(&mut ServiceConfig),
     {
         let mut cfg = ServiceConfig::new();
+
         f(&mut cfg);
+
         self.services.extend(cfg.services);
         self.external.extend(cfg.external);
         self.extensions.extend(cfg.app_data);
+
+        if let Some(default) = cfg.default {
+            self.default = Some(default);
+        }
+
         self
     }
 
@@ -267,7 +274,6 @@ where
     {
         let svc = svc
             .into_factory()
-            .map(|res| res.map_into_boxed_body())
             .map_init_err(|e| log::error!("Can not construct default service: {:?}", e));
 
         self.default = Some(Rc::new(boxed::factory(svc)));
@@ -308,7 +314,7 @@ where
 
     /// Registers an app-wide middleware.
     ///
-    /// Registers middleware, in the form of a middleware compo nen t (type), that runs during
+    /// Registers middleware, in the form of a middleware component (type), that runs during
     /// inbound and/or outbound processing in the request life-cycle (request -> response),
     /// modifying request/response as necessary, across all requests managed by the `App`.
     ///
@@ -676,7 +682,7 @@ mod tests {
                     "/test",
                     web::get().to(|req: HttpRequest| {
                         HttpResponse::Ok()
-                            .body(req.url_for("youtube", &["12345"]).unwrap().to_string())
+                            .body(req.url_for("youtube", ["12345"]).unwrap().to_string())
                     }),
                 ),
         )

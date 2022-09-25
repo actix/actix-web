@@ -19,29 +19,7 @@ use crate::{
     Request,
 };
 
-/// Test `Request` builder
-///
-/// ```ignore
-/// # use http::{header, StatusCode};
-/// # use actix_web::*;
-/// use actix_web::test::TestRequest;
-///
-/// fn index(req: &HttpRequest) -> Response {
-///     if let Some(hdr) = req.headers().get(header::CONTENT_TYPE) {
-///         Response::Ok().into()
-///     } else {
-///         Response::BadRequest().into()
-///     }
-/// }
-///
-/// let resp = TestRequest::default().insert_header("content-type", "text/plain")
-///     .run(&index)
-///     .unwrap();
-/// assert_eq!(resp.status(), StatusCode::OK);
-///
-/// let resp = TestRequest::default().run(&index).unwrap();
-/// assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-/// ```
+/// Test `Request` builder.
 pub struct TestRequest(Option<Inner>);
 
 struct Inner {

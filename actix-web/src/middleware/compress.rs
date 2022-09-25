@@ -220,37 +220,32 @@ static SUPPORTED_ENCODINGS_STRING: Lazy<String> = Lazy::new(|| {
     encoding.join(", ")
 });
 
-static SUPPORTED_ENCODINGS: Lazy<Vec<Encoding>> = Lazy::new(|| {
-    let mut encodings = vec![Encoding::identity()];
-
+static SUPPORTED_ENCODINGS: &[Encoding] = &[
+    Encoding::identity(),
     #[cfg(feature = "compress-brotli")]
     {
-        encodings.push(Encoding::brotli());
-    }
-
+        Encoding::brotli()
+    },
     #[cfg(feature = "compress-gzip")]
     {
-        encodings.push(Encoding::gzip());
-        encodings.push(Encoding::deflate());
-    }
-
+        Encoding::gzip()
+    },
+    #[cfg(feature = "compress-gzip")]
+    {
+        Encoding::deflate()
+    },
     #[cfg(feature = "compress-zstd")]
     {
-        encodings.push(Encoding::zstd());
-    }
-
-    assert!(
-        !encodings.is_empty(),
-        "encodings can not be empty unless __compress feature has been explicitly enabled by itself"
-    );
-
-    encodings
-});
+        Encoding::zstd()
+    },
+];
 
 // move cfg(feature) to prevents_double_compressing if more tests are added
 #[cfg(feature = "compress-gzip")]
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use super::*;
     use crate::{middleware::DefaultHeaders, test, web, App};
 
@@ -304,5 +299,29 @@ mod tests {
         assert_eq!(res.headers().get(header::CONTENT_ENCODING).unwrap(), "gzip");
         let bytes = test::read_body(res).await;
         assert_eq!(gzip_decode(bytes), DATA.as_bytes());
+    }
+
+    #[actix_rt::test]
+    async fn retains_previously_set_vary_header() {
+        let app = test::init_service({
+            App::new()
+                .wrap(Compress::default())
+                .default_service(web::to(move || {
+                    HttpResponse::Ok()
+                        .insert_header((header::VARY, "x-test"))
+                        .finish()
+                }))
+        })
+        .await;
+
+        let req = test::TestRequest::default()
+            .insert_header((header::ACCEPT_ENCODING, "gzip"))
+            .to_request();
+        let res = test::call_service(&app, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+        #[allow(clippy::mutable_key_type)]
+        let vary_headers = res.headers().get_all(header::VARY).collect::<HashSet<_>>();
+        assert!(vary_headers.contains(&HeaderValue::from_static("x-test")));
+        assert!(vary_headers.contains(&HeaderValue::from_static("accept-encoding")));
     }
 }

@@ -40,7 +40,7 @@ type Guards = Vec<Box<dyn Guard>>;
 /// use actix_web::{web, App, HttpResponse};
 ///
 /// let app = App::new().service(
-///     web::scope("/{project_id}/")
+///     web::scope("/{project_id}")
 ///         .service(web::resource("/path1").to(|| async { "OK" }))
 ///         .service(web::resource("/path2").route(web::get().to(|| HttpResponse::Ok())))
 ///         .service(web::resource("/path3").route(web::head().to(HttpResponse::MethodNotAllowed)))
@@ -197,6 +197,10 @@ where
         self.app_data
             .get_or_insert_with(Extensions::new)
             .extend(cfg.app_data);
+
+        if let Some(default) = cfg.default {
+            self.default = Some(default);
+        }
 
         self
     }
@@ -1129,7 +1133,7 @@ mod tests {
                     "/",
                     web::get().to(|req: HttpRequest| {
                         HttpResponse::Ok()
-                            .body(req.url_for("youtube", &["xxxxxx"]).unwrap().to_string())
+                            .body(req.url_for("youtube", ["xxxxxx"]).unwrap().to_string())
                     }),
                 );
             }));
@@ -1148,8 +1152,7 @@ mod tests {
         let srv = init_service(App::new().service(web::scope("/a").service(
             web::scope("/b").service(web::resource("/c/{stuff}").name("c").route(
                 web::get().to(|req: HttpRequest| {
-                    HttpResponse::Ok()
-                        .body(format!("{}", req.url_for("c", &["12345"]).unwrap()))
+                    HttpResponse::Ok().body(format!("{}", req.url_for("c", ["12345"]).unwrap()))
                 }),
             )),
         )))

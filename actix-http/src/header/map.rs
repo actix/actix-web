@@ -309,7 +309,7 @@ impl HeaderMap {
     pub fn get_all(&self, key: impl AsHeaderName) -> std::slice::Iter<'_, HeaderValue> {
         match self.get_value(key) {
             Some(value) => value.iter(),
-            None => (&[]).iter(),
+            None => [].iter(),
         }
     }
 

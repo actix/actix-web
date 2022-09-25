@@ -49,7 +49,7 @@ use crate::{
 /// ```
 ///
 /// # Responder
-/// It may be desireable to use a concrete type for a response with multiple branches. As long as
+/// It may be desirable to use a concrete type for a response with multiple branches. As long as
 /// both types implement `Responder`, so will the `Either` type, enabling it to be used as a
 /// handler's return type.
 ///
@@ -73,7 +73,7 @@ use crate::{
 ///     }
 /// }
 /// ```
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Either<L, R> {
     /// A value of type `L`.
     Left(L),
