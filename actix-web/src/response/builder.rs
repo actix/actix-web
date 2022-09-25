@@ -457,7 +457,7 @@ mod tests {
         assert_eq!(ct, HeaderValue::from_static("application/json"));
         assert_body_eq!(res, br#"["v1","v2","v3"]"#);
 
-        let res = HttpResponse::Ok().json(&["v1", "v2", "v3"]);
+        let res = HttpResponse::Ok().json(["v1", "v2", "v3"]);
         let ct = res.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("application/json"));
         assert_body_eq!(res, br#"["v1","v2","v3"]"#);

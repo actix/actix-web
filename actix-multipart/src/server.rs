@@ -289,10 +289,8 @@ impl InnerMultipart {
                 match self.state {
                     // read until first boundary
                     InnerState::FirstBoundary => {
-                        match InnerMultipart::skip_until_boundary(
-                            &mut *payload,
-                            &self.boundary,
-                        )? {
+                        match InnerMultipart::skip_until_boundary(&mut payload, &self.boundary)?
+                        {
                             Some(eof) => {
                                 if eof {
                                     self.state = InnerState::Eof;
@@ -306,7 +304,7 @@ impl InnerMultipart {
                     }
                     // read boundary
                     InnerState::Boundary => {
-                        match InnerMultipart::read_boundary(&mut *payload, &self.boundary)? {
+                        match InnerMultipart::read_boundary(&mut payload, &self.boundary)? {
                             None => return Poll::Pending,
                             Some(eof) => {
                                 if eof {
@@ -323,7 +321,7 @@ impl InnerMultipart {
 
                 // read field headers for next field
                 if self.state == InnerState::Headers {
-                    if let Some(headers) = InnerMultipart::read_headers(&mut *payload)? {
+                    if let Some(headers) = InnerMultipart::read_headers(&mut payload)? {
                         self.state = InnerState::Boundary;
                         headers
                     } else {
@@ -652,9 +650,9 @@ impl InnerField {
         let result = if let Some(mut payload) = self.payload.as_ref().unwrap().get_mut(s) {
             if !self.eof {
                 let res = if let Some(ref mut len) = self.length {
-                    InnerField::read_len(&mut *payload, len)
+                    InnerField::read_len(&mut payload, len)
                 } else {
-                    InnerField::read_stream(&mut *payload, &self.boundary)
+                    InnerField::read_stream(&mut payload, &self.boundary)
                 };
 
                 match res {

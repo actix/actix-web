@@ -1133,7 +1133,7 @@ mod tests {
                     "/",
                     web::get().to(|req: HttpRequest| {
                         HttpResponse::Ok()
-                            .body(req.url_for("youtube", &["xxxxxx"]).unwrap().to_string())
+                            .body(req.url_for("youtube", ["xxxxxx"]).unwrap().to_string())
                     }),
                 );
             }));
@@ -1152,8 +1152,7 @@ mod tests {
         let srv = init_service(App::new().service(web::scope("/a").service(
             web::scope("/b").service(web::resource("/c/{stuff}").name("c").route(
                 web::get().to(|req: HttpRequest| {
-                    HttpResponse::Ok()
-                        .body(format!("{}", req.url_for("c", &["12345"]).unwrap()))
+                    HttpResponse::Ok().body(format!("{}", req.url_for("c", ["12345"]).unwrap()))
                 }),
             )),
         )))

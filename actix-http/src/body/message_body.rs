@@ -131,7 +131,7 @@ mod foreign_impls {
         type Error = B::Error;
 
         fn size(&self) -> BodySize {
-            (&**self).size()
+            (**self).size()
         }
 
         fn poll_next(

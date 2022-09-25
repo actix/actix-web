@@ -113,14 +113,14 @@ impl<P> Request<P> {
     #[inline]
     /// Http message part of the request
     pub fn head(&self) -> &RequestHead {
-        &*self.head
+        &self.head
     }
 
     #[inline]
     #[doc(hidden)]
     /// Mutable reference to a HTTP message part of the request
     pub fn head_mut(&mut self) -> &mut RequestHead {
-        &mut *self.head
+        &mut self.head
     }
 
     /// Mutable reference to the message's headers.

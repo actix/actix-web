@@ -244,7 +244,7 @@ pub fn hash_key(key: &[u8]) -> [u8; 28] {
     };
 
     let mut hash_b64 = [0; 28];
-    let n = base64::encode_config_slice(&hash, base64::STANDARD, &mut hash_b64);
+    let n = base64::encode_config_slice(hash, base64::STANDARD, &mut hash_b64);
     assert_eq!(n, 28);
 
     hash_b64

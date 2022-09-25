@@ -173,7 +173,7 @@ impl AppInitServiceState {
 
     #[inline]
     pub(crate) fn rmap(&self) -> &ResourceMap {
-        &*self.rmap
+        &self.rmap
     }
 
     #[inline]

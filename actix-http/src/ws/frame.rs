@@ -313,7 +313,7 @@ mod tests {
     #[test]
     fn test_parse_frame_no_mask() {
         let mut buf = BytesMut::from(&[0b0000_0001u8, 0b0000_0001u8][..]);
-        buf.extend(&[1u8]);
+        buf.extend([1u8]);
 
         assert!(Parser::parse(&mut buf, true, 1024).is_err());
 
@@ -326,7 +326,7 @@ mod tests {
     #[test]
     fn test_parse_frame_max_size() {
         let mut buf = BytesMut::from(&[0b0000_0001u8, 0b0000_0010u8][..]);
-        buf.extend(&[1u8, 1u8]);
+        buf.extend([1u8, 1u8]);
 
         assert!(Parser::parse(&mut buf, true, 1).is_err());
 
@@ -340,9 +340,9 @@ mod tests {
     fn test_parse_frame_max_size_recoverability() {
         let mut buf = BytesMut::new();
         // The first text frame with length == 2, payload doesn't matter.
-        buf.extend(&[0b0000_0001u8, 0b0000_0010u8, 0b0000_0000u8, 0b0000_0000u8]);
+        buf.extend([0b0000_0001u8, 0b0000_0010u8, 0b0000_0000u8, 0b0000_0000u8]);
         // Next binary frame with length == 2 and payload == `[0x1111_1111u8, 0x1111_1111u8]`.
-        buf.extend(&[0b0000_0010u8, 0b0000_0010u8, 0b1111_1111u8, 0b1111_1111u8]);
+        buf.extend([0b0000_0010u8, 0b0000_0010u8, 0b1111_1111u8, 0b1111_1111u8]);
 
         assert_eq!(buf.len(), 8);
         assert!(matches!(

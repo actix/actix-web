@@ -707,8 +707,7 @@ async fn client_cookie_handling() {
 
                 async move {
                     // Check cookies were sent correctly
-                    let res: Result<(), Error> = req
-                        .cookie("cookie1")
+                    req.cookie("cookie1")
                         .ok_or(())
                         .and_then(|c1| {
                             if c1.value() == "value1" {
@@ -725,16 +724,10 @@ async fn client_cookie_handling() {
                                 Err(())
                             }
                         })
-                        .map_err(|_| Error::from(IoError::from(ErrorKind::NotFound)));
+                        .map_err(|_| Error::from(IoError::from(ErrorKind::NotFound)))?;
 
-                    if let Err(e) = res {
-                        Err(e)
-                    } else {
-                        // Send some cookies back
-                        Ok::<_, Error>(
-                            HttpResponse::Ok().cookie(cookie1).cookie(cookie2).finish(),
-                        )
-                    }
+                    // Send some cookies back
+                    Ok::<_, Error>(HttpResponse::Ok().cookie(cookie1).cookie(cookie2).finish())
                 }
             }),
         )
