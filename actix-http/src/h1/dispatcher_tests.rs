@@ -637,7 +637,7 @@ async fn expect_handling() {
 
         if let DispatcherState::Normal { ref inner } = h1.inner {
             let io = inner.io.as_ref().unwrap();
-            let mut res = (&io.write_buf()[..]).to_owned();
+            let mut res = io.write_buf()[..].to_owned();
             stabilize_date_header(&mut res);
 
             assert_eq!(
@@ -699,7 +699,7 @@ async fn expect_eager() {
 
         if let DispatcherState::Normal { ref inner } = h1.inner {
             let io = inner.io.as_ref().unwrap();
-            let mut res = (&io.write_buf()[..]).to_owned();
+            let mut res = io.write_buf()[..].to_owned();
             stabilize_date_header(&mut res);
 
             // Despite the content-length header and even though the request payload has not

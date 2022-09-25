@@ -219,7 +219,7 @@ impl HttpRequest {
     /// for urls that do not contain variable parts.
     pub fn url_for_static(&self, name: &str) -> Result<url::Url, UrlGenerationError> {
         const NO_PARAMS: [&str; 0] = [];
-        self.url_for(name, &NO_PARAMS)
+        self.url_for(name, NO_PARAMS)
     }
 
     /// Get a reference to a `ResourceMap` of current application.
@@ -306,7 +306,7 @@ impl HttpRequest {
 
     #[inline]
     fn app_state(&self) -> &AppInitServiceState {
-        &*self.inner.app_state
+        &self.inner.app_state
     }
 
     /// Load request cookies.
@@ -583,14 +583,14 @@ mod tests {
             .to_http_request();
 
         assert_eq!(
-            req.url_for("unknown", &["test"]),
+            req.url_for("unknown", ["test"]),
             Err(UrlGenerationError::ResourceNotFound)
         );
         assert_eq!(
-            req.url_for("index", &["test"]),
+            req.url_for("index", ["test"]),
             Err(UrlGenerationError::NotEnoughElements)
         );
-        let url = req.url_for("index", &["test", "html"]);
+        let url = req.url_for("index", ["test", "html"]);
         assert_eq!(
             url.ok().unwrap().as_str(),
             "http://www.rust-lang.org/user/test.html"
@@ -646,7 +646,7 @@ mod tests {
         rmap.add(&mut rdef, None);
 
         let req = TestRequest::default().rmap(rmap).to_http_request();
-        let url = req.url_for("youtube", &["oHg5SJYRHA0"]);
+        let url = req.url_for("youtube", ["oHg5SJYRHA0"]);
         assert_eq!(
             url.ok().unwrap().as_str(),
             "https://youtube.com/watch/oHg5SJYRHA0"

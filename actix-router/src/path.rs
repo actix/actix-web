@@ -242,6 +242,7 @@ mod tests {
 
     use super::*;
 
+    #[allow(clippy::needless_borrow)]
     #[test]
     fn deref_impls() {
         let mut foo = Path::new("/foo");

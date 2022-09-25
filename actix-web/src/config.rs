@@ -344,7 +344,7 @@ mod tests {
                     "/test",
                     web::get().to(|req: HttpRequest| {
                         HttpResponse::Ok()
-                            .body(req.url_for("youtube", &["12345"]).unwrap().to_string())
+                            .body(req.url_for("youtube", ["12345"]).unwrap().to_string())
                     }),
                 ),
         )

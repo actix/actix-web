@@ -321,7 +321,7 @@ impl WebsocketsRequest {
         // Generate a random key for the `Sec-WebSocket-Key` header which is a base64-encoded
         // (see RFC 4648 §4) value that, when decoded, is 16 bytes in length (RFC 6455 §1.3).
         let sec_key: [u8; 16] = rand::random();
-        let key = base64::encode(&sec_key);
+        let key = base64::encode(sec_key);
 
         self.head.headers.insert(
             header::SEC_WEBSOCKET_KEY,
@@ -513,7 +513,7 @@ mod tests {
             .origin("test-origin")
             .max_frame_size(100)
             .server_mode()
-            .protocols(&["v1", "v2"])
+            .protocols(["v1", "v2"])
             .set_header_if_none(header::CONTENT_TYPE, "json")
             .set_header_if_none(header::CONTENT_TYPE, "text")
             .cookie(Cookie::build("cookie1", "value1").finish());

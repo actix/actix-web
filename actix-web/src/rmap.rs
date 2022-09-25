@@ -449,12 +449,12 @@ mod tests {
         let req = req.to_http_request();
 
         let url = rmap
-            .url_for(&req, "post", &["u123", "foobar"])
+            .url_for(&req, "post", ["u123", "foobar"])
             .unwrap()
             .to_string();
         assert_eq!(url, "http://localhost:8888/user/u123/post/foobar");
 
-        assert!(rmap.url_for(&req, "missing", &["u123"]).is_err());
+        assert!(rmap.url_for(&req, "missing", ["u123"]).is_err());
     }
 
     #[test]
@@ -490,7 +490,7 @@ mod tests {
         assert_eq!(url.path(), OUTPUT);
 
         assert!(rmap.url_for(&req, "external.2", INPUT).is_err());
-        assert!(rmap.url_for(&req, "external.2", &[""]).is_err());
+        assert!(rmap.url_for(&req, "external.2", [""]).is_err());
     }
 
     #[test]
@@ -524,7 +524,7 @@ mod tests {
         let req = req.to_http_request();
 
         assert_eq!(
-            rmap.url_for(&req, "duck", &["abcd"]).unwrap().to_string(),
+            rmap.url_for(&req, "duck", ["abcd"]).unwrap().to_string(),
             "https://duck.com/abcd"
         );
     }
@@ -552,9 +552,9 @@ mod tests {
 
         let req = crate::test::TestRequest::default().to_http_request();
 
-        let url = rmap.url_for(&req, "nested", &[""; 0]).unwrap().to_string();
+        let url = rmap.url_for(&req, "nested", [""; 0]).unwrap().to_string();
         assert_eq!(url, "http://localhost:8080/bar/nested");
 
-        assert!(rmap.url_for(&req, "missing", &["u123"]).is_err());
+        assert!(rmap.url_for(&req, "missing", ["u123"]).is_err());
     }
 }
