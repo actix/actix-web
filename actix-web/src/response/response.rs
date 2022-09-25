@@ -333,11 +333,13 @@ impl<B> From<HttpResponse<B>> for Response<B> {
 #[cfg(test)]
 mod response_fut_impl {
     use std::{
-        future::Future,
+        future::{Future, IntoFuture},
         mem,
         pin::Pin,
         task::{Context, Poll},
     };
+
+    use actix_utils::future::{ready, Ready};
 
     use super::*;
 
@@ -359,6 +361,18 @@ mod response_fut_impl {
                 &mut self.res,
                 Response::new(StatusCode::default()),
             )))
+        }
+    }
+
+    impl<B> IntoFuture for HttpResponse<B> {
+        type Output = Result<Response<B>, Error>;
+        type IntoFuture = Ready<Self::Output>;
+
+        fn into_future(self) -> Self::IntoFuture {
+            ready(match self.error.take() {
+                Some(err) => Err(err),
+                None => Ok(self.res),
+            })
         }
     }
 }
