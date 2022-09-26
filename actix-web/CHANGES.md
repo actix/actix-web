@@ -4,7 +4,7 @@
 ### Added
 - Add `ContentDisposition::attachment` constructor. [#2867]
 - Add `ErrorHandlers::default_handler()` (as well as `default_handler_{server, client}()`) to make registering handlers for groups of response statuses easier. [#2784]
-- Add `Logger::custom_status_replace()`. [#2631]
+- Add `Logger::custom_response_replace()`. [#2631]
 
 [#2631]: https://github.com/actix/actix-web/pull/2631
 [#2784]: https://github.com/actix/actix-web/pull/2784
