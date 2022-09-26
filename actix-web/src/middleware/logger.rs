@@ -634,9 +634,9 @@ impl FormatText {
                 *self = FormatText::Str(s.to_string())
             }
 
-            FormatText::CustomResponse(_, status_fn) => {
-                let text = match status_fn {
-                    Some(status_fn) => FormatText::Str(status_fn.call(res)),
+            FormatText::CustomResponse(_, res_fn) => {
+                let text = match res_fn {
+                    Some(res_fn) => FormatText::Str(res_fn.call(res)),
                     None => FormatText::Str("-".to_owned()),
                 };
 
