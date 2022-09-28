@@ -2,10 +2,10 @@ extern crate proc_macro;
 
 use darling::{FromDeriveInput, FromField, FromMeta};
 use parse_size::parse_size;
-use proc_macro2::{Ident, TokenStream};
+use proc_macro2::Ident;
 use quote::quote;
 use std::collections::HashSet;
-use syn::{parse_macro_input, PathArguments, Type};
+use syn::{parse_macro_input, Type};
 
 #[derive(FromDeriveInput, Default)]
 #[darling(attributes(multipart), default)]
@@ -38,7 +38,7 @@ struct ParsedField<'t> {
     serialization_name: String,
     rust_name: &'t Ident,
     limit: Option<usize>,
-    path: TokenStream,
+    ty: &'t Type,
 }
 
 #[proc_macro_derive(MultipartForm, attributes(multipart))]
@@ -74,27 +74,11 @@ pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenS
                     as usize
             });
 
-            // Converts `TextField<String>` into `TextField::<String>` where appropriate
-            let ty = &field.ty;
-            let mut tp = match ty {
-                Type::Path(ref p) => p,
-                _ => panic!("Field must be a TypePath"),
-            }
-            .clone();
-            let last = tp.path.segments.last_mut().unwrap();
-            let type_args = last.arguments.clone();
-            last.arguments = PathArguments::None;
-            let path = if matches!(type_args, PathArguments::None) {
-                quote!(#tp)
-            } else {
-                quote!(#tp::#type_args)
-            };
-
             Ok(ParsedField {
                 serialization_name,
                 rust_name,
                 limit,
-                path,
+                ty: &field.ty,
             })
         })
         .collect::<Result<Vec<_>, darling::Error>>()
@@ -131,9 +115,11 @@ pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenS
     let mut read_field_impl = quote!();
     for field in &parsed {
         let name = &field.serialization_name;
-        let path = &field.path;
+        let ty = &field.ty;
         read_field_impl.extend(quote!(
-            #name => ::std::boxed::Box::pin(#path::handle_field(req, field, limits, state, #duplicate_action)),
+            #name => ::std::boxed::Box::pin(
+                <#ty as ::actix_multipart::form::FieldGroupReader>::handle_field(req, field, limits, state, #duplicate_action)
+            ),
         ));
     }
 
@@ -153,10 +139,9 @@ pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenS
     for field in &parsed {
         let name = &field.serialization_name;
         let rust_name = &field.rust_name;
-        let path = &field.path;
-
+        let ty = &field.ty;
         from_state_impl.extend(quote!(
-            #rust_name: #path::from_state(#name, &mut state)?,
+            #rust_name: <#ty as ::actix_multipart::form::FieldGroupReader>::from_state(#name, &mut state)?,
         ));
     }
 
@@ -175,7 +160,6 @@ pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenS
                 limits: &'t mut ::actix_multipart::form::Limits,
                 state: &'t mut ::actix_multipart::form::State,
             ) -> ::std::pin::Pin<::std::boxed::Box<dyn ::std::future::Future<Output = ::std::result::Result<(), ::actix_multipart::MultipartError>> + 't>> {
-                use ::actix_multipart::form::FieldGroupReader;
                 match field.name() {
                     #read_field_impl
                     _ => return ::std::boxed::Box::pin(::std::future::ready(#unknown_field_result)),
@@ -183,7 +167,6 @@ pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenS
             }
 
             fn from_state(mut state: ::actix_multipart::form::State) -> ::std::result::Result<Self, ::actix_multipart::MultipartError> {
-                use ::actix_multipart::form::FieldGroupReader;
                 Ok(Self {
                     #from_state_impl
                 })
