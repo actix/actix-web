@@ -132,8 +132,7 @@ impl NamedFile {
                 mime::IMAGE | mime::TEXT | mime::AUDIO | mime::VIDEO => DispositionType::Inline,
                 mime::APPLICATION => match ct.subtype() {
                     mime::JAVASCRIPT | mime::JSON => DispositionType::Inline,
-                    name if name == "wasm" => DispositionType::Inline,
-                    name if name == "xhtml" => DispositionType::Inline,
+                    name if name == "wasm" || name == "xhtml" => DispositionType::Inline,
                     _ => DispositionType::Attachment,
                 },
                 _ => DispositionType::Attachment,
