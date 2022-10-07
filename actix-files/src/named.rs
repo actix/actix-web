@@ -133,6 +133,7 @@ impl NamedFile {
                 mime::APPLICATION => match ct.subtype() {
                     mime::JAVASCRIPT | mime::JSON => DispositionType::Inline,
                     name if name == "wasm" => DispositionType::Inline,
+                    name if name == "xhtml" => DispositionType::Inline,
                     _ => DispositionType::Attachment,
                 },
                 _ => DispositionType::Attachment,
