@@ -1,7 +1,7 @@
 # Changes
 
 ## Unreleased - 2022-xx-xx
-- Fix xhtml pages' `content-disposition` [#2903].
+- XHTML files now use `Content-Disposition: inline` instead of `attachment`. [#2903]
 - Minimum supported Rust version (MSRV) is now 1.59 due to transitive `time` dependency.
 
 [#2903]: https://github.com/actix/actix-web/pull/2903
