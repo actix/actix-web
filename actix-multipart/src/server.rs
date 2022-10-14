@@ -606,7 +606,7 @@ impl InnerField {
         }
 
         loop {
-            return if let Some(idx) = twoway::find_bytes(&payload.buf[pos..], b"\r") {
+            return if let Some(idx) = memchr::memmem::find(&payload.buf[pos..], b"\r") {
                 let cur = pos + idx;
 
                 // check if we have enough data for boundary detection
@@ -827,7 +827,7 @@ impl PayloadBuffer {
 
     /// Read until specified ending
     fn read_until(&mut self, line: &[u8]) -> Result<Option<Bytes>, MultipartError> {
-        let res = twoway::find_bytes(&self.buf, line)
+        let res = memchr::memmem::find(&self.buf, line)
             .map(|idx| self.buf.split_to(idx + line.len()).freeze());
 
         if res.is_none() && self.eof {

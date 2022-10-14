@@ -24,7 +24,7 @@ httparse = "1.3"
 local-waker = "0.1"
 log = "0.4"
 mime = "0.3"
-twoway = "0.2"
+memchr = "2.5"
 
 [dev-dependencies]
 actix-rt = "2.2"
