@@ -29,8 +29,7 @@ use crate::{
 /// // {name}  - deserialize a String
 /// // {count} - deserialize a u32
 /// #[get("/{name}/{count}/index.html")]
-/// async fn index(path: web::Path<(String, u32)>) -> String {
-///     let (name, count) = path.into_inner();
+/// async fn index(web::Path((name, count)): web::Path<(String, u32)>) -> String {
 ///     format!("Welcome {}! {}", name, count)
 /// }
 /// ```
@@ -54,7 +53,7 @@ use crate::{
 /// }
 /// ```
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Deref, DerefMut, AsRef, Display, From)]
-pub struct Path<T>(T);
+pub struct Path<T>(pub T);
 
 impl<T> Path<T> {
     /// Unwrap into inner `T` value.
