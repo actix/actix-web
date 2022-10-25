@@ -126,7 +126,15 @@ where
     };
 
     let (parts, body) = resp.into_parts();
-    let payload = if head_req { Payload::None } else { body.into() };
+    let payload = if cfg!(test) {
+        body.into()
+    } else {
+        if head_req {
+            Payload::None
+        } else {
+            body.into()
+        }
+    };
 
     let mut head = ResponseHead::new(parts.status);
     head.version = parts.version;
