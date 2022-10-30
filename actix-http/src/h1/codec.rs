@@ -1,9 +1,9 @@
 use std::{fmt, io};
 
-use actix_codec::{Decoder, Encoder};
 use bitflags::bitflags;
 use bytes::BytesMut;
 use http::{Method, Version};
+use tokio_util::codec::{Decoder, Encoder};
 
 use super::{
     decoder::{self, PayloadDecoder, PayloadItem, PayloadType},

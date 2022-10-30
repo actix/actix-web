@@ -77,6 +77,8 @@ mime = "0.3"
 percent-encoding = "2.1"
 pin-project-lite = "0.2"
 smallvec = "1.6.1"
+tokio = { version = "1.13.1", features = [] }
+tokio-util = { version = "0.7", features = ["io", "codec"] }
 tracing = { version = "0.1.30", default-features = false, features = ["log"] }
 
 # http2

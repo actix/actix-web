@@ -1,7 +1,7 @@
-use actix_codec::{Decoder, Encoder};
 use bitflags::bitflags;
 use bytes::{Bytes, BytesMut};
 use bytestring::ByteString;
+use tokio_util::codec::{Decoder, Encoder};
 use tracing::error;
 
 use super::{
