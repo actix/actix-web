@@ -33,7 +33,6 @@
 ## 0.6.0-beta.16 - 2022-01-31
 - No significant changes since `0.6.0-beta.15`.
 
-[#2615]: https://github.com/actix/actix-web/pull/2615
 
 ## 0.6.0-beta.15 - 2022-01-21
 - No significant changes since `0.6.0-beta.14`.
