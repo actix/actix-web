@@ -7,7 +7,7 @@ use crate::path::{Path, PathIter};
 use crate::{Quoter, ResourcePath};
 
 thread_local! {
-    static FULL_QUOTER: Quoter = Quoter::new(b"+/%", b"");
+    static FULL_QUOTER: Quoter = Quoter::new(b"", b"");
 }
 
 macro_rules! unsupported_type {
@@ -52,7 +52,7 @@ macro_rules! parse_value {
             V: Visitor<'de>,
         {
             let decoded = FULL_QUOTER
-                .with(|q| q.requote(self.value.as_bytes()))
+                .with(|q| q.requote_str_lossy(self.value))
                 .map(Cow::Owned)
                 .unwrap_or(Cow::Borrowed(self.value));
 
@@ -293,7 +293,7 @@ impl<'de> Deserializer<'de> for Value<'de> {
     parse_value!(deserialize_bool, visit_bool, "bool");
     parse_value!(deserialize_i8, visit_i8, "i8");
     parse_value!(deserialize_i16, visit_i16, "i16");
-    parse_value!(deserialize_i32, visit_i32, "i16");
+    parse_value!(deserialize_i32, visit_i32, "i32");
     parse_value!(deserialize_i64, visit_i64, "i64");
     parse_value!(deserialize_u8, visit_u8, "u8");
     parse_value!(deserialize_u16, visit_u16, "u16");
@@ -332,7 +332,7 @@ impl<'de> Deserializer<'de> for Value<'de> {
     where
         V: Visitor<'de>,
     {
-        match FULL_QUOTER.with(|q| q.requote(self.value.as_bytes())) {
+        match FULL_QUOTER.with(|q| q.requote_str_lossy(self.value)) {
             Some(s) => visitor.visit_string(s),
             None => visitor.visit_borrowed_str(self.value),
         }
@@ -342,7 +342,7 @@ impl<'de> Deserializer<'de> for Value<'de> {
     where
         V: Visitor<'de>,
     {
-        match FULL_QUOTER.with(|q| q.requote(self.value.as_bytes())) {
+        match FULL_QUOTER.with(|q| q.requote_str_lossy(self.value)) {
             Some(s) => visitor.visit_byte_buf(s.into()),
             None => visitor.visit_borrowed_bytes(self.value.as_bytes()),
         }

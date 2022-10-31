@@ -70,7 +70,7 @@ where
     let is_expect = if head.as_ref().headers.contains_key(EXPECT) {
         match body.size() {
             BodySize::None | BodySize::Sized(0) => {
-                let keep_alive = framed.codec_ref().keepalive();
+                let keep_alive = framed.codec_ref().keep_alive();
                 framed.io_mut().on_release(keep_alive);
 
                 // TODO: use a new variant or a new type better describing error violate
@@ -83,12 +83,12 @@ where
         false
     };
 
-    framed.send((head, body.size()).into()).await?;
-
     let mut pin_framed = Pin::new(&mut framed);
 
     // special handle for EXPECT request.
     let (do_send, mut res_head) = if is_expect {
+        pin_framed.send((head, body.size()).into()).await?;
+
         let head = poll_fn(|cx| pin_framed.as_mut().poll_next(cx))
             .await
             .ok_or(ConnectError::Disconnected)??;
@@ -97,13 +97,17 @@ where
         // and current head would be used as final response head.
         (head.status == StatusCode::CONTINUE, Some(head))
     } else {
+        pin_framed.feed((head, body.size()).into()).await?;
+
         (true, None)
     };
 
     if do_send {
         // send request body
         match body.size() {
-            BodySize::None | BodySize::Sized(0) => {}
+            BodySize::None | BodySize::Sized(0) => {
+                poll_fn(|cx| pin_framed.as_mut().flush(cx)).await?;
+            }
             _ => send_body(body, pin_framed.as_mut()).await?,
         };
 
@@ -119,7 +123,7 @@ where
 
     match pin_framed.codec_ref().message_type() {
         h1::MessageType::None => {
-            let keep_alive = pin_framed.codec_ref().keepalive();
+            let keep_alive = pin_framed.codec_ref().keep_alive();
             pin_framed.io_mut().on_release(keep_alive);
 
             Ok((head, Payload::None))
@@ -223,7 +227,7 @@ impl<Io: ConnectionIo> Stream for PlStream<Io> {
         match ready!(this.framed.as_mut().next_item(cx)?) {
             Some(Some(chunk)) => Poll::Ready(Some(Ok(chunk))),
             Some(None) => {
-                let keep_alive = this.framed.codec_ref().keepalive();
+                let keep_alive = this.framed.codec_ref().keep_alive();
                 this.framed.io_mut().on_release(keep_alive);
                 Poll::Ready(None)
             }

@@ -2,7 +2,7 @@ use actix_web::{http::StatusCode, ResponseError};
 use derive_more::Display;
 
 /// Errors which can occur when serving static files.
-#[derive(Display, Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Display)]
 pub enum FilesError {
     /// Path is not a directory
     #[allow(dead_code)]
@@ -22,7 +22,7 @@ impl ResponseError for FilesError {
 }
 
 #[allow(clippy::enum_variant_names)]
-#[derive(Display, Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Display)]
 #[non_exhaustive]
 pub enum UriSegmentError {
     /// The segment started with the wrapped invalid character.

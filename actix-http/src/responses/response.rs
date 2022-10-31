@@ -83,13 +83,13 @@ impl<B> Response<B> {
     /// Returns a reference to the head of this response.
     #[inline]
     pub fn head(&self) -> &ResponseHead {
-        &*self.head
+        &self.head
     }
 
     /// Returns a mutable reference to the head of this response.
     #[inline]
     pub fn head_mut(&mut self) -> &mut ResponseHead {
-        &mut *self.head
+        &mut self.head
     }
 
     /// Returns the status code of this response.
@@ -279,6 +279,24 @@ impl From<&'static str> for Response<&'static str> {
 impl From<&'static [u8]> for Response<&'static [u8]> {
     fn from(val: &'static [u8]) -> Self {
         let mut res = Response::with_body(StatusCode::OK, val);
+        let mime = mime::APPLICATION_OCTET_STREAM.try_into_value().unwrap();
+        res.headers_mut().insert(header::CONTENT_TYPE, mime);
+        res
+    }
+}
+
+impl From<Vec<u8>> for Response<Vec<u8>> {
+    fn from(val: Vec<u8>) -> Self {
+        let mut res = Response::with_body(StatusCode::OK, val);
+        let mime = mime::APPLICATION_OCTET_STREAM.try_into_value().unwrap();
+        res.headers_mut().insert(header::CONTENT_TYPE, mime);
+        res
+    }
+}
+
+impl From<&Vec<u8>> for Response<Vec<u8>> {
+    fn from(val: &Vec<u8>) -> Self {
+        let mut res = Response::with_body(StatusCode::OK, val.clone());
         let mime = mime::APPLICATION_OCTET_STREAM.try_into_value().unwrap();
         res.headers_mut().insert(header::CONTENT_TYPE, mime);
         res

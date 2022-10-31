@@ -12,7 +12,7 @@ use crate::header::{Charset, HTTP_VALUE};
 /// - A character sequence representing the actual value (`value`), separated by single quotes.
 ///
 /// It is defined in [RFC 5987 §3.2](https://datatracker.ietf.org/doc/html/rfc5987#section-3.2).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ExtendedValue {
     /// The character set that is used to encode the `value` to a string.
     pub charset: Charset,

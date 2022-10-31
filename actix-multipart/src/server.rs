@@ -289,10 +289,8 @@ impl InnerMultipart {
                 match self.state {
                     // read until first boundary
                     InnerState::FirstBoundary => {
-                        match InnerMultipart::skip_until_boundary(
-                            &mut *payload,
-                            &self.boundary,
-                        )? {
+                        match InnerMultipart::skip_until_boundary(&mut payload, &self.boundary)?
+                        {
                             Some(eof) => {
                                 if eof {
                                     self.state = InnerState::Eof;
@@ -306,7 +304,7 @@ impl InnerMultipart {
                     }
                     // read boundary
                     InnerState::Boundary => {
-                        match InnerMultipart::read_boundary(&mut *payload, &self.boundary)? {
+                        match InnerMultipart::read_boundary(&mut payload, &self.boundary)? {
                             None => return Poll::Pending,
                             Some(eof) => {
                                 if eof {
@@ -323,7 +321,7 @@ impl InnerMultipart {
 
                 // read field headers for next field
                 if self.state == InnerState::Headers {
-                    if let Some(headers) = InnerMultipart::read_headers(&mut *payload)? {
+                    if let Some(headers) = InnerMultipart::read_headers(&mut payload)? {
                         self.state = InnerState::Boundary;
                         headers
                     } else {
@@ -361,17 +359,18 @@ impl InnerMultipart {
                 return Poll::Ready(Some(Err(MultipartError::NoContentDisposition)));
             };
 
-            let ct: mime::Mime = headers
+            let ct: Option<mime::Mime> = headers
                 .get(&header::CONTENT_TYPE)
                 .and_then(|ct| ct.to_str().ok())
-                .and_then(|ct| ct.parse().ok())
-                .unwrap_or(mime::APPLICATION_OCTET_STREAM);
+                .and_then(|ct| ct.parse().ok());
 
             self.state = InnerState::Boundary;
 
             // nested multipart stream is not supported
-            if ct.type_() == mime::MULTIPART {
-                return Poll::Ready(Some(Err(MultipartError::Nested)));
+            if let Some(mime) = &ct {
+                if mime.type_() == mime::MULTIPART {
+                    return Poll::Ready(Some(Err(MultipartError::Nested)));
+                }
             }
 
             let field =
@@ -399,7 +398,7 @@ impl Drop for InnerMultipart {
 
 /// A single field in a multipart stream
 pub struct Field {
-    ct: mime::Mime,
+    ct: Option<mime::Mime>,
     cd: ContentDisposition,
     headers: HeaderMap,
     inner: Rc<RefCell<InnerField>>,
@@ -410,7 +409,7 @@ impl Field {
     fn new(
         safety: Safety,
         headers: HeaderMap,
-        ct: mime::Mime,
+        ct: Option<mime::Mime>,
         cd: ContentDisposition,
         inner: Rc<RefCell<InnerField>>,
     ) -> Self {
@@ -428,9 +427,13 @@ impl Field {
         &self.headers
     }
 
-    /// Returns a reference to the field's content (mime) type.
-    pub fn content_type(&self) -> &mime::Mime {
-        &self.ct
+    /// Returns a reference to the field's content (mime) type, if it is supplied by the client.
+    ///
+    /// According to [RFC 7578](https://www.rfc-editor.org/rfc/rfc7578#section-4.4), if it is not
+    /// present, it should default to "text/plain". Note it is the responsibility of the client to
+    /// provide the appropriate content type, there is no attempt to validate this by the server.
+    pub fn content_type(&self) -> Option<&mime::Mime> {
+        self.ct.as_ref()
     }
 
     /// Returns the field's Content-Disposition.
@@ -482,7 +485,11 @@ impl Stream for Field {
 
 impl fmt::Debug for Field {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "\nField: {}", self.ct)?;
+        if let Some(ct) = &self.ct {
+            writeln!(f, "\nField: {}", ct)?;
+        } else {
+            writeln!(f, "\nField:")?;
+        }
         writeln!(f, "  boundary: {}", self.inner.borrow().boundary)?;
         writeln!(f, "  headers:")?;
         for (key, val) in self.headers.iter() {
@@ -599,7 +606,7 @@ impl InnerField {
         }
 
         loop {
-            return if let Some(idx) = twoway::find_bytes(&payload.buf[pos..], b"\r") {
+            return if let Some(idx) = memchr::memmem::find(&payload.buf[pos..], b"\r") {
                 let cur = pos + idx;
 
                 // check if we have enough data for boundary detection
@@ -643,9 +650,9 @@ impl InnerField {
         let result = if let Some(mut payload) = self.payload.as_ref().unwrap().get_mut(s) {
             if !self.eof {
                 let res = if let Some(ref mut len) = self.length {
-                    InnerField::read_len(&mut *payload, len)
+                    InnerField::read_len(&mut payload, len)
                 } else {
-                    InnerField::read_stream(&mut *payload, &self.boundary)
+                    InnerField::read_stream(&mut payload, &self.boundary)
                 };
 
                 match res {
@@ -820,7 +827,7 @@ impl PayloadBuffer {
 
     /// Read until specified ending
     fn read_until(&mut self, line: &[u8]) -> Result<Option<Bytes>, MultipartError> {
-        let res = twoway::find_bytes(&self.buf, line)
+        let res = memchr::memmem::find(&self.buf, line)
             .map(|idx| self.buf.split_to(idx + line.len()).freeze());
 
         if res.is_none() && self.eof {
@@ -1024,8 +1031,8 @@ mod tests {
                 assert_eq!(cd.disposition, DispositionType::FormData);
                 assert_eq!(cd.parameters[0], DispositionParam::Name("file".into()));
 
-                assert_eq!(field.content_type().type_(), mime::TEXT);
-                assert_eq!(field.content_type().subtype(), mime::PLAIN);
+                assert_eq!(field.content_type().unwrap().type_(), mime::TEXT);
+                assert_eq!(field.content_type().unwrap().subtype(), mime::PLAIN);
 
                 match field.next().await.unwrap() {
                     Ok(chunk) => assert_eq!(chunk, "test"),
@@ -1041,8 +1048,8 @@ mod tests {
 
         match multipart.next().await.unwrap() {
             Ok(mut field) => {
-                assert_eq!(field.content_type().type_(), mime::TEXT);
-                assert_eq!(field.content_type().subtype(), mime::PLAIN);
+                assert_eq!(field.content_type().unwrap().type_(), mime::TEXT);
+                assert_eq!(field.content_type().unwrap().subtype(), mime::PLAIN);
 
                 match field.next().await {
                     Some(Ok(chunk)) => assert_eq!(chunk, "data"),
@@ -1086,8 +1093,8 @@ mod tests {
                 assert_eq!(cd.disposition, DispositionType::FormData);
                 assert_eq!(cd.parameters[0], DispositionParam::Name("file".into()));
 
-                assert_eq!(field.content_type().type_(), mime::TEXT);
-                assert_eq!(field.content_type().subtype(), mime::PLAIN);
+                assert_eq!(field.content_type().unwrap().type_(), mime::TEXT);
+                assert_eq!(field.content_type().unwrap().subtype(), mime::PLAIN);
 
                 assert_eq!(get_whole_field(&mut field).await, "test");
             }
@@ -1096,8 +1103,8 @@ mod tests {
 
         match multipart.next().await {
             Some(Ok(mut field)) => {
-                assert_eq!(field.content_type().type_(), mime::TEXT);
-                assert_eq!(field.content_type().subtype(), mime::PLAIN);
+                assert_eq!(field.content_type().unwrap().type_(), mime::TEXT);
+                assert_eq!(field.content_type().unwrap().subtype(), mime::PLAIN);
 
                 assert_eq!(get_whole_field(&mut field).await, "data");
             }

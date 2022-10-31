@@ -2,23 +2,23 @@ digraph {
     subgraph cluster_web {
         label="actix/actix-web"
         "awc"
-        "actix-web"
-        "actix-files"
-        "actix-http"
-        "actix-multipart"
-        "actix-web-actors"
-        "actix-web-codegen"
-        "actix-http-test"
-        "actix-test"
-        "actix-router"
+        "web"
+        "files"
+        "http"
+        "multipart"
+        "web-actors"
+        "web-codegen"
+        "http-test"
+        "test"
+        "router"
     }
 
-    "actix-web" -> { "actix-web-codegen" "actix-http" "actix-router" }
-    "awc" -> { "actix-http" }
-    "actix-web-codegen" -> { "actix-router" }
-    "actix-web-actors" -> { "actix" "actix-web" "actix-http" }
-    "actix-multipart" -> { "actix-web" }
-    "actix-files" -> { "actix-web" }
-    "actix-http-test" -> { "awc" }
-    "actix-test" -> { "actix-web" "awc" "actix-http-test" }
+    "web" -> { "web-codegen" "http" "router" }
+    "awc" -> { "http" }
+    "web-codegen" -> { "router" }[color = red]
+    "web-actors" -> { "actix" "web" "http" }
+    "multipart" -> { "web" }
+    "files" -> { "web" }
+    "http-test" -> { "awc" }
+    "test" -> { "web" "awc" "http-test" }
 }

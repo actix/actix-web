@@ -1,6 +1,8 @@
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::{
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};
 use actix_service::{IntoService, Service};
@@ -71,10 +73,12 @@ mod inner {
     use actix_service::{IntoService, Service};
     use futures_core::stream::Stream;
     use local_channel::mpsc;
-    use log::debug;
     use pin_project_lite::pin_project;
+    use tracing::debug;
 
-    use actix_codec::{AsyncRead, AsyncWrite, Decoder, Encoder, Framed};
+    use actix_codec::Framed;
+    use tokio::io::{AsyncRead, AsyncWrite};
+    use tokio_util::codec::{Decoder, Encoder};
 
     use crate::{body::BoxBody, Response};
 

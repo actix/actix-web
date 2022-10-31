@@ -1,6 +1,7 @@
 use std::{io, task::Poll};
 
 use bytes::{Buf as _, Bytes, BytesMut};
+use tracing::{debug, trace};
 
 macro_rules! byte (
     ($rdr:ident) => ({
@@ -14,7 +15,7 @@ macro_rules! byte (
     })
 );
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum ChunkedState {
     Size,
     SizeLws,
@@ -76,7 +77,7 @@ impl ChunkedState {
                 Poll::Ready(Ok(ChunkedState::Size))
             }
             None => {
-                log::debug!("chunk size would overflow u64");
+                debug!("chunk size would overflow u64");
                 Poll::Ready(Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     "Invalid chunk size line: Size is too big",
@@ -124,7 +125,7 @@ impl ChunkedState {
         rem: &mut u64,
         buf: &mut Option<Bytes>,
     ) -> Poll<Result<ChunkedState, io::Error>> {
-        log::trace!("Chunked read, remaining={:?}", rem);
+        trace!("Chunked read, remaining={:?}", rem);
 
         let len = rdr.len() as u64;
         if len == 0 {

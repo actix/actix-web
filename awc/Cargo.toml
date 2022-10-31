@@ -1,11 +1,8 @@
 [package]
 name = "awc"
-version = "3.0.0-beta.19"
-authors = [
-    "Nikolay Kim <fafhrd91@gmail.com>",
-    "fakeshadow <24548779@qq.com>",
-]
-description = "Async HTTP and WebSocket client library built on the Actix ecosystem"
+version = "3.0.1"
+authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
+description = "Async HTTP and WebSocket client library"
 keywords = ["actix", "http", "framework", "async", "web"]
 categories = [
     "network-programming",
@@ -58,12 +55,12 @@ __compress = []
 dangerous-h2c = []
 
 [dependencies]
-actix-codec = "0.4.1"
-actix-service = "2.0.0"
-actix-http = "3.0.0-beta.19"
+actix-codec = "0.5"
+actix-service = "2"
+actix-http = { version = "3", features = ["http2", "ws"] }
 actix-rt = { version = "2.1", default-features = false }
-actix-tls = { version = "3.0.0", features = ["connect", "uri"] }
-actix-utils = "3.0.0"
+actix-tls = { version = "3", features = ["connect", "uri"] }
+actix-utils = "3"
 
 ahash = "0.7"
 base64 = "0.13"
@@ -90,27 +87,27 @@ cookie = { version = "0.16", features = ["percent-encode"], optional = true }
 tls-openssl = { package = "openssl", version = "0.10.9", optional = true }
 tls-rustls = { package = "rustls", version = "0.20.0", optional = true, features = ["dangerous_configuration"] }
 
-trust-dns-resolver = { version = "0.20.0", optional = true }
+trust-dns-resolver = { version = "0.21", optional = true }
 
 [dev-dependencies]
-actix-http = { version = "3.0.0-beta.19", features = ["openssl"] }
-actix-http-test = { version = "3.0.0-beta.11", features = ["openssl"] }
+actix-http = { version = "3", features = ["openssl"] }
+actix-http-test = { version = "3", features = ["openssl"] }
 actix-server = "2"
-actix-test = { version = "0.1.0-beta.11", features = ["openssl", "rustls"] }
-actix-tls = { version = "3.0.0", features = ["openssl", "rustls"] }
-actix-utils = "3.0.0"
-actix-web = { version = "4.0.0-beta.21", features = ["openssl"] }
+actix-test = { version = "0.1", features = ["openssl", "rustls"] }
+actix-tls = { version = "3", features = ["openssl", "rustls"] }
+actix-utils = "3"
+actix-web = { version = "4", features = ["openssl"] }
 
 brotli = "3.3.3"
-const-str = "0.3"
+const-str = "0.4"
 env_logger = "0.9"
 flate2 = "1.0.13"
 futures-util = { version = "0.3.7", default-features = false }
 static_assertions = "1.1"
-rcgen = "0.8"
-rustls-pemfile = "0.2"
+rcgen = "0.9"
+rustls-pemfile = "1"
 tokio = { version = "1.13.1", features = ["rt-multi-thread", "macros"] }
-zstd = "0.9"
+zstd = "0.11"
 
 [[example]]
 name = "client"

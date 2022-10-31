@@ -28,7 +28,7 @@ const S: &str = "Hello World ";
 const STR: &str = const_str::repeat!(S, 100);
 
 #[actix_rt::test]
-async fn test_simple() {
+async fn simple() {
     let srv = actix_test::start(|| {
         App::new().service(
             web::resource("/").route(web::to(|| async { HttpResponse::Ok().body(STR) })),
@@ -56,7 +56,7 @@ async fn test_simple() {
 }
 
 #[actix_rt::test]
-async fn test_json() {
+async fn json() {
     let srv = actix_test::start(|| {
         App::new().service(
             web::resource("/").route(web::to(|_: web::Json<String>| HttpResponse::Ok())),
@@ -72,7 +72,7 @@ async fn test_json() {
 }
 
 #[actix_rt::test]
-async fn test_form() {
+async fn form() {
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").route(web::to(
             |_: web::Form<HashMap<String, String>>| HttpResponse::Ok(),
@@ -91,7 +91,7 @@ async fn test_form() {
 }
 
 #[actix_rt::test]
-async fn test_timeout() {
+async fn timeout() {
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").route(web::to(|| async {
             actix_rt::time::sleep(Duration::from_millis(200)).await;
@@ -116,7 +116,7 @@ async fn test_timeout() {
 }
 
 #[actix_rt::test]
-async fn test_timeout_override() {
+async fn timeout_override() {
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").route(web::to(|| async {
             actix_rt::time::sleep(Duration::from_millis(200)).await;
@@ -138,7 +138,7 @@ async fn test_timeout_override() {
 }
 
 #[actix_rt::test]
-async fn test_response_timeout() {
+async fn response_timeout() {
     use futures_util::stream::{once, StreamExt as _};
 
     let srv = actix_test::start(|| {
@@ -211,7 +211,7 @@ async fn test_response_timeout() {
 }
 
 #[actix_rt::test]
-async fn test_connection_reuse() {
+async fn connection_reuse() {
     let num = Arc::new(AtomicUsize::new(0));
     let num2 = num.clone();
 
@@ -248,7 +248,7 @@ async fn test_connection_reuse() {
 }
 
 #[actix_rt::test]
-async fn test_connection_force_close() {
+async fn connection_force_close() {
     let num = Arc::new(AtomicUsize::new(0));
     let num2 = num.clone();
 
@@ -285,7 +285,7 @@ async fn test_connection_force_close() {
 }
 
 #[actix_rt::test]
-async fn test_connection_server_close() {
+async fn connection_server_close() {
     let num = Arc::new(AtomicUsize::new(0));
     let num2 = num.clone();
 
@@ -324,7 +324,7 @@ async fn test_connection_server_close() {
 }
 
 #[actix_rt::test]
-async fn test_connection_wait_queue() {
+async fn connection_wait_queue() {
     let num = Arc::new(AtomicUsize::new(0));
     let num2 = num.clone();
 
@@ -373,7 +373,7 @@ async fn test_connection_wait_queue() {
 }
 
 #[actix_rt::test]
-async fn test_connection_wait_queue_force_close() {
+async fn connection_wait_queue_force_close() {
     let num = Arc::new(AtomicUsize::new(0));
     let num2 = num.clone();
 
@@ -421,7 +421,7 @@ async fn test_connection_wait_queue_force_close() {
 }
 
 #[actix_rt::test]
-async fn test_with_query_parameter() {
+async fn with_query_parameter() {
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").to(|req: HttpRequest| {
             if req.query_string().contains("qp") {
@@ -442,7 +442,7 @@ async fn test_with_query_parameter() {
 
 #[cfg(feature = "compress-gzip")]
 #[actix_rt::test]
-async fn test_no_decompress() {
+async fn no_decompress() {
     let srv = actix_test::start(|| {
         App::new()
             .wrap(actix_web::middleware::Compress::default())
@@ -480,7 +480,7 @@ async fn test_no_decompress() {
 
 #[cfg(feature = "compress-gzip")]
 #[actix_rt::test]
-async fn test_client_gzip_encoding() {
+async fn client_gzip_encoding() {
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").route(web::to(|| async {
             HttpResponse::Ok()
@@ -500,7 +500,7 @@ async fn test_client_gzip_encoding() {
 
 #[cfg(feature = "compress-gzip")]
 #[actix_rt::test]
-async fn test_client_gzip_encoding_large() {
+async fn client_gzip_encoding_large() {
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").route(web::to(|| async {
             HttpResponse::Ok()
@@ -520,7 +520,7 @@ async fn test_client_gzip_encoding_large() {
 
 #[cfg(feature = "compress-gzip")]
 #[actix_rt::test]
-async fn test_client_gzip_encoding_large_random() {
+async fn client_gzip_encoding_large_random() {
     let data = rand::thread_rng()
         .sample_iter(&rand::distributions::Alphanumeric)
         .take(100_000)
@@ -546,7 +546,7 @@ async fn test_client_gzip_encoding_large_random() {
 
 #[cfg(feature = "compress-brotli")]
 #[actix_rt::test]
-async fn test_client_brotli_encoding() {
+async fn client_brotli_encoding() {
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").route(web::to(|data: Bytes| async {
             HttpResponse::Ok()
@@ -566,7 +566,7 @@ async fn test_client_brotli_encoding() {
 
 #[cfg(feature = "compress-brotli")]
 #[actix_rt::test]
-async fn test_client_brotli_encoding_large_random() {
+async fn client_brotli_encoding_large_random() {
     let data = rand::thread_rng()
         .sample_iter(&rand::distributions::Alphanumeric)
         .take(70_000)
@@ -591,7 +591,7 @@ async fn test_client_brotli_encoding_large_random() {
 }
 
 #[actix_rt::test]
-async fn test_client_deflate_encoding() {
+async fn client_deflate_encoding() {
     let srv = actix_test::start(|| {
         App::new().default_service(web::to(|body: Bytes| async {
             HttpResponse::Ok().body(body)
@@ -611,7 +611,7 @@ async fn test_client_deflate_encoding() {
 }
 
 #[actix_rt::test]
-async fn test_client_deflate_encoding_large_random() {
+async fn client_deflate_encoding_large_random() {
     let data = rand::thread_rng()
         .sample_iter(rand::distributions::Alphanumeric)
         .map(char::from)
@@ -637,7 +637,7 @@ async fn test_client_deflate_encoding_large_random() {
 }
 
 #[actix_rt::test]
-async fn test_client_streaming_explicit() {
+async fn client_streaming_explicit() {
     let srv = actix_test::start(|| {
         App::new().default_service(web::to(|body: web::Payload| async {
             HttpResponse::Ok().streaming(body)
@@ -659,7 +659,7 @@ async fn test_client_streaming_explicit() {
 }
 
 #[actix_rt::test]
-async fn test_body_streaming_implicit() {
+async fn body_streaming_implicit() {
     let srv = actix_test::start(|| {
         App::new().default_service(web::to(|| async {
             let body =
@@ -681,7 +681,7 @@ async fn test_body_streaming_implicit() {
 }
 
 #[actix_rt::test]
-async fn test_client_cookie_handling() {
+async fn client_cookie_handling() {
     use std::io::{Error as IoError, ErrorKind};
 
     let cookie1 = Cookie::build("cookie1", "value1").finish();
@@ -707,8 +707,7 @@ async fn test_client_cookie_handling() {
 
                 async move {
                     // Check cookies were sent correctly
-                    let res: Result<(), Error> = req
-                        .cookie("cookie1")
+                    req.cookie("cookie1")
                         .ok_or(())
                         .and_then(|c1| {
                             if c1.value() == "value1" {
@@ -725,16 +724,10 @@ async fn test_client_cookie_handling() {
                                 Err(())
                             }
                         })
-                        .map_err(|_| Error::from(IoError::from(ErrorKind::NotFound)));
+                        .map_err(|_| Error::from(IoError::from(ErrorKind::NotFound)))?;
 
-                    if let Err(e) = res {
-                        Err(e)
-                    } else {
-                        // Send some cookies back
-                        Ok::<_, Error>(
-                            HttpResponse::Ok().cookie(cookie1).cookie(cookie2).finish(),
-                        )
-                    }
+                    // Send some cookies back
+                    Ok::<_, Error>(HttpResponse::Ok().cookie(cookie1).cookie(cookie2).finish())
                 }
             }),
         )
@@ -833,7 +826,7 @@ async fn client_bearer_auth() {
 }
 
 #[actix_rt::test]
-async fn test_local_address() {
+async fn local_address() {
     let ip = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
 
     let srv = actix_test::start(move || {

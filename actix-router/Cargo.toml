@@ -1,6 +1,6 @@
 [package]
 name = "actix-router"
-version = "0.5.0-rc.2"
+version = "0.5.1"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
     "Ali MJ Al-Nasrawy <alimjalnasrawy@gmail.com>",
@@ -21,18 +21,21 @@ default = ["http"]
 
 [dependencies]
 bytestring = ">=0.1.5, <2"
-firestorm = "0.5"
-http = { version = "0.2.3", optional = true }
-log = "0.4"
+http = { version = "0.2.5", optional = true }
 regex = "1.5"
 serde = "1"
+tracing = { version = "0.1.30", default-features = false, features = ["log"] }
 
 [dev-dependencies]
 criterion = { version = "0.3", features = ["html_reports"] }
-firestorm = { version = "0.5", features = ["enable_system_time"] }
 http = "0.2.5"
 serde = { version = "1", features = ["derive"] }
+percent-encoding = "2.1"
 
 [[bench]]
 name = "router"
+harness = false
+
+[[bench]]
+name = "quoter"
 harness = false

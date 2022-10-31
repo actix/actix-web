@@ -147,7 +147,7 @@ mod tests {
 
     // copy of encoding from actix-web headers
     #[allow(clippy::enum_variant_names)] // allow Encoding prefix on EncodingExt
-    #[derive(Clone, PartialEq, Debug)]
+    #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum Encoding {
         Chunked,
         Brotli,

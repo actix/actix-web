@@ -23,6 +23,7 @@ use actix_web::{
 use bitflags::bitflags;
 use derive_more::{Deref, DerefMut};
 use futures_core::future::LocalBoxFuture;
+use mime::Mime;
 use mime_guess::from_path;
 
 use crate::{encoding::equiv_utf8_text, range::HttpRange};
@@ -76,8 +77,8 @@ pub struct NamedFile {
     pub(crate) md: Metadata,
     pub(crate) flags: Flags,
     pub(crate) status_code: StatusCode,
-    pub(crate) content_type: mime::Mime,
-    pub(crate) content_disposition: header::ContentDisposition,
+    pub(crate) content_type: Mime,
+    pub(crate) content_disposition: ContentDisposition,
     pub(crate) encoding: Option<ContentEncoding>,
 }
 
@@ -107,7 +108,7 @@ pub(crate) fn get_content_type_and_disposition(
         mime::IMAGE | mime::TEXT | mime::VIDEO => DispositionType::Inline,
         mime::APPLICATION => match ct.subtype() {
             mime::JAVASCRIPT | mime::JSON => DispositionType::Inline,
-            name if name == "wasm" => DispositionType::Inline,
+            name if name == "wasm" || name == "xhtml" => DispositionType::Inline,
             _ => DispositionType::Attachment,
         },
         _ => DispositionType::Attachment,
@@ -139,18 +140,18 @@ impl NamedFile {
     ///
     /// # Examples
     /// ```ignore
+    /// use std::{
+    ///     io::{self, Write as _},
+    ///     env,
+    ///     fs::File
+    /// };
     /// use actix_files::NamedFile;
-    /// use std::io::{self, Write};
-    /// use std::env;
-    /// use std::fs::File;
     ///
-    /// fn main() -> io::Result<()> {
-    ///     let mut file = File::create("foo.txt")?;
-    ///     file.write_all(b"Hello, world!")?;
-    ///     let named_file = NamedFile::from_file(file, "bar.txt")?;
-    ///     # std::fs::remove_file("foo.txt");
-    ///     Ok(())
-    /// }
+    /// let mut file = File::create("foo.txt")?;
+    /// file.write_all(b"Hello, world!")?;
+    /// let named_file = NamedFile::from_file(file, "bar.txt")?;
+    /// # std::fs::remove_file("foo.txt");
+    /// Ok(())
     /// ```
     pub fn from_file<P: AsRef<Path>>(file: File, path: P) -> io::Result<NamedFile> {
         let path = path.as_ref().to_path_buf();
@@ -212,11 +213,10 @@ impl NamedFile {
         Self::from_file(file, path)
     }
 
-    #[allow(rustdoc::broken_intra_doc_links)]
     /// Attempts to open a file asynchronously in read-only mode.
     ///
-    /// When the `experimental-io-uring` crate feature is enabled, this will be async.
-    /// Otherwise, it will be just like [`open`][Self::open].
+    /// When the `experimental-io-uring` crate feature is enabled, this will be async. Otherwise, it
+    /// will behave just like `open`.
     ///
     /// # Examples
     /// ```
@@ -241,13 +241,13 @@ impl NamedFile {
         Self::from_file(file, path)
     }
 
-    /// Returns reference to the underlying `File` object.
+    /// Returns reference to the underlying file object.
     #[inline]
     pub fn file(&self) -> &File {
         &self.file
     }
 
-    /// Retrieve the path of this file.
+    /// Returns the filesystem path to this file.
     ///
     /// # Examples
     /// ```
@@ -265,16 +265,53 @@ impl NamedFile {
         self.path.as_path()
     }
 
-    /// Set response **Status Code**
+    /// Returns the time the file was last modified.
+    ///
+    /// Returns `None` only on unsupported platforms; see [`std::fs::Metadata::modified()`].
+    /// Therefore, it is usually safe to unwrap this.
+    #[inline]
+    pub fn modified(&self) -> Option<SystemTime> {
+        self.modified
+    }
+
+    /// Returns the filesystem metadata associated with this file.
+    #[inline]
+    pub fn metadata(&self) -> &Metadata {
+        &self.md
+    }
+
+    /// Returns the `Content-Type` header that will be used when serving this file.
+    #[inline]
+    pub fn content_type(&self) -> &Mime {
+        &self.content_type
+    }
+
+    /// Returns the `Content-Disposition` that will be used when serving this file.
+    #[inline]
+    pub fn content_disposition(&self) -> &ContentDisposition {
+        &self.content_disposition
+    }
+
+    /// Returns the `Content-Encoding` that will be used when serving this file.
+    ///
+    /// A return value of `None` indicates that the content is not already using a compressed
+    /// representation and may be subject to compression downstream.
+    #[inline]
+    pub fn content_encoding(&self) -> Option<ContentEncoding> {
+        self.encoding
+    }
+
+    /// Set response status code.
+    #[deprecated(since = "0.7.0", note = "Prefer `Responder::customize()`.")]
     pub fn set_status_code(mut self, status: StatusCode) -> Self {
         self.status_code = status;
         self
     }
 
-    /// Set the MIME Content-Type for serving this file. By default the Content-Type is inferred
-    /// from the filename extension.
+    /// Sets the `Content-Type` header that will be used when serving this file. By default the
+    /// `Content-Type` is inferred from the filename extension.
     #[inline]
-    pub fn set_content_type(mut self, mime_type: mime::Mime) -> Self {
+    pub fn set_content_type(mut self, mime_type: Mime) -> Self {
         self.content_type = mime_type;
         self
     }
@@ -287,24 +324,26 @@ impl NamedFile {
     /// filename is taken from the path provided in the `open` method after converting it to UTF-8
     /// (using `to_string_lossy`).
     #[inline]
-    pub fn set_content_disposition(mut self, cd: header::ContentDisposition) -> Self {
+    pub fn set_content_disposition(mut self, cd: ContentDisposition) -> Self {
         self.content_disposition = cd;
         self.flags.insert(Flags::CONTENT_DISPOSITION);
         self
     }
 
-    /// Disable `Content-Disposition` header.
+    /// Disables `Content-Disposition` header.
     ///
-    /// By default Content-Disposition` header is enabled.
+    /// By default, the `Content-Disposition` header is sent.
     #[inline]
     pub fn disable_content_disposition(mut self) -> Self {
         self.flags.remove(Flags::CONTENT_DISPOSITION);
         self
     }
 
-    /// Set content encoding for serving this file
+    /// Sets content encoding for this file.
     ///
-    /// Must be used with `actix_web::middleware::Compress` to take effect.
+    /// This prevents the `Compress` middleware from modifying the file contents and signals to
+    /// browsers/clients how to decode it. For example, if serving a compressed HTML file (e.g.,
+    /// `index.html.gz`) then use `.set_content_encoding(ContentEncoding::Gzip)`.
     #[inline]
     pub fn set_content_encoding(mut self, enc: ContentEncoding) -> Self {
         self.encoding = Some(enc);
@@ -492,11 +531,26 @@ impl NamedFile {
                     length = ranges[0].length;
                     offset = ranges[0].start;
 
-                    // don't allow compression middleware to modify partial content
-                    res.insert_header((
-                        header::CONTENT_ENCODING,
-                        HeaderValue::from_static("identity"),
-                    ));
+                    // When a Content-Encoding header is present in a 206 partial content response
+                    // for video content, it prevents browser video players from starting playback
+                    // before loading the whole video and also prevents seeking.
+                    //
+                    // See: https://github.com/actix/actix-web/issues/2815
+                    //
+                    // The assumption of this fix is that the video player knows to not send an
+                    // Accept-Encoding header for this request and that downstream middleware will
+                    // not attempt compression for requests without it.
+                    //
+                    // TODO: Solve question around what to do if self.encoding is set and partial
+                    // range is requested. Reject request? Ignoring self.encoding seems wrong, too.
+                    // In practice, it should not come up.
+                    if req.headers().contains_key(&header::ACCEPT_ENCODING) {
+                        // don't allow compression middleware to modify partial content
+                        res.insert_header((
+                            header::CONTENT_ENCODING,
+                            HeaderValue::from_static("identity"),
+                        ));
+                    }
 
                     res.insert_header((
                         header::CONTENT_RANGE,

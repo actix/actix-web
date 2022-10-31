@@ -337,7 +337,7 @@ where
         match self.get_mut() {
             Connection::Tcp(ConnectionType::H1(conn)) => Pin::new(conn).poll_write(cx, buf),
             Connection::Tls(ConnectionType::H1(conn)) => Pin::new(conn).poll_write(cx, buf),
-            _ => unreachable!(H2_UNREACHABLE_WRITE),
+            _ => unreachable!("{}", H2_UNREACHABLE_WRITE),
         }
     }
 
@@ -345,7 +345,7 @@ where
         match self.get_mut() {
             Connection::Tcp(ConnectionType::H1(conn)) => Pin::new(conn).poll_flush(cx),
             Connection::Tls(ConnectionType::H1(conn)) => Pin::new(conn).poll_flush(cx),
-            _ => unreachable!(H2_UNREACHABLE_WRITE),
+            _ => unreachable!("{}", H2_UNREACHABLE_WRITE),
         }
     }
 
@@ -353,7 +353,7 @@ where
         match self.get_mut() {
             Connection::Tcp(ConnectionType::H1(conn)) => Pin::new(conn).poll_shutdown(cx),
             Connection::Tls(ConnectionType::H1(conn)) => Pin::new(conn).poll_shutdown(cx),
-            _ => unreachable!(H2_UNREACHABLE_WRITE),
+            _ => unreachable!("{}", H2_UNREACHABLE_WRITE),
         }
     }
 
@@ -369,7 +369,7 @@ where
             Connection::Tls(ConnectionType::H1(conn)) => {
                 Pin::new(conn).poll_write_vectored(cx, bufs)
             }
-            _ => unreachable!(H2_UNREACHABLE_WRITE),
+            _ => unreachable!("{}", H2_UNREACHABLE_WRITE),
         }
     }
 
@@ -377,7 +377,7 @@ where
         match *self {
             Connection::Tcp(ConnectionType::H1(ref conn)) => conn.is_write_vectored(),
             Connection::Tls(ConnectionType::H1(ref conn)) => conn.is_write_vectored(),
-            _ => unreachable!(H2_UNREACHABLE_WRITE),
+            _ => unreachable!("{}", H2_UNREACHABLE_WRITE),
         }
     }
 }

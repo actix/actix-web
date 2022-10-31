@@ -1,106 +1,59 @@
 use std::{
-    cell::Cell,
-    fmt::{self, Write},
     net,
     rc::Rc,
-    time::{Duration, SystemTime},
+    time::{Duration, Instant},
 };
 
-use actix_rt::{
-    task::JoinHandle,
-    time::{interval, sleep_until, Instant, Sleep},
-};
 use bytes::BytesMut;
 
-/// "Sun, 06 Nov 1994 08:49:37 GMT".len()
-pub(crate) const DATE_VALUE_LENGTH: usize = 29;
+use crate::{date::DateService, KeepAlive};
 
-#[derive(Debug, PartialEq, Clone, Copy)]
-/// Server keep-alive setting
-pub enum KeepAlive {
-    /// Keep alive in seconds
-    Timeout(usize),
-
-    /// Rely on OS to shutdown tcp connection
-    Os,
-
-    /// Disabled
-    Disabled,
-}
-
-impl From<usize> for KeepAlive {
-    fn from(keepalive: usize) -> Self {
-        KeepAlive::Timeout(keepalive)
-    }
-}
-
-impl From<Option<usize>> for KeepAlive {
-    fn from(keepalive: Option<usize>) -> Self {
-        if let Some(keepalive) = keepalive {
-            KeepAlive::Timeout(keepalive)
-        } else {
-            KeepAlive::Disabled
-        }
-    }
-}
-
-/// Http service configuration
+/// HTTP service configuration.
+#[derive(Debug, Clone)]
 pub struct ServiceConfig(Rc<Inner>);
 
+#[derive(Debug)]
 struct Inner {
-    keep_alive: Option<Duration>,
-    client_timeout: u64,
-    client_disconnect: u64,
-    ka_enabled: bool,
+    keep_alive: KeepAlive,
+    client_request_timeout: Duration,
+    client_disconnect_timeout: Duration,
     secure: bool,
     local_addr: Option<std::net::SocketAddr>,
     date_service: DateService,
 }
 
-impl Clone for ServiceConfig {
-    fn clone(&self) -> Self {
-        ServiceConfig(self.0.clone())
-    }
-}
-
 impl Default for ServiceConfig {
     fn default() -> Self {
-        Self::new(KeepAlive::Timeout(5), 0, 0, false, None)
+        Self::new(
+            KeepAlive::default(),
+            Duration::from_secs(5),
+            Duration::ZERO,
+            false,
+            None,
+        )
     }
 }
 
 impl ServiceConfig {
-    /// Create instance of `ServiceConfig`
+    /// Create instance of `ServiceConfig`.
     pub fn new(
         keep_alive: KeepAlive,
-        client_timeout: u64,
-        client_disconnect: u64,
+        client_request_timeout: Duration,
+        client_disconnect_timeout: Duration,
         secure: bool,
         local_addr: Option<net::SocketAddr>,
     ) -> ServiceConfig {
-        let (keep_alive, ka_enabled) = match keep_alive {
-            KeepAlive::Timeout(val) => (val as u64, true),
-            KeepAlive::Os => (0, true),
-            KeepAlive::Disabled => (0, false),
-        };
-        let keep_alive = if ka_enabled && keep_alive > 0 {
-            Some(Duration::from_secs(keep_alive))
-        } else {
-            None
-        };
-
         ServiceConfig(Rc::new(Inner {
-            keep_alive,
-            ka_enabled,
-            client_timeout,
-            client_disconnect,
+            keep_alive: keep_alive.normalize(),
+            client_request_timeout,
+            client_disconnect_timeout,
             secure,
             local_addr,
             date_service: DateService::new(),
         }))
     }
 
-    /// Returns true if connection is secure (HTTPS)
+    /// Returns `true` if connection is secure (i.e., using TLS / HTTPS).
     #[inline]
     pub fn secure(&self) -> bool {
         self.0.secure
@@ -114,239 +67,97 @@ impl ServiceConfig {
         self.0.local_addr
     }
 
-    /// Keep alive duration if configured.
+    /// Connection keep-alive setting.
     #[inline]
-    pub fn keep_alive(&self) -> Option<Duration> {
+    pub fn keep_alive(&self) -> KeepAlive {
         self.0.keep_alive
     }
 
-    /// Return state of connection keep-alive functionality
-    #[inline]
-    pub fn keep_alive_enabled(&self) -> bool {
-        self.0.ka_enabled
-    }
-
-    /// Client timeout for first request.
-    #[inline]
-    pub fn client_timer(&self) -> Option<Sleep> {
-        let delay_time = self.0.client_timeout;
-        if delay_time != 0 {
-            Some(sleep_until(self.now() + Duration::from_millis(delay_time)))
-        } else {
-            None
+    /// Creates a time object representing the deadline for this connection's keep-alive period, if
+    /// enabled.
+    ///
+    /// When [`KeepAlive::Os`] or [`KeepAlive::Disabled`] is set, this will return `None`.
+    pub fn keep_alive_deadline(&self) -> Option<Instant> {
+        match self.keep_alive() {
+            KeepAlive::Timeout(dur) => Some(self.now() + dur),
+            KeepAlive::Os => None,
+            KeepAlive::Disabled => None,
         }
     }
 
-    /// Client timeout for first request.
-    pub fn client_timer_expire(&self) -> Option<Instant> {
-        let delay = self.0.client_timeout;
-        if delay != 0 {
-            Some(self.now() + Duration::from_millis(delay))
-        } else {
-            None
-        }
+    /// Creates a time object representing the deadline for the client to finish sending the head of
+    /// its first request.
+    ///
+    /// Returns `None` if this `ServiceConfig was` constructed with `client_request_timeout: 0`.
+    pub fn client_request_deadline(&self) -> Option<Instant> {
+        let timeout = self.0.client_request_timeout;
+        (timeout != Duration::ZERO).then(|| self.now() + timeout)
     }
 
-    /// Client disconnect timer
-    pub fn client_disconnect_timer(&self) -> Option<Instant> {
-        let delay = self.0.client_disconnect;
-        if delay != 0 {
-            Some(self.now() + Duration::from_millis(delay))
-        } else {
-            None
-        }
+    /// Creates a time object representing the deadline for the client to disconnect.
+    pub fn client_disconnect_deadline(&self) -> Option<Instant> {
+        let timeout = self.0.client_disconnect_timeout;
+        (timeout != Duration::ZERO).then(|| self.now() + timeout)
     }
 
-    /// Return keep-alive timer delay is configured.
-    #[inline]
-    pub fn keep_alive_timer(&self) -> Option<Sleep> {
-        self.keep_alive().map(|ka| sleep_until(self.now() + ka))
-    }
-
-    /// Keep-alive expire time
-    pub fn keep_alive_expire(&self) -> Option<Instant> {
-        self.keep_alive().map(|ka| self.now() + ka)
-    }
-
-    #[inline]
     pub(crate) fn now(&self) -> Instant {
         self.0.date_service.now()
     }
 
+    /// Writes date header to `dst` buffer.
+    ///
+    /// Low-level method that utilizes the built-in efficient date service, requiring fewer syscalls
+    /// than normal. Note that a CRLF (`\r\n`) is included in what is written.
     #[doc(hidden)]
-    pub fn set_date(&self, dst: &mut BytesMut, camel_case: bool) {
-        let mut buf: [u8; 39] = [0; 39];
+    pub fn write_date_header(&self, dst: &mut BytesMut, camel_case: bool) {
+        let mut buf: [u8; 37] = [0; 37];
 
         buf[..6].copy_from_slice(if camel_case { b"Date: " } else { b"date: " });
 
         self.0
             .date_service
-            .set_date(|date| buf[6..35].copy_from_slice(&date.bytes));
+            .with_date(|date| buf[6..35].copy_from_slice(&date.bytes));
 
-        buf[35..].copy_from_slice(b"\r\n\r\n");
+        buf[35..].copy_from_slice(b"\r\n");
         dst.extend_from_slice(&buf);
     }
 
-    pub(crate) fn set_date_header(&self, dst: &mut BytesMut) {
+    #[allow(unused)] // used with `http2` feature flag
+    pub(crate) fn write_date_header_value(&self, dst: &mut BytesMut) {
         self.0
             .date_service
-            .set_date(|date| dst.extend_from_slice(&date.bytes));
-    }
-}
-
-#[derive(Copy, Clone)]
-struct Date {
-    bytes: [u8; DATE_VALUE_LENGTH],
-    pos: usize,
-}
-
-impl Date {
-    fn new() -> Date {
-        let mut date = Date {
-            bytes: [0; DATE_VALUE_LENGTH],
-            pos: 0,
-        };
-        date.update();
-        date
-    }
-
-    fn update(&mut self) {
-        self.pos = 0;
-        write!(self, "{}", httpdate::fmt_http_date(SystemTime::now())).unwrap();
-    }
-}
-
-impl fmt::Write for Date {
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        let len = s.len();
-        self.bytes[self.pos..self.pos + len].copy_from_slice(s.as_bytes());
-        self.pos += len;
-        Ok(())
-    }
-}
-
-/// Service for update Date and Instant periodically at 500 millis interval.
-struct DateService {
-    current: Rc<Cell<(Date, Instant)>>,
-    handle: JoinHandle<()>,
-}
-
-impl Drop for DateService {
-    fn drop(&mut self) {
-        // stop the timer update async task on drop.
-        self.handle.abort();
-    }
-}
-
-impl DateService {
-    fn new() -> Self {
-        // shared date and timer for DateService and update async task.
-        let current = Rc::new(Cell::new((Date::new(), Instant::now())));
-        let current_clone = Rc::clone(&current);
-        // spawn an async task sleep for 500 milli and update current date/timer in a loop.
-        // handle is used to stop the task on DateService drop.
-        let handle = actix_rt::spawn(async move {
-            #[cfg(test)]
-            let _notify = notify_on_drop::NotifyOnDrop::new();
-
-            let mut interval = interval(Duration::from_millis(500));
-            loop {
-                let now = interval.tick().await;
-                let date = Date::new();
-                current_clone.set((date, now));
-            }
-        });
-
-        DateService { current, handle }
-    }
-
-    fn now(&self) -> Instant {
-        self.current.get().1
-    }
-
-    fn set_date<F: FnMut(&Date)>(&self, mut f: F) {
-        f(&self.current.get().0);
-    }
-}
-
-// TODO: move to a util module for testing all spawn handle drop style tasks.
-/// Test Module for checking the drop state of certain async tasks that are spawned
-/// with `actix_rt::spawn`
-///
-/// The target task must explicitly generate `NotifyOnDrop` when spawn the task
-#[cfg(test)]
-mod notify_on_drop {
-    use std::cell::RefCell;
-
-    thread_local! {
-        static NOTIFY_DROPPED: RefCell<Option<bool>> = RefCell::new(None);
-    }
-
-    /// Check if the spawned task is dropped.
-    ///
-    /// # Panics
-    /// Panics when there was no `NotifyOnDrop` instance on current thread.
-    pub(crate) fn is_dropped() -> bool {
-        NOTIFY_DROPPED.with(|bool| {
-            bool.borrow()
-                .expect("No NotifyOnDrop existed on current thread")
-        })
-    }
-
-    pub(crate) struct NotifyOnDrop;
-
-    impl NotifyOnDrop {
-        /// # Panic:
-        ///
-        /// When construct multiple instances on any given thread.
-        pub(crate) fn new() -> Self {
-            NOTIFY_DROPPED.with(|bool| {
-                let mut bool = bool.borrow_mut();
-                if bool.is_some() {
-                    panic!("NotifyOnDrop existed on current thread");
-                } else {
-                    *bool = Some(false);
-                }
-            });
-
-            NotifyOnDrop
-        }
-    }
-
-    impl Drop for NotifyOnDrop {
-        fn drop(&mut self) {
-            NOTIFY_DROPPED.with(|bool| {
-                if let Some(b) = bool.borrow_mut().as_mut() {
-                    *b = true;
-                }
-            });
-        }
+            .with_date(|date| dst.extend_from_slice(&date.bytes));
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{date::DATE_VALUE_LENGTH, notify_on_drop};
 
-    use actix_rt::{task::yield_now, time::sleep};
+    use actix_rt::{
+        task::yield_now,
+        time::{sleep, sleep_until},
+    };
     use memchr::memmem;
 
     #[actix_rt::test]
     async fn test_date_service_update() {
-        let settings = ServiceConfig::new(KeepAlive::Os, 0, 0, false, None);
+        let settings =
+            ServiceConfig::new(KeepAlive::Os, Duration::ZERO, Duration::ZERO, false, None);
 
         yield_now().await;
 
         let mut buf1 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
-        settings.set_date(&mut buf1, false);
+        settings.write_date_header(&mut buf1, false);
         let now1 = settings.now();
 
-        sleep_until(Instant::now() + Duration::from_secs(2)).await;
+        sleep_until((Instant::now() + Duration::from_secs(2)).into()).await;
         yield_now().await;
 
         let now2 = settings.now();
         let mut buf2 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
-        settings.set_date(&mut buf2, false);
+        settings.write_date_header(&mut buf2, false);
 
         assert_ne!(now1, now2);
 
@@ -402,10 +213,10 @@ mod tests {
         let settings = ServiceConfig::default();
 
         let mut buf1 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
-        settings.set_date(&mut buf1, false);
+        settings.write_date_header(&mut buf1, false);
 
         let mut buf2 = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
-        settings.set_date(&mut buf2, false);
+        settings.write_date_header(&mut buf2, false);
 
         assert_eq!(buf1, buf2);
     }
@@ -415,11 +226,11 @@ mod tests {
         let settings = ServiceConfig::default();
 
         let mut buf = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
-        settings.set_date(&mut buf, false);
+        settings.write_date_header(&mut buf, false);
         assert!(memmem::find(&buf, b"date:").is_some());
 
         let mut buf = BytesMut::with_capacity(DATE_VALUE_LENGTH + 10);
-        settings.set_date(&mut buf, true);
+        settings.write_date_header(&mut buf, true);
         assert!(memmem::find(&buf, b"Date:").is_some());
     }
 }

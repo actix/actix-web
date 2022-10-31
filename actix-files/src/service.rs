@@ -28,7 +28,7 @@ impl Deref for FilesService {
     type Target = FilesServiceInner;
 
     fn deref(&self) -> &Self::Target {
-        &*self.0
+        &self.0
     }
 }
 

@@ -13,6 +13,7 @@ use actix_service::{
 };
 use actix_utils::future::ready;
 use futures_core::future::LocalBoxFuture;
+use tracing::error;
 
 use crate::{
     body::{BoxBody, MessageBody},
@@ -133,6 +134,7 @@ mod openssl {
         U::InitError: fmt::Debug,
     {
         /// Create OpenSSL based service.
+        #[cfg_attr(docsrs, doc(cfg(feature = "openssl")))]
         pub fn openssl(
             self,
             acceptor: SslAcceptor,
@@ -195,6 +197,7 @@ mod rustls {
         U::InitError: fmt::Debug,
     {
         /// Create Rustls based service.
+        #[cfg_attr(docsrs, doc(cfg(feature = "rustls")))]
         pub fn rustls(
             self,
             config: ServerConfig,
@@ -305,13 +308,13 @@ where
         Box::pin(async move {
             let expect = expect
                 .await
-                .map_err(|e| log::error!("Init http expect service error: {:?}", e))?;
+                .map_err(|e| error!("Init http expect service error: {:?}", e))?;
 
             let upgrade = match upgrade {
                 Some(upgrade) => {
                     let upgrade = upgrade
                         .await
-                        .map_err(|e| log::error!("Init http upgrade service error: {:?}", e))?;
+                        .map_err(|e| error!("Init http upgrade service error: {:?}", e))?;
                     Some(upgrade)
                 }
                 None => None,
@@ -319,7 +322,7 @@ where
 
             let service = service
                 .await
-                .map_err(|e| log::error!("Init http service error: {:?}", e))?;
+                .map_err(|e| error!("Init http service error: {:?}", e))?;
 
             Ok(H1ServiceHandler::new(
                 cfg,
@@ -357,7 +360,7 @@ where
 
     fn poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self._poll_ready(cx).map_err(|err| {
-            log::error!("HTTP/1 service readiness error: {:?}", err);
+            error!("HTTP/1 service readiness error: {:?}", err);
             DispatchError::Service(err)
         })
     }

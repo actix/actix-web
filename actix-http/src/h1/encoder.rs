@@ -210,13 +210,13 @@ pub(crate) trait MessageType: Sized {
             dst.advance_mut(pos);
         }
 
-        // optimized date header, set_date writes \r\n
         if !has_date {
-            config.set_date(dst, camel_case);
-        } else {
-            // msg eof
-            dst.extend_from_slice(b"\r\n");
+            // optimized date header, write_date_header writes its own \r\n
+            config.write_date_header(dst, camel_case);
         }
+
+        // end-of-headers marker
+        dst.extend_from_slice(b"\r\n");
 
         Ok(())
     }
@@ -318,16 +318,17 @@ impl MessageType for RequestHeadType {
 }
 
 impl<T: MessageType> MessageEncoder<T> {
-    /// Encode message
+    /// Encode chunk.
     pub fn encode_chunk(&mut self, msg: &[u8], buf: &mut BytesMut) -> io::Result<bool> {
         self.te.encode(msg, buf)
     }
 
-    /// Encode eof
+    /// Encode EOF.
     pub fn encode_eof(&mut self, buf: &mut BytesMut) -> io::Result<()> {
         self.te.encode_eof(buf)
     }
 
+    /// Encode message.
     pub fn encode(
         &mut self,
         dst: &mut BytesMut,
@@ -516,6 +517,7 @@ unsafe fn write_camel_case(value: &[u8], buf: *mut u8, len: usize) {
             if let Some(c @ b'a'..=b'z') = iter.next() {
                 buffer[index] = c & 0b1101_1111;
             }
+            index += 1;
         }
 
         index += 1;
@@ -527,7 +529,7 @@ mod tests {
     use std::rc::Rc;
 
     use bytes::Bytes;
-    use http::header::AUTHORIZATION;
+    use http::header::{AUTHORIZATION, UPGRADE_INSECURE_REQUESTS};
 
     use super::*;
     use crate::{
@@ -558,6 +560,9 @@ mod tests {
         head.headers
             .insert(CONTENT_TYPE, HeaderValue::from_static("plain/text"));
 
+        head.headers
+            .insert(UPGRADE_INSECURE_REQUESTS, HeaderValue::from_static("1"));
+
         let mut head = RequestHeadType::Owned(head);
 
         let _ = head.encode_headers(
@@ -573,6 +578,7 @@ mod tests {
         assert!(data.contains("Connection: close\r\n"));
         assert!(data.contains("Content-Type: plain/text\r\n"));
         assert!(data.contains("Date: date\r\n"));
+        assert!(data.contains("Upgrade-Insecure-Requests: 1\r\n"));
 
         let _ = head.encode_headers(
             &mut bytes,

@@ -22,7 +22,7 @@ pub use self::pattern::{IntoPatterns, Patterns};
 pub use self::quoter::Quoter;
 pub use self::resource::ResourceDef;
 pub use self::resource_path::{Resource, ResourcePath};
-pub use self::router::{ResourceInfo, Router, RouterBuilder};
+pub use self::router::{ResourceId, Router, RouterBuilder};
 
 #[cfg(feature = "http")]
 pub use self::url::Url;

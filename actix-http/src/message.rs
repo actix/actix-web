@@ -3,7 +3,7 @@ use std::{cell::RefCell, ops, rc::Rc};
 use bitflags::bitflags;
 
 /// Represents various types of connection
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConnectionType {
     /// Close connection after response.
     Close,

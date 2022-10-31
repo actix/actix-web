@@ -1,14 +1,17 @@
-use actix_codec::{Decoder, Encoder};
 use bitflags::bitflags;
 use bytes::{Bytes, BytesMut};
 use bytestring::ByteString;
+use tokio_util::codec::{Decoder, Encoder};
+use tracing::error;
 
-use super::frame::Parser;
-use super::proto::{CloseReason, OpCode};
-use super::ProtocolError;
+use super::{
+    frame::Parser,
+    proto::{CloseReason, OpCode},
+    ProtocolError,
+};
 
 /// A WebSocket message.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Message {
     /// Text message.
     Text(ByteString),
@@ -33,7 +36,7 @@ pub enum Message {
 }
 
 /// A WebSocket frame.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Frame {
     /// Text frame. Note that the codec does not validate UTF-8 encoding.
     Text(Bytes),
@@ -55,7 +58,7 @@ pub enum Frame {
 }
 
 /// A WebSocket continuation item.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Item {
     FirstText(Bytes),
     FirstBinary(Bytes),

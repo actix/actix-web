@@ -9,7 +9,16 @@ unreleased_for() {
     DIR=$1
 
     CARGO_MANIFEST=$DIR/Cargo.toml
-    CHANGELOG_FILE=$DIR/CHANGES.md
+
+    # determine changelog file name
+    if [ -f "$DIR/CHANGES.md" ]; then
+        CHANGELOG_FILE=$DIR/CHANGES.md
+    elif [ -f "$DIR/CHANGELOG.md" ]; then
+        CHANGELOG_FILE=$DIR/CHANGELOG.md
+    else
+        echo "No changelog file found"
+        exit 1
+    fi
 
     # get current version
     PACKAGE_NAME="$(sed -nE 's/^name ?= ?"([^"]+)"$/\1/ p' "$CARGO_MANIFEST" | head -n 1)"
@@ -36,6 +45,8 @@ unreleased_for() {
     cat "$CHANGE_CHUNK_FILE"
 }
 
-for f in $(fd --absolute-path CHANGES.md); do
-    unreleased_for $(dirname $f)
+files=$(fd --threads=1 --min-depth=2 --absolute-path 'CHANGE\w+.md')
+
+for f in $files; do
+    unreleased_for $(dirname $f) || true
 done
