@@ -4,6 +4,9 @@ on:
   push:
     branches: [master]
 
+permissions:
+  contents: read  #  to fetch code (actions/checkout)
+
 jobs:
   build_and_test_nightly:
     strategy:
