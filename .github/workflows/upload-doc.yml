@@ -4,8 +4,12 @@ on:
   push:
     branches: [master]
 
+permissions: {}
 jobs:
   build:
+    permissions:
+      contents: write  #  to push changes in repo (jamesives/github-pages-deploy-action)
+
     runs-on: ubuntu-latest
 
     steps:
