@@ -5,6 +5,9 @@ on:
     branches:
       - master
 
+permissions:
+  contents: read  #  to fetch code (actions/checkout)
+
 jobs:
   check_benchmark:
     runs-on: ubuntu-latest
