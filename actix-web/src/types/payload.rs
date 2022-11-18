@@ -271,7 +271,7 @@ const DEFAULT_CONFIG: PayloadConfig = PayloadConfig {
 
 impl Default for PayloadConfig {
     fn default() -> Self {
-        DEFAULT_CONFIG.clone()
+        DEFAULT_CONFIG
     }
 }
 

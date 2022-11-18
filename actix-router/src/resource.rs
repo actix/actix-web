@@ -1503,31 +1503,31 @@ mod tests {
     fn build_path_list() {
         let mut s = String::new();
         let resource = ResourceDef::new("/user/{item1}/test");
-        assert!(resource.resource_path_from_iter(&mut s, &mut (&["user1"]).iter()));
+        assert!(resource.resource_path_from_iter(&mut s, &mut ["user1"].iter()));
         assert_eq!(s, "/user/user1/test");
 
         let mut s = String::new();
         let resource = ResourceDef::new("/user/{item1}/{item2}/test");
-        assert!(resource.resource_path_from_iter(&mut s, &mut (&["item", "item2"]).iter()));
+        assert!(resource.resource_path_from_iter(&mut s, &mut ["item", "item2"].iter()));
         assert_eq!(s, "/user/item/item2/test");
 
         let mut s = String::new();
         let resource = ResourceDef::new("/user/{item1}/{item2}");
-        assert!(resource.resource_path_from_iter(&mut s, &mut (&["item", "item2"]).iter()));
+        assert!(resource.resource_path_from_iter(&mut s, &mut ["item", "item2"].iter()));
         assert_eq!(s, "/user/item/item2");
 
         let mut s = String::new();
         let resource = ResourceDef::new("/user/{item1}/{item2}/");
-        assert!(resource.resource_path_from_iter(&mut s, &mut (&["item", "item2"]).iter()));
+        assert!(resource.resource_path_from_iter(&mut s, &mut ["item", "item2"].iter()));
         assert_eq!(s, "/user/item/item2/");
 
         let mut s = String::new();
-        assert!(!resource.resource_path_from_iter(&mut s, &mut (&["item"]).iter()));
+        assert!(!resource.resource_path_from_iter(&mut s, &mut ["item"].iter()));
 
         let mut s = String::new();
-        assert!(resource.resource_path_from_iter(&mut s, &mut (&["item", "item2"]).iter()));
+        assert!(resource.resource_path_from_iter(&mut s, &mut ["item", "item2"].iter()));
         assert_eq!(s, "/user/item/item2/");
-        assert!(!resource.resource_path_from_iter(&mut s, &mut (&["item"]).iter()));
+        assert!(!resource.resource_path_from_iter(&mut s, &mut ["item"].iter()));
 
         let mut s = String::new();
         assert!(resource.resource_path_from_iter(&mut s, &mut vec!["item", "item2"].iter()));
@@ -1604,10 +1604,10 @@ mod tests {
         let resource = ResourceDef::new("/user/{item1}*");
 
         let mut s = String::new();
-        assert!(!resource.resource_path_from_iter(&mut s, &mut (&[""; 0]).iter()));
+        assert!(!resource.resource_path_from_iter(&mut s, &mut [""; 0].iter()));
 
         let mut s = String::new();
-        assert!(resource.resource_path_from_iter(&mut s, &mut (&["user1"]).iter()));
+        assert!(resource.resource_path_from_iter(&mut s, &mut ["user1"].iter()));
         assert_eq!(s, "/user/user1");
 
         let mut s = String::new();

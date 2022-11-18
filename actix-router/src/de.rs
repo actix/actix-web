@@ -293,7 +293,7 @@ impl<'de> Deserializer<'de> for Value<'de> {
     parse_value!(deserialize_bool, visit_bool, "bool");
     parse_value!(deserialize_i8, visit_i8, "i8");
     parse_value!(deserialize_i16, visit_i16, "i16");
-    parse_value!(deserialize_i32, visit_i32, "i16");
+    parse_value!(deserialize_i32, visit_i32, "i32");
     parse_value!(deserialize_i64, visit_i64, "i64");
     parse_value!(deserialize_u8, visit_u8, "u8");
     parse_value!(deserialize_u16, visit_u16, "u16");

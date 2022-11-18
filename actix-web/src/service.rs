@@ -327,9 +327,7 @@ impl ServiceRequest {
             .push(extensions);
     }
 
-    /// Creates a context object for use with a [guard](crate::guard).
-    ///
-    /// Useful if you are implementing
+    /// Creates a context object for use with a routing [guard](crate::guard).
     #[inline]
     pub fn guard_ctx(&self) -> GuardContext<'_> {
         GuardContext { req: self }

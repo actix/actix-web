@@ -25,7 +25,7 @@
 //! ```
 //!
 //! # Running Actix Web Using `#[tokio::main]`
-//! If you need to run something alongside Actix Web that uses Tokio's work stealing functionality,
+//! If you need to run something that uses Tokio's work stealing functionality alongside Actix Web,
 //! you can run Actix Web under `#[tokio::main]`. The [`Server`](crate::dev::Server) object returned
 //! from [`HttpServer::run`](crate::HttpServer::run) can also be [`spawn`]ed, if preferred.
 //!

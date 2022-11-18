@@ -4,8 +4,12 @@ on:
   push:
     branches: [master]
 
+permissions: {}
 jobs:
   build:
+    permissions:
+      contents: write  #  to push changes in repo (jamesives/github-pages-deploy-action)
+
     runs-on: ubuntu-latest
 
     steps:
@@ -28,7 +32,7 @@ jobs:
         run: echo '<meta http-equiv="refresh" content="0;url=actix_web/index.html">' > target/doc/index.html
 
       - name: Deploy to GitHub Pages
-        uses: JamesIves/github-pages-deploy-action@v4.4.0
+        uses: JamesIves/github-pages-deploy-action@v4.4.1
         with:
           folder: target/doc
           single-commit: true

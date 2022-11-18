@@ -97,7 +97,7 @@ where
     type Target = ConnectionPoolInnerPriv<Io>;
 
     fn deref(&self) -> &Self::Target {
-        &*self.0
+        &self.0
     }
 }
 

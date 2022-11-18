@@ -1,6 +1,6 @@
 [package]
 name = "actix-router"
-version = "0.5.0"
+version = "0.5.1"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
     "Ali MJ Al-Nasrawy <alimjalnasrawy@gmail.com>",

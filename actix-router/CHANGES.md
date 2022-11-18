@@ -1,7 +1,13 @@
 # Changes
 
 ## Unreleased - 2022-xx-xx
+
+
+## 0.5.1 - 2022-09-19
+- Correct typo in error string for `i32` deserialization. [#2876]
 - Minimum supported Rust version (MSRV) is now 1.59 due to transitive `time` dependency.
+
+[#2876]: https://github.com/actix/actix-web/pull/2876
 
 
 ## 0.5.0 - 2022-02-22

@@ -8,13 +8,15 @@ use std::{
     task::{Context, Poll},
 };
 
-use actix_codec::{AsyncRead, AsyncWrite, Decoder as _, Encoder as _, Framed, FramedParts};
+use actix_codec::{Framed, FramedParts};
 use actix_rt::time::sleep_until;
 use actix_service::Service;
 use bitflags::bitflags;
 use bytes::{Buf, BytesMut};
 use futures_core::ready;
 use pin_project_lite::pin_project;
+use tokio::io::{AsyncRead, AsyncWrite};
+use tokio_util::codec::{Decoder as _, Encoder as _};
 use tracing::{error, trace};
 
 use crate::{
@@ -1004,7 +1006,7 @@ where
                 this.read_buf.reserve(HW_BUFFER_SIZE - remaining);
             }
 
-            match actix_codec::poll_read_buf(io.as_mut(), cx, this.read_buf) {
+            match tokio_util::io::poll_read_buf(io.as_mut(), cx, this.read_buf) {
                 Poll::Ready(Ok(n)) => {
                     this.flags.remove(Flags::FINISHED);
 

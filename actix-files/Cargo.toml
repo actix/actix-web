@@ -3,7 +3,6 @@ name = "actix-files"
 version = "0.6.2"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
-    "fakeshadow <24548779@qq.com>",
     "Rob Ede <robjtede@icloud.com>",
 ]
 description = "Static file serving for Actix Web"
