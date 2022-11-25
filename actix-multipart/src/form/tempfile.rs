@@ -11,7 +11,7 @@ use derive_more::{Display, Error};
 use futures_core::future::LocalBoxFuture;
 use futures_util::TryStreamExt as _;
 use mime::Mime;
-use tempfile::NamedTempFile;
+use tempfile_dep::NamedTempFile;
 use tokio::io::AsyncWriteExt;
 
 use super::FieldErrorHandler;

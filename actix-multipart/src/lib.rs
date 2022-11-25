@@ -8,7 +8,6 @@
 // This allows us to use the actix_multipart_derive within this crate's tests
 #[cfg(test)]
 extern crate self as actix_multipart;
-extern crate tempfile_dep as tempfile;
 
 mod error;
 mod extractor;
