@@ -99,16 +99,10 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable-x86_64-unknown-linux-gnu
-          profile: minimal
-          override: true
+      - uses: dtolnay/rust-toolchain@stable
 
       - name: Generate Cargo.lock
-        uses: actions-rs/cargo@v1
-        with: { command: generate-lockfile }
+        run: cargo generate-lockfile
       - name: Cache Dependencies
         uses: Swatinem/rust-cache@v1.3.0
 
@@ -126,20 +120,13 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Install Rust (nightly)
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly-x86_64-unknown-linux-gnu
-          profile: minimal
-          override: true
+      - uses: dtolnay/rust-toolchain@nightly
 
       - name: Generate Cargo.lock
-        uses: actions-rs/cargo@v1
-        with: { command: generate-lockfile }
+        run: cargo generate-lockfile
       - name: Cache Dependencies
         uses: Swatinem/rust-cache@v1.3.0
 
       - name: doc tests
-        uses: actions-rs/cargo@v1
+        run: cargo ci-doctest
         timeout-minutes: 60
-        with: { command: ci-doctest }
