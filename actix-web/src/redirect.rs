@@ -31,7 +31,7 @@ use crate::{
 ///
 /// As responder:
 /// ```
-/// use actix_web::web::Redirect;
+/// use actix_web::{web::Redirect, Responder};
 ///
 /// async fn handler() -> impl Responder {
 ///     // sends a permanent (308) redirect to duck.com
@@ -84,13 +84,13 @@ impl Redirect {
     ///
     /// # Examples
     /// ```
-    /// use actix_web::web::Redirect;
+    /// use actix_web::{web::Redirect, Responder};
     ///
     /// async fn admin_page() -> impl Responder {
     ///     // sends a temporary 307 redirect to the login path
     ///     Redirect::to("/login")
     /// }
-    /// # actix_web::web::to(handler);
+    /// # actix_web::web::to(admin_page);
     /// ```
     pub fn to(to: impl Into<Cow<'static, str>>) -> Self {
         Self {
