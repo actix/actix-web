@@ -86,6 +86,7 @@ mod helpers;
 pub mod http;
 mod info;
 pub mod middleware;
+mod redirect;
 mod request;
 mod request_data;
 mod resource;
