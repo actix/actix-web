@@ -74,7 +74,6 @@ use actix::{
     Actor, ActorContext, ActorState, Addr, AsyncContext, Handler, Message as ActixMessage,
     SpawnHandle,
 };
-use actix_codec::{Decoder as _, Encoder as _};
 use actix_http::ws::{hash_key, Codec};
 pub use actix_http::ws::{
     CloseCode, CloseReason, Frame, HandshakeError, Message, ProtocolError,
@@ -92,6 +91,7 @@ use bytestring::ByteString;
 use futures_core::Stream;
 use pin_project_lite::pin_project;
 use tokio::sync::oneshot;
+use tokio_util::codec::{Decoder as _, Encoder as _};
 
 /// Builder for Websocket session response.
 ///

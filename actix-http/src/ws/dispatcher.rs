@@ -76,7 +76,9 @@ mod inner {
     use pin_project_lite::pin_project;
     use tracing::debug;
 
-    use actix_codec::{AsyncRead, AsyncWrite, Decoder, Encoder, Framed};
+    use actix_codec::Framed;
+    use tokio::io::{AsyncRead, AsyncWrite};
+    use tokio_util::codec::{Decoder, Encoder};
 
     use crate::{body::BoxBody, Response};
 

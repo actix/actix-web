@@ -6,8 +6,7 @@ use super::{common_header, QualityItem};
 use crate::http::header;
 
 common_header! {
-    /// `Accept` header, defined
-    /// in [RFC 7231 §5.3.2](https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2)
+    /// `Accept` header, defined in [RFC 7231 §5.3.2].
     ///
     /// The `Accept` header field can be used by user agents to specify
     /// response media types that are acceptable. Accept header fields can
@@ -71,6 +70,8 @@ common_header! {
     ///     ])
     /// );
     /// ```
+    ///
+    /// [RFC 7231 §5.3.2]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
     (Accept, header::ACCEPT) => (QualityItem<Mime>)*
 
     test_parse_and_format {
@@ -101,13 +102,12 @@ common_header! {
             vec![b"text/plain; charset=utf-8"],
             Some(Accept(vec![
                 QualityItem::max(mime::TEXT_PLAIN_UTF_8),
-                ])));
+            ])));
         crate::http::header::common_header_test!(
             test4,
             vec![b"text/plain; charset=utf-8; q=0.5"],
             Some(Accept(vec![
-                QualityItem::new(mime::TEXT_PLAIN_UTF_8,
-                    q(0.5)),
+                QualityItem::new(mime::TEXT_PLAIN_UTF_8, q(0.5)),
             ])));
 
         #[test]

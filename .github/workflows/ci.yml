@@ -6,6 +6,9 @@ on:
   push:
     branches: [master]
 
+permissions:
+  contents: read  #  to fetch code (actions/checkout)
+
 jobs:
   build_and_test:
     strategy:
@@ -63,6 +66,11 @@ jobs:
       - name: Cache Dependencies
         uses: Swatinem/rust-cache@v1.2.0
 
+      - name: workaround MSRV issues
+        if: matrix.version != 'stable'
+        run: |
+          cargo update -p=zstd-sys --precise=2.0.1+zstd.1.5.2
+
       - name: check minimal
         uses: actions-rs/cargo@v1
         with: { command: ci-check-min }
@@ -96,16 +104,10 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable-x86_64-unknown-linux-gnu
-          profile: minimal
-          override: true
+      - uses: dtolnay/rust-toolchain@stable
 
       - name: Generate Cargo.lock
-        uses: actions-rs/cargo@v1
-        with: { command: generate-lockfile }
+        run: cargo generate-lockfile
       - name: Cache Dependencies
         uses: Swatinem/rust-cache@v1.3.0
 
@@ -123,20 +125,13 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Install Rust (nightly)
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly-x86_64-unknown-linux-gnu
-          profile: minimal
-          override: true
+      - uses: dtolnay/rust-toolchain@nightly
 
       - name: Generate Cargo.lock
-        uses: actions-rs/cargo@v1
-        with: { command: generate-lockfile }
+        run: cargo generate-lockfile
       - name: Cache Dependencies
         uses: Swatinem/rust-cache@v1.3.0
 
       - name: doc tests
-        uses: actions-rs/cargo@v1
+        run: cargo ci-doctest
         timeout-minutes: 60
-        with: { command: ci-doctest }
