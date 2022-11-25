@@ -5,13 +5,14 @@ use std::sync::Arc;
 use actix_web::{http::StatusCode, web, Error, HttpRequest, ResponseError};
 use derive_more::{Deref, DerefMut, Display, Error};
 use futures_core::future::LocalBoxFuture;
-use futures_util::FutureExt;
 use serde::de::DeserializeOwned;
 
 use crate::{
     form::{bytes::Bytes, FieldReader, Limits},
     Field, MultipartError,
 };
+
+use super::FieldErrorHandler;
 
 /// Deserialize from JSON.
 #[derive(Debug, Deref, DerefMut)]
@@ -23,11 +24,14 @@ impl<T: DeserializeOwned> Json<T> {
     }
 }
 
-impl<'t, T: DeserializeOwned + 'static> FieldReader<'t> for Json<T> {
+impl<'t, T> FieldReader<'t> for Json<T>
+where
+    T: DeserializeOwned + 'static,
+{
     type Future = LocalBoxFuture<'t, Result<Self, MultipartError>>;
 
     fn read_field(req: &'t HttpRequest, field: Field, limits: &'t mut Limits) -> Self::Future {
-        async move {
+        Box::pin(async move {
             let config = JsonConfig::from_req(req);
             let field_name = field.name().to_owned();
 
@@ -37,6 +41,7 @@ impl<'t, T: DeserializeOwned + 'static> FieldReader<'t> for Json<T> {
                 } else {
                     false
                 };
+
                 if !valid {
                     return Err(MultipartError::Field {
                         field_name,
@@ -48,24 +53,23 @@ impl<'t, T: DeserializeOwned + 'static> FieldReader<'t> for Json<T> {
             let bytes = Bytes::read_field(req, field, limits).await?;
 
             Ok(Json(serde_json::from_slice(bytes.data.as_ref()).map_err(
-                |e| MultipartError::Field {
+                |err| MultipartError::Field {
                     field_name,
-                    source: config.map_error(req, JsonFieldError::Deserialize(e)),
+                    source: config.map_error(req, JsonFieldError::Deserialize(err)),
                 },
             )?))
-        }
-        .boxed_local()
+        })
     }
 }
 
 #[derive(Debug, Display, Error)]
 #[non_exhaustive]
 pub enum JsonFieldError {
-    /// Deserialize error
+    /// Deserialize error.
     #[display(fmt = "Json deserialize error: {}", _0)]
     Deserialize(serde_json::Error),
 
-    /// Content type error
+    /// Content type error.
     #[display(fmt = "Content type error")]
     ContentType,
 }
@@ -79,8 +83,7 @@ impl ResponseError for JsonFieldError {
 /// Configuration for the [`Json`] field reader.
 #[derive(Clone)]
 pub struct JsonConfig {
-    #[allow(clippy::type_complexity)]
-    err_handler: Option<Arc<dyn Fn(JsonFieldError, &HttpRequest) -> Error + Send + Sync>>,
+    err_handler: FieldErrorHandler<JsonFieldError>,
     validate_content_type: bool,
 }
 
@@ -131,9 +134,8 @@ impl Default for JsonConfig {
 mod tests {
     use std::{collections::HashMap, io::Cursor};
 
-    use actix_http::StatusCode;
     use actix_multipart_rfc7578::client::multipart;
-    use actix_web::{web, App, HttpResponse, Responder};
+    use actix_web::{http::StatusCode, web, App, HttpResponse, Responder};
 
     use crate::form::{
         json::{Json, JsonConfig},

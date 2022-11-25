@@ -7,11 +7,10 @@ use std::{
     sync::Arc,
 };
 
-use actix_web::{dev::Payload, error::PayloadError, web, Error, FromRequest, HttpRequest};
+use actix_web::{dev, error::PayloadError, web, Error, FromRequest, HttpRequest};
 use derive_more::{Deref, DerefMut};
 use futures_core::future::LocalBoxFuture;
-use futures_util::TryFutureExt;
-use futures_util::{FutureExt, TryStreamExt};
+use futures_util::{TryFutureExt, TryStreamExt as _};
 
 use crate::{Field, Multipart, MultipartError};
 
@@ -25,6 +24,8 @@ pub mod text;
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 #[cfg(feature = "derive")]
 pub use actix_multipart_derive::MultipartForm;
+
+type FieldErrorHandler<T> = Option<Arc<dyn Fn(T, &HttpRequest) -> Error + Send + Sync>>;
 
 /// Trait that data types to be used in a multipart form struct should implement.
 ///
@@ -47,16 +48,16 @@ pub struct State(pub HashMap<String, Box<dyn Any>>);
 pub trait FieldGroupReader<'t>: Sized + Any {
     type Future: Future<Output = Result<(), MultipartError>>;
 
-    /// The form will call this function for each matching field
+    /// The form will call this function for each matching field.
     fn handle_field(
         req: &'t HttpRequest,
         field: Field,
         limits: &'t mut Limits,
         state: &'t mut State,
-        duplicate_action: DuplicateAction,
+        duplicate_field: DuplicateField,
     ) -> Self::Future;
 
-    /// Create `Self` from the group of processed fields
+    /// Construct `Self` from the group of processed fields.
     fn from_state(name: &str, state: &'t mut State) -> Result<Self, MultipartError>;
 }
 
@@ -71,27 +72,28 @@ where
         field: Field,
         limits: &'t mut Limits,
         state: &'t mut State,
-        duplicate_action: DuplicateAction,
+        duplicate_field: DuplicateField,
     ) -> Self::Future {
         if state.contains_key(field.name()) {
-            match duplicate_action {
-                DuplicateAction::Ignore => return ready(Ok(())).boxed_local(),
-                DuplicateAction::Deny => {
-                    return ready(Err(MultipartError::DuplicateField(
+            match duplicate_field {
+                DuplicateField::Ignore => return Box::pin(ready(Ok(()))),
+
+                DuplicateField::Deny => {
+                    return Box::pin(ready(Err(MultipartError::DuplicateField(
                         field.name().to_string(),
-                    )))
-                    .boxed_local()
+                    ))))
                 }
-                DuplicateAction::Replace => {}
+
+                DuplicateField::Replace => {}
             }
         }
-        async move {
+
+        Box::pin(async move {
             let field_name = field.name().to_string();
             let t = T::read_field(req, field, limits).await?;
             state.insert(field_name, Box::new(t));
             Ok(())
-        }
-        .boxed_local()
+        })
     }
 
     fn from_state(name: &str, state: &'t mut State) -> Result<Self, MultipartError> {
@@ -110,21 +112,24 @@ where
         field: Field,
         limits: &'t mut Limits,
         state: &'t mut State,
-        _duplicate_action: DuplicateAction,
+        _duplicate_field: DuplicateField,
     ) -> Self::Future {
-        // Vec GroupReader always allows duplicates!
-        async move {
+        Box::pin(async move {
+            // Note: Vec GroupReader always allows duplicates
+
             let field_name = field.name().to_string();
+
             let vec = state
                 .entry(field_name)
                 .or_insert_with(|| Box::new(Vec::<T>::new()))
                 .downcast_mut::<Vec<T>>()
                 .unwrap();
+
             let item = T::read_field(req, field, limits).await?;
             vec.push(item);
+
             Ok(())
-        }
-        .boxed_local()
+        })
     }
 
     fn from_state(name: &str, state: &'t mut State) -> Result<Self, MultipartError> {
@@ -146,27 +151,27 @@ where
         field: Field,
         limits: &'t mut Limits,
         state: &'t mut State,
-        duplicate_action: DuplicateAction,
+        duplicate_field: DuplicateField,
     ) -> Self::Future {
         if state.contains_key(field.name()) {
-            match duplicate_action {
-                DuplicateAction::Ignore => return ready(Ok(())).boxed_local(),
-                DuplicateAction::Deny => {
-                    return ready(Err(MultipartError::DuplicateField(
+            match duplicate_field {
+                DuplicateField::Ignore => return Box::pin(ready(Ok(()))),
+
+                DuplicateField::Deny => {
+                    return Box::pin(ready(Err(MultipartError::DuplicateField(
                         field.name().to_string(),
-                    )))
-                    .boxed_local()
+                    ))))
                 }
-                DuplicateAction::Replace => {}
+
+                DuplicateField::Replace => {}
             }
         }
-        async move {
+        Box::pin(async move {
             let field_name = field.name().to_string();
             let t = T::read_field(req, field, limits).await?;
             state.insert(field_name, Box::new(t));
             Ok(())
-        }
-        .boxed_local()
+        })
     }
 
     fn from_state(name: &str, state: &'t mut State) -> Result<Self, MultipartError> {
@@ -199,11 +204,13 @@ pub trait MultipartFormTrait: Sized {
 }
 
 #[doc(hidden)]
-pub enum DuplicateAction {
+pub enum DuplicateField {
     /// Additional fields are not processed
     Ignore,
+
     /// An error will be raised
     Deny,
+
     /// All fields will be processed, the last one will replace all previous
     Replace,
 }
@@ -240,12 +247,14 @@ impl Limits {
             .total_limit_remaining
             .checked_sub(bytes)
             .ok_or(MultipartError::Payload(PayloadError::Overflow))?;
+
         if in_memory {
             self.memory_limit_remaining = self
                 .memory_limit_remaining
                 .checked_sub(bytes)
                 .ok_or(MultipartError::Payload(PayloadError::Overflow))?;
         }
+
         if let Some(field_limit) = self.field_limit_remaining {
             self.field_limit_remaining = Some(
                 field_limit
@@ -253,6 +262,7 @@ impl Limits {
                     .ok_or(MultipartError::Payload(PayloadError::Overflow))?,
             );
         }
+
         Ok(())
     }
 }
@@ -260,8 +270,8 @@ impl Limits {
 /// Typed `multipart/form-data` extractor.
 ///
 /// To extract typed data from a multipart stream, the inner type `T` must implement the
-/// [`MultipartFormTrait`] trait, you should use the [`macro@MultipartForm`] macro to derive this for
-/// your struct.
+/// [`MultipartFormTrait`] trait, you should use the [`macro@MultipartForm`] macro to derive this
+/// for your struct.
 ///
 /// Use [`MultipartFormConfig`] to configure extraction options.
 #[derive(Deref, DerefMut)]
@@ -282,42 +292,45 @@ where
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     #[inline]
-    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+    fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
         let mut payload = Multipart::new(req.headers(), payload.take());
+
         let config = MultipartFormConfig::from_req(req);
         let mut limits = Limits::new(config.total_limit, config.memory_limit);
+
         let req = req.clone();
         let req2 = req.clone();
         let err_handler = config.err_handler.clone();
 
-        async move {
-            let mut state = State::default();
-            // We need to ensure field limits are shared for all instances of this field name
-            let mut field_limits = HashMap::<String, Option<usize>>::new();
+        Box::pin(
+            async move {
+                let mut state = State::default();
+                // We need to ensure field limits are shared for all instances of this field name
+                let mut field_limits = HashMap::<String, Option<usize>>::new();
 
-            while let Some(field) = payload.try_next().await? {
-                // Retrieve the limit for this field
-                let entry = field_limits
-                    .entry(field.name().to_owned())
-                    .or_insert_with(|| T::limit(field.name()));
-                limits.field_limit_remaining = entry.to_owned();
+                while let Some(field) = payload.try_next().await? {
+                    // Retrieve the limit for this field
+                    let entry = field_limits
+                        .entry(field.name().to_owned())
+                        .or_insert_with(|| T::limit(field.name()));
+                    limits.field_limit_remaining = entry.to_owned();
 
-                T::handle_field(&req, field, &mut limits, &mut state).await?;
+                    T::handle_field(&req, field, &mut limits, &mut state).await?;
 
-                // Update the stored limit
-                *entry = limits.field_limit_remaining;
+                    // Update the stored limit
+                    *entry = limits.field_limit_remaining;
+                }
+                let inner = T::from_state(state)?;
+                Ok(MultipartForm(inner))
             }
-            let inner = T::from_state(state)?;
-            Ok(MultipartForm(inner))
-        }
-        .map_err(move |e| {
-            if let Some(handler) = err_handler {
-                (*handler)(e, &req2)
-            } else {
-                e.into()
-            }
-        })
-        .boxed_local()
+            .map_err(move |err| {
+                if let Some(handler) = err_handler {
+                    (*handler)(err, &req2)
+                } else {
+                    err.into()
+                }
+            }),
+        )
     }
 }
 
@@ -378,18 +391,13 @@ impl Default for MultipartFormConfig {
 #[cfg(test)]
 mod tests {
     use actix_http::encoding::Decoder;
-    use actix_http::Payload;
     use actix_multipart_rfc7578::client::multipart;
     use actix_test::TestServer;
-    use actix_web::http::StatusCode;
-    use actix_web::{web, App, HttpResponse, Responder};
+    use actix_web::{dev::Payload, http::StatusCode, web, App, HttpResponse, Responder};
     use awc::{Client, ClientResponse};
 
     use super::MultipartForm;
-    use crate::form::bytes::Bytes;
-    use crate::form::tempfile::Tempfile;
-    use crate::form::text::Text;
-    use crate::form::MultipartFormConfig;
+    use crate::form::{bytes::Bytes, tempfile::Tempfile, text::Text, MultipartFormConfig};
 
     pub async fn send_form(
         srv: &TestServer,
@@ -404,8 +412,7 @@ mod tests {
             .unwrap()
     }
 
-    /// Test `Option` fields
-
+    /// Test `Option` fields.
     #[derive(MultipartForm)]
     struct TestOptions {
         field1: Option<Text<String>>,
@@ -430,8 +437,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
-    /// Test `Vec` fields
-
+    /// Test `Vec` fields.
     #[derive(MultipartForm)]
     struct TestVec {
         list1: Vec<Text<String>>,
@@ -463,8 +469,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
-    /// Test the `rename` field attribute
-
+    /// Test the `rename` field attribute.
     #[derive(MultipartForm)]
     struct TestFieldRenaming {
         #[multipart(rename = "renamed")]
@@ -498,8 +503,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
-    /// Test the `deny_unknown_fields` struct attribute
-
+    /// Test the `deny_unknown_fields` struct attribute.
     #[derive(MultipartForm)]
     #[multipart(deny_unknown_fields)]
     struct TestDenyUnknown {}
@@ -534,22 +538,21 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
-    /// Test the `duplicate_action` struct attribute
-
+    /// Test the `duplicate_field` struct attribute.
     #[derive(MultipartForm)]
-    #[multipart(duplicate_action = "deny")]
+    #[multipart(duplicate_field = "deny")]
     struct TestDuplicateDeny {
         _field: Text<String>,
     }
 
     #[derive(MultipartForm)]
-    #[multipart(duplicate_action = "replace")]
+    #[multipart(duplicate_field = "replace")]
     struct TestDuplicateReplace {
         field: Text<String>,
     }
 
     #[derive(MultipartForm)]
-    #[multipart(duplicate_action = "ignore")]
+    #[multipart(duplicate_field = "ignore")]
     struct TestDuplicateIgnore {
         field: Text<String>,
     }
@@ -573,7 +576,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_duplicate_action() {
+    async fn test_duplicate_field() {
         let srv = actix_test::start(|| {
             App::new()
                 .route("/deny", web::post().to(test_duplicate_deny_route))
@@ -600,8 +603,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
-    /// Test the Limits
-
+    /// Test the Limits.
     #[derive(MultipartForm)]
     struct TestMemoryUploadLimits {
         field: Bytes,

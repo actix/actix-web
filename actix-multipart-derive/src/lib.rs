@@ -18,17 +18,17 @@ use syn::{parse_macro_input, Type};
 #[darling(attributes(multipart), default)]
 struct MultipartFormAttrs {
     deny_unknown_fields: bool,
-    duplicate_action: DuplicateAction,
+    duplicate_field: DuplicateField,
 }
 
 #[derive(FromMeta)]
-enum DuplicateAction {
+enum DuplicateField {
     Ignore,
     Deny,
     Replace,
 }
 
-impl Default for DuplicateAction {
+impl Default for DuplicateField {
     fn default() -> Self {
         Self::Ignore
     }
@@ -136,7 +136,7 @@ struct ParsedField<'t> {
 /// ## Duplicate Fields
 ///
 /// You can change the behaviour for when multiple fields are received with the same name using the
-/// `#[multipart(duplicate_action = "")]` attribute:
+/// `#[multipart(duplicate_field = "")]` attribute:
 ///
 /// - "ignore": Extra fields are ignored (default).
 /// - "replace": Each field is processed, but only the last one is persisted.
@@ -147,7 +147,7 @@ struct ParsedField<'t> {
 /// ```
 /// # use actix_multipart::form::MultipartForm;
 /// #[derive(MultipartForm)]
-/// #[multipart(duplicate_action = "deny")]
+/// #[multipart(duplicate_field = "deny")]
 /// struct Form { }
 /// ```
 ///
@@ -168,7 +168,7 @@ pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenS
 
     let attrs: MultipartFormAttrs = match MultipartFormAttrs::from_derive_input(&input) {
         Ok(attrs) => attrs,
-        Err(e) => return e.write_errors().into(),
+        Err(err) => return err.write_errors().into(),
     };
 
     // Parse the field attributes
@@ -198,7 +198,7 @@ pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenS
         .collect::<Result<Vec<_>, darling::Error>>()
     {
         Ok(attrs) => attrs,
-        Err(e) => return e.write_errors().into(),
+        Err(err) => return err.write_errors().into(),
     };
 
     // Check that field names are unique
@@ -219,10 +219,10 @@ pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenS
     };
 
     // Value for duplicate action
-    let duplicate_action = match attrs.duplicate_action {
-        DuplicateAction::Ignore => quote!(::actix_multipart::form::DuplicateAction::Ignore),
-        DuplicateAction::Deny => quote!(::actix_multipart::form::DuplicateAction::Deny),
-        DuplicateAction::Replace => quote!(::actix_multipart::form::DuplicateAction::Replace),
+    let duplicate_field = match attrs.duplicate_field {
+        DuplicateField::Ignore => quote!(::actix_multipart::form::DuplicateField::Ignore),
+        DuplicateField::Deny => quote!(::actix_multipart::form::DuplicateField::Deny),
+        DuplicateField::Replace => quote!(::actix_multipart::form::DuplicateField::Replace),
     };
 
     // read_field() implementation
@@ -232,7 +232,7 @@ pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenS
         let ty = &field.ty;
         read_field_impl.extend(quote!(
             #name => ::std::boxed::Box::pin(
-                <#ty as ::actix_multipart::form::FieldGroupReader>::handle_field(req, field, limits, state, #duplicate_action)
+                <#ty as ::actix_multipart::form::FieldGroupReader>::handle_field(req, field, limits, state, #duplicate_field)
             ),
         ));
     }

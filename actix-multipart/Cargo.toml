@@ -9,6 +9,10 @@ repository = "https://github.com/actix/actix-web.git"
 license = "MIT OR Apache-2.0"
 edition = "2018"
 
+[package.metadata.docs.rs]
+rustdoc-args = ["--cfg", "docsrs"]
+all-features = true
+
 [features]
 default = ["tempfile", "derive"]
 derive = ["actix-multipart-derive"]
@@ -19,31 +23,31 @@ name = "actix_multipart"
 path = "src/lib.rs"
 
 [dependencies]
+actix-multipart-derive = { version = "=0.4.0", optional = true }
+actix-http = "3"
 actix-utils = "3"
 actix-web = { version = "4", default-features = false }
-actix-http = "3"
-actix-multipart-derive = { version = "=0.4.0", optional = true }
 
 bytes = "1"
 derive_more = "0.99.5"
-futures-core = { version = "0.3.7", default-features = false, features = ["alloc"] }
-futures-util = { version = "0.3.7", default-features = false }
+futures-core = "0.3.17"
+futures-util = { version = "0.3.17", default-features = false, features = ["std"] }
 httparse = "1.3"
 local-waker = "0.1"
 log = "0.4"
 memchr = "2.5"
 mime = "0.3"
 serde = "1.0"
-serde_plain = "1.0"
 serde_json = "1.0"
+serde_plain = "1.0"
 # TODO(MSRV 1.60): replace with dep: prefix
 tempfile-dep = { package = "tempfile", version = "3.3.0", optional = true }
-tokio = { version = "1.8.4", features = ["sync"] }
+tokio = { version = "1.13.1", features = ["sync"] }
 
 [dev-dependencies]
+actix-multipart-rfc7578 = "0.10"
 actix-rt = "2.2"
 actix-test = "0.1.0"
 awc = "3.0.1"
-actix-multipart-rfc7578 = "0.10.0"
 futures-util = { version = "0.3.7", default-features = false, features = ["alloc"] }
 tokio-stream = "0.1"

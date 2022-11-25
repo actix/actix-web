@@ -7,9 +7,9 @@ use actix_web::{
 };
 use derive_more::{Display, Error, From};
 
-/// A set of errors that can occur during parsing multipart streams
-#[non_exhaustive]
+/// A set of errors that can occur during parsing multipart streams.
 #[derive(Debug, Display, From, Error)]
+#[non_exhaustive]
 pub enum MultipartError {
     /// Content-Disposition header is not found or is not equal to "form-data".
     ///
@@ -51,7 +51,11 @@ pub enum MultipartError {
     NotConsumed,
 
     /// An error from a field handler in a form
-    #[display(fmt = "An error occurred processing field `{field_name}`: {source}")]
+    #[display(
+        fmt = "An error occurred processing field `{}`: {}",
+        field_name,
+        source
+    )]
     Field {
         field_name: String,
         source: actix_web::Error,

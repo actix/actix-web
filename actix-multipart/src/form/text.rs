@@ -1,13 +1,13 @@
 //! Deserializes a field from plain text.
 
-use std::sync::Arc;
+use std::{str, sync::Arc};
 
 use actix_web::{http::StatusCode, web, Error, HttpRequest, ResponseError};
 use derive_more::{Deref, DerefMut, Display, Error};
 use futures_core::future::LocalBoxFuture;
-use futures_util::future::FutureExt as _;
 use serde::de::DeserializeOwned;
 
+use super::FieldErrorHandler;
 use crate::{
     form::{bytes::Bytes, FieldReader, Limits},
     Field, MultipartError,
@@ -30,7 +30,7 @@ impl<'t, T: DeserializeOwned + 'static> FieldReader<'t> for Text<T> {
     type Future = LocalBoxFuture<'t, Result<Self, MultipartError>>;
 
     fn read_field(req: &'t HttpRequest, field: Field, limits: &'t mut Limits) -> Self::Future {
-        async move {
+        Box::pin(async move {
             let config = TextConfig::from_req(req);
             let field_name = field.name().to_owned();
 
@@ -42,6 +42,7 @@ impl<'t, T: DeserializeOwned + 'static> FieldReader<'t> for Text<T> {
                     // content type defaults to text/plain, so None should be considered valid
                     true
                 };
+
                 if !valid && config.validate_content_type {
                     return Err(MultipartError::Field {
                         field_name,
@@ -52,36 +53,33 @@ impl<'t, T: DeserializeOwned + 'static> FieldReader<'t> for Text<T> {
 
             let bytes = Bytes::read_field(req, field, limits).await?;
 
-            let text = std::str::from_utf8(bytes.data.as_ref()).map_err(|e| {
-                MultipartError::Field {
-                    field_name: field_name.clone(),
-                    source: config.map_error(req, TextError::Utf8Error(e)),
-                }
+            let text = str::from_utf8(&bytes.data).map_err(|err| MultipartError::Field {
+                field_name: field_name.clone(),
+                source: config.map_error(req, TextError::Utf8Error(err)),
             })?;
 
-            Ok(Text(serde_plain::from_str(text).map_err(|e| {
+            Ok(Text(serde_plain::from_str(text).map_err(|err| {
                 MultipartError::Field {
                     field_name,
-                    source: config.map_error(req, TextError::Deserialize(e)),
+                    source: config.map_error(req, TextError::Deserialize(err)),
                 }
             })?))
-        }
-        .boxed_local()
+        })
     }
 }
 
 #[derive(Debug, Display, Error)]
 #[non_exhaustive]
 pub enum TextError {
-    /// Utf8 error
-    #[display(fmt = "Utf8 decoding error: {}", _0)]
-    Utf8Error(std::str::Utf8Error),
+    /// UTF-8 decoding error.
+    #[display(fmt = "UTF-8 decoding error: {}", _0)]
+    Utf8Error(str::Utf8Error),
 
-    /// Deserialize error
+    /// Deserialize error.
     #[display(fmt = "Plain text deserialize error: {}", _0)]
     Deserialize(serde_plain::Error),
 
-    /// Content type error
+    /// Content type error.
     #[display(fmt = "Content type error")]
     ContentType,
 }
@@ -95,8 +93,7 @@ impl ResponseError for TextError {
 /// Configuration for the [`Text`] field reader.
 #[derive(Clone)]
 pub struct TextConfig {
-    #[allow(clippy::type_complexity)]
-    err_handler: Option<Arc<dyn Fn(TextError, &HttpRequest) -> Error + Send + Sync>>,
+    err_handler: FieldErrorHandler<TextError>,
     validate_content_type: bool,
 }
 
@@ -131,6 +128,7 @@ impl TextConfig {
     }
 
     /// Sets whether or not the field must have a valid `Content-Type` header to be parsed.
+    ///
     /// Note that an empty `Content-Type` is also accepted, as the multipart specification defines
     /// `text/plain` as the default for text fields.
     pub fn validate_content_type(mut self, validate_content_type: bool) -> Self {
@@ -149,13 +147,14 @@ impl Default for TextConfig {
 mod tests {
     use std::io::Cursor;
 
-    use actix_http::StatusCode;
     use actix_multipart_rfc7578::client::multipart;
-    use actix_web::{web, App, HttpResponse, Responder};
+    use actix_web::{http::StatusCode, web, App, HttpResponse, Responder};
 
-    use crate::form::tests::send_form;
-    use crate::form::text::{Text, TextConfig};
-    use crate::form::MultipartForm;
+    use crate::form::{
+        tests::send_form,
+        text::{Text, TextConfig},
+        MultipartForm,
+    };
 
     #[derive(MultipartForm)]
     struct TextForm {

@@ -3,7 +3,7 @@
 use actix_web::HttpRequest;
 use bytes::BytesMut;
 use futures_core::future::LocalBoxFuture;
-use futures_util::{FutureExt, TryStreamExt};
+use futures_util::TryStreamExt as _;
 use mime::Mime;
 
 use crate::{
@@ -16,9 +16,11 @@ use crate::{
 pub struct Bytes {
     /// The data.
     pub data: bytes::Bytes,
-    /// The value of the `content-type` header.
+
+    /// The value of the `Content-Type` header.
     pub content_type: Option<Mime>,
-    /// The `filename` value in the `content-disposition` header.
+
+    /// The `filename` value in the `Content-Disposition` header.
     pub file_name: Option<String>,
 }
 
@@ -30,21 +32,22 @@ impl<'t> FieldReader<'t> for Bytes {
         mut field: Field,
         limits: &'t mut Limits,
     ) -> Self::Future {
-        async move {
-            let mut data = BytesMut::new();
+        Box::pin(async move {
+            let mut buf = BytesMut::new();
+
             while let Some(chunk) = field.try_next().await? {
                 limits.try_consume_limits(chunk.len(), true)?;
-                data.extend(chunk);
+                buf.extend(chunk);
             }
+
             Ok(Bytes {
-                data: data.freeze(),
+                data: buf.freeze(),
                 content_type: field.content_type().map(ToOwned::to_owned),
                 file_name: field
                     .content_disposition()
                     .get_filename()
                     .map(str::to_owned),
             })
-        }
-        .boxed_local()
+        })
     }
 }

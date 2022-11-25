@@ -1,6 +1,7 @@
 //! Writes a field to a temporary file on disk.
 
 use std::{
+    io,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -8,11 +9,12 @@ use std::{
 use actix_web::{http::StatusCode, web, Error, HttpRequest, ResponseError};
 use derive_more::{Display, Error};
 use futures_core::future::LocalBoxFuture;
-use futures_util::{FutureExt as _, TryStreamExt as _};
+use futures_util::TryStreamExt as _;
 use mime::Mime;
-use tempfile_dep::NamedTempFile;
+use tempfile::NamedTempFile;
 use tokio::io::AsyncWriteExt;
 
+use super::FieldErrorHandler;
 use crate::{
     form::{tempfile::TempfileError::FileIo, FieldReader, Limits},
     Field, MultipartError,
@@ -23,10 +25,13 @@ use crate::{
 pub struct Tempfile {
     /// The temporary file on disk.
     pub file: NamedTempFile,
+
     /// The value of the `content-type` header.
     pub content_type: Option<Mime>,
+
     /// The `filename` value in the `content-disposition` header.
     pub file_name: Option<String>,
+
     /// The size in bytes of the file.
     pub size: usize,
 }
@@ -39,21 +44,18 @@ impl<'t> FieldReader<'t> for Tempfile {
         mut field: Field,
         limits: &'t mut Limits,
     ) -> Self::Future {
-        async move {
+        Box::pin(async move {
             let config = TempfileConfig::from_req(req);
             let field_name = field.name().to_owned();
             let mut size = 0;
 
-            let file = if let Some(dir) = &config.directory {
-                NamedTempFile::new_in(dir)
-            } else {
-                NamedTempFile::new()
-            }
-            .map_err(|e| config.map_error(req, &field_name, FileIo(e)))?;
+            let file = config
+                .create_tempfile()
+                .map_err(|err| config.map_error(req, &field_name, FileIo(err)))?;
 
             let mut file_async = tokio::fs::File::from_std(
                 file.reopen()
-                    .map_err(|e| config.map_error(req, &field_name, FileIo(e)))?,
+                    .map_err(|err| config.map_error(req, &field_name, FileIo(err)))?,
             );
 
             while let Some(chunk) = field.try_next().await? {
@@ -62,12 +64,13 @@ impl<'t> FieldReader<'t> for Tempfile {
                 file_async
                     .write_all(chunk.as_ref())
                     .await
-                    .map_err(|e| config.map_error(req, &field_name, FileIo(e)))?;
+                    .map_err(|err| config.map_error(req, &field_name, FileIo(err)))?;
             }
+
             file_async
                 .flush()
                 .await
-                .map_err(|e| config.map_error(req, &field_name, FileIo(e)))?;
+                .map_err(|err| config.map_error(req, &field_name, FileIo(err)))?;
 
             Ok(Tempfile {
                 file,
@@ -78,15 +81,14 @@ impl<'t> FieldReader<'t> for Tempfile {
                     .map(str::to_owned),
                 size,
             })
-        }
-        .boxed_local()
+        })
     }
 }
 
 #[derive(Debug, Display, Error)]
 #[non_exhaustive]
 pub enum TempfileError {
-    /// IO Error
+    /// File I/O Error
     #[display(fmt = "File I/O error: {}", _0)]
     FileIo(std::io::Error),
 }
@@ -100,9 +102,18 @@ impl ResponseError for TempfileError {
 /// Configuration for the [`Tempfile`] field reader.
 #[derive(Clone)]
 pub struct TempfileConfig {
-    #[allow(clippy::type_complexity)]
-    err_handler: Option<Arc<dyn Fn(TempfileError, &HttpRequest) -> Error + Send + Sync>>,
+    err_handler: FieldErrorHandler<TempfileError>,
     directory: Option<PathBuf>,
+}
+
+impl TempfileConfig {
+    fn create_tempfile(&self) -> io::Result<NamedTempFile> {
+        if let Some(dir) = self.directory.as_deref() {
+            NamedTempFile::new_in(dir)
+        } else {
+            NamedTempFile::new()
+        }
+    }
 }
 
 const DEFAULT_CONFIG: TempfileConfig = TempfileConfig {
@@ -138,14 +149,17 @@ impl TempfileConfig {
         } else {
             err.into()
         };
+
         MultipartError::Field {
             field_name: field_name.to_owned(),
             source,
         }
     }
 
-    /// Set the directory tempfiles will be created in.
-    pub fn directory<P: AsRef<Path>>(mut self, dir: P) -> Self {
+    /// Sets the directory that temp files will be created in.
+    ///
+    /// The default temporary file location is platform dependent.
+    pub fn directory(mut self, dir: impl AsRef<Path>) -> Self {
         self.directory = Some(dir.as_ref().to_owned());
         self
     }
@@ -161,13 +175,10 @@ impl Default for TempfileConfig {
 mod tests {
     use std::io::{Cursor, Read};
 
-    use actix_http::StatusCode;
     use actix_multipart_rfc7578::client::multipart;
-    use actix_web::{web, App, HttpResponse, Responder};
+    use actix_web::{http::StatusCode, web, App, HttpResponse, Responder};
 
-    use crate::form::tempfile::Tempfile;
-    use crate::form::tests::send_form;
-    use crate::form::MultipartForm;
+    use crate::form::{tempfile::Tempfile, tests::send_form, MultipartForm};
 
     #[derive(MultipartForm)]
     struct FileForm {

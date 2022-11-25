@@ -270,7 +270,9 @@ impl InnerMultipart {
                             match field.borrow_mut().poll(safety) {
                                 Poll::Pending => return Poll::Pending,
                                 Poll::Ready(Some(Ok(_))) => continue,
-                                Poll::Ready(Some(Err(e))) => return Poll::Ready(Some(Err(e))),
+                                Poll::Ready(Some(Err(err))) => {
+                                    return Poll::Ready(Some(Err(err)))
+                                }
                                 Poll::Ready(None) => true,
                             }
                         }
@@ -658,7 +660,7 @@ impl InnerField {
                 match res {
                     Poll::Pending => return Poll::Pending,
                     Poll::Ready(Some(Ok(bytes))) => return Poll::Ready(Some(Ok(bytes))),
-                    Poll::Ready(Some(Err(e))) => return Poll::Ready(Some(Err(e))),
+                    Poll::Ready(Some(Err(err))) => return Poll::Ready(Some(Err(err))),
                     Poll::Ready(None) => self.eof = true,
                 }
             }
@@ -673,7 +675,7 @@ impl InnerField {
                     }
                     Poll::Ready(None)
                 }
-                Err(e) => Poll::Ready(Some(Err(e))),
+                Err(err) => Poll::Ready(Some(Err(err))),
             }
         } else {
             Poll::Pending
@@ -794,7 +796,7 @@ impl PayloadBuffer {
         loop {
             match Pin::new(&mut self.stream).poll_next(cx) {
                 Poll::Ready(Some(Ok(data))) => self.buf.extend_from_slice(&data),
-                Poll::Ready(Some(Err(e))) => return Err(e),
+                Poll::Ready(Some(Err(err))) => return Err(err),
                 Poll::Ready(None) => {
                     self.eof = true;
                     return Ok(());
@@ -863,10 +865,12 @@ mod tests {
     use std::time::Duration;
 
     use actix_http::h1::Payload;
-    use actix_web::http::header::{DispositionParam, DispositionType};
-    use actix_web::rt;
-    use actix_web::test::TestRequest;
-    use actix_web::FromRequest;
+    use actix_web::{
+        http::header::{DispositionParam, DispositionType},
+        rt,
+        test::TestRequest,
+        FromRequest,
+    };
     use bytes::Bytes;
     use futures_util::{future::lazy, StreamExt};
     use tokio::sync::mpsc;
