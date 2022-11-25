@@ -59,13 +59,17 @@ jobs:
           cargo install cargo-edit --version=0.8.0
           cargo add const-str@0.3 --dev -p=actix-web
           cargo add const-str@0.3 --dev -p=awc
-          cargo update -p=zstd-sys --precise=2.0.1+zstd.1.5.2
 
       - name: Generate Cargo.lock
         uses: actions-rs/cargo@v1
         with: { command: generate-lockfile }
       - name: Cache Dependencies
         uses: Swatinem/rust-cache@v1.2.0
+
+      - name: workaround MSRV issues
+        if: matrix.version != 'stable'
+        run: |
+          cargo update -p=zstd-sys --precise=2.0.1+zstd.1.5.2
 
       - name: check minimal
         uses: actions-rs/cargo@v1
