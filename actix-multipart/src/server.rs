@@ -860,7 +860,7 @@ impl PayloadBuffer {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::time::Duration;
 
     use actix_http::h1::Payload;
     use actix_web::http::header::{DispositionParam, DispositionType};
@@ -869,9 +869,10 @@ mod tests {
     use actix_web::FromRequest;
     use bytes::Bytes;
     use futures_util::{future::lazy, StreamExt};
-    use std::time::Duration;
     use tokio::sync::mpsc;
     use tokio_stream::wrappers::UnboundedReceiverStream;
+
+    use super::*;
 
     #[actix_rt::test]
     async fn test_boundary() {

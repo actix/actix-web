@@ -1,14 +1,17 @@
 //! Deserializes a field as JSON.
-use crate::form::bytes::Bytes;
-use crate::form::{FieldReader, Limits};
-use crate::{Field, MultipartError};
-use actix_web::http::StatusCode;
-use actix_web::{web, Error, HttpRequest, ResponseError};
+
+use std::sync::Arc;
+
+use actix_web::{http::StatusCode, web, Error, HttpRequest, ResponseError};
 use derive_more::{Deref, DerefMut, Display, Error};
 use futures_core::future::LocalBoxFuture;
 use futures_util::FutureExt;
 use serde::de::DeserializeOwned;
-use std::sync::Arc;
+
+use crate::{
+    form::{bytes::Bytes, FieldReader, Limits},
+    Field, MultipartError,
+};
 
 /// Deserialize from JSON.
 #[derive(Debug, Deref, DerefMut)]
@@ -76,6 +79,7 @@ impl ResponseError for JsonFieldError {
 /// Configuration for the [`Json`] field reader.
 #[derive(Clone)]
 pub struct JsonConfig {
+    #[allow(clippy::type_complexity)]
     err_handler: Option<Arc<dyn Fn(JsonFieldError, &HttpRequest) -> Error + Send + Sync>>,
     validate_content_type: bool,
 }
@@ -125,14 +129,17 @@ impl Default for JsonConfig {
 
 #[cfg(test)]
 mod tests {
-    use crate::form::json::{Json, JsonConfig};
-    use crate::form::tests::send_form;
-    use crate::form::MultipartForm;
+    use std::{collections::HashMap, io::Cursor};
+
     use actix_http::StatusCode;
     use actix_multipart_rfc7578::client::multipart;
     use actix_web::{web, App, HttpResponse, Responder};
-    use std::collections::HashMap;
-    use std::io::Cursor;
+
+    use crate::form::{
+        json::{Json, JsonConfig},
+        tests::send_form,
+        MultipartForm,
+    };
 
     #[derive(MultipartForm)]
     struct JsonForm {

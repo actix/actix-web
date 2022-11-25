@@ -1,10 +1,17 @@
-extern crate proc_macro;
+//! Multipart form derive macro for Actix Web.
+
+#![deny(rust_2018_idioms, nonstandard_style)]
+#![warn(future_incompatible)]
+#![doc(html_logo_url = "https://actix.rs/img/logo.png")]
+#![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
+use std::{collections::HashSet, convert::TryFrom as _};
 
 use darling::{FromDeriveInput, FromField, FromMeta};
 use parse_size::parse_size;
 use proc_macro2::Ident;
 use quote::quote;
-use std::collections::HashSet;
 use syn::{parse_macro_input, Type};
 
 #[derive(FromDeriveInput, Default)]
@@ -41,6 +48,110 @@ struct ParsedField<'t> {
     ty: &'t Type,
 }
 
+/// Implements the `MultipartFormTrait` for a struct so that it can be used with the `MultipartForm`
+/// extractor.
+///
+/// # Examples
+///
+/// ## Basic Use
+///
+/// Each field type should implement the `FieldReader` trait:
+///
+/// ```
+/// # use actix_multipart::form::tempfile::Tempfile;
+/// # use actix_multipart::form::text::Text;
+/// # use actix_multipart::form::MultipartForm;
+/// #[derive(MultipartForm)]
+/// struct ImageUpload {
+///     description: Text<String>,
+///     timestamp: Text<i64>,
+///     image: Tempfile,
+/// }
+/// ```
+///
+/// ## Optional and List Fields
+///
+/// You can also use `Vec<T>` and `Option<T>` provided that `T: FieldReader`.
+///
+/// A [`Vec`] field corresponds to an upload with multiple parts under the
+/// [same field name](https://www.rfc-editor.org/rfc/rfc7578#section-4.3).
+///
+/// ```
+/// # use actix_multipart::form::tempfile::Tempfile;
+/// # use actix_multipart::form::text::Text;
+/// # use actix_multipart::form::MultipartForm;
+/// #[derive(MultipartForm)]
+/// struct Form {
+///     category: Option<Text<String>>,
+///     files: Vec<Tempfile>,
+/// }
+/// ```
+///
+/// ## Field Renaming
+///
+/// You can use the `#[multipart(rename = "foo")]` attribute to receive a field by a different name.
+///
+/// ```
+/// # use actix_multipart::form::tempfile::Tempfile;
+/// # use actix_multipart::form::MultipartForm;
+/// #[derive(MultipartForm)]
+/// struct Form {
+///     #[multipart(rename = "files[]")]
+///     files: Vec<Tempfile>,
+/// }
+/// ```
+///
+/// ## Field Limits
+///
+/// You can use the `#[multipart(limit = "<size>")]` attribute to set field level limits. The limit
+/// string is parsed using [parse_size].
+///
+/// Note: the form is also subject to the global limits configured using `MultipartFormConfig`.
+///
+/// ```
+/// # use actix_multipart::form::tempfile::Tempfile;
+/// # use actix_multipart::form::text::Text;
+/// # use actix_multipart::form::MultipartForm;
+/// #[derive(MultipartForm)]
+/// struct Form {
+///     #[multipart(limit = "2KiB")]
+///     description: Text<String>,
+///     #[multipart(limit = "512MiB")]
+///     files: Vec<Tempfile>,
+/// }
+/// ```
+///
+/// ## Unknown Fields
+///
+/// By default fields with an unknown name are ignored. You can change this using the
+/// `#[multipart(deny_unknown_fields)]` attribute:
+///
+/// ```
+/// # use actix_multipart::form::MultipartForm;
+/// #[derive(MultipartForm)]
+/// #[multipart(deny_unknown_fields)]
+/// struct Form { }
+/// ```
+///
+/// ## Duplicate Fields
+///
+/// You can change the behaviour for when multiple fields are received with the same name using the
+/// `#[multipart(duplicate_action = "")]` attribute:
+///
+/// - "ignore": Extra fields are ignored (default).
+/// - "replace": Each field is processed, but only the last one is persisted.
+/// - "deny": A `MultipartError::UnsupportedField` error is returned.
+///
+/// (Note this option does not apply to `Vec` fields)
+///
+/// ```
+/// # use actix_multipart::form::MultipartForm;
+/// #[derive(MultipartForm)]
+/// #[multipart(duplicate_action = "deny")]
+/// struct Form { }
+/// ```
+///
+/// [parse_size]: https://docs.rs/parse-size/1/parse_size
 #[proc_macro_derive(MultipartForm, attributes(multipart))]
 pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input: syn::DeriveInput = parse_macro_input!(input);
@@ -69,9 +180,12 @@ pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenS
             let attrs: FieldAttrs = FieldAttrs::from_field(field)?;
             let serialization_name = attrs.rename.unwrap_or_else(|| rust_name.to_string());
 
-            let limit = attrs.limit.map(|l| {
-                parse_size(&l).unwrap_or_else(|_| panic!("Unable to parse limit `{l}`"))
-                    as usize
+            let limit = attrs.limit.map(|limit| {
+                usize::try_from(
+                    parse_size(&limit)
+                        .unwrap_or_else(|_| panic!("Unable to parse limit `{}`", limit)),
+                )
+                .unwrap()
             });
 
             Ok(ParsedField {

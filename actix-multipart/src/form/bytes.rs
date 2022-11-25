@@ -1,11 +1,15 @@
 //! Reads a field into memory.
-use crate::form::{FieldReader, Limits};
-use crate::{Field, MultipartError};
+
 use actix_web::HttpRequest;
 use bytes::BytesMut;
 use futures_core::future::LocalBoxFuture;
 use futures_util::{FutureExt, TryStreamExt};
 use mime::Mime;
+
+use crate::{
+    form::{FieldReader, Limits},
+    Field, MultipartError,
+};
 
 /// Read the field into memory.
 #[derive(Debug)]

@@ -1,16 +1,24 @@
 [package]
 name = "actix-multipart-derive"
-version = "0.2.0"
+version = "0.4.0"
 authors = ["Jacob Halsey <jacob@jhalsey.com>"]
-edition = "2021"
+description = "Multipart form derive macro for Actix Web"
+keywords = ["http", "web", "framework", "async", "futures"]
+homepage = "https://actix.rs"
+repository = "https://github.com/actix/actix-web.git"
 license = "MIT OR Apache-2.0"
+edition = "2018"
 
 [lib]
 proc-macro = true
 
 [dependencies]
-darling = "0.14.1"
-proc-macro2 = "1.0.37"
-quote = "1.0.18"
-syn = "1.0.92"
-parse-size = "1.0.0"
+darling = "0.14"
+parse-size = "1"
+proc-macro2 = "1"
+quote = "1"
+syn = "1"
+
+[dev-dependencies]
+actix-multipart = "0.4"
+actix-web = "4"

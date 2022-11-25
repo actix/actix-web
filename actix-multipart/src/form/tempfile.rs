@@ -1,17 +1,22 @@
 //! Writes a field to a temporary file on disk.
-use crate::form::tempfile::TempfileError::FileIo;
-use crate::form::{FieldReader, Limits};
-use crate::{Field, MultipartError};
-use actix_web::http::StatusCode;
-use actix_web::{web, Error, HttpRequest, ResponseError};
+
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
+
+use actix_web::{http::StatusCode, web, Error, HttpRequest, ResponseError};
 use derive_more::{Display, Error};
 use futures_core::future::LocalBoxFuture;
-use futures_util::{FutureExt, TryStreamExt};
+use futures_util::{FutureExt as _, TryStreamExt as _};
 use mime::Mime;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use tempfile_dep::NamedTempFile;
 use tokio::io::AsyncWriteExt;
+
+use crate::{
+    form::{tempfile::TempfileError::FileIo, FieldReader, Limits},
+    Field, MultipartError,
+};
 
 /// Write the field to a temporary file on disk.
 #[derive(Debug)]
@@ -95,6 +100,7 @@ impl ResponseError for TempfileError {
 /// Configuration for the [`Tempfile`] field reader.
 #[derive(Clone)]
 pub struct TempfileConfig {
+    #[allow(clippy::type_complexity)]
     err_handler: Option<Arc<dyn Fn(TempfileError, &HttpRequest) -> Error + Send + Sync>>,
     directory: Option<PathBuf>,
 }
@@ -153,13 +159,15 @@ impl Default for TempfileConfig {
 
 #[cfg(test)]
 mod tests {
-    use crate::form::tempfile::Tempfile;
-    use crate::form::tests::send_form;
-    use crate::form::MultipartForm;
+    use std::io::{Cursor, Read};
+
     use actix_http::StatusCode;
     use actix_multipart_rfc7578::client::multipart;
     use actix_web::{web, App, HttpResponse, Responder};
-    use std::io::{Cursor, Read};
+
+    use crate::form::tempfile::Tempfile;
+    use crate::form::tests::send_form;
+    use crate::form::MultipartForm;
 
     #[derive(MultipartForm)]
     struct FileForm {

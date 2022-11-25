@@ -1,14 +1,17 @@
 //! Deserializes a field from plain text.
-use crate::form::bytes::Bytes;
-use crate::form::{FieldReader, Limits};
-use crate::{Field, MultipartError};
-use actix_web::http::StatusCode;
-use actix_web::{web, Error, HttpRequest, ResponseError};
+
+use std::sync::Arc;
+
+use actix_web::{http::StatusCode, web, Error, HttpRequest, ResponseError};
 use derive_more::{Deref, DerefMut, Display, Error};
 use futures_core::future::LocalBoxFuture;
-use futures_util::FutureExt;
+use futures_util::future::FutureExt as _;
 use serde::de::DeserializeOwned;
-use std::sync::Arc;
+
+use crate::{
+    form::{bytes::Bytes, FieldReader, Limits},
+    Field, MultipartError,
+};
 
 /// Deserialize from plain text.
 ///
@@ -92,6 +95,7 @@ impl ResponseError for TextError {
 /// Configuration for the [`Text`] field reader.
 #[derive(Clone)]
 pub struct TextConfig {
+    #[allow(clippy::type_complexity)]
     err_handler: Option<Arc<dyn Fn(TextError, &HttpRequest) -> Error + Send + Sync>>,
     validate_content_type: bool,
 }
@@ -143,13 +147,15 @@ impl Default for TextConfig {
 
 #[cfg(test)]
 mod tests {
-    use crate::form::tests::send_form;
-    use crate::form::text::{Text, TextConfig};
-    use crate::form::MultipartForm;
+    use std::io::Cursor;
+
     use actix_http::StatusCode;
     use actix_multipart_rfc7578::client::multipart;
     use actix_web::{web, App, HttpResponse, Responder};
-    use std::io::Cursor;
+
+    use crate::form::tests::send_form;
+    use crate::form::text::{Text, TextConfig};
+    use crate::form::MultipartForm;
 
     #[derive(MultipartForm)]
     struct TextForm {

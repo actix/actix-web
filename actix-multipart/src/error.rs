@@ -1,7 +1,10 @@
 //! Error and Result module
-use actix_web::error::{ParseError, PayloadError};
-use actix_web::http::StatusCode;
-use actix_web::ResponseError;
+
+use actix_web::{
+    error::{ParseError, PayloadError},
+    http::StatusCode,
+    ResponseError,
+};
 use derive_more::{Display, Error, From};
 
 /// A set of errors that can occur during parsing multipart streams

@@ -1,124 +1,29 @@
 //! Process and extract typed data from a multipart stream.
-pub mod bytes;
-pub mod json;
-#[cfg(feature = "tempfile")]
-pub mod tempfile;
-pub mod text;
 
-use crate::{Field, Multipart, MultipartError};
-use actix_http::error::PayloadError;
-use actix_web::dev::Payload;
-use actix_web::{web, Error, FromRequest, HttpRequest};
+use std::{
+    any::Any,
+    collections::HashMap,
+    future::{ready, Future},
+    sync::Arc,
+};
+
+use actix_web::{dev::Payload, error::PayloadError, web, Error, FromRequest, HttpRequest};
 use derive_more::{Deref, DerefMut};
 use futures_core::future::LocalBoxFuture;
 use futures_util::TryFutureExt;
 use futures_util::{FutureExt, TryStreamExt};
-use std::any::Any;
-use std::collections::HashMap;
-use std::future::{ready, Future};
-use std::sync::Arc;
 
-/// Implements the [`MultipartFormTrait`] for a struct so that it can be used with the
-/// [`struct@MultipartForm`] extractor.
-///
-/// ## Simple Example
-///
-/// Each field type should implement the [`FieldReader`] trait:
-///
-/// ```
-/// # use actix_multipart::form::tempfile::Tempfile;
-/// # use actix_multipart::form::text::Text;
-/// # use actix_multipart::form::MultipartForm;
-/// #[derive(MultipartForm)]
-/// struct ImageUpload {
-///     description: Text<String>,
-///     timestamp: Text<i64>,
-///     image: Tempfile,
-/// }
-/// ```
-///
-/// ## Optional and List Fields
-///
-/// You can also use `Vec<T>` and `Option<T>` provided that `T: FieldReader`.
-///
-/// A [`Vec`] field corresponds to an upload with multiple parts under the
-/// [same field name](https://www.rfc-editor.org/rfc/rfc7578#section-4.3).
-///
-/// ```
-/// # use actix_multipart::form::tempfile::Tempfile;
-/// # use actix_multipart::form::text::Text;
-/// # use actix_multipart::form::MultipartForm;
-/// #[derive(MultipartForm)]
-/// struct Form {
-///     category: Option<Text<String>>,
-///     files: Vec<Tempfile>,
-/// }
-/// ```
-///
-/// ## Field Renaming
-///
-/// You can use the `#[multipart(rename="")]` attribute to receive a field by a different name.
-///
-/// ```
-/// # use actix_multipart::form::tempfile::Tempfile;
-/// # use actix_multipart::form::MultipartForm;
-/// #[derive(MultipartForm)]
-/// struct Form {
-///     #[multipart(rename="files[]")]
-///     files: Vec<Tempfile>,
-/// }
-/// ```
-///
-/// ## Field Limits
-///
-/// You can use the `#[multipart(limit="")]` attribute to set field level limits. The limit
-/// string is parsed using [parse_size](https://docs.rs/parse-size/1.0.0/parse_size/).
-///
-/// Note: the form is also subject to the global limits configured using the
-/// [`MultipartFormConfig`].
-///
-/// ```
-/// # use actix_multipart::form::tempfile::Tempfile;
-/// # use actix_multipart::form::text::Text;
-/// # use actix_multipart::form::MultipartForm;
-/// #[derive(MultipartForm)]
-/// struct Form {
-///     #[multipart(limit="2KiB")]
-///     description: Text<String>,
-///     #[multipart(limit="512MiB")]
-///     files: Vec<Tempfile>,
-/// }
-/// ```
-///
-/// ## Unknown Fields
-///
-/// By default fields with an unknown name are ignored. You can change this using the
-/// `#[multipart(deny_unknown_fields)]` attribute:
-///
-/// ```
-/// # use actix_multipart::form::MultipartForm;
-/// #[derive(MultipartForm)]
-/// #[multipart(deny_unknown_fields)]
-/// struct Form { }
-/// ```
-///
-/// ## Duplicate Fields
-///
-/// You can change the behaviour for when multiple fields are received with the same name using the
-/// `#[multipart(duplicate_action = "")]` attribute:
-///
-/// - "ignore": Extra fields are ignored (default).
-/// - "replace": Each field is processed, but only the last one is persisted.
-/// - "deny": A [MultipartError::UnsupportedField] error is returned.
-///
-/// (Note this option does not apply to `Vec` fields)
-///
-/// ```
-/// # use actix_multipart::form::MultipartForm;
-/// #[derive(MultipartForm)]
-/// #[multipart(duplicate_action = "deny")]
-/// struct Form { }
-/// ```
+use crate::{Field, Multipart, MultipartError};
+
+pub mod bytes;
+pub mod json;
+#[cfg_attr(docsrs, doc(cfg(feature = "tempfile")))]
+#[cfg(feature = "tempfile")]
+pub mod tempfile;
+pub mod text;
+
+#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
+#[cfg(feature = "derive")]
 pub use actix_multipart_derive::MultipartForm;
 
 /// Trait that data types to be used in a multipart form struct should implement.
@@ -137,7 +42,7 @@ pub trait FieldReader<'t>: Sized + Any {
 #[derive(Default, Deref, DerefMut)]
 pub struct State(pub HashMap<String, Box<dyn Any>>);
 
-// Trait that the field collection types implement, i.e. `Vec<T>`, `Option<T>`, or `T` itself.
+/// Trait that the field collection types implement, i.e. `Vec<T>`, `Option<T>`, or `T` itself.
 #[doc(hidden)]
 pub trait FieldGroupReader<'t>: Sized + Any {
     type Future: Future<Output = Result<(), MultipartError>>;
@@ -472,11 +377,6 @@ impl Default for MultipartFormConfig {
 
 #[cfg(test)]
 mod tests {
-    use super::MultipartForm;
-    use crate::form::bytes::Bytes;
-    use crate::form::tempfile::Tempfile;
-    use crate::form::text::Text;
-    use crate::form::MultipartFormConfig;
     use actix_http::encoding::Decoder;
     use actix_http::Payload;
     use actix_multipart_rfc7578::client::multipart;
@@ -484,6 +384,12 @@ mod tests {
     use actix_web::http::StatusCode;
     use actix_web::{web, App, HttpResponse, Responder};
     use awc::{Client, ClientResponse};
+
+    use super::MultipartForm;
+    use crate::form::bytes::Bytes;
+    use crate::form::tempfile::Tempfile;
+    use crate::form::text::Text;
+    use crate::form::MultipartFormConfig;
 
     pub async fn send_form(
         srv: &TestServer,
@@ -709,7 +615,7 @@ mod tests {
     async fn test_upload_limits_memory(
         form: MultipartForm<TestMemoryUploadLimits>,
     ) -> impl Responder {
-        assert!(form.field.data.len() > 0);
+        assert!(!form.field.data.is_empty());
         HttpResponse::Ok().finish()
     }
 
@@ -787,7 +693,7 @@ mod tests {
     async fn test_field_level_limits_route(
         form: MultipartForm<TestFieldLevelLimits>,
     ) -> impl Responder {
-        assert!(form.field.len() > 0);
+        assert!(!form.field.is_empty());
         HttpResponse::Ok().finish()
     }
 

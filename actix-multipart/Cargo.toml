@@ -10,7 +10,8 @@ license = "MIT OR Apache-2.0"
 edition = "2018"
 
 [features]
-default = ["tempfile"]
+default = ["tempfile", "derive"]
+derive = ["actix-multipart-derive"]
 tempfile = ["tempfile-dep", "tokio/fs"]
 
 [lib]
@@ -21,7 +22,7 @@ path = "src/lib.rs"
 actix-utils = "3"
 actix-web = { version = "4", default-features = false }
 actix-http = "3"
-actix-multipart-derive = { path = "../actix-multipart-derive" }
+actix-multipart-derive = { version = "=0.4.0", optional = true }
 
 bytes = "1"
 derive_more = "0.99.5"
@@ -35,7 +36,7 @@ mime = "0.3"
 serde = "1.0"
 serde_plain = "1.0"
 serde_json = "1.0"
-# TODO: Replace with dep: prefix in newer versions of Cargo
+# TODO(MSRV 1.60): replace with dep: prefix
 tempfile-dep = { package = "tempfile", version = "3.3.0", optional = true }
 tokio = { version = "1.8.4", features = ["sync"] }
 
