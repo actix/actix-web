@@ -14,7 +14,7 @@
 //! - [`Json`]: JSON request payload
 //! - [`Bytes`]: Raw request payload
 
-use std::future::Future;
+use std::{borrow::Cow, future::Future};
 
 use actix_router::IntoPatterns;
 pub use bytes::{Buf, BufMut, Bytes, BytesMut};
@@ -26,6 +26,7 @@ use crate::{
 
 pub use crate::config::ServiceConfig;
 pub use crate::data::Data;
+pub use crate::redirect::Redirect;
 pub use crate::request_data::ReqData;
 pub use crate::types::*;
 
@@ -181,6 +182,23 @@ where
 /// ```
 pub fn service<T: IntoPatterns>(path: T) -> WebService {
     WebService::new(path)
+}
+
+/// Create a relative or absolute redirect.
+///
+/// See [`Redirect`] docs for usage details.
+///
+/// ```
+/// use actix_web::{web, App};
+///
+/// let app = App::new()
+///     .service(web::redirect("/one", "/two"));
+/// ```
+pub fn redirect(
+    from: impl Into<Cow<'static, str>>,
+    to: impl Into<Cow<'static, str>>,
+) -> Redirect {
+    Redirect::new(from, to)
 }
 
 /// Executes blocking function on a thread pool, returns future that resolves to result of the
