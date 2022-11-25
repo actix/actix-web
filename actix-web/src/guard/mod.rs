@@ -196,6 +196,7 @@ impl AnyGuard {
 }
 
 impl Guard for AnyGuard {
+    #[inline]
     fn check(&self, ctx: &GuardContext<'_>) -> bool {
         for guard in &self.guards {
             if guard.check(ctx) {
@@ -247,12 +248,14 @@ impl AllGuard {
 }
 
 impl Guard for AllGuard {
+    #[inline]
     fn check(&self, ctx: &GuardContext<'_>) -> bool {
         for guard in &self.guards {
             if !guard.check(ctx) {
                 return false;
             }
         }
+
         true
     }
 }
@@ -271,6 +274,7 @@ impl Guard for AllGuard {
 pub struct Not<G>(pub G);
 
 impl<G: Guard> Guard for Not<G> {
+    #[inline]
     fn check(&self, ctx: &GuardContext<'_>) -> bool {
         !self.0.check(ctx)
     }
