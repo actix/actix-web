@@ -11,8 +11,10 @@
 //! - [`Bytes`]: Raw payload
 //!
 //! # Responders
-//! - [`Json`]: JSON request payload
-//! - [`Bytes`]: Raw request payload
+//! - [`Json`]: JSON response
+//! - [`Form`]: URL-encoded response
+//! - [`Bytes`]: Raw bytes response
+//! - [`Redirect`](Redirect::to): Convenient redirect responses
 
 use std::{borrow::Cow, future::Future};
 
@@ -46,6 +48,7 @@ pub use crate::types::*;
 /// For instance, to route `GET`-requests on any route matching `/users/{userid}/{friend}` and store
 /// `userid` and `friend` in the exposed `Path` object:
 ///
+/// # Examples
 /// ```
 /// use actix_web::{web, App, HttpResponse};
 ///
@@ -75,6 +78,7 @@ pub fn resource<T: IntoPatterns>(path: T) -> Resource {
 /// - `/{project_id}/path2`
 /// - `/{project_id}/path3`
 ///
+/// # Examples
 /// ```
 /// use actix_web::{web, App, HttpResponse};
 ///
@@ -188,11 +192,13 @@ pub fn service<T: IntoPatterns>(path: T) -> WebService {
 ///
 /// See [`Redirect`] docs for usage details.
 ///
+/// # Examples
 /// ```
 /// use actix_web::{web, App};
 ///
 /// let app = App::new()
-///     .service(web::redirect("/one", "/two"));
+///     // the client will resolve this redirect to /api/to-path
+///     .service(web::redirect("/api/from-path", "to-path"));
 /// ```
 pub fn redirect(
     from: impl Into<Cow<'static, str>>,

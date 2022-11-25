@@ -107,7 +107,6 @@ pub use crate::error::Result;
 pub use crate::error::{Error, ResponseError};
 pub use crate::extract::FromRequest;
 pub use crate::handler::Handler;
-pub use crate::redirect::Redirect;
 pub use crate::request::HttpRequest;
 pub use crate::resource::Resource;
 pub use crate::response::{CustomizeResponder, HttpResponse, HttpResponseBuilder, Responder};

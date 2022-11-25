@@ -3,7 +3,6 @@
 use std::borrow::Cow;
 
 use actix_utils::future::ready;
-use log::debug;
 
 use crate::{
     dev::{fn_service, AppService, HttpServiceFactory, ResourceDef, ServiceRequest},
@@ -13,25 +12,35 @@ use crate::{
 
 /// An HTTP service for redirecting one path to another path or URL.
 ///
-/// Redirects are either [relative](Redirect::to) or [absolute](Redirect::to).
-///
 /// By default, the "307 Temporary Redirect" status is used when responding. See [this MDN
-/// article](mdn-redirects) on why 307 is preferred over 302.
+/// article][mdn-redirects] on why 307 is preferred over 302.
 ///
 /// # Examples
+/// As service:
 /// ```
 /// use actix_web::{web, App};
 ///
 /// App::new()
 ///     // redirect "/duck" to DuckDuckGo
-///     .service(web::Redirect::new("/duck", "https://duckduckgo.com/"))
+///     .service(web::redirect("/duck", "https://duck.com"))
 ///     .service(
-///         // redirect "/api/old" to "/api/new" using `web::redirect` helper
+///         // redirect "/api/old" to "/api/new"
 ///         web::scope("/api").service(web::redirect("/old", "/new"))
 ///     );
 /// ```
 ///
-/// [mdn-redirects]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Redirections#permanent_redirections
+/// As responder:
+/// ```
+/// use actix_web::web::Redirect;
+///
+/// async fn handler() -> impl Responder {
+///     // sends a permanent (308) redirect to duck.com
+///     Redirect::to("https://duck.com").permanent()
+/// }
+/// # actix_web::web::to(handler);
+/// ```
+///
+/// [mdn-redirects]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Redirections#temporary_redirections
 #[derive(Debug, Clone)]
 pub struct Redirect {
     from: Cow<'static, str>,
@@ -40,23 +49,26 @@ pub struct Redirect {
 }
 
 impl Redirect {
-    /// Create a new `Redirect` service, first providing the path that should be redirected.
+    /// Construct a new `Redirect` service that matches a path.
     ///
-    /// The default "to" location is the root path (`/`). It is expected that you should call either
-    /// [`to`](Redirect::to) or [`to`](Redirect::to) afterwards.
+    /// This service will match exact paths equal to `from` within the current scope. I.e., when
+    /// registered on the root `App`, it will match exact, whole paths. But when registered on a
+    /// `Scope`, it will match paths under that scope, ignoring the defined scope prefix, just like
+    /// a normal `Resource` or `Route`.
     ///
-    /// Note this function has no effect when used as a responder.
+    /// The `to` argument can be path or URL; whatever is provided shall be used verbatim when
+    /// setting the redirect location. This means that relative paths can be used to navigate
+    /// relatively to matched paths.
     ///
-    /// Redirect to an address or path.
-    ///
-    /// Whatever argument is provided shall be used as-is when setting the redirect location.
-    /// You can also use relative paths to navigate relative to the matched path.
+    /// Prefer [`Redirect::to()`](Self::to) when using `Redirect` as a responder since `from` has
+    /// no meaning in that context.
     ///
     /// # Examples
     /// ```
-    /// # use actix_web::web::Redirect;
-    /// // redirects "/oh/hi/mark" to "/oh/bye/mark"
-    /// Redirect::new("/oh/hi/mark", "../../bye/mark");
+    /// # use actix_web::{web::Redirect, App};
+    /// App::new()
+    ///     // redirects "/oh/hi/mark" to "/oh/bye/johnny"
+    ///     .service(Redirect::new("/oh/hi/mark", "../../bye/johnny"));
     /// ```
     pub fn new(from: impl Into<Cow<'static, str>>, to: impl Into<Cow<'static, str>>) -> Self {
         Self {
@@ -66,9 +78,20 @@ impl Redirect {
         }
     }
 
-    /// Shortcut for creating a redirect to use as a `Responder`.
+    /// Construct a new `Redirect` to use as a responder.
     ///
-    /// Only receives a `to` argument since responders do not need to do route matching.
+    /// Only receives the `to` argument since responders do not need to do route matching.
+    ///
+    /// # Examples
+    /// ```
+    /// use actix_web::web::Redirect;
+    ///
+    /// async fn admin_page() -> impl Responder {
+    ///     // sends a temporary 307 redirect to the login path
+    ///     Redirect::to("/login")
+    /// }
+    /// # actix_web::web::to(handler);
+    /// ```
     pub fn to(to: impl Into<Cow<'static, str>>) -> Self {
         Self {
             from: "/".into(),
@@ -79,7 +102,7 @@ impl Redirect {
 
     /// Use the "308 Permanent Redirect" status when responding.
     ///
-    /// See [this MDN article](mdn-redirects) on why 308 is preferred over 301.
+    /// See [this MDN article][mdn-redirects] on why 308 is preferred over 301.
     ///
     /// [mdn-redirects]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Redirections#permanent_redirections
     pub fn permanent(self) -> Self {
@@ -88,11 +111,18 @@ impl Redirect {
 
     /// Use the "307 Temporary Redirect" status when responding.
     ///
-    /// See [this MDN article](mdn-redirects) on why 307 is preferred over 302.
+    /// See [this MDN article][mdn-redirects] on why 307 is preferred over 302.
     ///
     /// [mdn-redirects]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Redirections#temporary_redirections
     pub fn temporary(self) -> Self {
         self.using_status_code(StatusCode::TEMPORARY_REDIRECT)
+    }
+
+    /// Use the "303 See Other" status when responding.
+    ///
+    /// This status code is semantically correct as the response to a successful login, for example.
+    pub fn see_other(self) -> Self {
+        self.using_status_code(StatusCode::SEE_OTHER)
     }
 
     /// Allows the use of custom status codes for less common redirect types.
@@ -102,8 +132,7 @@ impl Redirect {
     /// 301 and 302 codes, respectively.
     ///
     /// ```
-    /// # use actix_web::http::StatusCode;
-    /// # use actix_web::web::Redirect;
+    /// # use actix_web::{http::StatusCode, web::Redirect};
     /// // redirects would use "301 Moved Permanently" status code
     /// Redirect::new("/old", "/new")
     ///     .using_status_code(StatusCode::MOVED_PERMANENTLY);
@@ -140,7 +169,7 @@ impl Responder for Redirect {
         if let Ok(hdr_val) = self.to.parse() {
             res.headers_mut().insert(LOCATION, hdr_val);
         } else {
-            debug!(
+            log::error!(
                 "redirect target location can not be converted to header value: {:?}",
                 self.to
             );

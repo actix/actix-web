@@ -56,6 +56,9 @@ use actix_http::{header, uri::Uri, Extensions, Method as HttpMethod, RequestHead
 
 use crate::{http::header::Header, service::ServiceRequest, HttpMessage as _};
 
+mod acceptable;
+pub use self::acceptable::Acceptable;
+
 /// Provides access to request parts that are useful during routing.
 #[derive(Debug)]
 pub struct GuardContext<'a> {
