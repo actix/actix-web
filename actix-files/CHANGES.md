@@ -6,7 +6,7 @@
 - Update tokio-uring to 0.4
 
 [#2903]: https://github.com/actix/actix-web/pull/2903
-[#????]: pending
+[#2934]: https://github.com/actix/actix-web/pull/2934
 
 ## 0.6.2 - 2022-07-23
 - Allow partial range responses for video content to start streaming sooner. [#2817]
