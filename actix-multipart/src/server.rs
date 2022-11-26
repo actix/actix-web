@@ -864,7 +864,7 @@ impl PayloadBuffer {
 mod tests {
     use std::time::Duration;
 
-    use actix_http::h1::Payload;
+    use actix_http::h1;
     use actix_web::{
         http::header::{DispositionParam, DispositionType},
         rt,
@@ -1124,7 +1124,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_basic() {
-        let (_, payload) = Payload::create(false);
+        let (_, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new(payload);
 
         assert_eq!(payload.buf.len(), 0);
@@ -1134,7 +1134,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_eof() {
-        let (mut sender, payload) = Payload::create(false);
+        let (mut sender, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new(payload);
 
         assert_eq!(None, payload.read_max(4).unwrap());
@@ -1150,7 +1150,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_err() {
-        let (mut sender, payload) = Payload::create(false);
+        let (mut sender, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new(payload);
         assert_eq!(None, payload.read_max(1).unwrap());
         sender.set_error(PayloadError::Incomplete(None));
@@ -1159,7 +1159,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_readmax() {
-        let (mut sender, payload) = Payload::create(false);
+        let (mut sender, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new(payload);
 
         sender.feed_data(Bytes::from("line1"));
@@ -1176,7 +1176,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_readexactly() {
-        let (mut sender, payload) = Payload::create(false);
+        let (mut sender, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new(payload);
 
         assert_eq!(None, payload.read_exact(2));
@@ -1194,7 +1194,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_readuntil() {
-        let (mut sender, payload) = Payload::create(false);
+        let (mut sender, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new(payload);
 
         assert_eq!(None, payload.read_until(b"ne").unwrap());
@@ -1235,7 +1235,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_multipart_payload_consumption() {
         // with sample payload and HttpRequest with no headers
-        let (_, inner_payload) = Payload::create(false);
+        let (_, inner_payload) = h1::Payload::create(false);
         let mut payload = actix_web::dev::Payload::from(inner_payload);
         let req = TestRequest::default().to_http_request();
 

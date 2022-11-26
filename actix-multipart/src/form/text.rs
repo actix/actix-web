@@ -26,7 +26,10 @@ impl<T: DeserializeOwned> Text<T> {
     }
 }
 
-impl<'t, T: DeserializeOwned + 'static> FieldReader<'t> for Text<T> {
+impl<'t, T> FieldReader<'t> for Text<T>
+where
+    T: DeserializeOwned + 'static,
+{
     type Future = LocalBoxFuture<'t, Result<Self, MultipartError>>;
 
     fn read_field(req: &'t HttpRequest, field: Field, limits: &'t mut Limits) -> Self::Future {
@@ -43,7 +46,7 @@ impl<'t, T: DeserializeOwned + 'static> FieldReader<'t> for Text<T> {
                     true
                 };
 
-                if !valid && config.validate_content_type {
+                if !valid {
                     return Err(MultipartError::Field {
                         field_name,
                         source: config.map_error(req, TextError::ContentType),

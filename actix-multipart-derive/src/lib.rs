@@ -10,16 +10,10 @@ use std::{collections::HashSet, convert::TryFrom as _};
 
 use darling::{FromDeriveInput, FromField, FromMeta};
 use parse_size::parse_size;
-use proc_macro2::Ident;
+use proc_macro::TokenStream;
+use proc_macro2::{Ident, Span};
 use quote::quote;
 use syn::{parse_macro_input, Type};
-
-#[derive(FromDeriveInput, Default)]
-#[darling(attributes(multipart), default)]
-struct MultipartFormAttrs {
-    deny_unknown_fields: bool,
-    duplicate_field: DuplicateField,
-}
 
 #[derive(FromMeta)]
 enum DuplicateField {
@@ -32,6 +26,13 @@ impl Default for DuplicateField {
     fn default() -> Self {
         Self::Ignore
     }
+}
+
+#[derive(FromDeriveInput, Default)]
+#[darling(attributes(multipart), default)]
+struct MultipartFormAttrs {
+    deny_unknown_fields: bool,
+    duplicate_field: DuplicateField,
 }
 
 #[derive(FromField, Default)]
@@ -51,16 +52,13 @@ struct ParsedField<'t> {
 /// Implements the `MultipartFormTrait` for a struct so that it can be used with the `MultipartForm`
 /// extractor.
 ///
-/// # Examples
-///
-/// ## Basic Use
+/// # Basic Use
 ///
 /// Each field type should implement the `FieldReader` trait:
 ///
 /// ```
-/// # use actix_multipart::form::tempfile::Tempfile;
-/// # use actix_multipart::form::text::Text;
-/// # use actix_multipart::form::MultipartForm;
+/// use actix_multipart::form::{tempfile::Tempfile, text::Text, MultipartForm};
+///
 /// #[derive(MultipartForm)]
 /// struct ImageUpload {
 ///     description: Text<String>,
@@ -69,17 +67,16 @@ struct ParsedField<'t> {
 /// }
 /// ```
 ///
-/// ## Optional and List Fields
+/// # Optional and List Fields
 ///
 /// You can also use `Vec<T>` and `Option<T>` provided that `T: FieldReader`.
 ///
-/// A [`Vec`] field corresponds to an upload with multiple parts under the
-/// [same field name](https://www.rfc-editor.org/rfc/rfc7578#section-4.3).
+/// A [`Vec`] field corresponds to an upload with multiple parts under the [same field
+/// name](https://www.rfc-editor.org/rfc/rfc7578#section-4.3).
 ///
 /// ```
-/// # use actix_multipart::form::tempfile::Tempfile;
-/// # use actix_multipart::form::text::Text;
-/// # use actix_multipart::form::MultipartForm;
+/// use actix_multipart::form::{tempfile::Tempfile, text::Text, MultipartForm};
+///
 /// #[derive(MultipartForm)]
 /// struct Form {
 ///     category: Option<Text<String>>,
@@ -87,13 +84,13 @@ struct ParsedField<'t> {
 /// }
 /// ```
 ///
-/// ## Field Renaming
+/// # Field Renaming
 ///
 /// You can use the `#[multipart(rename = "foo")]` attribute to receive a field by a different name.
 ///
 /// ```
-/// # use actix_multipart::form::tempfile::Tempfile;
-/// # use actix_multipart::form::MultipartForm;
+/// use actix_multipart::form::{tempfile::Tempfile, MultipartForm};
+///
 /// #[derive(MultipartForm)]
 /// struct Form {
 ///     #[multipart(rename = "files[]")]
@@ -101,7 +98,7 @@ struct ParsedField<'t> {
 /// }
 /// ```
 ///
-/// ## Field Limits
+/// # Field Limits
 ///
 /// You can use the `#[multipart(limit = "<size>")]` attribute to set field level limits. The limit
 /// string is parsed using [parse_size].
@@ -109,40 +106,41 @@ struct ParsedField<'t> {
 /// Note: the form is also subject to the global limits configured using `MultipartFormConfig`.
 ///
 /// ```
-/// # use actix_multipart::form::tempfile::Tempfile;
-/// # use actix_multipart::form::text::Text;
-/// # use actix_multipart::form::MultipartForm;
+/// use actix_multipart::form::{tempfile::Tempfile, text::Text, MultipartForm};
+///
 /// #[derive(MultipartForm)]
 /// struct Form {
-///     #[multipart(limit = "2KiB")]
+///     #[multipart(limit = "2 KiB")]
 ///     description: Text<String>,
-///     #[multipart(limit = "512MiB")]
+///
+///     #[multipart(limit = "512 MiB")]
 ///     files: Vec<Tempfile>,
 /// }
 /// ```
 ///
-/// ## Unknown Fields
+/// # Unknown Fields
 ///
-/// By default fields with an unknown name are ignored. You can change this using the
+/// By default fields with an unknown name are ignored. They can be rejected using the
 /// `#[multipart(deny_unknown_fields)]` attribute:
 ///
 /// ```
-/// # use actix_multipart::form::MultipartForm;
+/// use actix_multipart::form::MultipartForm;
+///
 /// #[derive(MultipartForm)]
 /// #[multipart(deny_unknown_fields)]
 /// struct Form { }
 /// ```
 ///
-/// ## Duplicate Fields
+/// # Duplicate Fields
 ///
-/// You can change the behaviour for when multiple fields are received with the same name using the
-/// `#[multipart(duplicate_field = "")]` attribute:
+/// The behaviour for when multiple fields with the same name are received can be changed using the
+/// `#[multipart(duplicate_field = "<behavior>")]` attribute:
 ///
-/// - "ignore": Extra fields are ignored (default).
+/// - "ignore": (default) Extra fields are ignored. I.e., the first one is persisted.
+/// - "deny": A `MultipartError::UnsupportedField` error response is returned.
 /// - "replace": Each field is processed, but only the last one is persisted.
-/// - "deny": A `MultipartError::UnsupportedField` error is returned.
 ///
-/// (Note this option does not apply to `Vec` fields)
+/// Note that `Vec` fields will ignore this option.
 ///
 /// ```
 /// # use actix_multipart::form::MultipartForm;
@@ -157,16 +155,34 @@ pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenS
     let input: syn::DeriveInput = parse_macro_input!(input);
 
     let name = &input.ident;
-    let str = match &input.data {
-        syn::Data::Struct(s) => s,
-        _ => panic!("This trait can only be derived for a struct"),
-    };
-    let fields = match &str.fields {
-        syn::Fields::Named(n) => n,
-        _ => panic!("This trait can only be derived for a struct"),
+
+    let data_struct = match &input.data {
+        syn::Data::Struct(data_struct) => data_struct,
+        _ => {
+            return TokenStream::from(
+                syn::Error::new(
+                    Span::call_site(),
+                    "This trait can only be derived for a struct",
+                )
+                .to_compile_error(),
+            )
+        }
     };
 
-    let attrs: MultipartFormAttrs = match MultipartFormAttrs::from_derive_input(&input) {
+    let fields = match &data_struct.fields {
+        syn::Fields::Named(fields_named) => fields_named,
+        _ => {
+            return TokenStream::from(
+                syn::Error::new(
+                    Span::call_site(),
+                    "This trait can only be derived for a struct with named fields",
+                )
+                .to_compile_error(),
+            )
+        }
+    };
+
+    let attrs = match MultipartFormAttrs::from_derive_input(&input) {
         Ok(attrs) => attrs,
         Err(err) => return err.write_errors().into(),
     };
@@ -177,16 +193,19 @@ pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenS
         .iter()
         .map(|field| {
             let rust_name = field.ident.as_ref().unwrap();
-            let attrs: FieldAttrs = FieldAttrs::from_field(field)?;
+            let attrs = FieldAttrs::from_field(field).map_err(|err| err.write_errors())?;
             let serialization_name = attrs.rename.unwrap_or_else(|| rust_name.to_string());
 
-            let limit = attrs.limit.map(|limit| {
-                usize::try_from(
-                    parse_size(&limit)
-                        .unwrap_or_else(|_| panic!("Unable to parse limit `{}`", limit)),
-                )
-                .unwrap()
-            });
+            let limit = match attrs.limit.map(|limit| match parse_size(&limit) {
+                Ok(size) => Ok(usize::try_from(size).unwrap()),
+                Err(err) => Err(syn::Error::new(
+                    field.ident.as_ref().unwrap().span(),
+                    format!("Unable to parse limit `{}`: {}", limit, err),
+                )),
+            }) {
+                Some(Err(err)) => return Err(TokenStream::from(err.to_compile_error())),
+                limit => limit.map(Result::unwrap),
+            };
 
             Ok(ParsedField {
                 serialization_name,
@@ -195,17 +214,23 @@ pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenS
                 ty: &field.ty,
             })
         })
-        .collect::<Result<Vec<_>, darling::Error>>()
+        .collect::<Result<Vec<_>, TokenStream>>()
     {
         Ok(attrs) => attrs,
-        Err(err) => return err.write_errors().into(),
+        Err(err) => return err,
     };
 
     // Check that field names are unique
     let mut set = HashSet::new();
-    for f in &parsed {
-        if !set.insert(f.serialization_name.clone()) {
-            panic!("Multiple fields named: `{}`", f.serialization_name);
+    for field in &parsed {
+        if !set.insert(field.serialization_name.clone()) {
+            return TokenStream::from(
+                syn::Error::new(
+                    field.rust_name.span(),
+                    format!("Multiple fields named: `{}`", field.serialization_name),
+                )
+                .to_compile_error(),
+            );
         }
     }
 
@@ -230,6 +255,7 @@ pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenS
     for field in &parsed {
         let name = &field.serialization_name;
         let ty = &field.ty;
+
         read_field_impl.extend(quote!(
             #name => ::std::boxed::Box::pin(
                 <#ty as ::actix_multipart::form::FieldGroupReader>::handle_field(req, field, limits, state, #duplicate_field)

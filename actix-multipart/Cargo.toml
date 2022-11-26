@@ -24,7 +24,6 @@ path = "src/lib.rs"
 
 [dependencies]
 actix-multipart-derive = { version = "=0.4.0", optional = true }
-actix-http = "3"
 actix-utils = "3"
 actix-web = { version = "4", default-features = false }
 
@@ -37,14 +36,15 @@ local-waker = "0.1"
 log = "0.4"
 memchr = "2.5"
 mime = "0.3"
-serde = "1.0"
-serde_json = "1.0"
-serde_plain = "1.0"
+serde = "1"
+serde_json = "1"
+serde_plain = "1"
 # TODO(MSRV 1.60): replace with dep: prefix
 tempfile-dep = { package = "tempfile", version = "3.3.0", optional = true }
 tokio = { version = "1.13.1", features = ["sync"] }
 
 [dev-dependencies]
+actix-http = "3"
 actix-multipart-rfc7578 = "0.10"
 actix-rt = "2.2"
 actix-test = "0.1.0"
