@@ -43,5 +43,5 @@ awc = { path = "awc" }
 # actix-tls = { path = "../actix-net/actix-tls" }
 # actix-server = { path = "../actix-net/actix-server" }
 
-actix-server = { git = "https://github.com/actix/actix-net" }
-actix-rt = { git = "https://github.com/actix/actix-net" }
+actix-server = { git = "https://github.com/asonix/actix-net", branch = "asonix/tokio-uring-04" }
+actix-rt = { git = "https://github.com/asonix/actix-net", branch = "asonix/tokio-uring-04" }
