@@ -184,7 +184,7 @@ where
 
 /// Trait that allows a type to be used in the [`struct@MultipartForm`] extractor. You should use
 /// the [`macro@MultipartForm`] to implement this for your struct.
-pub trait MultipartFormTrait: Sized {
+pub trait MultipartCollect: Sized {
     /// An optional limit in bytes to be applied a given field name. Note this limit will be shared
     /// across all fields sharing the same name.
     fn limit(field_name: &str) -> Option<usize>;
@@ -270,14 +270,14 @@ impl Limits {
 /// Typed `multipart/form-data` extractor.
 ///
 /// To extract typed data from a multipart stream, the inner type `T` must implement the
-/// [`MultipartFormTrait`] trait, you should use the [`macro@MultipartForm`] macro to derive this
+/// [`MultipartCollect`] trait, you should use the [`macro@MultipartForm`] macro to derive this
 /// for your struct.
 ///
 /// Use [`MultipartFormConfig`] to configure extraction options.
 #[derive(Deref, DerefMut)]
-pub struct MultipartForm<T: MultipartFormTrait>(pub T);
+pub struct MultipartForm<T: MultipartCollect>(pub T);
 
-impl<T: MultipartFormTrait> MultipartForm<T> {
+impl<T: MultipartCollect> MultipartForm<T> {
     /// Unwrap into inner `T` value.
     pub fn into_inner(self) -> T {
         self.0
@@ -286,7 +286,7 @@ impl<T: MultipartFormTrait> MultipartForm<T> {
 
 impl<T> FromRequest for MultipartForm<T>
 where
-    T: MultipartFormTrait,
+    T: MultipartCollect,
 {
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;

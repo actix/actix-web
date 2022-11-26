@@ -49,7 +49,7 @@ struct ParsedField<'t> {
     ty: &'t Type,
 }
 
-/// Implements the `MultipartFormTrait` for a struct so that it can be used with the `MultipartForm`
+/// Implements `MultipartCollect` for a struct so that it can be used with the `MultipartForm`
 /// extractor.
 ///
 /// # Basic Use
@@ -241,7 +241,18 @@ pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenS
         DuplicateField::Replace => quote!(::actix_multipart::form::DuplicateField::Replace),
     };
 
-    // read_field() implementation
+    // limit() implementation
+    let mut limit_impl = quote!();
+    for field in &parsed {
+        let name = &field.serialization_name;
+        if let Some(value) = field.limit {
+            limit_impl.extend(quote!(
+                #name => ::std::option::Option::Some(#value),
+            ));
+        }
+    }
+
+    // handle_field() implementation
     let mut read_field_impl = quote!();
     for field in &parsed {
         let name = &field.serialization_name;
@@ -252,17 +263,6 @@ pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenS
                 <#ty as ::actix_multipart::form::FieldGroupReader>::handle_field(req, field, limits, state, #duplicate_field)
             ),
         ));
-    }
-
-    // limit() implementation
-    let mut limit_impl = quote!();
-    for field in &parsed {
-        let name = &field.serialization_name;
-        if let Some(value) = field.limit {
-            limit_impl.extend(quote!(
-                #name => ::std::option::Option::Some(#value),
-            ));
-        }
     }
 
     // from_state() implementation
@@ -277,7 +277,7 @@ pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenS
     }
 
     let gen = quote! {
-        impl ::actix_multipart::form::MultipartFormTrait for #name {
+        impl ::actix_multipart::form::MultipartCollect for #name {
             fn limit(field_name: &str) -> ::std::option::Option<usize> {
                 match field_name {
                     #limit_impl
