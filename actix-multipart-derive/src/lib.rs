@@ -253,12 +253,12 @@ pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenS
     }
 
     // handle_field() implementation
-    let mut read_field_impl = quote!();
+    let mut handle_field_impl = quote!();
     for field in &parsed {
         let name = &field.serialization_name;
         let ty = &field.ty;
 
-        read_field_impl.extend(quote!(
+        handle_field_impl.extend(quote!(
             #name => ::std::boxed::Box::pin(
                 <#ty as ::actix_multipart::form::FieldGroupReader>::handle_field(req, field, limits, state, #duplicate_field)
             ),
@@ -292,7 +292,7 @@ pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenS
                 state: &'t mut ::actix_multipart::form::State,
             ) -> ::std::pin::Pin<::std::boxed::Box<dyn ::std::future::Future<Output = ::std::result::Result<(), ::actix_multipart::MultipartError>> + 't>> {
                 match field.name() {
-                    #read_field_impl
+                    #handle_field_impl
                     _ => return ::std::boxed::Box::pin(::std::future::ready(#unknown_field_result)),
                 }
             }
