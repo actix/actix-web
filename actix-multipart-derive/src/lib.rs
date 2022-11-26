@@ -11,7 +11,7 @@ use std::{collections::HashSet, convert::TryFrom as _};
 use darling::{FromDeriveInput, FromField, FromMeta};
 use parse_size::parse_size;
 use proc_macro::TokenStream;
-use proc_macro2::{Ident, Span};
+use proc_macro2::Ident;
 use quote::quote;
 use syn::{parse_macro_input, Type};
 
@@ -159,26 +159,20 @@ pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenS
     let data_struct = match &input.data {
         syn::Data::Struct(data_struct) => data_struct,
         _ => {
-            return TokenStream::from(
-                syn::Error::new(
-                    Span::call_site(),
-                    "This trait can only be derived for a struct",
-                )
-                .to_compile_error(),
-            )
+            return compile_err(syn::Error::new(
+                input.ident.span(),
+                "`MultipartForm` can only be derived for structs",
+            ))
         }
     };
 
     let fields = match &data_struct.fields {
         syn::Fields::Named(fields_named) => fields_named,
         _ => {
-            return TokenStream::from(
-                syn::Error::new(
-                    Span::call_site(),
-                    "This trait can only be derived for a struct with named fields",
-                )
-                .to_compile_error(),
-            )
+            return compile_err(syn::Error::new(
+                input.ident.span(),
+                "`MultipartForm` can only be derived for a struct with named fields",
+            ))
         }
     };
 
@@ -200,10 +194,10 @@ pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenS
                 Ok(size) => Ok(usize::try_from(size).unwrap()),
                 Err(err) => Err(syn::Error::new(
                     field.ident.as_ref().unwrap().span(),
-                    format!("Unable to parse limit `{}`: {}", limit, err),
+                    format!("Could not parse size limit `{}`: {}", limit, err),
                 )),
             }) {
-                Some(Err(err)) => return Err(TokenStream::from(err.to_compile_error())),
+                Some(Err(err)) => return Err(compile_err(err)),
                 limit => limit.map(Result::unwrap),
             };
 
@@ -224,13 +218,10 @@ pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenS
     let mut set = HashSet::new();
     for field in &parsed {
         if !set.insert(field.serialization_name.clone()) {
-            return TokenStream::from(
-                syn::Error::new(
-                    field.rust_name.span(),
-                    format!("Multiple fields named: `{}`", field.serialization_name),
-                )
-                .to_compile_error(),
-            );
+            return compile_err(syn::Error::new(
+                field.rust_name.span(),
+                format!("Multiple fields named: `{}`", field.serialization_name),
+            ));
         }
     }
 
@@ -315,4 +306,9 @@ pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenS
         }
     };
     gen.into()
+}
+
+/// Transform a syn error into a token stream for returning.
+fn compile_err(err: syn::Error) -> TokenStream {
+    TokenStream::from(err.to_compile_error())
 }
