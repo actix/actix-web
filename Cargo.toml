@@ -42,3 +42,6 @@ awc = { path = "awc" }
 # actix-utils = { path = "../actix-net/actix-utils" }
 # actix-tls = { path = "../actix-net/actix-tls" }
 # actix-server = { path = "../actix-net/actix-server" }
+
+actix-server = { git = "https://github.com/actix/actix-net" }
+actix-rt = { git = "https://github.com/actix/actix-net" }
