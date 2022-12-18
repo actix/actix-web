@@ -38,10 +38,7 @@ compress-gzip = ["actix-http/compress-gzip", "__compress"]
 compress-zstd = ["actix-http/compress-zstd", "__compress"]
 
 # Routing and runtime proc macros
-macros = [
-    "actix-macros",
-    "actix-web-codegen",
-]
+macros = ["actix-macros", "actix-web-codegen"]
 
 # Cookies support
 cookies = ["cookie"]
@@ -119,7 +116,7 @@ static_assertions = "1"
 tls-openssl = { package = "openssl", version = "0.10.9" }
 tls-rustls = { package = "rustls", version = "0.20.0" }
 tokio = { version = "1.13.1", features = ["rt-multi-thread", "macros"] }
-zstd = "0.11"
+zstd = "0.12"
 
 [[test]]
 name = "test_server"
