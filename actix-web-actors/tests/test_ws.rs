@@ -3,7 +3,7 @@ use actix_http::ws::Codec;
 use actix_web::{web, App, HttpRequest};
 use actix_web_actors::ws;
 use bytes::Bytes;
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{SinkExt as _, StreamExt as _};
 
 struct Ws;
 

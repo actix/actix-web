@@ -27,7 +27,7 @@ use crate::{
 /// # Examples
 /// ```
 /// use std::future::Future;
-/// use futures_util::stream::StreamExt as _;
+/// use futures_util::StreamExt as _;
 /// use actix_web::{post, web};
 ///
 /// // `body: web::Payload` parameter extracts raw payload stream from request

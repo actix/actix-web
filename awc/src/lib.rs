@@ -83,7 +83,7 @@
 //! ```no_run
 //! # #[actix_rt::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! use futures_util::{sink::SinkExt as _, stream::StreamExt as _};
+//! use futures_util::{SinkExt as _, StreamExt as _};
 //!
 //! let (_resp, mut connection) = awc::Client::new()
 //!     .ws("ws://echo.websocket.org")

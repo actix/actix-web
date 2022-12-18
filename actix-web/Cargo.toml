@@ -79,8 +79,8 @@ cfg-if = "1"
 cookie = { version = "0.16", features = ["percent-encode"], optional = true }
 derive_more = "0.99.8"
 encoding_rs = "0.8"
-futures-core = { version = "0.3.7", default-features = false }
-futures-util = { version = "0.3.7", default-features = false }
+futures-core = { version = "0.3.17", default-features = false }
+futures-util = { version = "0.3.17", default-features = false }
 http = "0.2.8"
 itoa = "1"
 language-tags = "0.3"
@@ -107,7 +107,7 @@ const-str = "0.4"
 criterion = { version = "0.4", features = ["html_reports"] }
 env_logger = "0.9"
 flate2 = "1.0.13"
-futures-util = { version = "0.3.7", default-features = false, features = ["std"] }
+futures-util = { version = "0.3.17", default-features = false, features = ["std"] }
 rand = "0.8"
 rcgen = "0.9"
 rustls-pemfile = "1"

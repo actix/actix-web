@@ -19,7 +19,7 @@ actix-web = { version = "4", default-features = false }
 
 bytes = "1"
 derive_more = "0.99.5"
-futures-core = { version = "0.3.7", default-features = false, features = ["alloc"] }
+futures-core = { version = "0.3.17", default-features = false, features = ["alloc"] }
 httparse = "1.3"
 local-waker = "0.1"
 log = "0.4"
@@ -29,6 +29,6 @@ memchr = "2.5"
 [dev-dependencies]
 actix-rt = "2.2"
 actix-http = "3"
-futures-util = { version = "0.3.7", default-features = false, features = ["alloc"] }
+futures-util = { version = "0.3.17", default-features = false, features = ["alloc"] }
 tokio = { version = "1.8.4", features = ["sync"] }
 tokio-stream = "0.1"

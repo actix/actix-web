@@ -15,10 +15,7 @@ use actix_service::fn_service;
 use actix_utils::future::{err, ok, ready};
 use bytes::Bytes;
 use derive_more::{Display, Error};
-use futures_util::{
-    stream::{once, StreamExt as _},
-    FutureExt as _,
-};
+use futures_util::{stream::once, FutureExt as _, StreamExt as _};
 use regex::Regex;
 
 #[actix_rt::test]

@@ -139,7 +139,7 @@ async fn timeout_override() {
 
 #[actix_rt::test]
 async fn response_timeout() {
-    use futures_util::stream::{once, StreamExt as _};
+    use futures_util::{stream::once, StreamExt as _};
 
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").route(web::to(|| async {
