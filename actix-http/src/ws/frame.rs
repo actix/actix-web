@@ -1,3 +1,4 @@
+use std::cmp::min;
 use std::convert::TryFrom;
 
 use bytes::{Buf, BufMut, BytesMut};
@@ -96,6 +97,10 @@ impl Parser {
 
         // not enough data
         if src.len() < idx + length {
+            let min_length = min(length, max_size);
+            if src.capacity() < idx + min_length {
+                src.reserve(idx + min_length - src.capacity());
+            }
             return Ok(None);
         }
 
