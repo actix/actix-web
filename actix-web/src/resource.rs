@@ -41,8 +41,8 @@ use crate::{
 ///         .route(web::get().to(|| HttpResponse::Ok())));
 /// ```
 ///
-/// If no matching route could be found, *405* response code get returned. Default behavior could be
-/// overridden with `default_resource()` method.
+/// If no matching route is found, a 405 response is returned with an appropriate Allow header.
+/// This default behavior can be overridden using [`default_service()`](Self::default_service).
 pub struct Resource<T = ResourceEndpoint> {
     endpoint: T,
     rdef: Patterns,
@@ -322,13 +322,28 @@ where
         }
     }
 
-    /// Default service to be used if no matching route could be found.
+    /// Sets the default service to be used if no matching route is found.
     ///
-    /// You can use a [`Route`] as default service.
+    /// Unlike [`Scope`]s, a `Resource` does _not_ inherit its parent's default service. You can
+    /// use a [`Route`] as default service.
     ///
-    /// If a default service is not registered, an empty `405 Method Not Allowed` response will be
-    /// sent to the client instead. Unlike [`Scope`](crate::Scope)s, a [`Resource`] does **not**
-    /// inherit its parent's default service.
+    /// If a custom default service is not registered, an empty `405 Method Not Allowed` response
+    /// with an appropriate Allow header will be sent instead.
+    ///
+    /// # Examples
+    /// ```
+    /// use actix_web::{App, HttpResponse, web};
+    ///
+    /// let resource = web::resource("/test")
+    ///     .route(web::get().to(HttpResponse::Ok))
+    ///     .default_service(web::to(|| {
+    ///         HttpResponse::BadRequest()
+    ///     }));
+    ///
+    /// App::new().service(resource);
+    /// ```
+    ///
+    /// [`Scope`]: crate::Scope
     pub fn default_service<F, U>(mut self, f: F) -> Self
     where
         F: IntoServiceFactory<U, ServiceRequest>,
