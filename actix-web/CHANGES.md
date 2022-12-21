@@ -8,11 +8,15 @@
 - Add rudimentary redirection service at `web::redirect()` / `web::Redirect`. [#1961]
 - Add `guard::Acceptable` for matching against `Accept` header mime types. [#2265]
 
+### Fixed
+- Add `Allow` header to `Resource`'s default responses when no routes are matched. [#2949]
+
 [#1961]: https://github.com/actix/actix-web/pull/1961
 [#2265]: https://github.com/actix/actix-web/pull/2265
 [#2631]: https://github.com/actix/actix-web/pull/2631
 [#2784]: https://github.com/actix/actix-web/pull/2784
 [#2867]: https://github.com/actix/actix-web/pull/2867
+[#2949]: https://github.com/actix/actix-web/pull/2949
 
 
 ## 4.2.1 - 2022-09-12
