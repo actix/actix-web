@@ -13,8 +13,9 @@ use crate::{
     body::MessageBody,
     data::Data,
     dev::{ensure_leading_slash, AppService, ResourceDef},
-    guard::Guard,
+    guard::{self, Guard},
     handler::Handler,
+    http::header,
     route::{Route, RouteService},
     service::{
         BoxedHttpService, BoxedHttpServiceFactory, HttpServiceFactory, ServiceRequest,
@@ -66,7 +67,19 @@ impl Resource {
             guards: Vec::new(),
             app_data: None,
             default: boxed::factory(fn_service(|req: ServiceRequest| async {
-                Ok(req.into_response(HttpResponse::MethodNotAllowed()))
+                use crate::HttpMessage as _;
+
+                let allowed = req.extensions().get::<guard::RegisteredMethods>().cloned();
+
+                if let Some(methods) = allowed {
+                    Ok(req.into_response(
+                        HttpResponse::MethodNotAllowed()
+                            .insert_header(header::Allow(methods.0))
+                            .finish(),
+                    ))
+                } else {
+                    Ok(req.into_response(HttpResponse::MethodNotAllowed()))
+                }
             })),
         }
     }
@@ -606,7 +619,11 @@ mod tests {
     async fn test_default_resource() {
         let srv = init_service(
             App::new()
-                .service(web::resource("/test").route(web::get().to(HttpResponse::Ok)))
+                .service(
+                    web::resource("/test")
+                        .route(web::get().to(HttpResponse::Ok))
+                        .route(web::delete().to(HttpResponse::Ok)),
+                )
                 .default_service(|r: ServiceRequest| {
                     ok(r.into_response(HttpResponse::BadRequest()))
                 }),
@@ -621,6 +638,10 @@ mod tests {
             .to_request();
         let resp = call_service(&srv, req).await;
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+        assert_eq!(
+            resp.headers().get(header::ALLOW).unwrap().as_bytes(),
+            b"GET, DELETE"
+        );
 
         let srv = init_service(
             App::new().service(
