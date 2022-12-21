@@ -41,8 +41,11 @@ use crate::{
 ///         .route(web::get().to(|| HttpResponse::Ok())));
 /// ```
 ///
-/// If no matching route is found, a 405 response is returned with an appropriate Allow header.
-/// This default behavior can be overridden using [`default_service()`](Self::default_service).
+/// If no matching route is found, [a 405 response is returned with an appropriate Allow header][RFC
+/// 9110 §15.5.6]. This default behavior can be overridden using
+/// [`default_service()`](Self::default_service).
+///
+/// [RFC 9110 §15.5.6]: https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.6
 pub struct Resource<T = ResourceEndpoint> {
     endpoint: T,
     rdef: Patterns,

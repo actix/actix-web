@@ -298,7 +298,6 @@ impl Guard for MethodGuard {
         let registered = ctx.req_data_mut().remove::<RegisteredMethods>();
 
         if let Some(mut methods) = registered {
-            eprintln!("here one");
             methods.0.push(self.0.clone());
             ctx.req_data_mut().insert(methods);
         } else {
