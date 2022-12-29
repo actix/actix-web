@@ -916,4 +916,24 @@ mod tests {
         let body = read_body(bar_resp).await;
         assert_eq!(body, "http://localhost:8080/bar/nested");
     }
+
+    #[test]
+    fn authorization_header_hidden_in_debug() {
+        let authorization_header = "Basic bXkgdXNlcm5hbWU6bXkgcGFzc3dvcmQK";
+        let req = TestRequest::get()
+            .insert_header((http::header::AUTHORIZATION, authorization_header))
+            .to_http_request();
+
+        assert!(!format!("{:?}", req).contains(authorization_header));
+    }
+
+    #[test]
+    fn other_header_visible_in_debug() {
+        let location_header = "192.0.0.1";
+        let req = TestRequest::get()
+            .insert_header((http::header::LOCATION, location_header))
+            .to_http_request();
+
+        assert!(format!("{:?}", req).contains(location_header));
+    }
 }
