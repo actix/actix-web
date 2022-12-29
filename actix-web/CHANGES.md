@@ -10,6 +10,7 @@
 
 ### Fixed
 - Add `Allow` header to `Resource`'s default responses when no routes are matched. [#2949]
+- Hide `Authorization` header in `HttpRequest` Debug output
 
 [#1961]: https://github.com/actix/actix-web/pull/1961
 [#2265]: https://github.com/actix/actix-web/pull/2265
