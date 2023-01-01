@@ -1,3 +1,5 @@
+#![allow(clippy::uninlined_format_args)]
+
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 
 const CODES: &[u16] = &[0, 1000, 201, 800, 550];

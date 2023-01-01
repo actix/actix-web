@@ -238,7 +238,7 @@ impl ClientRequest {
 
         self.insert_header((
             header::AUTHORIZATION,
-            format!("Basic {}", base64::encode(&auth)),
+            format!("Basic {}", base64::encode(auth)),
         ))
     }
 
@@ -565,6 +565,8 @@ mod tests {
         assert_eq!(req.head.version, Version::HTTP_2);
 
         let _ = req.headers_mut();
+
+        #[allow(clippy::let_underscore_future)]
         let _ = req.send_body("");
     }
 

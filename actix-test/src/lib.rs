@@ -321,6 +321,7 @@ where
             // all thread managed resources should be dropped at this point
         });
 
+        #[allow(clippy::let_underscore_future)]
         let _ = thread_stop_tx.send(());
     });
 
@@ -567,6 +568,7 @@ impl Drop for TestServer {
         // without needing to await anything
 
         // signal server to stop
+        #[allow(clippy::let_underscore_future)]
         let _ = self.server.stop(true);
 
         // signal system to stop

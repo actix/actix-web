@@ -57,6 +57,7 @@
 
 #![deny(rust_2018_idioms, nonstandard_style)]
 #![warn(future_incompatible)]
+#![allow(clippy::uninlined_format_args)]
 
 mod context;
 pub mod ws;
