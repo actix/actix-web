@@ -550,6 +550,13 @@ impl HeaderMap {
         Keys(self.inner.keys())
     }
 
+    /// Retains only the headers specified by the predicate.
+    ///
+    /// In other words, removes all headers `(name, val)` for which `retain_fn(&name, &mut val)`
+    /// returns false.
+    ///
+    /// The order in which headers are visited should be considered arbitrary.
+    ///
     /// # Examples
     /// ```
     /// # use actix_http::header::{self, HeaderMap, HeaderValue};
