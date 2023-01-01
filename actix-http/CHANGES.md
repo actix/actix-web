@@ -4,12 +4,14 @@
 ### Added
 - Implement `MessageBody` for `&mut B` where `B: MessageBody + Unpin`. [#2868]
 - Implement `MessageBody` for `Pin<B>` where `B::Target: MessageBody`. [#2868]
+- `HeaderMap::retain()` [#????].
 
 ### Performance
 - Improve overall performance of operations on `Extensions`. [#2890]
 
 [#2868]: https://github.com/actix/actix-web/pull/2868
 [#2890]: https://github.com/actix/actix-web/pull/2890
+[#????]: https://github.com/actix/actix-web/pull/????
 
 
 ## 3.2.2 - 2022-09-11
