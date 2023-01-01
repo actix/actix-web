@@ -13,6 +13,7 @@
 
 #![deny(rust_2018_idioms, nonstandard_style)]
 #![warn(future_incompatible, missing_docs, missing_debug_implementations)]
+#![allow(clippy::uninlined_format_args)]
 
 use actix_service::boxed::{BoxService, BoxServiceFactory};
 use actix_web::{
