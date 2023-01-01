@@ -450,7 +450,7 @@ impl TransferEncoding {
 
                     buf.extend_from_slice(&msg[..len as usize]);
 
-                    *remaining -= len as u64;
+                    *remaining -= len;
                     Ok(*remaining == 0)
                 } else {
                     Ok(true)

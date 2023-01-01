@@ -2,7 +2,7 @@
 
 #![deny(rust_2018_idioms, nonstandard_style)]
 #![warn(future_incompatible)]
-#![allow(clippy::borrow_interior_mutable_const)]
+#![allow(clippy::borrow_interior_mutable_const, clippy::uninlined_format_args)]
 
 mod error;
 mod extractor;

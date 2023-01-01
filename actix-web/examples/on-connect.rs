@@ -4,6 +4,8 @@
 //! For an example of extracting a client TLS certificate, see:
 //! <https://github.com/actix/examples/tree/master/https-tls/rustls-client-cert>
 
+#![allow(clippy::uninlined_format_args)]
+
 use std::{any::Any, io, net::SocketAddr};
 
 use actix_web::{

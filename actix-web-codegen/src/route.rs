@@ -155,7 +155,7 @@ impl Args {
                             if !methods.insert(method) {
                                 return Err(syn::Error::new_spanned(
                                     &nv.lit,
-                                    &format!(
+                                    format!(
                                         "HTTP method defined more than once: `{}`",
                                         lit.value()
                                     ),

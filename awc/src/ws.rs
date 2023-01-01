@@ -236,7 +236,7 @@ impl WebsocketsRequest {
             Some(password) => format!("{}:{}", username, password),
             None => format!("{}:", username),
         };
-        self.header(AUTHORIZATION, format!("Basic {}", base64::encode(&auth)))
+        self.header(AUTHORIZATION, format!("Basic {}", base64::encode(auth)))
     }
 
     /// Set HTTP bearer authentication header
@@ -503,6 +503,8 @@ mod tests {
                 .unwrap(),
             "Bearer someS3cr3tAutht0k3n"
         );
+
+        #[allow(clippy::let_underscore_future)]
         let _ = req.connect();
     }
 

@@ -2,6 +2,7 @@
 
 #![deny(rust_2018_idioms, nonstandard_style)]
 #![warn(future_incompatible)]
+#![allow(clippy::uninlined_format_args)]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 

@@ -210,7 +210,7 @@ where
         };
         self.add_default_header((
             header::AUTHORIZATION,
-            format!("Basic {}", base64::encode(&auth)),
+            format!("Basic {}", base64::encode(auth)),
         ))
     }
 
