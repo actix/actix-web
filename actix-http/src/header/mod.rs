@@ -1,5 +1,8 @@
 //! Pre-defined `HeaderName`s, traits for parsing and conversion, and other header utility methods.
 
+// declaring new header consts will yield this error
+#![allow(clippy::declare_interior_mutable_const)]
+
 use percent_encoding::{AsciiSet, CONTROLS};
 
 // re-export from http except header map related items
@@ -26,6 +29,21 @@ pub use http::header::{
     WWW_AUTHENTICATE, X_CONTENT_TYPE_OPTIONS, X_DNS_PREFETCH_CONTROL, X_FRAME_OPTIONS,
     X_XSS_PROTECTION,
 };
+
+// other common headers not defined in `http`
+
+pub const CROSS_ORIGIN_EMBEDDER_POLICY: HeaderName =
+    HeaderName::from_static("cross-origin-embedder-policy");
+pub const CROSS_ORIGIN_OPENER_POLICY: HeaderName =
+    HeaderName::from_static("cross-origin-opener-policy");
+
+pub const PERMISSIONS_POLICY: HeaderName = HeaderName::from_static("permissions-policy");
+
+pub const X_FORWARDED_FOR: HeaderName = HeaderName::from_static("x-forwarded-for");
+pub const X_FORWARDED_HOST: HeaderName = HeaderName::from_static("x-forwarded-host");
+pub const X_FORWARDED_PROTO: HeaderName = HeaderName::from_static("x-forwarded-proto");
+
+// end other common headers
 
 use crate::{error::ParseError, HttpMessage};
 

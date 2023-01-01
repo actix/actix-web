@@ -4,12 +4,20 @@
 ### Added
 - Implement `MessageBody` for `&mut B` where `B: MessageBody + Unpin`. [#2868]
 - Implement `MessageBody` for `Pin<B>` where `B::Target: MessageBody`. [#2868]
+- New header name constants in `header` module. [#????]
+  - `CROSS_ORIGIN_EMBEDDER_POLICY`
+  - `CROSS_ORIGIN_OPENER_POLICY`
+  - `PERMISSIONS_POLICY`
+  - `X_FORWARDED_FOR`
+  - `X_FORWARDED_HOST`
+  - `X_FORWARDED_PROTO`
 
 ### Performance
 - Improve overall performance of operations on `Extensions`. [#2890]
 
 [#2868]: https://github.com/actix/actix-web/pull/2868
 [#2890]: https://github.com/actix/actix-web/pull/2890
+[#????]: https://github.com/actix/actix-web/pull/????
 
 
 ## 3.2.2 - 2022-09-11
