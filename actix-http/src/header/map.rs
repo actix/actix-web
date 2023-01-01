@@ -562,24 +562,21 @@ impl HeaderMap {
     /// # use actix_http::header::{self, HeaderMap, HeaderValue};
     /// let mut map = HeaderMap::new();
     ///
-    /// let mut iter = map.keys();
-    /// assert!(iter.next().is_none());
-    ///
     /// map.append(header::HOST, HeaderValue::from_static("duck.com"));
     /// map.append(header::SET_COOKIE, HeaderValue::from_static("one=1"));
     /// map.append(header::SET_COOKIE, HeaderValue::from_static("two=2"));
     ///
-    /// let keys = map.keys().cloned().collect::<Vec<_>>();
-    /// assert_eq!(keys.len(), 2);
-    /// assert!(keys.contains(&header::HOST));
-    /// assert!(keys.contains(&header::SET_COOKIE));
+    /// map.retain(|name, val| val.as_bytes().starts_with(b"one"));
+    ///
+    /// assert_eq!(map.len(), 1);
+    /// assert!(map.contains_key(&header::SET_COOKIE));
     /// ```
     pub fn retain<F>(&mut self, mut retain_fn: F)
     where
         F: FnMut(&HeaderName, &mut HeaderValue) -> bool,
     {
         self.inner.retain(|name, vals| {
-            vals.inner.retain(|val| retain_fn(&name, val));
+            vals.inner.retain(|val| retain_fn(name, val));
 
             // invariant: make sure newly empty value lists are removed
             !vals.is_empty()
