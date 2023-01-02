@@ -4,14 +4,14 @@
 ### Added
 - Implement `MessageBody` for `&mut B` where `B: MessageBody + Unpin`. [#2868]
 - Implement `MessageBody` for `Pin<B>` where `B::Target: MessageBody`. [#2868]
-- Automatic h2c detection via new service finalizer `HttpService::tcp_auto_h2c()`. [#????]
+- Automatic h2c detection via new service finalizer `HttpService::tcp_auto_h2c()`. [#2957]
 
 ### Performance
 - Improve overall performance of operations on `Extensions`. [#2890]
 
 [#2868]: https://github.com/actix/actix-web/pull/2868
 [#2890]: https://github.com/actix/actix-web/pull/2890
-[#????]: https://github.com/actix/actix-web/pull/????
+[#2957]: https://github.com/actix/actix-web/pull/2957
 
 
 ## 3.2.2 - 2022-09-11

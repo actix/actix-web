@@ -39,8 +39,12 @@ use crate::{
 ///
 /// # Examples
 /// ```
-/// use actix_http::HttpService;
+/// # use std::convert::Infallible;
+/// use actix_http::{HttpService, Request, Response, StatusCode};
 ///
+/// // this service would constructed in an actix_server::Server
+///
+/// # actix_rt::System::new().block_on(async {
 /// HttpService::build()
 ///     // the builder finalizing method, other finalizers would not return an `HttpService`
 ///     .finish(|_req: Request| async move {
@@ -51,8 +55,7 @@ use crate::{
 ///     // the service finalizing method method
 ///     // you can use `.tcp_auto_h2c()`, `.rustls()`, or `.openssl()` instead of `.tcp()`
 ///     .tcp();
-///
-/// // this service would then be used in an actix_server::Server
+/// # })
 /// ```
 pub struct HttpService<T, S, B, X = h1::ExpectHandler, U = h1::UpgradeHandler> {
     srv: S,
