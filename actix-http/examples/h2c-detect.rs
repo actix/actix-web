@@ -8,7 +8,7 @@
 
 use std::{convert::Infallible, io};
 
-use actix_http::{HttpService, Protocol, Request, Response, StatusCode};
+use actix_http::{error::DispatchError, HttpService, Protocol, Request, Response, StatusCode};
 use actix_rt::net::TcpStream;
 use actix_server::Server;
 use actix_service::{fn_service, ServiceFactoryExt};
@@ -24,7 +24,7 @@ async fn main() -> io::Result<()> {
             fn_service(move |io: TcpStream| async move {
                 let mut buf = [0; 12];
 
-                io.peek(&mut buf).await?;
+                io.peek(&mut buf).await.map_err(DispatchError::Io)?;
 
                 let proto = if buf == H2_PREFACE {
                     tracing::info!("selecting h2c");
@@ -35,18 +35,11 @@ async fn main() -> io::Result<()> {
                 };
 
                 let peer_addr = io.peer_addr().ok();
-                Ok::<_, io::Error>((io, proto, peer_addr))
+                Ok((io, proto, peer_addr))
             })
-            .and_then(
-                HttpService::build()
-                    .finish(|_req: Request| async move {
-                        Ok::<_, Infallible>(Response::build(StatusCode::OK).body("Hello!"))
-                    })
-                    .map_err(|err| {
-                        tracing::error!("{}", err);
-                        io::Error::new(io::ErrorKind::Other, "http service dispatch error")
-                    }),
-            )
+            .and_then(HttpService::build().finish(|_req: Request| async move {
+                Ok::<_, Infallible>(Response::build(StatusCode::OK).body("Hello!"))
+            }))
         })?
         .workers(2)
         .run()
