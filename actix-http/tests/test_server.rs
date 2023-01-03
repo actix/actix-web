@@ -9,10 +9,10 @@ use std::{
 
 use actix_http::{
     body::{self, BodyStream, BoxBody, SizedStream},
-    header, Error, HttpService, KeepAlive, Request, Response, StatusCode,
+    header, Error, HttpService, KeepAlive, Request, Response, StatusCode, Version,
 };
 use actix_http_test::test_server;
-use actix_rt::time::sleep;
+use actix_rt::{net::TcpStream, time::sleep};
 use actix_service::fn_service;
 use actix_utils::future::{err, ok, ready};
 use bytes::Bytes;
@@ -854,6 +854,47 @@ async fn not_modified_spec_h1() {
     assert!(!srv.load_body(res).await.unwrap().is_empty());
 
     // TODO: add stream response tests
+
+    srv.stop().await;
+}
+
+#[actix_rt::test]
+async fn h2c_auto() {
+    let mut srv = test_server(|| {
+        HttpService::build()
+            .keep_alive(KeepAlive::Disabled)
+            .finish(|req: Request| {
+                let body = match req.version() {
+                    Version::HTTP_11 => "h1",
+                    Version::HTTP_2 => "h2",
+                    _ => unreachable!(),
+                };
+                ok::<_, Infallible>(Response::ok().set_body(body))
+            })
+            .tcp_auto_h2c()
+    })
+    .await;
+
+    let req = srv.get("/");
+    assert_eq!(req.get_version(), &Version::HTTP_11);
+    let mut res = req.send().await.unwrap();
+    assert!(res.status().is_success());
+    assert_eq!(res.body().await.unwrap(), &b"h1"[..]);
+
+    // awc doesn't support forcing the version to http/2 so use h2 manually
+
+    let tcp = TcpStream::connect(srv.addr()).await.unwrap();
+    let (h2, connection) = h2::client::handshake(tcp).await.unwrap();
+    tokio::spawn(async move { connection.await.unwrap() });
+    let mut h2 = h2.ready().await.unwrap();
+
+    let request = ::http::Request::new(());
+    let (response, _) = h2.send_request(request, true).unwrap();
+    let (head, mut body) = response.await.unwrap().into_parts();
+    let body = body.data().await.unwrap().unwrap();
+
+    assert!(head.status.is_success());
+    assert_eq!(body, &b"h2"[..]);
 
     srv.stop().await;
 }

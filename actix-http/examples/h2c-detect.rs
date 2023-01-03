@@ -8,38 +8,20 @@
 
 use std::{convert::Infallible, io};
 
-use actix_http::{error::DispatchError, HttpService, Protocol, Request, Response, StatusCode};
-use actix_rt::net::TcpStream;
+use actix_http::{HttpService, Request, Response, StatusCode};
 use actix_server::Server;
-use actix_service::{fn_service, ServiceFactoryExt};
 
-const H2_PREFACE: &[u8] = b"PRI * HTTP/2";
-
-#[actix_rt::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
     Server::build()
         .bind("h2c-detect", ("127.0.0.1", 8080), || {
-            fn_service(move |io: TcpStream| async move {
-                let mut buf = [0; 12];
-
-                io.peek(&mut buf).await.map_err(DispatchError::Io)?;
-
-                let proto = if buf == H2_PREFACE {
-                    tracing::info!("selecting h2c");
-                    Protocol::Http2
-                } else {
-                    tracing::info!("selecting h1");
-                    Protocol::Http1
-                };
-
-                let peer_addr = io.peer_addr().ok();
-                Ok((io, proto, peer_addr))
-            })
-            .and_then(HttpService::build().finish(|_req: Request| async move {
-                Ok::<_, Infallible>(Response::build(StatusCode::OK).body("Hello!"))
-            }))
+            HttpService::build()
+                .finish(|_req: Request| async move {
+                    Ok::<_, Infallible>(Response::build(StatusCode::OK).body("Hello!"))
+                })
+                .tcp_auto_h2c()
         })?
         .workers(2)
         .run()

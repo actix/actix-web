@@ -4,6 +4,7 @@
 ### Added
 - Implement `MessageBody` for `&mut B` where `B: MessageBody + Unpin`. [#2868]
 - Implement `MessageBody` for `Pin<B>` where `B::Target: MessageBody`. [#2868]
+- Automatic h2c detection via new service finalizer `HttpService::tcp_auto_h2c()`. [#2957]
 - `HeaderMap::retain()` [#2955].
 - Header name constants in `header` module. [#2956]
   - `CROSS_ORIGIN_EMBEDDER_POLICY`
@@ -18,6 +19,7 @@
 
 [#2868]: https://github.com/actix/actix-web/pull/2868
 [#2890]: https://github.com/actix/actix-web/pull/2890
+[#2957]: https://github.com/actix/actix-web/pull/2957
 [#2955]: https://github.com/actix/actix-web/pull/2955
 [#2956]: https://github.com/actix/actix-web/pull/2956
 
