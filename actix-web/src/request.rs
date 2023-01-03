@@ -448,6 +448,8 @@ impl fmt::Debug for HttpRequest {
             // Hide sensitive header from debug output
             if key != http::header::AUTHORIZATION {
                 writeln!(f, "    {:?}: {:?}", key, val)?;
+            } else {
+                writeln!(f, "    {:?}: {:?}", key, "*redacted*")?;
             }
         }
         Ok(())
