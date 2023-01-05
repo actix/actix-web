@@ -2,6 +2,7 @@
 
 ## Unreleased - 2022-xx-xx
 ### Added
+- Implement `MessageBody` for `Cow<'static, str>` and `Cow<'static, [u8]>`. [#2959]
 - Implement `MessageBody` for `&mut B` where `B: MessageBody + Unpin`. [#2868]
 - Implement `MessageBody` for `Pin<B>` where `B::Target: MessageBody`. [#2868]
 - Automatic h2c detection via new service finalizer `HttpService::tcp_auto_h2c()`. [#2957]
@@ -17,6 +18,7 @@
 ### Performance
 - Improve overall performance of operations on `Extensions`. [#2890]
 
+[#2959]: https://github.com/actix/actix-web/pull/2959
 [#2868]: https://github.com/actix/actix-web/pull/2868
 [#2890]: https://github.com/actix/actix-web/pull/2890
 [#2957]: https://github.com/actix/actix-web/pull/2957

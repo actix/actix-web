@@ -120,7 +120,7 @@ pub trait MessageBody {
 }
 
 mod foreign_impls {
-    use std::ops::DerefMut;
+    use std::{borrow::Cow, ops::DerefMut};
 
     use super::*;
 
@@ -324,6 +324,39 @@ mod foreign_impls {
         }
     }
 
+    impl MessageBody for Cow<'static, [u8]> {
+        type Error = Infallible;
+
+        #[inline]
+        fn size(&self) -> BodySize {
+            BodySize::Sized(self.len() as u64)
+        }
+
+        #[inline]
+        fn poll_next(
+            self: Pin<&mut Self>,
+            _cx: &mut Context<'_>,
+        ) -> Poll<Option<Result<Bytes, Self::Error>>> {
+            if self.is_empty() {
+                Poll::Ready(None)
+            } else {
+                let bytes = match mem::take(self.get_mut()) {
+                    Cow::Borrowed(b) => Bytes::from_static(b),
+                    Cow::Owned(b) => Bytes::from(b),
+                };
+                Poll::Ready(Some(Ok(bytes)))
+            }
+        }
+
+        #[inline]
+        fn try_into_bytes(self) -> Result<Bytes, Self> {
+            match self {
+                Cow::Borrowed(b) => Ok(Bytes::from_static(b)),
+                Cow::Owned(b) => Ok(Bytes::from(b)),
+            }
+        }
+    }
+
     impl MessageBody for &'static str {
         type Error = Infallible;
 
@@ -376,6 +409,39 @@ mod foreign_impls {
         #[inline]
         fn try_into_bytes(self) -> Result<Bytes, Self> {
             Ok(Bytes::from(self))
+        }
+    }
+
+    impl MessageBody for Cow<'static, str> {
+        type Error = Infallible;
+
+        #[inline]
+        fn size(&self) -> BodySize {
+            BodySize::Sized(self.len() as u64)
+        }
+
+        #[inline]
+        fn poll_next(
+            self: Pin<&mut Self>,
+            _cx: &mut Context<'_>,
+        ) -> Poll<Option<Result<Bytes, Self::Error>>> {
+            if self.is_empty() {
+                Poll::Ready(None)
+            } else {
+                let bytes = match mem::take(self.get_mut()) {
+                    Cow::Borrowed(s) => Bytes::from_static(s.as_bytes()),
+                    Cow::Owned(s) => Bytes::from(s.into_bytes()),
+                };
+                Poll::Ready(Some(Ok(bytes)))
+            }
+        }
+
+        #[inline]
+        fn try_into_bytes(self) -> Result<Bytes, Self> {
+            match self {
+                Cow::Borrowed(s) => Ok(Bytes::from_static(s.as_bytes())),
+                Cow::Owned(s) => Ok(Bytes::from(s.into_bytes())),
+            }
         }
     }
 
