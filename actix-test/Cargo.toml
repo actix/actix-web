@@ -45,4 +45,4 @@ serde_json = "1"
 serde_urlencoded = "0.7"
 tls-openssl = { package = "openssl", version = "0.10.9", optional = true }
 tls-rustls = { package = "rustls", version = "0.20.0", optional = true }
-tokio = { version = "1.8.4", features = ["sync"] }
+tokio = { version = "1.18.4", features = ["sync"] }
