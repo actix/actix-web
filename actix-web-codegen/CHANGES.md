@@ -1,7 +1,7 @@
 # Changes
 
 ## Unreleased - 2022-xx-xx
-
+- Add support for all the IANA registered HTTP methods. [#2963]
 
 ## 4.1.0 - 2022-09-11
 - Add `#[routes]` macro to support multiple paths for one handler. [#2718]
