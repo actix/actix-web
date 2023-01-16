@@ -13,7 +13,7 @@ use std::{
 };
 
 use actix_utils::future::ok;
-use base64::{prelude::BASE64_STANDARD, Engine};
+use base64::prelude::*;
 use bytes::Bytes;
 use cookie::Cookie;
 use futures_util::stream;

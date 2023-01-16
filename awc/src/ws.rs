@@ -28,7 +28,7 @@
 
 use std::{convert::TryFrom, fmt, net::SocketAddr, str};
 
-use base64::{prelude::BASE64_STANDARD, Engine};
+use base64::prelude::*;
 
 use actix_codec::Framed;
 use actix_http::{ws, Payload, RequestHead};

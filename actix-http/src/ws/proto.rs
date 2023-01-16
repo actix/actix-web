@@ -3,7 +3,7 @@ use std::{
     fmt,
 };
 
-use base64::{prelude::BASE64_STANDARD, Engine};
+use base64::prelude::*;
 use tracing::error;
 
 /// Operation codes defined in [RFC 6455 §11.8].

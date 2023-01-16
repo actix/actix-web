@@ -1,6 +1,6 @@
 use std::{convert::TryFrom, fmt, net, rc::Rc, time::Duration};
 
-use base64::{prelude::BASE64_STANDARD, Engine};
+use base64::prelude::*;
 use bytes::Bytes;
 use futures_core::Stream;
 use serde::Serialize;
