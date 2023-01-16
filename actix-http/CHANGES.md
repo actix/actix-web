@@ -15,6 +15,9 @@
   - `X_FORWARDED_HOST`
   - `X_FORWARDED_PROTO`
 
+### Changed
+- Update `base64` to 0.21.
+
 ### Performance
 - Improve overall performance of operations on `Extensions`. [#2890]
 
