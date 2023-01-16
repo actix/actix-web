@@ -238,7 +238,10 @@ impl WebsocketsRequest {
             Some(password) => format!("{}:{}", username, password),
             None => format!("{}:", username),
         };
-        self.header(AUTHORIZATION, format!("Basic {}", BASE64_STANDARD.encode(auth)))
+        self.header(
+            AUTHORIZATION,
+            format!("Basic {}", BASE64_STANDARD.encode(auth)),
+        )
     }
 
     /// Set HTTP bearer authentication header
