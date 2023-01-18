@@ -4,10 +4,11 @@ use std::{
     future::Future,
     marker::PhantomData,
     pin::Pin,
+    rc::Rc,
     task::{Context, Poll},
 };
 
-use actix_http::encoding::Encoder;
+use actix_http::{encoding::Encoder, header::ContentEncoding};
 use actix_service::{Service, Transform};
 use actix_utils::future::{ok, Either, Ready};
 use futures_core::ready;
@@ -54,6 +55,20 @@ use crate::{
 ///     .wrap(middleware::Compress::default())
 ///     .default_service(web::to(|| async { HttpResponse::Ok().body("hello world") }));
 /// ```
+/// You can also set compression level for supported algorithms
+/// ```
+/// use actix_web::{middleware, web, App, HttpResponse};
+///
+/// let app = App::new()
+///     .wrap(
+///         middleware::Compress::new()
+///             .set_gzip_level(3)
+///             .set_deflate_level(1)
+///             .set_brotli_level(7)
+///             .set_zstd_level(10),
+///     )
+///     .default_service(web::to(|| async { HttpResponse::Ok().body("hello world") }));
+/// ```
 ///
 /// Pre-compressed Gzip file being served from disk with correct headers added to bypass middleware:
 /// ```no_run
@@ -73,7 +88,71 @@ use crate::{
 /// [feature flags]: ../index.html#crate-features
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
-pub struct Compress;
+pub struct Compress {
+    inner: Rc<Inner>,
+}
+
+impl Compress {
+    /// Constructs new compress middleware instance with default settings.
+    pub fn new() -> Self {
+        Default::default()
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+struct Inner {
+    deflate: Option<u32>,
+    gzip: Option<u32>,
+    brotli: Option<u32>,
+    zstd: Option<u32>,
+}
+
+impl Inner {
+    pub fn level(&self, encoding: &ContentEncoding) -> Option<u32> {
+        match encoding {
+            ContentEncoding::Deflate => self.deflate,
+            ContentEncoding::Gzip => self.gzip,
+            ContentEncoding::Brotli => self.brotli,
+            ContentEncoding::Zstd => self.zstd,
+            _ => None,
+        }
+    }
+}
+
+impl Compress {
+    /// Set deflate compression level.
+    ///
+    /// The integer here is on a scale of 0-9.
+    /// When going out of range, level 1 will be used.
+    pub fn set_deflate_level(mut self, value: u32) -> Self {
+        Rc::get_mut(&mut self.inner).unwrap().deflate = Some(value);
+        self
+    }
+    /// Set gzip compression level.
+    ///
+    /// The integer here is on a scale of 0-9.
+    /// When going out of range, level 1 will be used.
+    pub fn set_gzip_level(mut self, value: u32) -> Self {
+        Rc::get_mut(&mut self.inner).unwrap().gzip = Some(value);
+        self
+    }
+    /// Set gzip compression level.
+    ///
+    /// The integer here is on a scale of 0-11.
+    /// When going out of range, level 3 will be used.
+    pub fn set_brotli_level(mut self, value: u32) -> Self {
+        Rc::get_mut(&mut self.inner).unwrap().brotli = Some(value);
+        self
+    }
+    /// Set gzip compression level.
+    ///
+    /// The integer here is on a scale of 0-22.
+    /// When going out of range, level 3 will be used.
+    pub fn set_zstd_level(mut self, value: u32) -> Self {
+        Rc::get_mut(&mut self.inner).unwrap().zstd = Some(value);
+        self
+    }
+}
 
 impl<S, B> Transform<S, ServiceRequest> for Compress
 where
@@ -87,12 +166,16 @@ where
     type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        ok(CompressMiddleware { service })
+        ok(CompressMiddleware {
+            service,
+            inner: Rc::clone(&self.inner),
+        })
     }
 }
 
 pub struct CompressMiddleware<S> {
     service: S,
+    inner: Rc<Inner>,
 }
 
 impl<S, B> Service<ServiceRequest> for CompressMiddleware<S>
@@ -111,6 +194,7 @@ where
     fn call(&self, req: ServiceRequest) -> Self::Future {
         // negotiate content-encoding
         let accept_encoding = req.get_header::<AcceptEncoding>();
+        let inner = self.inner.clone();
 
         let accept_encoding = match accept_encoding {
             // missing header; fallback to identity
@@ -118,6 +202,7 @@ where
                 return Either::left(CompressResponse {
                     encoding: Encoding::identity(),
                     fut: self.service.call(req),
+                    inner,
                     _phantom: PhantomData,
                 })
             }
@@ -145,6 +230,7 @@ where
             Some(encoding) => Either::left(CompressResponse {
                 fut: self.service.call(req),
                 encoding,
+                inner,
                 _phantom: PhantomData,
             }),
         }
@@ -159,6 +245,7 @@ pin_project! {
         #[pin]
         fut: S::Future,
         encoding: Encoding,
+        inner: Rc<Inner>,
         _phantom: PhantomData<B>,
     }
 }
@@ -181,9 +268,10 @@ where
                         unimplemented!("encoding {} should not be here", enc);
                     }
                 };
+                let level = this.inner.level(&enc);
 
                 Poll::Ready(Ok(resp.map_body(move |head, body| {
-                    EitherBody::left(Encoder::response(enc, head, body))
+                    EitherBody::left(Encoder::response_with_level(enc, head, body, level))
                 })))
             }
 
@@ -323,5 +411,28 @@ mod tests {
         let vary_headers = res.headers().get_all(header::VARY).collect::<HashSet<_>>();
         assert!(vary_headers.contains(&HeaderValue::from_static("x-test")));
         assert!(vary_headers.contains(&HeaderValue::from_static("accept-encoding")));
+    }
+
+    #[actix_rt::test]
+    async fn custom_compress_level() {
+        const D: &str = "hello world ";
+        const DATA: &str = const_str::repeat!(D, 100);
+
+        let app = test::init_service({
+            App::new().wrap(Compress::new().set_gzip_level(9)).route(
+                "/compress",
+                web::get().to(move || HttpResponse::Ok().body(DATA)),
+            )
+        })
+        .await;
+
+        let req = test::TestRequest::default()
+            .uri("/compress")
+            .insert_header((header::ACCEPT_ENCODING, "gzip"))
+            .to_request();
+        let res = test::call_service(&app, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+        let bytes = test::read_body(res).await;
+        assert_eq!(gzip_decode(bytes), DATA.as_bytes());
     }
 }
