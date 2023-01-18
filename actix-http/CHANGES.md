@@ -14,6 +14,7 @@
   - `X_FORWARDED_FOR`
   - `X_FORWARDED_HOST`
   - `X_FORWARDED_PROTO`
+- New method `response_with_level` for `Encoder<B>` for setup compress level. [#2948]
 
 ### Performance
 - Improve overall performance of operations on `Extensions`. [#2890]
@@ -24,6 +25,7 @@
 [#2957]: https://github.com/actix/actix-web/pull/2957
 [#2955]: https://github.com/actix/actix-web/pull/2955
 [#2956]: https://github.com/actix/actix-web/pull/2956
+[#2948]: https://github.com/actix/actix-web/pull/2948
 
 
 ## 3.2.2 - 2022-09-11
