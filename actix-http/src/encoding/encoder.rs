@@ -30,19 +30,27 @@ use crate::{
 
 const MAX_CHUNK_SIZE_ENCODE_IN_PLACE: usize = 1024;
 
+// https://www.zlib.net/manual.html#Constants
 const DEFLATE_MIN_LEVEL: u32 = 0;
+// https://www.zlib.net/manual.html#Constants
 const DEFLATE_MAX_LEVEL: u32 = 9;
 const DEFLATE_DEFAULT: u32 = 1;
 
+// https://www.zlib.net/manual.html#Constants
 const GZIP_MIN_LEVEL: u32 = 0;
+// https://www.zlib.net/manual.html#Constants
 const GZIP_MAX_LEVEL: u32 = 9;
 const GZIP_DEFAULT: u32 = 1;
 
+// https://www.brotli.org/encode.html#a94f
 const BROTLI_MIN_QUALITY: u32 = 0;
+// https://www.brotli.org/encode.html#ac45
 const BROTLI_MAX_QUALITY: u32 = 11;
 const BROTLI_DEFAULT: u32 = 3;
 
+// https://github.com/facebook/zstd/blob/dev/doc/zstd_manual.html#L42-L43
 const ZSTD_MIN_LEVEL: i32 = 0;
+// https://github.com/facebook/zstd/blob/dev/doc/zstd_manual.html#L42-L43
 const ZSTD_MAX_LEVEL: i32 = 22;
 const ZSTD_DEFAULT: i32 = 3;
 
