@@ -62,10 +62,10 @@ use crate::{
 /// let app = App::new()
 ///     .wrap(
 ///         middleware::Compress::new()
-///             .set_gzip_level(3)
-///             .set_deflate_level(1)
-///             .set_brotli_level(7)
-///             .set_zstd_level(10),
+///             .gzip_level(3)
+///             .deflate_level(1)
+///             .brotli_level(7)
+///             .zstd_level(10),
 ///     )
 ///     .default_service(web::to(|| async { HttpResponse::Ok().body("hello world") }));
 /// ```
@@ -124,7 +124,7 @@ impl Compress {
     ///
     /// The integer here is on a scale of 0-9.
     /// When going out of range, level 1 will be used.
-    pub fn set_deflate_level(mut self, value: u32) -> Self {
+    pub fn deflate_level(mut self, value: u32) -> Self {
         Rc::get_mut(&mut self.inner).unwrap().deflate = Some(value);
         self
     }
@@ -132,7 +132,7 @@ impl Compress {
     ///
     /// The integer here is on a scale of 0-9.
     /// When going out of range, level 1 will be used.
-    pub fn set_gzip_level(mut self, value: u32) -> Self {
+    pub fn gzip_level(mut self, value: u32) -> Self {
         Rc::get_mut(&mut self.inner).unwrap().gzip = Some(value);
         self
     }
@@ -140,7 +140,7 @@ impl Compress {
     ///
     /// The integer here is on a scale of 0-11.
     /// When going out of range, level 3 will be used.
-    pub fn set_brotli_level(mut self, value: u32) -> Self {
+    pub fn brotli_level(mut self, value: u32) -> Self {
         Rc::get_mut(&mut self.inner).unwrap().brotli = Some(value);
         self
     }
@@ -148,7 +148,7 @@ impl Compress {
     ///
     /// The integer here is on a scale of 0-22.
     /// When going out of range, level 3 will be used.
-    pub fn set_zstd_level(mut self, value: u32) -> Self {
+    pub fn zstd_level(mut self, value: u32) -> Self {
         Rc::get_mut(&mut self.inner).unwrap().zstd = Some(value);
         self
     }
@@ -419,7 +419,7 @@ mod tests {
         const DATA: &str = const_str::repeat!(D, 100);
 
         let app = test::init_service({
-            App::new().wrap(Compress::new().set_gzip_level(9)).route(
+            App::new().wrap(Compress::new().gzip_level(9)).route(
                 "/compress",
                 web::get().to(move || HttpResponse::Ok().body(DATA)),
             )
