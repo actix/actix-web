@@ -8,6 +8,7 @@
 - Add rudimentary redirection service at `web::redirect()` / `web::Redirect`. [#1961]
 - Add `guard::Acceptable` for matching against `Accept` header mime types. [#2265]
 - Add fallible versions of test helpers: `try_call_service`, `try_call_and_read_body_json`, `try_read_body`, and `try_read_body_json`. [#2961]
+- Add level setup for `middleware::Compress`. [#2948]
 
 ### Fixed
 - Add `Allow` header to `Resource`'s default responses when no routes are matched. [#2949]
@@ -19,6 +20,7 @@
 [#2867]: https://github.com/actix/actix-web/pull/2867
 [#2949]: https://github.com/actix/actix-web/pull/2949
 [#2961]: https://github.com/actix/actix-web/pull/2961
+[#2948]: https://github.com/actix/actix-web/pull/2948
 
 ## 4.2.1 - 2022-09-12
 ### Fixed
