@@ -232,11 +232,11 @@ impl WebsocketsRequest {
     where
         U: fmt::Display,
     {
-        let auth = match password {
-            Some(password) => format!("{}:{}", username, password),
-            None => format!("{}:", username),
-        };
-        self.header(AUTHORIZATION, format!("Basic {}", base64::encode(auth)))
+        let auth = base64::Engine::encode(
+            &base64::engine::general_purpose::STANDARD,
+            format!("{}:{}", username, password.unwrap_or("")),
+        );
+        self.header(AUTHORIZATION, format!("Basic {auth}"))
     }
 
     /// Set HTTP bearer authentication header
@@ -320,8 +320,10 @@ impl WebsocketsRequest {
 
         // Generate a random key for the `Sec-WebSocket-Key` header which is a base64-encoded
         // (see RFC 4648 §4) value that, when decoded, is 16 bytes in length (RFC 6455 §1.3).
-        let sec_key: [u8; 16] = rand::random();
-        let key = base64::encode(sec_key);
+        let key = base64::Engine::encode(
+            &base64::engine::general_purpose::STANDARD,
+            rand::random::<[u8; 16]>(),
+        );
 
         self.head.headers.insert(
             header::SEC_WEBSOCKET_KEY,

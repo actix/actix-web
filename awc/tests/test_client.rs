@@ -777,13 +777,20 @@ async fn client_basic_auth() {
         App::new().route(
             "/",
             web::to(|req: HttpRequest| {
+                let auth = format!(
+                    "Basic {}",
+                    base64::Engine::encode(
+                        &base64::engine::general_purpose::STANDARD,
+                        "username:password",
+                    )
+                );
                 if req
                     .headers()
                     .get(header::AUTHORIZATION)
                     .unwrap()
                     .to_str()
                     .unwrap()
-                    == format!("Basic {}", base64::encode("username:password"))
+                    == auth
                 {
                     HttpResponse::Ok()
                 } else {

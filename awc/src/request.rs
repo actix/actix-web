@@ -234,12 +234,11 @@ impl ClientRequest {
     ///
     /// If no password is needed, just provide an empty string.
     pub fn basic_auth(self, username: impl fmt::Display, password: impl fmt::Display) -> Self {
-        let auth = format!("{}:{}", username, password);
-
-        self.insert_header((
-            header::AUTHORIZATION,
-            format!("Basic {}", base64::encode(auth)),
-        ))
+        let auth = base64::Engine::encode(
+            &base64::engine::general_purpose::STANDARD,
+            format!("{}:{}", username, password),
+        );
+        self.insert_header((header::AUTHORIZATION, format!("Basic {auth}")))
     }
 
     /// Set HTTP bearer authentication header

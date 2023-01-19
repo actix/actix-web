@@ -25,6 +25,9 @@
 [#2955]: https://github.com/actix/actix-web/pull/2955
 [#2956]: https://github.com/actix/actix-web/pull/2956
 
+### Changed
+- Upgrade `base64` dependency to `0.21`.
+
 
 ## 3.2.2 - 2022-09-11
 ### Changed

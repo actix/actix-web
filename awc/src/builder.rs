@@ -204,14 +204,11 @@ where
     where
         N: fmt::Display,
     {
-        let auth = match password {
-            Some(password) => format!("{}:{}", username, password),
-            None => format!("{}:", username),
-        };
-        self.add_default_header((
-            header::AUTHORIZATION,
-            format!("Basic {}", base64::encode(auth)),
-        ))
+        let auth = base64::Engine::encode(
+            &base64::engine::general_purpose::STANDARD,
+            format!("{}:{}", username, password.unwrap_or("")),
+        );
+        self.add_default_header((header::AUTHORIZATION, format!("Basic {auth}")))
     }
 
     /// Set client wide HTTP bearer authentication header
