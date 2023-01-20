@@ -4,6 +4,14 @@
 
 use http::header::HeaderName;
 
+/// Response header field that indicates how caches have handled that response and its corresponding
+/// request.
+pub const CACHE_STATUS: HeaderName = HeaderName::from_static("cache-status");
+
+/// Response header field that allows origin servers to control the behavior of CDN caches
+/// interposed between them and clients separately from other caches that might handle the response.
+pub const CDN_CACHE_CONTROL: HeaderName = HeaderName::from_static("cdn-cache-control");
+
 /// Response header that prevents a document from loading any cross-origin resources that don't
 /// explicitly grant the document permission (using [CORP] or [CORS]).
 ///
