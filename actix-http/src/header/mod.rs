@@ -55,8 +55,9 @@ pub use self::{
 
 // re-export list is explicit so that any updates to `http` do not conflict with this set
 pub use self::common::{
-    CROSS_ORIGIN_EMBEDDER_POLICY, CROSS_ORIGIN_OPENER_POLICY, CROSS_ORIGIN_RESOURCE_POLICY,
-    PERMISSIONS_POLICY, X_FORWARDED_FOR, X_FORWARDED_HOST, X_FORWARDED_PROTO,
+    CACHE_STATUS, CDN_CACHE_CONTROL, CROSS_ORIGIN_EMBEDDER_POLICY, CROSS_ORIGIN_OPENER_POLICY,
+    CROSS_ORIGIN_RESOURCE_POLICY, PERMISSIONS_POLICY, X_FORWARDED_FOR, X_FORWARDED_HOST,
+    X_FORWARDED_PROTO,
 };
 
 /// An interface for types that already represent a valid header.
