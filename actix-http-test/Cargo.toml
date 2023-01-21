@@ -37,7 +37,6 @@ actix-rt = "2.2"
 actix-server = "2"
 awc = { version = "3", default-features = false }
 
-base64 = "0.21"
 bytes = "1"
 futures-core = { version = "0.3.17", default-features = false }
 http = "0.2.5"

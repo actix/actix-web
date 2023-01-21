@@ -15,7 +15,6 @@
   - `X_FORWARDED_HOST`
   - `X_FORWARDED_PROTO`
 
-
 ### Performance
 - Improve overall performance of operations on `Extensions`. [#2890]
 
