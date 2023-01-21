@@ -67,7 +67,7 @@ bytes = "1"
 bytestring = "1"
 derive_more = "0.99.5"
 encoding_rs = "0.8"
-futures-core = { version = "0.3.7", default-features = false, features = ["alloc"] }
+futures-core = { version = "0.3.17", default-features = false, features = ["alloc"] }
 http = "0.2.5"
 httparse = "1.5.1"
 httpdate = "1.0.1"
@@ -77,6 +77,8 @@ mime = "0.3"
 percent-encoding = "2.1"
 pin-project-lite = "0.2"
 smallvec = "1.6.1"
+tokio = { version = "1.18.4", features = [] }
+tokio-util = { version = "0.7", features = ["io", "codec"] }
 tracing = { version = "0.1.30", default-features = false, features = ["log"] }
 
 # http2
@@ -94,7 +96,7 @@ actix-tls = { version = "3", default-features = false, optional = true }
 # compress-*
 brotli = { version = "3.3.3", optional = true }
 flate2 = { version = "1.0.13", optional = true }
-zstd = { version = "0.11", optional = true }
+zstd = { version = "0.12", optional = true }
 
 [dev-dependencies]
 actix-http-test = { version = "3", features = ["openssl"] }
@@ -103,9 +105,9 @@ actix-tls = { version = "3", features = ["openssl"] }
 actix-web = "4"
 
 async-stream = "0.3"
-criterion = { version = "0.3", features = ["html_reports"] }
+criterion = { version = "0.4", features = ["html_reports"] }
 env_logger = "0.9"
-futures-util = { version = "0.3.7", default-features = false, features = ["alloc"] }
+futures-util = { version = "0.3.17", default-features = false, features = ["alloc"] }
 memchr = "2.4"
 once_cell = "1.9"
 rcgen = "0.9"
@@ -117,7 +119,7 @@ serde_json = "1.0"
 static_assertions = "1"
 tls-openssl = { package = "openssl", version = "0.10.9" }
 tls-rustls = { package = "rustls", version = "0.20.0" }
-tokio = { version = "1.8.4", features = ["net", "rt", "macros"] }
+tokio = { version = "1.18.4", features = ["net", "rt", "macros"] }
 
 [[example]]
 name = "ws"

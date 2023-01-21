@@ -4,31 +4,29 @@ on:
   push:
     branches: [master]
 
+permissions: {}
 jobs:
   build:
+    permissions:
+      contents: write  #  to push changes in repo (jamesives/github-pages-deploy-action)
+
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v2
 
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly-x86_64-unknown-linux-gnu
-          profile: minimal
-          override: true
+      - uses: dtolnay/rust-toolchain@nightly
 
       - name: Build Docs
-        uses: actions-rs/cargo@v1
-        with:
-          command: doc
-          args: --workspace --all-features --no-deps
+        run: cargo +nightly doc --no-deps --workspace --all-features
+        env:
+          RUSTDOCFLAGS: --cfg=docsrs
 
       - name: Tweak HTML
         run: echo '<meta http-equiv="refresh" content="0;url=actix_web/index.html">' > target/doc/index.html
 
       - name: Deploy to GitHub Pages
-        uses: JamesIves/github-pages-deploy-action@v4.4.0
+        uses: JamesIves/github-pages-deploy-action@v4.4.1
         with:
           folder: target/doc
           single-commit: true

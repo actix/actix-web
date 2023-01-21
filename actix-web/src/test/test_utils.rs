@@ -100,6 +100,15 @@ where
         .expect("test service call returned error")
 }
 
+/// Fallible version of [`call_service`] that allows testing response completion errors.
+pub async fn try_call_service<S, R, B, E>(app: &S, req: R) -> Result<S::Response, E>
+where
+    S: Service<R, Response = ServiceResponse<B>, Error = E>,
+    E: std::fmt::Debug,
+{
+    app.call(req).await
+}
+
 /// Helper function that returns a response body of a TestRequest
 ///
 /// # Examples
@@ -185,11 +194,21 @@ pub async fn read_body<B>(res: ServiceResponse<B>) -> Bytes
 where
     B: MessageBody,
 {
-    let body = res.into_body();
-    body::to_bytes(body)
+    try_read_body(res)
         .await
         .map_err(Into::<Box<dyn StdError>>::into)
         .expect("error reading test response body")
+}
+
+/// Fallible version of [`read_body`] that allows testing MessageBody reading errors.
+pub async fn try_read_body<B>(
+    res: ServiceResponse<B>,
+) -> Result<Bytes, <B as MessageBody>::Error>
+where
+    B: MessageBody,
+{
+    let body = res.into_body();
+    body::to_bytes(body).await
 }
 
 /// Helper function that returns a deserialized response body of a ServiceResponse.
@@ -240,16 +259,25 @@ where
     B: MessageBody,
     T: DeserializeOwned,
 {
-    let body = read_body(res).await;
-
-    serde_json::from_slice(&body).unwrap_or_else(|err| {
+    try_read_body_json(res).await.unwrap_or_else(|err| {
         panic!(
-            "could not deserialize body into a {}\nerr: {}\nbody: {:?}",
+            "could not deserialize body into a {}\nerr: {}",
             std::any::type_name::<T>(),
             err,
-            body,
         )
     })
+}
+
+/// Fallible version of [`read_body_json`] that allows testing response deserialzation errors.
+pub async fn try_read_body_json<T, B>(res: ServiceResponse<B>) -> Result<T, Box<dyn StdError>>
+where
+    B: MessageBody,
+    T: DeserializeOwned,
+{
+    let body = try_read_body(res)
+        .await
+        .map_err(Into::<Box<dyn StdError>>::into)?;
+    serde_json::from_slice(&body).map_err(Into::<Box<dyn StdError>>::into)
 }
 
 /// Helper function that returns a deserialized response body of a TestRequest
@@ -299,8 +327,23 @@ where
     B: MessageBody,
     T: DeserializeOwned,
 {
-    let res = call_service(app, req).await;
-    read_body_json(res).await
+    try_call_and_read_body_json(app, req).await.unwrap()
+}
+
+/// Fallible version of [`call_and_read_body_json`] that allows testing service call errors.
+pub async fn try_call_and_read_body_json<S, B, T>(
+    app: &S,
+    req: Request,
+) -> Result<T, Box<dyn StdError>>
+where
+    S: Service<Request, Response = ServiceResponse<B>, Error = Error>,
+    B: MessageBody,
+    T: DeserializeOwned,
+{
+    let res = try_call_service(app, req)
+        .await
+        .map_err(Into::<Box<dyn StdError>>::into)?;
+    try_read_body_json(res).await
 }
 
 #[doc(hidden)]
@@ -358,7 +401,7 @@ mod tests {
         assert_eq!(result, Bytes::from_static(b"delete!"));
     }
 
-    #[derive(Serialize, Deserialize)]
+    #[derive(Serialize, Deserialize, Debug)]
     pub struct Person {
         id: String,
         name: String,
@@ -384,6 +427,26 @@ mod tests {
     }
 
     #[actix_rt::test]
+    async fn test_try_response_json_error() {
+        let app = init_service(App::new().service(web::resource("/people").route(
+            web::post().to(|person: web::Json<Person>| HttpResponse::Ok().json(person)),
+        )))
+        .await;
+
+        let payload = r#"{"id":"12345","name":"User name"}"#.as_bytes();
+
+        let req = TestRequest::post()
+            .uri("/animals") // Not registered to ensure an error occurs.
+            .insert_header((header::CONTENT_TYPE, "application/json"))
+            .set_payload(payload)
+            .to_request();
+
+        let result: Result<Person, Box<dyn StdError>> =
+            try_call_and_read_body_json(&app, req).await;
+        assert!(result.is_err());
+    }
+
+    #[actix_rt::test]
     async fn test_body_json() {
         let app = init_service(App::new().service(web::resource("/people").route(
             web::post().to(|person: web::Json<Person>| HttpResponse::Ok().json(person)),
@@ -401,6 +464,27 @@ mod tests {
 
         let result: Person = read_body_json(res).await;
         assert_eq!(&result.name, "User name");
+    }
+
+    #[actix_rt::test]
+    async fn test_try_body_json_error() {
+        let app = init_service(App::new().service(web::resource("/people").route(
+            web::post().to(|person: web::Json<Person>| HttpResponse::Ok().json(person)),
+        )))
+        .await;
+
+        // Use a number for id to cause a deserialization error.
+        let payload = r#"{"id":12345,"name":"User name"}"#.as_bytes();
+
+        let res = TestRequest::post()
+            .uri("/people")
+            .insert_header((header::CONTENT_TYPE, "application/json"))
+            .set_payload(payload)
+            .send_request(&app)
+            .await;
+
+        let result: Result<Person, Box<dyn StdError>> = try_read_body_json(res).await;
+        assert!(result.is_err());
     }
 
     #[actix_rt::test]

@@ -10,12 +10,16 @@
 //! # Calling Test Service
 //! - [`TestRequest`]
 //! - [`call_service`]
+//! - [`try_call_service`]
 //! - [`call_and_read_body`]
 //! - [`call_and_read_body_json`]
+//! - [`try_call_and_read_body_json`]
 //!
 //! # Reading Response Payloads
 //! - [`read_body`]
+//! - [`try_read_body`]
 //! - [`read_body_json`]
+//! - [`try_read_body_json`]
 
 // TODO: more docs on generally how testing works with these parts
 
@@ -31,7 +35,8 @@ pub use self::test_services::{default_service, ok_service, simple_service, statu
 #[allow(deprecated)]
 pub use self::test_utils::{
     call_and_read_body, call_and_read_body_json, call_service, init_service, read_body,
-    read_body_json, read_response, read_response_json,
+    read_body_json, read_response, read_response_json, try_call_and_read_body_json,
+    try_call_service, try_read_body, try_read_body_json,
 };
 
 #[cfg(test)]

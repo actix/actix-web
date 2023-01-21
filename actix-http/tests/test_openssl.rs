@@ -1,4 +1,5 @@
 #![cfg(feature = "openssl")]
+#![allow(clippy::uninlined_format_args)]
 
 extern crate tls_openssl as openssl;
 
@@ -16,7 +17,7 @@ use actix_utils::future::{err, ok, ready};
 use bytes::{Bytes, BytesMut};
 use derive_more::{Display, Error};
 use futures_core::Stream;
-use futures_util::stream::{once, StreamExt as _};
+use futures_util::{stream::once, StreamExt as _};
 use openssl::{
     pkey::PKey,
     ssl::{SslAcceptor, SslMethod},

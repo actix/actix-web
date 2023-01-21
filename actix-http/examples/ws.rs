@@ -10,13 +10,13 @@ use std::{
     time::Duration,
 };
 
-use actix_codec::Encoder;
 use actix_http::{body::BodyStream, error::Error, ws, HttpService, Request, Response};
 use actix_rt::time::{interval, Interval};
 use actix_server::Server;
 use bytes::{Bytes, BytesMut};
 use bytestring::ByteString;
 use futures_core::{ready, Stream};
+use tokio_util::codec::Encoder;
 use tracing::{info, trace};
 
 #[actix_rt::main]

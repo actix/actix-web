@@ -24,7 +24,39 @@ use crate::{
     h1, ConnectCallback, OnConnectData, Protocol, Request, Response, ServiceConfig,
 };
 
-/// A `ServiceFactory` for HTTP/1.1 or HTTP/2 protocol.
+/// A [`ServiceFactory`] for HTTP/1.1 and HTTP/2 connections.
+///
+/// Use [`build`](Self::build) to begin constructing service. Also see [`HttpServiceBuilder`].
+///
+/// # Automatic HTTP Version Selection
+/// There are two ways to select the HTTP version of an incoming connection:
+/// - One is to rely on the ALPN information that is provided when using a TLS (HTTPS); both
+///   versions are supported automatically when using either of the `.rustls()` or `.openssl()`
+///   finalizing methods.
+/// - The other is to read the first few bytes of the TCP stream. This is the only viable approach
+///   for supporting H2C, which allows the HTTP/2 protocol to work over plaintext connections. Use
+///   the `.tcp_auto_h2c()` finalizing method to enable this behavior.
+///
+/// # Examples
+/// ```
+/// # use std::convert::Infallible;
+/// use actix_http::{HttpService, Request, Response, StatusCode};
+///
+/// // this service would constructed in an actix_server::Server
+///
+/// # actix_rt::System::new().block_on(async {
+/// HttpService::build()
+///     // the builder finalizing method, other finalizers would not return an `HttpService`
+///     .finish(|_req: Request| async move {
+///         Ok::<_, Infallible>(
+///             Response::build(StatusCode::OK).body("Hello!")
+///         )
+///     })
+///     // the service finalizing method method
+///     // you can use `.tcp_auto_h2c()`, `.rustls()`, or `.openssl()` instead of `.tcp()`
+///     .tcp();
+/// # })
+/// ```
 pub struct HttpService<T, S, B, X = h1::ExpectHandler, U = h1::UpgradeHandler> {
     srv: S,
     cfg: ServiceConfig,
@@ -163,7 +195,9 @@ where
     U::Error: fmt::Display + Into<Response<BoxBody>>,
     U::InitError: fmt::Debug,
 {
-    /// Create simple tcp stream service
+    /// Creates TCP stream service from HTTP service.
+    ///
+    /// The resulting service only supports HTTP/1.x.
     pub fn tcp(
         self,
     ) -> impl ServiceFactory<
@@ -176,6 +210,42 @@ where
         fn_service(|io: TcpStream| async {
             let peer_addr = io.peer_addr().ok();
             Ok((io, Protocol::Http1, peer_addr))
+        })
+        .and_then(self)
+    }
+
+    /// Creates TCP stream service from HTTP service that automatically selects HTTP/1.x or HTTP/2
+    /// on plaintext connections.
+    #[cfg(feature = "http2")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
+    pub fn tcp_auto_h2c(
+        self,
+    ) -> impl ServiceFactory<
+        TcpStream,
+        Config = (),
+        Response = (),
+        Error = DispatchError,
+        InitError = (),
+    > {
+        fn_service(move |io: TcpStream| async move {
+            // subset of HTTP/2 preface defined by RFC 9113 §3.4
+            // this subset was chosen to maximize likelihood that peeking only once will allow us to
+            // reliably determine version or else it should fallback to h1 and fail quickly if data
+            // on the wire is junk
+            const H2_PREFACE: &[u8] = b"PRI * HTTP/2";
+
+            let mut buf = [0; 12];
+
+            io.peek(&mut buf).await?;
+
+            let proto = if buf == H2_PREFACE {
+                Protocol::Http2
+            } else {
+                Protocol::Http1
+            };
+
+            let peer_addr = io.peer_addr().ok();
+            Ok((io, proto, peer_addr))
         })
         .and_then(self)
     }

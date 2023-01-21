@@ -5,14 +5,31 @@
 - Fix non-empty body of http2 HEAD response.
 
 ### Added
+- Implement `MessageBody` for `Cow<'static, str>` and `Cow<'static, [u8]>`. [#2959]
 - Implement `MessageBody` for `&mut B` where `B: MessageBody + Unpin`. [#2868]
 - Implement `MessageBody` for `Pin<B>` where `B::Target: MessageBody`. [#2868]
+- Automatic h2c detection via new service finalizer `HttpService::tcp_auto_h2c()`. [#2957]
+- `HeaderMap::retain()` [#2955].
+- Header name constants in `header` module. [#2956] [#2968]
+  - `CACHE_STATUS`
+  - `CDN_CACHE_CONTROL`
+  - `CROSS_ORIGIN_EMBEDDER_POLICY`
+  - `CROSS_ORIGIN_OPENER_POLICY`
+  - `PERMISSIONS_POLICY`
+  - `X_FORWARDED_FOR`
+  - `X_FORWARDED_HOST`
+  - `X_FORWARDED_PROTO`
 
 ### Performance
 - Improve overall performance of operations on `Extensions`. [#2890]
 
+[#2959]: https://github.com/actix/actix-web/pull/2959
 [#2868]: https://github.com/actix/actix-web/pull/2868
 [#2890]: https://github.com/actix/actix-web/pull/2890
+[#2957]: https://github.com/actix/actix-web/pull/2957
+[#2955]: https://github.com/actix/actix-web/pull/2955
+[#2956]: https://github.com/actix/actix-web/pull/2956
+[#2968]: https://github.com/actix/actix-web/pull/2968
 
 
 ## 3.2.2 - 2022-09-11

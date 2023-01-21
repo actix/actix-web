@@ -83,7 +83,7 @@
 //! ```no_run
 //! # #[actix_rt::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! use futures_util::{sink::SinkExt as _, stream::StreamExt as _};
+//! use futures_util::{SinkExt as _, StreamExt as _};
 //!
 //! let (_resp, mut connection) = awc::Client::new()
 //!     .ws("ws://echo.websocket.org")
@@ -105,7 +105,8 @@
 #![allow(
     clippy::type_complexity,
     clippy::borrow_interior_mutable_const,
-    clippy::needless_doctest_main
+    clippy::needless_doctest_main,
+    clippy::uninlined_format_args
 )]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]

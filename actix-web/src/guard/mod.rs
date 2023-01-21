@@ -56,6 +56,9 @@ use actix_http::{header, uri::Uri, Extensions, Method as HttpMethod, RequestHead
 
 use crate::{http::header::Header, service::ServiceRequest, HttpMessage as _};
 
+mod acceptable;
+pub use self::acceptable::Acceptable;
+
 /// Provides access to request parts that are useful during routing.
 #[derive(Debug)]
 pub struct GuardContext<'a> {
@@ -193,6 +196,7 @@ impl AnyGuard {
 }
 
 impl Guard for AnyGuard {
+    #[inline]
     fn check(&self, ctx: &GuardContext<'_>) -> bool {
         for guard in &self.guards {
             if guard.check(ctx) {
@@ -244,12 +248,14 @@ impl AllGuard {
 }
 
 impl Guard for AllGuard {
+    #[inline]
     fn check(&self, ctx: &GuardContext<'_>) -> bool {
         for guard in &self.guards {
             if !guard.check(ctx) {
                 return false;
             }
         }
+
         true
     }
 }
@@ -268,6 +274,7 @@ impl Guard for AllGuard {
 pub struct Not<G>(pub G);
 
 impl<G: Guard> Guard for Not<G> {
+    #[inline]
     fn check(&self, ctx: &GuardContext<'_>) -> bool {
         !self.0.check(ctx)
     }
@@ -279,11 +286,25 @@ pub fn Method(method: HttpMethod) -> impl Guard {
     MethodGuard(method)
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct RegisteredMethods(pub(crate) Vec<HttpMethod>);
+
 /// HTTP method guard.
-struct MethodGuard(HttpMethod);
+#[derive(Debug)]
+pub(crate) struct MethodGuard(HttpMethod);
 
 impl Guard for MethodGuard {
     fn check(&self, ctx: &GuardContext<'_>) -> bool {
+        let registered = ctx.req_data_mut().remove::<RegisteredMethods>();
+
+        if let Some(mut methods) = registered {
+            methods.0.push(self.0.clone());
+            ctx.req_data_mut().insert(methods);
+        } else {
+            ctx.req_data_mut()
+                .insert(RegisteredMethods(vec![self.0.clone()]));
+        }
+
         ctx.head().method == self.0
     }
 }
