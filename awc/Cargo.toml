@@ -57,7 +57,7 @@ dangerous-h2c = []
 [dependencies]
 actix-codec = "0.5"
 actix-service = "2"
-actix-http = { version = "3", features = ["http2", "ws"] }
+actix-http = { version = "3.3", features = ["http2", "ws"] }
 actix-rt = { version = "2.1", default-features = false }
 actix-tls = { version = "3", features = ["connect", "uri"] }
 actix-utils = "3"

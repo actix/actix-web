@@ -1,6 +1,9 @@
 # Changes
 
 ## Unreleased - 2022-xx-xx
+
+
+## 3.3.0 - 2023-01-21
 ### Added
 - Implement `MessageBody` for `Cow<'static, str>` and `Cow<'static, [u8]>`. [#2959]
 - Implement `MessageBody` for `&mut B` where `B: MessageBody + Unpin`. [#2868]
