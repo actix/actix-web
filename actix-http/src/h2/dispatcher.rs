@@ -19,7 +19,6 @@ use h2::{
     server::{Connection, SendResponse},
     Ping, PingPong,
 };
-use http::Method;
 use pin_project_lite::pin_project;
 use tracing::{error, trace, warn};
 
@@ -30,7 +29,7 @@ use crate::{
         HeaderName, HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING, UPGRADE,
     },
     service::HttpFlow,
-    Extensions, OnConnectData, Payload, Request, Response, ResponseHead,
+    Extensions, Method, OnConnectData, Payload, Request, Response, ResponseHead,
 };
 
 const CHUNK_SIZE: usize = 16_384;
@@ -218,14 +217,14 @@ where
     // prepare response.
     let mut size = body.size();
     let res = prepare_response(config, res.head(), &mut size);
-    let eof = size.is_eof() || head_req;
+    let eof_or_head = size.is_eof() || head_req;
 
     // send response head and return on eof.
     let mut stream = tx
-        .send_response(res, eof)
+        .send_response(res, eof_or_head)
         .map_err(DispatchError::SendResponse)?;
 
-    if eof {
+    if eof_or_head {
         return Ok(());
     }
 

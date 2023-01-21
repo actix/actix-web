@@ -32,6 +32,7 @@
 [#2956]: https://github.com/actix/actix-web/pull/2956
 [#2968]: https://github.com/actix/actix-web/pull/2968
 
+
 ## 3.2.2 - 2022-09-11
 ### Changed
 - Minimum supported Rust version (MSRV) is now 1.59 due to transitive `time` dependency.
