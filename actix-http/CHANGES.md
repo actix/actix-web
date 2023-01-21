@@ -1,9 +1,6 @@
 # Changes
 
 ## Unreleased - 2022-xx-xx
-### Fixed
-- Fix non-empty body of http2 HEAD response.
-
 ### Added
 - Implement `MessageBody` for `Cow<'static, str>` and `Cow<'static, [u8]>`. [#2959]
 - Implement `MessageBody` for `&mut B` where `B: MessageBody + Unpin`. [#2868]
@@ -20,17 +17,20 @@
   - `X_FORWARDED_HOST`
   - `X_FORWARDED_PROTO`
 
+### Fixed
+- Fix non-empty body of HTTP/2 HEAD responses. [#2920]
+
 ### Performance
 - Improve overall performance of operations on `Extensions`. [#2890]
 
 [#2959]: https://github.com/actix/actix-web/pull/2959
 [#2868]: https://github.com/actix/actix-web/pull/2868
 [#2890]: https://github.com/actix/actix-web/pull/2890
+[#2920]: https://github.com/actix/actix-web/pull/2920
 [#2957]: https://github.com/actix/actix-web/pull/2957
 [#2955]: https://github.com/actix/actix-web/pull/2955
 [#2956]: https://github.com/actix/actix-web/pull/2956
 [#2968]: https://github.com/actix/actix-web/pull/2968
-
 
 ## 3.2.2 - 2022-09-11
 ### Changed
