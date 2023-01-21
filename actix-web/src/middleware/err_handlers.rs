@@ -351,7 +351,7 @@ mod tests {
     use actix_service::IntoService;
     use actix_utils::future::ok;
     use bytes::Bytes;
-    use futures_util::future::FutureExt as _;
+    use futures_util::FutureExt as _;
 
     use super::*;
     use crate::{

@@ -14,7 +14,7 @@ use crate::server::Multipart;
 /// ```
 /// use actix_web::{web, HttpResponse, Error};
 /// use actix_multipart::Multipart;
-/// use futures_util::stream::StreamExt as _;
+/// use futures_util::StreamExt as _;
 ///
 /// async fn index(mut payload: Multipart) -> Result<HttpResponse, Error> {
 ///     // iterate over multipart stream

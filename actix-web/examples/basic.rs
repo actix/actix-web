@@ -1,3 +1,5 @@
+#![allow(clippy::uninlined_format_args)]
+
 use actix_web::{get, middleware, web, App, HttpRequest, HttpResponse, HttpServer};
 
 #[get("/resource1/{name}/index.html")]

@@ -150,9 +150,7 @@ impl HeaderMap {
     /// assert_eq!(map.len(), 3);
     /// ```
     pub fn len(&self) -> usize {
-        self.inner
-            .iter()
-            .fold(0, |acc, (_, values)| acc + values.len())
+        self.inner.values().map(|vals| vals.len()).sum()
     }
 
     /// Returns the number of _keys_ stored in the map.
@@ -552,6 +550,39 @@ impl HeaderMap {
         Keys(self.inner.keys())
     }
 
+    /// Retains only the headers specified by the predicate.
+    ///
+    /// In other words, removes all headers `(name, val)` for which `retain_fn(&name, &mut val)`
+    /// returns false.
+    ///
+    /// The order in which headers are visited should be considered arbitrary.
+    ///
+    /// # Examples
+    /// ```
+    /// # use actix_http::header::{self, HeaderMap, HeaderValue};
+    /// let mut map = HeaderMap::new();
+    ///
+    /// map.append(header::HOST, HeaderValue::from_static("duck.com"));
+    /// map.append(header::SET_COOKIE, HeaderValue::from_static("one=1"));
+    /// map.append(header::SET_COOKIE, HeaderValue::from_static("two=2"));
+    ///
+    /// map.retain(|name, val| val.as_bytes().starts_with(b"one"));
+    ///
+    /// assert_eq!(map.len(), 1);
+    /// assert!(map.contains_key(&header::SET_COOKIE));
+    /// ```
+    pub fn retain<F>(&mut self, mut retain_fn: F)
+    where
+        F: FnMut(&HeaderName, &mut HeaderValue) -> bool,
+    {
+        self.inner.retain(|name, vals| {
+            vals.inner.retain(|val| retain_fn(name, val));
+
+            // invariant: make sure newly empty value lists are removed
+            !vals.is_empty()
+        })
+    }
+
     /// Clears the map, returning all name-value sets as an iterator.
     ///
     /// Header names will only be yielded for the first value in each set. All items that are
@@ -941,6 +972,55 @@ mod tests {
         drop(iter);
 
         assert!(map.is_empty());
+    }
+
+    #[test]
+    fn retain() {
+        let mut map = HeaderMap::new();
+
+        map.append(header::LOCATION, HeaderValue::from_static("/test"));
+        map.append(header::HOST, HeaderValue::from_static("duck.com"));
+        map.append(header::COOKIE, HeaderValue::from_static("one=1"));
+        map.append(header::COOKIE, HeaderValue::from_static("two=2"));
+
+        assert_eq!(map.len(), 4);
+
+        // by value
+        map.retain(|_, val| !val.as_bytes().contains(&b'/'));
+        assert_eq!(map.len(), 3);
+
+        // by name
+        map.retain(|name, _| name.as_str() != "cookie");
+        assert_eq!(map.len(), 1);
+
+        // keep but mutate value
+        map.retain(|_, val| {
+            *val = HeaderValue::from_static("replaced");
+            true
+        });
+        assert_eq!(map.len(), 1);
+        assert_eq!(map.get("host").unwrap(), "replaced");
+    }
+
+    #[test]
+    fn retain_removes_empty_value_lists() {
+        let mut map = HeaderMap::with_capacity(3);
+
+        map.append(header::HOST, HeaderValue::from_static("duck.com"));
+        map.append(header::HOST, HeaderValue::from_static("duck.com"));
+
+        assert_eq!(map.len(), 2);
+        assert_eq!(map.len_keys(), 1);
+        assert_eq!(map.inner.len(), 1);
+        assert_eq!(map.capacity(), 3);
+
+        // remove everything
+        map.retain(|_n, _v| false);
+
+        assert_eq!(map.len(), 0);
+        assert_eq!(map.len_keys(), 0);
+        assert_eq!(map.inner.len(), 0);
+        assert_eq!(map.capacity(), 3);
     }
 
     #[test]

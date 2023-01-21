@@ -1,14 +1,18 @@
 //! Pre-defined `HeaderName`s, traits for parsing and conversion, and other header utility methods.
 
+// declaring new header consts will yield this error
+#![allow(clippy::declare_interior_mutable_const)]
+
 use percent_encoding::{AsciiSet, CONTROLS};
 
 // re-export from http except header map related items
-pub use http::header::{
+pub use ::http::header::{
     HeaderName, HeaderValue, InvalidHeaderName, InvalidHeaderValue, ToStrError,
 };
 
-// re-export const header names
-pub use http::header::{
+// re-export const header names, list is explicit so that any updates to `common` module do not
+// conflict with this set
+pub use ::http::header::{
     ACCEPT, ACCEPT_CHARSET, ACCEPT_ENCODING, ACCEPT_LANGUAGE, ACCEPT_RANGES,
     ACCESS_CONTROL_ALLOW_CREDENTIALS, ACCESS_CONTROL_ALLOW_HEADERS,
     ACCESS_CONTROL_ALLOW_METHODS, ACCESS_CONTROL_ALLOW_ORIGIN, ACCESS_CONTROL_EXPOSE_HEADERS,
@@ -30,22 +34,30 @@ pub use http::header::{
 use crate::{error::ParseError, HttpMessage};
 
 mod as_name;
+mod common;
 mod into_pair;
 mod into_value;
 pub mod map;
 mod shared;
 mod utils;
 
-pub use self::as_name::AsHeaderName;
-pub use self::into_pair::TryIntoHeaderPair;
-pub use self::into_value::TryIntoHeaderValue;
-pub use self::map::HeaderMap;
-pub use self::shared::{
-    parse_extended_value, q, Charset, ContentEncoding, ExtendedValue, HttpDate, LanguageTag,
-    Quality, QualityItem,
+pub use self::{
+    as_name::AsHeaderName,
+    into_pair::TryIntoHeaderPair,
+    into_value::TryIntoHeaderValue,
+    map::HeaderMap,
+    shared::{
+        parse_extended_value, q, Charset, ContentEncoding, ExtendedValue, HttpDate,
+        LanguageTag, Quality, QualityItem,
+    },
+    utils::{fmt_comma_delimited, from_comma_delimited, from_one_raw_str, http_percent_encode},
 };
-pub use self::utils::{
-    fmt_comma_delimited, from_comma_delimited, from_one_raw_str, http_percent_encode,
+
+// re-export list is explicit so that any updates to `http` do not conflict with this set
+pub use self::common::{
+    CACHE_STATUS, CDN_CACHE_CONTROL, CROSS_ORIGIN_EMBEDDER_POLICY, CROSS_ORIGIN_OPENER_POLICY,
+    CROSS_ORIGIN_RESOURCE_POLICY, PERMISSIONS_POLICY, X_FORWARDED_FOR, X_FORWARDED_HOST,
+    X_FORWARDED_PROTO,
 };
 
 /// An interface for types that already represent a valid header.

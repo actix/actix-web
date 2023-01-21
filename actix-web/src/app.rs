@@ -5,7 +5,7 @@ use actix_service::{
     apply, apply_fn_factory, boxed, IntoServiceFactory, ServiceFactory, ServiceFactoryExt,
     Transform,
 };
-use futures_util::future::FutureExt as _;
+use futures_util::FutureExt as _;
 
 use crate::{
     app_service::{AppEntry, AppInit, AppRoutingFactory},
@@ -712,6 +712,7 @@ mod tests {
                 .route("/", web::to(|| async { "hello" }))
         }
 
+        #[allow(clippy::let_underscore_future)]
         let _ = init_service(my_app());
     }
 }

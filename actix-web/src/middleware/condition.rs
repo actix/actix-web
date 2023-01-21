@@ -7,7 +7,7 @@ use std::{
 };
 
 use futures_core::{future::LocalBoxFuture, ready};
-use futures_util::future::FutureExt as _;
+use futures_util::FutureExt as _;
 use pin_project_lite::pin_project;
 
 use crate::{

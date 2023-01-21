@@ -37,9 +37,8 @@ actix-rt = "2.2"
 actix-server = "2"
 awc = { version = "3", default-features = false }
 
-base64 = "0.13"
 bytes = "1"
-futures-core = { version = "0.3.7", default-features = false }
+futures-core = { version = "0.3.17", default-features = false }
 http = "0.2.5"
 log = "0.4"
 socket2 = "0.4"
@@ -48,7 +47,7 @@ serde_json = "1.0"
 slab = "0.4"
 serde_urlencoded = "0.7"
 tls-openssl = { version = "0.10.9", package = "openssl", optional = true }
-tokio = { version = "1.8.4", features = ["sync"] }
+tokio = { version = "1.18.4", features = ["sync"] }
 
 [dev-dependencies]
 actix-web = { version = "4", default-features = false, features = ["cookies"] }
