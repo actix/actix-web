@@ -3,6 +3,7 @@
 ## Unreleased - 2022-xx-xx
 - XHTML files now use `Content-Disposition: inline` instead of `attachment`. [#2903]
 - Minimum supported Rust version (MSRV) is now 1.59 due to transitive `time` dependency.
+- Update `tokio-uring` dependency to `0.4`.
 
 [#2903]: https://github.com/actix/actix-web/pull/2903
 
