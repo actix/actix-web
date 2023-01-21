@@ -29,7 +29,7 @@ use crate::{
         HeaderName, HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING, UPGRADE,
     },
     service::HttpFlow,
-    Extensions, OnConnectData, Payload, Request, Response, ResponseHead,
+    Extensions, Method, OnConnectData, Payload, Request, Response, ResponseHead,
 };
 
 const CHUNK_SIZE: usize = 16_384;
@@ -118,6 +118,7 @@ where
                     let payload = crate::h2::Payload::new(body);
                     let pl = Payload::H2 { payload };
                     let mut req = Request::with_payload(pl);
+                    let head_req = parts.method == Method::HEAD;
 
                     let head = req.head_mut();
                     head.uri = parts.uri;
@@ -135,10 +136,10 @@ where
                     actix_rt::spawn(async move {
                         // resolve service call and send response.
                         let res = match fut.await {
-                            Ok(res) => handle_response(res.into(), tx, config).await,
+                            Ok(res) => handle_response(res.into(), tx, config, head_req).await,
                             Err(err) => {
                                 let res: Response<BoxBody> = err.into();
-                                handle_response(res, tx, config).await
+                                handle_response(res, tx, config, head_req).await
                             }
                         };
 
@@ -206,6 +207,7 @@ async fn handle_response<B>(
     res: Response<B>,
     mut tx: SendResponse<Bytes>,
     config: ServiceConfig,
+    head_req: bool,
 ) -> Result<(), DispatchError>
 where
     B: MessageBody,
@@ -215,14 +217,14 @@ where
     // prepare response.
     let mut size = body.size();
     let res = prepare_response(config, res.head(), &mut size);
-    let eof = size.is_eof();
+    let eof_or_head = size.is_eof() || head_req;
 
     // send response head and return on eof.
     let mut stream = tx
-        .send_response(res, eof)
+        .send_response(res, eof_or_head)
         .map_err(DispatchError::SendResponse)?;
 
-    if eof {
+    if eof_or_head {
         return Ok(());
     }
 
