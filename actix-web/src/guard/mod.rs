@@ -339,6 +339,11 @@ method_guard!(Connect, CONNECT);
 method_guard!(Patch, PATCH);
 method_guard!(Trace, TRACE);
 
+#[allow(non_snake_case)]
+pub fn Custom(custom_method: &str) -> impl Guard {
+    MethodGuard(HttpMethod::from_bytes(custom_method.as_bytes()).unwrap())
+}
+
 /// Creates a guard that matches if request contains given header name and value.
 ///
 /// # Examples
