@@ -1,6 +1,6 @@
 [package]
 name = "awc"
-version = "3.0.1"
+version = "3.1.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Async HTTP and WebSocket client library"
 keywords = ["actix", "http", "framework", "async", "web"]
@@ -57,13 +57,13 @@ dangerous-h2c = []
 [dependencies]
 actix-codec = "0.5"
 actix-service = "2"
-actix-http = { version = "3", features = ["http2", "ws"] }
+actix-http = { version = "3.3", features = ["http2", "ws"] }
 actix-rt = { version = "2.1", default-features = false }
 actix-tls = { version = "3", features = ["connect", "uri"] }
 actix-utils = "3"
 
 ahash = "0.7"
-base64 = "0.13"
+base64 = "0.21"
 bytes = "1"
 cfg-if = "1"
 derive_more = "0.99.5"

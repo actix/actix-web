@@ -1,6 +1,6 @@
 [package]
 name = "actix-files"
-version = "0.6.2"
+version = "0.6.3"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
     "Rob Ede <robjtede@icloud.com>",
@@ -40,8 +40,8 @@ v_htmlescape= "0.15"
 
 # experimental-io-uring
 [target.'cfg(target_os = "linux")'.dependencies]
-tokio-uring = { version = "0.3", optional = true, features = ["bytes"] }
-actix-server = { version = "2.1", optional = true } # ensure matching tokio-uring versions
+tokio-uring = { version = "0.4", optional = true, features = ["bytes"] }
+actix-server = { version = "2.2", optional = true } # ensure matching tokio-uring versions
 
 [dev-dependencies]
 actix-rt = "2.7"
