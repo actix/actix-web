@@ -3,6 +3,8 @@
 ## Unreleased - 2022-xx-xx
 - Add support for Custom Methods with `#[route]` macro. [#2969]
 
+[#2969]: https://github.com/actix/actix-web/pull/2969
+
 
 ## 4.1.0 - 2022-09-11
 - Add `#[routes]` macro to support multiple paths for one handler. [#2718]
