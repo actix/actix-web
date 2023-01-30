@@ -105,7 +105,7 @@ mod route;
 /// ```
 /// # use actix_web::HttpResponse;
 /// # use actix_web_codegen::route;
-/// #[route("/test", method = "GET", method = "HEAD")]
+/// #[route("/test", method = "GET", method = "HEAD", method = "CUSTOM")]
 /// async fn example() -> HttpResponse {
 ///     HttpResponse::Ok().finish()
 /// }

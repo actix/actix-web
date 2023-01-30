@@ -339,6 +339,16 @@ method_guard!(Connect, CONNECT);
 method_guard!(Patch, PATCH);
 method_guard!(Trace, TRACE);
 
+///
+/// # Examples
+#[doc = "The route in this example will respond to all uppercase ASCII requests."]
+/// ```
+/// use actix_web::{guard, web, HttpResponse};
+///
+/// web::route()
+#[doc = "    .guard(guard::Custom(\"HELLO\"))"]
+///     .to(|| HttpResponse::Ok());
+/// ```
 #[allow(non_snake_case)]
 pub fn Custom(custom_method: &str) -> impl Guard {
     MethodGuard(HttpMethod::from_bytes(custom_method.as_bytes()).unwrap())
