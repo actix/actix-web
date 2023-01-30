@@ -9,7 +9,7 @@ fn compile_macros() {
     t.pass("tests/trybuild/route-ok.rs");
     t.compile_fail("tests/trybuild/route-missing-method-fail.rs");
     t.compile_fail("tests/trybuild/route-duplicate-method-fail.rs");
-    t.compile_fail("tests/trybuild/route-unexpected-method-fail.rs");
+    t.pass("tests/trybuild/route-unexpected-method-fail.rs");
     t.compile_fail("tests/trybuild/route-malformed-path-fail.rs");
 
     t.pass("tests/trybuild/routes-ok.rs");
