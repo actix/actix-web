@@ -27,13 +27,13 @@ macro_rules! method_type {
             fn parse(method: &str) -> Result<Self, String> {
                 match method {
                     $(stringify!($upper) => Ok(Self::$variant),)+
-                    _ => { if method.chars().all(|c| c.is_ascii_uppercase()) {
-                                Ok(Self::Custom)
-                            } else {
-                                Err(format!("HTTP method must be uppercase: `{}`", method))
-                            }
-                        },
-                    // _ => Err(format!("Unexpected HTTP method: `{}`", method)),
+                    _ => {
+                        if method.chars().all(|c| c.is_ascii_uppercase()) {
+                            Ok(Self::Custom)
+                        } else {
+                            Err(format!("HTTP method must be uppercase: `{}`", method))
+                        }
+                    },
                 }
             }
 
