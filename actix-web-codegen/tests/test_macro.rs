@@ -97,17 +97,6 @@ async fn route_test() -> impl Responder {
     HttpResponse::Ok()
 }
 
-// use actix_web::http::Method;
-// use std::str::FromStr;
-// let abc = Method::from_str("ABC").unwrap();
-// #[route(
-//     "/multi/custom",
-//     method = abc,
-// )]
-// async fn route_custom_test() -> impl Responder {
-//     HttpResponse::Ok()
-// }
-
 #[routes]
 #[get("/routes/test")]
 #[get("/routes/test2")]
