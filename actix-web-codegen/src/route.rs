@@ -63,7 +63,7 @@ method_type! {
     Options,   OPTIONS, options,
     Trace,     TRACE,   trace,
     Patch,     PATCH,   patch,
-    Custom,    CUSTOM,  custom,
+    Method,    METHOD,  method,
 }
 
 impl ToTokens for MethodType {
@@ -76,7 +76,7 @@ impl ToTokens for MethodType {
 impl ToTokens for MethodTypeExt {
     fn to_tokens(&self, stream: &mut TokenStream2) {
         match self.method {
-            MethodType::Custom => {
+            MethodType::Method => {
                 let ident = Ident::new(
                     self.custom_method.as_ref().unwrap().value().as_str(),
                     Span::call_site(),
@@ -186,7 +186,7 @@ impl Args {
                         } else if let syn::Lit::Str(ref lit) = nv.lit {
                             let method = MethodType::try_from(lit)?;
                             if !methods.insert({
-                                if method == MethodType::Custom {
+                                if method == MethodType::Method {
                                     MethodTypeExt {
                                         method,
                                         custom_method: Some(lit.clone()),
@@ -355,7 +355,7 @@ impl ToTokens for Route {
                                 match custom_method {
                                     Some(lit) => {
                                         mult_method_guards.push(quote! {
-                                            .or(::actix_web::guard::#method_type(#lit.clone()))
+                                            .or(::actix_web::guard::#method_type(::actix_web::http::Method::from_bytes(#lit.as_bytes()).unwrap()))
                                         });
                                     }
                                     None => {
@@ -369,7 +369,7 @@ impl ToTokens for Route {
                                 Some(lit) => {
                                     quote! {
                                         .guard(
-                                            ::actix_web::guard::Any(::actix_web::guard::#first_method(#lit.clone()))
+                                            ::actix_web::guard::Any(::actix_web::guard::#first_method(::actix_web::http::Method::from_bytes(#lit.as_bytes()).unwrap()))
                                                 #(#mult_method_guards)*
                                         )
                                     }
@@ -387,7 +387,7 @@ impl ToTokens for Route {
                             match &first.custom_method {
                                 Some(lit) => {
                                     quote! {
-                                        .guard(::actix_web::guard::#first_method(#lit.clone()))
+                                        .guard(::actix_web::guard::#first_method(::actix_web::http::Method::from_bytes(#lit.as_bytes()).unwrap()))
                                     }
                                 }
                                 None => {

@@ -91,11 +91,22 @@ async fn get_param_test(_: web::Path<String>) -> impl Responder {
     method = "GET",
     method = "POST",
     method = "HEAD",
-    method = "CREATE"
+    method = "HELLO"
 )]
 async fn route_test() -> impl Responder {
     HttpResponse::Ok()
 }
+
+// use actix_web::http::Method;
+// use std::str::FromStr;
+// let abc = Method::from_str("ABC").unwrap();
+// #[route(
+//     "/multi/custom",
+//     method = abc,
+// )]
+// async fn route_custom_test() -> impl Responder {
+//     HttpResponse::Ok()
+// }
 
 #[routes]
 #[get("/routes/test")]
