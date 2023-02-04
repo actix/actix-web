@@ -91,7 +91,7 @@ async fn get_param_test(_: web::Path<String>) -> impl Responder {
     method = "GET",
     method = "POST",
     method = "HEAD",
-    method = "CREATE"
+    method = "HELLO"
 )]
 async fn route_test() -> impl Responder {
     HttpResponse::Ok()

@@ -1,10 +1,6 @@
 # Changelog
 
 ## Unreleased - 2022-xx-xx
-### Added
-- Add `guard::Custom()` for handling `#[route]` macro with custom Methods. [#2969]
-
-[#2969]: https://github.com/actix/actix-web/pull/2969
 
 ## 4.3.0 - 2023-01-21
 ### Added
