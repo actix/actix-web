@@ -1,11 +1,11 @@
 error: HTTP method must be uppercase: `hello`
-Error:  --> tests/trybuild/route-custom-lowercase.rs:5:23
+ --> tests/trybuild/route-custom-lowercase.rs:5:23
   |
 5 | #[route("/", method = "hello")]
   |                       ^^^^^^^
 
 error[E0277]: the trait bound `fn() -> impl std::future::Future<Output = String> {index}: HttpServiceFactory` is not satisfied
-Error:   --> tests/trybuild/route-custom-lowercase.rs:14:55
+  --> tests/trybuild/route-custom-lowercase.rs:14:55
    |
 14 |     let srv = actix_test::start(|| App::new().service(index));
    |                                               ------- ^^^^^ the trait `HttpServiceFactory` is not implemented for `fn() -> impl std::future::Future<Output = String> {index}`
