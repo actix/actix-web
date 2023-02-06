@@ -27,7 +27,13 @@ macro_rules! method_type {
             fn parse(method: &str) -> Result<Self, String> {
                 match method {
                     $(stringify!($upper) => Ok(Self::$variant),)+
-                    _ => Err(format!("Unexpected HTTP method: `{}`", method)),
+                    _ => {
+                        if method.chars().all(|c| c.is_ascii_uppercase()) {
+                            Ok(Self::Method)
+                        } else {
+                            Err(format!("HTTP method must be uppercase: `{}`", method))
+                        }
+                    },
                 }
             }
 
@@ -41,6 +47,12 @@ macro_rules! method_type {
     };
 }
 
+#[derive(Eq, Hash, PartialEq)]
+struct MethodTypeExt {
+    method: MethodType,
+    custom_method: Option<LitStr>,
+}
+
 method_type! {
     Get,       GET,     get,
     Post,      POST,    post,
@@ -51,12 +63,28 @@ method_type! {
     Options,   OPTIONS, options,
     Trace,     TRACE,   trace,
     Patch,     PATCH,   patch,
+    Method,    METHOD,  method,
 }
 
 impl ToTokens for MethodType {
     fn to_tokens(&self, stream: &mut TokenStream2) {
         let ident = Ident::new(self.as_str(), Span::call_site());
         stream.append(ident);
+    }
+}
+
+impl ToTokens for MethodTypeExt {
+    fn to_tokens(&self, stream: &mut TokenStream2) {
+        match self.method {
+            MethodType::Method => {
+                let ident = Ident::new(
+                    self.custom_method.as_ref().unwrap().value().as_str(),
+                    Span::call_site(),
+                );
+                stream.append(ident);
+            }
+            _ => self.method.to_tokens(stream),
+        }
     }
 }
 
@@ -74,7 +102,7 @@ struct Args {
     resource_name: Option<syn::LitStr>,
     guards: Vec<Path>,
     wrappers: Vec<syn::Type>,
-    methods: HashSet<MethodType>,
+    methods: HashSet<MethodTypeExt>,
 }
 
 impl Args {
@@ -99,7 +127,12 @@ impl Args {
 
         let is_route_macro = method.is_none();
         if let Some(method) = method {
-            methods.insert(method);
+            methods.insert({
+                MethodTypeExt {
+                    method,
+                    custom_method: None,
+                }
+            });
         }
 
         for arg in args {
@@ -152,10 +185,22 @@ impl Args {
                             ));
                         } else if let syn::Lit::Str(ref lit) = nv.lit {
                             let method = MethodType::try_from(lit)?;
-                            if !methods.insert(method) {
+                            if !methods.insert({
+                                if method == MethodType::Method {
+                                    MethodTypeExt {
+                                        method,
+                                        custom_method: Some(lit.clone()),
+                                    }
+                                } else {
+                                    MethodTypeExt {
+                                        method,
+                                        custom_method: None,
+                                    }
+                                }
+                            }) {
                                 return Err(syn::Error::new_spanned(
                                     &nv.lit,
-                                    format!(
+                                    &format!(
                                         "HTTP method defined more than once: `{}`",
                                         lit.value()
                                     ),
@@ -298,38 +343,72 @@ impl ToTokens for Route {
                     .as_ref()
                     .map_or_else(|| name.to_string(), LitStr::value);
 
-                let method_guards = {
-                    let mut others = methods.iter();
-
-                    // unwrapping since length is checked to be at least one
-                    let first = others.next().unwrap();
-
-                    if methods.len() > 1 {
-                        quote! {
-                            .guard(
-                                ::actix_web::guard::Any(::actix_web::guard::#first())
-                                    #(.or(::actix_web::guard::#others()))*
-                            )
+                    let method_guards = {
+                        let mut others = methods.iter();
+                        let first = others.next().unwrap();
+                        let first_method = &first.method;
+                        if methods.len() > 1 {
+                            let mut mult_method_guards: Vec<TokenStream2> = Vec::new();
+                            for method_ext in methods {
+                                let method_type = &method_ext.method;
+                                let custom_method = &method_ext.custom_method;
+                                match custom_method {
+                                    Some(lit) => {
+                                        mult_method_guards.push(quote! {
+                                            .or(::actix_web::guard::#method_type(::actix_web::http::Method::from_bytes(#lit.as_bytes()).unwrap()))
+                                        });
+                                    }
+                                    None => {
+                                        mult_method_guards.push(quote! {
+                                            .or(::actix_web::guard::#method_type())
+                                        });
+                                    }
+                                }
+                            }
+                            match &first.custom_method {
+                                Some(lit) => {
+                                    quote! {
+                                        .guard(
+                                            ::actix_web::guard::Any(::actix_web::guard::#first_method(::actix_web::http::Method::from_bytes(#lit.as_bytes()).unwrap()))
+                                                #(#mult_method_guards)*
+                                        )
+                                    }
+                                }
+                                None => {
+                                    quote! {
+                                        .guard(
+                                            ::actix_web::guard::Any(::actix_web::guard::#first_method())
+                                                #(#mult_method_guards)*
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            match &first.custom_method {
+                                Some(lit) => {
+                                    quote! {
+                                        .guard(::actix_web::guard::#first_method(::actix_web::http::Method::from_bytes(#lit.as_bytes()).unwrap()))
+                                    }
+                                }
+                                None => {
+                                    quote! {
+                                        .guard(::actix_web::guard::#first_method())
+                                    }
+                                }
+                            }
                         }
-                    } else {
-                        quote! {
-                            .guard(::actix_web::guard::#first())
-                        }
+                    };
+                    quote! {
+                        let __resource = ::actix_web::Resource::new(#path)
+                            .name(#resource_name)
+                            #method_guards
+                            #(.guard(::actix_web::guard::fn_guard(#guards)))*
+                            #(.wrap(#wrappers))*
+                            .to(#name);
+                        ::actix_web::dev::HttpServiceFactory::register(__resource, __config);
                     }
-                };
-
-                quote! {
-                    let __resource = ::actix_web::Resource::new(#path)
-                        .name(#resource_name)
-                        #method_guards
-                        #(.guard(::actix_web::guard::fn_guard(#guards)))*
-                        #(.wrap(#wrappers))*
-                        .to(#name);
-
-                    ::actix_web::dev::HttpServiceFactory::register(__resource, __config);
-                }
-            })
-            .collect();
+                })
+                .collect();
 
         let stream = quote! {
             #(#doc_attributes)*
