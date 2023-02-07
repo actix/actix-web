@@ -72,6 +72,9 @@ type DefaultHandler<B> = Option<Rc<ErrorHandler<B>>>;
 ///
 /// Body Content
 /// ```
+/// use actix_web::http::{header, StatusCode};
+/// use actix_web::middleware::{ErrorHandlerResponse, ErrorHandlers};
+/// use actix_web::{dev, web, App, HttpResponse, Result};
 /// fn add_error_body<B>(res: dev::ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
 ///    // Get the error message and status code
 ///    let error_message = "An error occurred";
@@ -80,7 +83,7 @@ type DefaultHandler<B> = Option<Rc<ErrorHandler<B>>>;
 ///    // Create a new response with the modified body
 ///    let res = res.set_body(error_message).map_into_boxed_body();
 ///    // Create a new ServiceResponse with the modified response
-///    let res = ServiceResponse::new(req, res).map_into_right_body();
+///    let res = dev::ServiceResponse::new(req, res).map_into_right_body();
 ///    Ok(ErrorHandlerResponse::Response(res))
 ///}
 ///
