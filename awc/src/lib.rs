@@ -139,7 +139,7 @@ pub mod http {
 }
 
 pub use self::builder::ClientBuilder;
-pub use self::client::{Client, Connector};
+pub use self::client::{Client, Connect, Connector};
 pub use self::connect::{BoxConnectorService, BoxedSocket, ConnectRequest, ConnectResponse};
 pub use self::frozen::{FrozenClientRequest, FrozenSendBuilder};
 pub use self::request::ClientRequest;
