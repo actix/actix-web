@@ -97,7 +97,7 @@ impl MethodTypeExt {
     /// Returns a multi-method guard chain token stream.
     fn to_tokens_multi_guard(&self, or_chain: Vec<impl ToTokens>) -> TokenStream2 {
         debug_assert!(
-            or_chain.len() > 0,
+            !or_chain.is_empty(),
             "empty or_chain passed to multi-guard constructor"
         );
 
@@ -405,7 +405,7 @@ impl ToTokens for Route {
                     .map_or_else(|| name.to_string(), LitStr::value);
 
                 let method_guards = {
-                    debug_assert!(methods.len() > 0, "Args::methods should not be empty");
+                    debug_assert!(!methods.is_empty(), "Args::methods should not be empty");
 
                     let mut others = methods.iter();
                     let first = others.next().unwrap();
