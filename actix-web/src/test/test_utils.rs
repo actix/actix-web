@@ -268,7 +268,7 @@ where
     })
 }
 
-/// Fallible version of [`read_body_json`] that allows testing response deserialzation errors.
+/// Fallible version of [`read_body_json`] that allows testing response deserialization errors.
 pub async fn try_read_body_json<T, B>(res: ServiceResponse<B>) -> Result<T, Box<dyn StdError>>
 where
     B: MessageBody,

@@ -30,7 +30,7 @@ impl PathBufWrap {
         let mut segment_count = path.matches('/').count() + 1;
 
         // we can decode the whole path here (instead of per-segment decoding)
-        // because we will reject `%2F` in paths using `segement_count`.
+        // because we will reject `%2F` in paths using `segment_count`.
         let path = percent_encoding::percent_decode_str(path)
             .decode_utf8()
             .map_err(|_| UriSegmentError::NotValidUtf8)?;
