@@ -14,7 +14,7 @@
 - `actix_http_test::TestServer` moved to `actix_web::test` module. To start
   test server use `test::start()` or `test_start_with_config()` methods
 
-- `ResponseError` trait has been reafctored. `ResponseError::error_response()` renders
+- `ResponseError` trait has been refactored. `ResponseError::error_response()` renders
   http response.
 
 - Feature `rust-tls` renamed to `rustls`
