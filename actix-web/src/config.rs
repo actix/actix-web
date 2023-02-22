@@ -141,7 +141,7 @@ impl AppConfig {
         self.secure
     }
 
-    /// Returns the socket address of the local half of this TCP connection
+    /// Returns the socket address of the local half of this TCP connection.
     pub fn local_addr(&self) -> SocketAddr {
         self.addr
     }

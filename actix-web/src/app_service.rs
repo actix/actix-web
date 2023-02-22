@@ -21,7 +21,7 @@ use crate::{
     Error, HttpResponse,
 };
 
-/// Service factory to convert `Request` to a `ServiceRequest<S>`.
+/// Service factory to convert [`Request`] to a [`ServiceRequest<S>`].
 ///
 /// It also executes data factories.
 pub struct AppInit<T, B>
@@ -155,7 +155,7 @@ where
     app_state: Rc<AppInitServiceState>,
 }
 
-/// A collection of [`AppInitService`] state that shared across `HttpRequest`s.
+/// A collection of state for [`AppInitService`] that is shared across [`HttpRequest`]s.
 pub(crate) struct AppInitServiceState {
     rmap: Rc<ResourceMap>,
     config: AppConfig,
@@ -163,6 +163,7 @@ pub(crate) struct AppInitServiceState {
 }
 
 impl AppInitServiceState {
+    /// Constructs state collection from resource map and app config.
     pub(crate) fn new(rmap: Rc<ResourceMap>, config: AppConfig) -> Rc<Self> {
         Rc::new(AppInitServiceState {
             rmap,
@@ -171,16 +172,19 @@ impl AppInitServiceState {
         })
     }
 
+    /// Returns a reference to the application's resource map.
     #[inline]
     pub(crate) fn rmap(&self) -> &ResourceMap {
         &self.rmap
     }
 
+    /// Returns a reference to the application's configuration.
     #[inline]
     pub(crate) fn config(&self) -> &AppConfig {
         &self.config
     }
 
+    /// Returns a reference to the application's request pool.
     #[inline]
     pub(crate) fn pool(&self) -> &HttpRequestPool {
         &self.pool
