@@ -24,7 +24,7 @@ quote = "1"
 syn = "1"
 
 [dev-dependencies]
-actix-multipart = "0.5"
+actix-multipart = "0.6"
 actix-web = "4"
 rustversion = "1"
 trybuild = "1"

@@ -2,6 +2,8 @@
 
 ## Unreleased - 2022-xx-xx
 
+## 0.6.0 - 2023-02-26
+
 - Added `MultipartForm` typed data extractor. [#2883]
 
 [#2883]: https://github.com/actix/actix-web/pull/2883
