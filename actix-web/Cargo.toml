@@ -115,7 +115,7 @@ serde = { version = "1.0", features = ["derive"] }
 static_assertions = "1"
 tls-openssl = { package = "openssl", version = "0.10.9" }
 tls-rustls = { package = "rustls", version = "0.20.0" }
-tokio = { version = "1.18.5", features = ["rt-multi-thread", "macros"] }
+tokio = { version = "1.24.2", features = ["rt-multi-thread", "macros"] }
 zstd = "0.12"
 
 [[test]]
