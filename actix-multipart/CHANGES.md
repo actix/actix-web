@@ -1,11 +1,14 @@
 # Changes
 
 ## Unreleased - 2022-xx-xx
+- Added `MultipartForm` typed data extractor. [#2883]
+
+[#2883]: https://github.com/actix/actix-web/pull/2883
 
 
 ## 0.5.0 - 2023-01-21
+- `Field::content_type()` now returns `Option<&mime::Mime>`. [#2885]
 - Minimum supported Rust version (MSRV) is now 1.59 due to transitive `time` dependency.
-- `Field::content_type()` now returns `Option<&mime::Mime>` [#2885]
 
 [#2885]: https://github.com/actix/actix-web/pull/2885
 
