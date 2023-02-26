@@ -99,7 +99,7 @@ actix-utils = "3"
 actix-web = { version = "4", features = ["openssl"] }
 
 brotli = "3.3.3"
-const-str = "0.4"
+const-str = "0.3"
 env_logger = "0.9"
 flate2 = "1.0.13"
 futures-util = { version = "0.3.17", default-features = false }

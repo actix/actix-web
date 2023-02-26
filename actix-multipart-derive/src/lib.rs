@@ -1,4 +1,6 @@
 //! Multipart form derive macro for Actix Web.
+//!
+//! See [`macro@MultipartForm`] for usage examples.
 
 #![deny(rust_2018_idioms, nonstandard_style)]
 #![warn(future_incompatible)]
@@ -57,13 +59,13 @@ struct ParsedField<'t> {
 /// Each field type should implement the `FieldReader` trait:
 ///
 /// ```
-/// use actix_multipart::form::{tempfile::Tempfile, text::Text, MultipartForm};
+/// use actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};
 ///
 /// #[derive(MultipartForm)]
 /// struct ImageUpload {
 ///     description: Text<String>,
 ///     timestamp: Text<i64>,
-///     image: Tempfile,
+///     image: TempFile,
 /// }
 /// ```
 ///
@@ -75,12 +77,12 @@ struct ParsedField<'t> {
 /// name](https://www.rfc-editor.org/rfc/rfc7578#section-4.3).
 ///
 /// ```
-/// use actix_multipart::form::{tempfile::Tempfile, text::Text, MultipartForm};
+/// use actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};
 ///
 /// #[derive(MultipartForm)]
 /// struct Form {
 ///     category: Option<Text<String>>,
-///     files: Vec<Tempfile>,
+///     files: Vec<TempFile>,
 /// }
 /// ```
 ///
@@ -89,12 +91,12 @@ struct ParsedField<'t> {
 /// You can use the `#[multipart(rename = "foo")]` attribute to receive a field by a different name.
 ///
 /// ```
-/// use actix_multipart::form::{tempfile::Tempfile, MultipartForm};
+/// use actix_multipart::form::{tempfile::TempFile, MultipartForm};
 ///
 /// #[derive(MultipartForm)]
 /// struct Form {
 ///     #[multipart(rename = "files[]")]
-///     files: Vec<Tempfile>,
+///     files: Vec<TempFile>,
 /// }
 /// ```
 ///
@@ -106,7 +108,7 @@ struct ParsedField<'t> {
 /// Note: the form is also subject to the global limits configured using `MultipartFormConfig`.
 ///
 /// ```
-/// use actix_multipart::form::{tempfile::Tempfile, text::Text, MultipartForm};
+/// use actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};
 ///
 /// #[derive(MultipartForm)]
 /// struct Form {
@@ -114,7 +116,7 @@ struct ParsedField<'t> {
 ///     description: Text<String>,
 ///
 ///     #[multipart(limit = "512 MiB")]
-///     files: Vec<Tempfile>,
+///     files: Vec<TempFile>,
 /// }
 /// ```
 ///
@@ -124,8 +126,7 @@ struct ParsedField<'t> {
 /// `#[multipart(deny_unknown_fields)]` attribute:
 ///
 /// ```
-/// use actix_multipart::form::MultipartForm;
-///
+/// # use actix_multipart::form::MultipartForm;
 /// #[derive(MultipartForm)]
 /// #[multipart(deny_unknown_fields)]
 /// struct Form { }
