@@ -72,7 +72,7 @@ actix-http = { version = "3.3", features = ["http2", "ws"] }
 actix-router = "0.5"
 actix-web-codegen = { version = "4.2", optional = true }
 
-ahash = "0.7"
+ahash = "0.8"
 bytes = "1"
 bytestring = "1"
 cfg-if = "1"

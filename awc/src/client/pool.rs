@@ -2,7 +2,7 @@
 
 use std::{
     cell::RefCell,
-    collections::VecDeque,
+    collections::{HashMap, VecDeque},
     future::Future,
     io,
     ops::Deref,
@@ -17,7 +17,6 @@ use actix_codec::{AsyncRead, AsyncWrite, ReadBuf};
 use actix_http::Protocol;
 use actix_rt::time::{sleep, Sleep};
 use actix_service::Service;
-use ahash::AHashMap;
 use futures_core::future::LocalBoxFuture;
 use futures_util::FutureExt as _;
 use http::uri::Authority;
@@ -62,7 +61,7 @@ where
 {
     fn new(config: ConnectorConfig) -> Self {
         let permits = Arc::new(Semaphore::new(config.limit));
-        let available = RefCell::new(AHashMap::default());
+        let available = RefCell::new(HashMap::default());
 
         Self(Rc::new(ConnectionPoolInnerPriv {
             config,
@@ -124,7 +123,7 @@ where
     Io: AsyncWrite + Unpin + 'static,
 {
     config: ConnectorConfig,
-    available: RefCell<AHashMap<Key, VecDeque<PooledConnection<Io>>>>,
+    available: RefCell<HashMap<Key, VecDeque<PooledConnection<Io>>>>,
     permits: Arc<Semaphore>,
 }
 

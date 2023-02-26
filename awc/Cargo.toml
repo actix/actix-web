@@ -62,7 +62,6 @@ actix-rt = { version = "2.1", default-features = false }
 actix-tls = { version = "3", features = ["connect", "uri"] }
 actix-utils = "3"
 
-ahash = "0.7"
 base64 = "0.21"
 bytes = "1"
 cfg-if = "1"

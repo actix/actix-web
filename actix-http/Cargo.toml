@@ -61,7 +61,7 @@ actix-codec = "0.5"
 actix-utils = "3"
 actix-rt = { version = "2.2", default-features = false }
 
-ahash = "0.7"
+ahash = "0.8"
 bitflags = "1.2"
 bytes = "1"
 bytestring = "1"
