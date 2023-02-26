@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "4.2.1"
+version = "4.3.1"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
     "Rob Ede <robjtede@icloud.com>",
@@ -68,11 +68,11 @@ actix-service = "2"
 actix-utils = "3"
 actix-tls = { version = "3", default-features = false, optional = true }
 
-actix-http = { version = "3.2.2", features = ["http2", "ws"] }
+actix-http = { version = "3.3", features = ["http2", "ws"] }
 actix-router = "0.5"
-actix-web-codegen = { version = "4.1", optional = true }
+actix-web-codegen = { version = "4.2", optional = true }
 
-ahash = "0.7"
+ahash = "0.8"
 bytes = "1"
 bytestring = "1"
 cfg-if = "1"
@@ -103,7 +103,7 @@ actix-test = { version = "0.1", features = ["openssl", "rustls"] }
 awc = { version = "3", features = ["openssl"] }
 
 brotli = "3.3.3"
-const-str = "0.4"
+const-str = "0.3"
 criterion = { version = "0.4", features = ["html_reports"] }
 env_logger = "0.9"
 flate2 = "1.0.13"
@@ -115,7 +115,7 @@ serde = { version = "1.0", features = ["derive"] }
 static_assertions = "1"
 tls-openssl = { package = "openssl", version = "0.10.9" }
 tls-rustls = { package = "rustls", version = "0.20.0" }
-tokio = { version = "1.13.1", features = ["rt-multi-thread", "macros"] }
+tokio = { version = "1.24.2", features = ["rt-multi-thread", "macros"] }
 zstd = "0.12"
 
 [[test]]

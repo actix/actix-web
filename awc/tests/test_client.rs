@@ -13,6 +13,7 @@ use std::{
 };
 
 use actix_utils::future::ok;
+use base64::prelude::*;
 use bytes::Bytes;
 use cookie::Cookie;
 use futures_util::stream;
@@ -783,7 +784,7 @@ async fn client_basic_auth() {
                     .unwrap()
                     .to_str()
                     .unwrap()
-                    == format!("Basic {}", base64::encode("username:password"))
+                    == format!("Basic {}", BASE64_STANDARD.encode("username:password"))
                 {
                     HttpResponse::Ok()
                 } else {

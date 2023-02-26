@@ -1,12 +1,15 @@
 //! Error and Result module
-use actix_web::error::{ParseError, PayloadError};
-use actix_web::http::StatusCode;
-use actix_web::ResponseError;
+
+use actix_web::{
+    error::{ParseError, PayloadError},
+    http::StatusCode,
+    ResponseError,
+};
 use derive_more::{Display, Error, From};
 
-/// A set of errors that can occur during parsing multipart streams
-#[non_exhaustive]
+/// A set of errors that can occur during parsing multipart streams.
 #[derive(Debug, Display, From, Error)]
+#[non_exhaustive]
 pub enum MultipartError {
     /// Content-Disposition header is not found or is not equal to "form-data".
     ///
@@ -46,12 +49,41 @@ pub enum MultipartError {
     /// Not consumed
     #[display(fmt = "Multipart stream is not consumed")]
     NotConsumed,
+
+    /// An error from a field handler in a form
+    #[display(
+        fmt = "An error occurred processing field `{}`: {}",
+        field_name,
+        source
+    )]
+    Field {
+        field_name: String,
+        source: actix_web::Error,
+    },
+
+    /// Duplicate field
+    #[display(fmt = "Duplicate field found for: `{}`", _0)]
+    #[from(ignore)]
+    DuplicateField(#[error(not(source))] String),
+
+    /// Missing field
+    #[display(fmt = "Field with name `{}` is required", _0)]
+    #[from(ignore)]
+    MissingField(#[error(not(source))] String),
+
+    /// Unknown field
+    #[display(fmt = "Unsupported field `{}`", _0)]
+    #[from(ignore)]
+    UnsupportedField(#[error(not(source))] String),
 }
 
 /// Return `BadRequest` for `MultipartError`
 impl ResponseError for MultipartError {
     fn status_code(&self) -> StatusCode {
-        StatusCode::BAD_REQUEST
+        match &self {
+            MultipartError::Field { source, .. } => source.as_response_error().status_code(),
+            _ => StatusCode::BAD_REQUEST,
+        }
     }
 }
 

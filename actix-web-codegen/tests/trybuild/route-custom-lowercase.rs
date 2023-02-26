@@ -1,6 +1,8 @@
 use actix_web_codegen::*;
+use actix_web::http::Method;
+use std::str::FromStr;
 
-#[route("/", method="UNEXPECTED")]
+#[route("/", method = "hello")]
 async fn index() -> String {
     "Hello World!".to_owned()
 }
@@ -11,7 +13,7 @@ async fn main() {
 
     let srv = actix_test::start(|| App::new().service(index));
 
-    let request = srv.get("/");
+    let request = srv.request(Method::from_str("hello").unwrap(), srv.url("/"));
     let response = request.send().await.unwrap();
     assert!(response.status().is_success());
 }

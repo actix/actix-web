@@ -270,7 +270,9 @@ impl InnerMultipart {
                             match field.borrow_mut().poll(safety) {
                                 Poll::Pending => return Poll::Pending,
                                 Poll::Ready(Some(Ok(_))) => continue,
-                                Poll::Ready(Some(Err(e))) => return Poll::Ready(Some(Err(e))),
+                                Poll::Ready(Some(Err(err))) => {
+                                    return Poll::Ready(Some(Err(err)))
+                                }
                                 Poll::Ready(None) => true,
                             }
                         }
@@ -658,7 +660,7 @@ impl InnerField {
                 match res {
                     Poll::Pending => return Poll::Pending,
                     Poll::Ready(Some(Ok(bytes))) => return Poll::Ready(Some(Ok(bytes))),
-                    Poll::Ready(Some(Err(e))) => return Poll::Ready(Some(Err(e))),
+                    Poll::Ready(Some(Err(err))) => return Poll::Ready(Some(Err(err))),
                     Poll::Ready(None) => self.eof = true,
                 }
             }
@@ -673,7 +675,7 @@ impl InnerField {
                     }
                     Poll::Ready(None)
                 }
-                Err(e) => Poll::Ready(Some(Err(e))),
+                Err(err) => Poll::Ready(Some(Err(err))),
             }
         } else {
             Poll::Pending
@@ -794,7 +796,7 @@ impl PayloadBuffer {
         loop {
             match Pin::new(&mut self.stream).poll_next(cx) {
                 Poll::Ready(Some(Ok(data))) => self.buf.extend_from_slice(&data),
-                Poll::Ready(Some(Err(e))) => return Err(e),
+                Poll::Ready(Some(Err(err))) => return Err(err),
                 Poll::Ready(None) => {
                     self.eof = true;
                     return Ok(());
@@ -860,18 +862,21 @@ impl PayloadBuffer {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::time::Duration;
 
-    use actix_http::h1::Payload;
-    use actix_web::http::header::{DispositionParam, DispositionType};
-    use actix_web::rt;
-    use actix_web::test::TestRequest;
-    use actix_web::FromRequest;
+    use actix_http::h1;
+    use actix_web::{
+        http::header::{DispositionParam, DispositionType},
+        rt,
+        test::TestRequest,
+        FromRequest,
+    };
     use bytes::Bytes;
     use futures_util::{future::lazy, StreamExt as _};
-    use std::time::Duration;
     use tokio::sync::mpsc;
     use tokio_stream::wrappers::UnboundedReceiverStream;
+
+    use super::*;
 
     #[actix_rt::test]
     async fn test_boundary() {
@@ -1119,7 +1124,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_basic() {
-        let (_, payload) = Payload::create(false);
+        let (_, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new(payload);
 
         assert_eq!(payload.buf.len(), 0);
@@ -1129,7 +1134,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_eof() {
-        let (mut sender, payload) = Payload::create(false);
+        let (mut sender, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new(payload);
 
         assert_eq!(None, payload.read_max(4).unwrap());
@@ -1145,7 +1150,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_err() {
-        let (mut sender, payload) = Payload::create(false);
+        let (mut sender, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new(payload);
         assert_eq!(None, payload.read_max(1).unwrap());
         sender.set_error(PayloadError::Incomplete(None));
@@ -1154,7 +1159,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_readmax() {
-        let (mut sender, payload) = Payload::create(false);
+        let (mut sender, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new(payload);
 
         sender.feed_data(Bytes::from("line1"));
@@ -1171,7 +1176,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_readexactly() {
-        let (mut sender, payload) = Payload::create(false);
+        let (mut sender, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new(payload);
 
         assert_eq!(None, payload.read_exact(2));
@@ -1189,7 +1194,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_readuntil() {
-        let (mut sender, payload) = Payload::create(false);
+        let (mut sender, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new(payload);
 
         assert_eq!(None, payload.read_until(b"ne").unwrap());
@@ -1230,7 +1235,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_multipart_payload_consumption() {
         // with sample payload and HttpRequest with no headers
-        let (_, inner_payload) = Payload::create(false);
+        let (_, inner_payload) = h1::Payload::create(false);
         let mut payload = actix_web::dev::Payload::from(inner_payload);
         let req = TestRequest::default().to_http_request();
 

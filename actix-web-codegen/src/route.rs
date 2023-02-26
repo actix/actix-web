@@ -6,11 +6,11 @@ use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{quote, ToTokens, TokenStreamExt};
 use syn::{parse_macro_input, AttributeArgs, Ident, LitStr, Meta, NestedMeta, Path};
 
-macro_rules! method_type {
+macro_rules! standard_method_type {
     (
         $($variant:ident, $upper:ident, $lower:ident,)+
     ) => {
-        #[derive(Debug, PartialEq, Eq, Hash)]
+        #[derive(Debug, Clone, PartialEq, Eq, Hash)]
         pub enum MethodType {
             $(
                 $variant,
@@ -27,7 +27,7 @@ macro_rules! method_type {
             fn parse(method: &str) -> Result<Self, String> {
                 match method {
                     $(stringify!($upper) => Ok(Self::$variant),)+
-                    _ => Err(format!("Unexpected HTTP method: `{}`", method)),
+                    _ => Err(format!("HTTP method must be uppercase: `{}`", method)),
                 }
             }
 
@@ -41,7 +41,7 @@ macro_rules! method_type {
     };
 }
 
-method_type! {
+standard_method_type! {
     Get,       GET,     get,
     Post,      POST,    post,
     Put,       PUT,     put,
@@ -53,13 +53,6 @@ method_type! {
     Patch,     PATCH,   patch,
 }
 
-impl ToTokens for MethodType {
-    fn to_tokens(&self, stream: &mut TokenStream2) {
-        let ident = Ident::new(self.as_str(), Span::call_site());
-        stream.append(ident);
-    }
-}
-
 impl TryFrom<&syn::LitStr> for MethodType {
     type Error = syn::Error;
 
@@ -69,12 +62,123 @@ impl TryFrom<&syn::LitStr> for MethodType {
     }
 }
 
+impl ToTokens for MethodType {
+    fn to_tokens(&self, stream: &mut TokenStream2) {
+        let ident = Ident::new(self.as_str(), Span::call_site());
+        stream.append(ident);
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum MethodTypeExt {
+    Standard(MethodType),
+    Custom(LitStr),
+}
+
+impl MethodTypeExt {
+    /// Returns a single method guard token stream.
+    fn to_tokens_single_guard(&self) -> TokenStream2 {
+        match self {
+            MethodTypeExt::Standard(method) => {
+                quote! {
+                    .guard(::actix_web::guard::#method())
+                }
+            }
+            MethodTypeExt::Custom(lit) => {
+                quote! {
+                    .guard(::actix_web::guard::Method(
+                        ::actix_web::http::Method::from_bytes(#lit.as_bytes()).unwrap()
+                    ))
+                }
+            }
+        }
+    }
+
+    /// Returns a multi-method guard chain token stream.
+    fn to_tokens_multi_guard(&self, or_chain: Vec<impl ToTokens>) -> TokenStream2 {
+        debug_assert!(
+            !or_chain.is_empty(),
+            "empty or_chain passed to multi-guard constructor"
+        );
+
+        match self {
+            MethodTypeExt::Standard(method) => {
+                quote! {
+                    .guard(
+                        ::actix_web::guard::Any(::actix_web::guard::#method())
+                            #(#or_chain)*
+                    )
+                }
+            }
+            MethodTypeExt::Custom(lit) => {
+                quote! {
+                    .guard(
+                        ::actix_web::guard::Any(
+                            ::actix_web::guard::Method(
+                                ::actix_web::http::Method::from_bytes(#lit.as_bytes()).unwrap()
+                            )
+                        )
+                        #(#or_chain)*
+                    )
+                }
+            }
+        }
+    }
+
+    /// Returns a token stream containing the `.or` chain to be passed in to
+    /// [`MethodTypeExt::to_tokens_multi_guard()`].
+    fn to_tokens_multi_guard_or_chain(&self) -> TokenStream2 {
+        match self {
+            MethodTypeExt::Standard(method_type) => {
+                quote! {
+                    .or(::actix_web::guard::#method_type())
+                }
+            }
+            MethodTypeExt::Custom(lit) => {
+                quote! {
+                    .or(
+                        ::actix_web::guard::Method(
+                            ::actix_web::http::Method::from_bytes(#lit.as_bytes()).unwrap()
+                        )
+                    )
+                }
+            }
+        }
+    }
+}
+
+impl ToTokens for MethodTypeExt {
+    fn to_tokens(&self, stream: &mut TokenStream2) {
+        match self {
+            MethodTypeExt::Custom(lit_str) => {
+                let ident = Ident::new(lit_str.value().as_str(), Span::call_site());
+                stream.append(ident);
+            }
+            MethodTypeExt::Standard(method) => method.to_tokens(stream),
+        }
+    }
+}
+
+impl TryFrom<&syn::LitStr> for MethodTypeExt {
+    type Error = syn::Error;
+
+    fn try_from(value: &syn::LitStr) -> Result<Self, Self::Error> {
+        match MethodType::try_from(value) {
+            Ok(method) => Ok(MethodTypeExt::Standard(method)),
+            Err(_) if value.value().chars().all(|c| c.is_ascii_uppercase()) => {
+                Ok(MethodTypeExt::Custom(value.clone()))
+            }
+            Err(err) => Err(err),
+        }
+    }
+}
+
 struct Args {
     path: syn::LitStr,
     resource_name: Option<syn::LitStr>,
     guards: Vec<Path>,
     wrappers: Vec<syn::Type>,
-    methods: HashSet<MethodType>,
+    methods: HashSet<MethodTypeExt>,
 }
 
 impl Args {
@@ -99,7 +203,7 @@ impl Args {
 
         let is_route_macro = method.is_none();
         if let Some(method) = method {
-            methods.insert(method);
+            methods.insert(MethodTypeExt::Standard(method));
         }
 
         for arg in args {
@@ -116,6 +220,7 @@ impl Args {
                         ));
                     }
                 },
+
                 NestedMeta::Meta(syn::Meta::NameValue(nv)) => {
                     if nv.path.is_ident("name") {
                         if let syn::Lit::Str(lit) = nv.lit {
@@ -151,8 +256,7 @@ impl Args {
                                 "HTTP method forbidden here. To handle multiple methods, use `route` instead",
                             ));
                         } else if let syn::Lit::Str(ref lit) = nv.lit {
-                            let method = MethodType::try_from(lit)?;
-                            if !methods.insert(method) {
+                            if !methods.insert(MethodTypeExt::try_from(lit)?) {
                                 return Err(syn::Error::new_spanned(
                                     &nv.lit,
                                     format!(
@@ -174,11 +278,13 @@ impl Args {
                         ));
                     }
                 }
+
                 arg => {
                     return Err(syn::Error::new_spanned(arg, "Unknown attribute."));
                 }
             }
         }
+
         Ok(Args {
             path: path.unwrap(),
             resource_name,
@@ -299,22 +405,19 @@ impl ToTokens for Route {
                     .map_or_else(|| name.to_string(), LitStr::value);
 
                 let method_guards = {
-                    let mut others = methods.iter();
+                    debug_assert!(!methods.is_empty(), "Args::methods should not be empty");
 
-                    // unwrapping since length is checked to be at least one
+                    let mut others = methods.iter();
                     let first = others.next().unwrap();
 
                     if methods.len() > 1 {
-                        quote! {
-                            .guard(
-                                ::actix_web::guard::Any(::actix_web::guard::#first())
-                                    #(.or(::actix_web::guard::#others()))*
-                            )
-                        }
+                        let other_method_guards = others
+                            .map(|method_ext| method_ext.to_tokens_multi_guard_or_chain())
+                            .collect();
+
+                        first.to_tokens_multi_guard(other_method_guards)
                     } else {
-                        quote! {
-                            .guard(::actix_web::guard::#first())
-                        }
+                        first.to_tokens_single_guard()
                     }
                 };
 
@@ -325,7 +428,6 @@ impl ToTokens for Route {
                         #(.guard(::actix_web::guard::fn_guard(#guards)))*
                         #(.wrap(#wrappers))*
                         .to(#name);
-
                     ::actix_web::dev::HttpServiceFactory::register(__resource, __config);
                 }
             })
