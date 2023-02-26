@@ -2,6 +2,8 @@
 
 ## Unreleased - 2022-xx-xx
 
+## 4.3.1 - 2023-02-26
+
 - Add support for custom methods with the `#[route]` macro. [#2969]
 
 [#2969]: https://github.com/actix/actix-web/pull/2969
