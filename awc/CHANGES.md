@@ -2,6 +2,8 @@
 
 ## Unreleased - 2023-xx-xx
 
+## 3.1.1 - 2023-02-26
+
 ### Changed
 
 - `client::Connect` is now public to allow tunneling connection with `client::Connector`.
@@ -93,7 +95,7 @@
 
 - `cookie` upgrade addresses [`RUSTSEC-2020-0071`].
 
-[`RUSTSEC-2020-0071`]: https://rustsec.org/advisories/RUSTSEC-2020-0071.html
+[`rustsec-2020-0071`]: https://rustsec.org/advisories/RUSTSEC-2020-0071.html
 [#1813]: https://github.com/actix/actix-web/pull/1813
 [#1869]: https://github.com/actix/actix-web/pull/1869
 [#1905]: https://github.com/actix/actix-web/pull/1905
@@ -153,7 +155,7 @@
 - `cookie` upgrade addresses [`RUSTSEC-2020-0071`].
 
 [#2555]: https://github.com/actix/actix-web/pull/2555
-[`RUSTSEC-2020-0071`]: https://rustsec.org/advisories/RUSTSEC-2020-0071.html
+[`rustsec-2020-0071`]: https://rustsec.org/advisories/RUSTSEC-2020-0071.html
 
 ## 3.0.0-beta.16 - 2021-12-29
 

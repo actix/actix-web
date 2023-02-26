@@ -932,7 +932,6 @@ fn http_msg(msg: impl AsRef<str>) -> BytesMut {
         .as_ref()
         .trim()
         .split('\n')
-        .into_iter()
         .map(|line| [line.trim_start(), "\r"].concat())
         .collect::<Vec<_>>()
         .join("\n");
