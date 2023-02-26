@@ -33,7 +33,7 @@ impl<'t> FieldReader<'t> for Bytes {
         limits: &'t mut Limits,
     ) -> Self::Future {
         Box::pin(async move {
-            let mut buf = BytesMut::new();
+            let mut buf = BytesMut::with_capacity(131_072);
 
             while let Some(chunk) = field.try_next().await? {
                 limits.try_consume_limits(chunk.len(), true)?;

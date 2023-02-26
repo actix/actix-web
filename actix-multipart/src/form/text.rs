@@ -21,6 +21,7 @@ use crate::{
 pub struct Text<T: DeserializeOwned>(pub T);
 
 impl<T: DeserializeOwned> Text<T> {
+    /// Unwraps into inner value.
     pub fn into_inner(self) -> T {
         self.0
     }
@@ -41,7 +42,7 @@ where
                 let valid = if let Some(mime) = field.content_type() {
                     mime.subtype() == mime::PLAIN || mime.suffix() == Some(mime::PLAIN)
                 } else {
-                    // https://www.rfc-editor.org/rfc/rfc7578#section-4.4
+                    // https://datatracker.ietf.org/doc/html/rfc7578#section-4.4
                     // content type defaults to text/plain, so None should be considered valid
                     true
                 };
@@ -100,12 +101,8 @@ pub struct TextConfig {
     validate_content_type: bool,
 }
 
-const DEFAULT_CONFIG: TextConfig = TextConfig {
-    err_handler: None,
-    validate_content_type: true,
-};
-
 impl TextConfig {
+    /// Sets custom error handler.
     pub fn error_handler<F>(mut self, f: F) -> Self
     where
         F: Fn(TextError, &HttpRequest) -> Error + Send + Sync + 'static,
@@ -114,7 +111,7 @@ impl TextConfig {
         self
     }
 
-    /// Extract payload config from app data. Check both `T` and `Data<T>`, in that order, and fall
+    /// Extracts payload config from app data. Check both `T` and `Data<T>`, in that order, and fall
     /// back to the default payload config.
     fn from_req(req: &HttpRequest) -> &Self {
         req.app_data::<Self>()
@@ -123,8 +120,8 @@ impl TextConfig {
     }
 
     fn map_error(&self, req: &HttpRequest, err: TextError) -> Error {
-        if let Some(err_handler) = self.err_handler.as_ref() {
-            (*err_handler)(err, req)
+        if let Some(ref err_handler) = self.err_handler {
+            (err_handler)(err, req)
         } else {
             err.into()
         }
@@ -139,6 +136,11 @@ impl TextConfig {
         self
     }
 }
+
+const DEFAULT_CONFIG: TextConfig = TextConfig {
+    err_handler: None,
+    validate_content_type: true,
+};
 
 impl Default for TextConfig {
     fn default() -> Self {

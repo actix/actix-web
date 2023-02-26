@@ -10,7 +10,7 @@ use std::{
 use actix_web::{dev, error::PayloadError, web, Error, FromRequest, HttpRequest};
 use derive_more::{Deref, DerefMut};
 use futures_core::future::LocalBoxFuture;
-use futures_util::{TryFutureExt, TryStreamExt as _};
+use futures_util::{TryFutureExt as _, TryStreamExt as _};
 
 use crate::{Field, Multipart, MultipartError};
 
@@ -80,7 +80,7 @@ where
 
                 DuplicateField::Deny => {
                     return Box::pin(ready(Err(MultipartError::DuplicateField(
-                        field.name().to_string(),
+                        field.name().to_owned(),
                     ))))
                 }
 
@@ -89,7 +89,7 @@ where
         }
 
         Box::pin(async move {
-            let field_name = field.name().to_string();
+            let field_name = field.name().to_owned();
             let t = T::read_field(req, field, limits).await?;
             state.insert(field_name, Box::new(t));
             Ok(())
@@ -117,11 +117,11 @@ where
         Box::pin(async move {
             // Note: Vec GroupReader always allows duplicates
 
-            let field_name = field.name().to_string();
+            let field_name = field.name().to_owned();
 
             let vec = state
                 .entry(field_name)
-                .or_insert_with(|| Box::new(Vec::<T>::new()))
+                .or_insert_with(|| Box::<Vec<T>>::default())
                 .downcast_mut::<Vec<T>>()
                 .unwrap();
 
@@ -159,15 +159,16 @@ where
 
                 DuplicateField::Deny => {
                     return Box::pin(ready(Err(MultipartError::DuplicateField(
-                        field.name().to_string(),
+                        field.name().to_owned(),
                     ))))
                 }
 
                 DuplicateField::Replace => {}
             }
         }
+
         Box::pin(async move {
-            let field_name = field.name().to_string();
+            let field_name = field.name().to_owned();
             let t = T::read_field(req, field, limits).await?;
             state.insert(field_name, Box::new(t));
             Ok(())
@@ -182,8 +183,9 @@ where
     }
 }
 
-/// Trait that allows a type to be used in the [`struct@MultipartForm`] extractor. You should use
-/// the [`macro@MultipartForm`] to implement this for your struct.
+/// Trait that allows a type to be used in the [`struct@MultipartForm`] extractor.
+///
+/// You should use the [`macro@MultipartForm`] macro to derive this for your struct.
 pub trait MultipartCollect: Sized {
     /// An optional limit in bytes to be applied a given field name. Note this limit will be shared
     /// across all fields sharing the same name.
@@ -205,13 +207,13 @@ pub trait MultipartCollect: Sized {
 
 #[doc(hidden)]
 pub enum DuplicateField {
-    /// Additional fields are not processed
+    /// Additional fields are not processed.
     Ignore,
 
-    /// An error will be raised
+    /// An error will be raised.
     Deny,
 
-    /// All fields will be processed, the last one will replace all previous
+    /// All fields will be processed, the last one will replace all previous.
     Replace,
 }
 
@@ -270,10 +272,10 @@ impl Limits {
 /// Typed `multipart/form-data` extractor.
 ///
 /// To extract typed data from a multipart stream, the inner type `T` must implement the
-/// [`MultipartCollect`] trait, you should use the [`macro@MultipartForm`] macro to derive this
+/// [`MultipartCollect`] trait. You should use the [`macro@MultipartForm`] macro to derive this
 /// for your struct.
 ///
-/// Use [`MultipartFormConfig`] to configure extraction options.
+/// Add a [`MultipartFormConfig`] to your app data to configure extraction.
 #[derive(Deref, DerefMut)]
 pub struct MultipartForm<T: MultipartCollect>(pub T);
 
@@ -338,6 +340,8 @@ type MultipartFormErrorHandler =
     Option<Arc<dyn Fn(MultipartError, &HttpRequest) -> Error + Send + Sync>>;
 
 /// [`struct@MultipartForm`] extractor configuration.
+///
+/// Add to your app data to have it picked up by [`struct@MultipartForm`] extractors.
 #[derive(Clone)]
 pub struct MultipartFormConfig {
     total_limit: usize,
@@ -346,19 +350,19 @@ pub struct MultipartFormConfig {
 }
 
 impl MultipartFormConfig {
-    /// Set maximum accepted payload size for the entire form. By default this limit is 50MiB.
+    /// Sets maximum accepted payload size for the entire form. By default this limit is 50MiB.
     pub fn total_limit(mut self, total_limit: usize) -> Self {
         self.total_limit = total_limit;
         self
     }
 
-    /// Set maximum accepted data that will be read into memory. By default this limit is 2MiB.
+    /// Sets maximum accepted data that will be read into memory. By default this limit is 2MiB.
     pub fn memory_limit(mut self, memory_limit: usize) -> Self {
         self.memory_limit = memory_limit;
         self
     }
 
-    /// Set custom error handler.
+    /// Sets custom error handler.
     pub fn error_handler<F>(mut self, f: F) -> Self
     where
         F: Fn(MultipartError, &HttpRequest) -> Error + Send + Sync + 'static,
@@ -367,7 +371,7 @@ impl MultipartFormConfig {
         self
     }
 
-    /// Extract payload config from app data. Check both `T` and `Data<T>`, in that order, and fall
+    /// Extracts payload config from app data. Check both `T` and `Data<T>`, in that order, and fall
     /// back to the default payload config.
     fn from_req(req: &HttpRequest) -> &Self {
         req.app_data::<Self>()
@@ -384,7 +388,7 @@ const DEFAULT_CONFIG: MultipartFormConfig = MultipartFormConfig {
 
 impl Default for MultipartFormConfig {
     fn default() -> Self {
-        DEFAULT_CONFIG.clone()
+        DEFAULT_CONFIG
     }
 }
 
@@ -397,7 +401,7 @@ mod tests {
     use awc::{Client, ClientResponse};
 
     use super::MultipartForm;
-    use crate::form::{bytes::Bytes, tempfile::Tempfile, text::Text, MultipartFormConfig};
+    use crate::form::{bytes::Bytes, tempfile::TempFile, text::Text, MultipartFormConfig};
 
     pub async fn send_form(
         srv: &TestServer,
@@ -611,7 +615,7 @@ mod tests {
 
     #[derive(MultipartForm)]
     struct TestFileUploadLimits {
-        field: Tempfile,
+        field: TempFile,
     }
 
     async fn test_upload_limits_memory(

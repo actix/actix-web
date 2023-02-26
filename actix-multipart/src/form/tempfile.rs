@@ -16,13 +16,13 @@ use tokio::io::AsyncWriteExt;
 
 use super::FieldErrorHandler;
 use crate::{
-    form::{tempfile::TempfileError::FileIo, FieldReader, Limits},
+    form::{FieldReader, Limits},
     Field, MultipartError,
 };
 
 /// Write the field to a temporary file on disk.
 #[derive(Debug)]
-pub struct Tempfile {
+pub struct TempFile {
     /// The temporary file on disk.
     pub file: NamedTempFile,
 
@@ -36,7 +36,7 @@ pub struct Tempfile {
     pub size: usize,
 }
 
-impl<'t> FieldReader<'t> for Tempfile {
+impl<'t> FieldReader<'t> for TempFile {
     type Future = LocalBoxFuture<'t, Result<Self, MultipartError>>;
 
     fn read_field(
@@ -45,34 +45,31 @@ impl<'t> FieldReader<'t> for Tempfile {
         limits: &'t mut Limits,
     ) -> Self::Future {
         Box::pin(async move {
-            let config = TempfileConfig::from_req(req);
+            let config = TempFileConfig::from_req(req);
             let field_name = field.name().to_owned();
             let mut size = 0;
 
-            let file = config
-                .create_tempfile()
-                .map_err(|err| config.map_error(req, &field_name, FileIo(err)))?;
+            let file = config.create_tempfile().map_err(|err| {
+                config.map_error(req, &field_name, TempFileError::FileIo(err))
+            })?;
 
-            let mut file_async = tokio::fs::File::from_std(
-                file.reopen()
-                    .map_err(|err| config.map_error(req, &field_name, FileIo(err)))?,
-            );
+            let mut file_async = tokio::fs::File::from_std(file.reopen().map_err(|err| {
+                config.map_error(req, &field_name, TempFileError::FileIo(err))
+            })?);
 
             while let Some(chunk) = field.try_next().await? {
                 limits.try_consume_limits(chunk.len(), false)?;
                 size += chunk.len();
-                file_async
-                    .write_all(chunk.as_ref())
-                    .await
-                    .map_err(|err| config.map_error(req, &field_name, FileIo(err)))?;
+                file_async.write_all(chunk.as_ref()).await.map_err(|err| {
+                    config.map_error(req, &field_name, TempFileError::FileIo(err))
+                })?;
             }
 
-            file_async
-                .flush()
-                .await
-                .map_err(|err| config.map_error(req, &field_name, FileIo(err)))?;
+            file_async.flush().await.map_err(|err| {
+                config.map_error(req, &field_name, TempFileError::FileIo(err))
+            })?;
 
-            Ok(Tempfile {
+            Ok(TempFile {
                 file,
                 content_type: field.content_type().map(ToOwned::to_owned),
                 file_name: field
@@ -87,28 +84,28 @@ impl<'t> FieldReader<'t> for Tempfile {
 
 #[derive(Debug, Display, Error)]
 #[non_exhaustive]
-pub enum TempfileError {
+pub enum TempFileError {
     /// File I/O Error
     #[display(fmt = "File I/O error: {}", _0)]
     FileIo(std::io::Error),
 }
 
-impl ResponseError for TempfileError {
+impl ResponseError for TempFileError {
     fn status_code(&self) -> StatusCode {
         StatusCode::INTERNAL_SERVER_ERROR
     }
 }
 
-/// Configuration for the [`Tempfile`] field reader.
+/// Configuration for the [`TempFile`] field reader.
 #[derive(Clone)]
-pub struct TempfileConfig {
-    err_handler: FieldErrorHandler<TempfileError>,
+pub struct TempFileConfig {
+    err_handler: FieldErrorHandler<TempFileError>,
     directory: Option<PathBuf>,
 }
 
-impl TempfileConfig {
+impl TempFileConfig {
     fn create_tempfile(&self) -> io::Result<NamedTempFile> {
-        if let Some(dir) = self.directory.as_deref() {
+        if let Some(ref dir) = self.directory {
             NamedTempFile::new_in(dir)
         } else {
             NamedTempFile::new()
@@ -116,21 +113,17 @@ impl TempfileConfig {
     }
 }
 
-const DEFAULT_CONFIG: TempfileConfig = TempfileConfig {
-    err_handler: None,
-    directory: None,
-};
-
-impl TempfileConfig {
+impl TempFileConfig {
+    /// Sets custom error handler.
     pub fn error_handler<F>(mut self, f: F) -> Self
     where
-        F: Fn(TempfileError, &HttpRequest) -> Error + Send + Sync + 'static,
+        F: Fn(TempFileError, &HttpRequest) -> Error + Send + Sync + 'static,
     {
         self.err_handler = Some(Arc::new(f));
         self
     }
 
-    /// Extract payload config from app data. Check both `T` and `Data<T>`, in that order, and fall
+    /// Extracts payload config from app data. Check both `T` and `Data<T>`, in that order, and fall
     /// back to the default payload config.
     fn from_req(req: &HttpRequest) -> &Self {
         req.app_data::<Self>()
@@ -142,10 +135,10 @@ impl TempfileConfig {
         &self,
         req: &HttpRequest,
         field_name: &str,
-        err: TempfileError,
+        err: TempFileError,
     ) -> MultipartError {
-        let source = if let Some(err_handler) = self.err_handler.as_ref() {
-            (*err_handler)(err, req)
+        let source = if let Some(ref err_handler) = self.err_handler {
+            (err_handler)(err, req)
         } else {
             err.into()
         };
@@ -165,7 +158,12 @@ impl TempfileConfig {
     }
 }
 
-impl Default for TempfileConfig {
+const DEFAULT_CONFIG: TempFileConfig = TempFileConfig {
+    err_handler: None,
+    directory: None,
+};
+
+impl Default for TempFileConfig {
     fn default() -> Self {
         DEFAULT_CONFIG
     }
@@ -178,11 +176,11 @@ mod tests {
     use actix_multipart_rfc7578::client::multipart;
     use actix_web::{http::StatusCode, web, App, HttpResponse, Responder};
 
-    use crate::form::{tempfile::Tempfile, tests::send_form, MultipartForm};
+    use crate::form::{tempfile::TempFile, tests::send_form, MultipartForm};
 
     #[derive(MultipartForm)]
     struct FileForm {
-        file: Tempfile,
+        file: TempFile,
     }
 
     async fn test_file_route(form: MultipartForm<FileForm>) -> impl Responder {
