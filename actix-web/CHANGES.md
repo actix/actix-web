@@ -2,6 +2,10 @@
 
 ## Unreleased - 2022-xx-xx
 
+- Add support for custom methods with the `#[route]` macro. [#2969]
+
+[#2969]: https://github.com/actix/actix-web/pull/2969
+
 ## 4.3.0 - 2023-01-21
 
 ### Added
@@ -472,7 +476,7 @@
 - `cookie` upgrade addresses [`RUSTSEC-2020-0071`].
 
 [#2555]: https://github.com/actix/actix-web/pull/2555
-[`RUSTSEC-2020-0071`]: https://rustsec.org/advisories/RUSTSEC-2020-0071.html
+[`rustsec-2020-0071`]: https://rustsec.org/advisories/RUSTSEC-2020-0071.html
 
 ## 4.0.0-beta.17 - 2021-12-29
 

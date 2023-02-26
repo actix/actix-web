@@ -82,7 +82,6 @@ sed -i.bak -E "s/^version ?= ?\"[^\"]+\"$/version = \"$NEW_VERSION\"/" "$CARGO_M
     sed '/Unreleased/ q' "$CHANGELOG_FILE"                   # up to unreleased heading
     echo                                                     # blank line
     echo "## $NEW_VERSION - $DATE"                           # new version heading
-    echo                                                     # blank line
     cat "$CHANGE_CHUNK_FILE"                                 # previously unreleased changes
     sed "/$CURRENT_VERSION/ q" "$CHANGELOG_FILE" | tail -n 1 # the previous version heading
     sed "1,/$CURRENT_VERSION/ d" "$CHANGELOG_FILE"           # everything after previous version heading
