@@ -117,7 +117,6 @@ mod openssl {
         B: MessageBody + 'static,
     {
         /// Create OpenSSL based service.
-        #[cfg_attr(docsrs, doc(cfg(feature = "openssl")))]
         pub fn openssl(
             self,
             acceptor: SslAcceptor,
@@ -165,7 +164,6 @@ mod rustls {
         B: MessageBody + 'static,
     {
         /// Create Rustls based service.
-        #[cfg_attr(docsrs, doc(cfg(feature = "rustls")))]
         pub fn rustls(
             self,
             mut config: ServerConfig,

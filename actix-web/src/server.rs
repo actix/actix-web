@@ -217,7 +217,6 @@ where
     ///
     /// By default handshake timeout is set to 3000 milliseconds.
     #[cfg(any(feature = "openssl", feature = "rustls"))]
-    #[cfg_attr(docsrs, doc(cfg(any(feature = "openssl", feature = "rustls"))))]
     pub fn tls_handshake_timeout(self, dur: Duration) -> Self {
         self.config
             .lock()
@@ -382,7 +381,6 @@ where
     ///
     /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
     #[cfg(feature = "rustls")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "rustls")))]
     pub fn bind_rustls<A: net::ToSocketAddrs>(
         mut self,
         addrs: A,
@@ -402,7 +400,6 @@ where
     ///
     /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
     #[cfg(feature = "openssl")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "openssl")))]
     pub fn bind_openssl<A>(mut self, addrs: A, builder: SslAcceptorBuilder) -> io::Result<Self>
     where
         A: net::ToSocketAddrs,
@@ -469,7 +466,6 @@ where
     ///
     /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
     #[cfg(feature = "rustls")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "rustls")))]
     pub fn listen_rustls(
         self,
         lst: net::TcpListener,
@@ -535,7 +531,6 @@ where
     ///
     /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
     #[cfg(feature = "openssl")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "openssl")))]
     pub fn listen_openssl(
         self,
         lst: net::TcpListener,

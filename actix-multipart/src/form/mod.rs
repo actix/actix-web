@@ -16,12 +16,10 @@ use crate::{Field, Multipart, MultipartError};
 
 pub mod bytes;
 pub mod json;
-#[cfg_attr(docsrs, doc(cfg(feature = "tempfile")))]
 #[cfg(feature = "tempfile")]
 pub mod tempfile;
 pub mod text;
 
-#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 #[cfg(feature = "derive")]
 pub use actix_multipart_derive::MultipartForm;
 

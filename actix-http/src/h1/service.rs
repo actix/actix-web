@@ -134,7 +134,6 @@ mod openssl {
         U::InitError: fmt::Debug,
     {
         /// Create OpenSSL based service.
-        #[cfg_attr(docsrs, doc(cfg(feature = "openssl")))]
         pub fn openssl(
             self,
             acceptor: SslAcceptor,
@@ -197,7 +196,6 @@ mod rustls {
         U::InitError: fmt::Debug,
     {
         /// Create Rustls based service.
-        #[cfg_attr(docsrs, doc(cfg(feature = "rustls")))]
         pub fn rustls(
             self,
             config: ServerConfig,

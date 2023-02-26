@@ -294,7 +294,6 @@ impl std::error::Error for PayloadError {
             PayloadError::Overflow => None,
             PayloadError::UnknownLength => None,
             #[cfg(feature = "http2")]
-            #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
             PayloadError::Http2Payload(err) => Some(err),
             PayloadError::Io(err) => Some(err),
         }
@@ -352,7 +351,6 @@ pub enum DispatchError {
     /// HTTP/2 error.
     #[display(fmt = "{}", _0)]
     #[cfg(feature = "http2")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     H2(h2::Error),
 
     /// The first request did not complete within the specified timeout.
