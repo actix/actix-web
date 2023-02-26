@@ -51,7 +51,6 @@ cat "$CHANGELOG_FILE" |
 if [ "$(wc -w "$CHANGE_CHUNK_FILE" | awk '{ print $1 }')" = "0" ]; then
     echo "- No significant changes since \`$CURRENT_VERSION\`." >"$CHANGE_CHUNK_FILE"
     echo >>"$CHANGE_CHUNK_FILE"
-    echo >>"$CHANGE_CHUNK_FILE"
 fi
 
 if [ -n "${2-}" ]; then
@@ -82,13 +81,15 @@ sed -i.bak -E "s/^version ?= ?\"[^\"]+\"$/version = \"$NEW_VERSION\"/" "$CARGO_M
 (
     sed '/Unreleased/ q' "$CHANGELOG_FILE"                   # up to unreleased heading
     echo                                                     # blank line
-    echo                                                     # blank line
     echo "## $NEW_VERSION - $DATE"                           # new version heading
     cat "$CHANGE_CHUNK_FILE"                                 # previously unreleased changes
     sed "/$CURRENT_VERSION/ q" "$CHANGELOG_FILE" | tail -n 1 # the previous version heading
     sed "1,/$CURRENT_VERSION/ d" "$CHANGELOG_FILE"           # everything after previous version heading
 ) >"$CHANGELOG_FILE.bak"
 mv "$CHANGELOG_FILE.bak" "$CHANGELOG_FILE"
+
+# format CHANGELOG file according to prettier
+npx -y prettier --write "$CHANGELOG_FILE" || true
 
 # done; remove backup files
 rm -f $CARGO_MANIFEST.bak
@@ -139,12 +140,14 @@ GIT_TAG="$(echo $SHORT_PACKAGE_NAME-v$NEW_VERSION)"
 RELEASE_TITLE="$(echo $PACKAGE_NAME: v$NEW_VERSION)"
 
 if [ "$(echo $NEW_VERSION | grep beta)" ] || [ "$(echo $NEW_VERSION | grep rc)" ] || [ "$(echo $NEW_VERSION | grep alpha)" ]; then
-    PRERELEASE="--prerelease"
+    FLAGS="--prerelease"
+else
+    FLAGS="--latest"
 fi
 
 echo
 echo "GitHub release command:"
-GH_CMD="gh release create \"$GIT_TAG\" --draft --title \"$RELEASE_TITLE\" --notes-file \"$CHANGE_CHUNK_FILE\" ${PRERELEASE:-}"
+GH_CMD="gh release create \"$GIT_TAG\" --draft --title \"$RELEASE_TITLE\" --notes-file \"$CHANGE_CHUNK_FILE\" ${FLAGS:-}"
 echo "$GH_CMD"
 
 read -p "Submit draft GH release: (y/N) " GH_RELEASE

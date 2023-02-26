@@ -5,6 +5,7 @@ members = [
     "actix-http-test",
     "actix-http",
     "actix-multipart",
+    "actix-multipart-derive",
     "actix-router",
     "actix-test",
     "actix-web-actors",
@@ -27,6 +28,7 @@ actix-files = { path = "actix-files" }
 actix-http = { path = "actix-http" }
 actix-http-test = { path = "actix-http-test" }
 actix-multipart = { path = "actix-multipart" }
+actix-multipart-derive = { path = "actix-multipart-derive" }
 actix-router = { path = "actix-router" }
 actix-test = { path = "actix-test" }
 actix-web = { path = "actix-web" }

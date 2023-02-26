@@ -2,6 +2,7 @@
 
 #![deny(rust_2018_idioms, nonstandard_style)]
 #![warn(future_incompatible)]
+#![allow(clippy::uninlined_format_args)]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 
@@ -87,6 +88,7 @@ pub async fn test_server_with_addr<F: ServerServiceFactory<TcpStream>>(
 
         // notify TestServer that server and system have shut down
         // all thread managed resources should be dropped at this point
+        #[allow(clippy::let_underscore_future)]
         let _ = thread_stop_tx.send(());
     });
 
@@ -294,6 +296,7 @@ impl Drop for TestServer {
         // without needing to await anything
 
         // signal server to stop
+        #[allow(clippy::let_underscore_future)]
         let _ = self.server.stop(true);
 
         // signal system to stop

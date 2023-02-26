@@ -145,7 +145,7 @@ where
     // run server in separate orphaned thread
     thread::spawn(move || {
         rt::System::new().block_on(async move {
-            let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
+            let tcp = net::TcpListener::bind(("127.0.0.1", cfg.port)).unwrap();
             let local_addr = tcp.local_addr().unwrap();
             let factory = factory.clone();
             let srv_cfg = cfg.clone();
@@ -321,6 +321,7 @@ where
             // all thread managed resources should be dropped at this point
         });
 
+        #[allow(clippy::let_underscore_future)]
         let _ = thread_stop_tx.send(());
     });
 
@@ -389,6 +390,7 @@ pub struct TestServerConfig {
     tp: HttpVer,
     stream: StreamType,
     client_request_timeout: Duration,
+    port: u16,
 }
 
 impl Default for TestServerConfig {
@@ -404,6 +406,7 @@ impl TestServerConfig {
             tp: HttpVer::Both,
             stream: StreamType::Tcp,
             client_request_timeout: Duration::from_secs(5),
+            port: 0,
         }
     }
 
@@ -436,6 +439,14 @@ impl TestServerConfig {
     /// Set client timeout for first request.
     pub fn client_request_timeout(mut self, dur: Duration) -> Self {
         self.client_request_timeout = dur;
+        self
+    }
+
+    /// Sets test server port.
+    ///
+    /// By default, a random free port is determined by the OS.
+    pub fn port(mut self, port: u16) -> Self {
+        self.port = port;
         self
     }
 }
@@ -567,6 +578,7 @@ impl Drop for TestServer {
         // without needing to await anything
 
         // signal server to stop
+        #[allow(clippy::let_underscore_future)]
         let _ = self.server.stop(true);
 
         // signal system to stop

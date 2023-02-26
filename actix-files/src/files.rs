@@ -142,7 +142,7 @@ impl Files {
         self
     }
 
-    /// Set custom directory renderer
+    /// Set custom directory renderer.
     pub fn files_listing_renderer<F>(mut self, f: F) -> Self
     where
         for<'r, 's> F:
@@ -152,7 +152,7 @@ impl Files {
         self
     }
 
-    /// Specifies mime override callback
+    /// Specifies MIME override callback.
     pub fn mime_override<F>(mut self, f: F) -> Self
     where
         F: Fn(&mime::Name<'_>) -> DispositionType + 'static,
@@ -388,5 +388,44 @@ impl ServiceFactory<ServiceRequest> for Files {
         } else {
             Box::pin(async move { Ok(FilesService(Rc::new(inner))) })
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use actix_web::{
+        http::StatusCode,
+        test::{self, TestRequest},
+        App, HttpResponse,
+    };
+
+    use super::*;
+
+    #[actix_web::test]
+    async fn custom_files_listing_renderer() {
+        let srv = test::init_service(
+            App::new().service(
+                Files::new("/", "./tests")
+                    .show_files_listing()
+                    .files_listing_renderer(|dir, req| {
+                        Ok(ServiceResponse::new(
+                            req.clone(),
+                            HttpResponse::Ok().body(dir.path.to_str().unwrap().to_owned()),
+                        ))
+                    }),
+            ),
+        )
+        .await;
+
+        let req = TestRequest::with_uri("/").to_request();
+        let res = test::call_service(&srv, req).await;
+
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = test::read_body(res).await;
+        assert!(
+            body.ends_with(b"actix-files/tests/"),
+            "body {:?} does not end with `actix-files/tests/`",
+            body
+        );
     }
 }

@@ -712,6 +712,7 @@ mod tests {
                 .route("/", web::to(|| async { "hello" }))
         }
 
+        #[allow(clippy::let_underscore_future)]
         let _ = init_service(my_app());
     }
 }

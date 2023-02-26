@@ -86,7 +86,18 @@ async fn get_param_test(_: web::Path<String>) -> impl Responder {
     HttpResponse::Ok()
 }
 
-#[route("/multi", method = "GET", method = "POST", method = "HEAD")]
+#[route("/hello", method = "HELLO")]
+async fn custom_route_test() -> impl Responder {
+    HttpResponse::Ok()
+}
+
+#[route(
+    "/multi",
+    method = "GET",
+    method = "POST",
+    method = "HEAD",
+    method = "HELLO"
+)]
 async fn route_test() -> impl Responder {
     HttpResponse::Ok()
 }
