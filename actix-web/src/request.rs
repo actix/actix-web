@@ -446,10 +446,11 @@ impl fmt::Debug for HttpRequest {
         writeln!(f, "  headers:")?;
         for (key, val) in self.headers().iter() {
             // Hide sensitive header from debug output
-            if key != http::header::AUTHORIZATION {
-                writeln!(f, "    {:?}: {:?}", key, val)?;
-            } else {
-                writeln!(f, "    {:?}: {:?}", key, "*redacted*")?;
+            match key {
+                &http::header::AUTHORIZATION | &http::header::PROXY_AUTHORIZATION => {
+                    writeln!(f, "    {:?}: {:?}", key, "*redacted*")?
+                }
+                _ => writeln!(f, "    {:?}: {:?}", key, val)?,
             }
         }
         Ok(())
