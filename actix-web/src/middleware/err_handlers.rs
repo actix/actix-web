@@ -61,7 +61,7 @@ type DefaultHandler<B> = Option<Rc<ErrorHandler<B>>>;
 ///     web, App, HttpResponse, Result,
 /// };
 ///
-/// fn add_error_header<B>(mut res: dev::ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
+/// fn add_error_header<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
 ///     res.response_mut().headers_mut().insert(
 ///         header::CONTENT_TYPE,
 ///         header::HeaderValue::from_static("Error"),
@@ -115,7 +115,7 @@ type DefaultHandler<B> = Option<Rc<ErrorHandler<B>>>;
 /// #     middleware::{ErrorHandlerResponse, ErrorHandlers},
 /// #     web, App, HttpResponse, Result,
 /// # };
-/// fn add_error_header<B>(mut res: dev::ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
+/// fn add_error_header<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
 ///     res.response_mut().headers_mut().insert(
 ///         header::CONTENT_TYPE,
 ///         header::HeaderValue::from_static("Error"),
@@ -125,7 +125,7 @@ type DefaultHandler<B> = Option<Rc<ErrorHandler<B>>>;
 ///     Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
 /// }
 ///
-/// fn handle_bad_request<B>(mut res: dev::ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
+/// fn handle_bad_request<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
 ///     res.response_mut().headers_mut().insert(
 ///         header::CONTENT_TYPE,
 ///         header::HeaderValue::from_static("Bad Request Error"),
@@ -149,17 +149,20 @@ type DefaultHandler<B> = Option<Rc<ErrorHandler<B>>>;
 /// You can set default handlers for all client (4xx) or all server (5xx) errors:
 ///
 /// ```
-/// # use actix_web::http::{header, StatusCode};
-/// # use actix_web::middleware::{ErrorHandlerResponse, ErrorHandlers};
-/// # use actix_web::{dev, web, App, HttpResponse, Result};
-/// # fn add_error_header<B>(mut res: dev::ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
+/// # use actix_web::{
+/// #     dev::ServiceResponse,
+/// #     http::{header, StatusCode},
+/// #     middleware::{ErrorHandlerResponse, ErrorHandlers},
+/// #     web, App, HttpResponse, Result,
+/// # };
+/// # fn add_error_header<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
 /// #     res.response_mut().headers_mut().insert(
 /// #         header::CONTENT_TYPE,
 /// #         header::HeaderValue::from_static("Error"),
 /// #     );
 /// #     Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
 /// # }
-/// # fn handle_bad_request<B>(mut res: dev::ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
+/// # fn handle_bad_request<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
 /// #     res.response_mut().headers_mut().insert(
 /// #         header::CONTENT_TYPE,
 /// #         header::HeaderValue::from_static("Bad Request Error"),
