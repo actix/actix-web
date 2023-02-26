@@ -64,7 +64,7 @@ fn drop_payload_service(
 fn echo_payload_service() -> impl Service<Request, Response = Response<Bytes>, Error = Error> {
     fn_service(|mut req: Request| {
         Box::pin(async move {
-            use futures_util::stream::StreamExt as _;
+            use futures_util::StreamExt as _;
 
             let mut pl = req.take_payload();
             let mut body = BytesMut::new();

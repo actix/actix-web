@@ -1,15 +1,39 @@
 # Changes
 
 ## Unreleased - 2022-xx-xx
+
+
+## 3.3.0 - 2023-01-21
 ### Added
+- Implement `MessageBody` for `Cow<'static, str>` and `Cow<'static, [u8]>`. [#2959]
 - Implement `MessageBody` for `&mut B` where `B: MessageBody + Unpin`. [#2868]
 - Implement `MessageBody` for `Pin<B>` where `B::Target: MessageBody`. [#2868]
+- Automatic h2c detection via new service finalizer `HttpService::tcp_auto_h2c()`. [#2957]
+- `HeaderMap::retain()`. [#2955]
+- Header name constants in `header` module. [#2956] [#2968]
+  - `CACHE_STATUS`
+  - `CDN_CACHE_CONTROL`
+  - `CROSS_ORIGIN_EMBEDDER_POLICY`
+  - `CROSS_ORIGIN_OPENER_POLICY`
+  - `PERMISSIONS_POLICY`
+  - `X_FORWARDED_FOR`
+  - `X_FORWARDED_HOST`
+  - `X_FORWARDED_PROTO`
+
+### Fixed
+- Fix non-empty body of HTTP/2 HEAD responses. [#2920]
 
 ### Performance
 - Improve overall performance of operations on `Extensions`. [#2890]
 
+[#2959]: https://github.com/actix/actix-web/pull/2959
 [#2868]: https://github.com/actix/actix-web/pull/2868
 [#2890]: https://github.com/actix/actix-web/pull/2890
+[#2920]: https://github.com/actix/actix-web/pull/2920
+[#2957]: https://github.com/actix/actix-web/pull/2957
+[#2955]: https://github.com/actix/actix-web/pull/2955
+[#2956]: https://github.com/actix/actix-web/pull/2956
+[#2968]: https://github.com/actix/actix-web/pull/2968
 
 
 ## 3.2.2 - 2022-09-11
@@ -657,7 +681,7 @@
 - Reduce the level from `error` to `debug` for the log line that is emitted when a `500 Internal Server Error` is built using `HttpResponse::from_error`. [#2201]
 - `ResponseBuilder::message_body` now returns a `Result`. [#2201]
 - Remove `Unpin` bound on `ResponseBuilder::streaming`. [#2253]
-- `HttpServer::{listen_rustls(), bind_rustls()}` now honor the ALPN protocols in the configuation parameter. [#2226]
+- `HttpServer::{listen_rustls(), bind_rustls()}` now honor the ALPN protocols in the configuration parameter. [#2226]
 
 ### Removed
 - Stop re-exporting `http` crate's `HeaderMap` types in addition to ours. [#2171]

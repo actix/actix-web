@@ -1,6 +1,6 @@
 [package]
 name = "awc"
-version = "3.0.1"
+version = "3.1.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Async HTTP and WebSocket client library"
 keywords = ["actix", "http", "framework", "async", "web"]
@@ -57,18 +57,18 @@ dangerous-h2c = []
 [dependencies]
 actix-codec = "0.5"
 actix-service = "2"
-actix-http = { version = "3", features = ["http2", "ws"] }
+actix-http = { version = "3.3", features = ["http2", "ws"] }
 actix-rt = { version = "2.1", default-features = false }
 actix-tls = { version = "3", features = ["connect", "uri"] }
 actix-utils = "3"
 
 ahash = "0.7"
-base64 = "0.13"
+base64 = "0.21"
 bytes = "1"
 cfg-if = "1"
 derive_more = "0.99.5"
-futures-core = { version = "0.3.7", default-features = false, features = ["alloc"] }
-futures-util = { version = "0.3.7", default-features = false, features = ["alloc", "sink"] }
+futures-core = { version = "0.3.17", default-features = false, features = ["alloc"] }
+futures-util = { version = "0.3.17", default-features = false, features = ["alloc", "sink"] }
 h2 = "0.3.9"
 http = "0.2.5"
 itoa = "1"
@@ -80,14 +80,14 @@ rand = "0.8"
 serde = "1.0"
 serde_json = "1.0"
 serde_urlencoded = "0.7"
-tokio = { version = "1.8.4", features = ["sync"] }
+tokio = { version = "1.18.5", features = ["sync"] }
 
 cookie = { version = "0.16", features = ["percent-encode"], optional = true }
 
 tls-openssl = { package = "openssl", version = "0.10.9", optional = true }
 tls-rustls = { package = "rustls", version = "0.20.0", optional = true, features = ["dangerous_configuration"] }
 
-trust-dns-resolver = { version = "0.21", optional = true }
+trust-dns-resolver = { version = "0.22", optional = true }
 
 [dev-dependencies]
 actix-http = { version = "3", features = ["openssl"] }
@@ -102,12 +102,12 @@ brotli = "3.3.3"
 const-str = "0.4"
 env_logger = "0.9"
 flate2 = "1.0.13"
-futures-util = { version = "0.3.7", default-features = false }
+futures-util = { version = "0.3.17", default-features = false }
 static_assertions = "1.1"
 rcgen = "0.9"
 rustls-pemfile = "1"
-tokio = { version = "1.13.1", features = ["rt-multi-thread", "macros"] }
-zstd = "0.11"
+tokio = { version = "1.18.5", features = ["rt-multi-thread", "macros"] }
+zstd = "0.12"
 
 [[example]]
 name = "client"

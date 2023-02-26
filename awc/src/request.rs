@@ -1,5 +1,6 @@
 use std::{convert::TryFrom, fmt, net, rc::Rc, time::Duration};
 
+use base64::prelude::*;
 use bytes::Bytes;
 use futures_core::Stream;
 use serde::Serialize;
@@ -238,7 +239,7 @@ impl ClientRequest {
 
         self.insert_header((
             header::AUTHORIZATION,
-            format!("Basic {}", base64::encode(&auth)),
+            format!("Basic {}", BASE64_STANDARD.encode(auth)),
         ))
     }
 
@@ -565,6 +566,8 @@ mod tests {
         assert_eq!(req.head.version, Version::HTTP_2);
 
         let _ = req.headers_mut();
+
+        #[allow(clippy::let_underscore_future)]
         let _ = req.send_body("");
     }
 

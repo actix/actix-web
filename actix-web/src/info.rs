@@ -76,7 +76,6 @@ impl ConnectionInfo {
         for (name, val) in req
             .headers
             .get_all(&header::FORWARDED)
-            .into_iter()
             .filter_map(|hdr| hdr.to_str().ok())
             // "for=1.2.3.4, for=5.6.7.8; scheme=https"
             .flat_map(|val| val.split(';'))

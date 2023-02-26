@@ -872,7 +872,7 @@ mod tests {
         FromRequest,
     };
     use bytes::Bytes;
-    use futures_util::{future::lazy, StreamExt};
+    use futures_util::{future::lazy, StreamExt as _};
     use tokio::sync::mpsc;
     use tokio_stream::wrappers::UnboundedReceiverStream;
 

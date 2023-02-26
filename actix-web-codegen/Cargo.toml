@@ -27,6 +27,6 @@ actix-test = "0.1"
 actix-utils = "3"
 actix-web = "4"
 
-futures-core = { version = "0.3.7", default-features = false, features = ["alloc"] }
+futures-core = { version = "0.3.17", default-features = false, features = ["alloc"] }
 trybuild = "1"
 rustversion = "1"

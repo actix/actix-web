@@ -1,3 +1,5 @@
+#![allow(clippy::uninlined_format_args)]
+
 use actix_web::{get, web, HttpRequest};
 #[cfg(unix)]
 use actix_web::{middleware, App, Error, HttpResponse, HttpServer};

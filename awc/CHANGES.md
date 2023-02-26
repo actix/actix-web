@@ -1,6 +1,11 @@
 # Changes
 
-## Unreleased - 2022-xx-xx
+## Unreleased - 2023-xx-xx
+### Changed
+- `client::Connect` is now public to allow tunneling connection with `client::Connector`.
+
+
+## 3.1.0 - 2023-01-21
 ### Changed
 - Minimum supported Rust version (MSRV) is now 1.59 due to transitive `time` dependency.
 

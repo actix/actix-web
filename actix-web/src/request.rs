@@ -260,7 +260,7 @@ impl HttpRequest {
         Ref::map(self.extensions(), |data| data.get().unwrap())
     }
 
-    /// App config
+    /// Returns a reference to the application's connection configuration.
     #[inline]
     pub fn app_config(&self) -> &AppConfig {
         self.app_state().config()

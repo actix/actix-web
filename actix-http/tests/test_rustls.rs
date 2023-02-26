@@ -1,4 +1,5 @@
 #![cfg(feature = "rustls")]
+#![allow(clippy::uninlined_format_args)]
 
 extern crate tls_rustls as rustls;
 

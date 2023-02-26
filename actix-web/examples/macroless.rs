@@ -1,3 +1,5 @@
+#![allow(clippy::uninlined_format_args)]
+
 use actix_web::{middleware, rt, web, App, HttpRequest, HttpServer};
 
 async fn index(req: HttpRequest) -> &'static str {

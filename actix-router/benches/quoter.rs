@@ -1,3 +1,5 @@
+#![allow(clippy::uninlined_format_args)]
+
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 use std::borrow::Cow;

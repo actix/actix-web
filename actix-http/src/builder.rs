@@ -186,7 +186,7 @@ where
         self
     }
 
-    /// Finish service configuration and create a HTTP Service for HTTP/1 protocol.
+    /// Finish service configuration and create a service for the HTTP/1 protocol.
     pub fn h1<F, B>(self, service: F) -> H1Service<T, S, B, X, U>
     where
         B: MessageBody,
@@ -209,7 +209,7 @@ where
             .on_connect_ext(self.on_connect_ext)
     }
 
-    /// Finish service configuration and create a HTTP service for HTTP/2 protocol.
+    /// Finish service configuration and create a service for the HTTP/2 protocol.
     #[cfg(feature = "http2")]
     #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn h2<F, B>(self, service: F) -> crate::h2::H2Service<T, S, B>
