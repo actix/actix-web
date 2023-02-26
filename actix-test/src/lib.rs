@@ -145,11 +145,10 @@ where
     // run server in separate orphaned thread
     thread::spawn(move || {
         rt::System::new().block_on(async move {
-            let srv_cfg = cfg.clone();
-            let port = srv_cfg.port;
-            let tcp = net::TcpListener::bind(format!("127.0.0.1:{port}")).unwrap();
+            let tcp = net::TcpListener::bind(("127.0.0.1", cfg.port)).unwrap();
             let local_addr = tcp.local_addr().unwrap();
             let factory = factory.clone();
+            let srv_cfg = cfg.clone();
             let timeout = cfg.client_request_timeout;
 
             let builder = Server::build().workers(1).disable_signals().system_exit();
@@ -443,8 +442,11 @@ impl TestServerConfig {
         self
     }
 
-    pub fn port(mut self, _port: u16) -> Self {
-        self.port = _port;
+    /// Sets test server port.
+    ///
+    /// By default, a random free port is determined by the OS.
+    pub fn port(mut self, port: u16) -> Self {
+        self.port = port;
         self
     }
 }
