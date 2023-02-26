@@ -31,7 +31,7 @@ Headings marked with :warning: are **breaking behavioral changes**. They will pr
 - [Returning `HttpResponse` synchronously](#returning-httpresponse-synchronously)
 - [`#[actix_web::main]` and `#[tokio::main]`](#actix_webmain-and-tokiomain)
 - [`web::block`](#webblock)
-- 
+-
 
 ## MSRV
 

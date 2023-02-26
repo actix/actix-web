@@ -14,4 +14,4 @@
 ## Documentation & Resources
 
 - [API Documentation](https://docs.rs/actix-http-test)
-- Minimum Supported Rust Version (MSRV): 1.54
+- Minimum Supported Rust Version (MSRV): 1.59

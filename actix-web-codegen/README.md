@@ -14,7 +14,7 @@
 ## Documentation & Resources
 
 - [API Documentation](https://docs.rs/actix-web-codegen)
-- Minimum Supported Rust Version (MSRV): 1.54
+- Minimum Supported Rust Version (MSRV): 1.59
 
 ## Compile Testing
 

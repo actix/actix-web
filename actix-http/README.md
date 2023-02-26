@@ -14,7 +14,7 @@
 ## Documentation & Resources
 
 - [API Documentation](https://docs.rs/actix-http)
-- Minimum Supported Rust Version (MSRV): 1.54
+- Minimum Supported Rust Version (MSRV): 1.59
 
 ## Example
 
@@ -49,18 +49,3 @@ async fn main() -> io::Result<()> {
         .await
 }
 ```
-
-## License
-
-This project is licensed under either of
-
-- Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0))
-- MIT license ([LICENSE-MIT](LICENSE-MIT) or [http://opensource.org/licenses/MIT](http://opensource.org/licenses/MIT))
-
-at your option.
-
-## Code of Conduct
-
-Contribution to the actix-http crate is organized under the terms of the
-Contributor Covenant, the maintainer of actix-http, @fafhrd91, promises to
-intervene to uphold that code of conduct.

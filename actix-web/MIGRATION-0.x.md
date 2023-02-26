@@ -1,7 +1,6 @@
 # 0.7.15
 
-- The `' '` character is not percent decoded anymore before matching routes. If you need to use it in
-  your routes, you should use `%20`.
+- The `' '` character is not percent decoded anymore before matching routes. If you need to use it in your routes, you should use `%20`.
 
 instead of
 
@@ -29,13 +28,11 @@ fn main() {
 
 # 0.7.4
 
-- `Route::with_config()`/`Route::with_async_config()` always passes configuration objects as tuple
-  even for handler with one parameter.
+- `Route::with_config()`/`Route::with_async_config()` always passes configuration objects as tuple even for handler with one parameter.
 
 # 0.7
 
-- `HttpRequest` does not implement `Stream` anymore. If you need to read request payload
-  use `HttpMessage::payload()` method.
+- `HttpRequest` does not implement `Stream` anymore. If you need to read request payload use `HttpMessage::payload()` method.
 
 instead of
 
@@ -60,8 +57,7 @@ fn index(req: HttpRequest) -> impl Responder {
 }
 ```
 
-- [Middleware](https://actix.rs/actix-web/actix_web/middleware/trait.Middleware.html)
-  trait uses `&HttpRequest` instead of `&mut HttpRequest`.
+- [Middleware](https://actix.rs/actix-web/actix_web/middleware/trait.Middleware.html) trait uses `&HttpRequest` instead of `&mut HttpRequest`.
 
 - Removed `Route::with2()` and `Route::with3()` use tuple of extractors instead.
 
@@ -81,14 +77,11 @@ fn index((query, json): (Query<..>, Json<MyStruct)) -> impl Responder {}
 
 - `Handler::handle()` accepts reference to `HttpRequest<_>` instead of value
 
-- Removed deprecated `HttpServer::threads()`, use
-  [HttpServer::workers()](https://actix.rs/actix-web/actix_web/server/struct.HttpServer.html#method.workers) instead.
+- Removed deprecated `HttpServer::threads()`, use [HttpServer::workers()](https://actix.rs/actix-web/actix_web/server/struct.HttpServer.html#method.workers) instead.
 
-- Renamed `client::ClientConnectorError::Connector` to
-  `client::ClientConnectorError::Resolver`
+- Renamed `client::ClientConnectorError::Connector` to `client::ClientConnectorError::Resolver`
 
-- `Route::with()` does not return `ExtractorConfig`, to configure
-  extractor use `Route::with_config()`
+- `Route::with()` does not return `ExtractorConfig`, to configure extractor use `Route::with_config()`
 
 instead of
 
@@ -116,23 +109,19 @@ fn main() {
 }
 ```
 
-- `Route::with_async()` does not return `ExtractorConfig`, to configure
-  extractor use `Route::with_async_config()`
+- `Route::with_async()` does not return `ExtractorConfig`, to configure extractor use `Route::with_async_config()`
 
 # 0.6
 
 - `Path<T>` extractor return `ErrorNotFound` on failure instead of `ErrorBadRequest`
 
-- `ws::Message::Close` now includes optional close reason.
-  `ws::CloseCode::Status` and `ws::CloseCode::Empty` have been removed.
+- `ws::Message::Close` now includes optional close reason. `ws::CloseCode::Status` and `ws::CloseCode::Empty` have been removed.
 
 - `HttpServer::threads()` renamed to `HttpServer::workers()`.
 
-- `HttpServer::start_ssl()` and `HttpServer::start_tls()` deprecated.
-  Use `HttpServer::bind_ssl()` and `HttpServer::bind_tls()` instead.
+- `HttpServer::start_ssl()` and `HttpServer::start_tls()` deprecated. Use `HttpServer::bind_ssl()` and `HttpServer::bind_tls()` instead.
 
-- `HttpRequest::extensions()` returns read only reference to the request's Extension
-  `HttpRequest::extensions_mut()` returns mutable reference.
+- `HttpRequest::extensions()` returns read only reference to the request's Extension `HttpRequest::extensions_mut()` returns mutable reference.
 
 - Instead of
 
@@ -146,8 +135,7 @@ fn main() {
 
 - `FromRequest::Result` has to implement `Into<Reply<Self>>`
 
-- [`Responder::respond_to()`](https://actix.rs/actix-web/actix_web/trait.Responder.html#tymethod.respond_to)
-  is generic over `S`
+- [`Responder::respond_to()`](https://actix.rs/actix-web/actix_web/trait.Responder.html#tymethod.respond_to) is generic over `S`
 
 - Use `Query` extractor instead of HttpRequest::query()`.
 
@@ -163,23 +151,19 @@ or
 let q = Query::<HashMap<String, String>>::extract(req);
 ```
 
-- Websocket operations are implemented as `WsWriter` trait.
-  you need to use `use actix_web::ws::WsWriter`
+- Websocket operations are implemented as `WsWriter` trait. you need to use `use actix_web::ws::WsWriter`
 
 # 0.5
 
-- `HttpResponseBuilder::body()`, `.finish()`, `.json()`
-  methods return `HttpResponse` instead of `Result<HttpResponse>`
+- `HttpResponseBuilder::body()`, `.finish()`, `.json()` methods return `HttpResponse` instead of `Result<HttpResponse>`
 
-- `actix_web::Method`, `actix_web::StatusCode`, `actix_web::Version`
-  moved to `actix_web::http` module
+- `actix_web::Method`, `actix_web::StatusCode`, `actix_web::Version` moved to `actix_web::http` module
 
 - `actix_web::header` moved to `actix_web::http::header`
 
 - `NormalizePath` moved to `actix_web::http` module
 
-- `HttpServer` moved to `actix_web::server`, added new `actix_web::server::new()` function,
-  shortcut for `actix_web::server::HttpServer::new()`
+- `HttpServer` moved to `actix_web::server`, added new `actix_web::server::new()` function, shortcut for `actix_web::server::HttpServer::new()`
 
 - `DefaultHeaders` middleware does not use separate builder, all builder methods moved to type itself
 
@@ -187,11 +171,9 @@ let q = Query::<HashMap<String, String>>::extract(req);
 
 - `CookieSessionBackendBuilder` removed, all methods moved to `CookieSessionBackend` type
 
-- `actix_web::httpcodes` module is deprecated, `HttpResponse::Ok()`, `HttpResponse::Found()` and other `HttpResponse::XXX()`
-  functions should be used instead
+- `actix_web::httpcodes` module is deprecated, `HttpResponse::Ok()`, `HttpResponse::Found()` and other `HttpResponse::XXX()` functions should be used instead
 
-- `ClientRequestBuilder::body()` returns `Result<_, actix_web::Error>`
-  instead of `Result<_, http::Error>`
+- `ClientRequestBuilder::body()` returns `Result<_, actix_web::Error>` instead of `Result<_, http::Error>`
 
 - `Application` renamed to a `App`
 
