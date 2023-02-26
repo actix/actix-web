@@ -2,6 +2,8 @@
 
 ## Unreleased - 2022-xx-xx
 
+## 0.1.1 - 2023-02-26
+
 - Add `TestServerConfig::port()` setter method.
 - Minimum supported Rust version (MSRV) is now 1.59 due to transitive `time` dependency.
 
