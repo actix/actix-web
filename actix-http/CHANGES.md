@@ -2,6 +2,8 @@
 
 ## Unreleased - 2023-xx-xx
 
+## 3.3.1 - 2023-03-02
+
 ### Fixed
 
 - Use correct `http` version requirement to ensure support for const `HeaderName` definitions.
