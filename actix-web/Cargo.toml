@@ -81,7 +81,6 @@ derive_more = "0.99.8"
 encoding_rs = "0.8"
 futures-core = { version = "0.3.17", default-features = false }
 futures-util = { version = "0.3.17", default-features = false }
-http = "0.2.8"
 itoa = "1"
 language-tags = "0.3"
 log = "0.4"
