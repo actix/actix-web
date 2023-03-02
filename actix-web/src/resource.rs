@@ -21,7 +21,7 @@ use crate::{
         BoxedHttpService, BoxedHttpServiceFactory, HttpServiceFactory, ServiceRequest,
         ServiceResponse,
     },
-    Error, FromRequest, HttpResponse, Responder,
+    web, Error, FromRequest, HttpResponse, Responder,
 };
 
 /// A collection of [`Route`]s that respond to the same path pattern.
@@ -38,11 +38,13 @@ use crate::{
 ///
 /// let app = App::new().service(
 ///     web::resource("/")
-///         .route(web::get().to(|| HttpResponse::Ok())));
+///         .get(|| HttpResponse::Ok())
+///         .post(|| async { "Hello World!" })
+/// );
 /// ```
 ///
-/// If no matching route is found, [a 405 response is returned with an appropriate Allow header][RFC
-/// 9110 §15.5.6]. This default behavior can be overridden using
+/// If no matching route is found, an empty 405 response is returned which includes an
+/// [appropriate Allow header][RFC 9110 §15.5.6]. This default behavior can be overridden using
 /// [`default_service()`](Self::default_service).
 ///
 /// [RFC 9110 §15.5.6]: https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.6
@@ -58,6 +60,7 @@ pub struct Resource<T = ResourceEndpoint> {
 }
 
 impl Resource {
+    /// Constructs new resource that matches a `path` pattern.
     pub fn new<T: IntoPatterns>(path: T) -> Resource {
         let fref = Rc::new(RefCell::new(None));
 
@@ -366,6 +369,45 @@ where
 
         self
     }
+}
+
+macro_rules! route_shortcut {
+    ($method_fn:ident, $method_upper:literal) => {
+        #[doc = concat!(" Adds a ", $method_upper, " route.")]
+        ///
+        /// Use [`route`](Self::route) if you need to add additional guards.
+        ///
+        /// # Examples
+        ///
+        /// ```
+        /// # use actix_web::web;
+        /// web::resource("/")
+        #[doc = concat!("    .", stringify!($method_fn), "(|| async { \"Hello World!\" })")]
+        /// # ;
+        /// ```
+        pub fn $method_fn<F, Args>(self, handler: F) -> Self
+        where
+            F: Handler<Args>,
+            Args: FromRequest + 'static,
+            F::Output: Responder + 'static,
+        {
+            self.route(web::$method_fn().to(handler))
+        }
+    };
+}
+
+/// Concise routes for well-known HTTP methods.
+impl<T> Resource<T>
+where
+    T: ServiceFactory<ServiceRequest, Config = (), Error = Error, InitError = ()>,
+{
+    route_shortcut!(get, "GET");
+    route_shortcut!(post, "POST");
+    route_shortcut!(put, "PUT");
+    route_shortcut!(patch, "PATCH");
+    route_shortcut!(delete, "DELETE");
+    route_shortcut!(head, "HEAD");
+    route_shortcut!(trace, "TRACE");
 }
 
 impl<T, B> HttpServiceFactory for Resource<T>
