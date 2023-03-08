@@ -53,6 +53,11 @@ crate::http::header::common_header! {
             test1,
             vec![b"text/html"],
             Some(HeaderField(mime::TEXT_HTML)));
+        crate::http::header::common_header_test!(
+            test2,
+            vec![b"image/*"],
+            Some(HeaderField(mime::IMAGE_STAR)));
+
     }
 }
 
