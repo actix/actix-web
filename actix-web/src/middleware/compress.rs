@@ -17,7 +17,7 @@ use pin_project_lite::pin_project;
 use crate::{
     body::{EitherBody, MessageBody},
     http::{
-        header::{self, AcceptEncoding, Encoding, HeaderValue},
+        header::{self, AcceptEncoding, ContentType, Encoding, HeaderValue},
         StatusCode,
     },
     service::{ServiceRequest, ServiceResponse},
@@ -323,5 +323,32 @@ mod tests {
         let vary_headers = res.headers().get_all(header::VARY).collect::<HashSet<_>>();
         assert!(vary_headers.contains(&HeaderValue::from_static("x-test")));
         assert!(vary_headers.contains(&HeaderValue::from_static("accept-encoding")));
+    }
+
+    #[actix_rt::test]
+    async fn prevents_compression_jpeg() {
+        const D: &str = "test image";
+        const DATA: &str = const_str::repeat!(D, 100);
+        let app = test::init_service({
+            App::new().wrap(Compress::default()).route(
+                "/image",
+                web::get().to(move || {
+                    let mut builder = HttpResponse::Ok();
+                    builder.body(DATA);
+                    builder.insert_header(ContentType::jpeg());
+                    builder
+                }),
+            )
+        })
+        .await;
+        let req = test::TestRequest::default()
+            .uri("/image")
+            .insert_header((header::ACCEPT_ENCODING, "gzip"))
+            .to_request();
+	let res = test::call_service(&app, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(res.headers().get(header::CONTENT_TYPE).unwrap(), "gzip");
+        let bytes = test::read_body(res).await;
+        assert_eq!(bytes, DATA.as_bytes());
     }
 }
