@@ -304,7 +304,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_either_extract_first_try() {
         let (req, mut pl) = TestRequest::default()
-            .set_form(&TestForm {
+            .set_form(TestForm {
                 hello: "world".to_owned(),
             })
             .to_http_parts();
@@ -320,7 +320,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_either_extract_fallback() {
         let (req, mut pl) = TestRequest::default()
-            .set_json(&TestForm {
+            .set_json(TestForm {
                 hello: "world".to_owned(),
             })
             .to_http_parts();
@@ -351,7 +351,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_either_extract_recursive_fallback_inner() {
         let (req, mut pl) = TestRequest::default()
-            .set_json(&TestForm {
+            .set_json(TestForm {
                 hello: "world".to_owned(),
             })
             .to_http_parts();

@@ -338,40 +338,13 @@ where
     /// # ; Ok(()) }
     /// ```
     pub fn bind<A: net::ToSocketAddrs>(mut self, addrs: A) -> io::Result<Self> {
-        let sockets = self.bind2(addrs)?;
+        let sockets = bind_addrs(addrs, self.backlog)?;
 
         for lst in sockets {
             self = self.listen(lst)?;
         }
 
         Ok(self)
-    }
-
-    fn bind2<A: net::ToSocketAddrs>(&self, addrs: A) -> io::Result<Vec<net::TcpListener>> {
-        let mut err = None;
-        let mut success = false;
-        let mut sockets = Vec::new();
-
-        for addr in addrs.to_socket_addrs()? {
-            match create_tcp_listener(addr, self.backlog) {
-                Ok(lst) => {
-                    success = true;
-                    sockets.push(lst);
-                }
-                Err(e) => err = Some(e),
-            }
-        }
-
-        if success {
-            Ok(sockets)
-        } else if let Some(e) = err.take() {
-            Err(e)
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Can not bind to address.",
-            ))
-        }
     }
 
     /// Resolves socket address(es) and binds server to created listener(s) for TLS connections
@@ -386,7 +359,7 @@ where
         addrs: A,
         config: RustlsServerConfig,
     ) -> io::Result<Self> {
-        let sockets = self.bind2(addrs)?;
+        let sockets = bind_addrs(addrs, self.backlog)?;
         for lst in sockets {
             self = self.listen_rustls_inner(lst, config.clone())?;
         }
@@ -404,7 +377,7 @@ where
     where
         A: net::ToSocketAddrs,
     {
-        let sockets = self.bind2(addrs)?;
+        let sockets = bind_addrs(addrs, self.backlog)?;
         let acceptor = openssl_acceptor(builder)?;
 
         for lst in sockets {
@@ -719,6 +692,38 @@ where
     }
 }
 
+/// Bind TCP listeners to socket addresses resolved from `addrs` with options.
+fn bind_addrs(
+    addrs: impl net::ToSocketAddrs,
+    backlog: u32,
+) -> io::Result<Vec<net::TcpListener>> {
+    let mut err = None;
+    let mut success = false;
+    let mut sockets = Vec::new();
+
+    for addr in addrs.to_socket_addrs()? {
+        match create_tcp_listener(addr, backlog) {
+            Ok(lst) => {
+                success = true;
+                sockets.push(lst);
+            }
+            Err(e) => err = Some(e),
+        }
+    }
+
+    if success {
+        Ok(sockets)
+    } else if let Some(err) = err.take() {
+        Err(err)
+    } else {
+        Err(io::Error::new(
+            io::ErrorKind::Other,
+            "Can not bind to address.",
+        ))
+    }
+}
+
+/// Creates a TCP listener from socket address and options.
 fn create_tcp_listener(addr: net::SocketAddr, backlog: u32) -> io::Result<net::TcpListener> {
     use socket2::{Domain, Protocol, Socket, Type};
     let domain = Domain::for_address(addr);
@@ -731,7 +736,7 @@ fn create_tcp_listener(addr: net::SocketAddr, backlog: u32) -> io::Result<net::T
     Ok(net::TcpListener::from(socket))
 }
 
-/// Configure `SslAcceptorBuilder` with custom server flags.
+/// Configures OpenSSL acceptor `builder` with ALPN protocols.
 #[cfg(feature = "openssl")]
 fn openssl_acceptor(mut builder: SslAcceptorBuilder) -> io::Result<SslAcceptor> {
     builder.set_alpn_select_callback(|_, protocols| {
