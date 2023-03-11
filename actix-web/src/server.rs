@@ -347,6 +347,16 @@ where
         Ok(self)
     }
 
+    pub fn bind_auto_h2c<A: net::ToSocketAddrs>(mut self, addrs: A) -> io::Result<Self> {
+        let sockets = bind_addrs(addrs, self.backlog)?;
+
+        for lst in sockets {
+            self = self.listen_auto_h2c(lst)?;
+        }
+
+        Ok(self)
+    }
+
     /// Resolves socket address(es) and binds server to created listener(s) for TLS connections
     /// using Rustls.
     ///
@@ -406,13 +416,13 @@ where
         self.builder =
             self.builder
                 .listen(format!("actix-web-service-{}", addr), lst, move || {
-                    let c = cfg.lock().unwrap();
-                    let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
+                    let cfg = cfg.lock().unwrap();
+                    let host = cfg.host.clone().unwrap_or_else(|| format!("{}", addr));
 
                     let mut svc = HttpService::build()
-                        .keep_alive(c.keep_alive)
-                        .client_request_timeout(c.client_request_timeout)
-                        .client_disconnect_timeout(c.client_disconnect_timeout)
+                        .keep_alive(cfg.keep_alive)
+                        .client_request_timeout(cfg.client_request_timeout)
+                        .client_disconnect_timeout(cfg.client_disconnect_timeout)
                         .local_addr(addr);
 
                     if let Some(handler) = on_connect_fn.clone() {
@@ -430,6 +440,50 @@ where
                     }))
                     .tcp()
                 })?;
+
+        Ok(self)
+    }
+
+    fn listen_auto_h2c(mut self, lst: net::TcpListener) -> io::Result<Self> {
+        let cfg = self.config.clone();
+        let factory = self.factory.clone();
+        let addr = lst.local_addr().unwrap();
+
+        self.sockets.push(Socket {
+            addr,
+            scheme: "http",
+        });
+
+        let on_connect_fn = self.on_connect_fn.clone();
+
+        self.builder =
+            self.builder
+                .listen(format!("actix-web-service-{}", addr), lst, move || {
+                    let cfg = cfg.lock().unwrap();
+                    let host = cfg.host.clone().unwrap_or_else(|| format!("{}", addr));
+
+                    let mut svc = HttpService::build()
+                        .keep_alive(cfg.keep_alive)
+                        .client_request_timeout(cfg.client_request_timeout)
+                        .client_disconnect_timeout(cfg.client_disconnect_timeout)
+                        .local_addr(addr);
+
+                    if let Some(handler) = on_connect_fn.clone() {
+                        svc = svc.on_connect_ext(move |io: &_, ext: _| {
+                            (handler)(io as &dyn Any, ext)
+                        })
+                    };
+
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
+
+                    svc.finish(map_config(fac, move |_| {
+                        AppConfig::new(false, host.clone(), addr)
+                    }))
+                    .tcp_auto_h2c()
+                })?;
+
         Ok(self)
     }
 
