@@ -32,11 +32,11 @@ derive_more = "0.99.5"
 futures-core = { version = "0.3.17", default-features = false, features = ["alloc"] }
 http-range = "0.1.4"
 log = "0.4"
-mime = "0.3"
+mime = "0.3.9"
 mime_guess = "2.0.1"
 percent-encoding = "2.1"
 pin-project-lite = "0.2.7"
-v_htmlescape= "0.15"
+v_htmlescape = "0.15.5"
 
 # experimental-io-uring
 [target.'cfg(target_os = "linux")'.dependencies]
