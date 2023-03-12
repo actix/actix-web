@@ -2,9 +2,17 @@
 
 ## Unreleased - 2023-xx-xx
 
+### Added
+
 - Add `Resource::{get, post, etc...}` methods for more concisely adding routes that don't need additional guards.
 
+### Changed
+
+- Handler functions can now receive up to 16 extractor parameters.
+
 ## 4.3.1 - 2023-02-26
+
+### Added
 
 - Add support for custom methods with the `#[route]` macro. [#2969]
 
