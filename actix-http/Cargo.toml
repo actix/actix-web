@@ -124,3 +124,8 @@ tokio = { version = "1.24.2", features = ["net", "rt", "macros"] }
 [[example]]
 name = "ws"
 required-features = ["ws", "rustls"]
+
+[[bench]]
+name = "response-body-compression"
+harness = false
+required-features = ["compress-brotli", "compress-gzip", "compress-zstd"]
