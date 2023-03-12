@@ -22,4 +22,4 @@ pub(crate) use self::message_body::MessageBodyMapErr;
 pub use self::none::None;
 pub use self::size::BodySize;
 pub use self::sized_stream::SizedStream;
-pub use self::utils::{to_bytes, to_bytes_limit, BodyLimitExceeded};
+pub use self::utils::{to_bytes, to_bytes_limited, BodyLimitExceeded};
