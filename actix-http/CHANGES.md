@@ -2,6 +2,11 @@
 
 ## Unreleased - 2023-xx-xx
 
+### Added
+
+- Add `body::to_body_limit()` function.
+- Add `body::BodyLimitExceeded` error type.
+
 ## 3.3.1 - 2023-03-02
 
 ### Fixed
