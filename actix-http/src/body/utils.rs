@@ -32,7 +32,7 @@ use super::{BodySize, MessageBody};
 pub async fn to_bytes<B: MessageBody>(body: B) -> Result<Bytes, B::Error> {
     to_bytes_limited(body, usize::MAX)
         .await
-        .expect("body should never overflow usize::MAX")
+        .expect("body should never yield more than usize::MAX bytes")
 }
 
 /// Error type returned from [`to_bytes_limited`] when body produced exceeds limit.
@@ -70,12 +70,14 @@ pub async fn to_bytes_limited<B: MessageBody>(
     body: B,
     limit: usize,
 ) -> Result<Result<Bytes, B::Error>, BodyLimitExceeded> {
+    /// Sensible default (32kB) for initial, bounded allocation when collecting body bytes.
+    const INITIAL_ALLOC_BYTES: usize = 32 * 1024;
+
     let cap = match body.size() {
         BodySize::None | BodySize::Sized(0) => return Ok(Ok(Bytes::new())),
         BodySize::Sized(size) if size as usize > limit => return Err(BodyLimitExceeded),
-        BodySize::Sized(size) => size as usize,
-        // good enough first guess for chunk size
-        BodySize::Stream => 32_768,
+        BodySize::Sized(size) => (size as usize).min(INITIAL_ALLOC_BYTES),
+        BodySize::Stream => INITIAL_ALLOC_BYTES,
     };
 
     let mut exceeded_limit = false;
