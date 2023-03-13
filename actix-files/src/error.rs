@@ -35,9 +35,10 @@ pub enum UriSegmentError {
     /// Segment ended with the wrapped invalid character.
     #[display(fmt = "segment ended with invalid character: ('{_0}')")]
     BadEnd(char),
-    // /// Path is not a valid UTF-8 string after percent-decoding.
-    // #[display(fmt = "path is not a valid UTF-8 string after percent-decoding")]
-    // NotValidUtf8,
+
+    /// Path is not a valid UTF-8 string after percent-decoding.
+    #[display(fmt = "path is not a valid UTF-8 string after percent-decoding")]
+    NotValidUtf8,
 }
 
 impl ResponseError for UriSegmentError {
