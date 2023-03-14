@@ -13,6 +13,7 @@ use actix_utils::future::{ok, Either, Ready};
 use futures_core::ready;
 use once_cell::sync::Lazy;
 use pin_project_lite::pin_project;
+use mime::Mime;
 
 use crate::{
     body::{EitherBody, MessageBody},
@@ -71,9 +72,19 @@ use crate::{
 /// ```
 ///
 /// [feature flags]: ../index.html#crate-features
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 #[non_exhaustive]
-pub struct Compress;
+pub struct Compress {
+    pub compress: fn(Mime) -> bool,
+}
+
+impl Default for Compress {
+    fn default() -> Self {
+	Compress {
+	    compress: |_| { true }
+	}
+    }
+}
 
 impl<S, B> Transform<S, ServiceRequest> for Compress
 where
@@ -87,12 +98,13 @@ where
     type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        ok(CompressMiddleware { service })
+        ok(CompressMiddleware { service, compress: self.compress })
     }
 }
 
 pub struct CompressMiddleware<S> {
     service: S,
+    compress: fn(Mime) -> bool,
 }
 
 impl<S, B> Service<ServiceRequest> for CompressMiddleware<S>
