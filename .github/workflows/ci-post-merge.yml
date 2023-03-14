@@ -29,7 +29,7 @@ jobs:
       CARGO_UNSTABLE_SPARSE_REGISTRY: true
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       # install OpenSSL on Windows
       # TODO: GitHub actions docs state that OpenSSL is
@@ -93,7 +93,7 @@ jobs:
       CARGO_INCREMENTAL: 0
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -120,7 +120,7 @@ jobs:
       CARGO_INCREMENTAL: 0
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - uses: dtolnay/rust-toolchain@stable
 

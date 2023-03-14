@@ -8,7 +8,7 @@ jobs:
   fmt:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@nightly
         with: { components: rustfmt }
       - run: cargo fmt --all -- --check
@@ -16,7 +16,7 @@ jobs:
   clippy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - uses: dtolnay/rust-toolchain@stable
         with: { components: clippy }
@@ -35,7 +35,7 @@ jobs:
   lint-docs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - uses: dtolnay/rust-toolchain@stable
         with: { components: rust-docs }

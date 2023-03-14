@@ -7,7 +7,7 @@ on:
     branches: [master]
 
 permissions:
-  contents: read  #  to fetch code (actions/checkout)
+  contents: read # to fetch code (actions/checkout)
 
 jobs:
   build_and_test:
@@ -31,7 +31,7 @@ jobs:
       VCPKGRS_DYNAMIC: 1
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       # install OpenSSL on Windows
       # TODO: GitHub actions docs state that OpenSSL is
@@ -102,7 +102,7 @@ jobs:
     name: io-uring tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -123,7 +123,7 @@ jobs:
     name: doc tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - uses: dtolnay/rust-toolchain@nightly
 
