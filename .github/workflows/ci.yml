@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read # to fetch code (actions/checkout)
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build_and_test:
     strategy:
@@ -95,7 +99,7 @@ jobs:
 
       - name: Clear the cargo caches
         run: |
-          cargo install cargo-cache --version 0.8.2 --no-default-features --features ci-autoclean
+          cargo install cargo-cache --version 0.8.3 --no-default-features --features ci-autoclean
           cargo-cache
 
   io-uring:
@@ -114,10 +118,8 @@ jobs:
       - name: tests (io-uring)
         timeout-minutes: 60
         run: >
-          sudo bash -c "ulimit -Sl 512
-          && ulimit -Hl 512
-          && PATH=$PATH:/usr/share/rust/.cargo/bin
-          && RUSTUP_TOOLCHAIN=stable cargo test --lib --tests -p=actix-files --all-features"
+          sudo bash -c "ulimit -Sl 512 && ulimit -Hl 512 && PATH=$PATH:/usr/share/rust/.cargo/bin && RUSTUP_TOOLCHAIN=stable cargo test --lib --tests -p=actix-files --all-features"
+
 
   rustdoc:
     name: doc tests

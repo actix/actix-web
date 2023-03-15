@@ -6,7 +6,11 @@ on:
       - master
 
 permissions:
-  contents: read  #  to fetch code (actions/checkout)
+  contents: read # to fetch code (actions/checkout)
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   check_benchmark:

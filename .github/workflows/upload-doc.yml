@@ -4,11 +4,17 @@ on:
   push:
     branches: [master]
 
-permissions: {}
+permissions:
+  contents: read # to fetch code (actions/checkout)
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     permissions:
-      contents: write  #  to push changes in repo (jamesives/github-pages-deploy-action)
+      contents: write # to push changes in repo (jamesives/github-pages-deploy-action)
 
     runs-on: ubuntu-latest
 

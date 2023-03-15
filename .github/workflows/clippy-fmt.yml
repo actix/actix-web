@@ -4,28 +4,42 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
+permissions:
+  contents: read # to fetch code (actions/checkout)
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   fmt:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@nightly
-        with: { components: rustfmt }
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: nightly
+          components: rustfmt
+
       - run: cargo fmt --all -- --check
 
   clippy:
+    permissions:
+      checks: write # to add clippy checks to PR diffs
+
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
         with: { components: clippy }
 
       - name: Generate Cargo.lock
         run: cargo generate-lockfile
       - name: Cache Dependencies
         uses: Swatinem/rust-cache@v1.2.0
-  
+
       - name: Check with Clippy
         uses: actions-rs/clippy-check@v1
         with:
@@ -37,13 +51,30 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
         with: { components: rust-docs }
 
       - name: Check for broken intra-doc links
-        uses: actions-rs/cargo@v1
-        env:
-          RUSTDOCFLAGS: "-D warnings"
+        env: { RUSTDOCFLAGS: "-D warnings" }
+        run: cargo doc --no-deps --all-features --workspace
+
+  public-api-diff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
         with:
-          command: doc
-          args: --no-deps --all-features --workspace
+          ref: ${{ github.base_ref }}
+
+      - uses: actions/checkout@v3
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with: { toolchain: nightly }
+
+      - uses: taiki-e/cache-cargo-install-action@v1
+        with: { tool: cargo-public-api }
+
+      - name: generate API diff
+        run: |
+          for f in $(find -mindepth 2 -maxdepth 2 -name Cargo.toml); do
+            cargo public-api --manifest-path "$f" diff ${{ github.event.pull_request.base.sha }}..${{ github.sha }}
+          done
