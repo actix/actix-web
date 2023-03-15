@@ -12,6 +12,7 @@ use actix_http::encoding::Encoder;
 use actix_service::{Service, Transform};
 use actix_utils::future::{ok, Either, Ready};
 use futures_core::ready;
+use mime::Mime;
 use once_cell::sync::Lazy;
 use pin_project_lite::pin_project;
 
@@ -86,7 +87,16 @@ impl fmt::Debug for Compress {
 impl Default for Compress {
     fn default() -> Self {
         Compress {
-            compress: |_| false,
+            compress: |content_type| match content_type {
+                None => true,
+                Some(value) => {
+                    let response_mime: Mime = value.to_str().unwrap().parse::<Mime>().unwrap();
+                    match response_mime.type_().as_str() {
+                        "image" => false,
+                        _ => true,
+                    }
+                }
+            },
         }
     }
 }
@@ -207,7 +217,7 @@ where
 
                 Poll::Ready(Ok(resp.map_body(move |head, body| {
                     let content_type = head.headers.get(header::CONTENT_TYPE);
-                    let should_compress = (self.compress)(content_type);		    
+                    let should_compress = (self.compress)(content_type);
                     if should_compress {
                         EitherBody::left(Encoder::response(enc, head, body))
                     } else {
