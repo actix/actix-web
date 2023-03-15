@@ -6,6 +6,13 @@ on:
   push:
     branches: [master]
 
+permissions:
+  contents: read # to fetch code (actions/checkout)
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # job currently (1st Feb 2022) segfaults
   coverage:

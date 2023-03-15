@@ -5,7 +5,11 @@ on:
     branches: [master]
 
 permissions:
-  contents: read  #  to fetch code (actions/checkout)
+  contents: read # to fetch code (actions/checkout)
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build_and_test_nightly:
@@ -81,7 +85,7 @@ jobs:
 
       - name: Clear the cargo caches
         run: |
-          cargo install cargo-cache --version 0.8.2 --no-default-features --features ci-autoclean
+          cargo install cargo-cache --version 0.8.3 --no-default-features --features ci-autoclean
           cargo-cache
 
   ci_feature_powerset_check:
