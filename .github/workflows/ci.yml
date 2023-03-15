@@ -21,7 +21,7 @@ jobs:
         target:
           - { name: Linux, os: ubuntu-latest, triple: x86_64-unknown-linux-gnu }
           - { name: macOS, os: macos-latest, triple: x86_64-apple-darwin }
-          - { name: Windows, os: windows-2022, triple: x86_64-pc-windows-msvc }
+          - { name: Windows, os: windows-latest, triple: x86_64-pc-windows-msvc }
         version:
           - 1.59.0 # MSRV
           - stable
@@ -32,20 +32,16 @@ jobs:
     env:
       CI: 1
       CARGO_INCREMENTAL: 0
-      VCPKGRS_DYNAMIC: 1
 
     steps:
       - uses: actions/checkout@v3
 
-      # install OpenSSL on Windows
-      # TODO: GitHub actions docs state that OpenSSL is
-      # already installed on these Windows machines somewhere
-      - name: Set vcpkg root
-        if: matrix.target.triple == 'x86_64-pc-windows-msvc'
-        run: echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
       - name: Install OpenSSL
-        if: matrix.target.triple == 'x86_64-pc-windows-msvc'
-        run: vcpkg install openssl:x64-windows
+        if: matrix.target.os == 'windows-latest'
+        run: choco install openssl
+      - name: Set OpenSSL dir in env
+        if: matrix.target.os == 'windows-latest'
+        run: echo 'OPENSSL_DIR=C:\Program Files\OpenSSL-Win64' | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Install ${{ matrix.version }}
         uses: actions-rs/toolchain@v1
