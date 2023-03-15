@@ -12,7 +12,6 @@ use actix_http::encoding::Encoder;
 use actix_service::{Service, Transform};
 use actix_utils::future::{ok, Either, Ready};
 use futures_core::ready;
-use mime::Mime;
 use once_cell::sync::Lazy;
 use pin_project_lite::pin_project;
 
@@ -76,7 +75,7 @@ use crate::{
 #[derive(Clone)]
 #[non_exhaustive]
 pub struct Compress {
-    pub compress: fn(&HeaderValue) -> bool,
+    pub compress: fn(Option<&HeaderValue>) -> bool,
 }
 
 impl fmt::Debug for Compress {
@@ -113,7 +112,7 @@ where
 
 pub struct CompressMiddleware<S> {
     service: S,
-    compress: fn(&HeaderValue) -> bool,
+    compress: fn(Option<&HeaderValue>) -> bool,
 }
 
 impl<S, B> Service<ServiceRequest> for CompressMiddleware<S>
@@ -183,7 +182,7 @@ pin_project! {
         fut: S::Future,
         encoding: Encoding,
         _phantom: PhantomData<B>,
-    compress: fn(&HeaderValue) -> bool,
+        compress: fn(Option<&HeaderValue>) -> bool,
     }
 }
 
@@ -208,9 +207,7 @@ where
 
                 Poll::Ready(Ok(resp.map_body(move |head, body| {
                     let content_type = head.headers.get(header::CONTENT_TYPE);
-                    let should_compress = content_type
-                        .map(|value| (self.compress)(value))
-                        .unwrap_or(true);
+                    let should_compress = (self.compress)(content_type);		    
                     if should_compress {
                         EitherBody::left(Encoder::response(enc, head, body))
                     } else {
