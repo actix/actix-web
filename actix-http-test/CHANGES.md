@@ -1,7 +1,6 @@
 # Changes
 
 ## Unreleased - 2023-xx-xx
-- Update `TestServer` example
 
 ## 3.1.0 - 2023-01-21
 
