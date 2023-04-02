@@ -35,16 +35,11 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with: { components: clippy }
 
-      - name: Generate Cargo.lock
-        run: cargo generate-lockfile
-      - name: Cache Dependencies
-        uses: Swatinem/rust-cache@v1.2.0
-
-      - name: Check with Clippy
-        uses: actions-rs/clippy-check@v1
+      - uses: giraffate/clippy-action@v1
         with:
-          args: --workspace --tests --examples --all-features
-          token: ${{ secrets.GITHUB_TOKEN }}
+          reporter: 'github-pr-check'
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          clippy_flags: --workspace --all-features --tests --examples --bins -- -Dclippy::todo
 
   lint-docs:
     runs-on: ubuntu-latest

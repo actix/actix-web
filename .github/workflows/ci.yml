@@ -29,9 +29,7 @@ jobs:
     name: ${{ matrix.target.name }} / ${{ matrix.version }}
     runs-on: ${{ matrix.target.os }}
 
-    env:
-      CI: 1
-      CARGO_INCREMENTAL: 0
+    env: {}
 
     steps:
       - uses: actions/checkout@v3
@@ -43,12 +41,10 @@ jobs:
         if: matrix.target.os == 'windows-latest'
         run: echo 'OPENSSL_DIR=C:\Program Files\OpenSSL-Win64' | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      - name: Install ${{ matrix.version }}
-        uses: actions-rs/toolchain@v1
+      - name: Install Rust (${{ matrix.version }})
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          toolchain: ${{ matrix.version }}-${{ matrix.target.triple }}
-          profile: minimal
-          override: true
+          toolchain: ${{ matrix.version }}
 
       - name: Install cargo-hack
         uses: taiki-e/install-action@cargo-hack
@@ -59,12 +55,6 @@ jobs:
           cargo install cargo-edit --version=0.8.0
           cargo add const-str@0.3 --dev -p=actix-web
           cargo add const-str@0.3 --dev -p=awc
-
-      - name: Generate Cargo.lock
-        uses: actions-rs/cargo@v1
-        with: { command: generate-lockfile }
-      - name: Cache Dependencies
-        uses: Swatinem/rust-cache@v1.2.0
 
       - name: workaround MSRV issues
         if: matrix.version != 'stable'
@@ -104,12 +94,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: dtolnay/rust-toolchain@stable
-
-      - name: Generate Cargo.lock
-        run: cargo generate-lockfile
-      - name: Cache Dependencies
-        uses: Swatinem/rust-cache@v1.3.0
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with: { toolchain: nightly }
 
       - name: tests (io-uring)
         timeout-minutes: 60
@@ -123,12 +110,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: dtolnay/rust-toolchain@nightly
-
-      - name: Generate Cargo.lock
-        run: cargo generate-lockfile
-      - name: Cache Dependencies
-        uses: Swatinem/rust-cache@v1.3.0
+      - name: Install Rust (nightly)
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with: { toolchain: nightly }
 
       - name: doc tests
         run: cargo ci-doctest

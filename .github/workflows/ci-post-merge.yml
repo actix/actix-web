@@ -48,7 +48,7 @@ jobs:
       - name: Install ${{ matrix.version }}
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: ${{ matrix.version }}-${{ matrix.target.triple }}
+          toolchain: ${{ matrix.version }}
           profile: minimal
           override: true
 
