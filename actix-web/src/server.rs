@@ -41,10 +41,19 @@ struct Config {
 ///
 /// Create new HTTP server with application factory.
 ///
-/// # HTTP/2
-/// Currently, HTTP/2 is only supported when using TLS (HTTPS). See `bind_rustls` or `bind_openssl`.
+/// # Automatic HTTP Version Selection
+///
+/// There are two ways to select the HTTP version of an incoming connection:
+///
+/// - One is to rely on the ALPN information that is provided when using a TLS (HTTPS); both
+///   versions are supported automatically when using either of the `.bind_rustls()` or
+///   `.bind_openssl()` methods.
+/// - The other is to read the first few bytes of the TCP stream. This is the only viable approach
+///   for supporting H2C, which allows the HTTP/2 protocol to work over plaintext connections. Use
+///   the `.bind_auto_h2c()` method to enable this behavior.
 ///
 /// # Examples
+///
 /// ```no_run
 /// use actix_web::{web, App, HttpResponse, HttpServer};
 ///
@@ -347,6 +356,8 @@ where
         Ok(self)
     }
 
+    /// Resolves socket address(es) and binds server to created listener(s) for plaintext HTTP/1.x
+    /// or HTTP/2 connections.
     pub fn bind_auto_h2c<A: net::ToSocketAddrs>(mut self, addrs: A) -> io::Result<Self> {
         let sockets = bind_addrs(addrs, self.backlog)?;
 
@@ -444,7 +455,8 @@ where
         Ok(self)
     }
 
-    fn listen_auto_h2c(mut self, lst: net::TcpListener) -> io::Result<Self> {
+    /// Binds to existing listener for accepting incoming plaintext HTTP/1.x or HTTP/2 connections.
+    pub fn listen_auto_h2c(mut self, lst: net::TcpListener) -> io::Result<Self> {
         let cfg = self.config.clone();
         let factory = self.factory.clone();
         let addr = lst.local_addr().unwrap();
