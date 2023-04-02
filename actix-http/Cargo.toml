@@ -126,17 +126,6 @@ name = "ws"
 required-features = ["ws", "rustls"]
 
 [[bench]]
-name = "write-camel-case"
+name = "response-body-compression"
 harness = false
-
-[[bench]]
-name = "status-line"
-harness = false
-
-[[bench]]
-name = "uninit-headers"
-harness = false
-
-[[bench]]
-name = "quality-value"
-harness = false
+required-features = ["compress-brotli", "compress-gzip", "compress-zstd"]

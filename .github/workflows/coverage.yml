@@ -6,26 +6,23 @@ on:
   push:
     branches: [master]
 
+permissions:
+  contents: read # to fetch code (actions/checkout)
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # job currently (1st Feb 2022) segfaults
   coverage:
     name: coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
-      - name: Install stable
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable-x86_64-unknown-linux-gnu
-          profile: minimal
-          override: true
-
-      - name: Generate Cargo.lock
-        uses: actions-rs/cargo@v1
-        with: { command: generate-lockfile }
-      - name: Cache Dependencies
-        uses: Swatinem/rust-cache@v1.2.0
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with: { toolchain: nightly }
 
       - name: Generate coverage file
         run: |
