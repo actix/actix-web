@@ -41,10 +41,19 @@ struct Config {
 ///
 /// Create new HTTP server with application factory.
 ///
-/// # HTTP/2
-/// Currently, HTTP/2 is only supported when using TLS (HTTPS). See `bind_rustls` or `bind_openssl`.
+/// # Automatic HTTP Version Selection
+///
+/// There are two ways to select the HTTP version of an incoming connection:
+///
+/// - One is to rely on the ALPN information that is provided when using a TLS (HTTPS); both
+///   versions are supported automatically when using either of the `.bind_rustls()` or
+///   `.bind_openssl()` methods.
+/// - The other is to read the first few bytes of the TCP stream. This is the only viable approach
+///   for supporting H2C, which allows the HTTP/2 protocol to work over plaintext connections. Use
+///   the `.bind_auto_h2c()` method to enable this behavior.
 ///
 /// # Examples
+///
 /// ```no_run
 /// use actix_web::{web, App, HttpResponse, HttpServer};
 ///
@@ -347,6 +356,18 @@ where
         Ok(self)
     }
 
+    /// Resolves socket address(es) and binds server to created listener(s) for plaintext HTTP/1.x
+    /// or HTTP/2 connections.
+    pub fn bind_auto_h2c<A: net::ToSocketAddrs>(mut self, addrs: A) -> io::Result<Self> {
+        let sockets = bind_addrs(addrs, self.backlog)?;
+
+        for lst in sockets {
+            self = self.listen_auto_h2c(lst)?;
+        }
+
+        Ok(self)
+    }
+
     /// Resolves socket address(es) and binds server to created listener(s) for TLS connections
     /// using Rustls.
     ///
@@ -406,13 +427,13 @@ where
         self.builder =
             self.builder
                 .listen(format!("actix-web-service-{}", addr), lst, move || {
-                    let c = cfg.lock().unwrap();
-                    let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
+                    let cfg = cfg.lock().unwrap();
+                    let host = cfg.host.clone().unwrap_or_else(|| format!("{}", addr));
 
                     let mut svc = HttpService::build()
-                        .keep_alive(c.keep_alive)
-                        .client_request_timeout(c.client_request_timeout)
-                        .client_disconnect_timeout(c.client_disconnect_timeout)
+                        .keep_alive(cfg.keep_alive)
+                        .client_request_timeout(cfg.client_request_timeout)
+                        .client_disconnect_timeout(cfg.client_disconnect_timeout)
                         .local_addr(addr);
 
                     if let Some(handler) = on_connect_fn.clone() {
@@ -430,6 +451,51 @@ where
                     }))
                     .tcp()
                 })?;
+
+        Ok(self)
+    }
+
+    /// Binds to existing listener for accepting incoming plaintext HTTP/1.x or HTTP/2 connections.
+    pub fn listen_auto_h2c(mut self, lst: net::TcpListener) -> io::Result<Self> {
+        let cfg = self.config.clone();
+        let factory = self.factory.clone();
+        let addr = lst.local_addr().unwrap();
+
+        self.sockets.push(Socket {
+            addr,
+            scheme: "http",
+        });
+
+        let on_connect_fn = self.on_connect_fn.clone();
+
+        self.builder =
+            self.builder
+                .listen(format!("actix-web-service-{}", addr), lst, move || {
+                    let cfg = cfg.lock().unwrap();
+                    let host = cfg.host.clone().unwrap_or_else(|| format!("{}", addr));
+
+                    let mut svc = HttpService::build()
+                        .keep_alive(cfg.keep_alive)
+                        .client_request_timeout(cfg.client_request_timeout)
+                        .client_disconnect_timeout(cfg.client_disconnect_timeout)
+                        .local_addr(addr);
+
+                    if let Some(handler) = on_connect_fn.clone() {
+                        svc = svc.on_connect_ext(move |io: &_, ext: _| {
+                            (handler)(io as &dyn Any, ext)
+                        })
+                    };
+
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
+
+                    svc.finish(map_config(fac, move |_| {
+                        AppConfig::new(false, host.clone(), addr)
+                    }))
+                    .tcp_auto_h2c()
+                })?;
+
         Ok(self)
     }
 
