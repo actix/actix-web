@@ -345,8 +345,10 @@ impl HttpResponseBuilder {
             let parts = self.inner().unwrap();
             let length = parts.headers.get(header::CONTENT_LENGTH).unwrap().to_str();
 
-            if let Ok(length) = length { // length is now of type &str
-                if let Ok(length) = length.parse::<u64>() { //length is now of type u64
+            if let Ok(length) = length {
+                // length is now of type &str
+                if let Ok(length) = length.parse::<u64>() {
+                    //length is now of type u64
                     // Set no_chunking
                     // Since no_chuking() uses insert_header(),
                     // this will not lead to duplicated header even if it exists
