@@ -10,6 +10,8 @@
 ### Changed
 
 - Handler functions can now receive up to 16 extractor parameters.
+- `actix_web::response::builder::HttpResponseBuilder::streaming()` now sets `Content-Type` to `application/octet-stream` if `Content-Type` does not exist.
+- `actix_web::response::builder::HttpResponseBuilder::streaming()` now calls `actix_web::response::builder::HttpResponseBuilder::no_chunking()` if `Content-Length` is set by user. [#2306]
 
 ## 4.3.1 - 2023-02-26
 
