@@ -317,6 +317,10 @@ impl HttpResponseBuilder {
     /// Set a streaming body and build the `HttpResponse`.
     ///
     /// `HttpResponseBuilder` can not be used after this call.
+    ///
+    /// if `Content-Type` is not set, then it is automatically set to `application/octet-stream`.
+    ///
+    /// if `Content-Length` is set, then `no_chunk()` is automatically called.
     #[inline]
     pub fn streaming<S, E>(&mut self, stream: S) -> HttpResponse
     where
