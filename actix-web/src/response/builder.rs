@@ -334,6 +334,27 @@ impl HttpResponseBuilder {
             self.insert_header((header::CONTENT_TYPE, mime::APPLICATION_OCTET_STREAM));
         }
 
+        let contains_length = if let Some(parts) = self.inner() {
+            parts.headers.contains_key(header::CONTENT_LENGTH)
+        } else {
+            false
+        };
+
+        if contains_length {
+            // Since contains_length is true, these two lines will not panic
+            let parts = self.inner().unwrap();
+            let length = parts.headers.get(header::CONTENT_LENGTH).unwrap().to_str();
+
+            if let Ok(length) = length { // length is now of type &str
+                if let Ok(length) = length.parse::<u64>() { //length is now of type u64
+                    // Set no_chunking
+                    // Since no_chuking() uses insert_header(),
+                    // this will not lead to duplicated header even if it exists
+                    self.no_chunking(length);
+                }
+            }
+        }
+
         self.body(BodyStream::new(stream))
     }
 
