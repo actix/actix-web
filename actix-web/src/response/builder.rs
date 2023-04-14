@@ -323,6 +323,17 @@ impl HttpResponseBuilder {
         S: Stream<Item = Result<Bytes, E>> + 'static,
         E: Into<BoxError> + 'static,
     {
+        // Set mime type to application/octet-stream if it is not set
+        let contains_mime = if let Some(parts) = self.inner() {
+            parts.headers.contains_key(header::CONTENT_TYPE)
+        } else {
+            true
+        };
+
+        if !contains_mime {
+            self.insert_header((header::CONTENT_TYPE, mime::APPLICATION_OCTET_STREAM));
+        }
+
         self.body(BodyStream::new(stream))
     }
 
