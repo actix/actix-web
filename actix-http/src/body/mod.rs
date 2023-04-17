@@ -7,6 +7,7 @@
 
 mod body_stream;
 mod boxed;
+mod channel;
 mod either;
 mod message_body;
 mod none;
@@ -16,6 +17,7 @@ mod utils;
 
 pub use self::body_stream::BodyStream;
 pub use self::boxed::BoxBody;
+pub use self::channel::{channel, Receiver, Sender};
 pub use self::either::EitherBody;
 pub use self::message_body::MessageBody;
 pub(crate) use self::message_body::MessageBodyMapErr;
