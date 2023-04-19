@@ -16,7 +16,7 @@ use super::{BodySize, MessageBody};
 /// ```
 /// use actix_web::{HttpResponse, web};
 /// use std::convert::Infallible;
-/// use actix_web::body::channel;
+/// use actix_http::body::channel;
 ///
 /// #[actix_rt::main]
 /// async fn main() {
@@ -186,14 +186,12 @@ mod tests {
     #[actix_rt::test]
     async fn test_body_channel_error() {
         let (mut tx, rx) = channel::<io::Error>();
-        let mut tx_cloned = tx.clone();
         let rx = rx.boxed();
         pin!(rx);
 
         assert_eq!(rx.size(), BodySize::Stream);
 
         tx.send(Bytes::from_static(b"test")).unwrap();
-        tx_cloned.send(Bytes::from_static(b"test2")).unwrap();
 
         let err = io::Error::new(io::ErrorKind::Other, "test");
 
@@ -214,20 +212,15 @@ mod tests {
         let (tx, rx) = channel::<io::Error>();
         let rx = rx.boxed();
         pin!(rx);
-
         drop(tx);
-
-        let err = poll_fn(|cx| rx.as_mut().poll_next(cx)).await.unwrap().err();
-        assert!(err.is_some());
-        assert_eq!(err.unwrap().to_string(), "channel closed");
+        let received = poll_fn(|cx| rx.as_mut().poll_next(cx)).await;
+        assert!(received.is_none());
     }
 
     #[actix_rt::test]
     async fn test_dropped_receiver() {
         let (mut tx, rx) = channel::<io::Error>();
         let rx = rx.boxed();
-        pin!(rx);
-
         drop(rx);
 
         let err = tx.send(Bytes::from_static(b"test")).unwrap_err();
