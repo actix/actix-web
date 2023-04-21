@@ -6,7 +6,7 @@
 
 - Add `body::to_body_limit()` function.
 - Add `body::BodyLimitExceeded` error type.
-- Add `body::channel`, `body::channel::Sender`, and `body::channel::Receiver` types. 
+- Add `body::channel` function, `body::channel::Sender`, and `body::channel::Receiver` types. 
 
 ## 3.3.1 - 2023-03-02
 
