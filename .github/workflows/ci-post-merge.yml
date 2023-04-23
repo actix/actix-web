@@ -57,7 +57,7 @@ jobs:
       - name: Generate Cargo.lock
         run: cargo generate-lockfile
       - name: Cache Dependencies
-        uses: Swatinem/rust-cache@v1.2.0
+        uses: Swatinem/rust-cache@v2.2.1
 
       - name: check minimal
         run: cargo ci-check-min
@@ -103,7 +103,7 @@ jobs:
       - name: Generate Cargo.lock
         run: cargo generate-lockfile
       - name: Cache Dependencies
-        uses: Swatinem/rust-cache@v1.2.0
+        uses: Swatinem/rust-cache@v2.2.1
 
       - name: check feature combinations
         run: cargo ci-check-all-feature-powerset
@@ -130,7 +130,7 @@ jobs:
       - name: Generate Cargo.lock
         run: cargo generate-lockfile
       - name: Cache Dependencies
-        uses: Swatinem/rust-cache@v1.3.0
+        uses: Swatinem/rust-cache@v2.2.1
 
       - name: Test with cargo-nextest
         run: cargo nextest run
