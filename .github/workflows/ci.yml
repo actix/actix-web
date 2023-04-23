@@ -62,12 +62,10 @@ jobs:
           cargo update -p=zstd-sys --precise=2.0.1+zstd.1.5.2
 
       - name: check minimal
-        uses: actions-rs/cargo@v1
-        with: { command: ci-check-min }
+        run: cargo ci-check-min
 
       - name: check default
-        uses: actions-rs/cargo@v1
-        with: { command: ci-check-default }
+        run: cargo ci-check-default
 
       - name: tests
         timeout-minutes: 60

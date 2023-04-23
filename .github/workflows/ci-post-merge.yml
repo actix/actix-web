@@ -46,28 +46,24 @@ jobs:
         run: vcpkg install openssl:x64-windows
 
       - name: Install ${{ matrix.version }}
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ matrix.version }}
-          profile: minimal
-          override: true
+        run: |
+          rustup set profile minimal
+          rustup install ${{ matrix.version }}
+          rustup override set ${{ matrix.version }}
 
       - name: Install cargo-hack
         uses: taiki-e/install-action@cargo-hack
 
       - name: Generate Cargo.lock
-        uses: actions-rs/cargo@v1
-        with: { command: generate-lockfile }
+        run: cargo generate-lockfile
       - name: Cache Dependencies
         uses: Swatinem/rust-cache@v1.2.0
 
       - name: check minimal
-        uses: actions-rs/cargo@v1
-        with: { command: ci-check-min }
+        run: cargo ci-check-min
 
       - name: check default
-        uses: actions-rs/cargo@v1
-        with: { command: ci-check-default }
+        run: cargo ci-check-default
 
       - name: tests
         timeout-minutes: 60
