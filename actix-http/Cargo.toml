@@ -62,7 +62,7 @@ actix-utils = "3"
 actix-rt = { version = "2.2", default-features = false }
 
 ahash = "0.8"
-bitflags = "1.2"
+bitflags = "2"
 bytes = "1"
 bytestring = "1"
 derive_more = "0.99.5"
