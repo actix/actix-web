@@ -103,6 +103,7 @@ pub(crate) mod types;
 pub mod web;
 
 pub use crate::app::App;
+pub use crate::app_service::AppEntry;
 #[doc(inline)]
 pub use crate::error::Result;
 pub use crate::error::{Error, ResponseError};
