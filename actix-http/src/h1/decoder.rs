@@ -395,8 +395,20 @@ impl MessageType for ResponseHead {
             // switching protocol or connect
             PayloadType::Stream(PayloadDecoder::eof())
         } else {
-            // for HTTP/1.0 read to eof and close connection
-            if msg.version == Version::HTTP_10 {
+            let body_allowed = match msg.status.as_u16() {
+                100..=199 => false,
+                204 => false,
+                304 => false,
+                _ => true,
+            };
+            // for HTTP/1.0 and HTTP/1.1 read to eof and close connection
+            if msg.version == Version::HTTP_11 && body_allowed {
+                if let Some(ConnectionType::Close) = msg.conn_type() {
+                    PayloadType::Payload(PayloadDecoder::eof())
+                } else {
+                    PayloadType::None
+                }
+            } else if msg.version == Version::HTTP_10 {
                 msg.set_connection_type(ConnectionType::Close);
                 PayloadType::Payload(PayloadDecoder::eof())
             } else {

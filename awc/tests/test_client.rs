@@ -769,7 +769,7 @@ async fn client_unread_response() {
 
     // awc does not read all bytes unless content-length is specified
     let bytes = res.body().await.unwrap();
-    assert_eq!(bytes, Bytes::from_static(b""));
+    assert_eq!(bytes, Bytes::from_static(b"welcome!"));
 }
 
 #[actix_rt::test]
