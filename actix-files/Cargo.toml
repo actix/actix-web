@@ -26,7 +26,7 @@ actix-service = "2"
 actix-utils = "3"
 actix-web = { version = "4", default-features = false }
 
-bitflags = "1"
+bitflags = "2"
 bytes = "1"
 derive_more = "0.99.5"
 futures-core = { version = "0.3.17", default-features = false, features = ["alloc"] }

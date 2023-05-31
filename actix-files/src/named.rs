@@ -29,6 +29,7 @@ use mime_guess::from_path;
 use crate::{encoding::equiv_utf8_text, range::HttpRange};
 
 bitflags! {
+    #[derive(Debug, Clone, Copy)]
     pub(crate) struct Flags: u8 {
         const ETAG =                0b0000_0001;
         const LAST_MD =             0b0000_0010;

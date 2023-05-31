@@ -40,6 +40,7 @@ const HW_BUFFER_SIZE: usize = 1024 * 8;
 const MAX_PIPELINED_MESSAGES: usize = 16;
 
 bitflags! {
+    #[derive(Debug, Clone, Copy)]
     pub struct Flags: u8 {
         /// Set when stream is read for first time.
         const STARTED          = 0b0000_0001;

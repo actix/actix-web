@@ -101,7 +101,6 @@ jobs:
         run: >
           sudo bash -c "ulimit -Sl 512 && ulimit -Hl 512 && PATH=$PATH:/usr/share/rust/.cargo/bin && RUSTUP_TOOLCHAIN=stable cargo test --lib --tests -p=actix-files --all-features"
 
-
   rustdoc:
     name: doc tests
     runs-on: ubuntu-latest
