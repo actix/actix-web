@@ -465,7 +465,7 @@ impl Stream for Field {
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
         let mut inner = this.inner.borrow_mut();
-        if let Some(mut buffer) = inner.payload.as_ref().unwrap().get_mut(&this.safety) {
+        if let Some(mut buffer) = inner.payload.as_ref().and_then(|p| p.get_mut(&this.safety)) {
             // check safety and poll read payload to buffer.
             buffer.poll_stream(cx)?;
         } else if !this.safety.is_clean() {
