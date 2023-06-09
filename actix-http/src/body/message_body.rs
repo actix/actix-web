@@ -555,6 +555,7 @@ mod tests {
         };
     }
 
+    #[allow(unused_allocation)] // triggered by `Box::new(()).size()`
     #[actix_rt::test]
     async fn boxing_equivalence() {
         assert_eq!(().size(), BodySize::Sized(0));

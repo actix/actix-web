@@ -87,7 +87,7 @@ fn future_responder(c: &mut Criterion) {
 
             let start = Instant::now();
 
-            let _res = rt.block_on(async { futs.await });
+            let _res = rt.block_on(futs);
 
             start.elapsed()
         })
