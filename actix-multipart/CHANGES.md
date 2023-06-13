@@ -1,6 +1,8 @@
 # Changes
 
 ## Unreleased
+ 
+- Remove unnecessary `unwrap`. [#3047]
 
 ## 0.6.1
 
