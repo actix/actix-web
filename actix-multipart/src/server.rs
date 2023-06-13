@@ -643,7 +643,7 @@ impl InnerField {
             return Poll::Ready(None);
         }
 
-        let result = if let Some(mut payload) = self.payload.as_ref().unwrap().get_mut(s) {
+        let result = if let Some(mut payload) = self.payload.as_ref().and_then(|p| p.get_mut(s)) {
             if !self.eof {
                 let res = if let Some(ref mut len) = self.length {
                     InnerField::read_len(&mut payload, len)
