@@ -1,6 +1,17 @@
 # Changes
 
-## Unreleased - 2022-xx-xx
+## Unreleased - 2023-xx-xx
+
+### Added
+
+- Add `body::to_body_limit()` function.
+- Add `body::BodyLimitExceeded` error type.
+
+## 3.3.1 - 2023-03-02
+
+### Fixed
+
+- Use correct `http` version requirement to ensure support for const `HeaderName` definitions.
 
 ## 3.3.0 - 2023-01-21
 

@@ -217,7 +217,6 @@ where
     /// Creates TCP stream service from HTTP service that automatically selects HTTP/1.x or HTTP/2
     /// on plaintext connections.
     #[cfg(feature = "http2")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn tcp_auto_h2c(
         self,
     ) -> impl ServiceFactory<
@@ -253,7 +252,6 @@ where
 
 /// Configuration options used when accepting TLS connection.
 #[cfg(any(feature = "openssl", feature = "rustls"))]
-#[cfg_attr(docsrs, doc(cfg(any(feature = "openssl", feature = "rustls"))))]
 #[derive(Debug, Default)]
 pub struct TlsAcceptorConfig {
     pub(crate) handshake_timeout: Option<std::time::Duration>,
@@ -309,7 +307,6 @@ mod openssl {
         U::InitError: fmt::Debug,
     {
         /// Create OpenSSL based service.
-        #[cfg_attr(docsrs, doc(cfg(feature = "openssl")))]
         pub fn openssl(
             self,
             acceptor: SslAcceptor,
@@ -324,7 +321,6 @@ mod openssl {
         }
 
         /// Create OpenSSL based service with custom TLS acceptor configuration.
-        #[cfg_attr(docsrs, doc(cfg(feature = "openssl")))]
         pub fn openssl_with_config(
             self,
             acceptor: SslAcceptor,
@@ -404,7 +400,6 @@ mod rustls {
         U::InitError: fmt::Debug,
     {
         /// Create Rustls based service.
-        #[cfg_attr(docsrs, doc(cfg(feature = "rustls")))]
         pub fn rustls(
             self,
             config: ServerConfig,
@@ -419,7 +414,6 @@ mod rustls {
         }
 
         /// Create Rustls based service with custom TLS acceptor configuration.
-        #[cfg_attr(docsrs, doc(cfg(feature = "rustls")))]
         pub fn rustls_with_config(
             self,
             mut config: ServerConfig,

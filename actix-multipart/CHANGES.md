@@ -1,6 +1,8 @@
 # Changes
 
-## Unreleased - 2022-xx-xx
+## Unreleased - 2023-xx-xx
+
+## 0.6.0 - 2023-02-26
 
 - Added `MultipartForm` typed data extractor. [#2883]
 

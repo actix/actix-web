@@ -161,44 +161,44 @@ impl From<crate::ws::ProtocolError> for Error {
 #[non_exhaustive]
 pub enum ParseError {
     /// An invalid `Method`, such as `GE.T`.
-    #[display(fmt = "Invalid Method specified")]
+    #[display(fmt = "invalid method specified")]
     Method,
 
     /// An invalid `Uri`, such as `exam ple.domain`.
-    #[display(fmt = "Uri error: {}", _0)]
+    #[display(fmt = "URI error: {}", _0)]
     Uri(InvalidUri),
 
     /// An invalid `HttpVersion`, such as `HTP/1.1`
-    #[display(fmt = "Invalid HTTP version specified")]
+    #[display(fmt = "invalid HTTP version specified")]
     Version,
 
     /// An invalid `Header`.
-    #[display(fmt = "Invalid Header provided")]
+    #[display(fmt = "invalid Header provided")]
     Header,
 
     /// A message head is too large to be reasonable.
-    #[display(fmt = "Message head is too large")]
+    #[display(fmt = "message head is too large")]
     TooLarge,
 
     /// A message reached EOF, but is not complete.
-    #[display(fmt = "Message is incomplete")]
+    #[display(fmt = "message is incomplete")]
     Incomplete,
 
     /// An invalid `Status`, such as `1337 ELITE`.
-    #[display(fmt = "Invalid Status provided")]
+    #[display(fmt = "invalid status provided")]
     Status,
 
     /// A timeout occurred waiting for an IO event.
     #[allow(dead_code)]
-    #[display(fmt = "Timeout")]
+    #[display(fmt = "timeout")]
     Timeout,
 
-    /// An `io::Error` that occurred while trying to read or write to a network stream.
-    #[display(fmt = "IO error: {}", _0)]
+    /// An I/O error that occurred while trying to read or write to a network stream.
+    #[display(fmt = "I/O error: {}", _0)]
     Io(io::Error),
 
     /// Parsing a field as string failed.
-    #[display(fmt = "UTF8 error: {}", _0)]
+    #[display(fmt = "UTF-8 error: {}", _0)]
     Utf8(Utf8Error),
 }
 
@@ -257,22 +257,19 @@ impl From<ParseError> for Response<BoxBody> {
 #[non_exhaustive]
 pub enum PayloadError {
     /// A payload reached EOF, but is not complete.
-    #[display(
-        fmt = "A payload reached EOF, but is not complete. Inner error: {:?}",
-        _0
-    )]
+    #[display(fmt = "payload reached EOF before completing: {:?}", _0)]
     Incomplete(Option<io::Error>),
 
     /// Content encoding stream corruption.
-    #[display(fmt = "Can not decode content-encoding.")]
+    #[display(fmt = "can not decode content-encoding")]
     EncodingCorrupted,
 
     /// Payload reached size limit.
-    #[display(fmt = "Payload reached size limit.")]
+    #[display(fmt = "payload reached size limit")]
     Overflow,
 
     /// Payload length is unknown.
-    #[display(fmt = "Payload length is unknown.")]
+    #[display(fmt = "payload length is unknown")]
     UnknownLength,
 
     /// HTTP/2 payload error.
@@ -294,7 +291,6 @@ impl std::error::Error for PayloadError {
             PayloadError::Overflow => None,
             PayloadError::UnknownLength => None,
             #[cfg(feature = "http2")]
-            #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
             PayloadError::Http2Payload(err) => Some(err),
             PayloadError::Io(err) => Some(err),
         }
@@ -331,44 +327,44 @@ impl From<PayloadError> for Error {
 #[non_exhaustive]
 pub enum DispatchError {
     /// Service error.
-    #[display(fmt = "Service Error")]
+    #[display(fmt = "service error")]
     Service(Response<BoxBody>),
 
     /// Body streaming error.
-    #[display(fmt = "Body error: {}", _0)]
+    #[display(fmt = "body error: {}", _0)]
     Body(Box<dyn StdError>),
 
     /// Upgrade service error.
+    #[display(fmt = "upgrade error")]
     Upgrade,
 
     /// An `io::Error` that occurred while trying to read or write to a network stream.
-    #[display(fmt = "IO error: {}", _0)]
+    #[display(fmt = "I/O error: {}", _0)]
     Io(io::Error),
 
     /// Request parse error.
-    #[display(fmt = "Request parse error: {}", _0)]
+    #[display(fmt = "request parse error: {}", _0)]
     Parse(ParseError),
 
     /// HTTP/2 error.
     #[display(fmt = "{}", _0)]
     #[cfg(feature = "http2")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     H2(h2::Error),
 
     /// The first request did not complete within the specified timeout.
-    #[display(fmt = "The first request did not complete within the specified timeout")]
+    #[display(fmt = "request did not complete within the specified timeout")]
     SlowRequestTimeout,
 
-    /// Disconnect timeout. Makes sense for ssl streams.
-    #[display(fmt = "Connection shutdown timeout")]
+    /// Disconnect timeout. Makes sense for TLS streams.
+    #[display(fmt = "connection shutdown timeout")]
     DisconnectTimeout,
 
     /// Handler dropped payload before reading EOF.
-    #[display(fmt = "Handler dropped payload before reading EOF")]
+    #[display(fmt = "handler dropped payload before reading EOF")]
     HandlerDroppedPayload,
 
     /// Internal error.
-    #[display(fmt = "Internal error")]
+    #[display(fmt = "internal error")]
     InternalError,
 }
 
@@ -393,12 +389,12 @@ impl StdError for DispatchError {
 #[cfg_attr(test, derive(PartialEq, Eq))]
 #[non_exhaustive]
 pub enum ContentTypeError {
-    /// Can not parse content type
-    #[display(fmt = "Can not parse content type")]
+    /// Can not parse content type.
+    #[display(fmt = "could not parse content type")]
     ParseError,
 
-    /// Unknown content encoding
-    #[display(fmt = "Unknown content encoding")]
+    /// Unknown content encoding.
+    #[display(fmt = "unknown content encoding")]
     UnknownEncoding,
 }
 
@@ -426,7 +422,7 @@ mod tests {
         let err: Error = ParseError::Io(orig).into();
         assert_eq!(
             format!("{}", err),
-            "error parsing HTTP message: IO error: other"
+            "error parsing HTTP message: I/O error: other"
         );
     }
 
@@ -453,7 +449,7 @@ mod tests {
         let err = PayloadError::Incomplete(None);
         assert_eq!(
             err.to_string(),
-            "A payload reached EOF, but is not complete. Inner error: None"
+            "payload reached EOF before completing: None"
         );
     }
 
@@ -473,7 +469,7 @@ mod tests {
             match ParseError::from($from) {
                 e @ $error => {
                     let desc = format!("{}", e);
-                    assert_eq!(desc, format!("IO error: {}", $from));
+                    assert_eq!(desc, format!("I/O error: {}", $from));
                 }
                 _ => unreachable!("{:?}", $from),
             }

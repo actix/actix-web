@@ -5,7 +5,11 @@ on:
     branches: [master]
 
 permissions:
-  contents: read  #  to fetch code (actions/checkout)
+  contents: read # to fetch code (actions/checkout)
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build_and_test_nightly:
@@ -29,7 +33,7 @@ jobs:
       CARGO_UNSTABLE_SPARSE_REGISTRY: true
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       # install OpenSSL on Windows
       # TODO: GitHub actions docs state that OpenSSL is
@@ -42,28 +46,24 @@ jobs:
         run: vcpkg install openssl:x64-windows
 
       - name: Install ${{ matrix.version }}
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ matrix.version }}-${{ matrix.target.triple }}
-          profile: minimal
-          override: true
+        run: |
+          rustup set profile minimal
+          rustup install ${{ matrix.version }}
+          rustup override set ${{ matrix.version }}
 
       - name: Install cargo-hack
         uses: taiki-e/install-action@cargo-hack
 
       - name: Generate Cargo.lock
-        uses: actions-rs/cargo@v1
-        with: { command: generate-lockfile }
+        run: cargo generate-lockfile
       - name: Cache Dependencies
-        uses: Swatinem/rust-cache@v1.2.0
+        uses: Swatinem/rust-cache@v2.2.1
 
       - name: check minimal
-        uses: actions-rs/cargo@v1
-        with: { command: ci-check-min }
+        run: cargo ci-check-min
 
       - name: check default
-        uses: actions-rs/cargo@v1
-        with: { command: ci-check-default }
+        run: cargo ci-check-default
 
       - name: tests
         timeout-minutes: 60
@@ -81,7 +81,7 @@ jobs:
 
       - name: Clear the cargo caches
         run: |
-          cargo install cargo-cache --version 0.8.2 --no-default-features --features ci-autoclean
+          cargo install cargo-cache --version 0.8.3 --no-default-features --features ci-autoclean
           cargo-cache
 
   ci_feature_powerset_check:
@@ -93,7 +93,7 @@ jobs:
       CARGO_INCREMENTAL: 0
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -103,7 +103,7 @@ jobs:
       - name: Generate Cargo.lock
         run: cargo generate-lockfile
       - name: Cache Dependencies
-        uses: Swatinem/rust-cache@v1.2.0
+        uses: Swatinem/rust-cache@v2.2.1
 
       - name: check feature combinations
         run: cargo ci-check-all-feature-powerset
@@ -120,7 +120,7 @@ jobs:
       CARGO_INCREMENTAL: 0
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -130,7 +130,7 @@ jobs:
       - name: Generate Cargo.lock
         run: cargo generate-lockfile
       - name: Cache Dependencies
-        uses: Swatinem/rust-cache@v1.3.0
+        uses: Swatinem/rust-cache@v2.2.1
 
       - name: Test with cargo-nextest
         run: cargo nextest run

@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "3.3.0"
+version = "3.3.1"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
     "Rob Ede <robjtede@icloud.com>",
@@ -62,18 +62,18 @@ actix-utils = "3"
 actix-rt = { version = "2.2", default-features = false }
 
 ahash = "0.8"
-bitflags = "1.2"
+bitflags = "2"
 bytes = "1"
 bytestring = "1"
 derive_more = "0.99.5"
 encoding_rs = "0.8"
 futures-core = { version = "0.3.17", default-features = false, features = ["alloc"] }
-http = "0.2.5"
+http = "0.2.7"
 httparse = "1.5.1"
 httpdate = "1.0.1"
 itoa = "1"
 language-tags = "0.3"
-mime = "0.3"
+mime = "0.3.4"
 percent-encoding = "2.1"
 pin-project-lite = "0.2"
 smallvec = "1.6.1"
@@ -82,7 +82,7 @@ tokio-util = { version = "0.7", features = ["io", "codec"] }
 tracing = { version = "0.1.30", default-features = false, features = ["log"] }
 
 # http2
-h2 = { version = "0.3.9", optional = true }
+h2 = { version = "0.3.17", optional = true }
 
 # websockets
 local-channel = { version = "0.1", optional = true }
@@ -126,17 +126,6 @@ name = "ws"
 required-features = ["ws", "rustls"]
 
 [[bench]]
-name = "write-camel-case"
+name = "response-body-compression"
 harness = false
-
-[[bench]]
-name = "status-line"
-harness = false
-
-[[bench]]
-name = "uninit-headers"
-harness = false
-
-[[bench]]
-name = "quality-value"
-harness = false
+required-features = ["compress-brotli", "compress-gzip", "compress-zstd"]

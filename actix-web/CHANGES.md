@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased - 2022-xx-xx
+## Unreleased - 2023-xx-xx
+
+### Added
+
+- Add `HttpServer::{bind,listen}_auto_h2c()` method.
+- Add `Resource::{get, post, etc...}` methods for more concisely adding routes that don't need additional guards.
+
+### Changed
+
+- Handler functions can now receive up to 16 extractor parameters.
 
 ## 4.3.1 - 2023-02-26
 
@@ -913,9 +922,9 @@
 
 ### Changed
 
-- Updated actix-web-codegen dependency for access to new `#[route(...)]` multi-method macro.
+- Updated `actix-web-codegen` dependency for access to new `#[route(...)]` multi-method macro.
 - Print non-configured `Data<T>` type when attempting extraction. [#1743]
-- Re-export bytes::Buf{Mut} in web module. [#1750]
+- Re-export `bytes::Buf{Mut}` in web module. [#1750]
 - Upgrade `pin-project` to `1.0`.
 
 [#1723]: https://github.com/actix/actix-web/pull/1723
@@ -923,6 +932,7 @@
 [#1748]: https://github.com/actix/actix-web/pull/1748
 [#1750]: https://github.com/actix/actix-web/pull/1750
 [#1754]: https://github.com/actix/actix-web/pull/1754
+[#1757]: https://github.com/actix/actix-web/pull/1757
 [#1749]: https://github.com/actix/actix-web/pull/1749
 
 ## 3.1.0 - 2020-09-29

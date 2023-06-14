@@ -72,7 +72,7 @@
 #![allow(clippy::uninlined_format_args)]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
-#![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 mod app;
 mod app_service;
@@ -119,14 +119,12 @@ pub use crate::types::Either;
 pub use actix_http::{body, HttpMessage};
 
 #[cfg(feature = "cookies")]
-#[cfg_attr(docsrs, doc(cfg(feature = "cookies")))]
 #[doc(inline)]
 pub use cookie;
 
 macro_rules! codegen_reexport {
     ($name:ident) => {
         #[cfg(feature = "macros")]
-        #[cfg_attr(docsrs, doc(cfg(feature = "macros")))]
         pub use actix_web_codegen::$name;
     };
 }

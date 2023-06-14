@@ -416,6 +416,10 @@ mod tuple_from_req {
     tuple_from_req! { TupleFromRequest10; A, B, C, D, E, F, G, H, I, J }
     tuple_from_req! { TupleFromRequest11; A, B, C, D, E, F, G, H, I, J, K }
     tuple_from_req! { TupleFromRequest12; A, B, C, D, E, F, G, H, I, J, K, L }
+    tuple_from_req! { TupleFromRequest13; A, B, C, D, E, F, G, H, I, J, K, L, M }
+    tuple_from_req! { TupleFromRequest14; A, B, C, D, E, F, G, H, I, J, K, L, M, N }
+    tuple_from_req! { TupleFromRequest15; A, B, C, D, E, F, G, H, I, J, K, L, M, N, O }
+    tuple_from_req! { TupleFromRequest16; A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P }
 }
 
 #[cfg(test)]

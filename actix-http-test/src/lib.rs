@@ -5,6 +5,7 @@
 #![allow(clippy::uninlined_format_args)]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 #[cfg(feature = "openssl")]
 extern crate tls_openssl as openssl;
@@ -33,7 +34,9 @@ use tokio::sync::mpsc;
 /// ```no_run
 /// use actix_http::HttpService;
 /// use actix_http_test::test_server;
-/// use actix_web::{web, App, HttpResponse, Error};
+/// use actix_service::map_config;
+/// use actix_service::ServiceFactoryExt;
+/// use actix_web::{dev::AppConfig, web, App, Error, HttpResponse};
 ///
 /// async fn my_handler() -> Result<HttpResponse, Error> {
 ///     Ok(HttpResponse::Ok().into())
@@ -41,14 +44,19 @@ use tokio::sync::mpsc;
 ///
 /// #[actix_web::test]
 /// async fn test_example() {
-///     let mut srv = TestServer::start(||
-///         HttpService::new(
-///             App::new().service(web::resource("/").to(my_handler))
-///         )
-///     );
+///     let srv = test_server(|| {
+///         let app = App::new().service(web::resource("/").to(my_handler));
+///
+///         HttpService::build()
+///             .h1(map_config(app, |_| AppConfig::default()))
+///             .tcp()
+///             .map_err(|_| ())
+///     })
+///     .await;
 ///
 ///     let req = srv.get("/");
 ///     let response = req.send().await.unwrap();
+///
 ///     assert!(response.status().is_success());
 /// }
 /// ```

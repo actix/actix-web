@@ -151,6 +151,10 @@ factory_tuple! { A B C D E F G H I }
 factory_tuple! { A B C D E F G H I J }
 factory_tuple! { A B C D E F G H I J K }
 factory_tuple! { A B C D E F G H I J K L }
+factory_tuple! { A B C D E F G H I J K L M }
+factory_tuple! { A B C D E F G H I J K L M N }
+factory_tuple! { A B C D E F G H I J K L M N O }
+factory_tuple! { A B C D E F G H I J K L M N O P }
 
 #[cfg(test)]
 mod tests {
@@ -167,6 +171,7 @@ mod tests {
         async fn handler_max(
             _01: (), _02: (), _03: (), _04: (), _05: (), _06: (),
             _07: (), _08: (), _09: (), _10: (), _11: (), _12: (),
+            _13: (), _14: (), _15: (), _16: (),
         ) {}
 
         assert_impl_handler(handler_min);

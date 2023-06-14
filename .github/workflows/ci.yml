@@ -7,7 +7,11 @@ on:
     branches: [master]
 
 permissions:
-  contents: read  #  to fetch code (actions/checkout)
+  contents: read # to fetch code (actions/checkout)
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build_and_test:
@@ -17,7 +21,7 @@ jobs:
         target:
           - { name: Linux, os: ubuntu-latest, triple: x86_64-unknown-linux-gnu }
           - { name: macOS, os: macos-latest, triple: x86_64-apple-darwin }
-          - { name: Windows, os: windows-2022, triple: x86_64-pc-windows-msvc }
+          - { name: Windows, os: windows-latest, triple: x86_64-pc-windows-msvc }
         version:
           - 1.59.0 # MSRV
           - stable
@@ -25,30 +29,22 @@ jobs:
     name: ${{ matrix.target.name }} / ${{ matrix.version }}
     runs-on: ${{ matrix.target.os }}
 
-    env:
-      CI: 1
-      CARGO_INCREMENTAL: 0
-      VCPKGRS_DYNAMIC: 1
+    env: {}
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
-      # install OpenSSL on Windows
-      # TODO: GitHub actions docs state that OpenSSL is
-      # already installed on these Windows machines somewhere
-      - name: Set vcpkg root
-        if: matrix.target.triple == 'x86_64-pc-windows-msvc'
-        run: echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
       - name: Install OpenSSL
-        if: matrix.target.triple == 'x86_64-pc-windows-msvc'
-        run: vcpkg install openssl:x64-windows
+        if: matrix.target.os == 'windows-latest'
+        run: choco install openssl
+      - name: Set OpenSSL dir in env
+        if: matrix.target.os == 'windows-latest'
+        run: echo 'OPENSSL_DIR=C:\Program Files\OpenSSL-Win64' | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      - name: Install ${{ matrix.version }}
-        uses: actions-rs/toolchain@v1
+      - name: Install Rust (${{ matrix.version }})
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          toolchain: ${{ matrix.version }}-${{ matrix.target.triple }}
-          profile: minimal
-          override: true
+          toolchain: ${{ matrix.version }}
 
       - name: Install cargo-hack
         uses: taiki-e/install-action@cargo-hack
@@ -60,24 +56,16 @@ jobs:
           cargo add const-str@0.3 --dev -p=actix-web
           cargo add const-str@0.3 --dev -p=awc
 
-      - name: Generate Cargo.lock
-        uses: actions-rs/cargo@v1
-        with: { command: generate-lockfile }
-      - name: Cache Dependencies
-        uses: Swatinem/rust-cache@v1.2.0
-
       - name: workaround MSRV issues
         if: matrix.version != 'stable'
         run: |
           cargo update -p=zstd-sys --precise=2.0.1+zstd.1.5.2
 
       - name: check minimal
-        uses: actions-rs/cargo@v1
-        with: { command: ci-check-min }
+        run: cargo ci-check-min
 
       - name: check default
-        uses: actions-rs/cargo@v1
-        with: { command: ci-check-default }
+        run: cargo ci-check-default
 
       - name: tests
         timeout-minutes: 60
@@ -95,42 +83,33 @@ jobs:
 
       - name: Clear the cargo caches
         run: |
-          cargo install cargo-cache --version 0.8.2 --no-default-features --features ci-autoclean
+          cargo install cargo-cache --version 0.8.3 --no-default-features --features ci-autoclean
           cargo-cache
 
   io-uring:
     name: io-uring tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
-      - uses: dtolnay/rust-toolchain@stable
-
-      - name: Generate Cargo.lock
-        run: cargo generate-lockfile
-      - name: Cache Dependencies
-        uses: Swatinem/rust-cache@v1.3.0
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with: { toolchain: nightly }
 
       - name: tests (io-uring)
         timeout-minutes: 60
         run: >
-          sudo bash -c "ulimit -Sl 512
-          && ulimit -Hl 512
-          && PATH=$PATH:/usr/share/rust/.cargo/bin
-          && RUSTUP_TOOLCHAIN=stable cargo test --lib --tests -p=actix-files --all-features"
+          sudo bash -c "ulimit -Sl 512 && ulimit -Hl 512 && PATH=$PATH:/usr/share/rust/.cargo/bin && RUSTUP_TOOLCHAIN=stable cargo test --lib --tests -p=actix-files --all-features"
 
   rustdoc:
     name: doc tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
-      - uses: dtolnay/rust-toolchain@nightly
-
-      - name: Generate Cargo.lock
-        run: cargo generate-lockfile
-      - name: Cache Dependencies
-        uses: Swatinem/rust-cache@v1.3.0
+      - name: Install Rust (nightly)
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with: { toolchain: nightly }
 
       - name: doc tests
         run: cargo ci-doctest

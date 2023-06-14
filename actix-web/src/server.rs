@@ -41,10 +41,19 @@ struct Config {
 ///
 /// Create new HTTP server with application factory.
 ///
-/// # HTTP/2
-/// Currently, HTTP/2 is only supported when using TLS (HTTPS). See `bind_rustls` or `bind_openssl`.
+/// # Automatic HTTP Version Selection
+///
+/// There are two ways to select the HTTP version of an incoming connection:
+///
+/// - One is to rely on the ALPN information that is provided when using a TLS (HTTPS); both
+///   versions are supported automatically when using either of the `.bind_rustls()` or
+///   `.bind_openssl()` methods.
+/// - The other is to read the first few bytes of the TCP stream. This is the only viable approach
+///   for supporting H2C, which allows the HTTP/2 protocol to work over plaintext connections. Use
+///   the `.bind_auto_h2c()` method to enable this behavior.
 ///
 /// # Examples
+///
 /// ```no_run
 /// use actix_web::{web, App, HttpResponse, HttpServer};
 ///
@@ -217,7 +226,6 @@ where
     ///
     /// By default handshake timeout is set to 3000 milliseconds.
     #[cfg(any(feature = "openssl", feature = "rustls"))]
-    #[cfg_attr(docsrs, doc(cfg(any(feature = "openssl", feature = "rustls"))))]
     pub fn tls_handshake_timeout(self, dur: Duration) -> Self {
         self.config
             .lock()
@@ -339,7 +347,7 @@ where
     /// # ; Ok(()) }
     /// ```
     pub fn bind<A: net::ToSocketAddrs>(mut self, addrs: A) -> io::Result<Self> {
-        let sockets = self.bind2(addrs)?;
+        let sockets = bind_addrs(addrs, self.backlog)?;
 
         for lst in sockets {
             self = self.listen(lst)?;
@@ -348,31 +356,16 @@ where
         Ok(self)
     }
 
-    fn bind2<A: net::ToSocketAddrs>(&self, addrs: A) -> io::Result<Vec<net::TcpListener>> {
-        let mut err = None;
-        let mut success = false;
-        let mut sockets = Vec::new();
+    /// Resolves socket address(es) and binds server to created listener(s) for plaintext HTTP/1.x
+    /// or HTTP/2 connections.
+    pub fn bind_auto_h2c<A: net::ToSocketAddrs>(mut self, addrs: A) -> io::Result<Self> {
+        let sockets = bind_addrs(addrs, self.backlog)?;
 
-        for addr in addrs.to_socket_addrs()? {
-            match create_tcp_listener(addr, self.backlog) {
-                Ok(lst) => {
-                    success = true;
-                    sockets.push(lst);
-                }
-                Err(e) => err = Some(e),
-            }
+        for lst in sockets {
+            self = self.listen_auto_h2c(lst)?;
         }
 
-        if success {
-            Ok(sockets)
-        } else if let Some(e) = err.take() {
-            Err(e)
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Can not bind to address.",
-            ))
-        }
+        Ok(self)
     }
 
     /// Resolves socket address(es) and binds server to created listener(s) for TLS connections
@@ -382,13 +375,12 @@ where
     ///
     /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
     #[cfg(feature = "rustls")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "rustls")))]
     pub fn bind_rustls<A: net::ToSocketAddrs>(
         mut self,
         addrs: A,
         config: RustlsServerConfig,
     ) -> io::Result<Self> {
-        let sockets = self.bind2(addrs)?;
+        let sockets = bind_addrs(addrs, self.backlog)?;
         for lst in sockets {
             self = self.listen_rustls_inner(lst, config.clone())?;
         }
@@ -402,12 +394,11 @@ where
     ///
     /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
     #[cfg(feature = "openssl")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "openssl")))]
     pub fn bind_openssl<A>(mut self, addrs: A, builder: SslAcceptorBuilder) -> io::Result<Self>
     where
         A: net::ToSocketAddrs,
     {
-        let sockets = self.bind2(addrs)?;
+        let sockets = bind_addrs(addrs, self.backlog)?;
         let acceptor = openssl_acceptor(builder)?;
 
         for lst in sockets {
@@ -436,13 +427,13 @@ where
         self.builder =
             self.builder
                 .listen(format!("actix-web-service-{}", addr), lst, move || {
-                    let c = cfg.lock().unwrap();
-                    let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
+                    let cfg = cfg.lock().unwrap();
+                    let host = cfg.host.clone().unwrap_or_else(|| format!("{}", addr));
 
                     let mut svc = HttpService::build()
-                        .keep_alive(c.keep_alive)
-                        .client_request_timeout(c.client_request_timeout)
-                        .client_disconnect_timeout(c.client_disconnect_timeout)
+                        .keep_alive(cfg.keep_alive)
+                        .client_request_timeout(cfg.client_request_timeout)
+                        .client_disconnect_timeout(cfg.client_disconnect_timeout)
                         .local_addr(addr);
 
                     if let Some(handler) = on_connect_fn.clone() {
@@ -460,6 +451,51 @@ where
                     }))
                     .tcp()
                 })?;
+
+        Ok(self)
+    }
+
+    /// Binds to existing listener for accepting incoming plaintext HTTP/1.x or HTTP/2 connections.
+    pub fn listen_auto_h2c(mut self, lst: net::TcpListener) -> io::Result<Self> {
+        let cfg = self.config.clone();
+        let factory = self.factory.clone();
+        let addr = lst.local_addr().unwrap();
+
+        self.sockets.push(Socket {
+            addr,
+            scheme: "http",
+        });
+
+        let on_connect_fn = self.on_connect_fn.clone();
+
+        self.builder =
+            self.builder
+                .listen(format!("actix-web-service-{}", addr), lst, move || {
+                    let cfg = cfg.lock().unwrap();
+                    let host = cfg.host.clone().unwrap_or_else(|| format!("{}", addr));
+
+                    let mut svc = HttpService::build()
+                        .keep_alive(cfg.keep_alive)
+                        .client_request_timeout(cfg.client_request_timeout)
+                        .client_disconnect_timeout(cfg.client_disconnect_timeout)
+                        .local_addr(addr);
+
+                    if let Some(handler) = on_connect_fn.clone() {
+                        svc = svc.on_connect_ext(move |io: &_, ext: _| {
+                            (handler)(io as &dyn Any, ext)
+                        })
+                    };
+
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
+
+                    svc.finish(map_config(fac, move |_| {
+                        AppConfig::new(false, host.clone(), addr)
+                    }))
+                    .tcp_auto_h2c()
+                })?;
+
         Ok(self)
     }
 
@@ -469,7 +505,6 @@ where
     ///
     /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
     #[cfg(feature = "rustls")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "rustls")))]
     pub fn listen_rustls(
         self,
         lst: net::TcpListener,
@@ -535,7 +570,6 @@ where
     ///
     /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
     #[cfg(feature = "openssl")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "openssl")))]
     pub fn listen_openssl(
         self,
         lst: net::TcpListener,
@@ -724,6 +758,38 @@ where
     }
 }
 
+/// Bind TCP listeners to socket addresses resolved from `addrs` with options.
+fn bind_addrs(
+    addrs: impl net::ToSocketAddrs,
+    backlog: u32,
+) -> io::Result<Vec<net::TcpListener>> {
+    let mut err = None;
+    let mut success = false;
+    let mut sockets = Vec::new();
+
+    for addr in addrs.to_socket_addrs()? {
+        match create_tcp_listener(addr, backlog) {
+            Ok(lst) => {
+                success = true;
+                sockets.push(lst);
+            }
+            Err(e) => err = Some(e),
+        }
+    }
+
+    if success {
+        Ok(sockets)
+    } else if let Some(err) = err.take() {
+        Err(err)
+    } else {
+        Err(io::Error::new(
+            io::ErrorKind::Other,
+            "Can not bind to address.",
+        ))
+    }
+}
+
+/// Creates a TCP listener from socket address and options.
 fn create_tcp_listener(addr: net::SocketAddr, backlog: u32) -> io::Result<net::TcpListener> {
     use socket2::{Domain, Protocol, Socket, Type};
     let domain = Domain::for_address(addr);
@@ -736,7 +802,7 @@ fn create_tcp_listener(addr: net::SocketAddr, backlog: u32) -> io::Result<net::T
     Ok(net::TcpListener::from(socket))
 }
 
-/// Configure `SslAcceptorBuilder` with custom server flags.
+/// Configures OpenSSL acceptor `builder` with ALPN protocols.
 #[cfg(feature = "openssl")]
 fn openssl_acceptor(mut builder: SslAcceptorBuilder) -> io::Result<SslAcceptor> {
     builder.set_alpn_select_callback(|_, protocols| {
