@@ -445,7 +445,9 @@ impl fmt::Debug for HttpRequest {
         for (key, val) in self.headers().iter() {
             // Hide sensitive header from debug output
             match key {
-                &http::header::AUTHORIZATION | &http::header::PROXY_AUTHORIZATION => {
+                &crate::http::header::AUTHORIZATION
+                | &crate::http::header::PROXY_AUTHORIZATION
+                | &crate::http::header::COOKIE => {
                     writeln!(f, "    {:?}: {:?}", key, "*redacted*")?
                 }
                 _ => writeln!(f, "    {:?}: {:?}", key, val)?,
@@ -922,17 +924,37 @@ mod tests {
     fn authorization_header_hidden_in_debug() {
         let authorization_header = "Basic bXkgdXNlcm5hbWU6bXkgcGFzc3dvcmQK";
         let req = TestRequest::get()
-            .insert_header((http::header::AUTHORIZATION, authorization_header))
+            .insert_header((crate::http::header::AUTHORIZATION, authorization_header))
             .to_http_request();
 
         assert!(!format!("{:?}", req).contains(authorization_header));
     }
 
     #[test]
+    fn proxy_authorization_header_hidden_in_debug() {
+        let proxy_authorization_header = "secret value";
+        let req = TestRequest::get()
+            .insert_header((crate::http::header::PROXY_AUTHORIZATION, proxy_authorization_header))
+            .to_http_request();
+
+        assert!(!format!("{:?}", req).contains(proxy_authorization_header));
+    }
+
+    #[test]
+    fn cookie_header_hidden_in_debug() {
+        let cookie_header = "secret";
+        let req = TestRequest::get()
+            .insert_header((crate::http::header::COOKIE, cookie_header))
+            .to_http_request();
+
+        assert!(!format!("{:?}", req).contains(cookie_header));
+    }
+
+    #[test]
     fn other_header_visible_in_debug() {
         let location_header = "192.0.0.1";
         let req = TestRequest::get()
-            .insert_header((http::header::LOCATION, location_header))
+            .insert_header((crate::http::header::LOCATION, location_header))
             .to_http_request();
 
         assert!(format!("{:?}", req).contains(location_header));
