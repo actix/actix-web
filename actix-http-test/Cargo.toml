@@ -41,12 +41,12 @@ bytes = "1"
 futures-core = { version = "0.3.17", default-features = false }
 http = "0.2.7"
 log = "0.4"
-socket2 = "0.4"
+socket2 = "0.5"
 serde = "1"
 serde_json = "1"
 slab = "0.4"
 serde_urlencoded = "0.7"
-tls-openssl = { version = "0.10.9", package = "openssl", optional = true }
+tls-openssl = { version = "0.10.55", package = "openssl", optional = true }
 tokio = { version = "1.24.2", features = ["sync"] }
 
 [dev-dependencies]

@@ -2,8 +2,6 @@
 
 ## Unreleased - 2023-xx-xx
 
-- Minimum supported Rust version (MSRV) is now 1.65 due to transitive `time` dependency.
-
 ### Added
 
 - Add `HttpServer::{bind,listen}_auto_h2c()` method.
@@ -12,6 +10,7 @@
 ### Changed
 
 - Handler functions can now receive up to 16 extractor parameters.
+- Minimum supported Rust version (MSRV) is now 1.65 due to transitive `time` dependency.
 
 ## 4.3.1 - 2023-02-26
 

@@ -53,11 +53,6 @@ jobs:
       #   if: matrix.version != 'stable'
       #   run: |
 
-      # - name: workaround MSRV issues
-      #   if: matrix.version != 'stable'
-      #   run: |
-      #     cargo update -p=zstd-sys --precise=2.0.1+zstd.1.5.2
-
       - name: check minimal
         run: cargo ci-check-min
 
