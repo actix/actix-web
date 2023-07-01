@@ -27,7 +27,6 @@ use crate::{
 /// # Examples
 /// ```no_run
 /// # use actix_web::{web, HttpResponse, HttpRequest, Responder, HttpMessage as _};
-///
 /// #[derive(Debug, Clone, PartialEq)]
 /// struct FlagFromMiddleware(String);
 ///
