@@ -104,7 +104,7 @@ awc = { version = "3", features = ["openssl"] }
 brotli = "3.3.3"
 const-str = "0.3"
 criterion = { version = "0.4", features = ["html_reports"] }
-env_logger = "0.9"
+env_logger = "0.10"
 flate2 = "1.0.13"
 futures-util = { version = "0.3.17", default-features = false, features = ["std"] }
 rand = "0.8"
