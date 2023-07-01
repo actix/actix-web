@@ -3,7 +3,6 @@
 use std::{
     borrow::Cow,
     collections::HashSet,
-    convert::TryFrom,
     env,
     fmt::{self, Display as _},
     future::Future,

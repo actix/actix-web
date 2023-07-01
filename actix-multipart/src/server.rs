@@ -2,9 +2,7 @@
 
 use std::{
     cell::{Cell, RefCell, RefMut},
-    cmp,
-    convert::TryFrom,
-    fmt,
+    cmp, fmt,
     marker::PhantomData,
     pin::Pin,
     rc::Rc,

@@ -65,7 +65,6 @@ impl ResourcePath for Url {
 #[cfg(test)]
 mod tests {
     use http::Uri;
-    use std::convert::TryFrom;
 
     use super::*;
     use crate::{Path, ResourceDef};
