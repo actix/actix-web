@@ -7,7 +7,7 @@ keywords = ["actix", "http", "web", "framework", "async"]
 homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-web"
 license = "MIT OR Apache-2.0"
-edition = "2018"
+edition = "2021"
 
 [lib]
 name = "actix_web_actors"
