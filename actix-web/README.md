@@ -5,7 +5,7 @@
   </p>
   <p>
 
-[![crates.io](https://img.shields.io/crates/v/actix-web?label=latest)](https://crates.io/crates/actix-web) [![Documentation](https://docs.rs/actix-web/badge.svg?version=4.3.1)](https://docs.rs/actix-web/4.3.1) ![MSRV](https://img.shields.io/badge/rustc-1.59+-ab6000.svg) ![MIT or Apache 2.0 licensed](https://img.shields.io/crates/l/actix-web.svg) [![Dependency Status](https://deps.rs/crate/actix-web/4.3.1/status.svg)](https://deps.rs/crate/actix-web/4.3.1) <br /> [![CI](https://github.com/actix/actix-web/actions/workflows/ci.yml/badge.svg)](https://github.com/actix/actix-web/actions/workflows/ci.yml) [![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web) ![downloads](https://img.shields.io/crates/d/actix-web.svg) [![Chat on Discord](https://img.shields.io/discord/771444961383153695?label=chat&logo=discord)](https://discord.gg/NWpN5mmg3x)
+[![crates.io](https://img.shields.io/crates/v/actix-web?label=latest)](https://crates.io/crates/actix-web) [![Documentation](https://docs.rs/actix-web/badge.svg?version=4.3.1)](https://docs.rs/actix-web/4.3.1) ![MSRV](https://img.shields.io/badge/rustc-1.65+-ab6000.svg) ![MIT or Apache 2.0 licensed](https://img.shields.io/crates/l/actix-web.svg) [![Dependency Status](https://deps.rs/crate/actix-web/4.3.1/status.svg)](https://deps.rs/crate/actix-web/4.3.1) <br /> [![CI](https://github.com/actix/actix-web/actions/workflows/ci.yml/badge.svg)](https://github.com/actix/actix-web/actions/workflows/ci.yml) [![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web) ![downloads](https://img.shields.io/crates/d/actix-web.svg) [![Chat on Discord](https://img.shields.io/discord/771444961383153695?label=chat&logo=discord)](https://discord.gg/NWpN5mmg3x)
 
   </p>
 </div>
@@ -24,7 +24,7 @@
 - SSL support using OpenSSL or Rustls
 - Middlewares ([Logger, Session, CORS, etc](https://actix.rs/docs/middleware/))
 - Integrates with the [`awc` HTTP client](https://docs.rs/awc/)
-- Runs on stable Rust 1.59+
+- Runs on stable Rust 1.65+
 
 ## Documentation
 
