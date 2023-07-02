@@ -1,6 +1,6 @@
 //! HTTP client.
 
-use std::{convert::TryFrom, rc::Rc, time::Duration};
+use std::{rc::Rc, time::Duration};
 
 use actix_http::{error::HttpError, header::HeaderMap, Method, RequestHead, Uri};
 use actix_rt::net::TcpStream;

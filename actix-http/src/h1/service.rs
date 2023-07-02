@@ -160,7 +160,6 @@ mod openssl {
 
 #[cfg(feature = "rustls")]
 mod rustls {
-
     use std::io;
 
     use actix_service::ServiceFactoryExt as _;

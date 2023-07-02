@@ -136,7 +136,7 @@ impl ResourceMap {
             .root_rmap_fn(String::with_capacity(AVG_PATH_LEN), |mut acc, node| {
                 node.pattern
                     .resource_path_from_iter(&mut acc, &mut elements)
-                    .then(|| acc)
+                    .then_some(acc)
             })
             .ok_or(UrlGenerationError::NotEnoughElements)?;
 
@@ -149,7 +149,7 @@ impl ResourceMap {
             // external resource; third slash would be the root slash in the path
             let third_slash_index = path
                 .char_indices()
-                .filter_map(|(i, c)| (c == '/').then(|| i))
+                .filter_map(|(i, c)| (c == '/').then_some(i))
                 .nth(2)
                 .unwrap_or(path.len());
 

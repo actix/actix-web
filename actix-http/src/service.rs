@@ -30,9 +30,9 @@ use crate::{
 ///
 /// # Automatic HTTP Version Selection
 /// There are two ways to select the HTTP version of an incoming connection:
-/// - One is to rely on the ALPN information that is provided when using a TLS (HTTPS); both
-///   versions are supported automatically when using either of the `.rustls()` or `.openssl()`
-///   finalizing methods.
+/// - One is to rely on the ALPN information that is provided when using TLS (HTTPS); both versions
+///   are supported automatically when using either of the `.rustls()` or `.openssl()` finalizing
+///   methods.
 /// - The other is to read the first few bytes of the TCP stream. This is the only viable approach
 ///   for supporting H2C, which allows the HTTP/2 protocol to work over plaintext connections. Use
 ///   the `.tcp_auto_h2c()` finalizing method to enable this behavior.

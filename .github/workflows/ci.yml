@@ -23,7 +23,7 @@ jobs:
           - { name: macOS, os: macos-latest, triple: x86_64-apple-darwin }
           - { name: Windows, os: windows-latest, triple: x86_64-pc-windows-msvc }
         version:
-          - 1.59.0 # MSRV
+          - 1.65.0 # MSRV
           - stable
 
     name: ${{ matrix.target.name }} / ${{ matrix.version }}
@@ -49,17 +49,9 @@ jobs:
       - name: Install cargo-hack
         uses: taiki-e/install-action@cargo-hack
 
-      - name: workaround MSRV issues
-        if: matrix.version != 'stable'
-        run: |
-          cargo install cargo-edit --version=0.8.0
-          cargo add const-str@0.3 --dev -p=actix-web
-          cargo add const-str@0.3 --dev -p=awc
-
-      - name: workaround MSRV issues
-        if: matrix.version != 'stable'
-        run: |
-          cargo update -p=zstd-sys --precise=2.0.1+zstd.1.5.2
+      # - name: workaround MSRV issues
+      #   if: matrix.version != 'stable'
+      #   run: |
 
       - name: check minimal
         run: cargo ci-check-min

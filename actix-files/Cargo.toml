@@ -11,7 +11,7 @@ homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-web"
 categories = ["asynchronous", "web-programming::http-server"]
 license = "MIT OR Apache-2.0"
-edition = "2018"
+edition = "2021"
 
 [lib]
 name = "actix_files"

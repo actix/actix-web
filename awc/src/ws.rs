@@ -26,7 +26,7 @@
 //! }
 //! ```
 
-use std::{convert::TryFrom, fmt, net::SocketAddr, str};
+use std::{fmt, net::SocketAddr, str};
 
 use base64::prelude::*;
 
