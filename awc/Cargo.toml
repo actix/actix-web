@@ -13,7 +13,7 @@ categories = [
 homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-web.git"
 license = "MIT OR Apache-2.0"
-edition = "2018"
+edition = "2021"
 
 [lib]
 name = "awc"
@@ -83,8 +83,8 @@ tokio = { version = "1.24.2", features = ["sync"] }
 
 cookie = { version = "0.16", features = ["percent-encode"], optional = true }
 
-tls-openssl = { package = "openssl", version = "0.10.9", optional = true }
-tls-rustls = { package = "rustls", version = "0.20.0", optional = true, features = ["dangerous_configuration"] }
+tls-openssl = { package = "openssl", version = "0.10.55", optional = true }
+tls-rustls = { package = "rustls", version = "0.20", optional = true, features = ["dangerous_configuration"] }
 
 trust-dns-resolver = { version = "0.22", optional = true }
 
@@ -98,12 +98,12 @@ actix-utils = "3"
 actix-web = { version = "4", features = ["openssl"] }
 
 brotli = "3.3.3"
-const-str = "0.3"
-env_logger = "0.9"
+const-str = "0.5"
+env_logger = "0.10"
 flate2 = "1.0.13"
 futures-util = { version = "0.3.17", default-features = false }
 static_assertions = "1.1"
-rcgen = "0.9"
+rcgen = "0.11"
 rustls-pemfile = "1"
 tokio = { version = "1.24.2", features = ["rt-multi-thread", "macros"] }
 zstd = "0.12"

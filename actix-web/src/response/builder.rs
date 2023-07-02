@@ -1,6 +1,5 @@
 use std::{
     cell::{Ref, RefMut},
-    convert::TryInto,
     future::Future,
     pin::Pin,
     task::{Context, Poll},
