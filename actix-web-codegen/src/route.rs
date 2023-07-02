@@ -1,4 +1,4 @@
-use std::{collections::HashSet, convert::TryFrom};
+use std::collections::HashSet;
 
 use actix_router::ResourceDef;
 use proc_macro::TokenStream;

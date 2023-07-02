@@ -15,11 +15,12 @@ use crate::{
 ///
 /// The default is `TrailingSlash::Trim`.
 #[non_exhaustive]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub enum TrailingSlash {
     /// Trim trailing slashes from the end of the path.
     ///
     /// Using this will require all routes to omit trailing slashes for them to be accessible.
+    #[default]
     Trim,
 
     /// Only merge any present multiple trailing slashes.
@@ -31,12 +32,6 @@ pub enum TrailingSlash {
     ///
     /// Using this will require all routes have a trailing slash for them to be accessible.
     Always,
-}
-
-impl Default for TrailingSlash {
-    fn default() -> Self {
-        TrailingSlash::Trim
-    }
 }
 
 /// Middleware for normalizing a request's path so that routes can be matched more flexibly.

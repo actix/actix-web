@@ -1,4 +1,4 @@
-use std::{convert::TryFrom, io, marker::PhantomData, mem::MaybeUninit, task::Poll};
+use std::{io, marker::PhantomData, mem::MaybeUninit, task::Poll};
 
 use actix_codec::Decoder;
 use bytes::{Bytes, BytesMut};

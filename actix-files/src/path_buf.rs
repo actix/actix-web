@@ -97,8 +97,6 @@ impl FromRequest for PathBufWrap {
 
 #[cfg(test)]
 mod tests {
-    use std::iter::FromIterator;
-
     use super::*;
 
     #[test]

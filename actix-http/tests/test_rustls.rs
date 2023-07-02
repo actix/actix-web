@@ -4,7 +4,7 @@
 extern crate tls_rustls as rustls;
 
 use std::{
-    convert::{Infallible, TryFrom},
+    convert::Infallible,
     io::{self, BufReader, Write},
     net::{SocketAddr, TcpStream as StdTcpStream},
     sync::Arc,

@@ -270,8 +270,8 @@ impl<B> ErrorHandlers<B> {
         handlers
             .get(status)
             .map(|h| h.as_ref())
-            .or_else(|| status.is_client_error().then(|| default_client).flatten())
-            .or_else(|| status.is_server_error().then(|| default_server).flatten())
+            .or_else(|| status.is_client_error().then_some(default_client).flatten())
+            .or_else(|| status.is_server_error().then_some(default_server).flatten())
     }
 }
 
