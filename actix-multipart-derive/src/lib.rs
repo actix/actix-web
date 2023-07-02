@@ -8,7 +8,7 @@
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
-use std::{collections::HashSet, convert::TryFrom as _};
+use std::collections::HashSet;
 
 use darling::{FromDeriveInput, FromField, FromMeta};
 use parse_size::parse_size;

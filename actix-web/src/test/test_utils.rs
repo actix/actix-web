@@ -359,7 +359,6 @@ where
 
 #[cfg(test)]
 mod tests {
-
     use serde::{Deserialize, Serialize};
 
     use super::*;

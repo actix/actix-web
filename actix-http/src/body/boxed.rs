@@ -104,7 +104,6 @@ impl MessageBody for BoxBody {
 
 #[cfg(test)]
 mod tests {
-
     use static_assertions::{assert_impl_all, assert_not_impl_any};
 
     use super::*;

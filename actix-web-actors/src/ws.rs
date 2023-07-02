@@ -58,7 +58,6 @@
 
 use std::{
     collections::VecDeque,
-    convert::TryFrom,
     future::Future,
     io, mem,
     pin::Pin,

@@ -1,4 +1,4 @@
-use std::{convert::TryFrom, fmt, net::IpAddr, rc::Rc, time::Duration};
+use std::{fmt, net::IpAddr, rc::Rc, time::Duration};
 
 use base64::prelude::*;
 

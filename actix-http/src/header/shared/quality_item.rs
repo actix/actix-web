@@ -1,4 +1,4 @@
-use std::{cmp, convert::TryFrom as _, fmt, str};
+use std::{cmp, fmt, str};
 
 use crate::error::ParseError;
 
