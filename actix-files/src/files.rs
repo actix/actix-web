@@ -422,10 +422,14 @@ mod tests {
 
         assert_eq!(res.status(), StatusCode::OK);
         let body = test::read_body(res).await;
+        let body_str = std::str::from_utf8(&body).unwrap();
+        let actual_path = Path::new(&body_str);
+        let expected_path = Path::new("actix-files/tests");
         assert!(
-            body.ends_with(b"actix-files/tests/"),
-            "body {:?} does not end with `actix-files/tests/`",
-            body
+            actual_path.ends_with(expected_path),
+            "body {:?} does not end with {:?}",
+            actual_path,
+            expected_path
         );
     }
 }
