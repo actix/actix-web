@@ -146,7 +146,7 @@ mod tests {
             .finish();
         assert_eq!(req.content_type(), "text/plain");
         let req = TestRequest::default()
-            .insert_header(("content-type", "application/json; charset=utf=8"))
+            .insert_header(("content-type", "application/json; charset=utf-8"))
             .finish();
         assert_eq!(req.content_type(), "application/json");
         let req = TestRequest::default().finish();
