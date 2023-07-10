@@ -7,6 +7,7 @@ use std::{
     fmt::{self, Display as _},
     future::Future,
     marker::PhantomData,
+    ops::{Bound, RangeBounds},
     pin::Pin,
     rc::Rc,
     task::{Context, Poll},
@@ -23,7 +24,7 @@ use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 use crate::{
     body::{BodySize, MessageBody},
-    http::header::HeaderName,
+    http::{header::HeaderName, StatusCode},
     service::{ServiceRequest, ServiceResponse},
     Error, Result,
 };
@@ -89,6 +90,7 @@ struct Inner {
     exclude: HashSet<String>,
     exclude_regex: RegexSet,
     log_target: Cow<'static, str>,
+    status_range: (Bound<StatusCode>, Bound<StatusCode>),
 }
 
 impl Logger {
@@ -99,6 +101,10 @@ impl Logger {
             exclude: HashSet::new(),
             exclude_regex: RegexSet::empty(),
             log_target: Cow::Borrowed(module_path!()),
+            status_range: (
+                Bound::Included(StatusCode::from_u16(100).unwrap()),
+                Bound::Included(StatusCode::from_u16(999).unwrap()),
+            ),
         }))
     }
 
@@ -118,6 +124,13 @@ impl Logger {
         patterns.push(path.into());
         let regex_set = RegexSet::new(patterns).unwrap();
         inner.exclude_regex = regex_set;
+        self
+    }
+
+    /// Set a range of status to include in the logging
+    pub fn status_range<R: RangeBounds<StatusCode>>(mut self, status: R) -> Self {
+        let inner = Rc::get_mut(&mut self.0).unwrap();
+        inner.status_range = (status.start_bound().cloned(), status.end_bound().cloned());
         self
     }
 
@@ -242,6 +255,10 @@ impl Default for Logger {
             exclude: HashSet::new(),
             exclude_regex: RegexSet::empty(),
             log_target: Cow::Borrowed(module_path!()),
+            status_range: (
+                Bound::Included(StatusCode::from_u16(100).unwrap()),
+                Bound::Included(StatusCode::from_u16(999).unwrap()),
+            ),
         }))
     }
 }
@@ -306,6 +323,7 @@ where
             LoggerResponse {
                 fut: self.service.call(req),
                 format: None,
+                status_range: self.inner.status_range,
                 time: OffsetDateTime::now_utc(),
                 log_target: Cow::Borrowed(""),
                 _phantom: PhantomData,
@@ -321,6 +339,7 @@ where
             LoggerResponse {
                 fut: self.service.call(req),
                 format: Some(format),
+                status_range: self.inner.status_range,
                 time: now,
                 log_target: self.inner.log_target.clone(),
                 _phantom: PhantomData,
@@ -339,6 +358,7 @@ pin_project! {
         fut: S::Future,
         time: OffsetDateTime,
         format: Option<Format>,
+        status_range:(Bound<StatusCode>,Bound<StatusCode>),
         log_target: Cow<'static, str>,
         _phantom: PhantomData<B>,
     }
@@ -363,22 +383,26 @@ where
             debug!("Error in response: {:?}", error);
         }
 
-        let res = if let Some(ref mut format) = this.format {
-            // to avoid polluting all the Logger types with the body parameter we swap the body
-            // out temporarily since it's not usable in custom response functions anyway
+        let res = if this.status_range.contains(&res.status()) {
+            if let Some(ref mut format) = this.format {
+                // to avoid polluting all the Logger types with the body parameter we swap the body
+                // out temporarily since it's not usable in custom response functions anyway
 
-            let (req, res) = res.into_parts();
-            let (res, body) = res.into_parts();
+                let (req, res) = res.into_parts();
+                let (res, body) = res.into_parts();
 
-            let temp_res = ServiceResponse::new(req, res.map_into_boxed_body());
+                let temp_res = ServiceResponse::new(req, res.map_into_boxed_body());
 
-            for unit in &mut format.0 {
-                unit.render_response(&temp_res);
+                for unit in &mut format.0 {
+                    unit.render_response(&temp_res);
+                }
+
+                // re-construct original service response
+                let (req, res) = temp_res.into_parts();
+                ServiceResponse::new(req, res.set_body(body))
+            } else {
+                res
             }
-
-            // re-construct original service response
-            let (req, res) = temp_res.into_parts();
-            ServiceResponse::new(req, res.set_body(body))
         } else {
             res
         };
