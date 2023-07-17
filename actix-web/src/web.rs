@@ -21,16 +21,13 @@ use std::{borrow::Cow, future::Future};
 use actix_router::IntoPatterns;
 pub use bytes::{Buf, BufMut, Bytes, BytesMut};
 
+pub use crate::{
+    config::ServiceConfig, data::Data, redirect::Redirect, request_data::ReqData, types::*,
+};
 use crate::{
     error::BlockingError, http::Method, service::WebService, FromRequest, Handler, Resource,
     Responder, Route, Scope,
 };
-
-pub use crate::config::ServiceConfig;
-pub use crate::data::Data;
-pub use crate::redirect::Redirect;
-pub use crate::request_data::ReqData;
-pub use crate::types::*;
 
 /// Creates a new resource for a specific path.
 ///
@@ -200,10 +197,7 @@ pub fn service<T: IntoPatterns>(path: T) -> WebService {
 ///     // the client will resolve this redirect to /api/to-path
 ///     .service(web::redirect("/api/from-path", "to-path"));
 /// ```
-pub fn redirect(
-    from: impl Into<Cow<'static, str>>,
-    to: impl Into<Cow<'static, str>>,
-) -> Redirect {
+pub fn redirect(from: impl Into<Cow<'static, str>>, to: impl Into<Cow<'static, str>>) -> Redirect {
     Redirect::new(from, to)
 }
 

@@ -61,8 +61,10 @@ use crate::{http::header::Header, service::ServiceRequest, HttpMessage as _};
 mod acceptable;
 mod host;
 
-pub use self::acceptable::Acceptable;
-pub use self::host::{Host, HostGuard};
+pub use self::{
+    acceptable::Acceptable,
+    host::{Host, HostGuard},
+};
 
 /// Provides access to request parts that are useful during routing.
 #[derive(Debug)]

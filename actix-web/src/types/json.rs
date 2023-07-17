@@ -10,11 +10,10 @@ use std::{
     task::{Context, Poll},
 };
 
+use actix_http::Payload;
 use bytes::BytesMut;
 use futures_core::{ready, Stream as _};
 use serde::{de::DeserializeOwned, Serialize};
-
-use actix_http::Payload;
 
 #[cfg(feature = "__compress")]
 use crate::dev::Decompress;
@@ -158,8 +157,7 @@ impl<T: DeserializeOwned> FromRequest for Json<T> {
     }
 }
 
-type JsonErrorHandler =
-    Option<Arc<dyn Fn(JsonPayloadError, &HttpRequest) -> Error + Send + Sync>>;
+type JsonErrorHandler = Option<Arc<dyn Fn(JsonPayloadError, &HttpRequest) -> Error + Send + Sync>>;
 
 pub struct JsonExtractFut<T> {
     req: Option<HttpRequest>,
@@ -423,9 +421,7 @@ impl<T: DeserializeOwned> Future for JsonBody<T> {
                         let chunk = chunk?;
                         let buf_len = buf.len() + chunk.len();
                         if buf_len > *limit {
-                            return Poll::Ready(Err(JsonPayloadError::Overflow {
-                                limit: *limit,
-                            }));
+                            return Poll::Ready(Err(JsonPayloadError::Overflow { limit: *limit }));
                         } else {
                             buf.extend_from_slice(&chunk);
                         }
@@ -508,8 +504,7 @@ mod tests {
                 let msg = MyObject {
                     name: "invalid request".to_string(),
                 };
-                let resp =
-                    HttpResponse::BadRequest().body(serde_json::to_string(&msg).unwrap());
+                let resp = HttpResponse::BadRequest().body(serde_json::to_string(&msg).unwrap());
                 InternalError::from_response(err, resp).into()
             }))
             .to_http_parts();
@@ -747,7 +742,8 @@ mod tests {
         assert!(s.is_err());
 
         let err_str = s.err().unwrap().to_string();
-        assert!(err_str
-            .contains("JSON payload (16 bytes) is larger than allowed (limit: 10 bytes)."));
+        assert!(
+            err_str.contains("JSON payload (16 bytes) is larger than allowed (limit: 10 bytes).")
+        );
     }
 }

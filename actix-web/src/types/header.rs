@@ -75,8 +75,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::http::{header, Method};
-    use crate::test::TestRequest;
+    use crate::{
+        http::{header, Method},
+        test::TestRequest,
+    };
 
     #[actix_rt::test]
     async fn test_header_extract() {

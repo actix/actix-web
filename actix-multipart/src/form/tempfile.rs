@@ -39,23 +39,20 @@ pub struct TempFile {
 impl<'t> FieldReader<'t> for TempFile {
     type Future = LocalBoxFuture<'t, Result<Self, MultipartError>>;
 
-    fn read_field(
-        req: &'t HttpRequest,
-        mut field: Field,
-        limits: &'t mut Limits,
-    ) -> Self::Future {
+    fn read_field(req: &'t HttpRequest, mut field: Field, limits: &'t mut Limits) -> Self::Future {
         Box::pin(async move {
             let config = TempFileConfig::from_req(req);
             let field_name = field.name().to_owned();
             let mut size = 0;
 
-            let file = config.create_tempfile().map_err(|err| {
-                config.map_error(req, &field_name, TempFileError::FileIo(err))
-            })?;
+            let file = config
+                .create_tempfile()
+                .map_err(|err| config.map_error(req, &field_name, TempFileError::FileIo(err)))?;
 
-            let mut file_async = tokio::fs::File::from_std(file.reopen().map_err(|err| {
-                config.map_error(req, &field_name, TempFileError::FileIo(err))
-            })?);
+            let mut file_async =
+                tokio::fs::File::from_std(file.reopen().map_err(|err| {
+                    config.map_error(req, &field_name, TempFileError::FileIo(err))
+                })?);
 
             while let Some(chunk) = field.try_next().await? {
                 limits.try_consume_limits(chunk.len(), false)?;
@@ -65,9 +62,10 @@ impl<'t> FieldReader<'t> for TempFile {
                 })?;
             }
 
-            file_async.flush().await.map_err(|err| {
-                config.map_error(req, &field_name, TempFileError::FileIo(err))
-            })?;
+            file_async
+                .flush()
+                .await
+                .map_err(|err| config.map_error(req, &field_name, TempFileError::FileIo(err)))?;
 
             Ok(TempFile {
                 file,
@@ -131,12 +129,7 @@ impl TempFileConfig {
             .unwrap_or(&DEFAULT_CONFIG)
     }
 
-    fn map_error(
-        &self,
-        req: &HttpRequest,
-        field_name: &str,
-        err: TempFileError,
-    ) -> MultipartError {
+    fn map_error(&self, req: &HttpRequest, field_name: &str, err: TempFileError) -> MultipartError {
         let source = if let Some(ref err_handler) = self.err_handler {
             (err_handler)(err, req)
         } else {

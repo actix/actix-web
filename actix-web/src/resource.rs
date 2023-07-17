@@ -353,12 +353,8 @@ where
     pub fn default_service<F, U>(mut self, f: F) -> Self
     where
         F: IntoServiceFactory<U, ServiceRequest>,
-        U: ServiceFactory<
-                ServiceRequest,
-                Config = (),
-                Response = ServiceResponse,
-                Error = Error,
-            > + 'static,
+        U: ServiceFactory<ServiceRequest, Config = (), Response = ServiceResponse, Error = Error>
+            + 'static,
         U::InitError: fmt::Debug,
     {
         // create and configure default resource
@@ -625,10 +621,8 @@ mod tests {
                         let fut = srv.call(req);
                         async {
                             fut.await.map(|mut res| {
-                                res.headers_mut().insert(
-                                    header::CONTENT_TYPE,
-                                    HeaderValue::from_static("0001"),
-                                );
+                                res.headers_mut()
+                                    .insert(header::CONTENT_TYPE, HeaderValue::from_static("0001"));
                                 res
                             })
                         }
@@ -660,12 +654,9 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_pattern() {
-        let srv = init_service(
-            App::new().service(
-                web::resource(["/test", "/test2"])
-                    .to(|| async { Ok::<_, Error>(HttpResponse::Ok()) }),
-            ),
-        )
+        let srv = init_service(App::new().service(
+            web::resource(["/test", "/test2"]).to(|| async { Ok::<_, Error>(HttpResponse::Ok()) }),
+        ))
         .await;
         let req = TestRequest::with_uri("/test").to_request();
         let resp = call_service(&srv, req).await;
@@ -804,17 +795,18 @@ mod tests {
     #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_data_default_service() {
-        let srv = init_service(
-            App::new().data(1usize).service(
-                web::resource("/test")
-                    .data(10usize)
-                    .default_service(web::to(|data: web::Data<usize>| {
-                        assert_eq!(**data, 10);
-                        HttpResponse::Ok()
-                    })),
-            ),
-        )
-        .await;
+        let srv =
+            init_service(
+                App::new().data(1usize).service(
+                    web::resource("/test")
+                        .data(10usize)
+                        .default_service(web::to(|data: web::Data<usize>| {
+                            assert_eq!(**data, 10);
+                            HttpResponse::Ok()
+                        })),
+                ),
+            )
+            .await;
 
         let req = TestRequest::get().uri("/test").to_request();
         let resp = call_service(&srv, req).await;

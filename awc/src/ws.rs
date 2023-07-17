@@ -28,15 +28,15 @@
 
 use std::{fmt, net::SocketAddr, str};
 
-use base64::prelude::*;
-
 use actix_codec::Framed;
+pub use actix_http::ws::{CloseCode, CloseReason, Codec, Frame, Message};
 use actix_http::{ws, Payload, RequestHead};
 use actix_rt::time::timeout;
 use actix_service::Service as _;
+use base64::prelude::*;
 
-pub use actix_http::ws::{CloseCode, CloseReason, Codec, Frame, Message};
-
+#[cfg(feature = "cookies")]
+use crate::cookie::{Cookie, CookieJar};
 use crate::{
     client::ClientConfig,
     connect::{BoxedSocket, ConnectRequest},
@@ -47,9 +47,6 @@ use crate::{
     },
     ClientResponse,
 };
-
-#[cfg(feature = "cookies")]
-use crate::cookie::{Cookie, CookieJar};
 
 /// WebSocket connection.
 pub struct WebsocketsRequest {

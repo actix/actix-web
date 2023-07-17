@@ -4,9 +4,7 @@ use super::{
     from_one_raw_str, EntityTag, Header, HeaderName, HeaderValue, HttpDate, InvalidHeaderValue,
     TryIntoHeaderValue, Writer,
 };
-use crate::error::ParseError;
-use crate::http::header;
-use crate::HttpMessage;
+use crate::{error::ParseError, http::header, HttpMessage};
 
 /// `If-Range` header, defined
 /// in [RFC 7233 §3.2](https://datatracker.ietf.org/doc/html/rfc7233#section-3.2)

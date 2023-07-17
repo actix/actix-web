@@ -16,6 +16,7 @@ use actix_utils::future::ready;
 use futures_core::{future::LocalBoxFuture, ready};
 use tracing::{error, trace};
 
+use super::{dispatcher::Dispatcher, handshake_with_timeout, HandshakeWithTimeout};
 use crate::{
     body::{BoxBody, MessageBody},
     config::ServiceConfig,
@@ -23,8 +24,6 @@ use crate::{
     service::HttpFlow,
     ConnectCallback, OnConnectData, Request, Response,
 };
-
-use super::{dispatcher::Dispatcher, handshake_with_timeout, HandshakeWithTimeout};
 
 /// `ServiceFactory` implementation for HTTP/2 transport
 pub struct H2Service<T, S, B> {

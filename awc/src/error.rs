@@ -7,7 +7,6 @@ pub use actix_http::{
     ws::{HandshakeError as WsHandshakeError, ProtocolError as WsProtocolError},
     StatusCode,
 };
-
 use derive_more::{Display, From};
 use serde_json::error::Error as JsonError;
 

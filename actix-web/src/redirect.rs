@@ -181,9 +181,8 @@ impl Responder for Redirect {
 
 #[cfg(test)]
 mod tests {
-    use crate::{dev::Service, http::StatusCode, test, App};
-
     use super::*;
+    use crate::{dev::Service, http::StatusCode, test, App};
 
     #[actix_rt::test]
     async fn absolute_redirects() {

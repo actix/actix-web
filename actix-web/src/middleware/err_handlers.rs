@@ -540,21 +540,17 @@ mod tests {
         let mw_server = make_mw(StatusCode::INTERNAL_SERVER_ERROR).await;
         let mw_client = make_mw(StatusCode::BAD_REQUEST).await;
 
-        let resp =
-            test::call_service(&mw_client, TestRequest::default().to_srv_request()).await;
+        let resp = test::call_service(&mw_client, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
 
-        let resp =
-            test::call_service(&mw_server, TestRequest::default().to_srv_request()).await;
+        let resp = test::call_service(&mw_server, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
     }
 
     #[actix_rt::test]
     async fn default_handlers_separate_client_server() {
         #[allow(clippy::unnecessary_wraps)]
-        fn error_handler_client<B>(
-            mut res: ServiceResponse<B>,
-        ) -> Result<ErrorHandlerResponse<B>> {
+        fn error_handler_client<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
             res.response_mut()
                 .headers_mut()
                 .insert(CONTENT_TYPE, HeaderValue::from_static("0001"));
@@ -562,9 +558,7 @@ mod tests {
         }
 
         #[allow(clippy::unnecessary_wraps)]
-        fn error_handler_server<B>(
-            mut res: ServiceResponse<B>,
-        ) -> Result<ErrorHandlerResponse<B>> {
+        fn error_handler_server<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
             res.response_mut()
                 .headers_mut()
                 .insert(CONTENT_TYPE, HeaderValue::from_static("0002"));
@@ -582,21 +576,17 @@ mod tests {
         let mw_server = make_mw(StatusCode::INTERNAL_SERVER_ERROR).await;
         let mw_client = make_mw(StatusCode::BAD_REQUEST).await;
 
-        let resp =
-            test::call_service(&mw_client, TestRequest::default().to_srv_request()).await;
+        let resp = test::call_service(&mw_client, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
 
-        let resp =
-            test::call_service(&mw_server, TestRequest::default().to_srv_request()).await;
+        let resp = test::call_service(&mw_server, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0002");
     }
 
     #[actix_rt::test]
     async fn default_handlers_specialization() {
         #[allow(clippy::unnecessary_wraps)]
-        fn error_handler_client<B>(
-            mut res: ServiceResponse<B>,
-        ) -> Result<ErrorHandlerResponse<B>> {
+        fn error_handler_client<B>(mut res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
             res.response_mut()
                 .headers_mut()
                 .insert(CONTENT_TYPE, HeaderValue::from_static("0001"));
@@ -624,12 +614,10 @@ mod tests {
         let mw_client = make_mw(StatusCode::BAD_REQUEST).await;
         let mw_specific = make_mw(StatusCode::UNPROCESSABLE_ENTITY).await;
 
-        let resp =
-            test::call_service(&mw_client, TestRequest::default().to_srv_request()).await;
+        let resp = test::call_service(&mw_client, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0001");
 
-        let resp =
-            test::call_service(&mw_specific, TestRequest::default().to_srv_request()).await;
+        let resp = test::call_service(&mw_specific, TestRequest::default().to_srv_request()).await;
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "0003");
     }
 }

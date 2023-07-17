@@ -592,9 +592,8 @@ mod tests {
     fn test_from_raw_basic() {
         assert!(ContentDisposition::from_raw(&HeaderValue::from_static("")).is_err());
 
-        let a = HeaderValue::from_static(
-            "form-data; dummy=3; name=upload; filename=\"sample.png\"",
-        );
+        let a =
+            HeaderValue::from_static("form-data; dummy=3; name=upload; filename=\"sample.png\"");
         let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
         let b = ContentDisposition {
             disposition: DispositionType::FormData,
@@ -648,8 +647,8 @@ mod tests {
                 charset: Charset::Ext(String::from("UTF-8")),
                 language_tag: None,
                 value: vec![
-                    0xc2, 0xa3, 0x20, b'a', b'n', b'd', 0x20, 0xe2, 0x82, 0xac, 0x20, b'r',
-                    b'a', b't', b'e', b's',
+                    0xc2, 0xa3, 0x20, b'a', b'n', b'd', 0x20, 0xe2, 0x82, 0xac, 0x20, b'r', b'a',
+                    b't', b'e', b's',
                 ],
             })],
         };
@@ -665,8 +664,8 @@ mod tests {
                 charset: Charset::Ext(String::from("UTF-8")),
                 language_tag: None,
                 value: vec![
-                    0xc2, 0xa3, 0x20, b'a', b'n', b'd', 0x20, 0xe2, 0x82, 0xac, 0x20, b'r',
-                    b'a', b't', b'e', b's',
+                    0xc2, 0xa3, 0x20, b'a', b'n', b'd', 0x20, 0xe2, 0x82, 0xac, 0x20, b'r', b'a',
+                    b't', b'e', b's',
                 ],
             })],
         };
@@ -742,8 +741,8 @@ mod tests {
         };
         assert_eq!(a, b);
 
-        let a = ContentDisposition::from_raw(&HeaderValue::from_static("unknown-disp-param"))
-            .unwrap();
+        let a =
+            ContentDisposition::from_raw(&HeaderValue::from_static("unknown-disp-param")).unwrap();
         let b = ContentDisposition {
             disposition: DispositionType::Ext(String::from("unknown-disp-param")),
             parameters: vec![],
@@ -782,8 +781,7 @@ mod tests {
         Mainstream browsers like Firefox (gecko) and Chrome use UTF-8 directly as above.
         (And now, only UTF-8 is handled by this implementation.)
         */
-        let a =
-            HeaderValue::from_str("form-data; name=upload; filename=\"文件.webp\"").unwrap();
+        let a = HeaderValue::from_str("form-data; name=upload; filename=\"文件.webp\"").unwrap();
         let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
         let b = ContentDisposition {
             disposition: DispositionType::FormData,
@@ -803,9 +801,7 @@ mod tests {
             disposition: DispositionType::FormData,
             parameters: vec![
                 DispositionParam::Name(String::from("upload")),
-                DispositionParam::Filename(String::from(
-                    "余固知謇謇之為患兮，忍而不能舍也.pptx",
-                )),
+                DispositionParam::Filename(String::from("余固知謇謇之為患兮，忍而不能舍也.pptx")),
             ],
         };
         assert_eq!(a, b);
@@ -870,8 +866,7 @@ mod tests {
         };
         assert_eq!(a, b);
 
-        let a =
-            HeaderValue::from_static("form-data; name=photo; filename=\"%74%65%73%74.png\"");
+        let a = HeaderValue::from_static("form-data; name=photo; filename=\"%74%65%73%74.png\"");
         let a: ContentDisposition = ContentDisposition::from_raw(&a).unwrap();
         let b = ContentDisposition {
             disposition: DispositionType::FormData,

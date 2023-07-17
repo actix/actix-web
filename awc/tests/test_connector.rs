@@ -5,8 +5,7 @@ extern crate tls_openssl as openssl;
 use actix_http::HttpService;
 use actix_http_test::test_server;
 use actix_service::{map_config, ServiceFactoryExt};
-use actix_web::http::Version;
-use actix_web::{dev::AppConfig, web, App, HttpResponse};
+use actix_web::{dev::AppConfig, http::Version, web, App, HttpResponse};
 use openssl::{
     pkey::PKey,
     ssl::{SslAcceptor, SslConnector, SslMethod, SslVerifyMode},

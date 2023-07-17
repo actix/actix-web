@@ -61,9 +61,7 @@ pub trait HttpMessage: Sized {
     fn encoding(&self) -> Result<&'static Encoding, ContentTypeError> {
         if let Some(mime_type) = self.mime_type()? {
             if let Some(charset) = mime_type.get_param("charset") {
-                if let Some(enc) =
-                    Encoding::for_label_no_replacement(charset.as_str().as_bytes())
-                {
+                if let Some(enc) = Encoding::for_label_no_replacement(charset.as_str().as_bytes()) {
                     Ok(enc)
                 } else {
                     Err(ContentTypeError::UnknownEncoding)

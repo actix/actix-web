@@ -27,11 +27,7 @@ pub struct Bytes {
 impl<'t> FieldReader<'t> for Bytes {
     type Future = LocalBoxFuture<'t, Result<Self, MultipartError>>;
 
-    fn read_field(
-        _: &'t HttpRequest,
-        mut field: Field,
-        limits: &'t mut Limits,
-    ) -> Self::Future {
+    fn read_field(_: &'t HttpRequest, mut field: Field, limits: &'t mut Limits) -> Self::Future {
         Box::pin(async move {
             let mut buf = BytesMut::with_capacity(131_072);
 
