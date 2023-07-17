@@ -81,7 +81,7 @@ impl ResourceMap {
                 "`pattern` and `nested` mismatch"
             );
             // parents absorb references to the named resources of children
-            self.named.extend(new_node.named.clone().into_iter());
+            self.named.extend(new_node.named.clone());
             self.nodes.as_mut().unwrap().push(new_node);
         } else {
             let new_node = Rc::new(ResourceMap {
