@@ -356,6 +356,7 @@ where
 
     /// Resolves socket address(es) and binds server to created listener(s) for plaintext HTTP/1.x
     /// or HTTP/2 connections.
+    #[cfg(feature = "http2")]
     pub fn bind_auto_h2c<A: net::ToSocketAddrs>(mut self, addrs: A) -> io::Result<Self> {
         let sockets = bind_addrs(addrs, self.backlog)?;
 
@@ -453,6 +454,7 @@ where
     }
 
     /// Binds to existing listener for accepting incoming plaintext HTTP/1.x or HTTP/2 connections.
+    #[cfg(feature = "http2")]
     pub fn listen_auto_h2c(mut self, lst: net::TcpListener) -> io::Result<Self> {
         let cfg = self.config.clone();
         let factory = self.factory.clone();
