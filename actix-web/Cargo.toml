@@ -47,10 +47,10 @@ cookies = ["cookie"]
 secure-cookies = ["cookies", "cookie/secure"]
 
 # TLS via OpenSSL
-openssl = ["actix-http/openssl", "actix-tls/accept", "actix-tls/openssl"]
+openssl = ["actix-http/http2", "actix-http/openssl", "actix-tls/accept", "actix-tls/openssl"]
 
 # TLS via Rustls
-rustls = ["actix-http/rustls", "actix-tls/accept", "actix-tls/rustls"]
+rustls = ["actix-http/http2", "actix-http/rustls", "actix-tls/accept", "actix-tls/rustls"]
 
 # Internal (PRIVATE!) features used to aid testing and checking feature status.
 # Don't rely on these whatsoever. They may disappear at anytime.
@@ -68,7 +68,7 @@ actix-service = "2"
 actix-utils = "3"
 actix-tls = { version = "3", default-features = false, optional = true }
 
-actix-http = { version = "3.3", features = ["http2", "ws"] }
+actix-http = { version = "3.3", features = ["ws"] }
 actix-router = "0.5"
 actix-web-codegen = { version = "4.2", optional = true }
 
