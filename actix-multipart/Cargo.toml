@@ -38,7 +38,7 @@ mime = "0.3"
 serde = "1"
 serde_json = "1"
 serde_plain = "1"
-tempfile-dep = { version = "3.4", optional = true }
+tempfile = { version = "3.4", optional = true }
 tokio = { version = "1.24.2", features = ["sync", "io-util"] }
 
 [dev-dependencies]
