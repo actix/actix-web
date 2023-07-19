@@ -8,8 +8,7 @@ use std::io;
 use derive_more::{Display, Error, From};
 use http::{header, Method, StatusCode};
 
-use crate::body::BoxBody;
-use crate::{header::HeaderValue, RequestHead, Response, ResponseBuilder};
+use crate::{body::BoxBody, header::HeaderValue, RequestHead, Response, ResponseBuilder};
 
 mod codec;
 mod dispatcher;
@@ -17,10 +16,12 @@ mod frame;
 mod mask;
 mod proto;
 
-pub use self::codec::{Codec, Frame, Item, Message};
-pub use self::dispatcher::Dispatcher;
-pub use self::frame::Parser;
-pub use self::proto::{hash_key, CloseCode, CloseReason, OpCode};
+pub use self::{
+    codec::{Codec, Frame, Item, Message},
+    dispatcher::Dispatcher,
+    frame::Parser,
+    proto::{hash_key, CloseCode, CloseReason, OpCode},
+};
 
 /// WebSocket protocol errors.
 #[derive(Debug, Display, Error, From)]
@@ -219,10 +220,8 @@ pub fn handshake_response(req: &RequestHead) -> ResponseBuilder {
 
 #[cfg(test)]
 mod tests {
-    use crate::{header, Method};
-
     use super::*;
-    use crate::test::TestRequest;
+    use crate::{header, test::TestRequest, Method};
 
     #[test]
     fn test_handshake() {

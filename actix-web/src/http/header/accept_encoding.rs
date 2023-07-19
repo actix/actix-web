@@ -94,10 +94,7 @@ impl AcceptEncoding {
     /// includes the server's supported encodings in the body plus a [`Vary`] header.
     ///
     /// [`Vary`]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Vary
-    pub fn negotiate<'a>(
-        &self,
-        supported: impl Iterator<Item = &'a Encoding>,
-    ) -> Option<Encoding> {
+    pub fn negotiate<'a>(&self, supported: impl Iterator<Item = &'a Encoding>) -> Option<Encoding> {
         // 1. If no Accept-Encoding field is in the request, any content-coding is considered
         // acceptable by the user agent.
 
@@ -375,9 +372,7 @@ mod tests {
             Some(Encoding::deflate())
         );
         assert_eq!(
-            test.negotiate(
-                [Encoding::gzip(), Encoding::deflate(), Encoding::identity()].iter()
-            ),
+            test.negotiate([Encoding::gzip(), Encoding::deflate(), Encoding::identity()].iter()),
             Some(Encoding::gzip())
         );
         assert_eq!(

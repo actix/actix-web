@@ -113,7 +113,6 @@
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 pub use actix_http::body;
-
 #[cfg(feature = "cookies")]
 pub use cookie;
 
@@ -134,18 +133,18 @@ pub mod http {
     //! Various HTTP related types.
 
     // TODO: figure out how best to expose http::Error vs actix_http::Error
-    pub use actix_http::{
-        header, uri, ConnectionType, Error, Method, StatusCode, Uri, Version,
-    };
+    pub use actix_http::{header, uri, ConnectionType, Error, Method, StatusCode, Uri, Version};
 }
 
-pub use self::builder::ClientBuilder;
-pub use self::client::{Client, Connect, Connector};
-pub use self::connect::{BoxConnectorService, BoxedSocket, ConnectRequest, ConnectResponse};
-pub use self::frozen::{FrozenClientRequest, FrozenSendBuilder};
-pub use self::request::ClientRequest;
 #[allow(deprecated)]
 pub use self::responses::{ClientResponse, JsonBody, MessageBody, ResponseBody};
-pub use self::sender::SendClientRequest;
+pub use self::{
+    builder::ClientBuilder,
+    client::{Client, Connect, Connector},
+    connect::{BoxConnectorService, BoxedSocket, ConnectRequest, ConnectResponse},
+    frozen::{FrozenClientRequest, FrozenSendBuilder},
+    request::ClientRequest,
+    sender::SendClientRequest,
+};
 
 pub(crate) type BoxError = Box<dyn std::error::Error>;

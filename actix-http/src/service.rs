@@ -30,9 +30,9 @@ use crate::{
 ///
 /// # Automatic HTTP Version Selection
 /// There are two ways to select the HTTP version of an incoming connection:
-/// - One is to rely on the ALPN information that is provided when using a TLS (HTTPS); both
-///   versions are supported automatically when using either of the `.rustls()` or `.openssl()`
-///   finalizing methods.
+/// - One is to rely on the ALPN information that is provided when using TLS (HTTPS); both versions
+///   are supported automatically when using either of the `.rustls()` or `.openssl()` finalizing
+///   methods.
 /// - The other is to read the first few bytes of the TCP stream. This is the only viable approach
 ///   for supporting H2C, which allows the HTTP/2 protocol to work over plaintext connections. Use
 ///   the `.tcp_auto_h2c()` finalizing method to enable this behavior.
@@ -200,13 +200,8 @@ where
     /// The resulting service only supports HTTP/1.x.
     pub fn tcp(
         self,
-    ) -> impl ServiceFactory<
-        TcpStream,
-        Config = (),
-        Response = (),
-        Error = DispatchError,
-        InitError = (),
-    > {
+    ) -> impl ServiceFactory<TcpStream, Config = (), Response = (), Error = DispatchError, InitError = ()>
+    {
         fn_service(|io: TcpStream| async {
             let peer_addr = io.peer_addr().ok();
             Ok((io, Protocol::Http1, peer_addr))
@@ -219,13 +214,8 @@ where
     #[cfg(feature = "http2")]
     pub fn tcp_auto_h2c(
         self,
-    ) -> impl ServiceFactory<
-        TcpStream,
-        Config = (),
-        Response = (),
-        Error = DispatchError,
-        InitError = (),
-    > {
+    ) -> impl ServiceFactory<TcpStream, Config = (), Response = (), Error = DispatchError, InitError = ()>
+    {
         fn_service(move |io: TcpStream| async move {
             // subset of HTTP/2 preface defined by RFC 9113 §3.4
             // this subset was chosen to maximize likelihood that peeking only once will allow us to
@@ -563,10 +553,7 @@ where
         }
     }
 
-    pub(super) fn _poll_ready(
-        &self,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<(), Response<BoxBody>>> {
+    pub(super) fn _poll_ready(&self, cx: &mut Context<'_>) -> Poll<Result<(), Response<BoxBody>>> {
         ready!(self.flow.expect.poll_ready(cx).map_err(Into::into))?;
 
         ready!(self.flow.service.poll_ready(cx).map_err(Into::into))?;
@@ -625,10 +612,7 @@ where
         })
     }
 
-    fn call(
-        &self,
-        (io, proto, peer_addr): (T, Protocol, Option<net::SocketAddr>),
-    ) -> Self::Future {
+    fn call(&self, (io, proto, peer_addr): (T, Protocol, Option<net::SocketAddr>)) -> Self::Future {
         let conn_data = OnConnectData::from_io(&io, self.on_connect_ext.as_deref());
 
         match proto {

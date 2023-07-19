@@ -1,14 +1,11 @@
 use std::{future::Future, str, task::Poll, time::Duration};
 
-use actix_rt::{pin, time::sleep};
-use actix_service::fn_service;
-use actix_utils::future::{ready, Ready};
-use bytes::Bytes;
-use futures_util::future::lazy;
-
 use actix_codec::Framed;
-use actix_service::Service;
-use bytes::{Buf, BytesMut};
+use actix_rt::{pin, time::sleep};
+use actix_service::{fn_service, Service};
+use actix_utils::future::{ready, Ready};
+use bytes::{Buf, Bytes, BytesMut};
+use futures_util::future::lazy;
 
 use super::dispatcher::{Dispatcher, DispatcherState, DispatcherStateProj, Flags};
 use crate::{
@@ -43,8 +40,8 @@ fn status_service(
     fn_service(move |_req: Request| ready(Ok::<_, Error>(Response::new(status))))
 }
 
-fn echo_path_service(
-) -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error> {
+fn echo_path_service() -> impl Service<Request, Response = Response<impl MessageBody>, Error = Error>
+{
     fn_service(|req: Request| {
         let path = req.path().as_bytes();
         ready(Ok::<_, Error>(
@@ -53,8 +50,8 @@ fn echo_path_service(
     })
 }
 
-fn drop_payload_service(
-) -> impl Service<Request, Response = Response<&'static str>, Error = Error> {
+fn drop_payload_service() -> impl Service<Request, Response = Response<&'static str>, Error = Error>
+{
     fn_service(|mut req: Request| async move {
         let _ = req.take_payload();
         Ok::<_, Error>(Response::with_body(StatusCode::OK, "payload dropped"))

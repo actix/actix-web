@@ -3,7 +3,6 @@
 use std::{
     borrow::Cow,
     collections::HashSet,
-    convert::TryFrom,
     env,
     fmt::{self, Display as _},
     future::Future,
@@ -490,12 +489,8 @@ impl Format {
                             unreachable!("regex and code mismatch")
                         }
                     }
-                    "i" => {
-                        FormatText::RequestHeader(HeaderName::try_from(key.as_str()).unwrap())
-                    }
-                    "o" => {
-                        FormatText::ResponseHeader(HeaderName::try_from(key.as_str()).unwrap())
-                    }
+                    "i" => FormatText::RequestHeader(HeaderName::try_from(key.as_str()).unwrap()),
+                    "o" => FormatText::ResponseHeader(HeaderName::try_from(key.as_str()).unwrap()),
                     "e" => FormatText::EnvironHeader(key.as_str().to_owned()),
                     "xi" => FormatText::CustomRequest(key.as_str().to_owned(), None),
                     "xo" => FormatText::CustomResponse(key.as_str().to_owned(), None),
@@ -711,9 +706,7 @@ impl FormatText {
 }
 
 /// Converter to get a String from something that writes to a Formatter.
-pub(crate) struct FormatDisplay<'a>(
-    &'a dyn Fn(&mut fmt::Formatter<'_>) -> Result<(), fmt::Error>,
-);
+pub(crate) struct FormatDisplay<'a>(&'a dyn Fn(&mut fmt::Formatter<'_>) -> Result<(), fmt::Error>);
 
 impl<'a> fmt::Display for FormatDisplay<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {

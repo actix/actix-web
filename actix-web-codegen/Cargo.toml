@@ -9,7 +9,7 @@ authors = [
     "Rob Ede <robjtede@icloud.com>",
 ]
 license = "MIT OR Apache-2.0"
-edition = "2018"
+edition = "2021"
 
 [lib]
 proc-macro = true

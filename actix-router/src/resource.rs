@@ -1389,8 +1389,6 @@ mod tests {
     #[cfg(feature = "http")]
     #[test]
     fn parse_urlencoded_param() {
-        use std::convert::TryFrom;
-
         let re = ResourceDef::new("/user/{id}/test");
 
         let mut path = Path::new("/user/2345/test");
@@ -1743,9 +1741,7 @@ mod tests {
         ResourceDef::new("/{a}/{b}/{c}/{d}/{e}/{f}/{g}/{h}/{i}/{j}/{k}/{l}/{m}/{n}/{o}/{p}");
 
         // panics
-        ResourceDef::new(
-            "/{a}/{b}/{c}/{d}/{e}/{f}/{g}/{h}/{i}/{j}/{k}/{l}/{m}/{n}/{o}/{p}/{q}",
-        );
+        ResourceDef::new("/{a}/{b}/{c}/{d}/{e}/{f}/{g}/{h}/{i}/{j}/{k}/{l}/{m}/{n}/{o}/{p}/{q}");
     }
 
     #[test]

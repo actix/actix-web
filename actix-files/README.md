@@ -4,7 +4,7 @@
 
 [![crates.io](https://img.shields.io/crates/v/actix-files?label=latest)](https://crates.io/crates/actix-files)
 [![Documentation](https://docs.rs/actix-files/badge.svg?version=0.6.3)](https://docs.rs/actix-files/0.6.3)
-![Version](https://img.shields.io/badge/rustc-1.59+-ab6000.svg)
+![Version](https://img.shields.io/badge/rustc-1.65+-ab6000.svg)
 ![License](https://img.shields.io/crates/l/actix-files.svg)
 <br />
 [![dependency status](https://deps.rs/crate/actix-files/0.6.3/status.svg)](https://deps.rs/crate/actix-files/0.6.3)
@@ -15,4 +15,4 @@
 
 - [API Documentation](https://docs.rs/actix-files)
 - [Example Project](https://github.com/actix/examples/tree/master/basics/static-files)
-- Minimum Supported Rust Version (MSRV): 1.59
+- Minimum Supported Rust Version (MSRV): 1.65

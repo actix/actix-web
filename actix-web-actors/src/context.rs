@@ -1,11 +1,13 @@
-use std::collections::VecDeque;
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::{
+    collections::VecDeque,
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
-use actix::dev::{AsyncContextParts, ContextFut, ContextParts, Envelope, Mailbox, ToEnvelope};
-use actix::fut::ActorFuture;
 use actix::{
+    dev::{AsyncContextParts, ContextFut, ContextParts, Envelope, Mailbox, ToEnvelope},
+    fut::ActorFuture,
     Actor, ActorContext, ActorState, Addr, AsyncContext, Handler, Message, SpawnHandle,
 };
 use actix_web::error::Error;
@@ -247,9 +249,11 @@ mod tests {
     use std::time::Duration;
 
     use actix::Actor;
-    use actix_web::http::StatusCode;
-    use actix_web::test::{call_service, init_service, read_body, TestRequest};
-    use actix_web::{web, App, HttpResponse};
+    use actix_web::{
+        http::StatusCode,
+        test::{call_service, init_service, read_body, TestRequest},
+        web, App, HttpResponse,
+    };
     use bytes::Bytes;
 
     use super::*;

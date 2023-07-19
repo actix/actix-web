@@ -58,7 +58,6 @@
 
 use std::{
     collections::VecDeque,
-    convert::TryFrom,
     future::Future,
     io, mem,
     pin::Pin,
@@ -67,17 +66,14 @@ use std::{
 
 use actix::{
     dev::{
-        AsyncContextParts, ContextFut, ContextParts, Envelope, Mailbox, StreamHandler,
-        ToEnvelope,
+        AsyncContextParts, ContextFut, ContextParts, Envelope, Mailbox, StreamHandler, ToEnvelope,
     },
     fut::ActorFuture,
     Actor, ActorContext, ActorState, Addr, AsyncContext, Handler, Message as ActixMessage,
     SpawnHandle,
 };
 use actix_http::ws::{hash_key, Codec};
-pub use actix_http::ws::{
-    CloseCode, CloseReason, Frame, HandshakeError, Message, ProtocolError,
-};
+pub use actix_http::ws::{CloseCode, CloseReason, Frame, HandshakeError, Message, ProtocolError};
 use actix_web::{
     error::{Error, PayloadError},
     http::{
@@ -427,16 +423,16 @@ pub fn handshake_with_protocols(
     };
 
     // check requested protocols
-    let protocol =
-        req.headers()
-            .get(&header::SEC_WEBSOCKET_PROTOCOL)
-            .and_then(|req_protocols| {
-                let req_protocols = req_protocols.to_str().ok()?;
-                req_protocols
-                    .split(',')
-                    .map(|req_p| req_p.trim())
-                    .find(|req_p| protocols.iter().any(|p| p == req_p))
-            });
+    let protocol = req
+        .headers()
+        .get(&header::SEC_WEBSOCKET_PROTOCOL)
+        .and_then(|req_protocols| {
+            let req_protocols = req_protocols.to_str().ok()?;
+            req_protocols
+                .split(',')
+                .map(|req_p| req_p.trim())
+                .find(|req_p| protocols.iter().any(|p| p == req_p))
+        });
 
     let mut response = HttpResponse::build(StatusCode::SWITCHING_PROTOCOLS)
         .upgrade("websocket")

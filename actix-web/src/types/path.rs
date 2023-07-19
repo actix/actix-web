@@ -156,8 +156,7 @@ mod tests {
     use serde::Deserialize;
 
     use super::*;
-    use crate::test::TestRequest;
-    use crate::{error, http, HttpResponse};
+    use crate::{error, http, test::TestRequest, HttpResponse};
 
     #[derive(Deserialize, Debug, Display)]
     #[display(fmt = "MyStruct({}, {})", key, value)]
@@ -276,8 +275,7 @@ mod tests {
     async fn test_custom_err_handler() {
         let (req, mut pl) = TestRequest::with_uri("/name/user1/")
             .app_data(PathConfig::default().error_handler(|err, _| {
-                error::InternalError::from_response(err, HttpResponse::Conflict().finish())
-                    .into()
+                error::InternalError::from_response(err, HttpResponse::Conflict().finish()).into()
             }))
             .to_http_parts();
 

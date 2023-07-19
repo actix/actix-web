@@ -1,6 +1,5 @@
 use std::{
     cell::{Ref, RefMut},
-    convert::TryInto,
     future::Future,
     pin::Pin,
     task::{Context, Poll},
@@ -15,8 +14,10 @@ use crate::{
     body::{BodyStream, BoxBody, MessageBody},
     dev::Extensions,
     error::{Error, JsonPayloadError},
-    http::header::{self, HeaderName, TryIntoHeaderPair, TryIntoHeaderValue},
-    http::{ConnectionType, StatusCode},
+    http::{
+        header::{self, HeaderName, TryIntoHeaderPair, TryIntoHeaderValue},
+        ConnectionType, StatusCode,
+    },
     BoxError, HttpRequest, HttpResponse, Responder,
 };
 
@@ -473,9 +474,8 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_serde_json_in_body() {
-        let resp = HttpResponse::Ok().body(
-            serde_json::to_vec(&serde_json::json!({ "test-key": "test-value" })).unwrap(),
-        );
+        let resp = HttpResponse::Ok()
+            .body(serde_json::to_vec(&serde_json::json!({ "test-key": "test-value" })).unwrap());
 
         assert_eq!(
             body::to_bytes(resp.into_body()).await.unwrap().as_ref(),

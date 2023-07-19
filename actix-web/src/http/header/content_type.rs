@@ -1,5 +1,6 @@
-use super::CONTENT_TYPE;
 use mime::Mime;
+
+use super::CONTENT_TYPE;
 
 crate::http::header::common_header! {
     /// `Content-Type` header, defined

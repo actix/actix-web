@@ -15,6 +15,7 @@ use actix_utils::future::ready;
 use futures_core::future::LocalBoxFuture;
 use tracing::error;
 
+use super::{codec::Codec, dispatcher::Dispatcher, ExpectHandler, UpgradeHandler};
 use crate::{
     body::{BoxBody, MessageBody},
     config::ServiceConfig,
@@ -22,8 +23,6 @@ use crate::{
     service::HttpServiceHandler,
     ConnectCallback, OnConnectData, Request, Response,
 };
-
-use super::{codec::Codec, dispatcher::Dispatcher, ExpectHandler, UpgradeHandler};
 
 /// `ServiceFactory` implementation for HTTP1 transport
 pub struct H1Service<T, S, B, X = ExpectHandler, U = UpgradeHandler> {
@@ -82,13 +81,8 @@ where
     /// Create simple tcp stream service
     pub fn tcp(
         self,
-    ) -> impl ServiceFactory<
-        TcpStream,
-        Config = (),
-        Response = (),
-        Error = DispatchError,
-        InitError = (),
-    > {
+    ) -> impl ServiceFactory<TcpStream, Config = (), Response = (), Error = DispatchError, InitError = ()>
+    {
         fn_service(|io: TcpStream| {
             let peer_addr = io.peer_addr().ok();
             ready(Ok((io, peer_addr)))
@@ -99,8 +93,6 @@ where
 
 #[cfg(feature = "openssl")]
 mod openssl {
-    use super::*;
-
     use actix_tls::accept::{
         openssl::{
             reexports::{Error as SslError, SslAcceptor},
@@ -108,6 +100,8 @@ mod openssl {
         },
         TlsError,
     };
+
+    use super::*;
 
     impl<S, B, X, U> H1Service<TlsStream<TcpStream>, S, B, X, U>
     where
@@ -160,7 +154,6 @@ mod openssl {
 
 #[cfg(feature = "rustls")]
 mod rustls {
-
     use std::io;
 
     use actix_service::ServiceFactoryExt as _;

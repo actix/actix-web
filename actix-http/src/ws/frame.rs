@@ -1,5 +1,4 @@
 use std::cmp::min;
-use std::convert::TryFrom;
 
 use bytes::{Buf, BufMut, BytesMut};
 use tracing::debug;
@@ -222,8 +221,9 @@ impl Parser {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use bytes::Bytes;
+
+    use super::*;
 
     struct F {
         finished: bool,

@@ -127,8 +127,7 @@ impl FromStr for ContentRangeSpec {
     fn from_str(s: &str) -> Result<Self, ParseError> {
         let res = match split_in_two(s, ' ') {
             Some(("bytes", resp)) => {
-                let (range, instance_length) =
-                    split_in_two(resp, '/').ok_or(ParseError::Header)?;
+                let (range, instance_length) = split_in_two(resp, '/').ok_or(ParseError::Header)?;
 
                 let instance_length = if instance_length == "*" {
                     None
