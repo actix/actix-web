@@ -17,7 +17,7 @@ all-features = true
 proc-macro = true
 
 [dependencies]
-darling = "0.14"
+darling = "0.20"
 parse-size = "1"
 proc-macro2 = "1"
 quote = "1"
