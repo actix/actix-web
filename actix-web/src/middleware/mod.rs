@@ -202,11 +202,11 @@
 //! natural flow for your behavior.
 //!
 //! The experimental `actix_web_lab` crate provides a [`from_fn`][lab_from_fn] utility which allows
-//! an async fn to be wrapped and used in the same way as other middleware. See the [`from_fn`] docs
-//! for more info and examples of it's use.
+//! an async fn to be wrapped and used in the same way as other middleware. See the
+//! [`from_fn`][lab_from_fn] docs for more info and examples of it's use.
 //!
-//! While [`from_fn`] is experimental currently, it's likely this helper will graduate to Actix Web
-//! at some stage.
+//! While [`from_fn`][lab_from_fn] is experimental currently, it's likely this helper will graduate
+//! to Actix Web in some form, so feedback is appreciated.
 //!
 //! [`Future`]: std::future::Future
 //! [`App`]: crate::App
