@@ -154,7 +154,10 @@ where
             let srv_cfg = cfg.clone();
             let timeout = cfg.client_request_timeout;
 
-            let builder = Server::build().workers(1).disable_signals().system_exit();
+            let builder = Server::build()
+                .workers(cfg.workers)
+                .disable_signals()
+                .system_exit();
 
             let srv = match srv_cfg.stream {
                 StreamType::Tcp => match srv_cfg.tp {
@@ -367,6 +370,7 @@ pub struct TestServerConfig {
     stream: StreamType,
     client_request_timeout: Duration,
     port: u16,
+    workers: usize,
 }
 
 impl Default for TestServerConfig {
@@ -383,6 +387,7 @@ impl TestServerConfig {
             stream: StreamType::Tcp,
             client_request_timeout: Duration::from_secs(5),
             port: 0,
+            workers: 1,
         }
     }
 
@@ -423,6 +428,14 @@ impl TestServerConfig {
     /// By default, a random free port is determined by the OS.
     pub fn port(mut self, port: u16) -> Self {
         self.port = port;
+        self
+    }
+
+    /// Sets number of workers in the test server process.
+    ///
+    /// By default, the server boots with 1 worker
+    pub fn workers(mut self, workers: usize) -> Self {
+        self.workers = workers;
         self
     }
 }
