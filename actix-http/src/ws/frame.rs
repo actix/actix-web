@@ -1,4 +1,4 @@
-use std::convert::TryFrom;
+use std::cmp::min;
 
 use bytes::{Buf, BufMut, BytesMut};
 use tracing::debug;
@@ -96,6 +96,10 @@ impl Parser {
 
         // not enough data
         if src.len() < idx + length {
+            let min_length = min(length, max_size);
+            if src.capacity() < idx + min_length {
+                src.reserve(idx + min_length - src.capacity());
+            }
             return Ok(None);
         }
 
@@ -217,8 +221,9 @@ impl Parser {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use bytes::Bytes;
+
+    use super::*;
 
     struct F {
         finished: bool,

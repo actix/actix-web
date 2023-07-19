@@ -7,11 +7,10 @@ use std::{
 };
 
 use actix_web::{error::Error, web::Bytes};
-use futures_core::{ready, Stream};
-use pin_project_lite::pin_project;
-
 #[cfg(feature = "experimental-io-uring")]
 use bytes::BytesMut;
+use futures_core::{ready, Stream};
+use pin_project_lite::pin_project;
 
 use super::named::File;
 

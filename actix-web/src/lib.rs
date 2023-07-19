@@ -74,6 +74,11 @@
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
+pub use actix_http::{body, HttpMessage};
+#[cfg(feature = "cookies")]
+#[doc(inline)]
+pub use cookie;
+
 mod app;
 mod app_service;
 mod config;
@@ -102,25 +107,21 @@ pub mod test;
 pub(crate) mod types;
 pub mod web;
 
-pub use crate::app::App;
 #[doc(inline)]
 pub use crate::error::Result;
-pub use crate::error::{Error, ResponseError};
-pub use crate::extract::FromRequest;
-pub use crate::handler::Handler;
-pub use crate::request::HttpRequest;
-pub use crate::resource::Resource;
-pub use crate::response::{CustomizeResponder, HttpResponse, HttpResponseBuilder, Responder};
-pub use crate::route::Route;
-pub use crate::scope::Scope;
-pub use crate::server::HttpServer;
-pub use crate::types::Either;
-
-pub use actix_http::{body, HttpMessage};
-
-#[cfg(feature = "cookies")]
-#[doc(inline)]
-pub use cookie;
+pub use crate::{
+    app::App,
+    error::{Error, ResponseError},
+    extract::FromRequest,
+    handler::Handler,
+    request::HttpRequest,
+    resource::Resource,
+    response::{CustomizeResponder, HttpResponse, HttpResponseBuilder, Responder},
+    route::Route,
+    scope::Scope,
+    server::HttpServer,
+    types::Either,
+};
 
 macro_rules! codegen_reexport {
     ($name:ident) => {

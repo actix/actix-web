@@ -3,22 +3,23 @@ use std::{borrow::Cow, net::SocketAddr, rc::Rc};
 use actix_http::{test::TestRequest as HttpTestRequest, Request};
 use serde::Serialize;
 
+#[cfg(feature = "cookies")]
+use crate::cookie::{Cookie, CookieJar};
 use crate::{
     app_service::AppInitServiceState,
     config::AppConfig,
     data::Data,
     dev::{Extensions, Path, Payload, ResourceDef, Service, Url},
-    http::header::ContentType,
-    http::{header::TryIntoHeaderPair, Method, Uri, Version},
+    http::{
+        header::{ContentType, TryIntoHeaderPair},
+        Method, Uri, Version,
+    },
     rmap::ResourceMap,
     service::{ServiceRequest, ServiceResponse},
     test,
     web::Bytes,
     HttpRequest, HttpResponse,
 };
-
-#[cfg(feature = "cookies")]
-use crate::cookie::{Cookie, CookieJar};
 
 /// Test `Request` builder.
 ///
@@ -197,8 +198,7 @@ impl TestRequest {
     ///
     /// The `Content-Type` header is set to `application/json`.
     pub fn set_json(mut self, data: impl Serialize) -> Self {
-        let bytes =
-            serde_json::to_string(&data).expect("Failed to serialize test data to json");
+        let bytes = serde_json::to_string(&data).expect("Failed to serialize test data to json");
         self.req.set_payload(bytes);
         self.req.insert_header(ContentType::json());
         self

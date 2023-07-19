@@ -16,7 +16,7 @@ categories = [
     "web-programming::websocket",
 ]
 license = "MIT OR Apache-2.0"
-edition = "2018"
+edition = "2021"
 
 [package.metadata.docs.rs]
 # features that docs.rs will build with
@@ -62,7 +62,7 @@ actix-utils = "3"
 actix-rt = { version = "2.2", default-features = false }
 
 ahash = "0.8"
-bitflags = "1.2"
+bitflags = "2"
 bytes = "1"
 bytestring = "1"
 derive_more = "0.99.5"
@@ -82,7 +82,7 @@ tokio-util = { version = "0.7", features = ["io", "codec"] }
 tracing = { version = "0.1.30", default-features = false, features = ["log"] }
 
 # http2
-h2 = { version = "0.3.9", optional = true }
+h2 = { version = "0.3.17", optional = true }
 
 # websockets
 local-channel = { version = "0.1", optional = true }
@@ -105,20 +105,20 @@ actix-tls = { version = "3", features = ["openssl"] }
 actix-web = "4"
 
 async-stream = "0.3"
-criterion = { version = "0.4", features = ["html_reports"] }
-env_logger = "0.9"
+criterion = { version = "0.5", features = ["html_reports"] }
+env_logger = "0.10"
 futures-util = { version = "0.3.17", default-features = false, features = ["alloc"] }
 memchr = "2.4"
 once_cell = "1.9"
-rcgen = "0.9"
+rcgen = "0.11"
 regex = "1.3"
 rustversion = "1"
 rustls-pemfile = "1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 static_assertions = "1"
-tls-openssl = { package = "openssl", version = "0.10.9" }
-tls-rustls = { package = "rustls", version = "0.20.0" }
+tls-openssl = { package = "openssl", version = "0.10.55" }
+tls-rustls = { package = "rustls", version = "0.20" }
 tokio = { version = "1.24.2", features = ["net", "rt", "macros"] }
 
 [[example]]

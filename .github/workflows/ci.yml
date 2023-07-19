@@ -23,23 +23,23 @@ jobs:
           - { name: macOS, os: macos-latest, triple: x86_64-apple-darwin }
           - { name: Windows, os: windows-latest, triple: x86_64-pc-windows-msvc }
         version:
-          - 1.59.0 # MSRV
+          - 1.65.0 # MSRV
           - stable
 
     name: ${{ matrix.target.name }} / ${{ matrix.version }}
     runs-on: ${{ matrix.target.os }}
-
-    env: {}
 
     steps:
       - uses: actions/checkout@v3
 
       - name: Install OpenSSL
         if: matrix.target.os == 'windows-latest'
-        run: choco install openssl
+        run: choco install openssl -y --forcex64 --no-progress
       - name: Set OpenSSL dir in env
         if: matrix.target.os == 'windows-latest'
-        run: echo 'OPENSSL_DIR=C:\Program Files\OpenSSL-Win64' | Out-File -FilePath $env:GITHUB_ENV -Append
+        run: |
+          echo 'OPENSSL_DIR=C:\Program Files\OpenSSL-Win64' | Out-File -FilePath $env:GITHUB_ENV -Append
+          echo 'OPENSSL_DIR=C:\Program Files\OpenSSL' | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Install Rust (${{ matrix.version }})
         uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -49,25 +49,15 @@ jobs:
       - name: Install cargo-hack
         uses: taiki-e/install-action@cargo-hack
 
-      - name: workaround MSRV issues
-        if: matrix.version != 'stable'
-        run: |
-          cargo install cargo-edit --version=0.8.0
-          cargo add const-str@0.3 --dev -p=actix-web
-          cargo add const-str@0.3 --dev -p=awc
-
-      - name: workaround MSRV issues
-        if: matrix.version != 'stable'
-        run: |
-          cargo update -p=zstd-sys --precise=2.0.1+zstd.1.5.2
+      # - name: workaround MSRV issues
+      #   if: matrix.version != 'stable'
+      #   run: |
 
       - name: check minimal
-        uses: actions-rs/cargo@v1
-        with: { command: ci-check-min }
+        run: cargo ci-check-min
 
       - name: check default
-        uses: actions-rs/cargo@v1
-        with: { command: ci-check-default }
+        run: cargo ci-check-default
 
       - name: tests
         timeout-minutes: 60
@@ -102,7 +92,6 @@ jobs:
         timeout-minutes: 60
         run: >
           sudo bash -c "ulimit -Sl 512 && ulimit -Hl 512 && PATH=$PATH:/usr/share/rust/.cargo/bin && RUSTUP_TOOLCHAIN=stable cargo test --lib --tests -p=actix-files --all-features"
-
 
   rustdoc:
     name: doc tests

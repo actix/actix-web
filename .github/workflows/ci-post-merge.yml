@@ -26,48 +26,31 @@ jobs:
     name: ${{ matrix.target.name }} / ${{ matrix.version }}
     runs-on: ${{ matrix.target.os }}
 
-    env:
-      CI: 1
-      CARGO_INCREMENTAL: 0
-      VCPKGRS_DYNAMIC: 1
-      CARGO_UNSTABLE_SPARSE_REGISTRY: true
-
     steps:
       - uses: actions/checkout@v3
 
-      # install OpenSSL on Windows
-      # TODO: GitHub actions docs state that OpenSSL is
-      # already installed on these Windows machines somewhere
-      - name: Set vcpkg root
-        if: matrix.target.triple == 'x86_64-pc-windows-msvc'
-        run: echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
       - name: Install OpenSSL
-        if: matrix.target.triple == 'x86_64-pc-windows-msvc'
-        run: vcpkg install openssl:x64-windows
+        if: matrix.target.os == 'windows-latest'
+        run: choco install openssl -y --forcex64 --no-progress
+      - name: Set OpenSSL dir in env
+        if: matrix.target.os == 'windows-latest'
+        run: |
+          echo 'OPENSSL_DIR=C:\Program Files\OpenSSL-Win64' | Out-File -FilePath $env:GITHUB_ENV -Append
+          echo 'OPENSSL_DIR=C:\Program Files\OpenSSL' | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      - name: Install ${{ matrix.version }}
-        uses: actions-rs/toolchain@v1
+      - name: Install Rust (${{ matrix.version }})
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: ${{ matrix.version }}
-          profile: minimal
-          override: true
 
       - name: Install cargo-hack
         uses: taiki-e/install-action@cargo-hack
 
-      - name: Generate Cargo.lock
-        uses: actions-rs/cargo@v1
-        with: { command: generate-lockfile }
-      - name: Cache Dependencies
-        uses: Swatinem/rust-cache@v1.2.0
-
       - name: check minimal
-        uses: actions-rs/cargo@v1
-        with: { command: ci-check-min }
+        run: cargo ci-check-min
 
       - name: check default
-        uses: actions-rs/cargo@v1
-        with: { command: ci-check-default }
+        run: cargo ci-check-default
 
       - name: tests
         timeout-minutes: 60
@@ -92,22 +75,14 @@ jobs:
     name: Verify Feature Combinations
     runs-on: ubuntu-latest
 
-    env:
-      CI: 1
-      CARGO_INCREMENTAL: 0
-
     steps:
       - uses: actions/checkout@v3
 
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
 
       - name: Install cargo-hack
         uses: taiki-e/install-action@cargo-hack
-
-      - name: Generate Cargo.lock
-        run: cargo generate-lockfile
-      - name: Cache Dependencies
-        uses: Swatinem/rust-cache@v1.2.0
 
       - name: check feature combinations
         run: cargo ci-check-all-feature-powerset
@@ -119,22 +94,14 @@ jobs:
     name: nextest
     runs-on: ubuntu-latest
 
-    env:
-      CI: 1
-      CARGO_INCREMENTAL: 0
-
     steps:
       - uses: actions/checkout@v3
 
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
 
       - name: Install nextest
         uses: taiki-e/install-action@nextest
-
-      - name: Generate Cargo.lock
-        run: cargo generate-lockfile
-      - name: Cache Dependencies
-        uses: Swatinem/rust-cache@v1.3.0
 
       - name: Test with cargo-nextest
         run: cargo nextest run

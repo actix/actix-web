@@ -24,8 +24,7 @@ async fn test_utf8_file_contents() {
 
     // disable UTF-8 attribute
     let srv =
-        test::init_service(App::new().service(Files::new("/", "./tests").prefer_utf8(false)))
-            .await;
+        test::init_service(App::new().service(Files::new("/", "./tests").prefer_utf8(false))).await;
 
     let req = TestRequest::with_uri("/utf8.txt").to_request();
     let res = test::call_service(&srv, req).await;

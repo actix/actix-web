@@ -4,10 +4,9 @@ use std::{
     task::{Context, Poll},
 };
 
+use actix_http::body::{BodySize, BoxBody, MessageBody};
 use bytes::Bytes;
 use pin_project_lite::pin_project;
-
-use actix_http::body::{BodySize, BoxBody, MessageBody};
 
 pin_project! {
     /// Represents various types of HTTP message body.

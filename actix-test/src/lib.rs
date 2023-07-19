@@ -45,8 +45,8 @@ use actix_http::{header::HeaderMap, ws, HttpService, Method, Request, Response};
 pub use actix_http_test::unused_addr;
 use actix_service::{map_config, IntoServiceFactory, ServiceFactory, ServiceFactoryExt as _};
 pub use actix_web::test::{
-    call_and_read_body, call_and_read_body_json, call_service, init_service, ok_service,
-    read_body, read_body_json, status_service, TestRequest,
+    call_and_read_body, call_and_read_body_json, call_service, init_service, ok_service, read_body,
+    read_body_json, status_service, TestRequest,
 };
 use actix_web::{
     body::MessageBody,
@@ -159,11 +159,8 @@ where
             let srv = match srv_cfg.stream {
                 StreamType::Tcp => match srv_cfg.tp {
                     HttpVer::Http1 => builder.listen("test", tcp, move || {
-                        let app_cfg = AppConfig::__priv_test_new(
-                            false,
-                            local_addr.to_string(),
-                            local_addr,
-                        );
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
 
                         let fac = factory()
                             .into_factory()
@@ -175,11 +172,8 @@ where
                             .tcp()
                     }),
                     HttpVer::Http2 => builder.listen("test", tcp, move || {
-                        let app_cfg = AppConfig::__priv_test_new(
-                            false,
-                            local_addr.to_string(),
-                            local_addr,
-                        );
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
 
                         let fac = factory()
                             .into_factory()
@@ -191,11 +185,8 @@ where
                             .tcp()
                     }),
                     HttpVer::Both => builder.listen("test", tcp, move || {
-                        let app_cfg = AppConfig::__priv_test_new(
-                            false,
-                            local_addr.to_string(),
-                            local_addr,
-                        );
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
 
                         let fac = factory()
                             .into_factory()
@@ -210,11 +201,8 @@ where
                 #[cfg(feature = "openssl")]
                 StreamType::Openssl(acceptor) => match cfg.tp {
                     HttpVer::Http1 => builder.listen("test", tcp, move || {
-                        let app_cfg = AppConfig::__priv_test_new(
-                            false,
-                            local_addr.to_string(),
-                            local_addr,
-                        );
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
 
                         let fac = factory()
                             .into_factory()
@@ -226,11 +214,8 @@ where
                             .openssl(acceptor.clone())
                     }),
                     HttpVer::Http2 => builder.listen("test", tcp, move || {
-                        let app_cfg = AppConfig::__priv_test_new(
-                            false,
-                            local_addr.to_string(),
-                            local_addr,
-                        );
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
 
                         let fac = factory()
                             .into_factory()
@@ -242,11 +227,8 @@ where
                             .openssl(acceptor.clone())
                     }),
                     HttpVer::Both => builder.listen("test", tcp, move || {
-                        let app_cfg = AppConfig::__priv_test_new(
-                            false,
-                            local_addr.to_string(),
-                            local_addr,
-                        );
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
 
                         let fac = factory()
                             .into_factory()
@@ -261,11 +243,8 @@ where
                 #[cfg(feature = "rustls")]
                 StreamType::Rustls(config) => match cfg.tp {
                     HttpVer::Http1 => builder.listen("test", tcp, move || {
-                        let app_cfg = AppConfig::__priv_test_new(
-                            false,
-                            local_addr.to_string(),
-                            local_addr,
-                        );
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
 
                         let fac = factory()
                             .into_factory()
@@ -277,11 +256,8 @@ where
                             .rustls(config.clone())
                     }),
                     HttpVer::Http2 => builder.listen("test", tcp, move || {
-                        let app_cfg = AppConfig::__priv_test_new(
-                            false,
-                            local_addr.to_string(),
-                            local_addr,
-                        );
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
 
                         let fac = factory()
                             .into_factory()
@@ -293,11 +269,8 @@ where
                             .rustls(config.clone())
                     }),
                     HttpVer::Both => builder.listen("test", tcp, move || {
-                        let app_cfg = AppConfig::__priv_test_new(
-                            false,
-                            local_addr.to_string(),
-                            local_addr,
-                        );
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
 
                         let fac = factory()
                             .into_factory()

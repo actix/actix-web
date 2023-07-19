@@ -18,6 +18,7 @@
 //! There are shortcuts for routes with method guards in the [`web`](crate::web) module:
 //! [`web::get()`](crate::web::get), [`web::post()`](crate::web::post), etc. The routes created by
 //! the following calls are equivalent:
+//!
 //! - `web::get()` (recommended form)
 //! - `web::route().guard(guard::Get())`
 //!
@@ -28,9 +29,11 @@
 //! would result in inaccessible routes. See the [`Host`] guard for an example of virtual hosting.
 //!
 //! # Examples
+//!
 //! In the following code, the `/guarded` resource has one defined route whose handler will only be
-//! called if the request method is `POST` and there is a request header with name and value equal
-//! to `x-guarded` and `secret`, respectively.
+//! called if the request method is GET or POST and there is a `x-guarded` request header with value
+//! equal to `secret`.
+//!
 //! ```
 //! use actix_web::{web, http::Method, guard, HttpResponse};
 //!
@@ -48,7 +51,6 @@
 
 use std::{
     cell::{Ref, RefMut},
-    convert::TryFrom,
     rc::Rc,
 };
 
@@ -59,8 +61,10 @@ use crate::{http::header::Header, service::ServiceRequest, HttpMessage as _};
 mod acceptable;
 mod host;
 
-pub use self::acceptable::Acceptable;
-pub use self::host::{Host, HostGuard};
+pub use self::{
+    acceptable::Acceptable,
+    host::{Host, HostGuard},
+};
 
 /// Provides access to request parts that are useful during routing.
 #[derive(Debug)]

@@ -1,6 +1,4 @@
-use crate::ResourcePath;
-
-use crate::Quoter;
+use crate::{Quoter, ResourcePath};
 
 thread_local! {
     static DEFAULT_QUOTER: Quoter = Quoter::new(b"", b"%/+");
@@ -65,7 +63,6 @@ impl ResourcePath for Url {
 #[cfg(test)]
 mod tests {
     use http::Uri;
-    use std::convert::TryFrom;
 
     use super::*;
     use crate::{Path, ResourceDef};

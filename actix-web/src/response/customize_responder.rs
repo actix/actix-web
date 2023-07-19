@@ -1,5 +1,7 @@
 use actix_http::{
-    body::EitherBody, error::HttpError, header::HeaderMap, header::TryIntoHeaderPair,
+    body::EitherBody,
+    error::HttpError,
+    header::{HeaderMap, TryIntoHeaderPair},
     StatusCode,
 };
 
@@ -168,9 +170,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use bytes::Bytes;
-
     use actix_http::body::to_bytes;
+    use bytes::Bytes;
 
     use super::*;
     use crate::{

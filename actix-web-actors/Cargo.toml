@@ -7,7 +7,7 @@ keywords = ["actix", "http", "web", "framework", "async"]
 homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-web"
 license = "MIT OR Apache-2.0"
-edition = "2018"
+edition = "2021"
 
 [lib]
 name = "actix_web_actors"
@@ -32,7 +32,6 @@ actix-test = "0.1"
 awc = { version = "3", default-features = false }
 actix-web = { version = "4", features = ["macros"] }
 
+env_logger = "0.10"
+futures-util = { version = "0.3.17", default-features = false, features = ["std"] }
 mime = "0.3"
-
-env_logger = "0.9"
-futures-util = { version = "0.3.17", default-features = false }

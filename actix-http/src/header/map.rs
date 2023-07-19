@@ -1120,9 +1120,7 @@ mod tests {
         assert!(vals.next().is_none());
     }
 
-    fn owned_pair<'a>(
-        (name, val): (&'a HeaderName, &'a HeaderValue),
-    ) -> (HeaderName, HeaderValue) {
+    fn owned_pair<'a>((name, val): (&'a HeaderName, &'a HeaderValue)) -> (HeaderName, HeaderValue) {
         (name.clone(), val.clone())
     }
 }
