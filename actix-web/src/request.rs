@@ -435,16 +435,28 @@ impl fmt::Debug for HttpRequest {
             self.inner.head.method,
             self.path()
         )?;
+
         if !self.query_string().is_empty() {
             writeln!(f, "  query: ?{:?}", self.query_string())?;
         }
+
         if !self.match_info().is_empty() {
             writeln!(f, "  params: {:?}", self.match_info())?;
         }
+
         writeln!(f, "  headers:")?;
+
         for (key, val) in self.headers().iter() {
-            writeln!(f, "    {:?}: {:?}", key, val)?;
+            match key {
+                // redact sensitive header values from debug output
+                &crate::http::header::AUTHORIZATION
+                | &crate::http::header::PROXY_AUTHORIZATION
+                | &crate::http::header::COOKIE => writeln!(f, "    {:?}: {:?}", key, "*redacted*")?,
+
+                _ => writeln!(f, "    {:?}: {:?}", key, val)?,
+            }
         }
+
         Ok(())
     }
 }
@@ -907,5 +919,48 @@ mod tests {
         assert_eq!(bar_resp.status(), StatusCode::OK);
         let body = read_body(bar_resp).await;
         assert_eq!(body, "http://localhost:8080/bar/nested");
+    }
+
+    #[test]
+    fn authorization_header_hidden_in_debug() {
+        let authorization_header = "Basic bXkgdXNlcm5hbWU6bXkgcGFzc3dvcmQK";
+        let req = TestRequest::get()
+            .insert_header((crate::http::header::AUTHORIZATION, authorization_header))
+            .to_http_request();
+
+        assert!(!format!("{:?}", req).contains(authorization_header));
+    }
+
+    #[test]
+    fn proxy_authorization_header_hidden_in_debug() {
+        let proxy_authorization_header = "secret value";
+        let req = TestRequest::get()
+            .insert_header((
+                crate::http::header::PROXY_AUTHORIZATION,
+                proxy_authorization_header,
+            ))
+            .to_http_request();
+
+        assert!(!format!("{:?}", req).contains(proxy_authorization_header));
+    }
+
+    #[test]
+    fn cookie_header_hidden_in_debug() {
+        let cookie_header = "secret";
+        let req = TestRequest::get()
+            .insert_header((crate::http::header::COOKIE, cookie_header))
+            .to_http_request();
+
+        assert!(!format!("{:?}", req).contains(cookie_header));
+    }
+
+    #[test]
+    fn other_header_visible_in_debug() {
+        let location_header = "192.0.0.1";
+        let req = TestRequest::get()
+            .insert_header((crate::http::header::LOCATION, location_header))
+            .to_http_request();
+
+        assert!(format!("{:?}", req).contains(location_header));
     }
 }
