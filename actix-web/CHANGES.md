@@ -6,10 +6,12 @@
 
 - Add `HttpServer::{bind, listen}_auto_h2c()` method behind new `http2` crate feature.
 - Add `Resource::{get, post, etc...}` methods for more concisely adding routes that don't need additional guards.
+- Add `Compress::with_predicate()` method for customizing when compression is applied.
 
 ### Changed
 
 - Handler functions can now receive up to 16 extractor parameters.
+- The `Compress` no longer compresses image or video content by default.
 - Minimum supported Rust version (MSRV) is now 1.65 due to transitive `time` dependency.
 
 ## 4.3.1 - 2023-02-26

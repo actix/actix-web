@@ -1,9 +1,11 @@
 //! For middleware documentation, see [`Compress`].
 
 use std::{
+    fmt,
     future::Future,
     marker::PhantomData,
     pin::Pin,
+    rc::Rc,
     task::{Context, Poll},
 };
 
@@ -11,18 +13,21 @@ use actix_http::encoding::Encoder;
 use actix_service::{Service, Transform};
 use actix_utils::future::{ok, Either, Ready};
 use futures_core::ready;
+use mime::Mime;
 use once_cell::sync::Lazy;
 use pin_project_lite::pin_project;
 
 use crate::{
     body::{EitherBody, MessageBody},
     http::{
-        header::{self, AcceptEncoding, Encoding, HeaderValue},
+        header::{self, AcceptEncoding, ContentEncoding, Encoding, HeaderValue},
         StatusCode,
     },
     service::{ServiceRequest, ServiceResponse},
     Error, HttpMessage, HttpResponse,
 };
+
+type CompressPredicateFn = Rc<dyn Fn(Option<&HeaderValue>) -> bool>;
 
 /// Middleware for compressing response payloads.
 ///
@@ -71,9 +76,80 @@ use crate::{
 /// ```
 ///
 /// [feature flags]: ../index.html#crate-features
-#[derive(Debug, Clone, Default)]
+#[derive(Clone)]
 #[non_exhaustive]
-pub struct Compress;
+pub struct Compress {
+    predicate: CompressPredicateFn,
+}
+
+impl Compress {
+    /// Sets the `predicate` function to use when deciding if response should be compressed or not.
+    ///
+    /// The `predicate` function receives the response's current `Content-Type` header, if set.
+    /// Returning true from the predicate will instruct this middleware to compress the response.
+    ///
+    /// By default, video and image responses are unaffected (since they are typically compressed
+    /// already) and responses without a Content-Type header will be compressed. Custom predicate
+    /// functions should try to maintain these default rules.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use actix_web::{App, middleware::Compress};
+    ///
+    /// App::new()
+    ///     .wrap(Compress::default().with_predicate(|content_type| {
+    ///         // preserve that missing Content-Type header compresses content
+    ///         let ct = match content_type.and_then(|ct| ct.to_str().ok()) {
+    ///             None => return true,
+    ///             Some(ct) => ct,
+    ///         };
+    ///
+    ///         // parse Content-Type as MIME type
+    ///         let ct_mime = match ct.parse::<mime::Mime>() {
+    ///             Err(_) => return true,
+    ///             Ok(mime) => mime,
+    ///         };
+    ///
+    ///         // compress everything except HTML documents
+    ///         ct_mime.subtype() != mime::HTML
+    ///     }))
+    /// # ;
+    /// ```
+    pub fn with_predicate(
+        self,
+        predicate: impl Fn(Option<&HeaderValue>) -> bool + 'static,
+    ) -> Self {
+        Self {
+            predicate: Rc::new(predicate),
+        }
+    }
+}
+
+impl fmt::Debug for Compress {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Compress").finish_non_exhaustive()
+    }
+}
+
+impl Default for Compress {
+    fn default() -> Self {
+        fn default_compress_predicate(content_type: Option<&HeaderValue>) -> bool {
+            match content_type {
+                None => true,
+                Some(hdr) => match hdr.to_str().ok().and_then(|hdr| hdr.parse::<Mime>().ok()) {
+                    Some(mime) if mime.type_().as_str() == "image" => false,
+                    Some(mime) if mime.type_().as_str() == "video" => false,
+                    _ => true,
+                },
+            }
+        }
+
+        Compress {
+            predicate: Rc::new(default_compress_predicate),
+        }
+    }
+}
 
 impl<S, B> Transform<S, ServiceRequest> for Compress
 where
@@ -87,12 +163,16 @@ where
     type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        ok(CompressMiddleware { service })
+        ok(CompressMiddleware {
+            service,
+            predicate: Rc::clone(&self.predicate),
+        })
     }
 }
 
 pub struct CompressMiddleware<S> {
     service: S,
+    predicate: CompressPredicateFn,
 }
 
 impl<S, B> Service<ServiceRequest> for CompressMiddleware<S>
@@ -118,6 +198,7 @@ where
                 return Either::left(CompressResponse {
                     encoding: Encoding::identity(),
                     fut: self.service.call(req),
+                    predicate: Rc::clone(&self.predicate),
                     _phantom: PhantomData,
                 })
             }
@@ -145,6 +226,7 @@ where
             Some(encoding) => Either::left(CompressResponse {
                 fut: self.service.call(req),
                 encoding,
+                predicate: Rc::clone(&self.predicate),
                 _phantom: PhantomData,
             }),
         }
@@ -159,6 +241,7 @@ pin_project! {
         #[pin]
         fut: S::Future,
         encoding: Encoding,
+        predicate: CompressPredicateFn,
         _phantom: PhantomData<B>,
     }
 }
@@ -170,19 +253,29 @@ where
 {
     type Output = Result<ServiceResponse<EitherBody<Encoder<B>>>, Error>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.project();
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.as_mut().project();
 
         match ready!(this.fut.poll(cx)) {
             Ok(resp) => {
                 let enc = match this.encoding {
                     Encoding::Known(enc) => *enc,
                     Encoding::Unknown(enc) => {
-                        unimplemented!("encoding {} should not be here", enc);
+                        unimplemented!("encoding '{enc}' should not be here");
                     }
                 };
 
                 Poll::Ready(Ok(resp.map_body(move |head, body| {
+                    let content_type = head.headers.get(header::CONTENT_TYPE);
+
+                    let should_compress = (self.predicate)(content_type);
+
+                    let enc = if should_compress {
+                        enc
+                    } else {
+                        ContentEncoding::Identity
+                    };
+
                     EitherBody::left(Encoder::response(enc, head, body))
                 })))
             }
@@ -246,8 +339,19 @@ static SUPPORTED_ENCODINGS: &[Encoding] = &[
 mod tests {
     use std::collections::HashSet;
 
+    // use static_assertions::assert_impl_all;
+
     use super::*;
+    use crate::http::header::ContentType;
     use crate::{middleware::DefaultHeaders, test, web, App};
+
+    const HTML_DATA_PART: &str = "<html><h1>hello world</h1></html";
+    const HTML_DATA: &str = const_str::repeat!(HTML_DATA_PART, 100);
+
+    const TEXT_DATA_PART: &str = "hello world ";
+    const TEXT_DATA: &str = const_str::repeat!(TEXT_DATA_PART, 100);
+
+    // assert_impl_all!(Compress: Send, Sync);
 
     pub fn gzip_decode(bytes: impl AsRef<[u8]>) -> Vec<u8> {
         use std::io::Read as _;
@@ -257,23 +361,55 @@ mod tests {
         buf
     }
 
+    #[track_caller]
+    fn assert_successful_res_with_content_type<B>(res: &ServiceResponse<B>, ct: &str) {
+        assert!(res.status().is_success());
+        assert!(
+            res.headers()
+                .get(header::CONTENT_TYPE)
+                .expect("content-type header should be present")
+                .to_str()
+                .expect("content-type header should be utf-8")
+                .contains(ct),
+            "response's content-type did not match {}",
+            ct
+        );
+    }
+
+    #[track_caller]
+    fn assert_successful_gzip_res_with_content_type<B>(res: &ServiceResponse<B>, ct: &str) {
+        assert_successful_res_with_content_type(res, ct);
+        assert_eq!(
+            res.headers()
+                .get(header::CONTENT_ENCODING)
+                .expect("response should be gzip compressed"),
+            "gzip",
+        );
+    }
+
+    #[track_caller]
+    fn assert_successful_identity_res_with_content_type<B>(res: &ServiceResponse<B>, ct: &str) {
+        assert_successful_res_with_content_type(res, ct);
+        assert!(
+            res.headers().get(header::CONTENT_ENCODING).is_none(),
+            "response should not be compressed",
+        );
+    }
+
     #[actix_rt::test]
     async fn prevents_double_compressing() {
-        const D: &str = "hello world ";
-        const DATA: &str = const_str::repeat!(D, 100);
-
         let app = test::init_service({
             App::new()
                 .wrap(Compress::default())
                 .route(
                     "/single",
-                    web::get().to(move || HttpResponse::Ok().body(DATA)),
+                    web::get().to(move || HttpResponse::Ok().body(TEXT_DATA)),
                 )
                 .service(
                     web::resource("/double")
                         .wrap(Compress::default())
                         .wrap(DefaultHeaders::new().add(("x-double", "true")))
-                        .route(web::get().to(move || HttpResponse::Ok().body(DATA))),
+                        .route(web::get().to(move || HttpResponse::Ok().body(TEXT_DATA))),
                 )
         })
         .await;
@@ -287,7 +423,7 @@ mod tests {
         assert_eq!(res.headers().get("x-double"), None);
         assert_eq!(res.headers().get(header::CONTENT_ENCODING).unwrap(), "gzip");
         let bytes = test::read_body(res).await;
-        assert_eq!(gzip_decode(bytes), DATA.as_bytes());
+        assert_eq!(gzip_decode(bytes), TEXT_DATA.as_bytes());
 
         let req = test::TestRequest::default()
             .uri("/double")
@@ -298,7 +434,7 @@ mod tests {
         assert_eq!(res.headers().get("x-double").unwrap(), "true");
         assert_eq!(res.headers().get(header::CONTENT_ENCODING).unwrap(), "gzip");
         let bytes = test::read_body(res).await;
-        assert_eq!(gzip_decode(bytes), DATA.as_bytes());
+        assert_eq!(gzip_decode(bytes), TEXT_DATA.as_bytes());
     }
 
     #[actix_rt::test]
@@ -323,5 +459,82 @@ mod tests {
         let vary_headers = res.headers().get_all(header::VARY).collect::<HashSet<_>>();
         assert!(vary_headers.contains(&HeaderValue::from_static("x-test")));
         assert!(vary_headers.contains(&HeaderValue::from_static("accept-encoding")));
+    }
+
+    fn configure_predicate_test(cfg: &mut web::ServiceConfig) {
+        cfg.route(
+            "/html",
+            web::get().to(|| {
+                HttpResponse::Ok()
+                    .content_type(ContentType::html())
+                    .body(HTML_DATA)
+            }),
+        )
+        .route(
+            "/image",
+            web::get().to(|| {
+                HttpResponse::Ok()
+                    .content_type(ContentType::jpeg())
+                    .body(TEXT_DATA)
+            }),
+        );
+    }
+
+    #[actix_rt::test]
+    async fn prevents_compression_jpeg() {
+        let app = test::init_service(
+            App::new()
+                .wrap(Compress::default())
+                .configure(configure_predicate_test),
+        )
+        .await;
+
+        let req = test::TestRequest::with_uri("/html")
+            .insert_header((header::ACCEPT_ENCODING, "gzip"));
+        let res = test::call_service(&app, req.to_request()).await;
+        assert_successful_gzip_res_with_content_type(&res, "text/html");
+        assert_ne!(test::read_body(res).await, HTML_DATA.as_bytes());
+
+        let req = test::TestRequest::with_uri("/image")
+            .insert_header((header::ACCEPT_ENCODING, "gzip"));
+        let res = test::call_service(&app, req.to_request()).await;
+        assert_successful_identity_res_with_content_type(&res, "image/jpeg");
+        assert_eq!(test::read_body(res).await, TEXT_DATA.as_bytes());
+    }
+
+    #[actix_rt::test]
+    async fn prevents_compression_custom_predicate() {
+        let app = test::init_service(
+            App::new()
+                .wrap(Compress::default().with_predicate(|hdr| {
+                    // preserve that missing CT header compresses content
+                    let hdr = match hdr.and_then(|hdr| hdr.to_str().ok()) {
+                        None => return true,
+                        Some(hdr) => hdr,
+                    };
+
+                    let mime = match hdr.parse::<mime::Mime>() {
+                        Err(_) => return true,
+                        Ok(mime) => mime,
+                    };
+
+                    // compress everything except HTML documents
+                    mime.subtype() != mime::HTML
+                }))
+                .configure(configure_predicate_test),
+        )
+        .await;
+
+        let req = test::TestRequest::with_uri("/html")
+            .insert_header((header::ACCEPT_ENCODING, "gzip"));
+        let res = test::call_service(&app, req.to_request()).await;
+        assert_successful_identity_res_with_content_type(&res, "text/html");
+        assert_eq!(test::read_body(res).await, HTML_DATA.as_bytes());
+
+        let req = test::TestRequest::with_uri("/image")
+            .insert_header((header::ACCEPT_ENCODING, "gzip"));
+        let res = test::call_service(&app, req.to_request()).await;
+        assert_successful_gzip_res_with_content_type(&res, "image/jpeg");
+        assert_ne!(test::read_body(res).await, TEXT_DATA.as_bytes());
     }
 }
