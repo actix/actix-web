@@ -29,17 +29,17 @@ jobs:
     name: ${{ matrix.target.name }} / ${{ matrix.version }}
     runs-on: ${{ matrix.target.os }}
 
-    env: {}
-
     steps:
       - uses: actions/checkout@v3
 
       - name: Install OpenSSL
         if: matrix.target.os == 'windows-latest'
-        run: choco install openssl
+        run: choco install openssl -y --forcex64 --no-progress
       - name: Set OpenSSL dir in env
         if: matrix.target.os == 'windows-latest'
-        run: echo 'OPENSSL_DIR=C:\Program Files\OpenSSL-Win64' | Out-File -FilePath $env:GITHUB_ENV -Append
+        run: |
+          echo 'OPENSSL_DIR=C:\Program Files\OpenSSL-Win64' | Out-File -FilePath $env:GITHUB_ENV -Append
+          echo 'OPENSSL_DIR=C:\Program Files\OpenSSL' | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Install Rust (${{ matrix.version }})
         uses: actions-rust-lang/setup-rust-toolchain@v1

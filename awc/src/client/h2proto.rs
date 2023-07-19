@@ -1,28 +1,29 @@
 use std::future::Future;
 
+use actix_http::{
+    body::{BodySize, MessageBody},
+    header::HeaderMap,
+    Payload, RequestHeadType, ResponseHead,
+};
 use actix_utils::future::poll_fn;
 use bytes::Bytes;
 use h2::{
     client::{Builder, Connection, SendRequest},
     SendStream,
 };
-use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, TRANSFER_ENCODING};
-use http::{request::Request, Method, Version};
-use log::trace;
-
-use actix_http::{
-    body::{BodySize, MessageBody},
-    header::HeaderMap,
-    Payload, RequestHeadType, ResponseHead,
+use http::{
+    header::{HeaderValue, CONNECTION, CONTENT_LENGTH, TRANSFER_ENCODING},
+    request::Request,
+    Method, Version,
 };
-
-use crate::BoxError;
+use log::trace;
 
 use super::{
     config::ConnectorConfig,
     connection::{ConnectionIo, H2Connection},
     error::SendRequestError,
 };
+use crate::BoxError;
 
 pub(crate) async fn send_request<Io, B>(
     mut io: H2Connection<Io>,

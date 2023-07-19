@@ -186,10 +186,9 @@ impl_into_string_responder!(Cow<'_, str>);
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use actix_http::body::to_bytes;
     use actix_service::Service;
     use bytes::{Bytes, BytesMut};
-
-    use actix_http::body::to_bytes;
 
     use super::*;
     use crate::{

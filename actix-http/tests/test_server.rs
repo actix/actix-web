@@ -166,8 +166,7 @@ async fn chunked_payload() {
 
         for chunk_size in chunk_sizes.iter() {
             let mut bytes = Vec::new();
-            let random_bytes: Vec<u8> =
-                (0..*chunk_size).map(|_| rand::random::<u8>()).collect();
+            let random_bytes: Vec<u8> = (0..*chunk_size).map(|_| rand::random::<u8>()).collect();
 
             bytes.extend(format!("{:X}\r\n", chunk_size).as_bytes());
             bytes.extend(&random_bytes[..]);
@@ -352,8 +351,7 @@ async fn http10_keepalive() {
     .await;
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
-    let _ =
-        stream.write_all(b"GET /test/tests/test HTTP/1.0\r\nconnection: keep-alive\r\n\r\n");
+    let _ = stream.write_all(b"GET /test/tests/test HTTP/1.0\r\nconnection: keep-alive\r\n\r\n");
     let mut data = vec![0; 1024];
     let _ = stream.read(&mut data);
     assert_eq!(&data[..17], b"HTTP/1.0 200 OK\r\n");
@@ -795,8 +793,9 @@ async fn not_modified_spec_h1() {
                         .map_into_boxed_body(),
 
                     // with no content-length
-                    "/body" => Response::with_body(StatusCode::NOT_MODIFIED, "1234")
-                        .map_into_boxed_body(),
+                    "/body" => {
+                        Response::with_body(StatusCode::NOT_MODIFIED, "1234").map_into_boxed_body()
+                    }
 
                     // with manual content-length header and specific None body
                     "/cl-none" => {

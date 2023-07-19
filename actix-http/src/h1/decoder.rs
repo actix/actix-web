@@ -94,9 +94,7 @@ pub(crate) trait MessageType: Sized {
                 // SAFETY: httparse already checks header value is only visible ASCII bytes
                 // from_maybe_shared_unchecked contains debug assertions so they are omitted here
                 let value = unsafe {
-                    HeaderValue::from_maybe_shared_unchecked(
-                        slice.slice(idx.value.0..idx.value.1),
-                    )
+                    HeaderValue::from_maybe_shared_unchecked(slice.slice(idx.value.0..idx.value.1))
                 };
 
                 match name {
@@ -275,8 +273,7 @@ impl MessageType for Request {
         let mut msg = Request::new();
 
         // convert headers
-        let mut length =
-            msg.set_headers(&src.split_to(len).freeze(), &headers[..h_len], ver)?;
+        let mut length = msg.set_headers(&src.split_to(len).freeze(), &headers[..h_len], ver)?;
 
         // disallow HTTP/1.0 POST requests that do not contain a Content-Length headers
         // see https://datatracker.ietf.org/doc/html/rfc1945#section-7.2.2
@@ -356,8 +353,8 @@ impl MessageType for ResponseHead {
                         Version::HTTP_10
                     };
 
-                    let status = StatusCode::from_u16(res.code.unwrap())
-                        .map_err(|_| ParseError::Status)?;
+                    let status =
+                        StatusCode::from_u16(res.code.unwrap()).map_err(|_| ParseError::Status)?;
                     HeaderIndex::record(src, res.headers, &mut headers);
 
                     (len, version, status, res.headers.len())
@@ -378,8 +375,7 @@ impl MessageType for ResponseHead {
         msg.version = ver;
 
         // convert headers
-        let mut length =
-            msg.set_headers(&src.split_to(len).freeze(), &headers[..h_len], ver)?;
+        let mut length = msg.set_headers(&src.split_to(len).freeze(), &headers[..h_len], ver)?;
 
         // Remove CL value if 0 now that all headers and HTTP/1.0 special cases are processed.
         // Protects against some request smuggling attacks.

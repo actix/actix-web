@@ -16,8 +16,7 @@ use futures_core::{ready, stream::Stream};
 use mime::Mime;
 
 use crate::{
-    dev, error::ErrorBadRequest, http::header, web, Error, FromRequest, HttpMessage,
-    HttpRequest,
+    dev, error::ErrorBadRequest, http::header, web, Error, FromRequest, HttpMessage, HttpRequest,
 };
 
 /// Extract a request's raw payload stream.
@@ -377,9 +376,11 @@ mod tests {
     use bytes::Bytes;
 
     use super::*;
-    use crate::http::{header, StatusCode};
-    use crate::test::{call_service, init_service, TestRequest};
-    use crate::{web, App, Responder};
+    use crate::{
+        http::{header, StatusCode},
+        test::{call_service, init_service, TestRequest},
+        web, App, Responder,
+    };
 
     #[actix_rt::test]
     async fn test_payload_config() {

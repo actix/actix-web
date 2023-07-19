@@ -7,18 +7,14 @@ use std::{
 };
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed, ReadBuf};
+use actix_http::{body::MessageBody, h1::ClientCodec, Payload, RequestHeadType, ResponseHead};
 use actix_rt::task::JoinHandle;
 use bytes::Bytes;
 use futures_core::future::LocalBoxFuture;
 use h2::client::SendRequest;
 
-use actix_http::{body::MessageBody, h1::ClientCodec, Payload, RequestHeadType, ResponseHead};
-
+use super::{error::SendRequestError, h1proto, h2proto, pool::Acquired};
 use crate::BoxError;
-
-use super::error::SendRequestError;
-use super::pool::Acquired;
-use super::{h1proto, h2proto};
 
 /// Trait alias for types impl [tokio::io::AsyncRead] and [tokio::io::AsyncWrite].
 pub trait ConnectionIo: AsyncRead + AsyncWrite + Unpin + 'static {}
@@ -83,10 +79,7 @@ impl<Io: ConnectionIo> AsyncWrite for H1Connection<Io> {
         self.io_pin_mut().poll_flush(cx)
     }
 
-    fn poll_shutdown(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<(), io::Error>> {
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
         self.io_pin_mut().poll_shutdown(cx)
     }
 

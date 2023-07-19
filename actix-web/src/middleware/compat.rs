@@ -146,10 +146,9 @@ mod tests {
     // easier to code when cookies feature is disabled
     #![allow(unused_imports)]
 
-    use super::*;
-
     use actix_service::IntoService;
 
+    use super::*;
     use crate::{
         dev::ServiceRequest,
         http::StatusCode,
@@ -207,9 +206,9 @@ mod tests {
     #[actix_rt::test]
     async fn test_condition_scope_middleware() {
         let srv = |req: ServiceRequest| {
-            Box::pin(async move {
-                Ok(req.into_response(HttpResponse::InternalServerError().finish()))
-            })
+            Box::pin(
+                async move { Ok(req.into_response(HttpResponse::InternalServerError().finish())) },
+            )
         };
 
         let logger = Logger::default();
