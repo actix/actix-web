@@ -32,7 +32,7 @@ jobs:
         run: echo '<meta http-equiv="refresh" content="0;url=actix_web/index.html">' > target/doc/index.html
 
       - name: Deploy to GitHub Pages
-        uses: JamesIves/github-pages-deploy-action@v4.4.1
+        uses: JamesIves/github-pages-deploy-action@v4.4.3
         with:
           folder: target/doc
           single-commit: true
