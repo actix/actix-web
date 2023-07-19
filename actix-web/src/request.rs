@@ -435,24 +435,28 @@ impl fmt::Debug for HttpRequest {
             self.inner.head.method,
             self.path()
         )?;
+
         if !self.query_string().is_empty() {
             writeln!(f, "  query: ?{:?}", self.query_string())?;
         }
+
         if !self.match_info().is_empty() {
             writeln!(f, "  params: {:?}", self.match_info())?;
         }
+
         writeln!(f, "  headers:")?;
+
         for (key, val) in self.headers().iter() {
-            // Hide sensitive header from debug output
             match key {
+                // redact sensitive header values from debug output
                 &crate::http::header::AUTHORIZATION
                 | &crate::http::header::PROXY_AUTHORIZATION
-                | &crate::http::header::COOKIE => {
-                    writeln!(f, "    {:?}: {:?}", key, "*redacted*")?
-                }
+                | &crate::http::header::COOKIE => writeln!(f, "    {:?}: {:?}", key, "*redacted*")?,
+
                 _ => writeln!(f, "    {:?}: {:?}", key, val)?,
             }
         }
+
         Ok(())
     }
 }
@@ -931,7 +935,10 @@ mod tests {
     fn proxy_authorization_header_hidden_in_debug() {
         let proxy_authorization_header = "secret value";
         let req = TestRequest::get()
-            .insert_header((crate::http::header::PROXY_AUTHORIZATION, proxy_authorization_header))
+            .insert_header((
+                crate::http::header::PROXY_AUTHORIZATION,
+                proxy_authorization_header,
+            ))
             .to_http_request();
 
         assert!(!format!("{:?}", req).contains(proxy_authorization_header));

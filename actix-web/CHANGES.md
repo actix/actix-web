@@ -10,6 +10,7 @@
 ### Changed
 
 - Handler functions can now receive up to 16 extractor parameters.
+- Hide sensitive header values in `HttpRequest`'s `Debug` output.
 - Minimum supported Rust version (MSRV) is now 1.65 due to transitive `time` dependency.
 
 ## 4.3.1 - 2023-02-26
@@ -18,11 +19,6 @@
 
 - Add support for custom methods with the `#[route]` macro. [#2969]
 
-### Fixed
-
-- Hide `Authorization` and `Proxy-Authorization` header in `HttpRequest` Debug output [#2953]
-
-[#2953]: https://github.com/actix/actix-web/pull/2953
 [#2969]: https://github.com/actix/actix-web/pull/2969
 
 ## 4.3.0 - 2023-01-21
