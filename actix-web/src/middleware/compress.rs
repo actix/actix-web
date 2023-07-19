@@ -268,7 +268,8 @@ static SUPPORTED_ENCODINGS: &[Encoding] = &[
 mod tests {
     use std::collections::HashSet;
 
-    // use static_assertions::assert_impl_all;
+    use static_assertions::assert_impl_all;
+
     use super::*;
     use crate::{http::header::ContentType, middleware::DefaultHeaders, test, web, App};
 
@@ -278,7 +279,7 @@ mod tests {
     const TEXT_DATA_PART: &str = "hello world ";
     const TEXT_DATA: &str = const_str::repeat!(TEXT_DATA_PART, 100);
 
-    // assert_impl_all!(Compress: Send, Sync);
+    assert_impl_all!(Compress: Send, Sync);
 
     pub fn gzip_decode(bytes: impl AsRef<[u8]>) -> Vec<u8> {
         use std::io::Read as _;
