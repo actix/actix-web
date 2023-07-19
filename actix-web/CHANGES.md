@@ -6,7 +6,6 @@
 
 - Add `HttpServer::{bind, listen}_auto_h2c()` method behind new `http2` crate feature.
 - Add `Resource::{get, post, etc...}` methods for more concisely adding routes that don't need additional guards.
-- Add `Compress::with_predicate()` method for customizing when compression is applied.
 
 ### Changed
 
