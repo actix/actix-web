@@ -1,24 +1,26 @@
 //! A collection of common middleware.
 //!
-//! # Introduction
+//! # What Is Middleware?
 //!
-//! Actix Web's middleware system allows us to add additional behavior to request/response processing.
-//! Middleware can hook into incoming request and outgoing response processes,
-//! enabling us to modify requests and responses as well as halt request processing to return a response early.
+//! Actix Web's middleware system allows us to add additional behavior to request/response
+//! processing. Middleware can hook into incoming request and outgoing response processes, enabling
+//! us to modify requests and responses as well as halt request processing to return a response
+//! early.
 //!
 //! Typically, middleware is involved in the following actions:
 //!
-//! * Pre-process the request
-//! * Post-process a response
-//! * Modify application state (through [`ServiceRequest`][crate::dev::ServiceRequest])
-//! * Access external services ([redis](https://docs.rs/actix-redis), [logging][Logger], [sessions](https://docs.rs/actix-session))
+//! - Pre-process the request (e.g., [normalizing paths](NormalizePath))
+//! - Post-process a response (e.g., [logging][Logger])
+//! - Modify application state (through [`ServiceRequest`][crate::dev::ServiceRequest])
+//! - Access external services (e.g., [sessions](https://docs.rs/actix-session), etc.)
 //!
-//! Middleware is registered for each [`App`][crate::App], [`Scope`][crate::Scope], or [`Resource`][crate::Resource]
-//! and executed in opposite order as registration.
-//! In general, a middleware is a type that implements the [`Service`][Service] trait and [`Transform`][Transform] trait.
-//! Each method in the traits has a default implementation. Each method can return a result immediately or a [`Future`][std::future::Future].
+//! Middleware is registered for each [`App`], [`Scope`](crate::Scope), or
+//! [`Resource`](crate::Resource) and executed in opposite order as registration. In general, a
+//! middleware is a pair of types that implements the [`Service`] trait and [`Transform`] trait,
+//! respectively. The [`new_transform`] and [`call`] methods must return a [`Future`], though it
+//! can often be [an immediately-ready one](actix_utils::future::Ready).
 //!
-//! ## Order
+//! # Ordering
 //!
 //! ```
 //! # use actix_web::{web, middleware, get, App, Responder};
@@ -42,65 +44,78 @@
 //! # }
 //! ```
 //!
-//! ```text
+//! ```plain
 //!                   Request
 //!                      ⭣
-//! ╭────────────────────┼───╮
-//! │ MiddlewareC        │   │
-//! │ ╭──────────────────┼──╮│
-//! │ │ MiddlewareB      │  ││
-//! │ │ ╭────────────────┼─╮││
-//! │ │ │ MiddlewareA    │ │││
-//! │ │ │ ╭──────────────┼╮│││
-//! │ │ │ │ ExtractorA   │││││
-//! │ │ │ ├┈┈┈┈┈┈┈┈┈┈┈┈┈┈┼┤│││
-//! │ │ │ │ ExtractorB   │││││
-//! │ │ │ ├┈┈┈┈┈┈┈┈┈┈┈┈┈┈┼┤│││
-//! │ │ │ │ service      │││││
-//! │ │ │ ╰──────────────┼╯│││
-//! │ │ ╰────────────────┼─╯││
-//! │ ╰──────────────────┼──╯│
-//! ╰────────────────────┼───╯
+//! ╭────────────────────┼────╮
+//! │ MiddlewareC        │    │
+//! │ ╭──────────────────┼───╮│
+//! │ │ MiddlewareB      │   ││
+//! │ │ ╭────────────────┼──╮││
+//! │ │ │ MiddlewareA    │  │││
+//! │ │ │ ╭──────────────┼─╮│││
+//! │ │ │ │ ExtractorA   │ ││││
+//! │ │ │ ├┈┈┈┈┈┈┈┈┈┈┈┈┈┈┼┈┤│││
+//! │ │ │ │ ExtractorB   │ ││││
+//! │ │ │ ├┈┈┈┈┈┈┈┈┈┈┈┈┈┈┼┈┤│││
+//! │ │ │ │ service      │ ││││
+//! │ │ │ ╰──────────────┼─╯│││
+//! │ │ ╰────────────────┼──╯││
+//! │ ╰──────────────────┼───╯│
+//! ╰────────────────────┼────╯
 //!                      ⭣
 //!                   Response
 //! ```
-//! The request _first_ gets processed by the middleware specified _last_ - `MiddlewareC`.
-//! It passes the request (or a modified one) to the next middleware - `MiddlewareB` -
-//! _or_ directly responds to the request (e.g. when the request was invalid or an error occurred).
-//! `MiddlewareB` processes the request as well and passes it to `MiddlewareA`, which then passes it to the [`Service`][Service].
-//! In the [`Service`][Service], the extractors will run first. They don't pass the request on, but only view it (see [`FromRequest`][crate::FromRequest]).
-//! After the [`Service`][Service] responds to the request, the response it passed back through `MiddlewareA`, `MiddlewareB`, and `MiddlewareC`.
+//! The request _first_ gets processed by the middleware specified _last_ - `MiddlewareC`. It passes
+//! the request (modified a modified one) to the next middleware - `MiddlewareB` - _or_ directly
+//! responds to the request (e.g. when the request was invalid or an error occurred). `MiddlewareB`
+//! processes the request as well and passes it to `MiddlewareA`, which then passes it to the
+//! [`Service`]. In the [`Service`], the extractors will run first. They don't pass the request on,
+//! but only view it (see [`FromRequest`]). After the [`Service`] responds to the request, the
+//! response it passed back through `MiddlewareA`, `MiddlewareB`, and `MiddlewareC`.
 //!
-//! As you register middleware using [`wrap`][crate::App::wrap] and [`wrap_fn`][crate::App::wrap_fn] in the [`App`][crate::App] builder,
-//! imagine wrapping layers around an inner [`App`][crate::App].
-//! The first middleware layer exposed to a Request is the outermost layer (i.e., the *last* registered in
-//! the builder chain, in the example above: `MiddlewareC`). Consequently, the *first* middleware registered in the builder chain is
-//! the *last* to start executing during request processing (`MiddlewareA`).
+//! As you register middleware using [`wrap`][crate::App::wrap] and [`wrap_fn`][crate::App::wrap_fn]
+//! in the [`App`] builder, imagine wrapping layers around an inner [`App`]. The first middleware
+//! layer exposed to a Request is the outermost layer (i.e., the _last_ registered in the builder
+//! chain, in the example above: `MiddlewareC`). Consequently, the _first_ middleware registered in
+//! the builder chain is the _last_ to start executing during request processing (`MiddlewareA`).
 //! Ordering is less obvious when wrapped services also have middleware applied. In this case,
-//! middlewares are run in reverse order for [`App`][crate::App] _and then_ in reverse order for the
-//! wrapped service.
+//! middleware are run in reverse order for [`App`] _and then_ in reverse order for the wrapped
+//! service.
 //!
 //! # Middleware Traits
 //!
 //! ## `Transform<S, Req>`
 //!
-//! The [`Transform`][Transform] trait is the factory for the actual [`Service`][crate::dev::Service]s that handle the requests.
-//! All the middleware you pass to the `wrap` methods implement this trait.
-//! During construction, each thread assembles a chain of [`Service`][Service]s
-//! by calling [`new_transform`][crate::dev::Transform::new_transform] and passing the next [`Service`][Service] (`S`) in the chain.
-//! The created [`Service`][Service] handles requests of type `Req`.
+//! The [`Transform`] trait is the builder for the actual [`Service`]s that handle the requests. All
+//! the middleware you pass to the `wrap` methods implement this trait. During construction, each
+//! thread assembles a chain of [`Service`]s by calling [`new_transform`] and passing the next
+//! [`Service`] (`S`) in the chain. The created [`Service`] handles requests of type `Req`.
 //!
-//! In the example from the [Order](#Order) section, the chain would be: `MiddlewareCService { next: MiddlewareBService { next: MiddlewareAService {..} } } }`.
+//! In the example from the [ordering](#ordering) section, the chain would be:
+//!
+//! ```plain
+//! MiddlewareCService {
+//!     next: MiddlewareBService {
+//!         next: MiddlewareAService { ... }
+//!     }
+//! }
+//! ```
 //!
 //! ## `Service<Req>`
 //!
-//! A [`Service`][Service] `S` represents an asynchronous operation
-//! that turns a request of type `Req` into a response of type [`S::Response`][crate::dev::Service::Response]
-//! or an error of type [`S::Error`][crate::dev::Service::Error]. You can think of the service of being a `async fn (&self, req: Req) -> Result<S::Response, S::Error>`.
+//! A [`Service`] `S` represents an asynchronous operation that turns a request of type `Req` into a
+//! response of type [`S::Response`](crate::dev::Service::Response) or an error of type
+//! [`S::Error`](crate::dev::Service::Error). You can think of the service of being roughly:
 //!
-//! In most cases the [`Service`][Service] implementation will call the next [`Service`][Service] in its [`Future`][std::future::Future] returned by [`call`][crate::dev::Service::call].
+//! ```ignore
+//! async fn(&self, req: Req) -> Result<S::Response, S::Error>
+//! ```
 //!
-//! Note that the [`Service`][Service]s created by [`new_transform`][crate::dev::Transform::new_transform] don't need to be [`Send`][Send] nor [`Sync`][Sync].
+//! In most cases the [`Service`] implementation will, at some point, call the wrapped [`Service`]
+//! in its [`call`] implementation.
+//!
+//! Note that the [`Service`]s created by [`new_transform`] don't need to be [`Send`] or [`Sync`].
 //!
 //! # Example
 //!
@@ -140,11 +155,11 @@
 //! }
 //!
 //! // This future doesn't have the requirement of being `Send`.
-//! // See futures_util::future::LocalBoxFuture
+//! // See: futures_util::future::LocalBoxFuture
 //! type LocalBoxFuture<T> = Pin<Box<dyn Future<Output = T> + 'static>>;
 //!
-//! // `S` - type of the next service
-//! // `B` - type of the body - try to be generic over the body where possible
+//! // `S`: type of the wrapped service
+//! // `B`: type of the body - try to be generic over the body where possible
 //! impl<S, B> Service<ServiceRequest> for SayHiMiddleware<S>
 //! where
 //!     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
@@ -181,36 +196,26 @@
 //! # }
 //! ```
 //!
-//! # Simple Middleware
+//! # Simpler Middleware
 //!
-//! In simple cases, you can use a function instead.
-//! You can register these in [`App::wrap_fn`][crate::App::wrap_fn], [`Scope::wrap_fn`][crate::Scope::wrap_fn], and [`Resource::wrap_fn`][crate::Resource::wrap_fn].
-//! The [order](#order) remains the same.
+//! In many cases, you _can_ actually use an async function via a helper that will provide a more
+//! natural flow for your behavior.
 //!
-//! The middleware from [above](#example) can be written using `wrap_fn`:
+//! The experimental `actix_web_lab` crate provides a [`from_fn`][lab_from_fn] utility which allows
+//! an async fn to be wrapped and used in the same way as other middleware. See the [`from_fn`] docs
+//! for more info and examples of it's use.
 //!
-//! ```
-//! use actix_web::{dev::Service, web, App};
+//! While [`from_fn`] is experimental currently, it's likely this helper will graduate to Actix Web
+//! at some stage.
 //!
-//! # fn main() {
-//! let app = App::new()
-//!     .wrap_fn(|req, srv| {
-//!         println!("Hi from start. You requested: {}", req.path());
-//!         let fut = srv.call(req);
-//!         async {
-//!             let res = fut.await?;
-//!             
-//!             println!("Hi from response");
-//!
-//!             Ok(res)
-//!         }
-//!     })
-//!     .route("/", web::get().to(|| async { "Hello, middleware!" }));
-//! # }
-//! ```
-//!
-//! [Service]: crate::dev::Service
-//! [Transform]: crate::dev::Transform
+//! [`Future`]: std::future::Future
+//! [`App`]: crate::App
+//! [`FromRequest`]: crate::FromRequest
+//! [`Service`]: crate::dev::Service
+//! [`Transform`]: crate::dev::Transform
+//! [`call`]: crate::dev::Service::call()
+//! [`new_transform`]: crate::dev::Transform::new_transform()
+//! [lab_from_fn]: https://docs.rs/actix-web-lab/latest/actix_web_lab/middleware/fn.from_fn.html
 
 mod compat;
 mod condition;
