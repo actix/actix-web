@@ -488,31 +488,32 @@ pub(crate) fn with_methods(input: TokenStream) -> TokenStream {
 
     ast.attrs = others.into_iter().map(Result::unwrap_err).collect();
 
-    let methods =
-        match methods
-            .into_iter()
-            .map(Result::unwrap)
-            .map(|(method, attr)| {
-                attr.parse_meta().and_then(|args| {
-                    if let Meta::List(args) = args {
-                        Args::new(args.nested.into_iter().collect(), Some(method))
-                    } else {
-                        Err(syn::Error::new_spanned(attr, "Invalid input for macro"))
-                    }
-                })
+    let methods = match methods
+        .into_iter()
+        .map(Result::unwrap)
+        .map(|(method, attr)| {
+            attr.parse_meta().and_then(|args| {
+                if let Meta::List(args) = args {
+                    Args::new(args.nested.into_iter().collect(), Some(method))
+                } else {
+                    Err(syn::Error::new_spanned(attr, "Invalid input for macro"))
+                }
             })
-            .collect::<Result<Vec<_>, _>>()
-        {
-            Ok(methods) if methods.is_empty() => return input_and_compile_error(
+        })
+        .collect::<Result<Vec<_>, _>>()
+    {
+        Ok(methods) if methods.is_empty() => {
+            return input_and_compile_error(
                 input,
                 syn::Error::new(
                     Span::call_site(),
                     "The #[routes] macro requires at least one `#[<method>(..)]` attribute.",
                 ),
-            ),
-            Ok(methods) => methods,
-            Err(err) => return input_and_compile_error(input, err),
-        };
+            )
+        }
+        Ok(methods) => methods,
+        Err(err) => return input_and_compile_error(input, err),
+    };
 
     match Route::multiple(methods, ast) {
         Ok(route) => route.into_token_stream().into(),

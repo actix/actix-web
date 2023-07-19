@@ -7,19 +7,17 @@ use std::{
     time::Duration,
 };
 
+#[cfg(any(feature = "openssl", feature = "rustls"))]
+use actix_http::TlsAcceptorConfig;
 use actix_http::{body::MessageBody, Extensions, HttpService, KeepAlive, Request, Response};
 use actix_server::{Server, ServerBuilder};
 use actix_service::{
     map_config, IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt as _,
 };
-
 #[cfg(feature = "openssl")]
 use actix_tls::accept::openssl::reexports::{AlpnError, SslAcceptor, SslAcceptorBuilder};
 #[cfg(feature = "rustls")]
 use actix_tls::accept::rustls::reexports::ServerConfig as RustlsServerConfig;
-
-#[cfg(any(feature = "openssl", feature = "rustls"))]
-use actix_http::TlsAcceptorConfig;
 
 use crate::{config::AppConfig, Error};
 
@@ -358,6 +356,7 @@ where
 
     /// Resolves socket address(es) and binds server to created listener(s) for plaintext HTTP/1.x
     /// or HTTP/2 connections.
+    #[cfg(feature = "http2")]
     pub fn bind_auto_h2c<A: net::ToSocketAddrs>(mut self, addrs: A) -> io::Result<Self> {
         let sockets = bind_addrs(addrs, self.backlog)?;
 
@@ -437,9 +436,8 @@ where
                         .local_addr(addr);
 
                     if let Some(handler) = on_connect_fn.clone() {
-                        svc = svc.on_connect_ext(move |io: &_, ext: _| {
-                            (handler)(io as &dyn Any, ext)
-                        })
+                        svc =
+                            svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
                     };
 
                     let fac = factory()
@@ -456,6 +454,7 @@ where
     }
 
     /// Binds to existing listener for accepting incoming plaintext HTTP/1.x or HTTP/2 connections.
+    #[cfg(feature = "http2")]
     pub fn listen_auto_h2c(mut self, lst: net::TcpListener) -> io::Result<Self> {
         let cfg = self.config.clone();
         let factory = self.factory.clone();
@@ -481,9 +480,8 @@ where
                         .local_addr(addr);
 
                     if let Some(handler) = on_connect_fn.clone() {
-                        svc = svc.on_connect_ext(move |io: &_, ext: _| {
-                            (handler)(io as &dyn Any, ext)
-                        })
+                        svc =
+                            svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
                     };
 
                     let fac = factory()
@@ -715,8 +713,7 @@ where
                     .client_disconnect_timeout(c.client_disconnect_timeout);
 
                 if let Some(handler) = on_connect_fn.clone() {
-                    svc = svc
-                        .on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext));
+                    svc = svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext));
                 }
 
                 let fac = factory()
@@ -759,10 +756,7 @@ where
 }
 
 /// Bind TCP listeners to socket addresses resolved from `addrs` with options.
-fn bind_addrs(
-    addrs: impl net::ToSocketAddrs,
-    backlog: u32,
-) -> io::Result<Vec<net::TcpListener>> {
+fn bind_addrs(addrs: impl net::ToSocketAddrs, backlog: u32) -> io::Result<Vec<net::TcpListener>> {
     let mut err = None;
     let mut success = false;
     let mut sockets = Vec::new();

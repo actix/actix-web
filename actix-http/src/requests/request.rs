@@ -10,8 +10,7 @@ use std::{
 use http::{header, Method, Uri, Version};
 
 use crate::{
-    header::HeaderMap, BoxedPayloadStream, Extensions, HttpMessage, Message, Payload,
-    RequestHead,
+    header::HeaderMap, BoxedPayloadStream, Extensions, HttpMessage, Message, Payload, RequestHead,
 };
 
 /// An HTTP request.

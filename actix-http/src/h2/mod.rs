@@ -23,8 +23,7 @@ use crate::{
 mod dispatcher;
 mod service;
 
-pub use self::dispatcher::Dispatcher;
-pub use self::service::H2Service;
+pub use self::{dispatcher::Dispatcher, service::H2Service};
 
 /// HTTP/2 peer stream.
 pub struct Payload {
@@ -58,10 +57,7 @@ impl Stream for Payload {
     }
 }
 
-pub(crate) fn handshake_with_timeout<T>(
-    io: T,
-    config: &ServiceConfig,
-) -> HandshakeWithTimeout<T>
+pub(crate) fn handshake_with_timeout<T>(io: T, config: &ServiceConfig) -> HandshakeWithTimeout<T>
 where
     T: AsyncRead + AsyncWrite + Unpin,
 {

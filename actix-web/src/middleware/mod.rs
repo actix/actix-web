@@ -221,14 +221,16 @@ mod logger;
 mod noop;
 mod normalize;
 
-pub use self::compat::Compat;
-pub use self::condition::Condition;
-pub use self::default_headers::DefaultHeaders;
-pub use self::err_handlers::{ErrorHandlerResponse, ErrorHandlers};
-pub use self::logger::Logger;
 #[cfg(test)]
 pub(crate) use self::noop::Noop;
-pub use self::normalize::{NormalizePath, TrailingSlash};
+pub use self::{
+    compat::Compat,
+    condition::Condition,
+    default_headers::DefaultHeaders,
+    err_handlers::{ErrorHandlerResponse, ErrorHandlers},
+    logger::Logger,
+    normalize::{NormalizePath, TrailingSlash},
+};
 
 #[cfg(feature = "__compress")]
 mod compress;
@@ -238,9 +240,8 @@ pub use self::compress::Compress;
 
 #[cfg(test)]
 mod tests {
-    use crate::{http::StatusCode, App};
-
     use super::*;
+    use crate::{http::StatusCode, App};
 
     #[test]
     fn common_combinations() {

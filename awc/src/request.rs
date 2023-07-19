@@ -1,17 +1,18 @@
 use std::{fmt, net, rc::Rc, time::Duration};
 
-use base64::prelude::*;
-use bytes::Bytes;
-use futures_core::Stream;
-use serde::Serialize;
-
 use actix_http::{
     body::MessageBody,
     error::HttpError,
     header::{self, HeaderMap, HeaderValue, TryIntoHeaderPair},
     ConnectionType, Method, RequestHead, Uri, Version,
 };
+use base64::prelude::*;
+use bytes::Bytes;
+use futures_core::Stream;
+use serde::Serialize;
 
+#[cfg(feature = "cookies")]
+use crate::cookie::{Cookie, CookieJar};
 use crate::{
     client::ClientConfig,
     error::{FreezeRequestError, InvalidUrl},
@@ -19,9 +20,6 @@ use crate::{
     sender::{PrepForSendingError, RequestSender, SendClientRequest},
     BoxError,
 };
-
-#[cfg(feature = "cookies")]
-use crate::cookie::{Cookie, CookieJar};
 
 /// An HTTP Client request builder
 ///
@@ -291,10 +289,7 @@ impl ClientRequest {
     }
 
     /// Sets the query part of the request
-    pub fn query<T: Serialize>(
-        mut self,
-        query: &T,
-    ) -> Result<Self, serde_urlencoded::ser::Error> {
+    pub fn query<T: Serialize>(mut self, query: &T) -> Result<Self, serde_urlencoded::ser::Error> {
         let mut parts = self.head.uri.clone().into_parts();
 
         if let Some(path_and_query) = parts.path_and_query {

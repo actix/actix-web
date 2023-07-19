@@ -77,12 +77,8 @@ impl MessageBody for BoxBody {
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         match &mut self.0 {
-            BoxBodyInner::None(body) => {
-                Pin::new(body).poll_next(cx).map_err(|err| match err {})
-            }
-            BoxBodyInner::Bytes(body) => {
-                Pin::new(body).poll_next(cx).map_err(|err| match err {})
-            }
+            BoxBodyInner::None(body) => Pin::new(body).poll_next(cx).map_err(|err| match err {}),
+            BoxBodyInner::Bytes(body) => Pin::new(body).poll_next(cx).map_err(|err| match err {}),
             BoxBodyInner::Stream(body) => Pin::new(body).poll_next(cx),
         }
     }

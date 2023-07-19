@@ -133,11 +133,8 @@ impl<S> Connector<S> {
     pub fn connector<S1, Io1>(self, connector: S1) -> Connector<S1>
     where
         Io1: ActixStream + fmt::Debug + 'static,
-        S1: Service<
-                ConnectInfo<Uri>,
-                Response = TcpConnection<Uri, Io1>,
-                Error = TcpConnectError,
-            > + Clone,
+        S1: Service<ConnectInfo<Uri>, Response = TcpConnection<Uri, Io1>, Error = TcpConnectError>
+            + Clone,
     {
         Connector {
             connector,
@@ -189,10 +186,7 @@ where
     #[doc(hidden)]
     #[cfg(feature = "openssl")]
     #[deprecated(since = "3.0.0", note = "Renamed to `Connector::openssl`.")]
-    pub fn ssl(
-        mut self,
-        connector: actix_tls::connect::openssl::reexports::SslConnector,
-    ) -> Self {
+    pub fn ssl(mut self, connector: actix_tls::connect::openssl::reexports::SslConnector) -> Self {
         self.tls = OurTlsConnector::Openssl(connector);
         self
     }
@@ -312,9 +306,7 @@ where
 
         let tls = match self.tls {
             #[cfg(feature = "openssl")]
-            OurTlsConnector::OpensslBuilder(builder) => {
-                OurTlsConnector::Openssl(builder.build())
-            }
+            OurTlsConnector::OpensslBuilder(builder) => OurTlsConnector::Openssl(builder.build()),
             tls => tls,
         };
 
@@ -467,9 +459,7 @@ pub struct TcpConnectorService<S: Clone> {
 
 impl<S, Io> Service<Connect> for TcpConnectorService<S>
 where
-    S: Service<Connect, Response = TcpConnection<Uri, Io>, Error = ConnectError>
-        + Clone
-        + 'static,
+    S: Service<Connect, Response = TcpConnection<Uri, Io>, Error = ConnectError> + Clone + 'static,
 {
     type Response = (Io, Protocol);
     type Error = ConnectError;
@@ -520,9 +510,8 @@ struct TlsConnectorService<Tcp, Tls> {
 
 impl<Tcp, Tls, IO> Service<Connect> for TlsConnectorService<Tcp, Tls>
 where
-    Tcp: Service<Connect, Response = TcpConnection<Uri, IO>, Error = ConnectError>
-        + Clone
-        + 'static,
+    Tcp:
+        Service<Connect, Response = TcpConnection<Uri, IO>, Error = ConnectError> + Clone + 'static,
     Tls: Service<TcpConnection<Uri, IO>, Error = std::io::Error> + Clone + 'static,
     Tls::Response: IntoConnectionIo,
     IO: ConnectionIo,

@@ -8,13 +8,13 @@ use std::{
 use actix_web::{
     body::{self, BoxBody, SizedStream},
     dev::{
-        self, AppService, HttpServiceFactory, ResourceDef, Service, ServiceFactory,
-        ServiceRequest, ServiceResponse,
+        self, AppService, HttpServiceFactory, ResourceDef, Service, ServiceFactory, ServiceRequest,
+        ServiceResponse,
     },
     http::{
         header::{
-            self, Charset, ContentDisposition, ContentEncoding, DispositionParam,
-            DispositionType, ExtendedValue, HeaderValue,
+            self, Charset, ContentDisposition, ContentEncoding, DispositionParam, DispositionType,
+            ExtendedValue, HeaderValue,
         },
         StatusCode,
     },
@@ -85,6 +85,7 @@ pub struct NamedFile {
 
 #[cfg(not(feature = "experimental-io-uring"))]
 pub(crate) use std::fs::File;
+
 #[cfg(feature = "experimental-io-uring")]
 pub(crate) use tokio_uring::fs::File;
 
@@ -139,8 +140,7 @@ impl NamedFile {
                 _ => DispositionType::Attachment,
             };
 
-            let mut parameters =
-                vec![DispositionParam::Filename(String::from(filename.as_ref()))];
+            let mut parameters = vec![DispositionParam::Filename(String::from(filename.as_ref()))];
 
             if !filename.is_ascii() {
                 parameters.push(DispositionParam::FilenameExt(ExtendedValue {

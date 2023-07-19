@@ -17,5 +17,7 @@ mod server;
 
 pub mod form;
 
-pub use self::error::MultipartError;
-pub use self::server::{Field, Multipart};
+pub use self::{
+    error::MultipartError,
+    server::{Field, Multipart},
+};

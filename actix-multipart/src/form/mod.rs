@@ -429,8 +429,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_options() {
-        let srv =
-            actix_test::start(|| App::new().route("/", web::post().to(test_options_route)));
+        let srv = actix_test::start(|| App::new().route("/", web::post().to(test_options_route)));
 
         let mut form = multipart::Form::default();
         form.add_text("field1", "value");
@@ -481,9 +480,7 @@ mod tests {
         field3: Text<String>,
     }
 
-    async fn test_field_renaming_route(
-        form: MultipartForm<TestFieldRenaming>,
-    ) -> impl Responder {
+    async fn test_field_renaming_route(form: MultipartForm<TestFieldRenaming>) -> impl Responder {
         assert_eq!(&*form.field1, "renamed");
         assert_eq!(&*form.field2, "field1");
         assert_eq!(&*form.field3, "field3");
@@ -492,9 +489,8 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_field_renaming() {
-        let srv = actix_test::start(|| {
-            App::new().route("/", web::post().to(test_field_renaming_route))
-        });
+        let srv =
+            actix_test::start(|| App::new().route("/", web::post().to(test_field_renaming_route)));
 
         let mut form = multipart::Form::default();
         form.add_text("renamed", "renamed");
@@ -623,9 +619,7 @@ mod tests {
         HttpResponse::Ok().finish()
     }
 
-    async fn test_upload_limits_file(
-        form: MultipartForm<TestFileUploadLimits>,
-    ) -> impl Responder {
+    async fn test_upload_limits_file(form: MultipartForm<TestFileUploadLimits>) -> impl Responder {
         assert!(form.field.size > 0);
         HttpResponse::Ok().finish()
     }

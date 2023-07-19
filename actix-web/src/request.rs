@@ -653,13 +653,13 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_drop_http_request_pool() {
-        let srv = init_service(App::new().service(web::resource("/").to(
-            |req: HttpRequest| {
+        let srv = init_service(
+            App::new().service(web::resource("/").to(|req: HttpRequest| {
                 HttpResponse::Ok()
                     .insert_header(("pool_cap", req.app_state().pool().cap))
                     .finish()
-            },
-        )))
+            })),
+        )
         .await;
 
         let req = TestRequest::default().to_request();
@@ -807,10 +807,7 @@ mod tests {
                 web::scope("/user/{id}")
                     .service(web::resource("/profile").route(web::get().to(
                         move |req: HttpRequest| {
-                            assert_eq!(
-                                req.match_pattern(),
-                                Some("/user/{id}/profile".to_owned())
-                            );
+                            assert_eq!(req.match_pattern(), Some("/user/{id}/profile".to_owned()));
 
                             HttpResponse::Ok().finish()
                         },
