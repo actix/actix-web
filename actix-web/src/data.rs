@@ -186,12 +186,14 @@ mod tests {
     #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_data_extractor() {
-        let srv = init_service(App::new().data("TEST".to_string()).service(
-            web::resource("/").to(|data: web::Data<String>| {
-                assert_eq!(data.to_lowercase(), "test");
-                HttpResponse::Ok()
-            }),
-        ))
+        let srv = init_service(
+            App::new()
+                .data("TEST".to_string())
+                .service(web::resource("/").to(|data: web::Data<String>| {
+                    assert_eq!(data.to_lowercase(), "test");
+                    HttpResponse::Ok()
+                })),
+        )
         .await;
 
         let req = TestRequest::default().to_request();
@@ -286,16 +288,17 @@ mod tests {
     #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_override_data() {
-        let srv =
-            init_service(App::new().data(1usize).service(
-                web::resource("/").data(10usize).route(web::get().to(
+        let srv = init_service(
+            App::new()
+                .data(1usize)
+                .service(web::resource("/").data(10usize).route(web::get().to(
                     |data: web::Data<usize>| {
                         assert_eq!(**data, 10);
                         HttpResponse::Ok()
                     },
-                )),
-            ))
-            .await;
+                ))),
+        )
+        .await;
 
         let req = TestRequest::default().to_request();
         let resp = srv.call(req).await.unwrap();

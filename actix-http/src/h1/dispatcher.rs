@@ -19,6 +19,13 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::{Decoder as _, Encoder as _};
 use tracing::{error, trace};
 
+use super::{
+    codec::Codec,
+    decoder::MAX_BUFFER_SIZE,
+    payload::{Payload, PayloadSender, PayloadStatus},
+    timer::TimerState,
+    Message, MessageType,
+};
 use crate::{
     body::{BodySize, BoxBody, MessageBody},
     config::ServiceConfig,
@@ -27,19 +34,12 @@ use crate::{
     Error, Extensions, OnConnectData, Request, Response, StatusCode,
 };
 
-use super::{
-    codec::Codec,
-    decoder::MAX_BUFFER_SIZE,
-    payload::{Payload, PayloadSender, PayloadStatus},
-    timer::TimerState,
-    Message, MessageType,
-};
-
 const LW_BUFFER_SIZE: usize = 1024;
 const HW_BUFFER_SIZE: usize = 1024 * 8;
 const MAX_PIPELINED_MESSAGES: usize = 16;
 
 bitflags! {
+    #[derive(Debug, Clone, Copy)]
     pub struct Flags: u8 {
         /// Set when stream is read for first time.
         const STARTED          = 0b0000_0001;
@@ -212,9 +212,7 @@ where
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::None => write!(f, "State::None"),
-            Self::ExpectCall { .. } => {
-                f.debug_struct("State::ExpectCall").finish_non_exhaustive()
-            }
+            Self::ExpectCall { .. } => f.debug_struct("State::ExpectCall").finish_non_exhaustive(),
             Self::ServiceCall { .. } => {
                 f.debug_struct("State::ServiceCall").finish_non_exhaustive()
             }
@@ -275,9 +273,7 @@ where
 
                     head_timer: TimerState::new(config.client_request_deadline().is_some()),
                     ka_timer: TimerState::new(config.keep_alive().enabled()),
-                    shutdown_timer: TimerState::new(
-                        config.client_disconnect_deadline().is_some(),
-                    ),
+                    shutdown_timer: TimerState::new(config.client_disconnect_deadline().is_some()),
 
                     io: Some(io),
                     read_buf: BytesMut::with_capacity(HW_BUFFER_SIZE),
@@ -455,9 +451,7 @@ where
                     }
 
                     // return with upgrade request and poll it exclusively
-                    Some(DispatcherMessage::Upgrade(req)) => {
-                        return Ok(PollResponse::Upgrade(req))
-                    }
+                    Some(DispatcherMessage::Upgrade(req)) => return Ok(PollResponse::Upgrade(req)),
 
                     // all messages are dealt with
                     None => {
@@ -674,9 +668,7 @@ where
                 }
 
                 _ => {
-                    unreachable!(
-                        "State must be set to ServiceCall or ExceptCall in handle_request"
-                    )
+                    unreachable!("State must be set to ServiceCall or ExceptCall in handle_request")
                 }
             }
         }
@@ -685,10 +677,7 @@ where
     /// Process one incoming request.
     ///
     /// Returns true if any meaningful work was done.
-    fn poll_request(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Result<bool, DispatchError> {
+    fn poll_request(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Result<bool, DispatchError> {
         let pipeline_queue_full = self.messages.len() >= MAX_PIPELINED_MESSAGES;
         let can_not_read = !self.can_read(cx);
 
@@ -858,10 +847,7 @@ where
         Ok(())
     }
 
-    fn poll_ka_timer(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Result<(), DispatchError> {
+    fn poll_ka_timer(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Result<(), DispatchError> {
         let this = self.as_mut().project();
         if let TimerState::Active { timer } = this.ka_timer {
             debug_assert!(
@@ -926,10 +912,7 @@ where
     }
 
     /// Poll head, keep-alive, and disconnect timer.
-    fn poll_timers(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Result<(), DispatchError> {
+    fn poll_timers(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Result<(), DispatchError> {
         self.as_mut().poll_head_timer(cx)?;
         self.as_mut().poll_ka_timer(cx)?;
         self.as_mut().poll_shutdown_timer(cx)?;
@@ -943,10 +926,7 @@ where
     /// - `std::io::ErrorKind::ConnectionReset` after partial read;
     /// - all data read done.
     #[inline(always)] // TODO: bench this inline
-    fn read_available(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Result<bool, DispatchError> {
+    fn read_available(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Result<bool, DispatchError> {
         let this = self.project();
 
         if this.flags.contains(Flags::READ_DISCONNECT) {

@@ -10,7 +10,7 @@ description = "Resource path matching and router"
 keywords = ["actix", "router", "routing"]
 repository = "https://github.com/actix/actix-web.git"
 license = "MIT OR Apache-2.0"
-edition = "2018"
+edition = "2021"
 
 [lib]
 name = "actix_router"
@@ -27,7 +27,7 @@ serde = "1"
 tracing = { version = "0.1.30", default-features = false, features = ["log"] }
 
 [dev-dependencies]
-criterion = { version = "0.4", features = ["html_reports"] }
+criterion = { version = "0.5", features = ["html_reports"] }
 http = "0.2.7"
 serde = { version = "1", features = ["derive"] }
 percent-encoding = "2.1"

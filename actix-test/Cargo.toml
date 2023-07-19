@@ -16,7 +16,7 @@ categories = [
     "web-programming::websocket",
 ]
 license = "MIT OR Apache-2.0"
-edition = "2018"
+edition = "2021"
 
 [features]
 default = []
@@ -43,6 +43,6 @@ log = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_urlencoded = "0.7"
-tls-openssl = { package = "openssl", version = "0.10.9", optional = true }
-tls-rustls = { package = "rustls", version = "0.20.0", optional = true }
+tls-openssl = { package = "openssl", version = "0.10.55", optional = true }
+tls-rustls = { package = "rustls", version = "0.20", optional = true }
 tokio = { version = "1.24.2", features = ["sync"] }

@@ -16,7 +16,7 @@ categories = [
 homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-web.git"
 license = "MIT OR Apache-2.0"
-edition = "2018"
+edition = "2021"
 
 [package.metadata.docs.rs]
 # features that docs.rs will build with
@@ -28,7 +28,7 @@ name = "actix_web"
 path = "src/lib.rs"
 
 [features]
-default = ["macros", "compress-brotli", "compress-gzip", "compress-zstd", "cookies"]
+default = ["macros", "compress-brotli", "compress-gzip", "compress-zstd", "cookies", "http2"]
 
 # Brotli algorithm content-encoding support
 compress-brotli = ["actix-http/compress-brotli", "__compress"]
@@ -46,11 +46,13 @@ cookies = ["cookie"]
 # Secure & signed cookies
 secure-cookies = ["cookies", "cookie/secure"]
 
+http2 = ["actix-http/http2"]
+
 # TLS via OpenSSL
-openssl = ["actix-http/openssl", "actix-tls/accept", "actix-tls/openssl"]
+openssl = ["http2", "actix-http/openssl", "actix-tls/accept", "actix-tls/openssl"]
 
 # TLS via Rustls
-rustls = ["actix-http/rustls", "actix-tls/accept", "actix-tls/rustls"]
+rustls = ["http2", "actix-http/rustls", "actix-tls/accept", "actix-tls/rustls"]
 
 # Internal (PRIVATE!) features used to aid testing and checking feature status.
 # Don't rely on these whatsoever. They may disappear at anytime.
@@ -68,7 +70,7 @@ actix-service = "2"
 actix-utils = "3"
 actix-tls = { version = "3", default-features = false, optional = true }
 
-actix-http = { version = "3.3", features = ["http2", "ws"] }
+actix-http = { version = "3.3", features = ["ws"] }
 actix-router = "0.5"
 actix-web-codegen = { version = "4.2", optional = true }
 
@@ -92,7 +94,7 @@ serde = "1.0"
 serde_json = "1.0"
 serde_urlencoded = "0.7"
 smallvec = "1.6.1"
-socket2 = "0.4"
+socket2 = "0.5"
 time = { version = "0.3", default-features = false, features = ["formatting"] }
 url = "2.1"
 
@@ -102,18 +104,18 @@ actix-test = { version = "0.1", features = ["openssl", "rustls"] }
 awc = { version = "3", features = ["openssl"] }
 
 brotli = "3.3.3"
-const-str = "0.3"
-criterion = { version = "0.4", features = ["html_reports"] }
-env_logger = "0.9"
+const-str = "0.5"
+criterion = { version = "0.5", features = ["html_reports"] }
+env_logger = "0.10"
 flate2 = "1.0.13"
 futures-util = { version = "0.3.17", default-features = false, features = ["std"] }
 rand = "0.8"
-rcgen = "0.9"
+rcgen = "0.11"
 rustls-pemfile = "1"
 serde = { version = "1.0", features = ["derive"] }
 static_assertions = "1"
-tls-openssl = { package = "openssl", version = "0.10.9" }
-tls-rustls = { package = "rustls", version = "0.20.0" }
+tls-openssl = { package = "openssl", version = "0.10.55" }
+tls-rustls = { package = "rustls", version = "0.20" }
 tokio = { version = "1.24.2", features = ["rt-multi-thread", "macros"] }
 zstd = "0.12"
 

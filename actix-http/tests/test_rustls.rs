@@ -4,7 +4,7 @@
 extern crate tls_rustls as rustls;
 
 use std::{
-    convert::{Infallible, TryFrom},
+    convert::Infallible,
     io::{self, BufReader, Write},
     net::{SocketAddr, TcpStream as StdTcpStream},
     sync::Arc,
@@ -90,11 +90,9 @@ pub fn get_negotiated_alpn_protocol(
 
     config.alpn_protocols.push(client_alpn_protocol.to_vec());
 
-    let mut sess = rustls::ClientConnection::new(
-        Arc::new(config),
-        ServerName::try_from("localhost").unwrap(),
-    )
-    .unwrap();
+    let mut sess =
+        rustls::ClientConnection::new(Arc::new(config), ServerName::try_from("localhost").unwrap())
+            .unwrap();
 
     let mut sock = StdTcpStream::connect(addr).unwrap();
     let mut stream = rustls::Stream::new(&mut sess, &mut sock);

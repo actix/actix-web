@@ -1,5 +1,6 @@
-use super::{HttpDate, DATE};
 use std::time::SystemTime;
+
+use super::{HttpDate, DATE};
 
 crate::http::header::common_header! {
     /// `Date` header, defined

@@ -1,7 +1,6 @@
 //! For middleware documentation, see [`DefaultHeaders`].
 
 use std::{
-    convert::TryFrom,
     future::Future,
     marker::PhantomData,
     pin::Pin,

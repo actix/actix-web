@@ -1,15 +1,14 @@
 use std::{net, rc::Rc, time::Duration};
 
-use bytes::Bytes;
-use futures_core::Stream;
-use serde::Serialize;
-
 use actix_http::{
     body::MessageBody,
     error::HttpError,
     header::{HeaderMap, TryIntoHeaderPair},
     Method, RequestHead, Uri,
 };
+use bytes::Bytes;
+use futures_core::Stream;
+use serde::Serialize;
 
 use crate::{
     client::ClientConfig,

@@ -1,8 +1,8 @@
 #![allow(clippy::uninlined_format_args)]
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
-
 use std::borrow::Cow;
+
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 fn compare_quoters(c: &mut Criterion) {
     let mut group = c.benchmark_group("Compare Quoters");

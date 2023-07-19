@@ -13,14 +13,13 @@ use actix_http::{
     header::{self, HeaderMap, HeaderName, TryIntoHeaderValue},
     RequestHead, RequestHeadType,
 };
+#[cfg(feature = "__compress")]
+use actix_http::{encoding::Decoder, header::ContentEncoding, Payload};
 use actix_rt::time::{sleep, Sleep};
 use bytes::Bytes;
 use derive_more::From;
 use futures_core::Stream;
 use serde::Serialize;
-
-#[cfg(feature = "__compress")]
-use actix_http::{encoding::Decoder, header::ContentEncoding, Payload};
 
 use crate::{
     any_body::AnyBody,
@@ -106,8 +105,9 @@ impl Future for SendClientRequest {
                 }
 
                 let res = futures_core::ready!(send.as_mut().poll(cx)).map(|res| {
-                    res.into_client_response()._timeout(delay.take()).map_body(
-                        |head, payload| {
+                    res.into_client_response()
+                        ._timeout(delay.take())
+                        .map_body(|head, payload| {
                             if *response_decompress {
                                 Payload::Stream {
                                     payload: Decoder::from_headers(payload, &head.headers),
@@ -117,8 +117,7 @@ impl Future for SendClientRequest {
                                     payload: Decoder::new(payload, ContentEncoding::Identity),
                                 }
                             }
-                        },
-                    )
+                        })
                 });
 
                 Poll::Ready(res)
