@@ -29,5 +29,5 @@ jobs:
           cargo install cargo-tarpaulin --vers "^0.13"
           cargo tarpaulin --workspace --features=rustls,openssl --out Xml --verbose
       - name: Upload to Codecov
-        uses: codecov/codecov-action@v1
+        uses: codecov/codecov-action@v3
         with: { file: cobertura.xml }
