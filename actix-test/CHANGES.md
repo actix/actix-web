@@ -2,7 +2,7 @@
 
 ## Unreleased - 2023-xx-xx
 
-- Add `TestServerConfig::workers()` setter method
+- Add `TestServerConfig::workers()` setter method.
 - Minimum supported Rust version (MSRV) is now 1.65 due to transitive `time` dependency.
 
 ## 0.1.1 - 2023-02-26

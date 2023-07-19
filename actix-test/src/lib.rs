@@ -431,9 +431,9 @@ impl TestServerConfig {
         self
     }
 
-    /// Sets number of workers in the test server process.
+    /// Sets number of workers for the test server.
     ///
-    /// By default, the server boots with 1 worker
+    /// By default, the server uses 1 worker
     pub fn workers(mut self, workers: usize) -> Self {
         self.workers = workers;
         self
