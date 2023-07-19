@@ -10,6 +10,7 @@
 ### Changed
 
 - Handler functions can now receive up to 16 extractor parameters.
+- Hide sensitive header values in `HttpRequest`'s `Debug` output.
 - Minimum supported Rust version (MSRV) is now 1.65 due to transitive `time` dependency.
 
 ## 4.3.1 - 2023-02-26
