@@ -19,7 +19,7 @@ jobs:
     name: coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3.1.4
+      - uses: actions/checkout@v3
 
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with: { toolchain: nightly }
@@ -29,5 +29,6 @@ jobs:
           cargo install cargo-tarpaulin --vers "^0.13"
           cargo tarpaulin --workspace --features=rustls,openssl --out Xml --verbose
       - name: Upload to Codecov
-        uses: codecov/codecov-action@v3
-        with: { file: cobertura.xml }
+        uses: codecov/codecov-action@v3.1.4
+        with:
+          file: cobertura.xml
