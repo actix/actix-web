@@ -18,7 +18,7 @@ proc-macro = true
 actix-router = "0.5"
 proc-macro2 = "1"
 quote = "1"
-syn = { version = "1", features = ["full", "extra-traits"] }
+syn = { version = "2", features = ["full", "extra-traits"] }
 
 [dev-dependencies]
 actix-macros = "0.2.3"

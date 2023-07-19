@@ -21,7 +21,7 @@ darling = "0.14"
 parse-size = "1"
 proc-macro2 = "1"
 quote = "1"
-syn = "1"
+syn = "2"
 
 [dev-dependencies]
 actix-multipart = "0.6"
