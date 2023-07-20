@@ -35,7 +35,7 @@ impl syn::parse::Parse for RouteArgs {
             });
         }
 
-        // separator
+        // advance past comma separator
         input.parse::<Token![,]>()?;
 
         // if next char is a literal, assume that it is a string and show multi-path error
