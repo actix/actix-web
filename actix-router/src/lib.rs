@@ -18,13 +18,14 @@ mod router;
 #[cfg(feature = "http")]
 mod url;
 
-pub use self::de::PathDeserializer;
-pub use self::path::Path;
-pub use self::pattern::{IntoPatterns, Patterns};
-pub use self::quoter::Quoter;
-pub use self::resource::ResourceDef;
-pub use self::resource_path::{Resource, ResourcePath};
-pub use self::router::{ResourceId, Router, RouterBuilder};
-
 #[cfg(feature = "http")]
 pub use self::url::Url;
+pub use self::{
+    de::PathDeserializer,
+    path::Path,
+    pattern::{IntoPatterns, Patterns},
+    quoter::Quoter,
+    resource::ResourceDef,
+    resource_path::{Resource, ResourcePath},
+    router::{ResourceId, Router, RouterBuilder},
+};

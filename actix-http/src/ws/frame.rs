@@ -221,8 +221,9 @@ impl Parser {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use bytes::Bytes;
+
+    use super::*;
 
     struct F {
         finished: bool,

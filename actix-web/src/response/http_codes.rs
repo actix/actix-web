@@ -97,8 +97,7 @@ impl HttpResponse {
 
 #[cfg(test)]
 mod tests {
-    use crate::http::StatusCode;
-    use crate::HttpResponse;
+    use crate::{http::StatusCode, HttpResponse};
 
     #[test]
     fn test_build() {

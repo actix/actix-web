@@ -18,6 +18,8 @@
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
+use std::path::Path;
+
 use actix_service::boxed::{BoxService, BoxServiceFactory};
 use actix_web::{
     dev::{RequestHead, ServiceRequest, ServiceResponse},
@@ -25,7 +27,6 @@ use actix_web::{
     http::header::DispositionType,
 };
 use mime_guess::from_ext;
-use std::path::Path;
 
 mod chunked;
 mod directory;
@@ -37,16 +38,15 @@ mod path_buf;
 mod range;
 mod service;
 
-pub use self::chunked::ChunkedReadFile;
-pub use self::directory::Directory;
-pub use self::files::Files;
-pub use self::named::NamedFile;
-pub use self::range::HttpRange;
-pub use self::service::FilesService;
-
-use self::directory::{directory_listing, DirectoryRenderer};
-use self::error::FilesError;
-use self::path_buf::PathBufWrap;
+pub use self::{
+    chunked::ChunkedReadFile, directory::Directory, files::Files, named::NamedFile,
+    range::HttpRange, service::FilesService,
+};
+use self::{
+    directory::{directory_listing, DirectoryRenderer},
+    error::FilesError,
+    path_buf::PathBufWrap,
+};
 
 type HttpService = BoxService<ServiceRequest, ServiceResponse, Error>;
 type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
@@ -554,10 +554,9 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_static_files_with_spaces() {
-        let srv = test::init_service(
-            App::new().service(Files::new("/", ".").index_file("Cargo.toml")),
-        )
-        .await;
+        let srv =
+            test::init_service(App::new().service(Files::new("/", ".").index_file("Cargo.toml")))
+                .await;
         let request = TestRequest::get()
             .uri("/tests/test%20space.binary")
             .to_request();
@@ -667,8 +666,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_static_files() {
         let srv =
-            test::init_service(App::new().service(Files::new("/", ".").show_files_listing()))
-                .await;
+            test::init_service(App::new().service(Files::new("/", ".").show_files_listing())).await;
         let req = TestRequest::with_uri("/missing").to_request();
 
         let resp = test::call_service(&srv, req).await;
@@ -681,8 +679,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
         let srv =
-            test::init_service(App::new().service(Files::new("/", ".").show_files_listing()))
-                .await;
+            test::init_service(App::new().service(Files::new("/", ".").show_files_listing())).await;
         let req = TestRequest::with_uri("/tests").to_request();
         let resp = test::call_service(&srv, req).await;
         assert_eq!(

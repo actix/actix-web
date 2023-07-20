@@ -66,8 +66,7 @@
 // - Re-export but hide the runtime macros because they won't work directly but are required for
 //   `#[actix_web::main]` and `#[actix_web::test]` to work.
 
-pub use actix_rt::{net, pin, signal, spawn, task, time, Runtime, System, SystemRunner};
-
 #[cfg(feature = "macros")]
 #[doc(hidden)]
 pub use actix_macros::{main, test};
+pub use actix_rt::{net, pin, signal, spawn, task, time, Runtime, System, SystemRunner};

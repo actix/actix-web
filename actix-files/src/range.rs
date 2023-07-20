@@ -48,8 +48,8 @@ impl HttpRange {
     /// `header` is HTTP Range header (e.g. `bytes=bytes=0-9`).
     /// `size` is full size of response (file).
     pub fn parse(header: &str, size: u64) -> Result<Vec<HttpRange>, ParseRangeErr> {
-        let ranges = http_range::HttpRange::parse(header, size)
-            .map_err(|err| ParseRangeErr(err.into()))?;
+        let ranges =
+            http_range::HttpRange::parse(header, size).map_err(|err| ParseRangeErr(err.into()))?;
 
         Ok(ranges
             .iter()

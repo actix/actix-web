@@ -4,13 +4,15 @@
 
 ### Added
 
-- Add `HttpServer::{bind,listen}_auto_h2c()` method.
+- Add `HttpServer::{bind, listen}_auto_h2c()` method behind new `http2` crate feature.
 - Add `Resource::{get, post, etc...}` methods for more concisely adding routes that don't need additional guards.
 - Add several missing convenience methods on `HttpResponse` for their respective status codes.
 
 ### Changed
 
 - Handler functions can now receive up to 16 extractor parameters.
+- The `Compress` middleware no longer compresses image or video content.
+- Hide sensitive header values in `HttpRequest`'s `Debug` output.
 - Minimum supported Rust version (MSRV) is now 1.65 due to transitive `time` dependency.
 
 ## 4.3.1 - 2023-02-26

@@ -1,4 +1,4 @@
-error: invalid service definition, expected #[get("<path>")]
+error: unexpected end of input, expected string literal
  --> tests/trybuild/routes-missing-args-fail.rs:4:1
   |
 4 | #[get]
@@ -6,11 +6,19 @@ error: invalid service definition, expected #[get("<path>")]
   |
   = note: this error originates in the attribute macro `get` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error: Invalid input for macro
+error: invalid service definition, expected #[<method>("<path>")]
  --> tests/trybuild/routes-missing-args-fail.rs:4:1
   |
 4 | #[get]
   | ^^^^^^
+  |
+  = note: this error originates in the attribute macro `get` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: expected attribute arguments in parentheses: #[get(...)]
+ --> tests/trybuild/routes-missing-args-fail.rs:4:3
+  |
+4 | #[get]
+  |   ^^^
 
 error[E0277]: the trait bound `fn() -> impl std::future::Future<Output = String> {index}: HttpServiceFactory` is not satisfied
   --> tests/trybuild/routes-missing-args-fail.rs:13:55

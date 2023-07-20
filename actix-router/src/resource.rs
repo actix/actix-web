@@ -252,7 +252,7 @@ impl ResourceDef {
     /// Multi-pattern resources can be constructed by providing a slice (or vec) of patterns.
     ///
     /// # Panics
-    /// Panics if path pattern is malformed.
+    /// Panics if any path patterns are malformed.
     ///
     /// # Examples
     /// ```
@@ -838,6 +838,7 @@ impl ResourceDef {
 
     fn construct<T: IntoPatterns>(paths: T, is_prefix: bool) -> Self {
         let patterns = paths.patterns();
+
         let (pat_type, segments) = match &patterns {
             Patterns::Single(pattern) => ResourceDef::parse(pattern, is_prefix, false),
 
@@ -1741,9 +1742,7 @@ mod tests {
         ResourceDef::new("/{a}/{b}/{c}/{d}/{e}/{f}/{g}/{h}/{i}/{j}/{k}/{l}/{m}/{n}/{o}/{p}");
 
         // panics
-        ResourceDef::new(
-            "/{a}/{b}/{c}/{d}/{e}/{f}/{g}/{h}/{i}/{j}/{k}/{l}/{m}/{n}/{o}/{p}/{q}",
-        );
+        ResourceDef::new("/{a}/{b}/{c}/{d}/{e}/{f}/{g}/{h}/{i}/{j}/{k}/{l}/{m}/{n}/{o}/{p}/{q}");
     }
 
     #[test]

@@ -18,12 +18,11 @@ use futures_core::{ready, Stream};
 use futures_util::SinkExt as _;
 use pin_project_lite::pin_project;
 
-use crate::BoxError;
-
 use super::{
     connection::{ConnectionIo, H1Connection},
     error::{ConnectError, SendRequestError},
 };
+use crate::BoxError;
 
 pub(crate) async fn send_request<Io, B>(
     io: H1Connection<Io>,

@@ -19,14 +19,13 @@ use actix_web::{
 };
 use bytes::Bytes;
 use futures_core::ready;
-use rand::{distributions::Alphanumeric, Rng as _};
-
 #[cfg(feature = "openssl")]
 use openssl::{
     pkey::PKey,
     ssl::{SslAcceptor, SslMethod},
     x509::X509,
 };
+use rand::{distributions::Alphanumeric, Rng as _};
 
 mod utils;
 
@@ -94,9 +93,8 @@ impl futures_core::stream::Stream for TestBody {
 #[actix_rt::test]
 async fn test_body() {
     let srv = actix_test::start(|| {
-        App::new().service(
-            web::resource("/").route(web::to(|| async { HttpResponse::Ok().body(STR) })),
-        )
+        App::new()
+            .service(web::resource("/").route(web::to(|| async { HttpResponse::Ok().body(STR) })))
     });
 
     let mut res = srv.get("/").send().await.unwrap();
@@ -226,8 +224,7 @@ async fn test_body_chunked_implicit() {
         App::new()
             .wrap(Compress::default())
             .service(web::resource("/").route(web::get().to(|| async {
-                HttpResponse::Ok()
-                    .streaming(TestBody::new(Bytes::from_static(STR.as_ref()), 24))
+                HttpResponse::Ok().streaming(TestBody::new(Bytes::from_static(STR.as_ref()), 24))
             })))
     });
 
@@ -256,8 +253,7 @@ async fn test_body_br_streaming() {
         App::new()
             .wrap(Compress::default())
             .service(web::resource("/").route(web::to(|| async {
-                HttpResponse::Ok()
-                    .streaming(TestBody::new(Bytes::from_static(STR.as_ref()), 24))
+                HttpResponse::Ok().streaming(TestBody::new(Bytes::from_static(STR.as_ref()), 24))
             })))
     });
 
@@ -392,8 +388,7 @@ async fn test_body_zstd_streaming() {
         App::new()
             .wrap(Compress::default())
             .service(web::resource("/").route(web::to(move || async {
-                HttpResponse::Ok()
-                    .streaming(TestBody::new(Bytes::from_static(STR.as_ref()), 24))
+                HttpResponse::Ok().streaming(TestBody::new(Bytes::from_static(STR.as_ref()), 24))
             })))
     });
 
@@ -686,15 +681,14 @@ async fn test_brotli_encoding_large_openssl() {
     use actix_web::http::header;
 
     let data = STR.repeat(10);
-    let srv =
-        actix_test::start_with(actix_test::config().openssl(openssl_config()), move || {
-            App::new().service(web::resource("/").route(web::to(|bytes: Bytes| async {
-                // echo decompressed request body back in response
-                HttpResponse::Ok()
-                    .insert_header(header::ContentEncoding::Identity)
-                    .body(bytes)
-            })))
-        });
+    let srv = actix_test::start_with(actix_test::config().openssl(openssl_config()), move || {
+        App::new().service(web::resource("/").route(web::to(|bytes: Bytes| async {
+            // echo decompressed request body back in response
+            HttpResponse::Ok()
+                .insert_header(header::ContentEncoding::Identity)
+                .body(bytes)
+        })))
+    });
 
     let mut res = srv
         .post("/")

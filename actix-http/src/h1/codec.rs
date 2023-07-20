@@ -9,9 +9,7 @@ use super::{
     decoder::{self, PayloadDecoder, PayloadItem, PayloadType},
     encoder, Message, MessageType,
 };
-use crate::{
-    body::BodySize, error::ParseError, ConnectionType, Request, Response, ServiceConfig,
-};
+use crate::{body::BodySize, error::ParseError, ConnectionType, Request, Response, ServiceConfig};
 
 bitflags! {
     #[derive(Debug, Clone, Copy)]

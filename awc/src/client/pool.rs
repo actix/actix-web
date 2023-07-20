@@ -23,11 +23,13 @@ use http::uri::Authority;
 use pin_project_lite::pin_project;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
-use super::config::ConnectorConfig;
-use super::connection::{ConnectionInnerType, ConnectionIo, ConnectionType, H2ConnectionInner};
-use super::error::ConnectError;
-use super::h2proto::handshake;
-use super::Connect;
+use super::{
+    config::ConnectorConfig,
+    connection::{ConnectionInnerType, ConnectionIo, ConnectionType, H2ConnectionInner},
+    error::ConnectError,
+    h2proto::handshake,
+    Connect,
+};
 
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub struct Key {
@@ -201,7 +203,9 @@ where
                             // check if the connection is still usable
                             if let ConnectionInnerType::H1(ref mut io) = c.conn {
                                 let check = ConnectionCheckFuture { io };
-                                match check.now_or_never().expect("ConnectionCheckFuture must never yield with Poll::Pending.") {
+                                match check.now_or_never().expect(
+                                    "ConnectionCheckFuture must never yield with Poll::Pending.",
+                                ) {
                                     ConnectionState::Tainted => {
                                         inner.close(c.conn);
                                         continue;

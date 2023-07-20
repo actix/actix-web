@@ -3,5 +3,7 @@
 mod head;
 mod request;
 
-pub use self::head::{RequestHead, RequestHeadType};
-pub use self::request::Request;
+pub use self::{
+    head::{RequestHead, RequestHeadType},
+    request::Request,
+};
