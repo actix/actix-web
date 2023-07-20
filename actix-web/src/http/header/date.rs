@@ -32,7 +32,7 @@ crate::http::header::common_header! {
     (Date, DATE) => [HttpDate]
 
     test_parse_and_format {
-        crate::http::header::common_header_test!(test1, vec![b"Tue, 15 Nov 1994 08:12:31 GMT"]);
+        crate::http::header::common_header_test!(test1, [b"Tue, 15 Nov 1994 08:12:31 GMT"]);
     }
 }
 

@@ -52,17 +52,17 @@ common_header! {
     test_parse_and_format {
         crate::http::header::common_header_test!(
             test1,
-            vec![b"\"xyzzy\""],
+            [b"\"xyzzy\""],
             Some(HeaderField::Items(
                 vec![EntityTag::new_strong("xyzzy".to_owned())])));
 
         crate::http::header::common_header_test!(
             test2,
-            vec![b"\"xyzzy\", \"r2d2xxxx\", \"c3piozzzz\""],
+            [b"\"xyzzy\", \"r2d2xxxx\", \"c3piozzzz\""],
             Some(HeaderField::Items(
                 vec![EntityTag::new_strong("xyzzy".to_owned()),
                      EntityTag::new_strong("r2d2xxxx".to_owned()),
                      EntityTag::new_strong("c3piozzzz".to_owned())])));
-        crate::http::header::common_header_test!(test3, vec![b"*"], Some(IfMatch::Any));
+        crate::http::header::common_header_test!(test3, [b"*"], Some(IfMatch::Any));
     }
 }

@@ -1529,7 +1529,12 @@ mod tests {
         assert!(!resource.resource_path_from_iter(&mut s, &mut ["item"].iter()));
 
         let mut s = String::new();
-        assert!(resource.resource_path_from_iter(&mut s, &mut vec!["item", "item2"].iter()));
+
+        assert!(resource.resource_path_from_iter(
+            &mut s,
+            #[allow(clippy::useless_vec)]
+            &mut vec!["item", "item2"].iter()
+        ));
         assert_eq!(s, "/user/item/item2/");
     }
 

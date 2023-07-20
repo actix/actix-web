@@ -13,59 +13,59 @@ crate::http::header::common_header! {
 
     test_parse_and_format {
         crate::http::header::common_header_test!(test_bytes,
-            vec![b"bytes 0-499/500"],
+            [b"bytes 0-499/500"],
             Some(ContentRange(ContentRangeSpec::Bytes {
                 range: Some((0, 499)),
                 instance_length: Some(500)
             })));
 
         crate::http::header::common_header_test!(test_bytes_unknown_len,
-            vec![b"bytes 0-499/*"],
+            [b"bytes 0-499/*"],
             Some(ContentRange(ContentRangeSpec::Bytes {
                 range: Some((0, 499)),
                 instance_length: None
             })));
 
         crate::http::header::common_header_test!(test_bytes_unknown_range,
-            vec![b"bytes */500"],
+            [b"bytes */500"],
             Some(ContentRange(ContentRangeSpec::Bytes {
                 range: None,
                 instance_length: Some(500)
             })));
 
         crate::http::header::common_header_test!(test_unregistered,
-            vec![b"seconds 1-2"],
+            [b"seconds 1-2"],
             Some(ContentRange(ContentRangeSpec::Unregistered {
                 unit: "seconds".to_owned(),
                 resp: "1-2".to_owned()
             })));
 
         crate::http::header::common_header_test!(test_no_len,
-            vec![b"bytes 0-499"],
+            [b"bytes 0-499"],
             None::<ContentRange>);
 
         crate::http::header::common_header_test!(test_only_unit,
-            vec![b"bytes"],
+            [b"bytes"],
             None::<ContentRange>);
 
         crate::http::header::common_header_test!(test_end_less_than_start,
-            vec![b"bytes 499-0/500"],
+            [b"bytes 499-0/500"],
             None::<ContentRange>);
 
         crate::http::header::common_header_test!(test_blank,
-            vec![b""],
+            [b""],
             None::<ContentRange>);
 
         crate::http::header::common_header_test!(test_bytes_many_spaces,
-            vec![b"bytes 1-2/500 3"],
+            [b"bytes 1-2/500 3"],
             None::<ContentRange>);
 
         crate::http::header::common_header_test!(test_bytes_many_slashes,
-            vec![b"bytes 1-2/500/600"],
+            [b"bytes 1-2/500/600"],
             None::<ContentRange>);
 
         crate::http::header::common_header_test!(test_bytes_many_dashes,
-            vec![b"bytes 1-2-3/500"],
+            [b"bytes 1-2-3/500"],
             None::<ContentRange>);
 
     }
@@ -113,21 +113,13 @@ pub enum ContentRangeSpec {
     },
 }
 
-fn split_in_two(s: &str, separator: char) -> Option<(&str, &str)> {
-    let mut iter = s.splitn(2, separator);
-    match (iter.next(), iter.next()) {
-        (Some(a), Some(b)) => Some((a, b)),
-        _ => None,
-    }
-}
-
 impl FromStr for ContentRangeSpec {
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<Self, ParseError> {
-        let res = match split_in_two(s, ' ') {
+        let res = match s.split_once(' ') {
             Some(("bytes", resp)) => {
-                let (range, instance_length) = split_in_two(resp, '/').ok_or(ParseError::Header)?;
+                let (range, instance_length) = resp.split_once('/').ok_or(ParseError::Header)?;
 
                 let instance_length = if instance_length == "*" {
                     None
@@ -139,7 +131,7 @@ impl FromStr for ContentRangeSpec {
                     None
                 } else {
                     let (first_byte, last_byte) =
-                        split_in_two(range, '-').ok_or(ParseError::Header)?;
+                        range.split_once('-').ok_or(ParseError::Header)?;
                     let first_byte = first_byte.parse().map_err(|_| ParseError::Header)?;
                     let last_byte = last_byte.parse().map_err(|_| ParseError::Header)?;
                     if last_byte < first_byte {

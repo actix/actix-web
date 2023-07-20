@@ -12,7 +12,7 @@ pub use self::{decoder::Decoder, encoder::Encoder};
 /// Special-purpose writer for streaming (de-)compression.
 ///
 /// Pre-allocates 8KiB of capacity.
-pub(self) struct Writer {
+struct Writer {
     buf: BytesMut,
 }
 

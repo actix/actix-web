@@ -45,11 +45,11 @@ crate::http::header::common_header! {
     test_parse_and_format {
         crate::http::header::common_header_test!(
             test_text_html,
-            vec![b"text/html"],
+            [b"text/html"],
             Some(HeaderField(mime::TEXT_HTML)));
         crate::http::header::common_header_test!(
             test_image_star,
-            vec![b"image/*"],
+            [b"image/*"],
             Some(HeaderField(mime::IMAGE_STAR)));
 
     }
