@@ -16,7 +16,8 @@ use futures_core::{ready, stream::Stream};
 use mime::Mime;
 
 use crate::{
-    dev, error::ErrorBadRequest, http::header, web, Error, FromRequest, HttpMessage, HttpRequest,
+    body, dev, error::ErrorBadRequest, http::header, web, Error, FromRequest, HttpMessage,
+    HttpRequest,
 };
 
 /// Extract a request's raw payload stream.
@@ -50,6 +51,72 @@ impl Payload {
     pub fn into_inner(self) -> dev::Payload {
         self.0
     }
+
+    /// Buffers payload from request up to `limit` bytes.
+    ///
+    /// This method is preferred over [`Payload::to_bytes()`] since it will not lead to unexpected
+    /// memory exhaustion from massive payloads. Note that the other primitive extractors such as
+    /// [`Bytes`] and [`String`], as well as extractors built on top of them, already have this sort
+    /// of protection according to the configured (or default) [`PayloadConfig`].
+    ///
+    /// # Errors
+    ///
+    /// - The outer error type, [`BodyLimitExceeded`](body::BodyLimitExceeded), is returned when the
+    ///   payload is larger than `limit`.
+    /// - The inner error type is [the normal Actix Web error](crate::Error) and is only returned if
+    ///   the payload stream yields an error for some reason. Such cases are usually caused by
+    ///   unrecoverable connection issues.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use actix_web::{error, web::Payload, Responder};
+    ///
+    /// async fn limited_payload_handler(pl: Payload) -> actix_web::Result<impl Responder> {
+    ///     match pl.to_bytes_limited(5).await {
+    ///         Ok(res) => res,
+    ///         Err(err) => Err(error::ErrorPayloadTooLarge(err)),
+    ///     }
+    /// }
+    /// ```
+    pub async fn to_bytes_limited(
+        self,
+        limit: usize,
+    ) -> Result<crate::Result<Bytes>, body::BodyLimitExceeded> {
+        let stream = body::BodyStream::new(self.0);
+
+        match body::to_bytes_limited(stream, limit).await {
+            Ok(Ok(body)) => Ok(Ok(body)),
+            Ok(Err(err)) => Ok(Err(err.into())),
+            Err(err) => Err(err),
+        }
+    }
+
+    /// Buffers entire payload from request.
+    ///
+    /// Use of this method is discouraged unless you know for certain that requests will not be
+    /// large enough to exhaust memory. If this is not known, prefer [`Payload::to_bytes_limited()`]
+    /// or one of the higher level extractors like [`Bytes`] or [`String`] that implement size
+    /// limits according to the configured (or default) [`PayloadConfig`].
+    ///
+    /// # Errors
+    ///
+    /// An error is only returned if the payload stream yields an error for some reason. Such cases
+    /// are usually caused by unrecoverable connection issues.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use actix_web::{error, web::Payload, Responder};
+    ///
+    /// async fn payload_handler(pl: Payload) -> actix_web::Result<impl Responder> {
+    ///     pl.to_bytes().await
+    /// }
+    /// ```
+    pub async fn to_bytes(self) -> crate::Result<Bytes> {
+        let stream = body::BodyStream::new(self.0);
+        Ok(body::to_bytes(stream).await?)
+    }
 }
 
 impl Stream for Payload {
@@ -64,7 +131,7 @@ impl Stream for Payload {
 /// See [here](#Examples) for example of usage as an extractor.
 impl FromRequest for Payload {
     type Error = Error;
-    type Future = Ready<Result<Payload, Error>>;
+    type Future = Ready<Result<Self, Self::Error>>;
 
     #[inline]
     fn from_request(_: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
@@ -378,9 +445,52 @@ mod tests {
     use super::*;
     use crate::{
         http::{header, StatusCode},
-        test::{call_service, init_service, TestRequest},
+        test::{call_service, init_service, read_body, TestRequest},
         web, App, Responder,
     };
+
+    #[actix_rt::test]
+    async fn payload_to_bytes() {
+        async fn payload_handler(pl: Payload) -> crate::Result<impl Responder> {
+            pl.to_bytes().await
+        }
+
+        async fn limited_payload_handler(pl: Payload) -> crate::Result<impl Responder> {
+            match pl.to_bytes_limited(5).await {
+                Ok(res) => res,
+                Err(_limited) => Err(ErrorBadRequest("too big")),
+            }
+        }
+
+        let srv = init_service(
+            App::new()
+                .route("/all", web::to(payload_handler))
+                .route("limited", web::to(limited_payload_handler)),
+        )
+        .await;
+
+        let req = TestRequest::with_uri("/all")
+            .set_payload("1234567890")
+            .to_request();
+        let res = call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = read_body(res).await;
+        assert_eq!(body, "1234567890");
+
+        let req = TestRequest::with_uri("/limited")
+            .set_payload("1234567890")
+            .to_request();
+        let res = call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+
+        let req = TestRequest::with_uri("/limited")
+            .set_payload("12345")
+            .to_request();
+        let res = call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = read_body(res).await;
+        assert_eq!(body, "12345");
+    }
 
     #[actix_rt::test]
     async fn test_payload_config() {
