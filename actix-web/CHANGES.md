@@ -9,6 +9,7 @@
 - Add `web::Payload::to_bytes[_limited]()` helper methods.
 - Add missing constructors on `HttpResponse` for several status codes.
 - Add `http::header::ContentLength` typed header.
+- Add `web::Bincode<T>` extractor and responder behind new `bincode` crate feature.
 
 ### Changed
 

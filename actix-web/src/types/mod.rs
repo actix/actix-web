@@ -1,5 +1,6 @@
 //! Common extractors and responders.
 
+mod bincode;
 mod either;
 mod form;
 mod header;
@@ -9,6 +10,8 @@ mod payload;
 mod query;
 mod readlines;
 
+#[cfg(feature = "bincode")]
+pub use self::bincode::{Bincode, BincodeBody, BincodeConfig};
 pub use self::{
     either::Either,
     form::{Form, FormConfig, UrlEncoded},

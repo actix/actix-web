@@ -75,6 +75,7 @@ actix-router = "0.5"
 actix-web-codegen = { version = "4.2", optional = true }
 
 ahash = "0.8"
+bincode = { version = "1.3", optional = true }
 bytes = "1"
 bytestring = "1"
 cfg-if = "1"

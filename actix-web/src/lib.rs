@@ -66,6 +66,7 @@
 //! - `openssl` - HTTPS support via `openssl` crate, supports `HTTP/2`
 //! - `rustls` - HTTPS support via `rustls` crate, supports `HTTP/2`
 //! - `secure-cookies` - secure cookies support
+//! - `bincode` - Bincode extractor and responder
 
 #![deny(rust_2018_idioms, nonstandard_style)]
 #![warn(future_incompatible)]

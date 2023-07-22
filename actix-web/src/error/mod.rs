@@ -160,6 +160,63 @@ impl ResponseError for JsonPayloadError {
     }
 }
 
+/// A set of errors that can occur during parsing json payloads
+#[cfg(feature = "bincode")]
+#[derive(Debug, Display, Error)]
+#[non_exhaustive]
+pub enum BincodePayloadError {
+    /// Payload size is bigger than allowed & content length header set. (default: 2MB)
+    #[display(
+        fmt = "Bincode payload ({} bytes) is larger than allowed (limit: {} bytes).",
+        length,
+        limit
+    )]
+    OverflowKnownLength { length: usize, limit: usize },
+
+    /// Payload size is bigger than allowed but no content length header set. (default: 2MB)
+    #[display(fmt = "Bincode payload has exceeded limit ({} bytes).", limit)]
+    Overflow { limit: usize },
+
+    /// Content type error
+    #[display(fmt = "Content type error")]
+    ContentType,
+
+    /// Deserialize error
+    #[display(fmt = "Bincode deserialize error: {}", _0)]
+    Deserialize(bincode::Error),
+
+    /// Serialize error
+    #[display(fmt = "Bincode serialize error: {}", _0)]
+    Serialize(bincode::Error),
+
+    /// Payload error
+    #[display(fmt = "Error that occur during reading payload: {}", _0)]
+    Payload(PayloadError),
+}
+
+#[cfg(feature = "bincode")]
+impl From<PayloadError> for BincodePayloadError {
+    fn from(err: PayloadError) -> Self {
+        Self::Payload(err)
+    }
+}
+
+#[cfg(feature = "bincode")]
+impl ResponseError for BincodePayloadError {
+    fn status_code(&self) -> StatusCode {
+        match self {
+            Self::OverflowKnownLength {
+                length: _,
+                limit: _,
+            } => StatusCode::PAYLOAD_TOO_LARGE,
+            Self::Overflow { limit: _ } => StatusCode::PAYLOAD_TOO_LARGE,
+            Self::Serialize(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::Payload(err) => err.status_code(),
+            _ => StatusCode::BAD_REQUEST,
+        }
+    }
+}
+
 /// A set of errors that can occur during parsing request paths
 #[derive(Debug, Display, Error)]
 #[non_exhaustive]

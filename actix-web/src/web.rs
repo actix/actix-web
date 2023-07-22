@@ -8,11 +8,13 @@
 //! - [`Header`]: Typed header
 //! - [`Json`]: JSON payload
 //! - [`Form`]: URL-encoded payload
+//! - [`Bincode`]: Bincode-encoded payload
 //! - [`Bytes`]: Raw payload
 //!
 //! # Responders
 //! - [`Json`]: JSON response
 //! - [`Form`]: URL-encoded response
+//! - [`Bincode`]: Bincode-encoded response
 //! - [`Bytes`]: Raw bytes response
 //! - [`Redirect`](Redirect::to): Convenient redirect responses
 
