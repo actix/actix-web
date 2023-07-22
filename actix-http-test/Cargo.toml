@@ -50,5 +50,4 @@ tls-openssl = { version = "0.10.55", package = "openssl", optional = true }
 tokio = { version = "1.24.2", features = ["sync"] }
 
 [dev-dependencies]
-actix-web = { version = "4", default-features = false, features = ["cookies"] }
 actix-http = "3"
