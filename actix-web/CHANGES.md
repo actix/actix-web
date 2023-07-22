@@ -7,6 +7,7 @@
 - Add `HttpServer::{bind, listen}_auto_h2c()` method behind new `http2` crate feature.
 - Add `Resource::{get, post, etc...}` methods for more concisely adding routes that don't need additional guards.
 - Add `web::Payload::to_bytes[_limited]()` helper methods.
+- Add missing constructors on `HttpResponse` for several status codes.
 
 ### Changed
 

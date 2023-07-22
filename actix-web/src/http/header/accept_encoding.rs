@@ -50,31 +50,31 @@ common_header! {
     (AcceptEncoding, header::ACCEPT_ENCODING) => (QualityItem<Preference<Encoding>>)*
 
     test_parse_and_format {
-        common_header_test!(no_headers, vec![b""; 0], Some(AcceptEncoding(vec![])));
-        common_header_test!(empty_header, vec![b""; 1], Some(AcceptEncoding(vec![])));
+        common_header_test!(no_headers, [b""; 0], Some(AcceptEncoding(vec![])));
+        common_header_test!(empty_header, [b""; 1], Some(AcceptEncoding(vec![])));
 
         common_header_test!(
             order_of_appearance,
-            vec![b"br, gzip"],
+            [b"br, gzip"],
             Some(AcceptEncoding(vec![
                 QualityItem::max(Preference::Specific(Encoding::brotli())),
                 QualityItem::max(Preference::Specific(Encoding::gzip())),
             ]))
         );
 
-        common_header_test!(any, vec![b"*"], Some(AcceptEncoding(vec![
+        common_header_test!(any, [b"*"], Some(AcceptEncoding(vec![
             QualityItem::max(Preference::Any),
         ])));
 
         // Note: Removed quality 1 from gzip
-        common_header_test!(implicit_quality, vec![b"gzip, identity; q=0.5, *;q=0"]);
+        common_header_test!(implicit_quality, [b"gzip, identity; q=0.5, *;q=0"]);
 
         // Note: Removed quality 1 from gzip
-        common_header_test!(implicit_quality_out_of_order, vec![b"compress;q=0.5, gzip"]);
+        common_header_test!(implicit_quality_out_of_order, [b"compress;q=0.5, gzip"]);
 
         common_header_test!(
             only_gzip_no_identity,
-            vec![b"gzip, *; q=0"],
+            [b"gzip, *; q=0"],
             Some(AcceptEncoding(vec![
                 QualityItem::max(Preference::Specific(Encoding::gzip())),
                 QualityItem::zero(Preference::Any),

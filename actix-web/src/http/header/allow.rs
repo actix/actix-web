@@ -51,12 +51,12 @@ crate::http::header::common_header! {
         // From the RFC
         crate::http::header::common_header_test!(
             test1,
-            vec![b"GET, HEAD, PUT"],
+            [b"GET, HEAD, PUT"],
             Some(HeaderField(vec![Method::GET, Method::HEAD, Method::PUT])));
         // Own tests
         crate::http::header::common_header_test!(
             test2,
-            vec![b"OPTIONS, GET, PUT, POST, DELETE, HEAD, TRACE, CONNECT, PATCH"],
+            [b"OPTIONS, GET, PUT, POST, DELETE, HEAD, TRACE, CONNECT, PATCH"],
             Some(HeaderField(vec![
                 Method::OPTIONS,
                 Method::GET,
@@ -69,7 +69,7 @@ crate::http::header::common_header! {
                 Method::PATCH])));
         crate::http::header::common_header_test!(
             test3,
-            vec![b""],
+            [b""],
             Some(HeaderField(Vec::<Method>::new())));
     }
 }

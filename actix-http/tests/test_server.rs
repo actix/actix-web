@@ -1,5 +1,3 @@
-#![allow(clippy::uninlined_format_args)]
-
 use std::{
     convert::Infallible,
     io::{Read, Write},
@@ -139,7 +137,7 @@ async fn expect_continue_h1() {
 
 #[actix_rt::test]
 async fn chunked_payload() {
-    let chunk_sizes = vec![32768, 32, 32768];
+    let chunk_sizes = [32768, 32, 32768];
     let total_size: usize = chunk_sizes.iter().sum();
 
     let mut srv = test_server(|| {
@@ -402,7 +400,7 @@ async fn content_length() {
     let mut srv = test_server(|| {
         HttpService::build()
             .h1(|req: Request| {
-                let indx: usize = req.uri().path()[1..].parse().unwrap();
+                let idx: usize = req.uri().path()[1..].parse().unwrap();
                 let statuses = [
                     StatusCode::NO_CONTENT,
                     StatusCode::CONTINUE,
@@ -411,7 +409,7 @@ async fn content_length() {
                     StatusCode::OK,
                     StatusCode::NOT_FOUND,
                 ];
-                ok::<_, Infallible>(Response::new(statuses[indx]))
+                ok::<_, Infallible>(Response::new(statuses[idx]))
             })
             .tcp()
     })

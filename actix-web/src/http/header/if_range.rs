@@ -111,7 +111,7 @@ mod test_parse_and_format {
     use super::IfRange as HeaderField;
     use crate::http::header::*;
 
-    crate::http::header::common_header_test!(test1, vec![b"Sat, 29 Oct 1994 19:43:31 GMT"]);
-    crate::http::header::common_header_test!(test2, vec![b"\"abc\""]);
-    crate::http::header::common_header_test!(test3, vec![b"this-is-invalid"], None::<IfRange>);
+    crate::http::header::common_header_test!(test1, [b"Sat, 29 Oct 1994 19:43:31 GMT"]);
+    crate::http::header::common_header_test!(test2, [b"\"abc\""]);
+    crate::http::header::common_header_test!(test3, [b"this-is-invalid"], None::<IfRange>);
 }
