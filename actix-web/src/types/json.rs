@@ -21,7 +21,7 @@ use crate::{
     body::EitherBody,
     error::{Error, JsonPayloadError},
     extract::FromRequest,
-    http::header::CONTENT_LENGTH,
+    http::header::{ContentLength, Header as _},
     request::HttpRequest,
     web, HttpMessage, HttpResponse, Responder,
 };
@@ -342,11 +342,7 @@ impl<T: DeserializeOwned> JsonBody<T> {
             return JsonBody::Error(Some(JsonPayloadError::ContentType));
         }
 
-        let length = req
-            .headers()
-            .get(&CONTENT_LENGTH)
-            .and_then(|l| l.to_str().ok())
-            .and_then(|s| s.parse::<usize>().ok());
+        let length = ContentLength::parse(req).ok().map(|x| x.0);
 
         // Notice the content-length is not checked against limit of json config here.
         // As the internal usage always call JsonBody::limit after JsonBody::new.

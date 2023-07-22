@@ -24,6 +24,7 @@ mod allow;
 mod cache_control;
 mod content_disposition;
 mod content_language;
+mod content_length;
 mod content_range;
 mod content_type;
 mod date;
@@ -53,6 +54,7 @@ pub use self::{
     cache_control::{CacheControl, CacheDirective},
     content_disposition::{ContentDisposition, DispositionParam, DispositionType},
     content_language::ContentLanguage,
+    content_length::ContentLength,
     content_range::{ContentRange, ContentRangeSpec},
     content_type::ContentType,
     date::Date,

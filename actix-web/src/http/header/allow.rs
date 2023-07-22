@@ -48,12 +48,15 @@ crate::http::header::common_header! {
     (Allow, header::ALLOW) => (Method)*
 
     test_parse_and_format {
-        // From the RFC
+        // from the RFC
+
         crate::http::header::common_header_test!(
             test1,
             [b"GET, HEAD, PUT"],
             Some(HeaderField(vec![Method::GET, Method::HEAD, Method::PUT])));
-        // Own tests
+
+        // other tests
+
         crate::http::header::common_header_test!(
             test2,
             [b"OPTIONS, GET, PUT, POST, DELETE, HEAD, TRACE, CONNECT, PATCH"],
@@ -67,6 +70,7 @@ crate::http::header::common_header! {
                 Method::TRACE,
                 Method::CONNECT,
                 Method::PATCH])));
+
         crate::http::header::common_header_test!(
             test3,
             [b""],
