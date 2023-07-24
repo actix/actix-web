@@ -221,7 +221,7 @@ pub fn main(_: TokenStream, item: TokenStream) -> TokenStream {
     output
 }
 
-/// Marks async test functions to use the actix system entry-point.
+/// Marks async test functions to use the Actix Web system entry-point.
 ///
 /// # Examples
 /// ```

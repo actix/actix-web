@@ -7,7 +7,7 @@ on:
     branches: [master]
 
 permissions:
-  contents: read # to fetch code (actions/checkout)
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -18,6 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # prettier-ignore
         target:
           - { name: Linux, os: ubuntu-latest, triple: x86_64-unknown-linux-gnu }
           - { name: macOS, os: macos-latest, triple: x86_64-apple-darwin }
