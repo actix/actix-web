@@ -128,7 +128,17 @@ impl Logger {
     }
 
     /// Set a range of status to include in the logging
-    pub fn status_range<R: RangeBounds<StatusCode>>(mut self, status: R) -> Self {
+    ///
+    /// # Examples
+    /// ```
+    /// use actix_web::{middleware::Logger, App, http::StatusCode};
+    ///
+    /// // Log only the requests with status code higher or equal to BAD_REQUEST(400)
+    /// let app = App::new()
+    ///     .wrap(Logger::default().statuses(StatusCode::BAD_REQUEST..));
+    ///
+    /// ```
+    pub fn statuses<R: RangeBounds<StatusCode>>(mut self, status: R) -> Self {
         let inner = Rc::get_mut(&mut self.0).unwrap();
         inner.status_range = (status.start_bound().cloned(), status.end_bound().cloned());
         self
