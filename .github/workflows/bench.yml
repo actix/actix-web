@@ -2,8 +2,7 @@ name: Benchmark
 
 on:
   push:
-    branches:
-      - master
+    branches: [master]
 
 permissions:
   contents: read # to fetch code (actions/checkout)
