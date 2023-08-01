@@ -501,7 +501,12 @@ impl ResourceDef {
         let patterns = self
             .pattern_iter()
             .flat_map(move |this| other.pattern_iter().map(move |other| (this, other)))
-            .map(|(this, other)| [this, other].join(""))
+            .map(|(this, other)| {
+                let mut pattern = String::with_capacity(this.len() + other.len());
+                pattern.push_str(this);
+                pattern.push_str(other);
+                pattern
+            })
             .collect::<Vec<_>>();
 
         match patterns.len() {

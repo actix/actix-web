@@ -4,7 +4,7 @@
 
 [![crates.io](https://img.shields.io/crates/v/actix-web-actors?label=latest)](https://crates.io/crates/actix-web-actors)
 [![Documentation](https://docs.rs/actix-web-actors/badge.svg?version=4.2.0)](https://docs.rs/actix-web-actors/4.2.0)
-![Version](https://img.shields.io/badge/rustc-1.65+-ab6000.svg)
+![Version](https://img.shields.io/badge/rustc-1.68+-ab6000.svg)
 ![License](https://img.shields.io/crates/l/actix-web-actors.svg)
 <br />
 [![dependency status](https://deps.rs/crate/actix-web-actors/4.2.0/status.svg)](https://deps.rs/crate/actix-web-actors/4.2.0)
@@ -14,4 +14,4 @@
 ## Documentation & Resources
 
 - [API Documentation](https://docs.rs/actix-web-actors)
-- Minimum Supported Rust Version (MSRV): 1.65
+- Minimum Supported Rust Version (MSRV): 1.68
