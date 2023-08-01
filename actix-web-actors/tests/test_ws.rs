@@ -52,6 +52,10 @@ async fn common_test_code(mut srv: actix_test::TestServer, frame_size: usize) {
         .unwrap();
     let item = framed.next().await.unwrap().unwrap();
     assert_eq!(item, ws::Frame::Close(Some(ws::CloseCode::Normal.into())));
+
+    let nothing = actix_rt::time::timeout(std::time::Duration::from_secs(1), framed.next()).await;
+    assert_eq!(true, nothing.is_ok());
+    assert_eq!(true, nothing.unwrap().is_none());
 }
 
 #[actix_rt::test]
