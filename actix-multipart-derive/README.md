@@ -4,7 +4,7 @@
 
 [![crates.io](https://img.shields.io/crates/v/actix-multipart-derive?label=latest)](https://crates.io/crates/actix-multipart-derive)
 [![Documentation](https://docs.rs/actix-multipart-derive/badge.svg?version=0.5.0)](https://docs.rs/actix-multipart-derive/0.5.0)
-![Version](https://img.shields.io/badge/rustc-1.65+-ab6000.svg)
+![Version](https://img.shields.io/badge/rustc-1.68+-ab6000.svg)
 ![MIT or Apache 2.0 licensed](https://img.shields.io/crates/l/actix-multipart-derive.svg)
 <br />
 [![dependency status](https://deps.rs/crate/actix-multipart-derive/0.5.0/status.svg)](https://deps.rs/crate/actix-multipart-derive/0.5.0)
@@ -14,4 +14,4 @@
 ## Documentation & Resources
 
 - [API Documentation](https://docs.rs/actix-multipart-derive)
-- Minimum Supported Rust Version (MSRV): 1.65
+- Minimum Supported Rust Version (MSRV): 1.68
