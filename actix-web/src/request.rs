@@ -91,6 +91,18 @@ impl HttpRequest {
         &self.head().uri
     }
 
+    /// Request's full uri (scheme + host + origin).
+    #[inline]
+    pub fn full_uri(&self) -> Uri {
+        let uri: Uri = Uri::builder()
+            .scheme(self.connection_info().scheme())
+            .authority(self.connection_info().host())
+            .path_and_query(self.uri().to_string())
+            .build()
+            .unwrap();
+        uri
+    }
+
     /// Read the Request method.
     #[inline]
     pub fn method(&self) -> &Method {
