@@ -441,7 +441,7 @@ mod test {
                             }
                         }
                     }
-                    Err(err) => Poll::Ready(()),
+                    Err(_) => Poll::Ready(()),
                 }
             }
         }
