@@ -394,6 +394,8 @@ mod test {
 
     #[actix_rt::test]
     async fn test_h2_connection_drop() {
+        env_logger::try_init().ok();
+
         let addr = "127.0.0.1:0".parse::<net::SocketAddr>().unwrap();
         let listener = net::TcpListener::bind(addr).unwrap();
         let local = listener.local_addr().unwrap();
@@ -428,11 +430,18 @@ mod test {
                         if this.start_from.elapsed() > Duration::from_secs(10) {
                             panic!("connection should be gone and can not be ready");
                         } else {
-                            let _ = this.interval.poll_tick(cx);
-                            Poll::Pending
+                            match this.interval.poll_tick(cx) {
+                                Poll::Ready(_) => {
+                                    // prevents spurious test hang
+                                    this.interval.reset();
+
+                                    Poll::Pending
+                                }
+                                Poll::Pending => Poll::Pending,
+                            }
                         }
                     }
-                    Err(_) => Poll::Ready(()),
+                    Err(err) => Poll::Ready(()),
                 }
             }
         }
