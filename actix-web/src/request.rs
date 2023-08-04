@@ -91,6 +91,18 @@ impl HttpRequest {
         &self.head().uri
     }
 
+    /// Request's full uri (scheme + host + origin).
+    #[inline]
+    pub fn full_uri(&self) -> Uri {
+        let uri: Uri = Uri::builder()
+            .scheme(self.connection_info().scheme())
+            .authority(self.connection_info().host())
+            .path_and_query(self.uri().to_string())
+            .build()
+            .unwrap();
+        uri
+    }
+
     /// Read the Request method.
     #[inline]
     pub fn method(&self) -> &Method {
@@ -962,5 +974,12 @@ mod tests {
             .to_http_request();
 
         assert!(format!("{:?}", req).contains(location_header));
+    }
+
+    #[test]
+    fn check_full_uri() {
+        let req = TestRequest::with_uri("/api?id=4&name=foo").to_http_request();
+
+        assert_eq!(req.full_uri(), "http://localhost:8080/api?id=4&name=foo");
     }
 }
