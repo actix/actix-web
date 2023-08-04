@@ -975,4 +975,11 @@ mod tests {
 
         assert!(format!("{:?}", req).contains(location_header));
     }
+
+    #[test]
+    fn check_full_uri() {
+        let req = TestRequest::with_uri("/api?id=4&name=foo").to_http_request();
+
+        assert_eq!(req.full_uri(), "http://localhost:8080/api?id=4&name=foo");
+    }
 }
