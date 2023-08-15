@@ -16,6 +16,7 @@
 - The `Compress` middleware no longer compresses image or video content.
 - Hide sensitive header values in `HttpRequest`'s `Debug` output.
 - Minimum supported Rust version (MSRV) is now 1.68 due to transitive `time` dependency.
+- Bumped URL version for ActixWeb 2.1 --> 2.4
 
 ## 4.3.1 - 2023-02-26
 

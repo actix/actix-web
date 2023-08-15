@@ -96,7 +96,7 @@ serde_urlencoded = "0.7"
 smallvec = "1.6.1"
 socket2 = "0.5"
 time = { version = "0.3", default-features = false, features = ["formatting"] }
-url = "2.1"
+url = "^2.4"
 
 [dev-dependencies]
 actix-files = "0.6"
