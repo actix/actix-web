@@ -3,7 +3,7 @@ use std::{any::type_name, ops::Deref, sync::Arc};
 use actix_http::Extensions;
 use actix_utils::future::{err, ok, Ready};
 use futures_core::future::LocalBoxFuture;
-use serde::Serialize;
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{dev::Payload, error, Error, FromRequest, HttpRequest};
 
@@ -127,6 +127,11 @@ impl<T: ?Sized> From<Arc<T>> for Data<T> {
         Data(arc)
     }
 }
+impl<T: Default> Default for Data<T> {
+    fn default() -> Self {
+        Data::new(T::default())
+    }
+}
 
 impl<T> Serialize for Data<T>
 where
@@ -137,6 +142,17 @@ where
         S: serde::Serializer,
     {
         self.0.serialize(serializer)
+    }
+}
+impl<'de, T> Deserialize<'de> for Data<T>
+    where
+        T: Deserialize<'de>,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+    {
+        Ok(Data::new(T::deserialize(deserializer)?))
     }
 }
 
