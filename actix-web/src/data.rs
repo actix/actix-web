@@ -145,12 +145,12 @@ where
     }
 }
 impl<'de, T> Deserialize<'de> for Data<T>
-    where
-        T: Deserialize<'de>,
+where
+    T: Deserialize<'de>,
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>,
+    where
+        D: Deserializer<'de>,
     {
         Ok(Data::new(T::deserialize(deserializer)?))
     }
