@@ -58,7 +58,7 @@ pub mod ws;
 
 #[allow(deprecated)]
 pub use self::payload::PayloadStream;
-#[cfg(any(feature = "openssl", feature = "rustls"))]
+#[cfg(any(feature = "openssl", feature = "rustls-0_20", feature = "rustls-0_21"))]
 pub use self::service::TlsAcceptorConfig;
 pub use self::{
     builder::HttpServiceBuilder,
