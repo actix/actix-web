@@ -52,9 +52,10 @@ jobs:
       - name: Install cargo-hack
         uses: taiki-e/install-action@cargo-hack
 
-      # - name: workaround MSRV issues
-      #   if: matrix.version != 'stable'
-      #   run: |
+      - name: workaround MSRV issues
+        if: matrix.version != 'stable'
+        run: |
+          cargo update -p=clap --precise=4.3.24
 
       - name: check minimal
         run: cargo ci-check-min
