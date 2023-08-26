@@ -15,8 +15,9 @@ categories = [
     "web-programming::http-server",
     "web-programming::websocket",
 ]
-license = "MIT OR Apache-2.0"
-edition = "2021"
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
 
 [package.metadata.docs.rs]
 # features that docs.rs will build with
@@ -43,15 +44,21 @@ ws = [
 # TLS via OpenSSL
 openssl = ["actix-tls/accept", "actix-tls/openssl"]
 
-# TLS via Rustls
-rustls = ["actix-tls/accept", "actix-tls/rustls"]
+# TLS via Rustls v0.20
+rustls = ["rustls-0_20"]
+
+# TLS via Rustls v0.20
+rustls-0_20 = ["actix-tls/accept", "actix-tls/rustls-0_20"]
+
+# TLS via Rustls v0.21
+rustls-0_21 = ["actix-tls/accept", "actix-tls/rustls-0_21"]
 
 # Compression codecs
 compress-brotli = ["__compress", "brotli"]
 compress-gzip   = ["__compress", "flate2"]
 compress-zstd   = ["__compress", "zstd"]
 
-# Internal (PRIVATE!) features used to aid testing and cheking feature status.
+# Internal (PRIVATE!) features used to aid testing and checking feature status.
 # Don't rely on these whatsoever. They are semver-exempt and may disappear at anytime.
 __compress = []
 
@@ -91,7 +98,7 @@ rand = { version = "0.8", optional = true }
 sha1 = { version = "0.10", optional = true }
 
 # openssl/rustls
-actix-tls = { version = "3", default-features = false, optional = true }
+actix-tls = { version = "3.1", default-features = false, optional = true }
 
 # compress-*
 brotli = { version = "3.3.3", optional = true }
@@ -101,7 +108,7 @@ zstd = { version = "0.12", optional = true }
 [dev-dependencies]
 actix-http-test = { version = "3", features = ["openssl"] }
 actix-server = "2"
-actix-tls = { version = "3", features = ["openssl"] }
+actix-tls = { version = "3.1", features = ["openssl"] }
 actix-web = "4"
 
 async-stream = "0.3"
@@ -118,12 +125,16 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 static_assertions = "1"
 tls-openssl = { package = "openssl", version = "0.10.55" }
-tls-rustls = { package = "rustls", version = "0.20" }
+tls-rustls_021 = { package = "rustls", version = "0.21" }
 tokio = { version = "1.24.2", features = ["net", "rt", "macros"] }
 
 [[example]]
 name = "ws"
-required-features = ["ws", "rustls"]
+required-features = ["ws", "rustls-0_21"]
+
+[[example]]
+name = "tls_rustls"
+required-features = ["http2", "rustls-0_21"]
 
 [[bench]]
 name = "response-body-compression"

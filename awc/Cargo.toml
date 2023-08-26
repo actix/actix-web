@@ -45,7 +45,7 @@ cookies = ["cookie"]
 # trust-dns as dns resolver
 trust-dns = ["trust-dns-resolver"]
 
-# Internal (PRIVATE!) features used to aid testing and cheking feature status.
+# Internal (PRIVATE!) features used to aid testing and checking feature status.
 # Don't rely on these whatsoever. They may disappear at anytime.
 __compress = []
 
