@@ -21,4 +21,5 @@ guide/build/
 .vscode
 
 # code coverage
+/lcov.info
 /codecov.json

@@ -22,9 +22,9 @@ jobs:
           - { name: macOS, os: macos-latest, triple: x86_64-apple-darwin }
           - { name: Windows, os: windows-latest, triple: x86_64-pc-windows-msvc }
         version:
-          - nightly
+          - { name: nightly, version: nightly }
 
-    name: ${{ matrix.target.name }} / ${{ matrix.version }}
+    name: ${{ matrix.target.name }} / ${{ matrix.version.name }}
     runs-on: ${{ matrix.target.os }}
 
     steps:
@@ -39,10 +39,10 @@ jobs:
           echo 'OPENSSL_DIR=C:\Program Files\OpenSSL-Win64' | Out-File -FilePath $env:GITHUB_ENV -Append
           echo 'OPENSSL_DIR=C:\Program Files\OpenSSL' | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      - name: Install Rust (${{ matrix.version }})
+      - name: Install Rust (${{ matrix.version.name }})
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          toolchain: ${{ matrix.version }}
+          toolchain: ${{ matrix.version.version }}
 
       - name: Install cargo-hack
         uses: taiki-e/install-action@cargo-hack

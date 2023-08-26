@@ -26,10 +26,10 @@ jobs:
           - { name: macOS, os: macos-latest, triple: x86_64-apple-darwin }
           - { name: Windows, os: windows-latest, triple: x86_64-pc-windows-msvc }
         version:
-          - 1.68.0 # MSRV
-          - stable
+          - { name: msrv, version: 1.68.0 }
+          - { name: stable, version: stable }
 
-    name: ${{ matrix.target.name }} / ${{ matrix.version }}
+    name: ${{ matrix.target.name }} / ${{ matrix.version.name }}
     runs-on: ${{ matrix.target.os }}
 
     steps:
@@ -44,17 +44,18 @@ jobs:
           echo 'OPENSSL_DIR=C:\Program Files\OpenSSL-Win64' | Out-File -FilePath $env:GITHUB_ENV -Append
           echo 'OPENSSL_DIR=C:\Program Files\OpenSSL' | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      - name: Install Rust (${{ matrix.version }})
+      - name: Install Rust (${{ matrix.version.name }})
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          toolchain: ${{ matrix.version }}
+          toolchain: ${{ matrix.version.version }}
 
       - name: Install cargo-hack
         uses: taiki-e/install-action@cargo-hack
 
-      # - name: workaround MSRV issues
-      #   if: matrix.version != 'stable'
-      #   run: |
+      - name: workaround MSRV issues
+        if: matrix.version.name != 'stable'
+        run: |
+          cargo update -p=clap --precise=4.3.24
 
       - name: check minimal
         run: cargo ci-check-min
