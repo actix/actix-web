@@ -16,7 +16,7 @@ extern crate tls_rustls_021 as rustls;
 
 use std::io;
 
-use actix_http::{Error, HttpService, Request, Response, Version};
+use actix_http::{Error, HttpService, Request, Response};
 use actix_utils::future::ok;
 
 #[actix_rt::main]
