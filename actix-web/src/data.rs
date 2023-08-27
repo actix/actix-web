@@ -127,6 +127,7 @@ impl<T: ?Sized> From<Arc<T>> for Data<T> {
         Data(arc)
     }
 }
+
 impl<T: Default> Default for Data<T> {
     fn default() -> Self {
         Data::new(T::default())
