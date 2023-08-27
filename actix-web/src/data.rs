@@ -3,7 +3,7 @@ use std::{any::type_name, ops::Deref, sync::Arc};
 use actix_http::Extensions;
 use actix_utils::future::{err, ok, Ready};
 use futures_core::future::LocalBoxFuture;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{de, Serialize};
 
 use crate::{dev::Payload, error, Error, FromRequest, HttpRequest};
 
@@ -144,13 +144,13 @@ where
         self.0.serialize(serializer)
     }
 }
-impl<'de, T> Deserialize<'de> for Data<T>
+impl<'de, T> de::Deserialize<'de> for Data<T>
 where
-    T: Deserialize<'de>,
+    T: de::Deserialize<'de>,
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
-        D: Deserializer<'de>,
+        D: de::Deserializer<'de>,
     {
         Ok(Data::new(T::deserialize(deserializer)?))
     }
