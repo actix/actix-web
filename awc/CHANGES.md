@@ -1,24 +1,24 @@
 # Changes
 
-## Unreleased - 2023-xx-xx
+## Unreleased
 
 - Add `awc::Connector::rustls_021()` method for Rustls v0.21 support behind new `rustls-0_21` crate feature.
 - Add `rustls-0_20` crate feature, which the existing `rustls` feature now aliases.
 - Minimum supported Rust version (MSRV) is now 1.68 due to transitive `time` dependency.
 
-## 3.1.1 - 2023-02-26
+## 3.1.1
 
 ### Changed
 
 - `client::Connect` is now public to allow tunneling connection with `client::Connector`.
 
-## 3.1.0 - 2023-01-21
+## 3.1.0
 
 ### Changed
 
 - Minimum supported Rust version (MSRV) is now 1.59 due to transitive `time` dependency.
 
-## 3.0.1 - 2022-08-25
+## 3.0.1
 
 ### Changed
 
@@ -30,7 +30,7 @@
 
 [#2840]: https://github.com/actix/actix-web/pull/2840
 
-## 3.0.0 - 2022-03-07
+## 3.0.0
 
 ### Dependencies
 
@@ -132,23 +132,23 @@
 <details>
 <summary>3.0.0 Pre-Releases</summary>
 
-## 3.0.0-beta.21 - 2022-02-16
+## 3.0.0-beta.21
 
 - No significant changes since `3.0.0-beta.20`.
 
-## 3.0.0-beta.20 - 2022-01-31
+## 3.0.0-beta.20
 
 - No significant changes since `3.0.0-beta.19`.
 
-## 3.0.0-beta.19 - 2022-01-21
+## 3.0.0-beta.19
 
 - No significant changes since `3.0.0-beta.18`.
 
-## 3.0.0-beta.18 - 2022-01-04
+## 3.0.0-beta.18
 
 - Minimum supported Rust version (MSRV) is now 1.54.
 
-## 3.0.0-beta.17 - 2021-12-29
+## 3.0.0-beta.17
 
 ### Changed
 
@@ -161,7 +161,7 @@
 [#2555]: https://github.com/actix/actix-web/pull/2555
 [`rustsec-2020-0071`]: https://rustsec.org/advisories/RUSTSEC-2020-0071.html
 
-## 3.0.0-beta.16 - 2021-12-29
+## 3.0.0-beta.16
 
 - `*::send_json` and `*::send_form` methods now receive `impl Serialize`. [#2553]
 - `FrozenClientRequest::extra_header` now uses receives an `impl TryIntoHeaderPair`. [#2553]
@@ -169,7 +169,7 @@
 
 [#2553]: https://github.com/actix/actix-web/pull/2553
 
-## 3.0.0-beta.15 - 2021-12-27
+## 3.0.0-beta.15
 
 - Rename `Connector::{ssl => openssl}`. [#2503]
 - Improve `Client` instantiation efficiency when using `openssl` by only building connectors once. [#2503]
@@ -182,37 +182,37 @@
 [#2503]: https://github.com/actix/actix-web/pull/2503
 [#2546]: https://github.com/actix/actix-web/pull/2546
 
-## 3.0.0-beta.14 - 2021-12-17
+## 3.0.0-beta.14
 
 - Add `ClientBuilder::add_default_header` and deprecate `ClientBuilder::header`. [#2510]
 
 [#2510]: https://github.com/actix/actix-web/pull/2510
 
-## 3.0.0-beta.13 - 2021-12-11
+## 3.0.0-beta.13
 
 - No significant changes since `3.0.0-beta.12`.
 
-## 3.0.0-beta.12 - 2021-11-30
+## 3.0.0-beta.12
 
 - Update `actix-tls` to `3.0.0-rc.1`. [#2474]
 
 [#2474]: https://github.com/actix/actix-web/pull/2474
 
-## 3.0.0-beta.11 - 2021-11-22
+## 3.0.0-beta.11
 
 - No significant changes from `3.0.0-beta.10`.
 
-## 3.0.0-beta.10 - 2021-11-15
+## 3.0.0-beta.10
 
 - No significant changes from `3.0.0-beta.9`.
 
-## 3.0.0-beta.9 - 2021-10-20
+## 3.0.0-beta.9
 
 - Updated rustls to v0.20. [#2414]
 
 [#2414]: https://github.com/actix/actix-web/pull/2414
 
-## 3.0.0-beta.8 - 2021-09-09
+## 3.0.0-beta.8
 
 ### Changed
 
@@ -220,7 +220,7 @@
 
 [#2310]: https://github.com/actix/actix-web/pull/2310
 
-## 3.0.0-beta.7 - 2021-06-26
+## 3.0.0-beta.7
 
 ### Changed
 
@@ -228,11 +228,11 @@
 
 [#2250]: https://github.com/actix/actix-web/pull/2250
 
-## 3.0.0-beta.6 - 2021-06-17
+## 3.0.0-beta.6
 
 - No significant changes since 3.0.0-beta.5.
 
-## 3.0.0-beta.5 - 2021-04-17
+## 3.0.0-beta.5
 
 ### Removed
 
@@ -240,7 +240,7 @@
 
 [#2148]: https://github.com/actix/actix-web/pull/2148
 
-## 3.0.0-beta.4 - 2021-04-02
+## 3.0.0-beta.4
 
 ### Added
 
@@ -257,7 +257,7 @@
 [#2114]: https://github.com/actix/actix-web/pull/2114
 [#2116]: https://github.com/actix/actix-web/pull/2116
 
-## 3.0.0-beta.3 - 2021-03-08
+## 3.0.0-beta.3
 
 ### Added
 
@@ -280,7 +280,7 @@
 [#2024]: https://github.com/actix/actix-web/pull/2024
 [#2050]: https://github.com/actix/actix-web/pull/2050
 
-## 3.0.0-beta.2 - 2021-02-10
+## 3.0.0-beta.2
 
 ### Added
 
@@ -303,7 +303,7 @@
 [#1905]: https://github.com/actix/actix-web/pull/1905
 [#1969]: https://github.com/actix/actix-web/pull/1969
 
-## 3.0.0-beta.1 - 2021-01-07
+## 3.0.0-beta.1
 
 ### Changed
 
@@ -315,13 +315,13 @@
 
 </details>
 
-## 2.0.3 - 2020-11-29
+## 2.0.3
 
 ### Fixed
 
 - Ensure `actix-http` dependency uses same `serde_urlencoded`.
 
-## 2.0.2 - 2020-11-25
+## 2.0.2
 
 ### Changed
 
@@ -329,7 +329,7 @@
 
 [#1773]: https://github.com/actix/actix-web/pull/1773
 
-## 2.0.1 - 2020-10-30
+## 2.0.1
 
 ### Changed
 
@@ -344,37 +344,37 @@
 [#1760]: https://github.com/actix/actix-web/pull/1760
 [#1744]: https://github.com/actix/actix-web/pull/1744
 
-## 2.0.0 - 2020-09-11
+## 2.0.0
 
 ### Changed
 
 - `Client::build` was renamed to `Client::builder`.
 
-## 2.0.0-beta.4 - 2020-09-09
+## 2.0.0-beta.4
 
 ### Changed
 
 - Update actix-codec & actix-tls dependencies.
 
-## 2.0.0-beta.3 - 2020-08-17
+## 2.0.0-beta.3
 
 ### Changed
 
 - Update `rustls` to 0.18
 
-## 2.0.0-beta.2 - 2020-07-21
+## 2.0.0-beta.2
 
 ### Changed
 
 - Update `actix-http` dependency to 2.0.0-beta.2
 
-## [2.0.0-beta.1] - 2020-07-14
+## [2.0.0-beta.1]
 
 ### Changed
 
 - Update `actix-http` dependency to 2.0.0-beta.1
 
-## [2.0.0-alpha.2] - 2020-05-21
+## [2.0.0-alpha.2]
 
 ### Changed
 
@@ -384,18 +384,18 @@
 
 [#1422]: https://github.com/actix/actix-web/pull/1422
 
-## [2.0.0-alpha.1] - 2020-03-11
+## [2.0.0-alpha.1]
 
 - Update `actix-http` dependency to 2.0.0-alpha.2
 - Update `rustls` dependency to 0.17
 - ClientBuilder accepts initial_window_size and initial_connection_window_size HTTP2 configuration
 - ClientBuilder allowing to set max_http_version to limit HTTP version to be used
 
-## [1.0.1] - 2019-12-15
+## [1.0.1]
 
 - Fix compilation with default features off
 
-## [1.0.0] - 2019-12-13
+## [1.0.0]
 
 - Release
 
@@ -403,23 +403,23 @@
 
 - Migrate to `std::future`
 
-## [0.2.8] - 2019-11-06
+## [0.2.8]
 
 - Add support for setting query from Serialize type for client request.
 
-## [0.2.7] - 2019-09-25
+## [0.2.7]
 
 ### Added
 
 - Remaining getter methods for `ClientRequest`'s private `head` field #1101
 
-## [0.2.6] - 2019-09-12
+## [0.2.6]
 
 ### Added
 
 - Export frozen request related types.
 
-## [0.2.5] - 2019-09-11
+## [0.2.5]
 
 ### Added
 
@@ -429,7 +429,7 @@
 
 - Ensure that the `Host` header is set when initiating a WebSocket client connection.
 
-## [0.2.4] - 2019-08-13
+## [0.2.4]
 
 ### Changed
 
@@ -437,13 +437,13 @@
 
 - Update serde_urlencoded to "0.6.1"
 
-## [0.2.3] - 2019-08-01
+## [0.2.3]
 
 ### Added
 
 - Add `rustls` support
 
-## [0.2.2] - 2019-07-01
+## [0.2.2]
 
 ### Changed
 
@@ -451,13 +451,13 @@
 
 - Upgrade `rand` dependency version to 0.7
 
-## [0.2.1] - 2019-06-05
+## [0.2.1]
 
 ### Added
 
 - Add license files
 
-## [0.2.0] - 2019-05-12
+## [0.2.0]
 
 ### Added
 
@@ -467,7 +467,7 @@
 
 - Upgrade actix-http dependency.
 
-## [0.1.1] - 2019-04-19
+## [0.1.1]
 
 ### Added
 
@@ -477,17 +477,17 @@
 
 - `ClientRequest::if_true()` and `ClientRequest::if_some()` use instance instead of ref
 
-## [0.1.0] - 2019-04-16
+## [0.1.0]
 
 - No changes
 
-## [0.1.0-alpha.6] - 2019-04-14
+## [0.1.0-alpha.6]
 
 ### Changed
 
 - Do not set default headers for websocket request
 
-## [0.1.0-alpha.5] - 2019-04-12
+## [0.1.0-alpha.5]
 
 ### Changed
 
@@ -497,13 +497,13 @@
 
 - Add Debug impl for BoxedSocket
 
-## [0.1.0-alpha.4] - 2019-04-08
+## [0.1.0-alpha.4]
 
 ### Changed
 
 - Update actix-http dependency
 
-## [0.1.0-alpha.3] - 2019-04-02
+## [0.1.0-alpha.3]
 
 ### Added
 
@@ -519,7 +519,7 @@
 
 - Renamed `ClientRequest::close_connection()` to `ClientRequest::force_close()`
 
-## [0.1.0-alpha.2] - 2019-03-29
+## [0.1.0-alpha.2]
 
 ### Added
 
@@ -537,6 +537,6 @@
 
 - Export `ws` sub-module with websockets related types
 
-## [0.1.0-alpha.1] - 2019-03-28
+## [0.1.0-alpha.1]
 
 - Initial impl

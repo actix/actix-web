@@ -1,17 +1,17 @@
 # Changes
 
-## Unreleased - 2023-xx-xx
+## Unreleased
 
 - Minimum supported Rust version (MSRV) is now 1.68 due to transitive `time` dependency.
 
-## 0.5.1 - 2022-09-19
+## 0.5.1
 
 - Correct typo in error string for `i32` deserialization. [#2876]
 - Minimum supported Rust version (MSRV) is now 1.59 due to transitive `time` dependency.
 
 [#2876]: https://github.com/actix/actix-web/pull/2876
 
-## 0.5.0 - 2022-02-22
+## 0.5.0
 
 ### Added
 
@@ -86,7 +86,7 @@
 <details>
 <summary>0.5.0 Pre-Releases</summary>
 
-## 0.5.0-rc.3 - 2022-01-31
+## 0.5.0-rc.3
 
 - Remove unused `ResourceInfo`. [#2612]
 - Add `RouterBuilder::push`. [#2612]
@@ -98,32 +98,32 @@
 [#2612]: https://github.com/actix/actix-web/pull/2612
 [#2613]: https://github.com/actix/actix-web/pull/2613
 
-## 0.5.0-rc.2 - 2022-01-21
+## 0.5.0-rc.2
 
 - Add `Path::as_str`. [#2590]
 - Deprecate `Path::path`. [#2590]
 
 [#2590]: https://github.com/actix/actix-web/pull/2590
 
-## 0.5.0-rc.1 - 2022-01-14
+## 0.5.0-rc.1
 
 - `Resource` trait now have an associated type, `Path`, instead of the generic parameter. [#2568]
 - `Resource` is now implemented for `&mut Path<_>` and `RefMut<Path<_>>`. [#2568]
 
 [#2568]: https://github.com/actix/actix-web/pull/2568
 
-## 0.5.0-beta.4 - 2022-01-04
+## 0.5.0-beta.4
 
 - `PathDeserializer` now decodes all percent encoded characters in dynamic segments. [#2566]
 - Minimum supported Rust version (MSRV) is now 1.54.
 
 [#2566]: https://github.com/actix/actix-net/pull/2566
 
-## 0.5.0-beta.3 - 2021-12-17
+## 0.5.0-beta.3
 
 - Minimum supported Rust version (MSRV) is now 1.52.
 
-## 0.5.0-beta.2 - 2021-09-09
+## 0.5.0-beta.2
 
 - Introduce `ResourceDef::join`. [#380][net#380]
 - Disallow prefix routes with tail segments. [#379][net#379]
@@ -143,7 +143,7 @@
 [#2355]: https://github.com/actix/actix-web/pull/2355
 [#2356]: https://github.com/actix/actix-web/pull/2356
 
-## 0.5.0-beta.1 - 2021-07-20
+## 0.5.0-beta.1
 
 - Fix a bug in multi-patterns where static patterns are interpreted as regex. [#366][net#366]
 - Introduce `ResourceDef::pattern_iter` to get an iterator over all patterns in a multi-pattern resource. [#373][net#373]
@@ -173,7 +173,7 @@
 
 </details>
 
-## 0.4.0 - 2021-06-06
+## 0.4.0
 
 - When matching path parameters, `%25` is now kept in the percent-encoded form; no longer decoded to `%`. [#357][net#357]
 - Path tail patterns now match new lines (`\n`) in request URL. [#360][net#360]
@@ -185,70 +185,70 @@
 [net#359]: https://github.com/actix/actix-net/pull/359
 [net#360]: https://github.com/actix/actix-net/pull/360
 
-## 0.3.0 - 2019-12-31
+## 0.3.0
 
 - Version was yanked previously. See https://crates.io/crates/actix-router/0.3.0
 
-## 0.2.7 - 2021-02-06
+## 0.2.7
 
 - Add `Router::recognize_checked` [#247][net#247]
 
 [net#247]: https://github.com/actix/actix-net/pull/247
 
-## 0.2.6 - 2021-01-09
+## 0.2.6
 
 - Use `bytestring` version range compatible with Bytes v1.0. [#246][net#246]
 
 [net#246]: https://github.com/actix/actix-net/pull/246
 
-## 0.2.5 - 2020-09-20
+## 0.2.5
 
 - Fix `from_hex()` method
 
-## 0.2.4 - 2019-12-31
+## 0.2.4
 
 - Add `ResourceDef::resource_path_named()` path generation method
 
-## 0.2.3 - 2019-12-25
+## 0.2.3
 
 - Add impl `IntoPattern` for `&String`
 
-## 0.2.2 - 2019-12-25
+## 0.2.2
 
 - Use `IntoPattern` for `RouterBuilder::path()`
 
-## 0.2.1 - 2019-12-25
+## 0.2.1
 
 - Add `IntoPattern` trait
 - Add multi-pattern resources
 
-## 0.2.0 - 2019-12-07
+## 0.2.0
 
 - Update http to 0.2
 - Update regex to 1.3
 - Use bytestring instead of string
 
-## 0.1.5 - 2019-05-15
+## 0.1.5
 
 - Remove debug prints
 
-## 0.1.4 - 2019-05-15
+## 0.1.4
 
 - Fix checked resource match
 
-## 0.1.3 - 2019-04-22
+## 0.1.3
 
 - Added support for `remainder match` (i.e "/path/{tail}\*")
 
-## 0.1.2 - 2019-04-07
+## 0.1.2
 
 - Export `Quoter` type
 - Allow to reset `Path` instance
 
-## 0.1.1 - 2019-04-03
+## 0.1.1
 
 - Get dynamic segment by name instead of iterator.
 
-## 0.1.0 - 2019-03-09
+## 0.1.0
 
 - Initial release
