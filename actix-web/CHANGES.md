@@ -1053,7 +1053,7 @@
 [#1485]: https://github.com/actix/actix-web/pull/1485
 [#1509]: https://github.com/actix/actix-web/pull/1509
 
-## [3.0.0-alpha.2]
+## 3.0.0-alpha.2
 
 ### Changed
 
@@ -1067,7 +1067,7 @@
 [#1452]: https://github.com/actix/actix-web/pull/1452
 [#1486]: https://github.com/actix/actix-web/pull/1486
 
-## [3.0.0-alpha.1]
+## 3.0.0-alpha.1
 
 ### Added
 
@@ -1084,7 +1084,7 @@
 
 [#1308]: https://github.com/actix/actix-web/pull/1308
 
-## [2.0.0]
+## 2.0.0
 
 ### Changed
 
@@ -1094,7 +1094,7 @@
 
 - Allow to specify multi-patterns for resources
 
-## [2.0.0-rc]
+## 2.0.0-rc
 
 ### Changed
 
@@ -1112,31 +1112,31 @@
 
 - Fix `AppConfig::secure()` is always false. #1202
 
-## [2.0.0-alpha.6]
+## 2.0.0-alpha.6
 
 ### Fixed
 
 - Fixed compilation with default features off
 
-## [2.0.0-alpha.5]
+## 2.0.0-alpha.5
 
 ### Added
 
 - Add test server, `test::start()` and `test::start_with()`
 
-## [2.0.0-alpha.4]
+## 2.0.0-alpha.4
 
 ### Deleted
 
 - Delete HttpServer::run(), it is not useful with async/await
 
-## [2.0.0-alpha.3]
+## 2.0.0-alpha.3
 
 ### Changed
 
 - Migrate to tokio 0.2
 
-## [2.0.0-alpha.1]
+## 2.0.0-alpha.1
 
 ### Changed
 
@@ -1144,7 +1144,7 @@
 
 - Remove implementation of `Responder` for `()`. (#1167)
 
-## [1.0.9]
+## 1.0.9
 
 ### Added
 
@@ -1154,7 +1154,7 @@
 
 - Support `Host` guards when the `Host` header is unset (e.g. HTTP/2 requests) (#1129)
 
-## [1.0.8]
+## 1.0.8
 
 ### Added
 
@@ -1172,13 +1172,13 @@
 
 - Use actix-testing for testing utils
 
-## [1.0.7]
+## 1.0.7
 
 ### Fixed
 
 - Request Extensions leak #1062
 
-## [1.0.6]
+## 1.0.6
 
 ### Added
 
@@ -1200,7 +1200,7 @@
 
 - Update url to 2.1
 
-## [1.0.5]
+## 1.0.5
 
 ### Added
 
@@ -1212,7 +1212,7 @@
 
 - Restored logging of errors through the `Logger` middleware
 
-## [1.0.4]
+## 1.0.4
 
 ### Added
 
@@ -1224,7 +1224,7 @@
 
 - Upgrade `rand` dependency version to 0.7
 
-## [1.0.3]
+## 1.0.3
 
 ### Added
 
@@ -1234,7 +1234,7 @@
 
 - Use `encoding_rs` crate instead of unmaintained `encoding` crate
 
-## [1.0.2]
+## 1.0.2
 
 ### Changed
 
@@ -1242,7 +1242,7 @@
 
 - Move identity middleware to `actix-identity` crate.
 
-## [1.0.1]
+## 1.0.1
 
 ### Added
 
@@ -1266,7 +1266,7 @@
 
 - HttpRequest::url_for is broken with nested scopes #915
 
-## [1.0.0]
+## 1.0.0
 
 ### Added
 
@@ -1288,7 +1288,7 @@
 
 - Clear http requests pool on app service drop #860
 
-## [1.0.0-rc]
+## 1.0.0-rc
 
 ### Added
 
@@ -1303,7 +1303,7 @@
 
 - Codegen with parameters in the path only resolves the first registered endpoint #841
 
-## [1.0.0-beta.4]
+## 1.0.0-beta.4
 
 ### Added
 
@@ -1314,7 +1314,7 @@
 - `App::configure` take an `FnOnce` instead of `Fn`
 - Upgrade actix-net crates
 
-## [1.0.0-beta.3]
+## 1.0.0-beta.3
 
 ### Added
 
@@ -1338,7 +1338,7 @@
 
 - `App::data_factory()` is deleted.
 
-## [1.0.0-beta.2]
+## 1.0.0-beta.2
 
 ### Added
 
@@ -1360,7 +1360,7 @@
 
 - Fix async web::Data factory handling
 
-## [1.0.0-beta.1]
+## 1.0.0-beta.1
 
 ### Added
 
@@ -1384,7 +1384,7 @@
 
 - Fixed `TestRequest::app_data()`
 
-## [1.0.0-alpha.6]
+## 1.0.0-alpha.6
 
 ### Changed
 
@@ -1396,7 +1396,7 @@
 
 - Make extractor config type explicit. Add `FromRequest::Config` associated type.
 
-## [1.0.0-alpha.5]
+## 1.0.0-alpha.5
 
 ### Added
 
@@ -1406,7 +1406,7 @@
 
 - Removed native-tls support
 
-## [1.0.0-alpha.4]
+## 1.0.0-alpha.4
 
 ### Added
 
@@ -1428,7 +1428,7 @@
 
 - Fix body propagation in Response::from_error. #760
 
-## [1.0.0-alpha.3]
+## 1.0.0-alpha.3
 
 ### Changed
 
@@ -1442,7 +1442,7 @@
 
 - Removed unused `actix_web::web::md()`
 
-## [1.0.0-alpha.2]
+## 1.0.0-alpha.2
 
 ### Added
 
@@ -1454,7 +1454,7 @@
 
 - Multipart::Field renamed to MultipartField
 
-## [1.0.0-alpha.1]
+## 1.0.0-alpha.1
 
 ### Changed
 

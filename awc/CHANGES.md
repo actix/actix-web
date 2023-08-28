@@ -368,13 +368,13 @@
 
 - Update `actix-http` dependency to 2.0.0-beta.2
 
-## [2.0.0-beta.1]
+## 2.0.0-beta.1
 
 ### Changed
 
 - Update `actix-http` dependency to 2.0.0-beta.1
 
-## [2.0.0-alpha.2]
+## 2.0.0-alpha.2
 
 ### Changed
 
@@ -384,42 +384,42 @@
 
 [#1422]: https://github.com/actix/actix-web/pull/1422
 
-## [2.0.0-alpha.1]
+## 2.0.0-alpha.1
 
 - Update `actix-http` dependency to 2.0.0-alpha.2
 - Update `rustls` dependency to 0.17
 - ClientBuilder accepts initial_window_size and initial_connection_window_size HTTP2 configuration
 - ClientBuilder allowing to set max_http_version to limit HTTP version to be used
 
-## [1.0.1]
+## 1.0.1
 
 - Fix compilation with default features off
 
-## [1.0.0]
+## 1.0.0
 
 - Release
 
-## [1.0.0-alpha.3]
+## 1.0.0-alpha.3
 
 - Migrate to `std::future`
 
-## [0.2.8]
+## 0.2.8
 
 - Add support for setting query from Serialize type for client request.
 
-## [0.2.7]
+## 0.2.7
 
 ### Added
 
 - Remaining getter methods for `ClientRequest`'s private `head` field #1101
 
-## [0.2.6]
+## 0.2.6
 
 ### Added
 
 - Export frozen request related types.
 
-## [0.2.5]
+## 0.2.5
 
 ### Added
 
@@ -429,7 +429,7 @@
 
 - Ensure that the `Host` header is set when initiating a WebSocket client connection.
 
-## [0.2.4]
+## 0.2.4
 
 ### Changed
 
@@ -437,13 +437,13 @@
 
 - Update serde_urlencoded to "0.6.1"
 
-## [0.2.3]
+## 0.2.3
 
 ### Added
 
 - Add `rustls` support
 
-## [0.2.2]
+## 0.2.2
 
 ### Changed
 
@@ -451,13 +451,13 @@
 
 - Upgrade `rand` dependency version to 0.7
 
-## [0.2.1]
+## 0.2.1
 
 ### Added
 
 - Add license files
 
-## [0.2.0]
+## 0.2.0
 
 ### Added
 
@@ -467,7 +467,7 @@
 
 - Upgrade actix-http dependency.
 
-## [0.1.1]
+## 0.1.1
 
 ### Added
 
@@ -477,17 +477,17 @@
 
 - `ClientRequest::if_true()` and `ClientRequest::if_some()` use instance instead of ref
 
-## [0.1.0]
+## 0.1.0
 
 - No changes
 
-## [0.1.0-alpha.6]
+## 0.1.0-alpha.6
 
 ### Changed
 
 - Do not set default headers for websocket request
 
-## [0.1.0-alpha.5]
+## 0.1.0-alpha.5
 
 ### Changed
 
@@ -497,13 +497,13 @@
 
 - Add Debug impl for BoxedSocket
 
-## [0.1.0-alpha.4]
+## 0.1.0-alpha.4
 
 ### Changed
 
 - Update actix-http dependency
 
-## [0.1.0-alpha.3]
+## 0.1.0-alpha.3
 
 ### Added
 
@@ -519,7 +519,7 @@
 
 - Renamed `ClientRequest::close_connection()` to `ClientRequest::force_close()`
 
-## [0.1.0-alpha.2]
+## 0.1.0-alpha.2
 
 ### Added
 
@@ -537,6 +537,6 @@
 
 - Export `ws` sub-module with websockets related types
 
-## [0.1.0-alpha.1]
+## 0.1.0-alpha.1
 
 - Initial impl

@@ -85,55 +85,55 @@
 
 - Update `actix-*` dependencies to latest versions.
 
-## [3.0.0-beta.1]
+## 3.0.0-beta.1
 
 - Update `actix-web` & `actix-http` dependencies to beta.1
 - Bump minimum supported Rust version to 1.40
 
-## [3.0.0-alpha.1]
+## 3.0.0-alpha.1
 
 - Update the actix-web dependency to 3.0.0-alpha.1
 - Update the actix dependency to 0.10.0-alpha.2
 - Update the actix-http dependency to 2.0.0-alpha.3
 
-## [2.0.0]
+## 2.0.0
 
 - Release
 
-## [2.0.0-alpha.1]
+## 2.0.0-alpha.1
 
 - Migrate to actix-web 2.0.0
 
-## [1.0.4]
+## 1.0.4
 
 - Allow comma-separated websocket subprotocols without spaces (#1172)
 
-## [1.0.3]
+## 1.0.3
 
 - Update actix-web and actix-http dependencies
 
-## [1.0.2]
+## 1.0.2
 
 - Add `ws::start_with_addr()`, returning the address of the created actor, along with the `HttpResponse`.
 
 - Add support for specifying protocols on websocket handshake #835
 
-## [1.0.1]
+## 1.0.1
 
 - Allow to use custom ws codec with `WebsocketContext` #925
 
-## [1.0.0]
+## 1.0.0
 
 - Update actix-http and actix-web
 
-## [0.1.0-alpha.3]
+## 0.1.0-alpha.3
 
 - Update actix-http and actix-web
 
-## [0.1.0-alpha.2]
+## 0.1.0-alpha.2
 
 - Update actix-http and actix-web
 
-## [0.1.0-alpha.1]
+## 0.1.0-alpha.1
 
 - Initial impl

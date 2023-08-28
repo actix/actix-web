@@ -106,45 +106,45 @@
 - Remove the unused `time` dependency
 - Fix missing `std::error::Error` implement for `MultipartError`.
 
-## [0.2.0]
+## 0.2.0
 
 - Release
 
-## [0.2.0-alpha.4]
+## 0.2.0-alpha.4
 
 - Multipart handling now handles Pending during read of boundary #1205
 
-## [0.2.0-alpha.2]
+## 0.2.0-alpha.2
 
 - Migrate to `std::future`
 
-## [0.1.4]
+## 0.1.4
 
 - Multipart handling now parses requests which do not end in CRLF #1038
 
-## [0.1.3]
+## 0.1.3
 
 - Fix ring dependency from actix-web default features for #741.
 
-## [0.1.2]
+## 0.1.2
 
 - Fix boundary parsing #876
 
-## [0.1.1]
+## 0.1.1
 
 - Fix disconnect handling #834
 
-## [0.1.0]
+## 0.1.0
 
 - Release
 
-## [0.1.0-beta.4]
+## 0.1.0-beta.4
 
 - Handle cancellation of uploads #736
 
 - Upgrade to actix-web 1.0.0-beta.4
 
-## [0.1.0-beta.1]
+## 0.1.0-beta.1
 
 - Do not support nested multipart
 
