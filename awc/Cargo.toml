@@ -21,16 +21,20 @@ path = "src/lib.rs"
 
 [package.metadata.docs.rs]
 # features that docs.rs will build with
-features = ["openssl", "rustls", "compress-brotli", "compress-gzip", "compress-zstd", "cookies"]
+features = ["openssl", "rustls-0_20", "rustls-0_21", "compress-brotli", "compress-gzip", "compress-zstd", "cookies"]
 
 [features]
 default = ["compress-brotli", "compress-gzip", "compress-zstd", "cookies"]
 
-# openssl
+# TLS via OpenSSL
 openssl = ["tls-openssl", "actix-tls/openssl"]
 
-# rustls
-rustls = ["tls-rustls", "actix-tls/rustls"]
+# TLS via Rustls v0.20
+rustls = ["rustls-0_20"]
+# TLS via Rustls v0.20
+rustls-0_20 = ["tls-rustls-0_20", "actix-tls/rustls-0_20"]
+# TLS via Rustls v0.21
+rustls-0_21 = ["tls-rustls-0_21", "actix-tls/rustls-0_21"]
 
 # Brotli algorithm content-encoding support
 compress-brotli = ["actix-http/compress-brotli", "__compress"]
@@ -39,10 +43,10 @@ compress-gzip = ["actix-http/compress-gzip", "__compress"]
 # Zstd algorithm content-encoding support
 compress-zstd = ["actix-http/compress-zstd", "__compress"]
 
-# cookie parsing and cookie jar
+# Cookie parsing and cookie jar
 cookies = ["cookie"]
 
-# trust-dns as dns resolver
+# Use `trust-dns-resolver` crate as DNS resolver
 trust-dns = ["trust-dns-resolver"]
 
 # Internal (PRIVATE!) features used to aid testing and checking feature status.
@@ -59,7 +63,7 @@ actix-codec = "0.5"
 actix-service = "2"
 actix-http = { version = "3.3", features = ["http2", "ws"] }
 actix-rt = { version = "2.1", default-features = false }
-actix-tls = { version = "3", features = ["connect", "uri"] }
+actix-tls = { version = "3.1", features = ["connect", "uri"] }
 actix-utils = "3"
 
 base64 = "0.21"
@@ -84,7 +88,8 @@ tokio = { version = "1.24.2", features = ["sync"] }
 cookie = { version = "0.16", features = ["percent-encode"], optional = true }
 
 tls-openssl = { package = "openssl", version = "0.10.55", optional = true }
-tls-rustls = { package = "rustls", version = "0.20", optional = true, features = ["dangerous_configuration"] }
+tls-rustls-0_20 = { package = "rustls", version = "0.20", optional = true, features = ["dangerous_configuration"] }
+tls-rustls-0_21 = { package = "rustls", version = "0.21", optional = true, features = ["dangerous_configuration"] }
 
 trust-dns-resolver = { version = "0.22", optional = true }
 
@@ -92,8 +97,8 @@ trust-dns-resolver = { version = "0.22", optional = true }
 actix-http = { version = "3", features = ["openssl"] }
 actix-http-test = { version = "3", features = ["openssl"] }
 actix-server = "2"
-actix-test = { version = "0.1", features = ["openssl", "rustls"] }
-actix-tls = { version = "3", features = ["openssl", "rustls"] }
+actix-test = { version = "0.1", features = ["openssl", "rustls-0_21"] }
+actix-tls = { version = "3", features = ["openssl", "rustls-0_21"] }
 actix-utils = "3"
 actix-web = { version = "4", features = ["openssl"] }
 
@@ -110,4 +115,4 @@ zstd = "0.12"
 
 [[example]]
 name = "client"
-required-features = ["rustls"]
+required-features = ["rustls-0_21"]

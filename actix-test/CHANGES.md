@@ -2,7 +2,9 @@
 
 ## Unreleased - 2023-xx-xx
 
-- Add `TestServerConfig::workers()` setter method.
+- Add `TestServerConfig::rustls_021()` method for Rustls v0.21 support behind new `rustls-0_21` crate feature.
+- Add `TestServerConfig::workers()` method.
+- Add `rustls-0_20` crate feature, which the existing `rustls` feature now aliases.
 - Minimum supported Rust version (MSRV) is now 1.68 due to transitive `time` dependency.
 
 ## 0.1.1 - 2023-02-26

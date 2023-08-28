@@ -34,8 +34,6 @@
 
 #[cfg(feature = "openssl")]
 extern crate tls_openssl as openssl;
-#[cfg(feature = "rustls")]
-extern crate tls_rustls as rustls;
 
 use std::{fmt, net, thread, time::Duration};
 
@@ -141,8 +139,10 @@ where
         StreamType::Tcp => false,
         #[cfg(feature = "openssl")]
         StreamType::Openssl(_) => true,
-        #[cfg(feature = "rustls")]
-        StreamType::Rustls(_) => true,
+        #[cfg(feature = "rustls-0_20")]
+        StreamType::Rustls020(_) => true,
+        #[cfg(feature = "rustls-0_21")]
+        StreamType::Rustls021(_) => true,
     };
 
     // run server in separate orphaned thread
@@ -243,8 +243,8 @@ where
                             .openssl(acceptor.clone())
                     }),
                 },
-                #[cfg(feature = "rustls")]
-                StreamType::Rustls(config) => match cfg.tp {
+                #[cfg(feature = "rustls-0_20")]
+                StreamType::Rustls020(config) => match cfg.tp {
                     HttpVer::Http1 => builder.listen("test", tcp, move || {
                         let app_cfg =
                             AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
@@ -285,6 +285,48 @@ where
                             .rustls(config.clone())
                     }),
                 },
+                #[cfg(feature = "rustls-0_21")]
+                StreamType::Rustls021(config) => match cfg.tp {
+                    HttpVer::Http1 => builder.listen("test", tcp, move || {
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+
+                        let fac = factory()
+                            .into_factory()
+                            .map_err(|err| err.into().error_response());
+
+                        HttpService::build()
+                            .client_request_timeout(timeout)
+                            .h1(map_config(fac, move |_| app_cfg.clone()))
+                            .rustls_021(config.clone())
+                    }),
+                    HttpVer::Http2 => builder.listen("test", tcp, move || {
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+
+                        let fac = factory()
+                            .into_factory()
+                            .map_err(|err| err.into().error_response());
+
+                        HttpService::build()
+                            .client_request_timeout(timeout)
+                            .h2(map_config(fac, move |_| app_cfg.clone()))
+                            .rustls_021(config.clone())
+                    }),
+                    HttpVer::Both => builder.listen("test", tcp, move || {
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+
+                        let fac = factory()
+                            .into_factory()
+                            .map_err(|err| err.into().error_response());
+
+                        HttpService::build()
+                            .client_request_timeout(timeout)
+                            .finish(map_config(fac, move |_| app_cfg.clone()))
+                            .rustls_021(config.clone())
+                    }),
+                },
             }
             .expect("test server could not be created");
 
@@ -316,7 +358,7 @@ where
                 builder.set_verify(SslVerifyMode::NONE);
                 let _ = builder
                     .set_alpn_protos(b"\x02h2\x08http/1.1")
-                    .map_err(|e| log::error!("Can not set alpn protocol: {:?}", e));
+                    .map_err(|err| log::error!("Can not set alpn protocol: {err:?}"));
                 Connector::new()
                     .conn_lifetime(Duration::from_secs(0))
                     .timeout(Duration::from_millis(30000))
@@ -355,8 +397,10 @@ enum StreamType {
     Tcp,
     #[cfg(feature = "openssl")]
     Openssl(openssl::ssl::SslAcceptor),
-    #[cfg(feature = "rustls")]
-    Rustls(rustls::ServerConfig),
+    #[cfg(feature = "rustls-0_20")]
+    Rustls020(tls_rustls_0_20::ServerConfig),
+    #[cfg(feature = "rustls-0_21")]
+    Rustls021(tls_rustls_0_21::ServerConfig),
 }
 
 /// Create default test server config.
@@ -411,9 +455,16 @@ impl TestServerConfig {
     }
 
     /// Accept secure connections via Rustls.
-    #[cfg(feature = "rustls")]
-    pub fn rustls(mut self, config: rustls::ServerConfig) -> Self {
-        self.stream = StreamType::Rustls(config);
+    #[cfg(feature = "rustls-0_20")]
+    pub fn rustls(mut self, config: tls_rustls_0_20::ServerConfig) -> Self {
+        self.stream = StreamType::Rustls020(config);
+        self
+    }
+
+    /// Accept secure connections via Rustls.
+    #[cfg(feature = "rustls-0_21")]
+    pub fn rustls_021(mut self, config: tls_rustls_0_21::ServerConfig) -> Self {
+        self.stream = StreamType::Rustls021(config);
         self
     }
 

@@ -247,7 +247,7 @@ pub struct TlsAcceptorConfig {
     pub(crate) handshake_timeout: Option<std::time::Duration>,
 }
 
-#[cfg(any(feature = "openssl", feature = "rustls", feature = "rustls-0_21"))]
+#[cfg(any(feature = "openssl", feature = "rustls-0_20", feature = "rustls-0_21"))]
 impl TlsAcceptorConfig {
     /// Set TLS handshake timeout duration.
     pub fn handshake_timeout(self, dur: std::time::Duration) -> Self {
