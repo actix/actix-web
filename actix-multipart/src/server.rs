@@ -252,7 +252,7 @@ impl InnerMultipart {
     fn poll(
         &mut self,
         safety: &Safety,
-        cx: &mut Context<'_>,
+        cx: &Context<'_>,
     ) -> Poll<Option<Result<Field, MultipartError>>> {
         if self.state == InnerState::Eof {
             Poll::Ready(None)
@@ -740,7 +740,7 @@ impl Safety {
         self.clean.get()
     }
 
-    fn clone(&self, cx: &mut Context<'_>) -> Safety {
+    fn clone(&self, cx: &Context<'_>) -> Safety {
         let payload = Rc::clone(&self.payload);
         let s = Safety {
             task: LocalWaker::new(),
