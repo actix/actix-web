@@ -21,7 +21,7 @@ rust-version.workspace = true
 
 [package.metadata.docs.rs]
 # features that docs.rs will build with
-features = ["macros", "openssl", "rustls", "compress-brotli", "compress-gzip", "compress-zstd", "cookies", "secure-cookies"]
+features = ["macros", "openssl", "rustls-0_20", "rustls-0_21", "compress-brotli", "compress-gzip", "compress-zstd", "cookies", "secure-cookies"]
 rustdoc-args = ["--cfg", "docsrs"]
 
 [lib]
@@ -52,8 +52,12 @@ http2 = ["actix-http/http2"]
 # TLS via OpenSSL
 openssl = ["http2", "actix-http/openssl", "actix-tls/accept", "actix-tls/openssl"]
 
-# TLS via Rustls
-rustls = ["http2", "actix-http/rustls", "actix-tls/accept", "actix-tls/rustls"]
+# TLS via Rustls v0.20
+rustls = ["rustls-0_20"]
+# TLS via Rustls v0.20
+rustls-0_20 = ["http2", "actix-http/rustls-0_20", "actix-tls/accept", "actix-tls/rustls-0_20"]
+# TLS via Rustls v0.21
+rustls-0_21 = ["http2", "actix-http/rustls-0_21", "actix-tls/accept", "actix-tls/rustls-0_21"]
 
 # Internal (PRIVATE!) features used to aid testing and checking feature status.
 # Don't rely on these whatsoever. They may disappear at anytime.
@@ -69,7 +73,7 @@ actix-rt = { version = "2.6", default-features = false }
 actix-server = "2"
 actix-service = "2"
 actix-utils = "3"
-actix-tls = { version = "3", default-features = false, optional = true }
+actix-tls = { version = "3.1", default-features = false, optional = true }
 
 actix-http = { version = "3.3", features = ["ws"] }
 actix-router = "0.5"
@@ -101,7 +105,7 @@ url = "2.1"
 
 [dev-dependencies]
 actix-files = "0.6"
-actix-test = { version = "0.1", features = ["openssl", "rustls"] }
+actix-test = { version = "0.1", features = ["openssl", "rustls-0_21"] }
 awc = { version = "3", features = ["openssl"] }
 
 brotli = "3.3.3"
@@ -116,7 +120,7 @@ rustls-pemfile = "1"
 serde = { version = "1.0", features = ["derive"] }
 static_assertions = "1"
 tls-openssl = { package = "openssl", version = "0.10.55" }
-tls-rustls = { package = "rustls", version = "0.20" }
+tls-rustls = { package = "rustls", version = "0.21" }
 tokio = { version = "1.24.2", features = ["rt-multi-thread", "macros"] }
 zstd = "0.12"
 

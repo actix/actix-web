@@ -21,7 +21,7 @@ rust-version.workspace = true
 
 [package.metadata.docs.rs]
 # features that docs.rs will build with
-features = ["http2", "ws", "openssl", "rustls", "compress-brotli", "compress-gzip", "compress-zstd"]
+features = ["http2", "ws", "openssl", "rustls-0_20", "rustls-0_21", "compress-brotli", "compress-gzip", "compress-zstd"]
 
 [lib]
 name = "actix_http"

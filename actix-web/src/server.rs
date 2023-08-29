@@ -7,7 +7,7 @@ use std::{
     time::Duration,
 };
 
-#[cfg(any(feature = "openssl", feature = "rustls"))]
+#[cfg(any(feature = "openssl", feature = "rustls-0_20", feature = "rustls-0_21"))]
 use actix_http::TlsAcceptorConfig;
 use actix_http::{body::MessageBody, Extensions, HttpService, KeepAlive, Request, Response};
 use actix_server::{Server, ServerBuilder};
@@ -16,8 +16,6 @@ use actix_service::{
 };
 #[cfg(feature = "openssl")]
 use actix_tls::accept::openssl::reexports::{AlpnError, SslAcceptor, SslAcceptorBuilder};
-#[cfg(feature = "rustls")]
-use actix_tls::accept::rustls::reexports::ServerConfig as RustlsServerConfig;
 
 use crate::{config::AppConfig, Error};
 
@@ -31,7 +29,7 @@ struct Config {
     keep_alive: KeepAlive,
     client_request_timeout: Duration,
     client_disconnect_timeout: Duration,
-    #[cfg(any(feature = "openssl", feature = "rustls"))]
+    #[allow(dead_code)] // only dead when no TLS features are enabled
     tls_handshake_timeout: Option<Duration>,
 }
 
@@ -109,7 +107,6 @@ where
                 keep_alive: KeepAlive::default(),
                 client_request_timeout: Duration::from_secs(5),
                 client_disconnect_timeout: Duration::from_secs(1),
-                #[cfg(any(feature = "rustls", feature = "openssl"))]
                 tls_handshake_timeout: None,
             })),
             backlog: 1024,
@@ -170,7 +167,7 @@ where
     /// By default max connections is set to a 256.
     #[allow(unused_variables)]
     pub fn max_connection_rate(self, num: usize) -> Self {
-        #[cfg(any(feature = "rustls", feature = "openssl"))]
+        #[cfg(any(feature = "rustls-0_20", feature = "rustls-0_21", feature = "openssl"))]
         actix_tls::accept::max_concurrent_tls_connect(num);
         self
     }
@@ -222,8 +219,8 @@ where
     /// Defines a timeout for TLS handshake. If the TLS handshake does not complete within this
     /// time, the connection is closed.
     ///
-    /// By default handshake timeout is set to 3000 milliseconds.
-    #[cfg(any(feature = "openssl", feature = "rustls"))]
+    /// By default, the handshake timeout is 3 seconds.
+    #[cfg(any(feature = "openssl", feature = "rustls-0_20", feature = "rustls-0_21"))]
     pub fn tls_handshake_timeout(self, dur: Duration) -> Self {
         self.config
             .lock()
@@ -247,7 +244,10 @@ where
     ///
     /// # Connection Types
     /// - `actix_tls::accept::openssl::TlsStream<actix_web::rt::net::TcpStream>` when using OpenSSL.
-    /// - `actix_tls::accept::rustls::TlsStream<actix_web::rt::net::TcpStream>` when using Rustls.
+    /// - `actix_tls::accept::rustls_0_20::TlsStream<actix_web::rt::net::TcpStream>` when using
+    ///   Rustls v0.20.
+    /// - `actix_tls::accept::rustls_0_21::TlsStream<actix_web::rt::net::TcpStream>` when using
+    ///   Rustls v0.21.
     /// - `actix_web::rt::net::TcpStream` when no encryption is used.
     ///
     /// See the `on_connect` example for additional details.
@@ -368,20 +368,39 @@ where
     }
 
     /// Resolves socket address(es) and binds server to created listener(s) for TLS connections
-    /// using Rustls.
+    /// using Rustls v0.20.
     ///
     /// See [`bind()`](Self::bind) for more details on `addrs` argument.
     ///
     /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
-    #[cfg(feature = "rustls")]
+    #[cfg(feature = "rustls-0_20")]
     pub fn bind_rustls<A: net::ToSocketAddrs>(
         mut self,
         addrs: A,
-        config: RustlsServerConfig,
+        config: actix_tls::accept::rustls_0_20::reexports::ServerConfig,
     ) -> io::Result<Self> {
         let sockets = bind_addrs(addrs, self.backlog)?;
         for lst in sockets {
-            self = self.listen_rustls_inner(lst, config.clone())?;
+            self = self.listen_rustls_0_20_inner(lst, config.clone())?;
+        }
+        Ok(self)
+    }
+
+    /// Resolves socket address(es) and binds server to created listener(s) for TLS connections
+    /// using Rustls v0.21.
+    ///
+    /// See [`bind()`](Self::bind) for more details on `addrs` argument.
+    ///
+    /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
+    #[cfg(feature = "rustls-0_21")]
+    pub fn bind_rustls_021<A: net::ToSocketAddrs>(
+        mut self,
+        addrs: A,
+        config: actix_tls::accept::rustls_0_21::reexports::ServerConfig,
+    ) -> io::Result<Self> {
+        let sockets = bind_addrs(addrs, self.backlog)?;
+        for lst in sockets {
+            self = self.listen_rustls_0_21_inner(lst, config.clone())?;
         }
         Ok(self)
     }
@@ -497,25 +516,41 @@ where
         Ok(self)
     }
 
-    /// Binds to existing listener for accepting incoming TLS connection requests using Rustls.
+    /// Binds to existing listener for accepting incoming TLS connection requests using Rustls
+    /// v0.20.
     ///
     /// See [`listen()`](Self::listen) for more details on the `lst` argument.
     ///
     /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
-    #[cfg(feature = "rustls")]
+    #[cfg(feature = "rustls-0_20")]
     pub fn listen_rustls(
         self,
         lst: net::TcpListener,
-        config: RustlsServerConfig,
+        config: actix_tls::accept::rustls_0_20::reexports::ServerConfig,
     ) -> io::Result<Self> {
-        self.listen_rustls_inner(lst, config)
+        self.listen_rustls_0_20_inner(lst, config)
     }
 
-    #[cfg(feature = "rustls")]
-    fn listen_rustls_inner(
+    /// Binds to existing listener for accepting incoming TLS connection requests using Rustls
+    /// v0.21.
+    ///
+    /// See [`listen()`](Self::listen) for more details on the `lst` argument.
+    ///
+    /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
+    #[cfg(feature = "rustls-0_21")]
+    pub fn listen_rustls_0_21(
+        self,
+        lst: net::TcpListener,
+        config: actix_tls::accept::rustls_0_21::reexports::ServerConfig,
+    ) -> io::Result<Self> {
+        self.listen_rustls_0_21_inner(lst, config)
+    }
+
+    #[cfg(feature = "rustls-0_20")]
+    fn listen_rustls_0_20_inner(
         mut self,
         lst: net::TcpListener,
-        config: RustlsServerConfig,
+        config: actix_tls::accept::rustls_0_20::reexports::ServerConfig,
     ) -> io::Result<Self> {
         let factory = self.factory.clone();
         let cfg = self.config.clone();
@@ -557,6 +592,57 @@ where
                         AppConfig::new(true, host.clone(), addr)
                     }))
                     .rustls_with_config(config.clone(), acceptor_config)
+                })?;
+
+        Ok(self)
+    }
+
+    #[cfg(feature = "rustls-0_21")]
+    fn listen_rustls_0_21_inner(
+        mut self,
+        lst: net::TcpListener,
+        config: actix_tls::accept::rustls_0_21::reexports::ServerConfig,
+    ) -> io::Result<Self> {
+        let factory = self.factory.clone();
+        let cfg = self.config.clone();
+        let addr = lst.local_addr().unwrap();
+        self.sockets.push(Socket {
+            addr,
+            scheme: "https",
+        });
+
+        let on_connect_fn = self.on_connect_fn.clone();
+
+        self.builder =
+            self.builder
+                .listen(format!("actix-web-service-{}", addr), lst, move || {
+                    let c = cfg.lock().unwrap();
+                    let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
+
+                    let svc = HttpService::build()
+                        .keep_alive(c.keep_alive)
+                        .client_request_timeout(c.client_request_timeout)
+                        .client_disconnect_timeout(c.client_disconnect_timeout);
+
+                    let svc = if let Some(handler) = on_connect_fn.clone() {
+                        svc.on_connect_ext(move |io: &_, ext: _| (handler)(io as &dyn Any, ext))
+                    } else {
+                        svc
+                    };
+
+                    let fac = factory()
+                        .into_factory()
+                        .map_err(|err| err.into().error_response());
+
+                    let acceptor_config = match c.tls_handshake_timeout {
+                        Some(dur) => TlsAcceptorConfig::default().handshake_timeout(dur),
+                        None => TlsAcceptorConfig::default(),
+                    };
+
+                    svc.finish(map_config(fac, move |_| {
+                        AppConfig::new(true, host.clone(), addr)
+                    }))
+                    .rustls_021_with_config(config.clone(), acceptor_config)
                 })?;
 
         Ok(self)

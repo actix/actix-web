@@ -4,13 +4,15 @@
 
 ### Added
 
-- Add `HttpServer::{bind, listen}_auto_h2c()` method behind new `http2` crate feature.
+- Add `HttpServer::{bind, listen}_auto_h2c()` methods behind new `http2` crate feature.
+- Add `HttpServer::{bind, listen}_rustls_021()` methods for Rustls v0.21 support behind new `rustls-0_21` crate feature.
 - Add `Resource::{get, post, etc...}` methods for more concisely adding routes that don't need additional guards.
 - Add `web::Payload::to_bytes[_limited]()` helper methods.
 - Add missing constructors on `HttpResponse` for several status codes.
 - Add `http::header::ContentLength` typed header.
 - Implement `Default` for `web::Data`.
 - Implement `serde::Deserialize` for `web::Data`.
+- Add `rustls-0_20` crate feature, which the existing `rustls` feature now aliases.
 
 ### Changed
 

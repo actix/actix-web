@@ -66,6 +66,7 @@ type PathFilter = dyn Fn(&Path, &RequestHead) -> bool;
 #[cfg(test)]
 mod tests {
     use std::{
+        fmt::Write as _,
         fs::{self},
         ops::Add,
         time::{Duration, SystemTime},
@@ -848,8 +849,10 @@ mod tests {
         let filename_encoded = filename
             .as_bytes()
             .iter()
-            .map(|c| format!("%{:02X}", c))
-            .collect::<String>();
+            .fold(String::new(), |mut buf, c| {
+                write!(&mut buf, "%{:02X}", c).unwrap();
+                buf
+            });
         std::fs::File::create(tmpdir.path().join(filename)).unwrap();
 
         let srv = test::init_service(App::new().service(Files::new("", tmpdir.path()))).await;

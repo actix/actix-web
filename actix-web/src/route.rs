@@ -92,7 +92,7 @@ pub struct RouteService {
 }
 
 impl RouteService {
-    // TODO: does this need to take &mut ?
+    #[allow(clippy::needless_pass_by_ref_mut)]
     pub fn check(&self, req: &mut ServiceRequest) -> bool {
         let guard_ctx = req.guard_ctx();
 
