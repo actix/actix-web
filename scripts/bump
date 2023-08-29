@@ -128,11 +128,11 @@ if [ "$UPDATE_REFERENCES" = 'y' ] || [ "$UPDATE_REFERENCES" = 'Y' ]; then
 fi
 
 if [ $MACOS ]; then
-    printf "prepare $PACKAGE_NAME release $NEW_VERSION" | pbcopy
+    printf "chore($PACKAGE_NAME): prepare release $NEW_VERSION" | pbcopy
 else
     echo
     echo "commit message:"
-    echo "prepare $PACKAGE_NAME release $NEW_VERSION"
+    echo "chore($PACKAGE_NAME): prepare release $NEW_VERSION"
 fi
 
 SHORT_PACKAGE_NAME="$(echo $PACKAGE_NAME | sed 's/^actix-web-//' | sed 's/^actix-//')"
