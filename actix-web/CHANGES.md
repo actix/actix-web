@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 4.4.0
+
 ### Added
 
 - Add `HttpServer::{bind, listen}_auto_h2c()` methods behind new `http2` crate feature.
