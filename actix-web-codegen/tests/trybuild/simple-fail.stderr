@@ -38,7 +38,7 @@ error: Multiple paths specified! There should be only one.
    |
    = note: this error originates in the attribute macro `delete` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error: HTTP method forbidden here; to handle multiple methods, use `route` instead.
+error: HTTP method forbidden here; to handle multiple methods, use `route` instead
   --> $DIR/simple-fail.rs:25:19
    |
 25 | #[delete("/five", method="GET")]

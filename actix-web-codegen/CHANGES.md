@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 4.2.2
+
 - Fix regression when declaring `wrap` attribute using an expression.
 
 ## 4.2.1

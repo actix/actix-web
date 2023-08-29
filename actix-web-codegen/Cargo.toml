@@ -1,6 +1,6 @@
 [package]
 name = "actix-web-codegen"
-version = "4.2.1"
+version = "4.2.2"
 description = "Routing and runtime macros for Actix Web"
 homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-web.git"

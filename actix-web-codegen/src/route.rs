@@ -284,7 +284,7 @@ impl Args {
                 if !is_route_macro {
                     return Err(syn::Error::new_spanned(
                         &nv,
-                        "HTTP method forbidden here; to handle multiple methods, use `route` instead.",
+                        "HTTP method forbidden here; to handle multiple methods, use `route` instead",
                     ));
                 } else if let syn::Expr::Lit(syn::ExprLit {
                     lit: syn::Lit::Str(lit),
