@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.2
+
 - Add `TestServerConfig::rustls_021()` method for Rustls v0.21 support behind new `rustls-0_21` crate feature.
 - Add `TestServerConfig::workers()` method.
 - Add `rustls-0_20` crate feature, which the existing `rustls` feature now aliases.
