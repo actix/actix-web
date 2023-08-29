@@ -212,6 +212,19 @@ async fn get_wrap(_: web::Path<String>) -> impl Responder {
     HttpResponse::Ok()
 }
 
+/// Using expression, not just path to type, in wrap attribute.
+///
+/// Regression from <https://github.com/actix/actix-web/issues/3118>.
+#[route(
+    "/catalog",
+    method = "GET",
+    method = "HEAD",
+    wrap = "actix_web::middleware::Compress::default()"
+)]
+async fn get_catalog() -> impl Responder {
+    HttpResponse::Ok().body("123123123")
+}
+
 #[actix_rt::test]
 async fn test_params() {
     let srv = actix_test::start(|| {

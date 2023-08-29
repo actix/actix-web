@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix regression when declaring `wrap` attribute using an expression.
+
 ## 4.2.1
 
 - Update `syn` dependency to `2`.
