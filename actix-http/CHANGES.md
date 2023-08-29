@@ -8,7 +8,7 @@
 
 - Add `rustls-0_20` crate feature.
 - Add `{h1::H1Service, h2::H2Service, HttpService}::rustls_021()` and `HttpService::rustls_021_with_config()` service constructors.
-- Add `body::to_body_limit()` function.
+- Add `body::to_bytes_limited()` function.
 - Add `body::BodyLimitExceeded` error type.
 
 ### Changed
