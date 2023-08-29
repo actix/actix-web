@@ -109,33 +109,10 @@ impl Connector<()> {
         OurTlsConnector::Rustls021(std::sync::Arc::new(config))
     }
 
-    /// Build TLS connector with Rustls v0.21, based on supplied ALPN protocols
-    ///
-    /// Note that if other TLS crate features are enabled, Rustls v0.21 will be used.
-    #[cfg(all(
-        all(feature = "rustls-0_20", feature = "openssl"),
-        not(feature = "rustls-0_21"),
-    ))]
-    fn build_tls(protocols: Vec<Vec<u8>>) -> OurTlsConnector {
-        use actix_tls::connect::rustls_0_20::{reexports::ClientConfig, webpki_roots_cert_store};
-
-        let mut config = ClientConfig::builder()
-            .with_safe_defaults()
-            .with_root_certificates(webpki_roots_cert_store())
-            .with_no_client_auth();
-
-        config.alpn_protocols = protocols;
-
-        OurTlsConnector::Rustls020(std::sync::Arc::new(config))
-    }
-
     /// Build TLS connector with Rustls v0.20, based on supplied ALPN protocols
     ///
     /// Note that if other TLS crate features are enabled, Rustls v0.21 will be used.
-    #[cfg(all(
-        feature = "rustls-0_20",
-        not(any(feature = "rustls-0_21", feature = "openssl")),
-    ))]
+    #[cfg(all(feature = "rustls-0_20", not(feature = "rustls-0_21")))]
     fn build_tls(protocols: Vec<Vec<u8>>) -> OurTlsConnector {
         use actix_tls::connect::rustls_0_20::{reexports::ClientConfig, webpki_roots_cert_store};
 
