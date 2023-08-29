@@ -3,11 +3,11 @@
 > Routing and runtime macros for Actix Web.
 
 [![crates.io](https://img.shields.io/crates/v/actix-web-codegen?label=latest)](https://crates.io/crates/actix-web-codegen)
-[![Documentation](https://docs.rs/actix-web-codegen/badge.svg?version=4.2.0)](https://docs.rs/actix-web-codegen/4.2.0)
+[![Documentation](https://docs.rs/actix-web-codegen/badge.svg?version=4.2.1)](https://docs.rs/actix-web-codegen/4.2.1)
 ![Version](https://img.shields.io/badge/rustc-1.68+-ab6000.svg)
 ![License](https://img.shields.io/crates/l/actix-web-codegen.svg)
 <br />
-[![dependency status](https://deps.rs/crate/actix-web-codegen/4.2.0/status.svg)](https://deps.rs/crate/actix-web-codegen/4.2.0)
+[![dependency status](https://deps.rs/crate/actix-web-codegen/4.2.1/status.svg)](https://deps.rs/crate/actix-web-codegen/4.2.1)
 [![Download](https://img.shields.io/crates/d/actix-web-codegen.svg)](https://crates.io/crates/actix-web-codegen)
 [![Chat on Discord](https://img.shields.io/discord/771444961383153695?label=chat&logo=discord)](https://discord.gg/NWpN5mmg3x)
 
