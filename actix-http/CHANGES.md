@@ -2,10 +2,12 @@
 
 ## Unreleased
 
+## 3.4.0
+
 ### Added
 
 - Add `rustls-0_20` crate feature.
-- Add `{H1Service, H2Service, HttpService}::rustls_021()` and `HttpService::rustls_021_with_config()` service constructors.
+- Add `{h1::H1Service, h2::H2Service, HttpService}::rustls_021()` and `HttpService::rustls_021_with_config()` service constructors.
 - Add `body::to_body_limit()` function.
 - Add `body::BodyLimitExceeded` error type.
 
