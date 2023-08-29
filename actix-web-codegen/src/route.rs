@@ -224,7 +224,7 @@ struct Args {
     path: syn::LitStr,
     resource_name: Option<syn::LitStr>,
     guards: Vec<Path>,
-    wrappers: Vec<syn::Type>,
+    wrappers: Vec<syn::Expr>,
     methods: HashSet<MethodTypeExt>,
 }
 
@@ -251,7 +251,7 @@ impl Args {
                 } else {
                     return Err(syn::Error::new_spanned(
                         nv.value,
-                        "Attribute name expects literal string!",
+                        "Attribute name expects literal string",
                     ));
                 }
             } else if nv.path.is_ident("guard") {
@@ -264,7 +264,7 @@ impl Args {
                 } else {
                     return Err(syn::Error::new_spanned(
                         nv.value,
-                        "Attribute guard expects literal string!",
+                        "Attribute guard expects literal string",
                     ));
                 }
             } else if nv.path.is_ident("wrap") {
@@ -283,9 +283,9 @@ impl Args {
             } else if nv.path.is_ident("method") {
                 if !is_route_macro {
                     return Err(syn::Error::new_spanned(
-                                &nv,
-                                "HTTP method forbidden here. To handle multiple methods, use `route` instead",
-                            ));
+                        &nv,
+                        "HTTP method forbidden here; to handle multiple methods, use `route` instead",
+                    ));
                 } else if let syn::Expr::Lit(syn::ExprLit {
                     lit: syn::Lit::Str(lit),
                     ..
@@ -300,13 +300,13 @@ impl Args {
                 } else {
                     return Err(syn::Error::new_spanned(
                         nv.value,
-                        "Attribute method expects literal string!",
+                        "Attribute method expects literal string",
                     ));
                 }
             } else {
                 return Err(syn::Error::new_spanned(
                     nv.path,
-                    "Unknown attribute key is specified. Allowed: guard, method and wrap",
+                    "Unknown attribute key is specified; allowed: guard, method and wrap",
                 ));
             }
         }
