@@ -91,7 +91,7 @@ tls-openssl = { package = "openssl", version = "0.10.55", optional = true }
 tls-rustls-0_20 = { package = "rustls", version = "0.20", optional = true, features = ["dangerous_configuration"] }
 tls-rustls-0_21 = { package = "rustls", version = "0.21", optional = true, features = ["dangerous_configuration"] }
 
-trust-dns-resolver = { version = "0.22", optional = true }
+trust-dns-resolver = { version = "0.23", optional = true }
 
 [dev-dependencies]
 actix-http = { version = "3.4", features = ["openssl"] }
