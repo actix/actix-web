@@ -191,7 +191,7 @@ impl ContentDecoder {
                         Ok(None)
                     }
                 }
-                Err(e) => Err(e),
+                Err(err) => Err(err),
             },
 
             #[cfg(feature = "compress-gzip")]
@@ -205,7 +205,7 @@ impl ContentDecoder {
                         Ok(None)
                     }
                 }
-                Err(e) => Err(e),
+                Err(err) => Err(err),
             },
 
             #[cfg(feature = "compress-gzip")]
@@ -218,7 +218,7 @@ impl ContentDecoder {
                         Ok(None)
                     }
                 }
-                Err(e) => Err(e),
+                Err(err) => Err(err),
             },
 
             #[cfg(feature = "compress-zstd")]
@@ -231,7 +231,7 @@ impl ContentDecoder {
                         Ok(None)
                     }
                 }
-                Err(e) => Err(e),
+                Err(err) => Err(err),
             },
         }
     }
@@ -250,7 +250,7 @@ impl ContentDecoder {
                         Ok(None)
                     }
                 }
-                Err(e) => Err(e),
+                Err(err) => Err(err),
             },
 
             #[cfg(feature = "compress-gzip")]
@@ -265,7 +265,7 @@ impl ContentDecoder {
                         Ok(None)
                     }
                 }
-                Err(e) => Err(e),
+                Err(err) => Err(err),
             },
 
             #[cfg(feature = "compress-gzip")]
@@ -280,7 +280,7 @@ impl ContentDecoder {
                         Ok(None)
                     }
                 }
-                Err(e) => Err(e),
+                Err(err) => Err(err),
             },
 
             #[cfg(feature = "compress-zstd")]
@@ -295,7 +295,7 @@ impl ContentDecoder {
                         Ok(None)
                     }
                 }
-                Err(e) => Err(e),
+                Err(err) => Err(err),
             },
         }
     }

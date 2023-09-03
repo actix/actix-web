@@ -356,7 +356,7 @@ where
 
         let res = match ready!(this.fut.poll(cx)) {
             Ok(res) => res,
-            Err(e) => return Poll::Ready(Err(e)),
+            Err(err) => return Poll::Ready(Err(err)),
         };
 
         if let Some(error) = res.response().error() {

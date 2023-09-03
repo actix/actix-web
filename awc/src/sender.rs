@@ -122,8 +122,8 @@ impl Future for SendClientRequest {
 
                 Poll::Ready(res)
             }
-            SendClientRequest::Err(ref mut e) => match e.take() {
-                Some(e) => Poll::Ready(Err(e)),
+            SendClientRequest::Err(ref mut err) => match err.take() {
+                Some(err) => Poll::Ready(Err(err)),
                 None => panic!("Attempting to call completed future"),
             },
         }
@@ -147,8 +147,8 @@ impl Future for SendClientRequest {
                     .poll(cx)
                     .map_ok(|res| res.into_client_response()._timeout(delay.take()))
             }
-            SendClientRequest::Err(ref mut e) => match e.take() {
-                Some(e) => Poll::Ready(Err(e)),
+            SendClientRequest::Err(ref mut err) => match err.take() {
+                Some(err) => Poll::Ready(Err(err)),
                 None => panic!("Attempting to call completed future"),
             },
         }
@@ -219,8 +219,8 @@ impl RequestSender {
             Err(err) => return PrepForSendingError::Json(err).into(),
         };
 
-        if let Err(e) = self.set_header_if_none(header::CONTENT_TYPE, "application/json") {
-            return e.into();
+        if let Err(err) = self.set_header_if_none(header::CONTENT_TYPE, "application/json") {
+            return err.into();
         }
 
         self.send_body(addr, response_decompress, timeout, config, body)
@@ -291,7 +291,7 @@ impl RequestSender {
                         Ok(value) => {
                             head.headers.insert(key, value);
                         }
-                        Err(e) => return Err(e.into()),
+                        Err(err) => return Err(err.into()),
                     }
                 }
             }
@@ -304,7 +304,7 @@ impl RequestSender {
                             let h = extra_headers.get_or_insert(HeaderMap::new());
                             h.insert(key, v)
                         }
-                        Err(e) => return Err(e.into()),
+                        Err(err) => return Err(err.into()),
                     };
                 }
             }

@@ -64,7 +64,7 @@ pub struct WebsocketsRequest {
 }
 
 impl WebsocketsRequest {
-    /// Create new WebSocket connection
+    /// Create new WebSocket connection.
     pub(crate) fn new<U>(uri: U, config: ClientConfig) -> Self
     where
         Uri: TryFrom<U>,
@@ -82,7 +82,7 @@ impl WebsocketsRequest {
 
         match Uri::try_from(uri) {
             Ok(uri) => head.uri = uri,
-            Err(e) => err = Some(e.into()),
+            Err(error) => err = Some(error.into()),
         }
 
         WebsocketsRequest {
@@ -143,7 +143,7 @@ impl WebsocketsRequest {
     {
         match HeaderValue::try_from(origin) {
             Ok(value) => self.origin = Some(value),
-            Err(e) => self.err = Some(e.into()),
+            Err(err) => self.err = Some(err.into()),
         }
         self
     }
@@ -177,9 +177,9 @@ impl WebsocketsRequest {
                 Ok(value) => {
                     self.head.headers.append(key, value);
                 }
-                Err(e) => self.err = Some(e.into()),
+                Err(err) => self.err = Some(err.into()),
             },
-            Err(e) => self.err = Some(e.into()),
+            Err(err) => self.err = Some(err.into()),
         }
         self
     }
@@ -196,9 +196,9 @@ impl WebsocketsRequest {
                 Ok(value) => {
                     self.head.headers.insert(key, value);
                 }
-                Err(e) => self.err = Some(e.into()),
+                Err(err) => self.err = Some(err.into()),
             },
-            Err(e) => self.err = Some(e.into()),
+            Err(err) => self.err = Some(err.into()),
         }
         self
     }
@@ -217,11 +217,11 @@ impl WebsocketsRequest {
                         Ok(value) => {
                             self.head.headers.insert(key, value);
                         }
-                        Err(e) => self.err = Some(e.into()),
+                        Err(err) => self.err = Some(err.into()),
                     }
                 }
             }
-            Err(e) => self.err = Some(e.into()),
+            Err(err) => self.err = Some(err.into()),
         }
         self
     }

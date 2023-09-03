@@ -532,7 +532,7 @@ impl Decoder for PayloadDecoder {
                     *state = match state.step(src, size, &mut buf) {
                         Poll::Pending => return Ok(None),
                         Poll::Ready(Ok(state)) => state,
-                        Poll::Ready(Err(e)) => return Err(e),
+                        Poll::Ready(Err(err)) => return Err(err),
                     };
 
                     if *state == ChunkedState::End {

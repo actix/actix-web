@@ -141,8 +141,8 @@ where
                 let fut = data();
                 async move {
                     match fut.await {
-                        Err(e) => {
-                            log::error!("Can not construct data instance: {:?}", e);
+                        Err(err) => {
+                            log::error!("Can not construct data instance: {err:?}");
                             Err(())
                         }
                         Ok(data) => {

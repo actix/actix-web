@@ -853,7 +853,7 @@ fn bind_addrs(addrs: impl net::ToSocketAddrs, backlog: u32) -> io::Result<Vec<ne
                 success = true;
                 sockets.push(lst);
             }
-            Err(e) => err = Some(e),
+            Err(error) => err = Some(error),
         }
     }
 

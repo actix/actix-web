@@ -296,7 +296,7 @@ impl Decoder for Codec {
                 }
             }
             Ok(None) => Ok(None),
-            Err(e) => Err(e),
+            Err(err) => Err(err),
         }
     }
 }

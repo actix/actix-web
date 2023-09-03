@@ -106,9 +106,9 @@ where
     }
 
     let res = poll_fn(|cx| io.poll_ready(cx)).await;
-    if let Err(e) = res {
-        io.on_release(e.is_io());
-        return Err(SendRequestError::from(e));
+    if let Err(err) = res {
+        io.on_release(err.is_io());
+        return Err(SendRequestError::from(err));
     }
 
     let resp = match io.send_request(req, eof) {
@@ -120,9 +120,9 @@ where
             }
             fut.await.map_err(SendRequestError::from)?
         }
-        Err(e) => {
-            io.on_release(e.is_io());
-            return Err(e.into());
+        Err(err) => {
+            io.on_release(err.is_io());
+            return Err(err.into());
         }
     };
 
@@ -169,8 +169,8 @@ where
                 let len = b.len();
                 let bytes = b.split_to(std::cmp::min(cap, len));
 
-                if let Err(e) = send.send_data(bytes, false) {
-                    return Err(e.into());
+                if let Err(err) = send.send_data(bytes, false) {
+                    return Err(err.into());
                 }
                 if !b.is_empty() {
                     send.reserve_capacity(b.len());
@@ -179,7 +179,7 @@ where
                 }
                 continue;
             }
-            Some(Err(e)) => return Err(e.into()),
+            Some(Err(err)) => return Err(err.into()),
         }
     }
 }

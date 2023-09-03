@@ -909,8 +909,8 @@ mod resolver {
                 None => {
                     let (cfg, opts) = match read_system_conf() {
                         Ok((cfg, opts)) => (cfg, opts),
-                        Err(e) => {
-                            log::error!("TRust-DNS can not load system config: {}", e);
+                        Err(err) => {
+                            log::error!("Trust-DNS can not load system config: {err}");
                             (ResolverConfig::default(), ResolverOpts::default())
                         }
                     };

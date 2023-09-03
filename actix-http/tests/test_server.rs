@@ -147,7 +147,7 @@ async fn chunked_payload() {
                     .take_payload()
                     .map(|res| match res {
                         Ok(pl) => pl,
-                        Err(e) => panic!("Error reading payload: {}", e),
+                        Err(err) => panic!("Error reading payload: {err}"),
                     })
                     .fold(0usize, |acc, chunk| ready(acc + chunk.len()))
                     .map(|req_size| {

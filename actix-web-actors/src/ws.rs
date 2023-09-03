@@ -775,10 +775,10 @@ where
                         break;
                     }
                     Poll::Pending => break,
-                    Poll::Ready(Some(Err(e))) => {
+                    Poll::Ready(Some(Err(err))) => {
                         return Poll::Ready(Some(Err(ProtocolError::Io(io::Error::new(
                             io::ErrorKind::Other,
-                            format!("{}", e),
+                            format!("{err}"),
                         )))));
                     }
                 }
