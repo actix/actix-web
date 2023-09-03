@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Update `trust-dns-resolver` dependency to `0.23`.
+
 ## 3.2.0
 
 - Add `awc::Connector::rustls_021()` method for Rustls v0.21 support behind new `rustls-0_21` crate feature.
