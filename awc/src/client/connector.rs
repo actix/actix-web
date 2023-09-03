@@ -915,7 +915,7 @@ mod resolver {
                         }
                     };
 
-                    let resolver = TokioAsyncResolver::tokio(cfg, opts).unwrap();
+                    let resolver = TokioAsyncResolver::tokio(cfg, opts);
 
                     // box trust dns resolver and put it in thread local.
                     let resolver = Resolver::custom(TrustDnsResolver(resolver));
