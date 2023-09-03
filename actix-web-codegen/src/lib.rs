@@ -240,3 +240,47 @@ pub fn test(_: TokenStream, item: TokenStream) -> TokenStream {
     output.extend(item);
     output
 }
+
+/// Generates scope
+///
+/// Syntax: `#[scope("path")]`
+///
+/// Due to current limitation it cannot be applied to modules themself.
+/// Instead one should create const variable that contains module code.
+///
+/// ## Attributes:
+///
+/// - `"path"` - Raw literal string with path for which to register handler. Mandatory.
+///
+/// # Example
+///
+/// ```rust
+/// use actix_web_cute_codegen::{scope};
+///
+/// #[scope("/scope")]
+/// const mod_inner: () = {
+///     use actix_web_cute_codegen::{get, hook};
+///     use actix_web::{HttpResponse, Responder};
+///     use futures::{Future, future};
+///
+///     #[get("/test")]
+///     pub fn test() -> impl Responder {
+///         HttpResponse::Ok()
+///     }
+///
+///     #[get("/test_async")]
+///     pub fn auto_sync() -> impl Future<Item=HttpResponse, Error=actix_web::Error> {
+///         future::ok(HttpResponse::Ok().finish())
+///     }
+/// };
+/// ```
+///
+/// # Note
+///
+/// Internally the macro generate struct with name of scope (e.g. `mod_inner`)
+/// And create public module as `<name>_scope`
+///
+#[proc_macro_attribute]
+pub fn scope(args: TokenStream, input: TokenStream) -> TokenStream {
+    route::ScopeArgs::new(args, input).generate()
+}

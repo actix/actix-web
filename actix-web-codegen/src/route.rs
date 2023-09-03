@@ -4,6 +4,7 @@ use actix_router::ResourceDef;
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{quote, ToTokens, TokenStreamExt};
+use std::fmt;
 use syn::{punctuated::Punctuated, Ident, LitStr, Path, Token};
 
 #[derive(Debug)]
@@ -553,4 +554,123 @@ fn input_and_compile_error(mut item: TokenStream, err: syn::Error) -> TokenStrea
     let compile_err = TokenStream::from(err.to_compile_error());
     item.extend(compile_err);
     item
+}
+
+/// Implements scope proc macro 
+/// 
+
+struct ScopeItems {
+    handlers: Vec<String>,
+}
+
+impl ScopeItems {
+    pub fn from_items(items: &[syn::Item]) -> Self {
+        let mut handlers = Vec::new();
+
+        for item in items {
+            match item {
+                syn::Item::Fn(ref fun) => {
+
+                    for attr in fun.attrs.iter() {
+                        for bound in attr.path().segments.iter() {
+                            if bound.ident == "get" || bound.ident == "post" || bound.ident == "put" || bound.ident == "head" || bound.ident == "connect" || bound.ident == "options" || bound.ident == "trace" || bound.ident == "patch" || bound.ident == "delete" {
+                                handlers.push(format!("{}", fun.sig.ident));
+                                break;
+                            }
+                        }
+                    }
+                },
+                _ => continue,
+            }
+        }
+
+        Self {
+            handlers,
+        }
+    }
+}
+
+pub struct ScopeArgs {
+    ast: syn::ItemConst,
+    name: syn::Ident,
+    path: String,
+    scope_items: ScopeItems,
+}
+
+impl ScopeArgs {
+    pub fn new(args: TokenStream, input: TokenStream) -> Self {
+        if args.is_empty() {
+            panic!("invalid server definition, expected: #[scope(\"some path\")]");
+        }
+
+        let ast: syn::ItemConst = syn::parse(input).expect("Parse input as module");
+        //TODO: we should change it to mod once supported on stable
+        //let ast: syn::ItemMod = syn::parse(input).expect("Parse input as module");
+        let name = ast.ident.clone();
+
+        let mut items = Vec::new();
+        match ast.expr.as_ref() {
+            syn::Expr::Block(expr) => for item in expr.block.stmts.iter() {
+                match item {
+                    syn::Stmt::Item(ref item) => items.push(item.clone()),
+                    _ => continue,
+                }
+            },
+            _ => panic!("Scope should containt only code block"),
+        }
+
+        let scope_items = ScopeItems::from_items(&items);
+
+        let mut path = None;
+        if let Ok(parsed) = syn::parse::<syn::LitStr>(args) {
+            path = Some(parsed.value());
+        }
+
+        let path = path.expect("Scope's path is not specified!");
+
+        Self {
+            ast,
+            name,
+            path,
+            scope_items,
+        }
+    }
+
+    pub fn generate(&self) -> TokenStream {
+        let text = self.to_string();
+
+        match text.parse() {
+            Ok(res) => res,
+            Err(error) => panic!("Error: {:?}\nGenerated code: {}", error, text)
+        }
+    }
+
+}
+
+impl fmt::Display for ScopeArgs {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let ast = &self.ast;
+
+        let module_name = format!("{}_scope", self.name);
+        let module_name = syn::Ident::new(&module_name, ast.ident.span());
+        let ast = match ast.expr.as_ref() {
+            syn::Expr::Block(expr) => quote!(pub mod #module_name #expr),
+            _ => panic!("Unexpect non-block ast in scope macro")
+        };
+
+        writeln!(f, "{}\n", ast)?;
+        writeln!(f, "#[allow(non_camel_case_types)]")?;
+        writeln!(f, "struct {};\n", self.name)?;
+        writeln!(f, "impl<P: 'static> actix_web::dev::HttpServiceFactory<P> for {} {{", self.name)?;
+        writeln!(f, "    fn register(self, config: &mut actix_web::dev::ServiceConfig<P>) {{")?;
+        write!(f, "        let scope = actix_web::Scope::new(\"{}\")", self.path)?;
+
+        for handler in self.scope_items.handlers.iter() {
+            write!(f, ".service({}::{})", module_name, handler)?;
+        }
+
+        writeln!(f, ";\n")?;
+        writeln!(f, "        actix_web::dev::HttpServiceFactory::register(scope, config)")?;
+        writeln!(f, "    }}\n}}")
+    }
 }
