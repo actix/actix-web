@@ -143,5 +143,6 @@ codegen_reexport!(delete);
 codegen_reexport!(trace);
 codegen_reexport!(connect);
 codegen_reexport!(options);
+codegen_reexport!(scope);
 
 pub(crate) type BoxError = Box<dyn std::error::Error>;
