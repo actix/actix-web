@@ -662,7 +662,7 @@ impl fmt::Display for ScopeArgs {
         writeln!(f, "#[allow(non_camel_case_types)]")?;
         writeln!(f, "struct {};\n", self.name)?;
         writeln!(f, "impl actix_web::dev::HttpServiceFactory for {} {{", self.name)?;
-        writeln!(f, "    fn register(self, config: &mut actix_web::dev::AppService) {{")?;
+        writeln!(f, "    fn register(self, __config: &mut actix_web::dev::AppService) {{")?;
         write!(f, "        let scope = actix_web::Scope::new(\"{}\")", self.path)?;
 
         for handler in self.scope_items.handlers.iter() {
@@ -670,7 +670,7 @@ impl fmt::Display for ScopeArgs {
         }
 
         writeln!(f, ";\n")?;
-        writeln!(f, "        actix_web::dev::HttpServiceFactory::register(scope, config)")?;
+        writeln!(f, "        actix_web::dev::HttpServiceFactory::register(scope, __config)")?;
         writeln!(f, "    }}\n}}")
     }
 }

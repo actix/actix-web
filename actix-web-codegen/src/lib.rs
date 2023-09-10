@@ -255,23 +255,17 @@ pub fn test(_: TokenStream, item: TokenStream) -> TokenStream {
 /// # Example
 ///
 /// ```rust
-/// use actix_web_cute_codegen::{scope};
+/// use actix_web_codegen::{scope};
 ///
 /// #[scope("/scope")]
 /// const mod_inner: () = {
-///     use actix_web_cute_codegen::{get, hook};
-///     use actix_web::{HttpResponse, Responder};
-///     use futures::{Future, future};
+///    use actix_web::{HttpResponse, HttpRequest, Responder, get };
+///    use actix_web::web::Json;
 ///
-///     #[get("/test")]
-///     pub fn test() -> impl Responder {
-///         HttpResponse::Ok()
-///     }
-///
-///     #[get("/test_async")]
-///     pub fn auto_sync() -> impl Future<Item=HttpResponse, Error=actix_web::Error> {
-///         future::ok(HttpResponse::Ok().finish())
-///     }
+///    #[get("/test")]
+///    pub async fn test() -> impl Responder {
+///      actix_web::HttpResponse::Ok().finish()
+///    }
 /// };
 /// ```
 ///
