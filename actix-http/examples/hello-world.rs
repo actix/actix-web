@@ -23,10 +23,7 @@ async fn main() -> io::Result<()> {
                     res.insert_header(("x-head", HeaderValue::from_static("dummy value!")));
 
                     let forty_two = req.conn_data::<u32>().unwrap().to_string();
-                    res.insert_header((
-                        "x-forty-two",
-                        HeaderValue::from_str(&forty_two).unwrap(),
-                    ));
+                    res.insert_header(("x-forty-two", HeaderValue::from_str(&forty_two).unwrap()));
 
                     Ok::<_, Infallible>(res.body("Hello world!"))
                 })

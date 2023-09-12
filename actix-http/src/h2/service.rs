@@ -16,6 +16,7 @@ use actix_utils::future::ready;
 use futures_core::{future::LocalBoxFuture, ready};
 use tracing::{error, trace};
 
+use super::{dispatcher::Dispatcher, handshake_with_timeout, HandshakeWithTimeout};
 use crate::{
     body::{BoxBody, MessageBody},
     config::ServiceConfig,
@@ -23,8 +24,6 @@ use crate::{
     service::HttpFlow,
     ConnectCallback, OnConnectData, Request, Response,
 };
-
-use super::{dispatcher::Dispatcher, handshake_with_timeout, HandshakeWithTimeout};
 
 /// `ServiceFactory` implementation for HTTP/2 transport
 pub struct H2Service<T, S, B> {
@@ -141,8 +140,8 @@ mod openssl {
     }
 }
 
-#[cfg(feature = "rustls")]
-mod rustls {
+#[cfg(feature = "rustls-0_20")]
+mod rustls_020 {
     use std::io;
 
     use actix_service::ServiceFactoryExt as _;
@@ -163,8 +162,59 @@ mod rustls {
 
         B: MessageBody + 'static,
     {
-        /// Create Rustls based service.
+        /// Create Rustls v0.20 based service.
         pub fn rustls(
+            self,
+            mut config: ServerConfig,
+        ) -> impl ServiceFactory<
+            TcpStream,
+            Config = (),
+            Response = (),
+            Error = TlsError<io::Error, DispatchError>,
+            InitError = S::InitError,
+        > {
+            let mut protos = vec![b"h2".to_vec()];
+            protos.extend_from_slice(&config.alpn_protocols);
+            config.alpn_protocols = protos;
+
+            Acceptor::new(config)
+                .map_init_err(|_| {
+                    unreachable!("TLS acceptor service factory does not error on init")
+                })
+                .map_err(TlsError::into_service_error)
+                .map(|io: TlsStream<TcpStream>| {
+                    let peer_addr = io.get_ref().0.peer_addr().ok();
+                    (io, peer_addr)
+                })
+                .and_then(self.map_err(TlsError::Service))
+        }
+    }
+}
+
+#[cfg(feature = "rustls-0_21")]
+mod rustls_021 {
+    use std::io;
+
+    use actix_service::ServiceFactoryExt as _;
+    use actix_tls::accept::{
+        rustls_0_21::{reexports::ServerConfig, Acceptor, TlsStream},
+        TlsError,
+    };
+
+    use super::*;
+
+    impl<S, B> H2Service<TlsStream<TcpStream>, S, B>
+    where
+        S: ServiceFactory<Request, Config = ()>,
+        S::Future: 'static,
+        S::Error: Into<Response<BoxBody>> + 'static,
+        S::Response: Into<Response<B>> + 'static,
+        <S::Service as Service<Request>>::Future: 'static,
+
+        B: MessageBody + 'static,
+    {
+        /// Create Rustls v0.21 based service.
+        pub fn rustls_021(
             self,
             mut config: ServerConfig,
         ) -> impl ServiceFactory<

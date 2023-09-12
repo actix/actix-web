@@ -2,9 +2,7 @@
 
 use std::{
     cell::{Cell, RefCell, RefMut},
-    cmp,
-    convert::TryFrom,
-    fmt,
+    cmp, fmt,
     marker::PhantomData,
     pin::Pin,
     rc::Rc,
@@ -163,8 +161,8 @@ impl InnerMultipart {
                         for h in hdrs {
                             let name =
                                 HeaderName::try_from(h.name).map_err(|_| ParseError::Header)?;
-                            let value = HeaderValue::try_from(h.value)
-                                .map_err(|_| ParseError::Header)?;
+                            let value =
+                                HeaderValue::try_from(h.value).map_err(|_| ParseError::Header)?;
                             headers.append(name, value);
                         }
 
@@ -224,8 +222,7 @@ impl InnerMultipart {
                     if chunk.len() < boundary.len() {
                         continue;
                     }
-                    if &chunk[..2] == b"--" && &chunk[2..chunk.len() - 2] == boundary.as_bytes()
-                    {
+                    if &chunk[..2] == b"--" && &chunk[2..chunk.len() - 2] == boundary.as_bytes() {
                         break;
                     } else {
                         if chunk.len() < boundary.len() + 2 {
@@ -255,7 +252,7 @@ impl InnerMultipart {
     fn poll(
         &mut self,
         safety: &Safety,
-        cx: &mut Context<'_>,
+        cx: &Context<'_>,
     ) -> Poll<Option<Result<Field, MultipartError>>> {
         if self.state == InnerState::Eof {
             Poll::Ready(None)
@@ -270,9 +267,7 @@ impl InnerMultipart {
                             match field.borrow_mut().poll(safety) {
                                 Poll::Pending => return Poll::Pending,
                                 Poll::Ready(Some(Ok(_))) => continue,
-                                Poll::Ready(Some(Err(err))) => {
-                                    return Poll::Ready(Some(Err(err)))
-                                }
+                                Poll::Ready(Some(Err(err))) => return Poll::Ready(Some(Err(err))),
                                 Poll::Ready(None) => true,
                             }
                         }
@@ -291,8 +286,7 @@ impl InnerMultipart {
                 match self.state {
                     // read until first boundary
                     InnerState::FirstBoundary => {
-                        match InnerMultipart::skip_until_boundary(&mut payload, &self.boundary)?
-                        {
+                        match InnerMultipart::skip_until_boundary(&mut payload, &self.boundary)? {
                             Some(eof) => {
                                 if eof {
                                     self.state = InnerState::Eof;
@@ -669,9 +663,7 @@ impl InnerField {
                 Ok(None) => Poll::Pending,
                 Ok(Some(line)) => {
                     if line.as_ref() != b"\r\n" {
-                        log::warn!(
-                            "multipart field did not read all the data or it is malformed"
-                        );
+                        log::warn!("multipart field did not read all the data or it is malformed");
                     }
                     Poll::Ready(None)
                 }
@@ -748,7 +740,7 @@ impl Safety {
         self.clean.get()
     }
 
-    fn clone(&self, cx: &mut Context<'_>) -> Safety {
+    fn clone(&self, cx: &Context<'_>) -> Safety {
         let payload = Rc::clone(&self.payload);
         let s = Safety {
             task: LocalWaker::new(),

@@ -5,7 +5,7 @@ on:
     types: [opened, synchronize, reopened]
 
 permissions:
-  contents: read # to fetch code (actions/checkout)
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -15,9 +15,9 @@ jobs:
   fmt:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: actions-rust-lang/setup-rust-toolchain@v1.5.0
         with:
           toolchain: nightly
           components: rustfmt
@@ -30,43 +30,49 @@ jobs:
 
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-        with: { components: clippy }
-
-      - uses: giraffate/clippy-action@v1
+      - uses: actions-rust-lang/setup-rust-toolchain@v1.5.0
         with:
-          reporter: 'github-pr-check'
+          components: clippy
+
+      - uses: giraffate/clippy-action@v1.0.1
+        with:
+          reporter: github-pr-check
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          clippy_flags: --workspace --all-features --tests --examples --bins -- -Dclippy::todo
+          clippy_flags: --workspace --all-features --tests --examples --bins -- -Dclippy::todo -Aunknown_lints
 
   lint-docs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-        with: { components: rust-docs }
+      - uses: actions-rust-lang/setup-rust-toolchain@v1.5.0
+        with:
+          toolchain: nightly
+          components: rust-docs
 
       - name: Check for broken intra-doc links
-        env: { RUSTDOCFLAGS: "-D warnings" }
-        run: cargo doc --no-deps --all-features --workspace
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo +nightly doc --no-deps --workspace --all-features
 
   public-api-diff:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.base_ref }}
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-        with: { toolchain: nightly }
+      - uses: actions-rust-lang/setup-rust-toolchain@v1.5.0
+        with:
+          toolchain: nightly-2023-08-25
 
-      - uses: taiki-e/cache-cargo-install-action@v1
-        with: { tool: cargo-public-api }
+      - uses: taiki-e/cache-cargo-install-action@v1.2.1
+        with:
+          tool: cargo-public-api
 
       - name: generate API diff
         run: |

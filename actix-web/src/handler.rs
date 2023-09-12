@@ -167,7 +167,7 @@ mod tests {
         async fn handler_min() {}
 
         #[rustfmt::skip]
-        #[allow(clippy::too_many_arguments, clippy::just_underscores_and_digits)]
+        #[allow(clippy::too_many_arguments, clippy::just_underscores_and_digits, clippy::let_unit_value)]
         async fn handler_max(
             _01: (), _02: (), _03: (), _04: (), _05: (), _06: (),
             _07: (), _08: (), _09: (), _10: (), _11: (), _12: (),

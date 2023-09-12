@@ -28,8 +28,7 @@
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
-pub use ::http::{uri, uri::Uri};
-pub use ::http::{Method, StatusCode, Version};
+pub use ::http::{uri, uri::Uri, Method, StatusCode, Version};
 
 pub mod body;
 mod builder;
@@ -57,22 +56,24 @@ pub mod test;
 #[cfg(feature = "ws")]
 pub mod ws;
 
-pub use self::builder::HttpServiceBuilder;
-pub use self::config::ServiceConfig;
-pub use self::error::Error;
-pub use self::extensions::Extensions;
-pub use self::header::ContentEncoding;
-pub use self::http_message::HttpMessage;
-pub use self::keep_alive::KeepAlive;
-pub use self::message::ConnectionType;
-pub use self::message::Message;
 #[allow(deprecated)]
-pub use self::payload::{BoxedPayloadStream, Payload, PayloadStream};
-pub use self::requests::{Request, RequestHead, RequestHeadType};
-pub use self::responses::{Response, ResponseBuilder, ResponseHead};
-pub use self::service::HttpService;
-#[cfg(any(feature = "openssl", feature = "rustls"))]
+pub use self::payload::PayloadStream;
+#[cfg(any(feature = "openssl", feature = "rustls-0_20", feature = "rustls-0_21"))]
 pub use self::service::TlsAcceptorConfig;
+pub use self::{
+    builder::HttpServiceBuilder,
+    config::ServiceConfig,
+    error::Error,
+    extensions::Extensions,
+    header::ContentEncoding,
+    http_message::HttpMessage,
+    keep_alive::KeepAlive,
+    message::{ConnectionType, Message},
+    payload::{BoxedPayloadStream, Payload},
+    requests::{Request, RequestHead, RequestHeadType},
+    responses::{Response, ResponseBuilder, ResponseHead},
+    service::HttpService,
+};
 
 /// A major HTTP protocol version.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]

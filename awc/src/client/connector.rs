@@ -43,20 +43,22 @@ enum OurTlsConnector {
     #[allow(dead_code)] // false positive; used in build_ssl
     OpensslBuilder(actix_tls::connect::openssl::reexports::SslConnectorBuilder),
 
-    #[cfg(feature = "rustls")]
-    Rustls(std::sync::Arc<actix_tls::connect::rustls::reexports::ClientConfig>),
+    #[cfg(feature = "rustls-0_20")]
+    Rustls020(std::sync::Arc<actix_tls::connect::rustls_0_20::reexports::ClientConfig>),
+
+    #[cfg(feature = "rustls-0_21")]
+    Rustls021(std::sync::Arc<actix_tls::connect::rustls_0_21::reexports::ClientConfig>),
 }
 
 /// Manages HTTP client network connectivity.
 ///
-/// The `Connector` type uses a builder-like combinator pattern for service
-/// construction that finishes by calling the `.finish()` method.
+/// The `Connector` type uses a builder-like combinator pattern for service construction that
+/// finishes by calling the `.finish()` method.
 ///
-/// ```ignore
+/// ```no_run
 /// use std::time::Duration;
-/// use actix_http::client::Connector;
 ///
-/// let connector = Connector::new()
+/// let connector = awc::Connector::new()
 ///      .timeout(Duration::from_secs(5))
 ///      .finish();
 /// ```
@@ -80,22 +82,22 @@ impl Connector<()> {
         Connector {
             connector: TcpConnector::new(resolver::resolver()).service(),
             config: ConnectorConfig::default(),
-            tls: Self::build_ssl(vec![b"h2".to_vec(), b"http/1.1".to_vec()]),
+            tls: Self::build_tls(vec![b"h2".to_vec(), b"http/1.1".to_vec()]),
         }
     }
 
     /// Provides an empty TLS connector when no TLS feature is enabled.
-    #[cfg(not(any(feature = "openssl", feature = "rustls")))]
-    fn build_ssl(_: Vec<Vec<u8>>) -> OurTlsConnector {
+    #[cfg(not(any(feature = "openssl", feature = "rustls-0_20", feature = "rustls-0_21")))]
+    fn build_tls(_: Vec<Vec<u8>>) -> OurTlsConnector {
         OurTlsConnector::None
     }
 
-    /// Build TLS connector with rustls, based on supplied ALPN protocols
+    /// Build TLS connector with Rustls v0.21, based on supplied ALPN protocols
     ///
-    /// Note that if both `openssl` and `rustls` features are enabled, rustls will be used.
-    #[cfg(feature = "rustls")]
-    fn build_ssl(protocols: Vec<Vec<u8>>) -> OurTlsConnector {
-        use actix_tls::connect::rustls::{reexports::ClientConfig, webpki_roots_cert_store};
+    /// Note that if other TLS crate features are enabled, Rustls v0.21 will be used.
+    #[cfg(feature = "rustls-0_21")]
+    fn build_tls(protocols: Vec<Vec<u8>>) -> OurTlsConnector {
+        use actix_tls::connect::rustls_0_21::{reexports::ClientConfig, webpki_roots_cert_store};
 
         let mut config = ClientConfig::builder()
             .with_safe_defaults()
@@ -104,12 +106,32 @@ impl Connector<()> {
 
         config.alpn_protocols = protocols;
 
-        OurTlsConnector::Rustls(std::sync::Arc::new(config))
+        OurTlsConnector::Rustls021(std::sync::Arc::new(config))
     }
 
-    /// Build TLS connector with openssl, based on supplied ALPN protocols
-    #[cfg(all(feature = "openssl", not(feature = "rustls")))]
-    fn build_ssl(protocols: Vec<Vec<u8>>) -> OurTlsConnector {
+    /// Build TLS connector with Rustls v0.20, based on supplied ALPN protocols
+    ///
+    /// Note that if other TLS crate features are enabled, Rustls v0.21 will be used.
+    #[cfg(all(feature = "rustls-0_20", not(feature = "rustls-0_21")))]
+    fn build_tls(protocols: Vec<Vec<u8>>) -> OurTlsConnector {
+        use actix_tls::connect::rustls_0_20::{reexports::ClientConfig, webpki_roots_cert_store};
+
+        let mut config = ClientConfig::builder()
+            .with_safe_defaults()
+            .with_root_certificates(webpki_roots_cert_store())
+            .with_no_client_auth();
+
+        config.alpn_protocols = protocols;
+
+        OurTlsConnector::Rustls020(std::sync::Arc::new(config))
+    }
+
+    /// Build TLS connector with OpenSSL, based on supplied ALPN protocols
+    #[cfg(all(
+        feature = "openssl",
+        not(any(feature = "rustls-0_20", feature = "rustls-0_21")),
+    ))]
+    fn build_tls(protocols: Vec<Vec<u8>>) -> OurTlsConnector {
         use actix_tls::connect::openssl::reexports::{SslConnector, SslMethod};
         use bytes::{BufMut, BytesMut};
 
@@ -129,15 +151,12 @@ impl Connector<()> {
 }
 
 impl<S> Connector<S> {
-    /// Use custom connector.
+    /// Sets custom connector.
     pub fn connector<S1, Io1>(self, connector: S1) -> Connector<S1>
     where
         Io1: ActixStream + fmt::Debug + 'static,
-        S1: Service<
-                ConnectInfo<Uri>,
-                Response = TcpConnection<Uri, Io1>,
-                Error = TcpConnectError,
-            > + Clone,
+        S1: Service<ConnectInfo<Uri>, Response = TcpConnection<Uri, Io1>, Error = TcpConnectError>
+            + Clone,
     {
         Connector {
             connector,
@@ -161,21 +180,28 @@ where
         + Clone
         + 'static,
 {
-    /// Tcp connection timeout, i.e. max time to connect to remote host including dns name
-    /// resolution. Set to 5 second by default.
+    /// Sets TCP connection timeout.
+    ///
+    /// This is the max time allowed to connect to remote host, including DNS name resolution.
+    ///
+    /// By default, the timeout is 5 seconds.
     pub fn timeout(mut self, timeout: Duration) -> Self {
         self.config.timeout = timeout;
         self
     }
 
-    /// Tls handshake timeout, i.e. max time to do tls handshake with remote host after tcp
-    /// connection established. Set to 5 second by default.
+    /// Sets TLS handshake timeout.
+    ///
+    /// This is the max time allowed to perform the TLS handshake with remote host after TCP
+    /// connection is established.
+    ///
+    /// By default, the timeout is 5 seconds.
     pub fn handshake_timeout(mut self, timeout: Duration) -> Self {
         self.config.handshake_timeout = timeout;
         self
     }
 
-    /// Use custom OpenSSL `SslConnector` instance.
+    /// Sets custom OpenSSL `SslConnector` instance.
     #[cfg(feature = "openssl")]
     pub fn openssl(
         mut self,
@@ -189,21 +215,28 @@ where
     #[doc(hidden)]
     #[cfg(feature = "openssl")]
     #[deprecated(since = "3.0.0", note = "Renamed to `Connector::openssl`.")]
-    pub fn ssl(
-        mut self,
-        connector: actix_tls::connect::openssl::reexports::SslConnector,
-    ) -> Self {
+    pub fn ssl(mut self, connector: actix_tls::connect::openssl::reexports::SslConnector) -> Self {
         self.tls = OurTlsConnector::Openssl(connector);
         self
     }
 
-    /// Use custom Rustls `ClientConfig` instance.
-    #[cfg(feature = "rustls")]
+    /// Sets custom Rustls v0.20 `ClientConfig` instance.
+    #[cfg(feature = "rustls-0_20")]
     pub fn rustls(
         mut self,
-        connector: std::sync::Arc<actix_tls::connect::rustls::reexports::ClientConfig>,
+        connector: std::sync::Arc<actix_tls::connect::rustls_0_20::reexports::ClientConfig>,
     ) -> Self {
-        self.tls = OurTlsConnector::Rustls(connector);
+        self.tls = OurTlsConnector::Rustls020(connector);
+        self
+    }
+
+    /// Sets custom Rustls v0.21 `ClientConfig` instance.
+    #[cfg(feature = "rustls-0_21")]
+    pub fn rustls_021(
+        mut self,
+        connector: std::sync::Arc<actix_tls::connect::rustls_0_21::reexports::ClientConfig>,
+    ) -> Self {
+        self.tls = OurTlsConnector::Rustls021(connector);
         self
     }
 
@@ -218,12 +251,12 @@ where
                 unimplemented!("actix-http client only supports versions http/1.1 & http/2")
             }
         };
-        self.tls = Connector::build_ssl(versions);
+        self.tls = Connector::build_tls(versions);
         self
     }
 
-    /// Sets the initial window size (in octets) for HTTP/2 stream-level flow control for
-    /// received data.
+    /// Sets the initial window size (in bytes) for HTTP/2 stream-level flow control for received
+    /// data.
     ///
     /// The default value is 65,535 and is good for APIs, but not for big objects.
     pub fn initial_window_size(mut self, size: u32) -> Self {
@@ -231,7 +264,7 @@ where
         self
     }
 
-    /// Sets the initial window size (in octets) for HTTP/2 connection-level flow control for
+    /// Sets the initial window size (in bytes) for HTTP/2 connection-level flow control for
     /// received data.
     ///
     /// The default value is 65,535 and is good for APIs, but not for big objects.
@@ -312,9 +345,7 @@ where
 
         let tls = match self.tls {
             #[cfg(feature = "openssl")]
-            OurTlsConnector::OpensslBuilder(builder) => {
-                OurTlsConnector::Openssl(builder.build())
-            }
+            OurTlsConnector::OpensslBuilder(builder) => OurTlsConnector::Openssl(builder.build()),
             tls => tls,
         };
 
@@ -413,11 +444,44 @@ where
                 unreachable!("OpenSSL builder is built before this match.");
             }
 
-            #[cfg(feature = "rustls")]
-            OurTlsConnector::Rustls(tls) => {
+            #[cfg(feature = "rustls-0_20")]
+            OurTlsConnector::Rustls020(tls) => {
                 const H2: &[u8] = b"h2";
 
-                use actix_tls::connect::rustls::{reexports::AsyncTlsStream, TlsConnector};
+                use actix_tls::connect::rustls_0_20::{reexports::AsyncTlsStream, TlsConnector};
+
+                impl<Io: ConnectionIo> IntoConnectionIo for TcpConnection<Uri, AsyncTlsStream<Io>> {
+                    fn into_connection_io(self) -> (Box<dyn ConnectionIo>, Protocol) {
+                        let sock = self.into_parts().0;
+                        let h2 = sock
+                            .get_ref()
+                            .1
+                            .alpn_protocol()
+                            .map_or(false, |protos| protos.windows(2).any(|w| w == H2));
+                        if h2 {
+                            (Box::new(sock), Protocol::Http2)
+                        } else {
+                            (Box::new(sock), Protocol::Http1)
+                        }
+                    }
+                }
+
+                let handshake_timeout = self.config.handshake_timeout;
+
+                let tls_service = TlsConnectorService {
+                    tcp_service: tcp_service_inner,
+                    tls_service: TlsConnector::service(tls),
+                    timeout: handshake_timeout,
+                };
+
+                Some(actix_service::boxed::rc_service(tls_service))
+            }
+
+            #[cfg(feature = "rustls-0_21")]
+            OurTlsConnector::Rustls021(tls) => {
+                const H2: &[u8] = b"h2";
+
+                use actix_tls::connect::rustls_0_21::{reexports::AsyncTlsStream, TlsConnector};
 
                 impl<Io: ConnectionIo> IntoConnectionIo for TcpConnection<Uri, AsyncTlsStream<Io>> {
                     fn into_connection_io(self) -> (Box<dyn ConnectionIo>, Protocol) {
@@ -467,9 +531,7 @@ pub struct TcpConnectorService<S: Clone> {
 
 impl<S, Io> Service<Connect> for TcpConnectorService<S>
 where
-    S: Service<Connect, Response = TcpConnection<Uri, Io>, Error = ConnectError>
-        + Clone
-        + 'static,
+    S: Service<Connect, Response = TcpConnection<Uri, Io>, Error = ConnectError> + Clone + 'static,
 {
     type Response = (Io, Protocol);
     type Error = ConnectError;
@@ -520,9 +582,8 @@ struct TlsConnectorService<Tcp, Tls> {
 
 impl<Tcp, Tls, IO> Service<Connect> for TlsConnectorService<Tcp, Tls>
 where
-    Tcp: Service<Connect, Response = TcpConnection<Uri, IO>, Error = ConnectError>
-        + Clone
-        + 'static,
+    Tcp:
+        Service<Connect, Response = TcpConnection<Uri, IO>, Error = ConnectError> + Clone + 'static,
     Tls: Service<TcpConnection<Uri, IO>, Error = std::io::Error> + Clone + 'static,
     Tls::Response: IntoConnectionIo,
     IO: ConnectionIo,
@@ -848,13 +909,13 @@ mod resolver {
                 None => {
                     let (cfg, opts) = match read_system_conf() {
                         Ok((cfg, opts)) => (cfg, opts),
-                        Err(e) => {
-                            log::error!("TRust-DNS can not load system config: {}", e);
+                        Err(err) => {
+                            log::error!("Trust-DNS can not load system config: {err}");
                             (ResolverConfig::default(), ResolverOpts::default())
                         }
                     };
 
-                    let resolver = TokioAsyncResolver::tokio(cfg, opts).unwrap();
+                    let resolver = TokioAsyncResolver::tokio(cfg, opts);
 
                     // box trust dns resolver and put it in thread local.
                     let resolver = Resolver::custom(TrustDnsResolver(resolver));

@@ -1,5 +1,7 @@
-use std::borrow::Cow;
-use std::ops::{DerefMut, Index};
+use std::{
+    borrow::Cow,
+    ops::{DerefMut, Index},
+};
 
 use serde::de;
 

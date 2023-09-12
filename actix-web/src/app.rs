@@ -141,8 +141,8 @@ where
                 let fut = data();
                 async move {
                     match fut.await {
-                        Err(e) => {
-                            log::error!("Can not construct data instance: {:?}", e);
+                        Err(err) => {
+                            log::error!("Can not construct data instance: {err:?}");
                             Err(())
                         }
                         Ok(data) => {
@@ -264,12 +264,8 @@ where
     pub fn default_service<F, U>(mut self, svc: F) -> Self
     where
         F: IntoServiceFactory<U, ServiceRequest>,
-        U: ServiceFactory<
-                ServiceRequest,
-                Config = (),
-                Response = ServiceResponse,
-                Error = Error,
-            > + 'static,
+        U: ServiceFactory<ServiceRequest, Config = (), Response = ServiceResponse, Error = Error>
+            + 'static,
         U::InitError: fmt::Debug,
     {
         let svc = svc
@@ -323,16 +319,7 @@ where
     /// Middleware can be applied similarly to individual `Scope`s and `Resource`s.
     /// See [`Scope::wrap`](crate::Scope::wrap) and [`Resource::wrap`].
     ///
-    /// # Middleware Order
-    /// Notice that the keyword for registering middleware is `wrap`. As you register middleware
-    /// using `wrap` in the App builder, imagine wrapping layers around an inner App. The first
-    /// middleware layer exposed to a Request is the outermost layer (i.e., the *last* registered in
-    /// the builder chain). Consequently, the *first* middleware registered in the builder chain is
-    /// the *last* to start executing during request processing.
-    ///
-    /// Ordering is less obvious when wrapped services also have middleware applied. In this case,
-    /// middlewares are run in reverse order for `App` _and then_ in reverse order for the
-    /// wrapped service.
+    /// For more info on middleware take a look at the [`middleware` module][crate::middleware].
     ///
     /// # Examples
     /// ```

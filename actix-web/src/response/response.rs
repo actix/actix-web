@@ -8,7 +8,6 @@ use actix_http::{
     header::HeaderMap,
     Extensions, Response, ResponseHead, StatusCode,
 };
-
 #[cfg(feature = "cookies")]
 use {
     actix_http::{

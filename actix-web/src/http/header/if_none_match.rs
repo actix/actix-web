@@ -52,11 +52,11 @@ crate::http::header::common_header! {
     (IfNoneMatch, IF_NONE_MATCH) => {Any / (EntityTag)+}
 
     test_parse_and_format {
-        crate::http::header::common_header_test!(test1, vec![b"\"xyzzy\""]);
-        crate::http::header::common_header_test!(test2, vec![b"W/\"xyzzy\""]);
-        crate::http::header::common_header_test!(test3, vec![b"\"xyzzy\", \"r2d2xxxx\", \"c3piozzzz\""]);
-        crate::http::header::common_header_test!(test4, vec![b"W/\"xyzzy\", W/\"r2d2xxxx\", W/\"c3piozzzz\""]);
-        crate::http::header::common_header_test!(test5, vec![b"*"]);
+        crate::http::header::common_header_test!(test1, [b"\"xyzzy\""]);
+        crate::http::header::common_header_test!(test2, [b"W/\"xyzzy\""]);
+        crate::http::header::common_header_test!(test3, [b"\"xyzzy\", \"r2d2xxxx\", \"c3piozzzz\""]);
+        crate::http::header::common_header_test!(test4, [b"W/\"xyzzy\", W/\"r2d2xxxx\", W/\"c3piozzzz\""]);
+        crate::http::header::common_header_test!(test5, [b"*"]);
     }
 }
 

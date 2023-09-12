@@ -238,8 +238,7 @@ where
                     match res {
                         Ok(bytes) => {
                             let fallback = bytes.clone();
-                            let left =
-                                L::from_request(this.req, &mut payload_from_bytes(bytes));
+                            let left = L::from_request(this.req, &mut payload_from_bytes(bytes));
                             EitherExtractState::Left { left, fallback }
                         }
                         Err(err) => break Err(EitherExtractError::Bytes(err)),
@@ -266,10 +265,7 @@ where
                     match res {
                         Ok(data) => break Ok(Either::Right(data)),
                         Err(err) => {
-                            break Err(EitherExtractError::Extract(
-                                left_err.take().unwrap(),
-                                err,
-                            ));
+                            break Err(EitherExtractError::Extract(left_err.take().unwrap(), err));
                         }
                     }
                 }
@@ -339,12 +335,11 @@ mod tests {
             .set_payload(Bytes::from_static(b"!@$%^&*()"))
             .to_http_parts();
 
-        let payload = Either::<Either<Form<TestForm>, Json<TestForm>>, Bytes>::from_request(
-            &req, &mut pl,
-        )
-        .await
-        .unwrap()
-        .unwrap_right();
+        let payload =
+            Either::<Either<Form<TestForm>, Json<TestForm>>, Bytes>::from_request(&req, &mut pl)
+                .await
+                .unwrap()
+                .unwrap_right();
         assert_eq!(&payload.as_ref(), &b"!@$%^&*()");
     }
 
@@ -356,14 +351,13 @@ mod tests {
             })
             .to_http_parts();
 
-        let form = Either::<Either<Form<TestForm>, Json<TestForm>>, Bytes>::from_request(
-            &req, &mut pl,
-        )
-        .await
-        .unwrap()
-        .unwrap_left()
-        .unwrap_right()
-        .into_inner();
+        let form =
+            Either::<Either<Form<TestForm>, Json<TestForm>>, Bytes>::from_request(&req, &mut pl)
+                .await
+                .unwrap()
+                .unwrap_left()
+                .unwrap_right()
+                .into_inner();
         assert_eq!(&form.hello, "world");
     }
 }

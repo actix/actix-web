@@ -112,11 +112,7 @@ where
         let endpoint_fut = self.endpoint.new_service(());
 
         // take extensions or create new one as app data container.
-        let mut app_data = self
-            .extensions
-            .borrow_mut()
-            .take()
-            .unwrap_or_else(Extensions::new);
+        let mut app_data = self.extensions.borrow_mut().take().unwrap_or_default();
 
         Box::pin(async move {
             // async data factories
@@ -348,13 +344,17 @@ impl ServiceFactory<ServiceRequest> for AppEntry {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::{AtomicBool, Ordering};
-    use std::sync::Arc;
+    use std::sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    };
 
     use actix_service::Service;
 
-    use crate::test::{init_service, TestRequest};
-    use crate::{web, App, HttpResponse};
+    use crate::{
+        test::{init_service, TestRequest},
+        web, App, HttpResponse,
+    };
 
     struct DropData(Arc<AtomicBool>);
 

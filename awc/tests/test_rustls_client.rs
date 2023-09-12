@@ -1,6 +1,6 @@
-#![cfg(feature = "rustls")]
+#![cfg(feature = "rustls-0_21")]
 
-extern crate tls_rustls as rustls;
+extern crate tls_rustls_0_21 as rustls;
 
 use std::{
     io::BufReader,
@@ -14,7 +14,7 @@ use std::{
 use actix_http::HttpService;
 use actix_http_test::test_server;
 use actix_service::{fn_service, map_config, ServiceFactoryExt};
-use actix_tls::connect::rustls::webpki_roots_cert_store;
+use actix_tls::connect::rustls_0_21::webpki_roots_cert_store;
 use actix_utils::future::ok;
 use actix_web::{dev::AppConfig, http::Version, web, App, HttpResponse};
 use rustls::{
@@ -82,7 +82,7 @@ async fn test_connection_reuse_h2() {
                     App::new().service(web::resource("/").route(web::to(HttpResponse::Ok))),
                     |_| AppConfig::default(),
                 ))
-                .rustls(tls_config())
+                .rustls_021(tls_config())
                 .map_err(|_| ()),
         )
     })
@@ -102,7 +102,7 @@ async fn test_connection_reuse_h2() {
         .set_certificate_verifier(Arc::new(danger::NoCertificateVerification));
 
     let client = awc::Client::builder()
-        .connector(awc::Connector::new().rustls(Arc::new(config)))
+        .connector(awc::Connector::new().rustls_021(Arc::new(config)))
         .finish();
 
     // req 1

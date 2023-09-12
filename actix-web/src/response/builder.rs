@@ -1,6 +1,5 @@
 use std::{
     cell::{Ref, RefMut},
-    convert::TryInto,
     future::Future,
     pin::Pin,
     task::{Context, Poll},
@@ -15,8 +14,10 @@ use crate::{
     body::{BodyStream, BoxBody, MessageBody},
     dev::Extensions,
     error::{Error, JsonPayloadError},
-    http::header::{self, HeaderName, TryIntoHeaderPair, TryIntoHeaderValue},
-    http::{ConnectionType, StatusCode},
+    http::{
+        header::{self, HeaderName, TryIntoHeaderPair, TryIntoHeaderValue},
+        ConnectionType, StatusCode,
+    },
     BoxError, HttpRequest, HttpResponse, Responder,
 };
 
@@ -63,7 +64,7 @@ impl HttpResponseBuilder {
                 Ok((key, value)) => {
                     parts.headers.insert(key, value);
                 }
-                Err(e) => self.error = Some(e.into()),
+                Err(err) => self.error = Some(err.into()),
             };
         }
 
@@ -85,7 +86,7 @@ impl HttpResponseBuilder {
         if let Some(parts) = self.inner() {
             match header.try_into_pair() {
                 Ok((key, value)) => parts.headers.append(key, value),
-                Err(e) => self.error = Some(e.into()),
+                Err(err) => self.error = Some(err.into()),
             };
         }
 
@@ -209,7 +210,7 @@ impl HttpResponseBuilder {
                 Ok(value) => {
                     parts.headers.insert(header::CONTENT_TYPE, value);
                 }
-                Err(e) => self.error = Some(e.into()),
+                Err(err) => self.error = Some(err.into()),
             };
         }
         self
@@ -473,9 +474,8 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_serde_json_in_body() {
-        let resp = HttpResponse::Ok().body(
-            serde_json::to_vec(&serde_json::json!({ "test-key": "test-value" })).unwrap(),
-        );
+        let resp = HttpResponse::Ok()
+            .body(serde_json::to_vec(&serde_json::json!({ "test-key": "test-value" })).unwrap());
 
         assert_eq!(
             body::to_bytes(resp.into_body()).await.unwrap().as_ref(),

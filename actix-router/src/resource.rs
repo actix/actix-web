@@ -252,7 +252,7 @@ impl ResourceDef {
     /// Multi-pattern resources can be constructed by providing a slice (or vec) of patterns.
     ///
     /// # Panics
-    /// Panics if path pattern is malformed.
+    /// Panics if any path patterns are malformed.
     ///
     /// # Examples
     /// ```
@@ -501,7 +501,12 @@ impl ResourceDef {
         let patterns = self
             .pattern_iter()
             .flat_map(move |this| other.pattern_iter().map(move |other| (this, other)))
-            .map(|(this, other)| [this, other].join(""))
+            .map(|(this, other)| {
+                let mut pattern = String::with_capacity(this.len() + other.len());
+                pattern.push_str(this);
+                pattern.push_str(other);
+                pattern
+            })
             .collect::<Vec<_>>();
 
         match patterns.len() {
@@ -838,6 +843,7 @@ impl ResourceDef {
 
     fn construct<T: IntoPatterns>(paths: T, is_prefix: bool) -> Self {
         let patterns = paths.patterns();
+
         let (pat_type, segments) = match &patterns {
             Patterns::Single(pattern) => ResourceDef::parse(pattern, is_prefix, false),
 
@@ -1389,8 +1395,6 @@ mod tests {
     #[cfg(feature = "http")]
     #[test]
     fn parse_urlencoded_param() {
-        use std::convert::TryFrom;
-
         let re = ResourceDef::new("/user/{id}/test");
 
         let mut path = Path::new("/user/2345/test");
@@ -1530,7 +1534,12 @@ mod tests {
         assert!(!resource.resource_path_from_iter(&mut s, &mut ["item"].iter()));
 
         let mut s = String::new();
-        assert!(resource.resource_path_from_iter(&mut s, &mut vec!["item", "item2"].iter()));
+
+        assert!(resource.resource_path_from_iter(
+            &mut s,
+            #[allow(clippy::useless_vec)]
+            &mut vec!["item", "item2"].iter()
+        ));
         assert_eq!(s, "/user/item/item2/");
     }
 
@@ -1743,9 +1752,7 @@ mod tests {
         ResourceDef::new("/{a}/{b}/{c}/{d}/{e}/{f}/{g}/{h}/{i}/{j}/{k}/{l}/{m}/{n}/{o}/{p}");
 
         // panics
-        ResourceDef::new(
-            "/{a}/{b}/{c}/{d}/{e}/{f}/{g}/{h}/{i}/{j}/{k}/{l}/{m}/{n}/{o}/{p}/{q}",
-        );
+        ResourceDef::new("/{a}/{b}/{c}/{d}/{e}/{f}/{g}/{h}/{i}/{j}/{k}/{l}/{m}/{n}/{o}/{p}/{q}");
     }
 
     #[test]

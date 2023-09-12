@@ -87,7 +87,7 @@ fn future_responder(c: &mut Criterion) {
 
             let start = Instant::now();
 
-            let _res = rt.block_on(async { futs.await });
+            let _res = rt.block_on(futs);
 
             start.elapsed()
         })
@@ -99,8 +99,7 @@ fn responder(c: &mut Criterion) {
     let req = TestRequest::default().to_http_request();
     c.bench_function("responder", move |b| {
         b.iter_custom(|_| {
-            let responders =
-                (0..100_000).map(|_| StringResponder(String::from("Hello World!!")));
+            let responders = (0..100_000).map(|_| StringResponder(String::from("Hello World!!")));
 
             let start = Instant::now();
             let _res = rt.block_on(async {

@@ -175,8 +175,8 @@ where
         let res = ready!(this.fut.poll(cx));
         match res {
             Ok(t) => Poll::Ready(Ok(Some(t))),
-            Err(e) => {
-                log::debug!("Error for Option<T> extractor: {}", e.into());
+            Err(err) => {
+                log::debug!("Error for Option<T> extractor: {}", err.into());
                 Poll::Ready(Ok(None))
             }
         }
@@ -217,8 +217,8 @@ where
 /// /// extract `Thing` from request
 /// async fn index(supplied_thing: Result<Thing>) -> String {
 ///     match supplied_thing {
-///         Ok(thing) => format!("Got thing: {:?}", thing),
-///         Err(e) => format!("Error extracting thing: {}", e)
+///         Ok(thing) => format!("Got thing: {thing:?}"),
+///         Err(err) => format!("Error extracting thing: {err}"),
 ///     }
 /// }
 ///
@@ -355,7 +355,7 @@ mod tuple_from_req {
                                 Poll::Ready(Ok(output)) => {
                                     let _ = this.$T.as_mut().project_replace(ExtractFuture::Done { output });
                                 },
-                                Poll::Ready(Err(e)) => return Poll::Ready(Err(e.into())),
+                                Poll::Ready(Err(err)) => return Poll::Ready(Err(err.into())),
                                 Poll::Pending => ready = false,
                             },
                             ExtractProj::Done { .. } => {},
@@ -429,8 +429,10 @@ mod tests {
     use serde::Deserialize;
 
     use super::*;
-    use crate::test::TestRequest;
-    use crate::types::{Form, FormConfig};
+    use crate::{
+        test::TestRequest,
+        types::{Form, FormConfig},
+    };
 
     #[derive(Deserialize, Debug, PartialEq)]
     struct Info {
