@@ -33,7 +33,7 @@ jobs:
     runs-on: ${{ matrix.target.os }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Install OpenSSL
         if: matrix.target.os == 'windows-latest'
@@ -90,7 +90,7 @@ jobs:
     name: io-uring tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1.5.0
@@ -106,7 +106,7 @@ jobs:
     name: doc tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Install Rust (nightly)
         uses: actions-rust-lang/setup-rust-toolchain@v1.5.0
