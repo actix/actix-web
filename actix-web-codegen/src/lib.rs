@@ -257,16 +257,67 @@ pub fn test(_: TokenStream, item: TokenStream) -> TokenStream {
 /// ```rust
 /// use actix_web_codegen::{scope};
 ///
-/// #[scope("/scope")]
+/// #[scope("/test")]
 /// const mod_inner: () = {
-///    use actix_web::{HttpResponse, HttpRequest, Responder, get };
-///    use actix_web::web::Json;
+/// use actix_web::{HttpResponse, HttpRequest, Responder, put, head, connect, options, trace, patch, delete, web };
+/// use actix_web::web::Json;
 ///
-///    #[get("/test")]
-///    pub async fn test() -> impl Responder {
-///      actix_web::HttpResponse::Ok().finish()
-///    }
-/// };
+/// #[actix_web::get("/test")]
+/// pub async fn test() -> impl Responder {
+///    mod_test2()
+/// }
+///
+/// #[actix_web::get("/twicetest/{value}")]
+/// pub async fn test_twice(value: web::Path<String>) -> impl actix_web::Responder {
+///    let int_value: i32 = value.parse().unwrap_or(0);
+///    let doubled = int_value * 2;
+///    HttpResponse::Ok().body(format!("Twice value: {}", doubled))
+/// }
+///
+/// #[actix_web::post("/test")]
+/// pub async fn test_post() -> impl Responder {
+///    HttpResponse::Ok().body(format!("post works"))
+/// }    
+///
+/// #[put("/test")]
+/// pub async fn test_put() -> impl Responder {
+///    HttpResponse::Ok().body(format!("put works"))
+/// }    
+///
+/// #[head("/test")]
+/// pub async fn test_head() -> impl Responder {
+///    HttpResponse::Ok().finish()
+/// }
+///
+/// #[connect("/test")]
+/// pub async fn test_connect() -> impl Responder {
+///    HttpResponse::Ok().body("CONNECT works")
+/// }
+///
+/// #[options("/test")]
+/// pub async fn test_options() -> impl Responder {
+///    HttpResponse::Ok().body("OPTIONS works")
+/// }
+///
+/// #[trace("/test")]
+/// pub async fn test_trace(req: HttpRequest) -> impl Responder {
+///    HttpResponse::Ok().body(format!("TRACE works: {:?}", req))
+/// }
+///
+/// #[patch("/test")]
+/// pub async fn test_patch() -> impl Responder {
+///    HttpResponse::Ok().body(format!("patch works"))
+/// }
+///
+/// #[delete("/test")]
+/// pub async fn test_delete() -> impl Responder {
+///    HttpResponse::Ok().body("DELETE works")
+/// }
+///
+/// pub fn mod_test2() -> impl actix_web::Responder {
+///    actix_web::HttpResponse::Ok().finish()
+/// }
+///};
 /// ```
 ///
 /// # Note
