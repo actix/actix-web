@@ -33,7 +33,7 @@ jobs:
     runs-on: ${{ matrix.target.os }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Install OpenSSL
         if: matrix.target.os == 'windows-latest'
@@ -45,18 +45,21 @@ jobs:
           echo 'OPENSSL_DIR=C:\Program Files\OpenSSL' | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Install Rust (${{ matrix.version.name }})
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@v1.5.0
         with:
           toolchain: ${{ matrix.version.version }}
 
       - name: Install cargo-hack
-        uses: taiki-e/install-action@cargo-hack
+        uses: taiki-e/install-action@v2.18.9
+        with:
+          tool: cargo-hack
 
       - name: workaround MSRV issues
-        if: matrix.version.name != 'stable'
+        if: matrix.version.name == 'msrv'
         run: |
           cargo update -p=clap --precise=4.3.24
           cargo update -p=clap_lex --precise=0.5.0
+          cargo update -p=anstyle --precise=1.0.2
 
       - name: check minimal
         run: cargo ci-check-min
@@ -87,11 +90,12 @@ jobs:
     name: io-uring tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with: { toolchain: nightly }
+        uses: actions-rust-lang/setup-rust-toolchain@v1.5.0
+        with:
+          toolchain: nightly
 
       - name: tests (io-uring)
         timeout-minutes: 60
@@ -102,11 +106,12 @@ jobs:
     name: doc tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Install Rust (nightly)
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with: { toolchain: nightly }
+        uses: actions-rust-lang/setup-rust-toolchain@v1.5.0
+        with:
+          toolchain: nightly
 
       - name: doc tests
         run: cargo ci-doctest

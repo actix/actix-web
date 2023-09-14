@@ -5,8 +5,7 @@ on:
     branches: [master]
 
 permissions:
-  contents: read # to fetch code (actions/checkout)
-
+  contents: read
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -14,14 +13,17 @@ concurrency:
 jobs:
   build:
     permissions:
-      contents: write # to push changes in repo (jamesives/github-pages-deploy-action)
+      contents: write
 
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@nightly
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1.5.0
+        with:
+          toolchain: nightly
 
       - name: Build Docs
         run: cargo +nightly doc --no-deps --workspace --all-features

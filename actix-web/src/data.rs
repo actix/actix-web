@@ -32,8 +32,8 @@ pub(crate) type FnDataFactory =
 /// Since the Actix Web router layers application data, the returned object will reference the
 /// "closest" instance of the type. For example, if an `App` stores a `u32`, a nested `Scope`
 /// also stores a `u32`, and the delegated request handler falls within that `Scope`, then
-/// extracting a `web::<Data<u32>>` for that handler will return the `Scope`'s instance.
-/// However, using the same router set up and a request that does not get captured by the `Scope`,
+/// extracting a `web::Data<u32>` for that handler will return the `Scope`'s instance. However,
+/// using the same router set up and a request that does not get captured by the `Scope`,
 /// `web::<Data<u32>>` would return the `App`'s instance.
 ///
 /// If route data is not set for a handler, using `Data<T>` extractor would cause a `500 Internal
