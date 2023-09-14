@@ -11,7 +11,7 @@ use actix_web::{
     web, App, Error, HttpRequest, HttpResponse, Responder,
 };
 use actix_web_codegen::{
-    connect, delete, get, head, options, patch, post, put, route, routes, trace, scope
+    connect, delete, get, head, options, patch, post, put, route, routes, scope, trace,
 };
 use futures_core::future::LocalBoxFuture;
 
@@ -387,8 +387,10 @@ async fn test_wrap() {
 
 #[scope("/test")]
 const mod_inner: () = {
-    use actix_web::{HttpResponse, HttpRequest, Responder, put, head, connect, options, trace, patch, delete, web };
-    use actix_web::web::Json;
+    use actix_web::{
+        connect, delete, head, options, patch, put, trace, web, web::Json, HttpRequest,
+        HttpResponse, Responder,
+    };
 
     #[actix_web::get("/test")]
     pub async fn test() -> impl Responder {
@@ -401,22 +403,22 @@ const mod_inner: () = {
         let doubled = int_value * 2;
         HttpResponse::Ok().body(format!("Twice value: {}", doubled))
     }
-    
+
     #[actix_web::post("/test")]
     pub async fn test_post() -> impl Responder {
         HttpResponse::Ok().body(format!("post works"))
-    }    
+    }
 
-     #[put("/test")]
+    #[put("/test")]
     pub async fn test_put() -> impl Responder {
         HttpResponse::Ok().body(format!("put works"))
-    }    
+    }
 
     #[head("/test")]
     pub async fn test_head() -> impl Responder {
         HttpResponse::Ok().finish()
     }
- 
+
     #[connect("/test")]
     pub async fn test_connect() -> impl Responder {
         HttpResponse::Ok().body("connect works")
@@ -441,7 +443,7 @@ const mod_inner: () = {
     pub async fn test_delete() -> impl Responder {
         HttpResponse::Ok().body("delete works")
     }
-    
+
     pub fn mod_test2() -> impl actix_web::Responder {
         actix_web::HttpResponse::Ok().finish()
     }
@@ -464,7 +466,7 @@ async fn test_scope_get_param_async() {
     let mut response = request.send().await.unwrap();
     let body = response.body().await.unwrap();
     let body_str = String::from_utf8(body.to_vec()).unwrap();
-    assert_eq!(body_str, "Twice value: 8");    
+    assert_eq!(body_str, "Twice value: 8");
 }
 
 #[actix_rt::test]
@@ -475,7 +477,7 @@ async fn test_scope_post_async() {
     let mut response = request.send().await.unwrap();
     let body = response.body().await.unwrap();
     let body_str = String::from_utf8(body.to_vec()).unwrap();
-    assert_eq!(body_str, "post works");    
+    assert_eq!(body_str, "post works");
 }
 
 #[actix_rt::test]
@@ -486,7 +488,7 @@ async fn test_scope_put_async() {
     let mut response = request.send().await.unwrap();
     let body = response.body().await.unwrap();
     let body_str = String::from_utf8(body.to_vec()).unwrap();
-    assert_eq!(body_str, "put works");    
+    assert_eq!(body_str, "put works");
 }
 
 #[actix_rt::test]
@@ -506,9 +508,9 @@ async fn test_scope_connect_async() {
     let mut response = request.send().await.unwrap();
     let body = response.body().await.unwrap();
     let body_str = String::from_utf8(body.to_vec()).unwrap();
-    assert_eq!(body_str, "connect works");    
+    assert_eq!(body_str, "connect works");
 }
-    
+
 #[actix_rt::test]
 async fn test_scope_options_async() {
     let srv = actix_test::start(|| App::new().service(mod_inner));
@@ -517,7 +519,7 @@ async fn test_scope_options_async() {
     let mut response = request.send().await.unwrap();
     let body = response.body().await.unwrap();
     let body_str = String::from_utf8(body.to_vec()).unwrap();
-    assert_eq!(body_str, "options works");    
+    assert_eq!(body_str, "options works");
 }
 
 #[actix_rt::test]
@@ -528,7 +530,7 @@ async fn test_scope_trace_async() {
     let mut response = request.send().await.unwrap();
     let body = response.body().await.unwrap();
     let body_str = String::from_utf8(body.to_vec()).unwrap();
-    assert!(body_str.contains("trace works")); 
+    assert!(body_str.contains("trace works"));
 }
 
 #[actix_rt::test]
@@ -539,7 +541,7 @@ async fn test_scope_patch_async() {
     let mut response = request.send().await.unwrap();
     let body = response.body().await.unwrap();
     let body_str = String::from_utf8(body.to_vec()).unwrap();
-    assert_eq!(body_str, "patch works");    
+    assert_eq!(body_str, "patch works");
 }
 
 #[actix_rt::test]
@@ -550,5 +552,5 @@ async fn test_scope_delete_async() {
     let mut response = request.send().await.unwrap();
     let body = response.body().await.unwrap();
     let body_str = String::from_utf8(body.to_vec()).unwrap();
-    assert_eq!(body_str, "delete works");    
+    assert_eq!(body_str, "delete works");
 }

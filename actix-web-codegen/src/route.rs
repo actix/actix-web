@@ -1,10 +1,9 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, fmt};
 
 use actix_router::ResourceDef;
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{quote, ToTokens, TokenStreamExt};
-use std::fmt;
 use syn::{punctuated::Punctuated, Ident, LitStr, Path, Token};
 
 #[derive(Debug)]
@@ -556,8 +555,8 @@ fn input_and_compile_error(mut item: TokenStream, err: syn::Error) -> TokenStrea
     item
 }
 
-/// Implements scope proc macro 
-/// 
+/// Implements scope proc macro
+///
 
 struct ScopeItems {
     handlers: Vec<String>,
@@ -570,23 +569,29 @@ impl ScopeItems {
         for item in items {
             match item {
                 syn::Item::Fn(ref fun) => {
-
                     for attr in fun.attrs.iter() {
                         for bound in attr.path().segments.iter() {
-                            if bound.ident == "get" || bound.ident == "post" || bound.ident == "put" || bound.ident == "head" || bound.ident == "connect" || bound.ident == "options" || bound.ident == "trace" || bound.ident == "patch" || bound.ident == "delete" {
+                            if bound.ident == "get"
+                                || bound.ident == "post"
+                                || bound.ident == "put"
+                                || bound.ident == "head"
+                                || bound.ident == "connect"
+                                || bound.ident == "options"
+                                || bound.ident == "trace"
+                                || bound.ident == "patch"
+                                || bound.ident == "delete"
+                            {
                                 handlers.push(format!("{}", fun.sig.ident));
                                 break;
                             }
                         }
                     }
-                },
+                }
                 _ => continue,
             }
         }
 
-        Self {
-            handlers,
-        }
+        Self { handlers }
     }
 }
 
@@ -610,12 +615,14 @@ impl ScopeArgs {
 
         let mut items = Vec::new();
         match ast.expr.as_ref() {
-            syn::Expr::Block(expr) => for item in expr.block.stmts.iter() {
-                match item {
-                    syn::Stmt::Item(ref item) => items.push(item.clone()),
-                    _ => continue,
+            syn::Expr::Block(expr) => {
+                for item in expr.block.stmts.iter() {
+                    match item {
+                        syn::Stmt::Item(ref item) => items.push(item.clone()),
+                        _ => continue,
+                    }
                 }
-            },
+            }
             _ => panic!("Scope should containt only code block"),
         }
 
@@ -641,10 +648,9 @@ impl ScopeArgs {
 
         match text.parse() {
             Ok(res) => res,
-            Err(error) => panic!("Error: {:?}\nGenerated code: {}", error, text)
+            Err(error) => panic!("Error: {:?}\nGenerated code: {}", error, text),
         }
     }
-
 }
 
 impl fmt::Display for ScopeArgs {
@@ -655,22 +661,36 @@ impl fmt::Display for ScopeArgs {
         let module_name = syn::Ident::new(&module_name, ast.ident.span());
         let ast = match ast.expr.as_ref() {
             syn::Expr::Block(expr) => quote!(pub mod #module_name #expr),
-            _ => panic!("Unexpect non-block ast in scope macro")
+            _ => panic!("Unexpect non-block ast in scope macro"),
         };
 
         writeln!(f, "{}\n", ast)?;
         writeln!(f, "#[allow(non_camel_case_types)]")?;
         writeln!(f, "struct {};\n", self.name)?;
-        writeln!(f, "impl actix_web::dev::HttpServiceFactory for {} {{", self.name)?;
-        writeln!(f, "    fn register(self, __config: &mut actix_web::dev::AppService) {{")?;
-        write!(f, "        let scope = actix_web::Scope::new(\"{}\")", self.path)?;
+        writeln!(
+            f,
+            "impl actix_web::dev::HttpServiceFactory for {} {{",
+            self.name
+        )?;
+        writeln!(
+            f,
+            "    fn register(self, __config: &mut actix_web::dev::AppService) {{"
+        )?;
+        write!(
+            f,
+            "        let scope = actix_web::Scope::new(\"{}\")",
+            self.path
+        )?;
 
         for handler in self.scope_items.handlers.iter() {
             write!(f, ".service({}::{})", module_name, handler)?;
         }
 
         writeln!(f, ";\n")?;
-        writeln!(f, "        actix_web::dev::HttpServiceFactory::register(scope, __config)")?;
+        writeln!(
+            f,
+            "        actix_web::dev::HttpServiceFactory::register(scope, __config)"
+        )?;
         writeln!(f, "    }}\n}}")
     }
 }

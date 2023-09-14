@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 4.2.3
+
+- Add a scope macro that takes a path
+
 ## 4.2.2
 
 - Fix regression when declaring `wrap` attribute using an expression.
