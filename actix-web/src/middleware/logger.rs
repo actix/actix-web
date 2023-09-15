@@ -393,32 +393,33 @@ where
             debug!("Error in response: {:?}", error);
         }
 
-        let res = if this.status_range.contains(&res.status()) {
-            if let Some(ref mut format) = this.format {
-                // to avoid polluting all the Logger types with the body parameter we swap the body
-                // out temporarily since it's not usable in custom response functions anyway
+        let mut format = if this.status_range.contains(&res.status()) {
+            this.format.take()
+        } else {
+            None
+        };
 
-                let (req, res) = res.into_parts();
-                let (res, body) = res.into_parts();
+        let res = if let Some(ref mut format) = format {
+            // to avoid polluting all the Logger types with the body parameter we swap the body
+            // out temporarily since it's not usable in custom response functions anyway
 
-                let temp_res = ServiceResponse::new(req, res.map_into_boxed_body());
+            let (req, res) = res.into_parts();
+            let (res, body) = res.into_parts();
 
-                for unit in &mut format.0 {
-                    unit.render_response(&temp_res);
-                }
+            let temp_res = ServiceResponse::new(req, res.map_into_boxed_body());
 
-                // re-construct original service response
-                let (req, res) = temp_res.into_parts();
-                ServiceResponse::new(req, res.set_body(body))
-            } else {
-                res
+            for unit in &mut format.0 {
+                unit.render_response(&temp_res);
             }
+
+            // re-construct original service response
+            let (req, res) = temp_res.into_parts();
+            ServiceResponse::new(req, res.set_body(body))
         } else {
             res
         };
 
         let time = *this.time;
-        let format = this.format.take();
         let log_target = this.log_target.clone();
 
         Poll::Ready(Ok(res.map_body(move |_, body| StreamLog {
@@ -779,7 +780,13 @@ mod tests {
                 header::HeaderValue::from_static("ACTIX-WEB"),
             ))
             .to_srv_request();
-        let _res = srv.call(req).await;
+        capture_logger::begin_capture();
+        // The log is executed on drop, so the result need to be dropped
+        let _ = srv.call(req).await;
+        let log = capture_logger::pop_captured().unwrap();
+        assert!(log.message().contains("ttt"));
+        assert!(log.message().contains("ACTIX-WEB"));
+        capture_logger::end_capture();
     }
 
     #[actix_rt::test]
@@ -803,6 +810,54 @@ mod tests {
             ))
             .to_srv_request();
         let _res = srv.call(req).await.unwrap();
+    }
+
+    #[actix_rt::test]
+    async fn test_logger_status_range_include() {
+        let srv = |req: ServiceRequest| {
+            ok(req.into_response(HttpResponse::build(StatusCode::OK).finish()))
+        };
+        let logger = Logger::new("%{User-Agent}i test_included %s").statuses(StatusCode::OK..);
+
+        let srv = logger.new_transform(srv.into_service()).await.unwrap();
+
+        let req = TestRequest::default()
+            .insert_header((
+                header::USER_AGENT,
+                header::HeaderValue::from_static("ACTIX-WEB"),
+            ))
+            .to_srv_request();
+        capture_logger::begin_capture();
+        // The log is executed on drop, so the result need to be dropped
+        let _ = srv.call(req).await;
+        let log = capture_logger::pop_captured().unwrap();
+        assert!(log.message().contains("200"));
+        assert!(log.message().contains("ACTIX-WEB"));
+        capture_logger::end_capture();
+    }
+
+    #[actix_rt::test]
+    async fn test_logger_status_range_exclude() {
+        let srv = |req: ServiceRequest| {
+            ok(req.into_response(HttpResponse::build(StatusCode::OK).finish()))
+        };
+        let logger =
+            Logger::new("%{User-Agent}i test_excluded %s").statuses(StatusCode::BAD_REQUEST..);
+
+        let srv = logger.new_transform(srv.into_service()).await.unwrap();
+
+        let req = TestRequest::default()
+            .insert_header((
+                header::USER_AGENT,
+                header::HeaderValue::from_static("ACTIX-WEB"),
+            ))
+            .to_srv_request();
+        capture_logger::begin_capture();
+        // The log is executed on drop, so the result need to be dropped
+        let _ = srv.call(req).await;
+        let log = capture_logger::pop_captured();
+        assert!(log.is_none());
+        capture_logger::end_capture();
     }
 
     #[actix_rt::test]

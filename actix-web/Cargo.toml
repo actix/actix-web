@@ -123,6 +123,7 @@ tls-openssl = { package = "openssl", version = "0.10.55" }
 tls-rustls = { package = "rustls", version = "0.21" }
 tokio = { version = "1.24.2", features = ["rt-multi-thread", "macros"] }
 zstd = "0.13"
+capture-logger = "0.1"
 
 [[test]]
 name = "test_server"

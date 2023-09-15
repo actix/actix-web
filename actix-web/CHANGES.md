@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- Add `Logger::statuses` to filter the range of statuses logged.
+
 ### Changed
 
 - Updated `zstd` dependency to `0.13`.
