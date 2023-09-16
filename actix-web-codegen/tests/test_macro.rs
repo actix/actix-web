@@ -447,7 +447,32 @@ const mod_inner: () = {
     pub fn mod_test2() -> impl actix_web::Responder {
         actix_web::HttpResponse::Ok().finish()
     }
+
+    pub fn mod_common(message : String) -> impl actix_web::Responder {
+        HttpResponse::Ok().body(message)
+    }
 };
+
+#[scope("/v1")]
+const mod_inner_v1: () = {
+    use actix_web::Responder;
+
+    #[actix_web::get("/test")]
+    pub async fn test() -> impl Responder {
+        super::mod_inner_scope::mod_common("version1 works".to_string())
+    }
+};
+
+#[scope("/v2")]
+const mod_inner_v2: () = {
+    use actix_web:: Responder;
+
+    #[actix_web::get("/test")]
+    pub async fn test() -> impl Responder {
+        super::mod_inner_scope::mod_common("version2 works".to_string())
+    }
+};
+
 
 #[actix_rt::test]
 async fn test_scope_get_async() {
@@ -553,4 +578,21 @@ async fn test_scope_delete_async() {
     let body = response.body().await.unwrap();
     let body_str = String::from_utf8(body.to_vec()).unwrap();
     assert_eq!(body_str, "delete works");
+}
+
+#[actix_rt::test]
+async fn test_scope_v1_v2_async() {
+    let srv = actix_test::start(|| App::new().service(mod_inner_v1).service(mod_inner_v2));
+
+    let request = srv.request(http::Method::GET, srv.url("/v1/test"));
+    let mut response = request.send().await.unwrap();
+    let body = response.body().await.unwrap();
+    let body_str = String::from_utf8(body.to_vec()).unwrap();
+    assert_eq!(body_str, "version1 works");
+
+    let request = srv.request(http::Method::GET, srv.url("/v2/test"));
+    let mut response = request.send().await.unwrap();
+    let body = response.body().await.unwrap();
+    let body_str = String::from_utf8(body.to_vec()).unwrap();
+    assert_eq!(body_str, "version2 works");
 }
