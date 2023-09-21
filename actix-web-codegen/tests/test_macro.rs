@@ -448,7 +448,7 @@ const mod_inner: () = {
         actix_web::HttpResponse::Ok().finish()
     }
 
-    pub fn mod_common(message : String) -> impl actix_web::Responder {
+    pub fn mod_common(message: String) -> impl actix_web::Responder {
         HttpResponse::Ok().body(message)
     }
 };
@@ -465,14 +465,13 @@ const mod_inner_v1: () = {
 
 #[scope("/v2")]
 const mod_inner_v2: () = {
-    use actix_web:: Responder;
+    use actix_web::Responder;
 
     #[actix_web::get("/test")]
     pub async fn test() -> impl Responder {
         super::mod_inner_scope::mod_common("version2 works".to_string())
     }
 };
-
 
 #[actix_rt::test]
 async fn test_scope_get_async() {
