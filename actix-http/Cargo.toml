@@ -140,3 +140,8 @@ required-features = ["http2", "rustls-0_21"]
 name = "response-body-compression"
 harness = false
 required-features = ["compress-brotli", "compress-gzip", "compress-zstd"]
+
+[[bench]]
+name = "compression-chunk-size"
+harness = false
+required-features = ["compress-brotli", "compress-gzip", "compress-zstd"]

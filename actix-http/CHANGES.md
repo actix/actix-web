@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Revise compression middleware to perform compression cooperatively, periodically yielding control to other tasks instead of offloading compression to a background thread.
+
 ## 3.4.0
 
 ### Added
