@@ -16,7 +16,7 @@ use actix_service::{Service, Transform};
 use actix_utils::future::{ready, Ready};
 use bytes::Bytes;
 use futures_core::ready;
-use log::{debug, warn};
+use log::{debug, warn, Level};
 use pin_project_lite::pin_project;
 use regex::{Regex, RegexSet};
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
@@ -47,7 +47,7 @@ use crate::{
 /// ```
 /// use actix_web::{middleware::Logger, App};
 ///
-/// // access logs are printed with the INFO level so ensure it is enabled by default
+/// // access logs by default are printed with the INFO level so ensure it is enabled by default
 /// env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 ///
 /// let app = App::new()
@@ -89,6 +89,7 @@ struct Inner {
     exclude: HashSet<String>,
     exclude_regex: RegexSet,
     log_target: Cow<'static, str>,
+    level: Level,
 }
 
 impl Logger {
@@ -99,6 +100,7 @@ impl Logger {
             exclude: HashSet::new(),
             exclude_regex: RegexSet::empty(),
             log_target: Cow::Borrowed(module_path!()),
+            level: Level::Info,
         }))
     }
 
@@ -136,6 +138,22 @@ impl Logger {
     pub fn log_target(mut self, target: impl Into<Cow<'static, str>>) -> Self {
         let inner = Rc::get_mut(&mut self.0).unwrap();
         inner.log_target = target.into();
+        self
+    }
+
+    /// Sets the logging level.
+    ///
+    /// By default, the log level is `Level::Info`
+    ///
+    /// # Examples
+    /// ```
+    /// Logger::default()
+    ///     .level(Level::Debug);
+    /// ```
+    ///
+    pub fn level(mut self, level: Level) -> Self {
+        let inner = Rc::get_mut(&mut self.0).unwrap();
+        inner.level = level;
         self
     }
 
@@ -242,6 +260,7 @@ impl Default for Logger {
             exclude: HashSet::new(),
             exclude_regex: RegexSet::empty(),
             log_target: Cow::Borrowed(module_path!()),
+            level: Level::Info,
         }))
     }
 }
@@ -308,6 +327,7 @@ where
                 format: None,
                 time: OffsetDateTime::now_utc(),
                 log_target: Cow::Borrowed(""),
+                level: self.inner.level,
                 _phantom: PhantomData,
             }
         } else {
@@ -323,6 +343,7 @@ where
                 format: Some(format),
                 time: now,
                 log_target: self.inner.log_target.clone(),
+                level: self.inner.level,
                 _phantom: PhantomData,
             }
         }
@@ -340,6 +361,7 @@ pin_project! {
         time: OffsetDateTime,
         format: Option<Format>,
         log_target: Cow<'static, str>,
+        level:Level,
         _phantom: PhantomData<B>,
     }
 }
@@ -386,6 +408,7 @@ where
         let time = *this.time;
         let format = this.format.take();
         let log_target = this.log_target.clone();
+        let level = *this.level;
 
         Poll::Ready(Ok(res.map_body(move |_, body| StreamLog {
             body,
@@ -393,6 +416,7 @@ where
             format,
             size: 0,
             log_target,
+            level,
         })))
     }
 }
@@ -405,6 +429,7 @@ pin_project! {
         size: usize,
         time: OffsetDateTime,
         log_target: Cow<'static, str>,
+        level:Level,
     }
 
     impl<B> PinnedDrop for StreamLog<B> {
@@ -417,8 +442,7 @@ pin_project! {
                     Ok(())
                 };
 
-                log::info!(
-                    target: this.log_target.as_ref(),
+                log::log!(target: this.log_target.as_ref(), this.level,
                     "{}", FormatDisplay(&render)
                 );
             }
