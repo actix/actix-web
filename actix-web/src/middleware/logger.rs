@@ -147,6 +147,8 @@ impl Logger {
     ///
     /// # Examples
     /// ```
+    /// # use log::Level;
+    /// # use actix_web::middleware::Logger;
     /// Logger::default()
     ///     .level(Level::Debug);
     /// ```
