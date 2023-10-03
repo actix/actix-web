@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- Add `Logger::level` to change the log level.
+
 ### Changed
 
 - Updated `zstd` dependency to `0.13`.
