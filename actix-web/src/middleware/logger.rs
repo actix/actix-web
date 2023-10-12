@@ -1030,4 +1030,27 @@ mod tests {
         let req = TestRequest::default().to_srv_request();
         srv.call(req).await.unwrap();
     }
+
+    #[actix_rt::test]
+    async fn test_logger_level() {
+        let srv = |req: ServiceRequest| {
+            ok(req.into_response(HttpResponse::build(StatusCode::OK).finish()))
+        };
+        let logger = Logger::new("%{User-Agent}i test_level %s").level(log::Level::Trace);
+
+        let srv = logger.new_transform(srv.into_service()).await.unwrap();
+
+        let req = TestRequest::default()
+            .insert_header((
+                header::USER_AGENT,
+                header::HeaderValue::from_static("ACTIX-WEB"),
+            ))
+            .to_srv_request();
+        capture_logger::begin_capture();
+        // The log is executed on drop, so the result need to be dropped
+        let _ = srv.call(req).await;
+        let log = capture_logger::pop_captured();
+        assert_eq!(log.unwrap().level(), log::Level::Trace);
+        capture_logger::end_capture();
+    }
 }
