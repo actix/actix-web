@@ -467,7 +467,7 @@ mod tests {
 
     static BODIES: &[&[u8]] = &[EMPTY_BODY, SHORT_BODY, LONG_BODY];
 
-    async fn test_compression_of_conentent_enconding(encoding: ContentEncoding, body: &[u8]) {
+    async fn test_compression_of_content_encoding(encoding: ContentEncoding, body: &[u8]) {
         let mut head = ResponseHead::new(StatusCode::OK);
         let body_to_compress = {
             let mut body = BytesMut::from(body);
@@ -477,11 +477,8 @@ mod tests {
         let compressed_body = Encoder::response(encoding, &mut head, body_to_compress.clone())
             .with_encode_chunk_size(rand::thread_rng().gen_range(32..128));
 
-        let SelectedContentEncoder {
-            content_encoder: mut compressor,
-            preferred_chunk_size: _,
-            chunk_ready_to_encode: _,
-        } = ContentEncoder::select(encoding).unwrap();
+        let encoder = ContentEncoder::select(encoding).unwrap();
+        let mut compressor = encoder.content_encoder;
         compressor.write(&body_to_compress).unwrap();
         let reference_compressed_bytes = compressor.finish().unwrap();
 
@@ -498,7 +495,7 @@ mod tests {
     #[cfg(feature = "compress-gzip")]
     async fn test_gzip_compression_in_chunks_is_the_same_as_whole_chunk_compression() {
         for body in BODIES {
-            test_compression_of_conentent_enconding(ContentEncoding::Gzip, body).await;
+            test_compression_of_content_encoding(ContentEncoding::Gzip, body).await;
         }
     }
 
@@ -506,7 +503,7 @@ mod tests {
     #[cfg(feature = "compress-gzip")]
     async fn test_deflate_compression_in_chunks_is_the_same_as_whole_chunk_compression() {
         for body in BODIES {
-            test_compression_of_conentent_enconding(ContentEncoding::Deflate, body).await;
+            test_compression_of_content_encoding(ContentEncoding::Deflate, body).await;
         }
     }
 
@@ -514,7 +511,7 @@ mod tests {
     #[cfg(feature = "compress-brotli")]
     async fn test_brotli_compression_in_chunks_is_the_same_as_whole_chunk_compression() {
         for body in BODIES {
-            test_compression_of_conentent_enconding(ContentEncoding::Brotli, body).await;
+            test_compression_of_content_encoding(ContentEncoding::Brotli, body).await;
         }
     }
 
@@ -522,7 +519,7 @@ mod tests {
     #[cfg(feature = "compress-zstd")]
     async fn test_zstd_compression_in_chunks_is_the_same_as_whole_chunk_compression() {
         for body in BODIES {
-            test_compression_of_conentent_enconding(ContentEncoding::Zstd, body).await;
+            test_compression_of_content_encoding(ContentEncoding::Zstd, body).await;
         }
     }
 }
