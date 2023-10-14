@@ -28,8 +28,7 @@ pin_project! {
     pub struct Encoder<B> {
         #[pin]
         body: EncoderBody<B>,
-        encoder: Option<SelectedContentEncoder>,
-        chunk_ready_to_encode: Option<Bytes>,
+        encoder: Option<Box<SelectedContentEncoder>>,
         eof: bool,
     }
 }
@@ -41,7 +40,6 @@ impl<B: MessageBody> Encoder<B> {
                 body: body::None::new(),
             },
             encoder: None,
-            chunk_ready_to_encode: None,
             eof: true,
         }
     }
@@ -70,7 +68,6 @@ impl<B: MessageBody> Encoder<B> {
                 return Encoder {
                     body,
                     encoder: Some(selected_encoder),
-                    chunk_ready_to_encode: None,
                     eof: false,
                 };
             }
@@ -79,7 +76,6 @@ impl<B: MessageBody> Encoder<B> {
         Encoder {
             body,
             encoder: None,
-            chunk_ready_to_encode: None,
             eof: false,
         }
     }
@@ -174,30 +170,24 @@ where
                 return Poll::Ready(None);
             }
 
-            if let Some(chunk) = this.chunk_ready_to_encode.as_mut() {
-                let selected_encoder = this.encoder.as_mut().expect(
-                    "when chunk_ready_to_encode is presented the encoder is expected to be presented as well",
-                );
-                let encode_len = chunk.len().min(selected_encoder.preferred_chunk_size);
-                selected_encoder
-                    .content_encoder
-                    .write(&chunk[..encode_len])
-                    .map_err(EncoderError::Io)?;
-                chunk.advance(encode_len);
+            if let Some(selected_encoder) = this.encoder.as_deref_mut() {
+                if let Some(chunk) = selected_encoder.chunk_ready_to_encode.as_mut() {
+                    let encode_len = chunk.len().min(selected_encoder.preferred_chunk_size);
+                    selected_encoder
+                        .content_encoder
+                        .write(&chunk[..encode_len])
+                        .map_err(EncoderError::Io)?;
+                    chunk.advance(encode_len);
 
-                if chunk.is_empty() {
-                    *this.chunk_ready_to_encode = None;
-                }
+                    if chunk.is_empty() {
+                        selected_encoder.chunk_ready_to_encode = None;
+                    }
 
-                let encoded_chunk = selected_encoder.content_encoder.take();
-                if !encoded_chunk.is_empty() {
+                    let encoded_chunk = selected_encoder.content_encoder.take();
+                    if encoded_chunk.is_empty() {
+                        continue;
+                    }
                     return Poll::Ready(Some(Ok(encoded_chunk)));
-                }
-
-                if this.chunk_ready_to_encode.is_some() {
-                    // Yield execution to give chance other futures to execute
-                    cx.waker().wake_by_ref();
-                    return Poll::Pending;
                 }
             }
 
@@ -206,12 +196,12 @@ where
             match result {
                 Some(Err(err)) => return Poll::Ready(Some(Err(err))),
 
-                Some(Ok(chunk)) => {
-                    if this.encoder.is_none() {
-                        return Poll::Ready(Some(Ok(chunk)));
+                Some(Ok(chunk)) => match this.encoder.as_deref_mut() {
+                    None => return Poll::Ready(Some(Ok(chunk))),
+                    Some(encoder) => {
+                        encoder.chunk_ready_to_encode = Some(chunk);
                     }
-                    *this.chunk_ready_to_encode = Some(chunk);
-                }
+                },
 
                 None => {
                     if let Some(selected_encoder) = this.encoder.take() {
@@ -281,10 +271,11 @@ enum ContentEncoder {
 struct SelectedContentEncoder {
     content_encoder: ContentEncoder,
     preferred_chunk_size: usize,
+    chunk_ready_to_encode: Option<Bytes>,
 }
 
 impl ContentEncoder {
-    fn select(encoding: ContentEncoding) -> Option<SelectedContentEncoder> {
+    fn select(encoding: ContentEncoding) -> Option<Box<SelectedContentEncoder>> {
         // Chunk size picked as max chunk size which took less that 50 µs to compress on "cargo bench --bench compression-chunk-size"
 
         // Rust 1.72 linux/arm64 in Docker on Apple M2 Pro: "time to compress chunk/deflate-16384"  time: [39.114 µs 39.283 µs 39.457 µs]
@@ -298,36 +289,40 @@ impl ContentEncoder {
 
         match encoding {
             #[cfg(feature = "compress-gzip")]
-            ContentEncoding::Deflate => Some(SelectedContentEncoder {
+            ContentEncoding::Deflate => Some(Box::new(SelectedContentEncoder {
                 content_encoder: ContentEncoder::Deflate(ZlibEncoder::new(
                     Writer::new(),
                     flate2::Compression::fast(),
                 )),
                 preferred_chunk_size: MAX_DEFLATE_CHUNK_SIZE,
-            }),
+                chunk_ready_to_encode: None,
+            })),
 
             #[cfg(feature = "compress-gzip")]
-            ContentEncoding::Gzip => Some(SelectedContentEncoder {
+            ContentEncoding::Gzip => Some(Box::new(SelectedContentEncoder {
                 content_encoder: ContentEncoder::Gzip(GzEncoder::new(
                     Writer::new(),
                     flate2::Compression::fast(),
                 )),
                 preferred_chunk_size: MAX_GZIP_CHUNK_SIZE,
-            }),
+                chunk_ready_to_encode: None,
+            })),
 
             #[cfg(feature = "compress-brotli")]
-            ContentEncoding::Brotli => Some(SelectedContentEncoder {
+            ContentEncoding::Brotli => Some(Box::new(SelectedContentEncoder {
                 content_encoder: ContentEncoder::Brotli(new_brotli_compressor()),
                 preferred_chunk_size: MAX_BROTLI_CHUNK_SIZE,
-            }),
+                chunk_ready_to_encode: None,
+            })),
 
             #[cfg(feature = "compress-zstd")]
             ContentEncoding::Zstd => {
                 let encoder = ZstdEncoder::new(Writer::new(), 3).ok()?;
-                Some(SelectedContentEncoder {
+                Some(Box::new(SelectedContentEncoder {
                     content_encoder: ContentEncoder::Zstd(encoder),
                     preferred_chunk_size: MAX_ZSTD_CHUNK_SIZE,
-                })
+                    chunk_ready_to_encode: None,
+                }))
             }
 
             _ => None,
@@ -485,6 +480,7 @@ mod tests {
         let SelectedContentEncoder {
             content_encoder: mut compressor,
             preferred_chunk_size: _,
+            chunk_ready_to_encode: _,
         } = ContentEncoder::select(encoding).unwrap();
         compressor.write(&body_to_compress).unwrap();
         let reference_compressed_bytes = compressor.finish().unwrap();
