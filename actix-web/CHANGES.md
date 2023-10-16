@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- Fix content type required validation when set to false. [#3162]
+
 ## 4.4.0
 
 ### Added
