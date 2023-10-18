@@ -28,7 +28,7 @@ pin_project! {
     pub struct Encoder<B> {
         #[pin]
         body: EncoderBody<B>,
-        encoder: Option<Box<SelectedContentEncoder>>,
+        encoder: Option<Box<ChunkedContentEncoder>>,
         eof: bool,
     }
 }
@@ -268,14 +268,14 @@ enum ContentEncoder {
     Zstd(ZstdEncoder<'static, Writer>),
 }
 
-struct SelectedContentEncoder {
+struct ChunkedContentEncoder {
     content_encoder: ContentEncoder,
     preferred_chunk_size: usize,
     chunk_ready_to_encode: Option<Bytes>,
 }
 
 impl ContentEncoder {
-    fn select(encoding: ContentEncoding) -> Option<Box<SelectedContentEncoder>> {
+    fn select(encoding: ContentEncoding) -> Option<Box<ChunkedContentEncoder>> {
         // Chunk size picked as max chunk size which took less that 50 µs to compress on "cargo bench --bench compression-chunk-size"
 
         // Rust 1.72 linux/arm64 in Docker on Apple M2 Pro: "time to compress chunk/deflate-16384"  time: [39.114 µs 39.283 µs 39.457 µs]
@@ -289,7 +289,7 @@ impl ContentEncoder {
 
         match encoding {
             #[cfg(feature = "compress-gzip")]
-            ContentEncoding::Deflate => Some(Box::new(SelectedContentEncoder {
+            ContentEncoding::Deflate => Some(Box::new(ChunkedContentEncoder {
                 content_encoder: ContentEncoder::Deflate(ZlibEncoder::new(
                     Writer::new(),
                     flate2::Compression::fast(),
@@ -299,7 +299,7 @@ impl ContentEncoder {
             })),
 
             #[cfg(feature = "compress-gzip")]
-            ContentEncoding::Gzip => Some(Box::new(SelectedContentEncoder {
+            ContentEncoding::Gzip => Some(Box::new(ChunkedContentEncoder {
                 content_encoder: ContentEncoder::Gzip(GzEncoder::new(
                     Writer::new(),
                     flate2::Compression::fast(),
@@ -309,7 +309,7 @@ impl ContentEncoder {
             })),
 
             #[cfg(feature = "compress-brotli")]
-            ContentEncoding::Brotli => Some(Box::new(SelectedContentEncoder {
+            ContentEncoding::Brotli => Some(Box::new(ChunkedContentEncoder {
                 content_encoder: ContentEncoder::Brotli(new_brotli_compressor()),
                 preferred_chunk_size: MAX_BROTLI_CHUNK_SIZE,
                 chunk_ready_to_encode: None,
@@ -318,7 +318,7 @@ impl ContentEncoder {
             #[cfg(feature = "compress-zstd")]
             ContentEncoding::Zstd => {
                 let encoder = ZstdEncoder::new(Writer::new(), 3).ok()?;
-                Some(Box::new(SelectedContentEncoder {
+                Some(Box::new(ChunkedContentEncoder {
                     content_encoder: ContentEncoder::Zstd(encoder),
                     preferred_chunk_size: MAX_ZSTD_CHUNK_SIZE,
                     chunk_ready_to_encode: None,
