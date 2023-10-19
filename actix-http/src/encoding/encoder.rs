@@ -333,9 +333,14 @@ impl CooperativeContentEncoder {
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Result<Option<Bytes>, EncoderError>> {
+        // The maximum computing budget can be utilized before yielding voluntarily
+        // See inspiration: 
+        // https://tokio.rs/blog/2020-04-preemption
+        // https://ryhl.io/blog/async-what-is-blocking/
+        const BUDGET_LIMIT: u8 = 8;
         let this = self.get_mut();
         loop {
-            if this.budget_used > 8 {
+            if this.budget_used > BUDGET_LIMIT {
                 this.budget_used = 0;
                 cx.waker().wake_by_ref();
                 return Poll::Pending;
