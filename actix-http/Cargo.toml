@@ -23,6 +23,27 @@ rust-version.workspace = true
 # features that docs.rs will build with
 features = ["http2", "ws", "openssl", "rustls-0_20", "rustls-0_21", "compress-brotli", "compress-gzip", "compress-zstd"]
 
+[package.metadata.cargo_check_external_types]
+allowed_external_types = [
+    "actix_codec::*",
+    "actix_service::*",
+    "actix_tls::*",
+    "actix_utils::*",
+    "bytes::*",
+    "bytestring::*",
+    "encoding_rs::*",
+    "futures_core::*",
+    "h2::*",
+    "http::*",
+    "httparse::*",
+    "language_tags::*",
+    "mime::*",
+    "openssl::*",
+    "rustls::*",
+    "tokio_util::*",
+    "tokio::*",
+]
+
 [lib]
 name = "actix_http"
 path = "src/lib.rs"

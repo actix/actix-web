@@ -93,7 +93,9 @@ fi
 
 # done; remove backup files
 rm -f $CARGO_MANIFEST.bak
-rm -f $CHANGELOG_FILE.bak
+if [ -n "${CHANGELOG_FILE-}" ]; then
+    rm -f $CHANGELOG_FILE.bak
+fi
 rm -f $README_FILE.bak
 
 echo "manifest, changelog, and readme updated"
