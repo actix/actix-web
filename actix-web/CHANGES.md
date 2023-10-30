@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Changed
+
+- Updated `zstd` dependency to `0.13`.
+
 ## 4.4.0
 
 ### Added
