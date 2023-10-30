@@ -18,9 +18,17 @@ edition = "2021"
 [package.metadata.docs.rs]
 features = []
 
-[lib]
-name = "actix_http_test"
-path = "src/lib.rs"
+[package.metadata.cargo_check_external_types]
+allowed_external_types = [
+    "actix_codec::*",
+    "actix_http::*",
+    "actix_server::*",
+    "awc::*",
+    "bytes::*",
+    "futures_core::*",
+    "http::*",
+    "tokio::*",
+]
 
 [features]
 default = []

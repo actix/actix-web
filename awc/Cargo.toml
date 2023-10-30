@@ -15,13 +15,30 @@ repository = "https://github.com/actix/actix-web.git"
 license = "MIT OR Apache-2.0"
 edition = "2021"
 
-[lib]
-name = "awc"
-path = "src/lib.rs"
-
 [package.metadata.docs.rs]
 # features that docs.rs will build with
 features = ["openssl", "rustls-0_20", "rustls-0_21", "compress-brotli", "compress-gzip", "compress-zstd", "cookies"]
+
+[package.metadata.cargo_check_external_types]
+allowed_external_types = [
+    "actix_codec::*",
+    "actix_http::*",
+    "actix_rt::*",
+    "actix_service::*",
+    "actix_tls::*",
+    "bytes::*",
+    "cookie::*",
+    "cookie",
+    "futures_core::*",
+    "h2::*",
+    "http::*",
+    "openssl::*",
+    "rustls::*",
+    "serde_json::*",
+    "serde_urlencoded::*",
+    "serde::*",
+    "tokio::*",
+]
 
 [features]
 default = ["compress-brotli", "compress-gzip", "compress-zstd", "cookies"]
