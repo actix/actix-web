@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Update `trust-dns-resolver` dependency to `0.23`.
+- Updated `zstd` dependency to `0.13`.
 
 ## 3.2.0
 
