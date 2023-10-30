@@ -12,9 +12,11 @@ repository = "https://github.com/actix/actix-web.git"
 license = "MIT OR Apache-2.0"
 edition = "2021"
 
-[lib]
-name = "actix_router"
-path = "src/lib.rs"
+[package.metadata.cargo_check_external_types]
+allowed_external_types = [
+    "http::*",
+    "serde::*",
+]
 
 [features]
 default = ["http"]

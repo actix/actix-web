@@ -44,10 +44,6 @@ allowed_external_types = [
     "tokio::*",
 ]
 
-[lib]
-name = "actix_http"
-path = "src/lib.rs"
-
 [features]
 default = []
 

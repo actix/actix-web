@@ -18,6 +18,22 @@ categories = [
 license = "MIT OR Apache-2.0"
 edition = "2021"
 
+[package.metadata.cargo_check_external_types]
+allowed_external_types = [
+    "actix_codec::*",
+    "actix_http_test::*",
+    "actix_http::*",
+    "actix_service::*",
+    "actix_web::*",
+    "awc::*",
+    "bytes::*",
+    "futures_core::*",
+    "http::*",
+    "openssl::*",
+    "rustls::*",
+    "tokio::*",
+]
+
 [features]
 default = []
 
