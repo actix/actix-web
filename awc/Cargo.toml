@@ -21,7 +21,7 @@ features = ["openssl", "rustls-0_20", "rustls-0_21", "compress-brotli", "compres
 
 [package.metadata.cargo_check_external_types]
 allowed_external_types = [
-    "actix_codec::*",
+    # "actix_codec::*",
     "actix_http::*",
     "actix_rt::*",
     "actix_service::*",

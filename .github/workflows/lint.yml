@@ -81,7 +81,7 @@ jobs:
           tool: cargo-check-external-types@0.1.10
 
       - name: check external types
-        run: just check-external-types-all
+        run: just check-external-types-all +nightly-2023-10-10
 
   public-api-diff:
     runs-on: ubuntu-latest
