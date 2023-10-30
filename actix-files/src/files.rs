@@ -235,7 +235,7 @@ impl Files {
     /// request starts being handled by the file service, it will not be able to back-out and try
     /// the next service, you will simply get a 404 (or 405) error response.
     ///
-    /// To allow `POST` requests to retrieve files, see [`Files::use_guards`].
+    /// To allow `POST` requests to retrieve files, see [`Files::method_guard()`].
     ///
     /// # Examples
     /// ```
