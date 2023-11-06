@@ -14,7 +14,7 @@ categories = [
     "web-programming::websocket"
 ]
 homepage = "https://actix.rs"
-repository = "https://github.com/actix/actix-web.git"
+repository = "https://github.com/actix/actix-web"
 license = "MIT OR Apache-2.0"
 edition.workspace = true
 rust-version.workspace = true
