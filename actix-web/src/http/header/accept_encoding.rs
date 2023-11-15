@@ -223,7 +223,11 @@ impl AcceptEncoding {
         // use stable sort so items with equal q-factor retain listed order
         types.sort_by(|a, b| {
             // sort by q-factor descending
-            b.quality.cmp(&a.quality)
+            if b.quality == a.quality {
+                encoding_rank(b).cmp(&encoding_rank(a))
+            } else {
+                b.quality.cmp(&a.quality)
+            }
         });
 
         types.into_iter()
@@ -393,11 +397,11 @@ mod tests {
         );
         assert_eq!(
             test.negotiate([Encoding::gzip(), Encoding::brotli(), Encoding::identity()].iter()),
-            Some(Encoding::gzip())
+            Some(Encoding::brotli())
         );
         assert_eq!(
             test.negotiate([Encoding::brotli(), Encoding::gzip(), Encoding::identity()].iter()),
-            Some(Encoding::gzip())
+            Some(Encoding::brotli())
         );
     }
 
@@ -413,6 +417,9 @@ mod tests {
         assert_eq!(test.ranked(), vec![enc("br"), enc("gzip"), enc("*")]);
 
         let test = accept_encoding!("br", "gzip", "*");
+        assert_eq!(test.ranked(), vec![enc("br"), enc("gzip"), enc("*")]);
+
+        let test = accept_encoding!("gzip", "br", "*");
         assert_eq!(test.ranked(), vec![enc("br"), enc("gzip"), enc("*")]);
     }
 

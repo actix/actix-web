@@ -96,7 +96,7 @@ async fn negotiate_encoding_gzip() {
 
     let req = srv
         .post("/static")
-        .insert_header((header::ACCEPT_ENCODING, "gzip,br,zstd"))
+        .insert_header((header::ACCEPT_ENCODING, "gzip"))
         .send();
 
     let mut res = req.await.unwrap();
@@ -109,7 +109,7 @@ async fn negotiate_encoding_gzip() {
     let mut res = srv
         .post("/static")
         .no_decompress()
-        .insert_header((header::ACCEPT_ENCODING, "gzip,br,zstd"))
+        .insert_header((header::ACCEPT_ENCODING, "gzip"))
         .send()
         .await
         .unwrap();
@@ -154,7 +154,7 @@ async fn negotiate_encoding_zstd() {
 
     let req = srv
         .post("/static")
-        .insert_header((header::ACCEPT_ENCODING, "zstd,gzip,br"))
+        .insert_header((header::ACCEPT_ENCODING, "zstd,gzip"))
         .send();
 
     let mut res = req.await.unwrap();
@@ -167,7 +167,7 @@ async fn negotiate_encoding_zstd() {
     let mut res = srv
         .post("/static")
         .no_decompress()
-        .insert_header((header::ACCEPT_ENCODING, "zstd,gzip,br"))
+        .insert_header((header::ACCEPT_ENCODING, "zstd,gzip"))
         .send()
         .await
         .unwrap();
