@@ -149,7 +149,7 @@ impl AcceptEncoding {
 
     /// Extracts the most preferable encoding, accounting for [q-factor weighting].
     ///
-    /// If no q-factors are provided, the first encoding is chosen. Note that items without
+    /// If no q-factors are provided, we prefer brotli > zstd > gzip. Note that items without
     /// q-factors are given the maximum preference value.
     ///
     /// As per the spec, returns [`Preference::Any`] if acceptable list is empty. Though, if this is
@@ -167,16 +167,19 @@ impl AcceptEncoding {
 
         let mut max_item = None;
         let mut max_pref = Quality::ZERO;
-
+        let mut max_rank = 0;
         // uses manual max lookup loop since we want the first occurrence in the case of same
         // preference but `Iterator::max_by_key` would give us the last occurrence
 
         for pref in &self.0 {
             // only change if strictly greater
             // equal items, even while unsorted, still have higher preference if they appear first
-            if pref.quality > max_pref {
+            let rank = encoding_rank(&pref);
+
+            if pref.quality > max_pref || (pref.quality == max_pref && max_rank < rank) {
                 max_pref = pref.quality;
                 max_item = Some(pref.item.clone());
+                max_rank = rank;
             }
         }
 
@@ -203,6 +206,8 @@ impl AcceptEncoding {
     /// Returns a sorted list of encodings from highest to lowest precedence, accounting
     /// for [q-factor weighting].
     ///
+    /// If no q-factors are provided, we prefer brotli > zstd > gzip.
+    ///
     /// [q-factor weighting]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
     pub fn ranked(&self) -> Vec<Preference<Encoding>> {
         self.ranked_items().map(|q| q.item).collect()
@@ -222,6 +227,17 @@ impl AcceptEncoding {
         });
 
         types.into_iter()
+    }
+}
+
+fn encoding_rank(q: &QualityItem<Preference<Encoding>>) -> u8 {
+    if q.quality == Quality::ZERO {
+        return 0;
+    }
+    match q.item {
+        Preference::Specific(Encoding::Known(ContentEncoding::Brotli)) => 2,
+        Preference::Specific(Encoding::Known(ContentEncoding::Zstd)) => 1,
+        _ => 0,
     }
 }
 
@@ -419,6 +435,9 @@ mod tests {
         assert_eq!(test.preference().unwrap(), enc("gzip"));
 
         let test = accept_encoding!("br", "gzip", "*");
+        assert_eq!(test.preference().unwrap(), enc("br"));
+
+        let test = accept_encoding!("gzip", "br", "*");
         assert_eq!(test.preference().unwrap(), enc("br"));
     }
 }
