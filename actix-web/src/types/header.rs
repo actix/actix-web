@@ -2,8 +2,6 @@
 
 use std::{fmt, ops};
 
-use actix_utils::future::{ready, Ready};
-
 use crate::{
     dev::Payload, error::ParseError, extract::FromRequest, http::header::Header as ParseHeader,
     HttpRequest,
@@ -61,13 +59,12 @@ where
     T: ParseHeader,
 {
     type Error = ParseError;
-    type Future = Ready<Result<Self, Self::Error>>;
 
     #[inline]
-    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+    async fn from_request(req: &HttpRequest, _: &mut Payload) -> Result<Self, Self::Error> {
         match ParseHeader::parse(req) {
-            Ok(header) => ready(Ok(Header(header))),
-            Err(err) => ready(Err(err)),
+            Ok(header) => Ok(Header(header)),
+            Err(err) => Err(err),
         }
     }
 }

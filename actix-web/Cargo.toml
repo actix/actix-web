@@ -100,6 +100,7 @@ serde_json = "1.0"
 serde_urlencoded = "0.7"
 smallvec = "1.6.1"
 socket2 = "0.5"
+tokio = { version = "1.24.2", features = ["macros"] }
 time = { version = "0.3", default-features = false, features = ["formatting"] }
 url = "2.1"
 

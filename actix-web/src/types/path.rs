@@ -3,7 +3,6 @@
 use std::sync::Arc;
 
 use actix_router::PathDeserializer;
-use actix_utils::future::{ready, Ready};
 use derive_more::{AsRef, Deref, DerefMut, Display, From};
 use serde::de;
 
@@ -69,33 +68,29 @@ where
     T: de::DeserializeOwned,
 {
     type Error = Error;
-    type Future = Ready<Result<Self, Self::Error>>;
 
-    #[inline]
-    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+    async fn from_request(req: &HttpRequest, _: &mut Payload) -> Result<Self, Self::Error> {
         let error_handler = req
             .app_data::<PathConfig>()
             .or_else(|| req.app_data::<Data<PathConfig>>().map(Data::get_ref))
             .and_then(|c| c.err_handler.clone());
 
-        ready(
-            de::Deserialize::deserialize(PathDeserializer::new(req.match_info()))
-                .map(Path)
-                .map_err(move |err| {
-                    log::debug!(
-                        "Failed during Path extractor deserialization. \
+        de::Deserialize::deserialize(PathDeserializer::new(req.match_info()))
+            .map(Path)
+            .map_err(move |err| {
+                log::debug!(
+                    "Failed during Path extractor deserialization. \
                          Request path: {:?}",
-                        req.path()
-                    );
+                    req.path()
+                );
 
-                    if let Some(error_handler) = error_handler {
-                        let e = PathError::Deserialize(err);
-                        (error_handler)(e, req)
-                    } else {
-                        ErrorNotFound(err)
-                    }
-                }),
-        )
+                if let Some(error_handler) = error_handler {
+                    let e = PathError::Deserialize(err);
+                    (error_handler)(e, req)
+                } else {
+                    ErrorNotFound(err)
+                }
+            })
     }
 }
 

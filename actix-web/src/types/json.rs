@@ -138,10 +138,8 @@ impl<T: Serialize> Responder for Json<T> {
 /// See [here](#extractor) for example of usage as an extractor.
 impl<T: DeserializeOwned> FromRequest for Json<T> {
     type Error = Error;
-    type Future = JsonExtractFut<T>;
 
-    #[inline]
-    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+    async fn from_request(req: &HttpRequest, payload: &mut Payload) -> Result<Self, Self::Error> {
         let config = JsonConfig::from_req(req);
 
         let limit = config.limit;
@@ -149,51 +147,29 @@ impl<T: DeserializeOwned> FromRequest for Json<T> {
         let ctype_fn = config.content_type.as_deref();
         let err_handler = config.err_handler.clone();
 
-        JsonExtractFut {
-            req: Some(req.clone()),
-            fut: JsonBody::new(req, payload, ctype_fn, ctype_required).limit(limit),
-            err_handler,
+        match JsonBody::new(req, payload, ctype_fn, ctype_required)
+            .limit(limit)
+            .await
+        {
+            Ok(data) => Ok(Json(data)),
+            Err(err) => {
+                log::debug!(
+                    "Failed to deserialize Json<{}> from payload. \
+                         Request path: {}",
+                    std::any::type_name::<T>(),
+                    req.path(),
+                );
+
+                Err(match err_handler.as_ref() {
+                    Some(err_handler) => (err_handler)(err, req),
+                    None => err.into(),
+                })
+            }
         }
     }
 }
 
 type JsonErrorHandler = Option<Arc<dyn Fn(JsonPayloadError, &HttpRequest) -> Error + Send + Sync>>;
-
-pub struct JsonExtractFut<T> {
-    req: Option<HttpRequest>,
-    fut: JsonBody<T>,
-    err_handler: JsonErrorHandler,
-}
-
-impl<T: DeserializeOwned> Future for JsonExtractFut<T> {
-    type Output = Result<Json<T>, Error>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.get_mut();
-
-        let res = ready!(Pin::new(&mut this.fut).poll(cx));
-
-        let res = match res {
-            Err(err) => {
-                let req = this.req.take().unwrap();
-                log::debug!(
-                    "Failed to deserialize Json from payload. \
-                         Request path: {}",
-                    req.path()
-                );
-
-                if let Some(err_handler) = this.err_handler.as_ref() {
-                    Err((*err_handler)(err, &req))
-                } else {
-                    Err(err.into())
-                }
-            }
-            Ok(data) => Ok(Json(data)),
-        };
-
-        Poll::Ready(res)
-    }
-}
 
 /// `Json` extractor configuration.
 ///

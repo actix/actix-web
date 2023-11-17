@@ -125,11 +125,11 @@ impl ServiceRequest {
     /// #   todo!()
     /// }
     /// ```
-    pub fn extract<T>(&mut self) -> <T as FromRequest>::Future
+    pub async fn extract<T: FromRequest>(&mut self) -> Result<T, <T as FromRequest>::Error>
     where
         T: FromRequest,
     {
-        T::from_request(&self.req, &mut self.payload)
+        T::from_request(&self.req, &mut self.payload).await
     }
 
     /// Construct request from parts.
