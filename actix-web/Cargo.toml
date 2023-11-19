@@ -14,7 +14,7 @@ categories = [
     "web-programming::websocket"
 ]
 homepage = "https://actix.rs"
-repository = "https://github.com/actix/actix-web.git"
+repository = "https://github.com/actix/actix-web"
 license = "MIT OR Apache-2.0"
 edition.workspace = true
 rust-version.workspace = true
@@ -122,7 +122,7 @@ static_assertions = "1"
 tls-openssl = { package = "openssl", version = "0.10.55" }
 tls-rustls = { package = "rustls", version = "0.21" }
 tokio = { version = "1.24.2", features = ["rt-multi-thread", "macros"] }
-zstd = "0.12"
+zstd = "0.13"
 
 [[test]]
 name = "test_server"

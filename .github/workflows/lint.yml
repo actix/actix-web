@@ -22,25 +22,31 @@ jobs:
           toolchain: nightly
           components: rustfmt
 
-      - run: cargo fmt --all -- --check
+      - name: Check with rustfmt
+        run: cargo fmt --all -- --check
 
   clippy:
     permissions:
+      contents: read
       checks: write # to add clippy checks to PR diffs
 
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions-rust-lang/setup-rust-toolchain@v1.5.0
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1.5.0
         with:
           components: clippy
 
-      - uses: giraffate/clippy-action@v1.0.1
+      - name: Check with Clippy
+        uses: giraffate/clippy-action@v1.0.1
         with:
           reporter: github-pr-check
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          clippy_flags: --workspace --all-features --tests --examples --bins -- -Dclippy::todo -Aunknown_lints
+          clippy_flags: >-
+            --workspace --all-features --tests --examples --bins --
+            -A unknown_lints -D clippy::todo -D clippy::dbg_macro
 
   lint-docs:
     runs-on: ubuntu-latest
@@ -70,7 +76,7 @@ jobs:
         with:
           toolchain: nightly-2023-08-25
 
-      - uses: taiki-e/cache-cargo-install-action@v1.2.2
+      - uses: taiki-e/cache-cargo-install-action@v1.3.0
         with:
           tool: cargo-public-api
 

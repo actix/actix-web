@@ -11,7 +11,7 @@ categories = [
     "web-programming::websocket",
 ]
 homepage = "https://actix.rs"
-repository = "https://github.com/actix/actix-web.git"
+repository = "https://github.com/actix/actix-web"
 license = "MIT OR Apache-2.0"
 edition = "2021"
 
@@ -111,7 +111,7 @@ static_assertions = "1.1"
 rcgen = "0.11"
 rustls-pemfile = "1"
 tokio = { version = "1.24.2", features = ["rt-multi-thread", "macros"] }
-zstd = "0.12"
+zstd = "0.13"
 
 [[example]]
 name = "client"

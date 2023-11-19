@@ -8,7 +8,7 @@ authors = [
 description = "HTTP primitives for the Actix ecosystem"
 keywords = ["actix", "http", "framework", "async", "futures"]
 homepage = "https://actix.rs"
-repository = "https://github.com/actix/actix-web.git"
+repository = "https://github.com/actix/actix-web"
 categories = [
     "network-programming",
     "asynchronous",
@@ -103,7 +103,7 @@ actix-tls = { version = "3.1", default-features = false, optional = true }
 # compress-*
 brotli = { version = "3.3.3", optional = true }
 flate2 = { version = "1.0.13", optional = true }
-zstd = { version = "0.12", optional = true }
+zstd = { version = "0.13", optional = true }
 
 [dev-dependencies]
 actix-http-test = { version = "3", features = ["openssl"] }
