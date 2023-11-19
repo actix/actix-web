@@ -168,15 +168,17 @@ impl AcceptEncoding {
         let mut max_item = None;
         let mut max_pref = Quality::ZERO;
         let mut max_rank = 0;
+
         // uses manual max lookup loop since we want the first occurrence in the case of same
         // preference but `Iterator::max_by_key` would give us the last occurrence
 
         for pref in &self.0 {
             // only change if strictly greater
             // equal items, even while unsorted, still have higher preference if they appear first
-            let rank = encoding_rank(&pref);
 
-            if pref.quality > max_pref || (pref.quality == max_pref && max_rank < rank) {
+            let rank = encoding_rank(&pref.item);
+
+            if (pref.quality, rank) > (max_pref, max_rank) {
                 max_pref = pref.quality;
                 max_item = Some(pref.item.clone());
                 max_rank = rank;
@@ -222,23 +224,20 @@ impl AcceptEncoding {
 
         // use stable sort so items with equal q-factor retain listed order
         types.sort_by(|a, b| {
-            // sort by q-factor descending
-            if b.quality == a.quality {
-                encoding_rank(b).cmp(&encoding_rank(a))
-            } else {
-                b.quality.cmp(&a.quality)
-            }
+            // sort by q-factor descending then server ranking descending
+
+            b.quality
+                .cmp(&a.quality)
+                .then(encoding_rank(&b.item).cmp(&encoding_rank(&a.item)))
         });
 
         types.into_iter()
     }
 }
 
-fn encoding_rank(q: &QualityItem<Preference<Encoding>>) -> u8 {
-    if q.quality == Quality::ZERO {
-        return 0;
-    }
-    match q.item {
+/// Returns server-defined encoding ranking.
+fn encoding_rank(enc: &Preference<Encoding>) -> u8 {
+    match enc {
         Preference::Specific(Encoding::Known(ContentEncoding::Brotli)) => 2,
         Preference::Specific(Encoding::Known(ContentEncoding::Zstd)) => 1,
         _ => 0,
