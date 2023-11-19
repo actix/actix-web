@@ -6,6 +6,10 @@
 
 - Updated `zstd` dependency to `0.13`.
 
+### Fixed
+
+- Fix validation of `Json` extractor when `JsonConfig::validate_content_type()` is set to false.
+
 ## 4.4.0
 
 ### Added
