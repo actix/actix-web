@@ -5,6 +5,7 @@
 ### Changed
 
 - Updated `zstd` dependency to `0.13`.
+- Compression middleware now prefers brotli over zstd over gzip.
 
 ### Fixed
 

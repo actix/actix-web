@@ -149,7 +149,7 @@ impl AcceptEncoding {
 
     /// Extracts the most preferable encoding, accounting for [q-factor weighting].
     ///
-    /// If no q-factors are provided, the first encoding is chosen. Note that items without
+    /// If no q-factors are provided, we prefer brotli > zstd > gzip. Note that items without
     /// q-factors are given the maximum preference value.
     ///
     /// As per the spec, returns [`Preference::Any`] if acceptable list is empty. Though, if this is
@@ -167,6 +167,7 @@ impl AcceptEncoding {
 
         let mut max_item = None;
         let mut max_pref = Quality::ZERO;
+        let mut max_rank = 0;
 
         // uses manual max lookup loop since we want the first occurrence in the case of same
         // preference but `Iterator::max_by_key` would give us the last occurrence
@@ -174,9 +175,13 @@ impl AcceptEncoding {
         for pref in &self.0 {
             // only change if strictly greater
             // equal items, even while unsorted, still have higher preference if they appear first
-            if pref.quality > max_pref {
+
+            let rank = encoding_rank(pref);
+
+            if (pref.quality, rank) > (max_pref, max_rank) {
                 max_pref = pref.quality;
                 max_item = Some(pref.item.clone());
+                max_rank = rank;
             }
         }
 
@@ -203,6 +208,8 @@ impl AcceptEncoding {
     /// Returns a sorted list of encodings from highest to lowest precedence, accounting
     /// for [q-factor weighting].
     ///
+    /// If no q-factors are provided, we prefer brotli > zstd > gzip.
+    ///
     /// [q-factor weighting]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
     pub fn ranked(&self) -> Vec<Preference<Encoding>> {
         self.ranked_items().map(|q| q.item).collect()
@@ -210,18 +217,41 @@ impl AcceptEncoding {
 
     fn ranked_items(&self) -> impl Iterator<Item = QualityItem<Preference<Encoding>>> {
         if self.0.is_empty() {
-            return vec![].into_iter();
+            return Vec::new().into_iter();
         }
 
         let mut types = self.0.clone();
 
         // use stable sort so items with equal q-factor retain listed order
         types.sort_by(|a, b| {
-            // sort by q-factor descending
-            b.quality.cmp(&a.quality)
+            // sort by q-factor descending then server ranking descending
+
+            b.quality
+                .cmp(&a.quality)
+                .then(encoding_rank(b).cmp(&encoding_rank(a)))
         });
 
         types.into_iter()
+    }
+}
+
+/// Returns server-defined encoding ranking.
+fn encoding_rank(qv: &QualityItem<Preference<Encoding>>) -> u8 {
+    // ensure that q=0 items are never sorted above identity encoding
+    // invariant: sorting methods calling this fn use first-on-equal approach
+    if qv.quality == Quality::ZERO {
+        return 0;
+    }
+
+    match qv.item {
+        Preference::Specific(Encoding::Known(ContentEncoding::Brotli)) => 5,
+        Preference::Specific(Encoding::Known(ContentEncoding::Zstd)) => 4,
+        Preference::Specific(Encoding::Known(ContentEncoding::Gzip)) => 3,
+        Preference::Specific(Encoding::Known(ContentEncoding::Deflate)) => 2,
+        Preference::Any => 0,
+        Preference::Specific(Encoding::Known(ContentEncoding::Identity)) => 0,
+        Preference::Specific(Encoding::Known(_)) => 1,
+        Preference::Specific(Encoding::Unknown(_)) => 1,
     }
 }
 
@@ -377,11 +407,11 @@ mod tests {
         );
         assert_eq!(
             test.negotiate([Encoding::gzip(), Encoding::brotli(), Encoding::identity()].iter()),
-            Some(Encoding::gzip())
+            Some(Encoding::brotli())
         );
         assert_eq!(
             test.negotiate([Encoding::brotli(), Encoding::gzip(), Encoding::identity()].iter()),
-            Some(Encoding::gzip())
+            Some(Encoding::brotli())
         );
     }
 
@@ -397,6 +427,9 @@ mod tests {
         assert_eq!(test.ranked(), vec![enc("br"), enc("gzip"), enc("*")]);
 
         let test = accept_encoding!("br", "gzip", "*");
+        assert_eq!(test.ranked(), vec![enc("br"), enc("gzip"), enc("*")]);
+
+        let test = accept_encoding!("gzip", "br", "*");
         assert_eq!(test.ranked(), vec![enc("br"), enc("gzip"), enc("*")]);
     }
 
@@ -419,6 +452,9 @@ mod tests {
         assert_eq!(test.preference().unwrap(), enc("gzip"));
 
         let test = accept_encoding!("br", "gzip", "*");
+        assert_eq!(test.preference().unwrap(), enc("br"));
+
+        let test = accept_encoding!("gzip", "br", "*");
         assert_eq!(test.preference().unwrap(), enc("br"));
     }
 }
