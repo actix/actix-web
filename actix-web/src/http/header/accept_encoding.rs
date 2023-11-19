@@ -176,7 +176,7 @@ impl AcceptEncoding {
             // only change if strictly greater
             // equal items, even while unsorted, still have higher preference if they appear first
 
-            let rank = encoding_rank(&pref.item);
+            let rank = encoding_rank(pref);
 
             if (pref.quality, rank) > (max_pref, max_rank) {
                 max_pref = pref.quality;
@@ -217,7 +217,7 @@ impl AcceptEncoding {
 
     fn ranked_items(&self) -> impl Iterator<Item = QualityItem<Preference<Encoding>>> {
         if self.0.is_empty() {
-            return vec![].into_iter();
+            return Vec::new().into_iter();
         }
 
         let mut types = self.0.clone();
@@ -228,7 +228,7 @@ impl AcceptEncoding {
 
             b.quality
                 .cmp(&a.quality)
-                .then(encoding_rank(&b.item).cmp(&encoding_rank(&a.item)))
+                .then(encoding_rank(b).cmp(&encoding_rank(a)))
         });
 
         types.into_iter()
@@ -236,11 +236,22 @@ impl AcceptEncoding {
 }
 
 /// Returns server-defined encoding ranking.
-fn encoding_rank(enc: &Preference<Encoding>) -> u8 {
-    match enc {
-        Preference::Specific(Encoding::Known(ContentEncoding::Brotli)) => 2,
-        Preference::Specific(Encoding::Known(ContentEncoding::Zstd)) => 1,
-        _ => 0,
+fn encoding_rank(qv: &QualityItem<Preference<Encoding>>) -> u8 {
+    // ensure that q=0 items are never sorted above identity encoding
+    // invariant: sorting methods calling this fn use first-on-equal approach
+    if qv.quality == Quality::ZERO {
+        return 0;
+    }
+
+    match qv.item {
+        Preference::Specific(Encoding::Known(ContentEncoding::Brotli)) => 5,
+        Preference::Specific(Encoding::Known(ContentEncoding::Zstd)) => 4,
+        Preference::Specific(Encoding::Known(ContentEncoding::Gzip)) => 3,
+        Preference::Specific(Encoding::Known(ContentEncoding::Deflate)) => 2,
+        Preference::Any => 0,
+        Preference::Specific(Encoding::Known(ContentEncoding::Identity)) => 0,
+        Preference::Specific(Encoding::Known(_)) => 1,
+        Preference::Specific(Encoding::Unknown(_)) => 1,
     }
 }
 
