@@ -8,7 +8,7 @@
 
 ### Fixed
 
-- Fix validation of `Json` extractor when `JsonConfig::validate_content_type()` is set to false. [#3162]
+- Fix validation of `Json` extractor when `JsonConfig::validate_content_type()` is set to false.
 
 ## 4.4.0
 
