@@ -7,6 +7,10 @@
 - Updated `zstd` dependency to `0.13`.
 - Compression middleware now prefers brotli over zstd over gzip.
 
+### Fixed
+
+- Fix validation of `Json` extractor when `JsonConfig::validate_content_type()` is set to false.
+
 ## 4.4.0
 
 ### Added
