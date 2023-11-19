@@ -334,11 +334,13 @@ impl<T: DeserializeOwned> JsonBody<T> {
                     || mime.suffix() == Some(mime::JSON)
                     || ctype_fn.map_or(false, |predicate| predicate(mime))
             }
-            (_, _) => {
-                // if `ctype_required` is false, assume payload is
-                // json even when content-type header is missing
-                !ctype_required
-            }
+
+            // if content-type is expected but not parsable as mime type, bail
+            (true, _) => false,
+
+            // if content-type validation is disabled, assume payload is JSON
+            // even when content-type header is missing or invalid mime type
+            (false, _) => true,
         };
 
         if !can_parse_json {
@@ -744,7 +746,7 @@ mod tests {
             .to_http_parts();
 
         let s = Json::<MyObject>::from_request(&req, &mut pl).await;
-        assert!(s.is_ok())
+        assert!(s.is_ok());
     }
 
     #[actix_rt::test]
