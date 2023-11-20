@@ -3,7 +3,7 @@ name = "actix-web-codegen"
 version = "4.2.2"
 description = "Routing and runtime macros for Actix Web"
 homepage = "https://actix.rs"
-repository = "https://github.com/actix/actix-web.git"
+repository = "https://github.com/actix/actix-web"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
     "Rob Ede <robjtede@icloud.com>",

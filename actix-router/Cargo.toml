@@ -8,7 +8,7 @@ authors = [
 ]
 description = "Resource path matching and router"
 keywords = ["actix", "router", "routing"]
-repository = "https://github.com/actix/actix-web.git"
+repository = "https://github.com/actix/actix-web"
 license = "MIT OR Apache-2.0"
 edition = "2021"
 

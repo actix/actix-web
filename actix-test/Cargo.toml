@@ -8,7 +8,7 @@ authors = [
 description = "Integration testing tools for Actix Web applications"
 keywords = ["http", "web", "framework", "async", "futures"]
 homepage = "https://actix.rs"
-repository = "https://github.com/actix/actix-web.git"
+repository = "https://github.com/actix/actix-web"
 categories = [
     "network-programming",
     "asynchronous",
