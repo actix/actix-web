@@ -6,6 +6,10 @@
 
 - Updated `zstd` dependency to `0.13`.
 
+### Fixed
+
+- Do not encode zero-sized response bodies
+
 ## 3.4.0
 
 ### Added
