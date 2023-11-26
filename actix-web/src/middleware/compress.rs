@@ -373,7 +373,7 @@ mod tests {
                 .default_service(web::to(move || {
                     HttpResponse::Ok()
                         .insert_header((header::VARY, "x-test"))
-                        .finish()
+                        .body(TEXT_DATA)
                 }))
         })
         .await;
@@ -428,5 +428,48 @@ mod tests {
         let res = test::call_service(&app, req.to_request()).await;
         assert_successful_identity_res_with_content_type(&res, "image/jpeg");
         assert_eq!(test::read_body(res).await, TEXT_DATA.as_bytes());
+    }
+
+    #[actix_rt::test]
+    async fn prevents_compression_empty() {
+        let app = test::init_service({
+            App::new()
+                .wrap(Compress::default())
+                .default_service(web::to(move || HttpResponse::Ok().finish()))
+        })
+        .await;
+
+        let req = test::TestRequest::default()
+            .insert_header((header::ACCEPT_ENCODING, "gzip"))
+            .to_request();
+        let res = test::call_service(&app, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+        assert!(!res.headers().contains_key(header::CONTENT_ENCODING));
+        assert!(test::read_body(res).await.is_empty());
+    }
+}
+
+#[cfg(feature = "compress-brotli")]
+#[cfg(test)]
+mod tests_brotli {
+    use super::*;
+    use crate::{test, web, App};
+
+    #[actix_rt::test]
+    async fn prevents_compression_empty() {
+        let app = test::init_service({
+            App::new()
+                .wrap(Compress::default())
+                .default_service(web::to(move || HttpResponse::Ok().finish()))
+        })
+        .await;
+
+        let req = test::TestRequest::default()
+            .insert_header((header::ACCEPT_ENCODING, "br"))
+            .to_request();
+        let res = test::call_service(&app, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
+        assert!(!res.headers().contains_key(header::CONTENT_ENCODING));
+        assert!(test::read_body(res).await.is_empty());
     }
 }

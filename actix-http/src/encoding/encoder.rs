@@ -52,7 +52,7 @@ impl<B: MessageBody> Encoder<B> {
 
     pub fn response(encoding: ContentEncoding, head: &mut ResponseHead, body: B) -> Self {
         // no need to compress an empty body
-        if matches!(body.size(), BodySize::None) {
+        if matches!(body.size(), BodySize::None | BodySize::Sized(0)) {
             return Self::none();
         }
 
