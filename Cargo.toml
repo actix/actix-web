@@ -49,3 +49,6 @@ awc = { path = "awc" }
 # actix-utils = { path = "../actix-net/actix-utils" }
 # actix-tls = { path = "../actix-net/actix-tls" }
 # actix-server = { path = "../actix-net/actix-server" }
+
+# Added for testing purpose while https://github.com/actix/actix-net/pull/508 is released
+actix-tls = { git = "https://github.com/actix/actix-net", rev = "522a2f63b2a1ce426574d046704e537ee730a9ec" }
