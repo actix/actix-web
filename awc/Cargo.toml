@@ -63,7 +63,7 @@ actix-codec = "0.5"
 actix-service = "2"
 actix-http = { version = "3.4", features = ["http2", "ws"] }
 actix-rt = { version = "2.1", default-features = false }
-actix-tls = { version = "3.1", features = ["connect", "uri"] }
+actix-tls = { version = "4.0", features = ["connect", "uri"] }
 actix-utils = "3"
 
 base64 = "0.21"
@@ -72,8 +72,8 @@ cfg-if = "1"
 derive_more = "0.99.5"
 futures-core = { version = "0.3.17", default-features = false, features = ["alloc"] }
 futures-util = { version = "0.3.17", default-features = false, features = ["alloc", "sink"] }
-h2 = "0.3.17"
-http = "0.2.7"
+h2 = "0.4"
+http = "1"
 itoa = "1"
 log =" 0.4"
 mime = "0.3"
@@ -98,7 +98,7 @@ actix-http = { version = "3.4", features = ["openssl"] }
 actix-http-test = { version = "3", features = ["openssl"] }
 actix-server = "2"
 actix-test = { version = "0.1", features = ["openssl", "rustls-0_21"] }
-actix-tls = { version = "3", features = ["openssl", "rustls-0_21"] }
+actix-tls = { version = "4", features = ["openssl", "rustls-0_21"] }
 actix-utils = "3"
 actix-web = { version = "4", features = ["openssl"] }
 

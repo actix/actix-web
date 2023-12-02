@@ -75,7 +75,7 @@ bytestring = "1"
 derive_more = "0.99.5"
 encoding_rs = "0.8"
 futures-core = { version = "0.3.17", default-features = false, features = ["alloc"] }
-http = "0.2.7"
+http = "1"
 httparse = "1.5.1"
 httpdate = "1.0.1"
 itoa = "1"
@@ -89,7 +89,7 @@ tokio-util = { version = "0.7", features = ["io", "codec"] }
 tracing = { version = "0.1.30", default-features = false, features = ["log"] }
 
 # http2
-h2 = { version = "0.3.17", optional = true }
+h2 = { version = "0.4", optional = true }
 
 # websockets
 local-channel = { version = "0.1", optional = true }
@@ -98,7 +98,7 @@ rand = { version = "0.8", optional = true }
 sha1 = { version = "0.10", optional = true }
 
 # openssl/rustls
-actix-tls = { version = "3.1", default-features = false, optional = true }
+actix-tls = { version = "4", default-features = false, optional = true }
 
 # compress-*
 brotli = { version = "3.3.3", optional = true }
@@ -108,7 +108,7 @@ zstd = { version = "0.13", optional = true }
 [dev-dependencies]
 actix-http-test = { version = "3", features = ["openssl"] }
 actix-server = "2"
-actix-tls = { version = "3.1", features = ["openssl"] }
+actix-tls = { version = "4", features = ["openssl"] }
 actix-web = "4"
 
 async-stream = "0.3"

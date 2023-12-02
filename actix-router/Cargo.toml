@@ -21,14 +21,14 @@ default = ["http"]
 
 [dependencies]
 bytestring = ">=0.1.5, <2"
-http = { version = "0.2.7", optional = true }
+http = { version = "1", optional = true }
 regex = "1.5"
 serde = "1"
 tracing = { version = "0.1.30", default-features = false, features = ["log"] }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
-http = "0.2.7"
+http = "1"
 serde = { version = "1", features = ["derive"] }
 percent-encoding = "2.1"
 

@@ -73,7 +73,7 @@ actix-rt = { version = "2.6", default-features = false }
 actix-server = "2"
 actix-service = "2"
 actix-utils = "3"
-actix-tls = { version = "3.1", default-features = false, optional = true }
+actix-tls = { version = "4.0", default-features = false, optional = true }
 
 actix-http = { version = "3.4", features = ["ws"] }
 actix-router = "0.5"
