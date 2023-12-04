@@ -239,6 +239,7 @@ mod tests {
             .to_string()
             .customize()
             .add_cookie(&Cookie::new("name", "value"))
+            .unwrap()
             .respond_to(&req);
 
         assert_eq!(res.status(), StatusCode::OK);
