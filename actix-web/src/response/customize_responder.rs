@@ -5,6 +5,12 @@ use actix_http::{
     StatusCode,
 };
 
+#[cfg(feature = "cookies")]
+use {
+    actix_http::header::{self, HeaderValue},
+    cookie::Cookie,
+};
+
 use crate::{HttpRequest, HttpResponse, Responder};
 
 /// Allows overriding status code and headers for a [`Responder`].
@@ -137,6 +143,21 @@ impl<R: Responder> CustomizeResponder<R> {
             Some(&mut self.inner)
         }
     }
+
+    /// Append a cookie to the final response.
+    ///
+    /// # Errors
+    /// Returns an error if the cookie results in a malformed `Set-Cookie` header.
+    #[cfg(feature = "cookies")]
+    pub fn add_cookie(mut self, cookie: &Cookie<'_>) -> Result<Self, HttpError> {
+        if let Some(inner) = self.inner() {
+            HeaderValue::from_str(&cookie.to_string())
+                .map(|cookie| inner.append_headers.append(header::SET_COOKIE, cookie))
+                .map_err(Into::<HttpError>::into)?
+        }
+
+        Ok(self)
+    }
 }
 
 impl<T> Responder for CustomizeResponder<T>
@@ -175,6 +196,7 @@ mod tests {
 
     use super::*;
     use crate::{
+        cookie::Cookie,
         http::{
             header::{HeaderValue, CONTENT_TYPE},
             StatusCode,
@@ -207,6 +229,22 @@ mod tests {
         assert_eq!(
             res.headers().get(CONTENT_TYPE).unwrap(),
             HeaderValue::from_static("json")
+        );
+        assert_eq!(
+            to_bytes(res.into_body()).await.unwrap(),
+            Bytes::from_static(b"test"),
+        );
+
+        let res = "test"
+            .to_string()
+            .customize()
+            .add_cookie(&Cookie::new("name", "value"))
+            .respond_to(&req);
+
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(
+            res.cookies().collect::<Vec<Cookie<'_>>>(),
+            vec![Cookie::new("name", "value")]
         );
         assert_eq!(
             to_bytes(res.into_body()).await.unwrap(),
