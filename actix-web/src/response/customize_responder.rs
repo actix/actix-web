@@ -13,7 +13,7 @@ use {
 
 use crate::{HttpRequest, HttpResponse, Responder};
 
-/// Allows overriding status code and headers for a [`Responder`].
+/// Allows overriding status code and headers (cookies) for a [`Responder`].
 ///
 /// Created by calling the [`customize`](Responder::customize) method on a [`Responder`] type.
 pub struct CustomizeResponder<R> {
