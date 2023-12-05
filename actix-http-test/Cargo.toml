@@ -28,10 +28,13 @@ default = []
 # openssl
 openssl = ["tls-openssl", "awc/openssl"]
 
+# use http crate v1
+http-1 = ["dep:http-1", "awc/http-1"]
+
 [dependencies]
 actix-service = "2"
 actix-codec = "0.5"
-actix-tls = "4"
+actix-tls = "3.1.1"
 actix-utils = "3"
 actix-rt = "2.2"
 actix-server = "2"
@@ -39,7 +42,8 @@ awc = { version = "3", default-features = false }
 
 bytes = "1"
 futures-core = { version = "0.3.17", default-features = false }
-http = "1"
+http = "0.2"
+http-1 = { version = "1", optional = true, package = "http" }
 log = "0.4"
 socket2 = "0.5"
 serde = "1"

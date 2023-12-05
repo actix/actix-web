@@ -11,6 +11,9 @@ use actix_http::{body::MessageBody, h1::ClientCodec, Payload, RequestHeadType, R
 use actix_rt::task::JoinHandle;
 use bytes::Bytes;
 use futures_core::future::LocalBoxFuture;
+#[cfg(feature = "http-1")]
+use http_1 as http;
+
 use h2::client::SendRequest;
 
 use super::{error::SendRequestError, h1proto, h2proto, pool::Acquired};

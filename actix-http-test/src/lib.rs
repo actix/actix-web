@@ -10,6 +10,9 @@
 #[cfg(feature = "openssl")]
 extern crate tls_openssl as openssl;
 
+#[cfg(feature = "http-1")]
+extern crate http_1 as http;
+
 use std::{net, thread, time::Duration};
 
 use actix_codec::{AsyncRead, AsyncWrite, Framed};

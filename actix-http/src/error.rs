@@ -6,6 +6,9 @@ use derive_more::{Display, Error, From};
 pub use http::Error as HttpError;
 use http::{uri::InvalidUri, StatusCode};
 
+#[cfg(feature = "http-1")]
+use h2_0_4 as h2;
+
 use crate::{body::BoxBody, Response};
 
 pub struct Error {
@@ -274,7 +277,7 @@ pub enum PayloadError {
     /// HTTP/2 payload error.
     #[cfg(feature = "http2")]
     #[display(fmt = "{}", _0)]
-    Http2Payload(::h2::Error),
+    Http2Payload(h2::Error),
 
     /// Generic I/O error.
     #[display(fmt = "{}", _0)]
@@ -297,8 +300,8 @@ impl std::error::Error for PayloadError {
 }
 
 #[cfg(feature = "http2")]
-impl From<::h2::Error> for PayloadError {
-    fn from(err: ::h2::Error) -> Self {
+impl From<h2::Error> for PayloadError {
+    fn from(err: h2::Error) -> Self {
         PayloadError::Http2Payload(err)
     }
 }

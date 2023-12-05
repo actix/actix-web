@@ -7,6 +7,7 @@ use actix_http::{
 };
 use actix_utils::future::poll_fn;
 use bytes::Bytes;
+
 use h2::{
     client::{Builder, Connection, SendRequest},
     SendStream,
@@ -16,6 +17,9 @@ use http::{
     request::Request,
     Method, Version,
 };
+#[cfg(feature = "http-1")]
+use http_1 as http;
+
 use log::trace;
 
 use super::{

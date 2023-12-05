@@ -15,6 +15,9 @@ use actix_service::Service;
 use actix_utils::future::poll_fn;
 use bytes::{Bytes, BytesMut};
 use futures_core::ready;
+#[cfg(feature = "http-1")]
+use h2_0_4 as h2;
+
 use h2::{
     server::{Connection, SendResponse},
     Ping, PingPong,
