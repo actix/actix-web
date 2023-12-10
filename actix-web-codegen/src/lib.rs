@@ -322,8 +322,8 @@ pub fn test(_: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// # Note
 ///
-/// Internally the macro generate struct with name of scope (e.g. `mod_inner`)
-/// And create public module as `<name>_scope`
+/// Internally the macro generates struct with name of scope (e.g. `mod_inner`).
+/// And creates public module as `<name>_scope`.
 ///
 #[proc_macro_attribute]
 pub fn scope(args: TokenStream, input: TokenStream) -> TokenStream {
