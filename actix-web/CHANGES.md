@@ -6,6 +6,8 @@
 
 - Updated `zstd` dependency to `0.13`.
 - Compression middleware now prefers brotli over zstd over gzip.
+- Updated `actix-tls` dependency to `3.2`.
+- Added `http-1` feature for support to `http` crate version `1`.
 
 ### Fixed
 

@@ -10,6 +10,9 @@ use pin_project_lite::pin_project;
 
 use crate::error::PayloadError;
 
+#[cfg(feature = "http-1")]
+use h2_0_4 as h2;
+
 /// A boxed payload stream.
 pub type BoxedPayloadStream = Pin<Box<dyn Stream<Item = Result<Bytes, PayloadError>>>>;
 
@@ -54,8 +57,8 @@ impl<S> From<crate::h2::Payload> for Payload<S> {
 }
 
 #[cfg(feature = "http2")]
-impl<S> From<::h2::RecvStream> for Payload<S> {
-    fn from(stream: ::h2::RecvStream) -> Self {
+impl<S> From<h2::RecvStream> for Payload<S> {
+    fn from(stream: h2::RecvStream) -> Self {
         Payload::H2 {
             payload: crate::h2::Payload::new(stream),
         }

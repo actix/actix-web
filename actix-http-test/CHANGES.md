@@ -3,6 +3,8 @@
 ## Unreleased
 
 - Minimum supported Rust version (MSRV) is now 1.68 due to transitive `time` dependency.
+- Updated `actix-tls` dependency to `3.2`.
+- Added feature `http-1` for support to `http` crate version `1`.
 
 ## 3.1.0
 

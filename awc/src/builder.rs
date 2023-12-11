@@ -9,6 +9,9 @@ use actix_rt::net::{ActixStream, TcpStream};
 use actix_service::{boxed, Service};
 use base64::prelude::*;
 
+#[cfg(feature = "http-1")]
+use http_1 as http;
+
 use crate::{
     client::{
         ClientConfig, ConnectInfo, Connector, ConnectorService, TcpConnectError, TcpConnection,

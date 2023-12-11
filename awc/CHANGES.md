@@ -4,6 +4,8 @@
 
 - Update `trust-dns-resolver` dependency to `0.23`.
 - Updated `zstd` dependency to `0.13`.
+- Updated `actix-tls` dependency to `3.2`.
+- Added feature `http-1` for support to `http` crate version `1`.
 
 ## 3.2.0
 

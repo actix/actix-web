@@ -28,6 +28,9 @@
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
+#[cfg(feature = "http-1")]
+extern crate http_1 as http;
+
 pub use ::http::{uri, uri::Uri, Method, StatusCode, Version};
 
 pub mod body;

@@ -1,5 +1,8 @@
 use crate::{Quoter, ResourcePath};
 
+#[cfg(feature = "http-1")]
+use http_1 as http;
+
 thread_local! {
     static DEFAULT_QUOTER: Quoter = Quoter::new(b"", b"%/+");
 }

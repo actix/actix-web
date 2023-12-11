@@ -49,6 +49,11 @@ secure-cookies = ["cookies", "cookie/secure"]
 
 http2 = ["actix-http/http2"]
 
+http-1 = [
+    "actix-http/http-1",
+    "actix-router/http-1"
+]
+
 # TLS via OpenSSL
 openssl = ["http2", "actix-http/openssl", "actix-tls/accept", "actix-tls/openssl"]
 
@@ -73,10 +78,10 @@ actix-rt = { version = "2.6", default-features = false }
 actix-server = "2"
 actix-service = "2"
 actix-utils = "3"
-actix-tls = { version = "3.1", default-features = false, optional = true }
+actix-tls = { version = "3.1.1", default-features = false, optional = true }
 
 actix-http = { version = "3.4", features = ["ws"] }
-actix-router = "0.5"
+actix-router = "0.5.2"
 actix-web-codegen = { version = "4.2", optional = true }
 
 ahash = "0.8"

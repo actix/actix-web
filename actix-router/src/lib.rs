@@ -15,10 +15,10 @@ mod resource;
 mod resource_path;
 mod router;
 
-#[cfg(feature = "http")]
+#[cfg(any(feature = "http", feature = "http-1"))]
 mod url;
 
-#[cfg(feature = "http")]
+#[cfg(any(feature = "http", feature = "http-1"))]
 pub use self::url::Url;
 pub use self::{
     de::PathDeserializer,

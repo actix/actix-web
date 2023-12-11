@@ -21,7 +21,7 @@ path = "src/lib.rs"
 
 [package.metadata.docs.rs]
 # features that docs.rs will build with
-features = ["openssl", "rustls-0_20", "rustls-0_21", "compress-brotli", "compress-gzip", "compress-zstd", "cookies"]
+features = ["openssl", "rustls-0_20", "rustls-0_21", "compress-brotli", "compress-gzip", "compress-zstd", "cookies", "http-0", "http-1"]
 
 [features]
 default = ["compress-brotli", "compress-gzip", "compress-zstd", "cookies"]
@@ -58,12 +58,18 @@ __compress = []
 # DO NOT enable this over any internet use case.
 dangerous-h2c = []
 
+http-1 = [
+    "dep:http-1",
+    "actix-http/http-1",
+    "dep:h2-0_4",
+]
+
 [dependencies]
 actix-codec = "0.5"
 actix-service = "2"
-actix-http = { version = "3.4", features = ["http2", "ws"] }
+actix-http = { version = "3.5", features = ["http2", "ws"] }
 actix-rt = { version = "2.1", default-features = false }
-actix-tls = { version = "3.1", features = ["connect", "uri"] }
+actix-tls = { version = "3.1.1", features = ["connect", "uri"] }
 actix-utils = "3"
 
 base64 = "0.21"
@@ -72,8 +78,10 @@ cfg-if = "1"
 derive_more = "0.99.5"
 futures-core = { version = "0.3.17", default-features = false, features = ["alloc"] }
 futures-util = { version = "0.3.17", default-features = false, features = ["alloc", "sink"] }
-h2 = "0.3.17"
-http = "0.2.7"
+h2 = "0.3"
+h2-0_4 = { version = "0.4", package = "h2", optional = true }
+http = "0.2"
+http-1 = { package = "http", version = "1", optional = true }
 itoa = "1"
 log =" 0.4"
 mime = "0.3"
@@ -94,11 +102,11 @@ tls-rustls-0_21 = { package = "rustls", version = "0.21", optional = true, featu
 trust-dns-resolver = { version = "0.23", optional = true }
 
 [dev-dependencies]
-actix-http = { version = "3.4", features = ["openssl"] }
+actix-http = { version = "3.5", features = ["openssl"] }
 actix-http-test = { version = "3", features = ["openssl"] }
 actix-server = "2"
 actix-test = { version = "0.1", features = ["openssl", "rustls-0_21"] }
-actix-tls = { version = "3", features = ["openssl", "rustls-0_21"] }
+actix-tls = { version = "3.1.1", features = ["openssl", "rustls-0_21"] }
 actix-utils = "3"
 actix-web = { version = "4", features = ["openssl"] }
 

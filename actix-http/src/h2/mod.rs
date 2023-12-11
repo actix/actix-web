@@ -1,4 +1,6 @@
 //! HTTP/2 protocol.
+#[cfg(feature = "http-1")]
+use h2_0_4 as h2;
 
 use std::{
     future::Future,

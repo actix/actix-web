@@ -19,7 +19,11 @@ use actix_rt::time::{sleep, Sleep};
 use actix_service::Service;
 use futures_core::future::LocalBoxFuture;
 use futures_util::FutureExt as _;
+#[cfg(feature = "http-1")]
+use http_1 as http;
+
 use http::uri::Authority;
+
 use pin_project_lite::pin_project;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 

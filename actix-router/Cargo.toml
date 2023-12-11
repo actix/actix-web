@@ -1,6 +1,6 @@
 [package]
 name = "actix-router"
-version = "0.5.1"
+version = "0.5.2"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
     "Ali MJ Al-Nasrawy <alimjalnasrawy@gmail.com>",
@@ -19,16 +19,20 @@ path = "src/lib.rs"
 [features]
 default = ["http"]
 
+# use http v1
+http-1 = ["dep:http-1"]
+
 [dependencies]
 bytestring = ">=0.1.5, <2"
-http = { version = "0.2.7", optional = true }
+http = { version = "0.2", optional = true }
+http-1 = { package = "http", version = "1", optional = true }
 regex = "1.5"
 serde = "1"
 tracing = { version = "0.1.30", default-features = false, features = ["log"] }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
-http = "0.2.7"
+http = "0.2"
 serde = { version = "1", features = ["derive"] }
 percent-encoding = "2.1"
 

@@ -4,6 +4,8 @@ use actix_http::error::{HttpError, ParseError};
 #[cfg(feature = "openssl")]
 use actix_tls::accept::openssl::reexports::Error as OpensslError;
 use derive_more::{Display, From};
+#[cfg(feature = "http-1")]
+use http_1 as http;
 
 use crate::BoxError;
 

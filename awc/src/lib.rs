@@ -112,6 +112,9 @@
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
+#[cfg(feature = "http-1")]
+extern crate h2_0_4 as h2;
+
 pub use actix_http::body;
 #[cfg(feature = "cookies")]
 pub use cookie;

@@ -5,6 +5,10 @@
 ### Changed
 
 - Updated `zstd` dependency to `0.13`.
+- Updated `http` dependency to `1`.
+- Updated `h2` dependency to `0.4`.
+- Updated `actix-tls` dependency to `3.2`.
+- Added feature `http-1` for support to `http` crate version `1`.
 
 ### Fixed
 

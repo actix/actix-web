@@ -8,6 +8,9 @@ use std::{
     time::Duration,
 };
 
+#[cfg(feature = "http-1")]
+use http_1 as http;
+
 use actix_http::Protocol;
 use actix_rt::{
     net::{ActixStream, TcpStream},
