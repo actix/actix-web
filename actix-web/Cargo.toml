@@ -116,7 +116,7 @@ flate2 = "1.0.13"
 futures-util = { version = "0.3.17", default-features = false, features = ["std"] }
 rand = "0.8"
 rcgen = "0.11"
-rustls-pemfile = "1"
+rustls-pemfile = "2"
 serde = { version = "1.0", features = ["derive"] }
 static_assertions = "1"
 tls-openssl = { package = "openssl", version = "0.10.55" }
