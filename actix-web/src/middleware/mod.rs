@@ -72,7 +72,7 @@
 //! processes the request as well and passes it to `MiddlewareA`, which then passes it to the
 //! [`Service`]. In the [`Service`], the extractors will run first. They don't pass the request on,
 //! but only view it (see [`FromRequest`]). After the [`Service`] responds to the request, the
-//! response it passed back through `MiddlewareA`, `MiddlewareB`, and `MiddlewareC`.
+//! response is passed back through `MiddlewareA`, `MiddlewareB`, and `MiddlewareC`.
 //!
 //! As you register middleware using [`wrap`][crate::App::wrap] and [`wrap_fn`][crate::App::wrap_fn]
 //! in the [`App`] builder, imagine wrapping layers around an inner [`App`]. The first middleware
