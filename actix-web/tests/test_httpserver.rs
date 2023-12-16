@@ -1,5 +1,3 @@
-#![allow(clippy::uninlined_format_args)]
-
 #[cfg(feature = "openssl")]
 extern crate tls_openssl as openssl;
 
