@@ -638,8 +638,15 @@ impl<'a> IntoIterator for &'a HeaderMap {
 
 /// Convert `http::HeaderMap` to our `HeaderMap`.
 impl From<http::HeaderMap> for HeaderMap {
-    fn from(mut map: http::HeaderMap) -> HeaderMap {
-        HeaderMap::from_drain(map.drain())
+    fn from(mut map: http::HeaderMap) -> Self {
+        Self::from_drain(map.drain())
+    }
+}
+
+/// Convert our 'HeaderMap' to 'http::HeaderMap'.
+impl From<HeaderMap> for http::HeaderMap {
+    fn from(map: HeaderMap) -> Self {
+        Self::from_iter(map.into_iter())
     }
 }
 
