@@ -646,7 +646,7 @@ impl From<http::HeaderMap> for HeaderMap {
 /// Convert our 'HeaderMap' to 'http::HeaderMap'.
 impl From<HeaderMap> for http::HeaderMap {
     fn from(map: HeaderMap) -> Self {
-        Self::from_iter(map.into_iter())
+        Self::from_iter(map)
     }
 }
 
