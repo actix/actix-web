@@ -1,6 +1,7 @@
-//! HTTP primitives for the Actix ecosystem.
+//! HTTP types and services for the Actix ecosystem.
 //!
 //! ## Crate Features
+//!
 //! | Feature             | Functionality                               |
 //! | ------------------- | ------------------------------------------- |
 //! | `http2`             | HTTP/2 support via [h2].                    |
