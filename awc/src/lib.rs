@@ -105,8 +105,7 @@
 #![allow(
     clippy::type_complexity,
     clippy::borrow_interior_mutable_const,
-    clippy::needless_doctest_main,
-    clippy::uninlined_format_args
+    clippy::needless_doctest_main
 )]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]

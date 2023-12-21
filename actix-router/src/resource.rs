@@ -193,8 +193,8 @@ const REGEX_FLAGS: &str = "(?s-m)";
 /// # Trailing Slashes
 /// It should be noted that this library takes no steps to normalize intra-path or trailing slashes.
 /// As such, all resource definitions implicitly expect a pre-processing step to normalize paths if
-/// they you wish to accommodate "recoverable" path errors. Below are several examples of
-/// resource-path pairs that would not be compatible.
+/// you wish to accommodate "recoverable" path errors. Below are several examples of resource-path
+/// pairs that would not be compatible.
 ///
 /// ## Examples
 /// ```
