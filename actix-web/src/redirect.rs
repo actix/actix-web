@@ -171,7 +171,7 @@ impl Responder for Redirect {
         } else {
             log::error!(
                 "redirect target location can not be converted to header value: {:?}",
-                self.to
+                self.to,
             );
         }
 

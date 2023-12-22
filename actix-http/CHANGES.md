@@ -5,6 +5,7 @@
 ### Changed
 
 - Updated `zstd` dependency to `0.13`.
+- Implemented `From<HeaderMap>` for `http::HeaderMap`.
 
 ### Fixed
 
