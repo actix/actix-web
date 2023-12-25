@@ -6,6 +6,12 @@
 
 - Implement `From<&HeaderMap>` for `http::HeaderMap` and vice versa.
 
+## 3.5.1
+
+### Fixed
+
+- Prevent hang when returning zero-sized response bodies through compression layer.
+
 ## 3.5.0
 
 ### Changed
