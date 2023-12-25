@@ -10,9 +10,12 @@
 
 ## 3.5.0
 
-### Changed
+### Added
 
 - Implement `From<HeaderMap>` for `http::HeaderMap`.
+
+### Changed
+
 - Updated `zstd` dependency to `0.13`.
 
 ### Fixed
