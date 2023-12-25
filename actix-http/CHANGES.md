@@ -4,7 +4,7 @@
 
 ## 3.5.1
 
-## Fixed
+### Fixed
 
 - Prevent hang when returning zero-sized response bodies through compression layer.
 
