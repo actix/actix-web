@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## Fixed
+
+- Prevent hang when returning zero-sized response bodies through compression layer.
+
 ## 3.5.0
 
 ### Changed
