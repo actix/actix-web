@@ -5,7 +5,7 @@
 
 # requires github cli tool for automatic release draft creation
 
-set -euo pipefail
+set -eEuo pipefail
 
 DIR=$1
 
@@ -132,6 +132,7 @@ fi
 
 if [ $MACOS ]; then
     printf "chore($PACKAGE_NAME): prepare release $NEW_VERSION" | pbcopy
+    echo "placed the recommended commit message on the clipboard"
 else
     echo
     echo "commit message:"
