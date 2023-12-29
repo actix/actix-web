@@ -2,14 +2,25 @@
 
 ## Unreleased
 
-### Changed
-
-- Updated `zstd` dependency to `0.13`.
-- Implemented `From<HeaderMap>` for `http::HeaderMap`.
+## 3.5.1
 
 ### Fixed
 
-- Do not encode zero-sized response bodies
+- Prevent hang when returning zero-sized response bodies through compression layer.
+
+## 3.5.0
+
+### Added
+
+- Implement `From<HeaderMap>` for `http::HeaderMap`.
+
+### Changed
+
+- Updated `zstd` dependency to `0.13`.
+
+### Fixed
+
+- Prevent compression of zero-sized response bodies.
 
 ## 3.4.0
 
