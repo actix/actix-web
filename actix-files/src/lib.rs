@@ -569,6 +569,27 @@ mod tests {
     }
 
     #[actix_rt::test]
+    async fn test_static_files_with_newlines() {
+        // Create the file we want to test against ad-hoc. We can't check it in as otherwise
+        // Windows can't even checkout this repository.
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_with_newlines = temp_dir.path().join("test\nnewline.text");
+        fs::write(&file_with_newlines, "Look at my newlines").unwrap();
+
+        let srv = test::init_service(
+            App::new().service(Files::new("/", temp_dir.path()).index_file("Cargo.toml")),
+        )
+        .await;
+        let request = TestRequest::get().uri("/test%0Anewline.text").to_request();
+        let response = test::call_service(&srv, request).await;
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let bytes = test::read_body(response).await;
+        let data = web::Bytes::from(fs::read(file_with_newlines).unwrap());
+        assert_eq!(bytes, data);
+    }
+
+    #[actix_rt::test]
     async fn test_files_not_allowed() {
         let srv = test::init_service(App::new().service(Files::new("/", "."))).await;
 
@@ -840,9 +861,9 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_percent_encoding_2() {
-        let tmpdir = tempfile::tempdir().unwrap();
+        let temp_dir = tempfile::tempdir().unwrap();
         let filename = match cfg!(unix) {
-            true => "ض:?#[]{}<>()@!$&'`|*+,;= %20.test",
+            true => "ض:?#[]{}<>()@!$&'`|*+,;= %20\n.test",
             false => "ض#[]{}()@!$&'`+,;= %20.test",
         };
         let filename_encoded = filename
@@ -852,9 +873,9 @@ mod tests {
                 write!(&mut buf, "%{:02X}", c).unwrap();
                 buf
             });
-        std::fs::File::create(tmpdir.path().join(filename)).unwrap();
+        std::fs::File::create(temp_dir.path().join(filename)).unwrap();
 
-        let srv = test::init_service(App::new().service(Files::new("", tmpdir.path()))).await;
+        let srv = test::init_service(App::new().service(Files::new("/", temp_dir.path()))).await;
 
         let req = TestRequest::get()
             .uri(&format!("/{}", filename_encoded))

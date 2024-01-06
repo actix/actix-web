@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+## 0.6.4
+
+- Fix handling of newlines in filenames.
 - Minimum supported Rust version (MSRV) is now 1.68 due to transitive `time` dependency.
 
 ## 0.6.3
