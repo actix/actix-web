@@ -121,6 +121,8 @@ pub use crate::{
     server::HttpServer,
     types::Either,
 };
+pub use crate::app_service::AppEntry;
+
 
 macro_rules! codegen_reexport {
     ($name:ident) => {
