@@ -580,7 +580,9 @@ mod tests {
             App::new().service(Files::new("/", temp_dir.path()).index_file("Cargo.toml")),
         )
         .await;
-        let request = TestRequest::get().uri("/test%0A%0B%0C%0Dnewline.text").to_request();
+        let request = TestRequest::get()
+            .uri("/test%0A%0B%0C%0Dnewline.text")
+            .to_request();
         let response = test::call_service(&srv, request).await;
         assert_eq!(response.status(), StatusCode::OK);
 
