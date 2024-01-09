@@ -16,7 +16,10 @@ pub struct RequestHead {
     pub uri: Uri,
     pub version: Version,
     pub headers: HeaderMap,
+
+    /// Will only be None when called in unit tests unless [`TestRequest::peer_addr`] is used.
     pub peer_addr: Option<net::SocketAddr>,
+
     flags: Flags,
 }
 
