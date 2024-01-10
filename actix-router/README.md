@@ -1,5 +1,7 @@
 # `actix-router`
 
+<!-- prettier-ignore-start -->
+
 [![crates.io](https://img.shields.io/crates/v/actix-router?label=latest)](https://crates.io/crates/actix-router)
 [![Documentation](https://docs.rs/actix-router/badge.svg?version=0.5.2)](https://docs.rs/actix-router/0.5.2)
 ![Version](https://img.shields.io/badge/rustc-1.68+-ab6000.svg)
@@ -8,6 +10,8 @@
 [![dependency status](https://deps.rs/crate/actix-router/0.5.2/status.svg)](https://deps.rs/crate/actix-router/0.5.2)
 [![Download](https://img.shields.io/crates/d/actix-router.svg)](https://crates.io/crates/actix-router)
 [![Chat on Discord](https://img.shields.io/discord/771444961383153695?label=chat&logo=discord)](https://discord.gg/NWpN5mmg3x)
+
+<!-- prettier-ignore-end -->
 
 <!-- cargo-rdme start -->
 
