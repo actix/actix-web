@@ -139,12 +139,12 @@ impl NamedFile {
                 _ => DispositionType::Attachment,
             };
 
-            // Replace newlines and other line breaks in filenames which could occur on some filesystems.
+            // replace special characters in filenames which could occur on some filesystems
             let filename_s = filename
-                .replace('\n', "%0A")
+                .replace('\n', "%0A") // \n line break
                 .replace('\x0B', "%0B") // \v vertical tab
                 .replace('\x0C', "%0C") // \f form feed
-                .replace('\r', "%0D");
+                .replace('\r', "%0D"); // \r carriage return
             let mut parameters = vec![DispositionParam::Filename(filename_s)];
 
             if !filename.is_ascii() {

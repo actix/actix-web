@@ -569,7 +569,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_static_files_with_newlines() {
+    async fn test_static_files_with_special_characters() {
         // Create the file we want to test against ad-hoc. We can't check it in as otherwise
         // Windows can't even checkout this repository.
         let temp_dir = tempfile::tempdir().unwrap();
