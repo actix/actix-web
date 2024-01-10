@@ -1,7 +1,5 @@
 # `actix-files`
 
-> Static file serving for Actix Web
-
 <!-- prettier-ignore-start -->
 
 [![crates.io](https://img.shields.io/crates/v/actix-files?label=latest)](https://crates.io/crates/actix-files)
@@ -15,8 +13,20 @@
 
 <!-- prettier-ignore-end -->
 
-## Documentation & Resources
+<!-- cargo-rdme start -->
 
-- [API Documentation](https://docs.rs/actix-files)
-- [Example Project](https://github.com/actix/examples/tree/master/basics/static-files)
-- Minimum Supported Rust Version (MSRV): 1.68
+Static file serving for Actix Web.
+
+Provides a non-blocking service for serving static files from disk.
+
+## Examples
+
+```rust
+use actix_web::App;
+use actix_files::Files;
+
+let app = App::new()
+    .service(Files::new("/static", ".").prefer_utf8(true));
+```
+
+<!-- cargo-rdme end -->
