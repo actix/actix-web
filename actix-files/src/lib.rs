@@ -569,18 +569,20 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_static_files_with_newlines() {
+    async fn test_static_files_with_special_characters() {
         // Create the file we want to test against ad-hoc. We can't check it in as otherwise
         // Windows can't even checkout this repository.
         let temp_dir = tempfile::tempdir().unwrap();
-        let file_with_newlines = temp_dir.path().join("test\nnewline.text");
+        let file_with_newlines = temp_dir.path().join("test\n\x0B\x0C\rnewline.text");
         fs::write(&file_with_newlines, "Look at my newlines").unwrap();
 
         let srv = test::init_service(
             App::new().service(Files::new("/", temp_dir.path()).index_file("Cargo.toml")),
         )
         .await;
-        let request = TestRequest::get().uri("/test%0Anewline.text").to_request();
+        let request = TestRequest::get()
+            .uri("/test%0A%0B%0C%0Dnewline.text")
+            .to_request();
         let response = test::call_service(&srv, request).await;
         assert_eq!(response.status(), StatusCode::OK);
 
