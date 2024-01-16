@@ -20,7 +20,7 @@ use crate::http::header::Accept;
 pub struct Acceptable {
     mime: mime::Mime,
 
-    /// Wether to match `*/*` mime type.
+    /// Whether to match `*/*` mime type.
     ///
     /// Defaults to false because it's not very useful otherwise.
     match_star_star: bool,
