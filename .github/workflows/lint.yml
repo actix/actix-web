@@ -17,12 +17,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions-rust-lang/setup-rust-toolchain@v1.6.0
+      - name: Install Rust (nightly)
+        uses: actions-rust-lang/setup-rust-toolchain@v1.6.0
         with:
           toolchain: nightly
           components: rustfmt
 
-      - name: Check with rustfmt
+      - name: Check with Rustfmt
         run: cargo fmt --all -- --check
 
   clippy:
@@ -53,7 +54,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions-rust-lang/setup-rust-toolchain@v1.6.0
+      - name: Install Rust (nightly)
+        uses: actions-rust-lang/setup-rust-toolchain@v1.6.0
         with:
           toolchain: nightly
           components: rust-docs
@@ -72,15 +74,17 @@ jobs:
 
       - uses: actions/checkout@v4
 
-      - uses: actions-rust-lang/setup-rust-toolchain@v1.6.0
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1.6.0
         with:
           toolchain: nightly-2023-08-25
 
-      - uses: taiki-e/install-action@v2.24.1
+      - name: Install cargo-public-api
+        uses: taiki-e/install-action@v2.24.1
         with:
           tool: cargo-public-api
 
-      - name: generate API diff
+      - name: Generate API diff
         run: |
           for f in $(find -mindepth 2 -maxdepth 2 -name Cargo.toml); do
             cargo public-api --manifest-path "$f" diff ${{ github.event.pull_request.base.sha }}..${{ github.sha }}
