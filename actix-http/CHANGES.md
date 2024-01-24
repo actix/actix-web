@@ -2,8 +2,6 @@
 
 ## Unreleased
 
-- Updated `h2` dependency to `0.3.24`.
-
 ## 3.5.1
 
 ### Fixed
