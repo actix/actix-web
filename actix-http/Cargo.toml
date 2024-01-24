@@ -113,6 +113,7 @@ actix-web = "4"
 
 async-stream = "0.3"
 criterion = { version = "0.5", features = ["html_reports"] }
+divan = "0.1.8"
 env_logger = "0.10"
 futures-util = { version = "0.3.17", default-features = false, features = ["alloc"] }
 memchr = "2.4"
@@ -140,3 +141,7 @@ required-features = ["http2", "rustls-0_21"]
 name = "response-body-compression"
 harness = false
 required-features = ["compress-brotli", "compress-gzip", "compress-zstd"]
+
+[[bench]]
+name = "date-formatting"
+harness = false

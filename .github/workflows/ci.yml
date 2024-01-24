@@ -57,6 +57,8 @@ jobs:
       - name: workaround MSRV issues
         if: matrix.version.name == 'msrv'
         run: |
+          cargo update -p=ciborium --precise=0.2.1
+          cargo update -p=ciborium-ll --precise=0.2.1
           cargo update -p=clap --precise=4.3.24
           cargo update -p=clap_lex --precise=0.5.0
           cargo update -p=anstyle --precise=1.0.2
