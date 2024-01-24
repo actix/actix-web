@@ -32,6 +32,6 @@ actix-test = "0.1"
 awc = { version = "3", default-features = false }
 actix-web = { version = "4", features = ["macros"] }
 
-env_logger = "0.10"
+env_logger = "0.11"
 futures-util = { version = "0.3.17", default-features = false, features = ["std"] }
 mime = "0.3"
