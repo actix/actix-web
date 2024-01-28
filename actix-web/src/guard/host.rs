@@ -2,7 +2,7 @@ use actix_http::{header, uri::Uri, RequestHead};
 
 use super::{Guard, GuardContext};
 
-/// Creates a guard that matches requests targetting a specific host.
+/// Creates a guard that matches requests targeting a specific host.
 ///
 /// # Matching Host
 /// This guard will:

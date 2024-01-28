@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.6.5
+
+- Fix handling of special characters in filenames.
+
 ## 0.6.4
 
 - Fix handling of newlines in filenames.
