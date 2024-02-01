@@ -71,7 +71,9 @@ jobs:
 
       - name: tests
         timeout-minutes: 60
+        shell: bash
         run: |
+          set -e
           cargo test --lib --tests -p=actix-router --all-features
           cargo test --lib --tests -p=actix-http --all-features
           cargo test --lib --tests -p=actix-web --features=rustls-0_20,rustls-0_21,openssl -- --skip=test_reading_deflate_encoding_large_random_rustls
