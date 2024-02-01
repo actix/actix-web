@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-### Changed
+### Added
 
 - Implement `From<&HeaderMap>` for `http::HeaderMap`.
 
