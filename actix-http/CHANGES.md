@@ -4,7 +4,7 @@
 
 ### Changed
 
-- Implement `From<&HeaderMap>` for `http::HeaderMap` and vice versa.
+- Implement `From<&HeaderMap>` for `http::HeaderMap`.
 
 ## 3.5.1
 

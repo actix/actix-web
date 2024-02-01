@@ -643,15 +643,6 @@ impl From<http::HeaderMap> for HeaderMap {
     }
 }
 
-impl<T> From<&T> for HeaderMap
-where
-    T: Into<http::HeaderMap>,
-{
-    fn from(map: &T) -> Self {
-        map.to_owned().into()
-    }
-}
-
 /// Convert our `HeaderMap` to a `http::HeaderMap`.
 impl From<HeaderMap> for http::HeaderMap {
     fn from(map: HeaderMap) -> Self {
