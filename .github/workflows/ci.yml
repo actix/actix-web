@@ -37,7 +37,7 @@ jobs:
 
       - name: Install OpenSSL
         if: matrix.target.os == 'windows-latest'
-        run: choco install openssl -y --forcex64 --no-progress
+        run: choco install openssl -y --forcex64 --no-progress --version=3.2.1
       - name: Set OpenSSL dir in env
         if: matrix.target.os == 'windows-latest'
         run: |
