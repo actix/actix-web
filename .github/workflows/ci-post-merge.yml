@@ -45,7 +45,7 @@ jobs:
           toolchain: ${{ matrix.version.version }}
 
       - name: Install cargo-hack
-        uses: taiki-e/install-action@v2.25.9
+        uses: taiki-e/install-action@v2.26.8
         with:
           tool: cargo-hack
 
@@ -69,10 +69,13 @@ jobs:
           cargo test --lib --tests -p=actix-multipart --all-features
           cargo test --lib --tests -p=actix-web-actors --all-features
 
-      - name: Clear the cargo caches
-        run: |
-          cargo --locked install cargo-cache --version 0.8.3 --no-default-features --features ci-autoclean
-          cargo-cache
+      - name: Install cargo-ci-cache-clean
+        uses: taiki-e/install-action@v2.26.8
+        with:
+          tool: cargo-ci-cache-clean
+
+      - name: CI cache clean
+        run: cargo-ci-cache-clean
 
   ci_feature_powerset_check:
     name: Verify Feature Combinations
@@ -85,7 +88,7 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1.8.0
 
       - name: Install cargo-hack
-        uses: taiki-e/install-action@v2.25.9
+        uses: taiki-e/install-action@v2.26.8
         with:
           tool: cargo-hack
 
@@ -106,7 +109,7 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1.8.0
 
       - name: Install nextest
-        uses: taiki-e/install-action@v2.25.9
+        uses: taiki-e/install-action@v2.26.8
         with:
           tool: nextest
 
