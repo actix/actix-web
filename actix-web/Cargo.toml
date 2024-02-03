@@ -20,9 +20,20 @@ edition.workspace = true
 rust-version.workspace = true
 
 [package.metadata.docs.rs]
-# features that docs.rs will build with
-features = ["macros", "openssl", "rustls-0_20", "rustls-0_21", "compress-brotli", "compress-gzip", "compress-zstd", "cookies", "secure-cookies"]
 rustdoc-args = ["--cfg", "docsrs"]
+features = [
+    "macros",
+    "openssl",
+    "rustls-0_20",
+    "rustls-0_21",
+    "rustls-0_22",
+    "compress-brotli",
+    "compress-gzip",
+    "compress-zstd",
+    "cookies",
+    "secure-cookies",
+]
+
 
 [lib]
 name = "actix_web"
@@ -58,6 +69,8 @@ rustls = ["rustls-0_20"]
 rustls-0_20 = ["http2", "actix-http/rustls-0_20", "actix-tls/accept", "actix-tls/rustls-0_20"]
 # TLS via Rustls v0.21
 rustls-0_21 = ["http2", "actix-http/rustls-0_21", "actix-tls/accept", "actix-tls/rustls-0_21"]
+# TLS via Rustls v0.22
+rustls-0_22 = ["http2", "actix-http/rustls-0_22", "actix-tls/accept", "actix-tls/rustls-0_22"]
 
 # Internal (PRIVATE!) features used to aid testing and checking feature status.
 # Don't rely on these whatsoever. They may disappear at anytime.
@@ -73,7 +86,7 @@ actix-rt = { version = "2.6", default-features = false }
 actix-server = "2"
 actix-service = "2"
 actix-utils = "3"
-actix-tls = { version = "3.1", default-features = false, optional = true }
+actix-tls = { version = "3.3", default-features = false, optional = true }
 
 actix-http = { version = "3.5", features = ["ws"] }
 actix-router = "0.5"

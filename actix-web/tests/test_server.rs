@@ -743,7 +743,7 @@ mod plus_rustls {
             .map(char::from)
             .collect::<String>();
 
-        let srv = actix_test::start_with(actix_test::config().rustls_021(tls_config()), || {
+        let srv = actix_test::start_with(actix_test::config().rustls_0_21(tls_config()), || {
             App::new().service(web::resource("/").route(web::to(|bytes: Bytes| async {
                 // echo decompressed request body back in response
                 HttpResponse::Ok()
