@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 4.5.0
+
 - Add `rustls-0_22` crate feature.
 - Add `HttpServer::{bind_rustls_0_22, listen_rustls_0_22}()` builder methods.
 
