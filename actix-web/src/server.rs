@@ -7,7 +7,12 @@ use std::{
     time::Duration,
 };
 
-#[cfg(any(feature = "openssl", feature = "rustls-0_20", feature = "rustls-0_21"))]
+#[cfg(any(
+    feature = "openssl",
+    feature = "rustls-0_20",
+    feature = "rustls-0_21",
+    feature = "rustls-0_22",
+))]
 use actix_http::TlsAcceptorConfig;
 use actix_http::{body::MessageBody, Extensions, HttpService, KeepAlive, Request, Response};
 use actix_server::{Server, ServerBuilder};

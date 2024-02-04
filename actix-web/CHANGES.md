@@ -2,7 +2,15 @@
 
 ## Unreleased
 
+## 4.5.1
+
+### Fixed
+
+- Fix missing import when using enabling Rustls v0.22 support.
+
 ## 4.5.0
+
+### Added
 
 - Add `rustls-0_22` crate feature.
 - Add `HttpServer::{bind_rustls_0_22, listen_rustls_0_22}()` builder methods.
