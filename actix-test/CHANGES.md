@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.3
+
 - Add `TestServerConfig::rustls_0_22()` method for Rustls v0.22 support behind new `rustls-0_22` crate feature.
 
 ## 0.1.2
