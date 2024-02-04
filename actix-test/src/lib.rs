@@ -173,6 +173,7 @@ where
 
                         HttpService::build()
                             .client_request_timeout(timeout)
+                            .proxy_protocol(srv_cfg.proxy_protocol)
                             .h1(map_config(fac, move |_| app_cfg.clone()))
                             .tcp()
                     }),
@@ -461,6 +462,7 @@ pub struct TestServerConfig {
     client_request_timeout: Duration,
     port: u16,
     workers: usize,
+    proxy_protocol: bool,
 }
 
 impl Default for TestServerConfig {
@@ -478,6 +480,7 @@ impl TestServerConfig {
             client_request_timeout: Duration::from_secs(5),
             port: 0,
             workers: 1,
+            proxy_protocol: false,
         }
     }
 
@@ -556,6 +559,14 @@ impl TestServerConfig {
     /// By default, the server uses 1 worker
     pub fn workers(mut self, workers: usize) -> Self {
         self.workers = workers;
+        self
+    }
+
+    /// Enable proxy protocol support.
+    ///
+    /// By default, the server does not use proxy protocol.
+    pub fn proxy_protocol(mut self) -> Self {
+        self.proxy_protocol = true;
         self
     }
 }

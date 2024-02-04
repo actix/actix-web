@@ -23,6 +23,7 @@ pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler> {
     upgrade: Option<U>,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     _phantom: PhantomData<S>,
+    proxy_protocol: bool,
 }
 
 impl<T, S> Default for HttpServiceBuilder<T, S, ExpectHandler, UpgradeHandler>
@@ -46,6 +47,8 @@ where
             upgrade: None,
             on_connect_ext: None,
             _phantom: PhantomData,
+
+            proxy_protocol: false,
         }
     }
 }
@@ -124,6 +127,12 @@ where
         self.client_disconnect_timeout(dur)
     }
 
+    /// Enable `PROXY` protocol support.
+    pub fn proxy_protocol(mut self, enabled: bool) -> Self {
+        self.proxy_protocol = enabled;
+        self
+    }
+
     /// Provide service for `EXPECT: 100-Continue` support.
     ///
     /// Service get called with request that contains `EXPECT` header.
@@ -146,6 +155,7 @@ where
             upgrade: self.upgrade,
             on_connect_ext: self.on_connect_ext,
             _phantom: PhantomData,
+            proxy_protocol: self.proxy_protocol,
         }
     }
 
@@ -170,6 +180,7 @@ where
             upgrade: Some(upgrade.into_factory()),
             on_connect_ext: self.on_connect_ext,
             _phantom: PhantomData,
+            proxy_protocol: self.proxy_protocol,
         }
     }
 
@@ -201,6 +212,7 @@ where
             self.client_disconnect_timeout,
             self.secure,
             self.local_addr,
+            self.proxy_protocol,
         );
 
         H1Service::with_config(cfg, service.into_factory())
@@ -226,6 +238,7 @@ where
             self.client_disconnect_timeout,
             self.secure,
             self.local_addr,
+            self.proxy_protocol,
         );
 
         crate::h2::H2Service::with_config(cfg, service.into_factory())
@@ -248,6 +261,7 @@ where
             self.client_disconnect_timeout,
             self.secure,
             self.local_addr,
+            self.proxy_protocol,
         );
 
         HttpService::with_config(cfg, service.into_factory())

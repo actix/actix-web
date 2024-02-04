@@ -84,6 +84,7 @@ async fn late_request() {
         Duration::ZERO,
         false,
         None,
+        false,
     );
     let services = HttpFlow::new(ok_service(), ExpectHandler, None);
 
@@ -151,6 +152,7 @@ async fn oneshot_connection() {
         Duration::ZERO,
         false,
         None,
+        false,
     );
     let services = HttpFlow::new(echo_path_service(), ExpectHandler, None);
 
@@ -212,6 +214,7 @@ async fn keep_alive_timeout() {
         Duration::ZERO,
         false,
         None,
+        false,
     );
     let services = HttpFlow::new(echo_path_service(), ExpectHandler, None);
 
@@ -291,6 +294,7 @@ async fn keep_alive_follow_up_req() {
         Duration::ZERO,
         false,
         None,
+        false,
     );
     let services = HttpFlow::new(echo_path_service(), ExpectHandler, None);
 
@@ -455,6 +459,7 @@ async fn pipelining_ok_then_ok() {
             Duration::from_millis(1),
             false,
             None,
+            false,
         );
 
         let services = HttpFlow::new(echo_path_service(), ExpectHandler, None);
@@ -525,6 +530,7 @@ async fn pipelining_ok_then_bad() {
             Duration::from_millis(1),
             false,
             None,
+            false,
         );
 
         let services = HttpFlow::new(echo_path_service(), ExpectHandler, None);
@@ -588,6 +594,7 @@ async fn expect_handling() {
             Duration::ZERO,
             false,
             None,
+            false,
         );
 
         let services = HttpFlow::new(echo_payload_service(), ExpectHandler, None);
@@ -665,6 +672,7 @@ async fn expect_eager() {
             Duration::ZERO,
             false,
             None,
+            false,
         );
 
         let services = HttpFlow::new(echo_path_service(), ExpectHandler, None);
@@ -748,6 +756,7 @@ async fn upgrade_handling() {
             Duration::ZERO,
             false,
             None,
+            false,
         );
 
         let services = HttpFlow::new(ok_service(), ExpectHandler, Some(TestUpgrade));

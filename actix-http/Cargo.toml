@@ -66,6 +66,9 @@ rustls-0_21 = ["actix-tls/accept", "actix-tls/rustls-0_21"]
 # TLS via Rustls v0.22
 rustls-0_22 = ["actix-tls/accept", "actix-tls/rustls-0_22"]
 
+# Proxy protocol support
+proxy-protocol = ["ppp"]
+
 # Compression codecs
 compress-brotli = ["__compress", "brotli"]
 compress-gzip   = ["__compress", "flate2"]
@@ -111,12 +114,15 @@ rand = { version = "0.8", optional = true }
 sha1 = { version = "0.10", optional = true }
 
 # openssl/rustls
-actix-tls = { version = "3.3", default-features = false, optional = true }
+actix-tls = { version = "3.1", default-features = false, optional = true }
 
 # compress-*
 brotli = { version = "3.3.3", optional = true }
 flate2 = { version = "1.0.13", optional = true }
 zstd = { version = "0.13", optional = true }
+
+# Proxy protocol support
+ppp = { version = "0.2", optional = true }
 
 [dev-dependencies]
 actix-http-test = { version = "3", features = ["openssl"] }

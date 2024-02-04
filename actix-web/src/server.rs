@@ -36,6 +36,7 @@ struct Config {
     client_disconnect_timeout: Duration,
     #[allow(dead_code)] // only dead when no TLS features are enabled
     tls_handshake_timeout: Option<Duration>,
+    proxy_protocol: bool,
 }
 
 /// An HTTP Server.
@@ -119,6 +120,7 @@ where
                 client_request_timeout: Duration::from_secs(5),
                 client_disconnect_timeout: Duration::from_secs(1),
                 tls_handshake_timeout: None,
+                proxy_protocol: false,
             })),
             backlog: 1024,
             sockets: Vec::new(),
@@ -152,6 +154,21 @@ where
     /// By default keep-alive is set to 5 seconds.
     pub fn keep_alive<T: Into<KeepAlive>>(self, val: T) -> Self {
         self.config.lock().unwrap().keep_alive = val.into();
+        self
+    }
+
+    /// Sets if the server should use the PROXY protocol.
+    pub fn proxy_protocol(self, enabled: bool) -> Self {
+        #[cfg(not(feature = "proxy-protocol"))]
+        {
+            if enabled {
+                panic!(
+                    "Proxy protocol support is not enabled. Enable the `proxy-protocol` feature."
+                )
+            }
+        }
+
+        self.config.lock().unwrap().proxy_protocol = enabled;
         self
     }
 
@@ -513,6 +530,7 @@ where
                         .keep_alive(cfg.keep_alive)
                         .client_request_timeout(cfg.client_request_timeout)
                         .client_disconnect_timeout(cfg.client_disconnect_timeout)
+                        .proxy_protocol(cfg.proxy_protocol)
                         .local_addr(addr);
 
                     if let Some(handler) = on_connect_fn.clone() {

@@ -72,6 +72,9 @@ rustls-0_21 = ["http2", "actix-http/rustls-0_21", "actix-tls/accept", "actix-tls
 # TLS via Rustls v0.22
 rustls-0_22 = ["http2", "actix-http/rustls-0_22", "actix-tls/accept", "actix-tls/rustls-0_22"]
 
+# Proxy protocol support
+proxy-protocol = ["actix-http/proxy-protocol"]
+
 # Internal (PRIVATE!) features used to aid testing and checking feature status.
 # Don't rely on these whatsoever. They may disappear at anytime.
 __compress = []
@@ -144,6 +147,10 @@ required-features = ["compress-brotli", "compress-gzip", "compress-zstd", "cooki
 [[test]]
 name = "compression"
 required-features = ["compress-brotli", "compress-gzip", "compress-zstd"]
+
+[[test]]
+name = "proxy_protocol"
+required-features = ["proxy-protocol"]
 
 [[example]]
 name = "basic"

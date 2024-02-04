@@ -10,6 +10,8 @@ use super::{
     encoder, Message, MessageType,
 };
 use crate::{body::BodySize, error::ParseError, ConnectionType, Request, Response, ServiceConfig};
+#[cfg(feature = "proxy-protocol")]
+use crate::{http_message::HttpMessage, proxy_protocol::ProxyProtocol};
 
 bitflags! {
     #[derive(Debug, Clone, Copy)]
@@ -110,6 +112,7 @@ impl Decoder for Codec {
     type Error = ParseError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
+        #[allow(clippy::collapsible_else_if)]
         if let Some(ref mut payload) = self.payload {
             Ok(match payload.decode(src)? {
                 Some(PayloadItem::Chunk(chunk)) => Some(Message::Chunk(Some(chunk))),
@@ -119,29 +122,49 @@ impl Decoder for Codec {
                 }
                 None => None,
             })
-        } else if let Some((req, payload)) = self.decoder.decode(src)? {
-            let head = req.head();
-            self.flags.set(Flags::HEAD, head.method == Method::HEAD);
-            self.version = head.version;
-            self.conn_type = head.connection_type();
-
-            if self.conn_type == ConnectionType::KeepAlive
-                && !self.flags.contains(Flags::KEEP_ALIVE_ENABLED)
-            {
-                self.conn_type = ConnectionType::Close
-            }
-
-            match payload {
-                PayloadType::None => self.payload = None,
-                PayloadType::Payload(pl) => self.payload = Some(pl),
-                PayloadType::Stream(pl) => {
-                    self.payload = Some(pl);
-                    self.flags.insert(Flags::STREAM);
-                }
-            }
-            Ok(Some(Message::Item(req)))
         } else {
-            Ok(None)
+            #[cfg(feature = "proxy-protocol")]
+            let proxy_protocol = if self.config.proxy_protocol() {
+                let p = ProxyProtocol::decode(src)?;
+                if p.is_none() {
+                    return Ok(None);
+                }
+                p
+            } else {
+                None
+            };
+
+            if let Some((req, payload)) = self.decoder.decode(src)? {
+                let head = req.head();
+                self.flags.set(Flags::HEAD, head.method == Method::HEAD);
+                self.version = head.version;
+                self.conn_type = head.connection_type();
+
+                if self.conn_type == ConnectionType::KeepAlive
+                    && !self.flags.contains(Flags::KEEP_ALIVE_ENABLED)
+                {
+                    self.conn_type = ConnectionType::Close
+                }
+
+                #[cfg(feature = "proxy-protocol")]
+                // set proxy protocol
+                if let Some(proxy_protocol) = proxy_protocol {
+                    let mut extensions = req.extensions_mut();
+                    extensions.insert(proxy_protocol);
+                }
+
+                match payload {
+                    PayloadType::None => self.payload = None,
+                    PayloadType::Payload(pl) => self.payload = Some(pl),
+                    PayloadType::Stream(pl) => {
+                        self.payload = Some(pl);
+                        self.flags.insert(Flags::STREAM);
+                    }
+                }
+                Ok(Some(Message::Item(req)))
+            } else {
+                Ok(None)
+            }
         }
     }
 }
