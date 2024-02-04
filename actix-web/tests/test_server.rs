@@ -704,7 +704,7 @@ async fn test_brotli_encoding_large_openssl() {
     srv.stop().await;
 }
 
-#[cfg(feature = "rustls-0_21")]
+#[cfg(feature = "rustls-0_22")]
 mod plus_rustls {
     use std::io::BufReader;
 
