@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 3.4.0
+
 - Add `rustls-0_22-webpki-roots` and `rustls-0_22-native-roots` crate feature.
 - Add `awc::Connector::rustls_0_22()` method.
 
