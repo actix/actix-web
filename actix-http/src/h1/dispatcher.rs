@@ -512,8 +512,10 @@ where
                             }
 
                             Poll::Ready(Some(Err(err))) => {
+                                let err = err.into();
+                                tracing::error!("Response payload stream error: {err:?}");
                                 this.flags.insert(Flags::FINISHED);
-                                return Err(DispatchError::Body(err.into()));
+                                return Err(DispatchError::Body(err));
                             }
 
                             Poll::Pending => return Ok(PollResponse::DoNothing),
@@ -549,6 +551,7 @@ where
                             }
 
                             Poll::Ready(Some(Err(err))) => {
+                                tracing::error!("Response payload stream error: {err:?}");
                                 this.flags.insert(Flags::FINISHED);
                                 return Err(DispatchError::Body(
                                     Error::new_body().with_cause(err).into(),

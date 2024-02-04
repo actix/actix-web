@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 3.6.0
+
+### Added
+
+- Add `rustls-0_22` crate feature.
+- Add `{h1::H1Service, h2::H2Service, HttpService}::rustls_0_22()` and `HttpService::rustls_0_22_with_config()` service constructors.
+- Implement `From<&HeaderMap>` for `http::HeaderMap`.
+
 ## 3.5.1
 
 ### Fixed

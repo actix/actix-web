@@ -112,7 +112,6 @@ echo
 read -p "Update all references: (y/N) " UPDATE_REFERENCES
 UPDATE_REFERENCES="${UPDATE_REFERENCES:-n}"
 
-
 if [ "$UPDATE_REFERENCES" = 'y' ] || [ "$UPDATE_REFERENCES" = 'Y' ]; then
     if [[ $NEW_VERSION == *".0.0" ]]; then
         NEW_VERSION_SPEC="${NEW_VERSION%.0.0}"
