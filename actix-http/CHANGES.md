@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 3.6.0
+
 ### Added
 
 - Add `rustls-0_22` crate feature.

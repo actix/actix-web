@@ -35,7 +35,7 @@ openssl = ["tls-openssl", "actix-http/openssl", "awc/openssl"]
 
 [dependencies]
 actix-codec = "0.5"
-actix-http = "3"
+actix-http = "3.6"
 actix-http-test = "3"
 actix-rt = "2.1"
 actix-service = "2"
