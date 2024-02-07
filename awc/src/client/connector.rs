@@ -40,14 +40,23 @@ enum OurTlsConnector {
     /// Provided because building the OpenSSL context on newer versions can be very slow.
     /// This prevents unnecessary calls to `.build()` while constructing the client connector.
     #[cfg(feature = "openssl")]
-    #[allow(dead_code)] // false positive; used in build_ssl
+    #[allow(dead_code)] // false positive; used in build_tls
     OpensslBuilder(actix_tls::connect::openssl::reexports::SslConnectorBuilder),
 
     #[cfg(feature = "rustls-0_20")]
+    #[allow(dead_code)] // false positive; used in build_tls
     Rustls020(std::sync::Arc<actix_tls::connect::rustls_0_20::reexports::ClientConfig>),
 
     #[cfg(feature = "rustls-0_21")]
+    #[allow(dead_code)] // false positive; used in build_tls
     Rustls021(std::sync::Arc<actix_tls::connect::rustls_0_21::reexports::ClientConfig>),
+
+    #[cfg(any(
+        feature = "rustls-0_22-webpki-roots",
+        feature = "rustls-0_22-native-roots",
+    ))]
+    #[allow(dead_code)] // false positive; used in build_tls
+    Rustls022(std::sync::Arc<actix_tls::connect::rustls_0_22::reexports::ClientConfig>),
 }
 
 /// Manages HTTP client network connectivity.
@@ -86,67 +95,83 @@ impl Connector<()> {
         }
     }
 
-    /// Provides an empty TLS connector when no TLS feature is enabled.
-    #[cfg(not(any(feature = "openssl", feature = "rustls-0_20", feature = "rustls-0_21")))]
-    fn build_tls(_: Vec<Vec<u8>>) -> OurTlsConnector {
-        OurTlsConnector::None
-    }
+    cfg_if::cfg_if! {
+        if #[cfg(any(feature = "rustls-0_22-webpki-roots", feature = "rustls-0_22-webpki-roots"))] {
+            /// Build TLS connector with Rustls v0.22, based on supplied ALPN protocols.
+            ///
+            /// Note that if other TLS crate features are enabled, Rustls v0.22 will be used.
+            fn build_tls(protocols: Vec<Vec<u8>>) -> OurTlsConnector {
+                use actix_tls::connect::rustls_0_22::{self, reexports::ClientConfig};
 
-    /// Build TLS connector with Rustls v0.21, based on supplied ALPN protocols
-    ///
-    /// Note that if other TLS crate features are enabled, Rustls v0.21 will be used.
-    #[cfg(feature = "rustls-0_21")]
-    fn build_tls(protocols: Vec<Vec<u8>>) -> OurTlsConnector {
-        use actix_tls::connect::rustls_0_21::{reexports::ClientConfig, webpki_roots_cert_store};
+                cfg_if::cfg_if! {
+                    if #[cfg(feature = "rustls-0_22-webpki-roots")] {
+                        let certs = rustls_0_22::webpki_roots_cert_store();
+                    } else if #[cfg(feature = "rustls-0_22-native-roots")] {
+                        let certs = rustls_0_22::native_roots_cert_store();
+                    }
+                }
 
-        let mut config = ClientConfig::builder()
-            .with_safe_defaults()
-            .with_root_certificates(webpki_roots_cert_store())
-            .with_no_client_auth();
+                let mut config = ClientConfig::builder()
+                    .with_root_certificates(certs)
+                    .with_no_client_auth();
 
-        config.alpn_protocols = protocols;
+                config.alpn_protocols = protocols;
 
-        OurTlsConnector::Rustls021(std::sync::Arc::new(config))
-    }
+                OurTlsConnector::Rustls022(std::sync::Arc::new(config))
+            }
+        } else if #[cfg(feature = "rustls-0_21")] {
+            /// Build TLS connector with Rustls v0.21, based on supplied ALPN protocols.
+            fn build_tls(protocols: Vec<Vec<u8>>) -> OurTlsConnector {
+                use actix_tls::connect::rustls_0_21::{reexports::ClientConfig, webpki_roots_cert_store};
 
-    /// Build TLS connector with Rustls v0.20, based on supplied ALPN protocols
-    ///
-    /// Note that if other TLS crate features are enabled, Rustls v0.21 will be used.
-    #[cfg(all(feature = "rustls-0_20", not(feature = "rustls-0_21")))]
-    fn build_tls(protocols: Vec<Vec<u8>>) -> OurTlsConnector {
-        use actix_tls::connect::rustls_0_20::{reexports::ClientConfig, webpki_roots_cert_store};
+                let mut config = ClientConfig::builder()
+                    .with_safe_defaults()
+                    .with_root_certificates(webpki_roots_cert_store())
+                    .with_no_client_auth();
 
-        let mut config = ClientConfig::builder()
-            .with_safe_defaults()
-            .with_root_certificates(webpki_roots_cert_store())
-            .with_no_client_auth();
+                config.alpn_protocols = protocols;
 
-        config.alpn_protocols = protocols;
+                OurTlsConnector::Rustls021(std::sync::Arc::new(config))
+            }
+        } else if #[cfg(feature = "rustls-0_20")] {
+            /// Build TLS connector with Rustls v0.20, based on supplied ALPN protocols.
+            fn build_tls(protocols: Vec<Vec<u8>>) -> OurTlsConnector {
+                use actix_tls::connect::rustls_0_20::{reexports::ClientConfig, webpki_roots_cert_store};
 
-        OurTlsConnector::Rustls020(std::sync::Arc::new(config))
-    }
+                let mut config = ClientConfig::builder()
+                    .with_safe_defaults()
+                    .with_root_certificates(webpki_roots_cert_store())
+                    .with_no_client_auth();
 
-    /// Build TLS connector with OpenSSL, based on supplied ALPN protocols
-    #[cfg(all(
-        feature = "openssl",
-        not(any(feature = "rustls-0_20", feature = "rustls-0_21")),
-    ))]
-    fn build_tls(protocols: Vec<Vec<u8>>) -> OurTlsConnector {
-        use actix_tls::connect::openssl::reexports::{SslConnector, SslMethod};
-        use bytes::{BufMut, BytesMut};
+                config.alpn_protocols = protocols;
 
-        let mut alpn = BytesMut::with_capacity(20);
-        for proto in &protocols {
-            alpn.put_u8(proto.len() as u8);
-            alpn.put(proto.as_slice());
+                OurTlsConnector::Rustls020(std::sync::Arc::new(config))
+            }
+        } else if #[cfg(feature = "openssl")] {
+            /// Build TLS connector with OpenSSL, based on supplied ALPN protocols.
+            fn build_tls(protocols: Vec<Vec<u8>>) -> OurTlsConnector {
+                use actix_tls::connect::openssl::reexports::{SslConnector, SslMethod};
+                use bytes::{BufMut, BytesMut};
+
+                let mut alpn = BytesMut::with_capacity(20);
+                for proto in &protocols {
+                    alpn.put_u8(proto.len() as u8);
+                    alpn.put(proto.as_slice());
+                }
+
+                let mut ssl = SslConnector::builder(SslMethod::tls()).unwrap();
+                if let Err(err) = ssl.set_alpn_protos(&alpn) {
+                    log::error!("Can not set ALPN protocol: {err:?}");
+                }
+
+                OurTlsConnector::OpensslBuilder(ssl)
+            }
+        } else {
+            /// Provides an empty TLS connector when no TLS feature is enabled.
+            fn build_tls(_: Vec<Vec<u8>>) -> OurTlsConnector {
+                OurTlsConnector::None
+            }
         }
-
-        let mut ssl = SslConnector::builder(SslMethod::tls()).unwrap();
-        if let Err(err) = ssl.set_alpn_protos(&alpn) {
-            log::error!("Can not set ALPN protocol: {:?}", err);
-        }
-
-        OurTlsConnector::OpensslBuilder(ssl)
     }
 }
 
@@ -237,6 +262,19 @@ where
         connector: std::sync::Arc<actix_tls::connect::rustls_0_21::reexports::ClientConfig>,
     ) -> Self {
         self.tls = OurTlsConnector::Rustls021(connector);
+        self
+    }
+
+    /// Sets custom Rustls v0.22 `ClientConfig` instance.
+    #[cfg(any(
+        feature = "rustls-0_22-webpki-roots",
+        feature = "rustls-0_22-native-roots",
+    ))]
+    pub fn rustls_0_22(
+        mut self,
+        connector: std::sync::Arc<actix_tls::connect::rustls_0_22::reexports::ClientConfig>,
+    ) -> Self {
+        self.tls = OurTlsConnector::Rustls022(connector);
         self
     }
 
@@ -482,6 +520,42 @@ where
                 const H2: &[u8] = b"h2";
 
                 use actix_tls::connect::rustls_0_21::{reexports::AsyncTlsStream, TlsConnector};
+
+                impl<Io: ConnectionIo> IntoConnectionIo for TcpConnection<Uri, AsyncTlsStream<Io>> {
+                    fn into_connection_io(self) -> (Box<dyn ConnectionIo>, Protocol) {
+                        let sock = self.into_parts().0;
+                        let h2 = sock
+                            .get_ref()
+                            .1
+                            .alpn_protocol()
+                            .map_or(false, |protos| protos.windows(2).any(|w| w == H2));
+                        if h2 {
+                            (Box::new(sock), Protocol::Http2)
+                        } else {
+                            (Box::new(sock), Protocol::Http1)
+                        }
+                    }
+                }
+
+                let handshake_timeout = self.config.handshake_timeout;
+
+                let tls_service = TlsConnectorService {
+                    tcp_service: tcp_service_inner,
+                    tls_service: TlsConnector::service(tls),
+                    timeout: handshake_timeout,
+                };
+
+                Some(actix_service::boxed::rc_service(tls_service))
+            }
+
+            #[cfg(any(
+                feature = "rustls-0_22-webpki-roots",
+                feature = "rustls-0_22-native-roots",
+            ))]
+            OurTlsConnector::Rustls022(tls) => {
+                const H2: &[u8] = b"h2";
+
+                use actix_tls::connect::rustls_0_22::{reexports::AsyncTlsStream, TlsConnector};
 
                 impl<Io: ConnectionIo> IntoConnectionIo for TcpConnection<Uri, AsyncTlsStream<Io>> {
                     fn into_connection_io(self) -> (Box<dyn ConnectionIo>, Protocol) {

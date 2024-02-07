@@ -4,7 +4,7 @@ use std::{
     future::Future,
     marker::PhantomData,
     net,
-    pin::Pin,
+    pin::{pin, Pin},
     rc::Rc,
     task::{Context, Poll},
 };
@@ -20,7 +20,6 @@ use h2::{
     Ping, PingPong,
 };
 use pin_project_lite::pin_project;
-use tracing::{error, trace, warn};
 
 use crate::{
     body::{BodySize, BoxBody, MessageBody},
@@ -147,11 +146,13 @@ where
                         if let Err(err) = res {
                             match err {
                                 DispatchError::SendResponse(err) => {
-                                    trace!("Error sending HTTP/2 response: {:?}", err)
+                                    tracing::trace!("Error sending response: {err:?}");
                                 }
-                                DispatchError::SendData(err) => warn!("{:?}", err),
+                                DispatchError::SendData(err) => {
+                                    tracing::warn!("Send data error: {err:?}");
+                                }
                                 DispatchError::ResponseBody(err) => {
-                                    error!("Response payload stream error: {:?}", err)
+                                    tracing::error!("Response payload stream error: {err:?}");
                                 }
                             }
                         }
@@ -228,9 +229,9 @@ where
         return Ok(());
     }
 
-    // poll response body and send chunks to client
-    actix_rt::pin!(body);
+    let mut body = pin!(body);
 
+    // poll response body and send chunks to client
     while let Some(res) = poll_fn(|cx| body.as_mut().poll_next(cx)).await {
         let mut chunk = res.map_err(|err| DispatchError::ResponseBody(err.into()))?;
 
