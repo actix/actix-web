@@ -6,7 +6,7 @@
 
 [![crates.io](https://img.shields.io/crates/v/actix-http?label=latest)](https://crates.io/crates/actix-http)
 [![Documentation](https://docs.rs/actix-http/badge.svg?version=3.6.0)](https://docs.rs/actix-http/3.6.0)
-![Version](https://img.shields.io/badge/rustc-1.68+-ab6000.svg)
+![Version](https://img.shields.io/badge/rustc-1.70+-ab6000.svg)
 ![MIT or Apache 2.0 licensed](https://img.shields.io/crates/l/actix-http.svg)
 <br />
 [![dependency status](https://deps.rs/crate/actix-http/3.6.0/status.svg)](https://deps.rs/crate/actix-http/3.6.0)
@@ -14,11 +14,6 @@
 [![Chat on Discord](https://img.shields.io/discord/771444961383153695?label=chat&logo=discord)](https://discord.gg/NWpN5mmg3x)
 
 <!-- prettier-ignore-end -->
-
-## Documentation & Resources
-
-- [API Documentation](https://docs.rs/actix-http)
-- Minimum Supported Rust Version (MSRV): 1.68
 
 ## Examples
 
