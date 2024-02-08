@@ -26,7 +26,7 @@ jobs:
           - { name: macOS, os: macos-latest, triple: x86_64-apple-darwin }
           - { name: Windows, os: windows-latest, triple: x86_64-pc-windows-msvc }
         version:
-          - { name: msrv, version: 1.68.0 }
+          - { name: msrv, version: 1.70.0 }
           - { name: stable, version: stable }
 
     name: ${{ matrix.target.name }} / ${{ matrix.version.name }}
@@ -50,18 +50,14 @@ jobs:
           toolchain: ${{ matrix.version.version }}
 
       - name: Install cargo-hack and cargo-ci-cache-clean
-        uses: taiki-e/install-action@v2.26.8
+        uses: taiki-e/install-action@v2.26.12
         with:
           tool: cargo-hack,cargo-ci-cache-clean
 
-      - name: workaround MSRV issues
-        if: matrix.version.name == 'msrv'
-        run: |
-          cargo update -p=ciborium --precise=0.2.1
-          cargo update -p=ciborium-ll --precise=0.2.1
-          cargo update -p=clap --precise=4.3.24
-          cargo update -p=clap_lex --precise=0.5.0
-          cargo update -p=anstyle --precise=1.0.2
+      # - name: workaround MSRV issues
+      #   if: matrix.version.name == 'msrv'
+      #   run: |
+      #     cargo update -p=anstyle --precise=1.0.2
 
       - name: check minimal
         run: cargo ci-check-min

@@ -12,13 +12,11 @@
 
 <!-- prettier-ignore-end -->
 
-## Documentation & Resources
+## Examples
 
-- [API Documentation](https://docs.rs/awc)
-- [Example Project](https://github.com/actix/examples/tree/master/https-tls/awc-https)
-- Minimum Supported Rust Version (MSRV): 1.68
+[Example project using TLS-enabled client →](https://github.com/actix/examples/tree/master/https-tls/awc-https)
 
-## Example
+Basic usage:
 
 ```rust
 use actix_rt::System;
