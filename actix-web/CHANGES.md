@@ -25,6 +25,7 @@
 
 - Updated `zstd` dependency to `0.13`.
 - Compression middleware now prefers brotli over zstd over gzip.
+- Added .customize().add_cookie() for `CustomizeResponder`
 
 ### Fixed
 
