@@ -706,7 +706,7 @@ where
 
                             req.head_mut().peer_addr = *this.peer_addr;
 
-                            req.conn_data = this.conn_data.as_ref().map(Rc::clone);
+                            req.conn_data = this.conn_data.clone();
 
                             match this.codec.message_type() {
                                 // request has no payload

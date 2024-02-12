@@ -126,7 +126,7 @@ where
                     head.headers = parts.headers.into();
                     head.peer_addr = this.peer_addr;
 
-                    req.conn_data = this.conn_data.as_ref().map(Rc::clone);
+                    req.conn_data = this.conn_data.clone();
 
                     let fut = this.flow.service.call(req);
                     let config = this.config.clone();
