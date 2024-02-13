@@ -54,10 +54,10 @@ jobs:
         with:
           tool: cargo-hack,cargo-ci-cache-clean
 
-      # - name: workaround MSRV issues
-      #   if: matrix.version.name == 'msrv'
-      #   run: |
-      #     cargo update -p=anstyle --precise=1.0.2
+      - name: workaround MSRV issues
+        if: matrix.version.name == 'msrv'
+        run: |
+          cargo update -p=clap --precise=4.4.18
 
       - name: check minimal
         run: cargo ci-check-min
