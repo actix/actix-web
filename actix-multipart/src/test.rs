@@ -15,6 +15,10 @@ const BOUNDARY_PREFIX: &str = "------------------------";
 ///
 /// Returned header map can be extended or merged with existing headers.
 ///
+/// Multipart boundary used is a random alphanumeric string.
+///
+/// # Examples
+///
 /// ```
 /// use actix_multipart::test::create_form_data_payload_and_headers;
 /// use actix_web::test::TestRequest;
@@ -29,6 +33,7 @@ const BOUNDARY_PREFIX: &str = "------------------------";
 /// );
 ///
 /// assert!(find(&body, b"foo").is_some());
+/// assert!(find(&body, b"lorem.txt").is_some());
 /// assert!(find(&body, b"text/plain; charset=utf-8").is_some());
 /// assert!(find(&body, b"Lorem ipsum.").is_some());
 ///
@@ -41,7 +46,14 @@ const BOUNDARY_PREFIX: &str = "------------------------";
 ///     .set_payload(body)
 ///     .to_http_request();
 ///
-/// assert!(req.headers().contains_key("content-type"));
+/// assert!(
+///     req.headers()
+///         .get("content-type")
+///         .unwrap()
+///         .to_str()
+///         .unwrap()
+///         .starts_with("multipart/form-data; boundary=\"")
+/// );
 /// ```
 pub fn create_form_data_payload_and_headers(
     name: &str,
@@ -70,7 +82,7 @@ pub fn create_form_data_payload_and_headers_with_boundary(
     content_type: Option<Mime>,
     file: Bytes,
 ) -> (Bytes, HeaderMap) {
-    let mut buf = BytesMut::new();
+    let mut buf = BytesMut::with_capacity(file.len() + 128);
 
     let boundary_str = [BOUNDARY_PREFIX, boundary].concat();
     let boundary = boundary_str.as_bytes();
@@ -128,7 +140,7 @@ mod tests {
             .unwrap()
             .parse::<mime::Mime>()
             .unwrap()
-            .get_param("boundary")
+            .get_param(mime::BOUNDARY)
             .unwrap()
             .as_str()
             .to_owned()
@@ -181,6 +193,7 @@ mod tests {
         );
     }
 
+    /// Test using an external library to prevent the two-wrongs-make-a-right class of errors.
     #[actix_web::test]
     async fn ecosystem_compat() {
         let (pl, headers) = create_form_data_payload_and_headers(
