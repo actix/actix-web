@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add testing utilities under new module `test`.
 - Minimum supported Rust version (MSRV) is now 1.72.
 
 ## 0.6.1
