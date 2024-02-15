@@ -17,12 +17,14 @@ name = "actix_router"
 path = "src/lib.rs"
 
 [features]
-default = ["http"]
+default = ["http", "unicode"]
+unicode = ["dep:regex"]
 
 [dependencies]
 bytestring = ">=0.1.5, <2"
 http = { version = "0.2.7", optional = true }
-regex = "1.5"
+regex = { version = "1.5", optional = true }
+regex-lite = "0.1"
 serde = "1"
 tracing = { version = "0.1.30", default-features = false, features = ["log"] }
 
