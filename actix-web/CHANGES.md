@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+### Changed
+
+- Minimum supported Rust version (MSRV) is now 1.72.
+
+## 4.5.1
+
+### Fixed
+
+- Fix missing import when using enabling Rustls v0.22 support.
+
+## 4.5.0
+
+### Added
+
+- Add `rustls-0_22` crate feature.
+- Add `HttpServer::{bind_rustls_0_22, listen_rustls_0_22}()` builder methods.
+
 ## 4.4.1
 
 ### Changed

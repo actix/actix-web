@@ -32,22 +32,22 @@ jobs:
 
       - name: Install OpenSSL
         if: matrix.target.os == 'windows-latest'
-        run: choco install openssl -y --forcex64 --no-progress
-      - name: Set OpenSSL dir in env
-        if: matrix.target.os == 'windows-latest'
+        shell: bash
         run: |
-          echo 'OPENSSL_DIR=C:\Program Files\OpenSSL-Win64' | Out-File -FilePath $env:GITHUB_ENV -Append
-          echo 'OPENSSL_DIR=C:\Program Files\OpenSSL' | Out-File -FilePath $env:GITHUB_ENV -Append
+          set -e
+          choco install openssl --version=1.1.1.2100 -y --no-progress
+          echo 'OPENSSL_DIR=C:\Program Files\OpenSSL' >> $GITHUB_ENV
+          echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV
 
       - name: Install Rust (${{ matrix.version.name }})
         uses: actions-rust-lang/setup-rust-toolchain@v1.8.0
         with:
           toolchain: ${{ matrix.version.version }}
 
-      - name: Install cargo-hack
-        uses: taiki-e/install-action@v2.25.9
+      - name: Install cargo-hack and cargo-ci-cache-clean
+        uses: taiki-e/install-action@v2.26.12
         with:
-          tool: cargo-hack
+          tool: cargo-hack,cargo-ci-cache-clean
 
       - name: check minimal
         run: cargo ci-check-min
@@ -57,10 +57,12 @@ jobs:
 
       - name: tests
         timeout-minutes: 60
+        shell: bash
         run: |
+          set -e
           cargo test --lib --tests -p=actix-router --all-features
           cargo test --lib --tests -p=actix-http --all-features
-          cargo test --lib --tests -p=actix-web --features=rustls-0_20,rustls-0_21,openssl -- --skip=test_reading_deflate_encoding_large_random_rustls
+          cargo test --lib --tests -p=actix-web --features=rustls-0_20,rustls-0_21,rustls-0_22,openssl -- --skip=test_reading_deflate_encoding_large_random_rustls
           cargo test --lib --tests -p=actix-web-codegen --all-features
           cargo test --lib --tests -p=awc --all-features
           cargo test --lib --tests -p=actix-http-test --all-features
@@ -69,10 +71,8 @@ jobs:
           cargo test --lib --tests -p=actix-multipart --all-features
           cargo test --lib --tests -p=actix-web-actors --all-features
 
-      - name: Clear the cargo caches
-        run: |
-          cargo --locked install cargo-cache --version 0.8.3 --no-default-features --features ci-autoclean
-          cargo-cache
+      - name: CI cache clean
+        run: cargo-ci-cache-clean
 
   ci_feature_powerset_check:
     name: Verify Feature Combinations
@@ -85,7 +85,7 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1.8.0
 
       - name: Install cargo-hack
-        uses: taiki-e/install-action@v2.25.9
+        uses: taiki-e/install-action@v2.26.12
         with:
           tool: cargo-hack
 
@@ -106,7 +106,7 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1.8.0
 
       - name: Install nextest
-        uses: taiki-e/install-action@v2.25.9
+        uses: taiki-e/install-action@v2.26.12
         with:
           tool: nextest
 

@@ -512,8 +512,10 @@ where
                             }
 
                             Poll::Ready(Some(Err(err))) => {
+                                let err = err.into();
+                                tracing::error!("Response payload stream error: {err:?}");
                                 this.flags.insert(Flags::FINISHED);
-                                return Err(DispatchError::Body(err.into()));
+                                return Err(DispatchError::Body(err));
                             }
 
                             Poll::Pending => return Ok(PollResponse::DoNothing),
@@ -549,6 +551,7 @@ where
                             }
 
                             Poll::Ready(Some(Err(err))) => {
+                                tracing::error!("Response payload stream error: {err:?}");
                                 this.flags.insert(Flags::FINISHED);
                                 return Err(DispatchError::Body(
                                     Error::new_body().with_cause(err).into(),
@@ -703,7 +706,7 @@ where
 
                             req.head_mut().peer_addr = *this.peer_addr;
 
-                            req.conn_data = this.conn_data.as_ref().map(Rc::clone);
+                            req.conn_data = this.conn_data.clone();
 
                             match this.codec.message_type() {
                                 // request has no payload

@@ -650,6 +650,13 @@ impl From<HeaderMap> for http::HeaderMap {
     }
 }
 
+/// Convert our `&HeaderMap` to a `http::HeaderMap`.
+impl From<&HeaderMap> for http::HeaderMap {
+    fn from(map: &HeaderMap) -> Self {
+        map.to_owned().into()
+    }
+}
+
 /// Iterator over removed, owned values with the same associated name.
 ///
 /// Returned from methods that remove or replace items. See [`HeaderMap::insert`]

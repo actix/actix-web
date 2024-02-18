@@ -17,7 +17,7 @@ members = [
 [workspace.package]
 license = "MIT OR Apache-2.0"
 edition = "2021"
-rust-version = "1.68"
+rust-version = "1.72"
 
 [profile.dev]
 # Disabling debug info speeds up builds a bunch and we don't rely on it for debugging that much.

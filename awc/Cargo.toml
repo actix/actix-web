@@ -1,6 +1,6 @@
 [package]
 name = "awc"
-version = "3.3.0"
+version = "3.4.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Async HTTP and WebSocket client library"
 keywords = ["actix", "http", "framework", "async", "web"]
@@ -20,8 +20,17 @@ name = "awc"
 path = "src/lib.rs"
 
 [package.metadata.docs.rs]
-# features that docs.rs will build with
-features = ["openssl", "rustls-0_20", "rustls-0_21", "compress-brotli", "compress-gzip", "compress-zstd", "cookies"]
+rustdoc-args = ["--cfg", "docsrs"]
+features = [
+    "cookies",
+    "openssl",
+    "rustls-0_20",
+    "rustls-0_21",
+    "rustls-0_22-webpki-roots",
+    "compress-brotli",
+    "compress-gzip",
+    "compress-zstd",
+]
 
 [features]
 default = ["compress-brotli", "compress-gzip", "compress-zstd", "cookies"]
@@ -35,6 +44,10 @@ rustls = ["rustls-0_20"]
 rustls-0_20 = ["tls-rustls-0_20", "actix-tls/rustls-0_20"]
 # TLS via Rustls v0.21
 rustls-0_21 = ["tls-rustls-0_21", "actix-tls/rustls-0_21"]
+# TLS via Rustls v0.22 (WebPKI roots)
+rustls-0_22-webpki-roots = ["tls-rustls-0_22", "actix-tls/rustls-0_22-webpki-roots"]
+# TLS via Rustls v0.22 (Native roots)
+rustls-0_22-native-roots = ["tls-rustls-0_22", "actix-tls/rustls-0_22-native-roots"]
 
 # Brotli algorithm content-encoding support
 compress-brotli = ["actix-http/compress-brotli", "__compress"]
@@ -61,9 +74,9 @@ dangerous-h2c = []
 [dependencies]
 actix-codec = "0.5"
 actix-service = "2"
-actix-http = { version = "3.5", features = ["http2", "ws"] }
+actix-http = { version = "3.6", features = ["http2", "ws"] }
 actix-rt = { version = "2.1", default-features = false }
-actix-tls = { version = "3.1", features = ["connect", "uri"] }
+actix-tls = { version = "3.3", features = ["connect", "uri"] }
 actix-utils = "3"
 
 base64 = "0.21"
@@ -72,7 +85,7 @@ cfg-if = "1"
 derive_more = "0.99.5"
 futures-core = { version = "0.3.17", default-features = false, features = ["alloc"] }
 futures-util = { version = "0.3.17", default-features = false, features = ["alloc", "sink"] }
-h2 = "0.3.17"
+h2 = "0.3.24"
 http = "0.2.7"
 itoa = "1"
 log =" 0.4"
@@ -90,15 +103,16 @@ cookie = { version = "0.16", features = ["percent-encode"], optional = true }
 tls-openssl = { package = "openssl", version = "0.10.55", optional = true }
 tls-rustls-0_20 = { package = "rustls", version = "0.20", optional = true, features = ["dangerous_configuration"] }
 tls-rustls-0_21 = { package = "rustls", version = "0.21", optional = true, features = ["dangerous_configuration"] }
+tls-rustls-0_22 = { package = "rustls", version = "0.22", optional = true }
 
 trust-dns-resolver = { version = "0.23", optional = true }
 
 [dev-dependencies]
-actix-http = { version = "3.5", features = ["openssl"] }
+actix-http = { version = "3.6", features = ["openssl"] }
 actix-http-test = { version = "3", features = ["openssl"] }
 actix-server = "2"
-actix-test = { version = "0.1", features = ["openssl", "rustls-0_21"] }
-actix-tls = { version = "3", features = ["openssl", "rustls-0_21"] }
+actix-test = { version = "0.1", features = ["openssl", "rustls-0_22"] }
+actix-tls = { version = "3.3", features = ["openssl", "rustls-0_22"] }
 actix-utils = "3"
 actix-web = { version = "4", features = ["openssl"] }
 
@@ -108,11 +122,11 @@ env_logger = "0.10"
 flate2 = "1.0.13"
 futures-util = { version = "0.3.17", default-features = false }
 static_assertions = "1.1"
-rcgen = "0.11"
-rustls-pemfile = "1"
+rcgen = "0.12"
+rustls-pemfile = "2"
 tokio = { version = "1.24.2", features = ["rt-multi-thread", "macros"] }
 zstd = "0.13"
 
 [[example]]
 name = "client"
-required-features = ["rustls-0_21"]
+required-features = ["rustls-0_22-webpki-roots"]

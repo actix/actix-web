@@ -6,7 +6,7 @@
 
 [![crates.io](https://img.shields.io/crates/v/actix-web-codegen?label=latest)](https://crates.io/crates/actix-web-codegen)
 [![Documentation](https://docs.rs/actix-web-codegen/badge.svg?version=4.2.2)](https://docs.rs/actix-web-codegen/4.2.2)
-![Version](https://img.shields.io/badge/rustc-1.68+-ab6000.svg)
+![Version](https://img.shields.io/badge/rustc-1.72+-ab6000.svg)
 ![License](https://img.shields.io/crates/l/actix-web-codegen.svg)
 <br />
 [![dependency status](https://deps.rs/crate/actix-web-codegen/4.2.2/status.svg)](https://deps.rs/crate/actix-web-codegen/4.2.2)
@@ -14,11 +14,6 @@
 [![Chat on Discord](https://img.shields.io/discord/771444961383153695?label=chat&logo=discord)](https://discord.gg/NWpN5mmg3x)
 
 <!-- prettier-ignore-end -->
-
-## Documentation & Resources
-
-- [API Documentation](https://docs.rs/actix-web-codegen)
-- Minimum Supported Rust Version (MSRV): 1.68
 
 ## Compile Testing
 
