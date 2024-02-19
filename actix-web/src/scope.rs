@@ -547,7 +547,6 @@ impl ServiceFactory<ServiceRequest> for ScopeEndpoint {
 
 #[cfg(test)]
 mod tests {
-    use actix_service::Service;
     use actix_utils::future::ok;
     use bytes::Bytes;
 
@@ -559,7 +558,6 @@ mod tests {
             Method, StatusCode,
         },
         middleware::DefaultHeaders,
-        service::{ServiceRequest, ServiceResponse},
         test::{assert_body_eq, call_service, init_service, read_body, TestRequest},
         web, App, HttpMessage, HttpRequest, HttpResponse,
     };

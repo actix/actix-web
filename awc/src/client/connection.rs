@@ -380,8 +380,6 @@ mod test {
     use std::{
         future::Future,
         net,
-        pin::Pin,
-        task::{Context, Poll},
         time::{Duration, Instant},
     };
 

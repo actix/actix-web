@@ -716,7 +716,7 @@ impl<'a> fmt::Display for FormatDisplay<'a> {
 
 #[cfg(test)]
 mod tests {
-    use actix_service::{IntoService, Service, Transform};
+    use actix_service::IntoService;
     use actix_utils::future::ok;
 
     use super::*;

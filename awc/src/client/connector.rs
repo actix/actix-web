@@ -935,7 +935,6 @@ mod resolver {
     use std::{cell::RefCell, net::SocketAddr};
 
     use actix_tls::connect::Resolve;
-    use futures_core::future::LocalBoxFuture;
     use trust_dns_resolver::{
         config::{ResolverConfig, ResolverOpts},
         system_conf::read_system_conf,
