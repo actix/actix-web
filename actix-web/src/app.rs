@@ -471,7 +471,6 @@ mod tests {
             Method, StatusCode,
         },
         middleware::DefaultHeaders,
-        service::ServiceRequest,
         test::{call_service, init_service, read_body, try_init_service, TestRequest},
         web, HttpRequest, HttpResponse,
     };

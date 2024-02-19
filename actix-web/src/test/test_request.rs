@@ -350,7 +350,7 @@ mod tests {
     use std::time::SystemTime;
 
     use super::*;
-    use crate::{http::header, test::init_service, web, App, Error, HttpResponse, Responder};
+    use crate::{http::header, test::init_service, web, App, Error, Responder};
 
     #[actix_rt::test]
     async fn test_basics() {

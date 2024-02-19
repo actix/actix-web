@@ -863,7 +863,7 @@ mod tests {
         test::TestRequest,
         FromRequest,
     };
-    use bytes::{BufMut as _, Bytes};
+    use bytes::BufMut as _;
     use futures_util::{future::lazy, StreamExt as _};
     use tokio::sync::mpsc;
     use tokio_stream::wrappers::UnboundedReceiverStream;

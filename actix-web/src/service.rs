@@ -700,7 +700,7 @@ mod tests {
     use crate::{
         guard, http,
         test::{self, init_service, TestRequest},
-        web, App, HttpResponse,
+        web, App,
     };
 
     #[actix_rt::test]

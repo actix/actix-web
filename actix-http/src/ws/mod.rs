@@ -221,7 +221,7 @@ pub fn handshake_response(req: &RequestHead) -> ResponseBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{header, test::TestRequest, Method};
+    use crate::{header, test::TestRequest};
 
     #[test]
     fn test_handshake() {
