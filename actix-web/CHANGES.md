@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- Add `Logger::level` to change the log level.
+
 ### Changed
 
 - Minimum supported Rust version (MSRV) is now 1.72.
