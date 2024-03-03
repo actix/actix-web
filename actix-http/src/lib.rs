@@ -49,6 +49,8 @@ mod message;
 #[cfg(test)]
 mod notify_on_drop;
 mod payload;
+#[cfg(feature = "proxy-protocol")]
+pub mod proxy_protocol;
 mod requests;
 mod responses;
 mod service;

@@ -14,7 +14,7 @@ save_exit_code() {
 
 save_exit_code cargo test --lib --tests -p=actix-router --all-features -- --nocapture
 save_exit_code cargo test --lib --tests -p=actix-http --all-features -- --nocapture
-save_exit_code cargo test --lib --tests -p=actix-web --features=rustls,openssl -- --nocapture
+save_exit_code cargo test --lib --tests -p=actix-web --features=rustls,openssl,proxy-protocol -- --nocapture
 save_exit_code cargo test --lib --tests -p=actix-web-codegen --all-features -- --nocapture
 save_exit_code cargo test --lib --tests -p=awc --all-features -- --nocapture
 save_exit_code cargo test --lib --tests -p=actix-http-test --all-features -- --nocapture

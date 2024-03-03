@@ -20,6 +20,7 @@ struct Inner {
     secure: bool,
     local_addr: Option<std::net::SocketAddr>,
     date_service: DateService,
+    proxy_protocol: bool,
 }
 
 impl Default for ServiceConfig {
@@ -30,6 +31,7 @@ impl Default for ServiceConfig {
             Duration::ZERO,
             false,
             None,
+            false,
         )
     }
 }
@@ -42,6 +44,7 @@ impl ServiceConfig {
         client_disconnect_timeout: Duration,
         secure: bool,
         local_addr: Option<net::SocketAddr>,
+        proxy_protocol: bool,
     ) -> ServiceConfig {
         ServiceConfig(Rc::new(Inner {
             keep_alive: keep_alive.normalize(),
@@ -50,6 +53,7 @@ impl ServiceConfig {
             secure,
             local_addr,
             date_service: DateService::new(),
+            proxy_protocol,
         }))
     }
 
@@ -71,6 +75,12 @@ impl ServiceConfig {
     #[inline]
     pub fn keep_alive(&self) -> KeepAlive {
         self.0.keep_alive
+    }
+
+    /// Proxy protocol setting.
+    #[inline]
+    pub fn proxy_protocol(&self) -> bool {
+        self.0.proxy_protocol
     }
 
     /// Creates a time object representing the deadline for this connection's keep-alive period, if
@@ -143,8 +153,14 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_date_service_update() {
-        let settings =
-            ServiceConfig::new(KeepAlive::Os, Duration::ZERO, Duration::ZERO, false, None);
+        let settings = ServiceConfig::new(
+            KeepAlive::Os,
+            Duration::ZERO,
+            Duration::ZERO,
+            false,
+            None,
+            false,
+        );
 
         yield_now().await;
 
