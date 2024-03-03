@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- Add `Logger::statuses` to filter the range of statuses logged.
+
 ### Changed
 
 - Add `unicode` crate feature (on-by-default) to switch between `regex` and `regex-lite` as a trade-off between full unicode support and binary size.
