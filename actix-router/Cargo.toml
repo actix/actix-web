@@ -18,6 +18,7 @@ path = "src/lib.rs"
 
 [features]
 default = ["http", "unicode"]
+http = ["dep:http"]
 unicode = ["dep:regex"]
 
 [dependencies]
