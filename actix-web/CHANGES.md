@@ -4,6 +4,7 @@
 
 ### Changed
 
+- Add `unicode` crate feature (on-by-default) to switch between `regex` and `regex-lite` as a trade-off between full unicode support and binary size.
 - Minimum supported Rust version (MSRV) is now 1.72.
 
 ## 4.5.1
