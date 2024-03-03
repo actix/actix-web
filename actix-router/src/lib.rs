@@ -10,6 +10,7 @@ mod de;
 mod path;
 mod pattern;
 mod quoter;
+mod regex_set;
 mod resource;
 mod resource_path;
 mod router;

@@ -5,13 +5,13 @@ use std::{
     mem,
 };
 
-#[cfg(feature = "unicode")]
-use regex::{escape, Regex};
-#[cfg(not(feature = "unicode"))]
-use regex_lite::{escape, Regex};
 use tracing::error;
 
-use crate::{path::PathItem, IntoPatterns, Patterns, Resource, ResourcePath};
+use crate::{
+    path::PathItem,
+    regex_set::{escape, Regex, RegexSet},
+    IntoPatterns, Patterns, Resource, ResourcePath,
+};
 
 const MAX_DYNAMIC_SEGMENTS: usize = 16;
 
@@ -236,7 +236,7 @@ enum PatternSegment {
     Var(String),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone)]
 #[allow(clippy::large_enum_variant)]
 enum PatternType {
     /// Single constant/literal segment.
@@ -246,7 +246,7 @@ enum PatternType {
     Dynamic(Regex, Vec<&'static str>),
 
     /// Regular expression set and list of component expressions plus dynamic segment names.
-    DynamicSet(Vec<Regex>, Vec<(Regex, Vec<&'static str>)>),
+    DynamicSet(RegexSet, Vec<(Regex, Vec<&'static str>)>),
 }
 
 impl ResourceDef {
@@ -560,7 +560,7 @@ impl ResourceDef {
         match &self.pat_type {
             PatternType::Static(pattern) => self.static_match(pattern, path).is_some(),
             PatternType::Dynamic(re, _) => re.is_match(path),
-            PatternType::DynamicSet(re, _) => re.iter().any(|re| re.is_match(path)),
+            PatternType::DynamicSet(re, _) => re.is_match(path),
         }
     }
 
@@ -606,7 +606,7 @@ impl ResourceDef {
             PatternType::Dynamic(re, _) => Some(re.captures(path)?[1].len()),
 
             PatternType::DynamicSet(re, params) => {
-                let idx = re.iter().enumerate().find(|(_, re)| re.is_match(path))?.0;
+                let idx = re.first_match_idx(path)?;
                 let (ref pattern, _) = params[idx];
                 Some(pattern.captures(path)?[1].len())
             }
@@ -709,9 +709,8 @@ impl ResourceDef {
 
             PatternType::DynamicSet(re, params) => {
                 let path = path.unprocessed();
-                let (pattern, names) = match re.iter().enumerate().find(|(_, re)| re.is_match(path))
-                {
-                    Some((idx, _)) => &params[idx],
+                let (pattern, names) = match re.first_match_idx(path) {
+                    Some(idx) => &params[idx],
                     _ => return false,
                 };
 
@@ -853,9 +852,10 @@ impl ResourceDef {
 
             // since zero length pattern sets are possible
             // just return a useless `ResourceDef`
-            Patterns::List(patterns) if patterns.is_empty() => {
-                (PatternType::DynamicSet(Vec::new(), Vec::new()), Vec::new())
-            }
+            Patterns::List(patterns) if patterns.is_empty() => (
+                PatternType::DynamicSet(RegexSet::empty(), Vec::new()),
+                Vec::new(),
+            ),
 
             Patterns::List(patterns) => {
                 let mut re_set = Vec::with_capacity(patterns.len());
@@ -873,7 +873,7 @@ impl ResourceDef {
                     }
                 }
 
-                let pattern_re_set = re_set.iter().map(|re| Regex::new(re).unwrap()).collect();
+                let pattern_re_set = RegexSet::new(re_set);
                 let segments = segments.unwrap_or_default();
 
                 (
