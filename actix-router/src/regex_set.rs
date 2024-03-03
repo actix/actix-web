@@ -42,6 +42,7 @@ impl RegexSet {
         }
     }
 
+    /// Returns true if regex set matches `path`.
     pub(crate) fn is_match(&self, path: &str) -> bool {
         cfg_if! {
             if #[cfg(feature = "unicode")] {
@@ -52,6 +53,7 @@ impl RegexSet {
         }
     }
 
+    /// Returns index within `path` of first match.
     pub(crate) fn first_match_idx(&self, path: &str) -> Option<usize> {
         cfg_if! {
             if #[cfg(feature = "unicode")] {
