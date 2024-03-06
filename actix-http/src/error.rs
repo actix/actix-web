@@ -399,9 +399,7 @@ pub enum ContentTypeError {
 
 #[cfg(test)]
 mod tests {
-    use std::io;
-
-    use http::{Error as HttpError, StatusCode};
+    use http::Error as HttpError;
 
     use super::*;
 

@@ -12,7 +12,7 @@
 //! Protocol: HTTP/1.1
 //! ```
 
-extern crate tls_rustls_021 as rustls;
+extern crate tls_rustls_022 as rustls;
 
 use std::io;
 
@@ -36,7 +36,7 @@ async fn main() -> io::Result<()> {
                     );
                     ok::<_, Error>(Response::ok().set_body(body))
                 })
-                .rustls_021(rustls_config())
+                .rustls_0_22(rustls_config())
         })?
         .run()
         .await
@@ -51,16 +51,18 @@ fn rustls_config() -> rustls::ServerConfig {
     let key_file = &mut io::BufReader::new(key_file.as_bytes());
 
     let cert_chain = rustls_pemfile::certs(cert_file)
-        .unwrap()
-        .into_iter()
-        .map(rustls::Certificate)
-        .collect();
-    let mut keys = rustls_pemfile::pkcs8_private_keys(key_file).unwrap();
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    let mut keys = rustls_pemfile::pkcs8_private_keys(key_file)
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
 
     let mut config = rustls::ServerConfig::builder()
-        .with_safe_defaults()
         .with_no_client_auth()
-        .with_single_cert(cert_chain, rustls::PrivateKey(keys.remove(0)))
+        .with_single_cert(
+            cert_chain,
+            rustls::pki_types::PrivateKeyDer::Pkcs8(keys.remove(0)),
+        )
         .unwrap();
 
     const H1_ALPN: &[u8] = b"http/1.1";

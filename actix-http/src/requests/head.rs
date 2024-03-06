@@ -17,7 +17,7 @@ pub struct RequestHead {
     pub version: Version,
     pub headers: HeaderMap,
 
-    /// Will only be None when called in unit tests unless [`TestRequest::peer_addr`] is used.
+    /// Will only be None when called in unit tests unless set manually.
     pub peer_addr: Option<net::SocketAddr>,
 
     flags: Flags,

@@ -5,10 +5,13 @@ use std::{
     mem,
 };
 
-use regex::{escape, Regex, RegexSet};
 use tracing::error;
 
-use crate::{path::PathItem, IntoPatterns, Patterns, Resource, ResourcePath};
+use crate::{
+    path::PathItem,
+    regex_set::{escape, Regex, RegexSet},
+    IntoPatterns, Patterns, Resource, ResourcePath,
+};
 
 const MAX_DYNAMIC_SEGMENTS: usize = 16;
 
@@ -233,7 +236,7 @@ enum PatternSegment {
     Var(String),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone)]
 #[allow(clippy::large_enum_variant)]
 enum PatternType {
     /// Single constant/literal segment.
@@ -603,7 +606,7 @@ impl ResourceDef {
             PatternType::Dynamic(re, _) => Some(re.captures(path)?[1].len()),
 
             PatternType::DynamicSet(re, params) => {
-                let idx = re.matches(path).into_iter().next()?;
+                let idx = re.first_match_idx(path)?;
                 let (ref pattern, _) = params[idx];
                 Some(pattern.captures(path)?[1].len())
             }
@@ -706,7 +709,7 @@ impl ResourceDef {
 
             PatternType::DynamicSet(re, params) => {
                 let path = path.unprocessed();
-                let (pattern, names) = match re.matches(path).into_iter().next() {
+                let (pattern, names) = match re.first_match_idx(path) {
                     Some(idx) => &params[idx],
                     _ => return false,
                 };
@@ -870,7 +873,7 @@ impl ResourceDef {
                     }
                 }
 
-                let pattern_re_set = RegexSet::new(re_set).unwrap();
+                let pattern_re_set = RegexSet::new(re_set);
                 let segments = segments.unwrap_or_default();
 
                 (

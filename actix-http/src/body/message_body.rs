@@ -531,7 +531,6 @@ where
 mod tests {
     use actix_rt::pin;
     use actix_utils::future::poll_fn;
-    use bytes::{Bytes, BytesMut};
     use futures_util::stream;
 
     use super::*;

@@ -198,9 +198,6 @@ impl Encoder<Message<(Response<()>, BodySize)>> for Codec {
 
 #[cfg(test)]
 mod tests {
-    use bytes::BytesMut;
-    use http::Method;
-
     use super::*;
     use crate::HttpMessage as _;
 

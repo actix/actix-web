@@ -75,7 +75,7 @@ mod tests {
         dev::ServiceFactory,
         guard,
         http::{
-            header::{self, ContentDisposition, DispositionParam, DispositionType},
+            header::{self, ContentDisposition, DispositionParam},
             Method, StatusCode,
         },
         middleware::Compress,
@@ -568,6 +568,7 @@ mod tests {
         assert_eq!(bytes, data);
     }
 
+    #[cfg(not(target_os = "windows"))]
     #[actix_rt::test]
     async fn test_static_files_with_special_characters() {
         // Create the file we want to test against ad-hoc. We can't check it in as otherwise

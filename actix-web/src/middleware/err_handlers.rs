@@ -407,10 +407,7 @@ mod tests {
     use super::*;
     use crate::{
         body,
-        http::{
-            header::{HeaderValue, CONTENT_TYPE},
-            StatusCode,
-        },
+        http::header::{HeaderValue, CONTENT_TYPE},
         test::{self, TestRequest},
     };
 

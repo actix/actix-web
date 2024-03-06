@@ -13,7 +13,10 @@
 use std::fmt::{self, Write};
 
 use once_cell::sync::Lazy;
+#[cfg(feature = "unicode")]
 use regex::Regex;
+#[cfg(not(feature = "unicode"))]
+use regex_lite::Regex;
 
 use super::{ExtendedValue, Header, TryIntoHeaderValue, Writer};
 use crate::http::header;

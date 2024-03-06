@@ -33,7 +33,7 @@ use crate::{
 /// considered in this selection process.
 ///
 /// # Pre-compressed Payload
-/// If you are serving some data is already using a compressed representation (e.g., a gzip
+/// If you are serving some data that is already using a compressed representation (e.g., a gzip
 /// compressed HTML file from disk) you can signal this to `Compress` by setting an appropriate
 /// `Content-Encoding` header. In addition to preventing double compressing the payload, this header
 /// is required by the spec when using compressed representations and will inform the client that

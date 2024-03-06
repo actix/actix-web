@@ -13,11 +13,14 @@ extern crate self as actix_multipart;
 
 mod error;
 mod extractor;
-mod server;
-
 pub mod form;
+mod server;
+pub mod test;
 
 pub use self::{
     error::MultipartError,
     server::{Field, Multipart},
+    test::{
+        create_form_data_payload_and_headers, create_form_data_payload_and_headers_with_boundary,
+    },
 };

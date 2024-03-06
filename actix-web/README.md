@@ -8,10 +8,10 @@
 <!-- prettier-ignore-start -->
 
 [![crates.io](https://img.shields.io/crates/v/actix-web?label=latest)](https://crates.io/crates/actix-web)
-[![Documentation](https://docs.rs/actix-web/badge.svg?version=4.4.1)](https://docs.rs/actix-web/4.4.1)
-![MSRV](https://img.shields.io/badge/rustc-1.68+-ab6000.svg)
+[![Documentation](https://docs.rs/actix-web/badge.svg?version=4.5.1)](https://docs.rs/actix-web/4.5.1)
+![MSRV](https://img.shields.io/badge/rustc-1.72+-ab6000.svg)
 ![MIT or Apache 2.0 licensed](https://img.shields.io/crates/l/actix-web.svg)
-[![Dependency Status](https://deps.rs/crate/actix-web/4.4.1/status.svg)](https://deps.rs/crate/actix-web/4.4.1)
+[![Dependency Status](https://deps.rs/crate/actix-web/4.5.1/status.svg)](https://deps.rs/crate/actix-web/4.5.1)
 <br />
 [![CI](https://github.com/actix/actix-web/actions/workflows/ci.yml/badge.svg)](https://github.com/actix/actix-web/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web)
@@ -37,7 +37,7 @@
 - SSL support using OpenSSL or Rustls
 - Middlewares ([Logger, Session, CORS, etc](https://actix.rs/docs/middleware/))
 - Integrates with the [`awc` HTTP client](https://docs.rs/awc/)
-- Runs on stable Rust 1.68+
+- Runs on stable Rust 1.72+
 
 ## Documentation
 

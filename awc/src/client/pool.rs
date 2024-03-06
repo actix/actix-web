@@ -374,12 +374,11 @@ impl<Io: ConnectionIo> Acquired<Io> {
 
 #[cfg(test)]
 mod test {
-    use std::{cell::Cell, io};
+    use std::cell::Cell;
 
     use http::Uri;
 
     use super::*;
-    use crate::client::connection::ConnectionType;
 
     /// A stream type that always returns pending on async read.
     ///
