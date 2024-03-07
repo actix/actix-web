@@ -248,13 +248,11 @@ where
 mod tests {
     use std::time::Duration;
 
-    use actix::Actor;
     use actix_web::{
         http::StatusCode,
         test::{call_service, init_service, read_body, TestRequest},
         web, App, HttpResponse,
     };
-    use bytes::Bytes;
 
     use super::*;
 

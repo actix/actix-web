@@ -221,12 +221,9 @@ impl ServiceRequest {
 
     /// Returns peer's socket address.
     ///
-    /// Peer address is the directly connected peer's socket address. If a proxy is used in front of
-    /// the Actix Web server, then it would be address of this proxy.
+    /// See [`HttpRequest::peer_addr`] for more details.
     ///
-    /// To get client connection information `ConnectionInfo` should be used.
-    ///
-    /// Will only return None when called in unit tests.
+    /// [`HttpRequest::peer_addr`]: crate::HttpRequest::peer_addr
     #[inline]
     pub fn peer_addr(&self) -> Option<net::SocketAddr> {
         self.head().peer_addr
@@ -703,7 +700,7 @@ mod tests {
     use crate::{
         guard, http,
         test::{self, init_service, TestRequest},
-        web, App, HttpResponse,
+        web, App,
     };
 
     #[actix_rt::test]

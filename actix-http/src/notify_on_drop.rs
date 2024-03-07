@@ -5,7 +5,7 @@
 use std::cell::RefCell;
 
 thread_local! {
-    static NOTIFY_DROPPED: RefCell<Option<bool>> = RefCell::new(None);
+    static NOTIFY_DROPPED: RefCell<Option<bool>> = const { RefCell::new(None) };
 }
 
 /// Check if the spawned task is dropped.

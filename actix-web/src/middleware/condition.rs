@@ -135,7 +135,7 @@ mod tests {
     use super::*;
     use crate::{
         body::BoxBody,
-        dev::{ServiceRequest, ServiceResponse},
+        dev::ServiceRequest,
         error::Result,
         http::{
             header::{HeaderValue, CONTENT_TYPE},

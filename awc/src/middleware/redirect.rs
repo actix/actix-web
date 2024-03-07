@@ -303,10 +303,7 @@ mod tests {
     use actix_web::{web, App, Error, HttpRequest, HttpResponse};
 
     use super::*;
-    use crate::{
-        http::{header::HeaderValue, StatusCode},
-        ClientBuilder,
-    };
+    use crate::{http::header::HeaderValue, ClientBuilder};
 
     #[actix_rt::test]
     async fn basic_redirect() {

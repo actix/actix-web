@@ -1,6 +1,7 @@
-//! HTTP primitives for the Actix ecosystem.
+//! HTTP types and services for the Actix ecosystem.
 //!
 //! ## Crate Features
+//!
 //! | Feature             | Functionality                               |
 //! | ------------------- | ------------------------------------------- |
 //! | `http2`             | HTTP/2 support via [h2].                    |
@@ -21,8 +22,7 @@
 #![allow(
     clippy::type_complexity,
     clippy::too_many_arguments,
-    clippy::borrow_interior_mutable_const,
-    clippy::uninlined_format_args
+    clippy::borrow_interior_mutable_const
 )]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
@@ -58,7 +58,12 @@ pub mod ws;
 
 #[allow(deprecated)]
 pub use self::payload::PayloadStream;
-#[cfg(any(feature = "openssl", feature = "rustls-0_20", feature = "rustls-0_21"))]
+#[cfg(any(
+    feature = "openssl",
+    feature = "rustls-0_20",
+    feature = "rustls-0_21",
+    feature = "rustls-0_22",
+))]
 pub use self::service::TlsAcceptorConfig;
 pub use self::{
     builder::HttpServiceBuilder,

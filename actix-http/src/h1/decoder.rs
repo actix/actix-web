@@ -563,15 +563,8 @@ impl Decoder for PayloadDecoder {
 
 #[cfg(test)]
 mod tests {
-    use bytes::{Bytes, BytesMut};
-    use http::{Method, Version};
-
     use super::*;
-    use crate::{
-        error::ParseError,
-        header::{HeaderName, SET_COOKIE},
-        HttpMessage as _,
-    };
+    use crate::{header::SET_COOKIE, HttpMessage as _};
 
     impl PayloadType {
         pub(crate) fn unwrap(self) -> PayloadDecoder {

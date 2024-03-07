@@ -4,7 +4,10 @@ use actix_http::uri::{PathAndQuery, Uri};
 use actix_service::{Service, Transform};
 use actix_utils::future::{ready, Ready};
 use bytes::Bytes;
+#[cfg(feature = "unicode")]
 use regex::Regex;
+#[cfg(not(feature = "unicode"))]
+use regex_lite::Regex;
 
 use crate::{
     service::{ServiceRequest, ServiceResponse},
@@ -205,7 +208,6 @@ mod tests {
 
     use super::*;
     use crate::{
-        dev::ServiceRequest,
         guard::fn_guard,
         test::{call_service, init_service, TestRequest},
         web, App, HttpResponse,

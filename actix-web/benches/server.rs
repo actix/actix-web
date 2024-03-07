@@ -1,5 +1,3 @@
-#![allow(clippy::uninlined_format_args)]
-
 use actix_web::{web, App, HttpResponse};
 use awc::Client;
 use criterion::{criterion_group, criterion_main, Criterion};
