@@ -207,27 +207,26 @@ pub(crate) trait MessageType: Sized {
         Ok(())
     }
 
-    fn write_connection_header<B:BufMut>(&self, conn_type: ConnectionType,
-                                         version: Version,
-                                         buf: &mut B){
+    fn write_connection_header<B: BufMut>(
+        &self,
+        conn_type: ConnectionType,
+        version: Version,
+        buf: &mut B,
+    ) {
         let camel_case = self.camel_case();
 
-        let connection_header = self.all_headers()
+        let connection_header = self
+            .all_headers()
             .into_iter()
-            .find(|(name, _)| {
-                match **name {
-                    CONNECTION => true,
-                    _ => false
-                }
-            });
+            .find(|(name, _)| matches!(**name, CONNECTION));
 
-        if let Some((_,value)) = connection_header {
+        if let Some((_, value)) = connection_header {
             if camel_case {
                 buf.put_slice(b"Connection: ");
             } else {
                 buf.put_slice(b"connection: ");
             }
-            for val in value.iter(){
+            for val in value.iter() {
                 buf.put_slice(val.as_ref());
             }
             buf.put_slice(b"\r\n");
@@ -251,39 +250,37 @@ pub(crate) trait MessageType: Sized {
                     buf.put_slice(b"connection: close\r\n")
                 }
             }
-            _ => {
-
-            }
+            _ => {}
         }
     }
 
-    fn all_headers(&self) -> AHashMap<&HeaderName,&Value> {
-        let header_map = AHashMap::<&HeaderName,&Value>::new();
+    fn all_headers(&self) -> AHashMap<&HeaderName, &Value> {
+        let header_map = AHashMap::<&HeaderName, &Value>::new();
         match self.extra_headers() {
-            Some(headers) => {
-                self.headers()
-                    .inner
-                    .iter()
-                    .filter(|(name, _)| !headers.contains_key(*name))
-                    .chain(headers.inner.iter())
-                    .into_iter()
-                    .fold(header_map, |mut acc,(name,value) | {
-                        acc.insert(name,value);
-                        acc
-                    })
-            }
-            None => self.headers().inner
+            Some(headers) => self
+                .headers()
+                .inner
                 .iter()
-                .fold(header_map, |mut acc,(name,value) | {
-                    acc.insert(name,value);
+                .filter(|(name, _)| !headers.contains_key(*name))
+                .chain(headers.inner.iter())
+                .fold(header_map, |mut acc, (name, value)| {
+                    acc.insert(name, value);
                     acc
-                })
+                }),
+            None => self
+                .headers()
+                .inner
+                .iter()
+                .fold(header_map, |mut acc, (name, value)| {
+                    acc.insert(name, value);
+                    acc
+                }),
         }
     }
 
     fn write_headers<F>(&mut self, mut f: F)
-        where
-            F: FnMut(&HeaderName, &Value),
+    where
+        F: FnMut(&HeaderName, &Value),
     {
         self.all_headers()
             .iter()
@@ -725,7 +722,8 @@ mod tests {
         let mut bytes = BytesMut::with_capacity(2048);
 
         let mut res = Response::with_body(StatusCode::OK, ());
-        res.headers_mut().insert(CONNECTION, HeaderValue::from_static("close"));
+        res.headers_mut()
+            .insert(CONNECTION, HeaderValue::from_static("close"));
 
         let _ = res.encode_headers(
             &mut bytes,
@@ -743,7 +741,8 @@ mod tests {
         let mut bytes = BytesMut::with_capacity(2048);
 
         let mut res = Response::with_body(StatusCode::OK, ());
-        res.headers_mut().insert(CONNECTION, HeaderValue::from_static("keep-alive"));
+        res.headers_mut()
+            .insert(CONNECTION, HeaderValue::from_static("keep-alive"));
 
         let _ = res.encode_headers(
             &mut bytes,
@@ -761,7 +760,8 @@ mod tests {
         let mut bytes = BytesMut::with_capacity(2048);
 
         let mut res = Response::with_body(StatusCode::OK, ());
-        res.headers_mut().insert(CONNECTION, HeaderValue::from_static("keep-alive"));
+        res.headers_mut()
+            .insert(CONNECTION, HeaderValue::from_static("keep-alive"));
 
         let _ = res.encode_headers(
             &mut bytes,
