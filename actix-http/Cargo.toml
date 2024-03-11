@@ -88,7 +88,7 @@ bytestring = "1"
 derive_more = "0.99.5"
 encoding_rs = "0.8"
 futures-core = { version = "0.3.17", default-features = false, features = ["alloc"] }
-http = "0.2.7"
+http = "1.1.0"
 httparse = "1.5.1"
 httpdate = "1.0.1"
 itoa = "1"
