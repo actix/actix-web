@@ -84,7 +84,7 @@ use quote::quote;
 
 mod route;
 
-/// Creates resource handler, allowing multiple HTTP method guards.
+/// Creates resource handler , allowing multiple HTTP method guards.
 ///
 /// # Syntax
 /// ```plain
@@ -196,6 +196,7 @@ method_macro!(Connect, connect);
 method_macro!(Options, options);
 method_macro!(Trace, trace);
 method_macro!(Patch, patch);
+method_macro!(All, all);
 
 /// Marks async main function as the Actix Web system entry-point.
 ///
