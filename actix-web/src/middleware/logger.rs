@@ -16,7 +16,7 @@ use actix_service::{Service, Transform};
 use actix_utils::future::{ready, Ready};
 use bytes::Bytes;
 use futures_core::ready;
-use log::{debug, warn};
+use log::{debug, warn, Level};
 use pin_project_lite::pin_project;
 #[cfg(feature = "unicode")]
 use regex::Regex;
@@ -367,6 +367,12 @@ where
             debug!("Error in response: {:?}", error);
         }
 
+        let level = match res.response().status().as_u16() {
+            300..=499 => Level::Warn,
+            500..=599 => Level::Error,
+            _ => Level::Info,
+        };
+
         let res = if let Some(ref mut format) = this.format {
             // to avoid polluting all the Logger types with the body parameter we swap the body
             // out temporarily since it's not usable in custom response functions anyway
@@ -397,6 +403,7 @@ where
             format,
             size: 0,
             log_target,
+            level,
         })))
     }
 }
@@ -409,6 +416,7 @@ pin_project! {
         size: usize,
         time: OffsetDateTime,
         log_target: Cow<'static, str>,
+        level: Level,
     }
 
     impl<B> PinnedDrop for StreamLog<B> {
@@ -421,8 +429,9 @@ pin_project! {
                     Ok(())
                 };
 
-                log::info!(
+                log::log!(
                     target: this.log_target.as_ref(),
+                    this.level,
                     "{}", FormatDisplay(&render)
                 );
             }
