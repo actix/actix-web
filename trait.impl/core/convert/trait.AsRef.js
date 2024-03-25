@@ -1,0 +1,4 @@
+(function() {var implementors = {
+"actix_http":[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html\" title=\"trait core::convert::AsRef\">AsRef</a>&lt;<a class=\"struct\" href=\"actix_http/struct.RequestHead.html\" title=\"struct actix_http::RequestHead\">RequestHead</a>&gt; for <a class=\"enum\" href=\"actix_http/enum.RequestHeadType.html\" title=\"enum actix_http::RequestHeadType\">RequestHeadType</a>"]],
+"actix_web":[["impl&lt;T&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html\" title=\"trait core::convert::AsRef\">AsRef</a>&lt;T&gt; for <a class=\"struct\" href=\"actix_web/web/struct.Path.html\" title=\"struct actix_web::web::Path\">Path</a>&lt;T&gt;"]]
+};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Patterns"],"struct":["Path","PathDeserializer","Quoter","ResourceDef","ResourceId","Router","RouterBuilder","Url"],"trait":["IntoPatterns","Resource","ResourcePath"]};

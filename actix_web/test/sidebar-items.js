@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["call_and_read_body","call_and_read_body_json","call_service","init_service","ok_service","read_body","read_body_json","status_service","try_call_and_read_body_json","try_call_service","try_read_body","try_read_body_json"],"struct":["TestBuffer","TestRequest"]};

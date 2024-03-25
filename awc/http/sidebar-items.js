@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ConnectionType"],"mod":["header","uri"],"struct":["Error","Method","StatusCode","Uri","Version"]};
