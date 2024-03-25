@@ -6,6 +6,7 @@ use std::{
     slice::from_raw_parts_mut,
 };
 
+use ahash::AHashMap;
 use bytes::{BufMut, BytesMut};
 
 use crate::{
@@ -109,25 +110,9 @@ pub(crate) trait MessageType: Sized {
             BodySize::None => dst.put_slice(b"\r\n"),
         }
 
-        // Connection
-        match conn_type {
-            ConnectionType::Upgrade => dst.put_slice(b"connection: upgrade\r\n"),
-            ConnectionType::KeepAlive if version < Version::HTTP_11 => {
-                if camel_case {
-                    dst.put_slice(b"Connection: keep-alive\r\n")
-                } else {
-                    dst.put_slice(b"connection: keep-alive\r\n")
-                }
-            }
-            ConnectionType::Close if version >= Version::HTTP_11 => {
-                if camel_case {
-                    dst.put_slice(b"Connection: close\r\n")
-                } else {
-                    dst.put_slice(b"connection: close\r\n")
-                }
-            }
-            _ => {}
-        }
+        // write connection header
+
+        self.write_connection_header(conn_type, version, dst);
 
         // write headers
 
@@ -221,22 +206,84 @@ pub(crate) trait MessageType: Sized {
         Ok(())
     }
 
+    fn write_connection_header<B: BufMut>(
+        &self,
+        conn_type: ConnectionType,
+        version: Version,
+        buf: &mut B,
+    ) {
+        let camel_case = self.camel_case();
+
+        let connection_header = self
+            .all_headers()
+            .into_iter()
+            .find(|(name, _)| matches!(**name, CONNECTION));
+
+        if let Some((_, value)) = connection_header {
+            if camel_case {
+                buf.put_slice(b"Connection: ");
+            } else {
+                buf.put_slice(b"connection: ");
+            }
+            for val in value.iter() {
+                buf.put_slice(val.as_ref());
+            }
+            buf.put_slice(b"\r\n");
+            return;
+        }
+
+        // Connection
+        match conn_type {
+            ConnectionType::Upgrade => buf.put_slice(b"connection: upgrade\r\n"),
+            ConnectionType::KeepAlive if version < Version::HTTP_11 => {
+                if camel_case {
+                    buf.put_slice(b"Connection: keep-alive\r\n")
+                } else {
+                    buf.put_slice(b"connection: keep-alive\r\n")
+                }
+            }
+            ConnectionType::Close if version >= Version::HTTP_11 => {
+                if camel_case {
+                    buf.put_slice(b"Connection: close\r\n")
+                } else {
+                    buf.put_slice(b"connection: close\r\n")
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn all_headers(&self) -> AHashMap<&HeaderName, &Value> {
+        let header_map = AHashMap::<&HeaderName, &Value>::new();
+        match self.extra_headers() {
+            Some(headers) => self
+                .headers()
+                .inner
+                .iter()
+                .filter(|(name, _)| !headers.contains_key(*name))
+                .chain(headers.inner.iter())
+                .fold(header_map, |mut acc, (name, value)| {
+                    acc.insert(name, value);
+                    acc
+                }),
+            None => self
+                .headers()
+                .inner
+                .iter()
+                .fold(header_map, |mut acc, (name, value)| {
+                    acc.insert(name, value);
+                    acc
+                }),
+        }
+    }
+
     fn write_headers<F>(&mut self, mut f: F)
     where
         F: FnMut(&HeaderName, &Value),
     {
-        match self.extra_headers() {
-            Some(headers) => {
-                // merging headers from head and extra headers.
-                self.headers()
-                    .inner
-                    .iter()
-                    .filter(|(name, _)| !headers.contains_key(*name))
-                    .chain(headers.inner.iter())
-                    .for_each(|(k, v)| f(k, v))
-            }
-            None => self.headers().inner.iter().for_each(|(k, v)| f(k, v)),
-        }
+        self.all_headers()
+            .iter()
+            .for_each(|(key, value)| f(key, value));
     }
 }
 
@@ -667,5 +714,62 @@ mod tests {
         let data = String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
         assert!(!data.contains("content-length: 0\r\n"));
         assert!(!data.contains("transfer-encoding: chunked\r\n"));
+    }
+
+    #[actix_rt::test]
+    async fn test_close_connection_header_even_keep_alive_was_provided() {
+        let mut bytes = BytesMut::with_capacity(2048);
+
+        let mut res = Response::with_body(StatusCode::OK, ());
+        res.headers_mut()
+            .insert(CONNECTION, HeaderValue::from_static("close"));
+
+        let _ = res.encode_headers(
+            &mut bytes,
+            Version::HTTP_11,
+            BodySize::Stream,
+            ConnectionType::KeepAlive,
+            &ServiceConfig::default(),
+        );
+        let data = String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
+        assert!(data.contains("connection: close\r\n"));
+    }
+
+    #[actix_rt::test]
+    async fn test_keep_alive_connection_header_when_provided() {
+        let mut bytes = BytesMut::with_capacity(2048);
+
+        let mut res = Response::with_body(StatusCode::OK, ());
+        res.headers_mut()
+            .insert(CONNECTION, HeaderValue::from_static("keep-alive"));
+
+        let _ = res.encode_headers(
+            &mut bytes,
+            Version::HTTP_11,
+            BodySize::Stream,
+            ConnectionType::KeepAlive,
+            &ServiceConfig::default(),
+        );
+        let data = String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
+        assert!(data.contains("connection: keep-alive\r\n"));
+    }
+
+    #[actix_rt::test]
+    async fn test_keep_alive_connection_header_even_close_was_provided() {
+        let mut bytes = BytesMut::with_capacity(2048);
+
+        let mut res = Response::with_body(StatusCode::OK, ());
+        res.headers_mut()
+            .insert(CONNECTION, HeaderValue::from_static("keep-alive"));
+
+        let _ = res.encode_headers(
+            &mut bytes,
+            Version::HTTP_11,
+            BodySize::Stream,
+            ConnectionType::Close,
+            &ServiceConfig::default(),
+        );
+        let data = String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
+        assert!(data.contains("connection: keep-alive\r\n"));
     }
 }
