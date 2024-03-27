@@ -1,6 +1,5 @@
 use std::{convert::Infallible, net::SocketAddr};
 
-use actix_utils::future::{err, ok, Ready};
 use derive_more::{Display, Error};
 
 use crate::{
@@ -198,10 +197,10 @@ impl ConnectionInfo {
 
 impl FromRequest for ConnectionInfo {
     type Error = Infallible;
-    type Future = Ready<Result<Self, Self::Error>>;
 
-    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        ok(req.connection_info().clone())
+    #[inline]
+    async fn from_request(req: &HttpRequest, _: &mut Payload) -> Result<Self, Self::Error> {
+        Ok(req.connection_info().clone())
     }
 }
 
@@ -240,14 +239,14 @@ impl ResponseError for MissingPeerAddr {}
 
 impl FromRequest for PeerAddr {
     type Error = MissingPeerAddr;
-    type Future = Ready<Result<Self, Self::Error>>;
 
-    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+    #[inline]
+    async fn from_request(req: &HttpRequest, _: &mut Payload) -> Result<Self, Self::Error> {
         match req.peer_addr() {
-            Some(addr) => ok(PeerAddr(addr)),
+            Some(addr) => Ok(PeerAddr(addr)),
             None => {
                 log::error!("Missing peer address.");
-                err(MissingPeerAddr)
+                Err(MissingPeerAddr)
             }
         }
     }

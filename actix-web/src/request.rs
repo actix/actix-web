@@ -1,5 +1,6 @@
 use std::{
     cell::{Ref, RefCell, RefMut},
+    convert::Infallible,
     fmt, net,
     rc::Rc,
     str,
@@ -7,7 +8,6 @@ use std::{
 
 use actix_http::{Message, RequestHead};
 use actix_router::{Path, Url};
-use actix_utils::future::{ok, Ready};
 #[cfg(feature = "cookies")]
 use cookie::{Cookie, ParseError as CookieParseError};
 use smallvec::SmallVec;
@@ -20,7 +20,7 @@ use crate::{
     http::{header::HeaderMap, Method, Uri, Version},
     info::ConnectionInfo,
     rmap::ResourceMap,
-    Error, FromRequest, HttpMessage,
+    FromRequest, HttpMessage,
 };
 
 #[cfg(feature = "cookies")]
@@ -417,12 +417,11 @@ impl Drop for HttpRequest {
 /// );
 /// ```
 impl FromRequest for HttpRequest {
-    type Error = Error;
-    type Future = Ready<Result<Self, Error>>;
+    type Error = Infallible;
 
     #[inline]
-    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        ok(req.clone())
+    async fn from_request(req: &HttpRequest, _: &mut Payload) -> Result<Self, Self::Error> {
+        Ok(req.clone())
     }
 }
 
