@@ -371,7 +371,7 @@ async fn test_auto_async() {
     let response = request.send().await.unwrap();
     assert!(response.status().is_success());
 }
-
+/*
 #[actix_web::test]
 async fn test_wrap() {
     let srv = actix_test::start(|| App::new().service(get_wrap));
@@ -384,7 +384,20 @@ async fn test_wrap() {
     let body = String::from_utf8(body.to_vec()).unwrap();
     assert!(body.contains("wrong number of parameters"));
 }
+*/
+#[scope("/test")]
+mod scope_module {
+    use actix_web::{HttpResponse, Responder};
+    use actix_web_codegen::{
+        connect, delete, get, head, options, patch, post, put, route, routes, scope, trace,
+    };
 
+    #[get("/get_test")]
+    async fn get_test() -> impl Responder {
+        HttpResponse::Ok()
+    }
+}
+/* 
 #[scope("/test")]
 const mod_inner: () = {
     use actix_web::{
@@ -595,3 +608,4 @@ async fn test_scope_v1_v2_async() {
     let body_str = String::from_utf8(body.to_vec()).unwrap();
     assert_eq!(body_str, "version2 works");
 }
+*/

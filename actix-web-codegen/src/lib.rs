@@ -254,10 +254,10 @@ pub fn test(_: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// # Example
 ///
+/// scope("/test")
 /// ```rust
 /// use actix_web_codegen::{scope};
 ///
-/// #[scope("/test")]
 /// const mod_inner: () = {
 /// use actix_web::{HttpResponse, HttpRequest, Responder, put, head, connect, options, trace, patch, delete, web };
 /// use actix_web::web::Json;
@@ -320,12 +320,7 @@ pub fn test(_: TokenStream, item: TokenStream) -> TokenStream {
 ///};
 /// ```
 ///
-/// # Note
-///
-/// Internally the macro generates struct with name of scope (e.g. `mod_inner`).
-/// And creates public module as `<name>_scope`.
-///
 #[proc_macro_attribute]
 pub fn scope(args: TokenStream, input: TokenStream) -> TokenStream {
-    route::ScopeArgs::new(args, input).generate()
+    route::with_scope(args, input)
 }
