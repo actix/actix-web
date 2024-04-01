@@ -387,37 +387,24 @@ async fn test_wrap() {
 */
 #[scope("/test")]
 mod scope_module {
-    use actix_web::{HttpResponse, Responder};
-    use actix_web_codegen::{
-        connect, delete, get, head, options, patch, post, put, route, routes, scope, trace,
-    };
-
-    #[get("/get_test")]
-    async fn get_test() -> impl Responder {
-        HttpResponse::Ok()
-    }
-}
-/* 
-#[scope("/test")]
-const mod_inner: () = {
     use actix_web::{
-        connect, delete, head, options, patch, put, trace, web, web::Json, HttpRequest,
+        get, post, connect, delete, head, options, patch, put, trace, web, HttpRequest,
         HttpResponse, Responder,
     };
 
-    #[actix_web::get("/test")]
+    #[get("/test")]
     pub async fn test() -> impl Responder {
-        mod_test2()
+        HttpResponse::Ok().finish()
     }
 
-    #[actix_web::get("/twicetest/{value}")]
+    #[get("/twicetest/{value}")]
     pub async fn test_twice(value: web::Path<String>) -> impl actix_web::Responder {
         let int_value: i32 = value.parse().unwrap_or(0);
         let doubled = int_value * 2;
         HttpResponse::Ok().body(format!("Twice value: {}", doubled))
     }
 
-    #[actix_web::post("/test")]
+    #[post("/test")]
     pub async fn test_post() -> impl Responder {
         HttpResponse::Ok().body(format!("post works"))
     }
@@ -464,31 +451,31 @@ const mod_inner: () = {
     pub fn mod_common(message: String) -> impl actix_web::Responder {
         HttpResponse::Ok().body(message)
     }
-};
+}
 
 #[scope("/v1")]
-const mod_inner_v1: () = {
-    use actix_web::Responder;
+mod mod_inner_v1 {
+    use actix_web::{get, Responder};
 
-    #[actix_web::get("/test")]
+    #[get("/test")]
     pub async fn test() -> impl Responder {
-        super::mod_inner_scope::mod_common("version1 works".to_string())
+        super::scope_module::mod_common("version1 works".to_string())
     }
-};
+}
 
 #[scope("/v2")]
-const mod_inner_v2: () = {
-    use actix_web::Responder;
+mod mod_inner_v2 {
+    use actix_web::{get, Responder};
 
-    #[actix_web::get("/test")]
+    #[get("/test")]
     pub async fn test() -> impl Responder {
-        super::mod_inner_scope::mod_common("version2 works".to_string())
+        super::scope_module::mod_common("version2 works".to_string())
     }
-};
+}
 
 #[actix_rt::test]
 async fn test_scope_get_async() {
-    let srv = actix_test::start(|| App::new().service(mod_inner));
+    let srv = actix_test::start(|| App::new().service(scope_module::test));
 
     let request = srv.request(http::Method::GET, srv.url("/test/test"));
     let response = request.send().await.unwrap();
@@ -497,7 +484,7 @@ async fn test_scope_get_async() {
 
 #[actix_rt::test]
 async fn test_scope_get_param_async() {
-    let srv = actix_test::start(|| App::new().service(mod_inner));
+    let srv = actix_test::start(|| App::new().service(scope_module::test_twice));
 
     let request = srv.request(http::Method::GET, srv.url("/test/twicetest/4"));
     let mut response = request.send().await.unwrap();
@@ -508,7 +495,7 @@ async fn test_scope_get_param_async() {
 
 #[actix_rt::test]
 async fn test_scope_post_async() {
-    let srv = actix_test::start(|| App::new().service(mod_inner));
+    let srv = actix_test::start(|| App::new().service(scope_module::test_post));
 
     let request = srv.request(http::Method::POST, srv.url("/test/test"));
     let mut response = request.send().await.unwrap();
@@ -519,7 +506,7 @@ async fn test_scope_post_async() {
 
 #[actix_rt::test]
 async fn test_scope_put_async() {
-    let srv = actix_test::start(|| App::new().service(mod_inner));
+    let srv = actix_test::start(|| App::new().service(scope_module::test_put));
 
     let request = srv.request(http::Method::PUT, srv.url("/test/test"));
     let mut response = request.send().await.unwrap();
@@ -530,7 +517,7 @@ async fn test_scope_put_async() {
 
 #[actix_rt::test]
 async fn test_scope_head_async() {
-    let srv = actix_test::start(|| App::new().service(mod_inner));
+    let srv = actix_test::start(|| App::new().service(scope_module::test_head));
 
     let request = srv.request(http::Method::HEAD, srv.url("/test/test"));
     let response = request.send().await.unwrap();
@@ -539,7 +526,7 @@ async fn test_scope_head_async() {
 
 #[actix_rt::test]
 async fn test_scope_connect_async() {
-    let srv = actix_test::start(|| App::new().service(mod_inner));
+    let srv = actix_test::start(|| App::new().service(scope_module::test_connect));
 
     let request = srv.request(http::Method::CONNECT, srv.url("/test/test"));
     let mut response = request.send().await.unwrap();
@@ -550,7 +537,7 @@ async fn test_scope_connect_async() {
 
 #[actix_rt::test]
 async fn test_scope_options_async() {
-    let srv = actix_test::start(|| App::new().service(mod_inner));
+    let srv = actix_test::start(|| App::new().service(scope_module::test_options));
 
     let request = srv.request(http::Method::OPTIONS, srv.url("/test/test"));
     let mut response = request.send().await.unwrap();
@@ -561,7 +548,7 @@ async fn test_scope_options_async() {
 
 #[actix_rt::test]
 async fn test_scope_trace_async() {
-    let srv = actix_test::start(|| App::new().service(mod_inner));
+    let srv = actix_test::start(|| App::new().service(scope_module::test_trace));
 
     let request = srv.request(http::Method::TRACE, srv.url("/test/test"));
     let mut response = request.send().await.unwrap();
@@ -572,7 +559,7 @@ async fn test_scope_trace_async() {
 
 #[actix_rt::test]
 async fn test_scope_patch_async() {
-    let srv = actix_test::start(|| App::new().service(mod_inner));
+    let srv = actix_test::start(|| App::new().service(scope_module::test_patch));
 
     let request = srv.request(http::Method::PATCH, srv.url("/test/test"));
     let mut response = request.send().await.unwrap();
@@ -583,7 +570,7 @@ async fn test_scope_patch_async() {
 
 #[actix_rt::test]
 async fn test_scope_delete_async() {
-    let srv = actix_test::start(|| App::new().service(mod_inner));
+    let srv = actix_test::start(|| App::new().service(scope_module::test_delete));
 
     let request = srv.request(http::Method::DELETE, srv.url("/test/test"));
     let mut response = request.send().await.unwrap();
@@ -594,7 +581,7 @@ async fn test_scope_delete_async() {
 
 #[actix_rt::test]
 async fn test_scope_v1_v2_async() {
-    let srv = actix_test::start(|| App::new().service(mod_inner_v1).service(mod_inner_v2));
+    let srv = actix_test::start(|| App::new().service(mod_inner_v1::test).service(mod_inner_v2::test));
 
     let request = srv.request(http::Method::GET, srv.url("/v1/test"));
     let mut response = request.send().await.unwrap();
@@ -608,4 +595,3 @@ async fn test_scope_v1_v2_async() {
     let body_str = String::from_utf8(body.to_vec()).unwrap();
     assert_eq!(body_str, "version2 works");
 }
-*/

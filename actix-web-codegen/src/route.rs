@@ -1,11 +1,11 @@
-use std::{collections::HashSet};
+use std::collections::HashSet;
 
 use actix_router::ResourceDef;
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{quote, ToTokens, TokenStreamExt};
-use syn::{punctuated::Punctuated, Ident, LitStr, Path, Token, ItemFn};
-use syn::Item::Fn; // todo: cleanup
+use syn::Item::Fn;
+use syn::{punctuated::Punctuated, Ident, ItemFn, LitStr, Path, Token}; // todo: cleanup
 
 #[derive(Debug)]
 pub struct RouteArgs {
@@ -556,72 +556,83 @@ fn input_and_compile_error(mut item: TokenStream, err: syn::Error) -> TokenStrea
     item
 }
 
+// todo: regular new scoped path test...
 // todo: test with enums in module...
+// todo: test with different namespaces...
 // todo: test with multiple get/post methods...
 // todo: test with doc strings in attributes...
 // todo: clean up the nested tree of death, tell it about the input_and_compile_error convenience function...
 // todo: add in the group functions for convenient handling of group...
 // todo: see if can cleanup the Attribute with a clone plus one field change...
+// todo: #[actix_web::get("/test")] the namespace is messing matching up
 pub fn with_scope(args: TokenStream, input: TokenStream) -> TokenStream {
-    // get the path of the scope argument
+    // Attempt to parse the scope path, returning on error
     if args.is_empty() {
         return input_and_compile_error(
-            args, syn::Error::new(proc_macro2::Span::call_site(), "invalid server definition, expected: #[scope(\"some path\")]"));
+            args.clone(),
+            syn::Error::new(
+                Span::call_site(),
+                "Missing arguments for scope macro, expected: #[scope(\"some path\")]",
+            ),
+        );
     }
-    let scope_path = syn::parse::<syn::LitStr>(args.clone()).map_err(|_| syn::Error::new(
-        proc_macro2::Span::call_site(),
-        "Scope macro needs a path to be specified.",
-        ));
+    let scope_path = syn::parse::<LitStr>(args.clone().into());
+    if let Err(_err) = scope_path {
+        return input_and_compile_error(
+            args.clone(),
+            syn::Error::new(
+                Span::call_site(),
+                "Missing arguments for scope macro, expected: #[scope(\"some path\")]",
+            ),
+        );
+    }
 
-    // modify the attribute of functions with method attributes in the module
-    let mut ast: syn::ItemMod = syn::parse(input.clone()).expect("expecting module for macro scope attribute");
-    match scope_path {
-        Ok(scope_path) => { // scope_path : LitStr
-            if let Some((_, ref mut all_items)) = ast.content {
-                for item in all_items.iter_mut() {
+    // Expect macro to be for a module
+    match syn::parse::<syn::ItemMod>(input) {
+        Ok(mut ast) => {
+            // Modify the attributes of functions within the module with method with scope, if any
+            if let Some((_, ref mut items)) = ast.content {
+                items.iter_mut().for_each(|item| {
                     if let Fn(fun) = item {
-                        let mut new_attrs = Vec::new();
-                        for attr in fun.attrs.iter() {
-                            if let Ok(_method) = MethodType::from_path(attr.path()) {
-                                if let Ok(route_args) = attr.parse_args::<RouteArgs>() {
-                                    if let syn::Meta::List(meta_list) = attr.clone().meta {
-                                        let modified_path = format!("{}{}", scope_path.value(), route_args.path.value());
-                                        let modified_tokens = quote! {
-                                            #modified_path
-                                        };
-                                        let new_attr = syn::Attribute {
-                                                    pound_token: attr.pound_token,
-                                                    style: attr.style,
-                                                    bracket_token: attr.bracket_token,
-                                                    meta: syn::Meta::List(syn::MetaList {
-                                                        path: meta_list.path,
-                                                        delimiter: meta_list.delimiter,
-                                                        tokens: modified_tokens,
-                                                    })
-                                                };
-                                        new_attrs.push(new_attr);
-                                    }
-                                    else {
-                                        new_attrs.push(attr.clone());
-                                    }
-                                }
-                                else {
-                                    new_attrs.push(attr.clone());
-                                }
-                            }
-                            else {
-                                new_attrs.push(attr.clone());
-                            }
-                        }
-                        fun.attrs = new_attrs;
+                        fun.attrs = fun
+                            .attrs
+                            .iter()
+                            .map(|attr| {
+                                modify_attribute_with_scope(
+                                    attr,
+                                    &scope_path.clone().unwrap().value(),
+                                )
+                            })
+                            .collect();
                     }
-                }
+                })
             }
-        },
-        Err(err) => {
-            return input_and_compile_error(args, err);
+            TokenStream::from(quote! { #ast })
         }
-    };
+        Err(err) => {
+            input_and_compile_error(args, syn::Error::new(Span::call_site(), err.to_string()))
+        }
+    }
+}
 
-    TokenStream::from(quote! { #ast })    
+// Check if the attribute is a method type and has a route path, then modify it
+fn modify_attribute_with_scope(attr: &syn::Attribute, scope_path: &str) -> syn::Attribute {
+    match (
+        MethodType::from_path(attr.path()),
+        attr.parse_args::<RouteArgs>(),
+        attr.clone().meta,
+    ) {
+        (Ok(_method), Ok(route_args), syn::Meta::List(meta_list)) => {
+            let modified_path = format!("{}{}", scope_path, route_args.path.value());
+            let modified_tokens = quote! { #modified_path };
+            syn::Attribute {
+                meta: syn::Meta::List(syn::MetaList {
+                    tokens: modified_tokens,
+                    ..meta_list.clone()
+                }),
+                ..attr.clone()
+            }
+        }
+        _ => attr.clone(),
+    }
 }
