@@ -380,7 +380,7 @@ impl Guard for HeaderGuard {
 
 #[cfg(test)]
 mod tests {
-    use actix_http::{header, Method};
+    use actix_http::Method;
 
     use super::*;
     use crate::test::TestRequest;

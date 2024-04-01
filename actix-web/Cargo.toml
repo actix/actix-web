@@ -40,7 +40,7 @@ name = "actix_web"
 path = "src/lib.rs"
 
 [features]
-default = ["macros", "compress-brotli", "compress-gzip", "compress-zstd", "cookies", "http2"]
+default = ["macros", "compress-brotli", "compress-gzip", "compress-zstd", "cookies", "http2", "unicode"]
 
 # Brotli algorithm content-encoding support
 compress-brotli = ["actix-http/compress-brotli", "__compress"]
@@ -72,6 +72,9 @@ rustls-0_21 = ["http2", "actix-http/rustls-0_21", "actix-tls/accept", "actix-tls
 # TLS via Rustls v0.22
 rustls-0_22 = ["http2", "actix-http/rustls-0_22", "actix-tls/accept", "actix-tls/rustls-0_22"]
 
+# Full unicode support
+unicode = ["dep:regex", "actix-router/unicode"]
+
 # Internal (PRIVATE!) features used to aid testing and checking feature status.
 # Don't rely on these whatsoever. They may disappear at anytime.
 __compress = []
@@ -89,7 +92,7 @@ actix-utils = "3"
 actix-tls = { version = "3.3", default-features = false, optional = true }
 
 actix-http = { version = "3.6", features = ["ws"] }
-actix-router = "0.5"
+actix-router = { version = "0.5", default-features = false, features = ["http"] }
 actix-web-codegen = { version = "4.2", optional = true }
 
 ahash = "0.8"
@@ -107,7 +110,8 @@ log = "0.4"
 mime = "0.3"
 once_cell = "1.5"
 pin-project-lite = "0.2.7"
-regex = "1.5.5"
+regex = { version = "1.5.5", optional = true }
+regex-lite = "0.1"
 serde = "1.0"
 serde_json = "1.0"
 serde_urlencoded = "0.7"
@@ -124,7 +128,7 @@ awc = { version = "3", features = ["openssl"] }
 brotli = "3.3.3"
 const-str = "0.5"
 criterion = { version = "0.5", features = ["html_reports"] }
-env_logger = "0.10"
+env_logger = "0.11"
 flate2 = "1.0.13"
 futures-util = { version = "0.3.17", default-features = false, features = ["std"] }
 rand = "0.8"

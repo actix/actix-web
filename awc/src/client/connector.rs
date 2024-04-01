@@ -401,6 +401,7 @@ where
                     use actix_tls::connect::Connection;
                     use actix_utils::future::{ready, Ready};
 
+                    #[allow(non_local_definitions)]
                     impl IntoConnectionIo for TcpConnection<Uri, Box<dyn ConnectionIo>> {
                         fn into_connection_io(self) -> (Box<dyn ConnectionIo>, Protocol) {
                             let io = self.into_parts().0;
@@ -451,6 +452,7 @@ where
 
                 use actix_tls::connect::openssl::{reexports::AsyncSslStream, TlsConnector};
 
+                #[allow(non_local_definitions)]
                 impl<IO: ConnectionIo> IntoConnectionIo for TcpConnection<Uri, AsyncSslStream<IO>> {
                     fn into_connection_io(self) -> (Box<dyn ConnectionIo>, Protocol) {
                         let sock = self.into_parts().0;
@@ -488,6 +490,7 @@ where
 
                 use actix_tls::connect::rustls_0_20::{reexports::AsyncTlsStream, TlsConnector};
 
+                #[allow(non_local_definitions)]
                 impl<Io: ConnectionIo> IntoConnectionIo for TcpConnection<Uri, AsyncTlsStream<Io>> {
                     fn into_connection_io(self) -> (Box<dyn ConnectionIo>, Protocol) {
                         let sock = self.into_parts().0;
@@ -521,6 +524,7 @@ where
 
                 use actix_tls::connect::rustls_0_21::{reexports::AsyncTlsStream, TlsConnector};
 
+                #[allow(non_local_definitions)]
                 impl<Io: ConnectionIo> IntoConnectionIo for TcpConnection<Uri, AsyncTlsStream<Io>> {
                     fn into_connection_io(self) -> (Box<dyn ConnectionIo>, Protocol) {
                         let sock = self.into_parts().0;
@@ -557,6 +561,7 @@ where
 
                 use actix_tls::connect::rustls_0_22::{reexports::AsyncTlsStream, TlsConnector};
 
+                #[allow(non_local_definitions)]
                 impl<Io: ConnectionIo> IntoConnectionIo for TcpConnection<Uri, AsyncTlsStream<Io>> {
                     fn into_connection_io(self) -> (Box<dyn ConnectionIo>, Protocol) {
                         let sock = self.into_parts().0;
@@ -935,7 +940,6 @@ mod resolver {
     use std::{cell::RefCell, net::SocketAddr};
 
     use actix_tls::connect::Resolve;
-    use futures_core::future::LocalBoxFuture;
     use trust_dns_resolver::{
         config::{ResolverConfig, ResolverOpts},
         system_conf::read_system_conf,

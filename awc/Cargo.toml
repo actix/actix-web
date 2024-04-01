@@ -79,7 +79,7 @@ actix-rt = { version = "2.1", default-features = false }
 actix-tls = { version = "3.3", features = ["connect", "uri"] }
 actix-utils = "3"
 
-base64 = "0.21"
+base64 = "0.22"
 bytes = "1"
 cfg-if = "1"
 derive_more = "0.99.5"
@@ -118,7 +118,7 @@ actix-web = { version = "4", features = ["openssl"] }
 
 brotli = "3.3.3"
 const-str = "0.5"
-env_logger = "0.10"
+env_logger = "0.11"
 flate2 = "1.0.13"
 futures-util = { version = "0.3.17", default-features = false }
 static_assertions = "1.1"

@@ -50,7 +50,7 @@ jobs:
           toolchain: ${{ matrix.version.version }}
 
       - name: Install cargo-hack and cargo-ci-cache-clean
-        uses: taiki-e/install-action@v2.26.12
+        uses: taiki-e/install-action@v2.32.0
         with:
           tool: cargo-hack,cargo-ci-cache-clean
 
@@ -70,6 +70,7 @@ jobs:
         shell: bash
         run: |
           set -e
+          cargo test --lib --tests -p=actix-router --no-default-features
           cargo test --lib --tests -p=actix-router --all-features
           cargo test --lib --tests -p=actix-http --all-features
           cargo test --lib --tests -p=actix-web --features=rustls-0_20,rustls-0_21,rustls-0_22,openssl -- --skip=test_reading_deflate_encoding_large_random_rustls
