@@ -245,9 +245,6 @@ pub fn test(_: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// Syntax: `#[scope("path")]`
 ///
-/// Due to current limitation it cannot be applied to modules themself.
-/// Instead one should create const variable that contains module code.
-///
 /// ## Attributes:
 ///
 /// - `"path"` - Raw literal string with path for which to register handler. Mandatory.
