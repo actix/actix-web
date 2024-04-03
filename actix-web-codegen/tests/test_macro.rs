@@ -373,8 +373,9 @@ async fn test_auto_async() {
 
 #[scope("/test")]
 mod scope_module {
-    use crate::guard_module;
     use actix_web::{delete, get, post, route, routes, web, HttpResponse, Responder};
+
+    use crate::guard_module;
 
     #[get("/test/guard", guard = "guard_module::guard")]
     pub async fn test_guard() -> impl Responder {
