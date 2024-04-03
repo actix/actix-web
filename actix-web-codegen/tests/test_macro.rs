@@ -6,7 +6,6 @@ use actix_web::{
     http::{
         self,
         header::{HeaderName, HeaderValue},
-        StatusCode,
     },
     web, App, Error, HttpRequest, HttpResponse, Responder,
 };
@@ -371,26 +370,16 @@ async fn test_auto_async() {
     let response = request.send().await.unwrap();
     assert!(response.status().is_success());
 }
-/*
-#[actix_web::test]
-async fn test_wrap() {
-    let srv = actix_test::start(|| App::new().service(get_wrap));
 
-    let request = srv.request(http::Method::GET, srv.url("/test/wrap"));
-    let mut response = request.send().await.unwrap();
-    assert_eq!(response.status(), StatusCode::NOT_FOUND);
-    assert!(response.headers().contains_key("custom-header"));
-    let body = response.body().await.unwrap();
-    let body = String::from_utf8(body.to_vec()).unwrap();
-    assert!(body.contains("wrong number of parameters"));
-}
-*/
 #[scope("/test")]
 mod scope_module {
-    use actix_web::{
-        get, post, connect, delete, head, options, patch, put, trace, web, HttpRequest,
-        HttpResponse, Responder,
-    };
+    use crate::guard_module;
+    use actix_web::{delete, get, post, route, routes, web, HttpResponse, Responder};
+
+    #[get("/test/guard", guard = "guard_module::guard")]
+    pub async fn test_guard() -> impl Responder {
+        HttpResponse::Ok()
+    }
 
     #[get("/test")]
     pub async fn test() -> impl Responder {
@@ -409,67 +398,59 @@ mod scope_module {
         HttpResponse::Ok().body(format!("post works"))
     }
 
-    #[put("/test")]
-    pub async fn test_put() -> impl Responder {
-        HttpResponse::Ok().body(format!("put works"))
-    }
-
-    #[head("/test")]
-    pub async fn test_head() -> impl Responder {
-        HttpResponse::Ok().finish()
-    }
-
-    #[connect("/test")]
-    pub async fn test_connect() -> impl Responder {
-        HttpResponse::Ok().body("connect works")
-    }
-
-    #[options("/test")]
-    pub async fn test_options() -> impl Responder {
-        HttpResponse::Ok().body("options works")
-    }
-
-    #[trace("/test")]
-    pub async fn test_trace(req: HttpRequest) -> impl Responder {
-        HttpResponse::Ok().body(format!("trace works: {:?}", req))
-    }
-
-    #[patch("/test")]
-    pub async fn test_patch() -> impl Responder {
-        HttpResponse::Ok().body(format!("patch works"))
-    }
-
     #[delete("/test")]
     pub async fn test_delete() -> impl Responder {
         HttpResponse::Ok().body("delete works")
     }
 
-    pub fn mod_test2() -> impl actix_web::Responder {
-        actix_web::HttpResponse::Ok().finish()
+    #[route("/test", method = "PUT", method = "PATCH", method = "CUSTOM")]
+    pub async fn test_multiple_shared_path() -> impl Responder {
+        HttpResponse::Ok().finish()
     }
 
+    #[routes]
+    #[head("/test")]
+    #[connect("/test")]
+    #[options("/test")]
+    #[trace("/test")]
+    async fn test_multiple_separate_paths() -> impl Responder {
+        HttpResponse::Ok().finish()
+    }
+
+    // test calling this from other mod scope with scope attribute...
     pub fn mod_common(message: String) -> impl actix_web::Responder {
         HttpResponse::Ok().body(message)
     }
 }
 
 #[scope("/v1")]
-mod mod_inner_v1 {
+mod mod_scope_v1 {
     use actix_web::{get, Responder};
 
     #[get("/test")]
+    #[doc = "doc string to check in cargo expand"]
     pub async fn test() -> impl Responder {
         super::scope_module::mod_common("version1 works".to_string())
     }
 }
 
 #[scope("/v2")]
-mod mod_inner_v2 {
+mod mod_scope_v2 {
     use actix_web::{get, Responder};
+
+    // check to make sure non-function tokens in the scope block are preserved...
+    enum TestEnum {
+        Works,
+    }
 
     #[get("/test")]
     pub async fn test() -> impl Responder {
-        super::scope_module::mod_common("version2 works".to_string())
+        // make sure this type still exists...
+        let test_enum = TestEnum::Works;
+
+        match test_enum {
+            TestEnum::Works => super::scope_module::mod_common("version2 works".to_string()),
+        }
     }
 }
 
@@ -505,67 +486,37 @@ async fn test_scope_post_async() {
 }
 
 #[actix_rt::test]
-async fn test_scope_put_async() {
-    let srv = actix_test::start(|| App::new().service(scope_module::test_put));
+async fn test_multiple_shared_path_async() {
+    let srv = actix_test::start(|| App::new().service(scope_module::test_multiple_shared_path));
 
     let request = srv.request(http::Method::PUT, srv.url("/test/test"));
-    let mut response = request.send().await.unwrap();
-    let body = response.body().await.unwrap();
-    let body_str = String::from_utf8(body.to_vec()).unwrap();
-    assert_eq!(body_str, "put works");
-}
+    let response = request.send().await.unwrap();
+    assert!(response.status().is_success());
 
-#[actix_rt::test]
-async fn test_scope_head_async() {
-    let srv = actix_test::start(|| App::new().service(scope_module::test_head));
-
-    let request = srv.request(http::Method::HEAD, srv.url("/test/test"));
+    let request = srv.request(http::Method::PATCH, srv.url("/test/test"));
     let response = request.send().await.unwrap();
     assert!(response.status().is_success());
 }
 
 #[actix_rt::test]
-async fn test_scope_connect_async() {
-    let srv = actix_test::start(|| App::new().service(scope_module::test_connect));
+async fn test_multiple_multipaths_async() {
+    let srv = actix_test::start(|| App::new().service(scope_module::test_multiple_separate_paths));
 
     let request = srv.request(http::Method::CONNECT, srv.url("/test/test"));
-    let mut response = request.send().await.unwrap();
-    let body = response.body().await.unwrap();
-    let body_str = String::from_utf8(body.to_vec()).unwrap();
-    assert_eq!(body_str, "connect works");
-}
-
-#[actix_rt::test]
-async fn test_scope_options_async() {
-    let srv = actix_test::start(|| App::new().service(scope_module::test_options));
+    let response = request.send().await.unwrap();
+    assert!(response.status().is_success());
 
     let request = srv.request(http::Method::OPTIONS, srv.url("/test/test"));
-    let mut response = request.send().await.unwrap();
-    let body = response.body().await.unwrap();
-    let body_str = String::from_utf8(body.to_vec()).unwrap();
-    assert_eq!(body_str, "options works");
-}
-
-#[actix_rt::test]
-async fn test_scope_trace_async() {
-    let srv = actix_test::start(|| App::new().service(scope_module::test_trace));
+    let response = request.send().await.unwrap();
+    assert!(response.status().is_success());
 
     let request = srv.request(http::Method::TRACE, srv.url("/test/test"));
-    let mut response = request.send().await.unwrap();
-    let body = response.body().await.unwrap();
-    let body_str = String::from_utf8(body.to_vec()).unwrap();
-    assert!(body_str.contains("trace works"));
-}
+    let response = request.send().await.unwrap();
+    assert!(response.status().is_success());
 
-#[actix_rt::test]
-async fn test_scope_patch_async() {
-    let srv = actix_test::start(|| App::new().service(scope_module::test_patch));
-
-    let request = srv.request(http::Method::PATCH, srv.url("/test/test"));
-    let mut response = request.send().await.unwrap();
-    let body = response.body().await.unwrap();
-    let body_str = String::from_utf8(body.to_vec()).unwrap();
-    assert_eq!(body_str, "patch works");
+    let request = srv.request(http::Method::HEAD, srv.url("/test/test"));
+    let response = request.send().await.unwrap();
+    assert!(response.status().is_success());
 }
 
 #[actix_rt::test]
@@ -580,8 +531,23 @@ async fn test_scope_delete_async() {
 }
 
 #[actix_rt::test]
+async fn test_scope_get_with_guard_async() {
+    let srv = actix_test::start(|| App::new().service(scope_module::test_guard));
+
+    let request = srv
+        .request(http::Method::GET, srv.url("/test/test/guard"))
+        .insert_header(("Accept", "image/*"));
+    let response = request.send().await.unwrap();
+    assert!(response.status().is_success());
+}
+
+#[actix_rt::test]
 async fn test_scope_v1_v2_async() {
-    let srv = actix_test::start(|| App::new().service(mod_inner_v1::test).service(mod_inner_v2::test));
+    let srv = actix_test::start(|| {
+        App::new()
+            .service(mod_scope_v1::test)
+            .service(mod_scope_v2::test)
+    });
 
     let request = srv.request(http::Method::GET, srv.url("/v1/test"));
     let mut response = request.send().await.unwrap();

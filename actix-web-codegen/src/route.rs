@@ -4,8 +4,7 @@ use actix_router::ResourceDef;
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{quote, ToTokens, TokenStreamExt};
-use syn::Item::Fn;
-use syn::{punctuated::Punctuated, Ident, ItemFn, LitStr, Path, Token}; // todo: cleanup
+use syn::{punctuated::Punctuated, Ident, LitStr, Path, Token};
 
 #[derive(Debug)]
 pub struct RouteArgs {
@@ -332,14 +331,14 @@ pub struct Route {
     args: Vec<Args>,
 
     /// AST of the handler function being annotated.
-    ast: ItemFn,
+    ast: syn::ItemFn,
 
     /// The doc comment attributes to copy to generated struct, if any.
     doc_attributes: Vec<syn::Attribute>,
 }
 
 impl Route {
-    pub fn new(args: RouteArgs, ast: ItemFn, method: Option<MethodType>) -> syn::Result<Self> {
+    pub fn new(args: RouteArgs, ast: syn::ItemFn, method: Option<MethodType>) -> syn::Result<Self> {
         let name = ast.sig.ident.clone();
 
         // Try and pull out the doc comments so that we can reapply them to the generated struct.
@@ -375,7 +374,7 @@ impl Route {
         })
     }
 
-    fn multiple(args: Vec<Args>, ast: ItemFn) -> syn::Result<Self> {
+    fn multiple(args: Vec<Args>, ast: syn::ItemFn) -> syn::Result<Self> {
         let name = ast.sig.ident.clone();
 
         // Try and pull out the doc comments so that we can reapply them to the generated struct.
@@ -484,7 +483,7 @@ pub(crate) fn with_method(
         Err(err) => return input_and_compile_error(input, err),
     };
 
-    let ast = match syn::parse::<ItemFn>(input.clone()) {
+    let ast = match syn::parse::<syn::ItemFn>(input.clone()) {
         Ok(ast) => ast,
         // on parse error, make IDEs happy; see fn docs
         Err(err) => return input_and_compile_error(input, err),
@@ -498,7 +497,7 @@ pub(crate) fn with_method(
 }
 
 pub(crate) fn with_methods(input: TokenStream) -> TokenStream {
-    let mut ast = match syn::parse::<ItemFn>(input.clone()) {
+    let mut ast = match syn::parse::<syn::ItemFn>(input.clone()) {
         Ok(ast) => ast,
         // on parse error, make IDEs happy; see fn docs
         Err(err) => return input_and_compile_error(input, err),
@@ -556,15 +555,6 @@ fn input_and_compile_error(mut item: TokenStream, err: syn::Error) -> TokenStrea
     item
 }
 
-// todo: regular new scoped path test...
-// todo: test with enums in module...
-// todo: test with different namespaces...
-// todo: test with multiple get/post methods...
-// todo: test with doc strings in attributes...
-// todo: clean up the nested tree of death, tell it about the input_and_compile_error convenience function...
-// todo: add in the group functions for convenient handling of group...
-// todo: see if can cleanup the Attribute with a clone plus one field change...
-// todo: #[actix_web::get("/test")] the namespace is messing matching up
 pub fn with_scope(args: TokenStream, input: TokenStream) -> TokenStream {
     // Attempt to parse the scope path, returning on error
     if args.is_empty() {
@@ -576,7 +566,7 @@ pub fn with_scope(args: TokenStream, input: TokenStream) -> TokenStream {
             ),
         );
     }
-    let scope_path = syn::parse::<LitStr>(args.clone().into());
+    let scope_path = syn::parse::<LitStr>(args.clone());
     if let Err(_err) = scope_path {
         return input_and_compile_error(
             args.clone(),
@@ -590,10 +580,10 @@ pub fn with_scope(args: TokenStream, input: TokenStream) -> TokenStream {
     // Expect macro to be for a module
     match syn::parse::<syn::ItemMod>(input) {
         Ok(mut ast) => {
-            // Modify the attributes of functions within the module with method with scope, if any
+            // Modify the attributes of functions with method or route(s) by adding scope argument as prefix, if any
             if let Some((_, ref mut items)) = ast.content {
                 items.iter_mut().for_each(|item| {
-                    if let Fn(fun) = item {
+                    if let syn::Item::Fn(fun) = item {
                         fun.attrs = fun
                             .attrs
                             .iter()
@@ -615,19 +605,37 @@ pub fn with_scope(args: TokenStream, input: TokenStream) -> TokenStream {
     }
 }
 
+fn has_allowed_methods_in_scope(attr: &syn::Attribute) -> bool {
+    MethodType::from_path(attr.path()).is_ok()
+        || attr.path().is_ident("route")
+        || attr.path().is_ident("ROUTE")
+}
+
 // Check if the attribute is a method type and has a route path, then modify it
 fn modify_attribute_with_scope(attr: &syn::Attribute, scope_path: &str) -> syn::Attribute {
-    match (
-        MethodType::from_path(attr.path()),
-        attr.parse_args::<RouteArgs>(),
-        attr.clone().meta,
-    ) {
-        (Ok(_method), Ok(route_args), syn::Meta::List(meta_list)) => {
+    match (attr.parse_args::<RouteArgs>(), attr.clone().meta) {
+        (Ok(route_args), syn::Meta::List(meta_list)) if has_allowed_methods_in_scope(attr) => {
             let modified_path = format!("{}{}", scope_path, route_args.path.value());
-            let modified_tokens = quote! { #modified_path };
-            syn::Attribute {
+
+            let options_tokens: Vec<TokenStream2> = route_args
+                .options
+                .iter()
+                .map(|option| {
+                    quote! { ,#option }
+                })
+                .collect();
+
+            let combined_options_tokens: TokenStream2 =
+                options_tokens
+                    .into_iter()
+                    .fold(TokenStream2::new(), |mut acc, ts| {
+                        acc.extend(std::iter::once(ts));
+                        acc
+                    });
+
+            return syn::Attribute {
                 meta: syn::Meta::List(syn::MetaList {
-                    tokens: modified_tokens,
+                    tokens: quote! { #modified_path #combined_options_tokens },
                     ..meta_list.clone()
                 }),
                 ..attr.clone()
