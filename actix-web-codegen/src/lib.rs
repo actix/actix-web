@@ -256,11 +256,9 @@ pub fn test(_: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// ```rust
 /// use actix_web_codegen::{scope};
-///
 /// #[scope("/test")]
 /// mod scope_module {
 ///     use actix_web::{get, HttpResponse, Responder};
-/// 
 ///     #[get("/test")]
 ///     pub async fn test() -> impl Responder {
 ///         // this has path /test/test

@@ -633,7 +633,7 @@ fn modify_attribute_with_scope(attr: &syn::Attribute, scope_path: &str) -> syn::
                         acc
                     });
 
-            return syn::Attribute {
+            syn::Attribute {
                 meta: syn::Meta::List(syn::MetaList {
                     tokens: quote! { #modified_path #combined_options_tokens },
                     ..meta_list.clone()
