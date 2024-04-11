@@ -10,6 +10,7 @@ use std::{
     pin::Pin,
     rc::Rc,
     task::{Context, Poll},
+    thread::current
 };
 
 use actix_service::{Service, Transform};
@@ -512,6 +513,7 @@ impl Format {
                     "U" => FormatText::UrlPath,
                     "T" => FormatText::Time,
                     "D" => FormatText::TimeMillis,
+                    "P" => FormatText::ThreadName,
                     _ => FormatText::Str(m.as_str().to_owned()),
                 });
             }
@@ -531,6 +533,7 @@ impl Format {
 #[derive(Debug, Clone)]
 enum FormatText {
     Str(String),
+    ThreadName,
     Percent,
     RequestLine,
     RequestTime,
@@ -593,6 +596,9 @@ impl FormatText {
             FormatText::Str(ref string) => fmt.write_str(string),
             FormatText::Percent => "%".fmt(fmt),
             FormatText::ResponseSize => size.fmt(fmt),
+            FormatText::ThreadName => {
+                fmt.write_fmt(format_args!("{}", current().name().unwrap()))
+            }
             FormatText::Time => {
                 let rt = OffsetDateTime::now_utc() - entry_time;
                 let rt = rt.as_seconds_f64();
