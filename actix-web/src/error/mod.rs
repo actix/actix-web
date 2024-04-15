@@ -100,6 +100,7 @@ impl ResponseError for UrlencodedError {
         match self {
             Self::Overflow { .. } => StatusCode::PAYLOAD_TOO_LARGE,
             Self::UnknownLength => StatusCode::LENGTH_REQUIRED,
+            Self::ContentType => StatusCode::UNSUPPORTED_MEDIA_TYPE,
             Self::Payload(err) => err.status_code(),
             _ => StatusCode::BAD_REQUEST,
         }
@@ -232,7 +233,7 @@ mod tests {
         let resp = UrlencodedError::UnknownLength.error_response();
         assert_eq!(resp.status(), StatusCode::LENGTH_REQUIRED);
         let resp = UrlencodedError::ContentType.error_response();
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(resp.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
     }
 
     #[test]

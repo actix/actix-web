@@ -10,6 +10,8 @@
 
 - Minimum supported Rust version (MSRV) is now 1.72.
 
+- the Urlencoded extractor now returns 415 (Media Type Unsupported) if the request's `Content-Type` is not `application/x-www-form-urlencoded`, rather than 400 (Bad Request).
+
 ## 4.5.1
 
 ### Fixed
