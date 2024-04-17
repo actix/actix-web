@@ -6,6 +6,7 @@ use actix_web::{
     http::{
         self,
         header::{HeaderName, HeaderValue},
+        StatusCode,
     },
     web, App, Error, HttpRequest, HttpResponse, Responder,
 };
@@ -370,6 +371,20 @@ async fn test_auto_async() {
     let response = request.send().await.unwrap();
     assert!(response.status().is_success());
 }
+
+#[actix_web::test]
+async fn test_wrap() {
+    let srv = actix_test::start(|| App::new().service(get_wrap));
+
+    let request = srv.request(http::Method::GET, srv.url("/test/wrap"));
+    let mut response = request.send().await.unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    assert!(response.headers().contains_key("custom-header"));
+    let body = response.body().await.unwrap();
+    let body = String::from_utf8(body.to_vec()).unwrap();
+    assert!(body.contains("wrong number of parameters"));
+}
+
 
 #[scope("/test")]
 mod scope_module {
