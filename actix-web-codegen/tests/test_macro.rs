@@ -385,7 +385,6 @@ async fn test_wrap() {
     assert!(body.contains("wrong number of parameters"));
 }
 
-
 #[scope("/test")]
 mod scope_module {
     use actix_web::{delete, get, post, route, routes, web, HttpResponse, Responder};
