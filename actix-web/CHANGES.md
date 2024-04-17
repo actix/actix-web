@@ -9,6 +9,7 @@
 ### Changed
 
 - Minimum supported Rust version (MSRV) is now 1.72.
+- Updated `cookie` dependency to `0.18`.
 
 ## 4.5.1
 
