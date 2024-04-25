@@ -111,7 +111,7 @@ impl<'a> GuardContext<'a> {
         H::parse(self.req).ok()
     }
 
-    /// Counterpart to [`HttpRequest::app_data`].
+    /// Counterpart to [HttpRequest::app_data](crate::HttpRequest::app_data).
     #[inline]
     pub fn app_data<T: 'static>(&self) -> Option<&T> {
         self.req.app_data()
