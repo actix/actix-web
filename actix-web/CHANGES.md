@@ -9,6 +9,7 @@
 ### Changed
 
 - Minimum supported Rust version (MSRV) is now 1.72.
+- `ConnectionInfo.realip_remote_addr()` now returns just IP addresses from `Forwarded` header.
 
 ## 4.5.1
 
