@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Minimum supported Rust version (MSRV) is now 1.72.
+- Various types from `awc`, such as `ClientRequest` and `ClientResponse`, are now re-exported.
 
 ## 0.1.3
 
