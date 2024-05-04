@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Minimum supported Rust version (MSRV) is now 1.72.
+- Fix warning on 1.78 due to unused TlsConnectorService struct
 
 ## 3.4.0
 
