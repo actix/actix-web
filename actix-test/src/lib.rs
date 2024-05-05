@@ -150,7 +150,7 @@ where
     // run server in separate orphaned thread
     thread::spawn(move || {
         rt::System::new().block_on(async move {
-            let tcp = net::TcpListener::bind(("127.0.0.1", cfg.port)).unwrap();
+            let tcp = net::TcpListener::bind((cfg.listen_address.clone(), cfg.port)).unwrap();
             let local_addr = tcp.local_addr().unwrap();
             let factory = factory.clone();
             let srv_cfg = cfg.clone();
@@ -459,6 +459,7 @@ pub struct TestServerConfig {
     tp: HttpVer,
     stream: StreamType,
     client_request_timeout: Duration,
+    listen_address: String,
     port: u16,
     workers: usize,
 }
@@ -476,6 +477,7 @@ impl TestServerConfig {
             tp: HttpVer::Both,
             stream: StreamType::Tcp,
             client_request_timeout: Duration::from_secs(5),
+            listen_address: "localhost".to_string(),
             port: 0,
             workers: 1,
         }
@@ -543,6 +545,14 @@ impl TestServerConfig {
         self
     }
 
+    /// Sets the address the server will listen on.
+    ///
+    /// By default, only listens on `localhost`.
+    pub fn listen_address(mut self, addr: impl Into<String>) -> Self {
+        self.listen_address = addr.into();
+        self
+    }
+
     /// Sets test server port.
     ///
     /// By default, a random free port is determined by the OS.
@@ -584,9 +594,9 @@ impl TestServer {
         let scheme = if self.tls { "https" } else { "http" };
 
         if uri.starts_with('/') {
-            format!("{}://localhost:{}{}", scheme, self.addr.port(), uri)
+            format!("{}://{}{}", scheme, self.addr, uri)
         } else {
-            format!("{}://localhost:{}/{}", scheme, self.addr.port(), uri)
+            format!("{}://{}/{}", scheme, self.addr, uri)
         }
     }
 
