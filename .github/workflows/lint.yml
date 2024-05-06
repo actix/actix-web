@@ -82,7 +82,7 @@ jobs:
           toolchain: nightly-2024-04-26
 
       - name: Install cargo-public-api
-        uses: taiki-e/install-action@v2.33.12
+        uses: taiki-e/install-action@v2.33.16
         with:
           tool: cargo-public-api
 
