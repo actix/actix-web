@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Minimum supported Rust version (MSRV) is now 1.72.
+- Add `TestServerConfig::disable_redirects()` method.
 
 ## 0.1.3
 
