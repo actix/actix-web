@@ -50,7 +50,7 @@ jobs:
           toolchain: ${{ matrix.version.version }}
 
       - name: Install cargo-hack and cargo-ci-cache-clean
-        uses: taiki-e/install-action@v2.33.12
+        uses: taiki-e/install-action@v2.33.16
         with:
           tool: cargo-hack,cargo-ci-cache-clean
 

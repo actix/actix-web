@@ -771,7 +771,7 @@ mod tests {
                              data3: web::Data<f64>| {
                                 assert_eq!(**data1, 10);
                                 assert_eq!(**data2, '*');
-                                let error = std::f64::EPSILON;
+                                let error = f64::EPSILON;
                                 assert!((**data3 - 1.0).abs() < error);
                                 HttpResponse::Ok()
                             },
