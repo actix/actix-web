@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Added
+
+- Add `rustls-0_23` crate feature
+- Add `{h1::H1Service, h2::H2Service, HttpService}::rustls_0_23()` and `HttpService::rustls_0_23_with_config()` service constructors.
+
 ### Changed
 
 - Minimum supported Rust version (MSRV) is now 1.72.
