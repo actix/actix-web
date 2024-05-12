@@ -652,7 +652,6 @@ mod rustls_0_22 {
     }
 }
 
-
 #[cfg(feature = "rustls-0_23")]
 mod rustls_0_23 {
     use std::io;
@@ -690,7 +689,7 @@ mod rustls_0_23 {
         U::Error: fmt::Display + Into<Response<BoxBody>>,
         U::InitError: fmt::Debug,
     {
-        /// Create Rustls v0.22 based service.
+        /// Create Rustls v0.23 based service.
         pub fn rustls_0_23(
             self,
             config: ServerConfig,
@@ -704,7 +703,7 @@ mod rustls_0_23 {
             self.rustls_0_23_with_config(config, TlsAcceptorConfig::default())
         }
 
-        /// Create Rustls v0.22 based service with custom TLS acceptor configuration.
+        /// Create Rustls v0.23 based service with custom TLS acceptor configuration.
         pub fn rustls_0_23_with_config(
             self,
             mut config: ServerConfig,

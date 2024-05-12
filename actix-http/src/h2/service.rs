@@ -315,7 +315,7 @@ mod rustls_0_23 {
 
         B: MessageBody + 'static,
     {
-        /// Create Rustls v0.22 based service.
+        /// Create Rustls v0.23 based service.
         pub fn rustls_0_23(
             self,
             mut config: ServerConfig,

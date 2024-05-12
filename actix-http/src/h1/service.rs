@@ -371,7 +371,7 @@ mod rustls_0_23 {
         U::Error: fmt::Display + Into<Response<BoxBody>>,
         U::InitError: fmt::Debug,
     {
-        /// Create Rustls v0.22 based service.
+        /// Create Rustls v0.23 based service.
         pub fn rustls_0_23(
             self,
             config: ServerConfig,
