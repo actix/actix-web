@@ -12,7 +12,7 @@
 //! Protocol: HTTP/1.1
 //! ```
 
-extern crate tls_rustls_022 as rustls;
+use tls_rustls_023 as rustls;
 
 use std::io;
 
@@ -36,7 +36,7 @@ async fn main() -> io::Result<()> {
                     );
                     ok::<_, Error>(Response::ok().set_body(body))
                 })
-                .rustls_0_22(rustls_config())
+                .rustls_0_23(rustls_config())
         })?
         .run()
         .await

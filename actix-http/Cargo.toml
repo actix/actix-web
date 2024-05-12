@@ -28,6 +28,7 @@ features = [
     "rustls-0_20",
     "rustls-0_21",
     "rustls-0_22",
+    "rustls-0_23",
     "compress-brotli",
     "compress-gzip",
     "compress-zstd",
@@ -65,6 +66,9 @@ rustls-0_21 = ["actix-tls/accept", "actix-tls/rustls-0_21"]
 
 # TLS via Rustls v0.22
 rustls-0_22 = ["actix-tls/accept", "actix-tls/rustls-0_22"]
+
+# TLS via Rustls v0.23
+rustls-0_23 = ["actix-tls/accept", "actix-tls/rustls-0_23"]
 
 # Compression codecs
 compress-brotli = ["__compress", "brotli"]
@@ -121,7 +125,7 @@ zstd = { version = "0.13", optional = true }
 [dev-dependencies]
 actix-http-test = { version = "3", features = ["openssl"] }
 actix-server = "2"
-actix-tls = { version = "3.3", features = ["openssl", "rustls-0_22-webpki-roots"] }
+actix-tls = { version = "3.3", features = ["openssl", "rustls-0_23-webpki-roots"] }
 actix-web = "4"
 
 async-stream = "0.3"
@@ -139,16 +143,16 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 static_assertions = "1"
 tls-openssl = { package = "openssl", version = "0.10.55" }
-tls-rustls_022 = { package = "rustls", version = "0.22" }
+tls-rustls_023 = { package = "rustls", version = "0.23" }
 tokio = { version = "1.24.2", features = ["net", "rt", "macros"] }
 
 [[example]]
 name = "ws"
-required-features = ["ws", "rustls-0_22"]
+required-features = ["ws", "rustls-0_23"]
 
 [[example]]
 name = "tls_rustls"
-required-features = ["http2", "rustls-0_22"]
+required-features = ["http2", "rustls-0_23"]
 
 [[bench]]
 name = "response-body-compression"
