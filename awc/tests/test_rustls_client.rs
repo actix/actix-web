@@ -1,6 +1,6 @@
-#![cfg(feature = "rustls-0_22-webpki-roots")]
+#![cfg(feature = "rustls-0_23-webpki-roots")]
 
-extern crate tls_rustls_0_22 as rustls;
+extern crate tls_rustls_0_23 as rustls;
 
 use std::{
     io::BufReader,
@@ -13,7 +13,7 @@ use std::{
 use actix_http::HttpService;
 use actix_http_test::test_server;
 use actix_service::{fn_service, map_config, ServiceFactoryExt};
-use actix_tls::connect::rustls_0_22::webpki_roots_cert_store;
+use actix_tls::connect::rustls_0_23::webpki_roots_cert_store;
 use actix_utils::future::ok;
 use actix_web::{dev::AppConfig, http::Version, web, App, HttpResponse};
 use rustls::{
@@ -83,7 +83,7 @@ mod danger {
         }
 
         fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
-            rustls::crypto::ring::default_provider()
+            rustls::crypto::aws_lc_rs::default_provider()
                 .signature_verification_algorithms
                 .supported_schemes()
         }
@@ -107,7 +107,7 @@ async fn test_connection_reuse_h2() {
                     App::new().service(web::resource("/").route(web::to(HttpResponse::Ok))),
                     |_| AppConfig::default(),
                 ))
-                .rustls_0_22(tls_config())
+                .rustls_0_23(tls_config())
                 .map_err(|_| ()),
         )
     })
@@ -126,7 +126,7 @@ async fn test_connection_reuse_h2() {
         .set_certificate_verifier(Arc::new(danger::NoCertificateVerification));
 
     let client = awc::Client::builder()
-        .connector(awc::Connector::new().rustls_0_22(Arc::new(config)))
+        .connector(awc::Connector::new().rustls_0_23(Arc::new(config)))
         .finish();
 
     // req 1

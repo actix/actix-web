@@ -58,10 +58,7 @@ enum OurTlsConnector {
     #[allow(dead_code)] // false positive; used in build_tls
     Rustls022(std::sync::Arc<actix_tls::connect::rustls_0_22::reexports::ClientConfig>),
 
-    #[cfg(any(
-        feature = "rustls-0_23-webpki-roots",
-        feature = "rustls-0_23-native-roots",
-    ))]
+    #[cfg(feature = "rustls-0_23")]
     #[allow(dead_code)] // false positive; used in build_tls
     Rustls023(std::sync::Arc<actix_tls::connect::rustls_0_23::reexports::ClientConfig>),
 }
@@ -87,6 +84,13 @@ pub struct Connector<T> {
 }
 
 impl Connector<()> {
+    /// Create a new connector with default TLS settings
+    ///
+    /// Panicking:
+    /// - When the `rustls-0_23-webpki-roots` or `rustls-0_23-native-roots` features are enabled
+    ///     and no default cyrpto provider has been loaded, this method will panic.
+    /// - When the `rustls-0_23-native-roots` or `rustls-0_22-native-roots` features are enabled
+    ///     and the runtime system has no native root certificates, this method will panic.
     #[allow(clippy::new_ret_no_self, clippy::let_unit_value)]
     pub fn new() -> Connector<
         impl Service<
@@ -196,7 +200,8 @@ impl Connector<()> {
                 OurTlsConnector::OpensslBuilder(ssl)
             }
         } else {
-            /// Provides an empty TLS connector when no TLS feature is enabled.
+            /// Provides an empty TLS connector when no TLS feature is enabled, or when
+            /// rustls-0_23 is enabled.
             fn build_tls(_: Vec<Vec<u8>>) -> OurTlsConnector {
                 OurTlsConnector::None
             }
@@ -308,10 +313,13 @@ where
     }
 
     /// Sets custom Rustls v0.23 `ClientConfig` instance.
-    #[cfg(any(
-        feature = "rustls-0_23-webpki-roots",
-        feature = "rustls-0_23-native-roots",
-    ))]
+    ///
+    /// In order to enable ALPN, set the `.alpn_protocols` field on the ClientConfig to the
+    /// following:
+    /// ```rust,ignore
+    /// vec![b"h2".to_vec(), b"http/1.1".to_vec()]
+    /// ```
+    #[cfg(feature = "rustls-0_23")]
     pub fn rustls_0_23(
         mut self,
         connector: std::sync::Arc<actix_tls::connect::rustls_0_23::reexports::ClientConfig>,
@@ -631,10 +639,7 @@ where
                 Some(actix_service::boxed::rc_service(tls_service))
             }
 
-            #[cfg(any(
-                feature = "rustls-0_23-webpki-roots",
-                feature = "rustls-0_23-native-roots",
-            ))]
+            #[cfg(feature = "rustls-0_23")]
             OurTlsConnector::Rustls023(tls) => {
                 const H2: &[u8] = b"h2";
 

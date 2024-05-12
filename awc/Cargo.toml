@@ -49,10 +49,12 @@ rustls-0_21 = ["tls-rustls-0_21", "actix-tls/rustls-0_21"]
 rustls-0_22-webpki-roots = ["tls-rustls-0_22", "actix-tls/rustls-0_22-webpki-roots"]
 # TLS via Rustls v0.22 (Native roots)
 rustls-0_22-native-roots = ["tls-rustls-0_22", "actix-tls/rustls-0_22-native-roots"]
-# TLS via Rustls v0.22 (WebPKI roots)
-rustls-0_23-webpki-roots = ["tls-rustls-0_23", "actix-tls/rustls-0_23-webpki-roots"]
-# TLS via Rustls v0.22 (Native roots)
-rustls-0_23-native-roots = ["tls-rustls-0_23", "actix-tls/rustls-0_23-native-roots"]
+# TLS via Rustls v0.23
+rustls-0_23 = ["tls-rustls-0_23", "actix-tls/rustls-0_23"]
+# TLS via Rustls v0.23 (WebPKI roots)
+rustls-0_23-webpki-roots = ["rustls-0_23", "actix-tls/rustls-0_23-webpki-roots"]
+# TLS via Rustls v0.23 (Native roots)
+rustls-0_23-native-roots = ["rustls-0_23", "actix-tls/rustls-0_23-native-roots"]
 
 # Brotli algorithm content-encoding support
 compress-brotli = ["actix-http/compress-brotli", "__compress"]
@@ -117,8 +119,8 @@ trust-dns-resolver = { version = "0.23", optional = true }
 actix-http = { version = "3.6", features = ["openssl"] }
 actix-http-test = { version = "3", features = ["openssl"] }
 actix-server = "2"
-actix-test = { version = "0.1", features = ["openssl", "rustls-0_22"] }
-actix-tls = { version = "3.3", features = ["openssl", "rustls-0_22"] }
+actix-test = { version = "0.1", features = ["openssl", "rustls-0_23"] }
+actix-tls = { version = "3.3", features = ["openssl", "rustls-0_23"] }
 actix-utils = "3"
 actix-web = { version = "4", features = ["openssl"] }
 
@@ -132,7 +134,8 @@ rcgen = "0.12"
 rustls-pemfile = "2"
 tokio = { version = "1.24.2", features = ["rt-multi-thread", "macros"] }
 zstd = "0.13"
+tls-rustls-0_23 = { package = "rustls", version = "0.23" } # add rustls 0.23 with default features to make aws_lc_rs work in tests 
 
 [[example]]
 name = "client"
-required-features = ["rustls-0_22-webpki-roots"]
+required-features = ["rustls-0_23-webpki-roots"]
