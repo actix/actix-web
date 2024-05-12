@@ -27,6 +27,7 @@ features = [
     "rustls-0_20",
     "rustls-0_21",
     "rustls-0_22",
+    "rustls-0_23",
     "compress-brotli",
     "compress-gzip",
     "compress-zstd",
@@ -71,6 +72,8 @@ rustls-0_20 = ["http2", "actix-http/rustls-0_20", "actix-tls/accept", "actix-tls
 rustls-0_21 = ["http2", "actix-http/rustls-0_21", "actix-tls/accept", "actix-tls/rustls-0_21"]
 # TLS via Rustls v0.22
 rustls-0_22 = ["http2", "actix-http/rustls-0_22", "actix-tls/accept", "actix-tls/rustls-0_22"]
+# TLS via Rustls v0.23
+rustls-0_23 = ["http2", "actix-http/rustls-0_23", "actix-tls/accept", "actix-tls/rustls-0_23"]
 
 # Full unicode support
 unicode = ["dep:regex", "actix-router/unicode"]
@@ -122,7 +125,7 @@ url = "2.1"
 
 [dev-dependencies]
 actix-files = "0.6"
-actix-test = { version = "0.1", features = ["openssl", "rustls-0_22"] }
+actix-test = { version = "0.1", features = ["openssl", "rustls-0_23"] }
 awc = { version = "3", features = ["openssl"] }
 
 brotli = "3.3.3"
@@ -137,7 +140,7 @@ rustls-pemfile = "2"
 serde = { version = "1.0", features = ["derive"] }
 static_assertions = "1"
 tls-openssl = { package = "openssl", version = "0.10.55" }
-tls-rustls = { package = "rustls", version = "0.22" }
+tls-rustls = { package = "rustls", version = "0.23" }
 tokio = { version = "1.24.2", features = ["rt-multi-thread", "macros"] }
 zstd = "0.13"
 
