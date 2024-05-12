@@ -145,6 +145,8 @@ where
         StreamType::Rustls021(_) => true,
         #[cfg(feature = "rustls-0_22")]
         StreamType::Rustls022(_) => true,
+        #[cfg(feature = "rustls-0_23")]
+        StreamType::Rustls023(_) => true,
     };
 
     // run server in separate orphaned thread
@@ -371,6 +373,48 @@ where
                             .rustls_0_22(config.clone())
                     }),
                 },
+                #[cfg(feature = "rustls-0_23")]
+                StreamType::Rustls023(config) => match cfg.tp {
+                    HttpVer::Http1 => builder.listen("test", tcp, move || {
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+
+                        let fac = factory()
+                            .into_factory()
+                            .map_err(|err| err.into().error_response());
+
+                        HttpService::build()
+                            .client_request_timeout(timeout)
+                            .h1(map_config(fac, move |_| app_cfg.clone()))
+                            .rustls_0_23(config.clone())
+                    }),
+                    HttpVer::Http2 => builder.listen("test", tcp, move || {
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+
+                        let fac = factory()
+                            .into_factory()
+                            .map_err(|err| err.into().error_response());
+
+                        HttpService::build()
+                            .client_request_timeout(timeout)
+                            .h2(map_config(fac, move |_| app_cfg.clone()))
+                            .rustls_0_23(config.clone())
+                    }),
+                    HttpVer::Both => builder.listen("test", tcp, move || {
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+
+                        let fac = factory()
+                            .into_factory()
+                            .map_err(|err| err.into().error_response());
+
+                        HttpService::build()
+                            .client_request_timeout(timeout)
+                            .finish(map_config(fac, move |_| app_cfg.clone()))
+                            .rustls_0_23(config.clone())
+                    }),
+                },
             }
             .expect("test server could not be created");
 
@@ -447,6 +491,8 @@ enum StreamType {
     Rustls021(tls_rustls_0_21::ServerConfig),
     #[cfg(feature = "rustls-0_22")]
     Rustls022(tls_rustls_0_22::ServerConfig),
+    #[cfg(feature = "rustls-0_23")]
+    Rustls023(tls_rustls_0_23::ServerConfig),
 }
 
 /// Create default test server config.
@@ -534,6 +580,13 @@ impl TestServerConfig {
     #[cfg(feature = "rustls-0_22")]
     pub fn rustls_0_22(mut self, config: tls_rustls_0_22::ServerConfig) -> Self {
         self.stream = StreamType::Rustls022(config);
+        self
+    }
+
+    /// Accepts secure connections via Rustls v0.22.
+    #[cfg(feature = "rustls-0_23")]
+    pub fn rustls_0_23(mut self, config: tls_rustls_0_23::ServerConfig) -> Self {
+        self.stream = StreamType::Rustls023(config);
         self
     }
 
