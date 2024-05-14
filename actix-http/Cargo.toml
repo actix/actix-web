@@ -114,7 +114,7 @@ sha1 = { version = "0.10", optional = true }
 actix-tls = { version = "3.3", default-features = false, optional = true }
 
 # compress-*
-brotli = { version = "3.3.3", optional = true }
+brotli = { version = "6", optional = true }
 flate2 = { version = "1.0.13", optional = true }
 zstd = { version = "0.13", optional = true }
 
