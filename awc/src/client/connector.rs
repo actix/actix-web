@@ -649,6 +649,14 @@ where
 
 /// service for establish tcp connection and do client tls handshake.
 /// operation is canceled when timeout limit reached.
+#[cfg(any(
+    feature = "dangerous-h2c",
+    feature = "openssl",
+    feature = "rustls-0_20",
+    feature = "rustls-0_21",
+    feature = "rustls-0_22-webpki-roots",
+    feature = "rustls-0_22-native-roots",
+))]
 struct TlsConnectorService<Tcp, Tls> {
     /// TCP connection is canceled on `TcpConnectorInnerService`'s timeout setting.
     tcp_service: Tcp,
@@ -659,6 +667,14 @@ struct TlsConnectorService<Tcp, Tls> {
     timeout: Duration,
 }
 
+#[cfg(any(
+    feature = "dangerous-h2c",
+    feature = "openssl",
+    feature = "rustls-0_20",
+    feature = "rustls-0_21",
+    feature = "rustls-0_22-webpki-roots",
+    feature = "rustls-0_22-native-roots",
+))]
 impl<Tcp, Tls, IO> Service<Connect> for TlsConnectorService<Tcp, Tls>
 where
     Tcp:
