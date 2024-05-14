@@ -9,6 +9,7 @@
 ### Changed
 
 - Minimum supported Rust version (MSRV) is now 1.72.
+- Avoid type confusion in rare circumstances
 
 ## 4.5.1
 
