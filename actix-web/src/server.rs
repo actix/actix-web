@@ -625,7 +625,7 @@ where
     /// Binds to existing listener for accepting incoming TLS connection requests using Rustls
     /// v0.21.
     ///
-    /// See [`listen()`](Self::listen) for more details on the `lst` argument.
+    /// See [`listen()`](Self::listen()) for more details on the `lst` argument.
     ///
     /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
     #[cfg(feature = "rustls-0_21")]
@@ -742,7 +742,7 @@ where
     /// Binds to existing listener for accepting incoming TLS connection requests using Rustls
     /// v0.22.
     ///
-    /// See [`listen()`](Self::listen) for more details on the `lst` argument.
+    /// See [`listen()`](Self::listen()) for more details on the `lst` argument.
     ///
     /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
     #[cfg(feature = "rustls-0_22")]
@@ -808,7 +808,7 @@ where
     /// Binds to existing listener for accepting incoming TLS connection requests using Rustls
     /// v0.23.
     ///
-    /// See [`listen()`](Self::listen) for more details on the `lst` argument.
+    /// See [`listen()`](Self::listen()) for more details on the `lst` argument.
     ///
     /// ALPN protocols "h2" and "http/1.1" are added to any configured ones.
     #[cfg(feature = "rustls-0_23")]
