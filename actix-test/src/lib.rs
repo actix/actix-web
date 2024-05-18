@@ -52,7 +52,7 @@ use actix_web::{
     rt::{self, System},
     web, Error,
 };
-use awc::{error::PayloadError, Client, ClientRequest, ClientResponse, Connector};
+pub use awc::{error::PayloadError, Client, ClientRequest, ClientResponse, Connector};
 use futures_core::Stream;
 use tokio::sync::mpsc;
 
