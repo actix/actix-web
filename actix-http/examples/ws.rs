@@ -1,7 +1,7 @@
 //! Sets up a WebSocket server over TCP and TLS.
 //! Sends a heartbeat message every 4 seconds but does not respond to any incoming frames.
 
-extern crate tls_rustls_022 as rustls;
+extern crate tls_rustls_023 as rustls;
 
 use std::{
     io,
@@ -30,7 +30,7 @@ async fn main() -> io::Result<()> {
         .bind("tls", ("127.0.0.1", 8443), || {
             HttpService::build()
                 .finish(handler)
-                .rustls_0_22(tls_config())
+                .rustls_0_23(tls_config())
         })?
         .run()
         .await
