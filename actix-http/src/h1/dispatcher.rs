@@ -12,14 +12,15 @@ use actix_codec::{Framed, FramedParts};
 use actix_rt::time::sleep_until;
 use actix_service::Service;
 use bitflags::bitflags;
-use bytes::{Buf, BytesMut};
+use bytes::BytesMut;
 use futures_core::ready;
 use pin_project_lite::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio_util::codec::{Decoder as _, Encoder as _};
+use tokio_util::codec::Decoder as _;
 use tracing::{error, trace};
 
 use super::{
+    big_bytes::BigBytes,
     codec::Codec,
     decoder::MAX_BUFFER_SIZE,
     payload::{Payload, PayloadSender, PayloadStatus},
@@ -165,7 +166,7 @@ pin_project! {
 
         pub(super) io: Option<T>,
         read_buf: BytesMut,
-        write_buf: BytesMut,
+        write_buf: BigBytes,
         codec: Codec,
     }
 }
@@ -277,7 +278,7 @@ where
 
                     io: Some(io),
                     read_buf: BytesMut::with_capacity(HW_BUFFER_SIZE),
-                    write_buf: BytesMut::with_capacity(HW_BUFFER_SIZE),
+                    write_buf: BigBytes::with_capacity(HW_BUFFER_SIZE),
                     codec: Codec::new(config),
                 },
             },
@@ -329,20 +330,17 @@ where
         let InnerDispatcherProj { io, write_buf, .. } = self.project();
         let mut io = Pin::new(io.as_mut().unwrap());
 
-        let len = write_buf.len();
-        let mut written = 0;
-
-        while written < len {
-            match io.as_mut().poll_write(cx, &write_buf[written..])? {
+        while write_buf.total_len() > 0 {
+            match io.as_mut().poll_write(cx, write_buf.front_slice())? {
                 Poll::Ready(0) => {
+                    println!("WRITE ZERO");
                     error!("write zero; closing");
                     return Poll::Ready(Err(io::Error::new(io::ErrorKind::WriteZero, "")));
                 }
 
-                Poll::Ready(n) => written += n,
+                Poll::Ready(n) => write_buf.advance(n),
 
                 Poll::Pending => {
-                    write_buf.advance(written);
                     return Poll::Pending;
                 }
             }
@@ -365,7 +363,7 @@ where
         let size = body.size();
 
         this.codec
-            .encode(Message::Item((res, size)), this.write_buf)
+            .encode_bigbytes(Message::Item((res, size)), this.write_buf)
             .map_err(|err| {
                 if let Some(mut payload) = this.payload.take() {
                     payload.set_error(PayloadError::Incomplete(None));
@@ -493,15 +491,16 @@ where
                 StateProj::SendPayload { mut body } => {
                     // keep populate writer buffer until buffer size limit hit,
                     // get blocked or finished.
-                    while this.write_buf.len() < super::payload::MAX_BUFFER_SIZE {
+                    while this.write_buf.total_len() < super::payload::MAX_BUFFER_SIZE {
                         match body.as_mut().poll_next(cx) {
                             Poll::Ready(Some(Ok(item))) => {
                                 this.codec
-                                    .encode(Message::Chunk(Some(item)), this.write_buf)?;
+                                    .encode_bigbytes(Message::Chunk(Some(item)), this.write_buf)?;
                             }
 
                             Poll::Ready(None) => {
-                                this.codec.encode(Message::Chunk(None), this.write_buf)?;
+                                this.codec
+                                    .encode_bigbytes(Message::Chunk(None), this.write_buf)?;
 
                                 // payload stream finished.
                                 // set state to None and handle next message
@@ -532,15 +531,16 @@ where
 
                     // keep populate writer buffer until buffer size limit hit,
                     // get blocked or finished.
-                    while this.write_buf.len() < super::payload::MAX_BUFFER_SIZE {
+                    while this.write_buf.total_len() < super::payload::MAX_BUFFER_SIZE {
                         match body.as_mut().poll_next(cx) {
                             Poll::Ready(Some(Ok(item))) => {
                                 this.codec
-                                    .encode(Message::Chunk(Some(item)), this.write_buf)?;
+                                    .encode_bigbytes(Message::Chunk(Some(item)), this.write_buf)?;
                             }
 
                             Poll::Ready(None) => {
-                                this.codec.encode(Message::Chunk(None), this.write_buf)?;
+                                this.codec
+                                    .encode_bigbytes(Message::Chunk(None), this.write_buf)?;
 
                                 // payload stream finished
                                 // set state to None and handle next message
@@ -1027,7 +1027,7 @@ where
             mem::take(this.codec),
             mem::take(this.read_buf),
         );
-        parts.write_buf = mem::take(this.write_buf);
+        this.write_buf.write_to(&mut parts.write_buf);
         let framed = Framed::from_parts(parts);
         this.flow.upgrade.as_ref().unwrap().call((req, framed))
     }

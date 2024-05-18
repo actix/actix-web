@@ -2,6 +2,7 @@
 
 use bytes::{Bytes, BytesMut};
 
+mod big_bytes;
 mod chunked;
 mod client;
 mod codec;
