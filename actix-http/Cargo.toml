@@ -125,7 +125,7 @@ zstd = { version = "0.13", optional = true }
 [dev-dependencies]
 actix-http-test = { version = "3", features = ["openssl"] }
 actix-server = "2"
-actix-tls = { version = "3.3", features = ["openssl", "rustls-0_23-webpki-roots"] }
+actix-tls = { version = "3.4", features = ["openssl", "rustls-0_23-webpki-roots"] }
 actix-web = "4"
 
 async-stream = "0.3"
