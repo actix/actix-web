@@ -12,12 +12,11 @@
 //! Protocol: HTTP/1.1
 //! ```
 
-extern crate tls_rustls_022 as rustls;
-
 use std::io;
 
 use actix_http::{Error, HttpService, Request, Response};
 use actix_utils::future::ok;
+use tls_rustls_023 as rustls;
 
 #[actix_rt::main]
 async fn main() -> io::Result<()> {
@@ -36,7 +35,7 @@ async fn main() -> io::Result<()> {
                     );
                     ok::<_, Error>(Response::ok().set_body(body))
                 })
-                .rustls_0_22(rustls_config())
+                .rustls_0_23(rustls_config())
         })?
         .run()
         .await
