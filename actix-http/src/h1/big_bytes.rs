@@ -72,7 +72,7 @@ impl BigBytes {
     // Returns a slice of the frontmost buffer
     pub(super) fn front_slice(&self) -> &[u8] {
         if let Some(front) = self.frozen.front() {
-            &front
+            front
         } else {
             &self.buffer
         }
