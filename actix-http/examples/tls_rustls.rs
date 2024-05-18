@@ -12,7 +12,7 @@
 //! Protocol: HTTP/1.1
 //! ```
 
-use tls_rustls_023 as rustls;
+extern crate tls_rustls_023 as rustls;
 
 use std::io;
 
