@@ -30,6 +30,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install nasm
+        if: matrix.target.os == 'windows-latest'
+        uses: ilammy/setup-nasm@v1.5.1
+
       - name: Install OpenSSL
         if: matrix.target.os == 'windows-latest'
         shell: bash
