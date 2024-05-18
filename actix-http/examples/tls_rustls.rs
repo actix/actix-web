@@ -12,12 +12,11 @@
 //! Protocol: HTTP/1.1
 //! ```
 
-use tls_rustls_023 as rustls;
-
 use std::io;
 
 use actix_http::{Error, HttpService, Request, Response};
 use actix_utils::future::ok;
+use tls_rustls_023 as rustls;
 
 #[actix_rt::main]
 async fn main() -> io::Result<()> {

@@ -30,6 +30,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install nasm
+        if: matrix.target.os == 'windows-latest'
+        uses: ilammy/setup-nasm@v1.5.1
+
       - name: Install OpenSSL
         if: matrix.target.os == 'windows-latest'
         shell: bash
@@ -44,10 +48,10 @@ jobs:
         with:
           toolchain: ${{ matrix.version.version }}
 
-      - name: Install cargo-hack and cargo-ci-cache-clean
-        uses: taiki-e/install-action@v2.33.12
+      - name: Install just, cargo-hack, cargo-nextest, cargo-ci-cache-clean
+        uses: taiki-e/install-action@v2.33.22
         with:
-          tool: cargo-hack,cargo-ci-cache-clean
+          tool: just,cargo-hack,cargo-nextest,cargo-ci-cache-clean
 
       - name: check minimal
         run: cargo ci-check-min
@@ -57,19 +61,7 @@ jobs:
 
       - name: tests
         timeout-minutes: 60
-        shell: bash
-        run: |
-          set -e
-          cargo test --lib --tests -p=actix-router --all-features
-          cargo test --lib --tests -p=actix-http --all-features
-          cargo test --lib --tests -p=actix-web --features=rustls-0_20,rustls-0_21,rustls-0_22,openssl -- --skip=test_reading_deflate_encoding_large_random_rustls
-          cargo test --lib --tests -p=actix-web-codegen --all-features
-          cargo test --lib --tests -p=awc --all-features
-          cargo test --lib --tests -p=actix-http-test --all-features
-          cargo test --lib --tests -p=actix-test --all-features
-          cargo test --lib --tests -p=actix-files
-          cargo test --lib --tests -p=actix-multipart --all-features
-          cargo test --lib --tests -p=actix-web-actors --all-features
+        run: just test
 
       - name: CI cache clean
         run: cargo-ci-cache-clean
@@ -88,7 +80,7 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1.8.0
 
       - name: Install cargo-hack
-        uses: taiki-e/install-action@v2.33.12
+        uses: taiki-e/install-action@v2.33.22
         with:
           tool: cargo-hack
 
@@ -97,21 +89,3 @@ jobs:
 
       - name: check feature combinations
         run: cargo ci-check-all-feature-powerset-linux
-
-  nextest:
-    name: nextest
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1.8.0
-
-      - name: Install nextest
-        uses: taiki-e/install-action@v2.33.12
-        with:
-          tool: nextest
-
-      - name: Test with cargo-nextest
-        run: cargo nextest run

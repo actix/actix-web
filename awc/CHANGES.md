@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Update `brotli` dependency to `6`.
 - Minimum supported Rust version (MSRV) is now 1.72.
 - Add `rustls-0_23`, `rustls-0_23-webpki-roots`, and `rustls-0_23-native-roots` crate features.
 - Add `awc::Connector::rustls_0_23()` method.
