@@ -8,6 +8,7 @@ use std::{
 
 use bytes::{BufMut, Bytes, BytesMut};
 
+use super::big_bytes::BigBytes;
 use crate::{
     body::BodySize,
     header::{
@@ -15,8 +16,6 @@ use crate::{
     },
     helpers, ConnectionType, RequestHeadType, Response, ServiceConfig, StatusCode, Version,
 };
-
-use super::big_bytes::BigBytes;
 
 const AVERAGE_HEADER_SIZE: usize = 30;
 
