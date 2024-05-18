@@ -86,9 +86,10 @@ pub struct Connector<T> {
 impl Connector<()> {
     /// Create a new connector with default TLS settings
     ///
-    /// Panicking:
+    /// # Panics
+    ///
     /// - When the `rustls-0_23-webpki-roots` or `rustls-0_23-native-roots` features are enabled
-    ///     and no default cyrpto provider has been loaded, this method will panic.
+    ///     and no default crypto provider has been loaded, this method will panic.
     /// - When the `rustls-0_23-native-roots` or `rustls-0_22-native-roots` features are enabled
     ///     and the runtime system has no native root certificates, this method will panic.
     #[allow(clippy::new_ret_no_self, clippy::let_unit_value)]
@@ -200,8 +201,8 @@ impl Connector<()> {
                 OurTlsConnector::OpensslBuilder(ssl)
             }
         } else {
-            /// Provides an empty TLS connector when no TLS feature is enabled, or when
-            /// rustls-0_23 is enabled.
+            /// Provides an empty TLS connector when no TLS feature is enabled, or when only the
+            /// `rustls-0_23` crate feature is enabled.
             fn build_tls(_: Vec<Vec<u8>>) -> OurTlsConnector {
                 OurTlsConnector::None
             }
@@ -316,8 +317,10 @@ where
     ///
     /// In order to enable ALPN, set the `.alpn_protocols` field on the ClientConfig to the
     /// following:
-    /// ```rust,ignore
+    ///
+    /// ```no_run
     /// vec![b"h2".to_vec(), b"http/1.1".to_vec()]
+    /// # ;
     /// ```
     #[cfg(feature = "rustls-0_23")]
     pub fn rustls_0_23(

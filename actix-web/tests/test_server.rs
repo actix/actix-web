@@ -1,6 +1,6 @@
 #[cfg(feature = "openssl")]
 extern crate tls_openssl as openssl;
-#[cfg(feature = "rustls-0_22")]
+#[cfg(feature = "rustls-0_23")]
 extern crate tls_rustls as rustls;
 
 use std::{
@@ -704,7 +704,7 @@ async fn test_brotli_encoding_large_openssl() {
     srv.stop().await;
 }
 
-#[cfg(feature = "rustls-0_22")]
+#[cfg(feature = "rustls-0_23")]
 mod plus_rustls {
     use std::io::BufReader;
 
@@ -740,7 +740,7 @@ mod plus_rustls {
             .map(char::from)
             .collect::<String>();
 
-        let srv = actix_test::start_with(actix_test::config().rustls_0_22(tls_config()), || {
+        let srv = actix_test::start_with(actix_test::config().rustls_0_23(tls_config()), || {
             App::new().service(web::resource("/").route(web::to(|bytes: Bytes| async {
                 // echo decompressed request body back in response
                 HttpResponse::Ok()
