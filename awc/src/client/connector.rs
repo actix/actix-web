@@ -320,6 +320,7 @@ where
     ///
     /// ```no_run
     /// vec![b"h2".to_vec(), b"http/1.1".to_vec()]
+    /// # ;
     /// ```
     #[cfg(feature = "rustls-0_23")]
     pub fn rustls_0_23(
