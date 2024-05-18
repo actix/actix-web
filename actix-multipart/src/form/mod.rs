@@ -313,7 +313,8 @@ where
                     let entry = field_limits
                         .entry(field.name().to_owned())
                         .or_insert_with(|| T::limit(field.name()));
-                    limits.field_limit_remaining = entry.to_owned();
+
+                    limits.field_limit_remaining.clone_from(entry);
 
                     T::handle_field(&req, field, &mut limits, &mut state).await?;
 

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Update `brotli` dependency to `6`.
 - Minimum supported Rust version (MSRV) is now 1.72.
 
 ## 3.4.0

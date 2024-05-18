@@ -706,7 +706,7 @@ where
 
                             req.head_mut().peer_addr = *this.peer_addr;
 
-                            req.conn_data = this.conn_data.clone();
+                            req.conn_data.clone_from(this.conn_data);
 
                             match this.codec.message_type() {
                                 // request has no payload
