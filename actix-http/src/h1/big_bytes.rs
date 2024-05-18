@@ -4,7 +4,7 @@ use bytes::{Buf, BufMut, Bytes, BytesMut};
 
 const SIXTYFOUR_KB: usize = 1024 * 64;
 
-pub(super) struct BigBytes {
+pub(crate) struct BigBytes {
     buffer: BytesMut,
     frozen: VecDeque<Bytes>,
     frozen_len: usize,
