@@ -583,7 +583,7 @@ impl TestServerConfig {
         self
     }
 
-    /// Accepts secure connections via Rustls v0.22.
+    /// Accepts secure connections via Rustls v0.23.
     #[cfg(feature = "rustls-0_23")]
     pub fn rustls_0_23(mut self, config: tls_rustls_0_23::ServerConfig) -> Self {
         self.stream = StreamType::Rustls023(config);

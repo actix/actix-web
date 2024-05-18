@@ -2,8 +2,8 @@
 
 ## Unreleased
 
-- Minimum supported Rust version (MSRV) is now 1.72.
 - Add `TestServerConfig::rustls_0_23()` method for Rustls v0.23 support behind new `rustls-0_23` crate feature.
+- Minimum supported Rust version (MSRV) is now 1.72.
 
 ## 0.1.3
 

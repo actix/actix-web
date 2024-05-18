@@ -29,7 +29,7 @@ rustls-0_20 = ["tls-rustls-0_20", "actix-http/rustls-0_20", "awc/rustls-0_20"]
 rustls-0_21 = ["tls-rustls-0_21", "actix-http/rustls-0_21", "awc/rustls-0_21"]
 # TLS via Rustls v0.22
 rustls-0_22 = ["tls-rustls-0_22", "actix-http/rustls-0_22", "awc/rustls-0_22-webpki-roots"]
-# TLS via Rustls v0.22
+# TLS via Rustls v0.23
 rustls-0_23 = ["tls-rustls-0_23", "actix-http/rustls-0_23", "awc/rustls-0_23-webpki-roots"]
 
 # TLS via OpenSSL

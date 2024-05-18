@@ -9,7 +9,6 @@
 - Add `HttpServer::{bind_rustls_0_23, listen_rustls_0_23}()` builder methods.
 - Add `HttpServer::tls_handshake_timeout` builder method for `rustls-0_22` and `rustls-0_23`
 
-
 ### Changed
 
 - Update `brotli` dependency to `6`.
