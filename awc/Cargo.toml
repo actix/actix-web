@@ -81,7 +81,7 @@ dangerous-h2c = []
 [dependencies]
 actix-codec = "0.5"
 actix-service = "2"
-actix-http = { version = "3.6", features = ["http2", "ws"] }
+actix-http = { version = "3.7", features = ["http2", "ws"] }
 actix-rt = { version = "2.1", default-features = false }
 actix-tls = { version = "3.3", features = ["connect", "uri"] }
 actix-utils = "3"
@@ -116,7 +116,7 @@ tls-rustls-0_23 = { package = "rustls", version = "0.23", optional = true, defau
 trust-dns-resolver = { version = "0.23", optional = true }
 
 [dev-dependencies]
-actix-http = { version = "3.6", features = ["openssl"] }
+actix-http = { version = "3.7", features = ["openssl"] }
 actix-http-test = { version = "3", features = ["openssl"] }
 actix-server = "2"
 actix-test = { version = "0.1", features = ["openssl", "rustls-0_23"] }
