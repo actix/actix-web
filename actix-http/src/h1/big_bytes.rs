@@ -47,8 +47,10 @@ impl BigBytes {
             self.frozen.push_back(current);
         }
 
-        self.frozen_len += bytes.len();
-        self.frozen.push_back(bytes);
+        if !bytes.is_empty() {
+            self.frozen_len += bytes.len();
+            self.frozen.push_back(bytes);
+        }
     }
 
     // Returns a slice of the frontmost buffer
