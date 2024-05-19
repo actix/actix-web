@@ -5,6 +5,7 @@ use actix_server::Server;
 use actix_service::map_config;
 use actix_web::{dev::AppConfig, get, App};
 
+static MEDIUM: OnceLock<String> = OnceLock::new();
 static LARGE: OnceLock<String> = OnceLock::new();
 
 #[get("/")]
@@ -14,12 +15,12 @@ async fn index() -> &'static str {
 
 #[get("/large")]
 async fn large() -> &'static str {
-    LARGE.get_or_init(|| "123456890".repeat(1024 * 10))
+    LARGE.get_or_init(|| "123456890".repeat(1024 * 100))
 }
 
 #[get("/medium")]
 async fn medium() -> &'static str {
-    LARGE.get_or_init(|| "123456890".repeat(1024 * 5))
+    MEDIUM.get_or_init(|| "123456890".repeat(1024 * 5))
 }
 
 #[tokio::main(flavor = "current_thread")]
