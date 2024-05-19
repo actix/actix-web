@@ -170,8 +170,8 @@ impl Codec {
                 };
 
                 // encode message
-                self.encoder.encode_bigbytes(
-                    dst,
+                self.encoder.encode(
+                    dst.buffer_mut(),
                     &mut res,
                     self.flags.contains(Flags::HEAD),
                     self.flags.contains(Flags::STREAM),
@@ -187,7 +187,7 @@ impl Codec {
             }
 
             Message::Chunk(None) => {
-                self.encoder.encode_eof_bigbytes(dst)?;
+                self.encoder.encode_eof(dst.buffer_mut())?;
             }
         }
 

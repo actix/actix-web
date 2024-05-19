@@ -2,8 +2,6 @@ use std::collections::VecDeque;
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 
-const SIXTYFOUR_KB: usize = 1024 * 64;
-
 pub(crate) struct BigBytes {
     buffer: BytesMut,
     frozen: VecDeque<Bytes>,
@@ -32,13 +30,6 @@ impl BigBytes {
         &mut self.buffer
     }
 
-    // Reserve the requested size, if fewer than 64KB
-    pub(super) fn reserve(&mut self, count: usize) {
-        if count < SIXTYFOUR_KB {
-            self.buffer.reserve(count);
-        }
-    }
-
     pub(super) fn total_len(&mut self) -> usize {
         self.frozen_len + self.buffer.len()
     }
@@ -50,23 +41,14 @@ impl BigBytes {
     // Add the `bytes` to the internal structure. If `bytes` exceeds 64KB, it is pushed into a
     // queue, otherwise, it is added to a buffer.
     pub(super) fn put_bytes(&mut self, bytes: Bytes) {
-        if bytes.len() < SIXTYFOUR_KB {
-            self.buffer.extend_from_slice(&bytes);
-        } else {
-            if !self.buffer.is_empty() {
-                let current = self.buffer.split().freeze();
-                self.frozen_len += current.len();
-                self.frozen.push_back(current);
-            }
-
-            self.frozen_len += bytes.len();
-            self.frozen.push_back(bytes);
+        if !self.buffer.is_empty() {
+            let current = self.buffer.split().freeze();
+            self.frozen_len += current.len();
+            self.frozen.push_back(current);
         }
-    }
 
-    // Put a slice into the internal structure. This is always added to the internal buffer
-    pub(super) fn extend_from_slice(&mut self, slice: &[u8]) {
-        self.buffer.extend_from_slice(slice);
+        self.frozen_len += bytes.len();
+        self.frozen.push_back(bytes);
     }
 
     // Returns a slice of the frontmost buffer

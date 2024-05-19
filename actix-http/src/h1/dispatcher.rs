@@ -414,6 +414,7 @@ where
     fn send_continue(self: Pin<&mut Self>) {
         self.project()
             .write_buf
+            .buffer_mut()
             .extend_from_slice(b"HTTP/1.1 100 Continue\r\n\r\n");
     }
 
@@ -575,6 +576,7 @@ where
                         // to service call.
                         Poll::Ready(Ok(req)) => {
                             this.write_buf
+                                .buffer_mut()
                                 .extend_from_slice(b"HTTP/1.1 100 Continue\r\n\r\n");
                             let fut = this.flow.service.call(req);
                             this.state.set(State::ServiceCall { fut });
