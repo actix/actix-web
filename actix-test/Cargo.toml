@@ -42,7 +42,7 @@ actix-http-test = "3"
 actix-rt = "2.1"
 actix-service = "2"
 actix-utils = "3"
-actix-web = { version = "4.5", default-features = false, features = ["cookies"] }
+actix-web = { version = "4.6", default-features = false, features = ["cookies"] }
 awc = { version = "3.4", default-features = false, features = ["cookies"] }
 
 futures-core = { version = "0.3.17", default-features = false, features = ["std"] }
