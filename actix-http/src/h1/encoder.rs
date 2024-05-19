@@ -429,7 +429,11 @@ impl TransferEncoding {
         match self.kind {
             TransferEncodingKind::Eof => {
                 let eof = msg.is_empty();
-                buf.put_bytes(msg);
+                if msg.len() > 1024 * 64 {
+                    buf.put_bytes(msg);
+                } else {
+                    buf.buffer_mut().extend_from_slice(&msg);
+                }
                 Ok(eof)
             }
             TransferEncodingKind::Chunked(ref mut eof) => {
@@ -444,7 +448,12 @@ impl TransferEncoding {
                     writeln!(helpers::MutWriter(buf.buffer_mut()), "{:X}\r", msg.len())
                         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
-                    buf.put_bytes(msg);
+                    if msg.len() > 1024 * 64 {
+                        buf.put_bytes(msg);
+                    } else {
+                        buf.buffer_mut().reserve(msg.len() + 2);
+                        buf.buffer_mut().extend_from_slice(&msg);
+                    }
                     buf.buffer_mut().extend_from_slice(b"\r\n");
                 }
                 Ok(*eof)
@@ -456,7 +465,11 @@ impl TransferEncoding {
                     }
                     let len = cmp::min(*remaining, msg.len() as u64);
 
-                    buf.put_bytes(msg.slice(..len as usize));
+                    if len > 1024 * 64 {
+                        buf.put_bytes(msg.slice(..len as usize));
+                    } else {
+                        buf.buffer_mut().extend_from_slice(&msg[..len as usize]);
+                    }
 
                     *remaining -= len;
                     Ok(*remaining == 0)
