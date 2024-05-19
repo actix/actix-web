@@ -41,6 +41,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install nasm
+        if: matrix.target.os == 'windows-latest'
+        uses: ilammy/setup-nasm@v1.5.1
+
       - name: Install OpenSSL
         if: matrix.target.os == 'windows-latest'
         shell: bash
@@ -49,6 +53,10 @@ jobs:
           choco install openssl --version=1.1.1.2100 -y --no-progress
           echo 'OPENSSL_DIR=C:\Program Files\OpenSSL' >> $GITHUB_ENV
           echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV
+
+      - name: Setup mold linker
+        if: matrix.target.os == 'ubuntu-latest'
+        uses: rui314/setup-mold@v1
 
       - name: Install Rust (${{ matrix.version.name }})
         uses: actions-rust-lang/setup-rust-toolchain@v1.8.0
