@@ -52,9 +52,10 @@ where
 }
 
 fn tls_config() -> RustlsServerConfig {
-    let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()]).unwrap();
-    let cert_file = cert.serialize_pem().unwrap();
-    let key_file = cert.serialize_private_key_pem();
+    let rcgen::CertifiedKey { cert, key_pair } =
+        rcgen::generate_simple_self_signed(["localhost".to_owned()]).unwrap();
+    let cert_file = cert.pem();
+    let key_file = key_pair.serialize_pem();
 
     let cert_file = &mut BufReader::new(cert_file.as_bytes());
     let key_file = &mut BufReader::new(key_file.as_bytes());
