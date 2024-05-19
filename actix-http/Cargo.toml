@@ -115,7 +115,7 @@ rand = { version = "0.8", optional = true }
 sha1 = { version = "0.10", optional = true }
 
 # openssl/rustls
-actix-tls = { version = "3.3", default-features = false, optional = true }
+actix-tls = { version = "3.4", default-features = false, optional = true }
 
 # compress-*
 brotli = { version = "6", optional = true }

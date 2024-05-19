@@ -131,7 +131,6 @@ impl Connector<()> {
 
                 OurTlsConnector::Rustls023(std::sync::Arc::new(config))
             }
-
         } else if #[cfg(any(feature = "rustls-0_22-webpki-roots", feature = "rustls-0_22-native-roots"))] {
             /// Build TLS connector with Rustls v0.22, based on supplied ALPN protocols.
             fn build_tls(protocols: Vec<Vec<u8>>) -> OurTlsConnector {
@@ -743,6 +742,9 @@ where
     feature = "rustls-0_21",
     feature = "rustls-0_22-webpki-roots",
     feature = "rustls-0_22-native-roots",
+    feature = "rustls-0_23",
+    feature = "rustls-0_23-webpki-roots",
+    feature = "rustls-0_23-native-roots"
 ))]
 struct TlsConnectorService<Tcp, Tls> {
     /// TCP connection is canceled on `TcpConnectorInnerService`'s timeout setting.
@@ -761,6 +763,7 @@ struct TlsConnectorService<Tcp, Tls> {
     feature = "rustls-0_21",
     feature = "rustls-0_22-webpki-roots",
     feature = "rustls-0_22-native-roots",
+    feature = "rustls-0_23",
 ))]
 impl<Tcp, Tls, IO> Service<Connect> for TlsConnectorService<Tcp, Tls>
 where
