@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 3.5.0
+
 - Add `rustls-0_23`, `rustls-0_23-webpki-roots`, and `rustls-0_23-native-roots` crate features.
 - Add `awc::Connector::rustls_0_23()` constructor.
 - Fix `rustls-0_22-native-roots` root store lookup
