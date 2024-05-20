@@ -49,7 +49,7 @@ jobs:
           toolchain: ${{ matrix.version.version }}
 
       - name: Install just, cargo-hack, cargo-nextest, cargo-ci-cache-clean
-        uses: taiki-e/install-action@v2.33.22
+        uses: taiki-e/install-action@v2.33.26
         with:
           tool: just,cargo-hack,cargo-nextest,cargo-ci-cache-clean
 
@@ -80,7 +80,7 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1.8.0
 
       - name: Install cargo-hack
-        uses: taiki-e/install-action@v2.33.22
+        uses: taiki-e/install-action@v2.33.26
         with:
           tool: cargo-hack
 
