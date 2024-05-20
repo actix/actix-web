@@ -2,6 +2,9 @@ use std::collections::VecDeque;
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 
+// 64KB max capacity (arbitrarily chosen)
+const MAX_CAPACITY: usize = 1024 * 64;
+
 pub(crate) struct BigBytes {
     buffer: BytesMut,
     frozen: VecDeque<Bytes>,
@@ -18,10 +21,17 @@ impl BigBytes {
     }
 
     // Clear the internal queue and buffer, resetting length to zero
-    pub(super) fn clear(&mut self) {
+    //
+    // if the internal buffer capacity exceeds 64KB or new_capacity, whichever is greater, it will
+    // be freed and a new buffer of capacity `new_capacity` will be allocated
+    pub(super) fn clear(&mut self, new_capacity: usize) {
         std::mem::take(&mut self.frozen);
         self.frozen_len = 0;
         self.buffer.clear();
+
+        if self.buffer.capacity() > new_capacity.max(MAX_CAPACITY) {
+            self.buffer = BytesMut::with_capacity(new_capacity);
+        }
     }
 
     // Return a mutable reference to the underlying buffer. This should only be used when dealing

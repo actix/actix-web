@@ -347,7 +347,7 @@ where
         }
 
         // everything has written to I/O; clear buffer
-        write_buf.clear();
+        write_buf.clear(HW_BUFFER_SIZE);
 
         // flush the I/O and check if get blocked
         io.poll_flush(cx)
