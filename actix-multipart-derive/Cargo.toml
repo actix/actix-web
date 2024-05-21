@@ -4,10 +4,11 @@ version = "0.6.1"
 authors = ["Jacob Halsey <jacob@jhalsey.com>"]
 description = "Multipart form derive macro for Actix Web"
 keywords = ["http", "web", "framework", "async", "futures"]
-homepage = "https://actix.rs"
-repository = "https://github.com/actix/actix-web"
-license = "MIT OR Apache-2.0"
-edition = "2021"
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docsrs"]

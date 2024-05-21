@@ -14,3 +14,65 @@
 [![Chat on Discord](https://img.shields.io/discord/771444961383153695?label=chat&logo=discord)](https://discord.gg/NWpN5mmg3x)
 
 <!-- prettier-ignore-end -->
+
+
+## Example
+
+Dependencies:
+
+```toml
+[dependencies]
+actix-multipart = "0.6"
+actix-web = "4.5"
+serde = { version = "1.0", features = ["derive"] }
+```
+
+Code:
+
+```rust
+use actix_web::{post, App, HttpServer, Responder};
+
+use actix_multipart::form::{json::Json as MPJson, tempfile::TempFile, MultipartForm};
+use serde::Deserialize;
+
+#[derive(Debug, Deserialize)]
+struct Metadata {
+    name: String,
+}
+
+#[derive(Debug, MultipartForm)]
+struct UploadForm {
+    #[multipart(limit = "100MB")]
+    file: TempFile,
+    json: MPJson<Metadata>,
+}
+
+#[post("/videos")]
+pub async fn post_video(MultipartForm(form): MultipartForm<UploadForm>) -> impl Responder {
+    format!(
+        "Uploaded file {}, with size: {}",
+        form.json.name, form.file.size
+    )
+}
+
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    HttpServer::new(move || App::new().service(post_video))
+        .bind(("127.0.0.1", 8080))?
+        .run()
+        .await
+}
+```
+
+Curl request :
+```bash
+curl -v --request POST \
+  --url http://localhost:8080/videos \
+  -F 'json={"name": "Cargo.lock"};type=application/json' \
+  -F file=@./Cargo.lock
+```
+
+
+### Examples
+
+https://github.com/actix/examples/tree/master/forms/multipart

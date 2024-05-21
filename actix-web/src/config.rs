@@ -148,7 +148,7 @@ impl AppConfig {
 
     #[cfg(test)]
     pub(crate) fn set_host(&mut self, host: &str) {
-        self.host = host.to_owned();
+        host.clone_into(&mut self.host);
     }
 }
 
