@@ -1,6 +1,6 @@
 #[cfg(feature = "openssl")]
 extern crate tls_openssl as openssl;
-#[cfg(feature = "rustls-0_22")]
+#[cfg(feature = "rustls-0_23")]
 extern crate tls_rustls as rustls;
 
 use std::{
@@ -34,9 +34,11 @@ const STR: &str = const_str::repeat!(S, 100);
 
 #[cfg(feature = "openssl")]
 fn openssl_config() -> SslAcceptor {
-    let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()]).unwrap();
-    let cert_file = cert.serialize_pem().unwrap();
-    let key_file = cert.serialize_private_key_pem();
+    let rcgen::CertifiedKey { cert, key_pair } =
+        rcgen::generate_simple_self_signed(["localhost".to_owned()]).unwrap();
+    let cert_file = cert.pem();
+    let key_file = key_pair.serialize_pem();
+
     let cert = X509::from_pem(cert_file.as_bytes()).unwrap();
     let key = PKey::private_key_from_pem(key_file.as_bytes()).unwrap();
 
@@ -704,7 +706,7 @@ async fn test_brotli_encoding_large_openssl() {
     srv.stop().await;
 }
 
-#[cfg(feature = "rustls-0_22")]
+#[cfg(feature = "rustls-0_23")]
 mod plus_rustls {
     use std::io::BufReader;
 
@@ -714,9 +716,10 @@ mod plus_rustls {
     use super::*;
 
     fn tls_config() -> RustlsServerConfig {
-        let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()]).unwrap();
-        let cert_file = cert.serialize_pem().unwrap();
-        let key_file = cert.serialize_private_key_pem();
+        let rcgen::CertifiedKey { cert, key_pair } =
+            rcgen::generate_simple_self_signed(["localhost".to_owned()]).unwrap();
+        let cert_file = cert.pem();
+        let key_file = key_pair.serialize_pem();
 
         let cert_file = &mut BufReader::new(cert_file.as_bytes());
         let key_file = &mut BufReader::new(key_file.as_bytes());
@@ -740,7 +743,7 @@ mod plus_rustls {
             .map(char::from)
             .collect::<String>();
 
-        let srv = actix_test::start_with(actix_test::config().rustls_0_22(tls_config()), || {
+        let srv = actix_test::start_with(actix_test::config().rustls_0_23(tls_config()), || {
             App::new().service(web::resource("/").route(web::to(|bytes: Bytes| async {
                 // echo decompressed request body back in response
                 HttpResponse::Ok()
