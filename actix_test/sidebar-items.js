@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["PayloadError"],"fn":["call_and_read_body","call_and_read_body_json","call_service","config","init_service","ok_service","read_body","read_body_json","start","start_with","status_service","to_bytes","unused_addr"],"struct":["Client","ClientRequest","ClientResponse","Connector","TestBuffer","TestRequest","TestServer","TestServerConfig"]};

@@ -1,0 +1,6 @@
+(function() {var implementors = {
+"actix_http":[["impl&lt;T: Head&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/ops/drop/trait.Drop.html\" title=\"trait core::ops::drop::Drop\">Drop</a> for <a class=\"struct\" href=\"actix_http/struct.Message.html\" title=\"struct actix_http::Message\">Message</a>&lt;T&gt;"]],
+"actix_http_test":[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/ops/drop/trait.Drop.html\" title=\"trait core::ops::drop::Drop\">Drop</a> for <a class=\"struct\" href=\"actix_http_test/struct.TestServer.html\" title=\"struct actix_http_test::TestServer\">TestServer</a>"]],
+"actix_test":[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/ops/drop/trait.Drop.html\" title=\"trait core::ops::drop::Drop\">Drop</a> for <a class=\"struct\" href=\"actix_test/struct.TestServer.html\" title=\"struct actix_test::TestServer\">TestServer</a>"]],
+"actix_web":[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/ops/drop/trait.Drop.html\" title=\"trait core::ops::drop::Drop\">Drop</a> for <a class=\"struct\" href=\"actix_web/struct.HttpRequest.html\" title=\"struct actix_web::HttpRequest\">HttpRequest</a>"]]
+};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

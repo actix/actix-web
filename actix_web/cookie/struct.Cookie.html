@@ -1,0 +1,534 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Representation of an HTTP cookie."><title>Cookie in actix_web::cookie - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-dd39b87e5fcfba68.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="actix_web" data-themes="" data-resource-suffix="" data-rustdoc-version="1.80.0-nightly (bdbbb6c6a 2024-05-26)" data-channel="nightly" data-search-js="search-d52510db62a78183.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="sidebar-items.js"></script><script defer src="../../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="icon" href="https://actix.rs/favicon.ico"></head><body class="rustdoc struct"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button><a class="logo-container" href="../../actix_web/index.html"><img src="https://actix.rs/img/logo.png" alt=""></a></nav><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../../actix_web/index.html"><img src="https://actix.rs/img/logo.png" alt="logo"></a><h2><a href="../../actix_web/index.html">actix_web</a><span class="version">4.6.0</span></h2></div><h2 class="location"><a href="#">Cookie</a></h2><div class="sidebar-elems"><section><h3><a href="#implementations">Methods</a></h3><ul class="block method"><li><a href="#method.build">build</a></li><li><a href="#method.domain">domain</a></li><li><a href="#method.domain_raw">domain_raw</a></li><li><a href="#method.encoded">encoded</a></li><li><a href="#method.expires">expires</a></li><li><a href="#method.expires_datetime">expires_datetime</a></li><li><a href="#method.http_only">http_only</a></li><li><a href="#method.into_owned">into_owned</a></li><li><a href="#method.make_permanent">make_permanent</a></li><li><a href="#method.make_removal">make_removal</a></li><li><a href="#method.max_age">max_age</a></li><li><a href="#method.name">name</a></li><li><a href="#method.name_raw">name_raw</a></li><li><a href="#method.name_value">name_value</a></li><li><a href="#method.named">named</a></li><li><a href="#method.new">new</a></li><li><a href="#method.parse">parse</a></li><li><a href="#method.parse_encoded">parse_encoded</a></li><li><a href="#method.path">path</a></li><li><a href="#method.path_raw">path_raw</a></li><li><a href="#method.same_site">same_site</a></li><li><a href="#method.secure">secure</a></li><li><a href="#method.set_domain">set_domain</a></li><li><a href="#method.set_expires">set_expires</a></li><li><a href="#method.set_http_only">set_http_only</a></li><li><a href="#method.set_max_age">set_max_age</a></li><li><a href="#method.set_name">set_name</a></li><li><a href="#method.set_path">set_path</a></li><li><a href="#method.set_same_site">set_same_site</a></li><li><a href="#method.set_secure">set_secure</a></li><li><a href="#method.set_value">set_value</a></li><li><a href="#method.stripped">stripped</a></li><li><a href="#method.unset_domain">unset_domain</a></li><li><a href="#method.unset_expires">unset_expires</a></li><li><a href="#method.unset_path">unset_path</a></li><li><a href="#method.value">value</a></li><li><a href="#method.value_raw">value_raw</a></li></ul><h3><a href="#trait-implementations">Trait Implementations</a></h3><ul class="block trait-implementation"><li><a href="#impl-Clone-for-Cookie%3C'c%3E">Clone</a></li><li><a href="#impl-Debug-for-Cookie%3C'c%3E">Debug</a></li><li><a href="#impl-Display-for-Cookie%3C'c%3E">Display</a></li><li><a href="#impl-FromStr-for-Cookie%3C'static%3E">FromStr</a></li><li><a href="#impl-PartialEq%3CCookie%3C'b%3E%3E-for-Cookie%3C'a%3E">PartialEq&lt;Cookie&lt;&#x27;b&gt;&gt;</a></li></ul><h3><a href="#synthetic-implementations">Auto Trait Implementations</a></h3><ul class="block synthetic-implementation"><li><a href="#impl-Freeze-for-Cookie%3C'c%3E">Freeze</a></li><li><a href="#impl-RefUnwindSafe-for-Cookie%3C'c%3E">RefUnwindSafe</a></li><li><a href="#impl-Send-for-Cookie%3C'c%3E">Send</a></li><li><a href="#impl-Sync-for-Cookie%3C'c%3E">Sync</a></li><li><a href="#impl-Unpin-for-Cookie%3C'c%3E">Unpin</a></li><li><a href="#impl-UnwindSafe-for-Cookie%3C'c%3E">UnwindSafe</a></li></ul><h3><a href="#blanket-implementations">Blanket Implementations</a></h3><ul class="block blanket-implementation"><li><a href="#impl-Any-for-T">Any</a></li><li><a href="#impl-Borrow%3CT%3E-for-T">Borrow&lt;T&gt;</a></li><li><a href="#impl-BorrowMut%3CT%3E-for-T">BorrowMut&lt;T&gt;</a></li><li><a href="#impl-From%3CT%3E-for-T">From&lt;T&gt;</a></li><li><a href="#impl-Instrument-for-T">Instrument</a></li><li><a href="#impl-Into%3CU%3E-for-T">Into&lt;U&gt;</a></li><li><a href="#impl-Same-for-T">Same</a></li><li><a href="#impl-ToOwned-for-T">ToOwned</a></li><li><a href="#impl-ToString-for-T">ToString</a></li><li><a href="#impl-TryFrom%3CU%3E-for-T">TryFrom&lt;U&gt;</a></li><li><a href="#impl-TryInto%3CU%3E-for-T">TryInto&lt;U&gt;</a></li><li><a href="#impl-VZip%3CV%3E-for-T">VZip&lt;V&gt;</a></li><li><a href="#impl-WithSubscriber-for-T">WithSubscriber</a></li></ul></section><h2><a href="index.html">In actix_web::cookie</a></h2></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Struct <a href="../index.html">actix_web</a>::<wbr><a href="index.html">cookie</a>::<wbr><a class="struct" href="#">Cookie</a><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><span class="out-of-band"><a class="src" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#182">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><pre class="rust item-decl"><code>pub struct Cookie&lt;'c&gt; { <span class="comment">/* private fields */</span> }</code></pre><span class="item-info"><div class="stab portability">Available on <strong>crate feature <code>cookies</code></strong> only.</div></span><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Representation of an HTTP cookie.</p>
+<h2 id="constructing-a-cookie"><a class="doc-anchor" href="#constructing-a-cookie">§</a>Constructing a <code>Cookie</code></h2>
+<p>To construct a cookie with only a name/value, use <a href="struct.Cookie.html#method.new" title="associated function actix_web::cookie::Cookie::new"><code>Cookie::new()</code></a>:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+
+<span class="kw">let </span>cookie = Cookie::new(<span class="string">"name"</span>, <span class="string">"value"</span>);
+<span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>cookie.to_string(), <span class="string">"name=value"</span>);</code></pre></div>
+<p>To construct more elaborate cookies, use <a href="struct.Cookie.html#method.build" title="associated function actix_web::cookie::Cookie::build"><code>Cookie::build()</code></a> and
+<a href="struct.CookieBuilder.html" title="struct actix_web::cookie::CookieBuilder"><code>CookieBuilder</code></a> methods:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+
+<span class="kw">let </span>cookie = Cookie::build(<span class="string">"name"</span>, <span class="string">"value"</span>)
+    .domain(<span class="string">"www.rust-lang.org"</span>)
+    .path(<span class="string">"/"</span>)
+    .secure(<span class="bool-val">true</span>)
+    .http_only(<span class="bool-val">true</span>)
+    .finish();</code></pre></div>
+</div></details><h2 id="implementations" class="section-header">Implementations<a href="#implementations" class="anchor">§</a></h2><div id="implementations-list"><details class="toggle implementors-toggle" open><summary><section id="impl-Cookie%3C'c%3E" class="impl"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#206">source</a><a href="#impl-Cookie%3C'c%3E" class="anchor">§</a><h3 class="code-header">impl&lt;'c&gt; <a class="struct" href="struct.Cookie.html" title="struct actix_web::cookie::Cookie">Cookie</a>&lt;'c&gt;</h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.new" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#217-219">source</a><h4 class="code-header">pub fn <a href="#method.new" class="fn">new</a>&lt;N, V&gt;(name: N, value: V) -&gt; <a class="struct" href="struct.Cookie.html" title="struct actix_web::cookie::Cookie">Cookie</a>&lt;'c&gt;<div class="where">where
+    N: <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html" title="trait core::convert::Into">Into</a>&lt;<a class="enum" href="https://doc.rust-lang.org/nightly/alloc/borrow/enum.Cow.html" title="enum alloc::borrow::Cow">Cow</a>&lt;'c, <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;&gt;,
+    V: <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html" title="trait core::convert::Into">Into</a>&lt;<a class="enum" href="https://doc.rust-lang.org/nightly/alloc/borrow/enum.Cow.html" title="enum alloc::borrow::Cow">Cow</a>&lt;'c, <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;&gt;,</div></h4></section></summary><div class="docblock"><p>Creates a new <code>Cookie</code> with the given name and value.</p>
+<h5 id="example"><a class="doc-anchor" href="#example">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+
+<span class="kw">let </span>cookie = Cookie::new(<span class="string">"name"</span>, <span class="string">"value"</span>);
+<span class="macro">assert_eq!</span>(cookie.name_value(), (<span class="string">"name"</span>, <span class="string">"value"</span>));</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.named" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#246-247">source</a><h4 class="code-header">pub fn <a href="#method.named" class="fn">named</a>&lt;N&gt;(name: N) -&gt; <a class="struct" href="struct.Cookie.html" title="struct actix_web::cookie::Cookie">Cookie</a>&lt;'c&gt;<div class="where">where
+    N: <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html" title="trait core::convert::Into">Into</a>&lt;<a class="enum" href="https://doc.rust-lang.org/nightly/alloc/borrow/enum.Cow.html" title="enum alloc::borrow::Cow">Cow</a>&lt;'c, <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;&gt;,</div></h4></section></summary><div class="docblock"><p>Creates a new <code>Cookie</code> with the given name and an empty value.</p>
+<h5 id="example-1"><a class="doc-anchor" href="#example-1">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+
+<span class="kw">let </span>cookie = Cookie::named(<span class="string">"name"</span>);
+<span class="macro">assert_eq!</span>(cookie.name(), <span class="string">"name"</span>);
+<span class="macro">assert!</span>(cookie.value().is_empty());</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.build" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#263-265">source</a><h4 class="code-header">pub fn <a href="#method.build" class="fn">build</a>&lt;N, V&gt;(name: N, value: V) -&gt; <a class="struct" href="struct.CookieBuilder.html" title="struct actix_web::cookie::CookieBuilder">CookieBuilder</a>&lt;'c&gt;<div class="where">where
+    N: <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html" title="trait core::convert::Into">Into</a>&lt;<a class="enum" href="https://doc.rust-lang.org/nightly/alloc/borrow/enum.Cow.html" title="enum alloc::borrow::Cow">Cow</a>&lt;'c, <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;&gt;,
+    V: <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html" title="trait core::convert::Into">Into</a>&lt;<a class="enum" href="https://doc.rust-lang.org/nightly/alloc/borrow/enum.Cow.html" title="enum alloc::borrow::Cow">Cow</a>&lt;'c, <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;&gt;,</div></h4></section></summary><div class="docblock"><p>Creates a new <code>CookieBuilder</code> instance from the given key and value
+strings.</p>
+<h5 id="example-2"><a class="doc-anchor" href="#example-2">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+
+<span class="kw">let </span>c = Cookie::build(<span class="string">"foo"</span>, <span class="string">"bar"</span>).finish();
+<span class="macro">assert_eq!</span>(c.name_value(), (<span class="string">"foo"</span>, <span class="string">"bar"</span>));</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.parse" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#282-283">source</a><h4 class="code-header">pub fn <a href="#method.parse" class="fn">parse</a>&lt;S&gt;(s: S) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="struct.Cookie.html" title="struct actix_web::cookie::Cookie">Cookie</a>&lt;'c&gt;, <a class="enum" href="enum.ParseError.html" title="enum actix_web::cookie::ParseError">ParseError</a>&gt;<div class="where">where
+    S: <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html" title="trait core::convert::Into">Into</a>&lt;<a class="enum" href="https://doc.rust-lang.org/nightly/alloc/borrow/enum.Cow.html" title="enum alloc::borrow::Cow">Cow</a>&lt;'c, <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;&gt;,</div></h4></section></summary><div class="docblock"><p>Parses a <code>Cookie</code> from the given HTTP cookie header value string. Does
+not perform any percent-decoding.</p>
+<h5 id="example-3"><a class="doc-anchor" href="#example-3">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+
+<span class="kw">let </span>c = Cookie::parse(<span class="string">"foo=bar%20baz; HttpOnly"</span>).unwrap();
+<span class="macro">assert_eq!</span>(c.name_value(), (<span class="string">"foo"</span>, <span class="string">"bar%20baz"</span>));
+<span class="macro">assert_eq!</span>(c.http_only(), <span class="prelude-val">Some</span>(<span class="bool-val">true</span>));</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.parse_encoded" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#303-304">source</a><h4 class="code-header">pub fn <a href="#method.parse_encoded" class="fn">parse_encoded</a>&lt;S&gt;(s: S) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="struct.Cookie.html" title="struct actix_web::cookie::Cookie">Cookie</a>&lt;'c&gt;, <a class="enum" href="enum.ParseError.html" title="enum actix_web::cookie::ParseError">ParseError</a>&gt;<div class="where">where
+    S: <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html" title="trait core::convert::Into">Into</a>&lt;<a class="enum" href="https://doc.rust-lang.org/nightly/alloc/borrow/enum.Cow.html" title="enum alloc::borrow::Cow">Cow</a>&lt;'c, <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;&gt;,</div></h4></section><span class="item-info"><div class="stab portability">Available on <strong>crate feature <code>percent-encode</code></strong> only.</div></span></summary><div class="docblock"><p>Parses a <code>Cookie</code> from the given HTTP cookie header value string where
+the name and value fields are percent-encoded. Percent-decodes the
+name/value fields.</p>
+<h5 id="example-4"><a class="doc-anchor" href="#example-4">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+
+<span class="kw">let </span>c = Cookie::parse_encoded(<span class="string">"foo=bar%20baz; HttpOnly"</span>).unwrap();
+<span class="macro">assert_eq!</span>(c.name_value(), (<span class="string">"foo"</span>, <span class="string">"bar baz"</span>));
+<span class="macro">assert_eq!</span>(c.http_only(), <span class="prelude-val">Some</span>(<span class="bool-val">true</span>));</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.into_owned" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#321">source</a><h4 class="code-header">pub fn <a href="#method.into_owned" class="fn">into_owned</a>(self) -&gt; <a class="struct" href="struct.Cookie.html" title="struct actix_web::cookie::Cookie">Cookie</a>&lt;'static&gt;</h4></section></summary><div class="docblock"><p>Converts <code>self</code> into a <code>Cookie</code> with a static lifetime with as few
+allocations as possible.</p>
+<h5 id="example-5"><a class="doc-anchor" href="#example-5">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+
+<span class="kw">let </span>c = Cookie::new(<span class="string">"a"</span>, <span class="string">"b"</span>);
+<span class="kw">let </span>owned_cookie = c.into_owned();
+<span class="macro">assert_eq!</span>(owned_cookie.name_value(), (<span class="string">"a"</span>, <span class="string">"b"</span>));</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.name" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#347">source</a><h4 class="code-header">pub fn <a href="#method.name" class="fn">name</a>(&amp;self) -&gt; &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a></h4></section></summary><div class="docblock"><p>Returns the name of <code>self</code>.</p>
+<h5 id="example-6"><a class="doc-anchor" href="#example-6">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+
+<span class="kw">let </span>c = Cookie::new(<span class="string">"name"</span>, <span class="string">"value"</span>);
+<span class="macro">assert_eq!</span>(c.name(), <span class="string">"name"</span>);</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.value" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#362">source</a><h4 class="code-header">pub fn <a href="#method.value" class="fn">value</a>(&amp;self) -&gt; &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a></h4></section></summary><div class="docblock"><p>Returns the value of <code>self</code>.</p>
+<h5 id="example-7"><a class="doc-anchor" href="#example-7">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+
+<span class="kw">let </span>c = Cookie::new(<span class="string">"name"</span>, <span class="string">"value"</span>);
+<span class="macro">assert_eq!</span>(c.value(), <span class="string">"value"</span>);</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.name_value" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#377">source</a><h4 class="code-header">pub fn <a href="#method.name_value" class="fn">name_value</a>(&amp;self) -&gt; (&amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>, &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>)</h4></section></summary><div class="docblock"><p>Returns the name and value of <code>self</code> as a tuple of <code>(name, value)</code>.</p>
+<h5 id="example-8"><a class="doc-anchor" href="#example-8">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+
+<span class="kw">let </span>c = Cookie::new(<span class="string">"name"</span>, <span class="string">"value"</span>);
+<span class="macro">assert_eq!</span>(c.name_value(), (<span class="string">"name"</span>, <span class="string">"value"</span>));</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.http_only" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#409">source</a><h4 class="code-header">pub fn <a href="#method.http_only" class="fn">http_only</a>(&amp;self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>&gt;</h4></section></summary><div class="docblock"><p>Returns whether this cookie was marked <code>HttpOnly</code> or not. Returns
+<code>Some(true)</code> when the cookie was explicitly set (manually or parsed) as
+<code>HttpOnly</code>, <code>Some(false)</code> when <code>http_only</code> was manually set to <code>false</code>,
+and <code>None</code> otherwise.</p>
+<h5 id="example-9"><a class="doc-anchor" href="#example-9">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+
+<span class="kw">let </span>c = Cookie::parse(<span class="string">"name=value; httponly"</span>).unwrap();
+<span class="macro">assert_eq!</span>(c.http_only(), <span class="prelude-val">Some</span>(<span class="bool-val">true</span>));
+
+<span class="kw">let </span><span class="kw-2">mut </span>c = Cookie::new(<span class="string">"name"</span>, <span class="string">"value"</span>);
+<span class="macro">assert_eq!</span>(c.http_only(), <span class="prelude-val">None</span>);
+
+<span class="kw">let </span><span class="kw-2">mut </span>c = Cookie::new(<span class="string">"name"</span>, <span class="string">"value"</span>);
+<span class="macro">assert_eq!</span>(c.http_only(), <span class="prelude-val">None</span>);
+
+<span class="comment">// An explicitly set "false" value.
+</span>c.set_http_only(<span class="bool-val">false</span>);
+<span class="macro">assert_eq!</span>(c.http_only(), <span class="prelude-val">Some</span>(<span class="bool-val">false</span>));
+
+<span class="comment">// An explicitly set "true" value.
+</span>c.set_http_only(<span class="bool-val">true</span>);
+<span class="macro">assert_eq!</span>(c.http_only(), <span class="prelude-val">Some</span>(<span class="bool-val">true</span>));</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.secure" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#441">source</a><h4 class="code-header">pub fn <a href="#method.secure" class="fn">secure</a>(&amp;self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>&gt;</h4></section></summary><div class="docblock"><p>Returns whether this cookie was marked <code>Secure</code> or not. Returns
+<code>Some(true)</code> when the cookie was explicitly set (manually or parsed) as
+<code>Secure</code>, <code>Some(false)</code> when <code>secure</code> was manually set to <code>false</code>, and
+<code>None</code> otherwise.</p>
+<h5 id="example-10"><a class="doc-anchor" href="#example-10">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+
+<span class="kw">let </span>c = Cookie::parse(<span class="string">"name=value; Secure"</span>).unwrap();
+<span class="macro">assert_eq!</span>(c.secure(), <span class="prelude-val">Some</span>(<span class="bool-val">true</span>));
+
+<span class="kw">let </span><span class="kw-2">mut </span>c = Cookie::parse(<span class="string">"name=value"</span>).unwrap();
+<span class="macro">assert_eq!</span>(c.secure(), <span class="prelude-val">None</span>);
+
+<span class="kw">let </span><span class="kw-2">mut </span>c = Cookie::new(<span class="string">"name"</span>, <span class="string">"value"</span>);
+<span class="macro">assert_eq!</span>(c.secure(), <span class="prelude-val">None</span>);
+
+<span class="comment">// An explicitly set "false" value.
+</span>c.set_secure(<span class="bool-val">false</span>);
+<span class="macro">assert_eq!</span>(c.secure(), <span class="prelude-val">Some</span>(<span class="bool-val">false</span>));
+
+<span class="comment">// An explicitly set "true" value.
+</span>c.set_secure(<span class="bool-val">true</span>);
+<span class="macro">assert_eq!</span>(c.secure(), <span class="prelude-val">Some</span>(<span class="bool-val">true</span>));</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.same_site" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#456">source</a><h4 class="code-header">pub fn <a href="#method.same_site" class="fn">same_site</a>(&amp;self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="enum.SameSite.html" title="enum actix_web::cookie::SameSite">SameSite</a>&gt;</h4></section></summary><div class="docblock"><p>Returns the <code>SameSite</code> attribute of this cookie if one was specified.</p>
+<h5 id="example-11"><a class="doc-anchor" href="#example-11">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::{Cookie, SameSite};
+
+<span class="kw">let </span>c = Cookie::parse(<span class="string">"name=value; SameSite=Lax"</span>).unwrap();
+<span class="macro">assert_eq!</span>(c.same_site(), <span class="prelude-val">Some</span>(SameSite::Lax));</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.max_age" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#474">source</a><h4 class="code-header">pub fn <a href="#method.max_age" class="fn">max_age</a>(&amp;self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="time/struct.Duration.html" title="struct actix_web::cookie::time::Duration">Duration</a>&gt;</h4></section></summary><div class="docblock"><p>Returns the specified max-age of the cookie if one was specified.</p>
+<h5 id="example-12"><a class="doc-anchor" href="#example-12">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+
+<span class="kw">let </span>c = Cookie::parse(<span class="string">"name=value"</span>).unwrap();
+<span class="macro">assert_eq!</span>(c.max_age(), <span class="prelude-val">None</span>);
+
+<span class="kw">let </span>c = Cookie::parse(<span class="string">"name=value; Max-Age=3600"</span>).unwrap();
+<span class="macro">assert_eq!</span>(c.max_age().map(|age| age.whole_hours()), <span class="prelude-val">Some</span>(<span class="number">1</span>));</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.path" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#495">source</a><h4 class="code-header">pub fn <a href="#method.path" class="fn">path</a>(&amp;self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;&amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;</h4></section></summary><div class="docblock"><p>Returns the <code>Path</code> of the cookie if one was specified.</p>
+<h5 id="example-13"><a class="doc-anchor" href="#example-13">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+
+<span class="kw">let </span>c = Cookie::parse(<span class="string">"name=value"</span>).unwrap();
+<span class="macro">assert_eq!</span>(c.path(), <span class="prelude-val">None</span>);
+
+<span class="kw">let </span>c = Cookie::parse(<span class="string">"name=value; Path=/"</span>).unwrap();
+<span class="macro">assert_eq!</span>(c.path(), <span class="prelude-val">Some</span>(<span class="string">"/"</span>));
+
+<span class="kw">let </span>c = Cookie::parse(<span class="string">"name=value; path=/sub"</span>).unwrap();
+<span class="macro">assert_eq!</span>(c.path(), <span class="prelude-val">Some</span>(<span class="string">"/sub"</span>));</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.domain" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#516">source</a><h4 class="code-header">pub fn <a href="#method.domain" class="fn">domain</a>(&amp;self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;&amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;</h4></section></summary><div class="docblock"><p>Returns the <code>Domain</code> of the cookie if one was specified.</p>
+<h5 id="example-14"><a class="doc-anchor" href="#example-14">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+
+<span class="kw">let </span>c = Cookie::parse(<span class="string">"name=value"</span>).unwrap();
+<span class="macro">assert_eq!</span>(c.domain(), <span class="prelude-val">None</span>);
+
+<span class="kw">let </span>c = Cookie::parse(<span class="string">"name=value; Domain=crates.io"</span>).unwrap();
+<span class="macro">assert_eq!</span>(c.domain(), <span class="prelude-val">Some</span>(<span class="string">"crates.io"</span>));</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.expires" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#543">source</a><h4 class="code-header">pub fn <a href="#method.expires" class="fn">expires</a>(&amp;self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="enum.Expiration.html" title="enum actix_web::cookie::Expiration">Expiration</a>&gt;</h4></section></summary><div class="docblock"><p>Returns the <a href="enum.Expiration.html" title="enum actix_web::cookie::Expiration"><code>Expiration</code></a> of the cookie if one was specified.</p>
+<h5 id="example-15"><a class="doc-anchor" href="#example-15">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::{Cookie, Expiration};
+
+<span class="kw">let </span>c = Cookie::parse(<span class="string">"name=value"</span>).unwrap();
+<span class="macro">assert_eq!</span>(c.expires(), <span class="prelude-val">None</span>);
+
+<span class="comment">// Here, `cookie.expires_datetime()` returns `None`.
+</span><span class="kw">let </span>c = Cookie::build(<span class="string">"name"</span>, <span class="string">"value"</span>).expires(<span class="prelude-val">None</span>).finish();
+<span class="macro">assert_eq!</span>(c.expires(), <span class="prelude-val">Some</span>(Expiration::Session));
+
+<span class="kw">let </span>expire_time = <span class="string">"Wed, 21 Oct 2017 07:28:00 GMT"</span>;
+<span class="kw">let </span>cookie_str = <span class="macro">format!</span>(<span class="string">"name=value; Expires={}"</span>, expire_time);
+<span class="kw">let </span>c = Cookie::parse(cookie_str).unwrap();
+<span class="macro">assert_eq!</span>(c.expires().and_then(|e| e.datetime()).map(|t| t.year()), <span class="prelude-val">Some</span>(<span class="number">2017</span>));</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.expires_datetime" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#567">source</a><h4 class="code-header">pub fn <a href="#method.expires_datetime" class="fn">expires_datetime</a>(&amp;self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="time/struct.OffsetDateTime.html" title="struct actix_web::cookie::time::OffsetDateTime">OffsetDateTime</a>&gt;</h4></section></summary><div class="docblock"><p>Returns the expiration date-time of the cookie if one was specified.</p>
+<h5 id="example-16"><a class="doc-anchor" href="#example-16">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+
+<span class="kw">let </span>c = Cookie::parse(<span class="string">"name=value"</span>).unwrap();
+<span class="macro">assert_eq!</span>(c.expires_datetime(), <span class="prelude-val">None</span>);
+
+<span class="comment">// Here, `cookie.expires()` returns `Some`.
+</span><span class="kw">let </span>c = Cookie::build(<span class="string">"name"</span>, <span class="string">"value"</span>).expires(<span class="prelude-val">None</span>).finish();
+<span class="macro">assert_eq!</span>(c.expires_datetime(), <span class="prelude-val">None</span>);
+
+<span class="kw">let </span>expire_time = <span class="string">"Wed, 21 Oct 2017 07:28:00 GMT"</span>;
+<span class="kw">let </span>cookie_str = <span class="macro">format!</span>(<span class="string">"name=value; Expires={}"</span>, expire_time);
+<span class="kw">let </span>c = Cookie::parse(cookie_str).unwrap();
+<span class="macro">assert_eq!</span>(c.expires_datetime().map(|t| t.year()), <span class="prelude-val">Some</span>(<span class="number">2017</span>));</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.set_name" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#584">source</a><h4 class="code-header">pub fn <a href="#method.set_name" class="fn">set_name</a>&lt;N&gt;(&amp;mut self, name: N)<div class="where">where
+    N: <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html" title="trait core::convert::Into">Into</a>&lt;<a class="enum" href="https://doc.rust-lang.org/nightly/alloc/borrow/enum.Cow.html" title="enum alloc::borrow::Cow">Cow</a>&lt;'c, <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;&gt;,</div></h4></section></summary><div class="docblock"><p>Sets the name of <code>self</code> to <code>name</code>.</p>
+<h5 id="example-17"><a class="doc-anchor" href="#example-17">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+
+<span class="kw">let </span><span class="kw-2">mut </span>c = Cookie::new(<span class="string">"name"</span>, <span class="string">"value"</span>);
+<span class="macro">assert_eq!</span>(c.name(), <span class="string">"name"</span>);
+
+c.set_name(<span class="string">"foo"</span>);
+<span class="macro">assert_eq!</span>(c.name(), <span class="string">"foo"</span>);</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.set_value" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#601">source</a><h4 class="code-header">pub fn <a href="#method.set_value" class="fn">set_value</a>&lt;V&gt;(&amp;mut self, value: V)<div class="where">where
+    V: <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html" title="trait core::convert::Into">Into</a>&lt;<a class="enum" href="https://doc.rust-lang.org/nightly/alloc/borrow/enum.Cow.html" title="enum alloc::borrow::Cow">Cow</a>&lt;'c, <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;&gt;,</div></h4></section></summary><div class="docblock"><p>Sets the value of <code>self</code> to <code>value</code>.</p>
+<h5 id="example-18"><a class="doc-anchor" href="#example-18">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+
+<span class="kw">let </span><span class="kw-2">mut </span>c = Cookie::new(<span class="string">"name"</span>, <span class="string">"value"</span>);
+<span class="macro">assert_eq!</span>(c.value(), <span class="string">"value"</span>);
+
+c.set_value(<span class="string">"bar"</span>);
+<span class="macro">assert_eq!</span>(c.value(), <span class="string">"bar"</span>);</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.set_http_only" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#626">source</a><h4 class="code-header">pub fn <a href="#method.set_http_only" class="fn">set_http_only</a>&lt;T&gt;(&amp;mut self, value: T)<div class="where">where
+    T: <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html" title="trait core::convert::Into">Into</a>&lt;<a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>&gt;&gt;,</div></h4></section></summary><div class="docblock"><p>Sets the value of <code>http_only</code> in <code>self</code> to <code>value</code>.  If <code>value</code> is
+<code>None</code>, the field is unset.</p>
+<h5 id="example-19"><a class="doc-anchor" href="#example-19">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+
+<span class="kw">let </span><span class="kw-2">mut </span>c = Cookie::new(<span class="string">"name"</span>, <span class="string">"value"</span>);
+<span class="macro">assert_eq!</span>(c.http_only(), <span class="prelude-val">None</span>);
+
+c.set_http_only(<span class="bool-val">true</span>);
+<span class="macro">assert_eq!</span>(c.http_only(), <span class="prelude-val">Some</span>(<span class="bool-val">true</span>));
+
+c.set_http_only(<span class="bool-val">false</span>);
+<span class="macro">assert_eq!</span>(c.http_only(), <span class="prelude-val">Some</span>(<span class="bool-val">false</span>));
+
+c.set_http_only(<span class="prelude-val">None</span>);
+<span class="macro">assert_eq!</span>(c.http_only(), <span class="prelude-val">None</span>);</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.set_secure" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#651">source</a><h4 class="code-header">pub fn <a href="#method.set_secure" class="fn">set_secure</a>&lt;T&gt;(&amp;mut self, value: T)<div class="where">where
+    T: <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html" title="trait core::convert::Into">Into</a>&lt;<a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>&gt;&gt;,</div></h4></section></summary><div class="docblock"><p>Sets the value of <code>secure</code> in <code>self</code> to <code>value</code>. If <code>value</code> is <code>None</code>,
+the field is unset.</p>
+<h5 id="example-20"><a class="doc-anchor" href="#example-20">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+
+<span class="kw">let </span><span class="kw-2">mut </span>c = Cookie::new(<span class="string">"name"</span>, <span class="string">"value"</span>);
+<span class="macro">assert_eq!</span>(c.secure(), <span class="prelude-val">None</span>);
+
+c.set_secure(<span class="bool-val">true</span>);
+<span class="macro">assert_eq!</span>(c.secure(), <span class="prelude-val">Some</span>(<span class="bool-val">true</span>));
+
+c.set_secure(<span class="bool-val">false</span>);
+<span class="macro">assert_eq!</span>(c.secure(), <span class="prelude-val">Some</span>(<span class="bool-val">false</span>));
+
+c.set_secure(<span class="prelude-val">None</span>);
+<span class="macro">assert_eq!</span>(c.secure(), <span class="prelude-val">None</span>);</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.set_same_site" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#690">source</a><h4 class="code-header">pub fn <a href="#method.set_same_site" class="fn">set_same_site</a>&lt;T&gt;(&amp;mut self, value: T)<div class="where">where
+    T: <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html" title="trait core::convert::Into">Into</a>&lt;<a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="enum.SameSite.html" title="enum actix_web::cookie::SameSite">SameSite</a>&gt;&gt;,</div></h4></section></summary><div class="docblock"><p>Sets the value of <code>same_site</code> in <code>self</code> to <code>value</code>. If <code>value</code> is
+<code>None</code>, the field is unset. If <code>value</code> is <code>SameSite::None</code>, the “Secure”
+flag will be set when the cookie is written out unless <code>secure</code> is
+explicitly set to <code>false</code> via <a href="struct.Cookie.html#method.set_secure" title="method actix_web::cookie::Cookie::set_secure"><code>Cookie::set_secure()</code></a> or the equivalent
+builder method.</p>
+<h5 id="example-21"><a class="doc-anchor" href="#example-21">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::{Cookie, SameSite};
+
+<span class="kw">let </span><span class="kw-2">mut </span>c = Cookie::new(<span class="string">"name"</span>, <span class="string">"value"</span>);
+<span class="macro">assert_eq!</span>(c.same_site(), <span class="prelude-val">None</span>);
+
+c.set_same_site(SameSite::None);
+<span class="macro">assert_eq!</span>(c.same_site(), <span class="prelude-val">Some</span>(SameSite::None));
+<span class="macro">assert_eq!</span>(c.to_string(), <span class="string">"name=value; SameSite=None; Secure"</span>);
+
+c.set_secure(<span class="bool-val">false</span>);
+<span class="macro">assert_eq!</span>(c.to_string(), <span class="string">"name=value; SameSite=None"</span>);
+
+<span class="kw">let </span><span class="kw-2">mut </span>c = Cookie::new(<span class="string">"name"</span>, <span class="string">"value"</span>);
+<span class="macro">assert_eq!</span>(c.same_site(), <span class="prelude-val">None</span>);
+
+c.set_same_site(SameSite::Strict);
+<span class="macro">assert_eq!</span>(c.same_site(), <span class="prelude-val">Some</span>(SameSite::Strict));
+<span class="macro">assert_eq!</span>(c.to_string(), <span class="string">"name=value; SameSite=Strict"</span>);
+
+c.set_same_site(<span class="prelude-val">None</span>);
+<span class="macro">assert_eq!</span>(c.same_site(), <span class="prelude-val">None</span>);
+<span class="macro">assert_eq!</span>(c.to_string(), <span class="string">"name=value"</span>);</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.set_max_age" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#716">source</a><h4 class="code-header">pub fn <a href="#method.set_max_age" class="fn">set_max_age</a>&lt;D&gt;(&amp;mut self, value: D)<div class="where">where
+    D: <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html" title="trait core::convert::Into">Into</a>&lt;<a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="time/struct.Duration.html" title="struct actix_web::cookie::time::Duration">Duration</a>&gt;&gt;,</div></h4></section></summary><div class="docblock"><p>Sets the value of <code>max_age</code> in <code>self</code> to <code>value</code>. If <code>value</code> is <code>None</code>,
+the field is unset.</p>
+<h5 id="example-22"><a class="doc-anchor" href="#example-22">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+<span class="kw">use </span>cookie::time::Duration;
+
+<span class="kw">let </span><span class="kw-2">mut </span>c = Cookie::new(<span class="string">"name"</span>, <span class="string">"value"</span>);
+<span class="macro">assert_eq!</span>(c.max_age(), <span class="prelude-val">None</span>);
+
+c.set_max_age(Duration::hours(<span class="number">10</span>));
+<span class="macro">assert_eq!</span>(c.max_age(), <span class="prelude-val">Some</span>(Duration::hours(<span class="number">10</span>)));
+
+c.set_max_age(<span class="prelude-val">None</span>);
+<span class="macro">assert!</span>(c.max_age().is_none());</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.set_path" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#733">source</a><h4 class="code-header">pub fn <a href="#method.set_path" class="fn">set_path</a>&lt;P&gt;(&amp;mut self, path: P)<div class="where">where
+    P: <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html" title="trait core::convert::Into">Into</a>&lt;<a class="enum" href="https://doc.rust-lang.org/nightly/alloc/borrow/enum.Cow.html" title="enum alloc::borrow::Cow">Cow</a>&lt;'c, <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;&gt;,</div></h4></section></summary><div class="docblock"><p>Sets the <code>path</code> of <code>self</code> to <code>path</code>.</p>
+<h5 id="example-23"><a class="doc-anchor" href="#example-23">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+
+<span class="kw">let </span><span class="kw-2">mut </span>c = Cookie::new(<span class="string">"name"</span>, <span class="string">"value"</span>);
+<span class="macro">assert_eq!</span>(c.path(), <span class="prelude-val">None</span>);
+
+c.set_path(<span class="string">"/"</span>);
+<span class="macro">assert_eq!</span>(c.path(), <span class="prelude-val">Some</span>(<span class="string">"/"</span>));</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.unset_path" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#753">source</a><h4 class="code-header">pub fn <a href="#method.unset_path" class="fn">unset_path</a>(&amp;mut self)</h4></section></summary><div class="docblock"><p>Unsets the <code>path</code> of <code>self</code>.</p>
+<h5 id="example-24"><a class="doc-anchor" href="#example-24">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+
+<span class="kw">let </span><span class="kw-2">mut </span>c = Cookie::new(<span class="string">"name"</span>, <span class="string">"value"</span>);
+<span class="macro">assert_eq!</span>(c.path(), <span class="prelude-val">None</span>);
+
+c.set_path(<span class="string">"/"</span>);
+<span class="macro">assert_eq!</span>(c.path(), <span class="prelude-val">Some</span>(<span class="string">"/"</span>));
+
+c.unset_path();
+<span class="macro">assert_eq!</span>(c.path(), <span class="prelude-val">None</span>);</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.set_domain" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#770">source</a><h4 class="code-header">pub fn <a href="#method.set_domain" class="fn">set_domain</a>&lt;D&gt;(&amp;mut self, domain: D)<div class="where">where
+    D: <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html" title="trait core::convert::Into">Into</a>&lt;<a class="enum" href="https://doc.rust-lang.org/nightly/alloc/borrow/enum.Cow.html" title="enum alloc::borrow::Cow">Cow</a>&lt;'c, <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;&gt;,</div></h4></section></summary><div class="docblock"><p>Sets the <code>domain</code> of <code>self</code> to <code>domain</code>.</p>
+<h5 id="example-25"><a class="doc-anchor" href="#example-25">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+
+<span class="kw">let </span><span class="kw-2">mut </span>c = Cookie::new(<span class="string">"name"</span>, <span class="string">"value"</span>);
+<span class="macro">assert_eq!</span>(c.domain(), <span class="prelude-val">None</span>);
+
+c.set_domain(<span class="string">"rust-lang.org"</span>);
+<span class="macro">assert_eq!</span>(c.domain(), <span class="prelude-val">Some</span>(<span class="string">"rust-lang.org"</span>));</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.unset_domain" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#790">source</a><h4 class="code-header">pub fn <a href="#method.unset_domain" class="fn">unset_domain</a>(&amp;mut self)</h4></section></summary><div class="docblock"><p>Unsets the <code>domain</code> of <code>self</code>.</p>
+<h5 id="example-26"><a class="doc-anchor" href="#example-26">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+
+<span class="kw">let </span><span class="kw-2">mut </span>c = Cookie::new(<span class="string">"name"</span>, <span class="string">"value"</span>);
+<span class="macro">assert_eq!</span>(c.domain(), <span class="prelude-val">None</span>);
+
+c.set_domain(<span class="string">"rust-lang.org"</span>);
+<span class="macro">assert_eq!</span>(c.domain(), <span class="prelude-val">Some</span>(<span class="string">"rust-lang.org"</span>));
+
+c.unset_domain();
+<span class="macro">assert_eq!</span>(c.domain(), <span class="prelude-val">None</span>);</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.set_expires" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#816">source</a><h4 class="code-header">pub fn <a href="#method.set_expires" class="fn">set_expires</a>&lt;T&gt;(&amp;mut self, time: T)<div class="where">where
+    T: <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html" title="trait core::convert::Into">Into</a>&lt;<a class="enum" href="enum.Expiration.html" title="enum actix_web::cookie::Expiration">Expiration</a>&gt;,</div></h4></section></summary><div class="docblock"><p>Sets the expires field of <code>self</code> to <code>time</code>. If <code>time</code> is <code>None</code>, an
+expiration of <a href="enum.Expiration.html#variant.Session" title="variant actix_web::cookie::Expiration::Session"><code>Session</code></a> is set.</p>
+<h5 id="example-27"><a class="doc-anchor" href="#example-27">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::{Cookie, Expiration};
+<span class="kw">use </span>cookie::time::{Duration, OffsetDateTime};
+
+<span class="kw">let </span><span class="kw-2">mut </span>c = Cookie::new(<span class="string">"name"</span>, <span class="string">"value"</span>);
+<span class="macro">assert_eq!</span>(c.expires(), <span class="prelude-val">None</span>);
+
+<span class="kw">let </span><span class="kw-2">mut </span>now = OffsetDateTime::now_utc();
+now += Duration::weeks(<span class="number">52</span>);
+
+c.set_expires(now);
+<span class="macro">assert!</span>(c.expires().is_some());
+
+c.set_expires(<span class="prelude-val">None</span>);
+<span class="macro">assert_eq!</span>(c.expires(), <span class="prelude-val">Some</span>(Expiration::Session));</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.unset_expires" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#840">source</a><h4 class="code-header">pub fn <a href="#method.unset_expires" class="fn">unset_expires</a>(&amp;mut self)</h4></section></summary><div class="docblock"><p>Unsets the <code>expires</code> of <code>self</code>.</p>
+<h5 id="example-28"><a class="doc-anchor" href="#example-28">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::{Cookie, Expiration};
+
+<span class="kw">let </span><span class="kw-2">mut </span>c = Cookie::new(<span class="string">"name"</span>, <span class="string">"value"</span>);
+<span class="macro">assert_eq!</span>(c.expires(), <span class="prelude-val">None</span>);
+
+c.set_expires(<span class="prelude-val">None</span>);
+<span class="macro">assert_eq!</span>(c.expires(), <span class="prelude-val">Some</span>(Expiration::Session));
+
+c.unset_expires();
+<span class="macro">assert_eq!</span>(c.expires(), <span class="prelude-val">None</span>);</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.make_permanent" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#864">source</a><h4 class="code-header">pub fn <a href="#method.make_permanent" class="fn">make_permanent</a>(&amp;mut self)</h4></section></summary><div class="docblock"><p>Makes <code>self</code> a “permanent” cookie by extending its expiration and max
+age 20 years into the future.</p>
+<h5 id="example-29"><a class="doc-anchor" href="#example-29">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+<span class="kw">use </span>cookie::time::Duration;
+
+<span class="kw">let </span><span class="kw-2">mut </span>c = Cookie::new(<span class="string">"foo"</span>, <span class="string">"bar"</span>);
+<span class="macro">assert!</span>(c.expires().is_none());
+<span class="macro">assert!</span>(c.max_age().is_none());
+
+c.make_permanent();
+<span class="macro">assert!</span>(c.expires().is_some());
+<span class="macro">assert_eq!</span>(c.max_age(), <span class="prelude-val">Some</span>(Duration::days(<span class="number">365 </span>* <span class="number">20</span>)));</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.make_removal" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#891">source</a><h4 class="code-header">pub fn <a href="#method.make_removal" class="fn">make_removal</a>(&amp;mut self)</h4></section></summary><div class="docblock"><p>Make <code>self</code> a “removal” cookie by clearing its value, setting a max-age
+of <code>0</code>, and setting an expiration date far in the past.</p>
+<h5 id="example-30"><a class="doc-anchor" href="#example-30">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+<span class="kw">use </span>cookie::time::Duration;
+
+<span class="kw">let </span><span class="kw-2">mut </span>c = Cookie::new(<span class="string">"foo"</span>, <span class="string">"bar"</span>);
+c.make_permanent();
+<span class="macro">assert_eq!</span>(c.max_age(), <span class="prelude-val">Some</span>(Duration::days(<span class="number">365 </span>* <span class="number">20</span>)));
+<span class="macro">assert_eq!</span>(c.value(), <span class="string">"bar"</span>);
+
+c.make_removal();
+<span class="macro">assert_eq!</span>(c.value(), <span class="string">""</span>);
+<span class="macro">assert_eq!</span>(c.max_age(), <span class="prelude-val">Some</span>(Duration::ZERO));</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.name_raw" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#959">source</a><h4 class="code-header">pub fn <a href="#method.name_raw" class="fn">name_raw</a>(&amp;self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;&amp;'c <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;</h4></section></summary><div class="docblock"><p>Returns the name of <code>self</code> as a string slice of the raw string <code>self</code>
+was originally parsed from. If <code>self</code> was not originally parsed from a
+raw string, returns <code>None</code>.</p>
+<p>This method differs from <a href="struct.Cookie.html#method.name" title="method actix_web::cookie::Cookie::name"><code>Cookie::name()</code></a> in that it returns a string
+with the same lifetime as the originally parsed string. This lifetime
+may outlive <code>self</code>. If a longer lifetime is not required, or you’re
+unsure if you need a longer lifetime, use <a href="struct.Cookie.html#method.name" title="method actix_web::cookie::Cookie::name"><code>Cookie::name()</code></a>.</p>
+<h5 id="example-31"><a class="doc-anchor" href="#example-31">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+
+<span class="kw">let </span>cookie_string = <span class="macro">format!</span>(<span class="string">"{}={}"</span>, <span class="string">"foo"</span>, <span class="string">"bar"</span>);
+
+<span class="comment">// `c` will be dropped at the end of the scope, but `name` will live on
+</span><span class="kw">let </span>name = {
+    <span class="kw">let </span>c = Cookie::parse(cookie_string.as_str()).unwrap();
+    c.name_raw()
+};
+
+<span class="macro">assert_eq!</span>(name, <span class="prelude-val">Some</span>(<span class="string">"foo"</span>));</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.value_raw" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#989">source</a><h4 class="code-header">pub fn <a href="#method.value_raw" class="fn">value_raw</a>(&amp;self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;&amp;'c <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;</h4></section></summary><div class="docblock"><p>Returns the value of <code>self</code> as a string slice of the raw string <code>self</code>
+was originally parsed from. If <code>self</code> was not originally parsed from a
+raw string, returns <code>None</code>.</p>
+<p>This method differs from <a href="struct.Cookie.html#method.value" title="method actix_web::cookie::Cookie::value"><code>Cookie::value()</code></a> in that it returns a
+string with the same lifetime as the originally parsed string. This
+lifetime may outlive <code>self</code>. If a longer lifetime is not required, or
+you’re unsure if you need a longer lifetime, use <a href="struct.Cookie.html#method.value" title="method actix_web::cookie::Cookie::value"><code>Cookie::value()</code></a>.</p>
+<h5 id="example-32"><a class="doc-anchor" href="#example-32">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+
+<span class="kw">let </span>cookie_string = <span class="macro">format!</span>(<span class="string">"{}={}"</span>, <span class="string">"foo"</span>, <span class="string">"bar"</span>);
+
+<span class="comment">// `c` will be dropped at the end of the scope, but `value` will live on
+</span><span class="kw">let </span>value = {
+    <span class="kw">let </span>c = Cookie::parse(cookie_string.as_str()).unwrap();
+    c.value_raw()
+};
+
+<span class="macro">assert_eq!</span>(value, <span class="prelude-val">Some</span>(<span class="string">"bar"</span>));</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.path_raw" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#1020">source</a><h4 class="code-header">pub fn <a href="#method.path_raw" class="fn">path_raw</a>(&amp;self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;&amp;'c <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;</h4></section></summary><div class="docblock"><p>Returns the <code>Path</code> of <code>self</code> as a string slice of the raw string <code>self</code>
+was originally parsed from. If <code>self</code> was not originally parsed from a
+raw string, or if <code>self</code> doesn’t contain a <code>Path</code>, or if the <code>Path</code> has
+changed since parsing, returns <code>None</code>.</p>
+<p>This method differs from <a href="struct.Cookie.html#method.path" title="method actix_web::cookie::Cookie::path"><code>Cookie::path()</code></a> in that it returns a
+string with the same lifetime as the originally parsed string. This
+lifetime may outlive <code>self</code>. If a longer lifetime is not required, or
+you’re unsure if you need a longer lifetime, use <a href="struct.Cookie.html#method.path" title="method actix_web::cookie::Cookie::path"><code>Cookie::path()</code></a>.</p>
+<h5 id="example-33"><a class="doc-anchor" href="#example-33">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+
+<span class="kw">let </span>cookie_string = <span class="macro">format!</span>(<span class="string">"{}={}; Path=/"</span>, <span class="string">"foo"</span>, <span class="string">"bar"</span>);
+
+<span class="comment">// `c` will be dropped at the end of the scope, but `path` will live on
+</span><span class="kw">let </span>path = {
+    <span class="kw">let </span>c = Cookie::parse(cookie_string.as_str()).unwrap();
+    c.path_raw()
+};
+
+<span class="macro">assert_eq!</span>(path, <span class="prelude-val">Some</span>(<span class="string">"/"</span>));</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.domain_raw" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#1054">source</a><h4 class="code-header">pub fn <a href="#method.domain_raw" class="fn">domain_raw</a>(&amp;self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;&amp;'c <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;</h4></section></summary><div class="docblock"><p>Returns the <code>Domain</code> of <code>self</code> as a string slice of the raw string
+<code>self</code> was originally parsed from. If <code>self</code> was not originally parsed
+from a raw string, or if <code>self</code> doesn’t contain a <code>Domain</code>, or if the
+<code>Domain</code> has changed since parsing, returns <code>None</code>.</p>
+<p>This method differs from <a href="struct.Cookie.html#method.domain" title="method actix_web::cookie::Cookie::domain"><code>Cookie::domain()</code></a> in that it returns a
+string with the same lifetime as the originally parsed string. This
+lifetime may outlive <code>self</code> struct. If a longer lifetime is not
+required, or you’re unsure if you need a longer lifetime, use
+<a href="struct.Cookie.html#method.domain" title="method actix_web::cookie::Cookie::domain"><code>Cookie::domain()</code></a>.</p>
+<h5 id="example-34"><a class="doc-anchor" href="#example-34">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+
+<span class="kw">let </span>cookie_string = <span class="macro">format!</span>(<span class="string">"{}={}; Domain=crates.io"</span>, <span class="string">"foo"</span>, <span class="string">"bar"</span>);
+
+<span class="comment">//`c` will be dropped at the end of the scope, but `domain` will live on
+</span><span class="kw">let </span>domain = {
+    <span class="kw">let </span>c = Cookie::parse(cookie_string.as_str()).unwrap();
+    c.domain_raw()
+};
+
+<span class="macro">assert_eq!</span>(domain, <span class="prelude-val">Some</span>(<span class="string">"crates.io"</span>));</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.encoded" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#1080">source</a><h4 class="code-header">pub fn <a href="#method.encoded" class="fn">encoded</a>&lt;'a&gt;(&amp;'a self) -&gt; <a class="struct" href="struct.Display.html" title="struct actix_web::cookie::Display">Display</a>&lt;'a, 'c&gt;</h4></section><span class="item-info"><div class="stab portability">Available on <strong>crate feature <code>percent-encode</code></strong> only.</div></span></summary><div class="docblock"><p>Wraps <code>self</code> in an encoded <a href="struct.Display.html" title="struct actix_web::cookie::Display"><code>Display</code></a>: a cost-free wrapper around
+<code>Cookie</code> whose <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html" title="trait core::fmt::Display"><code>fmt::Display</code></a> implementation percent-encodes the name
+and value of the wrapped <code>Cookie</code>.</p>
+<p>The returned structure can be chained with <a href="struct.Display.html#method.stripped" title="method actix_web::cookie::Display::stripped"><code>Display::stripped()</code></a> to
+display only the name and value.</p>
+<h5 id="example-35"><a class="doc-anchor" href="#example-35">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+
+<span class="kw">let </span><span class="kw-2">mut </span>c = Cookie::build(<span class="string">"my name"</span>, <span class="string">"this; value?"</span>).secure(<span class="bool-val">true</span>).finish();
+<span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>c.encoded().to_string(), <span class="string">"my%20name=this%3B%20value%3F; Secure"</span>);
+<span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>c.encoded().stripped().to_string(), <span class="string">"my%20name=this%3B%20value%3F"</span>);</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.stripped" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#1104">source</a><h4 class="code-header">pub fn <a href="#method.stripped" class="fn">stripped</a>&lt;'a&gt;(&amp;'a self) -&gt; <a class="struct" href="struct.Display.html" title="struct actix_web::cookie::Display">Display</a>&lt;'a, 'c&gt;</h4></section></summary><div class="docblock"><p>Wraps <code>self</code> in a stripped <code>Display</code>]: a cost-free wrapper around
+<code>Cookie</code> whose <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html" title="trait core::fmt::Display"><code>fmt::Display</code></a> implementation prints only the <code>name</code>
+and <code>value</code> of the wrapped <code>Cookie</code>.</p>
+<p>The returned structure can be chained with <a href="struct.Display.html#method.encoded" title="method actix_web::cookie::Display::encoded"><code>Display::encoded()</code></a> to
+encode the name and value.</p>
+<h5 id="example-36"><a class="doc-anchor" href="#example-36">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+
+<span class="kw">let </span><span class="kw-2">mut </span>c = Cookie::build(<span class="string">"key?"</span>, <span class="string">"value"</span>).secure(<span class="bool-val">true</span>).path(<span class="string">"/"</span>).finish();
+<span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>c.stripped().to_string(), <span class="string">"key?=value"</span>);
+<span class="comment">// Note: `encoded()` is only available when `percent-encode` is enabled.
+</span><span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>c.stripped().encoded().to_string(), <span class="string">"key%3F=value"</span>);</code></pre></div>
+</div></details></div></details></div><h2 id="trait-implementations" class="section-header">Trait Implementations<a href="#trait-implementations" class="anchor">§</a></h2><div id="trait-implementations-list"><details class="toggle implementors-toggle" open><summary><section id="impl-Clone-for-Cookie%3C'c%3E" class="impl"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#181">source</a><a href="#impl-Clone-for-Cookie%3C'c%3E" class="anchor">§</a><h3 class="code-header">impl&lt;'c&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a> for <a class="struct" href="struct.Cookie.html" title="struct actix_web::cookie::Cookie">Cookie</a>&lt;'c&gt;</h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.clone" class="method trait-impl"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#181">source</a><a href="#method.clone" class="anchor">§</a><h4 class="code-header">fn <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone" class="fn">clone</a>(&amp;self) -&gt; <a class="struct" href="struct.Cookie.html" title="struct actix_web::cookie::Cookie">Cookie</a>&lt;'c&gt;</h4></section></summary><div class='docblock'>Returns a copy of the value. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">Read more</a></div></details><details class="toggle method-toggle" open><summary><section id="method.clone_from" class="method trait-impl"><span class="rightside"><span class="since" title="Stable since Rust version 1.0.0">1.0.0</span> · <a class="src" href="https://doc.rust-lang.org/nightly/src/core/clone.rs.html#169">source</a></span><a href="#method.clone_from" class="anchor">§</a><h4 class="code-header">fn <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from" class="fn">clone_from</a>(&amp;mut self, source: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;Self</a>)</h4></section></summary><div class='docblock'>Performs copy-assignment from <code>source</code>. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from">Read more</a></div></details></div></details><details class="toggle implementors-toggle" open><summary><section id="impl-Debug-for-Cookie%3C'c%3E" class="impl"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#181">source</a><a href="#impl-Debug-for-Cookie%3C'c%3E" class="anchor">§</a><h3 class="code-header">impl&lt;'c&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> for <a class="struct" href="struct.Cookie.html" title="struct actix_web::cookie::Cookie">Cookie</a>&lt;'c&gt;</h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.fmt-1" class="method trait-impl"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#181">source</a><a href="#method.fmt-1" class="anchor">§</a><h4 class="code-header">fn <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt" class="fn">fmt</a>(&amp;self, f: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>&lt;'_&gt;) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Error.html" title="struct core::fmt::Error">Error</a>&gt;</h4></section></summary><div class='docblock'>Formats the value using the given formatter. <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt">Read more</a></div></details></div></details><details class="toggle implementors-toggle" open><summary><section id="impl-Display-for-Cookie%3C'c%3E" class="impl"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#1233">source</a><a href="#impl-Display-for-Cookie%3C'c%3E" class="anchor">§</a><h3 class="code-header">impl&lt;'c&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html" title="trait core::fmt::Display">Display</a> for <a class="struct" href="struct.Cookie.html" title="struct actix_web::cookie::Cookie">Cookie</a>&lt;'c&gt;</h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.fmt" class="method trait-impl"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#1250">source</a><a href="#method.fmt" class="anchor">§</a><h4 class="code-header">fn <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html#tymethod.fmt" class="fn">fmt</a>(&amp;self, f: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>&lt;'_&gt;) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Error.html" title="struct core::fmt::Error">Error</a>&gt;</h4></section></summary><div class="docblock"><p>Formats the cookie <code>self</code> as a <code>Set-Cookie</code> header value.</p>
+<p>Does <em>not</em> percent-encode any values. To percent-encode, use
+<a href="struct.Cookie.html#method.encoded" title="method actix_web::cookie::Cookie::encoded"><code>Cookie::encoded()</code></a>.</p>
+<h5 id="example-37"><a class="doc-anchor" href="#example-37">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::Cookie;
+
+<span class="kw">let </span><span class="kw-2">mut </span>cookie = Cookie::build(<span class="string">"foo"</span>, <span class="string">"bar"</span>)
+    .path(<span class="string">"/"</span>)
+    .finish();
+
+<span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>cookie.to_string(), <span class="string">"foo=bar; Path=/"</span>);</code></pre></div>
+</div></details></div></details><details class="toggle implementors-toggle" open><summary><section id="impl-FromStr-for-Cookie%3C'static%3E" class="impl"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#1256">source</a><a href="#impl-FromStr-for-Cookie%3C'static%3E" class="anchor">§</a><h3 class="code-header">impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/str/traits/trait.FromStr.html" title="trait core::str::traits::FromStr">FromStr</a> for <a class="struct" href="struct.Cookie.html" title="struct actix_web::cookie::Cookie">Cookie</a>&lt;'static&gt;</h3></section></summary><div class="impl-items"><details class="toggle" open><summary><section id="associatedtype.Err" class="associatedtype trait-impl"><a href="#associatedtype.Err" class="anchor">§</a><h4 class="code-header">type <a href="https://doc.rust-lang.org/nightly/core/str/traits/trait.FromStr.html#associatedtype.Err" class="associatedtype">Err</a> = <a class="enum" href="enum.ParseError.html" title="enum actix_web::cookie::ParseError">ParseError</a></h4></section></summary><div class='docblock'>The associated error which can be returned from parsing.</div></details><details class="toggle method-toggle" open><summary><section id="method.from_str" class="method trait-impl"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#1259">source</a><a href="#method.from_str" class="anchor">§</a><h4 class="code-header">fn <a href="https://doc.rust-lang.org/nightly/core/str/traits/trait.FromStr.html#tymethod.from_str" class="fn">from_str</a>(s: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="struct.Cookie.html" title="struct actix_web::cookie::Cookie">Cookie</a>&lt;'static&gt;, <a class="enum" href="enum.ParseError.html" title="enum actix_web::cookie::ParseError">ParseError</a>&gt;</h4></section></summary><div class='docblock'>Parses a string <code>s</code> to return a value of this type. <a href="https://doc.rust-lang.org/nightly/core/str/traits/trait.FromStr.html#tymethod.from_str">Read more</a></div></details></div></details><details class="toggle implementors-toggle" open><summary><section id="impl-PartialEq%3CCookie%3C'b%3E%3E-for-Cookie%3C'a%3E" class="impl"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#1264">source</a><a href="#impl-PartialEq%3CCookie%3C'b%3E%3E-for-Cookie%3C'a%3E" class="anchor">§</a><h3 class="code-header">impl&lt;'a, 'b&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html" title="trait core::cmp::PartialEq">PartialEq</a>&lt;<a class="struct" href="struct.Cookie.html" title="struct actix_web::cookie::Cookie">Cookie</a>&lt;'b&gt;&gt; for <a class="struct" href="struct.Cookie.html" title="struct actix_web::cookie::Cookie">Cookie</a>&lt;'a&gt;</h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.eq" class="method trait-impl"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#1265">source</a><a href="#method.eq" class="anchor">§</a><h4 class="code-header">fn <a href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#tymethod.eq" class="fn">eq</a>(&amp;self, other: &amp;<a class="struct" href="struct.Cookie.html" title="struct actix_web::cookie::Cookie">Cookie</a>&lt;'b&gt;) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></h4></section></summary><div class='docblock'>This method tests for <code>self</code> and <code>other</code> values to be equal, and is used
+by <code>==</code>.</div></details><details class="toggle method-toggle" open><summary><section id="method.ne" class="method trait-impl"><span class="rightside"><span class="since" title="Stable since Rust version 1.0.0">1.0.0</span> · <a class="src" href="https://doc.rust-lang.org/nightly/src/core/cmp.rs.html#263">source</a></span><a href="#method.ne" class="anchor">§</a><h4 class="code-header">fn <a href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#method.ne" class="fn">ne</a>(&amp;self, other: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;Rhs</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></h4></section></summary><div class='docblock'>This method tests for <code>!=</code>. The default implementation is almost always
+sufficient, and should not be overridden without very good reason.</div></details></div></details></div><h2 id="synthetic-implementations" class="section-header">Auto Trait Implementations<a href="#synthetic-implementations" class="anchor">§</a></h2><div id="synthetic-implementations-list"><section id="impl-Freeze-for-Cookie%3C'c%3E" class="impl"><a href="#impl-Freeze-for-Cookie%3C'c%3E" class="anchor">§</a><h3 class="code-header">impl&lt;'c&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Freeze.html" title="trait core::marker::Freeze">Freeze</a> for <a class="struct" href="struct.Cookie.html" title="struct actix_web::cookie::Cookie">Cookie</a>&lt;'c&gt;</h3></section><section id="impl-RefUnwindSafe-for-Cookie%3C'c%3E" class="impl"><a href="#impl-RefUnwindSafe-for-Cookie%3C'c%3E" class="anchor">§</a><h3 class="code-header">impl&lt;'c&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/panic/unwind_safe/trait.RefUnwindSafe.html" title="trait core::panic::unwind_safe::RefUnwindSafe">RefUnwindSafe</a> for <a class="struct" href="struct.Cookie.html" title="struct actix_web::cookie::Cookie">Cookie</a>&lt;'c&gt;</h3></section><section id="impl-Send-for-Cookie%3C'c%3E" class="impl"><a href="#impl-Send-for-Cookie%3C'c%3E" class="anchor">§</a><h3 class="code-header">impl&lt;'c&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="struct.Cookie.html" title="struct actix_web::cookie::Cookie">Cookie</a>&lt;'c&gt;</h3></section><section id="impl-Sync-for-Cookie%3C'c%3E" class="impl"><a href="#impl-Sync-for-Cookie%3C'c%3E" class="anchor">§</a><h3 class="code-header">impl&lt;'c&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="struct.Cookie.html" title="struct actix_web::cookie::Cookie">Cookie</a>&lt;'c&gt;</h3></section><section id="impl-Unpin-for-Cookie%3C'c%3E" class="impl"><a href="#impl-Unpin-for-Cookie%3C'c%3E" class="anchor">§</a><h3 class="code-header">impl&lt;'c&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Unpin.html" title="trait core::marker::Unpin">Unpin</a> for <a class="struct" href="struct.Cookie.html" title="struct actix_web::cookie::Cookie">Cookie</a>&lt;'c&gt;</h3></section><section id="impl-UnwindSafe-for-Cookie%3C'c%3E" class="impl"><a href="#impl-UnwindSafe-for-Cookie%3C'c%3E" class="anchor">§</a><h3 class="code-header">impl&lt;'c&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/panic/unwind_safe/trait.UnwindSafe.html" title="trait core::panic::unwind_safe::UnwindSafe">UnwindSafe</a> for <a class="struct" href="struct.Cookie.html" title="struct actix_web::cookie::Cookie">Cookie</a>&lt;'c&gt;</h3></section></div><h2 id="blanket-implementations" class="section-header">Blanket Implementations<a href="#blanket-implementations" class="anchor">§</a></h2><div id="blanket-implementations-list"><details class="toggle implementors-toggle"><summary><section id="impl-Any-for-T" class="impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/core/any.rs.html#140">source</a><a href="#impl-Any-for-T" class="anchor">§</a><h3 class="code-header">impl&lt;T&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/any/trait.Any.html" title="trait core::any::Any">Any</a> for T<div class="where">where
+    T: 'static + ?<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>,</div></h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.type_id" class="method trait-impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/core/any.rs.html#141">source</a><a href="#method.type_id" class="anchor">§</a><h4 class="code-header">fn <a href="https://doc.rust-lang.org/nightly/core/any/trait.Any.html#tymethod.type_id" class="fn">type_id</a>(&amp;self) -&gt; <a class="struct" href="https://doc.rust-lang.org/nightly/core/any/struct.TypeId.html" title="struct core::any::TypeId">TypeId</a></h4></section></summary><div class='docblock'>Gets the <code>TypeId</code> of <code>self</code>. <a href="https://doc.rust-lang.org/nightly/core/any/trait.Any.html#tymethod.type_id">Read more</a></div></details></div></details><details class="toggle implementors-toggle"><summary><section id="impl-Borrow%3CT%3E-for-T" class="impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/core/borrow.rs.html#208">source</a><a href="#impl-Borrow%3CT%3E-for-T" class="anchor">§</a><h3 class="code-header">impl&lt;T&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/borrow/trait.Borrow.html" title="trait core::borrow::Borrow">Borrow</a>&lt;T&gt; for T<div class="where">where
+    T: ?<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>,</div></h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.borrow" class="method trait-impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/core/borrow.rs.html#210">source</a><a href="#method.borrow" class="anchor">§</a><h4 class="code-header">fn <a href="https://doc.rust-lang.org/nightly/core/borrow/trait.Borrow.html#tymethod.borrow" class="fn">borrow</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;T</a></h4></section></summary><div class='docblock'>Immutably borrows from an owned value. <a href="https://doc.rust-lang.org/nightly/core/borrow/trait.Borrow.html#tymethod.borrow">Read more</a></div></details></div></details><details class="toggle implementors-toggle"><summary><section id="impl-BorrowMut%3CT%3E-for-T" class="impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/core/borrow.rs.html#216">source</a><a href="#impl-BorrowMut%3CT%3E-for-T" class="anchor">§</a><h3 class="code-header">impl&lt;T&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/borrow/trait.BorrowMut.html" title="trait core::borrow::BorrowMut">BorrowMut</a>&lt;T&gt; for T<div class="where">where
+    T: ?<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>,</div></h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.borrow_mut" class="method trait-impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/core/borrow.rs.html#217">source</a><a href="#method.borrow_mut" class="anchor">§</a><h4 class="code-header">fn <a href="https://doc.rust-lang.org/nightly/core/borrow/trait.BorrowMut.html#tymethod.borrow_mut" class="fn">borrow_mut</a>(&amp;mut self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;mut T</a></h4></section></summary><div class='docblock'>Mutably borrows from an owned value. <a href="https://doc.rust-lang.org/nightly/core/borrow/trait.BorrowMut.html#tymethod.borrow_mut">Read more</a></div></details></div></details><details class="toggle implementors-toggle"><summary><section id="impl-From%3CT%3E-for-T" class="impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/core/convert/mod.rs.html#765">source</a><a href="#impl-From%3CT%3E-for-T" class="anchor">§</a><h3 class="code-header">impl&lt;T&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html" title="trait core::convert::From">From</a>&lt;T&gt; for T</h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.from" class="method trait-impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/core/convert/mod.rs.html#768">source</a><a href="#method.from" class="anchor">§</a><h4 class="code-header">fn <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html#tymethod.from" class="fn">from</a>(t: T) -&gt; T</h4></section></summary><div class="docblock"><p>Returns the argument unchanged.</p>
+</div></details></div></details><details class="toggle implementors-toggle"><summary><section id="impl-Instrument-for-T" class="impl"><a href="#impl-Instrument-for-T" class="anchor">§</a><h3 class="code-header">impl&lt;T&gt; Instrument for T</h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.instrument" class="method trait-impl"><a href="#method.instrument" class="anchor">§</a><h4 class="code-header">fn <a class="fn">instrument</a>(self, span: Span) -&gt; Instrumented&lt;Self&gt;</h4></section></summary><div class='docblock'>Instruments this type with the provided [<code>Span</code>], returning an
+<code>Instrumented</code> wrapper. <a>Read more</a></div></details><details class="toggle method-toggle" open><summary><section id="method.in_current_span" class="method trait-impl"><a href="#method.in_current_span" class="anchor">§</a><h4 class="code-header">fn <a class="fn">in_current_span</a>(self) -&gt; Instrumented&lt;Self&gt;</h4></section></summary><div class='docblock'>Instruments this type with the <a href="super::Span::current()">current</a> <a href="crate::Span"><code>Span</code></a>, returning an
+<code>Instrumented</code> wrapper. <a>Read more</a></div></details></div></details><details class="toggle implementors-toggle"><summary><section id="impl-Into%3CU%3E-for-T" class="impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/core/convert/mod.rs.html#748-750">source</a><a href="#impl-Into%3CU%3E-for-T" class="anchor">§</a><h3 class="code-header">impl&lt;T, U&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html" title="trait core::convert::Into">Into</a>&lt;U&gt; for T<div class="where">where
+    U: <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html" title="trait core::convert::From">From</a>&lt;T&gt;,</div></h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.into" class="method trait-impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/core/convert/mod.rs.html#758">source</a><a href="#method.into" class="anchor">§</a><h4 class="code-header">fn <a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into" class="fn">into</a>(self) -&gt; U</h4></section></summary><div class="docblock"><p>Calls <code>U::from(self)</code>.</p>
+<p>That is, this conversion is whatever the implementation of
+<code><a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html" title="trait core::convert::From">From</a>&lt;T&gt; for U</code> chooses to do.</p>
+</div></details></div></details><details class="toggle implementors-toggle"><summary><section id="impl-Same-for-T" class="impl"><a class="src rightside" href="https://docs.rs/typenum/1.17.0/src/typenum/type_operators.rs.html#34">source</a><a href="#impl-Same-for-T" class="anchor">§</a><h3 class="code-header">impl&lt;T&gt; <a class="trait" href="https://docs.rs/typenum/1.17.0/typenum/type_operators/trait.Same.html" title="trait typenum::type_operators::Same">Same</a> for T</h3></section></summary><div class="impl-items"><details class="toggle" open><summary><section id="associatedtype.Output" class="associatedtype trait-impl"><a href="#associatedtype.Output" class="anchor">§</a><h4 class="code-header">type <a href="https://docs.rs/typenum/1.17.0/typenum/type_operators/trait.Same.html#associatedtype.Output" class="associatedtype">Output</a> = T</h4></section></summary><div class='docblock'>Should always be <code>Self</code></div></details></div></details><details class="toggle implementors-toggle"><summary><section id="impl-ToOwned-for-T" class="impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/alloc/borrow.rs.html#83-85">source</a><a href="#impl-ToOwned-for-T" class="anchor">§</a><h3 class="code-header">impl&lt;T&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/alloc/borrow/trait.ToOwned.html" title="trait alloc::borrow::ToOwned">ToOwned</a> for T<div class="where">where
+    T: <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a>,</div></h3></section></summary><div class="impl-items"><details class="toggle" open><summary><section id="associatedtype.Owned" class="associatedtype trait-impl"><a href="#associatedtype.Owned" class="anchor">§</a><h4 class="code-header">type <a href="https://doc.rust-lang.org/nightly/alloc/borrow/trait.ToOwned.html#associatedtype.Owned" class="associatedtype">Owned</a> = T</h4></section></summary><div class='docblock'>The resulting type after obtaining ownership.</div></details><details class="toggle method-toggle" open><summary><section id="method.to_owned" class="method trait-impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/alloc/borrow.rs.html#88">source</a><a href="#method.to_owned" class="anchor">§</a><h4 class="code-header">fn <a href="https://doc.rust-lang.org/nightly/alloc/borrow/trait.ToOwned.html#tymethod.to_owned" class="fn">to_owned</a>(&amp;self) -&gt; T</h4></section></summary><div class='docblock'>Creates owned data from borrowed data, usually by cloning. <a href="https://doc.rust-lang.org/nightly/alloc/borrow/trait.ToOwned.html#tymethod.to_owned">Read more</a></div></details><details class="toggle method-toggle" open><summary><section id="method.clone_into" class="method trait-impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/alloc/borrow.rs.html#92">source</a><a href="#method.clone_into" class="anchor">§</a><h4 class="code-header">fn <a href="https://doc.rust-lang.org/nightly/alloc/borrow/trait.ToOwned.html#method.clone_into" class="fn">clone_into</a>(&amp;self, target: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;mut T</a>)</h4></section></summary><div class='docblock'>Uses borrowed data to replace owned data, usually by cloning. <a href="https://doc.rust-lang.org/nightly/alloc/borrow/trait.ToOwned.html#method.clone_into">Read more</a></div></details></div></details><details class="toggle implementors-toggle"><summary><section id="impl-ToString-for-T" class="impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/alloc/string.rs.html#2552">source</a><a href="#impl-ToString-for-T" class="anchor">§</a><h3 class="code-header">impl&lt;T&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/alloc/string/trait.ToString.html" title="trait alloc::string::ToString">ToString</a> for T<div class="where">where
+    T: <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html" title="trait core::fmt::Display">Display</a> + ?<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>,</div></h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.to_string" class="method trait-impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/alloc/string.rs.html#2558">source</a><a href="#method.to_string" class="anchor">§</a><h4 class="code-header">default fn <a href="https://doc.rust-lang.org/nightly/alloc/string/trait.ToString.html#tymethod.to_string" class="fn">to_string</a>(&amp;self) -&gt; <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html" title="struct alloc::string::String">String</a></h4></section></summary><div class='docblock'>Converts the given value to a <code>String</code>. <a href="https://doc.rust-lang.org/nightly/alloc/string/trait.ToString.html#tymethod.to_string">Read more</a></div></details></div></details><details class="toggle implementors-toggle"><summary><section id="impl-TryFrom%3CU%3E-for-T" class="impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/core/convert/mod.rs.html#805-807">source</a><a href="#impl-TryFrom%3CU%3E-for-T" class="anchor">§</a><h3 class="code-header">impl&lt;T, U&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.TryFrom.html" title="trait core::convert::TryFrom">TryFrom</a>&lt;U&gt; for T<div class="where">where
+    U: <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html" title="trait core::convert::Into">Into</a>&lt;T&gt;,</div></h3></section></summary><div class="impl-items"><details class="toggle" open><summary><section id="associatedtype.Error-1" class="associatedtype trait-impl"><a href="#associatedtype.Error-1" class="anchor">§</a><h4 class="code-header">type <a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryFrom.html#associatedtype.Error" class="associatedtype">Error</a> = <a class="enum" href="https://doc.rust-lang.org/nightly/core/convert/enum.Infallible.html" title="enum core::convert::Infallible">Infallible</a></h4></section></summary><div class='docblock'>The type returned in the event of a conversion error.</div></details><details class="toggle method-toggle" open><summary><section id="method.try_from" class="method trait-impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/core/convert/mod.rs.html#812">source</a><a href="#method.try_from" class="anchor">§</a><h4 class="code-header">fn <a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryFrom.html#tymethod.try_from" class="fn">try_from</a>(value: U) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;T, &lt;T as <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.TryFrom.html" title="trait core::convert::TryFrom">TryFrom</a>&lt;U&gt;&gt;::<a class="associatedtype" href="https://doc.rust-lang.org/nightly/core/convert/trait.TryFrom.html#associatedtype.Error" title="type core::convert::TryFrom::Error">Error</a>&gt;</h4></section></summary><div class='docblock'>Performs the conversion.</div></details></div></details><details class="toggle implementors-toggle"><summary><section id="impl-TryInto%3CU%3E-for-T" class="impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/core/convert/mod.rs.html#790-792">source</a><a href="#impl-TryInto%3CU%3E-for-T" class="anchor">§</a><h3 class="code-header">impl&lt;T, U&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.TryInto.html" title="trait core::convert::TryInto">TryInto</a>&lt;U&gt; for T<div class="where">where
+    U: <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.TryFrom.html" title="trait core::convert::TryFrom">TryFrom</a>&lt;T&gt;,</div></h3></section></summary><div class="impl-items"><details class="toggle" open><summary><section id="associatedtype.Error" class="associatedtype trait-impl"><a href="#associatedtype.Error" class="anchor">§</a><h4 class="code-header">type <a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryInto.html#associatedtype.Error" class="associatedtype">Error</a> = &lt;U as <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.TryFrom.html" title="trait core::convert::TryFrom">TryFrom</a>&lt;T&gt;&gt;::<a class="associatedtype" href="https://doc.rust-lang.org/nightly/core/convert/trait.TryFrom.html#associatedtype.Error" title="type core::convert::TryFrom::Error">Error</a></h4></section></summary><div class='docblock'>The type returned in the event of a conversion error.</div></details><details class="toggle method-toggle" open><summary><section id="method.try_into" class="method trait-impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/core/convert/mod.rs.html#797">source</a><a href="#method.try_into" class="anchor">§</a><h4 class="code-header">fn <a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryInto.html#tymethod.try_into" class="fn">try_into</a>(self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;U, &lt;U as <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.TryFrom.html" title="trait core::convert::TryFrom">TryFrom</a>&lt;T&gt;&gt;::<a class="associatedtype" href="https://doc.rust-lang.org/nightly/core/convert/trait.TryFrom.html#associatedtype.Error" title="type core::convert::TryFrom::Error">Error</a>&gt;</h4></section></summary><div class='docblock'>Performs the conversion.</div></details></div></details><details class="toggle implementors-toggle"><summary><section id="impl-VZip%3CV%3E-for-T" class="impl"><a href="#impl-VZip%3CV%3E-for-T" class="anchor">§</a><h3 class="code-header">impl&lt;V, T&gt; VZip&lt;V&gt; for T<div class="where">where
+    V: MultiLane&lt;T&gt;,</div></h3></section></summary><div class="impl-items"><section id="method.vzip" class="method trait-impl"><a href="#method.vzip" class="anchor">§</a><h4 class="code-header">fn <a class="fn">vzip</a>(self) -&gt; V</h4></section></div></details><details class="toggle implementors-toggle"><summary><section id="impl-WithSubscriber-for-T" class="impl"><a href="#impl-WithSubscriber-for-T" class="anchor">§</a><h3 class="code-header">impl&lt;T&gt; WithSubscriber for T</h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.with_subscriber" class="method trait-impl"><a href="#method.with_subscriber" class="anchor">§</a><h4 class="code-header">fn <a class="fn">with_subscriber</a>&lt;S&gt;(self, subscriber: S) -&gt; WithDispatch&lt;Self&gt;<div class="where">where
+    S: <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html" title="trait core::convert::Into">Into</a>&lt;Dispatch&gt;,</div></h4></section></summary><div class='docblock'>Attaches the provided <a href="super::Subscriber"><code>Subscriber</code></a> to this type, returning a
+[<code>WithDispatch</code>] wrapper. <a>Read more</a></div></details><details class="toggle method-toggle" open><summary><section id="method.with_current_subscriber" class="method trait-impl"><a href="#method.with_current_subscriber" class="anchor">§</a><h4 class="code-header">fn <a class="fn">with_current_subscriber</a>(self) -&gt; WithDispatch&lt;Self&gt;</h4></section></summary><div class='docblock'>Attaches the current <a href="crate::dispatcher#setting-the-default-subscriber">default</a> <a href="super::Subscriber"><code>Subscriber</code></a> to this type, returning a
+[<code>WithDispatch</code>] wrapper. <a>Read more</a></div></details></div></details></div></section></div></main></body></html>

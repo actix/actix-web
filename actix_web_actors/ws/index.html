@@ -1,0 +1,53 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Websocket integration."><title>actix_web_actors::ws - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-dd39b87e5fcfba68.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="actix_web_actors" data-themes="" data-resource-suffix="" data-rustdoc-version="1.80.0-nightly (bdbbb6c6a 2024-05-26)" data-channel="nightly" data-search-js="search-d52510db62a78183.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="icon" href="https://actix.rs/favicon.ico"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button><a class="logo-container" href="../../actix_web_actors/index.html"><img src="https://actix.rs/img/logo.png" alt=""></a></nav><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../../actix_web_actors/index.html"><img src="https://actix.rs/img/logo.png" alt="logo"></a><h2><a href="../../actix_web_actors/index.html">actix_web_actors</a><span class="version">4.3.0</span></h2></div><h2 class="location"><a href="#">Module ws</a></h2><div class="sidebar-elems"><section><ul class="block"><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#functions">Functions</a></li></ul></section><h2><a href="../index.html">In crate actix_web_actors</a></h2></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Module <a href="../index.html">actix_web_actors</a>::<wbr><a class="mod" href="#">ws</a><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><span class="out-of-band"><a class="src" href="../../src/actix_web_actors/ws.rs.html#1-1059">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Websocket integration.</p>
+<h2 id="examples"><a class="doc-anchor" href="#examples">§</a>Examples</h2>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>actix::{Actor, StreamHandler};
+<span class="kw">use </span>actix_web::{get, web, App, Error, HttpRequest, HttpResponse, HttpServer};
+<span class="kw">use </span>actix_web_actors::ws;
+
+<span class="doccomment">/// Define Websocket actor
+</span><span class="kw">struct </span>MyWs;
+
+<span class="kw">impl </span>Actor <span class="kw">for </span>MyWs {
+    <span class="kw">type </span>Context = ws::WebsocketContext&lt;<span class="self">Self</span>&gt;;
+}
+
+<span class="doccomment">/// Handler for ws::Message message
+</span><span class="kw">impl </span>StreamHandler&lt;<span class="prelude-ty">Result</span>&lt;ws::Message, ws::ProtocolError&gt;&gt; <span class="kw">for </span>MyWs {
+    <span class="kw">fn </span>handle(<span class="kw-2">&amp;mut </span><span class="self">self</span>, msg: <span class="prelude-ty">Result</span>&lt;ws::Message, ws::ProtocolError&gt;, ctx: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) {
+        <span class="kw">match </span>msg {
+            <span class="prelude-val">Ok</span>(ws::Message::Ping(msg)) =&gt; ctx.pong(<span class="kw-2">&amp;</span>msg),
+            <span class="prelude-val">Ok</span>(ws::Message::Text(text)) =&gt; ctx.text(text),
+            <span class="prelude-val">Ok</span>(ws::Message::Binary(bin)) =&gt; ctx.binary(bin),
+            <span class="kw">_ </span>=&gt; (),
+        }
+    }
+}
+
+<span class="attr">#[get(<span class="string">"/ws"</span>)]
+</span><span class="kw">async fn </span>websocket(req: HttpRequest, stream: web::Payload) -&gt; <span class="prelude-ty">Result</span>&lt;HttpResponse, Error&gt; {
+    ws::start(MyWs, <span class="kw-2">&amp;</span>req, stream)
+}
+
+<span class="kw">const </span>MAX_FRAME_SIZE: usize = <span class="number">16_384</span>; <span class="comment">// 16KiB
+
+</span><span class="attr">#[get(<span class="string">"/custom-ws"</span>)]
+</span><span class="kw">async fn </span>custom_websocket(req: HttpRequest, stream: web::Payload) -&gt; <span class="prelude-ty">Result</span>&lt;HttpResponse, Error&gt; {
+    <span class="comment">// Create a Websocket session with a specific max frame size, and protocols.
+    </span>ws::WsResponseBuilder::new(MyWs, <span class="kw-2">&amp;</span>req, stream)
+        .frame_size(MAX_FRAME_SIZE)
+        .protocols(<span class="kw-2">&amp;</span>[<span class="string">"A"</span>, <span class="string">"B"</span>])
+        .start()
+}
+
+<span class="attr">#[actix_web::main]
+</span><span class="kw">async fn </span>main() -&gt; std::io::Result&lt;()&gt; {
+    HttpServer::new(|| {
+            App::new()
+                .service(websocket)
+                .service(custom_websocket)
+        })
+        .bind((<span class="string">"127.0.0.1"</span>, <span class="number">8080</span>))<span class="question-mark">?
+        </span>.run()
+        .<span class="kw">await
+</span>}</code></pre></div>
+</div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="struct" href="struct.CloseReason.html" title="struct actix_web_actors::ws::CloseReason">CloseReason</a></div><div class="desc docblock-short">Reason for closing the connection</div></li><li><div class="item-name"><a class="struct" href="struct.WebsocketContext.html" title="struct actix_web_actors::ws::WebsocketContext">WebsocketContext</a></div><div class="desc docblock-short">Execution context for <code>WebSockets</code> actors</div></li><li><div class="item-name"><a class="struct" href="struct.WsResponseBuilder.html" title="struct actix_web_actors::ws::WsResponseBuilder">WsResponseBuilder</a></div><div class="desc docblock-short">Builder for Websocket session response.</div></li></ul><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="enum" href="enum.CloseCode.html" title="enum actix_web_actors::ws::CloseCode">CloseCode</a></div><div class="desc docblock-short">Status code used to indicate why an endpoint is closing the WebSocket connection.</div></li><li><div class="item-name"><a class="enum" href="enum.Frame.html" title="enum actix_web_actors::ws::Frame">Frame</a></div><div class="desc docblock-short">A WebSocket frame.</div></li><li><div class="item-name"><a class="enum" href="enum.HandshakeError.html" title="enum actix_web_actors::ws::HandshakeError">HandshakeError</a></div><div class="desc docblock-short">WebSocket handshake errors</div></li><li><div class="item-name"><a class="enum" href="enum.Message.html" title="enum actix_web_actors::ws::Message">Message</a></div><div class="desc docblock-short">A WebSocket message.</div></li><li><div class="item-name"><a class="enum" href="enum.ProtocolError.html" title="enum actix_web_actors::ws::ProtocolError">ProtocolError</a></div><div class="desc docblock-short">WebSocket protocol errors.</div></li></ul><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="fn" href="fn.handshake.html" title="fn actix_web_actors::ws::handshake">handshake</a></div><div class="desc docblock-short">Prepare WebSocket handshake response.</div></li><li><div class="item-name"><a class="fn" href="fn.handshake_with_protocols.html" title="fn actix_web_actors::ws::handshake_with_protocols">handshake_with_protocols</a></div><div class="desc docblock-short">Prepare WebSocket handshake response.</div></li><li><div class="item-name"><a class="fn" href="fn.start.html" title="fn actix_web_actors::ws::start">start</a></div><div class="desc docblock-short">Perform WebSocket handshake and start actor.</div></li><li><div class="item-name"><a class="fn" href="fn.start_with_addr.html" title="fn actix_web_actors::ws::start_with_addr">start_with_addr</a><span class="stab deprecated" title="">Deprecated</span></div><div class="desc docblock-short">Perform WebSocket handshake and start actor.</div></li><li><div class="item-name"><a class="fn" href="fn.start_with_protocols.html" title="fn actix_web_actors::ws::start_with_protocols">start_with_protocols</a><span class="stab deprecated" title="">Deprecated</span></div><div class="desc docblock-short">Do WebSocket handshake and start ws actor.</div></li></ul></section></div></main></body></html>

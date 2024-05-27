@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["CloseCode","Frame","HandshakeError","Item","Message","OpCode","ProtocolError"],"fn":["handshake","handshake_response","hash_key","verify_handshake"],"struct":["CloseReason","Codec","Dispatcher","Parser"]};

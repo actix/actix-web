@@ -1,0 +1,351 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="A collection of cookies that tracks its modifications."><title>CookieJar in actix_web::cookie - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-dd39b87e5fcfba68.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="actix_web" data-themes="" data-resource-suffix="" data-rustdoc-version="1.80.0-nightly (bdbbb6c6a 2024-05-26)" data-channel="nightly" data-search-js="search-d52510db62a78183.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="sidebar-items.js"></script><script defer src="../../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="icon" href="https://actix.rs/favicon.ico"></head><body class="rustdoc struct"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button><a class="logo-container" href="../../actix_web/index.html"><img src="https://actix.rs/img/logo.png" alt=""></a></nav><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../../actix_web/index.html"><img src="https://actix.rs/img/logo.png" alt="logo"></a><h2><a href="../../actix_web/index.html">actix_web</a><span class="version">4.6.0</span></h2></div><h2 class="location"><a href="#">CookieJar</a></h2><div class="sidebar-elems"><section><h3><a href="#implementations">Methods</a></h3><ul class="block method"><li><a href="#method.add">add</a></li><li><a href="#method.add_original">add_original</a></li><li><a href="#method.delta">delta</a></li><li><a href="#method.force_remove">force_remove</a></li><li><a href="#method.get">get</a></li><li><a href="#method.iter">iter</a></li><li><a href="#method.new">new</a></li><li><a href="#method.private">private</a></li><li><a href="#method.private_mut">private_mut</a></li><li><a href="#method.remove">remove</a></li><li><a href="#method.reset_delta">reset_delta</a></li><li><a href="#method.signed">signed</a></li><li><a href="#method.signed_mut">signed_mut</a></li></ul><h3><a href="#trait-implementations">Trait Implementations</a></h3><ul class="block trait-implementation"><li><a href="#impl-Clone-for-CookieJar">Clone</a></li><li><a href="#impl-Debug-for-CookieJar">Debug</a></li><li><a href="#impl-Default-for-CookieJar">Default</a></li></ul><h3><a href="#synthetic-implementations">Auto Trait Implementations</a></h3><ul class="block synthetic-implementation"><li><a href="#impl-Freeze-for-CookieJar">Freeze</a></li><li><a href="#impl-RefUnwindSafe-for-CookieJar">RefUnwindSafe</a></li><li><a href="#impl-Send-for-CookieJar">Send</a></li><li><a href="#impl-Sync-for-CookieJar">Sync</a></li><li><a href="#impl-Unpin-for-CookieJar">Unpin</a></li><li><a href="#impl-UnwindSafe-for-CookieJar">UnwindSafe</a></li></ul><h3><a href="#blanket-implementations">Blanket Implementations</a></h3><ul class="block blanket-implementation"><li><a href="#impl-Any-for-T">Any</a></li><li><a href="#impl-Borrow%3CT%3E-for-T">Borrow&lt;T&gt;</a></li><li><a href="#impl-BorrowMut%3CT%3E-for-T">BorrowMut&lt;T&gt;</a></li><li><a href="#impl-From%3CT%3E-for-T">From&lt;T&gt;</a></li><li><a href="#impl-Instrument-for-T">Instrument</a></li><li><a href="#impl-Into%3CU%3E-for-T">Into&lt;U&gt;</a></li><li><a href="#impl-Same-for-T">Same</a></li><li><a href="#impl-ToOwned-for-T">ToOwned</a></li><li><a href="#impl-TryFrom%3CU%3E-for-T">TryFrom&lt;U&gt;</a></li><li><a href="#impl-TryInto%3CU%3E-for-T">TryInto&lt;U&gt;</a></li><li><a href="#impl-VZip%3CV%3E-for-T">VZip&lt;V&gt;</a></li><li><a href="#impl-WithSubscriber-for-T">WithSubscriber</a></li></ul></section><h2><a href="index.html">In actix_web::cookie</a></h2></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Struct <a href="../index.html">actix_web</a>::<wbr><a href="index.html">cookie</a>::<wbr><a class="struct" href="#">CookieJar</a><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><span class="out-of-band"><a class="src" href="https://docs.rs/cookie/0.16/src/cookie/jar.rs.html#82">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><pre class="rust item-decl"><code>pub struct CookieJar { <span class="comment">/* private fields */</span> }</code></pre><span class="item-info"><div class="stab portability">Available on <strong>crate feature <code>cookies</code></strong> only.</div></span><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>A collection of cookies that tracks its modifications.</p>
+<p>A <code>CookieJar</code> provides storage for any number of cookies. Any changes made
+to the jar are tracked; the changes can be retrieved via the
+<a href="#method.delta">delta</a> method which returns an iterator over the changes.</p>
+<h2 id="usage"><a class="doc-anchor" href="#usage">§</a>Usage</h2>
+<p>A jar’s life begins via <a href="#method.new">new</a> and calls to
+<a href="#method.add_original"><code>add_original</code></a>:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::{Cookie, CookieJar};
+
+<span class="kw">let </span><span class="kw-2">mut </span>jar = CookieJar::new();
+jar.add_original(Cookie::new(<span class="string">"name"</span>, <span class="string">"value"</span>));
+jar.add_original(Cookie::new(<span class="string">"second"</span>, <span class="string">"another"</span>));</code></pre></div>
+<p>Cookies can be added via <a href="#method.add">add</a> and removed via
+<a href="#method.remove">remove</a>. Finally, cookies can be looked up via
+<a href="#method.get">get</a>:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span><span class="kw-2">mut </span>jar = CookieJar::new();
+jar.add(Cookie::new(<span class="string">"a"</span>, <span class="string">"one"</span>));
+jar.add(Cookie::new(<span class="string">"b"</span>, <span class="string">"two"</span>));
+
+<span class="macro">assert_eq!</span>(jar.get(<span class="string">"a"</span>).map(|c| c.value()), <span class="prelude-val">Some</span>(<span class="string">"one"</span>));
+<span class="macro">assert_eq!</span>(jar.get(<span class="string">"b"</span>).map(|c| c.value()), <span class="prelude-val">Some</span>(<span class="string">"two"</span>));
+
+jar.remove(Cookie::named(<span class="string">"b"</span>));
+<span class="macro">assert!</span>(jar.get(<span class="string">"b"</span>).is_none());</code></pre></div>
+<h2 id="deltas"><a class="doc-anchor" href="#deltas">§</a>Deltas</h2>
+<p>A jar keeps track of any modifications made to it over time. The
+modifications are recorded as cookies. The modifications can be retrieved
+via <a href="#method.delta">delta</a>. Any new <code>Cookie</code> added to a jar via <code>add</code>
+results in the same <code>Cookie</code> appearing in the <code>delta</code>; cookies added via
+<code>add_original</code> do not count towards the delta. Any <em>original</em> cookie that is
+removed from a jar results in a “removal” cookie appearing in the delta. A
+“removal” cookie is a cookie that a server sends so that the cookie is
+removed from the client’s machine.</p>
+<p>Deltas are typically used to create <code>Set-Cookie</code> headers corresponding to
+the changes made to a cookie jar over a period of time.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span><span class="kw-2">mut </span>jar = CookieJar::new();
+
+<span class="comment">// original cookies don't affect the delta
+</span>jar.add_original(Cookie::new(<span class="string">"original"</span>, <span class="string">"value"</span>));
+<span class="macro">assert_eq!</span>(jar.delta().count(), <span class="number">0</span>);
+
+<span class="comment">// new cookies result in an equivalent `Cookie` in the delta
+</span>jar.add(Cookie::new(<span class="string">"a"</span>, <span class="string">"one"</span>));
+jar.add(Cookie::new(<span class="string">"b"</span>, <span class="string">"two"</span>));
+<span class="macro">assert_eq!</span>(jar.delta().count(), <span class="number">2</span>);
+
+<span class="comment">// removing an original cookie adds a "removal" cookie to the delta
+</span>jar.remove(Cookie::named(<span class="string">"original"</span>));
+<span class="macro">assert_eq!</span>(jar.delta().count(), <span class="number">3</span>);
+
+<span class="comment">// removing a new cookie that was added removes that `Cookie` from the delta
+</span>jar.remove(Cookie::named(<span class="string">"a"</span>));
+<span class="macro">assert_eq!</span>(jar.delta().count(), <span class="number">2</span>);</code></pre></div>
+</div></details><h2 id="implementations" class="section-header">Implementations<a href="#implementations" class="anchor">§</a></h2><div id="implementations-list"><details class="toggle implementors-toggle" open><summary><section id="impl-CookieJar" class="impl"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/jar.rs.html#87">source</a><a href="#impl-CookieJar" class="anchor">§</a><h3 class="code-header">impl <a class="struct" href="struct.CookieJar.html" title="struct actix_web::cookie::CookieJar">CookieJar</a></h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.new" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/jar.rs.html#98">source</a><h4 class="code-header">pub fn <a href="#method.new" class="fn">new</a>() -&gt; <a class="struct" href="struct.CookieJar.html" title="struct actix_web::cookie::CookieJar">CookieJar</a></h4></section></summary><div class="docblock"><p>Creates an empty cookie jar.</p>
+<h5 id="example"><a class="doc-anchor" href="#example">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::CookieJar;
+
+<span class="kw">let </span>jar = CookieJar::new();
+<span class="macro">assert_eq!</span>(jar.iter().count(), <span class="number">0</span>);</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.get" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/jar.rs.html#116">source</a><h4 class="code-header">pub fn <a href="#method.get" class="fn">get</a>(&amp;self, name: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;&amp;<a class="struct" href="struct.Cookie.html" title="struct actix_web::cookie::Cookie">Cookie</a>&lt;'static&gt;&gt;</h4></section></summary><div class="docblock"><p>Returns a reference to the <code>Cookie</code> inside this jar with the name
+<code>name</code>. If no such cookie exists, returns <code>None</code>.</p>
+<h5 id="example-1"><a class="doc-anchor" href="#example-1">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::{CookieJar, Cookie};
+
+<span class="kw">let </span><span class="kw-2">mut </span>jar = CookieJar::new();
+<span class="macro">assert!</span>(jar.get(<span class="string">"name"</span>).is_none());
+
+jar.add(Cookie::new(<span class="string">"name"</span>, <span class="string">"value"</span>));
+<span class="macro">assert_eq!</span>(jar.get(<span class="string">"name"</span>).map(|c| c.value()), <span class="prelude-val">Some</span>(<span class="string">"value"</span>));</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.add_original" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/jar.rs.html#148">source</a><h4 class="code-header">pub fn <a href="#method.add_original" class="fn">add_original</a>(&amp;mut self, cookie: <a class="struct" href="struct.Cookie.html" title="struct actix_web::cookie::Cookie">Cookie</a>&lt;'static&gt;)</h4></section></summary><div class="docblock"><p>Adds an “original” <code>cookie</code> to this jar. If an original cookie with the
+same name already exists, it is replaced with <code>cookie</code>. Cookies added
+with <code>add</code> take precedence and are not replaced by this method.</p>
+<p>Adding an original cookie does not affect the <a href="#method.delta">delta</a>
+computation. This method is intended to be used to seed the cookie jar
+with cookies received from a client’s HTTP message.</p>
+<p>For accurate <code>delta</code> computations, this method should not be called
+after calling <code>remove</code>.</p>
+<h5 id="example-2"><a class="doc-anchor" href="#example-2">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::{CookieJar, Cookie};
+
+<span class="kw">let </span><span class="kw-2">mut </span>jar = CookieJar::new();
+jar.add_original(Cookie::new(<span class="string">"name"</span>, <span class="string">"value"</span>));
+jar.add_original(Cookie::new(<span class="string">"second"</span>, <span class="string">"two"</span>));
+
+<span class="macro">assert_eq!</span>(jar.get(<span class="string">"name"</span>).map(|c| c.value()), <span class="prelude-val">Some</span>(<span class="string">"value"</span>));
+<span class="macro">assert_eq!</span>(jar.get(<span class="string">"second"</span>).map(|c| c.value()), <span class="prelude-val">Some</span>(<span class="string">"two"</span>));
+<span class="macro">assert_eq!</span>(jar.iter().count(), <span class="number">2</span>);
+<span class="macro">assert_eq!</span>(jar.delta().count(), <span class="number">0</span>);</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.add" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/jar.rs.html#169">source</a><h4 class="code-header">pub fn <a href="#method.add" class="fn">add</a>(&amp;mut self, cookie: <a class="struct" href="struct.Cookie.html" title="struct actix_web::cookie::Cookie">Cookie</a>&lt;'static&gt;)</h4></section></summary><div class="docblock"><p>Adds <code>cookie</code> to this jar. If a cookie with the same name already
+exists, it is replaced with <code>cookie</code>.</p>
+<h5 id="example-3"><a class="doc-anchor" href="#example-3">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::{CookieJar, Cookie};
+
+<span class="kw">let </span><span class="kw-2">mut </span>jar = CookieJar::new();
+jar.add(Cookie::new(<span class="string">"name"</span>, <span class="string">"value"</span>));
+jar.add(Cookie::new(<span class="string">"second"</span>, <span class="string">"two"</span>));
+
+<span class="macro">assert_eq!</span>(jar.get(<span class="string">"name"</span>).map(|c| c.value()), <span class="prelude-val">Some</span>(<span class="string">"value"</span>));
+<span class="macro">assert_eq!</span>(jar.get(<span class="string">"second"</span>).map(|c| c.value()), <span class="prelude-val">Some</span>(<span class="string">"two"</span>));
+<span class="macro">assert_eq!</span>(jar.iter().count(), <span class="number">2</span>);
+<span class="macro">assert_eq!</span>(jar.delta().count(), <span class="number">2</span>);</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.remove" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/jar.rs.html#229">source</a><h4 class="code-header">pub fn <a href="#method.remove" class="fn">remove</a>(&amp;mut self, cookie: <a class="struct" href="struct.Cookie.html" title="struct actix_web::cookie::Cookie">Cookie</a>&lt;'static&gt;)</h4></section></summary><div class="docblock"><p>Removes <code>cookie</code> from this jar. If an <em>original</em> cookie with the same
+name as <code>cookie</code> is present in the jar, a <em>removal</em> cookie will be
+present in the <code>delta</code> computation. To properly generate the removal
+cookie, <code>cookie</code> must contain the same <code>path</code> and <code>domain</code> as the cookie
+that was initially set.</p>
+<p>A “removal” cookie is a cookie that has the same name as the original
+cookie but has an empty value, a max-age of 0, and an expiration date
+far in the past. See also <a href="struct.Cookie.html#method.make_removal" title="method actix_web::cookie::Cookie::make_removal"><code>Cookie::make_removal()</code></a>.</p>
+<h5 id="example-4"><a class="doc-anchor" href="#example-4">§</a>Example</h5>
+<p>Removing an <em>original</em> cookie results in a <em>removal</em> cookie:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::{CookieJar, Cookie};
+<span class="kw">use </span>cookie::time::Duration;
+
+<span class="kw">let </span><span class="kw-2">mut </span>jar = CookieJar::new();
+
+<span class="comment">// Assume this cookie originally had a path of "/" and domain of "a.b".
+</span>jar.add_original(Cookie::new(<span class="string">"name"</span>, <span class="string">"value"</span>));
+
+<span class="comment">// If the path and domain were set, they must be provided to `remove`.
+</span>jar.remove(Cookie::build(<span class="string">"name"</span>, <span class="string">""</span>).path(<span class="string">"/"</span>).domain(<span class="string">"a.b"</span>).finish());
+
+<span class="comment">// The delta will contain the removal cookie.
+</span><span class="kw">let </span>delta: Vec&lt;<span class="kw">_</span>&gt; = jar.delta().collect();
+<span class="macro">assert_eq!</span>(delta.len(), <span class="number">1</span>);
+<span class="macro">assert_eq!</span>(delta[<span class="number">0</span>].name(), <span class="string">"name"</span>);
+<span class="macro">assert_eq!</span>(delta[<span class="number">0</span>].max_age(), <span class="prelude-val">Some</span>(Duration::seconds(<span class="number">0</span>)));</code></pre></div>
+<p>Removing a new cookie does not result in a <em>removal</em> cookie unless
+there’s an original cookie with the same name:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::{CookieJar, Cookie};
+
+<span class="kw">let </span><span class="kw-2">mut </span>jar = CookieJar::new();
+jar.add(Cookie::new(<span class="string">"name"</span>, <span class="string">"value"</span>));
+<span class="macro">assert_eq!</span>(jar.delta().count(), <span class="number">1</span>);
+
+jar.remove(Cookie::named(<span class="string">"name"</span>));
+<span class="macro">assert_eq!</span>(jar.delta().count(), <span class="number">0</span>);
+
+jar.add_original(Cookie::new(<span class="string">"name"</span>, <span class="string">"value"</span>));
+jar.add(Cookie::new(<span class="string">"name"</span>, <span class="string">"value"</span>));
+<span class="macro">assert_eq!</span>(jar.delta().count(), <span class="number">1</span>);
+
+jar.remove(Cookie::named(<span class="string">"name"</span>));
+<span class="macro">assert_eq!</span>(jar.delta().count(), <span class="number">1</span>);</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.force_remove" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/jar.rs.html#272">source</a><h4 class="code-header">pub fn <a href="#method.force_remove" class="fn">force_remove</a>&lt;'a&gt;(&amp;mut self, cookie: &amp;<a class="struct" href="struct.Cookie.html" title="struct actix_web::cookie::Cookie">Cookie</a>&lt;'a&gt;)</h4></section></summary><div class="docblock"><p>Removes <code>cookie</code> from this jar completely. This method differs from
+<code>remove</code> in that no delta cookie is created under any condition. Neither
+the <code>delta</code> nor <code>iter</code> methods will return a cookie that is removed
+using this method.</p>
+<h5 id="example-5"><a class="doc-anchor" href="#example-5">§</a>Example</h5>
+<p>Removing an <em>original</em> cookie; no <em>removal</em> cookie is generated:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::{CookieJar, Cookie};
+<span class="kw">use </span>cookie::time::Duration;
+
+<span class="kw">let </span><span class="kw-2">mut </span>jar = CookieJar::new();
+
+<span class="comment">// Add an original cookie and a new cookie.
+</span>jar.add_original(Cookie::new(<span class="string">"name"</span>, <span class="string">"value"</span>));
+jar.add(Cookie::new(<span class="string">"key"</span>, <span class="string">"value"</span>));
+<span class="macro">assert_eq!</span>(jar.delta().count(), <span class="number">1</span>);
+<span class="macro">assert_eq!</span>(jar.iter().count(), <span class="number">2</span>);
+
+<span class="comment">// Now force remove the original cookie.
+</span>jar.force_remove(<span class="kw-2">&amp;</span>Cookie::named(<span class="string">"name"</span>));
+<span class="macro">assert_eq!</span>(jar.delta().count(), <span class="number">1</span>);
+<span class="macro">assert_eq!</span>(jar.iter().count(), <span class="number">1</span>);
+
+<span class="comment">// Now force remove the new cookie.
+</span>jar.force_remove(<span class="kw-2">&amp;</span>Cookie::named(<span class="string">"key"</span>));
+<span class="macro">assert_eq!</span>(jar.delta().count(), <span class="number">0</span>);
+<span class="macro">assert_eq!</span>(jar.iter().count(), <span class="number">0</span>);</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.reset_delta" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/jar.rs.html#310">source</a><h4 class="code-header">pub fn <a href="#method.reset_delta" class="fn">reset_delta</a>(&amp;mut self)</h4></section></summary><div class="docblock"><p>Removes all delta cookies, i.e. all cookies not added via
+<a href="struct.CookieJar.html#method.add_original" title="method actix_web::cookie::CookieJar::add_original"><code>CookieJar::add_original()</code></a>, from this <code>CookieJar</code>. This undoes any
+changes from <a href="struct.CookieJar.html#method.add" title="method actix_web::cookie::CookieJar::add"><code>CookieJar::add()</code></a> and <a href="struct.CookieJar.html#method.remove" title="method actix_web::cookie::CookieJar::remove"><code>CookieJar::remove()</code></a>
+operations.</p>
+<h5 id="example-6"><a class="doc-anchor" href="#example-6">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::{CookieJar, Cookie};
+
+<span class="kw">let </span><span class="kw-2">mut </span>jar = CookieJar::new();
+
+<span class="comment">// Only original cookies will remain after calling `reset_delta`.
+</span>jar.add_original(Cookie::new(<span class="string">"name"</span>, <span class="string">"value"</span>));
+jar.add_original(Cookie::new(<span class="string">"language"</span>, <span class="string">"Rust"</span>));
+
+<span class="comment">// These operations, represented by delta cookies, will be reset.
+</span>jar.add(Cookie::new(<span class="string">"language"</span>, <span class="string">"C++"</span>));
+jar.remove(Cookie::named(<span class="string">"name"</span>));
+
+<span class="comment">// All is normal.
+</span><span class="macro">assert_eq!</span>(jar.get(<span class="string">"name"</span>), <span class="prelude-val">None</span>);
+<span class="macro">assert_eq!</span>(jar.get(<span class="string">"language"</span>).map(Cookie::value), <span class="prelude-val">Some</span>(<span class="string">"C++"</span>));
+<span class="macro">assert_eq!</span>(jar.iter().count(), <span class="number">1</span>);
+<span class="macro">assert_eq!</span>(jar.delta().count(), <span class="number">2</span>);
+
+<span class="comment">// Resetting undoes delta operations.
+</span>jar.reset_delta();
+<span class="macro">assert_eq!</span>(jar.get(<span class="string">"name"</span>).map(Cookie::value), <span class="prelude-val">Some</span>(<span class="string">"value"</span>));
+<span class="macro">assert_eq!</span>(jar.get(<span class="string">"language"</span>).map(Cookie::value), <span class="prelude-val">Some</span>(<span class="string">"Rust"</span>));
+<span class="macro">assert_eq!</span>(jar.iter().count(), <span class="number">2</span>);
+<span class="macro">assert_eq!</span>(jar.delta().count(), <span class="number">0</span>);</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.delta" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/jar.rs.html#339">source</a><h4 class="code-header">pub fn <a href="#method.delta" class="fn">delta</a>(&amp;self) -&gt; <a class="struct" href="struct.Delta.html" title="struct actix_web::cookie::Delta">Delta</a>&lt;'_&gt; <a href="#" class="tooltip" data-notable-ty="Delta&lt;&#39;_&gt;">ⓘ</a></h4></section></summary><div class="docblock"><p>Returns an iterator over cookies that represent the changes to this jar
+over time. These cookies can be rendered directly as <code>Set-Cookie</code> header
+values to affect the changes made to this jar on the client.</p>
+<h5 id="example-7"><a class="doc-anchor" href="#example-7">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::{CookieJar, Cookie};
+
+<span class="kw">let </span><span class="kw-2">mut </span>jar = CookieJar::new();
+jar.add_original(Cookie::new(<span class="string">"name"</span>, <span class="string">"value"</span>));
+jar.add_original(Cookie::new(<span class="string">"second"</span>, <span class="string">"two"</span>));
+
+<span class="comment">// Add new cookies.
+</span>jar.add(Cookie::new(<span class="string">"new"</span>, <span class="string">"third"</span>));
+jar.add(Cookie::new(<span class="string">"another"</span>, <span class="string">"fourth"</span>));
+jar.add(Cookie::new(<span class="string">"yac"</span>, <span class="string">"fifth"</span>));
+
+<span class="comment">// Remove some cookies.
+</span>jar.remove(Cookie::named(<span class="string">"name"</span>));
+jar.remove(Cookie::named(<span class="string">"another"</span>));
+
+<span class="comment">// Delta contains two new cookies ("new", "yac") and a removal ("name").
+</span><span class="macro">assert_eq!</span>(jar.delta().count(), <span class="number">3</span>);</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.iter" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/jar.rs.html#373">source</a><h4 class="code-header">pub fn <a href="#method.iter" class="fn">iter</a>(&amp;self) -&gt; <a class="struct" href="struct.Iter.html" title="struct actix_web::cookie::Iter">Iter</a>&lt;'_&gt; <a href="#" class="tooltip" data-notable-ty="Iter&lt;&#39;_&gt;">ⓘ</a></h4></section></summary><div class="docblock"><p>Returns an iterator over all of the cookies present in this jar.</p>
+<h5 id="example-8"><a class="doc-anchor" href="#example-8">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::{CookieJar, Cookie};
+
+<span class="kw">let </span><span class="kw-2">mut </span>jar = CookieJar::new();
+
+jar.add_original(Cookie::new(<span class="string">"name"</span>, <span class="string">"value"</span>));
+jar.add_original(Cookie::new(<span class="string">"second"</span>, <span class="string">"two"</span>));
+
+jar.add(Cookie::new(<span class="string">"new"</span>, <span class="string">"third"</span>));
+jar.add(Cookie::new(<span class="string">"another"</span>, <span class="string">"fourth"</span>));
+jar.add(Cookie::new(<span class="string">"yac"</span>, <span class="string">"fifth"</span>));
+
+jar.remove(Cookie::named(<span class="string">"name"</span>));
+jar.remove(Cookie::named(<span class="string">"another"</span>));
+
+<span class="comment">// There are three cookies in the jar: "second", "new", and "yac".
+</span><span class="kw">for </span>cookie <span class="kw">in </span>jar.iter() {
+    <span class="kw">match </span>cookie.name() {
+        <span class="string">"second" </span>=&gt; <span class="macro">assert_eq!</span>(cookie.value(), <span class="string">"two"</span>),
+        <span class="string">"new" </span>=&gt; <span class="macro">assert_eq!</span>(cookie.value(), <span class="string">"third"</span>),
+        <span class="string">"yac" </span>=&gt; <span class="macro">assert_eq!</span>(cookie.value(), <span class="string">"fifth"</span>),
+        <span class="kw">_ </span>=&gt; <span class="macro">unreachable!</span>(<span class="string">"there are only three cookies in the jar"</span>)
+    }
+}</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.private" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/jar.rs.html#410">source</a><h4 class="code-header">pub fn <a href="#method.private" class="fn">private</a>&lt;'a&gt;(&amp;'a self, key: &amp;<a class="struct" href="struct.Key.html" title="struct actix_web::cookie::Key">Key</a>) -&gt; <a class="struct" href="struct.PrivateJar.html" title="struct actix_web::cookie::PrivateJar">PrivateJar</a>&lt;&amp;'a <a class="struct" href="struct.CookieJar.html" title="struct actix_web::cookie::CookieJar">CookieJar</a>&gt;</h4></section><span class="item-info"><div class="stab portability">Available on <strong>crate feature <code>private</code></strong> only.</div></span></summary><div class="docblock"><p>Returns a read-only <code>PrivateJar</code> with <code>self</code> as its parent jar using the
+key <code>key</code> to verify/decrypt cookies retrieved from the child jar. Any
+retrievals from the child jar will be made from the parent jar.</p>
+<h5 id="example-9"><a class="doc-anchor" href="#example-9">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::{Cookie, CookieJar, Key};
+
+<span class="comment">// Generate a secure key.
+</span><span class="kw">let </span>key = Key::generate();
+
+<span class="comment">// Add a private (signed + encrypted) cookie.
+</span><span class="kw">let </span><span class="kw-2">mut </span>jar = CookieJar::new();
+jar.private_mut(<span class="kw-2">&amp;</span>key).add(Cookie::new(<span class="string">"private"</span>, <span class="string">"text"</span>));
+
+<span class="comment">// The cookie's contents are encrypted.
+</span><span class="macro">assert_ne!</span>(jar.get(<span class="string">"private"</span>).unwrap().value(), <span class="string">"text"</span>);
+
+<span class="comment">// They can be decrypted and verified through the child jar.
+</span><span class="macro">assert_eq!</span>(jar.private(<span class="kw-2">&amp;</span>key).get(<span class="string">"private"</span>).unwrap().value(), <span class="string">"text"</span>);
+
+<span class="comment">// A tampered with cookie does not validate but still exists.
+</span><span class="kw">let </span><span class="kw-2">mut </span>cookie = jar.get(<span class="string">"private"</span>).unwrap().clone();
+jar.add(Cookie::new(<span class="string">"private"</span>, cookie.value().to_string() + <span class="string">"!"</span>));
+<span class="macro">assert!</span>(jar.private(<span class="kw-2">&amp;</span>key).get(<span class="string">"private"</span>).is_none());
+<span class="macro">assert!</span>(jar.get(<span class="string">"private"</span>).is_some());</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.private_mut" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/jar.rs.html#438">source</a><h4 class="code-header">pub fn <a href="#method.private_mut" class="fn">private_mut</a>&lt;'a&gt;(&amp;'a mut self, key: &amp;<a class="struct" href="struct.Key.html" title="struct actix_web::cookie::Key">Key</a>) -&gt; <a class="struct" href="struct.PrivateJar.html" title="struct actix_web::cookie::PrivateJar">PrivateJar</a>&lt;&amp;'a mut <a class="struct" href="struct.CookieJar.html" title="struct actix_web::cookie::CookieJar">CookieJar</a>&gt;</h4></section><span class="item-info"><div class="stab portability">Available on <strong>crate feature <code>private</code></strong> only.</div></span></summary><div class="docblock"><p>Returns a read/write <code>PrivateJar</code> with <code>self</code> as its parent jar using
+the key <code>key</code> to sign/encrypt and verify/decrypt cookies added/retrieved
+from the child jar.</p>
+<p>Any modifications to the child jar will be reflected on the parent jar,
+and any retrievals from the child jar will be made from the parent jar.</p>
+<h5 id="example-10"><a class="doc-anchor" href="#example-10">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::{Cookie, CookieJar, Key};
+
+<span class="comment">// Generate a secure key.
+</span><span class="kw">let </span>key = Key::generate();
+
+<span class="comment">// Add a private (signed + encrypted) cookie.
+</span><span class="kw">let </span><span class="kw-2">mut </span>jar = CookieJar::new();
+jar.private_mut(<span class="kw-2">&amp;</span>key).add(Cookie::new(<span class="string">"private"</span>, <span class="string">"text"</span>));
+
+<span class="comment">// Remove a cookie using the child jar.
+</span>jar.private_mut(<span class="kw-2">&amp;</span>key).remove(Cookie::named(<span class="string">"private"</span>));</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.signed" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/jar.rs.html#473">source</a><h4 class="code-header">pub fn <a href="#method.signed" class="fn">signed</a>&lt;'a&gt;(&amp;'a self, key: &amp;<a class="struct" href="struct.Key.html" title="struct actix_web::cookie::Key">Key</a>) -&gt; <a class="struct" href="struct.SignedJar.html" title="struct actix_web::cookie::SignedJar">SignedJar</a>&lt;&amp;'a <a class="struct" href="struct.CookieJar.html" title="struct actix_web::cookie::CookieJar">CookieJar</a>&gt;</h4></section><span class="item-info"><div class="stab portability">Available on <strong>crate feature <code>signed</code></strong> only.</div></span></summary><div class="docblock"><p>Returns a read-only <code>SignedJar</code> with <code>self</code> as its parent jar using the
+key <code>key</code> to verify cookies retrieved from the child jar. Any retrievals
+from the child jar will be made from the parent jar.</p>
+<h5 id="example-11"><a class="doc-anchor" href="#example-11">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::{Cookie, CookieJar, Key};
+
+<span class="comment">// Generate a secure key.
+</span><span class="kw">let </span>key = Key::generate();
+
+<span class="comment">// Add a signed cookie.
+</span><span class="kw">let </span><span class="kw-2">mut </span>jar = CookieJar::new();
+jar.signed_mut(<span class="kw-2">&amp;</span>key).add(Cookie::new(<span class="string">"signed"</span>, <span class="string">"text"</span>));
+
+<span class="comment">// The cookie's contents are signed but still in plaintext.
+</span><span class="macro">assert_ne!</span>(jar.get(<span class="string">"signed"</span>).unwrap().value(), <span class="string">"text"</span>);
+<span class="macro">assert!</span>(jar.get(<span class="string">"signed"</span>).unwrap().value().contains(<span class="string">"text"</span>));
+
+<span class="comment">// They can be verified through the child jar.
+</span><span class="macro">assert_eq!</span>(jar.signed(<span class="kw-2">&amp;</span>key).get(<span class="string">"signed"</span>).unwrap().value(), <span class="string">"text"</span>);
+
+<span class="comment">// A tampered with cookie does not validate but still exists.
+</span><span class="kw">let </span><span class="kw-2">mut </span>cookie = jar.get(<span class="string">"signed"</span>).unwrap().clone();
+jar.add(Cookie::new(<span class="string">"signed"</span>, cookie.value().to_string() + <span class="string">"!"</span>));
+<span class="macro">assert!</span>(jar.signed(<span class="kw-2">&amp;</span>key).get(<span class="string">"signed"</span>).is_none());
+<span class="macro">assert!</span>(jar.get(<span class="string">"signed"</span>).is_some());</code></pre></div>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.signed_mut" class="method"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/jar.rs.html#500">source</a><h4 class="code-header">pub fn <a href="#method.signed_mut" class="fn">signed_mut</a>&lt;'a&gt;(&amp;'a mut self, key: &amp;<a class="struct" href="struct.Key.html" title="struct actix_web::cookie::Key">Key</a>) -&gt; <a class="struct" href="struct.SignedJar.html" title="struct actix_web::cookie::SignedJar">SignedJar</a>&lt;&amp;'a mut <a class="struct" href="struct.CookieJar.html" title="struct actix_web::cookie::CookieJar">CookieJar</a>&gt;</h4></section><span class="item-info"><div class="stab portability">Available on <strong>crate feature <code>signed</code></strong> only.</div></span></summary><div class="docblock"><p>Returns a read/write <code>SignedJar</code> with <code>self</code> as its parent jar using the
+key <code>key</code> to sign/verify cookies added/retrieved from the child jar.</p>
+<p>Any modifications to the child jar will be reflected on the parent jar,
+and any retrievals from the child jar will be made from the parent jar.</p>
+<h5 id="example-12"><a class="doc-anchor" href="#example-12">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cookie::{Cookie, CookieJar, Key};
+
+<span class="comment">// Generate a secure key.
+</span><span class="kw">let </span>key = Key::generate();
+
+<span class="comment">// Add a signed cookie.
+</span><span class="kw">let </span><span class="kw-2">mut </span>jar = CookieJar::new();
+jar.signed_mut(<span class="kw-2">&amp;</span>key).add(Cookie::new(<span class="string">"signed"</span>, <span class="string">"text"</span>));
+
+<span class="comment">// Remove a cookie.
+</span>jar.signed_mut(<span class="kw-2">&amp;</span>key).remove(Cookie::named(<span class="string">"signed"</span>));</code></pre></div>
+</div></details></div></details></div><h2 id="trait-implementations" class="section-header">Trait Implementations<a href="#trait-implementations" class="anchor">§</a></h2><div id="trait-implementations-list"><details class="toggle implementors-toggle" open><summary><section id="impl-Clone-for-CookieJar" class="impl"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/jar.rs.html#81">source</a><a href="#impl-Clone-for-CookieJar" class="anchor">§</a><h3 class="code-header">impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a> for <a class="struct" href="struct.CookieJar.html" title="struct actix_web::cookie::CookieJar">CookieJar</a></h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.clone" class="method trait-impl"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/jar.rs.html#81">source</a><a href="#method.clone" class="anchor">§</a><h4 class="code-header">fn <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone" class="fn">clone</a>(&amp;self) -&gt; <a class="struct" href="struct.CookieJar.html" title="struct actix_web::cookie::CookieJar">CookieJar</a></h4></section></summary><div class='docblock'>Returns a copy of the value. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">Read more</a></div></details><details class="toggle method-toggle" open><summary><section id="method.clone_from" class="method trait-impl"><span class="rightside"><span class="since" title="Stable since Rust version 1.0.0">1.0.0</span> · <a class="src" href="https://doc.rust-lang.org/nightly/src/core/clone.rs.html#169">source</a></span><a href="#method.clone_from" class="anchor">§</a><h4 class="code-header">fn <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from" class="fn">clone_from</a>(&amp;mut self, source: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;Self</a>)</h4></section></summary><div class='docblock'>Performs copy-assignment from <code>source</code>. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from">Read more</a></div></details></div></details><details class="toggle implementors-toggle" open><summary><section id="impl-Debug-for-CookieJar" class="impl"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/jar.rs.html#81">source</a><a href="#impl-Debug-for-CookieJar" class="anchor">§</a><h3 class="code-header">impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> for <a class="struct" href="struct.CookieJar.html" title="struct actix_web::cookie::CookieJar">CookieJar</a></h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.fmt" class="method trait-impl"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/jar.rs.html#81">source</a><a href="#method.fmt" class="anchor">§</a><h4 class="code-header">fn <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt" class="fn">fmt</a>(&amp;self, f: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>&lt;'_&gt;) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Error.html" title="struct core::fmt::Error">Error</a>&gt;</h4></section></summary><div class='docblock'>Formats the value using the given formatter. <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt">Read more</a></div></details></div></details><details class="toggle implementors-toggle" open><summary><section id="impl-Default-for-CookieJar" class="impl"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/jar.rs.html#81">source</a><a href="#impl-Default-for-CookieJar" class="anchor">§</a><h3 class="code-header">impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html" title="trait core::default::Default">Default</a> for <a class="struct" href="struct.CookieJar.html" title="struct actix_web::cookie::CookieJar">CookieJar</a></h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.default" class="method trait-impl"><a class="src rightside" href="https://docs.rs/cookie/0.16/src/cookie/jar.rs.html#81">source</a><a href="#method.default" class="anchor">§</a><h4 class="code-header">fn <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default" class="fn">default</a>() -&gt; <a class="struct" href="struct.CookieJar.html" title="struct actix_web::cookie::CookieJar">CookieJar</a></h4></section></summary><div class='docblock'>Returns the “default value” for a type. <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Read more</a></div></details></div></details></div><h2 id="synthetic-implementations" class="section-header">Auto Trait Implementations<a href="#synthetic-implementations" class="anchor">§</a></h2><div id="synthetic-implementations-list"><section id="impl-Freeze-for-CookieJar" class="impl"><a href="#impl-Freeze-for-CookieJar" class="anchor">§</a><h3 class="code-header">impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Freeze.html" title="trait core::marker::Freeze">Freeze</a> for <a class="struct" href="struct.CookieJar.html" title="struct actix_web::cookie::CookieJar">CookieJar</a></h3></section><section id="impl-RefUnwindSafe-for-CookieJar" class="impl"><a href="#impl-RefUnwindSafe-for-CookieJar" class="anchor">§</a><h3 class="code-header">impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/panic/unwind_safe/trait.RefUnwindSafe.html" title="trait core::panic::unwind_safe::RefUnwindSafe">RefUnwindSafe</a> for <a class="struct" href="struct.CookieJar.html" title="struct actix_web::cookie::CookieJar">CookieJar</a></h3></section><section id="impl-Send-for-CookieJar" class="impl"><a href="#impl-Send-for-CookieJar" class="anchor">§</a><h3 class="code-header">impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="struct.CookieJar.html" title="struct actix_web::cookie::CookieJar">CookieJar</a></h3></section><section id="impl-Sync-for-CookieJar" class="impl"><a href="#impl-Sync-for-CookieJar" class="anchor">§</a><h3 class="code-header">impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="struct.CookieJar.html" title="struct actix_web::cookie::CookieJar">CookieJar</a></h3></section><section id="impl-Unpin-for-CookieJar" class="impl"><a href="#impl-Unpin-for-CookieJar" class="anchor">§</a><h3 class="code-header">impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Unpin.html" title="trait core::marker::Unpin">Unpin</a> for <a class="struct" href="struct.CookieJar.html" title="struct actix_web::cookie::CookieJar">CookieJar</a></h3></section><section id="impl-UnwindSafe-for-CookieJar" class="impl"><a href="#impl-UnwindSafe-for-CookieJar" class="anchor">§</a><h3 class="code-header">impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/panic/unwind_safe/trait.UnwindSafe.html" title="trait core::panic::unwind_safe::UnwindSafe">UnwindSafe</a> for <a class="struct" href="struct.CookieJar.html" title="struct actix_web::cookie::CookieJar">CookieJar</a></h3></section></div><h2 id="blanket-implementations" class="section-header">Blanket Implementations<a href="#blanket-implementations" class="anchor">§</a></h2><div id="blanket-implementations-list"><details class="toggle implementors-toggle"><summary><section id="impl-Any-for-T" class="impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/core/any.rs.html#140">source</a><a href="#impl-Any-for-T" class="anchor">§</a><h3 class="code-header">impl&lt;T&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/any/trait.Any.html" title="trait core::any::Any">Any</a> for T<div class="where">where
+    T: 'static + ?<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>,</div></h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.type_id" class="method trait-impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/core/any.rs.html#141">source</a><a href="#method.type_id" class="anchor">§</a><h4 class="code-header">fn <a href="https://doc.rust-lang.org/nightly/core/any/trait.Any.html#tymethod.type_id" class="fn">type_id</a>(&amp;self) -&gt; <a class="struct" href="https://doc.rust-lang.org/nightly/core/any/struct.TypeId.html" title="struct core::any::TypeId">TypeId</a></h4></section></summary><div class='docblock'>Gets the <code>TypeId</code> of <code>self</code>. <a href="https://doc.rust-lang.org/nightly/core/any/trait.Any.html#tymethod.type_id">Read more</a></div></details></div></details><details class="toggle implementors-toggle"><summary><section id="impl-Borrow%3CT%3E-for-T" class="impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/core/borrow.rs.html#208">source</a><a href="#impl-Borrow%3CT%3E-for-T" class="anchor">§</a><h3 class="code-header">impl&lt;T&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/borrow/trait.Borrow.html" title="trait core::borrow::Borrow">Borrow</a>&lt;T&gt; for T<div class="where">where
+    T: ?<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>,</div></h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.borrow" class="method trait-impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/core/borrow.rs.html#210">source</a><a href="#method.borrow" class="anchor">§</a><h4 class="code-header">fn <a href="https://doc.rust-lang.org/nightly/core/borrow/trait.Borrow.html#tymethod.borrow" class="fn">borrow</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;T</a></h4></section></summary><div class='docblock'>Immutably borrows from an owned value. <a href="https://doc.rust-lang.org/nightly/core/borrow/trait.Borrow.html#tymethod.borrow">Read more</a></div></details></div></details><details class="toggle implementors-toggle"><summary><section id="impl-BorrowMut%3CT%3E-for-T" class="impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/core/borrow.rs.html#216">source</a><a href="#impl-BorrowMut%3CT%3E-for-T" class="anchor">§</a><h3 class="code-header">impl&lt;T&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/borrow/trait.BorrowMut.html" title="trait core::borrow::BorrowMut">BorrowMut</a>&lt;T&gt; for T<div class="where">where
+    T: ?<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>,</div></h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.borrow_mut" class="method trait-impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/core/borrow.rs.html#217">source</a><a href="#method.borrow_mut" class="anchor">§</a><h4 class="code-header">fn <a href="https://doc.rust-lang.org/nightly/core/borrow/trait.BorrowMut.html#tymethod.borrow_mut" class="fn">borrow_mut</a>(&amp;mut self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;mut T</a></h4></section></summary><div class='docblock'>Mutably borrows from an owned value. <a href="https://doc.rust-lang.org/nightly/core/borrow/trait.BorrowMut.html#tymethod.borrow_mut">Read more</a></div></details></div></details><details class="toggle implementors-toggle"><summary><section id="impl-From%3CT%3E-for-T" class="impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/core/convert/mod.rs.html#765">source</a><a href="#impl-From%3CT%3E-for-T" class="anchor">§</a><h3 class="code-header">impl&lt;T&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html" title="trait core::convert::From">From</a>&lt;T&gt; for T</h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.from" class="method trait-impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/core/convert/mod.rs.html#768">source</a><a href="#method.from" class="anchor">§</a><h4 class="code-header">fn <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html#tymethod.from" class="fn">from</a>(t: T) -&gt; T</h4></section></summary><div class="docblock"><p>Returns the argument unchanged.</p>
+</div></details></div></details><details class="toggle implementors-toggle"><summary><section id="impl-Instrument-for-T" class="impl"><a href="#impl-Instrument-for-T" class="anchor">§</a><h3 class="code-header">impl&lt;T&gt; Instrument for T</h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.instrument" class="method trait-impl"><a href="#method.instrument" class="anchor">§</a><h4 class="code-header">fn <a class="fn">instrument</a>(self, span: Span) -&gt; Instrumented&lt;Self&gt;</h4></section></summary><div class='docblock'>Instruments this type with the provided [<code>Span</code>], returning an
+<code>Instrumented</code> wrapper. <a>Read more</a></div></details><details class="toggle method-toggle" open><summary><section id="method.in_current_span" class="method trait-impl"><a href="#method.in_current_span" class="anchor">§</a><h4 class="code-header">fn <a class="fn">in_current_span</a>(self) -&gt; Instrumented&lt;Self&gt;</h4></section></summary><div class='docblock'>Instruments this type with the <a href="super::Span::current()">current</a> <a href="crate::Span"><code>Span</code></a>, returning an
+<code>Instrumented</code> wrapper. <a>Read more</a></div></details></div></details><details class="toggle implementors-toggle"><summary><section id="impl-Into%3CU%3E-for-T" class="impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/core/convert/mod.rs.html#748-750">source</a><a href="#impl-Into%3CU%3E-for-T" class="anchor">§</a><h3 class="code-header">impl&lt;T, U&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html" title="trait core::convert::Into">Into</a>&lt;U&gt; for T<div class="where">where
+    U: <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html" title="trait core::convert::From">From</a>&lt;T&gt;,</div></h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.into" class="method trait-impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/core/convert/mod.rs.html#758">source</a><a href="#method.into" class="anchor">§</a><h4 class="code-header">fn <a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into" class="fn">into</a>(self) -&gt; U</h4></section></summary><div class="docblock"><p>Calls <code>U::from(self)</code>.</p>
+<p>That is, this conversion is whatever the implementation of
+<code><a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html" title="trait core::convert::From">From</a>&lt;T&gt; for U</code> chooses to do.</p>
+</div></details></div></details><details class="toggle implementors-toggle"><summary><section id="impl-Same-for-T" class="impl"><a class="src rightside" href="https://docs.rs/typenum/1.17.0/src/typenum/type_operators.rs.html#34">source</a><a href="#impl-Same-for-T" class="anchor">§</a><h3 class="code-header">impl&lt;T&gt; <a class="trait" href="https://docs.rs/typenum/1.17.0/typenum/type_operators/trait.Same.html" title="trait typenum::type_operators::Same">Same</a> for T</h3></section></summary><div class="impl-items"><details class="toggle" open><summary><section id="associatedtype.Output" class="associatedtype trait-impl"><a href="#associatedtype.Output" class="anchor">§</a><h4 class="code-header">type <a href="https://docs.rs/typenum/1.17.0/typenum/type_operators/trait.Same.html#associatedtype.Output" class="associatedtype">Output</a> = T</h4></section></summary><div class='docblock'>Should always be <code>Self</code></div></details></div></details><details class="toggle implementors-toggle"><summary><section id="impl-ToOwned-for-T" class="impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/alloc/borrow.rs.html#83-85">source</a><a href="#impl-ToOwned-for-T" class="anchor">§</a><h3 class="code-header">impl&lt;T&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/alloc/borrow/trait.ToOwned.html" title="trait alloc::borrow::ToOwned">ToOwned</a> for T<div class="where">where
+    T: <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a>,</div></h3></section></summary><div class="impl-items"><details class="toggle" open><summary><section id="associatedtype.Owned" class="associatedtype trait-impl"><a href="#associatedtype.Owned" class="anchor">§</a><h4 class="code-header">type <a href="https://doc.rust-lang.org/nightly/alloc/borrow/trait.ToOwned.html#associatedtype.Owned" class="associatedtype">Owned</a> = T</h4></section></summary><div class='docblock'>The resulting type after obtaining ownership.</div></details><details class="toggle method-toggle" open><summary><section id="method.to_owned" class="method trait-impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/alloc/borrow.rs.html#88">source</a><a href="#method.to_owned" class="anchor">§</a><h4 class="code-header">fn <a href="https://doc.rust-lang.org/nightly/alloc/borrow/trait.ToOwned.html#tymethod.to_owned" class="fn">to_owned</a>(&amp;self) -&gt; T</h4></section></summary><div class='docblock'>Creates owned data from borrowed data, usually by cloning. <a href="https://doc.rust-lang.org/nightly/alloc/borrow/trait.ToOwned.html#tymethod.to_owned">Read more</a></div></details><details class="toggle method-toggle" open><summary><section id="method.clone_into" class="method trait-impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/alloc/borrow.rs.html#92">source</a><a href="#method.clone_into" class="anchor">§</a><h4 class="code-header">fn <a href="https://doc.rust-lang.org/nightly/alloc/borrow/trait.ToOwned.html#method.clone_into" class="fn">clone_into</a>(&amp;self, target: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;mut T</a>)</h4></section></summary><div class='docblock'>Uses borrowed data to replace owned data, usually by cloning. <a href="https://doc.rust-lang.org/nightly/alloc/borrow/trait.ToOwned.html#method.clone_into">Read more</a></div></details></div></details><details class="toggle implementors-toggle"><summary><section id="impl-TryFrom%3CU%3E-for-T" class="impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/core/convert/mod.rs.html#805-807">source</a><a href="#impl-TryFrom%3CU%3E-for-T" class="anchor">§</a><h3 class="code-header">impl&lt;T, U&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.TryFrom.html" title="trait core::convert::TryFrom">TryFrom</a>&lt;U&gt; for T<div class="where">where
+    U: <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html" title="trait core::convert::Into">Into</a>&lt;T&gt;,</div></h3></section></summary><div class="impl-items"><details class="toggle" open><summary><section id="associatedtype.Error-1" class="associatedtype trait-impl"><a href="#associatedtype.Error-1" class="anchor">§</a><h4 class="code-header">type <a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryFrom.html#associatedtype.Error" class="associatedtype">Error</a> = <a class="enum" href="https://doc.rust-lang.org/nightly/core/convert/enum.Infallible.html" title="enum core::convert::Infallible">Infallible</a></h4></section></summary><div class='docblock'>The type returned in the event of a conversion error.</div></details><details class="toggle method-toggle" open><summary><section id="method.try_from" class="method trait-impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/core/convert/mod.rs.html#812">source</a><a href="#method.try_from" class="anchor">§</a><h4 class="code-header">fn <a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryFrom.html#tymethod.try_from" class="fn">try_from</a>(value: U) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;T, &lt;T as <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.TryFrom.html" title="trait core::convert::TryFrom">TryFrom</a>&lt;U&gt;&gt;::<a class="associatedtype" href="https://doc.rust-lang.org/nightly/core/convert/trait.TryFrom.html#associatedtype.Error" title="type core::convert::TryFrom::Error">Error</a>&gt;</h4></section></summary><div class='docblock'>Performs the conversion.</div></details></div></details><details class="toggle implementors-toggle"><summary><section id="impl-TryInto%3CU%3E-for-T" class="impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/core/convert/mod.rs.html#790-792">source</a><a href="#impl-TryInto%3CU%3E-for-T" class="anchor">§</a><h3 class="code-header">impl&lt;T, U&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.TryInto.html" title="trait core::convert::TryInto">TryInto</a>&lt;U&gt; for T<div class="where">where
+    U: <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.TryFrom.html" title="trait core::convert::TryFrom">TryFrom</a>&lt;T&gt;,</div></h3></section></summary><div class="impl-items"><details class="toggle" open><summary><section id="associatedtype.Error" class="associatedtype trait-impl"><a href="#associatedtype.Error" class="anchor">§</a><h4 class="code-header">type <a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryInto.html#associatedtype.Error" class="associatedtype">Error</a> = &lt;U as <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.TryFrom.html" title="trait core::convert::TryFrom">TryFrom</a>&lt;T&gt;&gt;::<a class="associatedtype" href="https://doc.rust-lang.org/nightly/core/convert/trait.TryFrom.html#associatedtype.Error" title="type core::convert::TryFrom::Error">Error</a></h4></section></summary><div class='docblock'>The type returned in the event of a conversion error.</div></details><details class="toggle method-toggle" open><summary><section id="method.try_into" class="method trait-impl"><a class="src rightside" href="https://doc.rust-lang.org/nightly/src/core/convert/mod.rs.html#797">source</a><a href="#method.try_into" class="anchor">§</a><h4 class="code-header">fn <a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryInto.html#tymethod.try_into" class="fn">try_into</a>(self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;U, &lt;U as <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.TryFrom.html" title="trait core::convert::TryFrom">TryFrom</a>&lt;T&gt;&gt;::<a class="associatedtype" href="https://doc.rust-lang.org/nightly/core/convert/trait.TryFrom.html#associatedtype.Error" title="type core::convert::TryFrom::Error">Error</a>&gt;</h4></section></summary><div class='docblock'>Performs the conversion.</div></details></div></details><details class="toggle implementors-toggle"><summary><section id="impl-VZip%3CV%3E-for-T" class="impl"><a href="#impl-VZip%3CV%3E-for-T" class="anchor">§</a><h3 class="code-header">impl&lt;V, T&gt; VZip&lt;V&gt; for T<div class="where">where
+    V: MultiLane&lt;T&gt;,</div></h3></section></summary><div class="impl-items"><section id="method.vzip" class="method trait-impl"><a href="#method.vzip" class="anchor">§</a><h4 class="code-header">fn <a class="fn">vzip</a>(self) -&gt; V</h4></section></div></details><details class="toggle implementors-toggle"><summary><section id="impl-WithSubscriber-for-T" class="impl"><a href="#impl-WithSubscriber-for-T" class="anchor">§</a><h3 class="code-header">impl&lt;T&gt; WithSubscriber for T</h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.with_subscriber" class="method trait-impl"><a href="#method.with_subscriber" class="anchor">§</a><h4 class="code-header">fn <a class="fn">with_subscriber</a>&lt;S&gt;(self, subscriber: S) -&gt; WithDispatch&lt;Self&gt;<div class="where">where
+    S: <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html" title="trait core::convert::Into">Into</a>&lt;Dispatch&gt;,</div></h4></section></summary><div class='docblock'>Attaches the provided <a href="super::Subscriber"><code>Subscriber</code></a> to this type, returning a
+[<code>WithDispatch</code>] wrapper. <a>Read more</a></div></details><details class="toggle method-toggle" open><summary><section id="method.with_current_subscriber" class="method trait-impl"><a href="#method.with_current_subscriber" class="anchor">§</a><h4 class="code-header">fn <a class="fn">with_current_subscriber</a>(self) -&gt; WithDispatch&lt;Self&gt;</h4></section></summary><div class='docblock'>Attaches the current <a href="crate::dispatcher#setting-the-default-subscriber">default</a> <a href="super::Subscriber"><code>Subscriber</code></a> to this type, returning a
+[<code>WithDispatch</code>] wrapper. <a>Read more</a></div></details></div></details></div><script type="text/json" id="notable-traits-data">{"Delta<'_>":"<h3>Notable traits for <code><a class=\"struct\" href=\"struct.Delta.html\" title=\"struct actix_web::cookie::Delta\">Delta</a>&lt;'a&gt;</code></h3><pre><code><div class=\"where\">impl&lt;'a&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html\" title=\"trait core::iter::traits::iterator::Iterator\">Iterator</a> for <a class=\"struct\" href=\"struct.Delta.html\" title=\"struct actix_web::cookie::Delta\">Delta</a>&lt;'a&gt;</div><div class=\"where\">    type <a href=\"https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html#associatedtype.Item\" class=\"associatedtype\">Item</a> = &amp;'a <a class=\"struct\" href=\"struct.Cookie.html\" title=\"struct actix_web::cookie::Cookie\">Cookie</a>&lt;'static&gt;;</div>","Iter<'_>":"<h3>Notable traits for <code><a class=\"struct\" href=\"struct.Iter.html\" title=\"struct actix_web::cookie::Iter\">Iter</a>&lt;'a&gt;</code></h3><pre><code><div class=\"where\">impl&lt;'a&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html\" title=\"trait core::iter::traits::iterator::Iterator\">Iterator</a> for <a class=\"struct\" href=\"struct.Iter.html\" title=\"struct actix_web::cookie::Iter\">Iter</a>&lt;'a&gt;</div><div class=\"where\">    type <a href=\"https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html#associatedtype.Item\" class=\"associatedtype\">Item</a> = &amp;'a <a class=\"struct\" href=\"struct.Cookie.html\" title=\"struct actix_web::cookie::Cookie\">Cookie</a>&lt;'static&gt;;</div>"}</script></section></div></main></body></html>

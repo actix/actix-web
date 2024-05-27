@@ -1,0 +1,29 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Start default `TestServer`."><title>start in actix_test - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../static.files/rustdoc-dd39b87e5fcfba68.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="actix_test" data-themes="" data-resource-suffix="" data-rustdoc-version="1.80.0-nightly (bdbbb6c6a 2024-05-26)" data-channel="nightly" data-search-js="search-d52510db62a78183.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../static.files/storage-118b08c4c78b968e.js"></script><script defer src="sidebar-items.js"></script><script defer src="../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="icon" href="https://actix.rs/favicon.ico"></head><body class="rustdoc fn"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button><a class="logo-container" href="../actix_test/index.html"><img src="https://actix.rs/img/logo.png" alt=""></a></nav><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../actix_test/index.html"><img src="https://actix.rs/img/logo.png" alt="logo"></a><h2><a href="../actix_test/index.html">actix_test</a><span class="version">0.1.3</span></h2></div><div class="sidebar-elems"></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Function <a href="index.html">actix_test</a>::<wbr><a class="fn" href="#">start</a><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><span class="out-of-band"><a class="src" href="../src/actix_test/lib.rs.html#82-94">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><pre class="rust item-decl"><code>pub fn start&lt;F, I, S, B&gt;(factory: F) -&gt; <a class="struct" href="struct.TestServer.html" title="struct actix_test::TestServer">TestServer</a><div class="where">where
+    F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.Fn.html" title="trait core::ops::function::Fn">Fn</a>() -&gt; I + <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a> + 'static,
+    I: IntoServiceFactory&lt;S, Request&gt;,
+    S: ServiceFactory&lt;Request, Config = AppConfig&gt; + 'static,
+    S::Error: <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html" title="trait core::convert::Into">Into</a>&lt;Error&gt; + 'static,
+    S::InitError: <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a>,
+    S::Response: <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html" title="trait core::convert::Into">Into</a>&lt;Response&lt;B&gt;&gt; + 'static,
+    &lt;S::Service as Service&lt;Request&gt;&gt;::Future: 'static,
+    B: MessageBody + 'static,</div></code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Start default <a href="struct.TestServer.html" title="struct actix_test::TestServer"><code>TestServer</code></a>.</p>
+<h2 id="examples"><a class="doc-anchor" href="#examples">§</a>Examples</h2>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>actix_web::{get, web, test, App, HttpResponse, Error, Responder};
+
+<span class="attr">#[get(<span class="string">"/"</span>)]
+</span><span class="kw">async fn </span>my_handler() -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw">impl </span>Responder, Error&gt; {
+    <span class="prelude-val">Ok</span>(HttpResponse::Ok())
+}
+
+<span class="attr">#[actix_web::test]
+</span><span class="kw">async fn </span>test_example() {
+    <span class="kw">let </span>srv = actix_test::start(||
+        App::new().service(my_handler)
+    );
+
+    <span class="kw">let </span>req = srv.get(<span class="string">"/"</span>);
+    <span class="kw">let </span>res = req.send().<span class="kw">await</span>.unwrap();
+
+    <span class="macro">assert!</span>(res.status().is_success());
+}</code></pre></div>
+</div></details></section></div></main></body></html>

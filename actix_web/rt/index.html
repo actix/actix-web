@@ -1,0 +1,50 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="A selection of re-exports from `tokio` and `actix-rt`."><title>actix_web::rt - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-dd39b87e5fcfba68.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="actix_web" data-themes="" data-resource-suffix="" data-rustdoc-version="1.80.0-nightly (bdbbb6c6a 2024-05-26)" data-channel="nightly" data-search-js="search-d52510db62a78183.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="icon" href="https://actix.rs/favicon.ico"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button><a class="logo-container" href="../../actix_web/index.html"><img src="https://actix.rs/img/logo.png" alt=""></a></nav><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../../actix_web/index.html"><img src="https://actix.rs/img/logo.png" alt="logo"></a><h2><a href="../../actix_web/index.html">actix_web</a><span class="version">4.6.0</span></h2></div><h2 class="location"><a href="#">Module rt</a></h2><div class="sidebar-elems"><section><ul class="block"><li><a href="#modules">Modules</a></li><li><a href="#macros">Macros</a></li><li><a href="#structs">Structs</a></li><li><a href="#functions">Functions</a></li></ul></section><h2><a href="../index.html">In crate actix_web</a></h2></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Module <a href="../index.html">actix_web</a>::<wbr><a class="mod" href="#">rt</a><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><span class="out-of-band"><a class="src" href="../../src/actix_web/rt.rs.html#1-78">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>A selection of re-exports from <a href="https://docs.rs/tokio"><code>tokio</code></a> and <a href="https://docs.rs/actix-rt"><code>actix-rt</code></a>.</p>
+<p>Actix Web runs on <a href="https://docs.rs/tokio">Tokio</a>, providing full<sup id="fnref1"><a href="#fn1">1</a></sup> compatibility with its huge ecosystem of
+crates. Each of the server’s workers uses a single-threaded runtime. Read more about the
+architecture in <a href="https://docs.rs/actix-rt"><code>actix-rt</code></a>’s docs.</p>
+<h2 id="running-actix-web-without-macros"><a class="doc-anchor" href="#running-actix-web-without-macros">§</a>Running Actix Web Without Macros</h2>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>actix_web::{middleware, rt, web, App, HttpRequest, HttpServer};
+
+<span class="kw">async fn </span>index(req: HttpRequest) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+    <span class="macro">println!</span>(<span class="string">"REQ: {:?}"</span>, req);
+    <span class="string">"Hello world!\r\n"
+</span>}
+
+<span class="kw">fn </span>main() -&gt; std::io::Result&lt;()&gt; {
+    rt::System::new().block_on(
+        HttpServer::new(|| {
+            App::new().service(web::resource(<span class="string">"/"</span>).route(web::get().to(index)))
+        })
+        .bind((<span class="string">"127.0.0.1"</span>, <span class="number">8080</span>))<span class="question-mark">?
+        </span>.run()
+    )
+}</code></pre></div>
+<h2 id="running-actix-web-using-tokiomain"><a class="doc-anchor" href="#running-actix-web-using-tokiomain">§</a>Running Actix Web Using <code>#[tokio::main]</code></h2>
+<p>If you need to run something that uses Tokio’s work stealing functionality alongside Actix Web,
+you can run Actix Web under <code>#[tokio::main]</code>. The <a href="../dev/struct.Server.html" title="struct actix_web::dev::Server"><code>Server</code></a> object returned
+from <a href="../struct.HttpServer.html#method.run" title="method actix_web::HttpServer::run"><code>HttpServer::run</code></a> can also be <a href="https://docs.rs/tokio/1/tokio/fn.spawn.html"><code>spawn</code></a>ed, if preferred.</p>
+<p>Note that <code>actix</code> actor support (and therefore WebSocket support through <code>actix-web-actors</code>)
+still require <code>#[actix_web::main]</code> since they require a <a href="struct.System.html" title="struct actix_web::rt::System"><code>System</code></a> to be set up.</p>
+<p>Also note that calls to this module’s <a href="fn.spawn.html" title="fn actix_web::rt::spawn"><code>spawn()</code></a> re-export require an <code>#[actix_web::main]</code>
+runtime (or a manually configured <code>LocalSet</code>) since it makes calls into to the current thread’s
+<code>LocalSet</code>, which <code>#[tokio::main]</code> does not set up.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>actix_web::{get, middleware, rt, web, App, HttpRequest, HttpServer};
+
+<span class="attr">#[get(<span class="string">"/"</span>)]
+</span><span class="kw">async fn </span>index(req: HttpRequest) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+    <span class="macro">println!</span>(<span class="string">"REQ: {:?}"</span>, req);
+    <span class="string">"Hello world!\r\n"
+</span>}
+
+<span class="attr">#[tokio::main]
+</span><span class="kw">async fn </span>main() -&gt; std::io::Result&lt;()&gt; {
+    HttpServer::new(|| {
+        App::new().service(index)
+    })
+    .bind((<span class="string">"127.0.0.1"</span>, <span class="number">8080</span>))<span class="question-mark">?
+    </span>.run()
+    .<span class="kw">await
+</span>}</code></pre></div>
+<div class="footnotes"><hr><ol><li id="fn1"><p>Crates that use Tokio’s <a href="https://docs.rs/tokio/1/tokio/task/fn.block_in_place.html"><code>block_in_place</code></a> will not work with Actix Web. Fortunately,
+the vast majority of Tokio-based crates do not use it.&nbsp;<a href="#fnref1">↩</a></p></li></ol></div></div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="mod" href="net/index.html" title="mod actix_web::rt::net">net</a></div><div class="desc docblock-short">TCP/UDP/Unix bindings (mostly Tokio re-exports).</div></li><li><div class="item-name"><a class="mod" href="signal/index.html" title="mod actix_web::rt::signal">signal</a></div><div class="desc docblock-short">Asynchronous signal handling (Tokio re-exports).</div></li><li><div class="item-name"><a class="mod" href="task/index.html" title="mod actix_web::rt::task">task</a></div><div class="desc docblock-short">Task management (Tokio re-exports).</div></li><li><div class="item-name"><a class="mod" href="time/index.html" title="mod actix_web::rt::time">time</a></div><div class="desc docblock-short">Utilities for tracking time (Tokio re-exports).</div></li></ul><h2 id="macros" class="section-header">Macros<a href="#macros" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="macro" href="macro.pin.html" title="macro actix_web::rt::pin">pin</a></div><div class="desc docblock-short">Pins a value on the stack.</div></li></ul><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="struct" href="struct.Runtime.html" title="struct actix_web::rt::Runtime">Runtime</a></div><div class="desc docblock-short">A Tokio-based runtime proxy.</div></li><li><div class="item-name"><a class="struct" href="struct.System.html" title="struct actix_web::rt::System">System</a></div><div class="desc docblock-short">A manager for a per-thread distributed async runtime.</div></li><li><div class="item-name"><a class="struct" href="struct.SystemRunner.html" title="struct actix_web::rt::SystemRunner">SystemRunner</a></div><div class="desc docblock-short">Runner that keeps a <a href="struct.System.html" title="struct actix_web::rt::System">System</a>’s event loop alive until stop message is received.</div></li></ul><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="fn" href="fn.spawn.html" title="fn actix_web::rt::spawn">spawn</a></div><div class="desc docblock-short">Spawns a future on the current thread as a new task.</div></li></ul></section></div></main></body></html>

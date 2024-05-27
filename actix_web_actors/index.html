@@ -1,0 +1,55 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Actix actors support for Actix Web."><title>actix_web_actors - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../static.files/rustdoc-dd39b87e5fcfba68.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="actix_web_actors" data-themes="" data-resource-suffix="" data-rustdoc-version="1.80.0-nightly (bdbbb6c6a 2024-05-26)" data-channel="nightly" data-search-js="search-d52510db62a78183.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="icon" href="https://actix.rs/favicon.ico"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button><a class="logo-container" href="../actix_web_actors/index.html"><img src="https://actix.rs/img/logo.png" alt=""></a></nav><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../actix_web_actors/index.html"><img src="https://actix.rs/img/logo.png" alt="logo"></a><h2><a href="../actix_web_actors/index.html">actix_web_actors</a><span class="version">4.3.0</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section><ul class="block"><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li></ul></section></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Crate <a class="mod" href="#">actix_web_actors</a><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><span class="out-of-band"><a class="src" href="../src/actix_web_actors/lib.rs.html#1-67">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Actix actors support for Actix Web.</p>
+<h2 id="examples"><a class="doc-anchor" href="#examples">§</a>Examples</h2>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>actix::{Actor, StreamHandler};
+<span class="kw">use </span>actix_web::{get, web, App, Error, HttpRequest, HttpResponse, HttpServer};
+<span class="kw">use </span>actix_web_actors::ws;
+
+<span class="doccomment">/// Define Websocket actor
+</span><span class="kw">struct </span>MyWs;
+
+<span class="kw">impl </span>Actor <span class="kw">for </span>MyWs {
+    <span class="kw">type </span>Context = ws::WebsocketContext&lt;<span class="self">Self</span>&gt;;
+}
+
+<span class="doccomment">/// Handler for ws::Message message
+</span><span class="kw">impl </span>StreamHandler&lt;<span class="prelude-ty">Result</span>&lt;ws::Message, ws::ProtocolError&gt;&gt; <span class="kw">for </span>MyWs {
+    <span class="kw">fn </span>handle(<span class="kw-2">&amp;mut </span><span class="self">self</span>, msg: <span class="prelude-ty">Result</span>&lt;ws::Message, ws::ProtocolError&gt;, ctx: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Context) {
+        <span class="kw">match </span>msg {
+            <span class="prelude-val">Ok</span>(ws::Message::Ping(msg)) =&gt; ctx.pong(<span class="kw-2">&amp;</span>msg),
+            <span class="prelude-val">Ok</span>(ws::Message::Text(text)) =&gt; ctx.text(text),
+            <span class="prelude-val">Ok</span>(ws::Message::Binary(bin)) =&gt; ctx.binary(bin),
+            <span class="kw">_ </span>=&gt; (),
+        }
+    }
+}
+
+<span class="attr">#[get(<span class="string">"/ws"</span>)]
+</span><span class="kw">async fn </span>index(req: HttpRequest, stream: web::Payload) -&gt; <span class="prelude-ty">Result</span>&lt;HttpResponse, Error&gt; {
+    ws::start(MyWs, <span class="kw-2">&amp;</span>req, stream)
+}
+
+<span class="attr">#[actix_web::main]
+</span><span class="kw">async fn </span>main() -&gt; std::io::Result&lt;()&gt; {
+    HttpServer::new(|| App::new().service(index))
+        .bind((<span class="string">"127.0.0.1"</span>, <span class="number">8080</span>))<span class="question-mark">?
+        </span>.run()
+        .<span class="kw">await
+</span>}</code></pre></div>
+<h2 id="documentation--community-resources"><a class="doc-anchor" href="#documentation--community-resources">§</a>Documentation &amp; Community Resources</h2>
+<p>In addition to this API documentation, several other resources are available:</p>
+<ul>
+<li><a href="https://actix.rs/">Website &amp; User Guide</a></li>
+<li><a href="actix_web">Documentation for <code>actix_web</code></a></li>
+<li><a href="https://github.com/actix/examples">Examples Repository</a></li>
+<li><a href="https://discord.gg/NWpN5mmg3x">Community Chat on Discord</a></li>
+</ul>
+<p>To get started navigating the API docs, you may consider looking at the following pages first:</p>
+<ul>
+<li>
+<p><a href="ws/index.html" title="mod actix_web_actors::ws"><code>ws</code></a>: This module provides actor support for WebSockets.</p>
+</li>
+<li>
+<p><a href="struct.HttpContext.html" title="struct actix_web_actors::HttpContext"><code>HttpContext</code></a>: This struct provides actor support for streaming HTTP responses.</p>
+</li>
+</ul>
+</div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="mod" href="ws/index.html" title="mod actix_web_actors::ws">ws</a></div><div class="desc docblock-short">Websocket integration.</div></li></ul><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="struct" href="struct.HttpContext.html" title="struct actix_web_actors::HttpContext">HttpContext</a></div><div class="desc docblock-short">Execution context for HTTP actors</div></li></ul></section></div></main></body></html>

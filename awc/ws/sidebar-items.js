@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["CloseCode","Frame","Message"],"struct":["CloseReason","Codec","WebsocketsRequest"]};

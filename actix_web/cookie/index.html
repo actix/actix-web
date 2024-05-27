@@ -1,0 +1,58 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="HTTP cookie parsing and cookie jar management."><title>actix_web::cookie - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-dd39b87e5fcfba68.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="actix_web" data-themes="" data-resource-suffix="" data-rustdoc-version="1.80.0-nightly (bdbbb6c6a 2024-05-26)" data-channel="nightly" data-search-js="search-d52510db62a78183.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../crates.js"></script><script defer src="../../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="icon" href="https://actix.rs/favicon.ico"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button><a class="logo-container" href="../../actix_web/index.html"><img src="https://actix.rs/img/logo.png" alt=""></a></nav><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../../actix_web/index.html"><img src="https://actix.rs/img/logo.png" alt="logo"></a><h2><a href="../../actix_web/index.html">actix_web</a><span class="version">4.6.0</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section><ul class="block"><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li></ul></section></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Crate <a href="../index.html">actix_web</a>::<wbr><a class="mod" href="#">cookie</a><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><span class="out-of-band"><a class="src" href="https://docs.rs/cookie/0.16/src/cookie/lib.rs.html#1-1422">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><span class="item-info"><div class="stab portability">Available on <strong>crate feature <code>cookies</code></strong> only.</div></span><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>HTTP cookie parsing and cookie jar management.</p>
+<p>This crates provides the <a href="struct.Cookie.html" title="struct actix_web::cookie::Cookie"><code>Cookie</code></a> type, representing an HTTP cookie, and
+the <a href="struct.CookieJar.html" title="struct actix_web::cookie::CookieJar"><code>CookieJar</code></a> type, which manages a collection of cookies for session
+management, recording changes as they are made, and optional automatic
+cookie encryption and signing.</p>
+<h2 id="usage"><a class="doc-anchor" href="#usage">§</a>Usage</h2>
+<p>Add the following to the <code>[dependencies]</code> section of your <code>Cargo.toml</code>:</p>
+<div class="example-wrap"><pre class="language-toml"><code>cookie = &quot;0.16&quot;
+</code></pre></div><h2 id="features"><a class="doc-anchor" href="#features">§</a>Features</h2>
+<p>This crate exposes several features, all of which are disabled by default:</p>
+<ul>
+<li>
+<p><strong><code>percent-encode</code></strong></p>
+<p>Enables <em>percent encoding and decoding</em> of names and values in cookies.</p>
+<p>When this feature is enabled, the <a href="struct.Cookie.html#method.encoded" title="method actix_web::cookie::Cookie::encoded"><code>Cookie::encoded()</code></a> and
+<a href="struct.Cookie.html#method.parse_encoded" title="associated function actix_web::cookie::Cookie::parse_encoded"><code>Cookie::parse_encoded()</code></a> methods are available. The <code>encoded</code> method
+returns a wrapper around a <code>Cookie</code> whose <code>Display</code> implementation
+percent-encodes the name and value of the cookie. The <code>parse_encoded</code>
+method percent-decodes the name and value of a <code>Cookie</code> during parsing.</p>
+</li>
+<li>
+<p><strong><code>signed</code></strong></p>
+<p>Enables <em>signed</em> cookies via <a href="struct.CookieJar.html#method.signed" title="method actix_web::cookie::CookieJar::signed"><code>CookieJar::signed()</code></a>.</p>
+<p>When this feature is enabled, the <a href="struct.CookieJar.html#method.signed" title="method actix_web::cookie::CookieJar::signed"><code>CookieJar::signed()</code></a> method,
+<a href="struct.SignedJar.html" title="struct actix_web::cookie::SignedJar"><code>SignedJar</code></a> type, and <a href="struct.Key.html" title="struct actix_web::cookie::Key"><code>Key</code></a> type are available. The jar acts as “child
+jar”; operations on the jar automatically sign and verify cookies as they
+are added and retrieved from the parent jar.</p>
+</li>
+<li>
+<p><strong><code>private</code></strong></p>
+<p>Enables <em>private</em> (authenticated, encrypted) cookies via
+<a href="struct.CookieJar.html#method.private" title="method actix_web::cookie::CookieJar::private"><code>CookieJar::private()</code></a>.</p>
+<p>When this feature is enabled, the <a href="struct.CookieJar.html#method.private" title="method actix_web::cookie::CookieJar::private"><code>CookieJar::private()</code></a> method,
+<a href="struct.PrivateJar.html" title="struct actix_web::cookie::PrivateJar"><code>PrivateJar</code></a> type, and <a href="struct.Key.html" title="struct actix_web::cookie::Key"><code>Key</code></a> type are available. The jar acts as “child
+jar”; operations on the jar automatically encrypt and decrypt/authenticate
+cookies as they are added and retrieved from the parent jar.</p>
+</li>
+<li>
+<p><strong><code>key-expansion</code></strong></p>
+<p>Enables <em>key expansion</em> or <em>key derivation</em> via <a href="struct.Key.html#method.derive_from" title="associated function actix_web::cookie::Key::derive_from"><code>Key::derive_from()</code></a>.</p>
+<p>When this feature is enabled, and either <code>signed</code> or <code>private</code> are <em>also</em>
+enabled, the <a href="struct.Key.html#method.derive_from" title="associated function actix_web::cookie::Key::derive_from"><code>Key::derive_from()</code></a> method is available. The method can be
+used to derive a <code>Key</code> structure appropriate for use with signed and
+private jars from cryptographically valid key material that is shorter in
+length than the full key.</p>
+</li>
+<li>
+<p><strong><code>secure</code></strong></p>
+<p>A meta-feature that simultaneously enables <code>signed</code>, <code>private</code>, and
+<code>key-expansion</code>.</p>
+</li>
+</ul>
+<p>You can enable features via <code>Cargo.toml</code>:</p>
+<div class="example-wrap"><pre class="language-toml"><code>[dependencies.cookie]
+features = [&quot;secure&quot;, &quot;percent-encode&quot;]
+</code></pre></div></div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="mod" href="time/index.html" title="mod actix_web::cookie::time">time</a></div><div class="desc docblock-short">Feature flags</div></li></ul><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="struct" href="struct.Cookie.html" title="struct actix_web::cookie::Cookie">Cookie</a></div><div class="desc docblock-short">Representation of an HTTP cookie.</div></li><li><div class="item-name"><a class="struct" href="struct.CookieBuilder.html" title="struct actix_web::cookie::CookieBuilder">CookieBuilder</a></div><div class="desc docblock-short">Structure that follows the builder pattern for building <code>Cookie</code> structs.</div></li><li><div class="item-name"><a class="struct" href="struct.CookieJar.html" title="struct actix_web::cookie::CookieJar">CookieJar</a></div><div class="desc docblock-short">A collection of cookies that tracks its modifications.</div></li><li><div class="item-name"><a class="struct" href="struct.Delta.html" title="struct actix_web::cookie::Delta">Delta</a></div><div class="desc docblock-short">Iterator over the changes to a cookie jar.</div></li><li><div class="item-name"><a class="struct" href="struct.Display.html" title="struct actix_web::cookie::Display">Display</a></div><div class="desc docblock-short">Wrapper around <code>Cookie</code> whose <code>Display</code> implementation either
+percent-encodes the cookie’s name and value, skips displaying the cookie’s
+parameters (only displaying it’s name and value), or both.</div></li><li><div class="item-name"><a class="struct" href="struct.Iter.html" title="struct actix_web::cookie::Iter">Iter</a></div><div class="desc docblock-short">Iterator over all of the cookies in a jar.</div></li><li><div class="item-name"><a class="struct" href="struct.Key.html" title="struct actix_web::cookie::Key">Key</a></div><div class="desc docblock-short">A cryptographic master key for use with <code>Signed</code> and/or <code>Private</code> jars.</div></li><li><div class="item-name"><a class="struct" href="struct.PrivateJar.html" title="struct actix_web::cookie::PrivateJar">PrivateJar</a></div><div class="desc docblock-short">A child cookie jar that provides authenticated encryption for its cookies.</div></li><li><div class="item-name"><a class="struct" href="struct.SignedJar.html" title="struct actix_web::cookie::SignedJar">SignedJar</a></div><div class="desc docblock-short">A child cookie jar that authenticates its cookies.</div></li></ul><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="enum" href="enum.Expiration.html" title="enum actix_web::cookie::Expiration">Expiration</a></div><div class="desc docblock-short">A cookie’s expiration: either session or a date-time.</div></li><li><div class="item-name"><a class="enum" href="enum.KeyError.html" title="enum actix_web::cookie::KeyError">KeyError</a></div><div class="desc docblock-short">An error indicating an issue with generating or constructing a key.</div></li><li><div class="item-name"><a class="enum" href="enum.ParseError.html" title="enum actix_web::cookie::ParseError">ParseError</a></div><div class="desc docblock-short">Enum corresponding to a parsing error.</div></li><li><div class="item-name"><a class="enum" href="enum.SameSite.html" title="enum actix_web::cookie::SameSite">SameSite</a></div><div class="desc docblock-short">The <code>SameSite</code> cookie attribute.</div></li></ul></section></div></main></body></html>

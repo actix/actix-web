@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ConnectError","FreezeRequestError","InvalidUrl","JsonPayloadError","PayloadError","SendRequestError","WsClientError","WsHandshakeError","WsProtocolError"],"struct":["HeaderValue","HttpError","StatusCode"]};

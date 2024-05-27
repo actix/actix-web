@@ -1,0 +1,165 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="A collection of common middleware."><title>actix_web::middleware - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-dd39b87e5fcfba68.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="actix_web" data-themes="" data-resource-suffix="" data-rustdoc-version="1.80.0-nightly (bdbbb6c6a 2024-05-26)" data-channel="nightly" data-search-js="search-d52510db62a78183.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="icon" href="https://actix.rs/favicon.ico"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button><a class="logo-container" href="../../actix_web/index.html"><img src="https://actix.rs/img/logo.png" alt=""></a></nav><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../../actix_web/index.html"><img src="https://actix.rs/img/logo.png" alt="logo"></a><h2><a href="../../actix_web/index.html">actix_web</a><span class="version">4.6.0</span></h2></div><h2 class="location"><a href="#">Module middleware</a></h2><div class="sidebar-elems"><section><ul class="block"><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li></ul></section><h2><a href="../index.html">In crate actix_web</a></h2></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Module <a href="../index.html">actix_web</a>::<wbr><a class="mod" href="#">middleware</a><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><span class="out-of-band"><a class="src" href="../../src/actix_web/middleware/mod.rs.html#1-283">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>A collection of common middleware.</p>
+<h2 id="what-is-middleware"><a class="doc-anchor" href="#what-is-middleware">§</a>What Is Middleware?</h2>
+<p>Actix Web’s middleware system allows us to add additional behavior to request/response
+processing. Middleware can hook into incoming request and outgoing response processes, enabling
+us to modify requests and responses as well as halt request processing to return a response
+early.</p>
+<p>Typically, middleware is involved in the following actions:</p>
+<ul>
+<li>Pre-process the request (e.g., <a href="struct.NormalizePath.html" title="struct actix_web::middleware::NormalizePath">normalizing paths</a>)</li>
+<li>Post-process a response (e.g., <a href="struct.Logger.html" title="struct actix_web::middleware::Logger">logging</a>)</li>
+<li>Modify application state (through <a href="../dev/struct.ServiceRequest.html" title="struct actix_web::dev::ServiceRequest"><code>ServiceRequest</code></a>)</li>
+<li>Access external services (e.g., <a href="https://docs.rs/actix-session">sessions</a>, etc.)</li>
+</ul>
+<p>Middleware is registered for each <a href="../struct.App.html" title="struct actix_web::App"><code>App</code></a>, <a href="../struct.Scope.html" title="struct actix_web::Scope"><code>Scope</code></a>, or
+<a href="../struct.Resource.html" title="struct actix_web::Resource"><code>Resource</code></a> and executed in opposite order as registration. In general, a
+middleware is a pair of types that implements the <a href="../dev/trait.Service.html" title="trait actix_web::dev::Service"><code>Service</code></a> trait and <a href="../dev/trait.Transform.html" title="trait actix_web::dev::Transform"><code>Transform</code></a> trait,
+respectively. The <a href="../dev/trait.Transform.html#tymethod.new_transform" title="method actix_web::dev::Transform::new_transform"><code>new_transform</code></a> and <a href="../dev/trait.Service.html#tymethod.call" title="method actix_web::dev::Service::call"><code>call</code></a> methods must return a <a href="https://doc.rust-lang.org/nightly/core/future/future/trait.Future.html" title="trait core::future::future::Future"><code>Future</code></a>, though it
+can often be <a href="actix_utils::future::Ready">an immediately-ready one</a>.</p>
+<h2 id="ordering"><a class="doc-anchor" href="#ordering">§</a>Ordering</h2>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="attr">#[get(<span class="string">"/"</span>)]
+</span><span class="kw">async fn </span>service(a: ExtractorA, b: ExtractorB) -&gt; <span class="kw">impl </span>Responder { <span class="string">"Hello, World!" </span>}
+
+<span class="kw">let </span>app = App::new()
+    .wrap(MiddlewareA::default())
+    .wrap(MiddlewareB::default())
+    .wrap(MiddlewareC::default())
+    .service(service);</code></pre></div>
+<div class="example-wrap"><pre class="language-plain"><code>                  Request
+                     ⭣
+╭────────────────────┼────╮
+│ MiddlewareC        │    │
+│ ╭──────────────────┼───╮│
+│ │ MiddlewareB      │   ││
+│ │ ╭────────────────┼──╮││
+│ │ │ MiddlewareA    │  │││
+│ │ │ ╭──────────────┼─╮│││
+│ │ │ │ ExtractorA   │ ││││
+│ │ │ ├┈┈┈┈┈┈┈┈┈┈┈┈┈┈┼┈┤│││
+│ │ │ │ ExtractorB   │ ││││
+│ │ │ ├┈┈┈┈┈┈┈┈┈┈┈┈┈┈┼┈┤│││
+│ │ │ │ service      │ ││││
+│ │ │ ╰──────────────┼─╯│││
+│ │ ╰────────────────┼──╯││
+│ ╰──────────────────┼───╯│
+╰────────────────────┼────╯
+                     ⭣
+                  Response
+</code></pre></div>
+<p>The request <em>first</em> gets processed by the middleware specified <em>last</em> - <code>MiddlewareC</code>. It passes
+the request (modified a modified one) to the next middleware - <code>MiddlewareB</code> - <em>or</em> directly
+responds to the request (e.g. when the request was invalid or an error occurred). <code>MiddlewareB</code>
+processes the request as well and passes it to <code>MiddlewareA</code>, which then passes it to the
+<a href="../dev/trait.Service.html" title="trait actix_web::dev::Service"><code>Service</code></a>. In the <a href="../dev/trait.Service.html" title="trait actix_web::dev::Service"><code>Service</code></a>, the extractors will run first. They don’t pass the request on,
+but only view it (see <a href="../trait.FromRequest.html" title="trait actix_web::FromRequest"><code>FromRequest</code></a>). After the <a href="../dev/trait.Service.html" title="trait actix_web::dev::Service"><code>Service</code></a> responds to the request, the
+response is passed back through <code>MiddlewareA</code>, <code>MiddlewareB</code>, and <code>MiddlewareC</code>.</p>
+<p>As you register middleware using <a href="../struct.App.html#method.wrap" title="method actix_web::App::wrap"><code>wrap</code></a> and <a href="../struct.App.html#method.wrap_fn" title="method actix_web::App::wrap_fn"><code>wrap_fn</code></a>
+in the <a href="../struct.App.html" title="struct actix_web::App"><code>App</code></a> builder, imagine wrapping layers around an inner <a href="../struct.App.html" title="struct actix_web::App"><code>App</code></a>. The first middleware
+layer exposed to a Request is the outermost layer (i.e., the <em>last</em> registered in the builder
+chain, in the example above: <code>MiddlewareC</code>). Consequently, the <em>first</em> middleware registered in
+the builder chain is the <em>last</em> to start executing during request processing (<code>MiddlewareA</code>).
+Ordering is less obvious when wrapped services also have middleware applied. In this case,
+middleware are run in reverse order for <a href="../struct.App.html" title="struct actix_web::App"><code>App</code></a> <em>and then</em> in reverse order for the wrapped
+service.</p>
+<h2 id="middleware-traits"><a class="doc-anchor" href="#middleware-traits">§</a>Middleware Traits</h2><h3 id="transforms-req"><a class="doc-anchor" href="#transforms-req">§</a><code>Transform&lt;S, Req&gt;</code></h3>
+<p>The <a href="../dev/trait.Transform.html" title="trait actix_web::dev::Transform"><code>Transform</code></a> trait is the builder for the actual <a href="../dev/trait.Service.html" title="trait actix_web::dev::Service"><code>Service</code></a>s that handle the requests. All
+the middleware you pass to the <code>wrap</code> methods implement this trait. During construction, each
+thread assembles a chain of <a href="../dev/trait.Service.html" title="trait actix_web::dev::Service"><code>Service</code></a>s by calling <a href="../dev/trait.Transform.html#tymethod.new_transform" title="method actix_web::dev::Transform::new_transform"><code>new_transform</code></a> and passing the next
+<a href="../dev/trait.Service.html" title="trait actix_web::dev::Service"><code>Service</code></a> (<code>S</code>) in the chain. The created <a href="../dev/trait.Service.html" title="trait actix_web::dev::Service"><code>Service</code></a> handles requests of type <code>Req</code>.</p>
+<p>In the example from the <a href="#ordering">ordering</a> section, the chain would be:</p>
+<div class="example-wrap"><pre class="language-plain"><code>MiddlewareCService {
+    next: MiddlewareBService {
+        next: MiddlewareAService { ... }
+    }
+}
+</code></pre></div><h3 id="servicereq"><a class="doc-anchor" href="#servicereq">§</a><code>Service&lt;Req&gt;</code></h3>
+<p>A <a href="../dev/trait.Service.html" title="trait actix_web::dev::Service"><code>Service</code></a> <code>S</code> represents an asynchronous operation that turns a request of type <code>Req</code> into a
+response of type <a href="../dev/trait.Service.html#associatedtype.Response" title="associated type actix_web::dev::Service::Response"><code>S::Response</code></a> or an error of type
+<a href="../dev/trait.Service.html#associatedtype.Error" title="associated type actix_web::dev::Service::Error"><code>S::Error</code></a>. You can think of the service of being roughly:</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">async fn</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, req: Req) -&gt; <span class="prelude-ty">Result</span>&lt;S::Response, S::Error&gt;</code></pre></div>
+<p>In most cases the <a href="../dev/trait.Service.html" title="trait actix_web::dev::Service"><code>Service</code></a> implementation will, at some point, call the wrapped <a href="../dev/trait.Service.html" title="trait actix_web::dev::Service"><code>Service</code></a>
+in its <a href="../dev/trait.Service.html#tymethod.call" title="method actix_web::dev::Service::call"><code>call</code></a> implementation.</p>
+<p>Note that the <a href="../dev/trait.Service.html" title="trait actix_web::dev::Service"><code>Service</code></a>s created by <a href="../dev/trait.Transform.html#tymethod.new_transform" title="method actix_web::dev::Transform::new_transform"><code>new_transform</code></a> don’t need to be <a href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send"><code>Send</code></a> or <a href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync"><code>Sync</code></a>.</p>
+<h2 id="example"><a class="doc-anchor" href="#example">§</a>Example</h2>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>std::{future::{ready, Ready, Future}, pin::Pin};
+
+<span class="kw">use </span>actix_web::{
+    dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
+    web, Error,
+};
+
+<span class="kw">pub struct </span>SayHi;
+
+<span class="comment">// `S` - type of the next service
+// `B` - type of response's body
+</span><span class="kw">impl</span>&lt;S, B&gt; Transform&lt;S, ServiceRequest&gt; <span class="kw">for </span>SayHi
+<span class="kw">where
+    </span>S: Service&lt;ServiceRequest, Response = ServiceResponse&lt;B&gt;, Error = Error&gt;,
+    S::Future: <span class="lifetime">'static</span>,
+    B: <span class="lifetime">'static</span>,
+{
+    <span class="kw">type </span>Response = ServiceResponse&lt;B&gt;;
+    <span class="kw">type </span>Error = Error;
+    <span class="kw">type </span>InitError = ();
+    <span class="kw">type </span>Transform = SayHiMiddleware&lt;S&gt;;
+    <span class="kw">type </span>Future = Ready&lt;<span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::Transform, <span class="self">Self</span>::InitError&gt;&gt;;
+
+    <span class="kw">fn </span>new_transform(<span class="kw-2">&amp;</span><span class="self">self</span>, service: S) -&gt; <span class="self">Self</span>::Future {
+        ready(<span class="prelude-val">Ok</span>(SayHiMiddleware { service }))
+    }
+}
+
+<span class="kw">pub struct </span>SayHiMiddleware&lt;S&gt; {
+    <span class="doccomment">/// The next service to call
+    </span>service: S,
+}
+
+<span class="comment">// This future doesn't have the requirement of being `Send`.
+// See: futures_util::future::LocalBoxFuture
+</span><span class="kw">type </span>LocalBoxFuture&lt;T&gt; = Pin&lt;Box&lt;<span class="kw">dyn </span>Future&lt;Output = T&gt; + <span class="lifetime">'static</span>&gt;&gt;;
+
+<span class="comment">// `S`: type of the wrapped service
+// `B`: type of the body - try to be generic over the body where possible
+</span><span class="kw">impl</span>&lt;S, B&gt; Service&lt;ServiceRequest&gt; <span class="kw">for </span>SayHiMiddleware&lt;S&gt;
+<span class="kw">where
+    </span>S: Service&lt;ServiceRequest, Response = ServiceResponse&lt;B&gt;, Error = Error&gt;,
+    S::Future: <span class="lifetime">'static</span>,
+    B: <span class="lifetime">'static</span>,
+{
+    <span class="kw">type </span>Response = ServiceResponse&lt;B&gt;;
+    <span class="kw">type </span>Error = Error;
+    <span class="kw">type </span>Future = LocalBoxFuture&lt;<span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::Response, <span class="self">Self</span>::Error&gt;&gt;;
+
+    <span class="comment">// This service is ready when its next service is ready
+    </span><span class="macro">forward_ready!</span>(service);
+
+    <span class="kw">fn </span>call(<span class="kw-2">&amp;</span><span class="self">self</span>, req: ServiceRequest) -&gt; <span class="self">Self</span>::Future {
+        <span class="macro">println!</span>(<span class="string">"Hi from start. You requested: {}"</span>, req.path());
+
+        <span class="comment">// A more complex middleware, could return an error or an early response here.
+
+        </span><span class="kw">let </span>fut = <span class="self">self</span>.service.call(req);
+
+        Box::pin(<span class="kw">async move </span>{
+            <span class="kw">let </span>res = fut.<span class="kw">await</span><span class="question-mark">?</span>;
+
+            <span class="macro">println!</span>(<span class="string">"Hi from response"</span>);
+            <span class="prelude-val">Ok</span>(res)
+        })
+    }
+}
+
+<span class="kw">let </span>app = App::new()
+    .wrap(SayHi)
+    .route(<span class="string">"/"</span>, web::get().to(|| <span class="kw">async </span>{ <span class="string">"Hello, middleware!" </span>}));</code></pre></div>
+<h2 id="simpler-middleware"><a class="doc-anchor" href="#simpler-middleware">§</a>Simpler Middleware</h2>
+<p>In many cases, you <em>can</em> actually use an async function via a helper that will provide a more
+natural flow for your behavior.</p>
+<p>The experimental <code>actix_web_lab</code> crate provides a <a href="https://docs.rs/actix-web-lab/latest/actix_web_lab/middleware/fn.from_fn.html"><code>from_fn</code></a> utility which allows
+an async fn to be wrapped and used in the same way as other middleware. See the
+<a href="https://docs.rs/actix-web-lab/latest/actix_web_lab/middleware/fn.from_fn.html"><code>from_fn</code></a> docs for more info and examples of it’s use.</p>
+<p>While <a href="https://docs.rs/actix-web-lab/latest/actix_web_lab/middleware/fn.from_fn.html"><code>from_fn</code></a> is experimental currently, it’s likely this helper will graduate
+to Actix Web in some form, so feedback is appreciated.</p>
+</div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="struct" href="struct.Compat.html" title="struct actix_web::middleware::Compat">Compat</a></div><div class="desc docblock-short">Middleware for enabling any middleware to be used in <a href="../struct.Resource.html#method.wrap" title="method actix_web::Resource::wrap"><code>Resource::wrap</code></a>,
+and <a href="struct.Condition.html" title="struct actix_web::middleware::Condition"><code>Condition</code></a>.</div></li><li><div class="item-name"><a class="struct" href="struct.Compress.html" title="struct actix_web::middleware::Compress">Compress</a><span class="stab portability" title="Available on crate feature `__compress` only"><code>__compress</code></span></div><div class="desc docblock-short">Middleware for compressing response payloads.</div></li><li><div class="item-name"><a class="struct" href="struct.Condition.html" title="struct actix_web::middleware::Condition">Condition</a></div><div class="desc docblock-short">Middleware for conditionally enabling other middleware.</div></li><li><div class="item-name"><a class="struct" href="struct.DefaultHeaders.html" title="struct actix_web::middleware::DefaultHeaders">DefaultHeaders</a></div><div class="desc docblock-short">Middleware for setting default response headers.</div></li><li><div class="item-name"><a class="struct" href="struct.ErrorHandlers.html" title="struct actix_web::middleware::ErrorHandlers">ErrorHandlers</a></div><div class="desc docblock-short">Middleware for registering custom status code based error handlers.</div></li><li><div class="item-name"><a class="struct" href="struct.Logger.html" title="struct actix_web::middleware::Logger">Logger</a></div><div class="desc docblock-short">Middleware for logging request and response summaries to the terminal.</div></li><li><div class="item-name"><a class="struct" href="struct.NormalizePath.html" title="struct actix_web::middleware::NormalizePath">NormalizePath</a></div><div class="desc docblock-short">Middleware for normalizing a request’s path so that routes can be matched more flexibly.</div></li></ul><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="enum" href="enum.ErrorHandlerResponse.html" title="enum actix_web::middleware::ErrorHandlerResponse">ErrorHandlerResponse</a></div><div class="desc docblock-short">Return type for <a href="struct.ErrorHandlers.html" title="struct actix_web::middleware::ErrorHandlers"><code>ErrorHandlers</code></a> custom handlers.</div></li><li><div class="item-name"><a class="enum" href="enum.TrailingSlash.html" title="enum actix_web::middleware::TrailingSlash">TrailingSlash</a></div><div class="desc docblock-short">Determines the behavior of the <a href="struct.NormalizePath.html" title="struct actix_web::middleware::NormalizePath"><code>NormalizePath</code></a> middleware.</div></li></ul></section></div></main></body></html>

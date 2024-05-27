@@ -1,0 +1,76 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Implements `MultipartCollect` for a struct so that it can be used with the `MultipartForm` extractor."><title>MultipartForm in actix_multipart_derive - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../static.files/rustdoc-dd39b87e5fcfba68.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="actix_multipart_derive" data-themes="" data-resource-suffix="" data-rustdoc-version="1.80.0-nightly (bdbbb6c6a 2024-05-26)" data-channel="nightly" data-search-js="search-d52510db62a78183.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../static.files/storage-118b08c4c78b968e.js"></script><script defer src="sidebar-items.js"></script><script defer src="../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="icon" href="https://actix.rs/favicon.ico"></head><body class="rustdoc derive"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button><a class="logo-container" href="../actix_multipart_derive/index.html"><img src="https://actix.rs/img/logo.png" alt=""></a></nav><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../actix_multipart_derive/index.html"><img src="https://actix.rs/img/logo.png" alt="logo"></a><h2><a href="../actix_multipart_derive/index.html">actix_multipart_derive</a><span class="version">0.6.1</span></h2></div><div class="sidebar-elems"></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Derive Macro <a href="index.html">actix_multipart_derive</a>::<wbr><a class="derive" href="#">MultipartForm</a><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><span class="out-of-band"><a class="src" href="../src/actix_multipart_derive/lib.rs.html#155-310">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><pre class="rust item-decl"><code>#[derive(MultipartForm)]
+{
+    <span class="comment">// Attributes available to this derive:</span>
+    #[multipart]
+}
+</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Implements <code>MultipartCollect</code> for a struct so that it can be used with the <code>MultipartForm</code>
+extractor.</p>
+<h2 id="basic-use"><a class="doc-anchor" href="#basic-use">§</a>Basic Use</h2>
+<p>Each field type should implement the <code>FieldReader</code> trait:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};
+
+<span class="attr">#[derive(MultipartForm)]
+</span><span class="kw">struct </span>ImageUpload {
+    description: Text&lt;String&gt;,
+    timestamp: Text&lt;i64&gt;,
+    image: TempFile,
+}</code></pre></div>
+<h2 id="optional-and-list-fields"><a class="doc-anchor" href="#optional-and-list-fields">§</a>Optional and List Fields</h2>
+<p>You can also use <code>Vec&lt;T&gt;</code> and <code>Option&lt;T&gt;</code> provided that <code>T: FieldReader</code>.</p>
+<p>A <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec"><code>Vec</code></a> field corresponds to an upload with multiple parts under the <a href="https://www.rfc-editor.org/rfc/rfc7578#section-4.3">same field
+name</a>.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};
+
+<span class="attr">#[derive(MultipartForm)]
+</span><span class="kw">struct </span>Form {
+    category: <span class="prelude-ty">Option</span>&lt;Text&lt;String&gt;&gt;,
+    files: Vec&lt;TempFile&gt;,
+}</code></pre></div>
+<h2 id="field-renaming"><a class="doc-anchor" href="#field-renaming">§</a>Field Renaming</h2>
+<p>You can use the <code>#[multipart(rename = &quot;foo&quot;)]</code> attribute to receive a field by a different name.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>actix_multipart::form::{tempfile::TempFile, MultipartForm};
+
+<span class="attr">#[derive(MultipartForm)]
+</span><span class="kw">struct </span>Form {
+    <span class="attr">#[multipart(rename = <span class="string">"files[]"</span>)]
+    </span>files: Vec&lt;TempFile&gt;,
+}</code></pre></div>
+<h2 id="field-limits"><a class="doc-anchor" href="#field-limits">§</a>Field Limits</h2>
+<p>You can use the <code>#[multipart(limit = &quot;&lt;size&gt;&quot;)]</code> attribute to set field level limits. The limit
+string is parsed using <a href="https://docs.rs/parse-size/1/parse_size">parse_size</a>.</p>
+<p>Note: the form is also subject to the global limits configured using <code>MultipartFormConfig</code>.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};
+
+<span class="attr">#[derive(MultipartForm)]
+</span><span class="kw">struct </span>Form {
+    <span class="attr">#[multipart(limit = <span class="string">"2 KiB"</span>)]
+    </span>description: Text&lt;String&gt;,
+
+    <span class="attr">#[multipart(limit = <span class="string">"512 MiB"</span>)]
+    </span>files: Vec&lt;TempFile&gt;,
+}</code></pre></div>
+<h2 id="unknown-fields"><a class="doc-anchor" href="#unknown-fields">§</a>Unknown Fields</h2>
+<p>By default fields with an unknown name are ignored. They can be rejected using the
+<code>#[multipart(deny_unknown_fields)]</code> attribute:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="attr">#[derive(MultipartForm)]
+#[multipart(deny_unknown_fields)]
+</span><span class="kw">struct </span>Form { }</code></pre></div>
+<h2 id="duplicate-fields"><a class="doc-anchor" href="#duplicate-fields">§</a>Duplicate Fields</h2>
+<p>The behaviour for when multiple fields with the same name are received can be changed using the
+<code>#[multipart(duplicate_field = &quot;&lt;behavior&gt;&quot;)]</code> attribute:</p>
+<ul>
+<li>“ignore”: (default) Extra fields are ignored. I.e., the first one is persisted.</li>
+<li>“deny”: A <code>MultipartError::UnsupportedField</code> error response is returned.</li>
+<li>“replace”: Each field is processed, but only the last one is persisted.</li>
+</ul>
+<p>Note that <code>Vec</code> fields will ignore this option.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="attr">#[derive(MultipartForm)]
+#[multipart(duplicate_field = <span class="string">"deny"</span>)]
+</span><span class="kw">struct </span>Form { }</code></pre></div>
+</div></details></section></div></main></body></html>

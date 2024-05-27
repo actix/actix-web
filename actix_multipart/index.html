@@ -1,0 +1,35 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Multipart form support for Actix Web."><title>actix_multipart - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../static.files/rustdoc-dd39b87e5fcfba68.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="actix_multipart" data-themes="" data-resource-suffix="" data-rustdoc-version="1.80.0-nightly (bdbbb6c6a 2024-05-26)" data-channel="nightly" data-search-js="search-d52510db62a78183.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="icon" href="https://actix.rs/favicon.ico"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button><a class="logo-container" href="../actix_multipart/index.html"><img src="https://actix.rs/img/logo.png" alt=""></a></nav><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../actix_multipart/index.html"><img src="https://actix.rs/img/logo.png" alt="logo"></a><h2><a href="../actix_multipart/index.html">actix_multipart</a><span class="version">0.6.1</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section><ul class="block"><li><a href="#reexports">Re-exports</a></li><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li></ul></section></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Crate <a class="mod" href="#">actix_multipart</a><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><span class="out-of-band"><a class="src" href="../src/actix_multipart/lib.rs.html#1-61">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Multipart form support for Actix Web.</p>
+<h2 id="examples"><a class="doc-anchor" href="#examples">§</a>Examples</h2>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>actix_web::{post, App, HttpServer, Responder};
+
+<span class="kw">use </span>actix_multipart::form::{json::Json <span class="kw">as </span>MPJson, tempfile::TempFile, MultipartForm};
+<span class="kw">use </span>serde::Deserialize;
+
+<span class="attr">#[derive(Debug, Deserialize)]
+</span><span class="kw">struct </span>Metadata {
+    name: String,
+}
+
+<span class="attr">#[derive(Debug, MultipartForm)]
+</span><span class="kw">struct </span>UploadForm {
+    <span class="attr">#[multipart(limit = <span class="string">"100MB"</span>)]
+    </span>file: TempFile,
+    json: MPJson&lt;Metadata&gt;,
+}
+
+<span class="attr">#[post(<span class="string">"/videos"</span>)]
+</span><span class="kw">pub async fn </span>post_video(MultipartForm(form): MultipartForm&lt;UploadForm&gt;) -&gt; <span class="kw">impl </span>Responder {
+    <span class="macro">format!</span>(
+        <span class="string">"Uploaded file {}, with size: {}"</span>,
+        form.json.name, form.file.size
+    )
+}
+
+<span class="attr">#[actix_web::main]
+</span><span class="kw">async fn </span>main() -&gt; std::io::Result&lt;()&gt; {
+    HttpServer::new(<span class="kw">move </span>|| App::new().service(post_video))
+        .bind((<span class="string">"127.0.0.1"</span>, <span class="number">8080</span>))<span class="question-mark">?
+        </span>.run()
+        .<span class="kw">await
+</span>}</code></pre></div>
+</div></details><h2 id="reexports" class="section-header">Re-exports<a href="#reexports" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name" id="reexport.create_form_data_payload_and_headers"><code>pub use self::test::<a class="fn" href="test/fn.create_form_data_payload_and_headers.html" title="fn actix_multipart::test::create_form_data_payload_and_headers">create_form_data_payload_and_headers</a>;</code></div></li><li><div class="item-name" id="reexport.create_form_data_payload_and_headers_with_boundary"><code>pub use self::test::<a class="fn" href="test/fn.create_form_data_payload_and_headers_with_boundary.html" title="fn actix_multipart::test::create_form_data_payload_and_headers_with_boundary">create_form_data_payload_and_headers_with_boundary</a>;</code></div></li></ul><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="mod" href="form/index.html" title="mod actix_multipart::form">form</a></div><div class="desc docblock-short">Process and extract typed data from a multipart stream.</div></li><li><div class="item-name"><a class="mod" href="test/index.html" title="mod actix_multipart::test">test</a></div></li></ul><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="struct" href="struct.Field.html" title="struct actix_multipart::Field">Field</a></div><div class="desc docblock-short">A single field in a multipart stream</div></li><li><div class="item-name"><a class="struct" href="struct.Multipart.html" title="struct actix_multipart::Multipart">Multipart</a></div><div class="desc docblock-short">The server-side implementation of <code>multipart/form-data</code> requests.</div></li></ul><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="enum" href="enum.MultipartError.html" title="enum actix_multipart::MultipartError">MultipartError</a></div><div class="desc docblock-short">A set of errors that can occur during parsing multipart streams.</div></li></ul></section></div></main></body></html>
