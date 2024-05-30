@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Update `http` dependency to `1`.
+- Update `h2` dependency to `0.4.5`
+
 ## 3.7.0
 
 ### Added
