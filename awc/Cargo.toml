@@ -92,8 +92,8 @@ cfg-if = "1"
 derive_more = "0.99.5"
 futures-core = { version = "0.3.17", default-features = false, features = ["alloc"] }
 futures-util = { version = "0.3.17", default-features = false, features = ["alloc", "sink"] }
-h2 = "0.3.24"
-http = "0.2.7"
+h2 = "0.4.5"
+http = "1"
 itoa = "1"
 log =" 0.4"
 mime = "0.3"
