@@ -12,7 +12,7 @@
 //! Protocol: HTTP/1.1
 //! ```
 
-extern crate tls_rustls_022 as rustls;
+extern crate tls_rustls_023 as rustls;
 
 use std::io;
 
@@ -36,16 +36,17 @@ async fn main() -> io::Result<()> {
                     );
                     ok::<_, Error>(Response::ok().set_body(body))
                 })
-                .rustls_0_22(rustls_config())
+                .rustls_0_23(rustls_config())
         })?
         .run()
         .await
 }
 
 fn rustls_config() -> rustls::ServerConfig {
-    let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()]).unwrap();
-    let cert_file = cert.serialize_pem().unwrap();
-    let key_file = cert.serialize_private_key_pem();
+    let rcgen::CertifiedKey { cert, key_pair } =
+        rcgen::generate_simple_self_signed(["localhost".to_owned()]).unwrap();
+    let cert_file = cert.pem();
+    let key_file = key_pair.serialize_pem();
 
     let cert_file = &mut io::BufReader::new(cert_file.as_bytes());
     let key_file = &mut io::BufReader::new(key_file.as_bytes());

@@ -2,14 +2,15 @@
 name = "actix-web-codegen"
 version = "4.2.2"
 description = "Routing and runtime macros for Actix Web"
-homepage = "https://actix.rs"
-repository = "https://github.com/actix/actix-web"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
     "Rob Ede <robjtede@icloud.com>",
 ]
-license = "MIT OR Apache-2.0"
-edition = "2021"
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
 
 [lib]
 proc-macro = true
