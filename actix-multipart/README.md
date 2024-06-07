@@ -15,7 +15,6 @@
 
 <!-- prettier-ignore-end -->
 
-
 ## Example
 
 Dependencies:
@@ -65,13 +64,13 @@ async fn main() -> std::io::Result<()> {
 ```
 
 Curl request :
+
 ```bash
 curl -v --request POST \
   --url http://localhost:8080/videos \
   -F 'json={"name": "Cargo.lock"};type=application/json' \
   -F file=@./Cargo.lock
 ```
-
 
 ### Examples
 
