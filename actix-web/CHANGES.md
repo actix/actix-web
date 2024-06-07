@@ -2,9 +2,10 @@
 
 ## Unreleased
 
-# Added
+### Added
 
 - Add `guard::GuardContext::app_data()` method.
+- Implement `From<Box<dyn ResponseError>>` for `Error`.
 
 ## 4.6.0
 
