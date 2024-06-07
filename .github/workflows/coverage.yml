@@ -22,16 +22,16 @@ jobs:
         with:
           components: llvm-tools-preview
 
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@v2.33.26
+      - name: Install just,cargo-llvm-cov
+        uses: taiki-e/install-action@v2.34.0
         with:
-          tool: cargo-llvm-cov
+          tool: just,cargo-llvm-cov
 
       - name: Generate code coverage
         run: cargo llvm-cov --workspace --all-features --codecov --output-path codecov.json
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4.4.0
+        uses: codecov/codecov-action@v4.4.1
         with:
           files: codecov.json
           fail_ci_if_error: true
