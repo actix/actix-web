@@ -204,15 +204,16 @@ method_macro!(Patch, patch);
 ///
 /// ## Attributes:
 ///
-/// - `"path"` - Raw literal string with path for which to register handler. Mandatory.
+/// - `"/prefix"` - Raw literal string with path for which to register handler. Mandatory.
 ///
 /// # Example
 ///
 /// ```
 /// # use actix_web_codegen::scope;
-/// # use actix_web::{get, HttpResponse, Responder};
 /// #[scope("/test")]
 /// mod scope_module {
+///     # use actix_web_codegen::get;
+///     # use actix_web::{HttpResponse, Responder};
 ///     #[get("/test")]
 ///     pub async fn test() -> impl Responder {
 ///         // this has path /test/test
