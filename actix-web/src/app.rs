@@ -112,8 +112,8 @@ where
     /// })
     /// ```
     #[doc(alias = "manage")]
-    pub fn app_data<U: 'static>(mut self, ext: U) -> Self {
-        self.extensions.insert(ext);
+    pub fn app_data<U: 'static>(mut self, data: U) -> Self {
+        self.extensions.insert(data);
         self
     }
 
