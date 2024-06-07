@@ -7,7 +7,7 @@ use actix_http::{
 
 use crate::{HttpRequest, HttpResponse, Responder};
 
-/// Allows overriding status code and headers for a [`Responder`].
+/// Allows overriding status code and headers (including cookies) for a [`Responder`].
 ///
 /// Created by calling the [`customize`](Responder::customize) method on a [`Responder`] type.
 pub struct CustomizeResponder<R> {
@@ -137,6 +137,29 @@ impl<R: Responder> CustomizeResponder<R> {
             Some(&mut self.inner)
         }
     }
+
+    /// Appends a `cookie` to the final response.
+    ///
+    /// # Errors
+    ///
+    /// Final response will be an error if `cookie` cannot be converted into a valid header value.
+    #[cfg(feature = "cookies")]
+    pub fn add_cookie(mut self, cookie: &crate::cookie::Cookie<'_>) -> Self {
+        use actix_http::header::{TryIntoHeaderValue as _, SET_COOKIE};
+
+        if let Some(inner) = self.inner() {
+            match cookie.to_string().try_into_value() {
+                Ok(val) => {
+                    inner.append_headers.append(SET_COOKIE, val);
+                }
+                Err(err) => {
+                    self.error = Some(err.into());
+                }
+            }
+        }
+
+        self
+    }
 }
 
 impl<T> Responder for CustomizeResponder<T>
@@ -175,6 +198,7 @@ mod tests {
 
     use super::*;
     use crate::{
+        cookie::Cookie,
         http::header::{HeaderValue, CONTENT_TYPE},
         test::TestRequest,
     };
@@ -204,6 +228,22 @@ mod tests {
         assert_eq!(
             res.headers().get(CONTENT_TYPE).unwrap(),
             HeaderValue::from_static("json")
+        );
+        assert_eq!(
+            to_bytes(res.into_body()).await.unwrap(),
+            Bytes::from_static(b"test"),
+        );
+
+        let res = "test"
+            .to_string()
+            .customize()
+            .add_cookie(&Cookie::new("name", "value"))
+            .respond_to(&req);
+
+        assert!(res.status().is_success());
+        assert_eq!(
+            res.cookies().collect::<Vec<Cookie<'_>>>(),
+            vec![Cookie::new("name", "value")],
         );
         assert_eq!(
             to_bytes(res.into_body()).await.unwrap(),

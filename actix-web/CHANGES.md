@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Added
+
+- Add `CustomizeResponder::add_cookie()` method.
+- Add `guard::GuardContext::app_data()` method.
+- Implement `From<Box<dyn ResponseError>>` for `Error`.
+
 ## 4.6.0
 
 ### Added

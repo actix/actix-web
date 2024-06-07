@@ -35,7 +35,6 @@ features = [
     "secure-cookies",
 ]
 
-
 [lib]
 name = "actix_web"
 path = "src/lib.rs"
@@ -130,6 +129,7 @@ awc = { version = "3", features = ["openssl"] }
 
 brotli = "6"
 const-str = "0.5"
+core_affinity = "0.8"
 criterion = { version = "0.5", features = ["html_reports"] }
 env_logger = "0.11"
 flate2 = "1.0.13"

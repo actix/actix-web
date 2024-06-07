@@ -18,7 +18,7 @@ concurrency:
 jobs:
   read_msrv:
     name: Read MSRV
-    uses: actions-rust-lang/msrv/.github/workflows/msrv.yml@main
+    uses: actions-rust-lang/msrv/.github/workflows/msrv.yml@v0.1.0
 
   build_and_test:
     needs: read_msrv
@@ -64,7 +64,7 @@ jobs:
           toolchain: ${{ matrix.version.version }}
 
       - name: Install just, cargo-hack, cargo-nextest, cargo-ci-cache-clean
-        uses: taiki-e/install-action@v2.33.34
+        uses: taiki-e/install-action@v2.34.0
         with:
           tool: just,cargo-hack,cargo-nextest,cargo-ci-cache-clean
 
@@ -113,7 +113,7 @@ jobs:
           toolchain: nightly
 
       - name: Install just
-        uses: taiki-e/install-action@v2.33.34
+        uses: taiki-e/install-action@v2.34.0
         with:
           tool: just
 

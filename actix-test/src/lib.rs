@@ -149,6 +149,8 @@ where
         StreamType::Rustls023(_) => true,
     };
 
+    let client_cfg = cfg.clone();
+
     // run server in separate orphaned thread
     thread::spawn(move || {
         rt::System::new().block_on(async move {
@@ -460,7 +462,13 @@ where
             }
         };
 
-        Client::builder().connector(connector).finish()
+        let mut client_builder = Client::builder().connector(connector);
+
+        if client_cfg.disable_redirects {
+            client_builder = client_builder.disable_redirects();
+        }
+
+        client_builder.finish()
     };
 
     TestServer {
@@ -480,6 +488,7 @@ enum HttpVer {
     Both,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone)]
 enum StreamType {
     Tcp,
@@ -507,6 +516,7 @@ pub struct TestServerConfig {
     client_request_timeout: Duration,
     port: u16,
     workers: usize,
+    disable_redirects: bool,
 }
 
 impl Default for TestServerConfig {
@@ -524,6 +534,7 @@ impl TestServerConfig {
             client_request_timeout: Duration::from_secs(5),
             port: 0,
             workers: 1,
+            disable_redirects: false,
         }
     }
 
@@ -609,6 +620,15 @@ impl TestServerConfig {
     /// By default, the server uses 1 worker
     pub fn workers(mut self, workers: usize) -> Self {
         self.workers = workers;
+        self
+    }
+
+    /// Instruct the client to not follow redirects.
+    ///
+    /// By default, the client will follow up to 10 consecutive redirects
+    /// before giving up.
+    pub fn disable_redirects(mut self) -> Self {
+        self.disable_redirects = true;
         self
     }
 }
