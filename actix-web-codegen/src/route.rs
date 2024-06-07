@@ -6,10 +6,12 @@ use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{quote, ToTokens, TokenStreamExt};
 use syn::{punctuated::Punctuated, Ident, LitStr, Path, Token};
 
+use crate::input_and_compile_error;
+
 #[derive(Debug)]
 pub struct RouteArgs {
-    path: syn::LitStr,
-    options: Punctuated<syn::MetaNameValue, Token![,]>,
+    pub(crate) path: syn::LitStr,
+    pub(crate) options: Punctuated<syn::MetaNameValue, Token![,]>,
 }
 
 impl syn::parse::Parse for RouteArgs {
@@ -78,7 +80,7 @@ macro_rules! standard_method_type {
                 }
             }
 
-            fn from_path(method: &Path) -> Result<Self, ()> {
+            pub(crate) fn from_path(method: &Path) -> Result<Self, ()> {
                 match () {
                     $(_ if method.is_ident(stringify!($lower)) => Ok(Self::$variant),)+
                     _ => Err(()),
@@ -541,16 +543,4 @@ pub(crate) fn with_methods(input: TokenStream) -> TokenStream {
         // on macro related error, make IDEs happy; see fn docs
         Err(err) => input_and_compile_error(input, err),
     }
-}
-
-/// Converts the error to a token stream and appends it to the original input.
-///
-/// Returning the original input in addition to the error is good for IDEs which can gracefully
-/// recover and show more precise errors within the macro body.
-///
-/// See <https://github.com/rust-analyzer/rust-analyzer/issues/10468> for more info.
-fn input_and_compile_error(mut item: TokenStream, err: syn::Error) -> TokenStream {
-    let compile_err = TokenStream::from(err.to_compile_error());
-    item.extend(compile_err);
-    item
 }

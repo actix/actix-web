@@ -4,7 +4,7 @@ _list:
 # Format workspace.
 fmt:
     cargo +nightly fmt
-    npx -y prettier --write $(fd --type=file --hidden --extension=md --extension=yml)
+    fd --hidden --type=file --extension=md --extension=yml --exec-batch npx -y prettier --write
 
 # Downgrade dev-dependencies necessary to run MSRV checks/tests.
 [private]
@@ -31,6 +31,10 @@ all_crate_features := if os() == "linux" {
 } else {
     "--features='" + non_linux_all_features_list + "'"
 }
+
+# Run Clippy over workspace.
+clippy toolchain="":
+    cargo {{ toolchain }} clippy --workspace --all-targets {{ all_crate_features }}
 
 # Test workspace using MSRV.
 test-msrv: downgrade-for-msrv (test msrv_rustup)
