@@ -18,7 +18,7 @@ concurrency:
 jobs:
   read_msrv:
     name: Read MSRV
-    uses: actions-rust-lang/msrv/.github/workflows/msrv.yml@main
+    uses: actions-rust-lang/msrv/.github/workflows/msrv.yml@v0.1.0
 
   build_and_test:
     needs: read_msrv
