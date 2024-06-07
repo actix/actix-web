@@ -2,6 +2,43 @@
 
 ## Unreleased
 
+### Added
+
+- Implement `From<Box<dyn ResponseError>>` for `Error`.
+
+## 4.6.0
+
+### Added
+
+- Add `unicode` crate feature (on-by-default) to switch between `regex` and `regex-lite` as a trade-off between full unicode support and binary size.
+- Add `rustls-0_23` crate feature.
+- Add `HttpServer::{bind_rustls_0_23, listen_rustls_0_23}()` builder methods.
+- Add `HttpServer::tls_handshake_timeout()` builder method for `rustls-0_22` and `rustls-0_23`.
+
+### Changed
+
+- Update `brotli` dependency to `6`.
+- Minimum supported Rust version (MSRV) is now 1.72.
+
+### Fixed
+
+- Avoid type confusion with `rustls` in some circumstances.
+
+## 4.5.1
+
+### Fixed
+
+- Fix missing import when using enabling Rustls v0.22 support.
+
+## 4.5.0
+
+### Added
+
+- Add `rustls-0_22` crate feature.
+- Add `HttpServer::{bind_rustls_0_22, listen_rustls_0_22}()` builder methods.
+
+## 4.4.1
+
 ### Changed
 
 - Updated `zstd` dependency to `0.13`.

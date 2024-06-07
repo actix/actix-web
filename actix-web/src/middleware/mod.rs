@@ -33,13 +33,13 @@
 //!
 //! # fn main() {
 //! # // These aren't snake_case, because they are supposed to be unit structs.
-//! # let MiddlewareA = middleware::Compress::default();
-//! # let MiddlewareB = middleware::Compress::default();
-//! # let MiddlewareC = middleware::Compress::default();
+//! # type MiddlewareA = middleware::Compress;
+//! # type MiddlewareB = middleware::Compress;
+//! # type MiddlewareC = middleware::Compress;
 //! let app = App::new()
-//!     .wrap(MiddlewareA)
-//!     .wrap(MiddlewareB)
-//!     .wrap(MiddlewareC)
+//!     .wrap(MiddlewareA::default())
+//!     .wrap(MiddlewareB::default())
+//!     .wrap(MiddlewareC::default())
 //!     .service(service);
 //! # }
 //! ```

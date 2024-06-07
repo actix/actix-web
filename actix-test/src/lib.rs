@@ -52,7 +52,7 @@ use actix_web::{
     rt::{self, System},
     web, Error,
 };
-use awc::{error::PayloadError, Client, ClientRequest, ClientResponse, Connector};
+pub use awc::{error::PayloadError, Client, ClientRequest, ClientResponse, Connector};
 use futures_core::Stream;
 use tokio::sync::mpsc;
 
@@ -143,6 +143,10 @@ where
         StreamType::Rustls020(_) => true,
         #[cfg(feature = "rustls-0_21")]
         StreamType::Rustls021(_) => true,
+        #[cfg(feature = "rustls-0_22")]
+        StreamType::Rustls022(_) => true,
+        #[cfg(feature = "rustls-0_23")]
+        StreamType::Rustls023(_) => true,
     };
 
     // run server in separate orphaned thread
@@ -327,6 +331,90 @@ where
                             .rustls_021(config.clone())
                     }),
                 },
+                #[cfg(feature = "rustls-0_22")]
+                StreamType::Rustls022(config) => match cfg.tp {
+                    HttpVer::Http1 => builder.listen("test", tcp, move || {
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+
+                        let fac = factory()
+                            .into_factory()
+                            .map_err(|err| err.into().error_response());
+
+                        HttpService::build()
+                            .client_request_timeout(timeout)
+                            .h1(map_config(fac, move |_| app_cfg.clone()))
+                            .rustls_0_22(config.clone())
+                    }),
+                    HttpVer::Http2 => builder.listen("test", tcp, move || {
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+
+                        let fac = factory()
+                            .into_factory()
+                            .map_err(|err| err.into().error_response());
+
+                        HttpService::build()
+                            .client_request_timeout(timeout)
+                            .h2(map_config(fac, move |_| app_cfg.clone()))
+                            .rustls_0_22(config.clone())
+                    }),
+                    HttpVer::Both => builder.listen("test", tcp, move || {
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+
+                        let fac = factory()
+                            .into_factory()
+                            .map_err(|err| err.into().error_response());
+
+                        HttpService::build()
+                            .client_request_timeout(timeout)
+                            .finish(map_config(fac, move |_| app_cfg.clone()))
+                            .rustls_0_22(config.clone())
+                    }),
+                },
+                #[cfg(feature = "rustls-0_23")]
+                StreamType::Rustls023(config) => match cfg.tp {
+                    HttpVer::Http1 => builder.listen("test", tcp, move || {
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+
+                        let fac = factory()
+                            .into_factory()
+                            .map_err(|err| err.into().error_response());
+
+                        HttpService::build()
+                            .client_request_timeout(timeout)
+                            .h1(map_config(fac, move |_| app_cfg.clone()))
+                            .rustls_0_23(config.clone())
+                    }),
+                    HttpVer::Http2 => builder.listen("test", tcp, move || {
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+
+                        let fac = factory()
+                            .into_factory()
+                            .map_err(|err| err.into().error_response());
+
+                        HttpService::build()
+                            .client_request_timeout(timeout)
+                            .h2(map_config(fac, move |_| app_cfg.clone()))
+                            .rustls_0_23(config.clone())
+                    }),
+                    HttpVer::Both => builder.listen("test", tcp, move || {
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+
+                        let fac = factory()
+                            .into_factory()
+                            .map_err(|err| err.into().error_response());
+
+                        HttpService::build()
+                            .client_request_timeout(timeout)
+                            .finish(map_config(fac, move |_| app_cfg.clone()))
+                            .rustls_0_23(config.clone())
+                    }),
+                },
             }
             .expect("test server could not be created");
 
@@ -401,6 +489,10 @@ enum StreamType {
     Rustls020(tls_rustls_0_20::ServerConfig),
     #[cfg(feature = "rustls-0_21")]
     Rustls021(tls_rustls_0_21::ServerConfig),
+    #[cfg(feature = "rustls-0_22")]
+    Rustls022(tls_rustls_0_22::ServerConfig),
+    #[cfg(feature = "rustls-0_23")]
+    Rustls023(tls_rustls_0_23::ServerConfig),
 }
 
 /// Create default test server config.
@@ -424,7 +516,7 @@ impl Default for TestServerConfig {
 }
 
 impl TestServerConfig {
-    /// Create default server configuration
+    /// Constructs default server configuration.
     pub(crate) fn new() -> TestServerConfig {
         TestServerConfig {
             tp: HttpVer::Both,
@@ -435,40 +527,70 @@ impl TestServerConfig {
         }
     }
 
-    /// Accept HTTP/1.1 only.
+    /// Accepts HTTP/1.1 only.
     pub fn h1(mut self) -> Self {
         self.tp = HttpVer::Http1;
         self
     }
 
-    /// Accept HTTP/2 only.
+    /// Accepts HTTP/2 only.
     pub fn h2(mut self) -> Self {
         self.tp = HttpVer::Http2;
         self
     }
 
-    /// Accept secure connections via OpenSSL.
+    /// Accepts secure connections via OpenSSL.
     #[cfg(feature = "openssl")]
     pub fn openssl(mut self, acceptor: openssl::ssl::SslAcceptor) -> Self {
         self.stream = StreamType::Openssl(acceptor);
         self
     }
 
-    /// Accept secure connections via Rustls.
+    #[doc(hidden)]
+    #[deprecated(note = "Renamed to `rustls_0_20()`.")]
     #[cfg(feature = "rustls-0_20")]
     pub fn rustls(mut self, config: tls_rustls_0_20::ServerConfig) -> Self {
         self.stream = StreamType::Rustls020(config);
         self
     }
 
-    /// Accept secure connections via Rustls.
+    /// Accepts secure connections via Rustls v0.20.
+    #[cfg(feature = "rustls-0_20")]
+    pub fn rustls_0_20(mut self, config: tls_rustls_0_20::ServerConfig) -> Self {
+        self.stream = StreamType::Rustls020(config);
+        self
+    }
+
+    #[doc(hidden)]
+    #[deprecated(note = "Renamed to `rustls_0_21()`.")]
     #[cfg(feature = "rustls-0_21")]
     pub fn rustls_021(mut self, config: tls_rustls_0_21::ServerConfig) -> Self {
         self.stream = StreamType::Rustls021(config);
         self
     }
 
-    /// Set client timeout for first request.
+    /// Accepts secure connections via Rustls v0.21.
+    #[cfg(feature = "rustls-0_21")]
+    pub fn rustls_0_21(mut self, config: tls_rustls_0_21::ServerConfig) -> Self {
+        self.stream = StreamType::Rustls021(config);
+        self
+    }
+
+    /// Accepts secure connections via Rustls v0.22.
+    #[cfg(feature = "rustls-0_22")]
+    pub fn rustls_0_22(mut self, config: tls_rustls_0_22::ServerConfig) -> Self {
+        self.stream = StreamType::Rustls022(config);
+        self
+    }
+
+    /// Accepts secure connections via Rustls v0.23.
+    #[cfg(feature = "rustls-0_23")]
+    pub fn rustls_0_23(mut self, config: tls_rustls_0_23::ServerConfig) -> Self {
+        self.stream = StreamType::Rustls023(config);
+        self
+    }
+
+    /// Sets client timeout for first request.
     pub fn client_request_timeout(mut self, dur: Duration) -> Self {
         self.client_request_timeout = dur;
         self

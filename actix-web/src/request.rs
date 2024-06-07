@@ -523,7 +523,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        dev::{ResourceDef, ResourceMap, Service},
+        dev::{ResourceDef, Service},
         http::{header, StatusCode},
         test::{self, call_service, init_service, read_body, TestRequest},
         web, App, HttpResponse,

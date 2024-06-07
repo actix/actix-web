@@ -817,10 +817,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use actix_web::{
-        http::{header, Method},
-        test::TestRequest,
-    };
+    use actix_web::test::TestRequest;
 
     use super::*;
 

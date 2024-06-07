@@ -188,15 +188,11 @@ impl_into_string_responder!(Cow<'_, str>);
 pub(crate) mod tests {
     use actix_http::body::to_bytes;
     use actix_service::Service;
-    use bytes::{Bytes, BytesMut};
 
     use super::*;
     use crate::{
         error,
-        http::{
-            header::{HeaderValue, CONTENT_TYPE},
-            StatusCode,
-        },
+        http::header::{HeaderValue, CONTENT_TYPE},
         test::{assert_body_eq, init_service, TestRequest},
         web, App,
     };
