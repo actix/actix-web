@@ -21,6 +21,7 @@ fn compile_macros() {
     t.compile_fail("tests/trybuild/scope-on-handler.rs");
     t.compile_fail("tests/trybuild/scope-missing-args.rs");
     t.compile_fail("tests/trybuild/scope-invalid-args.rs");
+    t.compile_fail("tests/trybuild/scope-trailing-slash.rs");
 
     t.pass("tests/trybuild/docstring-ok.rs");
 
