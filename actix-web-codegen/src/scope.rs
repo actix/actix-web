@@ -1,7 +1,6 @@
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
-use quote::quote;
-use syn::LitStr;
+use quote::{quote, ToTokens as _};
 
 use crate::{
     input_and_compile_error,
@@ -17,7 +16,6 @@ pub fn with_scope(args: TokenStream, input: TokenStream) -> TokenStream {
 
 fn with_scope_inner(args: TokenStream, input: TokenStream) -> syn::Result<TokenStream> {
     if args.is_empty() {
-        // macro args are missing
         return Err(syn::Error::new(
             Span::call_site(),
             "missing arguments for scope macro, \
@@ -25,8 +23,7 @@ fn with_scope_inner(args: TokenStream, input: TokenStream) -> syn::Result<TokenS
         ));
     }
 
-    let scope_prefix = syn::parse::<LitStr>(args.clone()).map_err(|err| {
-        // first macro arg is not a string literal
+    let scope_prefix = syn::parse::<syn::LitStr>(args.clone()).map_err(|err| {
         syn::Error::new(
             err.span(),
             "argument to scope macro is not a string literal, \
@@ -40,7 +37,7 @@ fn with_scope_inner(args: TokenStream, input: TokenStream) -> syn::Result<TokenS
 
     // modify any routing macros (method or route[s]) attached to
     // functions by prefixing them with this scope macro's argument
-    if let Some((_, ref mut items)) = module.content {
+    if let Some((_, items)) = &mut module.content {
         for item in items {
             if let syn::Item::Fn(fun) = item {
                 fun.attrs = fun
@@ -52,7 +49,7 @@ fn with_scope_inner(args: TokenStream, input: TokenStream) -> syn::Result<TokenS
         }
     }
 
-    Ok(TokenStream::from(quote! { #module }))
+    Ok(module.to_token_stream().into())
 }
 
 // Check if the attribute is a method type and has a route path, then modify it

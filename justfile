@@ -32,6 +32,10 @@ all_crate_features := if os() == "linux" {
     "--features='" + non_linux_all_features_list + "'"
 }
 
+# Run Clippy over workspace.
+clippy toolchain="":
+    cargo {{ toolchain }} clippy --workspace --all-targets {{ all_crate_features }}
+
 # Test workspace using MSRV.
 test-msrv: downgrade-for-msrv (test msrv_rustup)
 

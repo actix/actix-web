@@ -9,6 +9,7 @@ pub fn image_guard(ctx: &GuardContext) -> bool {
 
 #[scope("/test")]
 mod scope_module {
+    // ensure that imports can be brought into the scope
     use super::*;
 
     #[get("/test/guard", guard = "image_guard")]

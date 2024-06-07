@@ -198,28 +198,37 @@ method_macro!(Options, options);
 method_macro!(Trace, trace);
 method_macro!(Patch, patch);
 
-/// Creates scope.
+/// Prepends a path prefix to all handlers using routing macros inside the attached module.
 ///
-/// Syntax: `#[scope("/path")]`
+/// # Syntax
 ///
-/// ## Attributes:
+/// ```
+/// # use actix_web_codegen::scope;
+/// #[scope("/prefix")]
+/// mod api {
+///     // ...
+/// }
+/// ```
 ///
-/// - `"/prefix"` - Raw literal string with path for which to register handler. Mandatory.
+/// # Arguments
+///
+/// - `"/prefix"` - Raw literal string to be prefixed onto contained handlers' paths.
 ///
 /// # Example
 ///
 /// ```
-/// # use actix_web_codegen::scope;
-/// #[scope("/test")]
-/// mod scope_module {
-///     # use actix_web_codegen::get;
-///     # use actix_web::{HttpResponse, Responder};
-///     #[get("/test")]
-///     pub async fn test() -> impl Responder {
-///         // this has path /test/test
-///         HttpResponse::Ok().finish()
+/// # use actix_web_codegen::{scope, get};
+/// # use actix_web::Responder;
+/// #[scope("/api")]
+/// mod api {
+///     # use super::*;
+///     #[get("/hello")]
+///     pub async fn hello() -> impl Responder {
+///         // this has path /api/hello
+///         "Hello, world!"
 ///     }
 /// }
+/// # fn main() {}
 /// ```
 #[proc_macro_attribute]
 pub fn scope(args: TokenStream, input: TokenStream) -> TokenStream {
