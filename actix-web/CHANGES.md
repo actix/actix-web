@@ -5,6 +5,7 @@
 ### Added
 
 - Implement `From<Box<dyn ResponseError>>` for `Error`.
+- Add `CustomizeResponder::add_cookie()` method.
 
 ## 4.6.0
 
@@ -43,7 +44,6 @@
 
 - Updated `zstd` dependency to `0.13`.
 - Compression middleware now prefers brotli over zstd over gzip.
-- Added .customize().add_cookie() for `CustomizeResponder`
 
 ### Fixed
 

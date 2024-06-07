@@ -5,15 +5,9 @@ use actix_http::{
     StatusCode,
 };
 
-#[cfg(feature = "cookies")]
-use {
-    actix_http::header::{self, HeaderValue},
-    cookie::Cookie,
-};
-
 use crate::{HttpRequest, HttpResponse, Responder};
 
-/// Allows overriding status code and headers (cookies) for a [`Responder`].
+/// Allows overriding status code and headers (including cookies) for a [`Responder`].
 ///
 /// Created by calling the [`customize`](Responder::customize) method on a [`Responder`] type.
 pub struct CustomizeResponder<R> {
@@ -144,19 +138,27 @@ impl<R: Responder> CustomizeResponder<R> {
         }
     }
 
-    /// Append a cookie to the final response.
+    /// Appends a `cookie` to the final response.
     ///
     /// # Errors
-    /// Returns an error if the cookie results in a malformed `Set-Cookie` header.
+    ///
+    /// Final response will be an error if `cookie` cannot be converted into a valid header value.
     #[cfg(feature = "cookies")]
-    pub fn add_cookie(mut self, cookie: &Cookie<'_>) -> Result<Self, HttpError> {
+    pub fn add_cookie(mut self, cookie: &crate::cookie::Cookie<'_>) -> Self {
+        use actix_http::header::{TryIntoHeaderValue as _, SET_COOKIE};
+
         if let Some(inner) = self.inner() {
-            HeaderValue::from_str(&cookie.to_string())
-                .map(|cookie| inner.append_headers.append(header::SET_COOKIE, cookie))
-                .map_err(Into::<HttpError>::into)?
+            match cookie.to_string().try_into_value() {
+                Ok(val) => {
+                    inner.append_headers.append(SET_COOKIE, val);
+                }
+                Err(err) => {
+                    self.error = Some(err.into());
+                }
+            }
         }
 
-        Ok(self)
+        self
     }
 }
 
@@ -197,10 +199,7 @@ mod tests {
     use super::*;
     use crate::{
         cookie::Cookie,
-        http::{
-            header::{HeaderValue, CONTENT_TYPE},
-            StatusCode,
-        },
+        http::header::{HeaderValue, CONTENT_TYPE},
         test::TestRequest,
     };
 
@@ -239,13 +238,12 @@ mod tests {
             .to_string()
             .customize()
             .add_cookie(&Cookie::new("name", "value"))
-            .unwrap()
             .respond_to(&req);
 
-        assert_eq!(res.status(), StatusCode::OK);
+        assert!(res.status().is_success());
         assert_eq!(
             res.cookies().collect::<Vec<Cookie<'_>>>(),
-            vec![Cookie::new("name", "value")]
+            vec![Cookie::new("name", "value")],
         );
         assert_eq!(
             to_bytes(res.into_body()).await.unwrap(),
