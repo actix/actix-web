@@ -79,10 +79,10 @@ jobs:
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1.8.0
         with:
-          toolchain: nightly-2024-04-26
+          toolchain: nightly-2024-06-07
 
       - name: Install cargo-public-api
-        uses: taiki-e/install-action@v2.33.22
+        uses: taiki-e/install-action@v2.34.0
         with:
           tool: cargo-public-api
 
