@@ -1080,7 +1080,7 @@ mod resolver {
 
         // resolver struct is cached in thread local so new clients can reuse the existing instance
         thread_local! {
-            static TRUST_DNS_RESOLVER: RefCell<Option<Resolver>> = RefCell::new(None);
+            static TRUST_DNS_RESOLVER: RefCell<Option<Resolver>> = const { RefCell::new(None) };
         }
 
         // get from thread local or construct a new trust-dns resolver.

@@ -4,7 +4,7 @@ _list:
 # Format workspace.
 fmt:
     cargo +nightly fmt
-    npx -y prettier --write $(fd --type=file --hidden --extension=md --extension=yml)
+    fd --hidden --type=file --extension=md --extension=yml --exec-batch npx -y prettier --write
 
 # Downgrade dev-dependencies necessary to run MSRV checks/tests.
 [private]

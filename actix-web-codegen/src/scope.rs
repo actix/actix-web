@@ -31,7 +31,7 @@ fn with_scope_inner(args: TokenStream, input: TokenStream) -> syn::Result<TokenS
 
     let scope_prefix_value = scope_prefix.value();
 
-    if scope_prefix_value.ends_with("/") {
+    if scope_prefix_value.ends_with('/') {
         // trailing slashes cause non-obvious problems
         // it's better to point them out to developers rather than
 
