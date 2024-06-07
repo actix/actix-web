@@ -488,6 +488,7 @@ enum HttpVer {
     Both,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone)]
 enum StreamType {
     Tcp,
