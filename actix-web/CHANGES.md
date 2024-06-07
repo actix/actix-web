@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- Implement `From<Box<dyn ResponseError>>` for `Error`.
+
 ## 4.6.0
 
 ### Added
