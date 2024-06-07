@@ -2,8 +2,6 @@
 
 ## Unreleased
 
-- Remove redundant 4 byte reservation in webscoket encoder
-
 ## 3.7.0
 
 ### Added
