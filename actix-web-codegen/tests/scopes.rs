@@ -61,18 +61,18 @@ mod scope_module {
 /// Scope doc string to check in cargo expand.
 #[scope("/v1")]
 mod mod_scope_v1 {
-    use actix_web::{get, Responder};
+    use super::*;
 
     /// Route doc string to check in cargo expand.
     #[get("/test")]
     pub async fn test() -> impl Responder {
-        super::scope_module::mod_common("version1 works".to_string())
+        scope_module::mod_common("version1 works".to_string())
     }
 }
 
 #[scope("/v2")]
 mod mod_scope_v2 {
-    use actix_web::{get, Responder};
+    use super::*;
 
     // check to make sure non-function tokens in the scope block are preserved...
     enum TestEnum {
@@ -85,7 +85,7 @@ mod mod_scope_v2 {
         let test_enum = TestEnum::Works;
 
         match test_enum {
-            TestEnum::Works => super::scope_module::mod_common("version2 works".to_string()),
+            TestEnum::Works => scope_module::mod_common("version2 works".to_string()),
         }
     }
 }

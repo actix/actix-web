@@ -83,6 +83,7 @@ use proc_macro::TokenStream;
 use quote::quote;
 
 mod route;
+mod scope;
 
 /// Creates resource handler, allowing multiple HTTP method guards.
 ///
@@ -197,6 +198,33 @@ method_macro!(Options, options);
 method_macro!(Trace, trace);
 method_macro!(Patch, patch);
 
+/// Creates scope.
+///
+/// Syntax: `#[scope("/path")]`
+///
+/// ## Attributes:
+///
+/// - `"path"` - Raw literal string with path for which to register handler. Mandatory.
+///
+/// # Example
+///
+/// ```
+/// # use actix_web_codegen::scope;
+/// # use actix_web::{get, HttpResponse, Responder};
+/// #[scope("/test")]
+/// mod scope_module {
+///     #[get("/test")]
+///     pub async fn test() -> impl Responder {
+///         // this has path /test/test
+///         HttpResponse::Ok().finish()
+///     }
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn scope(args: TokenStream, input: TokenStream) -> TokenStream {
+    scope::with_scope(args, input)
+}
+
 /// Marks async main function as the Actix Web system entry-point.
 ///
 /// Note that Actix Web also works under `#[tokio::main]` since version 4.0. However, this macro is
@@ -241,30 +269,14 @@ pub fn test(_: TokenStream, item: TokenStream) -> TokenStream {
     output
 }
 
-/// Generates scope
+/// Converts the error to a token stream and appends it to the original input.
 ///
-/// Syntax: `#[scope("path")]`
+/// Returning the original input in addition to the error is good for IDEs which can gracefully
+/// recover and show more precise errors within the macro body.
 ///
-/// ## Attributes:
-///
-/// - `"path"` - Raw literal string with path for which to register handler. Mandatory.
-///
-/// # Example
-///
-/// ```rust
-/// use actix_web_codegen::{scope};
-/// #[scope("/test")]
-/// mod scope_module {
-///     use actix_web::{get, HttpResponse, Responder};
-///     #[get("/test")]
-///     pub async fn test() -> impl Responder {
-///         // this has path /test/test
-///         HttpResponse::Ok().finish()
-///     }
-/// }
-/// ```
-///
-#[proc_macro_attribute]
-pub fn scope(args: TokenStream, input: TokenStream) -> TokenStream {
-    route::with_scope(args, input)
+/// See <https://github.com/rust-analyzer/rust-analyzer/issues/10468> for more info.
+fn input_and_compile_error(mut item: TokenStream, err: syn::Error) -> TokenStream {
+    let compile_err = TokenStream::from(err.to_compile_error());
+    item.extend(compile_err);
+    item
 }

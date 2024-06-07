@@ -6,10 +6,12 @@ use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{quote, ToTokens, TokenStreamExt};
 use syn::{punctuated::Punctuated, Ident, LitStr, Path, Token};
 
+use crate::input_and_compile_error;
+
 #[derive(Debug)]
 pub struct RouteArgs {
-    path: syn::LitStr,
-    options: Punctuated<syn::MetaNameValue, Token![,]>,
+    pub(crate) path: syn::LitStr,
+    pub(crate) options: Punctuated<syn::MetaNameValue, Token![,]>,
 }
 
 impl syn::parse::Parse for RouteArgs {
@@ -78,7 +80,7 @@ macro_rules! standard_method_type {
                 }
             }
 
-            fn from_path(method: &Path) -> Result<Self, ()> {
+            pub(crate) fn from_path(method: &Path) -> Result<Self, ()> {
                 match () {
                     $(_ if method.is_ident(stringify!($lower)) => Ok(Self::$variant),)+
                     _ => Err(()),
@@ -540,107 +542,5 @@ pub(crate) fn with_methods(input: TokenStream) -> TokenStream {
         Ok(route) => route.into_token_stream().into(),
         // on macro related error, make IDEs happy; see fn docs
         Err(err) => input_and_compile_error(input, err),
-    }
-}
-
-/// Converts the error to a token stream and appends it to the original input.
-///
-/// Returning the original input in addition to the error is good for IDEs which can gracefully
-/// recover and show more precise errors within the macro body.
-///
-/// See <https://github.com/rust-analyzer/rust-analyzer/issues/10468> for more info.
-fn input_and_compile_error(mut item: TokenStream, err: syn::Error) -> TokenStream {
-    let compile_err = TokenStream::from(err.to_compile_error());
-    item.extend(compile_err);
-    item
-}
-
-pub fn with_scope(args: TokenStream, input: TokenStream) -> TokenStream {
-    // Attempt to parse the scope path, returning on error
-    if args.is_empty() {
-        return input_and_compile_error(
-            args.clone(),
-            syn::Error::new(
-                Span::call_site(),
-                "Missing arguments for scope macro, expected: #[scope(\"some path\")]",
-            ),
-        );
-    }
-    let scope_path = syn::parse::<LitStr>(args.clone());
-    if let Err(_err) = scope_path {
-        return input_and_compile_error(
-            args.clone(),
-            syn::Error::new(
-                Span::call_site(),
-                "Missing arguments for scope macro, expected: #[scope(\"some path\")]",
-            ),
-        );
-    }
-
-    // Expect macro to be for a module
-    match syn::parse::<syn::ItemMod>(input) {
-        Ok(mut ast) => {
-            // Modify the attributes of functions with method or route(s) by adding scope argument as prefix, if any
-            if let Some((_, ref mut items)) = ast.content {
-                items.iter_mut().for_each(|item| {
-                    if let syn::Item::Fn(fun) = item {
-                        fun.attrs = fun
-                            .attrs
-                            .iter()
-                            .map(|attr| {
-                                modify_attribute_with_scope(
-                                    attr,
-                                    &scope_path.clone().unwrap().value(),
-                                )
-                            })
-                            .collect();
-                    }
-                })
-            }
-            TokenStream::from(quote! { #ast })
-        }
-        Err(err) => {
-            input_and_compile_error(args, syn::Error::new(Span::call_site(), err.to_string()))
-        }
-    }
-}
-
-fn has_allowed_methods_in_scope(attr: &syn::Attribute) -> bool {
-    MethodType::from_path(attr.path()).is_ok()
-        || attr.path().is_ident("route")
-        || attr.path().is_ident("ROUTE")
-}
-
-// Check if the attribute is a method type and has a route path, then modify it
-fn modify_attribute_with_scope(attr: &syn::Attribute, scope_path: &str) -> syn::Attribute {
-    match (attr.parse_args::<RouteArgs>(), attr.clone().meta) {
-        (Ok(route_args), syn::Meta::List(meta_list)) if has_allowed_methods_in_scope(attr) => {
-            let modified_path = format!("{}{}", scope_path, route_args.path.value());
-
-            let options_tokens: Vec<TokenStream2> = route_args
-                .options
-                .iter()
-                .map(|option| {
-                    quote! { ,#option }
-                })
-                .collect();
-
-            let combined_options_tokens: TokenStream2 =
-                options_tokens
-                    .into_iter()
-                    .fold(TokenStream2::new(), |mut acc, ts| {
-                        acc.extend(std::iter::once(ts));
-                        acc
-                    });
-
-            syn::Attribute {
-                meta: syn::Meta::List(syn::MetaList {
-                    tokens: quote! { #modified_path #combined_options_tokens },
-                    ..meta_list.clone()
-                }),
-                ..attr.clone()
-            }
-        }
-        _ => attr.clone(),
     }
 }
