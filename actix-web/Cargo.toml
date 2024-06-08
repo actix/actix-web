@@ -40,7 +40,16 @@ name = "actix_web"
 path = "src/lib.rs"
 
 [features]
-default = ["macros", "compress-brotli", "compress-gzip", "compress-zstd", "cookies", "http2", "unicode"]
+default = [
+    "macros",
+    "compress-brotli",
+    "compress-gzip",
+    "compress-zstd",
+    "cookies",
+    "http2",
+    "unicode",
+    "compat",
+]
 
 # Brotli algorithm content-encoding support
 compress-brotli = ["actix-http/compress-brotli", "__compress"]
@@ -50,14 +59,15 @@ compress-gzip = ["actix-http/compress-gzip", "__compress"]
 compress-zstd = ["actix-http/compress-zstd", "__compress"]
 
 # Routing and runtime proc macros
-macros = ["actix-macros", "actix-web-codegen"]
+macros = ["dep:actix-macros", "dep:actix-web-codegen"]
 
 # Cookies support
-cookies = ["cookie"]
+cookies = ["dep:cookie"]
 
 # Secure & signed cookies
 secure-cookies = ["cookies", "cookie/secure"]
 
+# HTTP/2 support (including h2c).
 http2 = ["actix-http/http2"]
 
 # TLS via OpenSSL
@@ -84,6 +94,14 @@ __compress = []
 # io-uring feature only available for Linux OSes.
 experimental-io-uring = ["actix-server/io-uring"]
 
+# Feature group which, when disabled, helps migrate code to v5.0.
+compat = [
+    "compat-routing-macros-force-pub",
+]
+
+# Opt-out forwards-compatibility for handler visibility inheritance fix.
+compat-routing-macros-force-pub = ["actix-web-codegen?/compat-routing-macros-force-pub"]
+
 [dependencies]
 actix-codec = "0.5"
 actix-macros = { version = "0.2.3", optional = true }
@@ -95,7 +113,7 @@ actix-tls = { version = "3.4", default-features = false, optional = true }
 
 actix-http = { version = "3.7", features = ["ws"] }
 actix-router = { version = "0.5.3", default-features = false, features = ["http"] }
-actix-web-codegen = { version = "4.2", optional = true }
+actix-web-codegen = { version = "4.2", optional = true, default-features = false }
 
 ahash = "0.8"
 bytes = "1"

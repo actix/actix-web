@@ -64,7 +64,7 @@ compress-gzip = ["actix-http/compress-gzip", "__compress"]
 compress-zstd = ["actix-http/compress-zstd", "__compress"]
 
 # Cookie parsing and cookie jar
-cookies = ["cookie"]
+cookies = ["dep:cookie"]
 
 # Use `trust-dns-resolver` crate as DNS resolver
 trust-dns = ["trust-dns-resolver"]

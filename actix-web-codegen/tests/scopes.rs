@@ -49,7 +49,7 @@ mod scope_module {
     #[connect("/test2")]
     #[options("/test3")]
     #[trace("/test4")]
-    async fn multiple_separate_paths() -> impl Responder {
+    pub async fn multiple_separate_paths() -> impl Responder {
         HttpResponse::Ok().finish()
     }
 

@@ -413,6 +413,13 @@ impl ToTokens for Route {
             doc_attributes,
         } = self;
 
+        #[allow(unused_variables)] // used when force-pub feature is disabled
+        let vis = &ast.vis;
+
+        // TODO(breaking): remove this force-pub forwards-compatibility feature
+        #[cfg(feature = "compat-routing-macros-force-pub")]
+        let vis = syn::Visibility::Public(<Token![pub]>::default());
+
         let registrations: TokenStream2 = args
             .iter()
             .map(|args| {
@@ -460,7 +467,7 @@ impl ToTokens for Route {
         let stream = quote! {
             #(#doc_attributes)*
             #[allow(non_camel_case_types, missing_docs)]
-            pub struct #name;
+            #vis struct #name;
 
             impl ::actix_web::dev::HttpServiceFactory for #name {
                 fn register(self, __config: &mut actix_web::dev::AppService) {
