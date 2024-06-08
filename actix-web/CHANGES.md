@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 4.7.0
+
 ### Added
 
 - Add `middleware::Identity` type.
