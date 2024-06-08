@@ -141,7 +141,7 @@ mod tests {
             header::{HeaderValue, CONTENT_TYPE},
             StatusCode,
         },
-        middleware::{self, ErrorHandlerResponse, ErrorHandlers},
+        middleware::{self, ErrorHandlerResponse, ErrorHandlers, Identity},
         test::{self, TestRequest},
         web::Bytes,
         HttpResponse,
@@ -158,7 +158,7 @@ mod tests {
 
     #[test]
     fn compat_with_builtin_middleware() {
-        let _ = Condition::new(true, middleware::Compat::noop());
+        let _ = Condition::new(true, middleware::Compat::new(Identity));
         let _ = Condition::new(true, middleware::Logger::default());
         let _ = Condition::new(true, middleware::Compress::default());
         let _ = Condition::new(true, middleware::NormalizePath::trim());
