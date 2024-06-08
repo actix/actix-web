@@ -218,30 +218,26 @@
 //! [lab_from_fn]: https://docs.rs/actix-web-lab/latest/actix_web_lab/middleware/fn.from_fn.html
 
 mod compat;
+#[cfg(feature = "__compress")]
+mod compress;
 mod condition;
 mod default_headers;
 mod err_handlers;
+mod identity;
 mod logger;
-#[cfg(test)]
-mod noop;
 mod normalize;
 
-#[cfg(test)]
-pub(crate) use self::noop::Noop;
+#[cfg(feature = "__compress")]
+pub use self::compress::Compress;
 pub use self::{
     compat::Compat,
     condition::Condition,
     default_headers::DefaultHeaders,
     err_handlers::{ErrorHandlerResponse, ErrorHandlers},
+    identity::Identity,
     logger::Logger,
     normalize::{NormalizePath, TrailingSlash},
 };
-
-#[cfg(feature = "__compress")]
-mod compress;
-
-#[cfg(feature = "__compress")]
-pub use self::compress::Compress;
 
 #[cfg(test)]
 mod tests {

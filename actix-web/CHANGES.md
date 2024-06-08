@@ -4,6 +4,7 @@
 
 ### Added
 
+- Add `middleware::Identity` type.
 - Add `CustomizeResponder::add_cookie()` method.
 - Add `guard::GuardContext::app_data()` method.
 - Implement `From<Box<dyn ResponseError>>` for `Error`.
