@@ -6,6 +6,8 @@
 
 - Add `CustomizeResponder::add_cookie()` method.
 - Add `guard::GuardContext::app_data()` method.
+- Add `compat-routing-macros-force-pub` crate feature which (on-by-default) which, when disabled, causes handlers to inherit their attached function's visibility.
+- Add `compat` crate feature group (on-by-default) which, when disabled, helps with transitioning to some planned v5.0 breaking changes, starting only with `compat-routing-macros-force-pub`.
 - Implement `From<Box<dyn ResponseError>>` for `Error`.
 
 ## 4.6.0
