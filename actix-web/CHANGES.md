@@ -6,6 +6,7 @@
 
 ### Added
 
+- Add `#[scope]` macro.
 - Add `middleware::Identity` type.
 - Add `CustomizeResponder::add_cookie()` method.
 - Add `guard::GuardContext::app_data()` method.
