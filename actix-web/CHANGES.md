@@ -4,6 +4,7 @@
 
 ### Added
 
+- Add `middleware::Identity` type.
 - Add `CustomizeResponder::add_cookie()` method.
 - Add `guard::GuardContext::app_data()` method.
 - Add `compat-routing-macros-force-pub` crate feature which (on-by-default) which, when disabled, causes handlers to inherit their attached function's visibility.
