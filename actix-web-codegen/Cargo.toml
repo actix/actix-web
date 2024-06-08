@@ -1,6 +1,6 @@
 [package]
 name = "actix-web-codegen"
-version = "4.2.2"
+version = "4.3.0"
 description = "Routing and runtime macros for Actix Web"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
