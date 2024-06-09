@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- `ConnectionInfo::realip_remote_addr()` now handles IPv6 addresses from `Forwarded` header correctly. Previously, it sometimes returned the forwarded port as well.
+
 ## 4.7.0
 
 ### Added
