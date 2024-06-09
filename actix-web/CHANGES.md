@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- `ConnectionInfo::realip_remote_addr()` now handles IPv6 addresses from `Forwarded` header correctly. Previously, it sometimes returned the forwarded port as well.
+
 ## 4.7.0
 
 ### Added
@@ -27,7 +31,6 @@
 
 - Update `brotli` dependency to `6`.
 - Minimum supported Rust version (MSRV) is now 1.72.
-- `ConnectionInfo.realip_remote_addr()` now returns just IP addresses from `Forwarded` header.
 
 ### Fixed
 
