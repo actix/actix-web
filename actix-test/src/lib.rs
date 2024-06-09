@@ -533,7 +533,7 @@ impl TestServerConfig {
             tp: HttpVer::Both,
             stream: StreamType::Tcp,
             client_request_timeout: Duration::from_secs(5),
-            listen_address: "localhost".to_string(),
+            listen_address: "127.0.0.1".to_string(),
             port: 0,
             workers: 1,
             disable_redirects: false,
@@ -611,7 +611,7 @@ impl TestServerConfig {
 
     /// Sets the address the server will listen on.
     ///
-    /// By default, only listens on `localhost`.
+    /// By default, only listens on `127.0.0.1`.
     pub fn listen_address(mut self, addr: impl Into<String>) -> Self {
         self.listen_address = addr.into();
         self
