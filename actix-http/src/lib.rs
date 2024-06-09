@@ -31,7 +31,7 @@
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
-pub use http::{uri, uri::Uri, Method, StatusCode, Version, status::InvalidStatusCode};
+pub use http::{uri, uri::Uri, Method, StatusCode, Version};
 
 pub mod body;
 mod builder;
