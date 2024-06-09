@@ -710,7 +710,7 @@ where
         }
 
         if !this.buf.is_empty() {
-            Poll::Ready(Some(Ok(this.buf.split().freeze())))
+            Poll::Ready(Some(Ok(std::mem::take(&mut this.buf).freeze())))
         } else if this.fut.alive() && !this.closed {
             Poll::Pending
         } else {
