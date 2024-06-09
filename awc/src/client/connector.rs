@@ -57,6 +57,10 @@ enum OurTlsConnector {
     ))]
     #[allow(dead_code)] // false positive; used in build_tls
     Rustls022(std::sync::Arc<actix_tls::connect::rustls_0_22::reexports::ClientConfig>),
+
+    #[cfg(feature = "rustls-0_23")]
+    #[allow(dead_code)] // false positive; used in build_tls
+    Rustls023(std::sync::Arc<actix_tls::connect::rustls_0_23::reexports::ClientConfig>),
 }
 
 /// Manages HTTP client network connectivity.
@@ -80,6 +84,14 @@ pub struct Connector<T> {
 }
 
 impl Connector<()> {
+    /// Create a new connector with default TLS settings
+    ///
+    /// # Panics
+    ///
+    /// - When the `rustls-0_23-webpki-roots` or `rustls-0_23-native-roots` features are enabled
+    ///     and no default crypto provider has been loaded, this method will panic.
+    /// - When the `rustls-0_23-native-roots` or `rustls-0_22-native-roots` features are enabled
+    ///     and the runtime system has no native root certificates, this method will panic.
     #[allow(clippy::new_ret_no_self, clippy::let_unit_value)]
     pub fn new() -> Connector<
         impl Service<
@@ -96,10 +108,31 @@ impl Connector<()> {
     }
 
     cfg_if::cfg_if! {
-        if #[cfg(any(feature = "rustls-0_22-webpki-roots", feature = "rustls-0_22-webpki-roots"))] {
-            /// Build TLS connector with Rustls v0.22, based on supplied ALPN protocols.
+        if #[cfg(any(feature = "rustls-0_23-webpki-roots", feature = "rustls-0_23-native-roots"))] {
+            /// Build TLS connector with Rustls v0.23, based on supplied ALPN protocols.
             ///
-            /// Note that if other TLS crate features are enabled, Rustls v0.22 will be used.
+            /// Note that if other TLS crate features are enabled, Rustls v0.23 will be used.
+            fn build_tls(protocols: Vec<Vec<u8>>) -> OurTlsConnector {
+                use actix_tls::connect::rustls_0_23::{self, reexports::ClientConfig};
+
+                cfg_if::cfg_if! {
+                    if #[cfg(feature = "rustls-0_23-webpki-roots")] {
+                        let certs = rustls_0_23::webpki_roots_cert_store();
+                    } else if #[cfg(feature = "rustls-0_23-native-roots")] {
+                        let certs = rustls_0_23::native_roots_cert_store().expect("Failed to find native root certificates");
+                    }
+                }
+
+                let mut config = ClientConfig::builder()
+                    .with_root_certificates(certs)
+                    .with_no_client_auth();
+
+                config.alpn_protocols = protocols;
+
+                OurTlsConnector::Rustls023(std::sync::Arc::new(config))
+            }
+        } else if #[cfg(any(feature = "rustls-0_22-webpki-roots", feature = "rustls-0_22-native-roots"))] {
+            /// Build TLS connector with Rustls v0.22, based on supplied ALPN protocols.
             fn build_tls(protocols: Vec<Vec<u8>>) -> OurTlsConnector {
                 use actix_tls::connect::rustls_0_22::{self, reexports::ClientConfig};
 
@@ -107,7 +140,7 @@ impl Connector<()> {
                     if #[cfg(feature = "rustls-0_22-webpki-roots")] {
                         let certs = rustls_0_22::webpki_roots_cert_store();
                     } else if #[cfg(feature = "rustls-0_22-native-roots")] {
-                        let certs = rustls_0_22::native_roots_cert_store();
+                        let certs = rustls_0_22::native_roots_cert_store().expect("Failed to find native root certificates");
                     }
                 }
 
@@ -167,7 +200,8 @@ impl Connector<()> {
                 OurTlsConnector::OpensslBuilder(ssl)
             }
         } else {
-            /// Provides an empty TLS connector when no TLS feature is enabled.
+            /// Provides an empty TLS connector when no TLS feature is enabled, or when only the
+            /// `rustls-0_23` crate feature is enabled.
             fn build_tls(_: Vec<Vec<u8>>) -> OurTlsConnector {
                 OurTlsConnector::None
             }
@@ -275,6 +309,24 @@ where
         connector: std::sync::Arc<actix_tls::connect::rustls_0_22::reexports::ClientConfig>,
     ) -> Self {
         self.tls = OurTlsConnector::Rustls022(connector);
+        self
+    }
+
+    /// Sets custom Rustls v0.23 `ClientConfig` instance.
+    ///
+    /// In order to enable ALPN, set the `.alpn_protocols` field on the ClientConfig to the
+    /// following:
+    ///
+    /// ```no_run
+    /// vec![b"h2".to_vec(), b"http/1.1".to_vec()]
+    /// # ;
+    /// ```
+    #[cfg(feature = "rustls-0_23")]
+    pub fn rustls_0_23(
+        mut self,
+        connector: std::sync::Arc<actix_tls::connect::rustls_0_23::reexports::ClientConfig>,
+    ) -> Self {
+        self.tls = OurTlsConnector::Rustls023(connector);
         self
     }
 
@@ -588,6 +640,40 @@ where
 
                 Some(actix_service::boxed::rc_service(tls_service))
             }
+
+            #[cfg(feature = "rustls-0_23")]
+            OurTlsConnector::Rustls023(tls) => {
+                const H2: &[u8] = b"h2";
+
+                use actix_tls::connect::rustls_0_23::{reexports::AsyncTlsStream, TlsConnector};
+
+                #[allow(non_local_definitions)]
+                impl<Io: ConnectionIo> IntoConnectionIo for TcpConnection<Uri, AsyncTlsStream<Io>> {
+                    fn into_connection_io(self) -> (Box<dyn ConnectionIo>, Protocol) {
+                        let sock = self.into_parts().0;
+                        let h2 = sock
+                            .get_ref()
+                            .1
+                            .alpn_protocol()
+                            .map_or(false, |protos| protos.windows(2).any(|w| w == H2));
+                        if h2 {
+                            (Box::new(sock), Protocol::Http2)
+                        } else {
+                            (Box::new(sock), Protocol::Http1)
+                        }
+                    }
+                }
+
+                let handshake_timeout = self.config.handshake_timeout;
+
+                let tls_service = TlsConnectorService {
+                    tcp_service: tcp_service_inner,
+                    tls_service: TlsConnector::service(tls),
+                    timeout: handshake_timeout,
+                };
+
+                Some(actix_service::boxed::rc_service(tls_service))
+            }
         };
 
         let tcp_config = self.config.no_disconnect_timeout();
@@ -649,6 +735,17 @@ where
 
 /// service for establish tcp connection and do client tls handshake.
 /// operation is canceled when timeout limit reached.
+#[cfg(any(
+    feature = "dangerous-h2c",
+    feature = "openssl",
+    feature = "rustls-0_20",
+    feature = "rustls-0_21",
+    feature = "rustls-0_22-webpki-roots",
+    feature = "rustls-0_22-native-roots",
+    feature = "rustls-0_23",
+    feature = "rustls-0_23-webpki-roots",
+    feature = "rustls-0_23-native-roots"
+))]
 struct TlsConnectorService<Tcp, Tls> {
     /// TCP connection is canceled on `TcpConnectorInnerService`'s timeout setting.
     tcp_service: Tcp,
@@ -659,6 +756,15 @@ struct TlsConnectorService<Tcp, Tls> {
     timeout: Duration,
 }
 
+#[cfg(any(
+    feature = "dangerous-h2c",
+    feature = "openssl",
+    feature = "rustls-0_20",
+    feature = "rustls-0_21",
+    feature = "rustls-0_22-webpki-roots",
+    feature = "rustls-0_22-native-roots",
+    feature = "rustls-0_23",
+))]
 impl<Tcp, Tls, IO> Service<Connect> for TlsConnectorService<Tcp, Tls>
 where
     Tcp:
@@ -974,7 +1080,7 @@ mod resolver {
 
         // resolver struct is cached in thread local so new clients can reuse the existing instance
         thread_local! {
-            static TRUST_DNS_RESOLVER: RefCell<Option<Resolver>> = RefCell::new(None);
+            static TRUST_DNS_RESOLVER: RefCell<Option<Resolver>> = const { RefCell::new(None) };
         }
 
         // get from thread local or construct a new trust-dns resolver.
