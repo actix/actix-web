@@ -5,6 +5,7 @@
 //! real-world cases than using `init_service`, which skips HTTP encoding and decoding.
 //!
 //! # Examples
+//!
 //! ```
 //! use actix_web::{get, web, test, App, HttpResponse, Error, Responder};
 //!

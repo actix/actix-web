@@ -40,7 +40,7 @@ pub trait FieldReader<'t>: Sized + Any {
     /// `next()`/`try_next()`) may panic after the payload is exhausted. If this is a problem for
     /// your implementation of this method, you should [`fuse()`] the `Field` first.
     ///
-    /// [`fuse()`]: https://docs.rs/futures-util/0.3/futures_util/stream/trait.StreamExt.html#method.fuse
+    /// [`fuse()`]: futures_util::stream::StreamExt::fuse()
     fn read_field(req: &'t HttpRequest, field: Field, limits: &'t mut Limits) -> Self::Future;
 }
 

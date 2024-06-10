@@ -80,6 +80,7 @@ doc-watch:
 update-readmes: && fmt
     cd ./actix-files && cargo rdme --force
     cd ./actix-router && cargo rdme --force
+    cd ./actix-test && cargo rdme --force
 
 # Check for unintentional external type exposure on all crates in workspace.
 check-external-types-all toolchain="+nightly":
