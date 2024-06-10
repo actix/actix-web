@@ -5,6 +5,7 @@
 ### Fixed
 
 - `ConnectionInfo::realip_remote_addr()` now handles IPv6 addresses from `Forwarded` header correctly. Previously, it sometimes returned the forwarded port as well.
+- The `UrlencodedError::ContentType` variant (relevant to the `Form` extractor) now uses the 415 (Media Type Unsupported) status code in it's `ResponseError` implementation.
 
 ## 4.7.0
 
