@@ -53,13 +53,19 @@ test-docs toolchain="": && doc
 # Test workspace.
 test-all toolchain="": (test toolchain) (test-docs toolchain)
 
-# Test workspace and generate Codecov coverage file.
-test-coverage-codecov toolchain="":
-    cargo {{ toolchain }} llvm-cov --workspace {{ all_crate_features }} --codecov --output-path codecov.json
+# Test workspace and collect coverage info.
+[private]
+test-coverage toolchain="":
+    cargo {{ toolchain }} llvm-cov nextest --no-report {{ all_crate_features }}
+    cargo {{ toolchain }} llvm-cov --doc --no-report {{ all_crate_features }}
 
-# Test workspace and generate LCOV coverage file.
-test-coverage-lcov toolchain="":
-    cargo {{ toolchain }} llvm-cov --workspace {{ all_crate_features }} --lcov --output-path lcov.info
+# Test workspace and generate Codecov report.
+test-coverage-codecov toolchain="": (test-coverage toolchain)
+    cargo {{ toolchain }} llvm-cov report --doctests --codecov --output-path=codecov.json
+
+# Test workspace and generate LCOV report.
+test-coverage-lcov toolchain="": (test-coverage toolchain)
+    cargo {{ toolchain }} llvm-cov report --doctests --lcov --output-path=lcov.info
 
 # Document crates in workspace.
 doc *args:
