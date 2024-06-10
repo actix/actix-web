@@ -1,0 +1,17 @@
+error: argument to scope macro is not a string literal, expected: #[scope("/prefix")]
+ --> tests/trybuild/scope-invalid-args.rs:5:9
+  |
+5 | #[scope(PATH)]
+  |         ^^^^
+
+error: argument to scope macro is not a string literal, expected: #[scope("/prefix")]
+ --> tests/trybuild/scope-invalid-args.rs:8:9
+  |
+8 | #[scope(true)]
+  |         ^^^^
+
+error: argument to scope macro is not a string literal, expected: #[scope("/prefix")]
+  --> tests/trybuild/scope-invalid-args.rs:11:9
+   |
+11 | #[scope(123)]
+   |         ^^^

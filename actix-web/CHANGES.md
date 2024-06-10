@@ -2,15 +2,40 @@
 
 ## Unreleased
 
+### Fixed
+
+- `ConnectionInfo::realip_remote_addr()` now handles IPv6 addresses from `Forwarded` header correctly. Previously, it sometimes returned the forwarded port as well.
+- The `UrlencodedError::ContentType` variant (relevant to the `Form` extractor) now uses the 415 (Media Type Unsupported) status code in it's `ResponseError` implementation.
+
+## 4.7.0
+
+### Added
+
+- Add `#[scope]` macro.
+- Add `middleware::Identity` type.
+- Add `CustomizeResponder::add_cookie()` method.
+- Add `guard::GuardContext::app_data()` method.
+- Add `compat-routing-macros-force-pub` crate feature which (on-by-default) which, when disabled, causes handlers to inherit their attached function's visibility.
+- Add `compat` crate feature group (on-by-default) which, when disabled, helps with transitioning to some planned v5.0 breaking changes, starting only with `compat-routing-macros-force-pub`.
+- Implement `From<Box<dyn ResponseError>>` for `Error`.
+
+## 4.6.0
+
 ### Added
 
 - Add `unicode` crate feature (on-by-default) to switch between `regex` and `regex-lite` as a trade-off between full unicode support and binary size.
+- Add `rustls-0_23` crate feature.
+- Add `HttpServer::{bind_rustls_0_23, listen_rustls_0_23}()` builder methods.
+- Add `HttpServer::tls_handshake_timeout()` builder method for `rustls-0_22` and `rustls-0_23`.
 
 ### Changed
 
+- Update `brotli` dependency to `6`.
 - Minimum supported Rust version (MSRV) is now 1.72.
 
-- the Urlencoded extractor now returns 415 (Media Type Unsupported) if the request's `Content-Type` is not `application/x-www-form-urlencoded`, rather than 400 (Bad Request).
+### Fixed
+
+- Avoid type confusion with `rustls` in some circumstances.
 
 ## 4.5.1
 

@@ -3,7 +3,7 @@
 use std::{error::Error as StdError, fmt, io, str::Utf8Error, string::FromUtf8Error};
 
 use derive_more::{Display, Error, From};
-pub use http::Error as HttpError;
+pub use http::{status::InvalidStatusCode, Error as HttpError};
 use http::{uri::InvalidUri, StatusCode};
 
 use crate::{body::BoxBody, Response};

@@ -6,9 +6,5 @@ lint-all = "clippy --workspace --all-features --all-targets -- -Dclippy::todo"
 ci-check-min = "hack --workspace check --no-default-features"
 ci-check-default = "hack --workspace check"
 ci-check-default-tests = "check --workspace --tests"
-ci-check-all-feature-powerset="hack --workspace --feature-powerset --skip=__compress,experimental-io-uring check"
-ci-check-all-feature-powerset-linux="hack --workspace --feature-powerset --skip=__compress check"
-
-# testing
-ci-doctest-default = "test --workspace --doc --no-fail-fast -- --nocapture"
-ci-doctest = "test --workspace --all-features --doc --no-fail-fast -- --nocapture"
+ci-check-all-feature-powerset="hack --workspace --feature-powerset --depth=4 --skip=__compress,experimental-io-uring check"
+ci-check-all-feature-powerset-linux="hack --workspace --feature-powerset --depth=4 --skip=__compress check"
