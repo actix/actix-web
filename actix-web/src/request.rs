@@ -91,6 +91,35 @@ impl HttpRequest {
         &self.head().uri
     }
 
+    /// Returns request's original full URL.
+    ///
+    /// Reconstructed URL is best-effort, using [`connection_info`](HttpRequest::connection_info())
+    /// to get forwarded scheme & host.
+    ///
+    /// ```
+    /// use actix_web::test::TestRequest;
+    /// let req = TestRequest::with_uri("http://10.1.2.3:8443/api?id=4&name=foo")
+    ///     .insert_header(("host", "example.com"))
+    ///     .to_http_request();
+    ///
+    /// assert_eq!(
+    ///     req.full_url().as_str(),
+    ///     "http://example.com/api?id=4&name=foo",
+    /// );
+    /// ```
+    pub fn full_url(&self) -> url::Url {
+        let info = self.connection_info();
+        let scheme = info.scheme();
+        let host = info.host();
+        let path_and_query = self
+            .uri()
+            .path_and_query()
+            .map(|paq| paq.as_str())
+            .unwrap_or("/");
+
+        url::Url::parse(&format!("{scheme}://{host}{path_and_query}")).unwrap()
+    }
+
     /// Read the Request method.
     #[inline]
     pub fn method(&self) -> &Method {
@@ -962,5 +991,28 @@ mod tests {
             .to_http_request();
 
         assert!(format!("{:?}", req).contains(location_header));
+    }
+
+    #[test]
+    fn check_full_url() {
+        let req = TestRequest::with_uri("/api?id=4&name=foo").to_http_request();
+        assert_eq!(
+            req.full_url().as_str(),
+            "http://localhost:8080/api?id=4&name=foo",
+        );
+
+        let req = TestRequest::with_uri("https://example.com/api?id=4&name=foo").to_http_request();
+        assert_eq!(
+            req.full_url().as_str(),
+            "https://example.com/api?id=4&name=foo",
+        );
+
+        let req = TestRequest::with_uri("http://10.1.2.3:8443/api?id=4&name=foo")
+            .insert_header(("host", "example.com"))
+            .to_http_request();
+        assert_eq!(
+            req.full_url().as_str(),
+            "http://example.com/api?id=4&name=foo",
+        );
     }
 }

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- Add `HttpRequest::full_url()` method to get the complete URL of the request.
+
 ### Fixed
 
 - `ConnectionInfo::realip_remote_addr()` now handles IPv6 addresses from `Forwarded` header correctly. Previously, it sometimes returned the forwarded port as well.
