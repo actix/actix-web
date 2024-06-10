@@ -19,8 +19,6 @@ Multipart form support for Actix Web.
 
 ## Examples
 
-[More available in the examples repo &rarr;](https://github.com/actix/examples/tree/master/forms/multipart)
-
 ```rust
 use actix_web::{post, App, HttpServer, Responder};
 
@@ -57,6 +55,8 @@ async fn main() -> std::io::Result<()> {
 ```
 
 <!-- cargo-rdme end -->
+
+[More available in the examples repo &rarr;](https://github.com/actix/examples/tree/master/forms/multipart)
 
 Curl request :
 
