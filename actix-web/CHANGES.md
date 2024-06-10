@@ -4,7 +4,7 @@
 
 ### Added
 
-- Add `HttpRequest::full_uri()` method to get the full uri of an incoming request.
+- Add `HttpRequest::full_url()` method to get the complete URL of the request.
 
 ### Fixed
 
