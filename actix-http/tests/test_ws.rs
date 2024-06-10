@@ -1,5 +1,3 @@
-#![allow(clippy::uninlined_format_args)]
-
 use std::{
     cell::Cell,
     convert::Infallible,

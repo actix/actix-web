@@ -1,6 +1,6 @@
-#![cfg(feature = "rustls")]
+#![cfg(feature = "rustls-0_23-webpki-roots")]
 
-extern crate tls_rustls as rustls;
+extern crate tls_rustls_0_23 as rustls;
 
 use std::{
     io::BufReader,
@@ -8,59 +8,85 @@ use std::{
         atomic::{AtomicUsize, Ordering},
         Arc,
     },
-    time::SystemTime,
 };
 
 use actix_http::HttpService;
 use actix_http_test::test_server;
 use actix_service::{fn_service, map_config, ServiceFactoryExt};
-use actix_tls::connect::rustls::webpki_roots_cert_store;
+use actix_tls::connect::rustls_0_23::webpki_roots_cert_store;
 use actix_utils::future::ok;
 use actix_web::{dev::AppConfig, http::Version, web, App, HttpResponse};
 use rustls::{
-    client::{ServerCertVerified, ServerCertVerifier},
-    Certificate, ClientConfig, PrivateKey, ServerConfig, ServerName,
+    pki_types::{CertificateDer, PrivateKeyDer, ServerName},
+    ClientConfig, ServerConfig,
 };
 use rustls_pemfile::{certs, pkcs8_private_keys};
 
 fn tls_config() -> ServerConfig {
-    let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()]).unwrap();
-    let cert_file = cert.serialize_pem().unwrap();
-    let key_file = cert.serialize_private_key_pem();
+    let rcgen::CertifiedKey { cert, key_pair } =
+        rcgen::generate_simple_self_signed(["localhost".to_owned()]).unwrap();
+    let cert_file = cert.pem();
+    let key_file = key_pair.serialize_pem();
 
     let cert_file = &mut BufReader::new(cert_file.as_bytes());
     let key_file = &mut BufReader::new(key_file.as_bytes());
 
-    let cert_chain = certs(cert_file)
-        .unwrap()
-        .into_iter()
-        .map(Certificate)
-        .collect();
-    let mut keys = pkcs8_private_keys(key_file).unwrap();
+    let cert_chain = certs(cert_file).collect::<Result<Vec<_>, _>>().unwrap();
+    let mut keys = pkcs8_private_keys(key_file)
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
 
     ServerConfig::builder()
-        .with_safe_defaults()
         .with_no_client_auth()
-        .with_single_cert(cert_chain, PrivateKey(keys.remove(0)))
+        .with_single_cert(cert_chain, PrivateKeyDer::Pkcs8(keys.remove(0)))
         .unwrap()
 }
 
 mod danger {
+    use rustls::{
+        client::danger::{ServerCertVerified, ServerCertVerifier},
+        pki_types::UnixTime,
+    };
+
     use super::*;
 
+    #[derive(Debug)]
     pub struct NoCertificateVerification;
 
     impl ServerCertVerifier for NoCertificateVerification {
         fn verify_server_cert(
             &self,
-            _end_entity: &Certificate,
-            _intermediates: &[Certificate],
-            _server_name: &ServerName,
-            _scts: &mut dyn Iterator<Item = &[u8]>,
+            _end_entity: &CertificateDer<'_>,
+            _intermediates: &[CertificateDer<'_>],
+            _server_name: &ServerName<'_>,
             _ocsp_response: &[u8],
-            _now: SystemTime,
+            _now: UnixTime,
         ) -> Result<ServerCertVerified, rustls::Error> {
-            Ok(ServerCertVerified::assertion())
+            Ok(rustls::client::danger::ServerCertVerified::assertion())
+        }
+
+        fn verify_tls12_signature(
+            &self,
+            _message: &[u8],
+            _cert: &CertificateDer<'_>,
+            _dss: &rustls::DigitallySignedStruct,
+        ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
+            Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
+        }
+
+        fn verify_tls13_signature(
+            &self,
+            _message: &[u8],
+            _cert: &CertificateDer<'_>,
+            _dss: &rustls::DigitallySignedStruct,
+        ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
+            Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
+        }
+
+        fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
+            rustls::crypto::aws_lc_rs::default_provider()
+                .signature_verification_algorithms
+                .supported_schemes()
         }
     }
 }
@@ -82,14 +108,13 @@ async fn test_connection_reuse_h2() {
                     App::new().service(web::resource("/").route(web::to(HttpResponse::Ok))),
                     |_| AppConfig::default(),
                 ))
-                .rustls(tls_config())
+                .rustls_0_23(tls_config())
                 .map_err(|_| ()),
         )
     })
     .await;
 
     let mut config = ClientConfig::builder()
-        .with_safe_defaults()
         .with_root_certificates(webpki_roots_cert_store())
         .with_no_client_auth();
 
@@ -102,7 +127,7 @@ async fn test_connection_reuse_h2() {
         .set_certificate_verifier(Arc::new(danger::NoCertificateVerification));
 
     let client = awc::Client::builder()
-        .connector(awc::Connector::new().rustls(Arc::new(config)))
+        .connector(awc::Connector::new().rustls_0_23(Arc::new(config)))
         .finish();
 
     // req 1

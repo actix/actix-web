@@ -328,14 +328,19 @@ impl<T: DeserializeOwned> JsonBody<T> {
         ctype_required: bool,
     ) -> Self {
         // check content-type
-        let can_parse_json = if let Ok(Some(mime)) = req.mime_type() {
-            mime.subtype() == mime::JSON
-                || mime.suffix() == Some(mime::JSON)
-                || ctype_fn.map_or(false, |predicate| predicate(mime))
-        } else {
-            // if `ctype_required` is false, assume payload is
-            // json even when content-type header is missing
-            !ctype_required
+        let can_parse_json = match (ctype_required, req.mime_type()) {
+            (true, Ok(Some(mime))) => {
+                mime.subtype() == mime::JSON
+                    || mime.suffix() == Some(mime::JSON)
+                    || ctype_fn.map_or(false, |predicate| predicate(mime))
+            }
+
+            // if content-type is expected but not parsable as mime type, bail
+            (true, _) => false,
+
+            // if content-type validation is disabled, assume payload is JSON
+            // even when content-type header is missing or invalid mime type
+            (false, _) => true,
         };
 
         if !can_parse_json {
@@ -723,6 +728,25 @@ mod tests {
 
         let s = Json::<MyObject>::from_request(&req, &mut pl).await;
         assert!(s.is_ok())
+    }
+
+    #[actix_rt::test]
+    async fn test_json_ignoring_content_type() {
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((
+                header::CONTENT_LENGTH,
+                header::HeaderValue::from_static("16"),
+            ))
+            .insert_header((
+                header::CONTENT_TYPE,
+                header::HeaderValue::from_static("invalid/value"),
+            ))
+            .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
+            .app_data(JsonConfig::default().content_type_required(false))
+            .to_http_parts();
+
+        let s = Json::<MyObject>::from_request(&req, &mut pl).await;
+        assert!(s.is_ok());
     }
 
     #[actix_rt::test]

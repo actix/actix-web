@@ -10,10 +10,12 @@ use crate::{
 /// The interface for request handlers.
 ///
 /// # What Is A Request Handler
+///
 /// In short, a handler is just an async function that receives request-based arguments, in any
 /// order, and returns something that can be converted to a response.
 ///
 /// In particular, a request handler has three requirements:
+///
 /// 1. It is an async function (or a function/closure that returns an appropriate future);
 /// 1. The function parameters (up to 12) implement [`FromRequest`];
 /// 1. The async function (or future) resolves to a type that can be converted into an
@@ -21,11 +23,15 @@ use crate::{
 ///
 ///
 /// # Compiler Errors
+///
 /// If you get the error `the trait Handler<_> is not implemented`, then your handler does not
-/// fulfill the _first_ of the above requirements. Missing other requirements manifest as errors on
-/// implementing [`FromRequest`] and [`Responder`], respectively.
+/// fulfill the _first_ of the above requirements. (It could also mean that you're attempting to use
+/// a macro-routed handler in a manual routing context like `web::get().to(handler)`, which is not
+/// supported). Breaking the other requirements manifests as errors on implementing [`FromRequest`]
+/// and [`Responder`], respectively.
 ///
 /// # How Do Handlers Receive Variable Numbers Of Arguments
+///
 /// Rest assured there is no macro magic here; it's just traits.
 ///
 /// The first thing to note is that [`FromRequest`] is implemented for tuples (up to 12 in length).
@@ -40,6 +46,7 @@ use crate::{
 /// destructures the tuple into its component types and calls your handler function with them.
 ///
 /// In pseudo-code the process looks something like this:
+///
 /// ```ignore
 /// async fn my_handler(body: String, state: web::Data<MyState>) -> impl Responder {
 ///     ...
@@ -167,7 +174,7 @@ mod tests {
         async fn handler_min() {}
 
         #[rustfmt::skip]
-        #[allow(clippy::too_many_arguments, clippy::just_underscores_and_digits)]
+        #[allow(clippy::too_many_arguments, clippy::just_underscores_and_digits, clippy::let_unit_value)]
         async fn handler_max(
             _01: (), _02: (), _03: (), _04: (), _05: (), _06: (),
             _07: (), _08: (), _09: (), _10: (), _11: (), _12: (),

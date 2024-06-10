@@ -64,7 +64,7 @@ impl HttpResponseBuilder {
                 Ok((key, value)) => {
                     parts.headers.insert(key, value);
                 }
-                Err(e) => self.error = Some(e.into()),
+                Err(err) => self.error = Some(err.into()),
             };
         }
 
@@ -86,7 +86,7 @@ impl HttpResponseBuilder {
         if let Some(parts) = self.inner() {
             match header.try_into_pair() {
                 Ok((key, value)) => parts.headers.append(key, value),
-                Err(e) => self.error = Some(e.into()),
+                Err(err) => self.error = Some(err.into()),
             };
         }
 
@@ -210,7 +210,7 @@ impl HttpResponseBuilder {
                 Ok(value) => {
                     parts.headers.insert(header::CONTENT_TYPE, value);
                 }
-                Err(e) => self.error = Some(e.into()),
+                Err(err) => self.error = Some(err.into()),
             };
         }
         self
@@ -408,10 +408,7 @@ mod tests {
     use super::*;
     use crate::{
         body,
-        http::{
-            header::{self, HeaderValue, CONTENT_TYPE},
-            StatusCode,
-        },
+        http::header::{HeaderValue, CONTENT_TYPE},
         test::assert_body_eq,
     };
 

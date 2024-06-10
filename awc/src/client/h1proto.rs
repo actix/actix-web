@@ -56,7 +56,7 @@ where
                         headers.insert(HOST, value);
                     }
                 },
-                Err(e) => log::error!("Can not set HOST header {}", e),
+                Err(err) => log::error!("Can not set HOST header {err}"),
             }
         }
     }

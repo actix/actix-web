@@ -1,7 +1,7 @@
 //! Sets up a WebSocket server over TCP and TLS.
 //! Sends a heartbeat message every 4 seconds but does not respond to any incoming frames.
 
-extern crate tls_rustls as rustls;
+extern crate tls_rustls_023 as rustls;
 
 use std::{
     io,
@@ -28,7 +28,9 @@ async fn main() -> io::Result<()> {
             HttpService::build().h1(handler).tcp()
         })?
         .bind("tls", ("127.0.0.1", 8443), || {
-            HttpService::build().finish(handler).rustls(tls_config())
+            HttpService::build()
+                .finish(handler)
+                .rustls_0_23(tls_config())
         })?
         .run()
         .await
@@ -83,27 +85,27 @@ impl Stream for Heartbeat {
 fn tls_config() -> rustls::ServerConfig {
     use std::io::BufReader;
 
-    use rustls::{Certificate, PrivateKey};
     use rustls_pemfile::{certs, pkcs8_private_keys};
 
-    let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()]).unwrap();
-    let cert_file = cert.serialize_pem().unwrap();
-    let key_file = cert.serialize_private_key_pem();
+    let rcgen::CertifiedKey { cert, key_pair } =
+        rcgen::generate_simple_self_signed(["localhost".to_owned()]).unwrap();
+    let cert_file = cert.pem();
+    let key_file = key_pair.serialize_pem();
 
     let cert_file = &mut BufReader::new(cert_file.as_bytes());
     let key_file = &mut BufReader::new(key_file.as_bytes());
 
-    let cert_chain = certs(cert_file)
-        .unwrap()
-        .into_iter()
-        .map(Certificate)
-        .collect();
-    let mut keys = pkcs8_private_keys(key_file).unwrap();
+    let cert_chain = certs(cert_file).collect::<Result<Vec<_>, _>>().unwrap();
+    let mut keys = pkcs8_private_keys(key_file)
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
 
     let mut config = rustls::ServerConfig::builder()
-        .with_safe_defaults()
         .with_no_client_auth()
-        .with_single_cert(cert_chain, PrivateKey(keys.remove(0)))
+        .with_single_cert(
+            cert_chain,
+            rustls::pki_types::PrivateKeyDer::Pkcs8(keys.remove(0)),
+        )
         .unwrap();
 
     config.alpn_protocols.push(b"http/1.1".to_vec());

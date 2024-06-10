@@ -112,11 +112,7 @@ where
         let endpoint_fut = self.endpoint.new_service(());
 
         // take extensions or create new one as app data container.
-        let mut app_data = self
-            .extensions
-            .borrow_mut()
-            .take()
-            .unwrap_or_else(Extensions::new);
+        let mut app_data = self.extensions.borrow_mut().take().unwrap_or_default();
 
         Box::pin(async move {
             // async data factories
@@ -267,8 +263,9 @@ impl ServiceFactory<ServiceRequest> for AppRoutingFactory {
             let guards = guards.borrow_mut().take().unwrap_or_default();
             let factory_fut = factory.new_service(());
             async move {
-                let service = factory_fut.await?;
-                Ok((path, guards, service))
+                factory_fut
+                    .await
+                    .map(move |service| (path, guards, service))
             }
         }));
 

@@ -1,5 +1,3 @@
-# disabled because `cargo tarpaulin` currently segfaults
-
 name: Coverage
 
 on:
@@ -7,28 +5,35 @@ on:
     branches: [master]
 
 permissions:
-  contents: read # to fetch code (actions/checkout)
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # job currently (1st Feb 2022) segfaults
   coverage:
-    name: coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-        with: { toolchain: nightly }
-
-      - name: Generate coverage file
-        run: |
-          cargo install cargo-tarpaulin --vers "^0.13"
-          cargo tarpaulin --workspace --features=rustls,openssl --out Xml --verbose
-      - name: Upload to Codecov
-        uses: codecov/codecov-action@v3.1.4
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1.9.0
         with:
-          file: cobertura.xml
+          components: llvm-tools-preview
+
+      - name: Install just,cargo-llvm-cov
+        uses: taiki-e/install-action@v2.38.0
+        with:
+          tool: just,cargo-llvm-cov
+
+      - name: Generate code coverage
+        run: cargo llvm-cov --workspace --all-features --codecov --output-path codecov.json
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4.4.1
+        with:
+          files: codecov.json
+          fail_ci_if_error: true
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}

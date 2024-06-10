@@ -532,7 +532,7 @@ impl Decoder for PayloadDecoder {
                     *state = match state.step(src, size, &mut buf) {
                         Poll::Pending => return Ok(None),
                         Poll::Ready(Ok(state)) => state,
-                        Poll::Ready(Err(e)) => return Err(e),
+                        Poll::Ready(Err(err)) => return Err(err),
                     };
 
                     if *state == ChunkedState::End {
@@ -563,15 +563,8 @@ impl Decoder for PayloadDecoder {
 
 #[cfg(test)]
 mod tests {
-    use bytes::{Bytes, BytesMut};
-    use http::{Method, Version};
-
     use super::*;
-    use crate::{
-        error::ParseError,
-        header::{HeaderName, SET_COOKIE},
-        HttpMessage as _,
-    };
+    use crate::{header::SET_COOKIE, HttpMessage as _};
 
     impl PayloadType {
         pub(crate) fn unwrap(self) -> PayloadDecoder {

@@ -33,13 +33,13 @@
 //!
 //! # fn main() {
 //! # // These aren't snake_case, because they are supposed to be unit structs.
-//! # let MiddlewareA = middleware::Compress::default();
-//! # let MiddlewareB = middleware::Compress::default();
-//! # let MiddlewareC = middleware::Compress::default();
+//! # type MiddlewareA = middleware::Compress;
+//! # type MiddlewareB = middleware::Compress;
+//! # type MiddlewareC = middleware::Compress;
 //! let app = App::new()
-//!     .wrap(MiddlewareA)
-//!     .wrap(MiddlewareB)
-//!     .wrap(MiddlewareC)
+//!     .wrap(MiddlewareA::default())
+//!     .wrap(MiddlewareB::default())
+//!     .wrap(MiddlewareC::default())
 //!     .service(service);
 //! # }
 //! ```
@@ -72,7 +72,7 @@
 //! processes the request as well and passes it to `MiddlewareA`, which then passes it to the
 //! [`Service`]. In the [`Service`], the extractors will run first. They don't pass the request on,
 //! but only view it (see [`FromRequest`]). After the [`Service`] responds to the request, the
-//! response it passed back through `MiddlewareA`, `MiddlewareB`, and `MiddlewareC`.
+//! response is passed back through `MiddlewareA`, `MiddlewareB`, and `MiddlewareC`.
 //!
 //! As you register middleware using [`wrap`][crate::App::wrap] and [`wrap_fn`][crate::App::wrap_fn]
 //! in the [`App`] builder, imagine wrapping layers around an inner [`App`]. The first middleware
@@ -218,30 +218,26 @@
 //! [lab_from_fn]: https://docs.rs/actix-web-lab/latest/actix_web_lab/middleware/fn.from_fn.html
 
 mod compat;
+#[cfg(feature = "__compress")]
+mod compress;
 mod condition;
 mod default_headers;
 mod err_handlers;
+mod identity;
 mod logger;
-#[cfg(test)]
-mod noop;
 mod normalize;
 
-#[cfg(test)]
-pub(crate) use self::noop::Noop;
+#[cfg(feature = "__compress")]
+pub use self::compress::Compress;
 pub use self::{
     compat::Compat,
     condition::Condition,
     default_headers::DefaultHeaders,
     err_handlers::{ErrorHandlerResponse, ErrorHandlers},
+    identity::Identity,
     logger::Logger,
     normalize::{NormalizePath, TrailingSlash},
 };
-
-#[cfg(feature = "__compress")]
-mod compress;
-
-#[cfg(feature = "__compress")]
-pub use self::compress::Compress;
 
 #[cfg(test)]
 mod tests {
