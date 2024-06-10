@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## 0.1.5
+
+- Add `TestServerConfig::listen_address()` method.
+
+## 0.1.4
+
+- Add `TestServerConfig::rustls_0_23()` method for Rustls v0.23 support behind new `rustls-0_23` crate feature.
+- Add `TestServerConfig::disable_redirects()` method.
+- Various types from `awc`, such as `ClientRequest` and `ClientResponse`, are now re-exported.
+- Minimum supported Rust version (MSRV) is now 1.72.
+
+## 0.1.3
+
+- Add `TestServerConfig::rustls_0_22()` method for Rustls v0.22 support behind new `rustls-0_22` crate feature.
+
 ## 0.1.2
 
 - Add `TestServerConfig::rustls_021()` method for Rustls v0.21 support behind new `rustls-0_21` crate feature.

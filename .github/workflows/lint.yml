@@ -18,15 +18,17 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Rust (nightly)
-        uses: actions-rust-lang/setup-rust-toolchain@v1.5.0
+        uses: actions-rust-lang/setup-rust-toolchain@v1.9.0
         with:
           toolchain: nightly
           components: rustfmt
 
-      - run: cargo fmt --all -- --check
+      - name: Check with Rustfmt
+        run: cargo fmt --all -- --check
 
   clippy:
     permissions:
+      contents: read
       checks: write # to add clippy checks to PR diffs
 
     runs-on: ubuntu-latest
@@ -34,15 +36,18 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1.5.0
+        uses: actions-rust-lang/setup-rust-toolchain@v1.9.0
         with:
           components: clippy
 
-      - uses: giraffate/clippy-action@v1.0.1
+      - name: Check with Clippy
+        uses: giraffate/clippy-action@v1.0.1
         with:
           reporter: github-pr-check
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          clippy_flags: --workspace --all-features --tests --examples --bins -- -Dclippy::todo -Aunknown_lints
+          clippy_flags: >-
+            --workspace --all-features --tests --examples --bins --
+            -A unknown_lints -D clippy::todo -D clippy::dbg_macro
 
   lint-docs:
     runs-on: ubuntu-latest
@@ -50,7 +55,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Rust (nightly)
-        uses: actions-rust-lang/setup-rust-toolchain@v1.5.0
+        uses: actions-rust-lang/setup-rust-toolchain@v1.9.0
         with:
           toolchain: nightly
           components: rust-docs
@@ -65,45 +70,47 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust (nightly-2023-10-10)
-        uses: actions-rust-lang/setup-rust-toolchain@v1.5.0
+      - name: Install Rust (nightly-2024-05-01)
+        uses: actions-rust-lang/setup-rust-toolchain@v1.9.0
         with:
-          toolchain: nightly-2023-10-10
+          toolchain: nightly-2024-05-01
 
       - name: Install just
-        uses: taiki-e/install-action@v2.20.2
+        uses: taiki-e/install-action@v2.38.0
         with:
           tool: just
 
       - name: Install cargo-check-external-types
         uses: taiki-e/cache-cargo-install-action@v1.2.2
         with:
-          tool: cargo-check-external-types@0.1.10
+          tool: cargo-check-external-types
 
       - name: check external types
-        run: just check-external-types-all +nightly-2023-10-10
+        run: just check-external-types-all +nightly-2024-05-01
 
   public-api-diff:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout main branch
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.base_ref }}
 
-      - uses: actions/checkout@v4
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
 
-      - name: Install Rust (nightly-2023-08-25)
-        uses: actions-rust-lang/setup-rust-toolchain@v1.5.0
+      - name: Install Rust (nightly-2024-06-07)
+        uses: actions-rust-lang/setup-rust-toolchain@v1.9.0
         with:
-          toolchain: nightly-2023-08-25
+          toolchain: nightly-2024-06-07
 
       - name: Install cargo-public-api
-        uses: taiki-e/cache-cargo-install-action@v1.2.2
+        uses: taiki-e/install-action@v2.38.0
         with:
-          tool: cargo-public-api@0.32.0
+          tool: cargo-public-api
 
-      - name: generate API diff
+      - name: Generate API diff
         run: |
           for f in $(find -mindepth 2 -maxdepth 2 -name Cargo.toml); do
-            cargo public-api --manifest-path "$f" diff ${{ github.event.pull_request.base.sha }}..${{ github.sha }}
+            cargo public-api --manifest-path "$f" --simplified diff ${{ github.event.pull_request.base.sha }}..${{ github.sha }}
           done

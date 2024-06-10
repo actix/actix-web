@@ -399,7 +399,7 @@ mod tests {
     use static_assertions::assert_impl_all;
 
     use super::*;
-    use crate::http::header::{HeaderValue, COOKIE};
+    use crate::http::header::COOKIE;
 
     assert_impl_all!(HttpResponse: Responder);
     assert_impl_all!(HttpResponse<String>: Responder);

@@ -2,7 +2,23 @@
 
 ## Unreleased
 
+## 3.5.0
+
+- Add `rustls-0_23`, `rustls-0_23-webpki-roots`, and `rustls-0_23-native-roots` crate features.
+- Add `awc::Connector::rustls_0_23()` constructor.
+- Fix `rustls-0_22-native-roots` root store lookup
+- Update `brotli` dependency to `6`.
+- Minimum supported Rust version (MSRV) is now 1.72.
+
+## 3.4.0
+
+- Add `rustls-0_22-webpki-roots` and `rustls-0_22-native-roots` crate feature.
+- Add `awc::Connector::rustls_0_22()` method.
+
+## 3.3.0
+
 - Update `trust-dns-resolver` dependency to `0.23`.
+- Updated `zstd` dependency to `0.13`.
 
 ## 3.2.0
 

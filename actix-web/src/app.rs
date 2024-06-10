@@ -112,8 +112,8 @@ where
     /// })
     /// ```
     #[doc(alias = "manage")]
-    pub fn app_data<U: 'static>(mut self, ext: U) -> Self {
-        self.extensions.insert(ext);
+    pub fn app_data<U: 'static>(mut self, data: U) -> Self {
+        self.extensions.insert(data);
         self
     }
 
@@ -129,6 +129,8 @@ where
     ///
     /// Data items are constructed during application initialization, before the server starts
     /// accepting requests.
+    ///
+    /// The returned data value `D` is wrapped as [`Data<D>`].
     pub fn data_factory<F, Out, D, E>(mut self, data: F) -> Self
     where
         F: Fn() -> Out + 'static,
@@ -469,7 +471,6 @@ mod tests {
             Method, StatusCode,
         },
         middleware::DefaultHeaders,
-        service::ServiceRequest,
         test::{call_service, init_service, read_body, try_init_service, TestRequest},
         web, HttpRequest, HttpResponse,
     };

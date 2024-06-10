@@ -190,8 +190,6 @@ mod tests {
 
     use super::*;
     use crate::{
-        dev::ServiceRequest,
-        http::header::CONTENT_TYPE,
         test::{self, TestRequest},
         HttpResponse,
     };
