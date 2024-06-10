@@ -109,4 +109,4 @@ This project is licensed under either of the following licenses, at your option:
 
 ## Code of Conduct
 
-Contribution to the actix-web repo is organized under the terms of the Contributor Covenant. The Actix team promises to intervene to uphold that code of conduct.
+Contribution to the `actix/actix-web` repo is organized under the terms of the Contributor Covenant. The Actix team promises to intervene to uphold that code of conduct.
