@@ -1,7 +1,5 @@
 # `actix-multipart`
 
-> Multipart form support for Actix Web.
-
 <!-- prettier-ignore-start -->
 
 [![crates.io](https://img.shields.io/crates/v/actix-multipart?label=latest)](https://crates.io/crates/actix-multipart)
@@ -15,18 +13,13 @@
 
 <!-- prettier-ignore-end -->
 
-## Example
+<!-- cargo-rdme start -->
 
-Dependencies:
+Multipart form support for Actix Web.
 
-```toml
-[dependencies]
-actix-multipart = "0.6"
-actix-web = "4.5"
-serde = { version = "1.0", features = ["derive"] }
-```
+## Examples
 
-Code:
+[More available in the examples repo &rarr;](https://github.com/actix/examples/tree/master/forms/multipart)
 
 ```rust
 use actix_web::{post, App, HttpServer, Responder};
@@ -63,6 +56,8 @@ async fn main() -> std::io::Result<()> {
 }
 ```
 
+<!-- cargo-rdme end -->
+
 Curl request :
 
 ```bash
@@ -71,7 +66,3 @@ curl -v --request POST \
   -F 'json={"name": "Cargo.lock"};type=application/json' \
   -F file=@./Cargo.lock
 ```
-
-### Examples
-
-https://github.com/actix/examples/tree/master/forms/multipart

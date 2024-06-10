@@ -90,6 +90,7 @@ update-readmes: && fmt
     cd ./actix-files && cargo rdme --force
     cd ./actix-http-test && cargo rdme --force
     cd ./actix-router && cargo rdme --force
+    cd ./actix-multipart && cargo rdme --force
     cd ./actix-test && cargo rdme --force
 
 # Check for unintentional external type exposure on all crates in workspace.

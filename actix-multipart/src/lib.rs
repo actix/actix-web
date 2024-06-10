@@ -1,5 +1,7 @@
 //! Multipart form support for Actix Web.
+//!
 //! # Examples
+//!
 //! ```no_run
 //! use actix_web::{post, App, HttpServer, Responder};
 //!
