@@ -65,6 +65,29 @@ jobs:
           RUSTDOCFLAGS: -D warnings
         run: cargo +nightly doc --no-deps --workspace --all-features
 
+  check-external-types:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (nightly-2024-05-01)
+        uses: actions-rust-lang/setup-rust-toolchain@v1.9.0
+        with:
+          toolchain: nightly-2024-05-01
+
+      - name: Install just
+        uses: taiki-e/install-action@v2.38.0
+        with:
+          tool: just
+
+      - name: Install cargo-check-external-types
+        uses: taiki-e/cache-cargo-install-action@v1.2.2
+        with:
+          tool: cargo-check-external-types
+
+      - name: check external types
+        run: just check-external-types-all +nightly-2024-05-01
+
   public-api-diff:
     runs-on: ubuntu-latest
     steps:
@@ -76,7 +99,7 @@ jobs:
       - name: Checkout PR branch
         uses: actions/checkout@v4
 
-      - name: Install Rust
+      - name: Install Rust (nightly-2024-06-07)
         uses: actions-rust-lang/setup-rust-toolchain@v1.9.0
         with:
           toolchain: nightly-2024-06-07

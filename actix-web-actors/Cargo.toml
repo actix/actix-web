@@ -9,9 +9,15 @@ repository = "https://github.com/actix/actix-web"
 license = "MIT OR Apache-2.0"
 edition = "2021"
 
-[lib]
-name = "actix_web_actors"
-path = "src/lib.rs"
+[package.metadata.cargo_check_external_types]
+allowed_external_types = [
+    "actix::*",
+    "actix_http::*",
+    "actix_web::*",
+    "bytes::*",
+    "bytestring::*",
+    "futures_core::*",
+]
 
 [dependencies]
 actix = { version = ">=0.12, <0.14", default-features = false }

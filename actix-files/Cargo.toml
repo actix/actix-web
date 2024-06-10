@@ -13,9 +13,14 @@ categories = ["asynchronous", "web-programming::http-server"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
 
-[lib]
-name = "actix_files"
-path = "src/lib.rs"
+[package.metadata.cargo_check_external_types]
+allowed_external_types = [
+    "actix_http::*",
+    "actix_service::*",
+    "actix_web::*",
+    "http::*",
+    "mime::*",
+]
 
 [features]
 experimental-io-uring = ["actix-web/experimental-io-uring", "tokio-uring"]

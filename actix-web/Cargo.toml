@@ -35,9 +35,31 @@ features = [
     "secure-cookies",
 ]
 
-[lib]
-name = "actix_web"
-path = "src/lib.rs"
+[package.metadata.cargo_check_external_types]
+allowed_external_types = [
+    "actix_http::*",
+    "actix_router::*",
+    "actix_rt::*",
+    "actix_server::*",
+    "actix_service::*",
+    "actix_utils::*",
+    "actix_web_codegen::*",
+    "bytes::*",
+    "cookie::*",
+    "cookie",
+    "futures_core::*",
+    "http::*",
+    "language_tags::*",
+    "mime::*",
+    "openssl::*",
+    "rustls::*",
+    "serde_json::*",
+    "serde_urlencoded::*",
+    "serde::*",
+    "serde::*",
+    "tokio::*",
+    "url::*",
+]
 
 [features]
 default = [

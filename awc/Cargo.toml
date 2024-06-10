@@ -15,10 +15,6 @@ repository = "https://github.com/actix/actix-web"
 license = "MIT OR Apache-2.0"
 edition = "2021"
 
-[lib]
-name = "awc"
-path = "src/lib.rs"
-
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docsrs"]
 features = [
@@ -31,6 +27,27 @@ features = [
     "compress-brotli",
     "compress-gzip",
     "compress-zstd",
+]
+
+[package.metadata.cargo_check_external_types]
+allowed_external_types = [
+    "actix_codec::*",
+    "actix_http::*",
+    "actix_rt::*",
+    "actix_service::*",
+    "actix_tls::*",
+    "bytes::*",
+    "cookie::*",
+    "cookie",
+    "futures_core::*",
+    "h2::*",
+    "http::*",
+    "openssl::*",
+    "rustls::*",
+    "serde_json::*",
+    "serde_urlencoded::*",
+    "serde::*",
+    "tokio::*",
 ]
 
 [features]
@@ -134,7 +151,7 @@ rcgen = "0.13"
 rustls-pemfile = "2"
 tokio = { version = "1.24.2", features = ["rt-multi-thread", "macros"] }
 zstd = "0.13"
-tls-rustls-0_23 = { package = "rustls", version = "0.23" } # add rustls 0.23 with default features to make aws_lc_rs work in tests 
+tls-rustls-0_23 = { package = "rustls", version = "0.23" } # add rustls 0.23 with default features to make aws_lc_rs work in tests
 
 [[example]]
 name = "client"

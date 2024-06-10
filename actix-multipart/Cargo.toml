@@ -16,6 +16,21 @@ edition = "2021"
 rustdoc-args = ["--cfg", "docsrs"]
 all-features = true
 
+[package.metadata.cargo_check_external_types]
+allowed_external_types = [
+    "actix_http::*",
+    "actix_multipart_derive::*",
+    "actix_utils::*",
+    "actix_web::*",
+    "bytes::*",
+    "futures_core::*",
+    "mime::*",
+    "serde_json::*",
+    "serde_plain::*",
+    "serde::*",
+    "tempfile::*",
+]
+
 [features]
 default = ["tempfile", "derive"]
 derive = ["actix-multipart-derive"]
