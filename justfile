@@ -78,7 +78,7 @@ doc-set-workspace-crates:
         echo "window.ALL_CRATES ="
         cargo metadata --format-version=1 | jq '[.packages[] | select(.source == null) | .name]'
         echo ";"
-    ) > "$CARGO_TARGET_DIR/doc/crates.js"
+    ) > "$(cargo metadata --format-version=1 | jq -r '.target_directory')/doc/crates.js"
 
 # Document crates in workspace and watch for changes.
 doc-watch:
