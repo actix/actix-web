@@ -1,0 +1,5 @@
+error: #[scope] macro must be attached to a module
+ --> tests/trybuild/scope-on-handler.rs:4:1
+  |
+4 | async fn index() -> &'static str {
+  | ^^^^^

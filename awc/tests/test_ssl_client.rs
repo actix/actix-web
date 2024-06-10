@@ -2,15 +2,16 @@
 
 extern crate tls_openssl as openssl;
 
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
+};
 
 use actix_http::HttpService;
 use actix_http_test::test_server;
 use actix_service::{fn_service, map_config, ServiceFactoryExt};
 use actix_utils::future::ok;
-use actix_web::http::Version;
-use actix_web::{dev::AppConfig, web, App, HttpResponse};
+use actix_web::{dev::AppConfig, http::Version, web, App, HttpResponse};
 use openssl::{
     pkey::PKey,
     ssl::{SslAcceptor, SslConnector, SslMethod, SslVerifyMode},
@@ -18,9 +19,11 @@ use openssl::{
 };
 
 fn tls_config() -> SslAcceptor {
-    let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()]).unwrap();
-    let cert_file = cert.serialize_pem().unwrap();
-    let key_file = cert.serialize_private_key_pem();
+    let rcgen::CertifiedKey { cert, key_pair } =
+        rcgen::generate_simple_self_signed(["localhost".to_owned()]).unwrap();
+    let cert_file = cert.pem();
+    let key_file = key_pair.serialize_pem();
+
     let cert = X509::from_pem(cert_file.as_bytes()).unwrap();
     let key = PKey::private_key_from_pem(key_file.as_bytes()).unwrap();
 

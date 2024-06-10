@@ -10,11 +10,10 @@ use std::{
     task::{Context, Poll},
 };
 
+use actix_http::Payload;
 use bytes::BytesMut;
 use futures_core::{ready, Stream as _};
 use serde::{de::DeserializeOwned, Serialize};
-
-use actix_http::Payload;
 
 #[cfg(feature = "__compress")]
 use crate::dev::Decompress;
@@ -22,7 +21,7 @@ use crate::{
     body::EitherBody,
     error::{Error, JsonPayloadError},
     extract::FromRequest,
-    http::header::CONTENT_LENGTH,
+    http::header::{ContentLength, Header as _},
     request::HttpRequest,
     web, HttpMessage, HttpResponse, Responder,
 };
@@ -158,8 +157,7 @@ impl<T: DeserializeOwned> FromRequest for Json<T> {
     }
 }
 
-type JsonErrorHandler =
-    Option<Arc<dyn Fn(JsonPayloadError, &HttpRequest) -> Error + Send + Sync>>;
+type JsonErrorHandler = Option<Arc<dyn Fn(JsonPayloadError, &HttpRequest) -> Error + Send + Sync>>;
 
 pub struct JsonExtractFut<T> {
     req: Option<HttpRequest>,
@@ -330,25 +328,26 @@ impl<T: DeserializeOwned> JsonBody<T> {
         ctype_required: bool,
     ) -> Self {
         // check content-type
-        let can_parse_json = if let Ok(Some(mime)) = req.mime_type() {
-            mime.subtype() == mime::JSON
-                || mime.suffix() == Some(mime::JSON)
-                || ctype_fn.map_or(false, |predicate| predicate(mime))
-        } else {
-            // if `ctype_required` is false, assume payload is
-            // json even when content-type header is missing
-            !ctype_required
+        let can_parse_json = match (ctype_required, req.mime_type()) {
+            (true, Ok(Some(mime))) => {
+                mime.subtype() == mime::JSON
+                    || mime.suffix() == Some(mime::JSON)
+                    || ctype_fn.map_or(false, |predicate| predicate(mime))
+            }
+
+            // if content-type is expected but not parsable as mime type, bail
+            (true, _) => false,
+
+            // if content-type validation is disabled, assume payload is JSON
+            // even when content-type header is missing or invalid mime type
+            (false, _) => true,
         };
 
         if !can_parse_json {
             return JsonBody::Error(Some(JsonPayloadError::ContentType));
         }
 
-        let length = req
-            .headers()
-            .get(&CONTENT_LENGTH)
-            .and_then(|l| l.to_str().ok())
-            .and_then(|s| s.parse::<usize>().ok());
+        let length = ContentLength::parse(req).ok().map(|x| x.0);
 
         // Notice the content-length is not checked against limit of json config here.
         // As the internal usage always call JsonBody::limit after JsonBody::new.
@@ -423,9 +422,7 @@ impl<T: DeserializeOwned> Future for JsonBody<T> {
                         let chunk = chunk?;
                         let buf_len = buf.len() + chunk.len();
                         if buf_len > *limit {
-                            return Poll::Ready(Err(JsonPayloadError::Overflow {
-                                limit: *limit,
-                            }));
+                            return Poll::Ready(Err(JsonPayloadError::Overflow { limit: *limit }));
                         } else {
                             buf.extend_from_slice(&chunk);
                         }
@@ -508,8 +505,7 @@ mod tests {
                 let msg = MyObject {
                     name: "invalid request".to_string(),
                 };
-                let resp =
-                    HttpResponse::BadRequest().body(serde_json::to_string(&msg).unwrap());
+                let resp = HttpResponse::BadRequest().body(serde_json::to_string(&msg).unwrap());
                 InternalError::from_response(err, resp).into()
             }))
             .to_http_parts();
@@ -735,6 +731,25 @@ mod tests {
     }
 
     #[actix_rt::test]
+    async fn test_json_ignoring_content_type() {
+        let (req, mut pl) = TestRequest::default()
+            .insert_header((
+                header::CONTENT_LENGTH,
+                header::HeaderValue::from_static("16"),
+            ))
+            .insert_header((
+                header::CONTENT_TYPE,
+                header::HeaderValue::from_static("invalid/value"),
+            ))
+            .set_payload(Bytes::from_static(b"{\"name\": \"test\"}"))
+            .app_data(JsonConfig::default().content_type_required(false))
+            .to_http_parts();
+
+        let s = Json::<MyObject>::from_request(&req, &mut pl).await;
+        assert!(s.is_ok());
+    }
+
+    #[actix_rt::test]
     async fn test_with_config_in_data_wrapper() {
         let (req, mut pl) = TestRequest::default()
             .insert_header((CONTENT_TYPE, mime::APPLICATION_JSON))
@@ -747,7 +762,8 @@ mod tests {
         assert!(s.is_err());
 
         let err_str = s.err().unwrap().to_string();
-        assert!(err_str
-            .contains("JSON payload (16 bytes) is larger than allowed (limit: 10 bytes)."));
+        assert!(
+            err_str.contains("JSON payload (16 bytes) is larger than allowed (limit: 10 bytes).")
+        );
     }
 }

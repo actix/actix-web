@@ -1,7 +1,5 @@
 //! [`TryIntoHeaderValue`] trait and implementations.
 
-use std::convert::TryFrom as _;
-
 use bytes::Bytes;
 use http::{header::InvalidHeaderValue, Error as HttpError, HeaderValue};
 use mime::Mime;

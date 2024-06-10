@@ -92,7 +92,8 @@ pub struct RouteService {
 }
 
 impl RouteService {
-    // TODO: does this need to take &mut ?
+    // TODO(breaking): remove pass by ref mut
+    #[allow(clippy::needless_pass_by_ref_mut)]
     pub fn check(&self, req: &mut ServiceRequest) -> bool {
         let guard_ctx = req.guard_ctx();
 
@@ -290,31 +291,32 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_route() {
-        let srv = init_service(
-            App::new()
-                .service(
-                    web::resource("/test")
-                        .route(web::get().to(HttpResponse::Ok))
-                        .route(web::put().to(|| async {
-                            Err::<HttpResponse, _>(error::ErrorBadRequest("err"))
-                        }))
-                        .route(web::post().to(|| async {
-                            sleep(Duration::from_millis(100)).await;
-                            Ok::<_, Infallible>(HttpResponse::Created())
-                        }))
-                        .route(web::delete().to(|| async {
-                            sleep(Duration::from_millis(100)).await;
-                            Err::<HttpResponse, _>(error::ErrorBadRequest("err"))
-                        })),
-                )
-                .service(web::resource("/json").route(web::get().to(|| async {
-                    sleep(Duration::from_millis(25)).await;
-                    web::Json(MyObject {
-                        name: "test".to_string(),
-                    })
-                }))),
-        )
-        .await;
+        let srv =
+            init_service(
+                App::new()
+                    .service(
+                        web::resource("/test")
+                            .route(web::get().to(HttpResponse::Ok))
+                            .route(web::put().to(|| async {
+                                Err::<HttpResponse, _>(error::ErrorBadRequest("err"))
+                            }))
+                            .route(web::post().to(|| async {
+                                sleep(Duration::from_millis(100)).await;
+                                Ok::<_, Infallible>(HttpResponse::Created())
+                            }))
+                            .route(web::delete().to(|| async {
+                                sleep(Duration::from_millis(100)).await;
+                                Err::<HttpResponse, _>(error::ErrorBadRequest("err"))
+                            })),
+                    )
+                    .service(web::resource("/json").route(web::get().to(|| async {
+                        sleep(Duration::from_millis(25)).await;
+                        web::Json(MyObject {
+                            name: "test".to_string(),
+                        })
+                    }))),
+            )
+            .await;
 
         let req = TestRequest::with_uri("/test")
             .method(Method::GET)

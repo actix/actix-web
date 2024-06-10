@@ -64,15 +64,22 @@
 //! - `compress-gzip` - gzip and deflate content encoding compression support (enabled by default)
 //! - `compress-zstd` - zstd content encoding compression support (enabled by default)
 //! - `openssl` - HTTPS support via `openssl` crate, supports `HTTP/2`
-//! - `rustls` - HTTPS support via `rustls` crate, supports `HTTP/2`
+//! - `rustls` - HTTPS support via `rustls` 0.20 crate, supports `HTTP/2`
+//! - `rustls-0_21` - HTTPS support via `rustls` 0.21 crate, supports `HTTP/2`
+//! - `rustls-0_22` - HTTPS support via `rustls` 0.22 crate, supports `HTTP/2`
+//! - `rustls-0_23` - HTTPS support via `rustls` 0.23 crate, supports `HTTP/2`
 //! - `secure-cookies` - secure cookies support
 
 #![deny(rust_2018_idioms, nonstandard_style)]
 #![warn(future_incompatible)]
-#![allow(clippy::uninlined_format_args)]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
-#![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+
+pub use actix_http::{body, HttpMessage};
+#[cfg(feature = "cookies")]
+#[doc(inline)]
+pub use cookie;
 
 mod app;
 mod app_service;
@@ -102,31 +109,25 @@ pub mod test;
 pub(crate) mod types;
 pub mod web;
 
-pub use crate::app::App;
 #[doc(inline)]
 pub use crate::error::Result;
-pub use crate::error::{Error, ResponseError};
-pub use crate::extract::FromRequest;
-pub use crate::handler::Handler;
-pub use crate::request::HttpRequest;
-pub use crate::resource::Resource;
-pub use crate::response::{CustomizeResponder, HttpResponse, HttpResponseBuilder, Responder};
-pub use crate::route::Route;
-pub use crate::scope::Scope;
-pub use crate::server::HttpServer;
-pub use crate::types::Either;
-
-pub use actix_http::{body, HttpMessage};
-
-#[cfg(feature = "cookies")]
-#[cfg_attr(docsrs, doc(cfg(feature = "cookies")))]
-#[doc(inline)]
-pub use cookie;
+pub use crate::{
+    app::App,
+    error::{Error, ResponseError},
+    extract::FromRequest,
+    handler::Handler,
+    request::HttpRequest,
+    resource::Resource,
+    response::{CustomizeResponder, HttpResponse, HttpResponseBuilder, Responder},
+    route::Route,
+    scope::Scope,
+    server::HttpServer,
+    types::Either,
+};
 
 macro_rules! codegen_reexport {
     ($name:ident) => {
         #[cfg(feature = "macros")]
-        #[cfg_attr(docsrs, doc(cfg(feature = "macros")))]
         pub use actix_web_codegen::$name;
     };
 }
@@ -144,5 +145,6 @@ codegen_reexport!(delete);
 codegen_reexport!(trace);
 codegen_reexport!(connect);
 codegen_reexport!(options);
+codegen_reexport!(scope);
 
 pub(crate) type BoxError = Box<dyn std::error::Error>;

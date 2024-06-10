@@ -11,12 +11,10 @@ use std::{
 use actix_rt::task::{spawn_blocking, JoinHandle};
 use bytes::Bytes;
 use derive_more::Display;
-use futures_core::ready;
-use pin_project_lite::pin_project;
-
 #[cfg(feature = "compress-gzip")]
 use flate2::write::{GzEncoder, ZlibEncoder};
-
+use futures_core::ready;
+use pin_project_lite::pin_project;
 use tracing::trace;
 #[cfg(feature = "compress-zstd")]
 use zstd::stream::write::Encoder as ZstdEncoder;
@@ -52,10 +50,21 @@ impl<B: MessageBody> Encoder<B> {
         }
     }
 
+    fn empty() -> Self {
+        Encoder {
+            body: EncoderBody::Full { body: Bytes::new() },
+            encoder: None,
+            fut: None,
+            eof: true,
+        }
+    }
+
     pub fn response(encoding: ContentEncoding, head: &mut ResponseHead, body: B) -> Self {
-        // no need to compress an empty body
-        if matches!(body.size(), BodySize::None) {
-            return Self::none();
+        // no need to compress empty bodies
+        match body.size() {
+            BodySize::None => return Self::none(),
+            BodySize::Sized(0) => return Self::empty(),
+            _ => {}
         }
 
         let should_encode = !(head.headers().contains_key(&CONTENT_ENCODING)

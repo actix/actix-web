@@ -1,13 +1,13 @@
 [package]
 name = "actix-web-actors"
-version = "4.2.0"
+version = "4.3.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix actors support for Actix Web"
 keywords = ["actix", "http", "web", "framework", "async"]
 homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-web"
 license = "MIT OR Apache-2.0"
-edition = "2018"
+edition = "2021"
 
 [lib]
 name = "actix_web_actors"
@@ -23,7 +23,7 @@ bytes = "1"
 bytestring = "1"
 futures-core = { version = "0.3.17", default-features = false }
 pin-project-lite = "0.2"
-tokio = { version = "1.18.5", features = ["sync"] }
+tokio = { version = "1.24.2", features = ["sync"] }
 tokio-util = { version = "0.7", features = ["codec"] }
 
 [dev-dependencies]
@@ -32,7 +32,6 @@ actix-test = "0.1"
 awc = { version = "3", default-features = false }
 actix-web = { version = "4", features = ["macros"] }
 
+env_logger = "0.11"
+futures-util = { version = "0.3.17", default-features = false, features = ["std"] }
 mime = "0.3"
-
-env_logger = "0.9"
-futures-util = { version = "0.3.17", default-features = false }

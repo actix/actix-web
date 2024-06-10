@@ -1,4 +1,36 @@
-use derive_more::{Display, Error};
+use std::fmt;
+
+use derive_more::Error;
+
+/// Copy of `http_range::HttpRangeParseError`.
+#[derive(Debug, Clone)]
+enum HttpRangeParseError {
+    InvalidRange,
+    NoOverlap,
+}
+
+impl From<http_range::HttpRangeParseError> for HttpRangeParseError {
+    fn from(err: http_range::HttpRangeParseError) -> Self {
+        match err {
+            http_range::HttpRangeParseError::InvalidRange => Self::InvalidRange,
+            http_range::HttpRangeParseError::NoOverlap => Self::NoOverlap,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Error)]
+#[non_exhaustive]
+pub struct ParseRangeErr(#[error(not(source))] HttpRangeParseError);
+
+impl fmt::Display for ParseRangeErr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("invalid Range header: ")?;
+        f.write_str(match self.0 {
+            HttpRangeParseError::InvalidRange => "invalid syntax",
+            HttpRangeParseError::NoOverlap => "range starts after end of content",
+        })
+    }
+}
 
 /// HTTP Range header representation.
 #[derive(Debug, Clone, Copy)]
@@ -10,26 +42,22 @@ pub struct HttpRange {
     pub length: u64,
 }
 
-#[derive(Debug, Clone, Display, Error)]
-#[display(fmt = "Parse HTTP Range failed")]
-pub struct ParseRangeErr(#[error(not(source))] ());
-
 impl HttpRange {
     /// Parses Range HTTP header string as per RFC 2616.
     ///
     /// `header` is HTTP Range header (e.g. `bytes=bytes=0-9`).
     /// `size` is full size of response (file).
     pub fn parse(header: &str, size: u64) -> Result<Vec<HttpRange>, ParseRangeErr> {
-        match http_range::HttpRange::parse(header, size) {
-            Ok(ranges) => Ok(ranges
-                .iter()
-                .map(|range| HttpRange {
-                    start: range.start,
-                    length: range.length,
-                })
-                .collect()),
-            Err(_) => Err(ParseRangeErr(())),
-        }
+        let ranges =
+            http_range::HttpRange::parse(header, size).map_err(|err| ParseRangeErr(err.into()))?;
+
+        Ok(ranges
+            .iter()
+            .map(|range| HttpRange {
+                start: range.start,
+                length: range.length,
+            })
+            .collect())
     }
 }
 

@@ -57,6 +57,6 @@ common_header! {
 
     test_parse_and_format {
         // Test case from RFC
-        common_header_test!(test1, vec![b"iso-8859-5, unicode-1-1;q=0.8"]);
+        common_header_test!(test1, [b"iso-8859-5, unicode-1-1;q=0.8"]);
     }
 }

@@ -13,7 +13,11 @@
 
 #![deny(rust_2018_idioms, nonstandard_style)]
 #![warn(future_incompatible, missing_docs, missing_debug_implementations)]
-#![allow(clippy::uninlined_format_args)]
+#![doc(html_logo_url = "https://actix.rs/img/logo.png")]
+#![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+
+use std::path::Path;
 
 use actix_service::boxed::{BoxService, BoxServiceFactory};
 use actix_web::{
@@ -22,7 +26,6 @@ use actix_web::{
     http::header::DispositionType,
 };
 use mime_guess::from_ext;
-use std::path::Path;
 
 mod chunked;
 mod directory;
@@ -34,16 +37,15 @@ mod path_buf;
 mod range;
 mod service;
 
-pub use self::chunked::ChunkedReadFile;
-pub use self::directory::Directory;
-pub use self::files::Files;
-pub use self::named::NamedFile;
-pub use self::range::HttpRange;
-pub use self::service::FilesService;
-
-use self::directory::{directory_listing, DirectoryRenderer};
-use self::error::FilesError;
-use self::path_buf::PathBufWrap;
+pub use self::{
+    chunked::ChunkedReadFile, directory::Directory, files::Files, named::NamedFile,
+    range::HttpRange, service::FilesService,
+};
+use self::{
+    directory::{directory_listing, DirectoryRenderer},
+    error::FilesError,
+    path_buf::PathBufWrap,
+};
 
 type HttpService = BoxService<ServiceRequest, ServiceResponse, Error>;
 type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
@@ -63,6 +65,7 @@ type PathFilter = dyn Fn(&Path, &RequestHead) -> bool;
 #[cfg(test)]
 mod tests {
     use std::{
+        fmt::Write as _,
         fs::{self},
         ops::Add,
         time::{Duration, SystemTime},
@@ -72,7 +75,7 @@ mod tests {
         dev::ServiceFactory,
         guard,
         http::{
-            header::{self, ContentDisposition, DispositionParam, DispositionType},
+            header::{self, ContentDisposition, DispositionParam},
             Method, StatusCode,
         },
         middleware::Compress,
@@ -551,10 +554,9 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_static_files_with_spaces() {
-        let srv = test::init_service(
-            App::new().service(Files::new("/", ".").index_file("Cargo.toml")),
-        )
-        .await;
+        let srv =
+            test::init_service(App::new().service(Files::new("/", ".").index_file("Cargo.toml")))
+                .await;
         let request = TestRequest::get()
             .uri("/tests/test%20space.binary")
             .to_request();
@@ -563,6 +565,30 @@ mod tests {
 
         let bytes = test::read_body(response).await;
         let data = web::Bytes::from(fs::read("tests/test space.binary").unwrap());
+        assert_eq!(bytes, data);
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[actix_rt::test]
+    async fn test_static_files_with_special_characters() {
+        // Create the file we want to test against ad-hoc. We can't check it in as otherwise
+        // Windows can't even checkout this repository.
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_with_newlines = temp_dir.path().join("test\n\x0B\x0C\rnewline.text");
+        fs::write(&file_with_newlines, "Look at my newlines").unwrap();
+
+        let srv = test::init_service(
+            App::new().service(Files::new("/", temp_dir.path()).index_file("Cargo.toml")),
+        )
+        .await;
+        let request = TestRequest::get()
+            .uri("/test%0A%0B%0C%0Dnewline.text")
+            .to_request();
+        let response = test::call_service(&srv, request).await;
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let bytes = test::read_body(response).await;
+        let data = web::Bytes::from(fs::read(file_with_newlines).unwrap());
         assert_eq!(bytes, data);
     }
 
@@ -664,8 +690,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_static_files() {
         let srv =
-            test::init_service(App::new().service(Files::new("/", ".").show_files_listing()))
-                .await;
+            test::init_service(App::new().service(Files::new("/", ".").show_files_listing())).await;
         let req = TestRequest::with_uri("/missing").to_request();
 
         let resp = test::call_service(&srv, req).await;
@@ -678,8 +703,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
         let srv =
-            test::init_service(App::new().service(Files::new("/", ".").show_files_listing()))
-                .await;
+            test::init_service(App::new().service(Files::new("/", ".").show_files_listing())).await;
         let req = TestRequest::with_uri("/tests").to_request();
         let resp = test::call_service(&srv, req).await;
         assert_eq!(
@@ -840,19 +864,21 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_percent_encoding_2() {
-        let tmpdir = tempfile::tempdir().unwrap();
+        let temp_dir = tempfile::tempdir().unwrap();
         let filename = match cfg!(unix) {
-            true => "ض:?#[]{}<>()@!$&'`|*+,;= %20.test",
+            true => "ض:?#[]{}<>()@!$&'`|*+,;= %20\n.test",
             false => "ض#[]{}()@!$&'`+,;= %20.test",
         };
         let filename_encoded = filename
             .as_bytes()
             .iter()
-            .map(|c| format!("%{:02X}", c))
-            .collect::<String>();
-        std::fs::File::create(tmpdir.path().join(filename)).unwrap();
+            .fold(String::new(), |mut buf, c| {
+                write!(&mut buf, "%{:02X}", c).unwrap();
+                buf
+            });
+        std::fs::File::create(temp_dir.path().join(filename)).unwrap();
 
-        let srv = test::init_service(App::new().service(Files::new("", tmpdir.path()))).await;
+        let srv = test::init_service(App::new().service(Files::new("/", temp_dir.path()))).await;
 
         let req = TestRequest::get()
             .uri(&format!("/{}", filename_encoded))

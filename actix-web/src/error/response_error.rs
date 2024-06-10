@@ -152,7 +152,7 @@ mod tests {
         let resp_err: &dyn ResponseError = &err;
 
         let err = resp_err.downcast_ref::<PayloadError>().unwrap();
-        assert_eq!(err.to_string(), "Payload reached size limit.");
+        assert_eq!(err.to_string(), "payload reached size limit");
 
         let not_err = resp_err.downcast_ref::<ContentTypeError>();
         assert!(not_err.is_none());

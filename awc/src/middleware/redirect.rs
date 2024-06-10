@@ -1,5 +1,4 @@
 use std::{
-    convert::TryFrom,
     future::Future,
     net::SocketAddr,
     pin::Pin,
@@ -304,10 +303,7 @@ mod tests {
     use actix_web::{web, App, Error, HttpRequest, HttpResponse};
 
     use super::*;
-    use crate::{
-        http::{header::HeaderValue, StatusCode},
-        ClientBuilder,
-    };
+    use crate::{http::header::HeaderValue, ClientBuilder};
 
     #[actix_rt::test]
     async fn basic_redirect() {
@@ -450,8 +446,7 @@ mod tests {
             }
 
             async fn test(req: HttpRequest, body: Bytes) -> HttpResponse {
-                if (req.method() == Method::GET || req.method() == Method::HEAD)
-                    && body.is_empty()
+                if (req.method() == Method::GET || req.method() == Method::HEAD) && body.is_empty()
                 {
                     HttpResponse::Ok().finish()
                 } else {
@@ -551,10 +546,7 @@ mod tests {
                 let port = *req.app_data::<u16>().unwrap();
                 if req.headers().get(header::AUTHORIZATION).is_some() {
                     HttpResponse::Found()
-                        .append_header((
-                            "location",
-                            format!("http://localhost:{}/", port).as_str(),
-                        ))
+                        .append_header(("location", format!("http://localhost:{}/", port).as_str()))
                         .finish()
                 } else {
                     HttpResponse::InternalServerError().finish()

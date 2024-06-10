@@ -74,6 +74,7 @@ pub struct Codec {
 }
 
 bitflags! {
+    #[derive(Debug, Clone, Copy)]
     struct Flags: u8 {
         const SERVER         = 0b0000_0001;
         const CONTINUATION   = 0b0000_0010;
@@ -295,7 +296,7 @@ impl Decoder for Codec {
                 }
             }
             Ok(None) => Ok(None),
-            Err(e) => Err(e),
+            Err(err) => Err(err),
         }
     }
 }

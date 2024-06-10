@@ -8,8 +8,7 @@ use std::io;
 use derive_more::{Display, Error, From};
 use http::{header, Method, StatusCode};
 
-use crate::body::BoxBody;
-use crate::{header::HeaderValue, RequestHead, Response, ResponseBuilder};
+use crate::{body::BoxBody, header::HeaderValue, RequestHead, Response, ResponseBuilder};
 
 mod codec;
 mod dispatcher;
@@ -17,48 +16,50 @@ mod frame;
 mod mask;
 mod proto;
 
-pub use self::codec::{Codec, Frame, Item, Message};
-pub use self::dispatcher::Dispatcher;
-pub use self::frame::Parser;
-pub use self::proto::{hash_key, CloseCode, CloseReason, OpCode};
+pub use self::{
+    codec::{Codec, Frame, Item, Message},
+    dispatcher::Dispatcher,
+    frame::Parser,
+    proto::{hash_key, CloseCode, CloseReason, OpCode},
+};
 
 /// WebSocket protocol errors.
 #[derive(Debug, Display, Error, From)]
 pub enum ProtocolError {
     /// Received an unmasked frame from client.
-    #[display(fmt = "Received an unmasked frame from client.")]
+    #[display(fmt = "received an unmasked frame from client")]
     UnmaskedFrame,
 
     /// Received a masked frame from server.
-    #[display(fmt = "Received a masked frame from server.")]
+    #[display(fmt = "received a masked frame from server")]
     MaskedFrame,
 
     /// Encountered invalid opcode.
-    #[display(fmt = "Invalid opcode: {}.", _0)]
+    #[display(fmt = "invalid opcode ({})", _0)]
     InvalidOpcode(#[error(not(source))] u8),
 
     /// Invalid control frame length
-    #[display(fmt = "Invalid control frame length: {}.", _0)]
+    #[display(fmt = "invalid control frame length ({})", _0)]
     InvalidLength(#[error(not(source))] usize),
 
     /// Bad opcode.
-    #[display(fmt = "Bad opcode.")]
+    #[display(fmt = "bad opcode")]
     BadOpCode,
 
     /// A payload reached size limit.
-    #[display(fmt = "A payload reached size limit.")]
+    #[display(fmt = "payload reached size limit")]
     Overflow,
 
-    /// Continuation is not started.
-    #[display(fmt = "Continuation is not started.")]
+    /// Continuation has not started.
+    #[display(fmt = "continuation has not started")]
     ContinuationNotStarted,
 
     /// Received new continuation but it is already started.
-    #[display(fmt = "Received new continuation but it is already started.")]
+    #[display(fmt = "received new continuation but it has already started")]
     ContinuationStarted,
 
     /// Unknown continuation fragment.
-    #[display(fmt = "Unknown continuation fragment: {}.", _0)]
+    #[display(fmt = "unknown continuation fragment: {}", _0)]
     ContinuationFragment(#[error(not(source))] OpCode),
 
     /// I/O error.
@@ -70,27 +71,27 @@ pub enum ProtocolError {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Display, Error)]
 pub enum HandshakeError {
     /// Only get method is allowed.
-    #[display(fmt = "Method not allowed.")]
+    #[display(fmt = "method not allowed")]
     GetMethodRequired,
 
     /// Upgrade header if not set to WebSocket.
-    #[display(fmt = "WebSocket upgrade is expected.")]
+    #[display(fmt = "WebSocket upgrade is expected")]
     NoWebsocketUpgrade,
 
     /// Connection header is not set to upgrade.
-    #[display(fmt = "Connection upgrade is expected.")]
+    #[display(fmt = "connection upgrade is expected")]
     NoConnectionUpgrade,
 
     /// WebSocket version header is not set.
-    #[display(fmt = "WebSocket version header is required.")]
+    #[display(fmt = "WebSocket version header is required")]
     NoVersionHeader,
 
     /// Unsupported WebSocket version.
-    #[display(fmt = "Unsupported WebSocket version.")]
+    #[display(fmt = "unsupported WebSocket version")]
     UnsupportedVersion,
 
     /// WebSocket key is not set or wrong.
-    #[display(fmt = "Unknown websocket key.")]
+    #[display(fmt = "unknown WebSocket key")]
     BadWebsocketKey,
 }
 
@@ -219,10 +220,8 @@ pub fn handshake_response(req: &RequestHead) -> ResponseBuilder {
 
 #[cfg(test)]
 mod tests {
-    use crate::{header, Method};
-
     use super::*;
-    use crate::test::TestRequest;
+    use crate::{header, test::TestRequest};
 
     #[test]
     fn test_handshake() {

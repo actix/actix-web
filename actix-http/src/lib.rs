@@ -1,11 +1,15 @@
-//! HTTP primitives for the Actix ecosystem.
+//! HTTP types and services for the Actix ecosystem.
 //!
 //! ## Crate Features
+//!
 //! | Feature             | Functionality                               |
 //! | ------------------- | ------------------------------------------- |
 //! | `http2`             | HTTP/2 support via [h2].                    |
 //! | `openssl`           | TLS support via [OpenSSL].                  |
-//! | `rustls`            | TLS support via [rustls].                   |
+//! | `rustls`            | TLS support via [rustls]  0.20.             |
+//! | `rustls-0_21`       | TLS support via [rustls]  0.21.             |
+//! | `rustls-0_22`       | TLS support via [rustls]  0.22.             |
+//! | `rustls-0_23`       | TLS support via [rustls]  0.23.             |
 //! | `compress-brotli`   | Payload compression support: Brotli.        |
 //! | `compress-gzip`     | Payload compression support: Deflate, Gzip. |
 //! | `compress-zstd`     | Payload compression support: Zstd.          |
@@ -21,15 +25,13 @@
 #![allow(
     clippy::type_complexity,
     clippy::too_many_arguments,
-    clippy::borrow_interior_mutable_const,
-    clippy::uninlined_format_args
+    clippy::borrow_interior_mutable_const
 )]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
-#![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
-pub use ::http::{uri, uri::Uri};
-pub use ::http::{Method, StatusCode, Version};
+pub use http::{uri, uri::Uri, Method, StatusCode, Version};
 
 pub mod body;
 mod builder;
@@ -41,7 +43,6 @@ pub mod error;
 mod extensions;
 pub mod h1;
 #[cfg(feature = "http2")]
-#[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
 pub mod h2;
 pub mod header;
 mod helpers;
@@ -56,26 +57,32 @@ mod responses;
 mod service;
 pub mod test;
 #[cfg(feature = "ws")]
-#[cfg_attr(docsrs, doc(cfg(feature = "ws")))]
 pub mod ws;
 
-pub use self::builder::HttpServiceBuilder;
-pub use self::config::ServiceConfig;
-pub use self::error::Error;
-pub use self::extensions::Extensions;
-pub use self::header::ContentEncoding;
-pub use self::http_message::HttpMessage;
-pub use self::keep_alive::KeepAlive;
-pub use self::message::ConnectionType;
-pub use self::message::Message;
 #[allow(deprecated)]
-pub use self::payload::{BoxedPayloadStream, Payload, PayloadStream};
-pub use self::requests::{Request, RequestHead, RequestHeadType};
-pub use self::responses::{Response, ResponseBuilder, ResponseHead};
-pub use self::service::HttpService;
-#[cfg(any(feature = "openssl", feature = "rustls"))]
-#[cfg_attr(docsrs, doc(cfg(any(feature = "openssl", feature = "rustls"))))]
+pub use self::payload::PayloadStream;
+#[cfg(any(
+    feature = "openssl",
+    feature = "rustls-0_20",
+    feature = "rustls-0_21",
+    feature = "rustls-0_22",
+    feature = "rustls-0_23",
+))]
 pub use self::service::TlsAcceptorConfig;
+pub use self::{
+    builder::HttpServiceBuilder,
+    config::ServiceConfig,
+    error::Error,
+    extensions::Extensions,
+    header::ContentEncoding,
+    http_message::HttpMessage,
+    keep_alive::KeepAlive,
+    message::{ConnectionType, Message},
+    payload::{BoxedPayloadStream, Payload},
+    requests::{Request, RequestHead, RequestHeadType},
+    responses::{Response, ResponseBuilder, ResponseHead},
+    service::HttpService,
+};
 
 /// A major HTTP protocol version.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]

@@ -260,7 +260,7 @@ impl HttpRequest {
         Ref::map(self.extensions(), |data| data.get().unwrap())
     }
 
-    /// App config
+    /// Returns a reference to the application's connection configuration.
     #[inline]
     pub fn app_config(&self) -> &AppConfig {
         self.app_state().config()
@@ -311,7 +311,6 @@ impl HttpRequest {
 
     /// Load request cookies.
     #[cfg(feature = "cookies")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "cookies")))]
     pub fn cookies(&self) -> Result<Ref<'_, Vec<Cookie<'static>>>, CookieParseError> {
         use actix_http::header::COOKIE;
 
@@ -335,7 +334,6 @@ impl HttpRequest {
 
     /// Return request cookie.
     #[cfg(feature = "cookies")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "cookies")))]
     pub fn cookie(&self, name: &str) -> Option<Cookie<'static>> {
         if let Ok(cookies) = self.cookies() {
             for cookie in cookies.iter() {
@@ -437,16 +435,28 @@ impl fmt::Debug for HttpRequest {
             self.inner.head.method,
             self.path()
         )?;
+
         if !self.query_string().is_empty() {
             writeln!(f, "  query: ?{:?}", self.query_string())?;
         }
+
         if !self.match_info().is_empty() {
             writeln!(f, "  params: {:?}", self.match_info())?;
         }
+
         writeln!(f, "  headers:")?;
+
         for (key, val) in self.headers().iter() {
-            writeln!(f, "    {:?}: {:?}", key, val)?;
+            match key {
+                // redact sensitive header values from debug output
+                &crate::http::header::AUTHORIZATION
+                | &crate::http::header::PROXY_AUTHORIZATION
+                | &crate::http::header::COOKIE => writeln!(f, "    {:?}: {:?}", key, "*redacted*")?,
+
+                _ => writeln!(f, "    {:?}: {:?}", key, val)?,
+            }
         }
+
         Ok(())
     }
 }
@@ -513,7 +523,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        dev::{ResourceDef, ResourceMap, Service},
+        dev::{ResourceDef, Service},
         http::{header, StatusCode},
         test::{self, call_service, init_service, read_body, TestRequest},
         web, App, HttpResponse,
@@ -655,13 +665,13 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_drop_http_request_pool() {
-        let srv = init_service(App::new().service(web::resource("/").to(
-            |req: HttpRequest| {
+        let srv = init_service(
+            App::new().service(web::resource("/").to(|req: HttpRequest| {
                 HttpResponse::Ok()
                     .insert_header(("pool_cap", req.app_state().pool().cap))
                     .finish()
-            },
-        )))
+            })),
+        )
         .await;
 
         let req = TestRequest::default().to_request();
@@ -809,10 +819,7 @@ mod tests {
                 web::scope("/user/{id}")
                     .service(web::resource("/profile").route(web::get().to(
                         move |req: HttpRequest| {
-                            assert_eq!(
-                                req.match_pattern(),
-                                Some("/user/{id}/profile".to_owned())
-                            );
+                            assert_eq!(req.match_pattern(), Some("/user/{id}/profile".to_owned()));
 
                             HttpResponse::Ok().finish()
                         },
@@ -912,5 +919,48 @@ mod tests {
         assert_eq!(bar_resp.status(), StatusCode::OK);
         let body = read_body(bar_resp).await;
         assert_eq!(body, "http://localhost:8080/bar/nested");
+    }
+
+    #[test]
+    fn authorization_header_hidden_in_debug() {
+        let authorization_header = "Basic bXkgdXNlcm5hbWU6bXkgcGFzc3dvcmQK";
+        let req = TestRequest::get()
+            .insert_header((crate::http::header::AUTHORIZATION, authorization_header))
+            .to_http_request();
+
+        assert!(!format!("{:?}", req).contains(authorization_header));
+    }
+
+    #[test]
+    fn proxy_authorization_header_hidden_in_debug() {
+        let proxy_authorization_header = "secret value";
+        let req = TestRequest::get()
+            .insert_header((
+                crate::http::header::PROXY_AUTHORIZATION,
+                proxy_authorization_header,
+            ))
+            .to_http_request();
+
+        assert!(!format!("{:?}", req).contains(proxy_authorization_header));
+    }
+
+    #[test]
+    fn cookie_header_hidden_in_debug() {
+        let cookie_header = "secret";
+        let req = TestRequest::get()
+            .insert_header((crate::http::header::COOKIE, cookie_header))
+            .to_http_request();
+
+        assert!(!format!("{:?}", req).contains(cookie_header));
+    }
+
+    #[test]
+    fn other_header_visible_in_debug() {
+        let location_header = "192.0.0.1";
+        let req = TestRequest::get()
+            .insert_header((crate::http::header::LOCATION, location_header))
+            .to_http_request();
+
+        assert!(format!("{:?}", req).contains(location_header));
     }
 }

@@ -117,6 +117,7 @@ impl PayloadSender {
         }
     }
 
+    #[allow(clippy::needless_pass_by_ref_mut)]
     #[inline]
     pub fn need_read(&self, cx: &mut Context<'_>) -> PayloadStatus {
         // we check need_read only if Payload (other side) is alive,
@@ -174,7 +175,7 @@ impl Inner {
 
     /// Register future waiting data from payload.
     /// Waker would be used in `Inner::wake`
-    fn register(&mut self, cx: &mut Context<'_>) {
+    fn register(&mut self, cx: &Context<'_>) {
         if self
             .task
             .as_ref()
@@ -186,7 +187,7 @@ impl Inner {
 
     // Register future feeding data to payload.
     /// Waker would be used in `Inner::wake_io`
-    fn register_io(&mut self, cx: &mut Context<'_>) {
+    fn register_io(&mut self, cx: &Context<'_>) {
         if self
             .io_task
             .as_ref()
@@ -221,7 +222,7 @@ impl Inner {
 
     fn poll_next(
         mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
+        cx: &Context<'_>,
     ) -> Poll<Option<Result<Bytes, PayloadError>>> {
         if let Some(data) = self.items.pop_front() {
             self.len -= data.len();

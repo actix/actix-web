@@ -28,7 +28,7 @@ impl Date {
 
     fn update(&mut self) {
         self.pos = 0;
-        write!(self, "{}", httpdate::fmt_http_date(SystemTime::now())).unwrap();
+        write!(self, "{}", httpdate::HttpDate::from(SystemTime::now())).unwrap();
     }
 }
 

@@ -1,6 +1,4 @@
-use crate::ResourcePath;
-
-use crate::Quoter;
+use crate::{Quoter, ResourcePath};
 
 thread_local! {
     static DEFAULT_QUOTER: Quoter = Quoter::new(b"", b"%/+");
@@ -64,8 +62,9 @@ impl ResourcePath for Url {
 
 #[cfg(test)]
 mod tests {
+    use std::fmt::Write as _;
+
     use http::Uri;
-    use std::convert::TryFrom;
 
     use super::*;
     use crate::{Path, ResourceDef};
@@ -81,7 +80,11 @@ mod tests {
     }
 
     fn percent_encode(data: &[u8]) -> String {
-        data.iter().map(|c| format!("%{:02X}", c)).collect()
+        data.iter()
+            .fold(String::with_capacity(data.len() * 3), |mut buf, c| {
+                write!(&mut buf, "%{:02X}", c).unwrap();
+                buf
+            })
     }
 
     #[test]

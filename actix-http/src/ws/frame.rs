@@ -1,4 +1,4 @@
-use std::convert::TryFrom;
+use std::cmp::min;
 
 use bytes::{Buf, BufMut, BytesMut};
 use tracing::debug;
@@ -96,6 +96,10 @@ impl Parser {
 
         // not enough data
         if src.len() < idx + length {
+            let min_length = min(length, max_size);
+            if src.capacity() < idx + min_length {
+                src.reserve(idx + min_length - src.capacity());
+            }
             return Ok(None);
         }
 
@@ -174,14 +178,14 @@ impl Parser {
         };
 
         if payload_len < 126 {
-            dst.reserve(p_len + 2 + if mask { 4 } else { 0 });
+            dst.reserve(p_len + 2);
             dst.put_slice(&[one, two | payload_len as u8]);
         } else if payload_len <= 65_535 {
-            dst.reserve(p_len + 4 + if mask { 4 } else { 0 });
+            dst.reserve(p_len + 4);
             dst.put_slice(&[one, two | 126]);
             dst.put_u16(payload_len as u16);
         } else {
-            dst.reserve(p_len + 10 + if mask { 4 } else { 0 });
+            dst.reserve(p_len + 10);
             dst.put_slice(&[one, two | 127]);
             dst.put_u64(payload_len as u64);
         };
@@ -217,8 +221,9 @@ impl Parser {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use bytes::Bytes;
+
+    use super::*;
 
     struct F {
         finished: bool,

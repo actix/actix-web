@@ -21,7 +21,7 @@ use crate::{
         BoxedHttpService, BoxedHttpServiceFactory, HttpServiceFactory, ServiceRequest,
         ServiceResponse,
     },
-    Error, FromRequest, HttpResponse, Responder,
+    web, Error, FromRequest, HttpResponse, Responder,
 };
 
 /// A collection of [`Route`]s that respond to the same path pattern.
@@ -38,11 +38,13 @@ use crate::{
 ///
 /// let app = App::new().service(
 ///     web::resource("/")
-///         .route(web::get().to(|| HttpResponse::Ok())));
+///         .get(|| HttpResponse::Ok())
+///         .post(|| async { "Hello World!" })
+/// );
 /// ```
 ///
-/// If no matching route is found, [a 405 response is returned with an appropriate Allow header][RFC
-/// 9110 §15.5.6]. This default behavior can be overridden using
+/// If no matching route is found, an empty 405 response is returned which includes an
+/// [appropriate Allow header][RFC 9110 §15.5.6]. This default behavior can be overridden using
 /// [`default_service()`](Self::default_service).
 ///
 /// [RFC 9110 §15.5.6]: https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.6
@@ -58,6 +60,7 @@ pub struct Resource<T = ResourceEndpoint> {
 }
 
 impl Resource {
+    /// Constructs new resource that matches a `path` pattern.
     pub fn new<T: IntoPatterns>(path: T) -> Resource {
         let fref = Rc::new(RefCell::new(None));
 
@@ -350,12 +353,8 @@ where
     pub fn default_service<F, U>(mut self, f: F) -> Self
     where
         F: IntoServiceFactory<U, ServiceRequest>,
-        U: ServiceFactory<
-                ServiceRequest,
-                Config = (),
-                Response = ServiceResponse,
-                Error = Error,
-            > + 'static,
+        U: ServiceFactory<ServiceRequest, Config = (), Response = ServiceResponse, Error = Error>
+            + 'static,
         U::InitError: fmt::Debug,
     {
         // create and configure default resource
@@ -366,6 +365,45 @@ where
 
         self
     }
+}
+
+macro_rules! route_shortcut {
+    ($method_fn:ident, $method_upper:literal) => {
+        #[doc = concat!(" Adds a ", $method_upper, " route.")]
+        ///
+        /// Use [`route`](Self::route) if you need to add additional guards.
+        ///
+        /// # Examples
+        ///
+        /// ```
+        /// # use actix_web::web;
+        /// web::resource("/")
+        #[doc = concat!("    .", stringify!($method_fn), "(|| async { \"Hello World!\" })")]
+        /// # ;
+        /// ```
+        pub fn $method_fn<F, Args>(self, handler: F) -> Self
+        where
+            F: Handler<Args>,
+            Args: FromRequest + 'static,
+            F::Output: Responder + 'static,
+        {
+            self.route(web::$method_fn().to(handler))
+        }
+    };
+}
+
+/// Concise routes for well-known HTTP methods.
+impl<T> Resource<T>
+where
+    T: ServiceFactory<ServiceRequest, Config = (), Error = Error, InitError = ()>,
+{
+    route_shortcut!(get, "GET");
+    route_shortcut!(post, "POST");
+    route_shortcut!(put, "PUT");
+    route_shortcut!(patch, "PATCH");
+    route_shortcut!(delete, "DELETE");
+    route_shortcut!(head, "HEAD");
+    route_shortcut!(trace, "TRACE");
 }
 
 impl<T, B> HttpServiceFactory for Resource<T>
@@ -502,20 +540,14 @@ mod tests {
     use std::time::Duration;
 
     use actix_rt::time::sleep;
-    use actix_service::Service;
     use actix_utils::future::ok;
 
     use super::*;
     use crate::{
-        guard,
-        http::{
-            header::{self, HeaderValue},
-            Method, StatusCode,
-        },
+        http::{header::HeaderValue, Method, StatusCode},
         middleware::DefaultHeaders,
-        service::{ServiceRequest, ServiceResponse},
         test::{call_service, init_service, TestRequest},
-        web, App, Error, HttpMessage, HttpResponse,
+        App, HttpMessage,
     };
 
     #[test]
@@ -583,10 +615,8 @@ mod tests {
                         let fut = srv.call(req);
                         async {
                             fut.await.map(|mut res| {
-                                res.headers_mut().insert(
-                                    header::CONTENT_TYPE,
-                                    HeaderValue::from_static("0001"),
-                                );
+                                res.headers_mut()
+                                    .insert(header::CONTENT_TYPE, HeaderValue::from_static("0001"));
                                 res
                             })
                         }
@@ -618,12 +648,9 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_pattern() {
-        let srv = init_service(
-            App::new().service(
-                web::resource(["/test", "/test2"])
-                    .to(|| async { Ok::<_, Error>(HttpResponse::Ok()) }),
-            ),
-        )
+        let srv = init_service(App::new().service(
+            web::resource(["/test", "/test2"]).to(|| async { Ok::<_, Error>(HttpResponse::Ok()) }),
+        ))
         .await;
         let req = TestRequest::with_uri("/test").to_request();
         let resp = call_service(&srv, req).await;
@@ -744,7 +771,7 @@ mod tests {
                              data3: web::Data<f64>| {
                                 assert_eq!(**data1, 10);
                                 assert_eq!(**data2, '*');
-                                let error = std::f64::EPSILON;
+                                let error = f64::EPSILON;
                                 assert!((**data3 - 1.0).abs() < error);
                                 HttpResponse::Ok()
                             },
@@ -762,17 +789,18 @@ mod tests {
     #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_data_default_service() {
-        let srv = init_service(
-            App::new().data(1usize).service(
-                web::resource("/test")
-                    .data(10usize)
-                    .default_service(web::to(|data: web::Data<usize>| {
-                        assert_eq!(**data, 10);
-                        HttpResponse::Ok()
-                    })),
-            ),
-        )
-        .await;
+        let srv =
+            init_service(
+                App::new().data(1usize).service(
+                    web::resource("/test")
+                        .data(10usize)
+                        .default_service(web::to(|data: web::Data<usize>| {
+                            assert_eq!(**data, 10);
+                            HttpResponse::Ok()
+                        })),
+                ),
+            )
+            .await;
 
         let req = TestRequest::get().uri("/test").to_request();
         let resp = call_service(&srv, req).await;

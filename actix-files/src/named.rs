@@ -8,13 +8,13 @@ use std::{
 use actix_web::{
     body::{self, BoxBody, SizedStream},
     dev::{
-        self, AppService, HttpServiceFactory, ResourceDef, Service, ServiceFactory,
-        ServiceRequest, ServiceResponse,
+        self, AppService, HttpServiceFactory, ResourceDef, Service, ServiceFactory, ServiceRequest,
+        ServiceResponse,
     },
     http::{
         header::{
-            self, Charset, ContentDisposition, ContentEncoding, DispositionParam,
-            DispositionType, ExtendedValue, HeaderValue,
+            self, Charset, ContentDisposition, ContentEncoding, DispositionParam, DispositionType,
+            ExtendedValue, HeaderValue,
         },
         StatusCode,
     },
@@ -24,11 +24,11 @@ use bitflags::bitflags;
 use derive_more::{Deref, DerefMut};
 use futures_core::future::LocalBoxFuture;
 use mime::Mime;
-use mime_guess::from_path;
 
 use crate::{encoding::equiv_utf8_text, range::HttpRange};
 
 bitflags! {
+    #[derive(Debug, Clone, Copy)]
     pub(crate) struct Flags: u8 {
         const ETAG =                0b0000_0001;
         const LAST_MD =             0b0000_0010;
@@ -84,6 +84,7 @@ pub struct NamedFile {
 
 #[cfg(not(feature = "experimental-io-uring"))]
 pub(crate) use std::fs::File;
+
 #[cfg(feature = "experimental-io-uring")]
 pub(crate) use tokio_uring::fs::File;
 
@@ -126,7 +127,7 @@ impl NamedFile {
                 }
             };
 
-            let ct = from_path(&path).first_or_octet_stream();
+            let ct = mime_guess::from_path(&path).first_or_octet_stream();
 
             let disposition = match ct.type_() {
                 mime::IMAGE | mime::TEXT | mime::AUDIO | mime::VIDEO => DispositionType::Inline,
@@ -138,8 +139,13 @@ impl NamedFile {
                 _ => DispositionType::Attachment,
             };
 
-            let mut parameters =
-                vec![DispositionParam::Filename(String::from(filename.as_ref()))];
+            // replace special characters in filenames which could occur on some filesystems
+            let filename_s = filename
+                .replace('\n', "%0A") // \n line break
+                .replace('\x0B', "%0B") // \v vertical tab
+                .replace('\x0C', "%0C") // \f form feed
+                .replace('\r', "%0D"); // \r carriage return
+            let mut parameters = vec![DispositionParam::Filename(filename_s)];
 
             if !filename.is_ascii() {
                 parameters.push(DispositionParam::FilenameExt(ExtendedValue {

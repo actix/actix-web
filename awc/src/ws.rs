@@ -26,17 +26,17 @@
 //! }
 //! ```
 
-use std::{convert::TryFrom, fmt, net::SocketAddr, str};
-
-use base64::prelude::*;
+use std::{fmt, net::SocketAddr, str};
 
 use actix_codec::Framed;
+pub use actix_http::ws::{CloseCode, CloseReason, Codec, Frame, Message};
 use actix_http::{ws, Payload, RequestHead};
 use actix_rt::time::timeout;
 use actix_service::Service as _;
+use base64::prelude::*;
 
-pub use actix_http::ws::{CloseCode, CloseReason, Codec, Frame, Message};
-
+#[cfg(feature = "cookies")]
+use crate::cookie::{Cookie, CookieJar};
 use crate::{
     client::ClientConfig,
     connect::{BoxedSocket, ConnectRequest},
@@ -47,9 +47,6 @@ use crate::{
     },
     ClientResponse,
 };
-
-#[cfg(feature = "cookies")]
-use crate::cookie::{Cookie, CookieJar};
 
 /// WebSocket connection.
 pub struct WebsocketsRequest {
@@ -67,7 +64,7 @@ pub struct WebsocketsRequest {
 }
 
 impl WebsocketsRequest {
-    /// Create new WebSocket connection
+    /// Create new WebSocket connection.
     pub(crate) fn new<U>(uri: U, config: ClientConfig) -> Self
     where
         Uri: TryFrom<U>,
@@ -85,7 +82,7 @@ impl WebsocketsRequest {
 
         match Uri::try_from(uri) {
             Ok(uri) => head.uri = uri,
-            Err(e) => err = Some(e.into()),
+            Err(error) => err = Some(error.into()),
         }
 
         WebsocketsRequest {
@@ -146,7 +143,7 @@ impl WebsocketsRequest {
     {
         match HeaderValue::try_from(origin) {
             Ok(value) => self.origin = Some(value),
-            Err(e) => self.err = Some(e.into()),
+            Err(err) => self.err = Some(err.into()),
         }
         self
     }
@@ -180,9 +177,9 @@ impl WebsocketsRequest {
                 Ok(value) => {
                     self.head.headers.append(key, value);
                 }
-                Err(e) => self.err = Some(e.into()),
+                Err(err) => self.err = Some(err.into()),
             },
-            Err(e) => self.err = Some(e.into()),
+            Err(err) => self.err = Some(err.into()),
         }
         self
     }
@@ -199,9 +196,9 @@ impl WebsocketsRequest {
                 Ok(value) => {
                     self.head.headers.insert(key, value);
                 }
-                Err(e) => self.err = Some(e.into()),
+                Err(err) => self.err = Some(err.into()),
             },
-            Err(e) => self.err = Some(e.into()),
+            Err(err) => self.err = Some(err.into()),
         }
         self
     }
@@ -220,11 +217,11 @@ impl WebsocketsRequest {
                         Ok(value) => {
                             self.head.headers.insert(key, value);
                         }
-                        Err(e) => self.err = Some(e.into()),
+                        Err(err) => self.err = Some(err.into()),
                     }
                 }
             }
-            Err(e) => self.err = Some(e.into()),
+            Err(err) => self.err = Some(err.into()),
         }
         self
     }

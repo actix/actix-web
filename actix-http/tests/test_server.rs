@@ -1,5 +1,3 @@
-#![allow(clippy::uninlined_format_args)]
-
 use std::{
     convert::Infallible,
     io::{Read, Write},
@@ -139,7 +137,7 @@ async fn expect_continue_h1() {
 
 #[actix_rt::test]
 async fn chunked_payload() {
-    let chunk_sizes = vec![32768, 32, 32768];
+    let chunk_sizes = [32768, 32, 32768];
     let total_size: usize = chunk_sizes.iter().sum();
 
     let mut srv = test_server(|| {
@@ -149,7 +147,7 @@ async fn chunked_payload() {
                     .take_payload()
                     .map(|res| match res {
                         Ok(pl) => pl,
-                        Err(e) => panic!("Error reading payload: {}", e),
+                        Err(err) => panic!("Error reading payload: {err}"),
                     })
                     .fold(0usize, |acc, chunk| ready(acc + chunk.len()))
                     .map(|req_size| {
@@ -166,8 +164,7 @@ async fn chunked_payload() {
 
         for chunk_size in chunk_sizes.iter() {
             let mut bytes = Vec::new();
-            let random_bytes: Vec<u8> =
-                (0..*chunk_size).map(|_| rand::random::<u8>()).collect();
+            let random_bytes: Vec<u8> = (0..*chunk_size).map(|_| rand::random::<u8>()).collect();
 
             bytes.extend(format!("{:X}\r\n", chunk_size).as_bytes());
             bytes.extend(&random_bytes[..]);
@@ -352,8 +349,7 @@ async fn http10_keepalive() {
     .await;
 
     let mut stream = net::TcpStream::connect(srv.addr()).unwrap();
-    let _ =
-        stream.write_all(b"GET /test/tests/test HTTP/1.0\r\nconnection: keep-alive\r\n\r\n");
+    let _ = stream.write_all(b"GET /test/tests/test HTTP/1.0\r\nconnection: keep-alive\r\n\r\n");
     let mut data = vec![0; 1024];
     let _ = stream.read(&mut data);
     assert_eq!(&data[..17], b"HTTP/1.0 200 OK\r\n");
@@ -404,7 +400,7 @@ async fn content_length() {
     let mut srv = test_server(|| {
         HttpService::build()
             .h1(|req: Request| {
-                let indx: usize = req.uri().path()[1..].parse().unwrap();
+                let idx: usize = req.uri().path()[1..].parse().unwrap();
                 let statuses = [
                     StatusCode::NO_CONTENT,
                     StatusCode::CONTINUE,
@@ -413,7 +409,7 @@ async fn content_length() {
                     StatusCode::OK,
                     StatusCode::NOT_FOUND,
                 ];
-                ok::<_, Infallible>(Response::new(statuses[indx]))
+                ok::<_, Infallible>(Response::new(statuses[idx]))
             })
             .tcp()
     })
@@ -795,8 +791,9 @@ async fn not_modified_spec_h1() {
                         .map_into_boxed_body(),
 
                     // with no content-length
-                    "/body" => Response::with_body(StatusCode::NOT_MODIFIED, "1234")
-                        .map_into_boxed_body(),
+                    "/body" => {
+                        Response::with_body(StatusCode::NOT_MODIFIED, "1234").map_into_boxed_body()
+                    }
 
                     // with manual content-length header and specific None body
                     "/cl-none" => {
