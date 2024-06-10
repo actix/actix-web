@@ -68,8 +68,17 @@ test-coverage-lcov toolchain="": (test-coverage toolchain)
     cargo {{ toolchain }} llvm-cov report --doctests --lcov --output-path=lcov.info
 
 # Document crates in workspace.
-doc *args:
-    RUSTDOCFLAGS="--cfg=docsrs -Dwarnings" cargo +nightly doc --no-deps --workspace {{ all_crate_features }} {{ args }}
+doc *args: && doc-set-workspace-crates
+    RUSTDOCFLAGS="--cfg=docsrs -Dwarnings" cargo +nightly doc --workspace {{ all_crate_features }} {{ args }}
+
+[private]
+doc-set-workspace-crates:
+    #!/usr/bin/env bash
+    (
+        echo "window.ALL_CRATES ="
+        cargo metadata --format-version=1 | jq '[.packages[] | select(.source == null) | .name]'
+        echo ";"
+    ) > "$CARGO_TARGET_DIR/doc/crates.js"
 
 # Document crates in workspace and watch for changes.
 doc-watch:
