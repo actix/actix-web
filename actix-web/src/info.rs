@@ -27,7 +27,8 @@ fn bare_address(val: &str) -> &str {
         val.split("]:")
             .next()
             .map(|s| s.trim_start_matches('[').trim_end_matches(']'))
-            // This shouldn't *actually* ever happen
+            // this indicates that the IPv6 address is malformed so shouldn't
+            // usually happen, but if it does, just return the original input
             .unwrap_or(val)
     } else {
         val.split(':').next().unwrap_or(val)
