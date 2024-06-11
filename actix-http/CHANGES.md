@@ -6,6 +6,10 @@
 
 - Add `error::InvalidStatusCode` re-export.
 
+### Fixed
+
+- Fix `MessageType::set_headers` not using the correct payload decoder when Transfer-Encoding and Content-Length are absent.
+
 ## 3.7.0
 
 ### Added
@@ -58,10 +62,6 @@
 ### Changed
 
 - Minimum supported Rust version (MSRV) is now 1.68 due to transitive `time` dependency.
-
-### Fixed
-
-- Fix `MessageType::set_headers` not using the correct payload decoder when Transfer-Encoding and Content-Length are absent.
 
 ## 3.3.1
 
