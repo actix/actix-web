@@ -5,6 +5,7 @@
 //! real-world cases than using `init_service`, which skips HTTP encoding and decoding.
 //!
 //! # Examples
+//!
 //! ```
 //! use actix_web::{get, web, test, App, HttpResponse, Error, Responder};
 //!
@@ -28,11 +29,12 @@
 
 #![deny(rust_2018_idioms, nonstandard_style)]
 #![warn(future_incompatible)]
+#![doc(html_logo_url = "https://actix.rs/img/logo.png")]
+#![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 #[cfg(feature = "openssl")]
 extern crate tls_openssl as openssl;
-#[cfg(feature = "rustls")]
-extern crate tls_rustls as rustls;
 
 use std::{fmt, net, thread, time::Duration};
 
@@ -42,8 +44,8 @@ use actix_http::{header::HeaderMap, ws, HttpService, Method, Request, Response};
 pub use actix_http_test::unused_addr;
 use actix_service::{map_config, IntoServiceFactory, ServiceFactory, ServiceFactoryExt as _};
 pub use actix_web::test::{
-    call_and_read_body, call_and_read_body_json, call_service, init_service, ok_service,
-    read_body, read_body_json, status_service, TestRequest,
+    call_and_read_body, call_and_read_body_json, call_service, init_service, ok_service, read_body,
+    read_body_json, status_service, TestRequest,
 };
 use actix_web::{
     body::MessageBody,
@@ -51,7 +53,7 @@ use actix_web::{
     rt::{self, System},
     web, Error,
 };
-use awc::{error::PayloadError, Client, ClientRequest, ClientResponse, Connector};
+pub use awc::{error::PayloadError, Client, ClientRequest, ClientResponse, Connector};
 use futures_core::Stream;
 use tokio::sync::mpsc;
 
@@ -138,29 +140,37 @@ where
         StreamType::Tcp => false,
         #[cfg(feature = "openssl")]
         StreamType::Openssl(_) => true,
-        #[cfg(feature = "rustls")]
-        StreamType::Rustls(_) => true,
+        #[cfg(feature = "rustls-0_20")]
+        StreamType::Rustls020(_) => true,
+        #[cfg(feature = "rustls-0_21")]
+        StreamType::Rustls021(_) => true,
+        #[cfg(feature = "rustls-0_22")]
+        StreamType::Rustls022(_) => true,
+        #[cfg(feature = "rustls-0_23")]
+        StreamType::Rustls023(_) => true,
     };
+
+    let client_cfg = cfg.clone();
 
     // run server in separate orphaned thread
     thread::spawn(move || {
         rt::System::new().block_on(async move {
-            let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
+            let tcp = net::TcpListener::bind((cfg.listen_address.clone(), cfg.port)).unwrap();
             let local_addr = tcp.local_addr().unwrap();
             let factory = factory.clone();
             let srv_cfg = cfg.clone();
             let timeout = cfg.client_request_timeout;
 
-            let builder = Server::build().workers(1).disable_signals().system_exit();
+            let builder = Server::build()
+                .workers(cfg.workers)
+                .disable_signals()
+                .system_exit();
 
             let srv = match srv_cfg.stream {
                 StreamType::Tcp => match srv_cfg.tp {
                     HttpVer::Http1 => builder.listen("test", tcp, move || {
-                        let app_cfg = AppConfig::__priv_test_new(
-                            false,
-                            local_addr.to_string(),
-                            local_addr,
-                        );
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
 
                         let fac = factory()
                             .into_factory()
@@ -172,11 +182,8 @@ where
                             .tcp()
                     }),
                     HttpVer::Http2 => builder.listen("test", tcp, move || {
-                        let app_cfg = AppConfig::__priv_test_new(
-                            false,
-                            local_addr.to_string(),
-                            local_addr,
-                        );
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
 
                         let fac = factory()
                             .into_factory()
@@ -188,11 +195,8 @@ where
                             .tcp()
                     }),
                     HttpVer::Both => builder.listen("test", tcp, move || {
-                        let app_cfg = AppConfig::__priv_test_new(
-                            false,
-                            local_addr.to_string(),
-                            local_addr,
-                        );
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
 
                         let fac = factory()
                             .into_factory()
@@ -207,11 +211,8 @@ where
                 #[cfg(feature = "openssl")]
                 StreamType::Openssl(acceptor) => match cfg.tp {
                     HttpVer::Http1 => builder.listen("test", tcp, move || {
-                        let app_cfg = AppConfig::__priv_test_new(
-                            false,
-                            local_addr.to_string(),
-                            local_addr,
-                        );
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
 
                         let fac = factory()
                             .into_factory()
@@ -223,11 +224,8 @@ where
                             .openssl(acceptor.clone())
                     }),
                     HttpVer::Http2 => builder.listen("test", tcp, move || {
-                        let app_cfg = AppConfig::__priv_test_new(
-                            false,
-                            local_addr.to_string(),
-                            local_addr,
-                        );
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
 
                         let fac = factory()
                             .into_factory()
@@ -239,11 +237,8 @@ where
                             .openssl(acceptor.clone())
                     }),
                     HttpVer::Both => builder.listen("test", tcp, move || {
-                        let app_cfg = AppConfig::__priv_test_new(
-                            false,
-                            local_addr.to_string(),
-                            local_addr,
-                        );
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
 
                         let fac = factory()
                             .into_factory()
@@ -255,14 +250,11 @@ where
                             .openssl(acceptor.clone())
                     }),
                 },
-                #[cfg(feature = "rustls")]
-                StreamType::Rustls(config) => match cfg.tp {
+                #[cfg(feature = "rustls-0_20")]
+                StreamType::Rustls020(config) => match cfg.tp {
                     HttpVer::Http1 => builder.listen("test", tcp, move || {
-                        let app_cfg = AppConfig::__priv_test_new(
-                            false,
-                            local_addr.to_string(),
-                            local_addr,
-                        );
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
 
                         let fac = factory()
                             .into_factory()
@@ -274,11 +266,8 @@ where
                             .rustls(config.clone())
                     }),
                     HttpVer::Http2 => builder.listen("test", tcp, move || {
-                        let app_cfg = AppConfig::__priv_test_new(
-                            false,
-                            local_addr.to_string(),
-                            local_addr,
-                        );
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
 
                         let fac = factory()
                             .into_factory()
@@ -290,11 +279,8 @@ where
                             .rustls(config.clone())
                     }),
                     HttpVer::Both => builder.listen("test", tcp, move || {
-                        let app_cfg = AppConfig::__priv_test_new(
-                            false,
-                            local_addr.to_string(),
-                            local_addr,
-                        );
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
 
                         let fac = factory()
                             .into_factory()
@@ -304,6 +290,132 @@ where
                             .client_request_timeout(timeout)
                             .finish(map_config(fac, move |_| app_cfg.clone()))
                             .rustls(config.clone())
+                    }),
+                },
+                #[cfg(feature = "rustls-0_21")]
+                StreamType::Rustls021(config) => match cfg.tp {
+                    HttpVer::Http1 => builder.listen("test", tcp, move || {
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+
+                        let fac = factory()
+                            .into_factory()
+                            .map_err(|err| err.into().error_response());
+
+                        HttpService::build()
+                            .client_request_timeout(timeout)
+                            .h1(map_config(fac, move |_| app_cfg.clone()))
+                            .rustls_021(config.clone())
+                    }),
+                    HttpVer::Http2 => builder.listen("test", tcp, move || {
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+
+                        let fac = factory()
+                            .into_factory()
+                            .map_err(|err| err.into().error_response());
+
+                        HttpService::build()
+                            .client_request_timeout(timeout)
+                            .h2(map_config(fac, move |_| app_cfg.clone()))
+                            .rustls_021(config.clone())
+                    }),
+                    HttpVer::Both => builder.listen("test", tcp, move || {
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+
+                        let fac = factory()
+                            .into_factory()
+                            .map_err(|err| err.into().error_response());
+
+                        HttpService::build()
+                            .client_request_timeout(timeout)
+                            .finish(map_config(fac, move |_| app_cfg.clone()))
+                            .rustls_021(config.clone())
+                    }),
+                },
+                #[cfg(feature = "rustls-0_22")]
+                StreamType::Rustls022(config) => match cfg.tp {
+                    HttpVer::Http1 => builder.listen("test", tcp, move || {
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+
+                        let fac = factory()
+                            .into_factory()
+                            .map_err(|err| err.into().error_response());
+
+                        HttpService::build()
+                            .client_request_timeout(timeout)
+                            .h1(map_config(fac, move |_| app_cfg.clone()))
+                            .rustls_0_22(config.clone())
+                    }),
+                    HttpVer::Http2 => builder.listen("test", tcp, move || {
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+
+                        let fac = factory()
+                            .into_factory()
+                            .map_err(|err| err.into().error_response());
+
+                        HttpService::build()
+                            .client_request_timeout(timeout)
+                            .h2(map_config(fac, move |_| app_cfg.clone()))
+                            .rustls_0_22(config.clone())
+                    }),
+                    HttpVer::Both => builder.listen("test", tcp, move || {
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+
+                        let fac = factory()
+                            .into_factory()
+                            .map_err(|err| err.into().error_response());
+
+                        HttpService::build()
+                            .client_request_timeout(timeout)
+                            .finish(map_config(fac, move |_| app_cfg.clone()))
+                            .rustls_0_22(config.clone())
+                    }),
+                },
+                #[cfg(feature = "rustls-0_23")]
+                StreamType::Rustls023(config) => match cfg.tp {
+                    HttpVer::Http1 => builder.listen("test", tcp, move || {
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+
+                        let fac = factory()
+                            .into_factory()
+                            .map_err(|err| err.into().error_response());
+
+                        HttpService::build()
+                            .client_request_timeout(timeout)
+                            .h1(map_config(fac, move |_| app_cfg.clone()))
+                            .rustls_0_23(config.clone())
+                    }),
+                    HttpVer::Http2 => builder.listen("test", tcp, move || {
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+
+                        let fac = factory()
+                            .into_factory()
+                            .map_err(|err| err.into().error_response());
+
+                        HttpService::build()
+                            .client_request_timeout(timeout)
+                            .h2(map_config(fac, move |_| app_cfg.clone()))
+                            .rustls_0_23(config.clone())
+                    }),
+                    HttpVer::Both => builder.listen("test", tcp, move || {
+                        let app_cfg =
+                            AppConfig::__priv_test_new(false, local_addr.to_string(), local_addr);
+
+                        let fac = factory()
+                            .into_factory()
+                            .map_err(|err| err.into().error_response());
+
+                        HttpService::build()
+                            .client_request_timeout(timeout)
+                            .finish(map_config(fac, move |_| app_cfg.clone()))
+                            .rustls_0_23(config.clone())
                     }),
                 },
             }
@@ -337,7 +449,7 @@ where
                 builder.set_verify(SslVerifyMode::NONE);
                 let _ = builder
                     .set_alpn_protos(b"\x02h2\x08http/1.1")
-                    .map_err(|e| log::error!("Can not set alpn protocol: {:?}", e));
+                    .map_err(|err| log::error!("Can not set alpn protocol: {err:?}"));
                 Connector::new()
                     .conn_lifetime(Duration::from_secs(0))
                     .timeout(Duration::from_millis(30000))
@@ -351,7 +463,13 @@ where
             }
         };
 
-        Client::builder().connector(connector).finish()
+        let mut client_builder = Client::builder().connector(connector);
+
+        if client_cfg.disable_redirects {
+            client_builder = client_builder.disable_redirects();
+        }
+
+        client_builder.finish()
     };
 
     TestServer {
@@ -371,13 +489,20 @@ enum HttpVer {
     Both,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone)]
 enum StreamType {
     Tcp,
     #[cfg(feature = "openssl")]
     Openssl(openssl::ssl::SslAcceptor),
-    #[cfg(feature = "rustls")]
-    Rustls(rustls::ServerConfig),
+    #[cfg(feature = "rustls-0_20")]
+    Rustls020(tls_rustls_0_20::ServerConfig),
+    #[cfg(feature = "rustls-0_21")]
+    Rustls021(tls_rustls_0_21::ServerConfig),
+    #[cfg(feature = "rustls-0_22")]
+    Rustls022(tls_rustls_0_22::ServerConfig),
+    #[cfg(feature = "rustls-0_23")]
+    Rustls023(tls_rustls_0_23::ServerConfig),
 }
 
 /// Create default test server config.
@@ -390,6 +515,10 @@ pub struct TestServerConfig {
     tp: HttpVer,
     stream: StreamType,
     client_request_timeout: Duration,
+    listen_address: String,
+    port: u16,
+    workers: usize,
+    disable_redirects: bool,
 }
 
 impl Default for TestServerConfig {
@@ -399,44 +528,118 @@ impl Default for TestServerConfig {
 }
 
 impl TestServerConfig {
-    /// Create default server configuration
+    /// Constructs default server configuration.
     pub(crate) fn new() -> TestServerConfig {
         TestServerConfig {
             tp: HttpVer::Both,
             stream: StreamType::Tcp,
             client_request_timeout: Duration::from_secs(5),
+            listen_address: "127.0.0.1".to_string(),
+            port: 0,
+            workers: 1,
+            disable_redirects: false,
         }
     }
 
-    /// Accept HTTP/1.1 only.
+    /// Accepts HTTP/1.1 only.
     pub fn h1(mut self) -> Self {
         self.tp = HttpVer::Http1;
         self
     }
 
-    /// Accept HTTP/2 only.
+    /// Accepts HTTP/2 only.
     pub fn h2(mut self) -> Self {
         self.tp = HttpVer::Http2;
         self
     }
 
-    /// Accept secure connections via OpenSSL.
+    /// Accepts secure connections via OpenSSL.
     #[cfg(feature = "openssl")]
     pub fn openssl(mut self, acceptor: openssl::ssl::SslAcceptor) -> Self {
         self.stream = StreamType::Openssl(acceptor);
         self
     }
 
-    /// Accept secure connections via Rustls.
-    #[cfg(feature = "rustls")]
-    pub fn rustls(mut self, config: rustls::ServerConfig) -> Self {
-        self.stream = StreamType::Rustls(config);
+    #[doc(hidden)]
+    #[deprecated(note = "Renamed to `rustls_0_20()`.")]
+    #[cfg(feature = "rustls-0_20")]
+    pub fn rustls(mut self, config: tls_rustls_0_20::ServerConfig) -> Self {
+        self.stream = StreamType::Rustls020(config);
         self
     }
 
-    /// Set client timeout for first request.
+    /// Accepts secure connections via Rustls v0.20.
+    #[cfg(feature = "rustls-0_20")]
+    pub fn rustls_0_20(mut self, config: tls_rustls_0_20::ServerConfig) -> Self {
+        self.stream = StreamType::Rustls020(config);
+        self
+    }
+
+    #[doc(hidden)]
+    #[deprecated(note = "Renamed to `rustls_0_21()`.")]
+    #[cfg(feature = "rustls-0_21")]
+    pub fn rustls_021(mut self, config: tls_rustls_0_21::ServerConfig) -> Self {
+        self.stream = StreamType::Rustls021(config);
+        self
+    }
+
+    /// Accepts secure connections via Rustls v0.21.
+    #[cfg(feature = "rustls-0_21")]
+    pub fn rustls_0_21(mut self, config: tls_rustls_0_21::ServerConfig) -> Self {
+        self.stream = StreamType::Rustls021(config);
+        self
+    }
+
+    /// Accepts secure connections via Rustls v0.22.
+    #[cfg(feature = "rustls-0_22")]
+    pub fn rustls_0_22(mut self, config: tls_rustls_0_22::ServerConfig) -> Self {
+        self.stream = StreamType::Rustls022(config);
+        self
+    }
+
+    /// Accepts secure connections via Rustls v0.23.
+    #[cfg(feature = "rustls-0_23")]
+    pub fn rustls_0_23(mut self, config: tls_rustls_0_23::ServerConfig) -> Self {
+        self.stream = StreamType::Rustls023(config);
+        self
+    }
+
+    /// Sets client timeout for first request.
     pub fn client_request_timeout(mut self, dur: Duration) -> Self {
         self.client_request_timeout = dur;
+        self
+    }
+
+    /// Sets the address the server will listen on.
+    ///
+    /// By default, only listens on `127.0.0.1`.
+    pub fn listen_address(mut self, addr: impl Into<String>) -> Self {
+        self.listen_address = addr.into();
+        self
+    }
+
+    /// Sets test server port.
+    ///
+    /// By default, a random free port is determined by the OS.
+    pub fn port(mut self, port: u16) -> Self {
+        self.port = port;
+        self
+    }
+
+    /// Sets number of workers for the test server.
+    ///
+    /// By default, the server uses 1 worker
+    pub fn workers(mut self, workers: usize) -> Self {
+        self.workers = workers;
+        self
+    }
+
+    /// Instruct the client to not follow redirects.
+    ///
+    /// By default, the client will follow up to 10 consecutive redirects
+    /// before giving up.
+    pub fn disable_redirects(mut self) -> Self {
+        self.disable_redirects = true;
         self
     }
 }
@@ -465,9 +668,9 @@ impl TestServer {
         let scheme = if self.tls { "https" } else { "http" };
 
         if uri.starts_with('/') {
-            format!("{}://localhost:{}{}", scheme, self.addr.port(), uri)
+            format!("{}://{}{}", scheme, self.addr, uri)
         } else {
-            format!("{}://localhost:{}/{}", scheme, self.addr.port(), uri)
+            format!("{}://{}/{}", scheme, self.addr, uri)
         }
     }
 

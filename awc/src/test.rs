@@ -103,7 +103,7 @@ mod tests {
     use actix_http::header::HttpDate;
 
     use super::*;
-    use crate::{cookie, http::header};
+    use crate::http::header;
 
     #[test]
     fn test_basics() {

@@ -8,8 +8,7 @@ use std::{
 use actix_service::{boxed, IntoServiceFactory, ServiceFactory, ServiceFactoryExt};
 use actix_web::{
     dev::{
-        AppService, HttpServiceFactory, RequestHead, ResourceDef, ServiceRequest,
-        ServiceResponse,
+        AppService, HttpServiceFactory, RequestHead, ResourceDef, ServiceRequest, ServiceResponse,
     },
     error::Error,
     guard::Guard,
@@ -142,7 +141,7 @@ impl Files {
         self
     }
 
-    /// Set custom directory renderer
+    /// Set custom directory renderer.
     pub fn files_listing_renderer<F>(mut self, f: F) -> Self
     where
         for<'r, 's> F:
@@ -152,7 +151,7 @@ impl Files {
         self
     }
 
-    /// Specifies mime override callback
+    /// Specifies MIME override callback.
     pub fn mime_override<F>(mut self, f: F) -> Self
     where
         F: Fn(&mime::Name<'_>) -> DispositionType + 'static,
@@ -236,7 +235,7 @@ impl Files {
     /// request starts being handled by the file service, it will not be able to back-out and try
     /// the next service, you will simply get a 404 (or 405) error response.
     ///
-    /// To allow `POST` requests to retrieve files, see [`Files::use_guards`].
+    /// To allow `POST` requests to retrieve files, see [`Files::method_guard()`].
     ///
     /// # Examples
     /// ```
@@ -301,12 +300,8 @@ impl Files {
     pub fn default_handler<F, U>(mut self, f: F) -> Self
     where
         F: IntoServiceFactory<U, ServiceRequest>,
-        U: ServiceFactory<
-                ServiceRequest,
-                Config = (),
-                Response = ServiceResponse,
-                Error = Error,
-            > + 'static,
+        U: ServiceFactory<ServiceRequest, Config = (), Response = ServiceResponse, Error = Error>
+            + 'static,
     {
         // create and configure default resource
         self.default = Rc::new(RefCell::new(Some(Rc::new(boxed::factory(
@@ -388,5 +383,48 @@ impl ServiceFactory<ServiceRequest> for Files {
         } else {
             Box::pin(async move { Ok(FilesService(Rc::new(inner))) })
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use actix_web::{
+        http::StatusCode,
+        test::{self, TestRequest},
+        App, HttpResponse,
+    };
+
+    use super::*;
+
+    #[actix_web::test]
+    async fn custom_files_listing_renderer() {
+        let srv = test::init_service(
+            App::new().service(
+                Files::new("/", "./tests")
+                    .show_files_listing()
+                    .files_listing_renderer(|dir, req| {
+                        Ok(ServiceResponse::new(
+                            req.clone(),
+                            HttpResponse::Ok().body(dir.path.to_str().unwrap().to_owned()),
+                        ))
+                    }),
+            ),
+        )
+        .await;
+
+        let req = TestRequest::with_uri("/").to_request();
+        let res = test::call_service(&srv, req).await;
+
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = test::read_body(res).await;
+        let body_str = std::str::from_utf8(&body).unwrap();
+        let actual_path = Path::new(&body_str);
+        let expected_path = Path::new("actix-files/tests");
+        assert!(
+            actual_path.ends_with(expected_path),
+            "body {:?} does not end with {:?}",
+            actual_path,
+            expected_path
+        );
     }
 }

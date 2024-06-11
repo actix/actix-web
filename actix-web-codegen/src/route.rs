@@ -1,16 +1,65 @@
-use std::{collections::HashSet, convert::TryFrom};
+use std::collections::HashSet;
 
 use actix_router::ResourceDef;
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{quote, ToTokens, TokenStreamExt};
-use syn::{parse_macro_input, AttributeArgs, Ident, LitStr, Meta, NestedMeta, Path};
+use syn::{punctuated::Punctuated, Ident, LitStr, Path, Token};
 
-macro_rules! method_type {
+use crate::input_and_compile_error;
+
+#[derive(Debug)]
+pub struct RouteArgs {
+    pub(crate) path: syn::LitStr,
+    pub(crate) options: Punctuated<syn::MetaNameValue, Token![,]>,
+}
+
+impl syn::parse::Parse for RouteArgs {
+    fn parse(input: syn::parse::ParseStream<'_>) -> syn::Result<Self> {
+        // path to match: "/foo"
+        let path = input.parse::<syn::LitStr>().map_err(|mut err| {
+            err.combine(syn::Error::new(
+                err.span(),
+                r#"invalid service definition, expected #[<method>("<path>")]"#,
+            ));
+
+            err
+        })?;
+
+        // verify that path pattern is valid
+        let _ = ResourceDef::new(path.value());
+
+        // if there's no comma, assume that no options are provided
+        if !input.peek(Token![,]) {
+            return Ok(Self {
+                path,
+                options: Punctuated::new(),
+            });
+        }
+
+        // advance past comma separator
+        input.parse::<Token![,]>()?;
+
+        // if next char is a literal, assume that it is a string and show multi-path error
+        if input.cursor().literal().is_some() {
+            return Err(syn::Error::new(
+                Span::call_site(),
+                r#"Multiple paths specified! There should be only one."#,
+            ));
+        }
+
+        // zero or more options: name = "foo"
+        let options = input.parse_terminated(syn::MetaNameValue::parse, Token![,])?;
+
+        Ok(Self { path, options })
+    }
+}
+
+macro_rules! standard_method_type {
     (
         $($variant:ident, $upper:ident, $lower:ident,)+
     ) => {
-        #[derive(Debug, PartialEq, Eq, Hash)]
+        #[derive(Debug, Clone, PartialEq, Eq, Hash)]
         pub enum MethodType {
             $(
                 $variant,
@@ -27,11 +76,11 @@ macro_rules! method_type {
             fn parse(method: &str) -> Result<Self, String> {
                 match method {
                     $(stringify!($upper) => Ok(Self::$variant),)+
-                    _ => Err(format!("Unexpected HTTP method: `{}`", method)),
+                    _ => Err(format!("HTTP method must be uppercase: `{}`", method)),
                 }
             }
 
-            fn from_path(method: &Path) -> Result<Self, ()> {
+            pub(crate) fn from_path(method: &Path) -> Result<Self, ()> {
                 match () {
                     $(_ if method.is_ident(stringify!($lower)) => Ok(Self::$variant),)+
                     _ => Err(()),
@@ -41,7 +90,7 @@ macro_rules! method_type {
     };
 }
 
-method_type! {
+standard_method_type! {
     Get,       GET,     get,
     Post,      POST,    post,
     Put,       PUT,     put,
@@ -53,13 +102,6 @@ method_type! {
     Patch,     PATCH,   patch,
 }
 
-impl ToTokens for MethodType {
-    fn to_tokens(&self, stream: &mut TokenStream2) {
-        let ident = Ident::new(self.as_str(), Span::call_site());
-        stream.append(ident);
-    }
-}
-
 impl TryFrom<&syn::LitStr> for MethodType {
     type Error = syn::Error;
 
@@ -69,118 +111,210 @@ impl TryFrom<&syn::LitStr> for MethodType {
     }
 }
 
+impl ToTokens for MethodType {
+    fn to_tokens(&self, stream: &mut TokenStream2) {
+        let ident = Ident::new(self.as_str(), Span::call_site());
+        stream.append(ident);
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum MethodTypeExt {
+    Standard(MethodType),
+    Custom(LitStr),
+}
+
+impl MethodTypeExt {
+    /// Returns a single method guard token stream.
+    fn to_tokens_single_guard(&self) -> TokenStream2 {
+        match self {
+            MethodTypeExt::Standard(method) => {
+                quote! {
+                    .guard(::actix_web::guard::#method())
+                }
+            }
+            MethodTypeExt::Custom(lit) => {
+                quote! {
+                    .guard(::actix_web::guard::Method(
+                        ::actix_web::http::Method::from_bytes(#lit.as_bytes()).unwrap()
+                    ))
+                }
+            }
+        }
+    }
+
+    /// Returns a multi-method guard chain token stream.
+    fn to_tokens_multi_guard(&self, or_chain: Vec<impl ToTokens>) -> TokenStream2 {
+        debug_assert!(
+            !or_chain.is_empty(),
+            "empty or_chain passed to multi-guard constructor"
+        );
+
+        match self {
+            MethodTypeExt::Standard(method) => {
+                quote! {
+                    .guard(
+                        ::actix_web::guard::Any(::actix_web::guard::#method())
+                            #(#or_chain)*
+                    )
+                }
+            }
+            MethodTypeExt::Custom(lit) => {
+                quote! {
+                    .guard(
+                        ::actix_web::guard::Any(
+                            ::actix_web::guard::Method(
+                                ::actix_web::http::Method::from_bytes(#lit.as_bytes()).unwrap()
+                            )
+                        )
+                        #(#or_chain)*
+                    )
+                }
+            }
+        }
+    }
+
+    /// Returns a token stream containing the `.or` chain to be passed in to
+    /// [`MethodTypeExt::to_tokens_multi_guard()`].
+    fn to_tokens_multi_guard_or_chain(&self) -> TokenStream2 {
+        match self {
+            MethodTypeExt::Standard(method_type) => {
+                quote! {
+                    .or(::actix_web::guard::#method_type())
+                }
+            }
+            MethodTypeExt::Custom(lit) => {
+                quote! {
+                    .or(
+                        ::actix_web::guard::Method(
+                            ::actix_web::http::Method::from_bytes(#lit.as_bytes()).unwrap()
+                        )
+                    )
+                }
+            }
+        }
+    }
+}
+
+impl ToTokens for MethodTypeExt {
+    fn to_tokens(&self, stream: &mut TokenStream2) {
+        match self {
+            MethodTypeExt::Custom(lit_str) => {
+                let ident = Ident::new(lit_str.value().as_str(), Span::call_site());
+                stream.append(ident);
+            }
+            MethodTypeExt::Standard(method) => method.to_tokens(stream),
+        }
+    }
+}
+
+impl TryFrom<&syn::LitStr> for MethodTypeExt {
+    type Error = syn::Error;
+
+    fn try_from(value: &syn::LitStr) -> Result<Self, Self::Error> {
+        match MethodType::try_from(value) {
+            Ok(method) => Ok(MethodTypeExt::Standard(method)),
+            Err(_) if value.value().chars().all(|c| c.is_ascii_uppercase()) => {
+                Ok(MethodTypeExt::Custom(value.clone()))
+            }
+            Err(err) => Err(err),
+        }
+    }
+}
+
 struct Args {
     path: syn::LitStr,
     resource_name: Option<syn::LitStr>,
     guards: Vec<Path>,
-    wrappers: Vec<syn::Type>,
-    methods: HashSet<MethodType>,
+    wrappers: Vec<syn::Expr>,
+    methods: HashSet<MethodTypeExt>,
 }
 
 impl Args {
-    fn new(args: AttributeArgs, method: Option<MethodType>) -> syn::Result<Self> {
-        let mut path = None;
+    fn new(args: RouteArgs, method: Option<MethodType>) -> syn::Result<Self> {
         let mut resource_name = None;
         let mut guards = Vec::new();
         let mut wrappers = Vec::new();
         let mut methods = HashSet::new();
 
-        if args.is_empty() {
-            return Err(syn::Error::new(
-                Span::call_site(),
-                format!(
-                    r#"invalid service definition, expected #[{}("<path>")]"#,
-                    method
-                        .map_or("route", |it| it.as_str())
-                        .to_ascii_lowercase()
-                ),
-            ));
-        }
-
         let is_route_macro = method.is_none();
         if let Some(method) = method {
-            methods.insert(method);
+            methods.insert(MethodTypeExt::Standard(method));
         }
 
-        for arg in args {
-            match arg {
-                NestedMeta::Lit(syn::Lit::Str(lit)) => match path {
-                    None => {
-                        let _ = ResourceDef::new(lit.value());
-                        path = Some(lit);
-                    }
-                    _ => {
+        for nv in args.options {
+            if nv.path.is_ident("name") {
+                if let syn::Expr::Lit(syn::ExprLit {
+                    lit: syn::Lit::Str(lit),
+                    ..
+                }) = nv.value
+                {
+                    resource_name = Some(lit);
+                } else {
+                    return Err(syn::Error::new_spanned(
+                        nv.value,
+                        "Attribute name expects literal string",
+                    ));
+                }
+            } else if nv.path.is_ident("guard") {
+                if let syn::Expr::Lit(syn::ExprLit {
+                    lit: syn::Lit::Str(lit),
+                    ..
+                }) = nv.value
+                {
+                    guards.push(lit.parse::<Path>()?);
+                } else {
+                    return Err(syn::Error::new_spanned(
+                        nv.value,
+                        "Attribute guard expects literal string",
+                    ));
+                }
+            } else if nv.path.is_ident("wrap") {
+                if let syn::Expr::Lit(syn::ExprLit {
+                    lit: syn::Lit::Str(lit),
+                    ..
+                }) = nv.value
+                {
+                    wrappers.push(lit.parse()?);
+                } else {
+                    return Err(syn::Error::new_spanned(
+                        nv.value,
+                        "Attribute wrap expects type",
+                    ));
+                }
+            } else if nv.path.is_ident("method") {
+                if !is_route_macro {
+                    return Err(syn::Error::new_spanned(
+                        &nv,
+                        "HTTP method forbidden here; to handle multiple methods, use `route` instead",
+                    ));
+                } else if let syn::Expr::Lit(syn::ExprLit {
+                    lit: syn::Lit::Str(lit),
+                    ..
+                }) = nv.value.clone()
+                {
+                    if !methods.insert(MethodTypeExt::try_from(&lit)?) {
                         return Err(syn::Error::new_spanned(
-                            lit,
-                            "Multiple paths specified! Should be only one!",
+                            nv.value,
+                            format!("HTTP method defined more than once: `{}`", lit.value()),
                         ));
                     }
-                },
-                NestedMeta::Meta(syn::Meta::NameValue(nv)) => {
-                    if nv.path.is_ident("name") {
-                        if let syn::Lit::Str(lit) = nv.lit {
-                            resource_name = Some(lit);
-                        } else {
-                            return Err(syn::Error::new_spanned(
-                                nv.lit,
-                                "Attribute name expects literal string!",
-                            ));
-                        }
-                    } else if nv.path.is_ident("guard") {
-                        if let syn::Lit::Str(lit) = nv.lit {
-                            guards.push(lit.parse::<Path>()?);
-                        } else {
-                            return Err(syn::Error::new_spanned(
-                                nv.lit,
-                                "Attribute guard expects literal string!",
-                            ));
-                        }
-                    } else if nv.path.is_ident("wrap") {
-                        if let syn::Lit::Str(lit) = nv.lit {
-                            wrappers.push(lit.parse()?);
-                        } else {
-                            return Err(syn::Error::new_spanned(
-                                nv.lit,
-                                "Attribute wrap expects type",
-                            ));
-                        }
-                    } else if nv.path.is_ident("method") {
-                        if !is_route_macro {
-                            return Err(syn::Error::new_spanned(
-                                &nv,
-                                "HTTP method forbidden here. To handle multiple methods, use `route` instead",
-                            ));
-                        } else if let syn::Lit::Str(ref lit) = nv.lit {
-                            let method = MethodType::try_from(lit)?;
-                            if !methods.insert(method) {
-                                return Err(syn::Error::new_spanned(
-                                    &nv.lit,
-                                    format!(
-                                        "HTTP method defined more than once: `{}`",
-                                        lit.value()
-                                    ),
-                                ));
-                            }
-                        } else {
-                            return Err(syn::Error::new_spanned(
-                                nv.lit,
-                                "Attribute method expects literal string!",
-                            ));
-                        }
-                    } else {
-                        return Err(syn::Error::new_spanned(
-                            nv.path,
-                            "Unknown attribute key is specified. Allowed: guard, method and wrap",
-                        ));
-                    }
+                } else {
+                    return Err(syn::Error::new_spanned(
+                        nv.value,
+                        "Attribute method expects literal string",
+                    ));
                 }
-                arg => {
-                    return Err(syn::Error::new_spanned(arg, "Unknown attribute."));
-                }
+            } else {
+                return Err(syn::Error::new_spanned(
+                    nv.path,
+                    "Unknown attribute key is specified; allowed: guard, method and wrap",
+                ));
             }
         }
+
         Ok(Args {
-            path: path.unwrap(),
+            path: args.path,
             resource_name,
             guards,
             wrappers,
@@ -206,11 +340,7 @@ pub struct Route {
 }
 
 impl Route {
-    pub fn new(
-        args: AttributeArgs,
-        ast: syn::ItemFn,
-        method: Option<MethodType>,
-    ) -> syn::Result<Self> {
+    pub fn new(args: RouteArgs, ast: syn::ItemFn, method: Option<MethodType>) -> syn::Result<Self> {
         let name = ast.sig.ident.clone();
 
         // Try and pull out the doc comments so that we can reapply them to the generated struct.
@@ -218,7 +348,7 @@ impl Route {
         let doc_attributes = ast
             .attrs
             .iter()
-            .filter(|attr| attr.path.is_ident("doc"))
+            .filter(|attr| attr.path().is_ident("doc"))
             .cloned()
             .collect();
 
@@ -254,7 +384,7 @@ impl Route {
         let doc_attributes = ast
             .attrs
             .iter()
-            .filter(|attr| attr.path.is_ident("doc"))
+            .filter(|attr| attr.path().is_ident("doc"))
             .cloned()
             .collect();
 
@@ -283,6 +413,13 @@ impl ToTokens for Route {
             doc_attributes,
         } = self;
 
+        #[allow(unused_variables)] // used when force-pub feature is disabled
+        let vis = &ast.vis;
+
+        // TODO(breaking): remove this force-pub forwards-compatibility feature
+        #[cfg(feature = "compat-routing-macros-force-pub")]
+        let vis = syn::Visibility::Public(<Token![pub]>::default());
+
         let registrations: TokenStream2 = args
             .iter()
             .map(|args| {
@@ -299,22 +436,19 @@ impl ToTokens for Route {
                     .map_or_else(|| name.to_string(), LitStr::value);
 
                 let method_guards = {
-                    let mut others = methods.iter();
+                    debug_assert!(!methods.is_empty(), "Args::methods should not be empty");
 
-                    // unwrapping since length is checked to be at least one
+                    let mut others = methods.iter();
                     let first = others.next().unwrap();
 
                     if methods.len() > 1 {
-                        quote! {
-                            .guard(
-                                ::actix_web::guard::Any(::actix_web::guard::#first())
-                                    #(.or(::actix_web::guard::#others()))*
-                            )
-                        }
+                        let other_method_guards = others
+                            .map(|method_ext| method_ext.to_tokens_multi_guard_or_chain())
+                            .collect();
+
+                        first.to_tokens_multi_guard(other_method_guards)
                     } else {
-                        quote! {
-                            .guard(::actix_web::guard::#first())
-                        }
+                        first.to_tokens_single_guard()
                     }
                 };
 
@@ -325,7 +459,6 @@ impl ToTokens for Route {
                         #(.guard(::actix_web::guard::fn_guard(#guards)))*
                         #(.wrap(#wrappers))*
                         .to(#name);
-
                     ::actix_web::dev::HttpServiceFactory::register(__resource, __config);
                 }
             })
@@ -334,7 +467,7 @@ impl ToTokens for Route {
         let stream = quote! {
             #(#doc_attributes)*
             #[allow(non_camel_case_types, missing_docs)]
-            pub struct #name;
+            #vis struct #name;
 
             impl ::actix_web::dev::HttpServiceFactory for #name {
                 fn register(self, __config: &mut actix_web::dev::AppService) {
@@ -353,7 +486,11 @@ pub(crate) fn with_method(
     args: TokenStream,
     input: TokenStream,
 ) -> TokenStream {
-    let args = parse_macro_input!(args as syn::AttributeArgs);
+    let args = match syn::parse(args) {
+        Ok(args) => args,
+        // on parse error, make IDEs happy; see fn docs
+        Err(err) => return input_and_compile_error(input, err),
+    };
 
     let ast = match syn::parse::<syn::ItemFn>(input.clone()) {
         Ok(ast) => ast,
@@ -378,7 +515,7 @@ pub(crate) fn with_methods(input: TokenStream) -> TokenStream {
     let (methods, others) = ast
         .attrs
         .into_iter()
-        .map(|attr| match MethodType::from_path(&attr.path) {
+        .map(|attr| match MethodType::from_path(attr.path()) {
             Ok(method) => Ok((method, attr)),
             Err(_) => Err(attr),
         })
@@ -386,47 +523,31 @@ pub(crate) fn with_methods(input: TokenStream) -> TokenStream {
 
     ast.attrs = others.into_iter().map(Result::unwrap_err).collect();
 
-    let methods =
-        match methods
-            .into_iter()
-            .map(Result::unwrap)
-            .map(|(method, attr)| {
-                attr.parse_meta().and_then(|args| {
-                    if let Meta::List(args) = args {
-                        Args::new(args.nested.into_iter().collect(), Some(method))
-                    } else {
-                        Err(syn::Error::new_spanned(attr, "Invalid input for macro"))
-                    }
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()
-        {
-            Ok(methods) if methods.is_empty() => return input_and_compile_error(
+    let methods = match methods
+        .into_iter()
+        .map(Result::unwrap)
+        .map(|(method, attr)| {
+            attr.parse_args()
+                .and_then(|args| Args::new(args, Some(method)))
+        })
+        .collect::<Result<Vec<_>, _>>()
+    {
+        Ok(methods) if methods.is_empty() => {
+            return input_and_compile_error(
                 input,
                 syn::Error::new(
                     Span::call_site(),
                     "The #[routes] macro requires at least one `#[<method>(..)]` attribute.",
                 ),
-            ),
-            Ok(methods) => methods,
-            Err(err) => return input_and_compile_error(input, err),
-        };
+            )
+        }
+        Ok(methods) => methods,
+        Err(err) => return input_and_compile_error(input, err),
+    };
 
     match Route::multiple(methods, ast) {
         Ok(route) => route.into_token_stream().into(),
         // on macro related error, make IDEs happy; see fn docs
         Err(err) => input_and_compile_error(input, err),
     }
-}
-
-/// Converts the error to a token stream and appends it to the original input.
-///
-/// Returning the original input in addition to the error is good for IDEs which can gracefully
-/// recover and show more precise errors within the macro body.
-///
-/// See <https://github.com/rust-analyzer/rust-analyzer/issues/10468> for more info.
-fn input_and_compile_error(mut item: TokenStream, err: syn::Error) -> TokenStream {
-    let compile_err = TokenStream::from(err.to_compile_error());
-    item.extend(compile_err);
-    item
 }

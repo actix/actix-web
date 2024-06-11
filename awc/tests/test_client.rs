@@ -1,5 +1,3 @@
-#![allow(clippy::uninlined_format_args)]
-
 use std::{
     collections::HashMap,
     convert::Infallible,
@@ -12,17 +10,17 @@ use std::{
     time::Duration,
 };
 
+use actix_http::{HttpService, StatusCode};
+use actix_http_test::test_server;
+use actix_service::{fn_service, map_config, ServiceFactoryExt as _};
 use actix_utils::future::ok;
+use actix_web::{dev::AppConfig, http::header, web, App, Error, HttpRequest, HttpResponse};
+use awc::error::{JsonPayloadError, PayloadError, SendRequestError};
+use base64::prelude::*;
 use bytes::Bytes;
 use cookie::Cookie;
 use futures_util::stream;
 use rand::Rng;
-
-use actix_http::{HttpService, StatusCode};
-use actix_http_test::test_server;
-use actix_service::{fn_service, map_config, ServiceFactoryExt as _};
-use actix_web::{dev::AppConfig, http::header, web, App, Error, HttpRequest, HttpResponse};
-use awc::error::{JsonPayloadError, PayloadError, SendRequestError};
 
 mod utils;
 
@@ -32,9 +30,8 @@ const STR: &str = const_str::repeat!(S, 100);
 #[actix_rt::test]
 async fn simple() {
     let srv = actix_test::start(|| {
-        App::new().service(
-            web::resource("/").route(web::to(|| async { HttpResponse::Ok().body(STR) })),
-        )
+        App::new()
+            .service(web::resource("/").route(web::to(|| async { HttpResponse::Ok().body(STR) })))
     });
 
     let request = srv.get("/").insert_header(("x-test", "111")).send();
@@ -60,9 +57,8 @@ async fn simple() {
 #[actix_rt::test]
 async fn json() {
     let srv = actix_test::start(|| {
-        App::new().service(
-            web::resource("/").route(web::to(|_: web::Json<String>| HttpResponse::Ok())),
-        )
+        App::new()
+            .service(web::resource("/").route(web::to(|_: web::Json<String>| HttpResponse::Ok())))
     });
 
     let request = srv
@@ -339,8 +335,7 @@ async fn connection_wait_queue() {
         .and_then(
             HttpService::new(map_config(
                 App::new().service(
-                    web::resource("/")
-                        .route(web::to(|| async { HttpResponse::Ok().body(STR) })),
+                    web::resource("/").route(web::to(|| async { HttpResponse::Ok().body(STR) })),
                 ),
                 |_| AppConfig::default(),
             ))
@@ -448,9 +443,7 @@ async fn no_decompress() {
     let srv = actix_test::start(|| {
         App::new()
             .wrap(actix_web::middleware::Compress::default())
-            .service(
-                web::resource("/").route(web::to(|| async { HttpResponse::Ok().body(STR) })),
-            )
+            .service(web::resource("/").route(web::to(|| async { HttpResponse::Ok().body(STR) })))
     });
 
     let mut res = awc::Client::new()
@@ -783,7 +776,7 @@ async fn client_basic_auth() {
                     .unwrap()
                     .to_str()
                     .unwrap()
-                    == format!("Basic {}", base64::encode("username:password"))
+                    == format!("Basic {}", BASE64_STANDARD.encode("username:password"))
                 {
                     HttpResponse::Ok()
                 } else {
@@ -832,12 +825,12 @@ async fn local_address() {
     let ip = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
 
     let srv = actix_test::start(move || {
-        App::new().service(web::resource("/").route(web::to(
-            move |req: HttpRequest| async move {
+        App::new().service(
+            web::resource("/").route(web::to(move |req: HttpRequest| async move {
                 assert_eq!(req.peer_addr().unwrap().ip(), ip);
                 Ok::<_, Error>(HttpResponse::Ok())
-            },
-        )))
+            })),
+        )
     });
     let client = awc::Client::builder().local_address(ip).finish();
 

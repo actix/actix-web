@@ -2,9 +2,7 @@
 
 use std::{
     cell::{Cell, RefCell, RefMut},
-    cmp,
-    convert::TryFrom,
-    fmt,
+    cmp, fmt,
     marker::PhantomData,
     pin::Pin,
     rc::Rc,
@@ -163,8 +161,8 @@ impl InnerMultipart {
                         for h in hdrs {
                             let name =
                                 HeaderName::try_from(h.name).map_err(|_| ParseError::Header)?;
-                            let value = HeaderValue::try_from(h.value)
-                                .map_err(|_| ParseError::Header)?;
+                            let value =
+                                HeaderValue::try_from(h.value).map_err(|_| ParseError::Header)?;
                             headers.append(name, value);
                         }
 
@@ -224,8 +222,7 @@ impl InnerMultipart {
                     if chunk.len() < boundary.len() {
                         continue;
                     }
-                    if &chunk[..2] == b"--" && &chunk[2..chunk.len() - 2] == boundary.as_bytes()
-                    {
+                    if &chunk[..2] == b"--" && &chunk[2..chunk.len() - 2] == boundary.as_bytes() {
                         break;
                     } else {
                         if chunk.len() < boundary.len() + 2 {
@@ -255,7 +252,7 @@ impl InnerMultipart {
     fn poll(
         &mut self,
         safety: &Safety,
-        cx: &mut Context<'_>,
+        cx: &Context<'_>,
     ) -> Poll<Option<Result<Field, MultipartError>>> {
         if self.state == InnerState::Eof {
             Poll::Ready(None)
@@ -270,7 +267,7 @@ impl InnerMultipart {
                             match field.borrow_mut().poll(safety) {
                                 Poll::Pending => return Poll::Pending,
                                 Poll::Ready(Some(Ok(_))) => continue,
-                                Poll::Ready(Some(Err(e))) => return Poll::Ready(Some(Err(e))),
+                                Poll::Ready(Some(Err(err))) => return Poll::Ready(Some(Err(err))),
                                 Poll::Ready(None) => true,
                             }
                         }
@@ -289,8 +286,7 @@ impl InnerMultipart {
                 match self.state {
                     // read until first boundary
                     InnerState::FirstBoundary => {
-                        match InnerMultipart::skip_until_boundary(&mut payload, &self.boundary)?
-                        {
+                        match InnerMultipart::skip_until_boundary(&mut payload, &self.boundary)? {
                             Some(eof) => {
                                 if eof {
                                     self.state = InnerState::Eof;
@@ -469,7 +465,12 @@ impl Stream for Field {
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
         let mut inner = this.inner.borrow_mut();
-        if let Some(mut buffer) = inner.payload.as_ref().unwrap().get_mut(&this.safety) {
+        if let Some(mut buffer) = inner
+            .payload
+            .as_ref()
+            .expect("Field should not be polled after completion")
+            .get_mut(&this.safety)
+        {
             // check safety and poll read payload to buffer.
             buffer.poll_stream(cx)?;
         } else if !this.safety.is_clean() {
@@ -500,6 +501,7 @@ impl fmt::Debug for Field {
 }
 
 struct InnerField {
+    /// Payload is initialized as Some and is `take`n when the field stream finishes.
     payload: Option<PayloadRef>,
     boundary: String,
     eof: bool,
@@ -647,7 +649,12 @@ impl InnerField {
             return Poll::Ready(None);
         }
 
-        let result = if let Some(mut payload) = self.payload.as_ref().unwrap().get_mut(s) {
+        let result = if let Some(mut payload) = self
+            .payload
+            .as_ref()
+            .expect("Field should not be polled after completion")
+            .get_mut(s)
+        {
             if !self.eof {
                 let res = if let Some(ref mut len) = self.length {
                     InnerField::read_len(&mut payload, len)
@@ -658,7 +665,7 @@ impl InnerField {
                 match res {
                     Poll::Pending => return Poll::Pending,
                     Poll::Ready(Some(Ok(bytes))) => return Poll::Ready(Some(Ok(bytes))),
-                    Poll::Ready(Some(Err(e))) => return Poll::Ready(Some(Err(e))),
+                    Poll::Ready(Some(Err(err))) => return Poll::Ready(Some(Err(err))),
                     Poll::Ready(None) => self.eof = true,
                 }
             }
@@ -667,21 +674,21 @@ impl InnerField {
                 Ok(None) => Poll::Pending,
                 Ok(Some(line)) => {
                     if line.as_ref() != b"\r\n" {
-                        log::warn!(
-                            "multipart field did not read all the data or it is malformed"
-                        );
+                        log::warn!("multipart field did not read all the data or it is malformed");
                     }
                     Poll::Ready(None)
                 }
-                Err(e) => Poll::Ready(Some(Err(e))),
+                Err(err) => Poll::Ready(Some(Err(err))),
             }
         } else {
             Poll::Pending
         };
 
         if let Poll::Ready(None) = result {
-            self.payload.take();
+            // drop payload buffer and make future un-poll-able
+            let _ = self.payload.take();
         }
+
         result
     }
 }
@@ -746,7 +753,7 @@ impl Safety {
         self.clean.get()
     }
 
-    fn clone(&self, cx: &mut Context<'_>) -> Safety {
+    fn clone(&self, cx: &Context<'_>) -> Safety {
         let payload = Rc::clone(&self.payload);
         let s = Safety {
             task: LocalWaker::new(),
@@ -794,7 +801,7 @@ impl PayloadBuffer {
         loop {
             match Pin::new(&mut self.stream).poll_next(cx) {
                 Poll::Ready(Some(Ok(data))) => self.buf.extend_from_slice(&data),
-                Poll::Ready(Some(Err(e))) => return Err(e),
+                Poll::Ready(Some(Err(err))) => return Err(err),
                 Poll::Ready(None) => {
                     self.eof = true;
                     return Ok(());
@@ -860,18 +867,23 @@ impl PayloadBuffer {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    use actix_http::h1::Payload;
-    use actix_web::http::header::{DispositionParam, DispositionType};
-    use actix_web::rt;
-    use actix_web::test::TestRequest;
-    use actix_web::FromRequest;
-    use bytes::Bytes;
-    use futures_util::{future::lazy, StreamExt as _};
     use std::time::Duration;
+
+    use actix_http::h1;
+    use actix_web::{
+        http::header::{DispositionParam, DispositionType},
+        rt,
+        test::TestRequest,
+        FromRequest,
+    };
+    use bytes::BufMut as _;
+    use futures_util::{future::lazy, StreamExt as _};
     use tokio::sync::mpsc;
     use tokio_stream::wrappers::UnboundedReceiverStream;
+
+    use super::*;
+
+    const BOUNDARY: &str = "abbc761f78ff4d7cb7573b5a23f96ef0";
 
     #[actix_rt::test]
     async fn test_boundary() {
@@ -968,6 +980,26 @@ mod tests {
     }
 
     fn create_simple_request_with_header() -> (Bytes, HeaderMap) {
+        let (body, headers) = crate::test::create_form_data_payload_and_headers_with_boundary(
+            BOUNDARY,
+            "file",
+            Some("fn.txt".to_owned()),
+            Some(mime::TEXT_PLAIN_UTF_8),
+            Bytes::from_static(b"data"),
+        );
+
+        let mut buf = BytesMut::with_capacity(body.len() + 14);
+
+        // add junk before form to test pre-boundary data rejection
+        buf.put("testasdadsad\r\n".as_bytes());
+
+        buf.put(body);
+
+        (buf.freeze(), headers)
+    }
+
+    // TODO: use test utility when multi-file support is introduced
+    fn create_double_request_with_header() -> (Bytes, HeaderMap) {
         let bytes = Bytes::from(
             "testasdadsad\r\n\
              --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
@@ -993,7 +1025,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_multipart_no_end_crlf() {
         let (sender, payload) = create_stream();
-        let (mut bytes, headers) = create_simple_request_with_header();
+        let (mut bytes, headers) = create_double_request_with_header();
         let bytes_stripped = bytes.split_to(bytes.len()); // strip crlf
 
         sender.send(Ok(bytes_stripped)).unwrap();
@@ -1020,7 +1052,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_multipart() {
         let (sender, payload) = create_stream();
-        let (bytes, headers) = create_simple_request_with_header();
+        let (bytes, headers) = create_double_request_with_header();
 
         sender.send(Ok(bytes)).unwrap();
 
@@ -1083,7 +1115,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_stream() {
-        let (bytes, headers) = create_simple_request_with_header();
+        let (bytes, headers) = create_double_request_with_header();
         let payload = SlowStream::new(bytes);
 
         let mut multipart = Multipart::new(&headers, payload);
@@ -1119,7 +1151,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_basic() {
-        let (_, payload) = Payload::create(false);
+        let (_, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new(payload);
 
         assert_eq!(payload.buf.len(), 0);
@@ -1129,7 +1161,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_eof() {
-        let (mut sender, payload) = Payload::create(false);
+        let (mut sender, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new(payload);
 
         assert_eq!(None, payload.read_max(4).unwrap());
@@ -1145,7 +1177,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_err() {
-        let (mut sender, payload) = Payload::create(false);
+        let (mut sender, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new(payload);
         assert_eq!(None, payload.read_max(1).unwrap());
         sender.set_error(PayloadError::Incomplete(None));
@@ -1154,7 +1186,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_readmax() {
-        let (mut sender, payload) = Payload::create(false);
+        let (mut sender, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new(payload);
 
         sender.feed_data(Bytes::from("line1"));
@@ -1171,7 +1203,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_readexactly() {
-        let (mut sender, payload) = Payload::create(false);
+        let (mut sender, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new(payload);
 
         assert_eq!(None, payload.read_exact(2));
@@ -1189,7 +1221,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_readuntil() {
-        let (mut sender, payload) = Payload::create(false);
+        let (mut sender, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new(payload);
 
         assert_eq!(None, payload.read_until(b"ne").unwrap());
@@ -1230,7 +1262,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_multipart_payload_consumption() {
         // with sample payload and HttpRequest with no headers
-        let (_, inner_payload) = Payload::create(false);
+        let (_, inner_payload) = h1::Payload::create(false);
         let mut payload = actix_web::dev::Payload::from(inner_payload);
         let req = TestRequest::default().to_http_request();
 
@@ -1322,7 +1354,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_drop_field_awaken_multipart() {
         let (sender, payload) = create_stream();
-        let (bytes, headers) = create_simple_request_with_header();
+        let (bytes, headers) = create_double_request_with_header();
         sender.send(Ok(bytes)).unwrap();
         drop(sender); // eof
 

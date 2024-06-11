@@ -1,7 +1,9 @@
-use std::borrow::Cow;
-use std::ops::{DerefMut, Index};
+use std::{
+    borrow::Cow,
+    ops::{DerefMut, Index},
+};
 
-use serde::de;
+use serde::{de, Deserialize};
 
 use crate::{de::PathDeserializer, Resource, ResourcePath};
 
@@ -22,8 +24,13 @@ impl Default for PathItem {
 /// If resource path contains variable patterns, `Path` stores them.
 #[derive(Debug, Clone, Default)]
 pub struct Path<T> {
+    /// Full path representation.
     path: T,
+
+    /// Number of characters in `path` that have been processed into `segments`.
     pub(crate) skip: u16,
+
+    /// List of processed dynamic segments; name->value pairs.
     pub(crate) segments: Vec<(Cow<'static, str>, PathItem)>,
 }
 
@@ -81,8 +88,8 @@ impl<T: ResourcePath> Path<T> {
     /// Set new path.
     #[inline]
     pub fn set(&mut self, path: T) {
-        self.skip = 0;
         self.path = path;
+        self.skip = 0;
         self.segments.clear();
     }
 
@@ -101,7 +108,7 @@ impl<T: ResourcePath> Path<T> {
 
     pub(crate) fn add(&mut self, name: impl Into<Cow<'static, str>>, value: PathItem) {
         match value {
-            PathItem::Static(s) => self.segments.push((name.into(), PathItem::Static(s))),
+            PathItem::Static(seg) => self.segments.push((name.into(), PathItem::Static(seg))),
             PathItem::Segment(begin, end) => self.segments.push((
                 name.into(),
                 PathItem::Segment(self.skip + begin, self.skip + end),
@@ -147,15 +154,11 @@ impl<T: ResourcePath> Path<T> {
         None
     }
 
-    /// Get matched parameter by name.
+    /// Returns matched parameter by name.
     ///
     /// If keyed parameter is not available empty string is used as default value.
     pub fn query(&self, key: &str) -> &str {
-        if let Some(s) = self.get(key) {
-            s
-        } else {
-            ""
-        }
+        self.get(key).unwrap_or_default()
     }
 
     /// Return iterator to items in parameter container.
@@ -166,9 +169,13 @@ impl<T: ResourcePath> Path<T> {
         }
     }
 
-    /// Try to deserialize matching parameters to a specified type `U`
-    pub fn load<'de, U: serde::Deserialize<'de>>(&'de self) -> Result<U, de::value::Error> {
-        de::Deserialize::deserialize(PathDeserializer::new(self))
+    /// Deserializes matching parameters to a specified type `U`.
+    ///
+    /// # Errors
+    ///
+    /// Returns error when dynamic path segments cannot be deserialized into a `U` type.
+    pub fn load<'de, U: Deserialize<'de>>(&'de self) -> Result<U, de::value::Error> {
+        Deserialize::deserialize(PathDeserializer::new(self))
     }
 }
 

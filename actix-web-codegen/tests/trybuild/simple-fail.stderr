@@ -1,28 +1,44 @@
-error: Unknown attribute.
- --> $DIR/simple-fail.rs:3:15
+error: expected `=`
+ --> $DIR/simple-fail.rs:3:1
   |
 3 | #[get("/one", other)]
-  |               ^^^^^
+  | ^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: this error originates in the attribute macro `get` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error: expected identifier or literal
+error: expected string literal
  --> $DIR/simple-fail.rs:8:8
   |
 8 | #[post(/two)]
   |        ^
 
-error: Unknown attribute.
+error: invalid service definition, expected #[<method>("<path>")]
+ --> $DIR/simple-fail.rs:8:8
+  |
+8 | #[post(/two)]
+  |        ^
+
+error: expected string literal
   --> $DIR/simple-fail.rs:15:9
    |
 15 | #[patch(PATCH_PATH)]
    |         ^^^^^^^^^^
 
-error: Multiple paths specified! Should be only one!
-  --> $DIR/simple-fail.rs:20:19
+error: invalid service definition, expected #[<method>("<path>")]
+  --> $DIR/simple-fail.rs:15:9
+   |
+15 | #[patch(PATCH_PATH)]
+   |         ^^^^^^^^^^
+
+error: Multiple paths specified! There should be only one.
+  --> $DIR/simple-fail.rs:20:1
    |
 20 | #[delete("/four", "/five")]
-   |                   ^^^^^^^
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: this error originates in the attribute macro `delete` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error: HTTP method forbidden here. To handle multiple methods, use `route` instead
+error: HTTP method forbidden here; to handle multiple methods, use `route` instead
   --> $DIR/simple-fail.rs:25:19
    |
 25 | #[delete("/five", method="GET")]

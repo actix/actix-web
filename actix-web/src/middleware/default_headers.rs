@@ -1,7 +1,6 @@
 //! For middleware documentation, see [`DefaultHeaders`].
 
 use std::{
-    convert::TryFrom,
     future::Future,
     marker::PhantomData,
     pin::Pin,
@@ -191,8 +190,6 @@ mod tests {
 
     use super::*;
     use crate::{
-        dev::ServiceRequest,
-        http::header::CONTENT_TYPE,
         test::{self, TestRequest},
         HttpResponse,
     };

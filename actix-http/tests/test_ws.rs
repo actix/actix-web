@@ -1,5 +1,3 @@
-#![allow(clippy::uninlined_format_args)]
-
 use std::{
     cell::Cell,
     convert::Infallible,
@@ -39,13 +37,13 @@ impl WsService {
 
 #[derive(Debug, Display, Error, From)]
 enum WsServiceError {
-    #[display(fmt = "http error")]
+    #[display(fmt = "HTTP error")]
     Http(actix_http::Error),
 
-    #[display(fmt = "ws handshake error")]
+    #[display(fmt = "WS handshake error")]
     Ws(actix_http::ws::HandshakeError),
 
-    #[display(fmt = "io error")]
+    #[display(fmt = "I/O error")]
     Io(std::io::Error),
 
     #[display(fmt = "dispatcher error")]

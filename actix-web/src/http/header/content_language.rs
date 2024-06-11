@@ -48,7 +48,7 @@ common_header! {
     (ContentLanguage, CONTENT_LANGUAGE) => (QualityItem<LanguageTag>)+
 
     test_parse_and_format {
-        crate::http::header::common_header_test!(test1, vec![b"da"]);
-        crate::http::header::common_header_test!(test2, vec![b"mi, en"]);
+        crate::http::header::common_header_test!(test1, [b"da"]);
+        crate::http::header::common_header_test!(test2, [b"mi, en"]);
     }
 }

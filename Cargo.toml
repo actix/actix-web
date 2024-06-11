@@ -5,6 +5,7 @@ members = [
     "actix-http-test",
     "actix-http",
     "actix-multipart",
+    "actix-multipart-derive",
     "actix-router",
     "actix-test",
     "actix-web-actors",
@@ -12,6 +13,13 @@ members = [
     "actix-web",
     "awc",
 ]
+
+[workspace.package]
+homepage = "https://actix.rs"
+repository = "https://github.com/actix/actix-web"
+license = "MIT OR Apache-2.0"
+edition = "2021"
+rust-version = "1.72"
 
 [profile.dev]
 # Disabling debug info speeds up builds a bunch and we don't rely on it for debugging that much.
@@ -27,6 +35,7 @@ actix-files = { path = "actix-files" }
 actix-http = { path = "actix-http" }
 actix-http-test = { path = "actix-http-test" }
 actix-multipart = { path = "actix-multipart" }
+actix-multipart-derive = { path = "actix-multipart-derive" }
 actix-router = { path = "actix-router" }
 actix-test = { path = "actix-test" }
 actix-web = { path = "actix-web" }

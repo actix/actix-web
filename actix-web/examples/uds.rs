@@ -1,5 +1,3 @@
-#![allow(clippy::uninlined_format_args)]
-
 use actix_web::{get, web, HttpRequest};
 #[cfg(unix)]
 use actix_web::{middleware, App, Error, HttpResponse, HttpServer};
@@ -41,7 +39,7 @@ async fn main() -> std::io::Result<()> {
             )
             .service(web::resource("/test1.html").to(|| async { "Test\r\n" }))
     })
-    .bind_uds("/Users/fafhrd91/uds-test")?
+    .bind_uds("/Users/me/uds-test")?
     .workers(1)
     .run()
     .await

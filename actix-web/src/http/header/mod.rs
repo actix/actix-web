@@ -6,8 +6,6 @@
 
 use std::fmt;
 
-use bytes::{Bytes, BytesMut};
-
 // re-export from actix-http
 // - header name / value types
 // - relevant traits for converting to header name / value
@@ -16,6 +14,7 @@ use bytes::{Bytes, BytesMut};
 // - the few typed headers from actix-http
 // - header parsing utils
 pub use actix_http::header::*;
+use bytes::{Bytes, BytesMut};
 
 mod accept;
 mod accept_charset;
@@ -25,6 +24,7 @@ mod allow;
 mod cache_control;
 mod content_disposition;
 mod content_language;
+mod content_length;
 mod content_range;
 mod content_type;
 mod date;
@@ -43,32 +43,34 @@ mod preference;
 mod range;
 
 #[cfg(test)]
-pub(crate) use macros::common_header_test;
-pub(crate) use macros::{common_header, common_header_test_module};
-
-pub use self::accept::Accept;
-pub use self::accept_charset::AcceptCharset;
-pub use self::accept_encoding::AcceptEncoding;
-pub use self::accept_language::AcceptLanguage;
-pub use self::allow::Allow;
-pub use self::cache_control::{CacheControl, CacheDirective};
-pub use self::content_disposition::{ContentDisposition, DispositionParam, DispositionType};
-pub use self::content_language::ContentLanguage;
-pub use self::content_range::{ContentRange, ContentRangeSpec};
-pub use self::content_type::ContentType;
-pub use self::date::Date;
-pub use self::encoding::Encoding;
-pub use self::entity::EntityTag;
-pub use self::etag::ETag;
-pub use self::expires::Expires;
-pub use self::if_match::IfMatch;
-pub use self::if_modified_since::IfModifiedSince;
-pub use self::if_none_match::IfNoneMatch;
-pub use self::if_range::IfRange;
-pub use self::if_unmodified_since::IfUnmodifiedSince;
-pub use self::last_modified::LastModified;
-pub use self::preference::Preference;
-pub use self::range::{ByteRangeSpec, Range};
+pub(crate) use self::macros::common_header_test;
+pub(crate) use self::macros::{common_header, common_header_test_module};
+pub use self::{
+    accept::Accept,
+    accept_charset::AcceptCharset,
+    accept_encoding::AcceptEncoding,
+    accept_language::AcceptLanguage,
+    allow::Allow,
+    cache_control::{CacheControl, CacheDirective},
+    content_disposition::{ContentDisposition, DispositionParam, DispositionType},
+    content_language::ContentLanguage,
+    content_length::ContentLength,
+    content_range::{ContentRange, ContentRangeSpec},
+    content_type::ContentType,
+    date::Date,
+    encoding::Encoding,
+    entity::EntityTag,
+    etag::ETag,
+    expires::Expires,
+    if_match::IfMatch,
+    if_modified_since::IfModifiedSince,
+    if_none_match::IfNoneMatch,
+    if_range::IfRange,
+    if_unmodified_since::IfUnmodifiedSince,
+    last_modified::LastModified,
+    preference::Preference,
+    range::{ByteRangeSpec, Range},
+};
 
 /// Format writer ([`fmt::Write`]) for a [`BytesMut`].
 #[derive(Debug, Default)]

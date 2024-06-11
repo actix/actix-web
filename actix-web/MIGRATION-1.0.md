@@ -88,8 +88,7 @@
   )
   ```
 
-- Resource registration. 1.0 version uses generalized resource
-  registration via `.service()` method.
+- Resource registration. 1.0 version uses generalized resource registration via `.service()` method.
 
   instead of
 
@@ -97,9 +96,7 @@
     App.new().resource("/welcome", |r| r.f(welcome))
   ```
 
-  use App's or Scope's `.service()` method. `.service()` method accepts
-  object that implements `HttpServiceFactory` trait. By default
-  actix-web provides `Resource` and `Scope` services.
+  use App's or Scope's `.service()` method. `.service()` method accepts object that implements `HttpServiceFactory` trait. By default actix-web provides `Resource` and `Scope` services.
 
   ```rust
     App.new().service(
@@ -164,9 +161,7 @@
   }
   ```
 
-- `.f()`, `.a()` and `.h()` handler registration methods have been removed.
-  Use `.to()` for handlers and `.to_async()` for async handlers. Handler function
-  must use extractors.
+- `.f()`, `.a()` and `.h()` handler registration methods have been removed. Use `.to()` for handlers and `.to_async()` for async handlers. Handler function must use extractors.
 
   instead of
 
@@ -210,9 +205,7 @@
   }
   ```
 
-- `State` is now `Data`. You register Data during the App initialization process
-  and then access it from handlers either using a Data extractor or using
-  HttpRequest's api.
+- `State` is now `Data`. You register Data during the App initialization process and then access it from handlers either using a Data extractor or using HttpRequest's api.
 
   instead of
 
@@ -277,8 +270,7 @@
            .route("/index.html", web::get().to(index));
   ```
 
-- `HttpRequest::body()`, `HttpRequest::urlencoded()`, `HttpRequest::json()`, `HttpRequest::multipart()`
-  method have been removed. Use `Bytes`, `String`, `Form`, `Json`, `Multipart` extractors instead.
+- `HttpRequest::body()`, `HttpRequest::urlencoded()`, `HttpRequest::json()`, `HttpRequest::multipart()` method have been removed. Use `Bytes`, `String`, `Form`, `Json`, `Multipart` extractors instead.
 
   instead of
 
@@ -317,8 +309,7 @@
 
   use `use actix_multipart::Multipart`
 
-- Response compression is not enabled by default.
-  To enable, use `Compress` middleware, `App::new().wrap(Compress::default())`.
+- Response compression is not enabled by default. To enable, use `Compress` middleware, `App::new().wrap(Compress::default())`.
 
 - Session middleware moved to actix-session crate
 

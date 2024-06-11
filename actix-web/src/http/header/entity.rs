@@ -152,9 +152,7 @@ impl FromStr for EntityTag {
             return Err(crate::error::ParseError::Header);
         }
         // The etag is weak if its first char is not a DQUOTE.
-        if slice.len() >= 2
-            && slice.starts_with('"')
-            && check_slice_validity(&slice[1..length - 1])
+        if slice.len() >= 2 && slice.starts_with('"') && check_slice_validity(&slice[1..length - 1])
         {
             // No need to check if the last char is a DQUOTE,
             // we already did that above.

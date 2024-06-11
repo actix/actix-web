@@ -7,8 +7,8 @@ use std::{
 };
 
 use actix_http::{
-    error::PayloadError, header::HeaderMap, BoxedPayloadStream, Extensions, HttpMessage,
-    Payload, ResponseHead, StatusCode, Version,
+    error::PayloadError, header::HeaderMap, BoxedPayloadStream, Extensions, HttpMessage, Payload,
+    ResponseHead, StatusCode, Version,
 };
 use actix_rt::time::{sleep, Sleep};
 use bytes::Bytes;
@@ -16,10 +16,9 @@ use futures_core::Stream;
 use pin_project_lite::pin_project;
 use serde::de::DeserializeOwned;
 
+use super::{JsonBody, ResponseBody, ResponseTimeout};
 #[cfg(feature = "cookies")]
 use crate::cookie::{Cookie, ParseError as CookieParseError};
-
-use super::{JsonBody, ResponseBody, ResponseTimeout};
 
 pin_project! {
     /// Client Response

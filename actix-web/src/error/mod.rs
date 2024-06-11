@@ -5,14 +5,10 @@
 // expanded manually.
 //
 // See <https://github.com/rust-lang/rust/issues/83375>
-pub use actix_http::error::{
-    ContentTypeError, DispatchError, HttpError, ParseError, PayloadError,
-};
-
+pub use actix_http::error::{ContentTypeError, DispatchError, HttpError, ParseError, PayloadError};
 use derive_more::{Display, Error, From};
 use serde_json::error::Error as JsonError;
-use serde_urlencoded::de::Error as FormDeError;
-use serde_urlencoded::ser::Error as FormError;
+use serde_urlencoded::{de::Error as FormDeError, ser::Error as FormError};
 use url::ParseError as UrlParseError;
 
 use crate::http::StatusCode;
@@ -23,10 +19,8 @@ mod internal;
 mod macros;
 mod response_error;
 
-pub use self::error::Error;
-pub use self::internal::*;
-pub use self::response_error::ResponseError;
-pub(crate) use macros::{downcast_dyn, downcast_get_type_id};
+pub(crate) use self::macros::{downcast_dyn, downcast_get_type_id};
+pub use self::{error::Error, internal::*, response_error::ResponseError};
 
 /// A convenience [`Result`](std::result::Result) for Actix Web operations.
 ///
@@ -106,6 +100,7 @@ impl ResponseError for UrlencodedError {
         match self {
             Self::Overflow { .. } => StatusCode::PAYLOAD_TOO_LARGE,
             Self::UnknownLength => StatusCode::LENGTH_REQUIRED,
+            Self::ContentType => StatusCode::UNSUPPORTED_MEDIA_TYPE,
             Self::Payload(err) => err.status_code(),
             _ => StatusCode::BAD_REQUEST,
         }
@@ -238,7 +233,7 @@ mod tests {
         let resp = UrlencodedError::UnknownLength.error_response();
         assert_eq!(resp.status(), StatusCode::LENGTH_REQUIRED);
         let resp = UrlencodedError::ContentType.error_response();
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(resp.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
     }
 
     #[test]

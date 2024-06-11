@@ -9,8 +9,7 @@ use crate::server::Multipart;
 ///
 /// Content-type: multipart/form-data;
 ///
-/// ## Server example
-///
+/// # Examples
 /// ```
 /// use actix_web::{web, HttpResponse, Error};
 /// use actix_multipart::Multipart;
