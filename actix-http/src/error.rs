@@ -1,174 +1,157 @@
 //! Error and Result module
 
-use std::{
-    error::Error as StdError,
-    fmt,
-    io::{self, Write as _},
-    str::Utf8Error,
-    string::FromUtf8Error,
-};
+use std::{error::Error as StdError, fmt, io, str::Utf8Error, string::FromUtf8Error};
 
-use bytes::BytesMut;
 use derive_more::{Display, Error, From};
-use http::{header, uri::InvalidUri, StatusCode};
-use serde::de::value::Error as DeError;
+pub use http::{status::InvalidStatusCode, Error as HttpError};
+use http::{uri::InvalidUri, StatusCode};
 
-use crate::{body::Body, helpers::Writer, Response};
+use crate::{body::BoxBody, Response};
 
-pub use http::Error as HttpError;
-
-/// General purpose actix web error.
-///
-/// An actix web error is used to carry errors from `std::error`
-/// through actix in a convenient way.  It can be created through
-/// converting errors with `into()`.
-///
-/// Whenever it is created from an external object a response error is created
-/// for it that can be used to create an HTTP response from it this means that
-/// if you have access to an actix `Error` you can always get a
-/// `ResponseError` reference from it.
 pub struct Error {
-    cause: Box<dyn ResponseError>,
+    inner: Box<ErrorInner>,
+}
+
+pub(crate) struct ErrorInner {
+    #[allow(dead_code)]
+    kind: Kind,
+    cause: Option<Box<dyn StdError>>,
 }
 
 impl Error {
-    /// Returns the reference to the underlying `ResponseError`.
-    pub fn as_response_error(&self) -> &dyn ResponseError {
-        self.cause.as_ref()
+    fn new(kind: Kind) -> Self {
+        Self {
+            inner: Box::new(ErrorInner { kind, cause: None }),
+        }
     }
 
-    /// Similar to `as_response_error` but downcasts.
-    pub fn as_error<T: ResponseError + 'static>(&self) -> Option<&T> {
-        <dyn ResponseError>::downcast_ref(self.cause.as_ref())
+    pub(crate) fn with_cause(mut self, cause: impl Into<Box<dyn StdError>>) -> Self {
+        self.inner.cause = Some(cause.into());
+        self
+    }
+
+    pub(crate) fn new_http() -> Self {
+        Self::new(Kind::Http)
+    }
+
+    pub(crate) fn new_parse() -> Self {
+        Self::new(Kind::Parse)
+    }
+
+    pub(crate) fn new_payload() -> Self {
+        Self::new(Kind::Payload)
+    }
+
+    pub(crate) fn new_body() -> Self {
+        Self::new(Kind::Body)
+    }
+
+    pub(crate) fn new_send_response() -> Self {
+        Self::new(Kind::SendResponse)
+    }
+
+    #[allow(unused)] // available for future use
+    pub(crate) fn new_io() -> Self {
+        Self::new(Kind::Io)
+    }
+
+    #[allow(unused)] // used in encoder behind feature flag so ignore unused warning
+    pub(crate) fn new_encoder() -> Self {
+        Self::new(Kind::Encoder)
+    }
+
+    #[allow(unused)] // used with `ws` feature flag
+    pub(crate) fn new_ws() -> Self {
+        Self::new(Kind::Ws)
     }
 }
 
-/// Errors that can generate responses.
-pub trait ResponseError: fmt::Debug + fmt::Display {
-    /// Returns appropriate status code for error.
-    ///
-    /// A 500 Internal Server Error is used by default. If [error_response](Self::error_response) is
-    /// also implemented and does not call `self.status_code()`, then this will not be used.
-    fn status_code(&self) -> StatusCode {
-        StatusCode::INTERNAL_SERVER_ERROR
-    }
+impl From<Error> for Response<BoxBody> {
+    fn from(err: Error) -> Self {
+        // TODO: more appropriate error status codes, usage assessment needed
+        let status_code = match err.inner.kind {
+            Kind::Parse => StatusCode::BAD_REQUEST,
+            _ => StatusCode::INTERNAL_SERVER_ERROR,
+        };
 
-    /// Creates full response for error.
-    ///
-    /// By default, the generated response uses a 500 Internal Server Error status code, a
-    /// `Content-Type` of `text/plain`, and the body is set to `Self`'s `Display` impl.
-    fn error_response(&self) -> Response<Body> {
-        let mut resp = Response::new(self.status_code());
-        let mut buf = BytesMut::new();
-        let _ = write!(Writer(&mut buf), "{}", self);
-        resp.headers_mut().insert(
-            header::CONTENT_TYPE,
-            header::HeaderValue::from_static("text/plain; charset=utf-8"),
-        );
-        resp.set_body(Body::from(buf))
+        Response::new(status_code).set_body(BoxBody::new(err.to_string()))
     }
-
-    downcast_get_type_id!();
 }
 
-downcast!(ResponseError);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Display)]
+pub(crate) enum Kind {
+    #[display(fmt = "error processing HTTP")]
+    Http,
 
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(&self.cause, f)
-    }
+    #[display(fmt = "error parsing HTTP message")]
+    Parse,
+
+    #[display(fmt = "request payload read error")]
+    Payload,
+
+    #[display(fmt = "response body write error")]
+    Body,
+
+    #[display(fmt = "send response error")]
+    SendResponse,
+
+    #[display(fmt = "error in WebSocket process")]
+    Ws,
+
+    #[display(fmt = "connection error")]
+    Io,
+
+    #[display(fmt = "encoder error")]
+    Encoder,
 }
 
 impl fmt::Debug for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", &self.cause)
+        f.debug_struct("actix_http::Error")
+            .field("kind", &self.inner.kind)
+            .field("cause", &self.inner.cause)
+            .finish()
     }
 }
 
-impl std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.inner.cause.as_ref() {
+            Some(err) => write!(f, "{}: {}", &self.inner.kind, err),
+            None => write!(f, "{}", &self.inner.kind),
+        }
     }
 }
 
-impl From<()> for Error {
-    fn from(_: ()) -> Self {
-        Error::from(UnitError)
+impl StdError for Error {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        self.inner.cause.as_ref().map(Box::as_ref)
     }
 }
 
 impl From<std::convert::Infallible> for Error {
-    fn from(_: std::convert::Infallible) -> Self {
-        // hint that an error that will never happen
-        unreachable!()
+    fn from(err: std::convert::Infallible) -> Self {
+        match err {}
     }
 }
 
-/// Convert `Error` to a `Response` instance
-impl From<Error> for Response<Body> {
-    fn from(err: Error) -> Self {
-        Response::from_error(err)
+impl From<HttpError> for Error {
+    fn from(err: HttpError) -> Self {
+        Self::new_http().with_cause(err)
     }
 }
 
-/// `Error` for any error that implements `ResponseError`
-impl<T: ResponseError + 'static> From<T> for Error {
-    fn from(err: T) -> Error {
-        Error {
-            cause: Box::new(err),
-        }
+#[cfg(feature = "ws")]
+impl From<crate::ws::HandshakeError> for Error {
+    fn from(err: crate::ws::HandshakeError) -> Self {
+        Self::new_ws().with_cause(err)
     }
 }
 
-#[derive(Debug, Display, Error)]
-#[display(fmt = "Unknown Error")]
-struct UnitError;
-
-impl ResponseError for Box<dyn StdError + 'static> {}
-
-/// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`UnitError`].
-impl ResponseError for UnitError {}
-
-/// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`actix_tls::accept::openssl::SslError`].
-#[cfg(feature = "openssl")]
-impl ResponseError for actix_tls::accept::openssl::SslError {}
-
-/// Returns [`StatusCode::BAD_REQUEST`] for [`DeError`].
-impl ResponseError for DeError {
-    fn status_code(&self) -> StatusCode {
-        StatusCode::BAD_REQUEST
-    }
-}
-
-/// Returns [`StatusCode::BAD_REQUEST`] for [`Utf8Error`].
-impl ResponseError for Utf8Error {
-    fn status_code(&self) -> StatusCode {
-        StatusCode::BAD_REQUEST
-    }
-}
-
-/// Returns [`StatusCode::INTERNAL_SERVER_ERROR`] for [`HttpError`].
-impl ResponseError for HttpError {}
-
-/// Inspects the underlying [`io::ErrorKind`] and returns an appropriate status code.
-///
-/// If the error is [`io::ErrorKind::NotFound`], [`StatusCode::NOT_FOUND`] is returned. If the
-/// error is [`io::ErrorKind::PermissionDenied`], [`StatusCode::FORBIDDEN`] is returned. Otherwise,
-/// [`StatusCode::INTERNAL_SERVER_ERROR`] is returned.
-impl ResponseError for io::Error {
-    fn status_code(&self) -> StatusCode {
-        match self.kind() {
-            io::ErrorKind::NotFound => StatusCode::NOT_FOUND,
-            io::ErrorKind::PermissionDenied => StatusCode::FORBIDDEN,
-            _ => StatusCode::INTERNAL_SERVER_ERROR,
-        }
-    }
-}
-
-/// Returns [`StatusCode::BAD_REQUEST`] for [`header::InvalidHeaderValue`].
-impl ResponseError for header::InvalidHeaderValue {
-    fn status_code(&self) -> StatusCode {
-        StatusCode::BAD_REQUEST
+#[cfg(feature = "ws")]
+impl From<crate::ws::ProtocolError> for Error {
+    fn from(err: crate::ws::ProtocolError) -> Self {
+        Self::new_ws().with_cause(err)
     }
 }
 
@@ -177,52 +160,45 @@ impl ResponseError for header::InvalidHeaderValue {
 #[non_exhaustive]
 pub enum ParseError {
     /// An invalid `Method`, such as `GE.T`.
-    #[display(fmt = "Invalid Method specified")]
+    #[display(fmt = "invalid method specified")]
     Method,
 
     /// An invalid `Uri`, such as `exam ple.domain`.
-    #[display(fmt = "Uri error: {}", _0)]
+    #[display(fmt = "URI error: {}", _0)]
     Uri(InvalidUri),
 
     /// An invalid `HttpVersion`, such as `HTP/1.1`
-    #[display(fmt = "Invalid HTTP version specified")]
+    #[display(fmt = "invalid HTTP version specified")]
     Version,
 
     /// An invalid `Header`.
-    #[display(fmt = "Invalid Header provided")]
+    #[display(fmt = "invalid Header provided")]
     Header,
 
     /// A message head is too large to be reasonable.
-    #[display(fmt = "Message head is too large")]
+    #[display(fmt = "message head is too large")]
     TooLarge,
 
     /// A message reached EOF, but is not complete.
-    #[display(fmt = "Message is incomplete")]
+    #[display(fmt = "message is incomplete")]
     Incomplete,
 
     /// An invalid `Status`, such as `1337 ELITE`.
-    #[display(fmt = "Invalid Status provided")]
+    #[display(fmt = "invalid status provided")]
     Status,
 
     /// A timeout occurred waiting for an IO event.
     #[allow(dead_code)]
-    #[display(fmt = "Timeout")]
+    #[display(fmt = "timeout")]
     Timeout,
 
-    /// An `io::Error` that occurred while trying to read or write to a network stream.
-    #[display(fmt = "IO error: {}", _0)]
+    /// An I/O error that occurred while trying to read or write to a network stream.
+    #[display(fmt = "I/O error: {}", _0)]
     Io(io::Error),
 
-    /// Parsing a field as string failed
-    #[display(fmt = "UTF8 error: {}", _0)]
+    /// Parsing a field as string failed.
+    #[display(fmt = "UTF-8 error: {}", _0)]
     Utf8(Utf8Error),
-}
-
-/// Return `BadRequest` for `ParseError`
-impl ResponseError for ParseError {
-    fn status_code(&self) -> StatusCode {
-        StatusCode::BAD_REQUEST
-    }
 }
 
 impl From<io::Error> for ParseError {
@@ -263,40 +239,42 @@ impl From<httparse::Error> for ParseError {
     }
 }
 
-/// A set of errors that can occur running blocking tasks in thread pool.
-#[derive(Debug, Display, Error)]
-#[display(fmt = "Blocking thread pool is gone")]
-pub struct BlockingError;
+impl From<ParseError> for Error {
+    fn from(err: ParseError) -> Self {
+        Self::new_parse().with_cause(err)
+    }
+}
 
-/// `InternalServerError` for `BlockingError`
-impl ResponseError for BlockingError {}
+impl From<ParseError> for Response<BoxBody> {
+    fn from(err: ParseError) -> Self {
+        Error::from(err).into()
+    }
+}
 
 /// A set of errors that can occur during payload parsing.
 #[derive(Debug, Display)]
 #[non_exhaustive]
 pub enum PayloadError {
     /// A payload reached EOF, but is not complete.
-    #[display(
-        fmt = "A payload reached EOF, but is not complete. Inner error: {:?}",
-        _0
-    )]
+    #[display(fmt = "payload reached EOF before completing: {:?}", _0)]
     Incomplete(Option<io::Error>),
 
     /// Content encoding stream corruption.
-    #[display(fmt = "Can not decode content-encoding.")]
+    #[display(fmt = "can not decode content-encoding")]
     EncodingCorrupted,
 
     /// Payload reached size limit.
-    #[display(fmt = "Payload reached size limit.")]
+    #[display(fmt = "payload reached size limit")]
     Overflow,
 
     /// Payload length is unknown.
-    #[display(fmt = "Payload length is unknown.")]
+    #[display(fmt = "payload length is unknown")]
     UnknownLength,
 
     /// HTTP/2 payload error.
+    #[cfg(feature = "http2")]
     #[display(fmt = "{}", _0)]
-    Http2Payload(h2::Error),
+    Http2Payload(::h2::Error),
 
     /// Generic I/O error.
     #[display(fmt = "{}", _0)]
@@ -307,18 +285,20 @@ impl std::error::Error for PayloadError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             PayloadError::Incomplete(None) => None,
-            PayloadError::Incomplete(Some(err)) => Some(err as &dyn std::error::Error),
+            PayloadError::Incomplete(Some(err)) => Some(err),
             PayloadError::EncodingCorrupted => None,
             PayloadError::Overflow => None,
             PayloadError::UnknownLength => None,
-            PayloadError::Http2Payload(err) => Some(err as &dyn std::error::Error),
-            PayloadError::Io(err) => Some(err as &dyn std::error::Error),
+            #[cfg(feature = "http2")]
+            PayloadError::Http2Payload(err) => Some(err),
+            PayloadError::Io(err) => Some(err),
         }
     }
 }
 
-impl From<h2::Error> for PayloadError {
-    fn from(err: h2::Error) -> Self {
+#[cfg(feature = "http2")]
+impl From<::h2::Error> for PayloadError {
+    fn from(err: ::h2::Error) -> Self {
         PayloadError::Http2Payload(err)
     }
 }
@@ -335,168 +315,138 @@ impl From<io::Error> for PayloadError {
     }
 }
 
-impl From<BlockingError> for PayloadError {
-    fn from(_: BlockingError) -> Self {
-        PayloadError::Io(io::Error::new(
-            io::ErrorKind::Other,
-            "Operation is canceled",
-        ))
-    }
-}
-
-/// `PayloadError` returns two possible results:
-///
-/// - `Overflow` returns `PayloadTooLarge`
-/// - Other errors returns `BadRequest`
-impl ResponseError for PayloadError {
-    fn status_code(&self) -> StatusCode {
-        match *self {
-            PayloadError::Overflow => StatusCode::PAYLOAD_TOO_LARGE,
-            _ => StatusCode::BAD_REQUEST,
-        }
+impl From<PayloadError> for Error {
+    fn from(err: PayloadError) -> Self {
+        Self::new_payload().with_cause(err)
     }
 }
 
 /// A set of errors that can occur during dispatching HTTP requests.
-#[derive(Debug, Display, Error, From)]
+#[derive(Debug, Display, From)]
 #[non_exhaustive]
 pub enum DispatchError {
-    /// Service error
-    Service(Error),
+    /// Service error.
+    #[display(fmt = "service error")]
+    Service(Response<BoxBody>),
 
-    /// Upgrade service error
+    /// Body streaming error.
+    #[display(fmt = "body error: {}", _0)]
+    Body(Box<dyn StdError>),
+
+    /// Upgrade service error.
+    #[display(fmt = "upgrade error")]
     Upgrade,
 
-    /// An `io::Error` that occurred while trying to read or write to a network
-    /// stream.
-    #[display(fmt = "IO error: {}", _0)]
+    /// An `io::Error` that occurred while trying to read or write to a network stream.
+    #[display(fmt = "I/O error: {}", _0)]
     Io(io::Error),
 
-    /// Http request parse error.
-    #[display(fmt = "Parse error: {}", _0)]
+    /// Request parse error.
+    #[display(fmt = "request parse error: {}", _0)]
     Parse(ParseError),
 
-    /// Http/2 error
+    /// HTTP/2 error.
     #[display(fmt = "{}", _0)]
+    #[cfg(feature = "http2")]
     H2(h2::Error),
 
     /// The first request did not complete within the specified timeout.
-    #[display(fmt = "The first request did not complete within the specified timeout")]
+    #[display(fmt = "request did not complete within the specified timeout")]
     SlowRequestTimeout,
 
-    /// Disconnect timeout. Makes sense for ssl streams.
-    #[display(fmt = "Connection shutdown timeout")]
+    /// Disconnect timeout. Makes sense for TLS streams.
+    #[display(fmt = "connection shutdown timeout")]
     DisconnectTimeout,
 
-    /// Payload is not consumed
-    #[display(fmt = "Task is completed but request's payload is not consumed")]
-    PayloadIsNotConsumed,
+    /// Handler dropped payload before reading EOF.
+    #[display(fmt = "handler dropped payload before reading EOF")]
+    HandlerDroppedPayload,
 
-    /// Malformed request
-    #[display(fmt = "Malformed request")]
-    MalformedRequest,
-
-    /// Internal error
-    #[display(fmt = "Internal error")]
+    /// Internal error.
+    #[display(fmt = "internal error")]
     InternalError,
-
-    /// Unknown error
-    #[display(fmt = "Unknown error")]
-    Unknown,
 }
 
-/// A set of error that can occur during parsing content type.
-#[derive(Debug, Display, Error)]
-#[non_exhaustive]
-pub enum ContentTypeError {
-    /// Can not parse content type
-    #[display(fmt = "Can not parse content type")]
-    ParseError,
+impl StdError for DispatchError {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        match self {
+            DispatchError::Service(_res) => None,
+            DispatchError::Body(err) => Some(&**err),
+            DispatchError::Io(err) => Some(err),
+            DispatchError::Parse(err) => Some(err),
 
-    /// Unknown content encoding
-    #[display(fmt = "Unknown content encoding")]
-    UnknownEncoding,
-}
+            #[cfg(feature = "http2")]
+            DispatchError::H2(err) => Some(err),
 
-#[cfg(test)]
-mod content_type_test_impls {
-    use super::*;
-
-    impl std::cmp::PartialEq for ContentTypeError {
-        fn eq(&self, other: &Self) -> bool {
-            match self {
-                Self::ParseError => matches!(other, ContentTypeError::ParseError),
-                Self::UnknownEncoding => {
-                    matches!(other, ContentTypeError::UnknownEncoding)
-                }
-            }
+            _ => None,
         }
     }
 }
 
-impl ResponseError for ContentTypeError {
-    fn status_code(&self) -> StatusCode {
-        StatusCode::BAD_REQUEST
-    }
+/// A set of error that can occur during parsing content type.
+#[derive(Debug, Display, Error)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
+#[non_exhaustive]
+pub enum ContentTypeError {
+    /// Can not parse content type.
+    #[display(fmt = "could not parse content type")]
+    ParseError,
+
+    /// Unknown content encoding.
+    #[display(fmt = "unknown content encoding")]
+    UnknownEncoding,
 }
 
 #[cfg(test)]
 mod tests {
+    use http::Error as HttpError;
+
     use super::*;
-    use http::{Error as HttpError, StatusCode};
-    use std::io;
 
     #[test]
     fn test_into_response() {
-        let resp: Response<Body> = ParseError::Incomplete.error_response();
+        let resp: Response<BoxBody> = ParseError::Incomplete.into();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
         let err: HttpError = StatusCode::from_u16(10000).err().unwrap().into();
-        let resp: Response<Body> = err.error_response();
+        let resp: Response<BoxBody> = Error::new_http().with_cause(err).into();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
     #[test]
     fn test_as_response() {
         let orig = io::Error::new(io::ErrorKind::Other, "other");
-        let e: Error = ParseError::Io(orig).into();
-        assert_eq!(format!("{}", e.as_response_error()), "IO error: other");
-    }
-
-    #[test]
-    fn test_error_cause() {
-        let orig = io::Error::new(io::ErrorKind::Other, "other");
-        let desc = orig.to_string();
-        let e = Error::from(orig);
-        assert_eq!(format!("{}", e.as_response_error()), desc);
+        let err: Error = ParseError::Io(orig).into();
+        assert_eq!(
+            format!("{}", err),
+            "error parsing HTTP message: I/O error: other"
+        );
     }
 
     #[test]
     fn test_error_display() {
         let orig = io::Error::new(io::ErrorKind::Other, "other");
-        let desc = orig.to_string();
-        let e = Error::from(orig);
-        assert_eq!(format!("{}", e), desc);
+        let err = Error::new_io().with_cause(orig);
+        assert_eq!("connection error: other", err.to_string());
     }
 
     #[test]
     fn test_error_http_response() {
         let orig = io::Error::new(io::ErrorKind::Other, "other");
-        let e = Error::from(orig);
-        let resp: Response<Body> = e.into();
+        let err = Error::new_io().with_cause(orig);
+        let resp: Response<BoxBody> = err.into();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
     #[test]
     fn test_payload_error() {
-        let err: PayloadError =
-            io::Error::new(io::ErrorKind::Other, "ParseError").into();
+        let err: PayloadError = io::Error::new(io::ErrorKind::Other, "ParseError").into();
         assert!(err.to_string().contains("ParseError"));
 
         let err = PayloadError::Incomplete(None);
         assert_eq!(
             err.to_string(),
-            "A payload reached EOF, but is not complete. Inner error: None"
+            "payload reached EOF before completing: None"
         );
     }
 
@@ -516,7 +466,7 @@ mod tests {
             match ParseError::from($from) {
                 e @ $error => {
                     let desc = format!("{}", e);
-                    assert_eq!(desc, format!("IO error: {}", $from));
+                    assert_eq!(desc, format!("I/O error: {}", $from));
                 }
                 _ => unreachable!("{:?}", $from),
             }
@@ -534,15 +484,5 @@ mod tests {
         from!(httparse::Error::Token => ParseError::Header);
         from!(httparse::Error::TooManyHeaders => ParseError::TooLarge);
         from!(httparse::Error::Version => ParseError::Version);
-    }
-
-    #[test]
-    fn test_error_casting() {
-        let err = PayloadError::Overflow;
-        let resp_err: &dyn ResponseError = &err;
-        let err = resp_err.downcast_ref::<PayloadError>().unwrap();
-        assert_eq!(err.to_string(), "Payload reached size limit.");
-        let not_err = resp_err.downcast_ref::<ContentTypeError>();
-        assert!(not_err.is_none());
     }
 }

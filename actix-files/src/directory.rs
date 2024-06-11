@@ -1,8 +1,13 @@
-use std::{fmt::Write, fs::DirEntry, io, path::Path, path::PathBuf};
+use std::{
+    fmt::Write,
+    fs::DirEntry,
+    io,
+    path::{Path, PathBuf},
+};
 
 use actix_web::{dev::ServiceResponse, HttpRequest, HttpResponse};
-use askama_escape::{escape as escape_html_entity, Html};
 use percent_encoding::{utf8_percent_encode, CONTROLS};
+use v_htmlescape::escape as escape_html_entity;
 
 /// A directory; responds with the generated directory listing.
 #[derive(Debug)]
@@ -40,17 +45,26 @@ impl Directory {
 pub(crate) type DirectoryRenderer =
     dyn Fn(&Directory, &HttpRequest) -> Result<ServiceResponse, io::Error>;
 
-// show file url as relative to static path
+/// Returns percent encoded file URL path.
 macro_rules! encode_file_url {
     ($path:ident) => {
         utf8_percent_encode(&$path, CONTROLS)
     };
 }
 
-// " -- &quot;  & -- &amp;  ' -- &#x27;  < -- &lt;  > -- &gt;  / -- &#x2f;
+/// Returns HTML entity encoded formatter.
+///
+/// ```plain
+/// " => &quot;
+/// & => &amp;
+/// ' => &#x27;
+/// < => &lt;
+/// > => &gt;
+/// / => &#x2f;
+/// ```
 macro_rules! encode_file_name {
     ($entry:ident) => {
-        escape_html_entity(&$entry.file_name().to_string_lossy(), Html)
+        escape_html_entity(&$entry.file_name().to_string_lossy())
     };
 }
 
@@ -66,7 +80,7 @@ pub(crate) fn directory_listing(
         if dir.is_visible(&entry) {
             let entry = entry.unwrap();
             let p = match entry.path().strip_prefix(&dir.path) {
-                Ok(p) if cfg!(windows) => base.join(p).to_string_lossy().replace("\\", "/"),
+                Ok(p) if cfg!(windows) => base.join(p).to_string_lossy().replace('\\', "/"),
                 Ok(p) => base.join(p).to_string_lossy().into_owned(),
                 Err(_) => continue,
             };

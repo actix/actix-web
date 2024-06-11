@@ -1,14 +1,17 @@
-use actix_codec::{Decoder, Encoder};
 use bitflags::bitflags;
 use bytes::{Bytes, BytesMut};
 use bytestring::ByteString;
+use tokio_util::codec::{Decoder, Encoder};
+use tracing::error;
 
-use super::frame::Parser;
-use super::proto::{CloseReason, OpCode};
-use super::ProtocolError;
+use super::{
+    frame::Parser,
+    proto::{CloseReason, OpCode},
+    ProtocolError,
+};
 
 /// A WebSocket message.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Message {
     /// Text message.
     Text(ByteString),
@@ -33,7 +36,7 @@ pub enum Message {
 }
 
 /// A WebSocket frame.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Frame {
     /// Text frame. Note that the codec does not validate UTF-8 encoding.
     Text(Bytes),
@@ -55,7 +58,7 @@ pub enum Frame {
 }
 
 /// A WebSocket continuation item.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Item {
     FirstText(Bytes),
     FirstBinary(Bytes),
@@ -63,14 +66,15 @@ pub enum Item {
     Last(Bytes),
 }
 
-#[derive(Debug, Copy, Clone)]
 /// WebSocket protocol codec.
+#[derive(Debug, Clone)]
 pub struct Codec {
     flags: Flags,
     max_size: usize,
 }
 
 bitflags! {
+    #[derive(Debug, Clone, Copy)]
     struct Flags: u8 {
         const SERVER         = 0b0000_0001;
         const CONTINUATION   = 0b0000_0010;
@@ -89,7 +93,8 @@ impl Codec {
 
     /// Set max frame size.
     ///
-    /// By default max size is set to 64kB.
+    /// By default max size is set to 64KiB.
+    #[must_use = "This returns the a new Codec, without modifying the original."]
     pub fn max_size(mut self, size: usize) -> Self {
         self.max_size = size;
         self
@@ -98,9 +103,16 @@ impl Codec {
     /// Set decoder to client mode.
     ///
     /// By default decoder works in server mode.
+    #[must_use = "This returns the a new Codec, without modifying the original."]
     pub fn client_mode(mut self) -> Self {
         self.flags.remove(Flags::SERVER);
         self
+    }
+}
+
+impl Default for Codec {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -216,9 +228,7 @@ impl Decoder for Codec {
                         OpCode::Continue => {
                             if self.flags.contains(Flags::CONTINUATION) {
                                 Ok(Some(Frame::Continuation(Item::Continue(
-                                    payload
-                                        .map(|pl| pl.freeze())
-                                        .unwrap_or_else(Bytes::new),
+                                    payload.map(|pl| pl.freeze()).unwrap_or_else(Bytes::new),
                                 ))))
                             } else {
                                 Err(ProtocolError::ContinuationNotStarted)
@@ -228,9 +238,7 @@ impl Decoder for Codec {
                             if !self.flags.contains(Flags::CONTINUATION) {
                                 self.flags.insert(Flags::CONTINUATION);
                                 Ok(Some(Frame::Continuation(Item::FirstBinary(
-                                    payload
-                                        .map(|pl| pl.freeze())
-                                        .unwrap_or_else(Bytes::new),
+                                    payload.map(|pl| pl.freeze()).unwrap_or_else(Bytes::new),
                                 ))))
                             } else {
                                 Err(ProtocolError::ContinuationStarted)
@@ -240,9 +248,7 @@ impl Decoder for Codec {
                             if !self.flags.contains(Flags::CONTINUATION) {
                                 self.flags.insert(Flags::CONTINUATION);
                                 Ok(Some(Frame::Continuation(Item::FirstText(
-                                    payload
-                                        .map(|pl| pl.freeze())
-                                        .unwrap_or_else(Bytes::new),
+                                    payload.map(|pl| pl.freeze()).unwrap_or_else(Bytes::new),
                                 ))))
                             } else {
                                 Err(ProtocolError::ContinuationStarted)
@@ -290,7 +296,7 @@ impl Decoder for Codec {
                 }
             }
             Ok(None) => Ok(None),
-            Err(e) => Err(e),
+            Err(err) => Err(err),
         }
     }
 }

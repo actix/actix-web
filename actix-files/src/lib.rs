@@ -2,7 +2,7 @@
 //!
 //! Provides a non-blocking service for serving static files from disk.
 //!
-//! # Example
+//! # Examples
 //! ```
 //! use actix_web::App;
 //! use actix_files::Files;
@@ -11,12 +11,17 @@
 //!     .service(Files::new("/static", ".").prefer_utf8(true));
 //! ```
 
-#![deny(rust_2018_idioms)]
-#![warn(missing_docs, missing_debug_implementations)]
+#![deny(rust_2018_idioms, nonstandard_style)]
+#![warn(future_incompatible, missing_docs, missing_debug_implementations)]
+#![doc(html_logo_url = "https://actix.rs/img/logo.png")]
+#![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+
+use std::path::Path;
 
 use actix_service::boxed::{BoxService, BoxServiceFactory};
 use actix_web::{
-    dev::{ServiceRequest, ServiceResponse},
+    dev::{RequestHead, ServiceRequest, ServiceResponse},
     error::Error,
     http::header::DispositionType,
 };
@@ -32,16 +37,15 @@ mod path_buf;
 mod range;
 mod service;
 
-pub use crate::chunked::ChunkedReadFile;
-pub use crate::directory::Directory;
-pub use crate::files::Files;
-pub use crate::named::NamedFile;
-pub use crate::range::HttpRange;
-pub use crate::service::FilesService;
-
-use self::directory::{directory_listing, DirectoryRenderer};
-use self::error::FilesError;
-use self::path_buf::PathBufWrap;
+pub use self::{
+    chunked::ChunkedReadFile, directory::Directory, files::Files, named::NamedFile,
+    range::HttpRange, service::FilesService,
+};
+use self::{
+    directory::{directory_listing, DirectoryRenderer},
+    error::FilesError,
+    path_buf::PathBufWrap,
+};
 
 type HttpService = BoxService<ServiceRequest, ServiceResponse, Error>;
 type HttpNewService = BoxServiceFactory<(), ServiceRequest, ServiceResponse, Error, ()>;
@@ -56,20 +60,22 @@ pub fn file_extension_to_mime(ext: &str) -> mime::Mime {
 
 type MimeOverride = dyn Fn(&mime::Name<'_>) -> DispositionType;
 
+type PathFilter = dyn Fn(&Path, &RequestHead) -> bool;
+
 #[cfg(test)]
 mod tests {
     use std::{
-        fs::{self, File},
+        fmt::Write as _,
+        fs::{self},
         ops::Add,
         time::{Duration, SystemTime},
     };
 
-    use actix_service::ServiceFactory;
-    use actix_utils::future::ok;
     use actix_web::{
+        dev::ServiceFactory,
         guard,
         http::{
-            header::{self, ContentDisposition, DispositionParam, DispositionType},
+            header::{self, ContentDisposition, DispositionParam},
             Method, StatusCode,
         },
         middleware::Compress,
@@ -79,8 +85,9 @@ mod tests {
     };
 
     use super::*;
+    use crate::named::File;
 
-    #[actix_rt::test]
+    #[actix_web::test]
     async fn test_file_extension_to_mime() {
         let m = file_extension_to_mime("");
         assert_eq!(m, mime::APPLICATION_OCTET_STREAM);
@@ -97,69 +104,69 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_if_modified_since_without_if_none_match() {
-        let file = NamedFile::open("Cargo.toml").unwrap();
+        let file = NamedFile::open_async("Cargo.toml").await.unwrap();
         let since = header::HttpDate::from(SystemTime::now().add(Duration::from_secs(60)));
 
         let req = TestRequest::default()
             .insert_header((header::IF_MODIFIED_SINCE, since))
             .to_http_request();
-        let resp = file.respond_to(&req).await.unwrap();
+        let resp = file.respond_to(&req);
         assert_eq!(resp.status(), StatusCode::NOT_MODIFIED);
     }
 
     #[actix_rt::test]
     async fn test_if_modified_since_without_if_none_match_same() {
-        let file = NamedFile::open("Cargo.toml").unwrap();
+        let file = NamedFile::open_async("Cargo.toml").await.unwrap();
         let since = file.last_modified().unwrap();
 
         let req = TestRequest::default()
             .insert_header((header::IF_MODIFIED_SINCE, since))
             .to_http_request();
-        let resp = file.respond_to(&req).await.unwrap();
+        let resp = file.respond_to(&req);
         assert_eq!(resp.status(), StatusCode::NOT_MODIFIED);
     }
 
     #[actix_rt::test]
     async fn test_if_modified_since_with_if_none_match() {
-        let file = NamedFile::open("Cargo.toml").unwrap();
+        let file = NamedFile::open_async("Cargo.toml").await.unwrap();
         let since = header::HttpDate::from(SystemTime::now().add(Duration::from_secs(60)));
 
         let req = TestRequest::default()
             .insert_header((header::IF_NONE_MATCH, "miss_etag"))
             .insert_header((header::IF_MODIFIED_SINCE, since))
             .to_http_request();
-        let resp = file.respond_to(&req).await.unwrap();
+        let resp = file.respond_to(&req);
         assert_ne!(resp.status(), StatusCode::NOT_MODIFIED);
     }
 
     #[actix_rt::test]
     async fn test_if_unmodified_since() {
-        let file = NamedFile::open("Cargo.toml").unwrap();
+        let file = NamedFile::open_async("Cargo.toml").await.unwrap();
         let since = file.last_modified().unwrap();
 
         let req = TestRequest::default()
             .insert_header((header::IF_UNMODIFIED_SINCE, since))
             .to_http_request();
-        let resp = file.respond_to(&req).await.unwrap();
+        let resp = file.respond_to(&req);
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
     #[actix_rt::test]
     async fn test_if_unmodified_since_failed() {
-        let file = NamedFile::open("Cargo.toml").unwrap();
+        let file = NamedFile::open_async("Cargo.toml").await.unwrap();
         let since = header::HttpDate::from(SystemTime::UNIX_EPOCH);
 
         let req = TestRequest::default()
             .insert_header((header::IF_UNMODIFIED_SINCE, since))
             .to_http_request();
-        let resp = file.respond_to(&req).await.unwrap();
+        let resp = file.respond_to(&req);
         assert_eq!(resp.status(), StatusCode::PRECONDITION_FAILED);
     }
 
     #[actix_rt::test]
     async fn test_named_file_text() {
-        assert!(NamedFile::open("test--").is_err());
-        let mut file = NamedFile::open("Cargo.toml").unwrap();
+        assert!(NamedFile::open_async("test--").await.is_err());
+        let mut file = NamedFile::open_async("Cargo.toml").await.unwrap();
         {
             file.file();
             let _f: &File = &file;
@@ -169,7 +176,7 @@ mod tests {
         }
 
         let req = TestRequest::default().to_http_request();
-        let resp = file.respond_to(&req).await.unwrap();
+        let resp = file.respond_to(&req);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "text/x-toml"
@@ -182,8 +189,8 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_named_file_content_disposition() {
-        assert!(NamedFile::open("test--").is_err());
-        let mut file = NamedFile::open("Cargo.toml").unwrap();
+        assert!(NamedFile::open_async("test--").await.is_err());
+        let mut file = NamedFile::open_async("Cargo.toml").await.unwrap();
         {
             file.file();
             let _f: &File = &file;
@@ -193,24 +200,36 @@ mod tests {
         }
 
         let req = TestRequest::default().to_http_request();
-        let resp = file.respond_to(&req).await.unwrap();
+        let resp = file.respond_to(&req);
         assert_eq!(
             resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
             "inline; filename=\"Cargo.toml\""
         );
 
-        let file = NamedFile::open("Cargo.toml")
+        let file = NamedFile::open_async("Cargo.toml")
+            .await
             .unwrap()
             .disable_content_disposition();
         let req = TestRequest::default().to_http_request();
-        let resp = file.respond_to(&req).await.unwrap();
+        let resp = file.respond_to(&req);
         assert!(resp.headers().get(header::CONTENT_DISPOSITION).is_none());
     }
 
     #[actix_rt::test]
     async fn test_named_file_non_ascii_file_name() {
-        let mut file =
-            NamedFile::from_file(File::open("Cargo.toml").unwrap(), "貨物.toml").unwrap();
+        let file = {
+            #[cfg(feature = "experimental-io-uring")]
+            {
+                crate::named::File::open("Cargo.toml").await.unwrap()
+            }
+
+            #[cfg(not(feature = "experimental-io-uring"))]
+            {
+                crate::named::File::open("Cargo.toml").unwrap()
+            }
+        };
+
+        let mut file = NamedFile::from_file(file, "貨物.toml").unwrap();
         {
             file.file();
             let _f: &File = &file;
@@ -220,7 +239,7 @@ mod tests {
         }
 
         let req = TestRequest::default().to_http_request();
-        let resp = file.respond_to(&req).await.unwrap();
+        let resp = file.respond_to(&req);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "text/x-toml"
@@ -233,7 +252,8 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_named_file_set_content_type() {
-        let mut file = NamedFile::open("Cargo.toml")
+        let mut file = NamedFile::open_async("Cargo.toml")
+            .await
             .unwrap()
             .set_content_type(mime::TEXT_XML);
         {
@@ -245,7 +265,7 @@ mod tests {
         }
 
         let req = TestRequest::default().to_http_request();
-        let resp = file.respond_to(&req).await.unwrap();
+        let resp = file.respond_to(&req);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "text/xml"
@@ -258,7 +278,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_named_file_image() {
-        let mut file = NamedFile::open("tests/test.png").unwrap();
+        let mut file = NamedFile::open_async("tests/test.png").await.unwrap();
         {
             file.file();
             let _f: &File = &file;
@@ -268,7 +288,7 @@ mod tests {
         }
 
         let req = TestRequest::default().to_http_request();
-        let resp = file.respond_to(&req).await.unwrap();
+        let resp = file.respond_to(&req);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "image/png"
@@ -280,12 +300,29 @@ mod tests {
     }
 
     #[actix_rt::test]
+    async fn test_named_file_javascript() {
+        let file = NamedFile::open_async("tests/test.js").await.unwrap();
+
+        let req = TestRequest::default().to_http_request();
+        let resp = file.respond_to(&req);
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "application/javascript; charset=utf-8"
+        );
+        assert_eq!(
+            resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
+            "inline; filename=\"test.js\""
+        );
+    }
+
+    #[actix_rt::test]
     async fn test_named_file_image_attachment() {
         let cd = ContentDisposition {
             disposition: DispositionType::Attachment,
             parameters: vec![DispositionParam::Filename(String::from("test.png"))],
         };
-        let mut file = NamedFile::open("tests/test.png")
+        let mut file = NamedFile::open_async("tests/test.png")
+            .await
             .unwrap()
             .set_content_disposition(cd);
         {
@@ -297,7 +334,7 @@ mod tests {
         }
 
         let req = TestRequest::default().to_http_request();
-        let resp = file.respond_to(&req).await.unwrap();
+        let resp = file.respond_to(&req);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "image/png"
@@ -310,7 +347,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_named_file_binary() {
-        let mut file = NamedFile::open("tests/test.binary").unwrap();
+        let mut file = NamedFile::open_async("tests/test.binary").await.unwrap();
         {
             file.file();
             let _f: &File = &file;
@@ -320,7 +357,7 @@ mod tests {
         }
 
         let req = TestRequest::default().to_http_request();
-        let resp = file.respond_to(&req).await.unwrap();
+        let resp = file.respond_to(&req);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "application/octet-stream"
@@ -331,21 +368,45 @@ mod tests {
         );
     }
 
+    #[allow(deprecated)]
     #[actix_rt::test]
-    async fn test_named_file_status_code_text() {
-        let mut file = NamedFile::open("Cargo.toml")
+    async fn status_code_customize_same_output() {
+        let file1 = NamedFile::open_async("Cargo.toml")
+            .await
             .unwrap()
             .set_status_code(StatusCode::NOT_FOUND);
+
+        let file2 = NamedFile::open_async("Cargo.toml")
+            .await
+            .unwrap()
+            .customize()
+            .with_status(StatusCode::NOT_FOUND);
+
+        let req = TestRequest::default().to_http_request();
+        let res1 = file1.respond_to(&req);
+        let res2 = file2.respond_to(&req);
+
+        assert_eq!(res1.status(), StatusCode::NOT_FOUND);
+        assert_eq!(res2.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[actix_rt::test]
+    async fn test_named_file_status_code_text() {
+        let mut file = NamedFile::open_async("Cargo.toml").await.unwrap();
+
         {
             file.file();
             let _f: &File = &file;
         }
+
         {
             let _f: &mut File = &mut file;
         }
 
+        let file = file.customize().with_status(StatusCode::NOT_FOUND);
+
         let req = TestRequest::default().to_http_request();
-        let resp = file.respond_to(&req).await.unwrap();
+        let resp = file.respond_to(&req);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
             "text/x-toml"
@@ -493,10 +554,9 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_static_files_with_spaces() {
-        let srv = test::init_service(
-            App::new().service(Files::new("/", ".").index_file("Cargo.toml")),
-        )
-        .await;
+        let srv =
+            test::init_service(App::new().service(Files::new("/", ".").index_file("Cargo.toml")))
+                .await;
         let request = TestRequest::get()
             .uri("/tests/test%20space.binary")
             .to_request();
@@ -505,6 +565,30 @@ mod tests {
 
         let bytes = test::read_body(response).await;
         let data = web::Bytes::from(fs::read("tests/test space.binary").unwrap());
+        assert_eq!(bytes, data);
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[actix_rt::test]
+    async fn test_static_files_with_special_characters() {
+        // Create the file we want to test against ad-hoc. We can't check it in as otherwise
+        // Windows can't even checkout this repository.
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_with_newlines = temp_dir.path().join("test\n\x0B\x0C\rnewline.text");
+        fs::write(&file_with_newlines, "Look at my newlines").unwrap();
+
+        let srv = test::init_service(
+            App::new().service(Files::new("/", temp_dir.path()).index_file("Cargo.toml")),
+        )
+        .await;
+        let request = TestRequest::get()
+            .uri("/test%0A%0B%0C%0Dnewline.text")
+            .to_request();
+        let response = test::call_service(&srv, request).await;
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let bytes = test::read_body(response).await;
+        let data = web::Bytes::from(fs::read(file_with_newlines).unwrap());
         assert_eq!(bytes, data);
     }
 
@@ -549,7 +633,8 @@ mod tests {
     async fn test_named_file_content_encoding() {
         let srv = test::init_service(App::new().wrap(Compress::default()).service(
             web::resource("/").to(|| async {
-                NamedFile::open("Cargo.toml")
+                NamedFile::open_async("Cargo.toml")
+                    .await
                     .unwrap()
                     .set_content_encoding(header::ContentEncoding::Identity)
             }),
@@ -562,14 +647,16 @@ mod tests {
             .to_request();
         let res = test::call_service(&srv, request).await;
         assert_eq!(res.status(), StatusCode::OK);
-        assert!(!res.headers().contains_key(header::CONTENT_ENCODING));
+        assert!(res.headers().contains_key(header::CONTENT_ENCODING));
+        assert!(!test::read_body(res).await.is_empty());
     }
 
     #[actix_rt::test]
     async fn test_named_file_content_encoding_gzip() {
         let srv = test::init_service(App::new().wrap(Compress::default()).service(
             web::resource("/").to(|| async {
-                NamedFile::open("Cargo.toml")
+                NamedFile::open_async("Cargo.toml")
+                    .await
                     .unwrap()
                     .set_content_encoding(header::ContentEncoding::Gzip)
             }),
@@ -595,16 +682,15 @@ mod tests {
     #[actix_rt::test]
     async fn test_named_file_allowed_method() {
         let req = TestRequest::default().method(Method::GET).to_http_request();
-        let file = NamedFile::open("Cargo.toml").unwrap();
-        let resp = file.respond_to(&req).await.unwrap();
+        let file = NamedFile::open_async("Cargo.toml").await.unwrap();
+        let resp = file.respond_to(&req);
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
     #[actix_rt::test]
     async fn test_static_files() {
         let srv =
-            test::init_service(App::new().service(Files::new("/", ".").show_files_listing()))
-                .await;
+            test::init_service(App::new().service(Files::new("/", ".").show_files_listing())).await;
         let req = TestRequest::with_uri("/missing").to_request();
 
         let resp = test::call_service(&srv, req).await;
@@ -617,8 +703,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
         let srv =
-            test::init_service(App::new().service(Files::new("/", ".").show_files_listing()))
-                .await;
+            test::init_service(App::new().service(Files::new("/", ".").show_files_listing())).await;
         let req = TestRequest::with_uri("/tests").to_request();
         let resp = test::call_service(&srv, req).await;
         assert_eq!(
@@ -686,8 +771,8 @@ mod tests {
     #[actix_rt::test]
     async fn test_default_handler_file_missing() {
         let st = Files::new("/", ".")
-            .default_handler(|req: ServiceRequest| {
-                ok(req.into_response(HttpResponse::Ok().body("default content")))
+            .default_handler(|req: ServiceRequest| async {
+                Ok(req.into_response(HttpResponse::Ok().body("default content")))
             })
             .new_service(())
             .await
@@ -766,13 +851,46 @@ mod tests {
         let req = TestRequest::get().uri("/test/%43argo.toml").to_request();
         let res = test::call_service(&srv, req).await;
         assert_eq!(res.status(), StatusCode::OK);
+
+        // `%2F` == `/`
+        let req = TestRequest::get().uri("/test%2Ftest.binary").to_request();
+        let res = test::call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::NOT_FOUND);
+
+        let req = TestRequest::get().uri("/test/Cargo.toml%00").to_request();
+        let res = test::call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[actix_rt::test]
+    async fn test_percent_encoding_2() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let filename = match cfg!(unix) {
+            true => "ض:?#[]{}<>()@!$&'`|*+,;= %20\n.test",
+            false => "ض#[]{}()@!$&'`+,;= %20.test",
+        };
+        let filename_encoded = filename
+            .as_bytes()
+            .iter()
+            .fold(String::new(), |mut buf, c| {
+                write!(&mut buf, "%{:02X}", c).unwrap();
+                buf
+            });
+        std::fs::File::create(temp_dir.path().join(filename)).unwrap();
+
+        let srv = test::init_service(App::new().service(Files::new("/", temp_dir.path()))).await;
+
+        let req = TestRequest::get()
+            .uri(&format!("/{}", filename_encoded))
+            .to_request();
+        let res = test::call_service(&srv, req).await;
+        assert_eq!(res.status(), StatusCode::OK);
     }
 
     #[actix_rt::test]
     async fn test_serve_named_file() {
-        let srv =
-            test::init_service(App::new().service(NamedFile::open("Cargo.toml").unwrap()))
-                .await;
+        let factory = NamedFile::open_async("Cargo.toml").await.unwrap();
+        let srv = test::init_service(App::new().service(factory)).await;
 
         let req = TestRequest::get().uri("/Cargo.toml").to_request();
         let res = test::call_service(&srv, req).await;
@@ -789,11 +907,9 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_serve_named_file_prefix() {
-        let srv = test::init_service(
-            App::new()
-                .service(web::scope("/test").service(NamedFile::open("Cargo.toml").unwrap())),
-        )
-        .await;
+        let factory = NamedFile::open_async("Cargo.toml").await.unwrap();
+        let srv =
+            test::init_service(App::new().service(web::scope("/test").service(factory))).await;
 
         let req = TestRequest::get().uri("/test/Cargo.toml").to_request();
         let res = test::call_service(&srv, req).await;
@@ -810,10 +926,8 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_named_file_default_service() {
-        let srv = test::init_service(
-            App::new().default_service(NamedFile::open("Cargo.toml").unwrap()),
-        )
-        .await;
+        let factory = NamedFile::open_async("Cargo.toml").await.unwrap();
+        let srv = test::init_service(App::new().default_service(factory)).await;
 
         for route in ["/foobar", "/baz", "/"].iter() {
             let req = TestRequest::get().uri(route).to_request();
@@ -828,8 +942,9 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_default_handler_named_file() {
+        let factory = NamedFile::open_async("Cargo.toml").await.unwrap();
         let st = Files::new("/", ".")
-            .default_handler(NamedFile::open("Cargo.toml").unwrap())
+            .default_handler(factory)
             .new_service(())
             .await
             .unwrap();
@@ -855,5 +970,70 @@ mod tests {
             res.headers().get(header::CONTENT_DISPOSITION).unwrap(),
             "inline; filename=\"symlink-test.png\""
         );
+    }
+
+    #[actix_rt::test]
+    async fn test_index_with_show_files_listing() {
+        let service = Files::new(".", ".")
+            .index_file("lib.rs")
+            .show_files_listing()
+            .new_service(())
+            .await
+            .unwrap();
+
+        // Serve the index if exists
+        let req = TestRequest::default().uri("/src").to_srv_request();
+        let resp = test::call_service(&service, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "text/x-rust"
+        );
+
+        // Show files listing, otherwise.
+        let req = TestRequest::default().uri("/tests").to_srv_request();
+        let resp = test::call_service(&service, req).await;
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "text/html; charset=utf-8"
+        );
+        let bytes = test::read_body(resp).await;
+        assert!(format!("{:?}", bytes).contains("/tests/test.png"));
+    }
+
+    #[actix_rt::test]
+    async fn test_path_filter() {
+        // prevent searching subdirectories
+        let st = Files::new("/", ".")
+            .path_filter(|path, _| path.components().count() == 1)
+            .new_service(())
+            .await
+            .unwrap();
+
+        let req = TestRequest::with_uri("/Cargo.toml").to_srv_request();
+        let resp = test::call_service(&st, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let req = TestRequest::with_uri("/src/lib.rs").to_srv_request();
+        let resp = test::call_service(&st, req).await;
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[actix_rt::test]
+    async fn test_default_handler_filter() {
+        let st = Files::new("/", ".")
+            .default_handler(|req: ServiceRequest| async {
+                Ok(req.into_response(HttpResponse::Ok().body("default content")))
+            })
+            .path_filter(|path, _| path.extension() == Some("png".as_ref()))
+            .new_service(())
+            .await
+            .unwrap();
+        let req = TestRequest::with_uri("/Cargo.toml").to_srv_request();
+        let resp = test::call_service(&st, req).await;
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = test::read_body(resp).await;
+        assert_eq!(bytes, web::Bytes::from_static(b"default content"));
     }
 }

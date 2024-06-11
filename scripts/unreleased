@@ -1,0 +1,52 @@
+#!/bin/sh
+
+set -euo pipefail
+
+bold="\033[1m"
+reset="\033[0m"
+
+unreleased_for() {
+    DIR=$1
+
+    CARGO_MANIFEST=$DIR/Cargo.toml
+
+    # determine changelog file name
+    if [ -f "$DIR/CHANGES.md" ]; then
+        CHANGELOG_FILE=$DIR/CHANGES.md
+    elif [ -f "$DIR/CHANGELOG.md" ]; then
+        CHANGELOG_FILE=$DIR/CHANGELOG.md
+    else
+        echo "No changelog file found"
+        exit 1
+    fi
+
+    # get current version
+    PACKAGE_NAME="$(sed -nE 's/^name ?= ?"([^"]+)"$/\1/ p' "$CARGO_MANIFEST" | head -n 1)"
+    CURRENT_VERSION="$(sed -nE 's/^version ?= ?"([^"]+)"$/\1/ p' "$CARGO_MANIFEST")"
+
+    CHANGE_CHUNK_FILE="$(mktemp)"
+
+    # get changelog chunk and save to temp file
+    cat "$CHANGELOG_FILE" |
+        # skip up to unreleased heading
+        sed '1,/Unreleased/ d' |
+        # take up to previous version heading
+        sed "/$CURRENT_VERSION/ q" |
+        # drop last line
+        sed '$d' \
+            >"$CHANGE_CHUNK_FILE"
+
+    # if word count of changelog chunk is 0 then exit
+    if [ "$(wc -w "$CHANGE_CHUNK_FILE" | awk '{ print $1 }')" = "0" ]; then
+        return 0;
+    fi
+
+    echo "${bold}# ${PACKAGE_NAME}${reset} since ${bold}v$CURRENT_VERSION${reset}"
+    cat "$CHANGE_CHUNK_FILE"
+}
+
+files=$(fd --threads=1 --min-depth=2 --absolute-path 'CHANGE\w+.md')
+
+for f in $files; do
+    unreleased_for $(dirname $f) || true
+done

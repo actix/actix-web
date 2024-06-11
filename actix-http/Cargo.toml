@@ -1,108 +1,181 @@
 [package]
 name = "actix-http"
-version = "3.0.0-beta.6"
-authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
-description = "HTTP primitives for the Actix ecosystem"
-readme = "README.md"
+version = "3.7.0"
+authors = [
+    "Nikolay Kim <fafhrd91@gmail.com>",
+    "Rob Ede <robjtede@icloud.com>",
+]
+description = "HTTP types and services for the Actix ecosystem"
 keywords = ["actix", "http", "framework", "async", "futures"]
 homepage = "https://actix.rs"
-repository = "https://github.com/actix/actix-web.git"
-documentation = "https://docs.rs/actix-http/"
-categories = ["network-programming", "asynchronous",
-              "web-programming::http-server",
-              "web-programming::websocket"]
-license = "MIT OR Apache-2.0"
-edition = "2018"
+repository = "https://github.com/actix/actix-web"
+categories = [
+    "network-programming",
+    "asynchronous",
+    "web-programming::http-server",
+    "web-programming::websocket",
+]
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
 
 [package.metadata.docs.rs]
-# features that docs.rs will build with
-features = ["openssl", "rustls", "compress"]
+rustdoc-args = ["--cfg", "docsrs"]
+features = [
+    "http2",
+    "ws",
+    "openssl",
+    "rustls-0_20",
+    "rustls-0_21",
+    "rustls-0_22",
+    "rustls-0_23",
+    "compress-brotli",
+    "compress-gzip",
+    "compress-zstd",
+]
 
-[lib]
-name = "actix_http"
-path = "src/lib.rs"
+[package.metadata.cargo_check_external_types]
+allowed_external_types = [
+    "actix_codec::*",
+    "actix_service::*",
+    "actix_tls::*",
+    "actix_utils::*",
+    "bytes::*",
+    "bytestring::*",
+    "encoding_rs::*",
+    "futures_core::*",
+    "h2::*",
+    "http::*",
+    "httparse::*",
+    "language_tags::*",
+    "mime::*",
+    "openssl::*",
+    "rustls::*",
+    "tokio_util::*",
+    "tokio::*",
+]
 
 [features]
 default = []
 
-# openssl
-openssl = ["actix-tls/openssl"]
+# HTTP/2 protocol support
+http2 = ["h2"]
 
-# rustls support
-rustls = ["actix-tls/rustls"]
+# WebSocket protocol implementation
+ws = [
+    "local-channel",
+    "base64",
+    "rand",
+    "sha1",
+]
 
-# enable compression support
-compress = ["flate2", "brotli2"]
+# TLS via OpenSSL
+openssl = ["actix-tls/accept", "actix-tls/openssl"]
 
-# trust-dns as client dns resolver
-trust-dns = ["trust-dns-resolver"]
+# TLS via Rustls v0.20
+rustls = ["rustls-0_20"]
+
+# TLS via Rustls v0.20
+rustls-0_20 = ["actix-tls/accept", "actix-tls/rustls-0_20"]
+
+# TLS via Rustls v0.21
+rustls-0_21 = ["actix-tls/accept", "actix-tls/rustls-0_21"]
+
+# TLS via Rustls v0.22
+rustls-0_22 = ["actix-tls/accept", "actix-tls/rustls-0_22"]
+
+# TLS via Rustls v0.23
+rustls-0_23 = ["actix-tls/accept", "actix-tls/rustls-0_23"]
+
+# Compression codecs
+compress-brotli = ["__compress", "brotli"]
+compress-gzip   = ["__compress", "flate2"]
+compress-zstd   = ["__compress", "zstd"]
+
+# Internal (PRIVATE!) features used to aid testing and checking feature status.
+# Don't rely on these whatsoever. They are semver-exempt and may disappear at anytime.
+__compress = []
 
 [dependencies]
-actix-service = "2.0.0"
-actix-codec = "0.4.0"
-actix-utils = "3.0.0"
-actix-rt = "2.2"
-actix-tls = { version = "3.0.0-beta.5", features = ["accept", "connect"] }
+actix-service = "2"
+actix-codec = "0.5"
+actix-utils = "3"
+actix-rt = { version = "2.2", default-features = false }
 
-ahash = "0.7"
-base64 = "0.13"
-bitflags = "1.2"
+ahash = "0.8"
+bitflags = "2"
 bytes = "1"
 bytestring = "1"
 derive_more = "0.99.5"
 encoding_rs = "0.8"
-futures-core = { version = "0.3.7", default-features = false, features = ["alloc"] }
-futures-util = { version = "0.3.7", default-features = false, features = ["alloc", "sink"] }
-h2 = "0.3.1"
-http = "0.2.2"
-httparse = "1.3"
-itoa = "0.4"
+futures-core = { version = "0.3.17", default-features = false, features = ["alloc"] }
+http = "0.2.7"
+httparse = "1.5.1"
+httpdate = "1.0.1"
+itoa = "1"
 language-tags = "0.3"
-local-channel = "0.1"
-once_cell = "1.5"
-log = "0.4"
-mime = "0.3"
+mime = "0.3.4"
 percent-encoding = "2.1"
-pin-project = "1.0.0"
 pin-project-lite = "0.2"
-rand = "0.8"
-regex = "1.3"
-serde = "1.0"
-sha-1 = "0.9"
-smallvec = "1.6"
-time = { version = "0.2.23", default-features = false, features = ["std"] }
-tokio = { version = "1.2", features = ["sync"] }
+smallvec = "1.6.1"
+tokio = { version = "1.24.2", features = [] }
+tokio-util = { version = "0.7", features = ["io", "codec"] }
+tracing = { version = "0.1.30", default-features = false, features = ["log"] }
 
-# compression
-brotli2 = { version="0.3.2", optional = true }
+# http2
+h2 = { version = "0.3.26", optional = true }
+
+# websockets
+local-channel = { version = "0.1", optional = true }
+base64 = { version = "0.22", optional = true }
+rand = { version = "0.8", optional = true }
+sha1 = { version = "0.10", optional = true }
+
+# openssl/rustls
+actix-tls = { version = "3.4", default-features = false, optional = true }
+
+# compress-*
+brotli = { version = "6", optional = true }
 flate2 = { version = "1.0.13", optional = true }
-
-trust-dns-resolver = { version = "0.20.0", optional = true }
+zstd = { version = "0.13", optional = true }
 
 [dev-dependencies]
-actix-server = "2.0.0-beta.3"
-actix-http-test = { version = "3.0.0-beta.4", features = ["openssl"] }
-actix-tls = { version = "3.0.0-beta.5", features = ["openssl"] }
-criterion = "0.3"
-env_logger = "0.8"
-rcgen = "0.8"
+actix-http-test = { version = "3", features = ["openssl"] }
+actix-server = "2"
+actix-tls = { version = "3.4", features = ["openssl", "rustls-0_23-webpki-roots"] }
+actix-web = "4"
+
+async-stream = "0.3"
+criterion = { version = "0.5", features = ["html_reports"] }
+divan = "0.1.8"
+env_logger = "0.11"
+futures-util = { version = "0.3.17", default-features = false, features = ["alloc"] }
+memchr = "2.4"
+once_cell = "1.9"
+rcgen = "0.13"
+regex = "1.3"
+rustversion = "1"
+rustls-pemfile = "2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-tls-openssl = { version = "0.10", package = "openssl" }
-tls-rustls = { version = "0.19", package = "rustls" }
+static_assertions = "1"
+tls-openssl = { package = "openssl", version = "0.10.55" }
+tls-rustls_023 = { package = "rustls", version = "0.23" }
+tokio = { version = "1.24.2", features = ["net", "rt", "macros"] }
 
 [[example]]
 name = "ws"
-required-features = ["rustls"]
+required-features = ["ws", "rustls-0_23"]
+
+[[example]]
+name = "tls_rustls"
+required-features = ["http2", "rustls-0_23"]
 
 [[bench]]
-name = "write-camel-case"
+name = "response-body-compression"
 harness = false
+required-features = ["compress-brotli", "compress-gzip", "compress-zstd"]
 
 [[bench]]
-name = "status-line"
-harness = false
-
-[[bench]]
-name = "uninit-headers"
+name = "date-formatting"
 harness = false

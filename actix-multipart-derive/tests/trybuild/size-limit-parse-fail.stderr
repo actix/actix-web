@@ -1,0 +1,17 @@
+error: Could not parse size limit `2 bytes`: invalid digit found in string
+ --> tests/trybuild/size-limit-parse-fail.rs:6:5
+  |
+6 |     description: Text<String>,
+  |     ^^^^^^^^^^^
+
+error: Could not parse size limit `2 megabytes`: invalid digit found in string
+  --> tests/trybuild/size-limit-parse-fail.rs:12:5
+   |
+12 |     description: Text<String>,
+   |     ^^^^^^^^^^^
+
+error: Could not parse size limit `four meters`: invalid digit found in string
+  --> tests/trybuild/size-limit-parse-fail.rs:18:5
+   |
+18 |     description: Text<String>,
+   |     ^^^^^^^^^^^

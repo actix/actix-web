@@ -1,12 +1,12 @@
 mod redirect;
 mod retry;
 
-pub use self::redirect::Redirect;
-pub use self::retry::Retry;
-
 use std::marker::PhantomData;
 
 use actix_service::Service;
+
+pub use self::redirect::Redirect;
+pub use self::retry::Retry;
 
 /// Trait for transform a type to another one.
 /// Both the input and output type should impl [actix_service::Service] trait.

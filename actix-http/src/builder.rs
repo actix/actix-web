@@ -1,28 +1,22 @@
-use std::marker::PhantomData;
-use std::rc::Rc;
-use std::{fmt, net};
+use std::{fmt, marker::PhantomData, net, rc::Rc, time::Duration};
 
 use actix_codec::Framed;
 use actix_service::{IntoServiceFactory, Service, ServiceFactory};
 
-use crate::body::MessageBody;
-use crate::config::{KeepAlive, ServiceConfig};
-use crate::error::Error;
-use crate::h1::{Codec, ExpectHandler, H1Service, UpgradeHandler};
-use crate::h2::H2Service;
-use crate::request::Request;
-use crate::response::Response;
-use crate::service::HttpService;
-use crate::{ConnectCallback, Extensions};
+use crate::{
+    body::{BoxBody, MessageBody},
+    h1::{self, ExpectHandler, H1Service, UpgradeHandler},
+    service::HttpService,
+    ConnectCallback, Extensions, KeepAlive, Request, Response, ServiceConfig,
+};
 
-/// A HTTP service builder
+/// An HTTP service builder.
 ///
-/// This type can be used to construct an instance of [`HttpService`] through a
-/// builder-like pattern.
+/// This type can construct an instance of [`HttpService`] through a builder-like pattern.
 pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler> {
     keep_alive: KeepAlive,
-    client_timeout: u64,
-    client_disconnect: u64,
+    client_request_timeout: Duration,
+    client_disconnect_timeout: Duration,
     secure: bool,
     local_addr: Option<net::SocketAddr>,
     expect: X,
@@ -31,21 +25,23 @@ pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler> {
     _phantom: PhantomData<S>,
 }
 
-impl<T, S> HttpServiceBuilder<T, S, ExpectHandler, UpgradeHandler>
+impl<T, S> Default for HttpServiceBuilder<T, S, ExpectHandler, UpgradeHandler>
 where
     S: ServiceFactory<Request, Config = ()>,
-    S::Error: Into<Error> + 'static,
+    S::Error: Into<Response<BoxBody>> + 'static,
     S::InitError: fmt::Debug,
     <S::Service as Service<Request>>::Future: 'static,
 {
-    /// Create instance of `ServiceConfigBuilder`
-    pub fn new() -> Self {
+    fn default() -> Self {
         HttpServiceBuilder {
-            keep_alive: KeepAlive::Timeout(5),
-            client_timeout: 5000,
-            client_disconnect: 0,
+            // ServiceConfig parts (make sure defaults match)
+            keep_alive: KeepAlive::default(),
+            client_request_timeout: Duration::from_secs(5),
+            client_disconnect_timeout: Duration::ZERO,
             secure: false,
             local_addr: None,
+
+            // dispatcher parts
             expect: ExpectHandler,
             upgrade: None,
             on_connect_ext: None,
@@ -57,19 +53,21 @@ where
 impl<T, S, X, U> HttpServiceBuilder<T, S, X, U>
 where
     S: ServiceFactory<Request, Config = ()>,
-    S::Error: Into<Error> + 'static,
+    S::Error: Into<Response<BoxBody>> + 'static,
     S::InitError: fmt::Debug,
     <S::Service as Service<Request>>::Future: 'static,
     X: ServiceFactory<Request, Config = (), Response = Request>,
-    X::Error: Into<Error>,
+    X::Error: Into<Response<BoxBody>>,
     X::InitError: fmt::Debug,
-    U: ServiceFactory<(Request, Framed<T, Codec>), Config = (), Response = ()>,
+    U: ServiceFactory<(Request, Framed<T, h1::Codec>), Config = (), Response = ()>,
     U::Error: fmt::Display,
     U::InitError: fmt::Debug,
 {
-    /// Set server keep-alive setting.
+    /// Set connection keep-alive setting.
     ///
-    /// By default keep alive is set to a 5 seconds.
+    /// Applies to HTTP/1.1 keep-alive and HTTP/2 ping-pong.
+    ///
+    /// By default keep-alive is 5 seconds.
     pub fn keep_alive<W: Into<KeepAlive>>(mut self, val: W) -> Self {
         self.keep_alive = val.into();
         self
@@ -87,31 +85,43 @@ where
         self
     }
 
-    /// Set server client timeout in milliseconds for first request.
+    /// Set client request timeout (for first request).
     ///
-    /// Defines a timeout for reading client request header. If a client does not transmit
-    /// the entire set headers within this time, the request is terminated with
-    /// the 408 (Request Time-out) error.
+    /// Defines a timeout for reading client request header. If the client does not transmit the
+    /// request head within this duration, the connection is terminated with a `408 Request Timeout`
+    /// response error.
     ///
-    /// To disable timeout set value to 0.
+    /// A duration of zero disables the timeout.
     ///
-    /// By default client timeout is set to 5000 milliseconds.
-    pub fn client_timeout(mut self, val: u64) -> Self {
-        self.client_timeout = val;
+    /// By default, the client timeout is 5 seconds.
+    pub fn client_request_timeout(mut self, dur: Duration) -> Self {
+        self.client_request_timeout = dur;
         self
     }
 
-    /// Set server connection disconnect timeout in milliseconds.
+    #[doc(hidden)]
+    #[deprecated(since = "3.0.0", note = "Renamed to `client_request_timeout`.")]
+    pub fn client_timeout(self, dur: Duration) -> Self {
+        self.client_request_timeout(dur)
+    }
+
+    /// Set client connection disconnect timeout.
     ///
     /// Defines a timeout for disconnect connection. If a disconnect procedure does not complete
     /// within this time, the request get dropped. This timeout affects secure connections.
     ///
-    /// To disable timeout set value to 0.
+    /// A duration of zero disables the timeout.
     ///
-    /// By default disconnect timeout is set to 0.
-    pub fn client_disconnect(mut self, val: u64) -> Self {
-        self.client_disconnect = val;
+    /// By default, the disconnect timeout is disabled.
+    pub fn client_disconnect_timeout(mut self, dur: Duration) -> Self {
+        self.client_disconnect_timeout = dur;
         self
+    }
+
+    #[doc(hidden)]
+    #[deprecated(since = "3.0.0", note = "Renamed to `client_disconnect_timeout`.")]
+    pub fn client_disconnect(self, dur: Duration) -> Self {
+        self.client_disconnect_timeout(dur)
     }
 
     /// Provide service for `EXPECT: 100-Continue` support.
@@ -123,13 +133,13 @@ where
     where
         F: IntoServiceFactory<X1, Request>,
         X1: ServiceFactory<Request, Config = (), Response = Request>,
-        X1::Error: Into<Error>,
+        X1::Error: Into<Response<BoxBody>>,
         X1::InitError: fmt::Debug,
     {
         HttpServiceBuilder {
             keep_alive: self.keep_alive,
-            client_timeout: self.client_timeout,
-            client_disconnect: self.client_disconnect,
+            client_request_timeout: self.client_request_timeout,
+            client_disconnect_timeout: self.client_disconnect_timeout,
             secure: self.secure,
             local_addr: self.local_addr,
             expect: expect.into_factory(),
@@ -145,15 +155,15 @@ where
     /// and this service get called with original request and framed object.
     pub fn upgrade<F, U1>(self, upgrade: F) -> HttpServiceBuilder<T, S, X, U1>
     where
-        F: IntoServiceFactory<U1, (Request, Framed<T, Codec>)>,
-        U1: ServiceFactory<(Request, Framed<T, Codec>), Config = (), Response = ()>,
+        F: IntoServiceFactory<U1, (Request, Framed<T, h1::Codec>)>,
+        U1: ServiceFactory<(Request, Framed<T, h1::Codec>), Config = (), Response = ()>,
         U1::Error: fmt::Display,
         U1::InitError: fmt::Debug,
     {
         HttpServiceBuilder {
             keep_alive: self.keep_alive,
-            client_timeout: self.client_timeout,
-            client_disconnect: self.client_disconnect,
+            client_request_timeout: self.client_request_timeout,
+            client_disconnect_timeout: self.client_disconnect_timeout,
             secure: self.secure,
             local_addr: self.local_addr,
             expect: self.expect,
@@ -176,19 +186,19 @@ where
         self
     }
 
-    /// Finish service configuration and create a HTTP Service for HTTP/1 protocol.
+    /// Finish service configuration and create a service for the HTTP/1 protocol.
     pub fn h1<F, B>(self, service: F) -> H1Service<T, S, B, X, U>
     where
         B: MessageBody,
         F: IntoServiceFactory<S, Request>,
-        S::Error: Into<Error>,
+        S::Error: Into<Response<BoxBody>>,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>>,
     {
         let cfg = ServiceConfig::new(
             self.keep_alive,
-            self.client_timeout,
-            self.client_disconnect,
+            self.client_request_timeout,
+            self.client_disconnect_timeout,
             self.secure,
             self.local_addr,
         );
@@ -199,26 +209,26 @@ where
             .on_connect_ext(self.on_connect_ext)
     }
 
-    /// Finish service configuration and create a HTTP service for HTTP/2 protocol.
-    pub fn h2<F, B>(self, service: F) -> H2Service<T, S, B>
+    /// Finish service configuration and create a service for the HTTP/2 protocol.
+    #[cfg(feature = "http2")]
+    pub fn h2<F, B>(self, service: F) -> crate::h2::H2Service<T, S, B>
     where
         F: IntoServiceFactory<S, Request>,
-        S::Error: Into<Error> + 'static,
+        S::Error: Into<Response<BoxBody>> + 'static,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>> + 'static,
 
         B: MessageBody + 'static,
-        B::Error: Into<Error>,
     {
         let cfg = ServiceConfig::new(
             self.keep_alive,
-            self.client_timeout,
-            self.client_disconnect,
+            self.client_request_timeout,
+            self.client_disconnect_timeout,
             self.secure,
             self.local_addr,
         );
 
-        H2Service::with_config(cfg, service.into_factory())
+        crate::h2::H2Service::with_config(cfg, service.into_factory())
             .on_connect_ext(self.on_connect_ext)
     }
 
@@ -226,17 +236,16 @@ where
     pub fn finish<F, B>(self, service: F) -> HttpService<T, S, B, X, U>
     where
         F: IntoServiceFactory<S, Request>,
-        S::Error: Into<Error> + 'static,
+        S::Error: Into<Response<BoxBody>> + 'static,
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>> + 'static,
 
         B: MessageBody + 'static,
-        B::Error: Into<Error>,
     {
         let cfg = ServiceConfig::new(
             self.keep_alive,
-            self.client_timeout,
-            self.client_disconnect,
+            self.client_request_timeout,
+            self.client_disconnect_timeout,
             self.secure,
             self.local_addr,
         );

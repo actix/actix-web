@@ -1,11 +1,13 @@
-use std::convert::TryFrom;
+use std::cmp::min;
 
 use bytes::{Buf, BufMut, BytesMut};
-use log::debug;
+use tracing::debug;
 
-use crate::ws::mask::apply_mask;
-use crate::ws::proto::{CloseCode, CloseReason, OpCode};
-use crate::ws::ProtocolError;
+use super::{
+    mask::apply_mask,
+    proto::{CloseCode, CloseReason, OpCode},
+    ProtocolError,
+};
 
 /// A struct representing a WebSocket frame.
 #[derive(Debug)]
@@ -15,9 +17,7 @@ impl Parser {
     fn parse_metadata(
         src: &[u8],
         server: bool,
-        max_size: usize,
-    ) -> Result<Option<(usize, bool, OpCode, usize, Option<[u8; 4]>)>, ProtocolError>
-    {
+    ) -> Result<Option<(usize, bool, OpCode, usize, Option<[u8; 4]>)>, ProtocolError> {
         let chunk_len = src.len();
 
         let mut idx = 2;
@@ -59,19 +59,11 @@ impl Parser {
                 return Ok(None);
             }
             let len = u64::from_be_bytes(TryFrom::try_from(&src[idx..idx + 8]).unwrap());
-            if len > max_size as u64 {
-                return Err(ProtocolError::Overflow);
-            }
             idx += 8;
             len as usize
         } else {
             len as usize
         };
-
-        // check for max allowed size
-        if length > max_size {
-            return Err(ProtocolError::Overflow);
-        }
 
         let mask = if server {
             if chunk_len < idx + 4 {
@@ -97,19 +89,29 @@ impl Parser {
         max_size: usize,
     ) -> Result<Option<(bool, OpCode, Option<BytesMut>)>, ProtocolError> {
         // try to parse ws frame metadata
-        let (idx, finished, opcode, length, mask) =
-            match Parser::parse_metadata(src, server, max_size)? {
-                None => return Ok(None),
-                Some(res) => res,
-            };
+        let (idx, finished, opcode, length, mask) = match Parser::parse_metadata(src, server)? {
+            None => return Ok(None),
+            Some(res) => res,
+        };
 
         // not enough data
         if src.len() < idx + length {
+            let min_length = min(length, max_size);
+            if src.capacity() < idx + min_length {
+                src.reserve(idx + min_length - src.capacity());
+            }
             return Ok(None);
         }
 
         // remove prefix
         src.advance(idx);
+
+        // check for max allowed size
+        if length > max_size {
+            // drop the payload
+            src.advance(length);
+            return Err(ProtocolError::Overflow);
+        }
 
         // no need for body
         if length == 0 {
@@ -176,14 +178,14 @@ impl Parser {
         };
 
         if payload_len < 126 {
-            dst.reserve(p_len + 2 + if mask { 4 } else { 0 });
+            dst.reserve(p_len + 2);
             dst.put_slice(&[one, two | payload_len as u8]);
         } else if payload_len <= 65_535 {
-            dst.reserve(p_len + 4 + if mask { 4 } else { 0 });
+            dst.reserve(p_len + 4);
             dst.put_slice(&[one, two | 126]);
             dst.put_u16(payload_len as u16);
         } else {
-            dst.reserve(p_len + 10 + if mask { 4 } else { 0 });
+            dst.reserve(p_len + 10);
             dst.put_slice(&[one, two | 127]);
             dst.put_u64(payload_len as u64);
         };
@@ -219,8 +221,9 @@ impl Parser {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use bytes::Bytes;
+
+    use super::*;
 
     struct F {
         finished: bool,
@@ -228,15 +231,11 @@ mod tests {
         payload: Bytes,
     }
 
-    fn is_none(
-        frm: &Result<Option<(bool, OpCode, Option<BytesMut>)>, ProtocolError>,
-    ) -> bool {
+    fn is_none(frm: &Result<Option<(bool, OpCode, Option<BytesMut>)>, ProtocolError>) -> bool {
         matches!(*frm, Ok(None))
     }
 
-    fn extract(
-        frm: Result<Option<(bool, OpCode, Option<BytesMut>)>, ProtocolError>,
-    ) -> F {
+    fn extract(frm: Result<Option<(bool, OpCode, Option<BytesMut>)>, ProtocolError>) -> F {
         match frm {
             Ok(Some((finished, opcode, payload))) => F {
                 finished,
@@ -319,7 +318,7 @@ mod tests {
     #[test]
     fn test_parse_frame_no_mask() {
         let mut buf = BytesMut::from(&[0b0000_0001u8, 0b0000_0001u8][..]);
-        buf.extend(&[1u8]);
+        buf.extend([1u8]);
 
         assert!(Parser::parse(&mut buf, true, 1024).is_err());
 
@@ -332,7 +331,7 @@ mod tests {
     #[test]
     fn test_parse_frame_max_size() {
         let mut buf = BytesMut::from(&[0b0000_0001u8, 0b0000_0010u8][..]);
-        buf.extend(&[1u8, 1u8]);
+        buf.extend([1u8, 1u8]);
 
         assert!(Parser::parse(&mut buf, true, 1).is_err());
 
@@ -340,6 +339,30 @@ mod tests {
         } else {
             unreachable!("error");
         }
+    }
+
+    #[test]
+    fn test_parse_frame_max_size_recoverability() {
+        let mut buf = BytesMut::new();
+        // The first text frame with length == 2, payload doesn't matter.
+        buf.extend([0b0000_0001u8, 0b0000_0010u8, 0b0000_0000u8, 0b0000_0000u8]);
+        // Next binary frame with length == 2 and payload == `[0x1111_1111u8, 0x1111_1111u8]`.
+        buf.extend([0b0000_0010u8, 0b0000_0010u8, 0b1111_1111u8, 0b1111_1111u8]);
+
+        assert_eq!(buf.len(), 8);
+        assert!(matches!(
+            Parser::parse(&mut buf, false, 1),
+            Err(ProtocolError::Overflow)
+        ));
+        assert_eq!(buf.len(), 4);
+        let frame = extract(Parser::parse(&mut buf, false, 2));
+        assert!(!frame.finished);
+        assert_eq!(frame.opcode, OpCode::Binary);
+        assert_eq!(
+            frame.payload,
+            Bytes::from(vec![0b1111_1111u8, 0b1111_1111u8])
+        );
+        assert_eq!(buf.len(), 0);
     }
 
     #[test]

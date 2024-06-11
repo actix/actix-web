@@ -1,0 +1,91 @@
+name: CI (post-merge)
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build_and_test_nightly:
+    strategy:
+      fail-fast: false
+      matrix:
+        # prettier-ignore
+        target:
+          - { name: Linux, os: ubuntu-latest, triple: x86_64-unknown-linux-gnu }
+          - { name: macOS, os: macos-latest, triple: x86_64-apple-darwin }
+          - { name: Windows, os: windows-latest, triple: x86_64-pc-windows-msvc }
+        version:
+          - { name: nightly, version: nightly }
+
+    name: ${{ matrix.target.name }} / ${{ matrix.version.name }}
+    runs-on: ${{ matrix.target.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install nasm
+        if: matrix.target.os == 'windows-latest'
+        uses: ilammy/setup-nasm@v1.5.1
+
+      - name: Install OpenSSL
+        if: matrix.target.os == 'windows-latest'
+        shell: bash
+        run: |
+          set -e
+          choco install openssl --version=1.1.1.2100 -y --no-progress
+          echo 'OPENSSL_DIR=C:\Program Files\OpenSSL' >> $GITHUB_ENV
+          echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV
+
+      - name: Install Rust (${{ matrix.version.name }})
+        uses: actions-rust-lang/setup-rust-toolchain@v1.9.0
+        with:
+          toolchain: ${{ matrix.version.version }}
+
+      - name: Install just, cargo-hack, cargo-nextest, cargo-ci-cache-clean
+        uses: taiki-e/install-action@v2.38.0
+        with:
+          tool: just,cargo-hack,cargo-nextest,cargo-ci-cache-clean
+
+      - name: check minimal
+        run: cargo ci-check-min
+
+      - name: check default
+        run: cargo ci-check-default
+
+      - name: tests
+        timeout-minutes: 60
+        run: just test
+
+      - name: CI cache clean
+        run: cargo-ci-cache-clean
+
+  ci_feature_powerset_check:
+    name: Verify Feature Combinations
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free Disk Space
+        run: ./scripts/free-disk-space.sh
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1.9.0
+
+      - name: Install cargo-hack
+        uses: taiki-e/install-action@v2.38.0
+        with:
+          tool: cargo-hack
+
+      - name: check feature combinations
+        run: cargo ci-check-all-feature-powerset
+
+      - name: check feature combinations
+        run: cargo ci-check-all-feature-powerset-linux

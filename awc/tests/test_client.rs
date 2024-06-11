@@ -1,60 +1,37 @@
-use std::collections::HashMap;
-use std::io::{Read, Write};
-use std::net::{IpAddr, Ipv4Addr};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
+use std::{
+    collections::HashMap,
+    convert::Infallible,
+    io::{Read, Write},
+    net::{IpAddr, Ipv4Addr},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
 
+use actix_http::{HttpService, StatusCode};
+use actix_http_test::test_server;
+use actix_service::{fn_service, map_config, ServiceFactoryExt as _};
 use actix_utils::future::ok;
-use brotli2::write::BrotliEncoder;
+use actix_web::{dev::AppConfig, http::header, web, App, Error, HttpRequest, HttpResponse};
+use awc::error::{JsonPayloadError, PayloadError, SendRequestError};
+use base64::prelude::*;
 use bytes::Bytes;
 use cookie::Cookie;
-use flate2::read::GzDecoder;
-use flate2::write::GzEncoder;
-use flate2::Compression;
 use futures_util::stream;
 use rand::Rng;
 
-use actix_http::{
-    http::{self, StatusCode},
-    HttpService,
-};
-use actix_http_test::test_server;
-use actix_service::{fn_service, map_config, ServiceFactoryExt as _};
-use actix_web::{
-    dev::{AppConfig, BodyEncoding},
-    http::header,
-    middleware::Compress,
-    web, App, Error, HttpRequest, HttpResponse,
-};
-use awc::error::{JsonPayloadError, PayloadError, SendRequestError};
+mod utils;
 
-const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World \
-                   Hello World Hello World Hello World Hello World Hello World";
+const S: &str = "Hello World ";
+const STR: &str = const_str::repeat!(S, 100);
 
 #[actix_rt::test]
-async fn test_simple() {
+async fn simple() {
     let srv = actix_test::start(|| {
-        App::new().service(web::resource("/").route(web::to(|| HttpResponse::Ok().body(STR))))
+        App::new()
+            .service(web::resource("/").route(web::to(|| async { HttpResponse::Ok().body(STR) })))
     });
 
     let request = srv.get("/").insert_header(("x-test", "111")).send();
@@ -78,11 +55,10 @@ async fn test_simple() {
 }
 
 #[actix_rt::test]
-async fn test_json() {
+async fn json() {
     let srv = actix_test::start(|| {
-        App::new().service(
-            web::resource("/").route(web::to(|_: web::Json<String>| HttpResponse::Ok())),
-        )
+        App::new()
+            .service(web::resource("/").route(web::to(|_: web::Json<String>| HttpResponse::Ok())))
     });
 
     let request = srv
@@ -94,7 +70,7 @@ async fn test_json() {
 }
 
 #[actix_rt::test]
-async fn test_form() {
+async fn form() {
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").route(web::to(
             |_: web::Form<HashMap<String, String>>| HttpResponse::Ok(),
@@ -113,16 +89,16 @@ async fn test_form() {
 }
 
 #[actix_rt::test]
-async fn test_timeout() {
+async fn timeout() {
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").route(web::to(|| async {
             actix_rt::time::sleep(Duration::from_millis(200)).await;
-            Ok::<_, Error>(HttpResponse::Ok().body(STR))
+            HttpResponse::Ok().body(STR)
         })))
     });
 
     let connector = awc::Connector::new()
-        .connector(actix_tls::connect::default_connector())
+        .connector(actix_tls::connect::ConnectorService::default())
         .timeout(Duration::from_secs(15));
 
     let client = awc::Client::builder()
@@ -138,11 +114,11 @@ async fn test_timeout() {
 }
 
 #[actix_rt::test]
-async fn test_timeout_override() {
+async fn timeout_override() {
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").route(web::to(|| async {
             actix_rt::time::sleep(Duration::from_millis(200)).await;
-            Ok::<_, Error>(HttpResponse::Ok().body(STR))
+            HttpResponse::Ok().body(STR)
         })))
     });
 
@@ -160,8 +136,8 @@ async fn test_timeout_override() {
 }
 
 #[actix_rt::test]
-async fn test_response_timeout() {
-    use futures_util::stream::{once, StreamExt as _};
+async fn response_timeout() {
+    use futures_util::{stream::once, StreamExt as _};
 
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").route(web::to(|| async {
@@ -233,7 +209,7 @@ async fn test_response_timeout() {
 }
 
 #[actix_rt::test]
-async fn test_connection_reuse() {
+async fn connection_reuse() {
     let num = Arc::new(AtomicUsize::new(0));
     let num2 = num.clone();
 
@@ -270,7 +246,7 @@ async fn test_connection_reuse() {
 }
 
 #[actix_rt::test]
-async fn test_connection_force_close() {
+async fn connection_force_close() {
     let num = Arc::new(AtomicUsize::new(0));
     let num2 = num.clone();
 
@@ -307,7 +283,7 @@ async fn test_connection_force_close() {
 }
 
 #[actix_rt::test]
-async fn test_connection_server_close() {
+async fn connection_server_close() {
     let num = Arc::new(AtomicUsize::new(0));
     let num2 = num.clone();
 
@@ -319,10 +295,9 @@ async fn test_connection_server_close() {
         })
         .and_then(
             HttpService::new(map_config(
-                App::new().service(
-                    web::resource("/")
-                        .route(web::to(|| HttpResponse::Ok().force_close().finish())),
-                ),
+                App::new().service(web::resource("/").route(web::to(|| async {
+                    HttpResponse::Ok().force_close().finish()
+                }))),
                 |_| AppConfig::default(),
             ))
             .tcp(),
@@ -347,7 +322,7 @@ async fn test_connection_server_close() {
 }
 
 #[actix_rt::test]
-async fn test_connection_wait_queue() {
+async fn connection_wait_queue() {
     let num = Arc::new(AtomicUsize::new(0));
     let num2 = num.clone();
 
@@ -360,7 +335,7 @@ async fn test_connection_wait_queue() {
         .and_then(
             HttpService::new(map_config(
                 App::new().service(
-                    web::resource("/").route(web::to(|| HttpResponse::Ok().body(STR))),
+                    web::resource("/").route(web::to(|| async { HttpResponse::Ok().body(STR) })),
                 ),
                 |_| AppConfig::default(),
             ))
@@ -395,7 +370,7 @@ async fn test_connection_wait_queue() {
 }
 
 #[actix_rt::test]
-async fn test_connection_wait_queue_force_close() {
+async fn connection_wait_queue_force_close() {
     let num = Arc::new(AtomicUsize::new(0));
     let num2 = num.clone();
 
@@ -407,10 +382,9 @@ async fn test_connection_wait_queue_force_close() {
         })
         .and_then(
             HttpService::new(map_config(
-                App::new().service(
-                    web::resource("/")
-                        .route(web::to(|| HttpResponse::Ok().force_close().body(STR))),
-                ),
+                App::new().service(web::resource("/").route(web::to(|| async {
+                    HttpResponse::Ok().force_close().body(STR)
+                }))),
                 |_| AppConfig::default(),
             ))
             .tcp(),
@@ -444,7 +418,7 @@ async fn test_connection_wait_queue_force_close() {
 }
 
 #[actix_rt::test]
-async fn test_with_query_parameter() {
+async fn with_query_parameter() {
     let srv = actix_test::start(|| {
         App::new().service(web::resource("/").to(|req: HttpRequest| {
             if req.query_string().contains("qp") {
@@ -463,20 +437,18 @@ async fn test_with_query_parameter() {
     assert!(res.status().is_success());
 }
 
+#[cfg(feature = "compress-gzip")]
 #[actix_rt::test]
-async fn test_no_decompress() {
+async fn no_decompress() {
     let srv = actix_test::start(|| {
         App::new()
-            .wrap(Compress::default())
-            .service(web::resource("/").route(web::to(|| {
-                let mut res = HttpResponse::Ok().body(STR);
-                res.encoding(header::ContentEncoding::Gzip);
-                res
-            })))
+            .wrap(actix_web::middleware::Compress::default())
+            .service(web::resource("/").route(web::to(|| async { HttpResponse::Ok().body(STR) })))
     });
 
     let mut res = awc::Client::new()
         .get(srv.url("/"))
+        .insert_header((header::ACCEPT_ENCODING, "gzip"))
         .no_decompress()
         .send()
         .await
@@ -485,15 +457,12 @@ async fn test_no_decompress() {
 
     // read response
     let bytes = res.body().await.unwrap();
-
-    let mut e = GzDecoder::new(&bytes[..]);
-    let mut dec = Vec::new();
-    e.read_to_end(&mut dec).unwrap();
-    assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
+    assert_eq!(utils::gzip::decode(bytes), STR.as_bytes());
 
     // POST
     let mut res = awc::Client::new()
         .post(srv.url("/"))
+        .insert_header((header::ACCEPT_ENCODING, "gzip"))
         .no_decompress()
         .send()
         .await
@@ -501,23 +470,17 @@ async fn test_no_decompress() {
     assert!(res.status().is_success());
 
     let bytes = res.body().await.unwrap();
-    let mut e = GzDecoder::new(&bytes[..]);
-    let mut dec = Vec::new();
-    e.read_to_end(&mut dec).unwrap();
-    assert_eq!(Bytes::from(dec), Bytes::from_static(STR.as_ref()));
+    assert_eq!(utils::gzip::decode(bytes), STR.as_bytes());
 }
 
+#[cfg(feature = "compress-gzip")]
 #[actix_rt::test]
-async fn test_client_gzip_encoding() {
+async fn client_gzip_encoding() {
     let srv = actix_test::start(|| {
-        App::new().service(web::resource("/").route(web::to(|| {
-            let mut e = GzEncoder::new(Vec::new(), Compression::default());
-            e.write_all(STR.as_ref()).unwrap();
-            let data = e.finish().unwrap();
-
+        App::new().service(web::resource("/").route(web::to(|| async {
             HttpResponse::Ok()
-                .insert_header(("content-encoding", "gzip"))
-                .body(data)
+                .insert_header(header::ContentEncoding::Gzip)
+                .body(utils::gzip::encode(STR))
         })))
     });
 
@@ -527,20 +490,17 @@ async fn test_client_gzip_encoding() {
 
     // read response
     let bytes = response.body().await.unwrap();
-    assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+    assert_eq!(bytes, STR);
 }
 
+#[cfg(feature = "compress-gzip")]
 #[actix_rt::test]
-async fn test_client_gzip_encoding_large() {
+async fn client_gzip_encoding_large() {
     let srv = actix_test::start(|| {
-        App::new().service(web::resource("/").route(web::to(|| {
-            let mut e = GzEncoder::new(Vec::new(), Compression::default());
-            e.write_all(STR.repeat(10).as_ref()).unwrap();
-            let data = e.finish().unwrap();
-
+        App::new().service(web::resource("/").route(web::to(|| async {
             HttpResponse::Ok()
-                .insert_header(("content-encoding", "gzip"))
-                .body(data)
+                .insert_header(header::ContentEncoding::Gzip)
+                .body(utils::gzip::encode(STR.repeat(10)))
         })))
     });
 
@@ -550,11 +510,12 @@ async fn test_client_gzip_encoding_large() {
 
     // read response
     let bytes = response.body().await.unwrap();
-    assert_eq!(bytes, Bytes::from(STR.repeat(10)));
+    assert_eq!(bytes, STR.repeat(10));
 }
 
+#[cfg(feature = "compress-gzip")]
 #[actix_rt::test]
-async fn test_client_gzip_encoding_large_random() {
+async fn client_gzip_encoding_large_random() {
     let data = rand::thread_rng()
         .sample_iter(&rand::distributions::Alphanumeric)
         .take(100_000)
@@ -562,13 +523,10 @@ async fn test_client_gzip_encoding_large_random() {
         .collect::<String>();
 
     let srv = actix_test::start(|| {
-        App::new().service(web::resource("/").route(web::to(|data: Bytes| {
-            let mut e = GzEncoder::new(Vec::new(), Compression::default());
-            e.write_all(&data).unwrap();
-            let data = e.finish().unwrap();
+        App::new().service(web::resource("/").route(web::to(|data: Bytes| async {
             HttpResponse::Ok()
-                .insert_header(("content-encoding", "gzip"))
-                .body(data)
+                .insert_header(header::ContentEncoding::Gzip)
+                .body(utils::gzip::encode(data))
         })))
     });
 
@@ -578,19 +536,17 @@ async fn test_client_gzip_encoding_large_random() {
 
     // read response
     let bytes = response.body().await.unwrap();
-    assert_eq!(bytes, Bytes::from(data));
+    assert_eq!(bytes, data);
 }
 
+#[cfg(feature = "compress-brotli")]
 #[actix_rt::test]
-async fn test_client_brotli_encoding() {
+async fn client_brotli_encoding() {
     let srv = actix_test::start(|| {
-        App::new().service(web::resource("/").route(web::to(|data: Bytes| {
-            let mut e = BrotliEncoder::new(Vec::new(), 5);
-            e.write_all(&data).unwrap();
-            let data = e.finish().unwrap();
+        App::new().service(web::resource("/").route(web::to(|data: Bytes| async {
             HttpResponse::Ok()
                 .insert_header(("content-encoding", "br"))
-                .body(data)
+                .body(utils::brotli::encode(data))
         })))
     });
 
@@ -603,8 +559,9 @@ async fn test_client_brotli_encoding() {
     assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
 }
 
+#[cfg(feature = "compress-brotli")]
 #[actix_rt::test]
-async fn test_client_brotli_encoding_large_random() {
+async fn client_brotli_encoding_large_random() {
     let data = rand::thread_rng()
         .sample_iter(&rand::distributions::Alphanumeric)
         .take(70_000)
@@ -612,13 +569,10 @@ async fn test_client_brotli_encoding_large_random() {
         .collect::<String>();
 
     let srv = actix_test::start(|| {
-        App::new().service(web::resource("/").route(web::to(|data: Bytes| {
-            let mut e = BrotliEncoder::new(Vec::new(), 5);
-            e.write_all(&data).unwrap();
-            let data = e.finish().unwrap();
+        App::new().service(web::resource("/").route(web::to(|data: Bytes| async {
             HttpResponse::Ok()
-                .insert_header(("content-encoding", "br"))
-                .body(data)
+                .insert_header(header::ContentEncoding::Brotli)
+                .body(utils::brotli::encode(data))
         })))
     });
 
@@ -628,31 +582,31 @@ async fn test_client_brotli_encoding_large_random() {
 
     // read response
     let bytes = response.body().await.unwrap();
-    assert_eq!(bytes.len(), data.len());
-    assert_eq!(bytes, Bytes::from(data));
+    assert_eq!(bytes, data);
 }
 
 #[actix_rt::test]
-async fn test_client_deflate_encoding() {
+async fn client_deflate_encoding() {
     let srv = actix_test::start(|| {
-        App::new().default_service(web::to(|body: Bytes| {
-            HttpResponse::Ok()
-                .encoding(http::ContentEncoding::Br)
-                .body(body)
+        App::new().default_service(web::to(|body: Bytes| async {
+            HttpResponse::Ok().body(body)
         }))
     });
 
-    let req = srv.post("/").send_body(STR);
+    let req = srv
+        .post("/")
+        .insert_header((header::ACCEPT_ENCODING, "gzip"))
+        .send_body(STR);
 
     let mut res = req.await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
 
     let bytes = res.body().await.unwrap();
-    assert_eq!(bytes, Bytes::from_static(STR.as_ref()));
+    assert_eq!(bytes, STR);
 }
 
 #[actix_rt::test]
-async fn test_client_deflate_encoding_large_random() {
+async fn client_deflate_encoding_large_random() {
     let data = rand::thread_rng()
         .sample_iter(rand::distributions::Alphanumeric)
         .map(char::from)
@@ -660,14 +614,15 @@ async fn test_client_deflate_encoding_large_random() {
         .collect::<String>();
 
     let srv = actix_test::start(|| {
-        App::new().default_service(web::to(|body: Bytes| {
-            HttpResponse::Ok()
-                .encoding(http::ContentEncoding::Br)
-                .body(body)
+        App::new().default_service(web::to(|body: Bytes| async {
+            HttpResponse::Ok().body(body)
         }))
     });
 
-    let req = srv.post("/").send_body(data.clone());
+    let req = srv
+        .post("/")
+        .insert_header((header::ACCEPT_ENCODING, "br"))
+        .send_body(data.clone());
 
     let mut res = req.await.unwrap();
     let bytes = res.body().await.unwrap();
@@ -677,18 +632,19 @@ async fn test_client_deflate_encoding_large_random() {
 }
 
 #[actix_rt::test]
-async fn test_client_streaming_explicit() {
+async fn client_streaming_explicit() {
     let srv = actix_test::start(|| {
-        App::new().default_service(web::to(|body: web::Payload| {
-            HttpResponse::Ok()
-                .encoding(http::ContentEncoding::Identity)
-                .streaming(body)
+        App::new().default_service(web::to(|body: web::Payload| async {
+            HttpResponse::Ok().streaming(body)
         }))
     });
 
     let body =
         stream::once(async { Ok::<_, actix_http::Error>(Bytes::from_static(STR.as_bytes())) });
-    let req = srv.post("/").send_stream(Box::pin(body));
+    let req = srv
+        .post("/")
+        .insert_header((header::ACCEPT_ENCODING, "identity"))
+        .send_stream(Box::pin(body));
 
     let mut res = req.await.unwrap();
     assert!(res.status().is_success());
@@ -698,20 +654,19 @@ async fn test_client_streaming_explicit() {
 }
 
 #[actix_rt::test]
-async fn test_body_streaming_implicit() {
+async fn body_streaming_implicit() {
     let srv = actix_test::start(|| {
-        App::new().default_service(web::to(|| {
-            let body = stream::once(async {
-                Ok::<_, actix_http::Error>(Bytes::from_static(STR.as_bytes()))
-            });
-
-            HttpResponse::Ok()
-                .encoding(http::ContentEncoding::Gzip)
-                .streaming(Box::pin(body))
+        App::new().default_service(web::to(|| async {
+            let body =
+                stream::once(async { Ok::<_, Infallible>(Bytes::from_static(STR.as_bytes())) });
+            HttpResponse::Ok().streaming(body)
         }))
     });
 
-    let req = srv.get("/").send();
+    let req = srv
+        .get("/")
+        .insert_header((header::ACCEPT_ENCODING, "gzip"))
+        .send();
 
     let mut res = req.await.unwrap();
     assert!(res.status().is_success());
@@ -721,7 +676,7 @@ async fn test_body_streaming_implicit() {
 }
 
 #[actix_rt::test]
-async fn test_client_cookie_handling() {
+async fn client_cookie_handling() {
     use std::io::{Error as IoError, ErrorKind};
 
     let cookie1 = Cookie::build("cookie1", "value1").finish();
@@ -747,8 +702,7 @@ async fn test_client_cookie_handling() {
 
                 async move {
                     // Check cookies were sent correctly
-                    let res: Result<(), Error> = req
-                        .cookie("cookie1")
+                    req.cookie("cookie1")
                         .ok_or(())
                         .and_then(|c1| {
                             if c1.value() == "value1" {
@@ -765,16 +719,10 @@ async fn test_client_cookie_handling() {
                                 Err(())
                             }
                         })
-                        .map_err(|_| Error::from(IoError::from(ErrorKind::NotFound)));
+                        .map_err(|_| Error::from(IoError::from(ErrorKind::NotFound)))?;
 
-                    if let Err(e) = res {
-                        Err(e)
-                    } else {
-                        // Send some cookies back
-                        Ok::<_, Error>(
-                            HttpResponse::Ok().cookie(cookie1).cookie(cookie2).finish(),
-                        )
-                    }
+                    // Send some cookies back
+                    Ok::<_, Error>(HttpResponse::Ok().cookie(cookie1).cookie(cookie2).finish())
                 }
             }),
         )
@@ -795,17 +743,15 @@ async fn client_unread_response() {
     let lst = std::net::TcpListener::bind(addr).unwrap();
 
     std::thread::spawn(move || {
-        for stream in lst.incoming() {
-            let mut stream = stream.unwrap();
-            let mut b = [0; 1000];
-            let _ = stream.read(&mut b).unwrap();
-            let _ = stream.write_all(
-                b"HTTP/1.1 200 OK\r\n\
+        let (mut stream, _) = lst.accept().unwrap();
+        let mut b = [0; 1000];
+        let _ = stream.read(&mut b).unwrap();
+        let _ = stream.write_all(
+            b"HTTP/1.1 200 OK\r\n\
                 connection: close\r\n\
                 \r\n\
                 welcome!",
-            );
-        }
+        );
     });
 
     // client request
@@ -830,7 +776,7 @@ async fn client_basic_auth() {
                     .unwrap()
                     .to_str()
                     .unwrap()
-                    == format!("Basic {}", base64::encode("username:password"))
+                    == format!("Basic {}", BASE64_STANDARD.encode("username:password"))
                 {
                     HttpResponse::Ok()
                 } else {
@@ -875,16 +821,16 @@ async fn client_bearer_auth() {
 }
 
 #[actix_rt::test]
-async fn test_local_address() {
+async fn local_address() {
     let ip = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
 
     let srv = actix_test::start(move || {
-        App::new().service(web::resource("/").route(web::to(
-            move |req: HttpRequest| async move {
+        App::new().service(
+            web::resource("/").route(web::to(move |req: HttpRequest| async move {
                 assert_eq!(req.peer_addr().unwrap().ip(), ip);
                 Ok::<_, Error>(HttpResponse::Ok())
-            },
-        )))
+            })),
+        )
     });
     let client = awc::Client::builder().local_address(ip).finish();
 

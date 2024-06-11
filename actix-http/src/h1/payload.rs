@@ -1,9 +1,12 @@
 //! Payload stream
-use std::cell::RefCell;
-use std::collections::VecDeque;
-use std::pin::Pin;
-use std::rc::{Rc, Weak};
-use std::task::{Context, Poll, Waker};
+
+use std::{
+    cell::RefCell,
+    collections::VecDeque,
+    pin::Pin,
+    rc::{Rc, Weak},
+    task::{Context, Poll, Waker},
+};
 
 use bytes::Bytes;
 use futures_core::Stream;
@@ -13,7 +16,7 @@ use crate::error::PayloadError;
 /// max buffer size 32k
 pub(crate) const MAX_BUFFER_SIZE: usize = 32_768;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum PayloadStatus {
     Read,
     Pause,
@@ -22,39 +25,32 @@ pub enum PayloadStatus {
 
 /// Buffered stream of bytes chunks
 ///
-/// Payload stores chunks in a vector. First chunk can be received with
-/// `.readany()` method. Payload stream is not thread safe. Payload does not
-/// notify current task when new data is available.
+/// Payload stores chunks in a vector. First chunk can be received with `poll_next`. Payload does
+/// not notify current task when new data is available.
 ///
-/// Payload stream can be used as `Response` body stream.
+/// Payload can be used as `Response` body stream.
 #[derive(Debug)]
 pub struct Payload {
     inner: Rc<RefCell<Inner>>,
 }
 
 impl Payload {
-    /// Create payload stream.
+    /// Creates a payload stream.
     ///
-    /// This method construct two objects responsible for bytes stream
-    /// generation.
-    ///
-    /// * `PayloadSender` - *Sender* side of the stream
-    ///
-    /// * `Payload` - *Receiver* side of the stream
+    /// This method construct two objects responsible for bytes stream generation:
+    /// - `PayloadSender` - *Sender* side of the stream
+    /// - `Payload` - *Receiver* side of the stream
     pub fn create(eof: bool) -> (PayloadSender, Payload) {
         let shared = Rc::new(RefCell::new(Inner::new(eof)));
 
         (
-            PayloadSender {
-                inner: Rc::downgrade(&shared),
-            },
+            PayloadSender::new(Rc::downgrade(&shared)),
             Payload { inner: shared },
         )
     }
 
-    /// Create empty payload
-    #[doc(hidden)]
-    pub fn empty() -> Payload {
+    /// Creates an empty payload.
+    pub(crate) fn empty() -> Payload {
         Payload {
             inner: Rc::new(RefCell::new(Inner::new(true))),
         }
@@ -77,14 +73,6 @@ impl Payload {
     pub fn unread_data(&mut self, data: Bytes) {
         self.inner.borrow_mut().unread_data(data);
     }
-
-    #[inline]
-    pub fn readany(
-        &mut self,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<Bytes, PayloadError>>> {
-        self.inner.borrow_mut().readany(cx)
-    }
 }
 
 impl Stream for Payload {
@@ -94,7 +82,7 @@ impl Stream for Payload {
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, PayloadError>>> {
-        self.inner.borrow_mut().readany(cx)
+        Pin::new(&mut *self.inner.borrow_mut()).poll_next(cx)
     }
 }
 
@@ -104,6 +92,10 @@ pub struct PayloadSender {
 }
 
 impl PayloadSender {
+    fn new(inner: Weak<RefCell<Inner>>) -> Self {
+        Self { inner }
+    }
+
     #[inline]
     pub fn set_error(&mut self, err: PayloadError) {
         if let Some(shared) = self.inner.upgrade() {
@@ -125,6 +117,7 @@ impl PayloadSender {
         }
     }
 
+    #[allow(clippy::needless_pass_by_ref_mut)]
     #[inline]
     pub fn need_read(&self, cx: &mut Context<'_>) -> PayloadStatus {
         // we check need_read only if Payload (other side) is alive,
@@ -182,12 +175,11 @@ impl Inner {
 
     /// Register future waiting data from payload.
     /// Waker would be used in `Inner::wake`
-    fn register(&mut self, cx: &mut Context<'_>) {
+    fn register(&mut self, cx: &Context<'_>) {
         if self
             .task
             .as_ref()
-            .map(|w| !cx.waker().will_wake(w))
-            .unwrap_or(true)
+            .map_or(true, |w| !cx.waker().will_wake(w))
         {
             self.task = Some(cx.waker().clone());
         }
@@ -195,12 +187,11 @@ impl Inner {
 
     // Register future feeding data to payload.
     /// Waker would be used in `Inner::wake_io`
-    fn register_io(&mut self, cx: &mut Context<'_>) {
+    fn register_io(&mut self, cx: &Context<'_>) {
         if self
             .io_task
             .as_ref()
-            .map(|w| !cx.waker().will_wake(w))
-            .unwrap_or(true)
+            .map_or(true, |w| !cx.waker().will_wake(w))
         {
             self.io_task = Some(cx.waker().clone());
         }
@@ -229,9 +220,9 @@ impl Inner {
         self.len
     }
 
-    fn readany(
-        &mut self,
-        cx: &mut Context<'_>,
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &Context<'_>,
     ) -> Poll<Option<Result<Bytes, PayloadError>>> {
         if let Some(data) = self.items.pop_front() {
             self.len -= data.len();
@@ -262,8 +253,15 @@ impl Inner {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use actix_utils::future::poll_fn;
+    use static_assertions::{assert_impl_all, assert_not_impl_any};
+
+    use super::*;
+
+    assert_impl_all!(Payload: Unpin);
+    assert_not_impl_any!(Payload: Send, Sync);
+
+    assert_impl_all!(Inner: Unpin, Send, Sync);
 
     #[actix_rt::test]
     async fn test_unread_data() {
@@ -275,7 +273,10 @@ mod tests {
 
         assert_eq!(
             Bytes::from("data"),
-            poll_fn(|cx| payload.readany(cx)).await.unwrap().unwrap()
+            poll_fn(|cx| Pin::new(&mut payload).poll_next(cx))
+                .await
+                .unwrap()
+                .unwrap()
         );
     }
 }

@@ -1,9 +1,15 @@
-use std::{cell::RefCell, fmt, io, path::PathBuf, rc::Rc};
+use std::{
+    cell::RefCell,
+    fmt, io,
+    path::{Path, PathBuf},
+    rc::Rc,
+};
 
 use actix_service::{boxed, IntoServiceFactory, ServiceFactory, ServiceFactoryExt};
-use actix_utils::future::ok;
 use actix_web::{
-    dev::{AppService, HttpServiceFactory, ResourceDef, ServiceRequest, ServiceResponse},
+    dev::{
+        AppService, HttpServiceFactory, RequestHead, ResourceDef, ServiceRequest, ServiceResponse,
+    },
     error::Error,
     guard::Guard,
     http::header::DispositionType,
@@ -12,14 +18,16 @@ use actix_web::{
 use futures_core::future::LocalBoxFuture;
 
 use crate::{
-    directory_listing, named, Directory, DirectoryRenderer, FilesService, HttpNewService,
-    MimeOverride,
+    directory_listing, named,
+    service::{FilesService, FilesServiceInner},
+    Directory, DirectoryRenderer, HttpNewService, MimeOverride, PathFilter,
 };
 
 /// Static files handling service.
 ///
 /// `Files` service must be registered with `App::service()` method.
 ///
+/// # Examples
 /// ```
 /// use actix_web::App;
 /// use actix_files::Files;
@@ -28,7 +36,7 @@ use crate::{
 ///     .service(Files::new("/static", "."));
 /// ```
 pub struct Files {
-    path: String,
+    mount_path: String,
     directory: PathBuf,
     index: Option<String>,
     show_index: bool,
@@ -36,6 +44,7 @@ pub struct Files {
     default: Rc<RefCell<Option<Rc<HttpNewService>>>>,
     renderer: Rc<DirectoryRenderer>,
     mime_override: Option<Rc<MimeOverride>>,
+    path_filter: Option<Rc<PathFilter>>,
     file_flags: named::Flags,
     use_guards: Option<Rc<dyn Guard>>,
     guards: Vec<Rc<dyn Guard>>,
@@ -58,8 +67,9 @@ impl Clone for Files {
             default: self.default.clone(),
             renderer: self.renderer.clone(),
             file_flags: self.file_flags,
-            path: self.path.clone(),
+            mount_path: self.mount_path.clone(),
             mime_override: self.mime_override.clone(),
+            path_filter: self.path_filter.clone(),
             use_guards: self.use_guards.clone(),
             guards: self.guards.clone(),
             hidden_files: self.hidden_files,
@@ -96,7 +106,7 @@ impl Files {
         };
 
         Files {
-            path: mount_path.to_owned(),
+            mount_path: mount_path.trim_end_matches('/').to_owned(),
             directory: dir,
             index: None,
             show_index: false,
@@ -104,6 +114,7 @@ impl Files {
             default: Rc::new(RefCell::new(None)),
             renderer: Rc::new(directory_listing),
             mime_override: None,
+            path_filter: None,
             file_flags: named::Flags::default(),
             use_guards: None,
             guards: Vec::new(),
@@ -114,6 +125,9 @@ impl Files {
     /// Show files listing for directories.
     ///
     /// By default show files listing is disabled.
+    ///
+    /// When used with [`Files::index_file()`], files listing is shown as a fallback
+    /// when the index file is not found.
     pub fn show_files_listing(mut self) -> Self {
         self.show_index = true;
         self
@@ -127,7 +141,7 @@ impl Files {
         self
     }
 
-    /// Set custom directory renderer
+    /// Set custom directory renderer.
     pub fn files_listing_renderer<F>(mut self, f: F) -> Self
     where
         for<'r, 's> F:
@@ -137,7 +151,7 @@ impl Files {
         self
     }
 
-    /// Specifies mime override callback
+    /// Specifies MIME override callback.
     pub fn mime_override<F>(mut self, f: F) -> Self
     where
         F: Fn(&mime::Name<'_>) -> DispositionType + 'static,
@@ -146,10 +160,45 @@ impl Files {
         self
     }
 
+    /// Sets path filtering closure.
+    ///
+    /// The path provided to the closure is relative to `serve_from` path.
+    /// You can safely join this path with the `serve_from` path to get the real path.
+    /// However, the real path may not exist since the filter is called before checking path existence.
+    ///
+    /// When a path doesn't pass the filter, [`Files::default_handler`] is called if set, otherwise,
+    /// `404 Not Found` is returned.
+    ///
+    /// # Examples
+    /// ```
+    /// use std::path::Path;
+    /// use actix_files::Files;
+    ///
+    /// // prevent searching subdirectories and following symlinks
+    /// let files_service = Files::new("/", "./static").path_filter(|path, _| {
+    ///     path.components().count() == 1
+    ///         && Path::new("./static")
+    ///             .join(path)
+    ///             .symlink_metadata()
+    ///             .map(|m| !m.file_type().is_symlink())
+    ///             .unwrap_or(false)
+    /// });
+    /// ```
+    pub fn path_filter<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&Path, &RequestHead) -> bool + 'static,
+    {
+        self.path_filter = Some(Rc::new(f));
+        self
+    }
+
     /// Set index file
     ///
-    /// Shows specific index file for directory "/" instead of
+    /// Shows specific index file for directories instead of
     /// showing files listing.
+    ///
+    /// If the index file is not found, files listing is shown as a fallback if
+    /// [`Files::show_files_listing()`] is set.
     pub fn index_file<T: Into<String>>(mut self, index: T) -> Self {
         self.index = Some(index.into());
         self
@@ -186,7 +235,7 @@ impl Files {
     /// request starts being handled by the file service, it will not be able to back-out and try
     /// the next service, you will simply get a 404 (or 405) error response.
     ///
-    /// To allow `POST` requests to retrieve files, see [`Files::use_guards`].
+    /// To allow `POST` requests to retrieve files, see [`Files::method_guard()`].
     ///
     /// # Examples
     /// ```
@@ -213,9 +262,9 @@ impl Files {
         self
     }
 
+    /// See [`Files::method_guard`].
     #[doc(hidden)]
     #[deprecated(since = "0.6.0", note = "Renamed to `method_guard`.")]
-    /// See [`Files::method_guard`].
     pub fn use_guards<G: Guard + 'static>(self, guard: G) -> Self {
         self.method_guard(guard)
     }
@@ -234,23 +283,25 @@ impl Files {
     /// Setting a fallback static file handler:
     /// ```
     /// use actix_files::{Files, NamedFile};
+    /// use actix_web::dev::{ServiceRequest, ServiceResponse, fn_service};
     ///
     /// # fn run() -> Result<(), actix_web::Error> {
     /// let files = Files::new("/", "./static")
     ///     .index_file("index.html")
-    ///     .default_handler(NamedFile::open("./static/404.html")?);
+    ///     .default_handler(fn_service(|req: ServiceRequest| async {
+    ///         let (req, _) = req.into_parts();
+    ///         let file = NamedFile::open_async("./static/404.html").await?;
+    ///         let res = file.into_response(&req);
+    ///         Ok(ServiceResponse::new(req, res))
+    ///     }));
     /// # Ok(())
     /// # }
     /// ```
     pub fn default_handler<F, U>(mut self, f: F) -> Self
     where
         F: IntoServiceFactory<U, ServiceRequest>,
-        U: ServiceFactory<
-                ServiceRequest,
-                Config = (),
-                Response = ServiceResponse,
-                Error = Error,
-            > + 'static,
+        U: ServiceFactory<ServiceRequest, Config = (), Response = ServiceResponse, Error = Error>
+            + 'static,
     {
         // create and configure default resource
         self.default = Rc::new(RefCell::new(Some(Rc::new(boxed::factory(
@@ -286,9 +337,9 @@ impl HttpServiceFactory for Files {
         }
 
         let rdef = if config.is_root() {
-            ResourceDef::root_prefix(&self.path)
+            ResourceDef::root_prefix(&self.mount_path)
         } else {
-            ResourceDef::prefix(&self.path)
+            ResourceDef::prefix(&self.mount_path)
         };
 
         config.register_service(rdef, guards, self, None)
@@ -304,7 +355,7 @@ impl ServiceFactory<ServiceRequest> for Files {
     type Future = LocalBoxFuture<'static, Result<Self::Service, Self::InitError>>;
 
     fn new_service(&self, _: ()) -> Self::Future {
-        let mut srv = FilesService {
+        let mut inner = FilesServiceInner {
             directory: self.directory.clone(),
             index: self.index.clone(),
             show_index: self.show_index,
@@ -312,6 +363,7 @@ impl ServiceFactory<ServiceRequest> for Files {
             default: None,
             renderer: self.renderer.clone(),
             mime_override: self.mime_override.clone(),
+            path_filter: self.path_filter.clone(),
             file_flags: self.file_flags,
             guards: self.use_guards.clone(),
             hidden_files: self.hidden_files,
@@ -322,14 +374,57 @@ impl ServiceFactory<ServiceRequest> for Files {
             Box::pin(async {
                 match fut.await {
                     Ok(default) => {
-                        srv.default = Some(default);
-                        Ok(srv)
+                        inner.default = Some(default);
+                        Ok(FilesService(Rc::new(inner)))
                     }
                     Err(_) => Err(()),
                 }
             })
         } else {
-            Box::pin(ok(srv))
+            Box::pin(async move { Ok(FilesService(Rc::new(inner))) })
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use actix_web::{
+        http::StatusCode,
+        test::{self, TestRequest},
+        App, HttpResponse,
+    };
+
+    use super::*;
+
+    #[actix_web::test]
+    async fn custom_files_listing_renderer() {
+        let srv = test::init_service(
+            App::new().service(
+                Files::new("/", "./tests")
+                    .show_files_listing()
+                    .files_listing_renderer(|dir, req| {
+                        Ok(ServiceResponse::new(
+                            req.clone(),
+                            HttpResponse::Ok().body(dir.path.to_str().unwrap().to_owned()),
+                        ))
+                    }),
+            ),
+        )
+        .await;
+
+        let req = TestRequest::with_uri("/").to_request();
+        let res = test::call_service(&srv, req).await;
+
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = test::read_body(res).await;
+        let body_str = std::str::from_utf8(&body).unwrap();
+        let actual_path = Path::new(&body_str);
+        let expected_path = Path::new("actix-files/tests");
+        assert!(
+            actual_path.ends_with(expected_path),
+            "body {:?} does not end with {:?}",
+            actual_path,
+            expected_path
+        );
     }
 }

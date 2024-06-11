@@ -1,18 +1,38 @@
 use std::{
     any::{Any, TypeId},
-    fmt, mem,
+    collections::HashMap,
+    fmt,
+    hash::{BuildHasherDefault, Hasher},
 };
 
-use ahash::AHashMap;
+/// A hasher for `TypeId`s that takes advantage of its known characteristics.
+///
+/// Author of `anymap` crate has done research on the topic:
+/// https://github.com/chris-morgan/anymap/blob/2e9a5704/src/lib.rs#L599
+#[derive(Debug, Default)]
+struct NoOpHasher(u64);
+
+impl Hasher for NoOpHasher {
+    fn write(&mut self, _bytes: &[u8]) {
+        unimplemented!("This NoOpHasher can only handle u64s")
+    }
+
+    fn write_u64(&mut self, i: u64) {
+        self.0 = i;
+    }
+
+    fn finish(&self) -> u64 {
+        self.0
+    }
+}
 
 /// A type map for request extensions.
 ///
 /// All entries into this map must be owned types (or static references).
 #[derive(Default)]
 pub struct Extensions {
-    /// Use FxHasher with a std HashMap with for faster
-    /// lookups on the small `TypeId` (u64 equivalent) keys.
-    map: AHashMap<TypeId, Box<dyn Any>>,
+    /// Use AHasher with a std HashMap with for faster lookups on the small `TypeId` keys.
+    map: HashMap<TypeId, Box<dyn Any>, BuildHasherDefault<NoOpHasher>>,
 }
 
 impl Extensions {
@@ -20,7 +40,7 @@ impl Extensions {
     #[inline]
     pub fn new() -> Extensions {
         Extensions {
-            map: AHashMap::default(),
+            map: HashMap::default(),
         }
     }
 
@@ -123,11 +143,6 @@ impl Extensions {
     pub fn extend(&mut self, other: Extensions) {
         self.map.extend(other.map);
     }
-
-    /// Sets (or overrides) items from `other` into this map.
-    pub(crate) fn drain_from(&mut self, other: &mut Self) {
-        self.map.extend(mem::take(&mut other.map));
-    }
 }
 
 impl fmt::Debug for Extensions {
@@ -179,6 +194,8 @@ mod tests {
 
     #[test]
     fn test_integers() {
+        static A: u32 = 8;
+
         let mut map = Extensions::new();
 
         map.insert::<i8>(8);
@@ -191,6 +208,7 @@ mod tests {
         map.insert::<u32>(32);
         map.insert::<u64>(64);
         map.insert::<u128>(128);
+        map.insert::<&'static u32>(&A);
         assert!(map.get::<i8>().is_some());
         assert!(map.get::<i16>().is_some());
         assert!(map.get::<i32>().is_some());
@@ -201,6 +219,7 @@ mod tests {
         assert!(map.get::<u32>().is_some());
         assert!(map.get::<u64>().is_some());
         assert!(map.get::<u128>().is_some());
+        assert!(map.get::<&'static u32>().is_some());
     }
 
     #[test]
@@ -278,28 +297,5 @@ mod tests {
 
         assert_eq!(extensions.get(), Some(&20u8));
         assert_eq!(extensions.get_mut(), Some(&mut 20u8));
-    }
-
-    #[test]
-    fn test_drain_from() {
-        let mut ext = Extensions::new();
-        ext.insert(2isize);
-
-        let mut more_ext = Extensions::new();
-
-        more_ext.insert(5isize);
-        more_ext.insert(5usize);
-
-        assert_eq!(ext.get::<isize>(), Some(&2isize));
-        assert_eq!(ext.get::<usize>(), None);
-        assert_eq!(more_ext.get::<isize>(), Some(&5isize));
-        assert_eq!(more_ext.get::<usize>(), Some(&5usize));
-
-        ext.drain_from(&mut more_ext);
-
-        assert_eq!(ext.get::<isize>(), Some(&5isize));
-        assert_eq!(ext.get::<usize>(), Some(&5usize));
-        assert_eq!(more_ext.get::<isize>(), None);
-        assert_eq!(more_ext.get::<usize>(), None);
     }
 }

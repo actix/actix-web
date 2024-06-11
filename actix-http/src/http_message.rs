@@ -25,10 +25,10 @@ pub trait HttpMessage: Sized {
     /// Message payload stream
     fn take_payload(&mut self) -> Payload<Self::Stream>;
 
-    /// Request's extensions container
+    /// Returns a reference to the request-local data/extensions container.
     fn extensions(&self) -> Ref<'_, Extensions>;
 
-    /// Mutable reference to a the request's extensions container
+    /// Returns a mutable reference to the request-local data/extensions container.
     fn extensions_mut(&self) -> RefMut<'_, Extensions>;
 
     /// Get a header.
@@ -55,15 +55,13 @@ pub trait HttpMessage: Sized {
         ""
     }
 
-    /// Get content type encoding
+    /// Get content type encoding.
     ///
     /// UTF-8 is used by default, If request charset is not set.
     fn encoding(&self) -> Result<&'static Encoding, ContentTypeError> {
         if let Some(mime_type) = self.mime_type()? {
             if let Some(charset) = mime_type.get_param("charset") {
-                if let Some(enc) =
-                    Encoding::for_label_no_replacement(charset.as_str().as_bytes())
-                {
+                if let Some(enc) = Encoding::for_label_no_replacement(charset.as_str().as_bytes()) {
                     Ok(enc)
                 } else {
                     Err(ContentTypeError::UnknownEncoding)
@@ -146,7 +144,7 @@ mod tests {
             .finish();
         assert_eq!(req.content_type(), "text/plain");
         let req = TestRequest::default()
-            .insert_header(("content-type", "application/json; charset=utf=8"))
+            .insert_header(("content-type", "application/json; charset=utf-8"))
             .finish();
         assert_eq!(req.content_type(), "application/json");
         let req = TestRequest::default().finish();

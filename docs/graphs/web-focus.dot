@@ -10,6 +10,7 @@ digraph {
         "web-actors"
         "web-codegen"
         "http-test"
+        "router"
 
         { rank=same; "multipart" "web-actors" "http-test" };
         { rank=same; "files" "awc" "web" };
@@ -18,6 +19,7 @@ digraph {
 
     "web" -> { "codec" "service" "utils" "router" "rt" "server" "macros" "web-codegen" "http" "awc" }
     "web" -> { "tls" }[color=blue] // optional
+    "web-codegen" -> { "router" }
     "awc" -> { "codec" "service" "http" "rt" }
     "web-actors" -> { "actix" "web" "http" "codec" }
     "multipart" -> { "web" "service" "utils" }
@@ -32,11 +34,11 @@ digraph {
     "utils" -> { "service" "rt" "codec" }
     "tracing" -> { "service" }
     "tls" -> { "service" "codec" "utils" }
-    "server" -> { "service" "rt" "codec" "utils" }
+    "server" -> { "service" "rt" "utils" }
     "rt" -> { "macros" }
 
     { rank=same; "utils" "codec" };
-    { rank=same; "rt" "macros" "service" "router" };
+    { rank=same; "rt" "macros" "service" };
 
     // actix
 

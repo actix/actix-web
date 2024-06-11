@@ -1,32 +1,35 @@
 use std::{
     cmp,
+    error::Error as StdError,
     future::Future,
     marker::PhantomData,
     net,
-    pin::Pin,
+    pin::{pin, Pin},
     rc::Rc,
     task::{Context, Poll},
 };
 
 use actix_codec::{AsyncRead, AsyncWrite};
+use actix_rt::time::{sleep, Sleep};
 use actix_service::Service;
 use actix_utils::future::poll_fn;
 use bytes::{Bytes, BytesMut};
 use futures_core::ready;
-use h2::server::{Connection, SendResponse};
-use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
-use log::{error, trace};
+use h2::{
+    server::{Connection, SendResponse},
+    Ping, PingPong,
+};
 use pin_project_lite::pin_project;
 
-use crate::body::{BodySize, MessageBody};
-use crate::config::ServiceConfig;
-use crate::error::Error;
-use crate::message::ResponseHead;
-use crate::payload::Payload;
-use crate::request::Request;
-use crate::response::Response;
-use crate::service::HttpFlow;
-use crate::OnConnectData;
+use crate::{
+    body::{BodySize, BoxBody, MessageBody},
+    config::ServiceConfig,
+    header::{
+        HeaderName, HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING, UPGRADE,
+    },
+    service::HttpFlow,
+    Extensions, Method, OnConnectData, Payload, Request, Response, ResponseHead,
+};
 
 const CHUNK_SIZE: usize = 16_384;
 
@@ -35,30 +38,59 @@ pin_project! {
     pub struct Dispatcher<T, S, B, X, U> {
         flow: Rc<HttpFlow<S, X, U>>,
         connection: Connection<T, Bytes>,
-        on_connect_data: OnConnectData,
+        conn_data: Option<Rc<Extensions>>,
         config: ServiceConfig,
         peer_addr: Option<net::SocketAddr>,
-        _phantom: PhantomData<B>,
+        ping_pong: Option<H2PingPong>,
+        _phantom: PhantomData<B>
     }
 }
 
-impl<T, S, B, X, U> Dispatcher<T, S, B, X, U> {
+impl<T, S, B, X, U> Dispatcher<T, S, B, X, U>
+where
+    T: AsyncRead + AsyncWrite + Unpin,
+{
     pub(crate) fn new(
+        mut conn: Connection<T, Bytes>,
         flow: Rc<HttpFlow<S, X, U>>,
-        connection: Connection<T, Bytes>,
-        on_connect_data: OnConnectData,
         config: ServiceConfig,
         peer_addr: Option<net::SocketAddr>,
+        conn_data: OnConnectData,
+        timer: Option<Pin<Box<Sleep>>>,
     ) -> Self {
+        let ping_pong = config.keep_alive().duration().map(|dur| H2PingPong {
+            timer: timer
+                .map(|mut timer| {
+                    // reuse timer slot if it was initialized for handshake
+                    timer.as_mut().reset((config.now() + dur).into());
+                    timer
+                })
+                .unwrap_or_else(|| Box::pin(sleep(dur))),
+            in_flight: false,
+            ping_pong: conn.ping_pong().unwrap(),
+        });
+
         Self {
             flow,
             config,
             peer_addr,
-            connection,
-            on_connect_data,
+            connection: conn,
+            conn_data: conn_data.0.map(Rc::new),
+            ping_pong,
             _phantom: PhantomData,
         }
     }
+}
+
+struct H2PingPong {
+    /// Handle to send ping frames from the peer.
+    ping_pong: PingPong,
+
+    /// True when a ping has been sent and is waiting for a reply.
+    in_flight: bool,
+
+    /// Timeout for pong response.
+    timer: Pin<Box<Sleep>>,
 }
 
 impl<T, S, B, X, U> Future for Dispatcher<T, S, B, X, U>
@@ -66,12 +98,11 @@ where
     T: AsyncRead + AsyncWrite + Unpin,
 
     S: Service<Request>,
-    S::Error: Into<Error>,
+    S::Error: Into<Response<BoxBody>>,
     S::Future: 'static,
     S::Response: Into<Response<B>>,
 
     B: MessageBody,
-    B::Error: Into<Error>,
 {
     type Output = Result<(), crate::error::DispatchError>;
 
@@ -79,107 +110,147 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
 
-        while let Some((req, tx)) =
-            ready!(Pin::new(&mut this.connection).poll_accept(cx)?)
-        {
-            let (parts, body) = req.into_parts();
-            let pl = crate::h2::Payload::new(body);
-            let pl = Payload::<crate::payload::PayloadStream>::H2(pl);
-            let mut req = Request::with_payload(pl);
+        loop {
+            match Pin::new(&mut this.connection).poll_accept(cx)? {
+                Poll::Ready(Some((req, tx))) => {
+                    let (parts, body) = req.into_parts();
+                    let payload = crate::h2::Payload::new(body);
+                    let pl = Payload::H2 { payload };
+                    let mut req = Request::with_payload(pl);
+                    let head_req = parts.method == Method::HEAD;
 
-            let head = req.head_mut();
-            head.uri = parts.uri;
-            head.method = parts.method;
-            head.version = parts.version;
-            head.headers = parts.headers.into();
-            head.peer_addr = this.peer_addr;
+                    let head = req.head_mut();
+                    head.uri = parts.uri;
+                    head.method = parts.method;
+                    head.version = parts.version;
+                    head.headers = parts.headers.into();
+                    head.peer_addr = this.peer_addr;
 
-            // merge on_connect_ext data into request extensions
-            this.on_connect_data.merge_into(&mut req);
+                    req.conn_data.clone_from(&this.conn_data);
 
-            let fut = this.flow.service.call(req);
-            let config = this.config.clone();
+                    let fut = this.flow.service.call(req);
+                    let config = this.config.clone();
 
-            // multiplex request handling with spawn task
-            actix_rt::spawn(async move {
-                // resolve service call and send response.
-                let res = match fut.await {
-                    Ok(res) => handle_response(res.into(), tx, config).await,
-                    Err(err) => {
-                        let res = Response::from_error(err.into());
-                        handle_response(res, tx, config).await
-                    }
-                };
+                    // multiplex request handling with spawn task
+                    actix_rt::spawn(async move {
+                        // resolve service call and send response.
+                        let res = match fut.await {
+                            Ok(res) => handle_response(res.into(), tx, config, head_req).await,
+                            Err(err) => {
+                                let res: Response<BoxBody> = err.into();
+                                handle_response(res, tx, config, head_req).await
+                            }
+                        };
 
-                // log error.
-                if let Err(err) = res {
-                    match err {
-                        DispatchError::SendResponse(err) => {
-                            trace!("Error sending HTTP/2 response: {:?}", err)
+                        // log error.
+                        if let Err(err) = res {
+                            match err {
+                                DispatchError::SendResponse(err) => {
+                                    tracing::trace!("Error sending response: {err:?}");
+                                }
+                                DispatchError::SendData(err) => {
+                                    tracing::warn!("Send data error: {err:?}");
+                                }
+                                DispatchError::ResponseBody(err) => {
+                                    tracing::error!("Response payload stream error: {err:?}");
+                                }
+                            }
                         }
-                        DispatchError::SendData(err) => warn!("{:?}", err),
-                        DispatchError::ResponseBody(err) => {
-                            error!("Response payload stream error: {:?}", err)
-                        }
-                    }
+                    });
                 }
-            });
-        }
+                Poll::Ready(None) => return Poll::Ready(Ok(())),
 
-        Poll::Ready(Ok(()))
+                Poll::Pending => match this.ping_pong.as_mut() {
+                    Some(ping_pong) => loop {
+                        if ping_pong.in_flight {
+                            // When there is an in-flight ping-pong, poll pong and and keep-alive
+                            // timer. On successful pong received, update keep-alive timer to
+                            // determine the next timing of ping pong.
+                            match ping_pong.ping_pong.poll_pong(cx)? {
+                                Poll::Ready(_) => {
+                                    ping_pong.in_flight = false;
+
+                                    let dead_line = this.config.keep_alive_deadline().unwrap();
+                                    ping_pong.timer.as_mut().reset(dead_line.into());
+                                }
+                                Poll::Pending => {
+                                    return ping_pong.timer.as_mut().poll(cx).map(|_| Ok(()));
+                                }
+                            }
+                        } else {
+                            // When there is no in-flight ping-pong, keep-alive timer is used to
+                            // wait for next timing of ping-pong. Therefore, at this point it serves
+                            // as an interval instead.
+                            ready!(ping_pong.timer.as_mut().poll(cx));
+
+                            ping_pong.ping_pong.send_ping(Ping::opaque())?;
+
+                            let dead_line = this.config.keep_alive_deadline().unwrap();
+                            ping_pong.timer.as_mut().reset(dead_line.into());
+
+                            ping_pong.in_flight = true;
+                        }
+                    },
+                    None => return Poll::Pending,
+                },
+            }
+        }
     }
 }
 
 enum DispatchError {
     SendResponse(h2::Error),
     SendData(h2::Error),
-    ResponseBody(Error),
+    ResponseBody(Box<dyn StdError>),
 }
 
 async fn handle_response<B>(
     res: Response<B>,
     mut tx: SendResponse<Bytes>,
     config: ServiceConfig,
+    head_req: bool,
 ) -> Result<(), DispatchError>
 where
     B: MessageBody,
-    B::Error: Into<Error>,
 {
     let (res, body) = res.replace_body(());
 
     // prepare response.
     let mut size = body.size();
     let res = prepare_response(config, res.head(), &mut size);
-    let eof = size.is_eof();
+    let eof_or_head = size.is_eof() || head_req;
 
     // send response head and return on eof.
     let mut stream = tx
-        .send_response(res, eof)
+        .send_response(res, eof_or_head)
         .map_err(DispatchError::SendResponse)?;
 
-    if eof {
+    if eof_or_head {
         return Ok(());
     }
 
-    // poll response body and send chunks to client.
-    actix_rt::pin!(body);
+    let mut body = pin!(body);
 
+    // poll response body and send chunks to client
     while let Some(res) = poll_fn(|cx| body.as_mut().poll_next(cx)).await {
         let mut chunk = res.map_err(|err| DispatchError::ResponseBody(err.into()))?;
 
         'send: loop {
+            let chunk_size = cmp::min(chunk.len(), CHUNK_SIZE);
+
             // reserve enough space and wait for stream ready.
-            stream.reserve_capacity(cmp::min(chunk.len(), CHUNK_SIZE));
+            stream.reserve_capacity(chunk_size);
 
             match poll_fn(|cx| stream.poll_capacity(cx)).await {
                 // No capacity left. drop body and return.
                 None => return Ok(()),
-                Some(res) => {
-                    // Split chuck to writeable size and send to client.
-                    let cap = res.map_err(DispatchError::SendData)?;
 
+                Some(Err(err)) => return Err(DispatchError::SendData(err)),
+
+                Some(Ok(cap)) => {
+                    // split chunk to writeable size and send to client
                     let len = chunk.len();
-                    let bytes = chunk.split_to(cmp::min(cap, len));
+                    let bytes = chunk.split_to(cmp::min(len, cap));
 
                     stream
                         .send_data(bytes, false)
@@ -226,30 +297,43 @@ fn prepare_response(
         _ => {}
     }
 
-    let _ = match size {
-        BodySize::None | BodySize::Stream => None,
-        BodySize::Empty => res
-            .headers_mut()
-            .insert(CONTENT_LENGTH, HeaderValue::from_static("0")),
+    match size {
+        BodySize::None | BodySize::Stream => {}
+
+        BodySize::Sized(0) => {
+            #[allow(clippy::declare_interior_mutable_const)]
+            const HV_ZERO: HeaderValue = HeaderValue::from_static("0");
+            res.headers_mut().insert(CONTENT_LENGTH, HV_ZERO);
+        }
+
         BodySize::Sized(len) => {
             let mut buf = itoa::Buffer::new();
 
             res.headers_mut().insert(
                 CONTENT_LENGTH,
                 HeaderValue::from_str(buf.format(*len)).unwrap(),
-            )
+            );
         }
     };
 
     // copy headers
     for (key, value) in head.headers.iter() {
-        match *key {
-            // TODO: consider skipping other headers according to:
-            //       https://tools.ietf.org/html/rfc7540#section-8.1.2.2
-            // omit HTTP/1.x only headers
-            CONNECTION | TRANSFER_ENCODING => continue,
-            CONTENT_LENGTH if skip_len => continue,
-            DATE => has_date = true,
+        match key {
+            // omit HTTP/1.x only headers according to:
+            // https://datatracker.ietf.org/doc/html/rfc7540#section-8.1.2.2
+            &CONNECTION | &TRANSFER_ENCODING | &UPGRADE => continue,
+
+            &CONTENT_LENGTH if skip_len => continue,
+            &DATE => has_date = true,
+
+            // omit HTTP/1.x only headers according to:
+            // https://datatracker.ietf.org/doc/html/rfc7540#section-8.1.2.2
+            hdr if hdr == HeaderName::from_static("keep-alive")
+                || hdr == HeaderName::from_static("proxy-connection") =>
+            {
+                continue
+            }
+
             _ => {}
         }
 
@@ -259,7 +343,7 @@ fn prepare_response(
     // set date header
     if !has_date {
         let mut bytes = BytesMut::with_capacity(29);
-        config.set_date_header(&mut bytes);
+        config.write_date_header_value(&mut bytes);
         res.headers_mut().insert(
             DATE,
             // SAFETY: serialized date-times are known ASCII strings

@@ -9,12 +9,11 @@ use crate::server::Multipart;
 ///
 /// Content-type: multipart/form-data;
 ///
-/// ## Server example
-///
+/// # Examples
 /// ```
 /// use actix_web::{web, HttpResponse, Error};
 /// use actix_multipart::Multipart;
-/// use futures_util::stream::StreamExt as _;
+/// use futures_util::StreamExt as _;
 ///
 /// async fn index(mut payload: Multipart) -> Result<HttpResponse, Error> {
 ///     // iterate over multipart stream
@@ -33,7 +32,6 @@ use crate::server::Multipart;
 impl FromRequest for Multipart {
     type Error = Error;
     type Future = Ready<Result<Multipart, Error>>;
-    type Config = ();
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {

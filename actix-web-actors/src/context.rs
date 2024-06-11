@@ -1,11 +1,13 @@
-use std::collections::VecDeque;
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::{
+    collections::VecDeque,
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
-use actix::dev::{AsyncContextParts, ContextFut, ContextParts, Envelope, Mailbox, ToEnvelope};
-use actix::fut::ActorFuture;
 use actix::{
+    dev::{AsyncContextParts, ContextFut, ContextParts, Envelope, Mailbox, ToEnvelope},
+    fut::ActorFuture,
     Actor, ActorContext, ActorState, Addr, AsyncContext, Handler, Message, SpawnHandle,
 };
 use actix_web::error::Error;
@@ -14,6 +16,58 @@ use futures_core::Stream;
 use tokio::sync::oneshot::Sender;
 
 /// Execution context for HTTP actors
+///
+/// # Example
+///
+/// A demonstration of [server-sent events](https://developer.mozilla.org/docs/Web/API/Server-sent_events) using actors:
+///
+/// ```no_run
+/// use std::time::Duration;
+///
+/// use actix::{Actor, AsyncContext};
+/// use actix_web::{get, http::header, App, HttpResponse, HttpServer};
+/// use actix_web_actors::HttpContext;
+/// use bytes::Bytes;
+///
+/// struct MyActor {
+///     count: usize,
+/// }
+///
+/// impl Actor for MyActor {
+///     type Context = HttpContext<Self>;
+///
+///     fn started(&mut self, ctx: &mut Self::Context) {
+///         ctx.run_later(Duration::from_millis(100), Self::write);
+///     }
+/// }
+///
+/// impl MyActor {
+///     fn write(&mut self, ctx: &mut HttpContext<Self>) {
+///         self.count += 1;
+///         if self.count > 3 {
+///             ctx.write_eof()
+///         } else {
+///             ctx.write(Bytes::from(format!("event: count\ndata: {}\n\n", self.count)));
+///             ctx.run_later(Duration::from_millis(100), Self::write);
+///         }
+///     }
+/// }
+///
+/// #[get("/")]
+/// async fn index() -> HttpResponse {
+///     HttpResponse::Ok()
+///         .insert_header(header::ContentType(mime::TEXT_EVENT_STREAM))
+///         .streaming(HttpContext::create(MyActor { count: 0 }))
+/// }
+///
+/// #[actix_web::main]
+/// async fn main() -> std::io::Result<()> {
+///     HttpServer::new(|| App::new().service(index))
+///         .bind(("127.0.0.1", 8080))?
+///         .run()
+///         .await
+/// }
+/// ```
 pub struct HttpContext<A>
 where
     A: Actor<Context = HttpContext<A>>,
@@ -194,11 +248,11 @@ where
 mod tests {
     use std::time::Duration;
 
-    use actix::Actor;
-    use actix_web::http::StatusCode;
-    use actix_web::test::{call_service, init_service, read_body, TestRequest};
-    use actix_web::{web, App, HttpResponse};
-    use bytes::Bytes;
+    use actix_web::{
+        http::StatusCode,
+        test::{call_service, init_service, read_body, TestRequest},
+        web, App, HttpResponse,
+    };
 
     use super::*;
 
@@ -210,7 +264,7 @@ mod tests {
         type Context = HttpContext<Self>;
 
         fn started(&mut self, ctx: &mut Self::Context) {
-            ctx.run_later(Duration::from_millis(100), |slf, ctx| slf.write(ctx));
+            ctx.run_later(Duration::from_millis(100), Self::write);
         }
     }
 
@@ -221,18 +275,17 @@ mod tests {
                 ctx.write_eof()
             } else {
                 ctx.write(Bytes::from(format!("LINE-{}", self.count)));
-                ctx.run_later(Duration::from_millis(100), |slf, ctx| slf.write(ctx));
+                ctx.run_later(Duration::from_millis(100), Self::write);
             }
         }
     }
 
     #[actix_rt::test]
     async fn test_default_resource() {
-        let srv =
-            init_service(App::new().service(web::resource("/test").to(|| {
-                HttpResponse::Ok().streaming(HttpContext::create(MyActor { count: 0 }))
-            })))
-            .await;
+        let srv = init_service(App::new().service(web::resource("/test").to(|| async {
+            HttpResponse::Ok().streaming(HttpContext::create(MyActor { count: 0 }))
+        })))
+        .await;
 
         let req = TestRequest::with_uri("/test").to_request();
         let resp = call_service(&srv, req).await;

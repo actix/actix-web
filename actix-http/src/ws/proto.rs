@@ -1,9 +1,11 @@
-use std::{
-    convert::{From, Into},
-    fmt,
-};
+use std::fmt;
 
-/// Operation codes as part of RFC6455.
+use base64::prelude::*;
+use tracing::error;
+
+/// Operation codes defined in [RFC 6455 §11.8].
+///
+/// [RFC 6455]: https://datatracker.ietf.org/doc/html/rfc6455#section-11.8
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum OpCode {
     /// Indicates a continuation frame of a fragmented message.
@@ -56,7 +58,7 @@ impl From<OpCode> for u8 {
             Ping => 9,
             Pong => 10,
             Bad => {
-                log::error!("Attempted to convert invalid opcode to u8. This is a bug.");
+                error!("Attempted to convert invalid opcode to u8. This is a bug.");
                 8 // if this somehow happens, a close frame will help us tear down quickly
             }
         }
@@ -105,7 +107,7 @@ pub enum CloseCode {
     Abnormal,
 
     /// Indicates that an endpoint is terminating the connection because it has received data within
-    /// a message that was not consistent with the type of the message (e.g., non-UTF-8 \[RFC3629\]
+    /// a message that was not consistent with the type of the message (e.g., non-UTF-8 \[RFC 3629\]
     /// data within a text message).
     Invalid,
 
@@ -220,7 +222,8 @@ impl<T: Into<String>> From<(CloseCode, T)> for CloseReason {
     }
 }
 
-/// The WebSocket GUID as stated in the spec. See https://tools.ietf.org/html/rfc6455#section-1.3.
+/// The WebSocket GUID as stated in the spec.
+/// See <https://datatracker.ietf.org/doc/html/rfc6455#section-1.3>.
 static WS_GUID: &[u8] = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
 /// Hashes the `Sec-WebSocket-Key` header according to the WebSocket spec.
@@ -239,7 +242,7 @@ pub fn hash_key(key: &[u8]) -> [u8; 28] {
     };
 
     let mut hash_b64 = [0; 28];
-    let n = base64::encode_config_slice(&hash, base64::STANDARD, &mut hash_b64);
+    let n = BASE64_STANDARD.encode_slice(hash, &mut hash_b64).unwrap();
     assert_eq!(n, 28);
 
     hash_b64

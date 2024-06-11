@@ -1,111 +1,29 @@
-[package]
-name = "actix-web"
-version = "4.0.0-beta.6"
-authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
-description = "Actix Web is a powerful, pragmatic, and extremely fast web framework for Rust"
-keywords = ["actix", "http", "web", "framework", "async"]
-categories = [
-    "network-programming",
-    "asynchronous",
-    "web-programming::http-server",
-    "web-programming::websocket"
+[workspace]
+resolver = "2"
+members = [
+    "actix-files",
+    "actix-http-test",
+    "actix-http",
+    "actix-multipart",
+    "actix-multipart-derive",
+    "actix-router",
+    "actix-test",
+    "actix-web-actors",
+    "actix-web-codegen",
+    "actix-web",
+    "awc",
 ]
+
+[workspace.package]
 homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-web"
 license = "MIT OR Apache-2.0"
-edition = "2018"
+edition = "2021"
+rust-version = "1.72"
 
-[package.metadata.docs.rs]
-# features that docs.rs will build with
-features = ["openssl", "rustls", "compress", "cookies", "secure-cookies"]
-
-[lib]
-name = "actix_web"
-path = "src/lib.rs"
-
-[workspace]
-members = [
-    ".",
-    "awc",
-    "actix-http",
-    "actix-files",
-    "actix-multipart",
-    "actix-web-actors",
-    "actix-web-codegen",
-    "actix-http-test",
-    "actix-test",
-]
-# enable when MSRV is 1.51+
-# resolver = "2"
-
-[features]
-default = ["compress", "cookies"]
-
-# content-encoding support
-compress = ["actix-http/compress"]
-
-# support for cookies
-cookies = ["cookie"]
-
-# secure cookies feature
-secure-cookies = ["cookie/secure"]
-
-# openssl
-openssl = ["actix-http/openssl", "actix-tls/accept", "actix-tls/openssl"]
-
-# rustls
-rustls = ["actix-http/rustls", "actix-tls/accept", "actix-tls/rustls"]
-
-[dependencies]
-actix-codec = "0.4.0"
-actix-macros = "0.2.0"
-actix-router = "0.2.7"
-actix-rt = "2.2"
-actix-server = "2.0.0-beta.3"
-actix-service = "2.0.0"
-actix-utils = "3.0.0"
-actix-tls = { version = "3.0.0-beta.5", default-features = false, optional = true }
-
-actix-web-codegen = "0.5.0-beta.2"
-actix-http = "3.0.0-beta.6"
-
-ahash = "0.7"
-bytes = "1"
-cookie = { version = "0.15", features = ["percent-encode"], optional = true }
-derive_more = "0.99.5"
-either = "1.5.3"
-encoding_rs = "0.8"
-futures-core = { version = "0.3.7", default-features = false }
-futures-util = { version = "0.3.7", default-features = false }
-itoa = "0.4"
-language-tags = "0.3"
-once_cell = "1.5"
-log = "0.4"
-mime = "0.3"
-paste = "1"
-pin-project = "1.0.0"
-regex = "1.4"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-serde_urlencoded = "0.7"
-smallvec = "1.6"
-socket2 = "0.4.0"
-time = { version = "0.2.23", default-features = false, features = ["std"] }
-url = "2.1"
-
-[dev-dependencies]
-actix-test = { version = "0.1.0-beta.2", features = ["openssl", "rustls"] }
-awc = { version = "3.0.0-beta.5", features = ["openssl"] }
-
-brotli2 = "0.3.2"
-criterion = "0.3"
-env_logger = "0.8"
-flate2 = "1.0.13"
-rand = "0.8"
-rcgen = "0.8"
-serde_derive = "1.0"
-tls-openssl = { package = "openssl", version = "0.10.9" }
-tls-rustls = { package = "rustls", version = "0.19.0" }
+[profile.dev]
+# Disabling debug info speeds up builds a bunch and we don't rely on it for debugging that much.
+debug = 0
 
 [profile.release]
 lto = true
@@ -117,36 +35,19 @@ actix-files = { path = "actix-files" }
 actix-http = { path = "actix-http" }
 actix-http-test = { path = "actix-http-test" }
 actix-multipart = { path = "actix-multipart" }
+actix-multipart-derive = { path = "actix-multipart-derive" }
+actix-router = { path = "actix-router" }
 actix-test = { path = "actix-test" }
-actix-web = { path = "." }
+actix-web = { path = "actix-web" }
 actix-web-actors = { path = "actix-web-actors" }
 actix-web-codegen = { path = "actix-web-codegen" }
 awc = { path = "awc" }
 
-[[test]]
-name = "test_server"
-required-features = ["compress", "cookies"]
-
-[[example]]
-name = "basic"
-required-features = ["compress"]
-
-[[example]]
-name = "uds"
-required-features = ["compress"]
-
-[[example]]
-name = "on_connect"
-required-features = []
-
-[[bench]]
-name = "server"
-harness = false
-
-[[bench]]
-name = "service"
-harness = false
-
-[[bench]]
-name = "responder"
-harness = false
+# uncomment for quick testing against local actix-net repo
+# actix-service = { path = "../actix-net/actix-service" }
+# actix-macros = { path = "../actix-net/actix-macros" }
+# actix-rt = { path = "../actix-net/actix-rt" }
+# actix-codec = { path = "../actix-net/actix-codec" }
+# actix-utils = { path = "../actix-net/actix-utils" }
+# actix-tls = { path = "../actix-net/actix-tls" }
+# actix-server = { path = "../actix-net/actix-server" }

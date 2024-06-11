@@ -1,36 +1,43 @@
 [package]
 name = "actix-web-actors"
-version = "4.0.0-beta.4"
+version = "4.3.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix actors support for Actix Web"
-readme = "README.md"
 keywords = ["actix", "http", "web", "framework", "async"]
 homepage = "https://actix.rs"
-repository = "https://github.com/actix/actix-web.git"
-documentation = "https://docs.rs/actix-web-actors/"
+repository = "https://github.com/actix/actix-web"
 license = "MIT OR Apache-2.0"
-edition = "2018"
+edition = "2021"
 
-[lib]
-name = "actix_web_actors"
-path = "src/lib.rs"
+[package.metadata.cargo_check_external_types]
+allowed_external_types = [
+    "actix::*",
+    "actix_http::*",
+    "actix_web::*",
+    "bytes::*",
+    "bytestring::*",
+    "futures_core::*",
+]
 
 [dependencies]
-actix = { version = "0.11.0-beta.3", default-features = false }
-actix-codec = "0.4.0"
-actix-http = "3.0.0-beta.6"
-actix-web = { version = "4.0.0-beta.6", default-features = false }
+actix = { version = ">=0.12, <0.14", default-features = false }
+actix-codec = "0.5"
+actix-http = "3"
+actix-web = { version = "4", default-features = false }
 
 bytes = "1"
 bytestring = "1"
-futures-core = { version = "0.3.7", default-features = false }
-pin-project = "1.0.0"
-tokio = { version = "1", features = ["sync"] }
+futures-core = { version = "0.3.17", default-features = false }
+pin-project-lite = "0.2"
+tokio = { version = "1.24.2", features = ["sync"] }
+tokio-util = { version = "0.7", features = ["codec"] }
 
 [dev-dependencies]
 actix-rt = "2.2"
-actix-test = "0.1.0-beta.2"
+actix-test = "0.1"
+awc = { version = "3", default-features = false }
+actix-web = { version = "4", features = ["macros"] }
 
-awc = { version = "3.0.0-beta.5", default-features = false }
-env_logger = "0.8"
-futures-util = { version = "0.3.7", default-features = false }
+env_logger = "0.11"
+futures-util = { version = "0.3.17", default-features = false, features = ["std"] }
+mime = "0.3"

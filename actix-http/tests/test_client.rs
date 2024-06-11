@@ -1,6 +1,6 @@
-use actix_http::{
-    http, http::StatusCode, HttpMessage, HttpService, Request, Response, ResponseError,
-};
+use std::convert::Infallible;
+
+use actix_http::{body::BoxBody, HttpMessage, HttpService, Request, Response, StatusCode};
 use actix_http_test::test_server;
 use actix_service::ServiceFactoryExt;
 use actix_utils::future;
@@ -31,10 +31,10 @@ const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
                    Hello World Hello World Hello World Hello World Hello World";
 
 #[actix_rt::test]
-async fn test_h1_v2() {
+async fn h1_v2() {
     let srv = test_server(move || {
         HttpService::build()
-            .finish(|_| future::ok::<_, ()>(Response::ok().set_body(STR)))
+            .finish(|_| future::ok::<_, Infallible>(Response::ok().set_body(STR)))
             .tcp()
     })
     .await;
@@ -59,10 +59,10 @@ async fn test_h1_v2() {
 }
 
 #[actix_rt::test]
-async fn test_connection_close() {
+async fn connection_close() {
     let srv = test_server(move || {
         HttpService::build()
-            .finish(|_| future::ok::<_, ()>(Response::ok().set_body(STR)))
+            .finish(|_| future::ok::<_, Infallible>(Response::ok().set_body(STR)))
             .tcp()
             .map(|_| ())
     })
@@ -73,14 +73,14 @@ async fn test_connection_close() {
 }
 
 #[actix_rt::test]
-async fn test_with_query_parameter() {
+async fn with_query_parameter() {
     let srv = test_server(move || {
         HttpService::build()
-            .finish(|req: Request| {
+            .finish(|req: Request| async move {
                 if req.uri().query().unwrap().contains("qp=") {
-                    future::ok::<_, ()>(Response::ok())
+                    Ok::<_, Infallible>(Response::ok())
                 } else {
-                    future::ok::<_, ()>(Response::bad_request())
+                    Ok(Response::bad_request())
                 }
             })
             .tcp()
@@ -97,14 +97,14 @@ async fn test_with_query_parameter() {
 #[display(fmt = "expect failed")]
 struct ExpectFailed;
 
-impl ResponseError for ExpectFailed {
-    fn status_code(&self) -> StatusCode {
-        StatusCode::EXPECTATION_FAILED
+impl From<ExpectFailed> for Response<BoxBody> {
+    fn from(_: ExpectFailed) -> Self {
+        Response::new(StatusCode::EXPECTATION_FAILED)
     }
 }
 
 #[actix_rt::test]
-async fn test_h1_expect() {
+async fn h1_expect() {
     let srv = test_server(move || {
         HttpService::build()
             .expect(|req: Request| async {
@@ -123,7 +123,7 @@ async fn test_h1_expect() {
                 let str = std::str::from_utf8(&buf).unwrap();
                 assert_eq!(str, "expect body");
 
-                Ok::<_, ()>(Response::ok())
+                Ok::<_, Infallible>(Response::ok())
             })
             .tcp()
     })

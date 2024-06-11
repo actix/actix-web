@@ -1,20 +1,22 @@
-use actix_http::Error;
+use std::error::Error as StdError;
 
-#[actix_web::main]
-async fn main() -> Result<(), Error> {
-    std::env::set_var("RUST_LOG", "actix_http=trace");
-    env_logger::init();
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn StdError>> {
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
+    // construct request builder
     let client = awc::Client::new();
 
-    // Create request builder, configure request and send
-    let mut response = client
+    // configure request
+    let request = client
         .get("https://www.rust-lang.org/")
-        .append_header(("User-Agent", "Actix-web"))
-        .send()
-        .await?;
+        .append_header(("User-Agent", "Actix-web"));
 
-    // server http response
+    println!("Request: {:?}", request);
+
+    let mut response = request.send().await?;
+
+    // server response head
     println!("Response: {:?}", response);
 
     // read response body

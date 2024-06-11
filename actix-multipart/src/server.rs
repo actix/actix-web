@@ -1,18 +1,20 @@
 //! Multipart response payload support.
 
-use std::cell::{Cell, RefCell, RefMut};
-use std::convert::TryFrom;
-use std::marker::PhantomData;
-use std::pin::Pin;
-use std::rc::Rc;
-use std::task::{Context, Poll};
-use std::{cmp, fmt};
+use std::{
+    cell::{Cell, RefCell, RefMut},
+    cmp, fmt,
+    marker::PhantomData,
+    pin::Pin,
+    rc::Rc,
+    task::{Context, Poll},
+};
 
-use actix_web::error::{ParseError, PayloadError};
-use actix_web::http::header::{self, ContentDisposition, HeaderMap, HeaderName, HeaderValue};
+use actix_web::{
+    error::{ParseError, PayloadError},
+    http::header::{self, ContentDisposition, HeaderMap, HeaderName, HeaderValue},
+};
 use bytes::{Bytes, BytesMut};
 use futures_core::stream::{LocalBoxStream, Stream};
-use futures_util::stream::StreamExt as _;
 use local_waker::LocalWaker;
 
 use crate::error::MultipartError;
@@ -28,7 +30,7 @@ const MAX_HEADERS: usize = 32;
 pub struct Multipart {
     safety: Safety,
     error: Option<MultipartError>,
-    inner: Option<Rc<RefCell<InnerMultipart>>>,
+    inner: Option<InnerMultipart>,
 }
 
 enum InnerMultipartItem {
@@ -40,10 +42,13 @@ enum InnerMultipartItem {
 enum InnerState {
     /// Stream eof
     Eof,
+
     /// Skip data until first boundary
     FirstBoundary,
+
     /// Reading boundary
     Boundary,
+
     /// Reading Headers,
     Headers,
 }
@@ -59,7 +64,7 @@ impl Multipart {
     /// Create multipart instance for boundary.
     pub fn new<S>(headers: &HeaderMap, stream: S) -> Multipart
     where
-        S: Stream<Item = Result<Bytes, PayloadError>> + Unpin + 'static,
+        S: Stream<Item = Result<Bytes, PayloadError>> + 'static,
     {
         match Self::boundary(headers) {
             Ok(boundary) => Multipart::from_boundary(boundary, stream),
@@ -69,39 +74,32 @@ impl Multipart {
 
     /// Extract boundary info from headers.
     pub(crate) fn boundary(headers: &HeaderMap) -> Result<String, MultipartError> {
-        if let Some(content_type) = headers.get(&header::CONTENT_TYPE) {
-            if let Ok(content_type) = content_type.to_str() {
-                if let Ok(ct) = content_type.parse::<mime::Mime>() {
-                    if let Some(boundary) = ct.get_param(mime::BOUNDARY) {
-                        Ok(boundary.as_str().to_owned())
-                    } else {
-                        Err(MultipartError::Boundary)
-                    }
-                } else {
-                    Err(MultipartError::ParseContentType)
-                }
-            } else {
-                Err(MultipartError::ParseContentType)
-            }
-        } else {
-            Err(MultipartError::NoContentType)
-        }
+        headers
+            .get(&header::CONTENT_TYPE)
+            .ok_or(MultipartError::NoContentType)?
+            .to_str()
+            .ok()
+            .and_then(|content_type| content_type.parse::<mime::Mime>().ok())
+            .ok_or(MultipartError::ParseContentType)?
+            .get_param(mime::BOUNDARY)
+            .map(|boundary| boundary.as_str().to_owned())
+            .ok_or(MultipartError::Boundary)
     }
 
     /// Create multipart instance for given boundary and stream
     pub(crate) fn from_boundary<S>(boundary: String, stream: S) -> Multipart
     where
-        S: Stream<Item = Result<Bytes, PayloadError>> + Unpin + 'static,
+        S: Stream<Item = Result<Bytes, PayloadError>> + 'static,
     {
         Multipart {
             error: None,
             safety: Safety::new(),
-            inner: Some(Rc::new(RefCell::new(InnerMultipart {
+            inner: Some(InnerMultipart {
                 boundary,
-                payload: PayloadRef::new(PayloadBuffer::new(Box::new(stream))),
+                payload: PayloadRef::new(PayloadBuffer::new(stream)),
                 state: InnerState::FirstBoundary,
                 item: InnerMultipartItem::None,
-            }))),
+            }),
         }
     }
 
@@ -118,20 +116,27 @@ impl Multipart {
 impl Stream for Multipart {
     type Item = Result<Field, MultipartError>;
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if let Some(err) = self.error.take() {
-            Poll::Ready(Some(Err(err)))
-        } else if self.safety.current() {
-            let this = self.get_mut();
-            let mut inner = this.inner.as_mut().unwrap().borrow_mut();
-            if let Some(mut payload) = inner.payload.get_mut(&this.safety) {
-                payload.poll_stream(cx)?;
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let this = self.get_mut();
+
+        match this.inner.as_mut() {
+            Some(inner) => {
+                if let Some(mut buffer) = inner.payload.get_mut(&this.safety) {
+                    // check safety and poll read payload to buffer.
+                    buffer.poll_stream(cx)?;
+                } else if !this.safety.is_clean() {
+                    // safety violation
+                    return Poll::Ready(Some(Err(MultipartError::NotConsumed)));
+                } else {
+                    return Poll::Pending;
+                }
+
+                inner.poll(&this.safety, cx)
             }
-            inner.poll(&this.safety, cx)
-        } else if !self.safety.is_clean() {
-            Poll::Ready(Some(Err(MultipartError::NotConsumed)))
-        } else {
-            Poll::Pending
+            None => Poll::Ready(Some(Err(this
+                .error
+                .take()
+                .expect("Multipart polled after finish")))),
         }
     }
 }
@@ -152,17 +157,15 @@ impl InnerMultipart {
                     Ok(httparse::Status::Complete((_, hdrs))) => {
                         // convert headers
                         let mut headers = HeaderMap::with_capacity(hdrs.len());
+
                         for h in hdrs {
-                            if let Ok(name) = HeaderName::try_from(h.name) {
-                                if let Ok(value) = HeaderValue::try_from(h.value) {
-                                    headers.append(name, value);
-                                } else {
-                                    return Err(ParseError::Header.into());
-                                }
-                            } else {
-                                return Err(ParseError::Header.into());
-                            }
+                            let name =
+                                HeaderName::try_from(h.name).map_err(|_| ParseError::Header)?;
+                            let value =
+                                HeaderValue::try_from(h.value).map_err(|_| ParseError::Header)?;
+                            headers.append(name, value);
                         }
+
                         Ok(Some(headers))
                     }
                     Ok(httparse::Status::Partial) => Err(ParseError::Header.into()),
@@ -219,8 +222,7 @@ impl InnerMultipart {
                     if chunk.len() < boundary.len() {
                         continue;
                     }
-                    if &chunk[..2] == b"--" && &chunk[2..chunk.len() - 2] == boundary.as_bytes()
-                    {
+                    if &chunk[..2] == b"--" && &chunk[2..chunk.len() - 2] == boundary.as_bytes() {
                         break;
                     } else {
                         if chunk.len() < boundary.len() + 2 {
@@ -250,7 +252,7 @@ impl InnerMultipart {
     fn poll(
         &mut self,
         safety: &Safety,
-        cx: &mut Context<'_>,
+        cx: &Context<'_>,
     ) -> Poll<Option<Result<Field, MultipartError>>> {
         if self.state == InnerState::Eof {
             Poll::Ready(None)
@@ -265,7 +267,7 @@ impl InnerMultipart {
                             match field.borrow_mut().poll(safety) {
                                 Poll::Pending => return Poll::Pending,
                                 Poll::Ready(Some(Ok(_))) => continue,
-                                Poll::Ready(Some(Err(e))) => return Poll::Ready(Some(Err(e))),
+                                Poll::Ready(Some(Err(err))) => return Poll::Ready(Some(Err(err))),
                                 Poll::Ready(None) => true,
                             }
                         }
@@ -284,10 +286,7 @@ impl InnerMultipart {
                 match self.state {
                     // read until first boundary
                     InnerState::FirstBoundary => {
-                        match InnerMultipart::skip_until_boundary(
-                            &mut *payload,
-                            &self.boundary,
-                        )? {
+                        match InnerMultipart::skip_until_boundary(&mut payload, &self.boundary)? {
                             Some(eof) => {
                                 if eof {
                                     self.state = InnerState::Eof;
@@ -301,7 +300,7 @@ impl InnerMultipart {
                     }
                     // read boundary
                     InnerState::Boundary => {
-                        match InnerMultipart::read_boundary(&mut *payload, &self.boundary)? {
+                        match InnerMultipart::read_boundary(&mut payload, &self.boundary)? {
                             None => return Poll::Pending,
                             Some(eof) => {
                                 if eof {
@@ -318,7 +317,7 @@ impl InnerMultipart {
 
                 // read field headers for next field
                 if self.state == InnerState::Headers {
-                    if let Some(headers) = InnerMultipart::read_headers(&mut *payload)? {
+                    if let Some(headers) = InnerMultipart::read_headers(&mut payload)? {
                         self.state = InnerState::Boundary;
                         headers
                     } else {
@@ -332,31 +331,56 @@ impl InnerMultipart {
                 return Poll::Pending;
             };
 
-            // content type
-            let mut mt = mime::APPLICATION_OCTET_STREAM;
-            if let Some(content_type) = headers.get(&header::CONTENT_TYPE) {
-                if let Ok(content_type) = content_type.to_str() {
-                    if let Ok(ct) = content_type.parse::<mime::Mime>() {
-                        mt = ct;
-                    }
-                }
-            }
+            // According to RFC 7578 §4.2, a Content-Disposition header must always be present and
+            // set to "form-data".
+
+            let content_disposition = headers
+                .get(&header::CONTENT_DISPOSITION)
+                .and_then(|cd| ContentDisposition::from_raw(cd).ok())
+                .filter(|content_disposition| {
+                    let is_form_data =
+                        content_disposition.disposition == header::DispositionType::FormData;
+
+                    let has_field_name = content_disposition
+                        .parameters
+                        .iter()
+                        .any(|param| matches!(param, header::DispositionParam::Name(_)));
+
+                    is_form_data && has_field_name
+                });
+
+            let cd = if let Some(content_disposition) = content_disposition {
+                content_disposition
+            } else {
+                return Poll::Ready(Some(Err(MultipartError::NoContentDisposition)));
+            };
+
+            let ct: Option<mime::Mime> = headers
+                .get(&header::CONTENT_TYPE)
+                .and_then(|ct| ct.to_str().ok())
+                .and_then(|ct| ct.parse().ok());
 
             self.state = InnerState::Boundary;
 
-            // nested multipart stream
-            if mt.type_() == mime::MULTIPART {
-                Poll::Ready(Some(Err(MultipartError::Nested)))
-            } else {
-                let field = Rc::new(RefCell::new(InnerField::new(
-                    self.payload.clone(),
-                    self.boundary.clone(),
-                    &headers,
-                )?));
-                self.item = InnerMultipartItem::Field(Rc::clone(&field));
-
-                Poll::Ready(Some(Ok(Field::new(safety.clone(cx), headers, mt, field))))
+            // nested multipart stream is not supported
+            if let Some(mime) = &ct {
+                if mime.type_() == mime::MULTIPART {
+                    return Poll::Ready(Some(Err(MultipartError::Nested)));
+                }
             }
+
+            let field =
+                InnerField::new_in_rc(self.payload.clone(), self.boundary.clone(), &headers)?;
+
+            self.item = InnerMultipartItem::Field(Rc::clone(&field));
+
+            Poll::Ready(Some(Ok(Field::new(
+                safety.clone(cx),
+                headers,
+                ct,
+                cd,
+                field,
+            ))))
         }
     }
 }
@@ -370,7 +394,8 @@ impl Drop for InnerMultipart {
 
 /// A single field in a multipart stream
 pub struct Field {
-    ct: mime::Mime,
+    ct: Option<mime::Mime>,
+    cd: ContentDisposition,
     headers: HeaderMap,
     inner: Rc<RefCell<InnerField>>,
     safety: Safety,
@@ -380,36 +405,57 @@ impl Field {
     fn new(
         safety: Safety,
         headers: HeaderMap,
-        ct: mime::Mime,
+        ct: Option<mime::Mime>,
+        cd: ContentDisposition,
         inner: Rc<RefCell<InnerField>>,
     ) -> Self {
         Field {
             ct,
+            cd,
             headers,
             inner,
             safety,
         }
     }
 
-    /// Get a map of headers
+    /// Returns a reference to the field's header map.
     pub fn headers(&self) -> &HeaderMap {
         &self.headers
     }
 
-    /// Get the content type of the field
-    pub fn content_type(&self) -> &mime::Mime {
-        &self.ct
+    /// Returns a reference to the field's content (mime) type, if it is supplied by the client.
+    ///
+    /// According to [RFC 7578](https://www.rfc-editor.org/rfc/rfc7578#section-4.4), if it is not
+    /// present, it should default to "text/plain". Note it is the responsibility of the client to
+    /// provide the appropriate content type, there is no attempt to validate this by the server.
+    pub fn content_type(&self) -> Option<&mime::Mime> {
+        self.ct.as_ref()
     }
 
-    /// Get the content disposition of the field, if it exists
-    pub fn content_disposition(&self) -> Option<ContentDisposition> {
-        // RFC 7578: 'Each part MUST contain a Content-Disposition header field
-        // where the disposition type is "form-data".'
-        if let Some(content_disposition) = self.headers.get(&header::CONTENT_DISPOSITION) {
-            ContentDisposition::from_raw(content_disposition).ok()
-        } else {
-            None
-        }
+    /// Returns the field's Content-Disposition.
+    ///
+    /// Per [RFC 7578 §4.2]: "Each part MUST contain a Content-Disposition header field where the
+    /// disposition type is `form-data`. The Content-Disposition header field MUST also contain an
+    /// additional parameter of `name`; the value of the `name` parameter is the original field name
+    /// from the form."
+    ///
+    /// This crate validates that it exists before returning a `Field`. As such, it is safe to
+    /// unwrap `.content_disposition().get_name()`. The [name](Self::name) method is provided as
+    /// a convenience.
+    ///
+    /// [RFC 7578 §4.2]: https://datatracker.ietf.org/doc/html/rfc7578#section-4.2
+    pub fn content_disposition(&self) -> &ContentDisposition {
+        &self.cd
+    }
+
+    /// Returns the field's name.
+    ///
+    /// See [content_disposition](Self::content_disposition) regarding guarantees about existence of
+    /// the name field.
+    pub fn name(&self) -> &str {
+        self.content_disposition()
+            .get_name()
+            .expect("field name should be guaranteed to exist in multipart form-data")
     }
 }
 
@@ -417,23 +463,34 @@ impl Stream for Field {
     type Item = Result<Bytes, MultipartError>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if self.safety.current() {
-            let mut inner = self.inner.borrow_mut();
-            if let Some(mut payload) = inner.payload.as_ref().unwrap().get_mut(&self.safety) {
-                payload.poll_stream(cx)?;
-            }
-            inner.poll(&self.safety)
-        } else if !self.safety.is_clean() {
-            Poll::Ready(Some(Err(MultipartError::NotConsumed)))
+        let this = self.get_mut();
+        let mut inner = this.inner.borrow_mut();
+        if let Some(mut buffer) = inner
+            .payload
+            .as_ref()
+            .expect("Field should not be polled after completion")
+            .get_mut(&this.safety)
+        {
+            // check safety and poll read payload to buffer.
+            buffer.poll_stream(cx)?;
+        } else if !this.safety.is_clean() {
+            // safety violation
+            return Poll::Ready(Some(Err(MultipartError::NotConsumed)));
         } else {
-            Poll::Pending
+            return Poll::Pending;
         }
+
+        inner.poll(&this.safety)
     }
 }
 
 impl fmt::Debug for Field {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "\nField: {}", self.ct)?;
+        if let Some(ct) = &self.ct {
+            writeln!(f, "\nField: {}", ct)?;
+        } else {
+            writeln!(f, "\nField:")?;
+        }
         writeln!(f, "  boundary: {}", self.inner.borrow().boundary)?;
         writeln!(f, "  headers:")?;
         for (key, val) in self.headers.iter() {
@@ -444,6 +501,7 @@ impl fmt::Debug for Field {
 }
 
 struct InnerField {
+    /// Payload is initialized as Some and is `take`n when the field stream finishes.
     payload: Option<PayloadRef>,
     boundary: String,
     eof: bool,
@@ -451,20 +509,23 @@ struct InnerField {
 }
 
 impl InnerField {
+    fn new_in_rc(
+        payload: PayloadRef,
+        boundary: String,
+        headers: &HeaderMap,
+    ) -> Result<Rc<RefCell<InnerField>>, PayloadError> {
+        Self::new(payload, boundary, headers).map(|this| Rc::new(RefCell::new(this)))
+    }
+
     fn new(
         payload: PayloadRef,
         boundary: String,
         headers: &HeaderMap,
     ) -> Result<InnerField, PayloadError> {
         let len = if let Some(len) = headers.get(&header::CONTENT_LENGTH) {
-            if let Ok(s) = len.to_str() {
-                if let Ok(len) = s.parse::<u64>() {
-                    Some(len)
-                } else {
-                    return Err(PayloadError::Incomplete(None));
-                }
-            } else {
-                return Err(PayloadError::Incomplete(None));
+            match len.to_str().ok().and_then(|len| len.parse::<u64>().ok()) {
+                Some(len) => Some(len),
+                None => return Err(PayloadError::Incomplete(None)),
             }
         } else {
             None
@@ -547,7 +608,7 @@ impl InnerField {
         }
 
         loop {
-            return if let Some(idx) = twoway::find_bytes(&payload.buf[pos..], b"\r") {
+            return if let Some(idx) = memchr::memmem::find(&payload.buf[pos..], b"\r") {
                 let cur = pos + idx;
 
                 // check if we have enough data for boundary detection
@@ -588,18 +649,23 @@ impl InnerField {
             return Poll::Ready(None);
         }
 
-        let result = if let Some(mut payload) = self.payload.as_ref().unwrap().get_mut(s) {
+        let result = if let Some(mut payload) = self
+            .payload
+            .as_ref()
+            .expect("Field should not be polled after completion")
+            .get_mut(s)
+        {
             if !self.eof {
                 let res = if let Some(ref mut len) = self.length {
-                    InnerField::read_len(&mut *payload, len)
+                    InnerField::read_len(&mut payload, len)
                 } else {
-                    InnerField::read_stream(&mut *payload, &self.boundary)
+                    InnerField::read_stream(&mut payload, &self.boundary)
                 };
 
                 match res {
                     Poll::Pending => return Poll::Pending,
                     Poll::Ready(Some(Ok(bytes))) => return Poll::Ready(Some(Ok(bytes))),
-                    Poll::Ready(Some(Err(e))) => return Poll::Ready(Some(Err(e))),
+                    Poll::Ready(Some(Err(err))) => return Poll::Ready(Some(Err(err))),
                     Poll::Ready(None) => self.eof = true,
                 }
             }
@@ -608,21 +674,21 @@ impl InnerField {
                 Ok(None) => Poll::Pending,
                 Ok(Some(line)) => {
                     if line.as_ref() != b"\r\n" {
-                        log::warn!(
-                            "multipart field did not read all the data or it is malformed"
-                        );
+                        log::warn!("multipart field did not read all the data or it is malformed");
                     }
                     Poll::Ready(None)
                 }
-                Err(e) => Poll::Ready(Some(Err(e))),
+                Err(err) => Poll::Ready(Some(Err(err))),
             }
         } else {
             Poll::Pending
         };
 
         if let Poll::Ready(None) = result {
-            self.payload.take();
+            // drop payload buffer and make future un-poll-able
+            let _ = self.payload.take();
         }
+
         result
     }
 }
@@ -638,10 +704,7 @@ impl PayloadRef {
         }
     }
 
-    fn get_mut<'a, 'b>(&'a self, s: &'b Safety) -> Option<RefMut<'a, PayloadBuffer>>
-    where
-        'a: 'b,
-    {
+    fn get_mut(&self, s: &Safety) -> Option<RefMut<'_, PayloadBuffer>> {
         if s.current() {
             Some(self.payload.borrow_mut())
         } else {
@@ -658,9 +721,11 @@ impl Clone for PayloadRef {
     }
 }
 
-/// Counter. It tracks of number of clones of payloads and give access to
-/// payload only to top most task panics if Safety get destroyed and it not top
-/// most task.
+/// Counter. It tracks of number of clones of payloads and give access to payload only to top most.
+/// * When dropped, parent task is awakened. This is to support the case where Field is
+/// dropped in a separate task than Multipart.
+/// * Assumes that parent owners don't move to different tasks; only the top-most is allowed to.
+/// * If dropped and is not top most owner, is_clean flag is set to false.
 #[derive(Debug)]
 struct Safety {
     task: LocalWaker,
@@ -688,7 +753,7 @@ impl Safety {
         self.clean.get()
     }
 
-    fn clone(&self, cx: &mut Context<'_>) -> Safety {
+    fn clone(&self, cx: &Context<'_>) -> Safety {
         let payload = Rc::clone(&self.payload);
         let s = Safety {
             task: LocalWaker::new(),
@@ -703,15 +768,16 @@ impl Safety {
 
 impl Drop for Safety {
     fn drop(&mut self) {
-        // parent task is dead
         if Rc::strong_count(&self.payload) != self.level {
-            self.clean.set(true);
+            // Multipart dropped leaving a Field
+            self.clean.set(false);
         }
+
         self.task.wake();
     }
 }
 
-/// Payload buffer
+/// Payload buffer.
 struct PayloadBuffer {
     eof: bool,
     buf: BytesMut,
@@ -719,7 +785,7 @@ struct PayloadBuffer {
 }
 
 impl PayloadBuffer {
-    /// Create new `PayloadBuffer` instance
+    /// Constructs new `PayloadBuffer` instance.
     fn new<S>(stream: S) -> Self
     where
         S: Stream<Item = Result<Bytes, PayloadError>> + 'static,
@@ -727,7 +793,7 @@ impl PayloadBuffer {
         PayloadBuffer {
             eof: false,
             buf: BytesMut::new(),
-            stream: stream.boxed_local(),
+            stream: Box::pin(stream),
         }
     }
 
@@ -735,7 +801,7 @@ impl PayloadBuffer {
         loop {
             match Pin::new(&mut self.stream).poll_next(cx) {
                 Poll::Ready(Some(Ok(data))) => self.buf.extend_from_slice(&data),
-                Poll::Ready(Some(Err(e))) => return Err(e),
+                Poll::Ready(Some(Err(err))) => return Err(err),
                 Poll::Ready(None) => {
                     self.eof = true;
                     return Ok(());
@@ -767,8 +833,8 @@ impl PayloadBuffer {
     }
 
     /// Read until specified ending
-    pub fn read_until(&mut self, line: &[u8]) -> Result<Option<Bytes>, MultipartError> {
-        let res = twoway::find_bytes(&self.buf, line)
+    fn read_until(&mut self, line: &[u8]) -> Result<Option<Bytes>, MultipartError> {
+        let res = memchr::memmem::find(&self.buf, line)
             .map(|idx| self.buf.split_to(idx + line.len()).freeze());
 
         if res.is_none() && self.eof {
@@ -779,12 +845,12 @@ impl PayloadBuffer {
     }
 
     /// Read bytes until new line delimiter
-    pub fn readline(&mut self) -> Result<Option<Bytes>, MultipartError> {
+    fn readline(&mut self) -> Result<Option<Bytes>, MultipartError> {
         self.read_until(b"\n")
     }
 
     /// Read bytes until new line delimiter or eof
-    pub fn readline_or_eof(&mut self) -> Result<Option<Bytes>, MultipartError> {
+    fn readline_or_eof(&mut self) -> Result<Option<Bytes>, MultipartError> {
         match self.readline() {
             Err(MultipartError::Incomplete) if self.eof => Ok(Some(self.buf.split().freeze())),
             line => line,
@@ -792,7 +858,7 @@ impl PayloadBuffer {
     }
 
     /// Put unprocessed data back to the buffer
-    pub fn unprocessed(&mut self, data: Bytes) {
+    fn unprocessed(&mut self, data: Bytes) {
         let buf = BytesMut::from(data.as_ref());
         let buf = std::mem::replace(&mut self.buf, buf);
         self.buf.extend_from_slice(&buf);
@@ -801,16 +867,23 @@ impl PayloadBuffer {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::time::Duration;
 
-    use actix_http::h1::Payload;
-    use actix_web::http::header::{DispositionParam, DispositionType};
-    use actix_web::test::TestRequest;
-    use actix_web::FromRequest;
-    use bytes::Bytes;
-    use futures_util::future::lazy;
+    use actix_http::h1;
+    use actix_web::{
+        http::header::{DispositionParam, DispositionType},
+        rt,
+        test::TestRequest,
+        FromRequest,
+    };
+    use bytes::BufMut as _;
+    use futures_util::{future::lazy, StreamExt as _};
     use tokio::sync::mpsc;
     use tokio_stream::wrappers::UnboundedReceiverStream;
+
+    use super::*;
+
+    const BOUNDARY: &str = "abbc761f78ff4d7cb7573b5a23f96ef0";
 
     #[actix_rt::test]
     async fn test_boundary() {
@@ -907,6 +980,26 @@ mod tests {
     }
 
     fn create_simple_request_with_header() -> (Bytes, HeaderMap) {
+        let (body, headers) = crate::test::create_form_data_payload_and_headers_with_boundary(
+            BOUNDARY,
+            "file",
+            Some("fn.txt".to_owned()),
+            Some(mime::TEXT_PLAIN_UTF_8),
+            Bytes::from_static(b"data"),
+        );
+
+        let mut buf = BytesMut::with_capacity(body.len() + 14);
+
+        // add junk before form to test pre-boundary data rejection
+        buf.put("testasdadsad\r\n".as_bytes());
+
+        buf.put(body);
+
+        (buf.freeze(), headers)
+    }
+
+    // TODO: use test utility when multi-file support is introduced
+    fn create_double_request_with_header() -> (Bytes, HeaderMap) {
         let bytes = Bytes::from(
             "testasdadsad\r\n\
              --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
@@ -914,6 +1007,7 @@ mod tests {
              Content-Type: text/plain; charset=utf-8\r\nContent-Length: 4\r\n\r\n\
              test\r\n\
              --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+             Content-Disposition: form-data; name=\"file\"; filename=\"fn.txt\"\r\n\
              Content-Type: text/plain; charset=utf-8\r\nContent-Length: 4\r\n\r\n\
              data\r\n\
              --abbc761f78ff4d7cb7573b5a23f96ef0--\r\n",
@@ -931,7 +1025,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_multipart_no_end_crlf() {
         let (sender, payload) = create_stream();
-        let (mut bytes, headers) = create_simple_request_with_header();
+        let (mut bytes, headers) = create_double_request_with_header();
         let bytes_stripped = bytes.split_to(bytes.len()); // strip crlf
 
         sender.send(Ok(bytes_stripped)).unwrap();
@@ -958,19 +1052,19 @@ mod tests {
     #[actix_rt::test]
     async fn test_multipart() {
         let (sender, payload) = create_stream();
-        let (bytes, headers) = create_simple_request_with_header();
+        let (bytes, headers) = create_double_request_with_header();
 
         sender.send(Ok(bytes)).unwrap();
 
         let mut multipart = Multipart::new(&headers, payload);
         match multipart.next().await {
             Some(Ok(mut field)) => {
-                let cd = field.content_disposition().unwrap();
+                let cd = field.content_disposition();
                 assert_eq!(cd.disposition, DispositionType::FormData);
                 assert_eq!(cd.parameters[0], DispositionParam::Name("file".into()));
 
-                assert_eq!(field.content_type().type_(), mime::TEXT);
-                assert_eq!(field.content_type().subtype(), mime::PLAIN);
+                assert_eq!(field.content_type().unwrap().type_(), mime::TEXT);
+                assert_eq!(field.content_type().unwrap().subtype(), mime::PLAIN);
 
                 match field.next().await.unwrap() {
                     Ok(chunk) => assert_eq!(chunk, "test"),
@@ -986,8 +1080,8 @@ mod tests {
 
         match multipart.next().await.unwrap() {
             Ok(mut field) => {
-                assert_eq!(field.content_type().type_(), mime::TEXT);
-                assert_eq!(field.content_type().subtype(), mime::PLAIN);
+                assert_eq!(field.content_type().unwrap().type_(), mime::TEXT);
+                assert_eq!(field.content_type().unwrap().subtype(), mime::PLAIN);
 
                 match field.next().await {
                     Some(Ok(chunk)) => assert_eq!(chunk, "data"),
@@ -1021,18 +1115,18 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_stream() {
-        let (bytes, headers) = create_simple_request_with_header();
+        let (bytes, headers) = create_double_request_with_header();
         let payload = SlowStream::new(bytes);
 
         let mut multipart = Multipart::new(&headers, payload);
         match multipart.next().await.unwrap() {
             Ok(mut field) => {
-                let cd = field.content_disposition().unwrap();
+                let cd = field.content_disposition();
                 assert_eq!(cd.disposition, DispositionType::FormData);
                 assert_eq!(cd.parameters[0], DispositionParam::Name("file".into()));
 
-                assert_eq!(field.content_type().type_(), mime::TEXT);
-                assert_eq!(field.content_type().subtype(), mime::PLAIN);
+                assert_eq!(field.content_type().unwrap().type_(), mime::TEXT);
+                assert_eq!(field.content_type().unwrap().subtype(), mime::PLAIN);
 
                 assert_eq!(get_whole_field(&mut field).await, "test");
             }
@@ -1041,8 +1135,8 @@ mod tests {
 
         match multipart.next().await {
             Some(Ok(mut field)) => {
-                assert_eq!(field.content_type().type_(), mime::TEXT);
-                assert_eq!(field.content_type().subtype(), mime::PLAIN);
+                assert_eq!(field.content_type().unwrap().type_(), mime::TEXT);
+                assert_eq!(field.content_type().unwrap().subtype(), mime::PLAIN);
 
                 assert_eq!(get_whole_field(&mut field).await, "data");
             }
@@ -1057,7 +1151,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_basic() {
-        let (_, payload) = Payload::create(false);
+        let (_, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new(payload);
 
         assert_eq!(payload.buf.len(), 0);
@@ -1067,7 +1161,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_eof() {
-        let (mut sender, payload) = Payload::create(false);
+        let (mut sender, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new(payload);
 
         assert_eq!(None, payload.read_max(4).unwrap());
@@ -1083,7 +1177,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_err() {
-        let (mut sender, payload) = Payload::create(false);
+        let (mut sender, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new(payload);
         assert_eq!(None, payload.read_max(1).unwrap());
         sender.set_error(PayloadError::Incomplete(None));
@@ -1092,7 +1186,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_readmax() {
-        let (mut sender, payload) = Payload::create(false);
+        let (mut sender, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new(payload);
 
         sender.feed_data(Bytes::from("line1"));
@@ -1109,7 +1203,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_readexactly() {
-        let (mut sender, payload) = Payload::create(false);
+        let (mut sender, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new(payload);
 
         assert_eq!(None, payload.read_exact(2));
@@ -1127,7 +1221,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_readuntil() {
-        let (mut sender, payload) = Payload::create(false);
+        let (mut sender, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new(payload);
 
         assert_eq!(None, payload.read_until(b"ne").unwrap());
@@ -1168,7 +1262,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_multipart_payload_consumption() {
         // with sample payload and HttpRequest with no headers
-        let (_, inner_payload) = Payload::create(false);
+        let (_, inner_payload) = h1::Payload::create(false);
         let mut payload = actix_web::dev::Payload::from(inner_payload);
         let req = TestRequest::default().to_http_request();
 
@@ -1178,8 +1272,103 @@ mod tests {
 
         // and should not consume the payload
         match payload {
-            actix_web::dev::Payload::H1(_) => {} //expected
+            actix_web::dev::Payload::H1 { .. } => {} //expected
             _ => unreachable!(),
         }
+    }
+
+    #[actix_rt::test]
+    async fn no_content_disposition() {
+        let bytes = Bytes::from(
+            "testasdadsad\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+             Content-Type: text/plain; charset=utf-8\r\nContent-Length: 4\r\n\r\n\
+             test\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0\r\n",
+        );
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static(
+                "multipart/mixed; boundary=\"abbc761f78ff4d7cb7573b5a23f96ef0\"",
+            ),
+        );
+        let payload = SlowStream::new(bytes);
+
+        let mut multipart = Multipart::new(&headers, payload);
+        let res = multipart.next().await.unwrap();
+        assert!(res.is_err());
+        assert!(matches!(
+            res.unwrap_err(),
+            MultipartError::NoContentDisposition,
+        ));
+    }
+
+    #[actix_rt::test]
+    async fn no_name_in_content_disposition() {
+        let bytes = Bytes::from(
+            "testasdadsad\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+             Content-Disposition: form-data; filename=\"fn.txt\"\r\n\
+             Content-Type: text/plain; charset=utf-8\r\nContent-Length: 4\r\n\r\n\
+             test\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0\r\n",
+        );
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static(
+                "multipart/mixed; boundary=\"abbc761f78ff4d7cb7573b5a23f96ef0\"",
+            ),
+        );
+        let payload = SlowStream::new(bytes);
+
+        let mut multipart = Multipart::new(&headers, payload);
+        let res = multipart.next().await.unwrap();
+        assert!(res.is_err());
+        assert!(matches!(
+            res.unwrap_err(),
+            MultipartError::NoContentDisposition,
+        ));
+    }
+
+    #[actix_rt::test]
+    async fn test_drop_multipart_dont_hang() {
+        let (sender, payload) = create_stream();
+        let (bytes, headers) = create_simple_request_with_header();
+        sender.send(Ok(bytes)).unwrap();
+        drop(sender); // eof
+
+        let mut multipart = Multipart::new(&headers, payload);
+        let mut field = multipart.next().await.unwrap().unwrap();
+
+        drop(multipart);
+
+        // should fail immediately
+        match field.next().await {
+            Some(Err(MultipartError::NotConsumed)) => {}
+            _ => panic!(),
+        };
+    }
+
+    #[actix_rt::test]
+    async fn test_drop_field_awaken_multipart() {
+        let (sender, payload) = create_stream();
+        let (bytes, headers) = create_double_request_with_header();
+        sender.send(Ok(bytes)).unwrap();
+        drop(sender); // eof
+
+        let mut multipart = Multipart::new(&headers, payload);
+        let mut field = multipart.next().await.unwrap().unwrap();
+
+        let task = rt::spawn(async move {
+            rt::time::sleep(Duration::from_secs(1)).await;
+            assert_eq!(field.next().await.unwrap().unwrap(), "test");
+            drop(field);
+        });
+
+        // dropping field should awaken current task
+        let _ = multipart.next().await.unwrap().unwrap();
+        task.await.unwrap();
     }
 }

@@ -7,10 +7,12 @@ use bytes::{Bytes, BytesMut};
 mod decoder;
 mod encoder;
 
-pub use self::decoder::Decoder;
-pub use self::encoder::Encoder;
+pub use self::{decoder::Decoder, encoder::Encoder};
 
-pub(self) struct Writer {
+/// Special-purpose writer for streaming (de-)compression.
+///
+/// Pre-allocates 8KiB of capacity.
+struct Writer {
     buf: BytesMut,
 }
 

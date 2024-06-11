@@ -27,25 +27,41 @@ pub(crate) fn write_status_line<B: BufMut>(version: Version, n: u16, buf: &mut B
     buf.put_u8(b' ');
 }
 
-/// NOTE: bytes object has to contain enough space
-pub fn write_content_length<B: BufMut>(n: u64, buf: &mut B) {
+/// Write out content length header.
+///
+/// Buffer must to contain enough space or be implicitly extendable.
+pub fn write_content_length<B: BufMut>(n: u64, buf: &mut B, camel_case: bool) {
     if n == 0 {
-        buf.put_slice(b"\r\ncontent-length: 0\r\n");
+        if camel_case {
+            buf.put_slice(b"\r\nContent-Length: 0\r\n");
+        } else {
+            buf.put_slice(b"\r\ncontent-length: 0\r\n");
+        }
+
         return;
     }
 
     let mut buffer = itoa::Buffer::new();
 
-    buf.put_slice(b"\r\ncontent-length: ");
+    if camel_case {
+        buf.put_slice(b"\r\nContent-Length: ");
+    } else {
+        buf.put_slice(b"\r\ncontent-length: ");
+    }
+
     buf.put_slice(buffer.format(n).as_bytes());
     buf.put_slice(b"\r\n");
 }
 
-// TODO: bench why this is needed vs Buf::writer
-/// An `io` writer for a `BufMut` that should only be used once and on an empty buffer.
-pub(crate) struct Writer<'a, B>(pub &'a mut B);
+/// An `io::Write`r that only requires mutable reference and assumes that there is space available
+/// in the buffer for every write operation or that it can be extended implicitly (like
+/// `bytes::BytesMut`, for example).
+///
+/// This is slightly faster (~10%) than `bytes::buf::Writer` in such cases because it does not
+/// perform a remaining length check before writing.
+pub(crate) struct MutWriter<'a, B>(pub(crate) &'a mut B);
 
-impl<'a, B> io::Write for Writer<'a, B>
+impl<'a, B> io::Write for MutWriter<'a, B>
 where
     B: BufMut,
 {
@@ -89,77 +105,88 @@ mod tests {
     fn test_write_content_length() {
         let mut bytes = BytesMut::new();
         bytes.reserve(50);
-        write_content_length(0, &mut bytes);
+        write_content_length(0, &mut bytes, false);
         assert_eq!(bytes.split().freeze(), b"\r\ncontent-length: 0\r\n"[..]);
         bytes.reserve(50);
-        write_content_length(9, &mut bytes);
+        write_content_length(9, &mut bytes, false);
         assert_eq!(bytes.split().freeze(), b"\r\ncontent-length: 9\r\n"[..]);
         bytes.reserve(50);
-        write_content_length(10, &mut bytes);
+        write_content_length(10, &mut bytes, false);
         assert_eq!(bytes.split().freeze(), b"\r\ncontent-length: 10\r\n"[..]);
         bytes.reserve(50);
-        write_content_length(99, &mut bytes);
+        write_content_length(99, &mut bytes, false);
         assert_eq!(bytes.split().freeze(), b"\r\ncontent-length: 99\r\n"[..]);
         bytes.reserve(50);
-        write_content_length(100, &mut bytes);
+        write_content_length(100, &mut bytes, false);
         assert_eq!(bytes.split().freeze(), b"\r\ncontent-length: 100\r\n"[..]);
         bytes.reserve(50);
-        write_content_length(101, &mut bytes);
+        write_content_length(101, &mut bytes, false);
         assert_eq!(bytes.split().freeze(), b"\r\ncontent-length: 101\r\n"[..]);
         bytes.reserve(50);
-        write_content_length(998, &mut bytes);
+        write_content_length(998, &mut bytes, false);
         assert_eq!(bytes.split().freeze(), b"\r\ncontent-length: 998\r\n"[..]);
         bytes.reserve(50);
-        write_content_length(1000, &mut bytes);
+        write_content_length(1000, &mut bytes, false);
         assert_eq!(bytes.split().freeze(), b"\r\ncontent-length: 1000\r\n"[..]);
         bytes.reserve(50);
-        write_content_length(1001, &mut bytes);
+        write_content_length(1001, &mut bytes, false);
         assert_eq!(bytes.split().freeze(), b"\r\ncontent-length: 1001\r\n"[..]);
         bytes.reserve(50);
-        write_content_length(5909, &mut bytes);
+        write_content_length(5909, &mut bytes, false);
         assert_eq!(bytes.split().freeze(), b"\r\ncontent-length: 5909\r\n"[..]);
         bytes.reserve(50);
-        write_content_length(9999, &mut bytes);
+        write_content_length(9999, &mut bytes, false);
         assert_eq!(bytes.split().freeze(), b"\r\ncontent-length: 9999\r\n"[..]);
         bytes.reserve(50);
-        write_content_length(10001, &mut bytes);
+        write_content_length(10001, &mut bytes, false);
         assert_eq!(bytes.split().freeze(), b"\r\ncontent-length: 10001\r\n"[..]);
         bytes.reserve(50);
-        write_content_length(59094, &mut bytes);
+        write_content_length(59094, &mut bytes, false);
         assert_eq!(bytes.split().freeze(), b"\r\ncontent-length: 59094\r\n"[..]);
         bytes.reserve(50);
-        write_content_length(99999, &mut bytes);
+        write_content_length(99999, &mut bytes, false);
         assert_eq!(bytes.split().freeze(), b"\r\ncontent-length: 99999\r\n"[..]);
 
         bytes.reserve(50);
-        write_content_length(590947, &mut bytes);
+        write_content_length(590947, &mut bytes, false);
         assert_eq!(
             bytes.split().freeze(),
             b"\r\ncontent-length: 590947\r\n"[..]
         );
         bytes.reserve(50);
-        write_content_length(999999, &mut bytes);
+        write_content_length(999999, &mut bytes, false);
         assert_eq!(
             bytes.split().freeze(),
             b"\r\ncontent-length: 999999\r\n"[..]
         );
         bytes.reserve(50);
-        write_content_length(5909471, &mut bytes);
+        write_content_length(5909471, &mut bytes, false);
         assert_eq!(
             bytes.split().freeze(),
             b"\r\ncontent-length: 5909471\r\n"[..]
         );
         bytes.reserve(50);
-        write_content_length(59094718, &mut bytes);
+        write_content_length(59094718, &mut bytes, false);
         assert_eq!(
             bytes.split().freeze(),
             b"\r\ncontent-length: 59094718\r\n"[..]
         );
         bytes.reserve(50);
-        write_content_length(4294973728, &mut bytes);
+        write_content_length(4294973728, &mut bytes, false);
         assert_eq!(
             bytes.split().freeze(),
             b"\r\ncontent-length: 4294973728\r\n"[..]
         );
+    }
+
+    #[test]
+    fn write_content_length_camel_case() {
+        let mut bytes = BytesMut::new();
+        write_content_length(0, &mut bytes, false);
+        assert_eq!(bytes.split().freeze(), b"\r\ncontent-length: 0\r\n"[..]);
+
+        let mut bytes = BytesMut::new();
+        write_content_length(0, &mut bytes, true);
+        assert_eq!(bytes.split().freeze(), b"\r\nContent-Length: 0\r\n"[..]);
     }
 }

@@ -7,14 +7,12 @@ use actix_web::{
 };
 use bytes::Bytes;
 
-#[actix_rt::test]
+#[actix_web::test]
 async fn test_guard_filter() {
     let srv = test::init_service(
         App::new()
             .service(Files::new("/", "./tests/fixtures/guards/first").guard(Host("first.com")))
-            .service(
-                Files::new("/", "./tests/fixtures/guards/second").guard(Host("second.com")),
-            ),
+            .service(Files::new("/", "./tests/fixtures/guards/second").guard(Host("second.com"))),
     )
     .await;
 
