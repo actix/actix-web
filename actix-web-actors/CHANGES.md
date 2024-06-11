@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Take the encoded buffer when yielding bytes in the response stream rather than splitting the buffer, reducing memory use
+- Minimum supported Rust version (MSRV) is now 1.72.
+
+## 4.3.0
+
 - Minimum supported Rust version (MSRV) is now 1.68 due to transitive `time` dependency.
 
 ## 4.2.0

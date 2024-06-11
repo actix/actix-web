@@ -1,6 +1,6 @@
 [package]
 name = "actix-multipart"
-version = "0.6.1"
+version = "0.6.2"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
     "Jacob Halsey <jacob@jhalsey.com>",
@@ -15,6 +15,21 @@ edition = "2021"
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docsrs"]
 all-features = true
+
+[package.metadata.cargo_check_external_types]
+allowed_external_types = [
+    "actix_http::*",
+    "actix_multipart_derive::*",
+    "actix_utils::*",
+    "actix_web::*",
+    "bytes::*",
+    "futures_core::*",
+    "mime::*",
+    "serde_json::*",
+    "serde_plain::*",
+    "serde::*",
+    "tempfile::*",
+]
 
 [features]
 default = ["tempfile", "derive"]
@@ -35,6 +50,7 @@ local-waker = "0.1"
 log = "0.4"
 memchr = "2.5"
 mime = "0.3"
+rand = "0.8"
 serde = "1"
 serde_json = "1"
 serde_plain = "1"
@@ -46,7 +62,9 @@ actix-http = "3"
 actix-multipart-rfc7578 = "0.10"
 actix-rt = "2.2"
 actix-test = "0.1"
+actix-web = "4"
 awc = "3"
 futures-util = { version = "0.3.17", default-features = false, features = ["alloc"] }
+multer = "3"
 tokio = { version = "1.24.2", features = ["sync"] }
 tokio-stream = "0.1"

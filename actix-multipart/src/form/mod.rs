@@ -33,6 +33,14 @@ pub trait FieldReader<'t>: Sized + Any {
     type Future: Future<Output = Result<Self, MultipartError>>;
 
     /// The form will call this function to handle the field.
+    ///
+    /// # Panics
+    ///
+    /// When reading the `field` payload using its `Stream` implementation, polling (manually or via
+    /// `next()`/`try_next()`) may panic after the payload is exhausted. If this is a problem for
+    /// your implementation of this method, you should [`fuse()`] the `Field` first.
+    ///
+    /// [`fuse()`]: futures_util::stream::StreamExt::fuse()
     fn read_field(req: &'t HttpRequest, field: Field, limits: &'t mut Limits) -> Self::Future;
 }
 
@@ -313,7 +321,8 @@ where
                     let entry = field_limits
                         .entry(field.name().to_owned())
                         .or_insert_with(|| T::limit(field.name()));
-                    limits.field_limit_remaining = entry.to_owned();
+
+                    limits.field_limit_remaining.clone_from(entry);
 
                     T::handle_field(&req, field, &mut limits, &mut state).await?;
 
@@ -395,11 +404,20 @@ mod tests {
     use actix_http::encoding::Decoder;
     use actix_multipart_rfc7578::client::multipart;
     use actix_test::TestServer;
-    use actix_web::{dev::Payload, http::StatusCode, web, App, HttpResponse, Responder};
+    use actix_web::{
+        dev::Payload, http::StatusCode, web, App, HttpRequest, HttpResponse, Resource, Responder,
+    };
     use awc::{Client, ClientResponse};
+    use futures_core::future::LocalBoxFuture;
+    use futures_util::TryStreamExt as _;
 
     use super::MultipartForm;
-    use crate::form::{bytes::Bytes, tempfile::TempFile, text::Text, MultipartFormConfig};
+    use crate::{
+        form::{
+            bytes::Bytes, tempfile::TempFile, text::Text, FieldReader, Limits, MultipartFormConfig,
+        },
+        Field, MultipartError,
+    };
 
     pub async fn send_form(
         srv: &TestServer,
@@ -732,5 +750,50 @@ mod tests {
         form.add_text("field", "this string is 28 bytes long");
         let response = send_form(&srv, form, "/").await;
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: Connect(Disconnected)")]
+    #[actix_web::test]
+    async fn field_try_next_panic() {
+        #[derive(Debug)]
+        struct NullSink;
+
+        impl<'t> FieldReader<'t> for NullSink {
+            type Future = LocalBoxFuture<'t, Result<Self, MultipartError>>;
+
+            fn read_field(
+                _: &'t HttpRequest,
+                mut field: Field,
+                _limits: &'t mut Limits,
+            ) -> Self::Future {
+                Box::pin(async move {
+                    // exhaust field stream
+                    while let Some(_chunk) = field.try_next().await? {}
+
+                    // poll again, crash
+                    let _post = field.try_next().await;
+
+                    Ok(Self)
+                })
+            }
+        }
+
+        #[allow(dead_code)]
+        #[derive(MultipartForm)]
+        struct NullSinkForm {
+            foo: NullSink,
+        }
+
+        async fn null_sink(_form: MultipartForm<NullSinkForm>) -> impl Responder {
+            "unreachable"
+        }
+
+        let srv = actix_test::start(|| App::new().service(Resource::new("/").post(null_sink)));
+
+        let mut form = multipart::Form::default();
+        form.add_text("foo", "data is not important to this test");
+
+        // panics with Err(Connect(Disconnected)) due to form NullSink panic
+        let _res = send_form(&srv, form, "/").await;
     }
 }

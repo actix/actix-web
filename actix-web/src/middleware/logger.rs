@@ -19,7 +19,10 @@ use bytes::Bytes;
 use futures_core::ready;
 use log::{debug, warn};
 use pin_project_lite::pin_project;
-use regex::{Regex, RegexSet};
+#[cfg(feature = "unicode")]
+use regex::Regex;
+#[cfg(not(feature = "unicode"))]
+use regex_lite::Regex;
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 use crate::{
@@ -88,7 +91,7 @@ pub struct Logger(Rc<Inner>);
 struct Inner {
     format: Format,
     exclude: HashSet<String>,
-    exclude_regex: RegexSet,
+    exclude_regex: Vec<Regex>,
     log_target: Cow<'static, str>,
     status_range: (Bound<StatusCode>, Bound<StatusCode>),
 }
@@ -99,7 +102,7 @@ impl Logger {
         Logger(Rc::new(Inner {
             format: Format::new(format),
             exclude: HashSet::new(),
-            exclude_regex: RegexSet::empty(),
+            exclude_regex: Vec::new(),
             log_target: Cow::Borrowed(module_path!()),
             status_range: (
                 Bound::Included(StatusCode::from_u16(100).unwrap()),
@@ -120,10 +123,7 @@ impl Logger {
     /// Ignore and do not log access info for paths that match regex.
     pub fn exclude_regex<T: Into<String>>(mut self, path: T) -> Self {
         let inner = Rc::get_mut(&mut self.0).unwrap();
-        let mut patterns = inner.exclude_regex.patterns().to_vec();
-        patterns.push(path.into());
-        let regex_set = RegexSet::new(patterns).unwrap();
-        inner.exclude_regex = regex_set;
+        inner.exclude_regex.push(Regex::new(&path.into()).unwrap());
         self
     }
 
@@ -263,7 +263,7 @@ impl Default for Logger {
         Logger(Rc::new(Inner {
             format: Format::default(),
             exclude: HashSet::new(),
-            exclude_regex: RegexSet::empty(),
+            exclude_regex: Vec::new(),
             log_target: Cow::Borrowed(module_path!()),
             status_range: (
                 Bound::Included(StatusCode::from_u16(100).unwrap()),
@@ -327,7 +327,11 @@ where
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let excluded = self.inner.exclude.contains(req.path())
-            || self.inner.exclude_regex.is_match(req.path());
+            || self
+                .inner
+                .exclude_regex
+                .iter()
+                .any(|r| r.is_match(req.path()));
 
         if excluded {
             LoggerResponse {
@@ -751,7 +755,7 @@ impl<'a> fmt::Display for FormatDisplay<'a> {
 
 #[cfg(test)]
 mod tests {
-    use actix_service::{IntoService, Service, Transform};
+    use actix_service::IntoService;
     use actix_utils::future::ok;
 
     use super::*;

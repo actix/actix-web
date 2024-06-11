@@ -465,7 +465,12 @@ impl Stream for Field {
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
         let mut inner = this.inner.borrow_mut();
-        if let Some(mut buffer) = inner.payload.as_ref().unwrap().get_mut(&this.safety) {
+        if let Some(mut buffer) = inner
+            .payload
+            .as_ref()
+            .expect("Field should not be polled after completion")
+            .get_mut(&this.safety)
+        {
             // check safety and poll read payload to buffer.
             buffer.poll_stream(cx)?;
         } else if !this.safety.is_clean() {
@@ -496,6 +501,7 @@ impl fmt::Debug for Field {
 }
 
 struct InnerField {
+    /// Payload is initialized as Some and is `take`n when the field stream finishes.
     payload: Option<PayloadRef>,
     boundary: String,
     eof: bool,
@@ -643,7 +649,12 @@ impl InnerField {
             return Poll::Ready(None);
         }
 
-        let result = if let Some(mut payload) = self.payload.as_ref().unwrap().get_mut(s) {
+        let result = if let Some(mut payload) = self
+            .payload
+            .as_ref()
+            .expect("Field should not be polled after completion")
+            .get_mut(s)
+        {
             if !self.eof {
                 let res = if let Some(ref mut len) = self.length {
                     InnerField::read_len(&mut payload, len)
@@ -674,8 +685,10 @@ impl InnerField {
         };
 
         if let Poll::Ready(None) = result {
-            self.payload.take();
+            // drop payload buffer and make future un-poll-able
+            let _ = self.payload.take();
         }
+
         result
     }
 }
@@ -863,12 +876,14 @@ mod tests {
         test::TestRequest,
         FromRequest,
     };
-    use bytes::Bytes;
+    use bytes::BufMut as _;
     use futures_util::{future::lazy, StreamExt as _};
     use tokio::sync::mpsc;
     use tokio_stream::wrappers::UnboundedReceiverStream;
 
     use super::*;
+
+    const BOUNDARY: &str = "abbc761f78ff4d7cb7573b5a23f96ef0";
 
     #[actix_rt::test]
     async fn test_boundary() {
@@ -965,6 +980,26 @@ mod tests {
     }
 
     fn create_simple_request_with_header() -> (Bytes, HeaderMap) {
+        let (body, headers) = crate::test::create_form_data_payload_and_headers_with_boundary(
+            BOUNDARY,
+            "file",
+            Some("fn.txt".to_owned()),
+            Some(mime::TEXT_PLAIN_UTF_8),
+            Bytes::from_static(b"data"),
+        );
+
+        let mut buf = BytesMut::with_capacity(body.len() + 14);
+
+        // add junk before form to test pre-boundary data rejection
+        buf.put("testasdadsad\r\n".as_bytes());
+
+        buf.put(body);
+
+        (buf.freeze(), headers)
+    }
+
+    // TODO: use test utility when multi-file support is introduced
+    fn create_double_request_with_header() -> (Bytes, HeaderMap) {
         let bytes = Bytes::from(
             "testasdadsad\r\n\
              --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
@@ -990,7 +1025,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_multipart_no_end_crlf() {
         let (sender, payload) = create_stream();
-        let (mut bytes, headers) = create_simple_request_with_header();
+        let (mut bytes, headers) = create_double_request_with_header();
         let bytes_stripped = bytes.split_to(bytes.len()); // strip crlf
 
         sender.send(Ok(bytes_stripped)).unwrap();
@@ -1017,7 +1052,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_multipart() {
         let (sender, payload) = create_stream();
-        let (bytes, headers) = create_simple_request_with_header();
+        let (bytes, headers) = create_double_request_with_header();
 
         sender.send(Ok(bytes)).unwrap();
 
@@ -1080,7 +1115,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_stream() {
-        let (bytes, headers) = create_simple_request_with_header();
+        let (bytes, headers) = create_double_request_with_header();
         let payload = SlowStream::new(bytes);
 
         let mut multipart = Multipart::new(&headers, payload);
@@ -1319,7 +1354,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_drop_field_awaken_multipart() {
         let (sender, payload) = create_stream();
-        let (bytes, headers) = create_simple_request_with_header();
+        let (bytes, headers) = create_double_request_with_header();
         sender.send(Ok(bytes)).unwrap();
         drop(sender); // eof
 

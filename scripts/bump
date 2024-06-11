@@ -5,7 +5,7 @@
 
 # requires github cli tool for automatic release draft creation
 
-set -euo pipefail
+set -eEuo pipefail
 
 DIR=$1
 
@@ -113,16 +113,23 @@ read -p "Update all references: (y/N) " UPDATE_REFERENCES
 UPDATE_REFERENCES="${UPDATE_REFERENCES:-n}"
 
 if [ "$UPDATE_REFERENCES" = 'y' ] || [ "$UPDATE_REFERENCES" = 'Y' ]; then
+    if [[ $NEW_VERSION == *".0.0" ]]; then
+        NEW_VERSION_SPEC="${NEW_VERSION%.0.0}"
+    elif [[ $NEW_VERSION == *".0" ]]; then
+        NEW_VERSION_SPEC="${NEW_VERSION%.0}"
+    else
+        NEW_VERSION_SPEC="$NEW_VERSION"
+    fi
 
     for f in $(fd Cargo.toml); do
         sed -i.bak -E \
-            "s/^(${PACKAGE_NAME} ?= ?\")[^\"]+(\")$/\1${NEW_VERSION}\2/g" $f
+            "s/^(${PACKAGE_NAME} ?= ?\")[^\"]+(\")$/\1${NEW_VERSION_SPEC}\2/g" $f
         sed -i.bak -E \
-            "s/^(${PACKAGE_NAME} ?=.*version ?= ?\")[^\"]+(\".*)$/\1${NEW_VERSION}\2/g" $f
+            "s/^(${PACKAGE_NAME} ?=.*version ?= ?\")[^\"]+(\".*)$/\1${NEW_VERSION_SPEC}\2/g" $f
         sed -i.bak -E \
-            "s/^(.*package ?= ?\"${PACKAGE_NAME}\".*version ?= ?\")[^\"]+(\".*)$/\1${NEW_VERSION}\2/g" $f
+            "s/^(.*package ?= ?\"${PACKAGE_NAME}\".*version ?= ?\")[^\"]+(\".*)$/\1${NEW_VERSION_SPEC}\2/g" $f
         sed -i.bak -E \
-            "s/^(.*version ?= ?\")[^\"]+(\".*package ?= ?\"${PACKAGE_NAME}\".*)$/\1${NEW_VERSION}\2/g" $f
+            "s/^(.*version ?= ?\")[^\"]+(\".*package ?= ?\"${PACKAGE_NAME}\".*)$/\1${NEW_VERSION_SPEC}\2/g" $f
 
         # remove backup file
         rm -f $f.bak
@@ -132,6 +139,7 @@ fi
 
 if [ $MACOS ]; then
     printf "chore($PACKAGE_NAME): prepare release $NEW_VERSION" | pbcopy
+    echo "placed the recommended commit message on the clipboard"
 else
     echo
     echo "commit message:"

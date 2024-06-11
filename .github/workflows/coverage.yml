@@ -17,21 +17,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1.6.0
+      - name: Install Rust (nightly)
+        uses: actions-rust-lang/setup-rust-toolchain@v1.9.0
         with:
-          components: llvm-tools-preview
+          toolchain: nightly
+          components: llvm-tools
 
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@v2.22.0
+      - name: Install just, cargo-llvm-cov, cargo-nextest
+        uses: taiki-e/install-action@v2.38.0
         with:
-          tool: cargo-llvm-cov
+          tool: just,cargo-llvm-cov,cargo-nextest
 
       - name: Generate code coverage
-        run: cargo llvm-cov --workspace --all-features --codecov --output-path codecov.json
+        run: just test-coverage-codecov
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3.1.4
+        uses: codecov/codecov-action@v4.4.1
         with:
           files: codecov.json
           fail_ci_if_error: true
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
