@@ -69,7 +69,7 @@ pub(crate) type FnDataFactory =
 ///     HttpResponse::Ok()
 /// }
 ///
-/// /// Alteratively, use the `HttpRequest::app_data` method to access data in a handler.
+/// /// Alternatively, use the `HttpRequest::app_data` method to access data in a handler.
 /// async fn index_alt(req: HttpRequest) -> impl Responder {
 ///     let data = req.app_data::<Data<Mutex<MyData>>>().unwrap();
 ///     let mut my_data = data.lock().unwrap();

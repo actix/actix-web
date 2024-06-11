@@ -1,6 +1,6 @@
 [package]
 name = "actix-test"
-version = "0.1.2"
+version = "0.1.5"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
     "Rob Ede <robjtede@icloud.com>",
@@ -8,7 +8,7 @@ authors = [
 description = "Integration testing tools for Actix Web applications"
 keywords = ["http", "web", "framework", "async", "futures"]
 homepage = "https://actix.rs"
-repository = "https://github.com/actix/actix-web.git"
+repository = "https://github.com/actix/actix-web"
 categories = [
     "network-programming",
     "asynchronous",
@@ -17,6 +17,22 @@ categories = [
 ]
 license = "MIT OR Apache-2.0"
 edition = "2021"
+
+[package.metadata.cargo_check_external_types]
+allowed_external_types = [
+    "actix_codec::*",
+    "actix_http_test::*",
+    "actix_http::*",
+    "actix_service::*",
+    "actix_web::*",
+    "awc::*",
+    "bytes::*",
+    "futures_core::*",
+    "http::*",
+    "openssl::*",
+    "rustls::*",
+    "tokio::*",
+]
 
 [features]
 default = []
@@ -27,19 +43,23 @@ rustls = ["rustls-0_20"]
 rustls-0_20 = ["tls-rustls-0_20", "actix-http/rustls-0_20", "awc/rustls-0_20"]
 # TLS via Rustls v0.21
 rustls-0_21 = ["tls-rustls-0_21", "actix-http/rustls-0_21", "awc/rustls-0_21"]
+# TLS via Rustls v0.22
+rustls-0_22 = ["tls-rustls-0_22", "actix-http/rustls-0_22", "awc/rustls-0_22-webpki-roots"]
+# TLS via Rustls v0.23
+rustls-0_23 = ["tls-rustls-0_23", "actix-http/rustls-0_23", "awc/rustls-0_23-webpki-roots"]
 
 # TLS via OpenSSL
 openssl = ["tls-openssl", "actix-http/openssl", "awc/openssl"]
 
 [dependencies]
 actix-codec = "0.5"
-actix-http = "3"
+actix-http = "3.7"
 actix-http-test = "3"
 actix-rt = "2.1"
 actix-service = "2"
 actix-utils = "3"
-actix-web = { version = "4", default-features = false, features = ["cookies"] }
-awc = { version = "3", default-features = false, features = ["cookies"] }
+actix-web = { version = "4.6", default-features = false, features = ["cookies"] }
+awc = { version = "3.5", default-features = false, features = ["cookies"] }
 
 futures-core = { version = "0.3.17", default-features = false, features = ["std"] }
 futures-util = { version = "0.3.17", default-features = false, features = [] }
@@ -50,4 +70,6 @@ serde_urlencoded = "0.7"
 tls-openssl = { package = "openssl", version = "0.10.55", optional = true }
 tls-rustls-0_20 = { package = "rustls", version = "0.20", optional = true }
 tls-rustls-0_21 = { package = "rustls", version = "0.21", optional = true }
+tls-rustls-0_22 = { package = "rustls", version = "0.22", optional = true }
+tls-rustls-0_23 = { package = "rustls", version = "0.23", default-features = false, optional = true }
 tokio = { version = "1.24.2", features = ["sync"] }

@@ -37,6 +37,12 @@ pub struct ClientBuilder<S = (), M = ()> {
 }
 
 impl ClientBuilder {
+    /// Create a new ClientBuilder with default settings
+    ///
+    /// Note: If the `rustls-0_23` feature is enabled and neither `rustls-0_23-native-roots` nor
+    /// `rustls-0_23-webpki-roots` are enabled, this ClientBuilder will build without TLS. In order
+    /// to enable TLS in this scenario, a custom `Connector` _must_ be added to the builder before
+    /// finishing construction.
     #[allow(clippy::new_ret_no_self)]
     pub fn new() -> ClientBuilder<
         impl Service<

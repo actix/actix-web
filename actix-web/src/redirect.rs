@@ -171,7 +171,7 @@ impl Responder for Redirect {
         } else {
             log::error!(
                 "redirect target location can not be converted to header value: {:?}",
-                self.to
+                self.to,
             );
         }
 
@@ -182,7 +182,7 @@ impl Responder for Redirect {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{dev::Service, http::StatusCode, test, App};
+    use crate::{dev::Service, test, App};
 
     #[actix_rt::test]
     async fn absolute_redirects() {

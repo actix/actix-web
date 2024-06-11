@@ -1,6 +1,6 @@
 [package]
 name = "actix-files"
-version = "0.6.3"
+version = "0.6.6"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
     "Rob Ede <robjtede@icloud.com>",
@@ -13,9 +13,14 @@ categories = ["asynchronous", "web-programming::http-server"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
 
-[lib]
-name = "actix_files"
-path = "src/lib.rs"
+[package.metadata.cargo_check_external_types]
+allowed_external_types = [
+    "actix_http::*",
+    "actix_service::*",
+    "actix_web::*",
+    "http::*",
+    "mime::*",
+]
 
 [features]
 experimental-io-uring = ["actix-web/experimental-io-uring", "tokio-uring"]
@@ -40,11 +45,12 @@ v_htmlescape = "0.15.5"
 
 # experimental-io-uring
 [target.'cfg(target_os = "linux")'.dependencies]
-tokio-uring = { version = "0.4", optional = true, features = ["bytes"] }
-actix-server = { version = "2.2", optional = true } # ensure matching tokio-uring versions
+tokio-uring = { version = "0.5", optional = true, features = ["bytes"] }
+actix-server = { version = "2.4", optional = true } # ensure matching tokio-uring versions
 
 [dev-dependencies]
 actix-rt = "2.7"
 actix-test = "0.1"
 actix-web = "4"
+env_logger = "0.11"
 tempfile = "3.2"

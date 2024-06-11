@@ -141,7 +141,7 @@ mod openssl {
 }
 
 #[cfg(feature = "rustls-0_20")]
-mod rustls_020 {
+mod rustls_0_20 {
     use std::io;
 
     use actix_service::ServiceFactoryExt as _;
@@ -192,7 +192,7 @@ mod rustls_020 {
 }
 
 #[cfg(feature = "rustls-0_21")]
-mod rustls_021 {
+mod rustls_0_21 {
     use std::io;
 
     use actix_service::ServiceFactoryExt as _;
@@ -215,6 +215,108 @@ mod rustls_021 {
     {
         /// Create Rustls v0.21 based service.
         pub fn rustls_021(
+            self,
+            mut config: ServerConfig,
+        ) -> impl ServiceFactory<
+            TcpStream,
+            Config = (),
+            Response = (),
+            Error = TlsError<io::Error, DispatchError>,
+            InitError = S::InitError,
+        > {
+            let mut protos = vec![b"h2".to_vec()];
+            protos.extend_from_slice(&config.alpn_protocols);
+            config.alpn_protocols = protos;
+
+            Acceptor::new(config)
+                .map_init_err(|_| {
+                    unreachable!("TLS acceptor service factory does not error on init")
+                })
+                .map_err(TlsError::into_service_error)
+                .map(|io: TlsStream<TcpStream>| {
+                    let peer_addr = io.get_ref().0.peer_addr().ok();
+                    (io, peer_addr)
+                })
+                .and_then(self.map_err(TlsError::Service))
+        }
+    }
+}
+
+#[cfg(feature = "rustls-0_22")]
+mod rustls_0_22 {
+    use std::io;
+
+    use actix_service::ServiceFactoryExt as _;
+    use actix_tls::accept::{
+        rustls_0_22::{reexports::ServerConfig, Acceptor, TlsStream},
+        TlsError,
+    };
+
+    use super::*;
+
+    impl<S, B> H2Service<TlsStream<TcpStream>, S, B>
+    where
+        S: ServiceFactory<Request, Config = ()>,
+        S::Future: 'static,
+        S::Error: Into<Response<BoxBody>> + 'static,
+        S::Response: Into<Response<B>> + 'static,
+        <S::Service as Service<Request>>::Future: 'static,
+
+        B: MessageBody + 'static,
+    {
+        /// Create Rustls v0.22 based service.
+        pub fn rustls_0_22(
+            self,
+            mut config: ServerConfig,
+        ) -> impl ServiceFactory<
+            TcpStream,
+            Config = (),
+            Response = (),
+            Error = TlsError<io::Error, DispatchError>,
+            InitError = S::InitError,
+        > {
+            let mut protos = vec![b"h2".to_vec()];
+            protos.extend_from_slice(&config.alpn_protocols);
+            config.alpn_protocols = protos;
+
+            Acceptor::new(config)
+                .map_init_err(|_| {
+                    unreachable!("TLS acceptor service factory does not error on init")
+                })
+                .map_err(TlsError::into_service_error)
+                .map(|io: TlsStream<TcpStream>| {
+                    let peer_addr = io.get_ref().0.peer_addr().ok();
+                    (io, peer_addr)
+                })
+                .and_then(self.map_err(TlsError::Service))
+        }
+    }
+}
+
+#[cfg(feature = "rustls-0_23")]
+mod rustls_0_23 {
+    use std::io;
+
+    use actix_service::ServiceFactoryExt as _;
+    use actix_tls::accept::{
+        rustls_0_23::{reexports::ServerConfig, Acceptor, TlsStream},
+        TlsError,
+    };
+
+    use super::*;
+
+    impl<S, B> H2Service<TlsStream<TcpStream>, S, B>
+    where
+        S: ServiceFactory<Request, Config = ()>,
+        S::Future: 'static,
+        S::Error: Into<Response<BoxBody>> + 'static,
+        S::Response: Into<Response<B>> + 'static,
+        <S::Service as Service<Request>>::Future: 'static,
+
+        B: MessageBody + 'static,
+    {
+        /// Create Rustls v0.23 based service.
+        pub fn rustls_0_23(
             self,
             mut config: ServerConfig,
         ) -> impl ServiceFactory<

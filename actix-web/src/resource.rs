@@ -540,20 +540,14 @@ mod tests {
     use std::time::Duration;
 
     use actix_rt::time::sleep;
-    use actix_service::Service;
     use actix_utils::future::ok;
 
     use super::*;
     use crate::{
-        guard,
-        http::{
-            header::{self, HeaderValue},
-            Method, StatusCode,
-        },
+        http::{header::HeaderValue, Method, StatusCode},
         middleware::DefaultHeaders,
-        service::{ServiceRequest, ServiceResponse},
         test::{call_service, init_service, TestRequest},
-        web, App, Error, HttpMessage, HttpResponse,
+        App, HttpMessage,
     };
 
     #[test]
@@ -777,7 +771,7 @@ mod tests {
                              data3: web::Data<f64>| {
                                 assert_eq!(**data1, 10);
                                 assert_eq!(**data2, '*');
-                                let error = std::f64::EPSILON;
+                                let error = f64::EPSILON;
                                 assert!((**data3 - 1.0).abs() < error);
                                 HttpResponse::Ok()
                             },

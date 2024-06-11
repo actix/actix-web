@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 4.3.0
+
+- Add `#[scope]` macro.
+- Add `compat-routing-macros-force-pub` crate feature which, on-by-default, which when disabled causes handlers to inherit their attached function's visibility.
+- Prevent inclusion of default `actix-router` features.
+- Minimum supported Rust version (MSRV) is now 1.72.
+
 ## 4.2.2
 
 - Fix regression when declaring `wrap` attribute using an expression.
