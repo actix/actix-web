@@ -8,7 +8,7 @@ use bytes::BufMut;
 ///
 /// This is slightly faster (~10%) than `bytes::buf::Writer` in such cases because it does not
 /// perform a remaining length check before writing.
-pub(crate) struct MutWriter<'a, B>(pub(crate) &'a mut B);
+pub struct MutWriter<'a, B>(pub(crate) &'a mut B);
 
 impl<'a, B> io::Write for MutWriter<'a, B>
 where
