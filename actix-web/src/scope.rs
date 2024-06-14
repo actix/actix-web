@@ -213,7 +213,6 @@ where
     ///
     /// * *Resource* is an entry in resource table which corresponds to requested URL.
     /// * *Scope* is a set of resources with common root path.
-    /// * "StaticFiles" is a service for static files support
     ///
     /// ```
     /// use actix_web::{web, App, HttpRequest};
