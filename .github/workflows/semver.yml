@@ -1,0 +1,49 @@
+name: Semver
+
+on:
+  pull_request:
+    types: [labeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.label.name }}
+  cancel-in-progress: true
+
+jobs:
+  check-semver-patch:
+    name: Check semver (patch)
+    runs-on: ubuntu-latest
+    if: github.event.label.name == 'B-semver-patch'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check semver (patch)
+        uses: obi1kenobi/cargo-semver-checks-action@v2.1
+        with:
+          release-type: patch
+
+  check-semver-minor:
+    name: Check semver (minor)
+    runs-on: ubuntu-latest
+    if: github.event.label.name == 'B-semver-minor'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check semver (minor)
+        uses: obi1kenobi/cargo-semver-checks-action@v2.1
+        with:
+          release-type: minor
+
+  check-semver-major:
+    name: Check semver (major)
+    runs-on: ubuntu-latest
+    if: github.event.label.name == 'B-semver-major'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check semver (major)
+        uses: obi1kenobi/cargo-semver-checks-action@v2.1
+        with:
+          release-type: major
