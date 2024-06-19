@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 3.8.0
+
 ### Added
 
 - Add `error::InvalidStatusCode` re-export.
