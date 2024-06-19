@@ -32,6 +32,14 @@ all_crate_features := if os() == "linux" {
     "--features='" + non_linux_all_features_list + "'"
 }
 
+[private]
+check-min:
+    cargo hack --workspace check --no-default-features
+
+[private]
+check-default:
+    cargo hack --workspace check
+
 # Run Clippy over workspace.
 clippy toolchain="":
     cargo {{ toolchain }} clippy --workspace --all-targets {{ all_crate_features }}

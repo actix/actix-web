@@ -54,10 +54,10 @@ jobs:
           tool: just,cargo-hack,cargo-nextest,cargo-ci-cache-clean
 
       - name: check minimal
-        run: cargo ci-check-min
+        run: just check-min
 
       - name: check default
-        run: cargo ci-check-default
+        run: just check-default
 
       - name: tests
         timeout-minutes: 60
