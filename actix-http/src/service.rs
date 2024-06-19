@@ -241,25 +241,13 @@ where
 }
 
 /// Configuration options used when accepting TLS connection.
-#[cfg(any(
-    feature = "openssl",
-    feature = "rustls-0_20",
-    feature = "rustls-0_21",
-    feature = "rustls-0_22",
-    feature = "rustls-0_23",
-))]
+#[cfg(feature = "__tls")]
 #[derive(Debug, Default)]
 pub struct TlsAcceptorConfig {
     pub(crate) handshake_timeout: Option<std::time::Duration>,
 }
 
-#[cfg(any(
-    feature = "openssl",
-    feature = "rustls-0_20",
-    feature = "rustls-0_21",
-    feature = "rustls-0_22",
-    feature = "rustls-0_23",
-))]
+#[cfg(feature = "__tls")]
 impl TlsAcceptorConfig {
     /// Set TLS handshake timeout duration.
     pub fn handshake_timeout(self, dur: std::time::Duration) -> Self {
