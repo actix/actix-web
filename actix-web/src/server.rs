@@ -7,13 +7,7 @@ use std::{
     time::Duration,
 };
 
-#[cfg(any(
-    feature = "openssl",
-    feature = "rustls-0_20",
-    feature = "rustls-0_21",
-    feature = "rustls-0_22",
-    feature = "rustls-0_23",
-))]
+#[cfg(feature = "__tls")]
 use actix_http::TlsAcceptorConfig;
 use actix_http::{body::MessageBody, Extensions, HttpService, KeepAlive, Request, Response};
 use actix_server::{Server, ServerBuilder};
@@ -190,7 +184,7 @@ where
     /// By default max connections is set to a 256.
     #[allow(unused_variables)]
     pub fn max_connection_rate(self, num: usize) -> Self {
-        #[cfg(any(feature = "rustls-0_20", feature = "rustls-0_21", feature = "openssl"))]
+        #[cfg(feature = "__tls")]
         actix_tls::accept::max_concurrent_tls_connect(num);
         self
     }
@@ -243,13 +237,7 @@ where
     /// time, the connection is closed.
     ///
     /// By default, the handshake timeout is 3 seconds.
-    #[cfg(any(
-        feature = "openssl",
-        feature = "rustls-0_20",
-        feature = "rustls-0_21",
-        feature = "rustls-0_22",
-        feature = "rustls-0_23",
-    ))]
+    #[cfg(feature = "__tls")]
     pub fn tls_handshake_timeout(self, dur: Duration) -> Self {
         self.config
             .lock()

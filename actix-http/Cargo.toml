@@ -70,22 +70,22 @@ ws = [
 ]
 
 # TLS via OpenSSL
-openssl = ["actix-tls/accept", "actix-tls/openssl"]
+openssl = ["__tls", "actix-tls/accept", "actix-tls/openssl"]
 
 # TLS via Rustls v0.20
-rustls = ["rustls-0_20"]
+rustls = ["__tls", "rustls-0_20"]
 
 # TLS via Rustls v0.20
-rustls-0_20 = ["actix-tls/accept", "actix-tls/rustls-0_20"]
+rustls-0_20 = ["__tls", "actix-tls/accept", "actix-tls/rustls-0_20"]
 
 # TLS via Rustls v0.21
-rustls-0_21 = ["actix-tls/accept", "actix-tls/rustls-0_21"]
+rustls-0_21 = ["__tls", "actix-tls/accept", "actix-tls/rustls-0_21"]
 
 # TLS via Rustls v0.22
-rustls-0_22 = ["actix-tls/accept", "actix-tls/rustls-0_22"]
+rustls-0_22 = ["__tls", "actix-tls/accept", "actix-tls/rustls-0_22"]
 
 # TLS via Rustls v0.23
-rustls-0_23 = ["actix-tls/accept", "actix-tls/rustls-0_23"]
+rustls-0_23 = ["__tls", "actix-tls/accept", "actix-tls/rustls-0_23"]
 
 # Compression codecs
 compress-brotli = ["__compress", "brotli"]
@@ -95,6 +95,10 @@ compress-zstd   = ["__compress", "zstd"]
 # Internal (PRIVATE!) features used to aid testing and checking feature status.
 # Don't rely on these whatsoever. They are semver-exempt and may disappear at anytime.
 __compress = []
+
+# Internal (PRIVATE!) features used to aid checking feature status.
+# Don't rely on these whatsoever. They may disappear at anytime.
+__tls = []
 
 [dependencies]
 actix-service = "2"

@@ -93,18 +93,18 @@ secure-cookies = ["cookies", "cookie/secure"]
 http2 = ["actix-http/http2"]
 
 # TLS via OpenSSL
-openssl = ["http2", "actix-http/openssl", "actix-tls/accept", "actix-tls/openssl"]
+openssl = ["__tls", "http2", "actix-http/openssl", "actix-tls/accept", "actix-tls/openssl"]
 
 # TLS via Rustls v0.20
 rustls = ["rustls-0_20"]
 # TLS via Rustls v0.20
-rustls-0_20 = ["http2", "actix-http/rustls-0_20", "actix-tls/accept", "actix-tls/rustls-0_20"]
+rustls-0_20 = ["__tls", "http2", "actix-http/rustls-0_20", "actix-tls/accept", "actix-tls/rustls-0_20"]
 # TLS via Rustls v0.21
-rustls-0_21 = ["http2", "actix-http/rustls-0_21", "actix-tls/accept", "actix-tls/rustls-0_21"]
+rustls-0_21 = ["__tls", "http2", "actix-http/rustls-0_21", "actix-tls/accept", "actix-tls/rustls-0_21"]
 # TLS via Rustls v0.22
-rustls-0_22 = ["http2", "actix-http/rustls-0_22", "actix-tls/accept", "actix-tls/rustls-0_22"]
+rustls-0_22 = ["__tls", "http2", "actix-http/rustls-0_22", "actix-tls/accept", "actix-tls/rustls-0_22"]
 # TLS via Rustls v0.23
-rustls-0_23 = ["http2", "actix-http/rustls-0_23", "actix-tls/accept", "actix-tls/rustls-0_23"]
+rustls-0_23 = ["__tls", "http2", "actix-http/rustls-0_23", "actix-tls/accept", "actix-tls/rustls-0_23"]
 
 # Full unicode support
 unicode = ["dep:regex", "actix-router/unicode"]
@@ -112,6 +112,10 @@ unicode = ["dep:regex", "actix-router/unicode"]
 # Internal (PRIVATE!) features used to aid testing and checking feature status.
 # Don't rely on these whatsoever. They may disappear at anytime.
 __compress = []
+
+# Internal (PRIVATE!) features used to aid checking feature status.
+# Don't rely on these whatsoever. They may disappear at anytime.
+__tls = []
 
 # io-uring feature only available for Linux OSes.
 experimental-io-uring = ["actix-server/io-uring"]
