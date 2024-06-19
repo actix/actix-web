@@ -6,10 +6,10 @@
 //! | ------------------- | ------------------------------------------- |
 //! | `http2`             | HTTP/2 support via [h2].                    |
 //! | `openssl`           | TLS support via [OpenSSL].                  |
-//! | `rustls`            | TLS support via [rustls]  0.20.             |
-//! | `rustls-0_21`       | TLS support via [rustls]  0.21.             |
-//! | `rustls-0_22`       | TLS support via [rustls]  0.22.             |
-//! | `rustls-0_23`       | TLS support via [rustls]  0.23.             |
+//! | `rustls-0_20`       | TLS support via rustls 0.20.                |
+//! | `rustls-0_21`       | TLS support via rustls 0.21.                |
+//! | `rustls-0_22`       | TLS support via rustls 0.22.                |
+//! | `rustls-0_23`       | TLS support via [rustls] 0.23.              |
 //! | `compress-brotli`   | Payload compression support: Brotli.        |
 //! | `compress-gzip`     | Payload compression support: Deflate, Gzip. |
 //! | `compress-zstd`     | Payload compression support: Zstd.          |

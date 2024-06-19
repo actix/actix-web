@@ -76,16 +76,16 @@ jobs:
       - name: Free Disk Space
         run: ./scripts/free-disk-space.sh
 
+      - name: Setup mold linker
+        uses: rui314/setup-mold@v1
+
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1.9.0
 
-      - name: Install cargo-hack
+      - name: Install just, cargo-hack
         uses: taiki-e/install-action@v2.39.1
         with:
-          tool: cargo-hack
+          tool: just,cargo-hack
 
-      - name: check feature combinations
-        run: cargo ci-check-all-feature-powerset
-
-      - name: check feature combinations
-        run: cargo ci-check-all-feature-powerset-linux
+      - name: Check feature combinations
+        run: just check-feature-combinations

@@ -59,14 +59,14 @@ allowed_external_types = [
 default = []
 
 # HTTP/2 protocol support
-http2 = ["h2"]
+http2 = ["dep:h2"]
 
 # WebSocket protocol implementation
 ws = [
-    "local-channel",
-    "base64",
-    "rand",
-    "sha1",
+    "dep:local-channel",
+    "dep:base64",
+    "dep:rand",
+    "dep:sha1",
 ]
 
 # TLS via OpenSSL
@@ -88,9 +88,9 @@ rustls-0_22 = ["__tls", "actix-tls/accept", "actix-tls/rustls-0_22"]
 rustls-0_23 = ["__tls", "actix-tls/accept", "actix-tls/rustls-0_23"]
 
 # Compression codecs
-compress-brotli = ["__compress", "brotli"]
-compress-gzip   = ["__compress", "flate2"]
-compress-zstd   = ["__compress", "zstd"]
+compress-brotli = ["__compress", "dep:brotli"]
+compress-gzip   = ["__compress", "dep:flate2"]
+compress-zstd   = ["__compress", "dep:zstd"]
 
 # Internal (PRIVATE!) features used to aid testing and checking feature status.
 # Don't rely on these whatsoever. They are semver-exempt and may disappear at anytime.

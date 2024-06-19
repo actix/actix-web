@@ -22,7 +22,7 @@ non_linux_all_features_list := ```
     cargo metadata --format-version=1 \
     | jq '.packages[] | select(.source == null) | .features | keys' \
     | jq -r --slurp \
-        --arg exclusions "tokio-uring,io-uring,experimental-io-uring" \
+        --arg exclusions "__tls,__compress,tokio-uring,io-uring,experimental-io-uring" \
         'add | unique | . - ($exclusions | split(",")) | join(",")'
 ```
 
@@ -92,6 +92,19 @@ update-readmes: && fmt
     cd ./actix-router && cargo rdme --force
     cd ./actix-multipart && cargo rdme --force
     cd ./actix-test && cargo rdme --force
+
+feature_combo_skip_list := if os() == "linux" {
+    "__tls,__compress"
+} else {
+    "__tls,__compress,experimental-io-uring"
+}
+
+# Checks compatibility of feature combinations.
+check-feature-combinations:
+    cargo hack --workspace \
+        --feature-powerset --depth=4 \
+        --skip={{ feature_combo_skip_list }} \
+        check
 
 # Check for unintentional external type exposure on all crates in workspace.
 check-external-types-all toolchain="+nightly":
