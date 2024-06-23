@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- Add `HttpRequest::url_for_map()` that accepts a map of elements by parameter names, an alternative to `HttpRequest::url_for()` (which takes an iterator over elements).
+
 ## 4.8.0
 
 ### Added

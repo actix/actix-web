@@ -1,6 +1,10 @@
 use std::{
+    borrow,
     cell::{Ref, RefCell, RefMut},
-    fmt, net,
+    collections::HashMap,
+    fmt,
+    hash::{BuildHasher, Hash},
+    net,
     rc::Rc,
     str,
 };
@@ -230,7 +234,7 @@ impl HttpRequest {
     ///
     /// let app = App::new()
     ///     .service(web::resource("/test/{one}/{two}/{three}")
-    ///          .name("foo")  // <- set resource name so it can be used in `url_for`
+    ///          .name("foo")  // <- set resource name, so it can be used in `url_for`
     ///          .route(web::get().to(|| HttpResponse::Ok()))
     ///     );
     /// ```
@@ -239,7 +243,46 @@ impl HttpRequest {
         U: IntoIterator<Item = I>,
         I: AsRef<str>,
     {
-        self.resource_map().url_for(self, name, elements)
+        self.resource_map().url_for_iter(self, name, elements)
+    }
+
+    /// Generates URL for a named resource.
+    ///
+    /// This substitutes all URL parameters that appear in the resource itself and in
+    /// parent [scopes](crate::web::scope), if any, with their associated value from the given map.
+    ///
+    /// It is worth noting that the characters `['/', '%']` are not escaped and therefore a single
+    /// URL parameter may expand into multiple path segments and `elements` can be percent-encoded
+    /// beforehand without worrying about double encoding. Any other character that is not valid in
+    /// a URL path context is escaped using percent-encoding.
+    ///
+    /// # Examples
+    /// ```
+    /// # use std::collections::HashMap;
+    /// # use actix_web::{web, App, HttpRequest, HttpResponse};
+    /// fn index(req: HttpRequest) -> HttpResponse {
+    ///     let parameter_map = HashMap::from([("one", "1"), ("two", "2"), ("three", "3")]);
+    ///     let url = req.url_for_map("foo", &parameter_map); // <- generate URL for "foo" resource
+    ///     HttpResponse::Ok().into()
+    /// }
+    ///
+    /// let app = App::new()
+    ///     .service(web::resource("/test/{one}/{two}/{three}")
+    ///          .name("foo")  // <- set resource name, so it can be used in `url_for`
+    ///          .route(web::get().to(|| HttpResponse::Ok()))
+    ///     );
+    /// ```
+    pub fn url_for_map<K, V, S>(
+        &self,
+        name: &str,
+        elements: &HashMap<K, V, S>,
+    ) -> Result<url::Url, UrlGenerationError>
+    where
+        K: borrow::Borrow<str> + Eq + Hash,
+        V: AsRef<str>,
+        S: BuildHasher,
+    {
+        self.resource_map().url_for_map(self, name, elements)
     }
 
     /// Generate URL for named resource
@@ -621,17 +664,30 @@ mod tests {
             .rmap(rmap)
             .to_http_request();
 
+        let input_map = HashMap::from([("non-existing", "test")]);
         assert_eq!(
             req.url_for("unknown", ["test"]),
             Err(UrlGenerationError::ResourceNotFound)
         );
         assert_eq!(
+            req.url_for_map("unknown", &input_map),
+            Err(UrlGenerationError::ResourceNotFound)
+        );
+
+        assert_eq!(
             req.url_for("index", ["test"]),
             Err(UrlGenerationError::NotEnoughElements)
         );
-        let url = req.url_for("index", ["test", "html"]);
         assert_eq!(
-            url.ok().unwrap().as_str(),
+            req.url_for_map("index", &input_map),
+            Err(UrlGenerationError::NotEnoughElements)
+        );
+
+        let input_map = HashMap::from([("name", "test"), ("ext", "html")]);
+        let url = req.url_for("index", ["test", "html"]);
+        assert_eq!(url, req.url_for_map("index", &input_map));
+        assert_eq!(
+            url.unwrap().as_str(),
             "http://www.rust-lang.org/user/test.html"
         );
     }
@@ -685,9 +741,11 @@ mod tests {
         rmap.add(&mut rdef, None);
 
         let req = TestRequest::default().rmap(rmap).to_http_request();
+        let input_map = HashMap::from([("video_id", "oHg5SJYRHA0")]);
         let url = req.url_for("youtube", ["oHg5SJYRHA0"]);
+        assert_eq!(url, req.url_for_map("youtube", &input_map));
         assert_eq!(
-            url.ok().unwrap().as_str(),
+            url.unwrap().as_str(),
             "https://youtube.com/watch/oHg5SJYRHA0"
         );
     }
