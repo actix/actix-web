@@ -3,7 +3,6 @@ use std::{
     str::FromStr,
 };
 
-use actix_utils::future::{ready, Ready};
 use actix_web::{dev::Payload, FromRequest, HttpRequest};
 
 use crate::error::UriSegmentError;
@@ -88,10 +87,10 @@ impl AsRef<Path> for PathBufWrap {
 
 impl FromRequest for PathBufWrap {
     type Error = UriSegmentError;
-    type Future = Ready<Result<Self, Self::Error>>;
 
-    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        ready(req.match_info().unprocessed().parse())
+    #[inline]
+    async fn from_request(req: &HttpRequest, _: &mut Payload) -> Result<Self, Self::Error> {
+        req.match_info().unprocessed().parse()
     }
 }
 

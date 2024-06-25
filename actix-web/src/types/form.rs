@@ -13,7 +13,7 @@ use std::{
 use actix_http::Payload;
 use bytes::BytesMut;
 use encoding_rs::{Encoding, UTF_8};
-use futures_core::{future::LocalBoxFuture, ready};
+use futures_core::future::LocalBoxFuture;
 use futures_util::{FutureExt as _, StreamExt as _};
 use serde::{de::DeserializeOwned, Serialize};
 
@@ -126,48 +126,18 @@ where
     T: DeserializeOwned + 'static,
 {
     type Error = Error;
-    type Future = FormExtractFut<T>;
 
     #[inline]
-    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-        let FormConfig { limit, err_handler } = FormConfig::from_req(req).clone();
+    async fn from_request(req: &HttpRequest, payload: &mut Payload) -> Result<Self, Self::Error> {
+        let FormConfig { limit, err_handler } = FormConfig::from_req(req);
 
-        FormExtractFut {
-            fut: UrlEncoded::new(req, payload).limit(limit),
-            req: req.clone(),
-            err_handler,
+        match UrlEncoded::new(req, payload).limit(*limit).await {
+            Ok(form) => Ok(Form(form)),
+            Err(err) => Err(match err_handler {
+                Some(err_handler) => (err_handler)(err, req),
+                None => err.into(),
+            }),
         }
-    }
-}
-
-type FormErrHandler = Option<Rc<dyn Fn(UrlencodedError, &HttpRequest) -> Error>>;
-
-pub struct FormExtractFut<T> {
-    fut: UrlEncoded<T>,
-    err_handler: FormErrHandler,
-    req: HttpRequest,
-}
-
-impl<T> Future for FormExtractFut<T>
-where
-    T: DeserializeOwned + 'static,
-{
-    type Output = Result<Form<T>, Error>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.get_mut();
-
-        let res = ready!(Pin::new(&mut this.fut).poll(cx));
-
-        let res = match res {
-            Err(err) => match &this.err_handler {
-                Some(err_handler) => Err((err_handler)(err, &this.req)),
-                None => Err(err.into()),
-            },
-            Ok(item) => Ok(Form(item)),
-        };
-
-        Poll::Ready(res)
     }
 }
 
@@ -197,6 +167,8 @@ impl<T: Serialize> Responder for Form<T> {
         }
     }
 }
+
+type FormErrHandler = Option<Rc<dyn Fn(UrlencodedError, &HttpRequest) -> Error>>;
 
 /// [`Form`] extractor configuration.
 ///
