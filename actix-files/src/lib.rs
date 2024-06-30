@@ -307,11 +307,11 @@ mod tests {
         let resp = file.respond_to(&req);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
-            "application/javascript; charset=utf-8"
+            "text/javascript",
         );
         assert_eq!(
             resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
-            "inline; filename=\"test.js\""
+            "inline; filename=\"test.js\"",
         );
     }
 
