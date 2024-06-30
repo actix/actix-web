@@ -54,15 +54,15 @@ async fn main() -> std::io::Result<()> {
 }
 ```
 
-<!-- cargo-rdme end -->
+cURL request:
 
-[More available in the examples repo &rarr;](https://github.com/actix/examples/tree/master/forms/multipart)
-
-Curl request :
-
-```bash
+```sh
 curl -v --request POST \
   --url http://localhost:8080/videos \
   -F 'json={"name": "Cargo.lock"};type=application/json' \
   -F file=@./Cargo.lock
 ```
+
+<!-- cargo-rdme end -->
+
+[More available in the examples repo &rarr;](https://github.com/actix/examples/tree/master/forms/multipart)

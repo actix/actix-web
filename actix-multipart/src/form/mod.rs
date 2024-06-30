@@ -80,13 +80,13 @@ where
         state: &'t mut State,
         duplicate_field: DuplicateField,
     ) -> Self::Future {
-        if state.contains_key(field.name()) {
+        if state.contains_key(&field.form_field_name) {
             match duplicate_field {
                 DuplicateField::Ignore => return Box::pin(ready(Ok(()))),
 
                 DuplicateField::Deny => {
                     return Box::pin(ready(Err(MultipartError::DuplicateField(
-                        field.name().to_owned(),
+                        field.form_field_name,
                     ))))
                 }
 
@@ -95,7 +95,7 @@ where
         }
 
         Box::pin(async move {
-            let field_name = field.name().to_owned();
+            let field_name = field.form_field_name.clone();
             let t = T::read_field(req, field, limits).await?;
             state.insert(field_name, Box::new(t));
             Ok(())
@@ -123,10 +123,8 @@ where
         Box::pin(async move {
             // Note: Vec GroupReader always allows duplicates
 
-            let field_name = field.name().to_owned();
-
             let vec = state
-                .entry(field_name)
+                .entry(field.form_field_name.clone())
                 .or_insert_with(|| Box::<Vec<T>>::default())
                 .downcast_mut::<Vec<T>>()
                 .unwrap();
@@ -159,13 +157,13 @@ where
         state: &'t mut State,
         duplicate_field: DuplicateField,
     ) -> Self::Future {
-        if state.contains_key(field.name()) {
+        if state.contains_key(&field.form_field_name) {
             match duplicate_field {
                 DuplicateField::Ignore => return Box::pin(ready(Ok(()))),
 
                 DuplicateField::Deny => {
                     return Box::pin(ready(Err(MultipartError::DuplicateField(
-                        field.name().to_owned(),
+                        field.form_field_name,
                     ))))
                 }
 
@@ -174,7 +172,7 @@ where
         }
 
         Box::pin(async move {
-            let field_name = field.name().to_owned();
+            let field_name = field.form_field_name.clone();
             let t = T::read_field(req, field, limits).await?;
             state.insert(field_name, Box::new(t));
             Ok(())
@@ -281,6 +279,9 @@ impl Limits {
 /// [`MultipartCollect`] trait. You should use the [`macro@MultipartForm`] macro to derive this
 /// for your struct.
 ///
+/// Note that this extractor rejects requests with any other Content-Type such as `multipart/mixed`,
+/// `multipart/related`, or non-multipart media types.
+///
 /// Add a [`MultipartFormConfig`] to your app data to configure extraction.
 #[derive(Deref, DerefMut)]
 pub struct MultipartForm<T: MultipartCollect>(pub T);
@@ -294,14 +295,24 @@ impl<T: MultipartCollect> MultipartForm<T> {
 
 impl<T> FromRequest for MultipartForm<T>
 where
-    T: MultipartCollect,
+    T: MultipartCollect + 'static,
 {
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
-        let mut payload = Multipart::new(req.headers(), payload.take());
+        let mut multipart = Multipart::from_req(req, payload);
+
+        let content_type = match multipart.content_type_or_bail() {
+            Ok(content_type) => content_type,
+            Err(err) => return Box::pin(ready(Err(err.into()))),
+        };
+
+        if content_type.subtype() != mime::FORM_DATA {
+            // this extractor only supports multipart/form-data
+            return Box::pin(ready(Err(MultipartError::ContentTypeIncompatible.into())));
+        };
 
         let config = MultipartFormConfig::from_req(req);
         let mut limits = Limits::new(config.total_limit, config.memory_limit);
@@ -313,14 +324,20 @@ where
         Box::pin(
             async move {
                 let mut state = State::default();
-                // We need to ensure field limits are shared for all instances of this field name
+
+                // ensure limits are shared for all fields with this name
                 let mut field_limits = HashMap::<String, Option<usize>>::new();
 
-                while let Some(field) = payload.try_next().await? {
+                while let Some(field) = multipart.try_next().await? {
+                    debug_assert!(
+                        !field.form_field_name.is_empty(),
+                        "multipart form fields should have names",
+                    );
+
                     // Retrieve the limit for this field
                     let entry = field_limits
-                        .entry(field.name().to_owned())
-                        .or_insert_with(|| T::limit(field.name()));
+                        .entry(field.form_field_name.clone())
+                        .or_insert_with(|| T::limit(&field.form_field_name));
 
                     limits.field_limit_remaining.clone_from(entry);
 
@@ -329,6 +346,7 @@ where
                     // Update the stored limit
                     *entry = limits.field_limit_remaining;
                 }
+
                 let inner = T::from_state(state)?;
                 Ok(MultipartForm(inner))
             }
@@ -750,6 +768,41 @@ mod tests {
         form.add_text("field", "this string is 28 bytes long");
         let response = send_form(&srv, form, "/").await;
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[actix_rt::test]
+    async fn non_multipart_form_data() {
+        #[derive(MultipartForm)]
+        struct TestNonMultipartFormData {
+            #[allow(unused)]
+            #[multipart(limit = "30B")]
+            foo: Text<String>,
+        }
+
+        async fn non_multipart_form_data_route(
+            _form: MultipartForm<TestNonMultipartFormData>,
+        ) -> String {
+            unreachable!("request is sent with multipart/mixed");
+        }
+
+        let srv = actix_test::start(|| {
+            App::new().route("/", web::post().to(non_multipart_form_data_route))
+        });
+
+        let mut form = multipart::Form::default();
+        form.add_text("foo", "foo");
+
+        // mangle content-type, keeping the boundary
+        let ct = form.content_type().replacen("/form-data", "/mixed", 1);
+
+        let res = Client::default()
+            .post(srv.url("/"))
+            .content_type(ct)
+            .send_body(multipart::Body::from(form))
+            .await
+            .unwrap();
+
+        assert_eq!(res.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
     }
 
     #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: Connect(Disconnected)")]

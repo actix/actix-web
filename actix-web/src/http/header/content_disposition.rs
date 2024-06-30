@@ -154,7 +154,7 @@ impl DispositionParam {
     #[inline]
     pub fn as_name(&self) -> Option<&str> {
         match self {
-            DispositionParam::Name(ref name) => Some(name.as_str()),
+            DispositionParam::Name(name) => Some(name.as_str()),
             _ => None,
         }
     }
@@ -163,7 +163,7 @@ impl DispositionParam {
     #[inline]
     pub fn as_filename(&self) -> Option<&str> {
         match self {
-            DispositionParam::Filename(ref filename) => Some(filename.as_str()),
+            DispositionParam::Filename(filename) => Some(filename.as_str()),
             _ => None,
         }
     }
@@ -172,7 +172,7 @@ impl DispositionParam {
     #[inline]
     pub fn as_filename_ext(&self) -> Option<&ExtendedValue> {
         match self {
-            DispositionParam::FilenameExt(ref value) => Some(value),
+            DispositionParam::FilenameExt(value) => Some(value),
             _ => None,
         }
     }

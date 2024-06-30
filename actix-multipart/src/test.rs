@@ -1,3 +1,5 @@
+//! Multipart testing utilities.
+
 use actix_web::http::header::{self, HeaderMap};
 use bytes::{BufMut as _, Bytes, BytesMut};
 use mime::Mime;

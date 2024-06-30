@@ -10,6 +10,7 @@ use crate::server::Multipart;
 /// Content-type: multipart/form-data;
 ///
 /// # Examples
+///
 /// ```
 /// use actix_web::{web, HttpResponse, Error};
 /// use actix_multipart::Multipart;
@@ -35,9 +36,6 @@ impl FromRequest for Multipart {
 
     #[inline]
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-        ready(Ok(match Multipart::boundary(req.headers()) {
-            Ok(boundary) => Multipart::from_boundary(boundary, payload.take()),
-            Err(err) => Multipart::from_error(err),
-        }))
+        ready(Ok(Multipart::from_req(req, payload)))
     }
 }
