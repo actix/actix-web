@@ -1,6 +1,8 @@
 use std::error::Error as StdError;
 
-#[tokio::main]
+/// If we want to make requests to addresses starting with `https`, we need to enable the rustls feature of awc
+/// `awc = { version = "3.5.0", features = ["rustls"] }`
+#[actix_rt::main]
 async fn main() -> Result<(), Box<dyn StdError>> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
