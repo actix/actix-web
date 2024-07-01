@@ -110,7 +110,7 @@ mod tests {
         let res = TestResponse::default()
             .version(Version::HTTP_2)
             .insert_header((header::DATE, HttpDate::from(SystemTime::now())))
-            .cookie(cookie::Cookie::build("name", "value").finish())
+            .cookie(cookie::Cookie::build(("name", "value")).build())
             .finish();
         assert!(res.headers().contains_key(header::SET_COOKIE));
         assert!(res.headers().contains_key(header::DATE));

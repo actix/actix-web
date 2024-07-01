@@ -122,7 +122,7 @@ serde_json = "1.0"
 serde_urlencoded = "0.7"
 tokio = { version = "1.24.2", features = ["sync"] }
 
-cookie = { version = "0.16", features = ["percent-encode"], optional = true }
+cookie = { version = "0.18", features = ["percent-encode"], optional = true }
 
 tls-openssl = { package = "openssl", version = "0.10.55", optional = true }
 tls-rustls-0_20 = { package = "rustls", version = "0.20", optional = true, features = ["dangerous_configuration"] }
