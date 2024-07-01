@@ -5,7 +5,7 @@
 //! ```no_run
 //! use actix_web::{post, App, HttpServer, Responder};
 //!
-//! use actix_multipart::form::{json::Json as MPJson, tempfile::TempFile, MultipartForm};
+//! use actix_multipart::form::{json::Json as MpJson, tempfile::TempFile, MultipartForm};
 //! use serde::Deserialize;
 //!
 //! #[derive(Debug, Deserialize)]
@@ -17,7 +17,7 @@
 //! struct UploadForm {
 //!     #[multipart(limit = "100MB")]
 //!     file: TempFile,
-//!     json: MPJson<Metadata>,
+//!     json: MpJson<Metadata>,
 //! }
 //!
 //! #[post("/videos")]
@@ -35,6 +35,15 @@
 //!         .run()
 //!         .await
 //! }
+//! ```
+//!
+//! cURL request:
+//!
+//! ```sh
+//! curl -v --request POST \
+//!   --url http://localhost:8080/videos \
+//!   -F 'json={"name": "Cargo.lock"};type=application/json' \
+//!   -F file=@./Cargo.lock
 //! ```
 
 #![deny(rust_2018_idioms, nonstandard_style)]
@@ -57,7 +66,4 @@ pub mod test;
 pub use self::{
     error::MultipartError,
     server::{Field, Multipart},
-    test::{
-        create_form_data_payload_and_headers, create_form_data_payload_and_headers_with_boundary,
-    },
 };

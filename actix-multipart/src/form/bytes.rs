@@ -41,8 +41,9 @@ impl<'t> FieldReader<'t> for Bytes {
                 content_type: field.content_type().map(ToOwned::to_owned),
                 file_name: field
                     .content_disposition()
+                    .expect("multipart form fields should have a content-disposition header")
                     .get_filename()
-                    .map(str::to_owned),
+                    .map(ToOwned::to_owned),
             })
         })
     }

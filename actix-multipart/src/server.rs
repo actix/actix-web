@@ -10,12 +10,15 @@ use std::{
 };
 
 use actix_web::{
+    dev,
     error::{ParseError, PayloadError},
     http::header::{self, ContentDisposition, HeaderMap, HeaderName, HeaderValue},
+    HttpRequest,
 };
 use bytes::{Bytes, BytesMut};
 use futures_core::stream::{LocalBoxStream, Stream};
 use local_waker::LocalWaker;
+use mime::Mime;
 
 use crate::error::MultipartError;
 
@@ -23,93 +26,100 @@ const MAX_HEADERS: usize = 32;
 
 /// The server-side implementation of `multipart/form-data` requests.
 ///
-/// This will parse the incoming stream into `MultipartItem` instances via its
-/// Stream implementation.
-/// `MultipartItem::Field` contains multipart field. `MultipartItem::Multipart`
-/// is used for nested multipart streams.
+/// This will parse the incoming stream into `MultipartItem` instances via its `Stream`
+/// implementation. `MultipartItem::Field` contains multipart field. `MultipartItem::Multipart` is
+/// used for nested multipart streams.
 pub struct Multipart {
     safety: Safety,
-    error: Option<MultipartError>,
     inner: Option<InnerMultipart>,
-}
-
-enum InnerMultipartItem {
-    None,
-    Field(Rc<RefCell<InnerField>>),
-}
-
-#[derive(PartialEq, Debug)]
-enum InnerState {
-    /// Stream eof
-    Eof,
-
-    /// Skip data until first boundary
-    FirstBoundary,
-
-    /// Reading boundary
-    Boundary,
-
-    /// Reading Headers,
-    Headers,
-}
-
-struct InnerMultipart {
-    payload: PayloadRef,
-    boundary: String,
-    state: InnerState,
-    item: InnerMultipartItem,
+    error: Option<MultipartError>,
 }
 
 impl Multipart {
-    /// Create multipart instance for boundary.
-    pub fn new<S>(headers: &HeaderMap, stream: S) -> Multipart
+    /// Creates multipart instance from parts.
+    pub fn new<S>(headers: &HeaderMap, stream: S) -> Self
     where
         S: Stream<Item = Result<Bytes, PayloadError>> + 'static,
     {
-        match Self::boundary(headers) {
-            Ok(boundary) => Multipart::from_boundary(boundary, stream),
-            Err(err) => Multipart::from_error(err),
+        match Self::find_ct_and_boundary(headers) {
+            Ok((ct, boundary)) => Self::from_ct_and_boundary(ct, boundary, stream),
+            Err(err) => Self::from_error(err),
         }
     }
 
-    /// Extract boundary info from headers.
-    pub(crate) fn boundary(headers: &HeaderMap) -> Result<String, MultipartError> {
-        headers
-            .get(&header::CONTENT_TYPE)
-            .ok_or(MultipartError::NoContentType)?
-            .to_str()
-            .ok()
-            .and_then(|content_type| content_type.parse::<mime::Mime>().ok())
-            .ok_or(MultipartError::ParseContentType)?
-            .get_param(mime::BOUNDARY)
-            .map(|boundary| boundary.as_str().to_owned())
-            .ok_or(MultipartError::Boundary)
+    /// Creates multipart instance from parts.
+    pub(crate) fn from_req(req: &HttpRequest, payload: &mut dev::Payload) -> Self {
+        match Self::find_ct_and_boundary(req.headers()) {
+            Ok((ct, boundary)) => Self::from_ct_and_boundary(ct, boundary, payload.take()),
+            Err(err) => Self::from_error(err),
+        }
     }
 
-    /// Create multipart instance for given boundary and stream
-    pub(crate) fn from_boundary<S>(boundary: String, stream: S) -> Multipart
+    /// Extract Content-Type and boundary info from headers.
+    pub(crate) fn find_ct_and_boundary(
+        headers: &HeaderMap,
+    ) -> Result<(Mime, String), MultipartError> {
+        let content_type = headers
+            .get(&header::CONTENT_TYPE)
+            .ok_or(MultipartError::ContentTypeMissing)?
+            .to_str()
+            .ok()
+            .and_then(|content_type| content_type.parse::<Mime>().ok())
+            .ok_or(MultipartError::ContentTypeParse)?;
+
+        if content_type.type_() != mime::MULTIPART {
+            return Err(MultipartError::ContentTypeIncompatible);
+        }
+
+        let boundary = content_type
+            .get_param(mime::BOUNDARY)
+            .ok_or(MultipartError::BoundaryMissing)?
+            .as_str()
+            .to_owned();
+
+        Ok((content_type, boundary))
+    }
+
+    /// Constructs a new multipart reader from given Content-Type, boundary, and stream.
+    pub(crate) fn from_ct_and_boundary<S>(ct: Mime, boundary: String, stream: S) -> Multipart
     where
         S: Stream<Item = Result<Bytes, PayloadError>> + 'static,
     {
         Multipart {
-            error: None,
             safety: Safety::new(),
             inner: Some(InnerMultipart {
-                boundary,
                 payload: PayloadRef::new(PayloadBuffer::new(stream)),
+                content_type: ct,
+                boundary,
                 state: InnerState::FirstBoundary,
                 item: InnerMultipartItem::None,
             }),
+            error: None,
         }
     }
 
-    /// Create Multipart instance from MultipartError
+    /// Constructs a new multipart reader from given `MultipartError`.
     pub(crate) fn from_error(err: MultipartError) -> Multipart {
         Multipart {
             error: Some(err),
             safety: Safety::new(),
             inner: None,
         }
+    }
+
+    /// Return requests parsed Content-Type or raise the stored error.
+    pub(crate) fn content_type_or_bail(&mut self) -> Result<mime::Mime, MultipartError> {
+        if let Some(err) = self.error.take() {
+            return Err(err);
+        }
+
+        Ok(self
+            .inner
+            .as_ref()
+            // TODO: look into using enum instead of two options
+            .expect("multipart requests should have state")
+            .content_type
+            .clone())
     }
 }
 
@@ -141,8 +151,46 @@ impl Stream for Multipart {
     }
 }
 
+#[derive(PartialEq, Debug)]
+enum InnerState {
+    /// Stream EOF.
+    Eof,
+
+    /// Skip data until first boundary.
+    FirstBoundary,
+
+    /// Reading boundary.
+    Boundary,
+
+    /// Reading Headers.
+    Headers,
+}
+
+enum InnerMultipartItem {
+    None,
+    Field(Rc<RefCell<InnerField>>),
+}
+
+struct InnerMultipart {
+    /// Request's payload stream & buffer.
+    payload: PayloadRef,
+
+    /// Request's Content-Type.
+    ///
+    /// Guaranteed to have "multipart" top-level media type, i.e., `multipart/*`.
+    content_type: Mime,
+
+    /// Field boundary.
+    boundary: String,
+
+    state: InnerState,
+    item: InnerMultipartItem,
+}
+
 impl InnerMultipart {
-    fn read_headers(payload: &mut PayloadBuffer) -> Result<Option<HeaderMap>, MultipartError> {
+    fn read_field_headers(
+        payload: &mut PayloadBuffer,
+    ) -> Result<Option<HeaderMap>, MultipartError> {
         match payload.read_until(b"\r\n\r\n")? {
             None => {
                 if payload.eof {
@@ -153,6 +201,7 @@ impl InnerMultipart {
             }
             Some(bytes) => {
                 let mut hdrs = [httparse::EMPTY_HEADER; MAX_HEADERS];
+
                 match httparse::parse_headers(&bytes, &mut hdrs) {
                     Ok(httparse::Status::Complete((_, hdrs))) => {
                         // convert headers
@@ -193,7 +242,7 @@ impl InnerMultipart {
                     || &chunk[..2] != b"--"
                     || &chunk[2..boundary.len() + 2] != boundary.as_bytes()
                 {
-                    Err(MultipartError::Boundary)
+                    Err(MultipartError::BoundaryMissing)
                 } else if &chunk[boundary.len() + 2..] == b"\r\n" {
                     Ok(Some(false))
                 } else if &chunk[boundary.len() + 2..boundary.len() + 4] == b"--"
@@ -202,7 +251,7 @@ impl InnerMultipart {
                 {
                     Ok(Some(true))
                 } else {
-                    Err(MultipartError::Boundary)
+                    Err(MultipartError::BoundaryMissing)
                 }
             }
         }
@@ -217,7 +266,7 @@ impl InnerMultipart {
             match payload.readline()? {
                 Some(chunk) => {
                     if chunk.is_empty() {
-                        return Err(MultipartError::Boundary);
+                        return Err(MultipartError::BoundaryMissing);
                     }
                     if chunk.len() < boundary.len() {
                         continue;
@@ -282,7 +331,7 @@ impl InnerMultipart {
                 }
             }
 
-            let headers = if let Some(mut payload) = self.payload.get_mut(safety) {
+            let field_headers = if let Some(mut payload) = self.payload.get_mut(safety) {
                 match self.state {
                     // read until first boundary
                     InnerState::FirstBoundary => {
@@ -317,7 +366,7 @@ impl InnerMultipart {
 
                 // read field headers for next field
                 if self.state == InnerState::Headers {
-                    if let Some(headers) = InnerMultipart::read_headers(&mut payload)? {
+                    if let Some(headers) = InnerMultipart::read_field_headers(&mut payload)? {
                         self.state = InnerState::Boundary;
                         headers
                     } else {
@@ -331,31 +380,37 @@ impl InnerMultipart {
                 return Poll::Pending;
             };
 
-            // According to RFC 7578 §4.2, a Content-Disposition header must always be present and
-            // set to "form-data".
-
-            let content_disposition = headers
+            let field_content_disposition = field_headers
                 .get(&header::CONTENT_DISPOSITION)
                 .and_then(|cd| ContentDisposition::from_raw(cd).ok())
                 .filter(|content_disposition| {
-                    let is_form_data =
-                        content_disposition.disposition == header::DispositionType::FormData;
-
-                    let has_field_name = content_disposition
-                        .parameters
-                        .iter()
-                        .any(|param| matches!(param, header::DispositionParam::Name(_)));
-
-                    is_form_data && has_field_name
+                    matches!(
+                        content_disposition.disposition,
+                        header::DispositionType::FormData,
+                    )
                 });
 
-            let cd = if let Some(content_disposition) = content_disposition {
-                content_disposition
+            let form_field_name = if self.content_type.subtype() == mime::FORM_DATA {
+                // According to RFC 7578 §4.2, which relates to "multipart/form-data" requests
+                // specifically, fields must have a Content-Disposition header, its disposition
+                // type must be set as "form-data", and it must have a name parameter.
+
+                let Some(cd) = &field_content_disposition else {
+                    return Poll::Ready(Some(Err(MultipartError::ContentDispositionMissing)));
+                };
+
+                let Some(field_name) = cd.get_name() else {
+                    return Poll::Ready(Some(Err(MultipartError::ContentDispositionNameMissing)));
+                };
+
+                Some(field_name.to_owned())
             } else {
-                return Poll::Ready(Some(Err(MultipartError::NoContentDisposition)));
+                None
             };
 
-            let ct: Option<mime::Mime> = headers
+            // TODO: check out other multipart/* RFCs for specific requirements
+
+            let field_content_type: Option<Mime> = field_headers
                 .get(&header::CONTENT_TYPE)
                 .and_then(|ct| ct.to_str().ok())
                 .and_then(|ct| ct.parse().ok());
@@ -363,23 +418,24 @@ impl InnerMultipart {
             self.state = InnerState::Boundary;
 
             // nested multipart stream is not supported
-            if let Some(mime) = &ct {
+            if let Some(mime) = &field_content_type {
                 if mime.type_() == mime::MULTIPART {
                     return Poll::Ready(Some(Err(MultipartError::Nested)));
                 }
             }
 
-            let field =
-                InnerField::new_in_rc(self.payload.clone(), self.boundary.clone(), &headers)?;
+            let field_inner =
+                InnerField::new_in_rc(self.payload.clone(), self.boundary.clone(), &field_headers)?;
 
-            self.item = InnerMultipartItem::Field(Rc::clone(&field));
+            self.item = InnerMultipartItem::Field(Rc::clone(&field_inner));
 
             Poll::Ready(Some(Ok(Field::new(
+                field_content_type,
+                field_content_disposition,
+                form_field_name,
+                field_headers,
                 safety.clone(cx),
-                headers,
-                ct,
-                cd,
-                field,
+                field_inner,
             ))))
         }
     }
@@ -392,26 +448,42 @@ impl Drop for InnerMultipart {
     }
 }
 
-/// A single field in a multipart stream
+/// A single field in a multipart stream.
 pub struct Field {
-    ct: Option<mime::Mime>,
-    cd: ContentDisposition,
+    /// Field's Content-Type.
+    content_type: Option<Mime>,
+
+    /// Field's Content-Disposition.
+    content_disposition: Option<ContentDisposition>,
+
+    /// Form field name.
+    ///
+    /// A non-optional storage for form field names to avoid unwraps in `form` module. Will be an
+    /// empty string in non-form contexts.
+    ///
+    // INVARIANT: always non-empty when request content-type is multipart/form-data.
+    pub(crate) form_field_name: String,
+
+    /// Field's header map.
     headers: HeaderMap,
-    inner: Rc<RefCell<InnerField>>,
+
     safety: Safety,
+    inner: Rc<RefCell<InnerField>>,
 }
 
 impl Field {
     fn new(
-        safety: Safety,
+        content_type: Option<Mime>,
+        content_disposition: Option<ContentDisposition>,
+        form_field_name: Option<String>,
         headers: HeaderMap,
-        ct: Option<mime::Mime>,
-        cd: ContentDisposition,
+        safety: Safety,
         inner: Rc<RefCell<InnerField>>,
     ) -> Self {
         Field {
-            ct,
-            cd,
+            content_type,
+            content_disposition,
+            form_field_name: form_field_name.unwrap_or_default(),
             headers,
             inner,
             safety,
@@ -428,34 +500,36 @@ impl Field {
     /// According to [RFC 7578](https://www.rfc-editor.org/rfc/rfc7578#section-4.4), if it is not
     /// present, it should default to "text/plain". Note it is the responsibility of the client to
     /// provide the appropriate content type, there is no attempt to validate this by the server.
-    pub fn content_type(&self) -> Option<&mime::Mime> {
-        self.ct.as_ref()
+    pub fn content_type(&self) -> Option<&Mime> {
+        self.content_type.as_ref()
     }
 
-    /// Returns the field's Content-Disposition.
+    /// Returns this field's parsed Content-Disposition header, if set.
     ///
-    /// Per [RFC 7578 §4.2]: "Each part MUST contain a Content-Disposition header field where the
-    /// disposition type is `form-data`. The Content-Disposition header field MUST also contain an
-    /// additional parameter of `name`; the value of the `name` parameter is the original field name
-    /// from the form."
+    /// # Validation
     ///
-    /// This crate validates that it exists before returning a `Field`. As such, it is safe to
-    /// unwrap `.content_disposition().get_name()`. The [name](Self::name) method is provided as
-    /// a convenience.
+    /// Per [RFC 7578 §4.2], the parts of a multipart/form-data payload MUST contain a
+    /// Content-Disposition header field where the disposition type is `form-data` and MUST also
+    /// contain an additional parameter of `name` with its value being the original field name from
+    /// the form. This requirement is enforced during extraction for multipart/form-data requests,
+    /// but not other kinds of multipart requests (such as multipart/related).
+    ///
+    /// As such, it is safe to `.unwrap()` calls `.content_disposition()` if you've verified.
+    ///
+    /// The [`name()`](Self::name) method is also provided as a convenience for obtaining the
+    /// aforementioned name parameter.
     ///
     /// [RFC 7578 §4.2]: https://datatracker.ietf.org/doc/html/rfc7578#section-4.2
-    pub fn content_disposition(&self) -> &ContentDisposition {
-        &self.cd
+    pub fn content_disposition(&self) -> Option<&ContentDisposition> {
+        self.content_disposition.as_ref()
     }
 
-    /// Returns the field's name.
+    /// Returns the field's name, if set.
     ///
-    /// See [content_disposition](Self::content_disposition) regarding guarantees about existence of
-    /// the name field.
-    pub fn name(&self) -> &str {
-        self.content_disposition()
-            .get_name()
-            .expect("field name should be guaranteed to exist in multipart form-data")
+    /// See [`content_disposition()`](Self::content_disposition) regarding guarantees on presence of
+    /// the "name" field.
+    pub fn name(&self) -> Option<&str> {
+        self.content_disposition()?.get_name()
     }
 }
 
@@ -465,6 +539,7 @@ impl Stream for Field {
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
         let mut inner = this.inner.borrow_mut();
+
         if let Some(mut buffer) = inner
             .payload
             .as_ref()
@@ -486,7 +561,7 @@ impl Stream for Field {
 
 impl fmt::Debug for Field {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(ct) = &self.ct {
+        if let Some(ct) = &self.content_type {
             writeln!(f, "\nField: {}", ct)?;
         } else {
             writeln!(f, "\nField:")?;
@@ -570,6 +645,7 @@ impl InnerField {
     }
 
     /// Reads content chunk of body part with unknown length.
+    ///
     /// The `Content-Length` header for body part is not necessary.
     fn read_stream(
         payload: &mut PayloadBuffer,
@@ -704,8 +780,8 @@ impl PayloadRef {
         }
     }
 
-    fn get_mut(&self, s: &Safety) -> Option<RefMut<'_, PayloadBuffer>> {
-        if s.current() {
+    fn get_mut(&self, safety: &Safety) -> Option<RefMut<'_, PayloadBuffer>> {
+        if safety.current() {
             Some(self.payload.borrow_mut())
         } else {
             None
@@ -722,10 +798,11 @@ impl Clone for PayloadRef {
 }
 
 /// Counter. It tracks of number of clones of payloads and give access to payload only to top most.
-/// * When dropped, parent task is awakened. This is to support the case where Field is
-/// dropped in a separate task than Multipart.
-/// * Assumes that parent owners don't move to different tasks; only the top-most is allowed to.
-/// * If dropped and is not top most owner, is_clean flag is set to false.
+///
+/// - When dropped, parent task is awakened. This is to support the case where `Field` is dropped in
+///   a separate task than `Multipart`.
+/// - Assumes that parent owners don't move to different tasks; only the top-most is allowed to.
+/// - If dropped and is not top most owner, is_clean flag is set to false.
 #[derive(Debug)]
 struct Safety {
     task: LocalWaker,
@@ -876,6 +953,7 @@ mod tests {
         test::TestRequest,
         FromRequest,
     };
+    use assert_matches::assert_matches;
     use bytes::BufMut as _;
     use futures_util::{future::lazy, StreamExt as _};
     use tokio::sync::mpsc;
@@ -888,8 +966,8 @@ mod tests {
     #[actix_rt::test]
     async fn test_boundary() {
         let headers = HeaderMap::new();
-        match Multipart::boundary(&headers) {
-            Err(MultipartError::NoContentType) => {}
+        match Multipart::find_ct_and_boundary(&headers) {
+            Err(MultipartError::ContentTypeMissing) => {}
             _ => unreachable!("should not happen"),
         }
 
@@ -899,8 +977,8 @@ mod tests {
             header::HeaderValue::from_static("test"),
         );
 
-        match Multipart::boundary(&headers) {
-            Err(MultipartError::ParseContentType) => {}
+        match Multipart::find_ct_and_boundary(&headers) {
+            Err(MultipartError::ContentTypeParse) => {}
             _ => unreachable!("should not happen"),
         }
 
@@ -909,8 +987,8 @@ mod tests {
             header::CONTENT_TYPE,
             header::HeaderValue::from_static("multipart/mixed"),
         );
-        match Multipart::boundary(&headers) {
-            Err(MultipartError::Boundary) => {}
+        match Multipart::find_ct_and_boundary(&headers) {
+            Err(MultipartError::BoundaryMissing) => {}
             _ => unreachable!("should not happen"),
         }
 
@@ -923,8 +1001,8 @@ mod tests {
         );
 
         assert_eq!(
-            Multipart::boundary(&headers).unwrap(),
-            "5c02368e880e436dab70ed54e1c58209"
+            Multipart::find_ct_and_boundary(&headers).unwrap().1,
+            "5c02368e880e436dab70ed54e1c58209",
         );
     }
 
@@ -1059,7 +1137,7 @@ mod tests {
         let mut multipart = Multipart::new(&headers, payload);
         match multipart.next().await {
             Some(Ok(mut field)) => {
-                let cd = field.content_disposition();
+                let cd = field.content_disposition().unwrap();
                 assert_eq!(cd.disposition, DispositionType::FormData);
                 assert_eq!(cd.parameters[0], DispositionParam::Name("file".into()));
 
@@ -1121,7 +1199,7 @@ mod tests {
         let mut multipart = Multipart::new(&headers, payload);
         match multipart.next().await.unwrap() {
             Ok(mut field) => {
-                let cd = field.content_disposition();
+                let cd = field.content_disposition().unwrap();
                 assert_eq!(cd.disposition, DispositionType::FormData);
                 assert_eq!(cd.parameters[0], DispositionParam::Name("file".into()));
 
@@ -1245,7 +1323,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_multipart_from_error() {
-        let err = MultipartError::NoContentType;
+        let err = MultipartError::ContentTypeMissing;
         let mut multipart = Multipart::from_error(err);
         assert!(multipart.next().await.unwrap().is_err())
     }
@@ -1254,9 +1332,8 @@ mod tests {
     async fn test_multipart_from_boundary() {
         let (_, payload) = create_stream();
         let (_, headers) = create_simple_request_with_header();
-        let boundary = Multipart::boundary(&headers);
-        assert!(boundary.is_ok());
-        let _ = Multipart::from_boundary(boundary.unwrap(), payload);
+        let (ct, boundary) = Multipart::find_ct_and_boundary(&headers).unwrap();
+        let _ = Multipart::from_ct_and_boundary(ct, boundary, payload);
     }
 
     #[actix_rt::test]
@@ -1278,11 +1355,43 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn no_content_disposition() {
+    async fn no_content_disposition_form_data() {
         let bytes = Bytes::from(
             "testasdadsad\r\n\
              --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
-             Content-Type: text/plain; charset=utf-8\r\nContent-Length: 4\r\n\r\n\
+             Content-Type: text/plain; charset=utf-8\r\n\
+             Content-Length: 4\r\n\
+             \r\n\
+             test\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0\r\n",
+        );
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static(
+                "multipart/form-data; boundary=\"abbc761f78ff4d7cb7573b5a23f96ef0\"",
+            ),
+        );
+        let payload = SlowStream::new(bytes);
+
+        let mut multipart = Multipart::new(&headers, payload);
+        let res = multipart.next().await.unwrap();
+        assert_matches!(
+            res.expect_err(
+                "according to RFC 7578, form-data fields require a content-disposition header"
+            ),
+            MultipartError::ContentDispositionMissing
+        );
+    }
+
+    #[actix_rt::test]
+    async fn no_content_disposition_non_form_data() {
+        let bytes = Bytes::from(
+            "testasdadsad\r\n\
+             --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
+             Content-Type: text/plain; charset=utf-8\r\n\
+             Content-Length: 4\r\n\
+             \r\n\
              test\r\n\
              --abbc761f78ff4d7cb7573b5a23f96ef0\r\n",
         );
@@ -1297,20 +1406,18 @@ mod tests {
 
         let mut multipart = Multipart::new(&headers, payload);
         let res = multipart.next().await.unwrap();
-        assert!(res.is_err());
-        assert!(matches!(
-            res.unwrap_err(),
-            MultipartError::NoContentDisposition,
-        ));
+        res.unwrap();
     }
 
     #[actix_rt::test]
-    async fn no_name_in_content_disposition() {
+    async fn no_name_in_form_data_content_disposition() {
         let bytes = Bytes::from(
             "testasdadsad\r\n\
              --abbc761f78ff4d7cb7573b5a23f96ef0\r\n\
              Content-Disposition: form-data; filename=\"fn.txt\"\r\n\
-             Content-Type: text/plain; charset=utf-8\r\nContent-Length: 4\r\n\r\n\
+             Content-Type: text/plain; charset=utf-8\r\n\
+             Content-Length: 4\r\n\
+             \r\n\
              test\r\n\
              --abbc761f78ff4d7cb7573b5a23f96ef0\r\n",
         );
@@ -1318,18 +1425,17 @@ mod tests {
         headers.insert(
             header::CONTENT_TYPE,
             header::HeaderValue::from_static(
-                "multipart/mixed; boundary=\"abbc761f78ff4d7cb7573b5a23f96ef0\"",
+                "multipart/form-data; boundary=\"abbc761f78ff4d7cb7573b5a23f96ef0\"",
             ),
         );
         let payload = SlowStream::new(bytes);
 
         let mut multipart = Multipart::new(&headers, payload);
         let res = multipart.next().await.unwrap();
-        assert!(res.is_err());
-        assert!(matches!(
-            res.unwrap_err(),
-            MultipartError::NoContentDisposition,
-        ));
+        assert_matches!(
+            res.expect_err("according to RFC 7578, form-data fields require a name attribute"),
+            MultipartError::ContentDispositionNameMissing
+        );
     }
 
     #[actix_rt::test]
@@ -1362,7 +1468,7 @@ mod tests {
         let mut field = multipart.next().await.unwrap().unwrap();
 
         let task = rt::spawn(async move {
-            rt::time::sleep(Duration::from_secs(1)).await;
+            rt::time::sleep(Duration::from_millis(500)).await;
             assert_eq!(field.next().await.unwrap().unwrap(), "test");
             drop(field);
         });
