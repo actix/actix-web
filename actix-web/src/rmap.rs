@@ -1,7 +1,9 @@
 use std::{
-    borrow::Cow,
+    borrow::{Borrow, Cow},
     cell::RefCell,
+    collections::HashMap,
     fmt::Write as _,
+    hash::{BuildHasher, Hash},
     rc::{Rc, Weak},
 };
 
@@ -114,10 +116,10 @@ impl ResourceMap {
         }
     }
 
-    /// Generate URL for named resource.
+    /// Generate URL for named resource with an iterator over elements.
     ///
     /// Check [`HttpRequest::url_for`] for detailed information.
-    pub fn url_for<U, I>(
+    pub fn url_for_iter<U, I>(
         &self,
         req: &HttpRequest,
         name: &str,
@@ -128,16 +130,48 @@ impl ResourceMap {
         I: AsRef<str>,
     {
         let mut elements = elements.into_iter();
+        self.url_for(req, name, |mut acc, node: &ResourceMap| {
+            node.pattern
+                .resource_path_from_iter(&mut acc, &mut elements)
+                .then_some(acc)
+        })
+    }
 
+    /// Generate URL for named resource with a map of elements by parameter names.
+    ///
+    /// Check [`HttpRequest::url_for_map`] for detailed information.
+    pub fn url_for_map<K, V, S>(
+        &self,
+        req: &HttpRequest,
+        name: &str,
+        elements: &HashMap<K, V, S>,
+    ) -> Result<Url, UrlGenerationError>
+    where
+        K: Borrow<str> + Eq + Hash,
+        V: AsRef<str>,
+        S: BuildHasher,
+    {
+        self.url_for(req, name, |mut acc, node: &ResourceMap| {
+            node.pattern
+                .resource_path_from_map(&mut acc, elements)
+                .then_some(acc)
+        })
+    }
+
+    fn url_for<F>(
+        &self,
+        req: &HttpRequest,
+        name: &str,
+        map_fn: F,
+    ) -> Result<Url, UrlGenerationError>
+    where
+        F: FnMut(String, &ResourceMap) -> Option<String>,
+    {
         let path = self
             .named
             .get(name)
             .ok_or(UrlGenerationError::ResourceNotFound)?
-            .root_rmap_fn(String::with_capacity(AVG_PATH_LEN), |mut acc, node| {
-                node.pattern
-                    .resource_path_from_iter(&mut acc, &mut elements)
-                    .then_some(acc)
-            })
+            .root_rmap_fn(String::with_capacity(AVG_PATH_LEN), map_fn)
             .ok_or(UrlGenerationError::NotEnoughElements)?;
 
         let (base, path): (Cow<'_, _>, _) = if path.starts_with('/') {
@@ -448,13 +482,23 @@ mod tests {
         req.set_server_hostname("localhost:8888");
         let req = req.to_http_request();
 
+        const OUTPUT: &str = "http://localhost:8888/user/u123/post/foobar";
+
         let url = rmap
-            .url_for(&req, "post", ["u123", "foobar"])
+            .url_for_iter(&req, "post", ["u123", "foobar"])
             .unwrap()
             .to_string();
-        assert_eq!(url, "http://localhost:8888/user/u123/post/foobar");
+        assert_eq!(url, OUTPUT);
 
-        assert!(rmap.url_for(&req, "missing", ["u123"]).is_err());
+        let input_map = HashMap::from([("user_id", "u123"), ("sub_id", "foobar")]);
+        let url = rmap
+            .url_for_map(&req, "post", &input_map)
+            .unwrap()
+            .to_string();
+        assert_eq!(url, OUTPUT);
+
+        assert!(rmap.url_for_iter(&req, "missing", ["u123"]).is_err());
+        assert!(rmap.url_for_map(&req, "missing", &input_map).is_err());
     }
 
     #[test]
@@ -480,17 +524,32 @@ mod tests {
         req.set_server_hostname("localhost:8888");
         let req = req.to_http_request();
 
-        const INPUT: &[&str] = &["a/../quick brown%20fox/%nan?query#frag"];
+        const INPUT: &str = "a/../quick brown%20fox/%nan?query#frag";
+        const ITERABLE_INPUT: &[&str] = &[INPUT];
+        let map_input = HashMap::from([("var", INPUT), ("extra", "")]);
+
         const OUTPUT: &str = "/quick%20brown%20fox/%nan%3Fquery%23frag";
 
-        let url = rmap.url_for(&req, "internal", INPUT).unwrap();
+        let url = rmap.url_for_iter(&req, "internal", ITERABLE_INPUT).unwrap();
+        assert_eq!(url.path(), OUTPUT);
+        let url = rmap.url_for_map(&req, "internal", &map_input).unwrap();
         assert_eq!(url.path(), OUTPUT);
 
-        let url = rmap.url_for(&req, "external.1", INPUT).unwrap();
+        let url = rmap
+            .url_for_iter(&req, "external.1", ITERABLE_INPUT)
+            .unwrap();
+        assert_eq!(url.path(), OUTPUT);
+        let url = rmap.url_for_map(&req, "external.1", &map_input).unwrap();
         assert_eq!(url.path(), OUTPUT);
 
-        assert!(rmap.url_for(&req, "external.2", INPUT).is_err());
-        assert!(rmap.url_for(&req, "external.2", [""]).is_err());
+        assert!(rmap
+            .url_for_iter(&req, "external.2", ITERABLE_INPUT)
+            .is_err());
+        assert!(rmap.url_for_map(&req, "external.2", &map_input).is_err());
+
+        let empty_map: HashMap<&str, &str> = HashMap::new();
+        assert!(rmap.url_for_iter(&req, "external.2", [""]).is_err());
+        assert!(rmap.url_for_map(&req, "external.2", &empty_map).is_err());
     }
 
     #[test]
@@ -523,10 +582,22 @@ mod tests {
         req.set_server_hostname("localhost:8888");
         let req = req.to_http_request();
 
+        const OUTPUT: &str = "https://duck.com/abcd";
+
         assert_eq!(
-            rmap.url_for(&req, "duck", ["abcd"]).unwrap().to_string(),
-            "https://duck.com/abcd"
+            rmap.url_for_iter(&req, "duck", ["abcd"])
+                .unwrap()
+                .to_string(),
+            OUTPUT
         );
+
+        let input_map = HashMap::from([("query", "abcd")]);
+        assert_eq!(
+            rmap.url_for_map(&req, "duck", &input_map)
+                .unwrap()
+                .to_string(),
+            OUTPUT
+        )
     }
 
     #[test]
@@ -552,9 +623,22 @@ mod tests {
 
         let req = crate::test::TestRequest::default().to_http_request();
 
-        let url = rmap.url_for(&req, "nested", [""; 0]).unwrap().to_string();
-        assert_eq!(url, "http://localhost:8080/bar/nested");
+        const OUTPUT: &str = "http://localhost:8080/bar/nested";
 
-        assert!(rmap.url_for(&req, "missing", ["u123"]).is_err());
+        let url = rmap
+            .url_for_iter(&req, "nested", [""; 0])
+            .unwrap()
+            .to_string();
+        assert_eq!(url, OUTPUT);
+
+        let empty_map: HashMap<&str, &str> = HashMap::new();
+        let url = rmap
+            .url_for_map(&req, "nested", &empty_map)
+            .unwrap()
+            .to_string();
+        assert_eq!(url, OUTPUT);
+
+        assert!(rmap.url_for_iter(&req, "missing", ["u123"]).is_err());
+        assert!(rmap.url_for_map(&req, "missing", &empty_map).is_err());
     }
 }
