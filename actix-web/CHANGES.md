@@ -8,6 +8,7 @@
 
 - Add `web::Html` responder.
 - Add `HttpRequest::full_url()` method to get the complete URL of the request.
+- Add level setup for `middleware::Compress`.
 
 ### Fixed
 
