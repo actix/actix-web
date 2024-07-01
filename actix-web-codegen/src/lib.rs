@@ -85,7 +85,7 @@ use quote::quote;
 mod route;
 mod scope;
 
-/// Creates resource handler, allowing multiple HTTP method guards.
+/// Creates resource handler , allowing multiple HTTP method guards.
 ///
 /// # Syntax
 /// ```plain
@@ -197,6 +197,7 @@ method_macro!(Connect, connect);
 method_macro!(Options, options);
 method_macro!(Trace, trace);
 method_macro!(Patch, patch);
+method_macro!(All, all);
 
 /// Prepends a path prefix to all handlers using routing macros inside the attached module.
 ///
