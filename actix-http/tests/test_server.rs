@@ -440,6 +440,60 @@ async fn content_length() {
 }
 
 #[actix_rt::test]
+async fn content_length_truncated() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    let mut srv = test_server(|| {
+        HttpService::build()
+            .h1(|mut req: Request| async move {
+                let expected_length: usize = req.uri().path()[1..].parse().unwrap();
+                let mut payload = req.take_payload();
+
+                let mut length = 0;
+                let mut seen_error = false;
+                while let Some(chunk) = payload.next().await {
+                    match chunk {
+                        Ok(b) => length += b.len(),
+                        Err(_) => {
+                            seen_error = true;
+                            break;
+                        }
+                    }
+                }
+                if seen_error {
+                    return Result::<_, Infallible>::Ok(Response::bad_request());
+                }
+
+                assert_eq!(length, expected_length, "length must match when no error");
+                Result::<_, Infallible>::Ok(Response::ok())
+            })
+            .tcp()
+    })
+    .await;
+
+    let addr = srv.addr();
+    let mut buf = [0; 12];
+
+    let mut conn = TcpStream::connect(&addr).await.unwrap();
+    conn.write_all(b"POST /10000 HTTP/1.1\r\nContent-Length: 10000\r\n\r\ndata_truncated")
+        .await
+        .unwrap();
+    conn.shutdown().await.unwrap();
+    conn.read_exact(&mut buf).await.unwrap();
+    assert_eq!(&buf, b"HTTP/1.1 400");
+
+    let mut conn = TcpStream::connect(&addr).await.unwrap();
+    conn.write_all(b"POST /4 HTTP/1.1\r\nContent-Length: 4\r\n\r\ndata")
+        .await
+        .unwrap();
+    conn.shutdown().await.unwrap();
+    conn.read_exact(&mut buf).await.unwrap();
+    assert_eq!(&buf, b"HTTP/1.1 200");
+
+    srv.stop().await;
+}
+
+#[actix_rt::test]
 async fn h1_headers() {
     let data = STR.repeat(10);
     let data2 = data.clone();
