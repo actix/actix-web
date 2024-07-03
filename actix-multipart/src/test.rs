@@ -1,7 +1,9 @@
 //! Multipart testing utilities.
 
-use actix_web::http::header::{self, HeaderMap};
-use bytes::{BufMut as _, Bytes, BytesMut};
+use actix_web::{
+    http::header::{self, HeaderMap},
+    web::{BufMut as _, Bytes, BytesMut},
+};
 use mime::Mime;
 use rand::{
     distributions::{Alphanumeric, DistString as _},

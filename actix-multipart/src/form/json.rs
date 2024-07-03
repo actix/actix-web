@@ -134,8 +134,7 @@ impl Default for JsonConfig {
 mod tests {
     use std::collections::HashMap;
 
-    use actix_web::{http::StatusCode, web, App, HttpResponse, Responder};
-    use bytes::Bytes;
+    use actix_web::{http::StatusCode, web, web::Bytes, App, HttpResponse, Responder};
 
     use crate::form::{
         json::{Json, JsonConfig},

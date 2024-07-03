@@ -60,6 +60,7 @@ extern crate self as actix_multipart;
 mod error;
 mod extractor;
 pub mod form;
+pub(crate) mod payload;
 pub(crate) mod safety;
 mod server;
 pub mod test;
