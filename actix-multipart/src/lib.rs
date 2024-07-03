@@ -59,13 +59,11 @@ extern crate self as actix_multipart;
 
 mod error;
 mod extractor;
+pub(crate) mod field;
 pub mod form;
 pub(crate) mod payload;
 pub(crate) mod safety;
 mod server;
 pub mod test;
 
-pub use self::{
-    error::MultipartError,
-    server::{Field, Multipart},
-};
+pub use self::{error::MultipartError, field::Field, server::Multipart};
