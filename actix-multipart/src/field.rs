@@ -15,7 +15,7 @@ use futures_core::stream::Stream;
 use mime::Mime;
 
 use crate::{
-    error::MultipartError,
+    error::Error,
     payload::{PayloadBuffer, PayloadRef},
     safety::Safety,
 };
@@ -106,7 +106,7 @@ impl Field {
 }
 
 impl Stream for Field {
-    type Item = Result<Bytes, MultipartError>;
+    type Item = Result<Bytes, Error>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
@@ -122,7 +122,7 @@ impl Stream for Field {
             buffer.poll_stream(cx)?;
         } else if !this.safety.is_clean() {
             // safety violation
-            return Poll::Ready(Some(Err(MultipartError::NotConsumed)));
+            return Poll::Ready(Some(Err(Error::NotConsumed)));
         } else {
             return Poll::Pending;
         }
@@ -192,7 +192,7 @@ impl InnerField {
     pub(crate) fn read_len(
         payload: &mut PayloadBuffer,
         size: &mut u64,
-    ) -> Poll<Option<Result<Bytes, MultipartError>>> {
+    ) -> Poll<Option<Result<Bytes, Error>>> {
         if *size == 0 {
             Poll::Ready(None)
         } else {
@@ -208,7 +208,7 @@ impl InnerField {
                 }
                 None => {
                     if payload.eof && (*size != 0) {
-                        Poll::Ready(Some(Err(MultipartError::Incomplete)))
+                        Poll::Ready(Some(Err(Error::Incomplete)))
                     } else {
                         Poll::Pending
                     }
@@ -223,13 +223,13 @@ impl InnerField {
     pub(crate) fn read_stream(
         payload: &mut PayloadBuffer,
         boundary: &str,
-    ) -> Poll<Option<Result<Bytes, MultipartError>>> {
+    ) -> Poll<Option<Result<Bytes, Error>>> {
         let mut pos = 0;
 
         let len = payload.buf.len();
         if len == 0 {
             return if payload.eof {
-                Poll::Ready(Some(Err(MultipartError::Incomplete)))
+                Poll::Ready(Some(Err(Error::Incomplete)))
             } else {
                 Poll::Pending
             };
@@ -293,7 +293,7 @@ impl InnerField {
         }
     }
 
-    pub(crate) fn poll(&mut self, safety: &Safety) -> Poll<Option<Result<Bytes, MultipartError>>> {
+    pub(crate) fn poll(&mut self, safety: &Safety) -> Poll<Option<Result<Bytes, Error>>> {
         if self.payload.is_none() {
             return Poll::Ready(None);
         }

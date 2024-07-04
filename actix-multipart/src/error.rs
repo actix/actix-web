@@ -10,7 +10,7 @@ use derive_more::{Display, Error, From};
 /// A set of errors that can occur during parsing multipart streams.
 #[derive(Debug, Display, From, Error)]
 #[non_exhaustive]
-pub enum MultipartError {
+pub enum Error {
     /// Could not find Content-Type header.
     #[display(fmt = "Could not find Content-Type header")]
     ContentTypeMissing,
@@ -95,11 +95,11 @@ pub enum MultipartError {
 }
 
 /// Return `BadRequest` for `MultipartError`.
-impl ResponseError for MultipartError {
+impl ResponseError for Error {
     fn status_code(&self) -> StatusCode {
         match &self {
-            MultipartError::Field { source, .. } => source.as_response_error().status_code(),
-            MultipartError::ContentTypeIncompatible => StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            Error::Field { source, .. } => source.as_response_error().status_code(),
+            Error::ContentTypeIncompatible => StatusCode::UNSUPPORTED_MEDIA_TYPE,
             _ => StatusCode::BAD_REQUEST,
         }
     }
@@ -111,7 +111,7 @@ mod tests {
 
     #[test]
     fn test_multipart_error() {
-        let resp = MultipartError::BoundaryMissing.error_response();
+        let resp = Error::BoundaryMissing.error_response();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 }

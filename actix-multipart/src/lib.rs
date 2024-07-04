@@ -63,4 +63,4 @@ pub(crate) mod safety;
 mod server;
 pub mod test;
 
-pub use self::{error::MultipartError, field::Field, server::Multipart};
+pub use self::{error::Error as MultipartError, field::Field, server::Multipart};

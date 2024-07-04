@@ -12,11 +12,11 @@ use crate::server::Multipart;
 /// # Examples
 ///
 /// ```
-/// use actix_web::{web, HttpResponse, Error};
+/// use actix_web::{web, HttpResponse};
 /// use actix_multipart::Multipart;
 /// use futures_util::StreamExt as _;
 ///
-/// async fn index(mut payload: Multipart) -> Result<HttpResponse, Error> {
+/// async fn index(mut payload: Multipart) -> actix_web::Result<HttpResponse> {
 ///     // iterate over multipart stream
 ///     while let Some(item) = payload.next().await {
 ///            let mut field = item?;
@@ -27,7 +27,7 @@ use crate::server::Multipart;
 ///            }
 ///     }
 ///
-///     Ok(HttpResponse::Ok().into())
+///     Ok(HttpResponse::Ok().finish())
 /// }
 /// ```
 impl FromRequest for Multipart {
