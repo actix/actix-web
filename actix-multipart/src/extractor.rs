@@ -1,13 +1,11 @@
-//! Multipart payload support
-
 use actix_utils::future::{ready, Ready};
 use actix_web::{dev::Payload, Error, FromRequest, HttpRequest};
 
-use crate::server::Multipart;
+use crate::multipart::Multipart;
 
-/// Get request's payload as multipart stream.
+/// Extract request's payload as multipart stream.
 ///
-/// Content-type: multipart/form-data;
+/// Content-type: multipart/*;
 ///
 /// # Examples
 ///

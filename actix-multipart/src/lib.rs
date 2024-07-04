@@ -58,9 +58,9 @@ mod error;
 mod extractor;
 pub(crate) mod field;
 pub mod form;
+mod multipart;
 pub(crate) mod payload;
 pub(crate) mod safety;
-mod server;
 pub mod test;
 
-pub use self::{error::Error as MultipartError, field::Field, server::Multipart};
+pub use self::{error::Error as MultipartError, field::Field, multipart::Multipart};
