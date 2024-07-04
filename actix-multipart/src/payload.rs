@@ -1,5 +1,6 @@
 use std::{
     cell::{RefCell, RefMut},
+    cmp,
     pin::Pin,
     rc::Rc,
     task::{Context, Poll},
@@ -75,7 +76,7 @@ impl PayloadBuffer {
         }
     }
 
-    /// Read exact number of bytes
+    /// Read exact number of bytes.
     #[cfg(test)]
     pub(crate) fn read_exact(&mut self, size: usize) -> Option<Bytes> {
         if size <= self.buf.len() {
@@ -87,7 +88,7 @@ impl PayloadBuffer {
 
     pub(crate) fn read_max(&mut self, size: u64) -> Result<Option<Bytes>, MultipartError> {
         if !self.buf.is_empty() {
-            let size = std::cmp::min(self.buf.len() as u64, size) as usize;
+            let size = cmp::min(self.buf.len() as u64, size) as usize;
             Ok(Some(self.buf.split_to(size).freeze()))
         } else if self.eof {
             Err(MultipartError::Incomplete)
@@ -96,7 +97,7 @@ impl PayloadBuffer {
         }
     }
 
-    /// Read until specified ending
+    /// Read until specified ending.
     pub(crate) fn read_until(&mut self, line: &[u8]) -> Result<Option<Bytes>, MultipartError> {
         let res = memchr::memmem::find(&self.buf, line)
             .map(|idx| self.buf.split_to(idx + line.len()).freeze());
@@ -108,12 +109,12 @@ impl PayloadBuffer {
         }
     }
 
-    /// Read bytes until new line delimiter
+    /// Read bytes until new line delimiter.
     pub(crate) fn readline(&mut self) -> Result<Option<Bytes>, MultipartError> {
         self.read_until(b"\n")
     }
 
-    /// Read bytes until new line delimiter or eof
+    /// Read bytes until new line delimiter or EOF.
     pub(crate) fn readline_or_eof(&mut self) -> Result<Option<Bytes>, MultipartError> {
         match self.readline() {
             Err(MultipartError::Incomplete) if self.eof => Ok(Some(self.buf.split().freeze())),
@@ -121,7 +122,7 @@ impl PayloadBuffer {
         }
     }
 
-    /// Put unprocessed data back to the buffer
+    /// Put unprocessed data back to the buffer.
     pub(crate) fn unprocessed(&mut self, data: Bytes) {
         let buf = BytesMut::from(data.as_ref());
         let buf = std::mem::replace(&mut self.buf, buf);

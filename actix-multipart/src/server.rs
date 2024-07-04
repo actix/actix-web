@@ -34,7 +34,7 @@ const MAX_HEADERS: usize = 32;
 /// used for nested multipart streams.
 pub struct Multipart {
     safety: Safety,
-    inner: Option<InnerMultipart>,
+    inner: Option<Inner>,
     error: Option<MultipartError>,
 }
 
@@ -90,12 +90,12 @@ impl Multipart {
     {
         Multipart {
             safety: Safety::new(),
-            inner: Some(InnerMultipart {
+            inner: Some(Inner {
                 payload: PayloadRef::new(PayloadBuffer::new(stream)),
                 content_type: ct,
                 boundary,
-                state: InnerState::FirstBoundary,
-                item: InnerMultipartItem::None,
+                state: State::FirstBoundary,
+                item: Item::None,
             }),
             error: None,
         }
@@ -155,10 +155,7 @@ impl Stream for Multipart {
 }
 
 #[derive(PartialEq, Debug)]
-enum InnerState {
-    /// Stream EOF.
-    Eof,
-
+enum State {
     /// Skip data until first boundary.
     FirstBoundary,
 
@@ -167,14 +164,17 @@ enum InnerState {
 
     /// Reading Headers.
     Headers,
+
+    /// Stream EOF.
+    Eof,
 }
 
-enum InnerMultipartItem {
+enum Item {
     None,
     Field(Rc<RefCell<InnerField>>),
 }
 
-struct InnerMultipart {
+struct Inner {
     /// Request's payload stream & buffer.
     payload: PayloadRef,
 
@@ -186,11 +186,11 @@ struct InnerMultipart {
     /// Field boundary.
     boundary: String,
 
-    state: InnerState,
-    item: InnerMultipartItem,
+    state: State,
+    item: Item,
 }
 
-impl InnerMultipart {
+impl Inner {
     fn read_field_headers(
         payload: &mut PayloadBuffer,
     ) -> Result<Option<HeaderMap>, MultipartError> {
@@ -265,6 +265,7 @@ impl InnerMultipart {
         boundary: &str,
     ) -> Result<Option<bool>, MultipartError> {
         let mut eof = false;
+
         loop {
             match payload.readline()? {
                 Some(chunk) => {
@@ -306,7 +307,7 @@ impl InnerMultipart {
         safety: &Safety,
         cx: &Context<'_>,
     ) -> Poll<Option<Result<Field, MultipartError>>> {
-        if self.state == InnerState::Eof {
+        if self.state == State::Eof {
             Poll::Ready(None)
         } else {
             // release field
@@ -315,20 +316,18 @@ impl InnerMultipart {
                 // before switching to next
                 if safety.current() {
                     let stop = match self.item {
-                        InnerMultipartItem::Field(ref mut field) => {
-                            match field.borrow_mut().poll(safety) {
-                                Poll::Pending => return Poll::Pending,
-                                Poll::Ready(Some(Ok(_))) => continue,
-                                Poll::Ready(Some(Err(err))) => return Poll::Ready(Some(Err(err))),
-                                Poll::Ready(None) => true,
-                            }
-                        }
-                        InnerMultipartItem::None => false,
+                        Item::Field(ref mut field) => match field.borrow_mut().poll(safety) {
+                            Poll::Pending => return Poll::Pending,
+                            Poll::Ready(Some(Ok(_))) => continue,
+                            Poll::Ready(Some(Err(err))) => return Poll::Ready(Some(Err(err))),
+                            Poll::Ready(None) => true,
+                        },
+                        Item::None => false,
                     };
                     if stop {
-                        self.item = InnerMultipartItem::None;
+                        self.item = Item::None;
                     }
-                    if let InnerMultipartItem::None = self.item {
+                    if let Item::None = self.item {
                         break;
                     }
                 }
@@ -337,40 +336,40 @@ impl InnerMultipart {
             let field_headers = if let Some(mut payload) = self.payload.get_mut(safety) {
                 match self.state {
                     // read until first boundary
-                    InnerState::FirstBoundary => {
-                        match InnerMultipart::skip_until_boundary(&mut payload, &self.boundary)? {
+                    State::FirstBoundary => {
+                        match Inner::skip_until_boundary(&mut payload, &self.boundary)? {
                             Some(eof) => {
                                 if eof {
-                                    self.state = InnerState::Eof;
+                                    self.state = State::Eof;
                                     return Poll::Ready(None);
                                 } else {
-                                    self.state = InnerState::Headers;
+                                    self.state = State::Headers;
                                 }
                             }
                             None => return Poll::Pending,
                         }
                     }
+
                     // read boundary
-                    InnerState::Boundary => {
-                        match InnerMultipart::read_boundary(&mut payload, &self.boundary)? {
-                            None => return Poll::Pending,
-                            Some(eof) => {
-                                if eof {
-                                    self.state = InnerState::Eof;
-                                    return Poll::Ready(None);
-                                } else {
-                                    self.state = InnerState::Headers;
-                                }
+                    State::Boundary => match Inner::read_boundary(&mut payload, &self.boundary)? {
+                        None => return Poll::Pending,
+                        Some(eof) => {
+                            if eof {
+                                self.state = State::Eof;
+                                return Poll::Ready(None);
+                            } else {
+                                self.state = State::Headers;
                             }
                         }
-                    }
+                    },
+
                     _ => {}
                 }
 
                 // read field headers for next field
-                if self.state == InnerState::Headers {
-                    if let Some(headers) = InnerMultipart::read_field_headers(&mut payload)? {
-                        self.state = InnerState::Boundary;
+                if self.state == State::Headers {
+                    if let Some(headers) = Inner::read_field_headers(&mut payload)? {
+                        self.state = State::Boundary;
                         headers
                     } else {
                         return Poll::Pending;
@@ -418,7 +417,7 @@ impl InnerMultipart {
                 .and_then(|ct| ct.to_str().ok())
                 .and_then(|ct| ct.parse().ok());
 
-            self.state = InnerState::Boundary;
+            self.state = State::Boundary;
 
             // nested multipart stream is not supported
             if let Some(mime) = &field_content_type {
@@ -430,7 +429,7 @@ impl InnerMultipart {
             let field_inner =
                 InnerField::new_in_rc(self.payload.clone(), self.boundary.clone(), &field_headers)?;
 
-            self.item = InnerMultipartItem::Field(Rc::clone(&field_inner));
+            self.item = Item::Field(Rc::clone(&field_inner));
 
             Poll::Ready(Some(Ok(Field::new(
                 field_content_type,
@@ -444,10 +443,10 @@ impl InnerMultipart {
     }
 }
 
-impl Drop for InnerMultipart {
+impl Drop for Inner {
     fn drop(&mut self) {
         // InnerMultipartItem::Field has to be dropped first because of Safety.
-        self.item = InnerMultipartItem::None;
+        self.item = Item::None;
     }
 }
 
@@ -772,7 +771,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_readmax() {
+    async fn read_max() {
         let (mut sender, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new(payload);
 
@@ -789,7 +788,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_readexactly() {
+    async fn read_exactly() {
         let (mut sender, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new(payload);
 
@@ -807,7 +806,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_readuntil() {
+    async fn read_until() {
         let (mut sender, payload) = h1::Payload::create(false);
         let mut payload = PayloadBuffer::new(payload);
 
