@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix re-exported version of `actix-multipart-derive`.
+
 ## 0.7.1
 
 - Expose `LimitExceeded` error type.

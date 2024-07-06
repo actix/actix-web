@@ -1,6 +1,6 @@
 [package]
 name = "actix-multipart-derive"
-version = "0.6.1"
+version = "0.7.0"
 authors = ["Jacob Halsey <jacob@jhalsey.com>"]
 description = "Multipart form derive macro for Actix Web"
 keywords = ["http", "web", "framework", "async", "futures"]

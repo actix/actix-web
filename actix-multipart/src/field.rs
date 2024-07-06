@@ -1,12 +1,13 @@
 use std::{
     cell::RefCell,
-    cmp, fmt, mem,
+    cmp, fmt,
+    future::poll_fn,
+    mem,
     pin::Pin,
     rc::Rc,
     task::{ready, Context, Poll},
 };
 
-use actix_utils::future::poll_fn;
 use actix_web::{
     error::PayloadError,
     http::header::{self, ContentDisposition, HeaderMap},
