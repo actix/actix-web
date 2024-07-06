@@ -1,6 +1,6 @@
 [package]
 name = "actix-multipart"
-version = "0.7.1"
+version = "0.7.2"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
     "Jacob Halsey <jacob@jhalsey.com>",

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.7.2
+
 - Fix re-exported version of `actix-multipart-derive`.
 
 ## 0.7.1
