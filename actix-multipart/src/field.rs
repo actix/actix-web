@@ -22,8 +22,10 @@ use crate::{
     safety::Safety,
 };
 
+/// Error type returned from [`Field::bytes()`] when field data is larger than limit.
 #[derive(Debug, Display, Error)]
-#[display(fmt = "limit exceeded")]
+#[display(fmt = "size limit exceeded while collecting field data")]
+#[non_exhaustive]
 pub struct LimitExceeded;
 
 /// A single field in a multipart stream.

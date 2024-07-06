@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.7.1
+
+- Expose `LimitExceeded` error type.
+
 ## 0.7.0
 
 - Add `MultipartError::ContentTypeIncompatible` variant.

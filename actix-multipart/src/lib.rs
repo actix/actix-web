@@ -63,4 +63,8 @@ pub(crate) mod payload;
 pub(crate) mod safety;
 pub mod test;
 
-pub use self::{error::Error as MultipartError, field::Field, multipart::Multipart};
+pub use self::{
+    error::Error as MultipartError,
+    field::{Field, LimitExceeded},
+    multipart::Multipart,
+};
