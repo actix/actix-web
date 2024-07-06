@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.7.0
+
 - Add `MultipartError::ContentTypeIncompatible` variant.
 - Add `MultipartError::ContentDispositionNameMissing` variant.
 - Add `Field::bytes()` method.
