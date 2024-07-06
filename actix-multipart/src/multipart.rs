@@ -482,7 +482,8 @@ mod tests {
         FromRequest,
     };
     use assert_matches::assert_matches;
-    use futures_util::{future::lazy, StreamExt as _};
+    use futures_test::stream::StreamTestExt as _;
+    use futures_util::{future::lazy, stream, StreamExt as _};
     use tokio::sync::mpsc;
     use tokio_stream::wrappers::UnboundedReceiverStream;
 
@@ -543,45 +544,6 @@ mod tests {
             tx,
             UnboundedReceiverStream::new(rx).map(|res| res.map_err(|_| panic!())),
         )
-    }
-
-    // Stream that returns from a Bytes, one char at a time and Pending every other poll()
-    struct SlowStream {
-        bytes: Bytes,
-        pos: usize,
-        ready: bool,
-    }
-
-    impl SlowStream {
-        fn new(bytes: Bytes) -> SlowStream {
-            SlowStream {
-                bytes,
-                pos: 0,
-                ready: false,
-            }
-        }
-    }
-
-    impl Stream for SlowStream {
-        type Item = Result<Bytes, PayloadError>;
-
-        fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-            let this = self.get_mut();
-            if !this.ready {
-                this.ready = true;
-                cx.waker().wake_by_ref();
-                return Poll::Pending;
-            }
-
-            if this.pos == this.bytes.len() {
-                return Poll::Ready(None);
-            }
-
-            let res = Poll::Ready(Some(Ok(this.bytes.slice(this.pos..(this.pos + 1)))));
-            this.pos += 1;
-            this.ready = false;
-            res
-        }
     }
 
     fn create_simple_request_with_header() -> (Bytes, HeaderMap) {
@@ -721,7 +683,9 @@ mod tests {
     #[actix_rt::test]
     async fn test_stream() {
         let (bytes, headers) = create_double_request_with_header();
-        let payload = SlowStream::new(bytes);
+        let payload = stream::iter(bytes)
+            .map(|byte| Ok(Bytes::copy_from_slice(&[byte])))
+            .interleave_pending();
 
         let mut multipart = Multipart::new(&headers, payload);
         match multipart.next().await.unwrap() {
@@ -899,7 +863,9 @@ mod tests {
                 "multipart/form-data; boundary=\"abbc761f78ff4d7cb7573b5a23f96ef0\"",
             ),
         );
-        let payload = SlowStream::new(bytes);
+        let payload = stream::iter(bytes)
+            .map(|byte| Ok(Bytes::copy_from_slice(&[byte])))
+            .interleave_pending();
 
         let mut multipart = Multipart::new(&headers, payload);
         let res = multipart.next().await.unwrap();
@@ -929,7 +895,9 @@ mod tests {
                 "multipart/mixed; boundary=\"abbc761f78ff4d7cb7573b5a23f96ef0\"",
             ),
         );
-        let payload = SlowStream::new(bytes);
+        let payload = stream::iter(bytes)
+            .map(|byte| Ok(Bytes::copy_from_slice(&[byte])))
+            .interleave_pending();
 
         let mut multipart = Multipart::new(&headers, payload);
         let res = multipart.next().await.unwrap();
@@ -955,7 +923,9 @@ mod tests {
                 "multipart/form-data; boundary=\"abbc761f78ff4d7cb7573b5a23f96ef0\"",
             ),
         );
-        let payload = SlowStream::new(bytes);
+        let payload = stream::iter(bytes)
+            .map(|byte| Ok(Bytes::copy_from_slice(&[byte])))
+            .interleave_pending();
 
         let mut multipart = Multipart::new(&headers, payload);
         let res = multipart.next().await.unwrap();
