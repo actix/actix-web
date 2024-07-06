@@ -4,6 +4,7 @@
 
 - Add `MultipartError::ContentTypeIncompatible` variant.
 - Add `MultipartError::ContentDispositionNameMissing` variant.
+- Add `Field::bytes()` method.
 - Rename `MultipartError::{NoContentDisposition => ContentDispositionMissing}` variant.
 - Rename `MultipartError::{NoContentType => ContentTypeMissing}` variant.
 - Rename `MultipartError::{ParseContentType => ContentTypeParse}` variant.
