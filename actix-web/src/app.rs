@@ -39,7 +39,7 @@ impl App<AppEntry> {
         let factory_ref = Rc::new(RefCell::new(None));
 
         App {
-            endpoint: AppEntry::new(factory_ref.clone()),
+            endpoint: AppEntry::new(Rc::clone(&factory_ref)),
             data_factories: Vec::new(),
             services: Vec::new(),
             default: None,

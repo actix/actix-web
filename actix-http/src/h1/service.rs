@@ -541,6 +541,6 @@ where
 
     fn call(&self, (io, addr): (T, Option<net::SocketAddr>)) -> Self::Future {
         let conn_data = OnConnectData::from_io(&io, self.on_connect_ext.as_deref());
-        Dispatcher::new(io, self.flow.clone(), self.cfg.clone(), addr, conn_data)
+        Dispatcher::new(io, Rc::clone(&self.flow), self.cfg.clone(), addr, conn_data)
     }
 }

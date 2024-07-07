@@ -173,12 +173,15 @@ where
             };
 
             // acquire an owned permit and carry it with connection
-            let permit = inner.permits.clone().acquire_owned().await.map_err(|_| {
-                ConnectError::Io(io::Error::new(
-                    io::ErrorKind::Other,
-                    "failed to acquire semaphore on client connection pool",
-                ))
-            })?;
+            let permit = Arc::clone(&inner.permits)
+                .acquire_owned()
+                .await
+                .map_err(|_| {
+                    ConnectError::Io(io::Error::new(
+                        io::ErrorKind::Other,
+                        "failed to acquire semaphore on client connection pool",
+                    ))
+                })?;
 
             let conn = {
                 let mut conn = None;

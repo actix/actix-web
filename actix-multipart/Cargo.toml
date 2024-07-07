@@ -71,7 +71,5 @@ multer = "3"
 tokio = { version = "1.24.2", features = ["sync"] }
 tokio-stream = "0.1"
 
-[lints.rust]
-future_incompatible = { level = "deny" }
-rust_2018_idioms = { level = "deny" }
-nonstandard_style = { level = "deny" }
+[lints]
+workspace = true

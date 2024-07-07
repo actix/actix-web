@@ -276,7 +276,7 @@ where
 
         ready(Ok(LoggerMiddleware {
             service,
-            inner: self.0.clone(),
+            inner: Rc::clone(&self.0),
         }))
     }
 }

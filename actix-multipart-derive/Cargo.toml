@@ -29,3 +29,6 @@ actix-multipart = "0.7"
 actix-web = "4"
 rustversion = "1"
 trybuild = "1"
+
+[lints]
+workspace = true

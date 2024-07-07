@@ -910,7 +910,7 @@ where
                     handshake: Some((
                         crate::h2::handshake_with_timeout(io, &self.cfg),
                         self.cfg.clone(),
-                        self.flow.clone(),
+                        Rc::clone(&self.flow),
                         conn_data,
                         peer_addr,
                     )),
@@ -926,7 +926,7 @@ where
                 state: State::H1 {
                     dispatcher: h1::Dispatcher::new(
                         io,
-                        self.flow.clone(),
+                        Rc::clone(&self.flow),
                         self.cfg.clone(),
                         peer_addr,
                         conn_data,

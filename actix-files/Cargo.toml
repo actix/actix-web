@@ -54,3 +54,6 @@ actix-test = "0.1"
 actix-web = "4"
 env_logger = "0.11"
 tempfile = "3.2"
+
+[lints]
+workspace = true

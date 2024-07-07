@@ -51,3 +51,11 @@ awc = { path = "awc" }
 # actix-utils = { path = "../actix-net/actix-utils" }
 # actix-tls = { path = "../actix-net/actix-tls" }
 # actix-server = { path = "../actix-net/actix-server" }
+
+[workspace.lints.rust]
+rust_2018_idioms = { level = "deny" }
+future_incompatible = { level = "deny" }
+nonstandard_style = { level = "deny" }
+
+[workspace.lints.clippy]
+# clone_on_ref_ptr = { level = "deny" }

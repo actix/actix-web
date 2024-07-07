@@ -510,7 +510,7 @@ where
     /// No changes are made to `lst`'s configuration. Ensure it is configured properly before
     /// passing ownership to `listen()`.
     pub fn listen(mut self, lst: net::TcpListener) -> io::Result<Self> {
-        let cfg = self.config.clone();
+        let cfg = Arc::clone(&self.config);
         let factory = self.factory.clone();
         let addr = lst.local_addr().unwrap();
 
@@ -554,7 +554,7 @@ where
     /// Binds to existing listener for accepting incoming plaintext HTTP/1.x or HTTP/2 connections.
     #[cfg(feature = "http2")]
     pub fn listen_auto_h2c(mut self, lst: net::TcpListener) -> io::Result<Self> {
-        let cfg = self.config.clone();
+        let cfg = Arc::clone(&self.config);
         let factory = self.factory.clone();
         let addr = lst.local_addr().unwrap();
 
@@ -632,7 +632,7 @@ where
         config: actix_tls::accept::rustls_0_20::reexports::ServerConfig,
     ) -> io::Result<Self> {
         let factory = self.factory.clone();
-        let cfg = self.config.clone();
+        let cfg = Arc::clone(&self.config);
         let addr = lst.local_addr().unwrap();
         self.sockets.push(Socket {
             addr,
@@ -683,7 +683,7 @@ where
         config: actix_tls::accept::rustls_0_21::reexports::ServerConfig,
     ) -> io::Result<Self> {
         let factory = self.factory.clone();
-        let cfg = self.config.clone();
+        let cfg = Arc::clone(&self.config);
         let addr = lst.local_addr().unwrap();
         self.sockets.push(Socket {
             addr,
@@ -749,7 +749,7 @@ where
         config: actix_tls::accept::rustls_0_22::reexports::ServerConfig,
     ) -> io::Result<Self> {
         let factory = self.factory.clone();
-        let cfg = self.config.clone();
+        let cfg = Arc::clone(&self.config);
         let addr = lst.local_addr().unwrap();
         self.sockets.push(Socket {
             addr,
@@ -815,7 +815,7 @@ where
         config: actix_tls::accept::rustls_0_23::reexports::ServerConfig,
     ) -> io::Result<Self> {
         let factory = self.factory.clone();
-        let cfg = self.config.clone();
+        let cfg = Arc::clone(&self.config);
         let addr = lst.local_addr().unwrap();
         self.sockets.push(Socket {
             addr,
@@ -880,7 +880,7 @@ where
         acceptor: SslAcceptor,
     ) -> io::Result<Self> {
         let factory = self.factory.clone();
-        let cfg = self.config.clone();
+        let cfg = Arc::clone(&self.config);
         let addr = lst.local_addr().unwrap();
         self.sockets.push(Socket {
             addr,
@@ -937,7 +937,7 @@ where
         use actix_rt::net::UnixStream;
         use actix_service::{fn_service, ServiceFactoryExt as _};
 
-        let cfg = self.config.clone();
+        let cfg = Arc::clone(&self.config);
         let factory = self.factory.clone();
         let socket_addr =
             net::SocketAddr::new(net::IpAddr::V4(net::Ipv4Addr::new(127, 0, 0, 1)), 8080);
@@ -982,7 +982,7 @@ where
         use actix_rt::net::UnixStream;
         use actix_service::{fn_service, ServiceFactoryExt as _};
 
-        let cfg = self.config.clone();
+        let cfg = Arc::clone(&self.config);
         let factory = self.factory.clone();
         let socket_addr =
             net::SocketAddr::new(net::IpAddr::V4(net::Ipv4Addr::new(127, 0, 0, 1)), 8080);

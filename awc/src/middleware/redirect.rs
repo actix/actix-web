@@ -78,7 +78,7 @@ where
                 RedirectServiceFuture::Tunnel { fut }
             }
             ConnectRequest::Client(head, body, addr) => {
-                let connector = self.connector.clone();
+                let connector = Rc::clone(&self.connector);
                 let max_redirect_times = self.max_redirect_times;
 
                 // backup the uri and method for reuse schema and authority.

@@ -153,6 +153,9 @@ tokio = { version = "1.24.2", features = ["rt-multi-thread", "macros"] }
 zstd = "0.13"
 tls-rustls-0_23 = { package = "rustls", version = "0.23" } # add rustls 0.23 with default features to make aws_lc_rs work in tests
 
+[lints]
+workspace = true
+
 [[example]]
 name = "client"
 required-features = ["rustls-0_23-webpki-roots"]
