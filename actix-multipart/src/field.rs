@@ -209,8 +209,14 @@ impl fmt::Debug for Field {
 pub(crate) struct InnerField {
     /// Payload is initialized as Some and is `take`n when the field stream finishes.
     payload: Option<PayloadRef>,
+
+    /// Field boundary (without "--" prefix).
     boundary: String,
+
+    /// True if request payload has been exhausted.
     eof: bool,
+
+    /// Field data's stated size according to it's Content-Length header.
     length: Option<u64>,
 }
 
@@ -286,6 +292,7 @@ impl InnerField {
         let mut pos = 0;
 
         let len = payload.buf.len();
+
         if len == 0 {
             return if payload.eof {
                 Poll::Ready(Some(Err(Error::Incomplete)))
@@ -296,7 +303,7 @@ impl InnerField {
 
         // check boundary
         if len > 4 && payload.buf[0] == b'\r' {
-            let b_len = if &payload.buf[..2] == b"\r\n" && &payload.buf[2..4] == b"--" {
+            let b_len = if payload.buf.starts_with(b"\r\n") && &payload.buf[2..4] == b"--" {
                 Some(4)
             } else if &payload.buf[1..3] == b"--" {
                 Some(3)
@@ -357,40 +364,41 @@ impl InnerField {
             return Poll::Ready(None);
         }
 
-        let result = if let Some(mut payload) = self
+        let Some(mut payload) = self
             .payload
             .as_ref()
             .expect("Field should not be polled after completion")
             .get_mut(safety)
-        {
-            if !self.eof {
-                let res = if let Some(ref mut len) = self.length {
-                    InnerField::read_len(&mut payload, len)
-                } else {
-                    InnerField::read_stream(&mut payload, &self.boundary)
-                };
-
-                match res {
-                    Poll::Pending => return Poll::Pending,
-                    Poll::Ready(Some(Ok(bytes))) => return Poll::Ready(Some(Ok(bytes))),
-                    Poll::Ready(Some(Err(err))) => return Poll::Ready(Some(Err(err))),
-                    Poll::Ready(None) => self.eof = true,
-                }
-            }
-
-            match payload.readline() {
-                Ok(None) => Poll::Pending,
-                Ok(Some(line)) => {
-                    if line.as_ref() != b"\r\n" {
-                        log::warn!("multipart field did not read all the data or it is malformed");
-                    }
-                    Poll::Ready(None)
-                }
-                Err(err) => Poll::Ready(Some(Err(err))),
-            }
-        } else {
-            Poll::Pending
+        else {
+            return Poll::Pending;
         };
+
+        if !self.eof {
+            let res = if let Some(ref mut len) = self.length {
+                Self::read_len(&mut payload, len)
+            } else {
+                Self::read_stream(&mut payload, &self.boundary)
+            };
+
+            match ready!(res) {
+                Some(Ok(bytes)) => return Poll::Ready(Some(Ok(bytes))),
+                Some(Err(err)) => return Poll::Ready(Some(Err(err))),
+                None => self.eof = true,
+            }
+        }
+
+        let result = match payload.readline() {
+            Ok(None) => Poll::Pending,
+            Ok(Some(line)) => {
+                if line.as_ref() != b"\r\n" {
+                    log::warn!("multipart field did not read all the data or it is malformed");
+                }
+                Poll::Ready(None)
+            }
+            Err(err) => Poll::Ready(Some(Err(err))),
+        };
+
+        drop(payload);
 
         if let Poll::Ready(None) = result {
             // drop payload buffer and make future un-poll-able
