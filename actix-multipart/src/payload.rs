@@ -122,7 +122,13 @@ impl PayloadBuffer {
         }
     }
 
-    /// Reads bytes until new line delimiter.
+    /// Reads bytes until new line delimiter (`\n`, `0x0A`).
+    ///
+    /// Returns:
+    ///
+    /// - `Ok(Some(chunk))` - `needle` is found, with chunk ending after needle
+    /// - `Err(Incomplete)` - `needle` is not found and we're at EOF
+    /// - `Ok(None)` - `needle` is not found otherwise
     #[inline]
     pub(crate) fn readline(&mut self) -> Result<Option<Bytes>, Error> {
         self.read_until(b"\n")
