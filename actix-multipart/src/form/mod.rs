@@ -1,4 +1,4 @@
-//! Process and extract typed data from a multipart stream.
+//! Extract and process typed data from fields of a `multipart/form-data` request.
 
 use std::{
     any::Any,

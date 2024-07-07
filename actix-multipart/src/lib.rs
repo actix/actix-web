@@ -1,4 +1,12 @@
-//! Multipart form support for Actix Web.
+//! Multipart request & form support for Actix Web.
+//!
+//! The [`Multipart`] extractor aims to support all kinds of `multipart/*` requests, including
+//! `multipart/form-data`, `multipart/related` and `multipart/mixed`. This is a lower-level
+//! extractor which supports reading [multipart fields](Field), in the order they are sent by the
+//! client.
+//!
+//! Due to additional requirements for `multipart/form-data` requests, the higher level
+//! [`MultipartForm`] extractor and derive macro only supports this media type.
 //!
 //! # Examples
 //!
@@ -45,6 +53,8 @@
 //!   -F 'json={"name": "Cargo.lock"};type=application/json' \
 //!   -F file=@./Cargo.lock
 //! ```
+//!
+//! [`MultipartForm`]: struct@form::MultipartForm
 
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]

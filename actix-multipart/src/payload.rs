@@ -151,3 +151,105 @@ impl PayloadBuffer {
         self.buf.extend_from_slice(&buf);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use actix_http::h1;
+    use futures_util::future::lazy;
+
+    use super::*;
+
+    #[actix_rt::test]
+    async fn basic() {
+        let (_, payload) = h1::Payload::create(false);
+        let mut payload = PayloadBuffer::new(payload);
+
+        assert_eq!(payload.buf.len(), 0);
+        lazy(|cx| payload.poll_stream(cx)).await.unwrap();
+        assert_eq!(None, payload.read_max(1).unwrap());
+    }
+
+    #[actix_rt::test]
+    async fn eof() {
+        let (mut sender, payload) = h1::Payload::create(false);
+        let mut payload = PayloadBuffer::new(payload);
+
+        assert_eq!(None, payload.read_max(4).unwrap());
+        sender.feed_data(Bytes::from("data"));
+        sender.feed_eof();
+        lazy(|cx| payload.poll_stream(cx)).await.unwrap();
+
+        assert_eq!(Some(Bytes::from("data")), payload.read_max(4).unwrap());
+        assert_eq!(payload.buf.len(), 0);
+        assert!(payload.read_max(1).is_err());
+        assert!(payload.eof);
+    }
+
+    #[actix_rt::test]
+    async fn err() {
+        let (mut sender, payload) = h1::Payload::create(false);
+        let mut payload = PayloadBuffer::new(payload);
+        assert_eq!(None, payload.read_max(1).unwrap());
+        sender.set_error(PayloadError::Incomplete(None));
+        lazy(|cx| payload.poll_stream(cx)).await.err().unwrap();
+    }
+
+    #[actix_rt::test]
+    async fn read_max() {
+        let (mut sender, payload) = h1::Payload::create(false);
+        let mut payload = PayloadBuffer::new(payload);
+
+        sender.feed_data(Bytes::from("line1"));
+        sender.feed_data(Bytes::from("line2"));
+        lazy(|cx| payload.poll_stream(cx)).await.unwrap();
+        assert_eq!(payload.buf.len(), 10);
+
+        assert_eq!(Some(Bytes::from("line1")), payload.read_max(5).unwrap());
+        assert_eq!(payload.buf.len(), 5);
+
+        assert_eq!(Some(Bytes::from("line2")), payload.read_max(5).unwrap());
+        assert_eq!(payload.buf.len(), 0);
+    }
+
+    #[actix_rt::test]
+    async fn read_exactly() {
+        let (mut sender, payload) = h1::Payload::create(false);
+        let mut payload = PayloadBuffer::new(payload);
+
+        assert_eq!(None, payload.read_exact(2));
+
+        sender.feed_data(Bytes::from("line1"));
+        sender.feed_data(Bytes::from("line2"));
+        lazy(|cx| payload.poll_stream(cx)).await.unwrap();
+
+        assert_eq!(Some(Bytes::from_static(b"li")), payload.read_exact(2));
+        assert_eq!(payload.buf.len(), 8);
+
+        assert_eq!(Some(Bytes::from_static(b"ne1l")), payload.read_exact(4));
+        assert_eq!(payload.buf.len(), 4);
+    }
+
+    #[actix_rt::test]
+    async fn read_until() {
+        let (mut sender, payload) = h1::Payload::create(false);
+        let mut payload = PayloadBuffer::new(payload);
+
+        assert_eq!(None, payload.read_until(b"ne").unwrap());
+
+        sender.feed_data(Bytes::from("line1"));
+        sender.feed_data(Bytes::from("line2"));
+        lazy(|cx| payload.poll_stream(cx)).await.unwrap();
+
+        assert_eq!(
+            Some(Bytes::from("line")),
+            payload.read_until(b"ne").unwrap()
+        );
+        assert_eq!(payload.buf.len(), 6);
+
+        assert_eq!(
+            Some(Bytes::from("1line2")),
+            payload.read_until(b"2").unwrap()
+        );
+        assert_eq!(payload.buf.len(), 0);
+    }
+}

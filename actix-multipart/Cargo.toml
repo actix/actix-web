@@ -4,13 +4,14 @@ version = "0.7.2"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
     "Jacob Halsey <jacob@jhalsey.com>",
+    "Rob Ede <robjtede@icloud.com>",
 ]
-description = "Multipart form support for Actix Web"
-keywords = ["http", "web", "framework", "async", "futures"]
-homepage = "https://actix.rs"
-repository = "https://github.com/actix/actix-web"
-license = "MIT OR Apache-2.0"
-edition = "2021"
+description = "Multipart request & form support for Actix Web"
+keywords = ["http", "actix", "web", "multipart", "form"]
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+edition.workspace = true
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docsrs"]

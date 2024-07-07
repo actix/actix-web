@@ -15,14 +15,18 @@
 
 <!-- cargo-rdme start -->
 
-Multipart form support for Actix Web.
+Multipart request & form support for Actix Web.
+
+The [`Multipart`] extractor aims to support all kinds of `multipart/*` requests, including `multipart/form-data`, `multipart/related` and `multipart/mixed`. This is a lower-level extractor which supports reading [multipart fields](Field), in the order they are sent by the client.
+
+Due to additional requirements for `multipart/form-data` requests, the higher level [`MultipartForm`] extractor and derive macro only supports this media type.
 
 ## Examples
 
 ```rust
 use actix_web::{post, App, HttpServer, Responder};
 
-use actix_multipart::form::{json::Json as MPJson, tempfile::TempFile, MultipartForm};
+use actix_multipart::form::{json::Json as MpJson, tempfile::TempFile, MultipartForm};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -34,7 +38,7 @@ struct Metadata {
 struct UploadForm {
     #[multipart(limit = "100MB")]
     file: TempFile,
-    json: MPJson<Metadata>,
+    json: MpJson<Metadata>,
 }
 
 #[post("/videos")]
@@ -62,6 +66,8 @@ curl -v --request POST \
   -F 'json={"name": "Cargo.lock"};type=application/json' \
   -F file=@./Cargo.lock
 ```
+
+[`MultipartForm`]: struct@form::MultipartForm
 
 <!-- cargo-rdme end -->
 
