@@ -14,7 +14,7 @@ use actix_web::{
     http::{
         header::{
             self, Charset, ContentDisposition, ContentEncoding, DispositionParam, DispositionType,
-            ExtendedValue, HeaderValue,
+            ExtendedValue,
         },
         StatusCode,
     },

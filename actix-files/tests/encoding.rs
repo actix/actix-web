@@ -1,11 +1,11 @@
-use actix_files::{Files, NamedFile};
+use actix_files::Files;
 use actix_web::{
     http::{
         header::{self, HeaderValue},
         StatusCode,
     },
     test::{self, TestRequest},
-    web, App,
+    App,
 };
 
 #[actix_web::test]
