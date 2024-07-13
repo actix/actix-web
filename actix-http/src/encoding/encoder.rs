@@ -70,6 +70,7 @@ impl<B: MessageBody> Encoder<B> {
         let should_encode = !(head.headers().contains_key(&CONTENT_ENCODING)
             || head.status == StatusCode::SWITCHING_PROTOCOLS
             || head.status == StatusCode::NO_CONTENT
+            || head.status == StatusCode::PARTIAL_CONTENT
             || encoding == ContentEncoding::Identity);
 
         let body = match body.try_into_bytes() {
