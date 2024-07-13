@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Do not set content-encoding to identity for range requests
+
 ## 0.6.6
 
 - Update `tokio-uring` dependency to `0.4`.
