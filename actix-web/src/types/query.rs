@@ -88,10 +88,7 @@ impl<T: DeserializeOwned> Query<T> {
             .map_err(QueryPayloadError::Deserialize)
     }
     #[cfg(feature = "beautify-errors")]
-    pub fn from_query(query_str: &str) -> Result<Self, QueryPayloadError>
-    where
-        T: de::DeserializeOwned,
-    {
+    pub fn from_query(query_str: &str) -> Result<Self, QueryPayloadError> {
         let deserializer = serde_urlencoded::Deserializer::new(parse(query_str.as_bytes()));
         let qs = serde_path_to_error::deserialize(deserializer)
             .map(Self)
