@@ -21,3 +21,11 @@ pub use self::{
     query::{Query, QueryConfig},
     readlines::Readlines,
 };
+
+#[cfg(feature = "beautify-errors")]
+pub fn map_deserialize_error(field: &str, original: &str) -> String {
+    if field == "." {
+        return original.to_string();
+    }
+    format!("'{}': {}", field, original)
+}

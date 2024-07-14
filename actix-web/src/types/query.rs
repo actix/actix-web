@@ -4,7 +4,11 @@ use std::{fmt, ops, sync::Arc};
 
 use actix_utils::future::{err, ok, Ready};
 use serde::de::DeserializeOwned;
+#[cfg(feature = "beautify-errors")]
+use url::form_urlencoded::parse;
 
+#[cfg(feature = "beautify-errors")]
+use crate::web::map_deserialize_error;
 use crate::{dev::Payload, error::QueryPayloadError, Error, FromRequest, HttpRequest};
 
 /// Extract typed information from the request's query.
@@ -61,7 +65,6 @@ use crate::{dev::Payload, error::QueryPayloadError, Error, FromRequest, HttpRequ
 pub struct Query<T>(pub T);
 
 impl<T> Query<T> {
-    /// Unwrap into inner `T` value.
     pub fn into_inner(self) -> T {
         self.0
     }
@@ -78,10 +81,29 @@ impl<T: DeserializeOwned> Query<T> {
     /// assert_eq!(numbers.get("two"), Some(&2));
     /// assert!(numbers.get("three").is_none());
     /// ```
+    #[cfg(not(feature = "beautify-errors"))]
     pub fn from_query(query_str: &str) -> Result<Self, QueryPayloadError> {
         serde_urlencoded::from_str::<T>(query_str)
             .map(Self)
             .map_err(QueryPayloadError::Deserialize)
+    }
+    #[cfg(feature = "beautify-errors")]
+    pub fn from_query(query_str: &str) -> Result<Self, QueryPayloadError>
+    where
+        T: de::DeserializeOwned,
+    {
+        let deserializer = serde_urlencoded::Deserializer::new(parse(query_str.as_bytes()));
+        let qs = serde_path_to_error::deserialize(deserializer)
+            .map(Self)
+            .map_err(|e| {
+                QueryPayloadError::Deserialize(
+                    <serde::de::value::Error as serde::de::Error>::custom(map_deserialize_error(
+                        &e.path().to_string(),
+                        &e.inner().to_string(),
+                    )),
+                )
+            })?;
+        Ok(qs)
     }
 }
 
@@ -110,6 +132,7 @@ impl<T: DeserializeOwned> FromRequest for Query<T> {
     type Error = Error;
     type Future = Ready<Result<Self, Error>>;
 
+    #[cfg(not(feature = "beautify-errors"))]
     #[inline]
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let error_handler = req
@@ -135,6 +158,41 @@ impl<T: DeserializeOwned> FromRequest for Query<T> {
 
                 err(e)
             })
+    }
+
+    #[cfg(feature = "beautify-errors")]
+    #[inline]
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        let error_handler = req
+            .app_data::<QueryConfig>()
+            .and_then(|c| c.err_handler.clone());
+
+        let deserializer =
+            serde_urlencoded::Deserializer::new(parse(req.query_string().as_bytes()));
+        return serde_path_to_error::deserialize(deserializer)
+            .map(|val| ok(Query(val)))
+            .unwrap_or_else(move |e| {
+                let e = QueryPayloadError::Deserialize(
+                    <serde::de::value::Error as serde::de::Error>::custom(map_deserialize_error(
+                        &e.path().to_string(),
+                        &e.inner().to_string(),
+                    )),
+                );
+
+                log::debug!(
+                    "Failed during Query extractor deserialization. \
+                     Request path: {:?}",
+                    req.path()
+                );
+
+                let e = if let Some(error_handler) = error_handler {
+                    (error_handler)(e, req)
+                } else {
+                    e.into()
+                };
+
+                err(e)
+            });
     }
 }
 
