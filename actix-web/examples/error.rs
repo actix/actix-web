@@ -27,7 +27,7 @@ async fn optional_payload(
 }
 
 #[post("/mandatory")]
-async fn mandatory_payload(qs: Query<MandatoryFilters>, payload: Json<OptionalPayload>) -> String {
+async fn mandatory_payload(qs: Query<MandatoryFilters>, payload: Json<MandatoryPayload>) -> String {
     format!(
         "you asked for the mandatory query params: {:#?} and mandatory body: {:#?}",
         qs, payload
