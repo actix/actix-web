@@ -54,24 +54,24 @@ async fn main() -> std::io::Result<()> {
 
 #[derive(Debug, Deserialize)]
 pub struct OptionalFilters {
-    limit: Option<i32>,
-    active: Option<bool>,
+    pub limit: Option<i32>,
+    pub active: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct MandatoryFilters {
-    limit: i32,
-    active: bool,
+    pub limit: i32,
+    pub active: bool,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct OptionalPayload {
-    name: Option<String>,
-    age: Option<i32>,
+    pub name: Option<String>,
+    pub age: Option<i32>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct MandatoryPayload {
-    name: String,
-    age: i32,
+    pub name: String,
+    pub age: i32,
 }
