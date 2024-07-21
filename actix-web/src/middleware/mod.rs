@@ -67,7 +67,7 @@
 //!                   Response
 //! ```
 //! The request _first_ gets processed by the middleware specified _last_ - `MiddlewareC`. It passes
-//! the request (modified a modified one) to the next middleware - `MiddlewareB` - _or_ directly
+//! the request (possibly a modified one) to the next middleware - `MiddlewareB` - _or_ directly
 //! responds to the request (e.g. when the request was invalid or an error occurred). `MiddlewareB`
 //! processes the request as well and passes it to `MiddlewareA`, which then passes it to the
 //! [`Service`]. In the [`Service`], the extractors will run first. They don't pass the request on,
