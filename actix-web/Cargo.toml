@@ -33,6 +33,7 @@ features = [
     "compress-zstd",
     "cookies",
     "secure-cookies",
+    "beautify-errors"
 ]
 
 [package.metadata.cargo_check_external_types]
@@ -88,6 +89,9 @@ cookies = ["dep:cookie"]
 
 # Secure & signed cookies
 secure-cookies = ["cookies", "cookie/secure"]
+
+# Field names in deserialization errors
+beautify-errors = ["dep:serde_path_to_error"]
 
 # HTTP/2 support (including h2c).
 http2 = ["actix-http/http2"]
@@ -160,6 +164,7 @@ regex = { version = "1.5.5", optional = true }
 regex-lite = "0.1"
 serde = "1.0"
 serde_json = "1.0"
+serde_path_to_error = { version = "0.1", optional = true }
 serde_urlencoded = "0.7"
 smallvec = "1.6.1"
 socket2 = "0.5"
@@ -210,6 +215,10 @@ required-features = ["compress-gzip"]
 [[example]]
 name = "on-connect"
 required-features = []
+
+[[example]]
+name = "error"
+required-features = ["beautify-errors"]
 
 [[bench]]
 name = "server"
