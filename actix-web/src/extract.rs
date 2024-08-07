@@ -3,13 +3,11 @@
 use std::{
     convert::Infallible,
     future::Future,
-    marker::PhantomData,
     pin::Pin,
     task::{Context, Poll},
 };
 
 use actix_http::{Method, Uri};
-use actix_utils::future::{ok, Ready};
 use futures_core::ready;
 use pin_project_lite::pin_project;
 
@@ -66,33 +64,17 @@ pub trait FromRequest: Sized {
     /// The associated error which can be returned.
     type Error: Into<Error>;
 
-    /// Future that resolves to a `Self`.
-    ///
-    /// To use an async function or block, the futures must be boxed. The following snippet will be
-    /// common when creating async/await extractors (that do not consume the body).
-    ///
-    /// ```ignore
-    /// type Future = Pin<Box<dyn Future<Output = Result<Self, Self::Error>>>>;
-    /// // or
-    /// type Future = futures_util::future::LocalBoxFuture<'static, Result<Self, Self::Error>>;
-    ///
-    /// fn from_request(req: HttpRequest, ...) -> Self::Future {
-    ///     let req = req.clone();
-    ///     Box::pin(async move {
-    ///         ...
-    ///     })
-    /// }
-    /// ```
-    type Future: Future<Output = Result<Self, Self::Error>>;
-
-    /// Create a `Self` from request parts asynchronously.
-    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future;
+    /// Creates a `Self` from request parts asynchronously.
+    fn from_request(
+        req: &HttpRequest,
+        payload: &mut Payload,
+    ) -> impl Future<Output = Result<Self, Self::Error>>;
 
     /// Create a `Self` from request head asynchronously.
     ///
     /// This method is short for `T::from_request(req, &mut Payload::None)`.
-    fn extract(req: &HttpRequest) -> Self::Future {
-        Self::from_request(req, &mut Payload::None)
+    fn extract(req: &HttpRequest) -> impl Future<Output = Result<Self, Self::Error>> {
+        async { Self::from_request(req, &mut Payload::None).await }
     }
 }
 
@@ -146,12 +128,19 @@ where
     T: FromRequest,
 {
     type Error = Infallible;
-    type Future = FromRequestOptFuture<T::Future>;
 
     #[inline]
-    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-        FromRequestOptFuture {
-            fut: T::from_request(req, payload),
+    async fn from_request(req: &HttpRequest, payload: &mut Payload) -> Result<Self, Self::Error> {
+        match T::from_request(req, payload).await {
+            Ok(t) => Ok(Some(t)),
+            Err(err) => {
+                log::debug!(
+                    "Error from `Option<{}>` extractor: {}",
+                    std::any::type_name::<T>(),
+                    err.into()
+                );
+                Ok(None)
+            }
         }
     }
 }
@@ -203,9 +192,11 @@ where
 ///
 /// impl FromRequest for Thing {
 ///     type Error = Error;
-///     type Future = Ready<Result<Thing, Error>>;
 ///
-///     fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
+///     async fn from_request(
+///         req: &HttpRequest,
+///         payload: &mut dev::Payload,
+///     ) -> Result<Self, Self::Error> {
 ///         if rand::random() {
 ///             ok(Thing { name: "thingy".into() })
 ///         } else {
@@ -232,36 +223,10 @@ where
     T::Error: Into<E>,
 {
     type Error = Infallible;
-    type Future = FromRequestResFuture<T::Future, E>;
 
     #[inline]
-    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-        FromRequestResFuture {
-            fut: T::from_request(req, payload),
-            _phantom: PhantomData,
-        }
-    }
-}
-
-pin_project! {
-    pub struct FromRequestResFuture<Fut, E> {
-        #[pin]
-        fut: Fut,
-        _phantom: PhantomData<E>,
-    }
-}
-
-impl<Fut, T, Ei, E> Future for FromRequestResFuture<Fut, E>
-where
-    Fut: Future<Output = Result<T, Ei>>,
-    Ei: Into<E>,
-{
-    type Output = Result<Result<T, E>, Infallible>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.project();
-        let res = ready!(this.fut.poll(cx));
-        Poll::Ready(Ok(res.map_err(Into::into)))
+    async fn from_request(req: &HttpRequest, payload: &mut Payload) -> Result<Self, Self::Error> {
+        Ok(T::from_request(req, payload).await.map_err(Into::into))
     }
 }
 
@@ -279,10 +244,9 @@ where
 /// ```
 impl FromRequest for Uri {
     type Error = Infallible;
-    type Future = Ready<Result<Self, Self::Error>>;
 
-    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        ok(req.uri().clone())
+    async fn from_request(req: &HttpRequest, _: &mut Payload) -> Result<Self, Self::Error> {
+        Ok(req.uri().clone())
     }
 }
 
@@ -300,10 +264,9 @@ impl FromRequest for Uri {
 /// ```
 impl FromRequest for Method {
     type Error = Infallible;
-    type Future = Ready<Result<Self, Self::Error>>;
 
-    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        ok(req.method().clone())
+    async fn from_request(req: &HttpRequest, _: &mut Payload) -> Result<Self, Self::Error> {
+        Ok(req.method().clone())
     }
 }
 
@@ -319,88 +282,24 @@ mod tuple_from_req {
             impl<$($T: FromRequest + 'static),+> FromRequest for ($($T,)+)
             {
                 type Error = Error;
-                type Future = $fut<$($T),+>;
 
-                fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-                    $fut {
-                        $(
-                            $T: ExtractFuture::Future {
-                                fut: $T::from_request(req, payload)
-                            },
-                        )+
-                    }
-                }
-            }
-
-            pin_project! {
-                pub struct $fut<$($T: FromRequest),+> {
+                async fn from_request(req: &HttpRequest, payload: &mut Payload) -> Result<Self, Self::Error> {
                     $(
-                        #[pin]
-                        $T: ExtractFuture<$T::Future, $T>,
-                    )+
-                }
-            }
-
-            impl<$($T: FromRequest),+> Future for $fut<$($T),+>
-            {
-                type Output = Result<($($T,)+), Error>;
-
-                fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-                    let mut this = self.project();
-
-                    let mut ready = true;
-                    $(
-                        match this.$T.as_mut().project() {
-                            ExtractProj::Future { fut } => match fut.poll(cx) {
-                                Poll::Ready(Ok(output)) => {
-                                    let _ = this.$T.as_mut().project_replace(ExtractFuture::Done { output });
-                                },
-                                Poll::Ready(Err(err)) => return Poll::Ready(Err(err.into())),
-                                Poll::Pending => ready = false,
-                            },
-                            ExtractProj::Done { .. } => {},
-                            ExtractProj::Empty => unreachable!("FromRequest polled after finished"),
-                        }
+                        let $T = $T::from_request(req, payload).await.map_err(Into::into)?;
                     )+
 
-                    if ready {
-                        Poll::Ready(Ok(
-                            ($(
-                                match this.$T.project_replace(ExtractFuture::Empty) {
-                                    ExtractReplaceProj::Done { output } => output,
-                                    _ => unreachable!("FromRequest polled after finished"),
-                                },
-                            )+)
-                        ))
-                    } else {
-                        Poll::Pending
-                    }
+                    Ok(($($T,)+))
                 }
             }
         };
     }
 
-    pin_project! {
-        #[project = ExtractProj]
-        #[project_replace = ExtractReplaceProj]
-        enum ExtractFuture<Fut, Res> {
-            Future {
-                #[pin]
-                fut: Fut
-            },
-            Done {
-                output: Res,
-            },
-            Empty
-        }
-    }
-
     impl FromRequest for () {
         type Error = Infallible;
-        type Future = Ready<Result<Self, Self::Error>>;
 
-        fn from_request(_: &HttpRequest, _: &mut Payload) -> Self::Future {
-            ok(())
+        #[inline]
+        async fn from_request(_: &HttpRequest, _: &mut Payload) -> Result<Self, Self::Error> {
+            Ok(())
         }
     }
 
