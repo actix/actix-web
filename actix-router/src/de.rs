@@ -396,11 +396,25 @@ impl<'de> Deserializer<'de> for Value<'de> {
         visitor.visit_newtype_struct(self)
     }
 
-    fn deserialize_tuple<V>(self, _: usize, _: V) -> Result<V::Value, Self::Error>
+    fn deserialize_tuple<V>(self, len: usize, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        Err(de::value::Error::custom("unsupported type: tuple"))
+        let value_seq = ValueSeq::new(self.value);
+        if len == value_seq.len() {
+            visitor.visit_seq(value_seq)
+        } else {
+            Err(de::value::Error::custom(
+                "path and tuple lengths don't match",
+            ))
+        }
+    }
+
+    fn deserialize_seq<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_seq(ValueSeq::new(self.value))
     }
 
     fn deserialize_struct<V>(
@@ -428,7 +442,6 @@ impl<'de> Deserializer<'de> for Value<'de> {
     }
 
     unsupported_type!(deserialize_any, "any");
-    unsupported_type!(deserialize_seq, "seq");
     unsupported_type!(deserialize_map, "map");
     unsupported_type!(deserialize_identifier, "identifier");
 }
@@ -498,6 +511,45 @@ impl<'de> de::VariantAccess<'de> for UnitVariant {
     }
 }
 
+struct ValueSeq<'de> {
+    value: &'de str,
+    elems: std::str::Split<'de, char>,
+}
+
+impl<'de> ValueSeq<'de> {
+    fn new(value: &'de str) -> Self {
+        Self {
+            value,
+            elems: value.split('/'),
+        }
+    }
+
+    fn len(&self) -> usize {
+        self.value.split('/').filter(|s| !s.is_empty()).count()
+    }
+}
+
+impl<'de> de::SeqAccess<'de> for ValueSeq<'de> {
+    type Error = de::value::Error;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
+    where
+        T: de::DeserializeSeed<'de>,
+    {
+        for elem in &mut self.elems {
+            if !elem.is_empty() {
+                return seed.deserialize(Value { value: elem }).map(Some);
+            }
+        }
+
+        Ok(None)
+    }
+
+    fn size_hint(&self) -> Option<usize> {
+        Some(self.len())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use serde::Deserialize;
@@ -530,6 +582,16 @@ mod tests {
     #[derive(Debug, Deserialize)]
     struct Test3 {
         val: TestEnum,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct TestSeq1 {
+        tail: Vec<String>,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct TestSeq2 {
+        tail: (String, String, String),
     }
 
     #[test]
@@ -625,6 +687,39 @@ mod tests {
             de::Deserialize::deserialize(PathDeserializer::new(&path));
         assert!(i.is_err());
         assert!(format!("{:?}", i).contains("unknown variant"));
+    }
+
+    #[test]
+    fn test_extract_seq() {
+        let mut router = Router::<()>::build();
+        router.path("/path/to/{tail:.*}", ());
+        let router = router.finish();
+
+        let mut path = Path::new("/path/to/tail/with/slash%2fes");
+        assert!(router.recognize(&mut path).is_some());
+
+        let i: (String,) = de::Deserialize::deserialize(PathDeserializer::new(&path)).unwrap();
+        assert_eq!(i.0, String::from("tail/with/slash/es"));
+
+        let i: TestSeq1 = de::Deserialize::deserialize(PathDeserializer::new(&path)).unwrap();
+        assert_eq!(
+            i.tail,
+            vec![
+                String::from("tail"),
+                String::from("with"),
+                String::from("slash/es")
+            ]
+        );
+
+        let i: TestSeq2 = de::Deserialize::deserialize(PathDeserializer::new(&path)).unwrap();
+        assert_eq!(
+            i.tail,
+            (
+                String::from("tail"),
+                String::from("with"),
+                String::from("slash/es")
+            )
+        );
     }
 
     #[test]

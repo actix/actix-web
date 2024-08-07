@@ -53,6 +53,26 @@ use crate::{
 ///     format!("Welcome {}!", info.name)
 /// }
 /// ```
+///
+/// Segments matching multiple path components can be deserialized
+/// into a Vec<_> to percent-decode the components individually. Empty
+/// path components are ignored.
+///
+/// ```
+/// use actix_web::{get, web};
+/// use serde::Deserialize;
+///
+/// #[derive(Deserialize)]
+/// struct Tail {
+///     tail: Vec<String>,
+/// }
+///
+/// // extract `Tail` from a path using serde
+/// #[get("/path/to/{tail:.*}")]
+/// async fn index(info: web::Path<Tail>) -> String {
+///     format!("Navigating to {}!", info.tail.join(" :: "))
+/// }
+/// ```
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Deref, DerefMut, AsRef, Display, From)]
 pub struct Path<T>(T);
 
