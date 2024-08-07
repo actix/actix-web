@@ -511,11 +511,6 @@ mod tests {
         value: String,
     }
 
-    #[derive(Deserialize)]
-    struct Id {
-        _id: String,
-    }
-
     #[derive(Debug, Deserialize)]
     struct Test1(String, u32);
 
