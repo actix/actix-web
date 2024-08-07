@@ -679,13 +679,13 @@ async fn body_streaming_implicit() {
 async fn client_cookie_handling() {
     use std::io::{Error as IoError, ErrorKind};
 
-    let cookie1 = Cookie::build("cookie1", "value1").finish();
-    let cookie2 = Cookie::build("cookie2", "value2")
+    let cookie1 = Cookie::build(("cookie1", "value1")).build();
+    let cookie2 = Cookie::build(("cookie2", "value2"))
         .domain("www.example.org")
         .path("/")
         .secure(true)
         .http_only(true)
-        .finish();
+        .build();
     // Q: are all these clones really necessary? A: Yes, possibly
     let cookie1b = cookie1.clone();
     let cookie2b = cookie2.clone();
