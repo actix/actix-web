@@ -1,5 +1,7 @@
 //! Actix actors support for Actix Web.
 //!
+//! This crate is deprecated. Migrate to [`actix-ws`](https://crates.io/crates/actix-ws).
+//!
 //! # Examples
 //!
 //! ```no_run
