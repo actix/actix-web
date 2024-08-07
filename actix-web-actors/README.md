@@ -11,7 +11,7 @@
 ![Version](https://img.shields.io/badge/rustc-1.72+-ab6000.svg)
 ![License](https://img.shields.io/crates/l/actix-web-actors.svg)
 <br />
-[![dependency status](https://deps.rs/crate/actix-web-actors/4.3.1/status.svg)](https://deps.rs/crate/actix-web-actors/4.3.1)
+![maintenance-status](https://img.shields.io/badge/maintenance-deprecated-red.svg)
 [![Download](https://img.shields.io/crates/d/actix-web-actors.svg)](https://crates.io/crates/actix-web-actors)
 [![Chat on Discord](https://img.shields.io/discord/771444961383153695?label=chat&logo=discord)](https://discord.gg/NWpN5mmg3x)
 
