@@ -4,6 +4,11 @@
 
 - Minimum supported Rust version (MSRV) is now 1.72.
 
+### Dependencies
+
+- Updated `h2` to `0.4.5`.
+- Updated `http` to `1.1.0`.
+
 ## 3.2.0
 
 - Minimum supported Rust version (MSRV) is now 1.68 due to transitive `time` dependency.

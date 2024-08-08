@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Dependencies
+
+- Updated `h2` to `0.4.5`.
+- Updated `http` to `1.1.0`.
+
 ## 3.5.0
 
 - Add `rustls-0_23`, `rustls-0_23-webpki-roots`, and `rustls-0_23-native-roots` crate features.

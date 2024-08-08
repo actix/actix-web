@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Dependencies
+
+- Updated `h2` to `0.4.5`.
+- Updated `http` to `1.1.0`.
+
 ### Added
 
 - Implement `FromIterator<(HeaderName, HeaderValue)>` for `HeaderMap`.
