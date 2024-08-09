@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- Add `web::ThinData` extractor.
+
 ## 4.8.0
 
 ### Added

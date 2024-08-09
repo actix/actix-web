@@ -151,6 +151,7 @@ encoding_rs = "0.8"
 futures-core = { version = "0.3.17", default-features = false }
 futures-util = { version = "0.3.17", default-features = false }
 itoa = "1"
+impl-more = "0.1.4"
 language-tags = "0.3"
 log = "0.4"
 mime = "0.3"
