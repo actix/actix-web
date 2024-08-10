@@ -1,7 +1,6 @@
 use std::{any::type_name, ops::Deref, sync::Arc};
 
 use actix_http::Extensions;
-use actix_utils::future::{err, ok, Ready};
 use futures_core::future::LocalBoxFuture;
 use serde::{de, Serialize};
 
@@ -159,12 +158,11 @@ where
 
 impl<T: ?Sized + 'static> FromRequest for Data<T> {
     type Error = Error;
-    type Future = Ready<Result<Self, Error>>;
 
     #[inline]
-    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+    async fn from_request(req: &HttpRequest, _: &mut Payload) -> Result<Self, Self::Error> {
         if let Some(st) = req.app_data::<Data<T>>() {
-            ok(st.clone())
+            Ok(st.clone())
         } else {
             log::debug!(
                 "Failed to extract `Data<{}>` for `{}` handler. For the Data extractor to work \
@@ -174,7 +172,7 @@ impl<T: ?Sized + 'static> FromRequest for Data<T> {
                 req.match_name().unwrap_or_else(|| req.path())
             );
 
-            err(error::ErrorInternalServerError(
+            Err(error::ErrorInternalServerError(
                 "Requested application data is not configured correctly. \
                 View/enable debug logs for more details.",
             ))

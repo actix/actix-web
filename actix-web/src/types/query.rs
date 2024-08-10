@@ -2,7 +2,6 @@
 
 use std::{fmt, ops, sync::Arc};
 
-use actix_utils::future::{err, ok, Ready};
 use serde::de::DeserializeOwned;
 
 use crate::{dev::Payload, error::QueryPayloadError, Error, FromRequest, HttpRequest};
@@ -108,32 +107,27 @@ impl<T: fmt::Display> fmt::Display for Query<T> {
 /// See [here](#Examples) for example of usage as an extractor.
 impl<T: DeserializeOwned> FromRequest for Query<T> {
     type Error = Error;
-    type Future = Ready<Result<Self, Error>>;
 
-    #[inline]
-    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+    async fn from_request(req: &HttpRequest, _: &mut Payload) -> Result<Self, Self::Error> {
         let error_handler = req
             .app_data::<QueryConfig>()
             .and_then(|c| c.err_handler.clone());
 
         serde_urlencoded::from_str::<T>(req.query_string())
-            .map(|val| ok(Query(val)))
+            .map(|val| Ok(Query(val)))
             .unwrap_or_else(move |e| {
-                let e = QueryPayloadError::Deserialize(e);
+                let err = QueryPayloadError::Deserialize(e);
 
                 log::debug!(
                     "Failed during Query extractor deserialization. \
-                     Request path: {:?}",
+                     Request path: {}",
                     req.path()
                 );
 
-                let e = if let Some(error_handler) = error_handler {
-                    (error_handler)(e, req)
-                } else {
-                    e.into()
-                };
-
-                err(e)
+                Err(match error_handler {
+                    Some(error_handler) => (error_handler)(err, req),
+                    None => err.into(),
+                })
             })
     }
 }

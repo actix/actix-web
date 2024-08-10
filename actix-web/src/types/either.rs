@@ -1,15 +1,6 @@
 //! For either helper, see [`Either`].
 
-use std::{
-    future::Future,
-    mem,
-    pin::Pin,
-    task::{Context, Poll},
-};
-
 use bytes::Bytes;
-use futures_core::ready;
-use pin_project_lite::pin_project;
 
 use crate::{
     body::EitherBody,
@@ -158,7 +149,7 @@ where
     fn from(err: EitherExtractError<L, R>) -> Error {
         match err {
             EitherExtractError::Bytes(err) => err,
-            EitherExtractError::Extract(a_err, _b_err) => a_err.into(),
+            EitherExtractError::Extract(l_err, _r_err) => l_err.into(),
         }
     }
 }
@@ -170,109 +161,22 @@ where
     R: FromRequest + 'static,
 {
     type Error = EitherExtractError<L::Error, R::Error>;
-    type Future = EitherExtractFut<L, R>;
 
-    fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
-        EitherExtractFut {
-            req: req.clone(),
-            state: EitherExtractState::Bytes {
-                bytes: Bytes::from_request(req, payload),
+    async fn from_request(
+        req: &HttpRequest,
+        payload: &mut dev::Payload,
+    ) -> Result<Self, Self::Error> {
+        let buf = Bytes::from_request(req, payload)
+            .await
+            .map_err(EitherExtractError::Bytes)?;
+
+        match L::from_request(req, &mut payload_from_bytes(buf.clone())).await {
+            Ok(left) => Ok(Either::Left(left)),
+            Err(l_err) => match R::from_request(req, &mut payload_from_bytes(buf)).await {
+                Ok(right) => Ok(Either::Right(right)),
+                Err(r_err) => Err(EitherExtractError::Extract(l_err, r_err)),
             },
         }
-    }
-}
-
-pin_project! {
-    pub struct EitherExtractFut<L, R>
-    where
-        R: FromRequest,
-        L: FromRequest,
-    {
-        req: HttpRequest,
-        #[pin]
-        state: EitherExtractState<L, R>,
-    }
-}
-
-pin_project! {
-    #[project = EitherExtractProj]
-    pub enum EitherExtractState<L, R>
-    where
-        L: FromRequest,
-        R: FromRequest,
-    {
-        Bytes {
-            #[pin]
-            bytes: <Bytes as FromRequest>::Future,
-        },
-        Left {
-            #[pin]
-            left: L::Future,
-            fallback: Bytes,
-        },
-        Right {
-            #[pin]
-            right: R::Future,
-            left_err: Option<L::Error>,
-        },
-    }
-}
-
-impl<R, RF, RE, L, LF, LE> Future for EitherExtractFut<L, R>
-where
-    L: FromRequest<Future = LF, Error = LE>,
-    R: FromRequest<Future = RF, Error = RE>,
-    LF: Future<Output = Result<L, LE>> + 'static,
-    RF: Future<Output = Result<R, RE>> + 'static,
-    LE: Into<Error>,
-    RE: Into<Error>,
-{
-    type Output = Result<Either<L, R>, EitherExtractError<LE, RE>>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut this = self.project();
-        let ready = loop {
-            let next = match this.state.as_mut().project() {
-                EitherExtractProj::Bytes { bytes } => {
-                    let res = ready!(bytes.poll(cx));
-                    match res {
-                        Ok(bytes) => {
-                            let fallback = bytes.clone();
-                            let left = L::from_request(this.req, &mut payload_from_bytes(bytes));
-                            EitherExtractState::Left { left, fallback }
-                        }
-                        Err(err) => break Err(EitherExtractError::Bytes(err)),
-                    }
-                }
-                EitherExtractProj::Left { left, fallback } => {
-                    let res = ready!(left.poll(cx));
-                    match res {
-                        Ok(extracted) => break Ok(Either::Left(extracted)),
-                        Err(left_err) => {
-                            let right = R::from_request(
-                                this.req,
-                                &mut payload_from_bytes(mem::take(fallback)),
-                            );
-                            EitherExtractState::Right {
-                                left_err: Some(left_err),
-                                right,
-                            }
-                        }
-                    }
-                }
-                EitherExtractProj::Right { right, left_err } => {
-                    let res = ready!(right.poll(cx));
-                    match res {
-                        Ok(data) => break Ok(Either::Right(data)),
-                        Err(err) => {
-                            break Err(EitherExtractError::Extract(left_err.take().unwrap(), err));
-                        }
-                    }
-                }
-            };
-            this.state.set(next);
-        };
-        Poll::Ready(ready)
     }
 }
 

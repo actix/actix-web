@@ -9,9 +9,8 @@ use std::{
 };
 
 use actix_http::error::PayloadError;
-use actix_utils::future::{ready, Either, Ready};
 use bytes::{Bytes, BytesMut};
-use encoding_rs::{Encoding, UTF_8};
+use encoding_rs::Encoding;
 use futures_core::{ready, stream::Stream};
 use mime::Mime;
 
@@ -131,11 +130,13 @@ impl Stream for Payload {
 /// See [here](#Examples) for example of usage as an extractor.
 impl FromRequest for Payload {
     type Error = Error;
-    type Future = Ready<Result<Self, Self::Error>>;
 
     #[inline]
-    fn from_request(_: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
-        ready(Ok(Payload(payload.take())))
+    async fn from_request(
+        _: &HttpRequest,
+        payload: &mut dev::Payload,
+    ) -> Result<Self, Self::Error> {
+        Ok(Payload(payload.take()))
     }
 }
 
@@ -157,33 +158,21 @@ impl FromRequest for Payload {
 /// ```
 impl FromRequest for Bytes {
     type Error = Error;
-    type Future = Either<BytesExtractFut, Ready<Result<Bytes, Error>>>;
 
-    #[inline]
-    fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
+    async fn from_request(
+        req: &HttpRequest,
+        payload: &mut dev::Payload,
+    ) -> Result<Self, Self::Error> {
         // allow both Config and Data<Config>
         let cfg = PayloadConfig::from_req(req);
 
-        if let Err(err) = cfg.check_mimetype(req) {
-            return Either::right(ready(Err(err)));
-        }
+        // check content-type
+        cfg.check_mimetype(req)?;
 
-        Either::left(BytesExtractFut {
-            body_fut: HttpMessageBody::new(req, payload).limit(cfg.limit),
-        })
-    }
-}
-
-/// Future for `Bytes` extractor.
-pub struct BytesExtractFut {
-    body_fut: HttpMessageBody,
-}
-
-impl Future for BytesExtractFut {
-    type Output = Result<Bytes, Error>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut self.body_fut).poll(cx).map_err(Into::into)
+        HttpMessageBody::new(req, payload)
+            .limit(cfg.limit)
+            .await
+            .map_err(Into::into)
     }
 }
 
@@ -204,49 +193,29 @@ impl Future for BytesExtractFut {
 /// }
 impl FromRequest for String {
     type Error = Error;
-    type Future = Either<StringExtractFut, Ready<Result<String, Error>>>;
 
-    #[inline]
-    fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
+    async fn from_request(
+        req: &HttpRequest,
+        payload: &mut dev::Payload,
+    ) -> Result<Self, Self::Error> {
         let cfg = PayloadConfig::from_req(req);
 
         // check content-type
-        if let Err(err) = cfg.check_mimetype(req) {
-            return Either::right(ready(Err(err)));
-        }
+        cfg.check_mimetype(req)?;
 
         // check charset
-        let encoding = match req.encoding() {
-            Ok(enc) => enc,
-            Err(err) => return Either::right(ready(Err(err.into()))),
-        };
+        let encoding = req.encoding()?;
         let limit = cfg.limit;
-        let body_fut = HttpMessageBody::new(req, payload).limit(limit);
 
-        Either::left(StringExtractFut { body_fut, encoding })
-    }
-}
+        let body = HttpMessageBody::new(req, payload).limit(limit).await?;
 
-/// Future for `String` extractor.
-pub struct StringExtractFut {
-    body_fut: HttpMessageBody,
-    encoding: &'static Encoding,
-}
-
-impl Future for StringExtractFut {
-    type Output = Result<String, Error>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let encoding = self.encoding;
-
-        Pin::new(&mut self.body_fut).poll(cx).map(|out| {
-            let body = out?;
-            bytes_to_string(body, encoding)
-        })
+        bytes_to_string(body, encoding)
     }
 }
 
 fn bytes_to_string(body: Bytes, encoding: &'static Encoding) -> Result<String, Error> {
+    use encoding_rs::UTF_8;
+
     if encoding == UTF_8 {
         Ok(str::from_utf8(body.as_ref())
             .map_err(|_| ErrorBadRequest("Can not decode body"))?
