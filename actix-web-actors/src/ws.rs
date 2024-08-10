@@ -796,11 +796,8 @@ where
             Some(frm) => {
                 let msg = match frm {
                     Frame::Text(data) => {
-                        Message::Text(ByteString::try_from(data).map_err(|e| {
-                            ProtocolError::Io(io::Error::new(
-                                io::ErrorKind::Other,
-                                format!("{}", e),
-                            ))
+                        Message::Text(ByteString::try_from(data).map_err(|err| {
+                            ProtocolError::Io(io::Error::new(io::ErrorKind::Other, err))
                         })?)
                     }
                     Frame::Binary(data) => Message::Binary(data),

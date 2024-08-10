@@ -480,15 +480,15 @@ where
         let cfg = self.cfg.clone();
 
         Box::pin(async move {
-            let expect = expect
-                .await
-                .map_err(|e| error!("Init http expect service error: {:?}", e))?;
+            let expect = expect.await.map_err(|err| {
+                tracing::error!("Initialization of HTTP expect service error: {err:?}");
+            })?;
 
             let upgrade = match upgrade {
                 Some(upgrade) => {
-                    let upgrade = upgrade
-                        .await
-                        .map_err(|e| error!("Init http upgrade service error: {:?}", e))?;
+                    let upgrade = upgrade.await.map_err(|err| {
+                        tracing::error!("Initialization of HTTP upgrade service error: {err:?}");
+                    })?;
                     Some(upgrade)
                 }
                 None => None,
@@ -496,7 +496,7 @@ where
 
             let service = service
                 .await
-                .map_err(|e| error!("Init http service error: {:?}", e))?;
+                .map_err(|err| error!("Initialization of HTTP service error: {err:?}"))?;
 
             Ok(H1ServiceHandler::new(
                 cfg,

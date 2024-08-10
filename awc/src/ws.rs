@@ -253,8 +253,8 @@ impl WebsocketsRequest {
     pub async fn connect(
         mut self,
     ) -> Result<(ClientResponse, Framed<BoxedSocket, Codec>), WsClientError> {
-        if let Some(e) = self.err.take() {
-            return Err(e.into());
+        if let Some(err) = self.err.take() {
+            return Err(err.into());
         }
 
         // validate URI

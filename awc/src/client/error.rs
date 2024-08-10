@@ -54,11 +54,11 @@ impl std::error::Error for ConnectError {}
 impl From<actix_tls::connect::ConnectError> for ConnectError {
     fn from(err: actix_tls::connect::ConnectError) -> ConnectError {
         match err {
-            actix_tls::connect::ConnectError::Resolver(e) => ConnectError::Resolver(e),
+            actix_tls::connect::ConnectError::Resolver(err) => ConnectError::Resolver(err),
             actix_tls::connect::ConnectError::NoRecords => ConnectError::NoRecords,
             actix_tls::connect::ConnectError::InvalidInput => panic!(),
             actix_tls::connect::ConnectError::Unresolved => ConnectError::Unresolved,
-            actix_tls::connect::ConnectError::Io(e) => ConnectError::Io(e),
+            actix_tls::connect::ConnectError::Io(err) => ConnectError::Io(err),
         }
     }
 }

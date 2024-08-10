@@ -106,7 +106,7 @@ pub async fn test_server_with_addr<F: ServerServiceFactory<TcpStream>>(
             builder.set_verify(SslVerifyMode::NONE);
             let _ = builder
                 .set_alpn_protos(b"\x02h2\x08http/1.1")
-                .map_err(|e| log::error!("Can not set alpn protocol: {:?}", e));
+                .map_err(|err| log::error!("Can not set ALPN protocol: {err}"));
 
             Connector::new()
                 .conn_lifetime(Duration::from_secs(0))
