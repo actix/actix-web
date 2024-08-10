@@ -257,8 +257,9 @@ impl WebsocketsRequest {
             return Err(e.into());
         }
 
-        // validate uri
+        // validate URI
         let uri = &self.head.uri;
+
         if uri.host().is_none() {
             return Err(InvalidUrl::MissingHost.into());
         } else if uri.scheme().is_none() {
@@ -273,9 +274,12 @@ impl WebsocketsRequest {
         }
 
         if !self.head.headers.contains_key(header::HOST) {
+            let hostname = uri.host().unwrap();
+            let port = uri.port();
+
             self.head.headers.insert(
                 header::HOST,
-                HeaderValue::from_str(uri.host().unwrap()).unwrap(),
+                HeaderValue::from_str(&Host { hostname, port }.to_string()).unwrap(),
             );
         }
 
@@ -430,6 +434,25 @@ impl fmt::Debug for WebsocketsRequest {
         for (key, val) in self.head.headers.iter() {
             writeln!(f, "    {:?}: {:?}", key, val)?;
         }
+        Ok(())
+    }
+}
+
+/// Formatter for host (hostname+port) header values.
+struct Host<'a> {
+    hostname: &'a str,
+    port: Option<http::uri::Port<&'a str>>,
+}
+
+impl<'a> fmt::Display for Host<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.hostname)?;
+
+        if let Some(port) = &self.port {
+            f.write_str(":")?;
+            f.write_str(port.as_str())?;
+        }
+
         Ok(())
     }
 }
