@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-## 4.3.1
+## 4.3.1 <!-- v4.3.1+deprecated -->
 
 - Reduce memory usage by `take`-ing (rather than `split`-ing) the encoded buffer when yielding bytes in the response stream.
 - Mark crate as deprecated.
