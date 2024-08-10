@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 4.9.0
+
 ### Added
 
 - Add `middleware::from_fn()` helper.
