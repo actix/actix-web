@@ -49,7 +49,7 @@ impl FrozenClientRequest {
     where
         B: MessageBody + 'static,
     {
-        RequestSender::Rc(self.head.clone(), None).send_body(
+        RequestSender::Rc(Rc::clone(&self.head), None).send_body(
             self.addr,
             self.response_decompress,
             self.timeout,
@@ -60,7 +60,7 @@ impl FrozenClientRequest {
 
     /// Send a json body.
     pub fn send_json<T: Serialize>(&self, value: &T) -> SendClientRequest {
-        RequestSender::Rc(self.head.clone(), None).send_json(
+        RequestSender::Rc(Rc::clone(&self.head), None).send_json(
             self.addr,
             self.response_decompress,
             self.timeout,
@@ -71,7 +71,7 @@ impl FrozenClientRequest {
 
     /// Send an urlencoded body.
     pub fn send_form<T: Serialize>(&self, value: &T) -> SendClientRequest {
-        RequestSender::Rc(self.head.clone(), None).send_form(
+        RequestSender::Rc(Rc::clone(&self.head), None).send_form(
             self.addr,
             self.response_decompress,
             self.timeout,
@@ -86,7 +86,7 @@ impl FrozenClientRequest {
         S: Stream<Item = Result<Bytes, E>> + 'static,
         E: Into<BoxError> + 'static,
     {
-        RequestSender::Rc(self.head.clone(), None).send_stream(
+        RequestSender::Rc(Rc::clone(&self.head), None).send_stream(
             self.addr,
             self.response_decompress,
             self.timeout,
@@ -97,7 +97,7 @@ impl FrozenClientRequest {
 
     /// Send an empty body.
     pub fn send(&self) -> SendClientRequest {
-        RequestSender::Rc(self.head.clone(), None).send(
+        RequestSender::Rc(Rc::clone(&self.head), None).send(
             self.addr,
             self.response_decompress,
             self.timeout,

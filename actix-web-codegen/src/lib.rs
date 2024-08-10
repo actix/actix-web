@@ -73,8 +73,6 @@
 //! [DELETE]: macro@delete
 
 #![recursion_limit = "512"]
-#![deny(rust_2018_idioms, nonstandard_style)]
-#![warn(future_incompatible)]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
@@ -83,6 +81,7 @@ use proc_macro::TokenStream;
 use quote::quote;
 
 mod route;
+mod scope;
 
 /// Creates resource handler, allowing multiple HTTP method guards.
 ///
@@ -197,6 +196,43 @@ method_macro!(Options, options);
 method_macro!(Trace, trace);
 method_macro!(Patch, patch);
 
+/// Prepends a path prefix to all handlers using routing macros inside the attached module.
+///
+/// # Syntax
+///
+/// ```
+/// # use actix_web_codegen::scope;
+/// #[scope("/prefix")]
+/// mod api {
+///     // ...
+/// }
+/// ```
+///
+/// # Arguments
+///
+/// - `"/prefix"` - Raw literal string to be prefixed onto contained handlers' paths.
+///
+/// # Example
+///
+/// ```
+/// # use actix_web_codegen::{scope, get};
+/// # use actix_web::Responder;
+/// #[scope("/api")]
+/// mod api {
+///     # use super::*;
+///     #[get("/hello")]
+///     pub async fn hello() -> impl Responder {
+///         // this has path /api/hello
+///         "Hello, world!"
+///     }
+/// }
+/// # fn main() {}
+/// ```
+#[proc_macro_attribute]
+pub fn scope(args: TokenStream, input: TokenStream) -> TokenStream {
+    scope::with_scope(args, input)
+}
+
 /// Marks async main function as the Actix Web system entry-point.
 ///
 /// Note that Actix Web also works under `#[tokio::main]` since version 4.0. However, this macro is
@@ -239,4 +275,16 @@ pub fn test(_: TokenStream, item: TokenStream) -> TokenStream {
 
     output.extend(item);
     output
+}
+
+/// Converts the error to a token stream and appends it to the original input.
+///
+/// Returning the original input in addition to the error is good for IDEs which can gracefully
+/// recover and show more precise errors within the macro body.
+///
+/// See <https://github.com/rust-analyzer/rust-analyzer/issues/10468> for more info.
+fn input_and_compile_error(mut item: TokenStream, err: syn::Error) -> TokenStream {
+    let compile_err = TokenStream::from(err.to_compile_error());
+    item.extend(compile_err);
+    item
 }

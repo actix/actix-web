@@ -159,8 +159,8 @@ impl TestBuffer {
     #[allow(dead_code)]
     pub(crate) fn clone(&self) -> Self {
         Self {
-            read_buf: self.read_buf.clone(),
-            write_buf: self.write_buf.clone(),
+            read_buf: Rc::clone(&self.read_buf),
+            write_buf: Rc::clone(&self.write_buf),
             err: self.err.clone(),
         }
     }

@@ -71,7 +71,7 @@ where
         });
 
         // create App config to pass to child services
-        let mut config = AppService::new(config, default.clone());
+        let mut config = AppService::new(config, Rc::clone(&default));
 
         // register services
         mem::take(&mut *self.services.borrow_mut())
@@ -263,8 +263,9 @@ impl ServiceFactory<ServiceRequest> for AppRoutingFactory {
             let guards = guards.borrow_mut().take().unwrap_or_default();
             let factory_fut = factory.new_service(());
             async move {
-                let service = factory_fut.await?;
-                Ok((path, guards, service))
+                factory_fut
+                    .await
+                    .map(move |service| (path, guards, service))
             }
         }));
 

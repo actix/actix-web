@@ -2,8 +2,6 @@
 //!
 //! See [`macro@MultipartForm`] for usage examples.
 
-#![deny(rust_2018_idioms, nonstandard_style)]
-#![warn(future_incompatible)]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
@@ -138,7 +136,7 @@ struct ParsedField<'t> {
 /// `#[multipart(duplicate_field = "<behavior>")]` attribute:
 ///
 /// - "ignore": (default) Extra fields are ignored. I.e., the first one is persisted.
-/// - "deny": A `MultipartError::UnsupportedField` error response is returned.
+/// - "deny": A `MultipartError::UnknownField` error response is returned.
 /// - "replace": Each field is processed, but only the last one is persisted.
 ///
 /// Note that `Vec` fields will ignore this option.
@@ -229,7 +227,7 @@ pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenS
     // Return value when a field name is not supported by the form
     let unknown_field_result = if attrs.deny_unknown_fields {
         quote!(::std::result::Result::Err(
-            ::actix_multipart::MultipartError::UnsupportedField(field.name().to_string())
+            ::actix_multipart::MultipartError::UnknownField(field.name().unwrap().to_string())
         ))
     } else {
         quote!(::std::result::Result::Ok(()))
@@ -292,7 +290,7 @@ pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenS
                 limits: &'t mut ::actix_multipart::form::Limits,
                 state: &'t mut ::actix_multipart::form::State,
             ) -> ::std::pin::Pin<::std::boxed::Box<dyn ::std::future::Future<Output = ::std::result::Result<(), ::actix_multipart::MultipartError>> + 't>> {
-                match field.name() {
+                match field.name().unwrap() {
                     #handle_field_impl
                     _ => return ::std::boxed::Box::pin(::std::future::ready(#unknown_field_result)),
                 }

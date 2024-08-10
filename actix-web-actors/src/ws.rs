@@ -710,7 +710,7 @@ where
         }
 
         if !this.buf.is_empty() {
-            Poll::Ready(Some(Ok(this.buf.split().freeze())))
+            Poll::Ready(Some(Ok(std::mem::take(&mut this.buf).freeze())))
         } else if this.fut.alive() && !this.closed {
             Poll::Pending
         } else {
@@ -817,10 +817,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use actix_web::{
-        http::{header, Method},
-        test::TestRequest,
-    };
+    use actix_web::test::TestRequest;
 
     use super::*;
 

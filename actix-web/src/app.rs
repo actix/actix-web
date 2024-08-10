@@ -39,7 +39,7 @@ impl App<AppEntry> {
         let factory_ref = Rc::new(RefCell::new(None));
 
         App {
-            endpoint: AppEntry::new(factory_ref.clone()),
+            endpoint: AppEntry::new(Rc::clone(&factory_ref)),
             data_factories: Vec::new(),
             services: Vec::new(),
             default: None,
@@ -112,8 +112,8 @@ where
     /// })
     /// ```
     #[doc(alias = "manage")]
-    pub fn app_data<U: 'static>(mut self, ext: U) -> Self {
-        self.extensions.insert(ext);
+    pub fn app_data<U: 'static>(mut self, data: U) -> Self {
+        self.extensions.insert(data);
         self
     }
 
@@ -129,6 +129,8 @@ where
     ///
     /// Data items are constructed during application initialization, before the server starts
     /// accepting requests.
+    ///
+    /// The returned data value `D` is wrapped as [`Data<D>`].
     pub fn data_factory<F, Out, D, E>(mut self, data: F) -> Self
     where
         F: Fn() -> Out + 'static,
@@ -232,7 +234,6 @@ where
     ///
     /// * *Resource* is an entry in resource table which corresponds to requested URL.
     /// * *Scope* is a set of resources with common root path.
-    /// * "StaticFiles" is a service for static files support
     pub fn service<F>(mut self, factory: F) -> Self
     where
         F: HttpServiceFactory + 'static,
@@ -469,7 +470,6 @@ mod tests {
             Method, StatusCode,
         },
         middleware::DefaultHeaders,
-        service::ServiceRequest,
         test::{call_service, init_service, read_body, try_init_service, TestRequest},
         web, HttpRequest, HttpResponse,
     };

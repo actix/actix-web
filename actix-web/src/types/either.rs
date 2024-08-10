@@ -287,10 +287,7 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::{
-        test::TestRequest,
-        web::{Form, Json},
-    };
+    use crate::test::TestRequest;
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     struct TestForm {

@@ -66,7 +66,7 @@ impl<T: Head> ops::DerefMut for Message<T> {
 
 impl<T: Head> Drop for Message<T> {
     fn drop(&mut self) {
-        T::with_pool(|p| p.release(self.head.clone()))
+        T::with_pool(|p| p.release(Rc::clone(&self.head)))
     }
 }
 

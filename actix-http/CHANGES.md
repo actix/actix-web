@@ -2,14 +2,57 @@
 
 ## Unreleased
 
+## 3.9.0
+
+### Added
+
+- Implement `FromIterator<(HeaderName, HeaderValue)>` for `HeaderMap`.
+
+## 3.8.0
+
+### Added
+
+- Add `error::InvalidStatusCode` re-export.
+
+## 3.7.0
+
+### Added
+
+- Add `rustls-0_23` crate feature
+- Add `{h1::H1Service, h2::H2Service, HttpService}::rustls_0_23()` and `HttpService::rustls_0_23_with_config()` service constructors.
+
 ### Changed
 
-- Updated `zstd` dependency to `0.13`.
-- Implemented `From<HeaderMap>` for `http::HeaderMap`.
+- Update `brotli` dependency to `6`.
+- Minimum supported Rust version (MSRV) is now 1.72.
+
+## 3.6.0
+
+### Added
+
+- Add `rustls-0_22` crate feature.
+- Add `{h1::H1Service, h2::H2Service, HttpService}::rustls_0_22()` and `HttpService::rustls_0_22_with_config()` service constructors.
+- Implement `From<&HeaderMap>` for `http::HeaderMap`.
+
+## 3.5.1
 
 ### Fixed
 
-- Do not encode zero-sized response bodies
+- Prevent hang when returning zero-sized response bodies through compression layer.
+
+## 3.5.0
+
+### Added
+
+- Implement `From<HeaderMap>` for `http::HeaderMap`.
+
+### Changed
+
+- Updated `zstd` dependency to `0.13`.
+
+### Fixed
+
+- Prevent compression of zero-sized response bodies.
 
 ## 3.4.0
 

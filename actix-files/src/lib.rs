@@ -11,8 +11,7 @@
 //!     .service(Files::new("/static", ".").prefer_utf8(true));
 //! ```
 
-#![deny(rust_2018_idioms, nonstandard_style)]
-#![warn(future_incompatible, missing_docs, missing_debug_implementations)]
+#![warn(missing_docs, missing_debug_implementations)]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
@@ -75,7 +74,7 @@ mod tests {
         dev::ServiceFactory,
         guard,
         http::{
-            header::{self, ContentDisposition, DispositionParam, DispositionType},
+            header::{self, ContentDisposition, DispositionParam},
             Method, StatusCode,
         },
         middleware::Compress,
@@ -307,11 +306,11 @@ mod tests {
         let resp = file.respond_to(&req);
         assert_eq!(
             resp.headers().get(header::CONTENT_TYPE).unwrap(),
-            "application/javascript; charset=utf-8"
+            "text/javascript",
         );
         assert_eq!(
             resp.headers().get(header::CONTENT_DISPOSITION).unwrap(),
-            "inline; filename=\"test.js\""
+            "inline; filename=\"test.js\"",
         );
     }
 
@@ -565,6 +564,30 @@ mod tests {
 
         let bytes = test::read_body(response).await;
         let data = web::Bytes::from(fs::read("tests/test space.binary").unwrap());
+        assert_eq!(bytes, data);
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[actix_rt::test]
+    async fn test_static_files_with_special_characters() {
+        // Create the file we want to test against ad-hoc. We can't check it in as otherwise
+        // Windows can't even checkout this repository.
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_with_newlines = temp_dir.path().join("test\n\x0B\x0C\rnewline.text");
+        fs::write(&file_with_newlines, "Look at my newlines").unwrap();
+
+        let srv = test::init_service(
+            App::new().service(Files::new("/", temp_dir.path()).index_file("Cargo.toml")),
+        )
+        .await;
+        let request = TestRequest::get()
+            .uri("/test%0A%0B%0C%0Dnewline.text")
+            .to_request();
+        let response = test::call_service(&srv, request).await;
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let bytes = test::read_body(response).await;
+        let data = web::Bytes::from(fs::read(file_with_newlines).unwrap());
         assert_eq!(bytes, data);
     }
 
@@ -840,9 +863,9 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_percent_encoding_2() {
-        let tmpdir = tempfile::tempdir().unwrap();
+        let temp_dir = tempfile::tempdir().unwrap();
         let filename = match cfg!(unix) {
-            true => "ض:?#[]{}<>()@!$&'`|*+,;= %20.test",
+            true => "ض:?#[]{}<>()@!$&'`|*+,;= %20\n.test",
             false => "ض#[]{}()@!$&'`+,;= %20.test",
         };
         let filename_encoded = filename
@@ -852,9 +875,9 @@ mod tests {
                 write!(&mut buf, "%{:02X}", c).unwrap();
                 buf
             });
-        std::fs::File::create(tmpdir.path().join(filename)).unwrap();
+        std::fs::File::create(temp_dir.path().join(filename)).unwrap();
 
-        let srv = test::init_service(App::new().service(Files::new("", tmpdir.path()))).await;
+        let srv = test::init_service(App::new().service(Files::new("/", temp_dir.path()))).await;
 
         let req = TestRequest::get()
             .uri(&format!("/{}", filename_encoded))

@@ -1,17 +1,24 @@
 [package]
 name = "actix-web-actors"
-version = "4.2.0"
+version = "4.3.1+deprecated"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Actix actors support for Actix Web"
 keywords = ["actix", "http", "web", "framework", "async"]
-homepage = "https://actix.rs"
-repository = "https://github.com/actix/actix-web"
-license = "MIT OR Apache-2.0"
-edition = "2021"
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
 
-[lib]
-name = "actix_web_actors"
-path = "src/lib.rs"
+[package.metadata.cargo_check_external_types]
+allowed_external_types = [
+    "actix::*",
+    "actix_http::*",
+    "actix_web::*",
+    "bytes::*",
+    "bytestring::*",
+    "futures_core::*",
+]
 
 [dependencies]
 actix = { version = ">=0.12, <0.14", default-features = false }
@@ -32,6 +39,9 @@ actix-test = "0.1"
 awc = { version = "3", default-features = false }
 actix-web = { version = "4", features = ["macros"] }
 
-env_logger = "0.10"
+env_logger = "0.11"
 futures-util = { version = "0.3.17", default-features = false, features = ["std"] }
 mime = "0.3"
+
+[lints]
+workspace = true

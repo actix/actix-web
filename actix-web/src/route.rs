@@ -77,7 +77,7 @@ impl ServiceFactory<ServiceRequest> for Route {
 
     fn new_service(&self, _: ()) -> Self::Future {
         let fut = self.service.new_service(());
-        let guards = self.guards.clone();
+        let guards = Rc::clone(&self.guards);
 
         Box::pin(async move {
             let service = fut.await?;
@@ -92,6 +92,7 @@ pub struct RouteService {
 }
 
 impl RouteService {
+    // TODO(breaking): remove pass by ref mut
     #[allow(clippy::needless_pass_by_ref_mut)]
     pub fn check(&self, req: &mut ServiceRequest) -> bool {
         let guard_ctx = req.guard_ctx();

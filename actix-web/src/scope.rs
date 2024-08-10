@@ -213,7 +213,6 @@ where
     ///
     /// * *Resource* is an entry in resource table which corresponds to requested URL.
     /// * *Scope* is a set of resources with common root path.
-    /// * "StaticFiles" is a service for static files support
     ///
     /// ```
     /// use actix_web::{web, App, HttpRequest};
@@ -470,8 +469,9 @@ impl ServiceFactory<ServiceRequest> for ScopeFactory {
             let guards = guards.borrow_mut().take().unwrap_or_default();
             let factory_fut = factory.new_service(());
             async move {
-                let service = factory_fut.await?;
-                Ok((path, guards, service))
+                factory_fut
+                    .await
+                    .map(move |service| (path, guards, service))
             }
         }));
 
@@ -547,7 +547,6 @@ impl ServiceFactory<ServiceRequest> for ScopeEndpoint {
 
 #[cfg(test)]
 mod tests {
-    use actix_service::Service;
     use actix_utils::future::ok;
     use bytes::Bytes;
 
@@ -559,7 +558,6 @@ mod tests {
             Method, StatusCode,
         },
         middleware::DefaultHeaders,
-        service::{ServiceRequest, ServiceResponse},
         test::{assert_body_eq, call_service, init_service, read_body, TestRequest},
         web, App, HttpMessage, HttpRequest, HttpResponse,
     };

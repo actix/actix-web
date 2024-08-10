@@ -32,7 +32,6 @@ where
     fn read_field(req: &'t HttpRequest, field: Field, limits: &'t mut Limits) -> Self::Future {
         Box::pin(async move {
             let config = JsonConfig::from_req(req);
-            let field_name = field.name().to_owned();
 
             if config.validate_content_type {
                 let valid = if let Some(mime) = field.content_type() {
@@ -43,17 +42,19 @@ where
 
                 if !valid {
                     return Err(MultipartError::Field {
-                        field_name,
+                        name: field.form_field_name,
                         source: config.map_error(req, JsonFieldError::ContentType),
                     });
                 }
             }
 
+            let form_field_name = field.form_field_name.clone();
+
             let bytes = Bytes::read_field(req, field, limits).await?;
 
             Ok(Json(serde_json::from_slice(bytes.data.as_ref()).map_err(
                 |err| MultipartError::Field {
-                    field_name,
+                    name: form_field_name,
                     source: config.map_error(req, JsonFieldError::Deserialize(err)),
                 },
             )?))
@@ -131,14 +132,12 @@ impl Default for JsonConfig {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, io::Cursor};
+    use std::collections::HashMap;
 
-    use actix_multipart_rfc7578::client::multipart;
-    use actix_web::{http::StatusCode, web, App, HttpResponse, Responder};
+    use actix_web::{http::StatusCode, web, web::Bytes, App, HttpResponse, Responder};
 
     use crate::form::{
         json::{Json, JsonConfig},
-        tests::send_form,
         MultipartForm,
     };
 
@@ -155,6 +154,8 @@ mod tests {
         HttpResponse::Ok().finish()
     }
 
+    const TEST_JSON: &str = r#"{"key1": "value1", "key2": "value2"}"#;
+
     #[actix_rt::test]
     async fn test_json_without_content_type() {
         let srv = actix_test::start(|| {
@@ -163,10 +164,16 @@ mod tests {
                 .app_data(JsonConfig::default().validate_content_type(false))
         });
 
-        let mut form = multipart::Form::default();
-        form.add_text("json", "{\"key1\": \"value1\", \"key2\": \"value2\"}");
-        let response = send_form(&srv, form, "/").await;
-        assert_eq!(response.status(), StatusCode::OK);
+        let (body, headers) = crate::test::create_form_data_payload_and_headers(
+            "json",
+            None,
+            None,
+            Bytes::from_static(TEST_JSON.as_bytes()),
+        );
+        let mut req = srv.post("/");
+        *req.headers_mut() = headers;
+        let res = req.send_body(body).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
     }
 
     #[actix_rt::test]
@@ -178,17 +185,27 @@ mod tests {
         });
 
         // Deny because wrong content type
-        let bytes = Cursor::new("{\"key1\": \"value1\", \"key2\": \"value2\"}");
-        let mut form = multipart::Form::default();
-        form.add_reader_file_with_mime("json", bytes, "", mime::APPLICATION_OCTET_STREAM);
-        let response = send_form(&srv, form, "/").await;
-        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let (body, headers) = crate::test::create_form_data_payload_and_headers(
+            "json",
+            None,
+            Some(mime::APPLICATION_OCTET_STREAM),
+            Bytes::from_static(TEST_JSON.as_bytes()),
+        );
+        let mut req = srv.post("/");
+        *req.headers_mut() = headers;
+        let res = req.send_body(body).await.unwrap();
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST);
 
         // Allow because correct content type
-        let bytes = Cursor::new("{\"key1\": \"value1\", \"key2\": \"value2\"}");
-        let mut form = multipart::Form::default();
-        form.add_reader_file_with_mime("json", bytes, "", mime::APPLICATION_JSON);
-        let response = send_form(&srv, form, "/").await;
-        assert_eq!(response.status(), StatusCode::OK);
+        let (body, headers) = crate::test::create_form_data_payload_and_headers(
+            "json",
+            None,
+            Some(mime::APPLICATION_JSON),
+            Bytes::from_static(TEST_JSON.as_bytes()),
+        );
+        let mut req = srv.post("/");
+        *req.headers_mut() = headers;
+        let res = req.send_body(body).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
     }
 }
