@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 3.5.1
+
 - Fix WebSocket `Host` request header value when using a non-default port.
 
 ## 3.5.0
