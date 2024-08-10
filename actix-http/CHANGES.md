@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 3.9.0
+
 ### Added
 
 - Implement `FromIterator<(HeaderName, HeaderValue)>` for `HeaderMap`.
