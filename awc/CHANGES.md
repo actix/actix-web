@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Prevent panics on connection pool drop when Tokio runtime is shutdown early.
+
 ## 3.5.1
 
 - Fix WebSocket `Host` request header value when using a non-default port.
