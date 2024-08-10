@@ -4,6 +4,7 @@
 
 ### Added
 
+- Add `middleware::from_fn()` helper.
 - Add `web::ThinData` extractor.
 
 ## 4.8.0
