@@ -33,7 +33,7 @@ actix-web = { version = "4", default-features = false }
 
 bitflags = "2"
 bytes = "1"
-derive_more = "0.99.5"
+derive_more = "1.0.0"
 futures-core = { version = "0.3.17", default-features = false, features = ["alloc"] }
 http-range = "0.1.4"
 log = "0.4"

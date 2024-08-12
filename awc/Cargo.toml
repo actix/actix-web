@@ -106,7 +106,7 @@ actix-utils = "3"
 base64 = "0.22"
 bytes = "1"
 cfg-if = "1"
-derive_more = "0.99.5"
+derive_more = "1.0.0"
 futures-core = { version = "0.3.17", default-features = false, features = ["alloc"] }
 futures-util = { version = "0.3.17", default-features = false, features = ["alloc", "sink"] }
 h2 = "0.3.26"
