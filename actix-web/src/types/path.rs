@@ -68,7 +68,7 @@ use crate::{
 /// }
 ///
 /// // extract `Tail` from a path using serde
-/// #[get("/path/to/{tail:.*}")]
+/// #[get("/path/to/{tail}*")]
 /// async fn index(info: web::Path<Tail>) -> String {
 ///     format!("Navigating to {}!", info.tail.join(" :: "))
 /// }

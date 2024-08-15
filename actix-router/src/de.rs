@@ -692,7 +692,7 @@ mod tests {
     #[test]
     fn test_extract_seq() {
         let mut router = Router::<()>::build();
-        router.path("/path/to/{tail:.*}", ());
+        router.path("/path/to/{tail}*", ());
         let router = router.finish();
 
         let mut path = Path::new("/path/to/tail/with/slash%2fes");
