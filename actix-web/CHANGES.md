@@ -23,6 +23,7 @@
 - Always remove port from return value of `ConnectionInfo::realip_remote_addr()` when handling IPv6 addresses. from the `Forwarded` header.
 - The `UrlencodedError::ContentType` variant (relevant to the `Form` extractor) now uses the 415 (Media Type Unsupported) status code in it's `ResponseError` implementation.
 - Apply `HttpServer::max_connection_rate()` setting when using rustls v0.22 or v0.23.
+- Always consume complete HTTP message body, even on error
 
 ## 4.7.0
 
