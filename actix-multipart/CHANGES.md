@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Update `derive_more` dependency to `1.0`.
+- Minimum supported Rust version (MSRV) is now 1.75.
+
 ## 0.7.2
 
 - Fix re-exported version of `actix-multipart-derive`.

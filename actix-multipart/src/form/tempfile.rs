@@ -7,7 +7,7 @@ use std::{
 };
 
 use actix_web::{http::StatusCode, web, Error, HttpRequest, ResponseError};
-use derive_more::{Display, Error};
+use derive_more::{Display, Error as DeriveError};
 use futures_core::future::LocalBoxFuture;
 use futures_util::TryStreamExt as _;
 use mime::Mime;
@@ -78,11 +78,11 @@ impl<'t> FieldReader<'t> for TempFile {
     }
 }
 
-#[derive(Debug, Display, Error)]
+#[derive(Debug, Display, DeriveError)]
 #[non_exhaustive]
 pub enum TempFileError {
     /// File I/O Error
-    #[display(fmt = "File I/O error: {}", _0)]
+    #[display("File I/O error: {}", _0)]
     FileIo(std::io::Error),
 }
 

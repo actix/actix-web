@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use actix_web::{http::StatusCode, web, Error, HttpRequest, ResponseError};
-use derive_more::{Deref, DerefMut, Display, Error};
+use derive_more::{Deref, DerefMut, Display, Error as DeriveError};
 use futures_core::future::LocalBoxFuture;
 use serde::de::DeserializeOwned;
 
@@ -62,15 +62,15 @@ where
     }
 }
 
-#[derive(Debug, Display, Error)]
+#[derive(Debug, Display, DeriveError)]
 #[non_exhaustive]
 pub enum JsonFieldError {
     /// Deserialize error.
-    #[display(fmt = "Json deserialize error: {}", _0)]
+    #[display("Json deserialize error: {}", _0)]
     Deserialize(serde_json::Error),
 
     /// Content type error.
-    #[display(fmt = "Content type error")]
+    #[display("Content type error")]
     ContentType,
 }
 
