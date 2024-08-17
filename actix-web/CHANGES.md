@@ -5,6 +5,7 @@
 - Minimum supported Rust version (MSRV) is now 1.75.
 - Add `http::header::ContentLocation` typed header.
 - Add `http::header::Location` typed header.
+- Add `http::header::Referer` typed header.
 
 ## 4.9.0
 

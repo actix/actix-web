@@ -44,6 +44,7 @@ mod location;
 mod macros;
 mod preference;
 mod range;
+mod referer;
 
 #[cfg(test)]
 pub(crate) use self::macros::common_header_test;
@@ -75,6 +76,7 @@ pub use self::{
     location::Location,
     preference::Preference,
     range::{ByteRangeSpec, Range},
+    referer::Referer,
 };
 
 /// Format writer ([`fmt::Write`]) for a [`BytesMut`].
