@@ -40,6 +40,7 @@ mod if_none_match;
 mod if_range;
 mod if_unmodified_since;
 mod last_modified;
+mod location;
 mod macros;
 mod preference;
 mod range;
@@ -71,6 +72,7 @@ pub use self::{
     if_range::IfRange,
     if_unmodified_since::IfUnmodifiedSince,
     last_modified::LastModified,
+    location::Location,
     preference::Preference,
     range::{ByteRangeSpec, Range},
 };
