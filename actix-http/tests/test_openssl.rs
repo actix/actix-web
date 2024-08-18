@@ -14,7 +14,7 @@ use actix_http_test::test_server;
 use actix_service::{fn_service, ServiceFactoryExt};
 use actix_utils::future::{err, ok, ready};
 use bytes::{Bytes, BytesMut};
-use derive_more::{Display, Error};
+use derive_more::derive::{Display, Error};
 use futures_core::Stream;
 use futures_util::{stream::once, StreamExt as _};
 use openssl::{
@@ -398,7 +398,7 @@ async fn h2_response_http_error_handling() {
 }
 
 #[derive(Debug, Display, Error)]
-#[display(fmt = "error")]
+#[display("error")]
 struct BadRequest;
 
 impl From<BadRequest> for Response<BoxBody> {

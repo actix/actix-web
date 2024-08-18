@@ -1,6 +1,6 @@
 use std::fmt;
 
-use derive_more::{Display, Error};
+use derive_more::derive::{Display, Error};
 
 const MAX_QUALITY_INT: u16 = 1000;
 const MAX_QUALITY_FLOAT: f32 = 1.0;
@@ -125,7 +125,7 @@ pub fn itoa_fmt<W: fmt::Write, V: itoa::Integer>(mut wr: W, value: V) -> fmt::Re
 }
 
 #[derive(Debug, Clone, Display, Error)]
-#[display(fmt = "quality out of bounds")]
+#[display("quality out of bounds")]
 #[non_exhaustive]
 pub struct QualityOutOfBounds;
 

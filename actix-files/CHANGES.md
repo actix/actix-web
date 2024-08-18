@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Minimum supported Rust version (MSRV) is now 1.75.
+
 ## 0.6.6
 
 - Update `tokio-uring` dependency to `0.4`.
