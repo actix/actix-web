@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use actix_router::PathDeserializer;
 use actix_utils::future::{ready, Ready};
-use derive_more::{AsRef, Deref, DerefMut, Display, From};
+use derive_more::derive::{AsRef, Deref, DerefMut, Display, From};
 use serde::de;
 
 use crate::{
@@ -152,7 +152,7 @@ impl PathConfig {
 #[cfg(test)]
 mod tests {
     use actix_router::ResourceDef;
-    use derive_more::Display;
+    use derive_more::derive::Display;
     use serde::Deserialize;
 
     use super::*;

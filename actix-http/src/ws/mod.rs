@@ -5,7 +5,7 @@
 
 use std::io;
 
-use derive_more::{Display, Error, From};
+use derive_more::derive::{Display, Error, From};
 use http::{header, Method, StatusCode};
 
 use crate::{body::BoxBody, header::HeaderValue, RequestHead, Response, ResponseBuilder};

@@ -13,7 +13,7 @@ use actix_web::{
     http::header::{self, ContentDisposition, HeaderMap},
     web::{Bytes, BytesMut},
 };
-use derive_more::{Display, Error as DeriveError};
+use derive_more::derive::{Display, Error};
 use futures_core::Stream;
 use mime::Mime;
 
@@ -24,7 +24,7 @@ use crate::{
 };
 
 /// Error type returned from [`Field::bytes()`] when field data is larger than limit.
-#[derive(Debug, Display, DeriveError)]
+#[derive(Debug, Display, Error)]
 #[display("size limit exceeded while collecting field data")]
 #[non_exhaustive]
 pub struct LimitExceeded;

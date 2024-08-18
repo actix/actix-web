@@ -2,7 +2,7 @@
 
 use std::{error::Error as StdError, fmt, io, str::Utf8Error, string::FromUtf8Error};
 
-use derive_more::{Display, Error as DeriveError, From};
+use derive_more::derive::{Display, Error, From};
 pub use http::{status::InvalidStatusCode, Error as HttpError};
 use http::{uri::InvalidUri, StatusCode};
 
@@ -156,7 +156,7 @@ impl From<crate::ws::ProtocolError> for Error {
 }
 
 /// A set of errors that can occur during parsing HTTP streams.
-#[derive(Debug, Display, DeriveError)]
+#[derive(Debug, Display, Error)]
 #[non_exhaustive]
 pub enum ParseError {
     /// An invalid `Method`, such as `GE.T`.
@@ -384,7 +384,7 @@ impl StdError for DispatchError {
 }
 
 /// A set of error that can occur during parsing content type.
-#[derive(Debug, Display, DeriveError)]
+#[derive(Debug, Display, Error)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 #[non_exhaustive]
 pub enum ContentTypeError {

@@ -6,7 +6,7 @@
 //
 // See <https://github.com/rust-lang/rust/issues/83375>
 pub use actix_http::error::{ContentTypeError, DispatchError, HttpError, ParseError, PayloadError};
-use derive_more::{Display, Error as DeriveError, From};
+use derive_more::derive::{Display, Error, From};
 use serde_json::error::Error as JsonError;
 use serde_urlencoded::{de::Error as FormDeError, ser::Error as FormError};
 use url::ParseError as UrlParseError;
@@ -28,7 +28,7 @@ pub use self::{error::Error, internal::*, response_error::ResponseError};
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// An error representing a problem running a blocking task on a thread pool.
-#[derive(Debug, Display, DeriveError)]
+#[derive(Debug, Display, Error)]
 #[display("Blocking thread pool is shut down unexpectedly")]
 #[non_exhaustive]
 pub struct BlockingError;
@@ -36,7 +36,7 @@ pub struct BlockingError;
 impl ResponseError for crate::error::BlockingError {}
 
 /// Errors which can occur when attempting to generate resource uri.
-#[derive(Debug, PartialEq, Eq, Display, DeriveError, From)]
+#[derive(Debug, PartialEq, Eq, Display, Error, From)]
 #[non_exhaustive]
 pub enum UrlGenerationError {
     /// Resource not found.
@@ -55,7 +55,7 @@ pub enum UrlGenerationError {
 impl ResponseError for UrlGenerationError {}
 
 /// A set of errors that can occur during parsing urlencoded payloads
-#[derive(Debug, Display, DeriveError, From)]
+#[derive(Debug, Display, Error, From)]
 #[non_exhaustive]
 pub enum UrlencodedError {
     /// Can not decode chunked transfer encoding.
@@ -108,7 +108,7 @@ impl ResponseError for UrlencodedError {
 }
 
 /// A set of errors that can occur during parsing json payloads
-#[derive(Debug, Display, DeriveError)]
+#[derive(Debug, Display, Error)]
 #[non_exhaustive]
 pub enum JsonPayloadError {
     /// Payload size is bigger than allowed & content length header set. (default: 2MB)
@@ -162,7 +162,7 @@ impl ResponseError for JsonPayloadError {
 }
 
 /// A set of errors that can occur during parsing request paths
-#[derive(Debug, Display, DeriveError)]
+#[derive(Debug, Display, Error)]
 #[non_exhaustive]
 pub enum PathError {
     /// Deserialize error
@@ -178,7 +178,7 @@ impl ResponseError for PathError {
 }
 
 /// A set of errors that can occur during parsing query strings.
-#[derive(Debug, Display, DeriveError, From)]
+#[derive(Debug, Display, Error, From)]
 #[non_exhaustive]
 pub enum QueryPayloadError {
     /// Query deserialize error.
@@ -193,7 +193,7 @@ impl ResponseError for QueryPayloadError {
 }
 
 /// Error type returned when reading body as lines.
-#[derive(Debug, Display, DeriveError, From)]
+#[derive(Debug, Display, Error, From)]
 #[non_exhaustive]
 pub enum ReadlinesError {
     #[display("Encoding error")]

@@ -14,7 +14,7 @@ use actix_rt::{net::TcpStream, time::sleep};
 use actix_service::fn_service;
 use actix_utils::future::{err, ok, ready};
 use bytes::Bytes;
-use derive_more::{Display, Error as DeriveError};
+use derive_more::derive::{Display, Error};
 use futures_util::{stream::once, FutureExt as _, StreamExt as _};
 use regex::Regex;
 
@@ -61,7 +61,7 @@ async fn h1_2() {
     srv.stop().await;
 }
 
-#[derive(Debug, Display, DeriveError)]
+#[derive(Debug, Display, Error)]
 #[display("expect failed")]
 struct ExpectFailed;
 
@@ -722,7 +722,7 @@ async fn h1_response_http_error_handling() {
     srv.stop().await;
 }
 
-#[derive(Debug, Display, DeriveError)]
+#[derive(Debug, Display, Error)]
 #[display("error")]
 struct BadRequest;
 

@@ -3,7 +3,7 @@ use std::task::Poll;
 use actix_rt::pin;
 use actix_utils::future::poll_fn;
 use bytes::{Bytes, BytesMut};
-use derive_more::{Display, Error};
+use derive_more::derive::{Display, Error};
 use futures_core::ready;
 
 use super::{BodySize, MessageBody};

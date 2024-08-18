@@ -1,6 +1,6 @@
 use std::{convert::Infallible, str};
 
-use derive_more::{Deref, DerefMut};
+use derive_more::derive::{Deref, DerefMut};
 
 use crate::{
     error::ParseError,

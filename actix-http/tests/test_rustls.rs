@@ -23,7 +23,7 @@ use actix_service::{fn_factory_with_config, fn_service};
 use actix_tls::connect::rustls_0_23::webpki_roots_cert_store;
 use actix_utils::future::{err, ok, poll_fn};
 use bytes::{Bytes, BytesMut};
-use derive_more::{Display, Error as DeriveError};
+use derive_more::derive::{Display, Error};
 use futures_core::{ready, Stream};
 use futures_util::stream::once;
 use rustls::{pki_types::ServerName, ServerConfig as RustlsServerConfig};
@@ -479,7 +479,7 @@ async fn h2_response_http_error_handling() {
     );
 }
 
-#[derive(Debug, Display, DeriveError)]
+#[derive(Debug, Display, Error)]
 #[display("error")]
 struct BadRequest;
 

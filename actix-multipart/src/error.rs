@@ -5,10 +5,10 @@ use actix_web::{
     http::StatusCode,
     ResponseError,
 };
-use derive_more::{Display, Error as DeriveError, From};
+use derive_more::derive::{Display, Error, From};
 
 /// A set of errors that can occur during parsing multipart streams.
-#[derive(Debug, Display, From, DeriveError)]
+#[derive(Debug, Display, From, Error)]
 #[non_exhaustive]
 pub enum Error {
     /// Could not find Content-Type header.
