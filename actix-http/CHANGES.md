@@ -8,6 +8,10 @@
 
 - Implement `FromIterator<(HeaderName, HeaderValue)>` for `HeaderMap`.
 
+### Changed
+
+- Prevent compression of Partial Content.
+
 ## 3.8.0
 
 ### Added
