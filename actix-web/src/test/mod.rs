@@ -2,7 +2,6 @@
 //!
 //! # Initializing A Test Service
 //! - [`init_service`]
-//! - [`try_init_service`]
 //!
 //! # Off-The-Shelf Test Services
 //! - [`ok_service`]
