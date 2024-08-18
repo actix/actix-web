@@ -779,9 +779,9 @@ async fn test_server_cookies() {
         App::new().default_service(web::to(|| async {
             HttpResponse::Ok()
                 .cookie(
-                    Cookie::build("first", "first_value")
+                    Cookie::build(("first", "first_value"))
                         .http_only(true)
-                        .finish(),
+                        .build(),
                 )
                 .cookie(Cookie::new("second", "first_value"))
                 .cookie(Cookie::new("second", "second_value"))
@@ -794,9 +794,9 @@ async fn test_server_cookies() {
     assert!(res.status().is_success());
 
     {
-        let first_cookie = Cookie::build("first", "first_value")
+        let first_cookie = Cookie::build(("first", "first_value"))
             .http_only(true)
-            .finish();
+            .build();
         let second_cookie = Cookie::new("second", "first_value");
 
         let cookies = res.cookies().expect("To have cookies");

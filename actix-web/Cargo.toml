@@ -145,7 +145,7 @@ ahash = "0.8"
 bytes = "1"
 bytestring = "1"
 cfg-if = "1"
-cookie = { version = "0.16", features = ["percent-encode"], optional = true }
+cookie = { version = "0.18", features = ["percent-encode"], optional = true }
 derive_more = "0.99.8"
 encoding_rs = "0.8"
 futures-core = { version = "0.3.17", default-features = false }
