@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Prevent panics on connection pool drop when Tokio runtime is shutdown early.
 - Minimum supported Rust version (MSRV) is now 1.75.
 
 ## 3.5.1
