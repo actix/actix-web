@@ -5,7 +5,7 @@ use actix_http_test::test_server;
 use actix_service::ServiceFactoryExt;
 use actix_utils::future;
 use bytes::Bytes;
-use derive_more::{Display, Error};
+use derive_more::derive::{Display, Error};
 use futures_util::StreamExt as _;
 
 const STR: &str = "Hello World Hello World Hello World Hello World Hello World \
@@ -94,7 +94,7 @@ async fn with_query_parameter() {
 }
 
 #[derive(Debug, Display, Error)]
-#[display(fmt = "expect failed")]
+#[display("expect failed")]
 struct ExpectFailed;
 
 impl From<ExpectFailed> for Response<BoxBody> {

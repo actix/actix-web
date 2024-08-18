@@ -10,7 +10,7 @@ use std::{
 
 use actix_rt::task::{spawn_blocking, JoinHandle};
 use bytes::Bytes;
-use derive_more::Display;
+use derive_more::derive::Display;
 #[cfg(feature = "compress-gzip")]
 use flate2::write::{GzEncoder, ZlibEncoder};
 use futures_core::ready;
@@ -415,11 +415,11 @@ fn new_brotli_compressor() -> Box<brotli::CompressorWriter<Writer>> {
 #[non_exhaustive]
 pub enum EncoderError {
     /// Wrapped body stream error.
-    #[display(fmt = "body")]
+    #[display("body")]
     Body(Box<dyn StdError>),
 
     /// Generic I/O error.
-    #[display(fmt = "io")]
+    #[display("io")]
     Io(io::Error),
 }
 
