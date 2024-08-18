@@ -1,7 +1,8 @@
 //! Various helpers for Actix applications to use during testing.
 //!
-//! # Creating A Test Service
+//! # Initializing A Test Service
 //! - [`init_service`]
+//! - [`try_init_service`]
 //!
 //! # Off-The-Shelf Test Services
 //! - [`ok_service`]
@@ -49,6 +50,7 @@ pub use self::{
 /// Must be used inside an async test. Works for both `ServiceRequest` and `HttpRequest`.
 ///
 /// # Examples
+///
 /// ```
 /// use actix_web::{http::StatusCode, HttpResponse};
 ///
