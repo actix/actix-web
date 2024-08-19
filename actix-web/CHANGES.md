@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Minimum supported Rust version (MSRV) is now 1.75.
+- Add `TryIntoHeaderValue` for `Uri` type.
 - Add `http::header::ContentLocation` typed header.
 - Add `http::header::Location` typed header.
 - Add `http::header::Referer` typed header.
