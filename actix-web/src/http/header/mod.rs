@@ -14,7 +14,7 @@ use std::fmt;
 // - the few typed headers from actix-http
 // - header parsing utils
 pub use actix_http::header::*;
-pub use actix_http::Uri;
+use actix_http::Uri;
 use bytes::{Bytes, BytesMut};
 
 mod accept;
