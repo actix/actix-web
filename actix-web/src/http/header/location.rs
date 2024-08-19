@@ -2,12 +2,12 @@ use super::{Uri, LOCATION};
 
 crate::http::header::common_header! {
     /// `Location` header, defined
-    /// in [RFC 7231 §7.1.2](https://datatracker.ietf.org/doc/html/rfc7231#section-7.1.2)
+    /// in [RFC 9110 §10.2.2](https://datatracker.ietf.org/doc/html/rfc9110#section-10.2.2)
     ///
     /// The "Location" header field is used in some responses to refer to a
-    /// specific resource in relation to the response.  The type of
-    /// relationship is defined by the combination of request method and
-    /// status code semantics.
+    /// specific resource in relation to the response. The type of relationship
+    /// is defined by the combination of request method and status code
+    /// semantics.
     ///
     /// # ABNF
     /// ```plain

@@ -2,11 +2,11 @@ use super::{Uri, CONTENT_LOCATION};
 
 crate::http::header::common_header! {
     /// `Content-Location` header, defined
-    /// in [RFC 7231 §3.1.4.2](https://datatracker.ietf.org/doc/html/rfc7231#section-3.1.4.2)
+    /// in [RFC 9110 §8.7](https://datatracker.ietf.org/doc/html/rfc9110#section-8.7)
     ///
     /// The "Content-Location" header field references a URI that can be used
     /// as an identifier for a specific resource corresponding to the
-    /// representation in this message's payload.
+    /// representation in this message's content.
     ///
     /// # ABNF
     /// ```plain

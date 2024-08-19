@@ -2,11 +2,11 @@ use super::{Uri, REFERER};
 
 crate::http::header::common_header! {
     /// `Referer` header, defined
-    /// in [RFC 7231 §5.5.2](https://datatracker.ietf.org/doc/html/rfc7231#section-5.5.2)
+    /// in [RFC 9110 §10.1.3](https://datatracker.ietf.org/doc/html/rfc9110#section-10.1.3)
     ///
-    /// The "Referer" (sic) header field allows the user agent to specify a
-    /// URI reference for the resource from which the target URI was obtained
-    /// (i.e., the "referrer", though the field name is misspelled).
+    /// The "Referer" [sic] header field allows the user agent to specify a URI
+    /// reference for the resource from which the target URI was obtained (i.e.,
+    /// the "referrer", though the field name is misspelled).
     ///
     /// # ABNF
     /// ```plain
