@@ -127,7 +127,7 @@ tokio-util = { version = "0.7", features = ["io", "codec"] }
 tracing = { version = "0.1.30", default-features = false, features = ["log"] }
 
 # http2
-h2 = { version = "0.3.26", optional = true }
+h2 = { version = "0.4.6", optional = true }
 
 # websockets
 local-channel = { version = "0.1", optional = true }
