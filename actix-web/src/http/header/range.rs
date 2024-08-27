@@ -107,16 +107,16 @@ impl ByteRangeSpec {
     /// satisfiable if they meet the following conditions:
     ///
     /// > If a valid byte-range-set includes at least one byte-range-spec with a first-byte-pos that
-    /// is less than the current length of the representation, or at least one
-    /// suffix-byte-range-spec with a non-zero suffix-length, then the byte-range-set
-    /// is satisfiable. Otherwise, the byte-range-set is unsatisfiable.
+    /// > is less than the current length of the representation, or at least one
+    /// > suffix-byte-range-spec with a non-zero suffix-length, then the byte-range-set is
+    /// > satisfiable. Otherwise, the byte-range-set is unsatisfiable.
     ///
     /// The function also computes remainder ranges based on the RFC:
     ///
     /// > If the last-byte-pos value is absent, or if the value is greater than or equal to the
-    /// current length of the representation data, the byte range is interpreted as the remainder
-    /// of the representation (i.e., the server replaces the value of last-byte-pos with a value
-    /// that is one less than the current length of the selected representation).
+    /// > current length of the representation data, the byte range is interpreted as the remainder
+    /// > of the representation (i.e., the server replaces the value of last-byte-pos with a value
+    /// > that is one less than the current length of the selected representation).
     ///
     /// [RFC 7233 §2.1]: https://datatracker.ietf.org/doc/html/rfc7233
     pub fn to_satisfiable_range(&self, full_length: u64) -> Option<(u64, u64)> {
@@ -270,7 +270,7 @@ impl Header for Range {
 
     #[inline]
     fn parse<T: HttpMessage>(msg: &T) -> Result<Self, ParseError> {
-        header::from_one_raw_str(msg.headers().get(&Self::name()))
+        header::from_one_raw_str(msg.headers().get(Self::name()))
     }
 }
 

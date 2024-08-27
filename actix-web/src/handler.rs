@@ -19,7 +19,7 @@ use crate::{
 /// 1. It is an async function (or a function/closure that returns an appropriate future);
 /// 1. The function parameters (up to 12) implement [`FromRequest`];
 /// 1. The async function (or future) resolves to a type that can be converted into an
-///   [`HttpResponse`] (i.e., it implements the [`Responder`] trait).
+///    [`HttpResponse`] (i.e., it implements the [`Responder`] trait).
 ///
 ///
 /// # Compiler Errors

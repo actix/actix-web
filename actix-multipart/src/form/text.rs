@@ -3,7 +3,7 @@
 use std::{str, sync::Arc};
 
 use actix_web::{http::StatusCode, web, Error, HttpRequest, ResponseError};
-use derive_more::{Deref, DerefMut, Display, Error};
+use derive_more::derive::{Deref, DerefMut, Display, Error};
 use futures_core::future::LocalBoxFuture;
 use serde::de::DeserializeOwned;
 
@@ -77,15 +77,15 @@ where
 #[non_exhaustive]
 pub enum TextError {
     /// UTF-8 decoding error.
-    #[display(fmt = "UTF-8 decoding error: {}", _0)]
+    #[display("UTF-8 decoding error: {}", _0)]
     Utf8Error(str::Utf8Error),
 
     /// Deserialize error.
-    #[display(fmt = "Plain text deserialize error: {}", _0)]
+    #[display("Plain text deserialize error: {}", _0)]
     Deserialize(serde_plain::Error),
 
     /// Content type error.
-    #[display(fmt = "Content type error")]
+    #[display("Content type error")]
     ContentType,
 }
 

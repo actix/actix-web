@@ -79,7 +79,7 @@ impl FilesService {
 
         let (req, _) = req.into_parts();
 
-        (self.renderer)(&dir, &req).unwrap_or_else(|e| ServiceResponse::from_err(e, req))
+        (self.renderer)(&dir, &req).unwrap_or_else(|err| ServiceResponse::from_err(err, req))
     }
 }
 

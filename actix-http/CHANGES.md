@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Minimum supported Rust version (MSRV) is now 1.75.
+
+## 3.9.0
+
 ### Added
 
 - Implement `FromIterator<(HeaderName, HeaderValue)>` for `HeaderMap`.

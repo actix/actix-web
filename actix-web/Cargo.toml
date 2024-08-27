@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "4.8.0"
+version = "4.9.0"
 description = "Actix Web is a powerful, pragmatic, and extremely fast web framework for Rust"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
@@ -150,11 +150,12 @@ bytes = "1"
 bytestring = "1"
 cfg-if = "1"
 cookie = { version = "0.16", features = ["percent-encode"], optional = true }
-derive_more = "0.99.8"
+derive_more = { version = "1", features = ["display", "error", "from"] }
 encoding_rs = "0.8"
 futures-core = { version = "0.3.17", default-features = false }
 futures-util = { version = "0.3.17", default-features = false }
 itoa = "1"
+impl-more = "0.1.4"
 language-tags = "0.3"
 log = "0.4"
 mime = "0.3"
@@ -186,7 +187,7 @@ futures-util = { version = "0.3.17", default-features = false, features = ["std"
 rand = "0.8"
 rcgen = "0.13"
 rustls-pemfile = "2"
-serde = { version = "1.0", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
 static_assertions = "1"
 tls-openssl = { package = "openssl", version = "0.10.55" }
 tls-rustls = { package = "rustls", version = "0.23" }

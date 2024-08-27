@@ -21,7 +21,7 @@ use actix_web::{
     Error, HttpMessage, HttpRequest, HttpResponse, Responder,
 };
 use bitflags::bitflags;
-use derive_more::{Deref, DerefMut};
+use derive_more::derive::{Deref, DerefMut};
 use futures_core::future::LocalBoxFuture;
 use mime::Mime;
 

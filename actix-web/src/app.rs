@@ -269,9 +269,9 @@ where
             + 'static,
         U::InitError: fmt::Debug,
     {
-        let svc = svc
-            .into_factory()
-            .map_init_err(|e| log::error!("Can not construct default service: {:?}", e));
+        let svc = svc.into_factory().map_init_err(|err| {
+            log::error!("Can not construct default service: {err:?}");
+        });
 
         self.default = Some(Rc::new(boxed::factory(svc)));
 

@@ -463,7 +463,7 @@ mod tests {
         // content type override
         let res = HttpResponse::Ok()
             .insert_header((CONTENT_TYPE, "text/json"))
-            .json(&vec!["v1", "v2", "v3"]);
+            .json(["v1", "v2", "v3"]);
         let ct = res.headers().get(CONTENT_TYPE).unwrap();
         assert_eq!(ct, HeaderValue::from_static("text/json"));
         assert_body_eq!(res, br#"["v1","v2","v3"]"#);

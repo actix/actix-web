@@ -104,6 +104,7 @@ mod scope;
 mod server;
 mod service;
 pub mod test;
+mod thin_data;
 pub(crate) mod types;
 pub mod web;
 

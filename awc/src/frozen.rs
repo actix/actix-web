@@ -147,8 +147,8 @@ impl FrozenSendBuilder {
 
     /// Complete request construction and send a body.
     pub fn send_body(self, body: impl MessageBody + 'static) -> SendClientRequest {
-        if let Some(e) = self.err {
-            return e.into();
+        if let Some(err) = self.err {
+            return err.into();
         }
 
         RequestSender::Rc(self.req.head, Some(self.extra_headers)).send_body(
@@ -177,8 +177,8 @@ impl FrozenSendBuilder {
 
     /// Complete request construction and send an urlencoded body.
     pub fn send_form(self, value: impl Serialize) -> SendClientRequest {
-        if let Some(e) = self.err {
-            return e.into();
+        if let Some(err) = self.err {
+            return err.into();
         }
 
         RequestSender::Rc(self.req.head, Some(self.extra_headers)).send_form(
@@ -196,8 +196,8 @@ impl FrozenSendBuilder {
         S: Stream<Item = Result<Bytes, E>> + 'static,
         E: Into<BoxError> + 'static,
     {
-        if let Some(e) = self.err {
-            return e.into();
+        if let Some(err) = self.err {
+            return err.into();
         }
 
         RequestSender::Rc(self.req.head, Some(self.extra_headers)).send_stream(
@@ -211,8 +211,8 @@ impl FrozenSendBuilder {
 
     /// Complete request construction and send an empty body.
     pub fn send(self) -> SendClientRequest {
-        if let Some(e) = self.err {
-            return e.into();
+        if let Some(err) = self.err {
+            return err.into();
         }
 
         RequestSender::Rc(self.req.head, Some(self.extra_headers)).send(

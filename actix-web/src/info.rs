@@ -1,7 +1,7 @@
 use std::{convert::Infallible, net::SocketAddr};
 
 use actix_utils::future::{err, ok, Ready};
-use derive_more::{Display, Error};
+use derive_more::derive::{Display, Error};
 
 use crate::{
     dev::{AppConfig, Payload, RequestHead},
@@ -235,7 +235,7 @@ impl FromRequest for ConnectionInfo {
 /// # let _svc = actix_web::web::to(handler);
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Display)]
-#[display(fmt = "{}", _0)]
+#[display("{}", _0)]
 pub struct PeerAddr(pub SocketAddr);
 
 impl PeerAddr {
@@ -247,7 +247,7 @@ impl PeerAddr {
 
 #[derive(Debug, Display, Error)]
 #[non_exhaustive]
-#[display(fmt = "Missing peer address")]
+#[display("Missing peer address")]
 pub struct MissingPeerAddr;
 
 impl ResponseError for MissingPeerAddr {}

@@ -42,7 +42,7 @@ actix-multipart-derive = { version = "=0.7.0", optional = true }
 actix-utils = "3"
 actix-web = { version = "4", default-features = false }
 
-derive_more = "0.99.5"
+derive_more = { version = "1", features = ["display", "error", "from"] }
 futures-core = { version = "0.3.17", default-features = false, features = ["alloc"] }
 futures-util = { version = "0.3.17", default-features = false, features = ["alloc"] }
 httparse = "1.3"
