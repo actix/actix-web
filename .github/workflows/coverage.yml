@@ -24,7 +24,7 @@ jobs:
           components: llvm-tools
 
       - name: Install just, cargo-llvm-cov, cargo-nextest
-        uses: taiki-e/install-action@v2.42.26
+        uses: taiki-e/install-action@v2.43.1
         with:
           tool: just,cargo-llvm-cov,cargo-nextest
 
