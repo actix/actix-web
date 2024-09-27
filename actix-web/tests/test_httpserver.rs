@@ -1,9 +1,9 @@
 #[cfg(feature = "openssl")]
 extern crate tls_openssl as openssl;
 
+use std::{sync::mpsc, thread, time::Duration};
 
 use actix_web::{web, App, HttpResponse, HttpServer};
-use std::{sync::mpsc, thread, time::Duration};
 
 #[actix_rt::test]
 async fn test_start() {
