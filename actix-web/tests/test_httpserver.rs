@@ -1,13 +1,10 @@
 #[cfg(feature = "openssl")]
 extern crate tls_openssl as openssl;
 
-#[cfg(any(unix, feature = "openssl"))]
-use {
-    actix_web::{web, App, HttpResponse, HttpServer},
-    std::{sync::mpsc, thread, time::Duration},
-};
+use std::{sync::mpsc, thread, time::Duration};
 
-#[cfg(unix)]
+use actix_web::{web, App, HttpResponse, HttpServer};
+
 #[actix_rt::test]
 async fn test_start() {
     let addr = actix_test::unused_addr();
@@ -52,6 +49,27 @@ async fn test_start() {
     let host = format!("http://{}", addr);
     let response = client.get(host.clone()).send().await.unwrap();
     assert!(response.status().is_success());
+
+    // Attempt to start a second server using the same address.
+    let result = HttpServer::new(|| {
+        App::new().service(
+            web::resource("/").route(web::to(|| async { HttpResponse::Ok().body("test") })),
+        )
+    })
+    .workers(1)
+    .backlog(1)
+    .max_connections(10)
+    .max_connection_rate(10)
+    .keep_alive(Duration::from_secs(10))
+    .client_request_timeout(Duration::from_secs(5))
+    .client_disconnect_timeout(Duration::ZERO)
+    .server_hostname("localhost")
+    .system_exit()
+    .disable_signals()
+    .bind(format!("{}", addr));
+
+    // This should fail: the address is in use.
+    assert!(result.is_err());
 
     srv.stop(false).await;
 }
