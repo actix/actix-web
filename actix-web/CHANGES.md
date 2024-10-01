@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Minimum supported Rust version (MSRV) is now 1.75.
+- On Windows platforms, produce an error when invoking `HttpServer::bind` on a socket that's already in use. See [issue 2958](https://github.com/actix/actix-web/issues/2958).
 
 ## 4.9.0
 
