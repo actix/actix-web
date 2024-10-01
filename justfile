@@ -10,6 +10,7 @@ fmt:
 # Downgrade dev-dependencies necessary to run MSRV checks/tests.
 [private]
 downgrade-for-msrv:
+    cargo update -p=parse-size --precise=1.0.0
     cargo update -p=clap --precise=4.4.18
 
 msrv := ```
