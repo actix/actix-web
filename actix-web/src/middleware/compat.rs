@@ -53,7 +53,7 @@ where
     T: Transform<S, Req>,
     T::Future: 'static,
     T::Response: MapServiceResponseBody,
-    T::Error: Into<Error>,
+    T::Error: Into<Error> + std::fmt::Debug,
 {
     type Response = ServiceResponse<BoxBody>;
     type Error = Error;
@@ -63,10 +63,8 @@ where
 
     fn new_transform(&self, service: S) -> Self::Future {
         let fut = self.transform.new_transform(service);
-        Box::pin(async move {
-            let service = fut.await?;
-            Ok(CompatMiddleware { service })
-        })
+
+        Box::pin(async move { fut.await.map(|service| CompatMiddleware { service }) })
     }
 }
 
@@ -78,7 +76,7 @@ impl<S, Req> Service<Req> for CompatMiddleware<S>
 where
     S: Service<Req>,
     S::Response: MapServiceResponseBody,
-    S::Error: Into<Error>,
+    S::Error: Into<Error> + std::fmt::Debug,
 {
     type Response = ServiceResponse<BoxBody>;
     type Error = Error;
@@ -103,14 +101,17 @@ impl<Fut, T, E> Future for CompatMiddlewareFuture<Fut>
 where
     Fut: Future<Output = Result<T, E>>,
     T: MapServiceResponseBody,
-    E: Into<Error>,
+    E: Into<Error> + std::fmt::Debug,
 {
     type Output = Result<ServiceResponse<BoxBody>, Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let res = match ready!(self.project().fut.poll(cx)) {
             Ok(res) => res,
-            Err(err) => return Poll::Ready(Err(err.into())),
+            Err(err) => {
+                log::error!("Request failed with error: {:?}", err); // for better visibility
+                return Poll::Ready(Err(err.into()));
+            }
         };
 
         Poll::Ready(Ok(res.map_body()))
