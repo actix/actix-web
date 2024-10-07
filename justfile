@@ -73,6 +73,7 @@ test-coverage-lcov toolchain="": (test-coverage toolchain)
 
 # Document crates in workspace.
 doc *args: && doc-set-workspace-crates
+    rm -f "$(cargo metadata --format-version=1 | jq -r '.target_directory')/doc/crates.js"
     RUSTDOCFLAGS="--cfg=docsrs -Dwarnings" cargo +nightly doc --workspace {{ all_crate_features }} {{ args }}
 
 [private]
