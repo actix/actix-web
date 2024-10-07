@@ -5,7 +5,6 @@
 - On Windows, an error is now returned from `HttpServer::bind()` (or TLS variants) when binding to a socket that's already in use.
 - Update `brotli` dependency to `7`.
 - Minimum supported Rust version (MSRV) is now 1.75.
-- On Windows platforms, produce an error when invoking `HttpServer::bind` on a socket that's already in use. See [issue 2958](https://github.com/actix/actix-web/issues/2958).
 - Service macro comments are now filtered out see [issue 3472](https://github.com/actix/actix-web/issues/3472).
 
 ## 4.9.0
