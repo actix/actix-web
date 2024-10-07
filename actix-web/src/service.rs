@@ -662,9 +662,10 @@ where
 /// ```
 #[macro_export]
 macro_rules! services {
-    ($($x:expr),* $(,)?) => {
-        ($($x,)*)
-    };
+    () => {()};
+    ($($x:expr),+ $(,)?) => {
+        ($($x,)+)
+    }
 }
 
 /// HttpServiceFactory trait impl for tuples
