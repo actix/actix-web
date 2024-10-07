@@ -6,7 +6,7 @@ use std::{
 };
 
 use actix_router::ResourceDef;
-use ahash::AHashMap;
+use foldhash::HashMap as FoldHashMap;
 use url::Url;
 
 use crate::{error::UrlGenerationError, request::HttpRequest};
@@ -19,7 +19,7 @@ pub struct ResourceMap {
 
     /// Named resources within the tree or, for external resources, it points to isolated nodes
     /// outside the tree.
-    named: AHashMap<String, Rc<ResourceMap>>,
+    named: FoldHashMap<String, Rc<ResourceMap>>,
 
     parent: RefCell<Weak<ResourceMap>>,
 
@@ -32,7 +32,7 @@ impl ResourceMap {
     pub fn new(root: ResourceDef) -> Self {
         ResourceMap {
             pattern: root,
-            named: AHashMap::default(),
+            named: FoldHashMap::default(),
             parent: RefCell::new(Weak::new()),
             nodes: Some(Vec::new()),
         }
@@ -86,7 +86,7 @@ impl ResourceMap {
         } else {
             let new_node = Rc::new(ResourceMap {
                 pattern: pattern.clone(),
-                named: AHashMap::default(),
+                named: FoldHashMap::default(),
                 parent: RefCell::new(Weak::new()),
                 nodes: None,
             });
