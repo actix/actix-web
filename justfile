@@ -37,6 +37,9 @@ check-default:
     cargo hack --workspace check
 
 # Run Clippy over workspace.
+check toolchain="": && (clippy toolchain)
+
+# Run Clippy over workspace.
 clippy toolchain="":
     cargo {{ toolchain }} clippy --workspace --all-targets {{ all_crate_features }}
 
