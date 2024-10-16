@@ -191,7 +191,12 @@ where
                             None => true,
                             Some(hdr) => {
                                 match hdr.to_str().ok().and_then(|hdr| hdr.parse::<Mime>().ok()) {
-                                    Some(mime) if mime.type_().as_str() == "image" => false,
+                                    Some(mime)
+                                        if mime.type_().as_str() == "image"
+                                            && mime.subtype().as_str() != "svg+xml" =>
+                                    {
+                                        false
+                                    }
                                     Some(mime) if mime.type_().as_str() == "video" => false,
                                     _ => true,
                                 }
