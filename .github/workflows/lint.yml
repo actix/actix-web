@@ -77,7 +77,7 @@ jobs:
           toolchain: nightly-2024-05-01
 
       - name: Install just
-        uses: taiki-e/install-action@v2.44.43
+        uses: taiki-e/install-action@v2.44.53
         with:
           tool: just
 
@@ -106,7 +106,7 @@ jobs:
           toolchain: nightly-2024-09-30
 
       - name: Install cargo-public-api
-        uses: taiki-e/install-action@v2.44.43
+        uses: taiki-e/install-action@v2.44.53
         with:
           tool: cargo-public-api
 
