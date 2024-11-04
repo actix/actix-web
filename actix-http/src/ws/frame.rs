@@ -171,21 +171,17 @@ impl Parser {
             op.into()
         };
         let payload_len = pl.len();
-        let (two, p_len) = if mask {
-            (0x80, payload_len + 4)
-        } else {
-            (0, payload_len)
-        };
+        let two = if mask { 0x80 } else { 0 };
 
         if payload_len < 126 {
-            dst.buffer_mut().reserve(p_len + 2);
+            dst.buffer_mut().reserve(2);
             dst.buffer_mut().put_slice(&[one, two | payload_len as u8]);
         } else if payload_len <= 65_535 {
-            dst.buffer_mut().reserve(p_len + 4);
+            dst.buffer_mut().reserve(4);
             dst.buffer_mut().put_slice(&[one, two | 126]);
             dst.buffer_mut().put_u16(payload_len as u16);
         } else {
-            dst.buffer_mut().reserve(p_len + 10);
+            dst.buffer_mut().reserve(10);
             dst.buffer_mut().put_slice(&[one, two | 127]);
             dst.buffer_mut().put_u64(payload_len as u64);
         };
@@ -195,11 +191,16 @@ impl Parser {
             dst.buffer_mut().put_slice(mask.as_ref());
 
             match pl.try_into_mut() {
+                // Avoid copying bytes by mutating in-place
                 Ok(mut pl_mut) => {
                     apply_mask(&mut pl_mut, mask);
                     dst.put_bytes(pl_mut.freeze());
                 }
+
+                // We need to copy the bytes anyway at this point, so put them in the buffer
+                // directly
                 Err(pl) => {
+                    dst.buffer_mut().reserve(pl.len());
                     dst.buffer_mut().put_slice(pl.as_ref());
                     let pos = dst.buffer_mut().len() - payload_len;
                     apply_mask(&mut dst.buffer_mut()[pos..], mask);
