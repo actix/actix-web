@@ -1,7 +1,9 @@
 use std::cmp::min;
 
-use bytes::{Buf, BufMut, BytesMut};
+use bytes::{Buf, BufMut, Bytes, BytesMut};
 use tracing::debug;
+
+use crate::big_bytes::BigBytes;
 
 use super::{
     mask::apply_mask,
@@ -156,21 +158,19 @@ impl Parser {
         }
     }
 
-    /// Generate binary representation
-    pub fn write_message<B: AsRef<[u8]>>(
-        dst: &mut BytesMut,
-        pl: B,
+    pub fn write_message_bigbytes(
+        dst: &mut BigBytes,
+        pl: Bytes,
         op: OpCode,
         fin: bool,
         mask: bool,
     ) {
-        let payload = pl.as_ref();
         let one: u8 = if fin {
             0x80 | Into::<u8>::into(op)
         } else {
             op.into()
         };
-        let payload_len = payload.len();
+        let payload_len = pl.len();
         let (two, p_len) = if mask {
             (0x80, payload_len + 4)
         } else {
@@ -178,27 +178,48 @@ impl Parser {
         };
 
         if payload_len < 126 {
-            dst.reserve(p_len + 2 + if mask { 4 } else { 0 });
-            dst.put_slice(&[one, two | payload_len as u8]);
+            dst.buffer_mut()
+                .reserve(p_len + 2 + if mask { 4 } else { 0 });
+            dst.buffer_mut().put_slice(&[one, two | payload_len as u8]);
         } else if payload_len <= 65_535 {
-            dst.reserve(p_len + 4 + if mask { 4 } else { 0 });
-            dst.put_slice(&[one, two | 126]);
-            dst.put_u16(payload_len as u16);
+            dst.buffer_mut()
+                .reserve(p_len + 4 + if mask { 4 } else { 0 });
+            dst.buffer_mut().put_slice(&[one, two | 126]);
+            dst.buffer_mut().put_u16(payload_len as u16);
         } else {
-            dst.reserve(p_len + 10 + if mask { 4 } else { 0 });
-            dst.put_slice(&[one, two | 127]);
-            dst.put_u64(payload_len as u64);
+            dst.buffer_mut()
+                .reserve(p_len + 10 + if mask { 4 } else { 0 });
+            dst.buffer_mut().put_slice(&[one, two | 127]);
+            dst.buffer_mut().put_u64(payload_len as u64);
         };
 
         if mask {
             let mask = rand::random::<[u8; 4]>();
-            dst.put_slice(mask.as_ref());
-            dst.put_slice(payload.as_ref());
-            let pos = dst.len() - payload_len;
-            apply_mask(&mut dst[pos..], mask);
+            dst.buffer_mut().put_slice(mask.as_ref());
+
+            match pl.try_into_mut() {
+                Ok(mut pl_mut) => {
+                    apply_mask(&mut pl_mut, mask);
+                    dst.put_bytes(pl_mut.freeze());
+                }
+                Err(pl) => {
+                    dst.buffer_mut().put_slice(pl.as_ref());
+                    let pos = dst.buffer_mut().len() - payload_len;
+                    apply_mask(&mut dst.buffer_mut()[pos..], mask);
+                }
+            }
         } else {
-            dst.put_slice(payload.as_ref());
+            dst.put_bytes(pl)
         }
+    }
+
+    /// Generate binary representation
+    pub fn write_message(dst: &mut BytesMut, pl: Bytes, op: OpCode, fin: bool, mask: bool) {
+        let mut big_bytes = BigBytes::with_capacity(0);
+
+        Self::write_message_bigbytes(&mut big_bytes, pl, op, fin, mask);
+
+        big_bytes.write_to(dst);
     }
 
     /// Create a new Close control frame.
@@ -215,7 +236,7 @@ impl Parser {
             }
         };
 
-        Parser::write_message(dst, payload, OpCode::Close, true, mask)
+        Parser::write_message(dst, Bytes::from(payload), OpCode::Close, true, mask)
     }
 }
 
@@ -368,7 +389,13 @@ mod tests {
     #[test]
     fn test_ping_frame() {
         let mut buf = BytesMut::new();
-        Parser::write_message(&mut buf, Vec::from("data"), OpCode::Ping, true, false);
+        Parser::write_message(
+            &mut buf,
+            Bytes::from(Vec::from("data")),
+            OpCode::Ping,
+            true,
+            false,
+        );
 
         let mut v = vec![137u8, 4u8];
         v.extend(b"data");
@@ -378,7 +405,13 @@ mod tests {
     #[test]
     fn test_pong_frame() {
         let mut buf = BytesMut::new();
-        Parser::write_message(&mut buf, Vec::from("data"), OpCode::Pong, true, false);
+        Parser::write_message(
+            &mut buf,
+            Bytes::from(Vec::from("data")),
+            OpCode::Pong,
+            true,
+            false,
+        );
 
         let mut v = vec![138u8, 4u8];
         v.extend(b"data");

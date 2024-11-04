@@ -33,6 +33,7 @@
 
 pub use http::{uri, uri::Uri, Method, StatusCode, Version};
 
+pub mod big_bytes;
 pub mod body;
 mod builder;
 mod config;

@@ -8,8 +8,8 @@ use std::{
 
 use bytes::{BufMut, Bytes, BytesMut};
 
-use super::big_bytes::BigBytes;
 use crate::{
+    big_bytes::BigBytes,
     body::BodySize,
     header::{
         map::Value, HeaderMap, HeaderName, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING,

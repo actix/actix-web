@@ -20,7 +20,6 @@ use tokio_util::codec::Decoder as _;
 use tracing::{error, trace};
 
 use super::{
-    big_bytes::BigBytes,
     codec::Codec,
     decoder::MAX_BUFFER_SIZE,
     payload::{Payload, PayloadSender, PayloadStatus},
@@ -28,6 +27,7 @@ use super::{
     Message, MessageType,
 };
 use crate::{
+    big_bytes::BigBytes,
     body::{BodySize, BoxBody, MessageBody},
     config::ServiceConfig,
     error::{DispatchError, ParseError, PayloadError},
