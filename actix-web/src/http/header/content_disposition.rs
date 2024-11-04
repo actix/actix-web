@@ -154,7 +154,7 @@ impl DispositionParam {
     #[inline]
     pub fn as_name(&self) -> Option<&str> {
         match self {
-            DispositionParam::Name(ref name) => Some(name.as_str()),
+            DispositionParam::Name(name) => Some(name.as_str()),
             _ => None,
         }
     }
@@ -163,7 +163,7 @@ impl DispositionParam {
     #[inline]
     pub fn as_filename(&self) -> Option<&str> {
         match self {
-            DispositionParam::Filename(ref filename) => Some(filename.as_str()),
+            DispositionParam::Filename(filename) => Some(filename.as_str()),
             _ => None,
         }
     }
@@ -172,7 +172,7 @@ impl DispositionParam {
     #[inline]
     pub fn as_filename_ext(&self) -> Option<&ExtendedValue> {
         match self {
-            DispositionParam::FilenameExt(ref value) => Some(value),
+            DispositionParam::FilenameExt(value) => Some(value),
             _ => None,
         }
     }
@@ -206,11 +206,11 @@ impl DispositionParam {
     }
 }
 
-/// A *Content-Disposition* header. It is compatible to be used either as
-/// [a response header for the main body](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition#as_a_response_header_for_the_main_body)
-/// as (re)defined in [RFC 6266](https://datatracker.ietf.org/doc/html/rfc6266), or as
-/// [a header for a multipart body](https://mdn.io/Content-Disposition#As_a_header_for_a_multipart_body)
-/// as (re)defined in [RFC 7587](https://datatracker.ietf.org/doc/html/rfc7578).
+/// `Content-Disposition` header.
+///
+/// It is compatible to be used either as [a response header for the main body][use_main_body]
+/// as (re)defined in [RFC 6266], or as [a header for a multipart body][use_multipart] as
+/// (re)defined in [RFC 7587].
 ///
 /// In a regular HTTP response, the *Content-Disposition* response header is a header indicating if
 /// the content is expected to be displayed *inline* in the browser, that is, as a Web page or as
@@ -305,6 +305,11 @@ impl DispositionParam {
 /// change to match local file system conventions if applicable, and do not use directory path
 /// information that may be present.
 /// See [RFC 2183 §2.3](https://datatracker.ietf.org/doc/html/rfc2183#section-2.3).
+///
+/// [use_main_body]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition#as_a_response_header_for_the_main_body
+/// [RFC 6266]: https://datatracker.ietf.org/doc/html/rfc6266
+/// [use_multipart]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition#as_a_header_for_a_multipart_body
+/// [RFC 7587]: https://datatracker.ietf.org/doc/html/rfc7578
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ContentDisposition {
     /// The disposition type
@@ -493,7 +498,7 @@ impl Header for ContentDisposition {
     }
 
     fn parse<T: crate::HttpMessage>(msg: &T) -> Result<Self, crate::error::ParseError> {
-        if let Some(h) = msg.headers().get(&Self::name()) {
+        if let Some(h) = msg.headers().get(Self::name()) {
             Self::from_raw(h)
         } else {
             Err(crate::error::ParseError::Header)

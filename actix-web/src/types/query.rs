@@ -2,7 +2,7 @@
 
 use std::{fmt, ops, sync::Arc};
 
-use actix_utils::future::{err, ok, Ready};
+use actix_utils::future::{ok, ready, Ready};
 use serde::de::DeserializeOwned;
 
 use crate::{dev::Payload, error::QueryPayloadError, Error, FromRequest, HttpRequest};
@@ -118,8 +118,8 @@ impl<T: DeserializeOwned> FromRequest for Query<T> {
 
         serde_urlencoded::from_str::<T>(req.query_string())
             .map(|val| ok(Query(val)))
-            .unwrap_or_else(move |e| {
-                let e = QueryPayloadError::Deserialize(e);
+            .unwrap_or_else(move |err| {
+                let err = QueryPayloadError::Deserialize(err);
 
                 log::debug!(
                     "Failed during Query extractor deserialization. \
@@ -127,13 +127,13 @@ impl<T: DeserializeOwned> FromRequest for Query<T> {
                     req.path()
                 );
 
-                let e = if let Some(error_handler) = error_handler {
-                    (error_handler)(e, req)
+                let err = if let Some(error_handler) = error_handler {
+                    (error_handler)(err, req)
                 } else {
-                    e.into()
+                    err.into()
                 };
 
-                err(e)
+                ready(Err(err))
             })
     }
 }
@@ -187,7 +187,7 @@ impl QueryConfig {
 #[cfg(test)]
 mod tests {
     use actix_http::StatusCode;
-    use derive_more::Display;
+    use derive_more::derive::Display;
     use serde::Deserialize;
 
     use super::*;

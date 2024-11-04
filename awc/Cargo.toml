@@ -1,6 +1,6 @@
 [package]
 name = "awc"
-version = "3.5.0"
+version = "3.5.1"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Async HTTP and WebSocket client library"
 keywords = ["actix", "http", "framework", "async", "web"]
@@ -15,10 +15,6 @@ repository = "https://github.com/actix/actix-web"
 license = "MIT OR Apache-2.0"
 edition = "2021"
 
-[lib]
-name = "awc"
-path = "src/lib.rs"
-
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docsrs"]
 features = [
@@ -31,6 +27,27 @@ features = [
     "compress-brotli",
     "compress-gzip",
     "compress-zstd",
+]
+
+[package.metadata.cargo_check_external_types]
+allowed_external_types = [
+    "actix_codec::*",
+    "actix_http::*",
+    "actix_rt::*",
+    "actix_service::*",
+    "actix_tls::*",
+    "bytes::*",
+    "cookie::*",
+    "cookie",
+    "futures_core::*",
+    "h2::*",
+    "http::*",
+    "openssl::*",
+    "rustls::*",
+    "serde_json::*",
+    "serde_urlencoded::*",
+    "serde::*",
+    "tokio::*",
 ]
 
 [features]
@@ -64,7 +81,7 @@ compress-gzip = ["actix-http/compress-gzip", "__compress"]
 compress-zstd = ["actix-http/compress-zstd", "__compress"]
 
 # Cookie parsing and cookie jar
-cookies = ["cookie"]
+cookies = ["dep:cookie"]
 
 # Use `trust-dns-resolver` crate as DNS resolver
 trust-dns = ["trust-dns-resolver"]
@@ -89,10 +106,10 @@ actix-utils = "3"
 base64 = "0.22"
 bytes = "1"
 cfg-if = "1"
-derive_more = "0.99.5"
+derive_more = { version = "1", features = ["display", "error", "from"] }
 futures-core = { version = "0.3.17", default-features = false, features = ["alloc"] }
 futures-util = { version = "0.3.17", default-features = false, features = ["alloc", "sink"] }
-h2 = "0.3.24"
+h2 = "0.3.26"
 http = "0.2.7"
 itoa = "1"
 log =" 0.4"
@@ -124,7 +141,7 @@ actix-tls = { version = "3.4", features = ["openssl", "rustls-0_23"] }
 actix-utils = "3"
 actix-web = { version = "4", features = ["openssl"] }
 
-brotli = "6"
+brotli = "7"
 const-str = "0.5"
 env_logger = "0.11"
 flate2 = "1.0.13"
@@ -134,7 +151,10 @@ rcgen = "0.13"
 rustls-pemfile = "2"
 tokio = { version = "1.24.2", features = ["rt-multi-thread", "macros"] }
 zstd = "0.13"
-tls-rustls-0_23 = { package = "rustls", version = "0.23" } # add rustls 0.23 with default features to make aws_lc_rs work in tests 
+tls-rustls-0_23 = { package = "rustls", version = "0.23" } # add rustls 0.23 with default features to make aws_lc_rs work in tests
+
+[lints]
+workspace = true
 
 [[example]]
 name = "client"

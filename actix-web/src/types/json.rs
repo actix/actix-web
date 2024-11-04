@@ -398,7 +398,7 @@ impl<T: DeserializeOwned> JsonBody<T> {
                     _res: PhantomData,
                 }
             }
-            JsonBody::Error(e) => JsonBody::Error(e),
+            JsonBody::Error(err) => JsonBody::Error(err),
         }
     }
 }
@@ -434,7 +434,7 @@ impl<T: DeserializeOwned> Future for JsonBody<T> {
                     }
                 }
             },
-            JsonBody::Error(e) => Poll::Ready(Err(e.take().unwrap())),
+            JsonBody::Error(err) => Poll::Ready(Err(err.take().unwrap())),
         }
     }
 }

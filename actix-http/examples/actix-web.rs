@@ -3,13 +3,13 @@ use std::sync::OnceLock;
 use actix_http::HttpService;
 use actix_server::Server;
 use actix_service::map_config;
-use actix_web::{dev::AppConfig, get, App};
+use actix_web::{dev::AppConfig, get, App, Responder};
 
 static MEDIUM: OnceLock<String> = OnceLock::new();
 static LARGE: OnceLock<String> = OnceLock::new();
 
 #[get("/")]
-async fn index() -> &'static str {
+async fn index() -> impl Responder {
     "Hello, world. From Actix Web!"
 }
 

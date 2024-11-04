@@ -710,7 +710,7 @@ where
         }
 
         if !this.buf.is_empty() {
-            Poll::Ready(Some(Ok(this.buf.split().freeze())))
+            Poll::Ready(Some(Ok(std::mem::take(&mut this.buf).freeze())))
         } else if this.fut.alive() && !this.closed {
             Poll::Pending
         } else {
@@ -796,11 +796,8 @@ where
             Some(frm) => {
                 let msg = match frm {
                     Frame::Text(data) => {
-                        Message::Text(ByteString::try_from(data).map_err(|e| {
-                            ProtocolError::Io(io::Error::new(
-                                io::ErrorKind::Other,
-                                format!("{}", e),
-                            ))
+                        Message::Text(ByteString::try_from(data).map_err(|err| {
+                            ProtocolError::Io(io::Error::new(io::ErrorKind::Other, err))
                         })?)
                     }
                     Frame::Binary(data) => Message::Binary(data),

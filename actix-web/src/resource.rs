@@ -62,14 +62,14 @@ pub struct Resource<T = ResourceEndpoint> {
 impl Resource {
     /// Constructs new resource that matches a `path` pattern.
     pub fn new<T: IntoPatterns>(path: T) -> Resource {
-        let fref = Rc::new(RefCell::new(None));
+        let factory_ref = Rc::new(RefCell::new(None));
 
         Resource {
             routes: Vec::new(),
             rdef: path.patterns(),
             name: None,
-            endpoint: ResourceEndpoint::new(fref.clone()),
-            factory_ref: fref,
+            endpoint: ResourceEndpoint::new(Rc::clone(&factory_ref)),
+            factory_ref,
             guards: Vec::new(),
             app_data: None,
             default: boxed::factory(fn_service(|req: ServiceRequest| async {
@@ -358,10 +358,9 @@ where
         U::InitError: fmt::Debug,
     {
         // create and configure default resource
-        self.default = boxed::factory(
-            f.into_factory()
-                .map_init_err(|e| log::error!("Can not construct default service: {:?}", e)),
-        );
+        self.default = boxed::factory(f.into_factory().map_init_err(|err| {
+            log::error!("Can not construct default service: {err:?}");
+        }));
 
         self
     }

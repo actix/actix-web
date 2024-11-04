@@ -22,16 +22,16 @@ async fn main() -> io::Result<()> {
         .bind("streaming-error", ("127.0.0.1", 8080), || {
             HttpService::build()
                 .finish(|req| async move {
-                    info!("{:?}", req);
+                    info!("{req:?}");
                     let res = Response::ok();
 
                     Ok::<_, Infallible>(res.set_body(BodyStream::new(stream! {
                         yield Ok(Bytes::from("123"));
                         yield Ok(Bytes::from("456"));
 
-                        actix_rt::time::sleep(Duration::from_millis(1000)).await;
+                        actix_rt::time::sleep(Duration::from_secs(1)).await;
 
-                        yield Err(io::Error::new(io::ErrorKind::Other, ""));
+                        yield Err(io::Error::new(io::ErrorKind::Other, "abc"));
                     })))
                 })
                 .tcp()

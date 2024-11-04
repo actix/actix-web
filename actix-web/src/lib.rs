@@ -70,8 +70,6 @@
 //! - `rustls-0_23` - HTTPS support via `rustls` 0.23 crate, supports `HTTP/2`
 //! - `secure-cookies` - secure cookies support
 
-#![deny(rust_2018_idioms, nonstandard_style)]
-#![warn(future_incompatible)]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
@@ -106,6 +104,7 @@ mod scope;
 mod server;
 mod service;
 pub mod test;
+mod thin_data;
 pub(crate) mod types;
 pub mod web;
 
@@ -145,5 +144,6 @@ codegen_reexport!(delete);
 codegen_reexport!(trace);
 codegen_reexport!(connect);
 codegen_reexport!(options);
+codegen_reexport!(scope);
 
 pub(crate) type BoxError = Box<dyn std::error::Error>;

@@ -13,8 +13,9 @@ use super::AsHeaderName;
 /// `HeaderMap` is a "multi-map" of [`HeaderName`] to one or more [`HeaderValue`]s.
 ///
 /// # Examples
+///
 /// ```
-/// use actix_http::header::{self, HeaderMap, HeaderValue};
+/// # use actix_http::header::{self, HeaderMap, HeaderValue};
 ///
 /// let mut map = HeaderMap::new();
 ///
@@ -28,6 +29,21 @@ use super::AsHeaderName;
 /// assert_eq!(removed.next().unwrap(), "example.com");
 ///
 /// assert!(!map.contains_key(header::ORIGIN));
+/// ```
+///
+/// Construct a header map using the [`FromIterator`] implementation. Note that it uses the append
+/// strategy, so duplicate header names are preserved.
+///
+/// ```
+/// use actix_http::header::{self, HeaderMap, HeaderValue};
+///
+/// let headers = HeaderMap::from_iter([
+///     (header::CONTENT_TYPE, HeaderValue::from_static("text/plain")),
+///     (header::COOKIE, HeaderValue::from_static("foo=1")),
+///     (header::COOKIE, HeaderValue::from_static("bar=1")),
+/// ]);
+///
+/// assert_eq!(headers.len(), 3);
 /// ```
 #[derive(Debug, Clone, Default)]
 pub struct HeaderMap {
@@ -368,8 +384,8 @@ impl HeaderMap {
     /// let removed = map.insert(header::ACCEPT, HeaderValue::from_static("text/html"));
     /// assert!(!removed.is_empty());
     /// ```
-    pub fn insert(&mut self, key: HeaderName, val: HeaderValue) -> Removed {
-        let value = self.inner.insert(key, Value::one(val));
+    pub fn insert(&mut self, name: HeaderName, val: HeaderValue) -> Removed {
+        let value = self.inner.insert(name, Value::one(val));
         Removed::new(value)
     }
 
@@ -633,6 +649,16 @@ impl<'a> IntoIterator for &'a HeaderMap {
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
         Iter::new(self.inner.iter())
+    }
+}
+
+impl FromIterator<(HeaderName, HeaderValue)> for HeaderMap {
+    fn from_iter<T: IntoIterator<Item = (HeaderName, HeaderValue)>>(iter: T) -> Self {
+        iter.into_iter()
+            .fold(Self::new(), |mut map, (name, value)| {
+                map.append(name, value);
+                map
+            })
     }
 }
 

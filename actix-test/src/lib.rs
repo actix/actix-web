@@ -5,6 +5,7 @@
 //! real-world cases than using `init_service`, which skips HTTP encoding and decoding.
 //!
 //! # Examples
+//!
 //! ```
 //! use actix_web::{get, web, test, App, HttpResponse, Error, Responder};
 //!
@@ -26,8 +27,6 @@
 //! }
 //! ```
 
-#![deny(rust_2018_idioms, nonstandard_style)]
-#![warn(future_incompatible)]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
@@ -149,10 +148,12 @@ where
         StreamType::Rustls023(_) => true,
     };
 
+    let client_cfg = cfg.clone();
+
     // run server in separate orphaned thread
     thread::spawn(move || {
         rt::System::new().block_on(async move {
-            let tcp = net::TcpListener::bind(("127.0.0.1", cfg.port)).unwrap();
+            let tcp = net::TcpListener::bind((cfg.listen_address.clone(), cfg.port)).unwrap();
             let local_addr = tcp.local_addr().unwrap();
             let factory = factory.clone();
             let srv_cfg = cfg.clone();
@@ -460,7 +461,13 @@ where
             }
         };
 
-        Client::builder().connector(connector).finish()
+        let mut client_builder = Client::builder().connector(connector);
+
+        if client_cfg.disable_redirects {
+            client_builder = client_builder.disable_redirects();
+        }
+
+        client_builder.finish()
     };
 
     TestServer {
@@ -480,6 +487,7 @@ enum HttpVer {
     Both,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone)]
 enum StreamType {
     Tcp,
@@ -505,8 +513,10 @@ pub struct TestServerConfig {
     tp: HttpVer,
     stream: StreamType,
     client_request_timeout: Duration,
+    listen_address: String,
     port: u16,
     workers: usize,
+    disable_redirects: bool,
 }
 
 impl Default for TestServerConfig {
@@ -522,8 +532,10 @@ impl TestServerConfig {
             tp: HttpVer::Both,
             stream: StreamType::Tcp,
             client_request_timeout: Duration::from_secs(5),
+            listen_address: "127.0.0.1".to_string(),
             port: 0,
             workers: 1,
+            disable_redirects: false,
         }
     }
 
@@ -596,6 +608,14 @@ impl TestServerConfig {
         self
     }
 
+    /// Sets the address the server will listen on.
+    ///
+    /// By default, only listens on `127.0.0.1`.
+    pub fn listen_address(mut self, addr: impl Into<String>) -> Self {
+        self.listen_address = addr.into();
+        self
+    }
+
     /// Sets test server port.
     ///
     /// By default, a random free port is determined by the OS.
@@ -609,6 +629,15 @@ impl TestServerConfig {
     /// By default, the server uses 1 worker
     pub fn workers(mut self, workers: usize) -> Self {
         self.workers = workers;
+        self
+    }
+
+    /// Instruct the client to not follow redirects.
+    ///
+    /// By default, the client will follow up to 10 consecutive redirects
+    /// before giving up.
+    pub fn disable_redirects(mut self) -> Self {
+        self.disable_redirects = true;
         self
     }
 }
@@ -637,9 +666,9 @@ impl TestServer {
         let scheme = if self.tls { "https" } else { "http" };
 
         if uri.starts_with('/') {
-            format!("{}://localhost:{}{}", scheme, self.addr.port(), uri)
+            format!("{}://{}{}", scheme, self.addr, uri)
         } else {
-            format!("{}://localhost:{}/{}", scheme, self.addr.port(), uri)
+            format!("{}://{}/{}", scheme, self.addr, uri)
         }
     }
 

@@ -75,7 +75,7 @@ mod tests {
         time::{sleep, Sleep},
     };
     use actix_utils::future::poll_fn;
-    use derive_more::{Display, Error};
+    use derive_more::derive::{Display, Error};
     use futures_core::ready;
     use futures_util::{stream, FutureExt as _};
     use pin_project_lite::pin_project;
@@ -131,7 +131,7 @@ mod tests {
         assert_eq!(to_bytes(body).await.ok(), Some(Bytes::from("12")));
     }
     #[derive(Debug, Display, Error)]
-    #[display(fmt = "stream error")]
+    #[display("stream error")]
     struct StreamErr;
 
     #[actix_rt::test]

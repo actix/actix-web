@@ -145,7 +145,7 @@ async fn custom_resource_name_test<'a>(req: HttpRequest) -> impl Responder {
 mod guard_module {
     use actix_web::{guard::GuardContext, http::header};
 
-    pub fn guard(ctx: &GuardContext) -> bool {
+    pub fn guard(ctx: &GuardContext<'_>) -> bool {
         ctx.header::<header::Accept>()
             .map(|h| h.preference() == "image/*")
             .unwrap_or(false)

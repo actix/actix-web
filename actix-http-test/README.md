@@ -1,7 +1,5 @@
 # `actix-http-test`
 
-> Various helpers for Actix applications to use during testing.
-
 <!-- prettier-ignore-start -->
 
 [![crates.io](https://img.shields.io/crates/v/actix-http-test?label=latest)](https://crates.io/crates/actix-http-test)
@@ -14,3 +12,9 @@
 [![Chat on Discord](https://img.shields.io/discord/771444961383153695?label=chat&logo=discord)](https://discord.gg/NWpN5mmg3x)
 
 <!-- prettier-ignore-end -->
+
+<!-- cargo-rdme start -->
+
+Various helpers for Actix applications to use during testing.
+
+<!-- cargo-rdme end -->

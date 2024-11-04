@@ -15,10 +15,47 @@
 //! - Access external services (e.g., [sessions](https://docs.rs/actix-session), etc.)
 //!
 //! Middleware is registered for each [`App`], [`Scope`](crate::Scope), or
-//! [`Resource`](crate::Resource) and executed in opposite order as registration. In general, a
-//! middleware is a pair of types that implements the [`Service`] trait and [`Transform`] trait,
-//! respectively. The [`new_transform`] and [`call`] methods must return a [`Future`], though it
-//! can often be [an immediately-ready one](actix_utils::future::Ready).
+//! [`Resource`](crate::Resource) and executed in opposite order as registration.
+//!
+//! # Simple Middleware
+//!
+//! In many cases, you can model your middleware as an async function via the [`from_fn()`] helper
+//! that provides a natural interface for implementing your desired behaviors.
+//!
+//! ```
+//! # use actix_web::{
+//! #     App, Error,
+//! #     body::MessageBody,
+//! #     dev::{ServiceRequest, ServiceResponse, Service as _},
+//! # };
+//! use actix_web::middleware::{self, Next};
+//!
+//! async fn my_mw(
+//!     req: ServiceRequest,
+//!     next: Next<impl MessageBody>,
+//! ) -> Result<ServiceResponse<impl MessageBody>, Error> {
+//!     // pre-processing
+//!
+//!     // invoke the wrapped middleware or service
+//!     let res = next.call(req).await?;
+//!
+//!     // post-processing
+//!
+//!     Ok(res)
+//! }
+//!
+//! App::new()
+//!     .wrap(middleware::from_fn(my_mw));
+//! ```
+//!
+//! ## Complex Middleware
+//!
+//! In the more general ase, a middleware is a pair of types that implements the [`Service`] trait
+//! and [`Transform`] trait, respectively. The [`new_transform`] and [`call`] methods must return a
+//! [`Future`], though it can often be [an immediately-ready one](actix_utils::future::Ready).
+//!
+//! All the built-in middleware use this pattern with pairs of builder (`Transform`) +
+//! implementation (`Service`) types.
 //!
 //! # Ordering
 //!
@@ -67,7 +104,7 @@
 //!                   Response
 //! ```
 //! The request _first_ gets processed by the middleware specified _last_ - `MiddlewareC`. It passes
-//! the request (modified a modified one) to the next middleware - `MiddlewareB` - _or_ directly
+//! the request (possibly a modified one) to the next middleware - `MiddlewareB` - _or_ directly
 //! responds to the request (e.g. when the request was invalid or an error occurred). `MiddlewareB`
 //! processes the request as well and passes it to `MiddlewareA`, which then passes it to the
 //! [`Service`]. In the [`Service`], the extractors will run first. They don't pass the request on,
@@ -196,18 +233,6 @@
 //! # }
 //! ```
 //!
-//! # Simpler Middleware
-//!
-//! In many cases, you _can_ actually use an async function via a helper that will provide a more
-//! natural flow for your behavior.
-//!
-//! The experimental `actix_web_lab` crate provides a [`from_fn`][lab_from_fn] utility which allows
-//! an async fn to be wrapped and used in the same way as other middleware. See the
-//! [`from_fn`][lab_from_fn] docs for more info and examples of it's use.
-//!
-//! While [`from_fn`][lab_from_fn] is experimental currently, it's likely this helper will graduate
-//! to Actix Web in some form, so feedback is appreciated.
-//!
 //! [`Future`]: std::future::Future
 //! [`App`]: crate::App
 //! [`FromRequest`]: crate::FromRequest
@@ -215,33 +240,31 @@
 //! [`Transform`]: crate::dev::Transform
 //! [`call`]: crate::dev::Service::call()
 //! [`new_transform`]: crate::dev::Transform::new_transform()
-//! [lab_from_fn]: https://docs.rs/actix-web-lab/latest/actix_web_lab/middleware/fn.from_fn.html
+//! [`from_fn`]: crate
 
 mod compat;
+#[cfg(feature = "__compress")]
+mod compress;
 mod condition;
 mod default_headers;
 mod err_handlers;
+mod from_fn;
+mod identity;
 mod logger;
-#[cfg(test)]
-mod noop;
 mod normalize;
 
-#[cfg(test)]
-pub(crate) use self::noop::Noop;
+#[cfg(feature = "__compress")]
+pub use self::compress::Compress;
 pub use self::{
     compat::Compat,
     condition::Condition,
     default_headers::DefaultHeaders,
     err_handlers::{ErrorHandlerResponse, ErrorHandlers},
+    from_fn::{from_fn, Next},
+    identity::Identity,
     logger::Logger,
     normalize::{NormalizePath, TrailingSlash},
 };
-
-#[cfg(feature = "__compress")]
-mod compress;
-
-#[cfg(feature = "__compress")]
-pub use self::compress::Compress;
 
 #[cfg(test)]
 mod tests {

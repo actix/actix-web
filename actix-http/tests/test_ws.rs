@@ -14,7 +14,7 @@ use actix_http::{
 use actix_http_test::test_server;
 use actix_service::{fn_factory, Service};
 use bytes::Bytes;
-use derive_more::{Display, Error, From};
+use derive_more::derive::{Display, Error, From};
 use futures_core::future::LocalBoxFuture;
 use futures_util::{SinkExt as _, StreamExt as _};
 
@@ -37,16 +37,16 @@ impl WsService {
 
 #[derive(Debug, Display, Error, From)]
 enum WsServiceError {
-    #[display(fmt = "HTTP error")]
+    #[display("HTTP error")]
     Http(actix_http::Error),
 
-    #[display(fmt = "WS handshake error")]
+    #[display("WS handshake error")]
     Ws(actix_http::ws::HandshakeError),
 
-    #[display(fmt = "I/O error")]
+    #[display("I/O error")]
     Io(std::io::Error),
 
-    #[display(fmt = "dispatcher error")]
+    #[display("dispatcher error")]
     Dispatcher,
 }
 

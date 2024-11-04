@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 4.3.1 <!-- v4.3.1+deprecated -->
+
+- Reduce memory usage by `take`-ing (rather than `split`-ing) the encoded buffer when yielding bytes in the response stream.
+- Mark crate as deprecated.
 - Minimum supported Rust version (MSRV) is now 1.72.
 
 ## 4.3.0

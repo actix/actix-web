@@ -314,7 +314,7 @@ impl MessageType for RequestHeadType {
                 _ => return Err(io::Error::new(io::ErrorKind::Other, "unsupported version")),
             }
         )
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+        .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
     }
 }
 
@@ -499,7 +499,7 @@ impl TransferEncoding {
                     buf.extend_from_slice(b"0\r\n\r\n");
                 } else {
                     writeln!(helpers::MutWriter(buf), "{:X}\r", msg.len())
-                        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+                        .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
 
                     buf.reserve(msg.len() + 2);
                     buf.extend_from_slice(msg);

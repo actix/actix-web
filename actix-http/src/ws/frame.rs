@@ -178,17 +178,14 @@ impl Parser {
         };
 
         if payload_len < 126 {
-            dst.buffer_mut()
-                .reserve(p_len + 2 + if mask { 4 } else { 0 });
+            dst.buffer_mut().reserve(p_len + 2);
             dst.buffer_mut().put_slice(&[one, two | payload_len as u8]);
         } else if payload_len <= 65_535 {
-            dst.buffer_mut()
-                .reserve(p_len + 4 + if mask { 4 } else { 0 });
+            dst.buffer_mut().reserve(p_len + 4);
             dst.buffer_mut().put_slice(&[one, two | 126]);
             dst.buffer_mut().put_u16(payload_len as u16);
         } else {
-            dst.buffer_mut()
-                .reserve(p_len + 10 + if mask { 4 } else { 0 });
+            dst.buffer_mut().reserve(p_len + 10);
             dst.buffer_mut().put_slice(&[one, two | 127]);
             dst.buffer_mut().put_u64(payload_len as u64);
         };

@@ -14,7 +14,7 @@ use actix_rt::{net::TcpStream, time::sleep};
 use actix_service::fn_service;
 use actix_utils::future::{err, ok, ready};
 use bytes::Bytes;
-use derive_more::{Display, Error};
+use derive_more::derive::{Display, Error};
 use futures_util::{stream::once, FutureExt as _, StreamExt as _};
 use regex::Regex;
 
@@ -62,7 +62,7 @@ async fn h1_2() {
 }
 
 #[derive(Debug, Display, Error)]
-#[display(fmt = "expect failed")]
+#[display("expect failed")]
 struct ExpectFailed;
 
 impl From<ExpectFailed> for Response<BoxBody> {
@@ -723,7 +723,7 @@ async fn h1_response_http_error_handling() {
 }
 
 #[derive(Debug, Display, Error)]
-#[display(fmt = "error")]
+#[display("error")]
 struct BadRequest;
 
 impl From<BadRequest> for Response<BoxBody> {

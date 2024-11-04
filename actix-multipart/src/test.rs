@@ -1,5 +1,9 @@
-use actix_web::http::header::{self, HeaderMap};
-use bytes::{BufMut as _, Bytes, BytesMut};
+//! Multipart testing utilities.
+
+use actix_web::{
+    http::header::{self, HeaderMap},
+    web::{BufMut as _, Bytes, BytesMut},
+};
 use mime::Mime;
 use rand::{
     distributions::{Alphanumeric, DistString as _},
@@ -21,8 +25,7 @@ const BOUNDARY_PREFIX: &str = "------------------------";
 ///
 /// ```
 /// use actix_multipart::test::create_form_data_payload_and_headers;
-/// use actix_web::test::TestRequest;
-/// use bytes::Bytes;
+/// use actix_web::{test::TestRequest, web::Bytes};
 /// use memchr::memmem::find;
 ///
 /// let (body, headers) = create_form_data_payload_and_headers(

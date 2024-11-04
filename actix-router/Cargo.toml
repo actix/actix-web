@@ -12,9 +12,11 @@ repository = "https://github.com/actix/actix-web"
 license = "MIT OR Apache-2.0"
 edition = "2021"
 
-[lib]
-name = "actix_router"
-path = "src/lib.rs"
+[package.metadata.cargo_check_external_types]
+allowed_external_types = [
+    "http::*",
+    "serde::*",
+]
 
 [features]
 default = ["http", "unicode"]
@@ -35,6 +37,9 @@ criterion = { version = "0.5", features = ["html_reports"] }
 http = "0.2.7"
 serde = { version = "1", features = ["derive"] }
 percent-encoding = "2.1"
+
+[lints]
+workspace = true
 
 [[bench]]
 name = "router"

@@ -415,8 +415,8 @@ impl ClientRequest {
 
     // allow unused mut when cookies feature is disabled
     fn prep_for_sending(#[allow(unused_mut)] mut self) -> Result<Self, PrepForSendingError> {
-        if let Some(e) = self.err {
-            return Err(e.into());
+        if let Some(err) = self.err {
+            return Err(err.into());
         }
 
         // validate uri
