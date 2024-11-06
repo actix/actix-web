@@ -63,15 +63,9 @@ rustls-0_20 = ["tls-rustls-0_20", "actix-tls/rustls-0_20"]
 # TLS via Rustls v0.21
 rustls-0_21 = ["tls-rustls-0_21", "actix-tls/rustls-0_21"]
 # TLS via Rustls v0.22 (WebPKI roots)
-rustls-0_22-webpki-roots = [
-    "tls-rustls-0_22",
-    "actix-tls/rustls-0_22-webpki-roots",
-]
+rustls-0_22-webpki-roots = ["tls-rustls-0_22", "actix-tls/rustls-0_22-webpki-roots"]
 # TLS via Rustls v0.22 (Native roots)
-rustls-0_22-native-roots = [
-    "tls-rustls-0_22",
-    "actix-tls/rustls-0_22-native-roots",
-]
+rustls-0_22-native-roots = ["tls-rustls-0_22", "actix-tls/rustls-0_22-native-roots"]
 # TLS via Rustls v0.23
 rustls-0_23 = ["tls-rustls-0_23", "actix-tls/rustls-0_23"]
 # TLS via Rustls v0.23 (WebPKI roots)
@@ -120,7 +114,7 @@ futures-util = { version = "0.3.17", default-features = false, features = ["allo
 h2 = "0.3.26"
 http = "0.2.7"
 itoa = "1"
-log = " 0.4"
+log = "0.4"
 mime = "0.3"
 percent-encoding = "2.1"
 pin-project-lite = "0.2"
@@ -133,12 +127,8 @@ tokio = { version = "1.24.2", features = ["sync"] }
 cookie = { version = "0.16", features = ["percent-encode"], optional = true }
 
 tls-openssl = { package = "openssl", version = "0.10.55", optional = true }
-tls-rustls-0_20 = { package = "rustls", version = "0.20", optional = true, features = [
-    "dangerous_configuration",
-] }
-tls-rustls-0_21 = { package = "rustls", version = "0.21", optional = true, features = [
-    "dangerous_configuration",
-] }
+tls-rustls-0_20 = { package = "rustls", version = "0.20", optional = true, features = ["dangerous_configuration"] }
+tls-rustls-0_21 = { package = "rustls", version = "0.21", optional = true, features = ["dangerous_configuration"] }
 tls-rustls-0_22 = { package = "rustls", version = "0.22", optional = true }
 tls-rustls-0_23 = { package = "rustls", version = "0.23", optional = true, default-features = false }
 
@@ -163,7 +153,7 @@ rcgen = "0.13"
 rustls-pemfile = "2"
 tokio = { version = "1.24.2", features = ["rt-multi-thread", "macros"] }
 zstd = "0.13"
-tls-rustls-0_23 = { package = "rustls", version = "0.23" }               # add rustls 0.23 with default features to make aws_lc_rs work in tests
+tls-rustls-0_23 = { package = "rustls", version = "0.23" } # add rustls 0.23 with default features to make aws_lc_rs work in tests
 
 [lints]
 workspace = true

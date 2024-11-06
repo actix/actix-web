@@ -5,6 +5,7 @@
 ### Added
 
 - Add `header::CLEAR_SITE_DATA` constant.
+- Add DEFLATE compression support for WebSocket.
 
 ### Changed
 
