@@ -450,8 +450,9 @@ impl WebsocketsRequest {
 
             framed.into_map_codec(move |_| {
                 let codec = if let Some(parameter) = selected_parameter.clone() {
-                    let context = parameter.create_context(self.deflate_compression_level, false);
-                    Codec::new_deflate(context)
+                    let (compress, decompress) =
+                        parameter.create_context(self.deflate_compression_level, false);
+                    Codec::new_deflate(compress, decompress)
                 } else {
                     Codec::new()
                 }

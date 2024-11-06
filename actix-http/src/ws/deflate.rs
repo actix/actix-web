@@ -577,9 +577,8 @@ impl DeflateCompressionContext {
 
 #[cfg(test)]
 mod tests {
-    use crate::body::MessageBody;
-
     use super::*;
+    use crate::body::MessageBody;
 
     #[test]
     fn test_session_parameters() {
