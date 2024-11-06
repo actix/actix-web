@@ -80,7 +80,7 @@ bitflags! {
 }
 
 /// WebSocket message encoder.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Encoder {
     flags: Flags,
 
@@ -283,7 +283,7 @@ impl codec::Encoder<Message> for Encoder {
 }
 
 /// WebSocket message decoder.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Decoder {
     flags: Flags,
     max_size: usize,
@@ -461,10 +461,43 @@ impl codec::Decoder for Decoder {
 }
 
 /// WebSocket protocol codec.
-#[derive(Debug, Default, Clone)]
+///
+/// # Note
+/// Cloning [`Codec`] creates a new codec with existing configurations
+/// and will not preserve the current context.
+#[derive(Debug, Default)]
 pub struct Codec {
     encoder: Encoder,
     decoder: Decoder,
+}
+
+impl Clone for Codec {
+    fn clone(&self) -> Self {
+        Self {
+            encoder: Encoder {
+                flags: self.encoder.flags & Flags::SERVER,
+                #[cfg(feature = "compress-ws-deflate")]
+                deflate_compress: self.encoder.deflate_compress.as_ref().map(|c| {
+                    DeflateCompressionContext::new(
+                        Some(c.compression_level),
+                        c.remote_no_context_takeover,
+                        c.remote_max_window_bits,
+                    )
+                }),
+            },
+            decoder: Decoder {
+                flags: self.decoder.flags & Flags::SERVER,
+                max_size: self.decoder.max_size,
+                #[cfg(feature = "compress-ws-deflate")]
+                deflate_decompress: self.decoder.deflate_decompress.as_ref().map(|d| {
+                    DeflateDecompressionContext::new(
+                        d.local_no_context_takeover,
+                        d.local_max_window_bits,
+                    )
+                }),
+            },
+        }
+    }
 }
 
 impl Codec {

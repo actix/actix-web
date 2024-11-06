@@ -1,3 +1,7 @@
+//! WebSocket permessage-deflate compression implementation.
+//!
+//!
+
 use std::convert::Infallible;
 
 use bytes::Bytes;
@@ -6,17 +10,31 @@ pub use flate2::Compression as DeflateCompressionLevel;
 use super::{OpCode, ProtocolError, RsvBits};
 use crate::header::{HeaderName, HeaderValue, TryIntoHeaderPair, SEC_WEBSOCKET_EXTENSIONS};
 
+// NOTE: according to [RFC 7692 §7.1.2.1] window bit size should be within 8..=15
+//       but we have to limit the range to 9..=15 because [flate2] only supports window bit within 9..=15.
+//
+// [RFC 6792]: https://datatracker.ietf.org/doc/html/rfc7692#section-7.1.2.1
+// [flate2]:   https://docs.rs/flate2/latest/flate2/struct.Compress.html#method.new_with_window_bits
 const MAX_WINDOW_BITS_RANGE: std::ops::RangeInclusive<u8> = 9..=15;
 const DEFAULT_WINDOW_BITS: u8 = 15;
+
 const BUF_SIZE: usize = 2048;
 
 pub(super) const RSV_BIT_DEFLATE_FLAG: RsvBits = RsvBits::RSV1;
 
+/// DEFLATE compression related handshake errors.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum DeflateHandshakeError {
+    /// Unknown extension parameter given.
     UnknownWebSocketParameters,
+
+    /// Duplicate parameter found in single extension statement.
     DuplicateParameter(&'static str),
+
+    /// Max window bits size out of range. Should be in 9..=15
     MaxWindowBitsOutOfRange,
+
+    /// Multiple `permessage-deflate` statements found but failed to negotiate any.
     NoSuitableConfigurationFound,
 }
 
@@ -45,17 +63,28 @@ impl std::fmt::Display for DeflateHandshakeError {
 
 impl std::error::Error for DeflateHandshakeError {}
 
+/// Maximum size of client's DEFLATE sliding window.
 #[derive(Copy, Clone, Debug)]
 pub enum ClientMaxWindowBits {
+    /// Unspecified. Indicates server should decide its size.
     NotSpecified,
+    /// Specified size of client's DEFLATE sliding window size in bits, between 9 and 15.
     Specified(u8),
 }
 
+/// DEFLATE negotiation parameter. It can be used both client and server side.
+/// At client side, it can be used to pass desired configuration to server.
+/// At server side, negotiated parameter will be sent to client with this.
+/// This can be represented in HTTP header form as it implements [`TryIntoHeaderPair`] trait.
 #[derive(Debug, Clone, Default)]
 pub struct DeflateSessionParameters {
+    /// Disallow server from take over context.
     pub server_no_context_takeover: bool,
+    /// Disallow client from take over context.
     pub client_no_context_takeover: bool,
+    /// Maximum size of server's DEFLATE sliding window in bits, between 9 and 15.
     pub server_max_window_bits: Option<u8>,
+    /// Maximum size of client's DEFLATE sliding window.
     pub client_max_window_bits: Option<ClientMaxWindowBits>,
 }
 
@@ -219,8 +248,10 @@ impl DeflateSessionParameters {
     }
 }
 
+/// Server-side DEFLATE configuration.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct DeflateServerConfig {
+    /// DEFLATE compression level. See [`flate2::`]
     pub compression_level: Option<DeflateCompressionLevel>,
 
     pub server_no_context_takeover: bool,
@@ -294,15 +325,8 @@ pub struct DeflateDecompressionContext {
     total_bytes_read: u64,
 }
 
-impl Clone for DeflateDecompressionContext {
-    fn clone(&self) -> Self {
-        // Create with empty context because the context is not meant to be cloned.
-        Self::new(self.local_no_context_takeover, self.local_max_window_bits)
-    }
-}
-
 impl DeflateDecompressionContext {
-    fn new(local_no_context_takeover: bool, local_max_window_bits: u8) -> Self {
+    pub(super) fn new(local_no_context_takeover: bool, local_max_window_bits: u8) -> Self {
         Self {
             local_no_context_takeover,
             local_max_window_bits,
@@ -315,7 +339,11 @@ impl DeflateDecompressionContext {
         }
     }
 
-    pub fn reset_with(&mut self, local_no_context_takeover: bool, local_max_window_bits: u8) {
+    pub(super) fn reset_with(
+        &mut self,
+        local_no_context_takeover: bool,
+        local_max_window_bits: u8,
+    ) {
         *self = Self::new(local_no_context_takeover, local_max_window_bits);
     }
 
@@ -352,16 +380,16 @@ impl DeflateDecompressionContext {
                         &mut buf,
                         flate2::FlushDecompress::Finish,
                     )
-                    .map_err(|e| {
+                    .map_err(|err| {
                         self.reset();
-                        ProtocolError::Io(e.into())
+                        ProtocolError::Io(err.into())
                     })?
             } else {
                 self.decompress
                     .decompress(&payload[offset..], &mut buf, flate2::FlushDecompress::None)
-                    .map_err(|e| {
+                    .map_err(|err| {
                         self.reset();
-                        ProtocolError::Io(e.into())
+                        ProtocolError::Io(err.into())
                     })?
             };
 
@@ -399,7 +427,7 @@ impl DeflateDecompressionContext {
 
 #[derive(Debug)]
 pub struct DeflateCompressionContext {
-    compression_level: flate2::Compression,
+    pub(super) compression_level: flate2::Compression,
     pub(super) remote_no_context_takeover: bool,
     pub(super) remote_max_window_bits: u8,
 
@@ -408,19 +436,8 @@ pub struct DeflateCompressionContext {
     total_bytes_read: u64,
 }
 
-impl Clone for DeflateCompressionContext {
-    fn clone(&self) -> Self {
-        // Create with empty context because the context is not meant to be cloned.
-        Self::new(
-            Some(self.compression_level),
-            self.remote_no_context_takeover,
-            self.remote_max_window_bits,
-        )
-    }
-}
-
 impl DeflateCompressionContext {
-    fn new(
+    pub(super) fn new(
         compression_level: Option<flate2::Compression>,
         remote_no_context_takeover: bool,
         remote_max_window_bits: u8,
@@ -443,7 +460,7 @@ impl DeflateCompressionContext {
         }
     }
 
-    pub fn reset_with(
+    pub(super) fn reset_with(
         mut self,
         remote_no_context_takeover: bool,
         remote_max_window_bits: u8,
@@ -466,16 +483,16 @@ impl DeflateCompressionContext {
             let res = if total_in >= payload.len() as u64 {
                 self.compress
                     .compress(&[], &mut buf, flate2::FlushCompress::Sync)
-                    .map_err(|e| {
+                    .map_err(|err| {
                         self.reset();
-                        ProtocolError::Io(e.into())
+                        ProtocolError::Io(err.into())
                     })?
             } else {
                 self.compress
                     .compress(&payload, &mut buf, flate2::FlushCompress::None)
-                    .map_err(|e| {
+                    .map_err(|err| {
                         self.reset();
-                        ProtocolError::Io(e.into())
+                        ProtocolError::Io(err.into())
                     })?
             };
 

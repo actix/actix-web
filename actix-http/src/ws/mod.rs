@@ -100,7 +100,7 @@ pub enum HandshakeError {
 
     /// Invalid `permessage-deflate` request.
     #[cfg(feature = "compress-ws-deflate")]
-    #[display(fmt = "invalid WebSocket `permessage-deflate` extension request")]
+    #[display("invalid WebSocket `permessage-deflate` extension request")]
     BadDeflateRequest(deflate::DeflateHandshakeError),
 }
 
@@ -190,13 +190,13 @@ pub fn handshake_with_deflate(
     let mut selected_error = None;
     for config in available_configurations {
         match config {
-            Ok(v) => {
-                selected_config = Some(v);
+            Ok(config) => {
+                selected_config = Some(config);
                 break;
             }
-            Err(e) => {
+            Err(err) => {
                 if selected_error.is_none() {
-                    selected_error = Some(e);
+                    selected_error = Some(err);
                 } else {
                     selected_error =
                         Some(deflate::DeflateHandshakeError::NoSuitableConfigurationFound);
