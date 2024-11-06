@@ -237,18 +237,22 @@ mod tests {
     struct F {
         finished: bool,
         opcode: OpCode,
+        rsv_bits: RsvBits,
         payload: Bytes,
     }
 
-    fn is_none(frm: &Result<Option<(bool, OpCode, Option<BytesMut>)>, ProtocolError>) -> bool {
+    fn is_none(
+        frm: &Result<Option<(bool, OpCode, RsvBits, Option<BytesMut>)>, ProtocolError>,
+    ) -> bool {
         matches!(*frm, Ok(None))
     }
 
-    fn extract(frm: Result<Option<(bool, OpCode, Option<BytesMut>)>, ProtocolError>) -> F {
+    fn extract(frm: Result<Option<(bool, OpCode, RsvBits, Option<BytesMut>)>, ProtocolError>) -> F {
         match frm {
-            Ok(Some((finished, opcode, payload))) => F {
+            Ok(Some((finished, opcode, rsv_bits, payload))) => F {
                 finished,
                 opcode,
+                rsv_bits,
                 payload: payload
                     .map(|b| b.freeze())
                     .unwrap_or_else(|| Bytes::from("")),
@@ -269,6 +273,17 @@ mod tests {
         assert!(!frame.finished);
         assert_eq!(frame.opcode, OpCode::Text);
         assert_eq!(frame.payload.as_ref(), &b"1"[..]);
+
+        let mut buf = BytesMut::from(&[0b1111_0001u8, 0b0000_0001u8][..]);
+        buf.extend(b"2");
+
+        let frame = extract(Parser::parse(&mut buf, false, 1024));
+        assert!(frame.finished);
+        assert_eq!(frame.opcode, OpCode::Text);
+        assert_eq!(frame.payload.as_ref(), &b"2"[..]);
+        assert!(frame.rsv_bits.contains(RsvBits::RSV1));
+        assert!(frame.rsv_bits.contains(RsvBits::RSV2));
+        assert!(frame.rsv_bits.contains(RsvBits::RSV3));
     }
 
     #[test]
@@ -377,7 +392,14 @@ mod tests {
     #[test]
     fn test_ping_frame() {
         let mut buf = BytesMut::new();
-        Parser::write_message(&mut buf, Vec::from("data"), OpCode::Ping, true, false);
+        Parser::write_message(
+            &mut buf,
+            Vec::from("data"),
+            OpCode::Ping,
+            RsvBits::empty(),
+            true,
+            false,
+        );
 
         let mut v = vec![137u8, 4u8];
         v.extend(b"data");
@@ -387,7 +409,14 @@ mod tests {
     #[test]
     fn test_pong_frame() {
         let mut buf = BytesMut::new();
-        Parser::write_message(&mut buf, Vec::from("data"), OpCode::Pong, true, false);
+        Parser::write_message(
+            &mut buf,
+            Vec::from("data"),
+            OpCode::Pong,
+            RsvBits::empty(),
+            true,
+            false,
+        );
 
         let mut v = vec![138u8, 4u8];
         v.extend(b"data");
@@ -398,7 +427,7 @@ mod tests {
     fn test_close_frame() {
         let mut buf = BytesMut::new();
         let reason = (CloseCode::Normal, "data");
-        Parser::write_close(&mut buf, Some(reason.into()), false);
+        Parser::write_close(&mut buf, Some(reason.into()), RsvBits::empty(), false);
 
         let mut v = vec![136u8, 6u8, 3u8, 232u8];
         v.extend(b"data");
@@ -408,7 +437,7 @@ mod tests {
     #[test]
     fn test_empty_close_frame() {
         let mut buf = BytesMut::new();
-        Parser::write_close(&mut buf, None, false);
+        Parser::write_close(&mut buf, None, RsvBits::empty(), false);
         assert_eq!(&buf[..], &vec![0x88, 0x00][..]);
     }
 }

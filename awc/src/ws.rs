@@ -30,6 +30,8 @@ use std::{fmt, net::SocketAddr, str};
 
 use actix_codec::Framed;
 pub use actix_http::ws::{CloseCode, CloseReason, Codec, Frame, Message};
+#[cfg(feature = "compress-ws-deflate")]
+pub use actix_http::ws::{DeflateCompressionLevel, DeflateSessionParameters};
 use actix_http::{ws, Payload, RequestHead};
 use actix_rt::time::timeout;
 use actix_service::Service as _;
@@ -58,6 +60,9 @@ pub struct WebsocketsRequest {
     max_size: usize,
     server_mode: bool,
     config: ClientConfig,
+
+    #[cfg(feature = "compress-ws-deflate")]
+    deflate_compression_level: Option<DeflateCompressionLevel>,
 
     #[cfg(feature = "cookies")]
     cookies: Option<CookieJar>,
@@ -94,6 +99,8 @@ impl WebsocketsRequest {
             protocols: None,
             max_size: 65_536,
             server_mode: false,
+            #[cfg(feature = "compress-ws-deflate")]
+            deflate_compression_level: None,
             #[cfg(feature = "cookies")]
             cookies: None,
         }
@@ -247,6 +254,22 @@ impl WebsocketsRequest {
         T: fmt::Display,
     {
         self.header(AUTHORIZATION, format!("Bearer {}", token))
+    }
+
+    /// Enable DEFLATE compression
+    #[cfg(feature = "compress-ws-deflate")]
+    pub fn deflate(
+        mut self,
+        compression_level: Option<DeflateCompressionLevel>,
+        params: DeflateSessionParameters,
+    ) -> Self {
+        use actix_http::header::TryIntoHeaderPair;
+        // Assume session parameters are always valid.
+        let (key, value) = params.try_into_pair().unwrap();
+
+        self.deflate_compression_level = compression_level;
+
+        self.header(key, value)
     }
 
     /// Complete request construction and connect to a WebSocket server.
@@ -409,17 +432,51 @@ impl WebsocketsRequest {
             return Err(WsClientError::MissingWebSocketAcceptHeader);
         };
 
-        // response and ws framed
-        Ok((
-            ClientResponse::new(head, Payload::None),
-            framed.into_map_codec(|_| {
-                if server_mode {
-                    ws::Codec::new().max_size(max_size)
+        #[cfg(feature = "compress-ws-deflate")]
+        let framed = {
+            let selected_parameter = head
+                .headers
+                .get_all(header::SEC_WEBSOCKET_EXTENSIONS)
+                .filter_map(|header| {
+                    if let Ok(header_str) = header.to_str() {
+                        Some(DeflateSessionParameters::from_extension_header(header_str))
+                    } else {
+                        None
+                    }
+                })
+                .flatten()
+                .filter_map(Result::ok)
+                .next();
+
+            framed.into_map_codec(move |_| {
+                let codec = if let Some(parameter) = selected_parameter.clone() {
+                    let context = parameter.create_context(self.deflate_compression_level, false);
+                    Codec::new_deflate(context)
                 } else {
-                    ws::Codec::new().max_size(max_size).client_mode()
+                    Codec::new()
                 }
-            }),
-        ))
+                .max_size(max_size);
+
+                if server_mode {
+                    codec
+                } else {
+                    codec.client_mode()
+                }
+            })
+        };
+        #[cfg(not(feature = "compress-ws-deflate"))]
+        let framed = framed.into_map_codec(move |_| {
+            let codec = Codec::new().max_size(max_size);
+
+            if server_mode {
+                codec
+            } else {
+                codec.client_mode()
+            }
+        });
+
+        // response and ws framed
+        Ok((ClientResponse::new(head, Payload::None), framed))
     }
 }
 
