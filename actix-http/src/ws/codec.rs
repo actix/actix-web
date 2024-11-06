@@ -6,7 +6,7 @@ use tracing::error;
 
 use super::{
     frame::Parser,
-    proto::{CloseReason, OpCode},
+    proto::{CloseReason, OpCode, RsvBits},
     ProtocolError,
 };
 
@@ -71,6 +71,9 @@ pub enum Item {
 pub struct Codec {
     flags: Flags,
     max_size: usize,
+
+    inbound_rsv_bits: Option<RsvBits>,
+    outbound_rsv_bits: RsvBits,
 }
 
 bitflags! {
@@ -88,6 +91,9 @@ impl Codec {
         Codec {
             max_size: 65_536,
             flags: Flags::SERVER,
+
+            inbound_rsv_bits: None,
+            outbound_rsv_bits: RsvBits::empty(),
         }
     }
 
@@ -108,6 +114,18 @@ impl Codec {
         self.flags.remove(Flags::SERVER);
         self
     }
+
+    /// Get inbound RSV bits.
+    ///
+    /// Returns None if there's no received frame yet.
+    pub fn get_inbound_rsv_bits(&self) -> Option<RsvBits> {
+        self.inbound_rsv_bits
+    }
+
+    /// Set outbound RSV bits.
+    pub fn set_outbound_rsv_bits(&mut self, rsv_bits: RsvBits) {
+        self.outbound_rsv_bits = rsv_bits;
+    }
 }
 
 impl Default for Codec {
@@ -125,6 +143,7 @@ impl Encoder<Message> for Codec {
                 dst,
                 txt,
                 OpCode::Text,
+                self.outbound_rsv_bits,
                 true,
                 !self.flags.contains(Flags::SERVER),
             ),
@@ -132,6 +151,7 @@ impl Encoder<Message> for Codec {
                 dst,
                 bin,
                 OpCode::Binary,
+                self.outbound_rsv_bits,
                 true,
                 !self.flags.contains(Flags::SERVER),
             ),
@@ -139,6 +159,7 @@ impl Encoder<Message> for Codec {
                 dst,
                 txt,
                 OpCode::Ping,
+                self.outbound_rsv_bits,
                 true,
                 !self.flags.contains(Flags::SERVER),
             ),
@@ -146,12 +167,16 @@ impl Encoder<Message> for Codec {
                 dst,
                 txt,
                 OpCode::Pong,
+                self.outbound_rsv_bits,
                 true,
                 !self.flags.contains(Flags::SERVER),
             ),
-            Message::Close(reason) => {
-                Parser::write_close(dst, reason, !self.flags.contains(Flags::SERVER))
-            }
+            Message::Close(reason) => Parser::write_close(
+                dst,
+                reason,
+                self.outbound_rsv_bits,
+                !self.flags.contains(Flags::SERVER),
+            ),
             Message::Continuation(cont) => match cont {
                 Item::FirstText(data) => {
                     if self.flags.contains(Flags::W_CONTINUATION) {
@@ -162,6 +187,7 @@ impl Encoder<Message> for Codec {
                             dst,
                             &data[..],
                             OpCode::Text,
+                            self.outbound_rsv_bits,
                             false,
                             !self.flags.contains(Flags::SERVER),
                         )
@@ -176,6 +202,7 @@ impl Encoder<Message> for Codec {
                             dst,
                             &data[..],
                             OpCode::Binary,
+                            self.outbound_rsv_bits,
                             false,
                             !self.flags.contains(Flags::SERVER),
                         )
@@ -187,6 +214,7 @@ impl Encoder<Message> for Codec {
                             dst,
                             &data[..],
                             OpCode::Continue,
+                            self.outbound_rsv_bits,
                             false,
                             !self.flags.contains(Flags::SERVER),
                         )
@@ -201,6 +229,7 @@ impl Encoder<Message> for Codec {
                             dst,
                             &data[..],
                             OpCode::Continue,
+                            self.outbound_rsv_bits,
                             true,
                             !self.flags.contains(Flags::SERVER),
                         )
@@ -221,7 +250,8 @@ impl Decoder for Codec {
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         match Parser::parse(src, self.flags.contains(Flags::SERVER), self.max_size) {
-            Ok(Some((finished, opcode, payload))) => {
+            Ok(Some((finished, opcode, rsv_bits, payload))) => {
+                self.inbound_rsv_bits = Some(rsv_bits);
                 // continuation is not supported
                 if !finished {
                     return match opcode {

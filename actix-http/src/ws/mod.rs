@@ -20,7 +20,7 @@ pub use self::{
     codec::{Codec, Frame, Item, Message},
     dispatcher::Dispatcher,
     frame::Parser,
-    proto::{hash_key, CloseCode, CloseReason, OpCode},
+    proto::{hash_key, CloseCode, CloseReason, OpCode, RsvBits},
 };
 
 /// WebSocket protocol errors.

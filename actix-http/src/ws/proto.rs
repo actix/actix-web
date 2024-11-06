@@ -222,6 +222,25 @@ impl<T: Into<String>> From<(CloseCode, T)> for CloseReason {
     }
 }
 
+bitflags::bitflags! {
+    /// RSV bits defined in [RFC 6455 §5.2].
+    /// Reserved for extensions and should be set to zero if no extensions are applicable.
+    ///
+    /// [RFC 6455]: https://datatracker.ietf.org/doc/html/rfc6455#section-5.2
+    #[derive(Debug, Eq, PartialEq, Clone, Copy)]
+    pub struct RsvBits: u8 {
+        const RSV1 = 0b0000_0100;
+        const RSV2 = 0b0000_0010;
+        const RSV3 = 0b0000_0001;
+    }
+}
+
+impl Default for RsvBits {
+    fn default() -> Self {
+        Self::empty()
+    }
+}
+
 /// The WebSocket GUID as stated in the spec.
 /// See <https://datatracker.ietf.org/doc/html/rfc6455#section-1.3>.
 static WS_GUID: &[u8] = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
