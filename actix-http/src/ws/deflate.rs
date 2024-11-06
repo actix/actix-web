@@ -584,19 +584,19 @@ mod tests {
     fn test_session_parameters() {
         let extension = "abc, def, permessage-deflate";
         assert_eq!(
-            DeflateSessionParameters::from_extension_header(&extension),
+            DeflateSessionParameters::from_extension_header(extension),
             vec![Ok(DeflateSessionParameters::default())]
         );
 
         let extension = "permessage-deflate; unknown_parameter";
         assert_eq!(
-            DeflateSessionParameters::from_extension_header(&extension),
+            DeflateSessionParameters::from_extension_header(extension),
             vec![Err(DeflateHandshakeError::UnknownWebSocketParameters)]
         );
 
         let extension = "permessage-deflate; client_max_window_bits=9; client_max_window_bits=10";
         assert_eq!(
-            DeflateSessionParameters::from_extension_header(&extension),
+            DeflateSessionParameters::from_extension_header(extension),
             vec![Err(DeflateHandshakeError::DuplicateParameter(
                 "client_max_window_bits"
             ))]
@@ -604,13 +604,13 @@ mod tests {
 
         let extension = "permessage-deflate; server_max_window_bits=8";
         assert_eq!(
-            DeflateSessionParameters::from_extension_header(&extension),
+            DeflateSessionParameters::from_extension_header(extension),
             vec![Err(DeflateHandshakeError::MaxWindowBitsOutOfRange)]
         );
 
         let extension = "permessage-deflate; server_max_window_bits=16";
         assert_eq!(
-            DeflateSessionParameters::from_extension_header(&extension),
+            DeflateSessionParameters::from_extension_header(extension),
             vec![Err(DeflateHandshakeError::MaxWindowBitsOutOfRange)]
         );
 
@@ -618,7 +618,7 @@ mod tests {
             client_no_context_takeover; server_no_context_takeover, \
             permessage-deflate; client_max_window_bits=10";
         assert_eq!(
-            DeflateSessionParameters::from_extension_header(&extension),
+            DeflateSessionParameters::from_extension_header(extension),
             vec![
                 Ok(DeflateSessionParameters {
                     server_no_context_takeover: true,
