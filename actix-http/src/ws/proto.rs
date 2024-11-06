@@ -226,7 +226,7 @@ bitflags::bitflags! {
     /// RSV bits defined in [RFC 6455 §5.2].
     /// Reserved for extensions and should be set to zero if no extensions are applicable.
     ///
-    /// [RFC 6455]: https://datatracker.ietf.org/doc/html/rfc6455#section-5.2
+    /// [RFC 6455 §5.2]: https://datatracker.ietf.org/doc/html/rfc6455#section-5.2
     #[derive(Debug, Eq, PartialEq, Clone, Copy)]
     pub struct RsvBits: u8 {
         const RSV1 = 0b0000_0100;

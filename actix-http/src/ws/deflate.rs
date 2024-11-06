@@ -1,6 +1,4 @@
 //! WebSocket permessage-deflate compression implementation.
-//!
-//!
 
 use std::convert::Infallible;
 
@@ -13,8 +11,8 @@ use crate::header::{HeaderName, HeaderValue, TryIntoHeaderPair, SEC_WEBSOCKET_EX
 // NOTE: according to [RFC 7692 §7.1.2.1] window bit size should be within 8..=15
 //       but we have to limit the range to 9..=15 because [flate2] only supports window bit within 9..=15.
 //
-// [RFC 6792]: https://datatracker.ietf.org/doc/html/rfc7692#section-7.1.2.1
-// [flate2]:   https://docs.rs/flate2/latest/flate2/struct.Compress.html#method.new_with_window_bits
+// [RFC 6792 §7.1.2.1]: https://datatracker.ietf.org/doc/html/rfc7692#section-7.1.2.1
+// [flate2]: https://docs.rs/flate2/latest/flate2/struct.Compress.html#method.new_with_window_bits
 const MAX_WINDOW_BITS_RANGE: std::ops::RangeInclusive<u8> = 9..=15;
 const DEFAULT_WINDOW_BITS: u8 = 15;
 
@@ -64,7 +62,7 @@ impl std::fmt::Display for DeflateHandshakeError {
 impl std::error::Error for DeflateHandshakeError {}
 
 /// Maximum size of client's DEFLATE sliding window.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ClientMaxWindowBits {
     /// Unspecified. Indicates server should decide its size.
     NotSpecified,
@@ -76,7 +74,7 @@ pub enum ClientMaxWindowBits {
 /// At client side, it can be used to pass desired configuration to server.
 /// At server side, negotiated parameter will be sent to client with this.
 /// This can be represented in HTTP header form as it implements [`TryIntoHeaderPair`] trait.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct DeflateSessionParameters {
     /// Disallow server from take over context.
     pub server_no_context_takeover: bool,
@@ -133,7 +131,9 @@ impl DeflateSessionParameters {
         let mut unknown_parameters = vec![];
 
         for fragment in extension_frags {
-            if fragment == "client_max_window_bits" {
+            if fragment.is_empty() {
+                continue;
+            } else if fragment == "client_max_window_bits" {
                 if client_max_window_bits.is_some() {
                     return Err(DeflateHandshakeError::DuplicateParameter(
                         "client_max_window_bits",
@@ -197,6 +197,9 @@ impl DeflateSessionParameters {
         }
     }
 
+    /// Parse desired parameters from `Sec-WebSocket-Extensions` header.
+    /// The result may contain multiple values as it's possible to pass multiple parameters
+    /// separated with comma.
     pub fn from_extension_header(header_value: &str) -> Vec<Result<Self, DeflateHandshakeError>> {
         let mut results = vec![];
         for extension in header_value.split(',').map(str::trim) {
@@ -209,11 +212,12 @@ impl DeflateSessionParameters {
         results
     }
 
+    /// Create compression and decompression context based on the parameter.
     pub fn create_context(
         &self,
         compression_level: Option<DeflateCompressionLevel>,
         is_client_mode: bool,
-    ) -> DeflateContext {
+    ) -> (DeflateCompressionContext, DeflateDecompressionContext) {
         let client_max_window_bits =
             if let Some(ClientMaxWindowBits::Specified(value)) = self.client_max_window_bits {
                 value
@@ -234,33 +238,76 @@ impl DeflateSessionParameters {
             (self.server_no_context_takeover, server_max_window_bits)
         };
 
-        DeflateContext {
-            compress: DeflateCompressionContext::new(
+        (
+            DeflateCompressionContext::new(
                 compression_level,
                 remote_no_context_takeover,
                 remote_max_window_bits,
             ),
-            decompress: DeflateDecompressionContext::new(
-                local_no_context_takeover,
-                local_max_window_bits,
-            ),
-        }
+            DeflateDecompressionContext::new(local_no_context_takeover, local_max_window_bits),
+        )
     }
 }
 
 /// Server-side DEFLATE configuration.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct DeflateServerConfig {
-    /// DEFLATE compression level. See [`flate2::`]
+    /// DEFLATE compression level. See [`flate2::Compression`] for details.
     pub compression_level: Option<DeflateCompressionLevel>,
-
+    /// Disallow server from take over context. Default is false.
     pub server_no_context_takeover: bool,
+    /// Disallow client from take over context. Default is false.
     pub client_no_context_takeover: bool,
+    /// Maximum size of server's DEFLATE sliding window in bits, between 9 and 15. Default is 15.
     pub server_max_window_bits: Option<u8>,
+    /// Maximum size of client's DEFLATE sliding window in bits, between 9 and 15. Default is 15.
     pub client_max_window_bits: Option<u8>,
 }
 
 impl DeflateServerConfig {
+    /// Negotiate context parameters.
+    /// Since parameters from the client may be incompatible with the server configuration,
+    /// actual parameters could be adjusted here. Conversion rules are as follows:
+    ///
+    /// ## server_no_context_takeover
+    ///
+    /// | Config | Request | Response  |
+    /// | ------ | ------- | --------- |
+    /// | false  | false   | false     |
+    /// | false  | true    | true      |
+    /// | true   | false   | true      |
+    /// | true   | true    | true      |
+    ///
+    /// ## client_no_context_takeover
+    ///
+    /// | Config | Request | Response  |
+    /// | ------ | ------- | --------- |
+    /// | false  | false   | false     |
+    /// | false  | true    | true      |
+    /// | true   | false   | true      |
+    /// | true   | true    | true      |
+    ///
+    /// ## server_max_window_bits
+    ///
+    /// | Config       | Request      | Response |
+    /// | ------------ | ------------ | -------- |
+    /// | None         | None         | None     |
+    /// | None         | 9 <= R <= 15 | R        |
+    /// | 9 <= C <= 15 | None         | C        |
+    /// | 9 <= C <= 15 | 9 <= R <= C  | R        |
+    /// | 9 <= C <= 15 | C <= R <= 15 | C        |
+    ///
+    /// ## client_max_window_bits
+    ///
+    /// | Config       | Request      | Response |
+    /// | ------------ | ------------ | -------- |
+    /// | None         | None         | None     |
+    /// | None         | Unspecified  | None     |
+    /// | None         | 9 <= R <= 15 | R        |
+    /// | 9 <= C <= 15 | None         | None     |
+    /// | 9 <= C <= 15 | Unspecified  | C        |
+    /// | 9 <= C <= 15 | 9 <= R <= C  | R        |
+    /// | 9 <= C <= 15 | C <= R <= 15 | C        |
     pub fn negotiate(&self, params: DeflateSessionParameters) -> DeflateSessionParameters {
         let server_no_context_takeover =
             if self.server_no_context_takeover && !params.server_no_context_takeover {
@@ -313,6 +360,7 @@ impl DeflateServerConfig {
     }
 }
 
+/// DEFLATE decompression context.
 #[derive(Debug)]
 pub struct DeflateDecompressionContext {
     pub(super) local_no_context_takeover: bool,
@@ -347,7 +395,7 @@ impl DeflateDecompressionContext {
         *self = Self::new(local_no_context_takeover, local_max_window_bits);
     }
 
-    pub fn decompress(
+    pub(super) fn decompress(
         &mut self,
         fin: bool,
         opcode: OpCode,
@@ -418,13 +466,14 @@ impl DeflateDecompressionContext {
         Ok(output.into())
     }
 
-    pub(super) fn reset(&mut self) {
+    fn reset(&mut self) {
         self.decompress.reset(false);
         self.total_bytes_read = 0;
         self.total_bytes_written = 0;
     }
 }
 
+/// DEFLATE compression context.
 #[derive(Debug)]
 pub struct DeflateCompressionContext {
     pub(super) compression_level: flate2::Compression,
@@ -474,7 +523,7 @@ impl DeflateCompressionContext {
         self
     }
 
-    pub fn compress(&mut self, fin: bool, payload: Bytes) -> Result<Bytes, ProtocolError> {
+    pub(super) fn compress(&mut self, fin: bool, payload: Bytes) -> Result<Bytes, ProtocolError> {
         let mut output = vec![];
         let mut buf = [0u8; BUF_SIZE];
 
@@ -526,8 +575,271 @@ impl DeflateCompressionContext {
     }
 }
 
-#[derive(Debug)]
-pub struct DeflateContext {
-    pub compress: DeflateCompressionContext,
-    pub decompress: DeflateDecompressionContext,
+#[cfg(test)]
+mod tests {
+    use crate::body::MessageBody;
+
+    use super::*;
+
+    #[test]
+    fn test_session_parameters() {
+        let extension = "abc, def, permessage-deflate";
+        assert_eq!(
+            DeflateSessionParameters::from_extension_header(&extension),
+            vec![Ok(DeflateSessionParameters::default())]
+        );
+
+        let extension = "permessage-deflate; unknown_parameter";
+        assert_eq!(
+            DeflateSessionParameters::from_extension_header(&extension),
+            vec![Err(DeflateHandshakeError::UnknownWebSocketParameters)]
+        );
+
+        let extension = "permessage-deflate; client_max_window_bits=9; client_max_window_bits=10";
+        assert_eq!(
+            DeflateSessionParameters::from_extension_header(&extension),
+            vec![Err(DeflateHandshakeError::DuplicateParameter(
+                "client_max_window_bits"
+            ))]
+        );
+
+        let extension = "permessage-deflate; server_max_window_bits=8";
+        assert_eq!(
+            DeflateSessionParameters::from_extension_header(&extension),
+            vec![Err(DeflateHandshakeError::MaxWindowBitsOutOfRange)]
+        );
+
+        let extension = "permessage-deflate; server_max_window_bits=16";
+        assert_eq!(
+            DeflateSessionParameters::from_extension_header(&extension),
+            vec![Err(DeflateHandshakeError::MaxWindowBitsOutOfRange)]
+        );
+
+        let extension = "permessage-deflate; client_max_window_bits; server_max_window_bits=15; \
+            client_no_context_takeover; server_no_context_takeover, \
+            permessage-deflate; client_max_window_bits=10";
+        assert_eq!(
+            DeflateSessionParameters::from_extension_header(&extension),
+            vec![
+                Ok(DeflateSessionParameters {
+                    server_no_context_takeover: true,
+                    client_no_context_takeover: true,
+                    server_max_window_bits: Some(15),
+                    client_max_window_bits: Some(ClientMaxWindowBits::NotSpecified)
+                }),
+                Ok(DeflateSessionParameters {
+                    server_no_context_takeover: false,
+                    client_no_context_takeover: false,
+                    server_max_window_bits: None,
+                    client_max_window_bits: Some(ClientMaxWindowBits::Specified(10))
+                })
+            ]
+        );
+    }
+
+    #[test]
+    fn test_compress() {
+        // With context takeover
+
+        let mut compress = DeflateCompressionContext::new(None, false, 15);
+        assert_eq!(
+            compress
+                .compress(true, "Hello World".try_into_bytes().unwrap())
+                .unwrap(),
+            Bytes::from_static(b"\xf2H\xcd\xc9\xc9W\x08\xcf/\xcaI\x01\0")
+        );
+        assert_eq!(
+            compress
+                .compress(true, "Hello World".try_into_bytes().unwrap())
+                .unwrap(),
+            Bytes::from_static(b"\xf2@0\x01\0")
+        );
+
+        // Without context takeover
+
+        let mut compress = DeflateCompressionContext::new(None, true, 15);
+        assert_eq!(
+            compress
+                .compress(true, "Hello World".try_into_bytes().unwrap())
+                .unwrap(),
+            Bytes::from_static(b"\xf2H\xcd\xc9\xc9W\x08\xcf/\xcaI\x01\0")
+        );
+        assert_eq!(
+            compress
+                .compress(true, "Hello World".try_into_bytes().unwrap())
+                .unwrap(),
+            Bytes::from_static(b"\xf2H\xcd\xc9\xc9W\x08\xcf/\xcaI\x01\0")
+        );
+
+        // With continuation
+        assert_eq!(
+            compress
+                .compress(false, "Hello World".try_into_bytes().unwrap())
+                .unwrap(),
+            Bytes::from_static(b"\xf2H\xcd\xc9\xc9W\x08\xcf/\xcaI\x01\0")
+        );
+        // Continuation keeps context.
+        assert_eq!(
+            compress
+                .compress(true, "Hello World".try_into_bytes().unwrap())
+                .unwrap(),
+            Bytes::from_static(b"\xf2@0\x01\0")
+        );
+        // after continuation, context resets
+        assert_eq!(
+            compress
+                .compress(true, "Hello World".try_into_bytes().unwrap())
+                .unwrap(),
+            Bytes::from_static(b"\xf2H\xcd\xc9\xc9W\x08\xcf/\xcaI\x01\0")
+        );
+    }
+
+    #[test]
+    fn test_decompress() {
+        // With context takeover
+
+        let mut decompress = DeflateDecompressionContext::new(false, 15);
+
+        // Without RSV1 bit, decompression does not happen.
+        assert_eq!(
+            decompress
+                .decompress(
+                    true,
+                    OpCode::Text,
+                    RsvBits::empty(),
+                    Bytes::from_static(b"Hello World")
+                )
+                .unwrap(),
+            Bytes::from_static(b"Hello World")
+        );
+
+        // Control frames (such as ping/pong) are not decompressed
+        assert_eq!(
+            decompress
+                .decompress(
+                    true,
+                    OpCode::Ping,
+                    RsvBits::RSV1,
+                    Bytes::from_static(b"Hello World")
+                )
+                .unwrap(),
+            Bytes::from_static(b"Hello World")
+        );
+
+        // Successful decompression
+        assert_eq!(
+            decompress
+                .decompress(
+                    true,
+                    OpCode::Text,
+                    RsvBits::RSV1,
+                    Bytes::from_static(b"\xf2H\xcd\xc9\xc9W\x08\xcf/\xcaI\x01\0")
+                )
+                .unwrap(),
+            Bytes::from_static(b"Hello World")
+        );
+
+        // Success subsequent decompression
+        assert_eq!(
+            decompress
+                .decompress(
+                    true,
+                    OpCode::Text,
+                    RsvBits::RSV1,
+                    Bytes::from_static(b"\xf2@0\x01\0")
+                )
+                .unwrap(),
+            Bytes::from_static(b"Hello World")
+        );
+
+        // Invalid compression payload
+        assert!(decompress
+            .decompress(
+                true,
+                OpCode::Text,
+                RsvBits::RSV1,
+                Bytes::from_static(b"Hello World")
+            )
+            .is_err());
+
+        // When there was error, context is reset.
+        assert_eq!(
+            decompress
+                .decompress(
+                    true,
+                    OpCode::Text,
+                    RsvBits::RSV1,
+                    Bytes::from_static(b"\xf2H\xcd\xc9\xc9W\x08\xcf/\xcaI\x01\0")
+                )
+                .unwrap(),
+            Bytes::from_static(b"Hello World")
+        );
+
+        // Without context takeover
+
+        let mut decompress = DeflateDecompressionContext::new(true, 15);
+
+        // Successful decompression
+        assert_eq!(
+            decompress
+                .decompress(
+                    true,
+                    OpCode::Text,
+                    RsvBits::RSV1,
+                    Bytes::from_static(b"\xf2H\xcd\xc9\xc9W\x08\xcf/\xcaI\x01\0")
+                )
+                .unwrap(),
+            Bytes::from_static(b"Hello World")
+        );
+
+        // Context has been reset.
+        assert_eq!(
+            decompress
+                .decompress(
+                    true,
+                    OpCode::Text,
+                    RsvBits::RSV1,
+                    Bytes::from_static(b"\xf2H\xcd\xc9\xc9W\x08\xcf/\xcaI\x01\0")
+                )
+                .unwrap(),
+            Bytes::from_static(b"Hello World")
+        );
+
+        // With continuation
+        assert_eq!(
+            decompress
+                .decompress(
+                    false,
+                    OpCode::Text,
+                    RsvBits::RSV1,
+                    Bytes::from_static(b"\xf2H\xcd\xc9\xc9W\x08\xcf/\xcaI\x01\0")
+                )
+                .unwrap(),
+            Bytes::from_static(b"Hello World")
+        );
+        // Continuation keeps context.
+        assert_eq!(
+            decompress
+                .decompress(
+                    true,
+                    OpCode::Text,
+                    RsvBits::RSV1,
+                    Bytes::from_static(b"\xf2@0\x01\0")
+                )
+                .unwrap(),
+            Bytes::from_static(b"Hello World")
+        );
+        // When continuation has finished, context is reset.
+        assert_eq!(
+            decompress
+                .decompress(
+                    false,
+                    OpCode::Text,
+                    RsvBits::RSV1,
+                    Bytes::from_static(b"\xf2H\xcd\xc9\xc9W\x08\xcf/\xcaI\x01\0")
+                )
+                .unwrap(),
+            Bytes::from_static(b"Hello World")
+        );
+    }
 }

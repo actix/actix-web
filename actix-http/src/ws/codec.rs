@@ -6,7 +6,7 @@ use tracing::error;
 
 #[cfg(feature = "compress-ws-deflate")]
 use super::deflate::{
-    DeflateCompressionContext, DeflateContext, DeflateDecompressionContext, RSV_BIT_DEFLATE_FLAG,
+    DeflateCompressionContext, DeflateDecompressionContext, RSV_BIT_DEFLATE_FLAG,
 };
 use super::{
     frame::Parser,
@@ -100,6 +100,8 @@ impl Encoder {
     }
 
     /// Create new WebSocket frames encoder with `permessage-deflate` extension support.
+    /// Compression context can be made from
+    /// [`DeflateSessionParameters::create_context`](super::DeflateSessionParameters::create_context).
     #[cfg(feature = "compress-ws-deflate")]
     pub fn new_deflate(compress: DeflateCompressionContext) -> Encoder {
         Encoder {
@@ -109,7 +111,11 @@ impl Encoder {
         }
     }
 
-    fn set_client_mode(mut self) -> Self {
+    /// Set encoder to client mode.
+    ///
+    /// By default encoder works in server mode.
+    #[must_use = "This returns the a new Encoder, without modifying the original."]
+    pub fn client_mode(mut self) -> Self {
         self.flags = Flags::empty();
         self
     }
@@ -305,6 +311,8 @@ impl Decoder {
     }
 
     /// Create new WebSocket frames decoder with `permessage-deflate` extension support.
+    /// Decompression context can be made from
+    /// [`DeflateSessionParameters::create_context`](super::DeflateSessionParameters::create_context).
     #[cfg(feature = "compress-ws-deflate")]
     pub fn new_deflate(decompress: DeflateDecompressionContext) -> Decoder {
         Decoder {
@@ -315,7 +323,20 @@ impl Decoder {
         }
     }
 
-    fn set_client_mode(mut self) -> Self {
+    /// Set max frame size.
+    ///
+    /// By default max size is set to 64KiB.
+    #[must_use = "This returns the a new Decoder, without modifying the original."]
+    pub fn max_size(mut self, size: usize) -> Self {
+        self.max_size = size;
+        self
+    }
+
+    /// Set decoder to client mode.
+    ///
+    /// By default decoder works in server mode.
+    #[must_use = "This returns the a new Decoder, without modifying the original."]
+    pub fn client_mode(mut self) -> Self {
         self.flags = Flags::empty();
         self
     }
@@ -330,11 +351,6 @@ impl Decoder {
             decompress.reset_with(local_no_context_takeover, local_max_window_bits);
         }
 
-        self
-    }
-
-    fn set_max_size(mut self, size: usize) -> Self {
-        self.max_size = size;
         self
     }
 
@@ -461,10 +477,12 @@ impl codec::Decoder for Decoder {
 }
 
 /// WebSocket protocol codec.
+/// This is essentially a combination of [`Encoder`] and [`Decoder`] and
+/// actual conversion behaviors are defined in both structs respectively.
 ///
 /// # Note
 /// Cloning [`Codec`] creates a new codec with existing configurations
-/// and will not preserve the current context.
+/// and will not preserve the context information.
 #[derive(Debug, Default)]
 pub struct Codec {
     encoder: Encoder,
@@ -510,13 +528,13 @@ impl Codec {
     }
 
     /// Create new WebSocket frames codec with DEFLATE compression.
+    /// Both compression and decompression contexts can be made from
+    /// [`DeflateSessionParameters::create_context`](super::DeflateSessionParameters::create_context).
     #[cfg(feature = "compress-ws-deflate")]
-    pub fn new_deflate(context: DeflateContext) -> Codec {
-        let DeflateContext {
-            compress,
-            decompress,
-        } = context;
-
+    pub fn new_deflate(
+        compress: DeflateCompressionContext,
+        decompress: DeflateDecompressionContext,
+    ) -> Codec {
         Codec {
             encoder: Encoder::new_deflate(compress),
             decoder: Decoder::new_deflate(decompress),
@@ -532,13 +550,13 @@ impl Codec {
 
         Codec {
             encoder,
-            decoder: decoder.set_max_size(size),
+            decoder: decoder.max_size(size),
         }
     }
 
-    /// Set decoder to client mode.
+    /// Set codec to client mode.
     ///
-    /// By default decoder works in server mode.
+    /// By default codec works in server mode.
     #[must_use = "This returns the a new Codec, without modifying the original."]
     pub fn client_mode(self) -> Self {
         let Self {
@@ -546,8 +564,8 @@ impl Codec {
             mut decoder,
         } = self;
 
-        encoder = encoder.set_client_mode();
-        decoder = decoder.set_client_mode();
+        encoder = encoder.client_mode();
+        decoder = decoder.client_mode();
         #[cfg(feature = "compress-ws-deflate")]
         {
             if let Some(decoder) = &decoder.deflate_decompress {

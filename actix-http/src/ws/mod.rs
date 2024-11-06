@@ -21,7 +21,7 @@ mod proto;
 #[cfg(feature = "compress-ws-deflate")]
 pub use self::deflate::{DeflateCompressionLevel, DeflateServerConfig, DeflateSessionParameters};
 pub use self::{
-    codec::{Codec, Frame, Item, Message},
+    codec::{Codec, Decoder, Encoder, Frame, Item, Message},
     dispatcher::Dispatcher,
     frame::Parser,
     proto::{hash_key, CloseCode, CloseReason, OpCode, RsvBits},
@@ -169,10 +169,19 @@ pub fn handshake(req: &RequestHead) -> Result<ResponseBuilder, HandshakeError> {
 
 /// Verify WebSocket handshake request with DEFLATE compression configurations.
 #[cfg(feature = "compress-ws-deflate")]
-pub fn handshake_with_deflate(
-    req: &RequestHead,
+pub fn handshake_deflate(
     config: &deflate::DeflateServerConfig,
-) -> Result<(ResponseBuilder, Option<deflate::DeflateContext>), HandshakeError> {
+    req: &RequestHead,
+) -> Result<
+    (
+        ResponseBuilder,
+        Option<(
+            deflate::DeflateCompressionContext,
+            deflate::DeflateDecompressionContext,
+        )>,
+    ),
+    HandshakeError,
+> {
     verify_handshake(req)?;
 
     let mut available_configurations = vec![];
@@ -212,9 +221,9 @@ pub fn handshake_with_deflate(
 
         if let Some(selected_config) = selected_config {
             let param = config.negotiate(selected_config);
-            let context = param.create_context(config.compression_level, false);
+            let contexts = param.create_context(config.compression_level, false);
             response.insert_header(param);
-            Ok((response, Some(context)))
+            Ok((response, Some(contexts)))
         } else {
             Ok((response, None))
         }
