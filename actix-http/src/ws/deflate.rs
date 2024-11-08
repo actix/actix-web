@@ -9,7 +9,7 @@ use super::{OpCode, ProtocolError, RsvBits};
 use crate::header::{HeaderName, HeaderValue, TryIntoHeaderPair, SEC_WEBSOCKET_EXTENSIONS};
 
 // NOTE: according to [RFC 7692 §7.1.2.1] window bit size should be within 8..=15
-//       but we have to limit the range to 9..=15 because [flate2] only supports window bit within 9..=15.
+// but we have to limit the range to 9..=15 because [flate2] only supports window bit within 9..=15.
 //
 // [RFC 6792 §7.1.2.1]: https://datatracker.ietf.org/doc/html/rfc7692#section-7.1.2.1
 // [flate2]: https://docs.rs/flate2/latest/flate2/struct.Compress.html#method.new_with_window_bits
@@ -64,13 +64,15 @@ impl std::error::Error for DeflateHandshakeError {}
 /// Maximum size of client's DEFLATE sliding window.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ClientMaxWindowBits {
-    /// Unspecified. Indicates server should decide its size.
+    /// Unspecified. Indicates client will follow server configuration.
     NotSpecified,
     /// Specified size of client's DEFLATE sliding window size in bits, between 9 and 15.
     Specified(u8),
 }
 
-/// DEFLATE negotiation parameter. It can be used both client and server side.
+/// Per-session DEFLATE configuration parameter.
+///
+/// It can be used both client and server side.
 /// At client side, it can be used to pass desired configuration to server.
 /// At server side, negotiated parameter will be sent to client with this.
 /// This can be represented in HTTP header form as it implements [`TryIntoHeaderPair`] trait.
