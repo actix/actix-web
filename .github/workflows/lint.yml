@@ -77,7 +77,7 @@ jobs:
           toolchain: ${{ vars.RUST_VERSION_EXTERNAL_TYPES }}
 
       - name: Install just
-        uses: taiki-e/install-action@v2.44.60
+        uses: taiki-e/install-action@v2.44.69
         with:
           tool: just
 
@@ -106,7 +106,7 @@ jobs:
           toolchain: ${{ vars.RUST_VERSION_API_DIFF }}
 
       - name: Install cargo-public-api
-        uses: taiki-e/install-action@v2.44.60
+        uses: taiki-e/install-action@v2.44.69
         with:
           tool: cargo-public-api
 
