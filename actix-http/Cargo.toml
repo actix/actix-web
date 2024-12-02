@@ -113,7 +113,7 @@ bytestring = "1"
 derive_more = { version = "1", features = ["as_ref", "deref", "deref_mut", "display", "error", "from"] }
 encoding_rs = "0.8"
 futures-core = { version = "0.3.17", default-features = false, features = ["alloc"] }
-http = "0.2.7"
+http = { workspace = true }
 httparse = "1.5.1"
 httpdate = "1.0.1"
 itoa = "1"
@@ -127,7 +127,7 @@ tokio-util = { version = "0.7", features = ["io", "codec"] }
 tracing = { version = "0.1.30", default-features = false, features = ["log"] }
 
 # http2
-h2 = { version = "0.3.26", optional = true }
+h2 = { workspace = true, optional = true }
 
 # websockets
 local-channel = { version = "0.1", optional = true }

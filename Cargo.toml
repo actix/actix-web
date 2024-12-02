@@ -59,3 +59,7 @@ nonstandard_style = { level = "deny" }
 
 [workspace.lints.clippy]
 # clone_on_ref_ptr = { level = "deny" }
+
+[workspace.dependencies]
+http = "1.1.0"
+h2 = "0.4.7"
