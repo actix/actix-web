@@ -5,6 +5,7 @@
 ## 0.5.3
 
 - Add `unicode` crate feature (on-by-default) to switch between `regex` and `regex-lite` as a trade-off between full unicode support and binary size.
+- Add support for extracting multi-component path params into a sequence (Vec, tuple, ...)
 - Minimum supported Rust version (MSRV) is now 1.72.
 
 ## 0.5.2
