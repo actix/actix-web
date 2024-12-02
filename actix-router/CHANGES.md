@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Update `h2` to `0.4.7`
+- Update `http` to `1.1.0`
+
 ## 0.5.3
 
 - Add `unicode` crate feature (on-by-default) to switch between `regex` and `regex-lite` as a trade-off between full unicode support and binary size.

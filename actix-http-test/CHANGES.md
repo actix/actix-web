@@ -3,6 +3,8 @@
 ## Unreleased
 
 - Minimum supported Rust version (MSRV) is now 1.72.
+- Update `h2` to `0.4.7`
+- Update `http` to `1.1.0`
 
 ## 3.2.0
 

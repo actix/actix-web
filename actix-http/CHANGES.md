@@ -5,6 +5,8 @@
 ### Added
 
 - Add `header::CLEAR_SITE_DATA` constant.
+- Update `h2` to `0.4.7`
+- Update `http` to `1.1.0`
 
 ### Changed
 

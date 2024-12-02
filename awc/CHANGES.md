@@ -5,6 +5,8 @@
 - Update `brotli` dependency to `7`.
 - Prevent panics on connection pool drop when Tokio runtime is shutdown early.
 - Minimum supported Rust version (MSRV) is now 1.75.
+- Update `h2` to `0.4.7`
+- Update `http` to `1.1.0`
 
 ## 3.5.1
 
