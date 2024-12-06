@@ -14,8 +14,8 @@ use futures_core::{future::LocalBoxFuture, ready};
 use crate::{
     any_body::AnyBody,
     client::{
-        Connect as ClientConnect, ConnectError, Connection, ConnectionIo, SendRequestError,
-        ServerName,
+        Connect as ClientConnect, ConnectConfig, ConnectError, Connection, ConnectionIo,
+        SendRequestError, ServerName,
     },
     ClientResponse,
 };
@@ -41,12 +41,18 @@ pub enum ConnectRequest {
         AnyBody,
         Option<net::SocketAddr>,
         Option<ServerName>,
+        Option<Rc<ConnectConfig>>,
     ),
 
     /// Tunnel used by WebSocket connection requests.
     ///
     /// Contains the request head, optional pre-resolved socket address and optional sni host.
-    Tunnel(RequestHead, Option<net::SocketAddr>, Option<ServerName>),
+    Tunnel(
+        RequestHead,
+        Option<net::SocketAddr>,
+        Option<ServerName>,
+        Option<Rc<ConnectConfig>>,
+    ),
 }
 
 /// Combined HTTP response & WebSocket tunnel type returned from connection service.
@@ -111,11 +117,13 @@ where
 
     fn call(&self, req: ConnectRequest) -> Self::Future {
         // connect to the host
-        let (head, addr, sni_host) = match req {
-            ConnectRequest::Client(ref head, .., addr, ref sni_host) => {
-                (head.as_ref(), addr, sni_host.clone())
+        let (head, addr, sni_host, config) = match req {
+            ConnectRequest::Client(ref head, .., addr, ref sni_host, ref config) => {
+                (head.as_ref(), addr, sni_host.clone(), config.clone())
             }
-            ConnectRequest::Tunnel(ref head, addr, ref sni_host) => (head, addr, sni_host.clone()),
+            ConnectRequest::Tunnel(ref head, addr, ref sni_host, ref config) => {
+                (head, addr, sni_host.clone(), config.clone())
+            }
         };
 
         let authority = if let Some(authority) = head.uri.authority() {
@@ -144,6 +152,7 @@ where
                 tls,
                 sni_host,
                 addr,
+                config,
             });
 
         ConnectRequestFuture::Connection {

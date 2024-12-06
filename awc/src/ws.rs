@@ -26,7 +26,7 @@
 //! }
 //! ```
 
-use std::{fmt, net::SocketAddr, str};
+use std::{fmt, net::SocketAddr, rc::Rc, str};
 
 use actix_codec::Framed;
 pub use actix_http::ws::{CloseCode, CloseReason, Codec, Frame, Message};
@@ -38,7 +38,7 @@ use base64::prelude::*;
 #[cfg(feature = "cookies")]
 use crate::cookie::{Cookie, CookieJar};
 use crate::{
-    client::{ClientConfig, ServerName},
+    client::{ClientConfig, ConnectConfig, ServerName},
     connect::{BoxedSocket, ConnectRequest},
     error::{HttpError, InvalidUrl, SendRequestError, WsClientError},
     http::{
@@ -59,6 +59,7 @@ pub struct WebsocketsRequest {
     server_mode: bool,
     config: ClientConfig,
     sni_host: Option<ServerName>,
+    connect_config: Option<ConnectConfig>,
 
     #[cfg(feature = "cookies")]
     cookies: Option<CookieJar>,
@@ -98,6 +99,7 @@ impl WebsocketsRequest {
             #[cfg(feature = "cookies")]
             cookies: None,
             sni_host: None,
+            connect_config: None,
         }
     }
 
@@ -107,6 +109,15 @@ impl WebsocketsRequest {
     /// provided url's host name get resolved.
     pub fn address(mut self, addr: SocketAddr) -> Self {
         self.addr = Some(addr);
+        self
+    }
+
+    /// Set specific connector configuration for this request.
+    ///
+    /// Not all config may be applied to the request, it depends on the connector and also
+    /// if there is already a connection established.
+    pub fn connector_config(mut self, config: ConnectConfig) -> Self {
+        self.connect_config = Some(config);
         self
     }
 
@@ -346,7 +357,12 @@ impl WebsocketsRequest {
         let max_size = self.max_size;
         let server_mode = self.server_mode;
 
-        let req = ConnectRequest::Tunnel(head, self.addr, self.sni_host);
+        let req = ConnectRequest::Tunnel(
+            head,
+            self.addr,
+            self.sni_host,
+            self.connect_config.map(Rc::new),
+        );
 
         let fut = self.config.connector.call(req);
 

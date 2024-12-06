@@ -20,6 +20,7 @@ mod h2proto;
 mod pool;
 
 pub use self::{
+    config::ConnectConfig,
     connection::{Connection, ConnectionIo},
     connector::{Connector, ConnectorService, HostnameWithSni},
     error::{ConnectError, FreezeRequestError, InvalidUrl, SendRequestError},
@@ -49,6 +50,7 @@ pub struct Connect {
     pub port: u16,
     pub tls: bool,
     pub addr: Option<std::net::SocketAddr>,
+    pub config: Option<Rc<ConnectConfig>>,
 }
 
 /// An asynchronous HTTP and WebSocket client.

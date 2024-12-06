@@ -282,7 +282,7 @@ where
     ///
     /// By default, the timeout is 5 seconds.
     pub fn timeout(mut self, timeout: Duration) -> Self {
-        self.config.timeout = timeout;
+        self.config.default_connect_config.timeout = timeout;
         self
     }
 
@@ -293,7 +293,7 @@ where
     ///
     /// By default, the timeout is 5 seconds.
     pub fn handshake_timeout(mut self, timeout: Duration) -> Self {
-        self.config.handshake_timeout = timeout;
+        self.config.default_connect_config.handshake_timeout = timeout;
         self
     }
 
@@ -387,7 +387,7 @@ where
     ///
     /// The default value is 65,535 and is good for APIs, but not for big objects.
     pub fn initial_window_size(mut self, size: u32) -> Self {
-        self.config.stream_window_size = size;
+        self.config.default_connect_config.stream_window_size = size;
         self
     }
 
@@ -396,7 +396,7 @@ where
     ///
     /// The default value is 65,535 and is good for APIs, but not for big objects.
     pub fn initial_connection_window_size(mut self, size: u32) -> Self {
-        self.config.conn_window_size = size;
+        self.config.default_connect_config.conn_window_size = size;
         self
     }
 
@@ -422,7 +422,7 @@ where
     /// exceeds this period, the connection is closed.
     /// Default keep-alive period is 15 seconds.
     pub fn conn_keep_alive(mut self, dur: Duration) -> Self {
-        self.config.conn_keep_alive = dur;
+        self.config.default_connect_config.conn_keep_alive = dur;
         self
     }
 
@@ -432,7 +432,7 @@ where
     /// until it is closed regardless of keep-alive period.
     /// Default lifetime period is 75 seconds.
     pub fn conn_lifetime(mut self, dur: Duration) -> Self {
-        self.config.conn_lifetime = dur;
+        self.config.default_connect_config.conn_lifetime = dur;
         self
     }
 
@@ -451,7 +451,7 @@ where
 
     /// Set local IP Address the connector would use for establishing connection.
     pub fn local_address(mut self, addr: IpAddr) -> Self {
-        self.config.local_address = Some(addr);
+        self.config.default_connect_config.local_address = Some(addr);
         self
     }
 
@@ -459,8 +459,8 @@ where
     ///
     /// The `Connector` builder always concludes by calling `finish()` last in its combinator chain.
     pub fn finish(self) -> ConnectorService<S, IO> {
-        let local_address = self.config.local_address;
-        let timeout = self.config.timeout;
+        let local_address = self.config.default_connect_config.local_address;
+        let timeout = self.config.default_connect_config.timeout;
 
         let tcp_service_inner =
             TcpConnectorInnerService::new(self.connector, timeout, local_address);
@@ -523,7 +523,7 @@ where
                         }
                     }
 
-                    let handshake_timeout = self.config.handshake_timeout;
+                    let handshake_timeout = self.config.default_connect_config.handshake_timeout;
 
                     let tls_service = TlsConnectorService {
                         tcp_service: tcp_service_inner,
@@ -557,7 +557,7 @@ where
                     }
                 }
 
-                let handshake_timeout = self.config.handshake_timeout;
+                let handshake_timeout = self.config.default_connect_config.handshake_timeout;
 
                 let tls_service = TlsConnectorService {
                     tcp_service: tcp_service_inner,
@@ -596,7 +596,7 @@ where
                     }
                 }
 
-                let handshake_timeout = self.config.handshake_timeout;
+                let handshake_timeout = self.config.default_connect_config.handshake_timeout;
 
                 let tls_service = TlsConnectorService {
                     tcp_service: tcp_service_inner,
@@ -630,7 +630,7 @@ where
                     }
                 }
 
-                let handshake_timeout = self.config.handshake_timeout;
+                let handshake_timeout = self.config.default_connect_config.handshake_timeout;
 
                 let tls_service = TlsConnectorService {
                     tcp_service: tcp_service_inner,
@@ -667,7 +667,7 @@ where
                     }
                 }
 
-                let handshake_timeout = self.config.handshake_timeout;
+                let handshake_timeout = self.config.default_connect_config.handshake_timeout;
 
                 let tls_service = TlsConnectorService {
                     tcp_service: tcp_service_inner,
@@ -701,7 +701,7 @@ where
                     }
                 }
 
-                let handshake_timeout = self.config.handshake_timeout;
+                let handshake_timeout = self.config.default_connect_config.handshake_timeout;
 
                 let tls_service = TlsConnectorService {
                     tcp_service: tcp_service_inner,
@@ -824,9 +824,13 @@ where
     }
 
     fn call(&self, req: Connect) -> Self::Future {
+        let timeout = req
+            .config
+            .clone()
+            .map(|c| c.handshake_timeout)
+            .unwrap_or(self.timeout);
         let fut = self.tcp_service.call(req);
         let tls_service = self.tls_service.clone();
-        let timeout = self.timeout;
 
         TlsConnectorFuture::TcpConnect {
             fut,
@@ -935,6 +939,7 @@ where
     actix_service::forward_ready!(service);
 
     fn call(&self, req: Connect) -> Self::Future {
+        let timeout = req.config.map(|c| c.timeout).unwrap_or(self.timeout);
         let mut req = ConnectInfo::new(HostnameWithSni::ForTcp(
             req.hostname,
             req.port,
@@ -949,7 +954,7 @@ where
 
         TcpConnectorInnerFuture {
             fut: self.service.call(req),
-            timeout: sleep(self.timeout),
+            timeout: sleep(timeout),
         }
     }
 }

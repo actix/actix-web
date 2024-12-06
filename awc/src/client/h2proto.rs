@@ -19,7 +19,6 @@ use http::{
 use log::trace;
 
 use super::{
-    config::ConnectorConfig,
     connection::{ConnectionIo, H2Connection},
     error::SendRequestError,
 };
@@ -186,12 +185,13 @@ where
 
 pub(crate) fn handshake<Io: ConnectionIo>(
     io: Io,
-    config: &ConnectorConfig,
+    stream_window_size: u32,
+    conn_window_size: u32,
 ) -> impl Future<Output = Result<(SendRequest<Bytes>, Connection<Io, Bytes>), h2::Error>> {
     let mut builder = Builder::new();
     builder
-        .initial_window_size(config.stream_window_size)
-        .initial_connection_window_size(config.conn_window_size)
+        .initial_window_size(stream_window_size)
+        .initial_connection_window_size(conn_window_size)
         .enable_push(false);
     builder.handshake(io)
 }

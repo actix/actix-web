@@ -14,7 +14,7 @@ use serde::Serialize;
 #[cfg(feature = "cookies")]
 use crate::cookie::{Cookie, CookieJar};
 use crate::{
-    client::{ClientConfig, ServerName},
+    client::{ClientConfig, ConnectConfig, ServerName},
     error::{FreezeRequestError, InvalidUrl},
     frozen::FrozenClientRequest,
     sender::{PrepForSendingError, RequestSender, SendClientRequest},
@@ -49,6 +49,7 @@ pub struct ClientRequest {
     timeout: Option<Duration>,
     config: ClientConfig,
     sni_host: Option<ServerName>,
+    connect_config: Option<ConnectConfig>,
 
     #[cfg(feature = "cookies")]
     cookies: Option<CookieJar>,
@@ -71,6 +72,7 @@ impl ClientRequest {
             timeout: None,
             response_decompress: true,
             sni_host: None,
+            connect_config: None,
         }
         .method(method)
         .uri(uri)
@@ -281,6 +283,15 @@ impl ClientRequest {
         self
     }
 
+    /// Set specific connector configuration for this request.
+    ///
+    /// Not all config may be applied to the request, it depends on the connector and also
+    /// if there is already a connection established.
+    pub fn connect_config(mut self, config: ConnectConfig) -> Self {
+        self.connect_config = Some(config);
+        self
+    }
+
     /// Set request timeout. Overrides client wide timeout setting.
     ///
     /// Request timeout is the total time before a response must be received.
@@ -332,6 +343,7 @@ impl ClientRequest {
                 ServerName::Borrowed(r) => ServerName::Borrowed(r),
                 ServerName::Owned(o) => ServerName::Borrowed(Rc::new(o)),
             }),
+            connect_config: slf.connect_config.map(Rc::new),
         };
 
         Ok(request)
@@ -353,6 +365,7 @@ impl ClientRequest {
             slf.timeout,
             &slf.config,
             slf.sni_host,
+            slf.connect_config.map(Rc::new),
             body,
         )
     }
@@ -370,6 +383,7 @@ impl ClientRequest {
             slf.timeout,
             &slf.config,
             slf.sni_host,
+            slf.connect_config.map(Rc::new),
             value,
         )
     }
@@ -389,6 +403,7 @@ impl ClientRequest {
             slf.timeout,
             &slf.config,
             slf.sni_host,
+            slf.connect_config.map(Rc::new),
             value,
         )
     }
@@ -410,6 +425,7 @@ impl ClientRequest {
             slf.timeout,
             &slf.config,
             slf.sni_host,
+            slf.connect_config.map(Rc::new),
             stream,
         )
     }
@@ -427,6 +443,7 @@ impl ClientRequest {
             slf.timeout,
             &slf.config,
             slf.sni_host,
+            slf.connect_config.map(Rc::new),
         )
     }
 
