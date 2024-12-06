@@ -238,6 +238,7 @@ where
             match conn {
                 Some(conn) => Ok(ConnectionType::from_pool(conn.conn, conn.created, acquired)),
                 None => {
+                    let config = req.config.unwrap_or(acquired.inner.config);
                     let (io, proto) = connector.call(req).await?;
 
                     // NOTE: remove when http3 is added in support.
@@ -246,7 +247,6 @@ where
                     if proto == Protocol::Http1 {
                         Ok(ConnectionType::from_h1(io, Instant::now(), acquired))
                     } else {
-                        let config = &acquired.inner.config;
                         let (sender, connection) = handshake(io, config).await?;
                         let inner = H2ConnectionInner::new(sender, connection);
                         Ok(ConnectionType::from_h2(inner, Instant::now(), acquired))

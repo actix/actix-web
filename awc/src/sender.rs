@@ -27,6 +27,7 @@ use crate::{
     error::{FreezeRequestError, InvalidUrl, SendRequestError},
     BoxError, ClientResponse, ConnectRequest, ConnectResponse,
 };
+use crate::client::ConnectorConfig;
 
 #[derive(Debug, From)]
 pub(crate) enum PrepForSendingError {
@@ -186,6 +187,7 @@ impl RequestSender {
         response_decompress: bool,
         timeout: Option<Duration>,
         config: &ClientConfig,
+        connector_config: Option<ConnectorConfig>,
         body: impl MessageBody + 'static,
     ) -> SendClientRequest {
         let req = match self {
@@ -193,11 +195,13 @@ impl RequestSender {
                 RequestHeadType::Owned(head),
                 AnyBody::from_message_body(body).into_boxed(),
                 addr,
+                connector_config,
             ),
             RequestSender::Rc(head, extra_headers) => ConnectRequest::Client(
                 RequestHeadType::Rc(head, extra_headers),
                 AnyBody::from_message_body(body).into_boxed(),
                 addr,
+                connector_config,
             ),
         };
 
@@ -212,6 +216,7 @@ impl RequestSender {
         response_decompress: bool,
         timeout: Option<Duration>,
         config: &ClientConfig,
+        connector_config: Option<ConnectorConfig>,
         value: impl Serialize,
     ) -> SendClientRequest {
         let body = match serde_json::to_string(&value) {
@@ -223,7 +228,7 @@ impl RequestSender {
             return err.into();
         }
 
-        self.send_body(addr, response_decompress, timeout, config, body)
+        self.send_body(addr, response_decompress, timeout, config, connector_config, body)
     }
 
     pub(crate) fn send_form(
@@ -232,6 +237,7 @@ impl RequestSender {
         response_decompress: bool,
         timeout: Option<Duration>,
         config: &ClientConfig,
+        connector_config: Option<ConnectorConfig>,
         value: impl Serialize,
     ) -> SendClientRequest {
         let body = match serde_urlencoded::to_string(value) {
@@ -246,7 +252,7 @@ impl RequestSender {
             return err.into();
         }
 
-        self.send_body(addr, response_decompress, timeout, config, body)
+        self.send_body(addr, response_decompress, timeout, config, connector_config, body)
     }
 
     pub(crate) fn send_stream<S, E>(
@@ -255,6 +261,7 @@ impl RequestSender {
         response_decompress: bool,
         timeout: Option<Duration>,
         config: &ClientConfig,
+        connector_config: Option<ConnectorConfig>,
         stream: S,
     ) -> SendClientRequest
     where
@@ -266,6 +273,7 @@ impl RequestSender {
             response_decompress,
             timeout,
             config,
+            connector_config,
             BodyStream::new(stream),
         )
     }
@@ -276,8 +284,9 @@ impl RequestSender {
         response_decompress: bool,
         timeout: Option<Duration>,
         config: &ClientConfig,
+        connector_config: Option<ConnectorConfig>
     ) -> SendClientRequest {
-        self.send_body(addr, response_decompress, timeout, config, ())
+        self.send_body(addr, response_decompress, timeout, config, connector_config,())
     }
 
     fn set_header_if_none<V>(&mut self, key: HeaderName, value: V) -> Result<(), HttpError>

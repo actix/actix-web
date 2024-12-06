@@ -14,7 +14,7 @@ use serde::Serialize;
 #[cfg(feature = "cookies")]
 use crate::cookie::{Cookie, CookieJar};
 use crate::{
-    client::ClientConfig,
+    client::{ConnectorConfig, ClientConfig},
     error::{FreezeRequestError, InvalidUrl},
     frozen::FrozenClientRequest,
     sender::{PrepForSendingError, RequestSender, SendClientRequest},
@@ -48,6 +48,7 @@ pub struct ClientRequest {
     response_decompress: bool,
     timeout: Option<Duration>,
     config: ClientConfig,
+    connector_config: Option<ConnectorConfig>,
 
     #[cfg(feature = "cookies")]
     cookies: Option<CookieJar>,
@@ -69,6 +70,7 @@ impl ClientRequest {
             cookies: None,
             timeout: None,
             response_decompress: true,
+            connector_config: None,
         }
         .method(method)
         .uri(uri)
@@ -279,6 +281,15 @@ impl ClientRequest {
         self
     }
 
+    /// Set specific connector configuration for this request.
+    ///
+    /// Not all config may be applied to the request, it depends on the connector and also
+    /// if there is already a connection established.
+    pub fn connector_config(mut self, config: ConnectorConfig) -> Self {
+        self.connector_config = Some(config);
+        self
+    }
+
     /// Set request timeout. Overrides client wide timeout setting.
     ///
     /// Request timeout is the total time before a response must be received.
@@ -320,6 +331,7 @@ impl ClientRequest {
             response_decompress: slf.response_decompress,
             timeout: slf.timeout,
             config: slf.config,
+            connector_config: slf.connector_config,
         };
 
         Ok(request)
@@ -340,6 +352,7 @@ impl ClientRequest {
             slf.response_decompress,
             slf.timeout,
             &slf.config,
+            slf.connector_config,
             body,
         )
     }
@@ -356,6 +369,7 @@ impl ClientRequest {
             slf.response_decompress,
             slf.timeout,
             &slf.config,
+            slf.connector_config,
             value,
         )
     }
@@ -374,6 +388,7 @@ impl ClientRequest {
             slf.response_decompress,
             slf.timeout,
             &slf.config,
+            slf.connector_config,
             value,
         )
     }
@@ -394,6 +409,7 @@ impl ClientRequest {
             slf.response_decompress,
             slf.timeout,
             &slf.config,
+            slf.connector_config,
             stream,
         )
     }
@@ -410,6 +426,7 @@ impl ClientRequest {
             slf.response_decompress,
             slf.timeout,
             &slf.config,
+            slf.connector_config,
         )
     }
 
