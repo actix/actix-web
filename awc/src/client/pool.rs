@@ -190,7 +190,11 @@ where
                     let now = Instant::now();
 
                     while let Some(mut c) = conns.pop_front() {
-                        let config = &inner.config;
+                        let config = req
+                            .config
+                            .as_ref()
+                            .map(|c| c.as_ref())
+                            .unwrap_or(&inner.config.default_connect_config);
                         let idle_dur = now - c.used;
                         let age = now - c.created;
                         let conn_ineligible =
@@ -225,6 +229,17 @@ where
                 conn
             };
 
+            let stream_window_size = req
+                .config
+                .as_ref()
+                .map(|c| c.stream_window_size)
+                .unwrap_or(inner.config.default_connect_config.stream_window_size);
+            let conn_window_size = req
+                .config
+                .as_ref()
+                .map(|c| c.conn_window_size)
+                .unwrap_or(inner.config.default_connect_config.conn_window_size);
+
             // construct acquired. It's used to put Io type back to pool/ close the Io type.
             // permit is carried with the whole lifecycle of Acquired.
             let acquired = Acquired {
@@ -245,8 +260,8 @@ where
                     if proto == Protocol::Http1 {
                         Ok(ConnectionType::from_h1(io, Instant::now(), acquired))
                     } else {
-                        let config = &acquired.inner.config;
-                        let (sender, connection) = handshake(io, config).await?;
+                        let (sender, connection) =
+                            handshake(io, stream_window_size, conn_window_size).await?;
                         let inner = H2ConnectionInner::new(sender, connection);
                         Ok(ConnectionType::from_h2(inner, Instant::now(), acquired))
                     }
@@ -381,6 +396,7 @@ mod test {
     use std::cell::Cell;
 
     use super::*;
+    use crate::client::ConnectConfig;
 
     /// A stream type that always returns pending on async read.
     ///
@@ -469,6 +485,7 @@ mod test {
             tls: false,
             sni_host: None,
             addr: None,
+            config: None,
         };
 
         let conn = pool.call(req.clone()).await.unwrap();
@@ -500,7 +517,10 @@ mod test {
         let connector = TestPoolConnector { generated };
 
         let config = ConnectorConfig {
-            conn_keep_alive: Duration::from_secs(1),
+            default_connect_config: ConnectConfig {
+                conn_keep_alive: Duration::from_secs(1),
+                ..Default::default()
+            },
             ..Default::default()
         };
 
@@ -512,6 +532,7 @@ mod test {
             tls: false,
             sni_host: None,
             addr: None,
+            config: None,
         };
 
         let conn = pool.call(req.clone()).await.unwrap();
@@ -545,7 +566,10 @@ mod test {
         let connector = TestPoolConnector { generated };
 
         let config = ConnectorConfig {
-            conn_lifetime: Duration::from_secs(1),
+            default_connect_config: ConnectConfig {
+                conn_lifetime: Duration::from_secs(1),
+                ..Default::default()
+            },
             ..Default::default()
         };
 
@@ -557,6 +581,7 @@ mod test {
             tls: false,
             sni_host: None,
             addr: None,
+            config: None,
         };
 
         let conn = pool.call(req.clone()).await.unwrap();
@@ -599,6 +624,7 @@ mod test {
             tls: true,
             sni_host: None,
             addr: None,
+            config: None,
         };
 
         let conn = pool.call(req.clone()).await.unwrap();
@@ -615,6 +641,7 @@ mod test {
             tls: true,
             sni_host: None,
             addr: None,
+            config: None,
         };
 
         let conn = pool.call(req.clone()).await.unwrap();
@@ -642,6 +669,7 @@ mod test {
             tls: true,
             sni_host: None,
             addr: None,
+            config: None,
         };
 
         let conn = pool.call(req.clone()).await.unwrap();
@@ -654,6 +682,7 @@ mod test {
             tls: true,
             sni_host: None,
             addr: None,
+            config: None,
         };
         let conn = pool.call(req.clone()).await.unwrap();
         assert_eq!(2, generated_clone.get());
