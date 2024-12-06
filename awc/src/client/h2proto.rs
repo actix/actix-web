@@ -186,7 +186,7 @@ where
 
 pub(crate) fn handshake<Io: ConnectionIo>(
     io: Io,
-    config: &ConnectorConfig,
+    config: ConnectorConfig,
 ) -> impl Future<Output = Result<(SendRequest<Bytes>, Connection<Io, Bytes>), h2::Error>> {
     let mut builder = Builder::new();
     builder

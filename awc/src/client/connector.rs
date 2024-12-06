@@ -784,9 +784,9 @@ where
     }
 
     fn call(&self, req: Connect) -> Self::Future {
+        let timeout = req.config.map(|c| c.handshake_timeout).unwrap_or(self.timeout);
         let fut = self.tcp_service.call(req);
         let tls_service = self.tls_service.clone();
-        let timeout = self.timeout;
 
         TlsConnectorFuture::TcpConnect {
             fut,
@@ -886,15 +886,17 @@ where
     actix_service::forward_ready!(service);
 
     fn call(&self, req: Connect) -> Self::Future {
+        let timeout = req.config.map(|c| c.timeout).unwrap_or(self.timeout);
         let mut req = ConnectInfo::new(req.uri).set_addr(req.addr);
 
         if let Some(local_addr) = self.local_address {
             req = req.set_local_addr(local_addr);
         }
 
+
         TcpConnectorInnerFuture {
             fut: self.service.call(req),
-            timeout: sleep(self.timeout),
+            timeout: sleep(timeout),
         }
     }
 }

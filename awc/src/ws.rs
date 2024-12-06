@@ -47,6 +47,7 @@ use crate::{
     },
     ClientResponse,
 };
+use crate::client::ConnectorConfig;
 
 /// WebSocket connection.
 pub struct WebsocketsRequest {
@@ -58,6 +59,7 @@ pub struct WebsocketsRequest {
     max_size: usize,
     server_mode: bool,
     config: ClientConfig,
+    connector_config: Option<ConnectorConfig>,
 
     #[cfg(feature = "cookies")]
     cookies: Option<CookieJar>,
@@ -89,6 +91,7 @@ impl WebsocketsRequest {
             head,
             err,
             config,
+            connector_config: None,
             addr: None,
             origin: None,
             protocols: None,
@@ -105,6 +108,15 @@ impl WebsocketsRequest {
     /// provided url's host name get resolved.
     pub fn address(mut self, addr: SocketAddr) -> Self {
         self.addr = Some(addr);
+        self
+    }
+
+    /// Set specific connector configuration for this request.
+    ///
+    /// Not all config may be applied to the request, it depends on the connector and also
+    /// if there is already a connection established.
+    pub fn connector_config(mut self, config: ConnectorConfig) -> Self {
+        self.connector_config = Some(config);
         self
     }
 
@@ -338,7 +350,7 @@ impl WebsocketsRequest {
         let max_size = self.max_size;
         let server_mode = self.server_mode;
 
-        let req = ConnectRequest::Tunnel(head, self.addr);
+        let req = ConnectRequest::Tunnel(head, self.addr, self.connector_config);
 
         let fut = self.config.connector.call(req);
 

@@ -15,6 +15,7 @@ use crate::{
     sender::{RequestSender, SendClientRequest},
     BoxError,
 };
+use crate::client::ConnectorConfig;
 
 /// `FrozenClientRequest` struct represents cloneable client request.
 ///
@@ -26,6 +27,7 @@ pub struct FrozenClientRequest {
     pub(crate) response_decompress: bool,
     pub(crate) timeout: Option<Duration>,
     pub(crate) config: ClientConfig,
+    pub(crate) connector_config: Option<ConnectorConfig>
 }
 
 impl FrozenClientRequest {
@@ -54,6 +56,7 @@ impl FrozenClientRequest {
             self.response_decompress,
             self.timeout,
             &self.config,
+            self.connector_config,
             body,
         )
     }
@@ -65,6 +68,7 @@ impl FrozenClientRequest {
             self.response_decompress,
             self.timeout,
             &self.config,
+            self.connector_config,
             value,
         )
     }
@@ -76,6 +80,7 @@ impl FrozenClientRequest {
             self.response_decompress,
             self.timeout,
             &self.config,
+            self.connector_config,
             value,
         )
     }
@@ -91,6 +96,7 @@ impl FrozenClientRequest {
             self.response_decompress,
             self.timeout,
             &self.config,
+            self.connector_config,
             stream,
         )
     }
@@ -102,6 +108,7 @@ impl FrozenClientRequest {
             self.response_decompress,
             self.timeout,
             &self.config,
+            self.connector_config,
         )
     }
 
@@ -156,6 +163,7 @@ impl FrozenSendBuilder {
             self.req.response_decompress,
             self.req.timeout,
             &self.req.config,
+            self.req.connector_config,
             body,
         )
     }
@@ -171,6 +179,7 @@ impl FrozenSendBuilder {
             self.req.response_decompress,
             self.req.timeout,
             &self.req.config,
+            self.req.connector_config,
             value,
         )
     }
@@ -186,6 +195,7 @@ impl FrozenSendBuilder {
             self.req.response_decompress,
             self.req.timeout,
             &self.req.config,
+            self.req.connector_config,
             value,
         )
     }
@@ -205,6 +215,7 @@ impl FrozenSendBuilder {
             self.req.response_decompress,
             self.req.timeout,
             &self.req.config,
+            self.req.connector_config,
             stream,
         )
     }
@@ -220,6 +231,7 @@ impl FrozenSendBuilder {
             self.req.response_decompress,
             self.req.timeout,
             &self.req.config,
+            self.req.connector_config,
         )
     }
 }

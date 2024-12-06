@@ -22,6 +22,7 @@ mod pool;
 pub use self::{
     connection::{Connection, ConnectionIo},
     connector::{Connector, ConnectorService},
+    config::{ConnectorConfig},
     error::{ConnectError, FreezeRequestError, InvalidUrl, SendRequestError},
 };
 
@@ -29,6 +30,7 @@ pub use self::{
 pub struct Connect {
     pub uri: Uri,
     pub addr: Option<std::net::SocketAddr>,
+    pub config: Option<ConnectorConfig>,
 }
 
 /// An asynchronous HTTP and WebSocket client.

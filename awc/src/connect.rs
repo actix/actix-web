@@ -16,6 +16,7 @@ use crate::{
     client::{Connect as ClientConnect, ConnectError, Connection, ConnectionIo, SendRequestError},
     ClientResponse,
 };
+use crate::client::ConnectorConfig;
 
 pub type BoxConnectorService = Rc<
     dyn Service<
@@ -33,12 +34,12 @@ pub enum ConnectRequest {
     /// Standard HTTP request.
     ///
     /// Contains the request head, body type, and optional pre-resolved socket address.
-    Client(RequestHeadType, AnyBody, Option<net::SocketAddr>),
+    Client(RequestHeadType, AnyBody, Option<net::SocketAddr>, Option<ConnectorConfig>),
 
     /// Tunnel used by WebSocket connection requests.
     ///
     /// Contains the request head and optional pre-resolved socket address.
-    Tunnel(RequestHead, Option<net::SocketAddr>),
+    Tunnel(RequestHead, Option<net::SocketAddr>, Option<ConnectorConfig>),
 }
 
 /// Combined HTTP response & WebSocket tunnel type returned from connection service.
@@ -104,13 +105,15 @@ where
     fn call(&self, req: ConnectRequest) -> Self::Future {
         // connect to the host
         let fut = match req {
-            ConnectRequest::Client(ref head, .., addr) => self.connector.call(ClientConnect {
+            ConnectRequest::Client(ref head, .., addr, config) => self.connector.call(ClientConnect {
                 uri: head.as_ref().uri.clone(),
                 addr,
+                config,
             }),
-            ConnectRequest::Tunnel(ref head, addr) => self.connector.call(ClientConnect {
+            ConnectRequest::Tunnel(ref head, addr, config) => self.connector.call(ClientConnect {
                 uri: head.uri.clone(),
                 addr,
+                config,
             }),
         };
 
