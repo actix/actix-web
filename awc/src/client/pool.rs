@@ -4,6 +4,7 @@ use std::{
     cell::RefCell,
     collections::{HashMap, VecDeque},
     future::Future,
+    hash::Hash,
     io,
     ops::Deref,
     pin::Pin,
@@ -127,7 +128,7 @@ where
     Io: AsyncWrite + Unpin + 'static,
 {
     config: ConnectorConfig,
-    available: RefCell<HashMap<Key, VecDeque<PooledConnection<Io>>>>,
+    available: RefCell<HashMap<Connect, VecDeque<PooledConnection<Io>>>>,
     permits: Arc<Semaphore>,
 }
 
@@ -168,12 +169,6 @@ where
         let inner = self.inner.clone();
 
         Box::pin(async move {
-            let key = if let Some(authority) = req.uri.authority() {
-                authority.clone().into()
-            } else {
-                return Err(ConnectError::Unresolved);
-            };
-
             // acquire an owned permit and carry it with connection
             let permit = Arc::clone(&inner.permits)
                 .acquire_owned()
@@ -191,11 +186,15 @@ where
                 // check if there is idle connection for given key.
                 let mut map = inner.available.borrow_mut();
 
-                if let Some(conns) = map.get_mut(&key) {
+                if let Some(conns) = map.get_mut(&req) {
                     let now = Instant::now();
 
                     while let Some(mut c) = conns.pop_front() {
-                        let config = &inner.config;
+                        let config = req
+                            .config
+                            .as_ref()
+                            .map(|c| c.as_ref())
+                            .unwrap_or(&inner.config.default_connect_config);
                         let idle_dur = now - c.used;
                         let age = now - c.created;
                         let conn_ineligible =
@@ -230,9 +229,24 @@ where
                 conn
             };
 
+            let stream_window_size = req
+                .config
+                .as_ref()
+                .map(|c| c.stream_window_size)
+                .unwrap_or(inner.config.default_connect_config.stream_window_size);
+            let conn_window_size = req
+                .config
+                .as_ref()
+                .map(|c| c.conn_window_size)
+                .unwrap_or(inner.config.default_connect_config.conn_window_size);
+
             // construct acquired. It's used to put Io type back to pool/ close the Io type.
             // permit is carried with the whole lifecycle of Acquired.
-            let acquired = Acquired { key, inner, permit };
+            let acquired = Acquired {
+                req: req.clone(),
+                inner,
+                permit,
+            };
 
             // match the connection and spawn new one if did not get anything.
             match conn {
@@ -246,8 +260,8 @@ where
                     if proto == Protocol::Http1 {
                         Ok(ConnectionType::from_h1(io, Instant::now(), acquired))
                     } else {
-                        let config = &acquired.inner.config;
-                        let (sender, connection) = handshake(io, config).await?;
+                        let (sender, connection) =
+                            handshake(io, stream_window_size, conn_window_size).await?;
                         let inner = H2ConnectionInner::new(sender, connection);
                         Ok(ConnectionType::from_h2(inner, Instant::now(), acquired))
                     }
@@ -344,8 +358,8 @@ pub struct Acquired<Io>
 where
     Io: AsyncWrite + Unpin + 'static,
 {
-    /// authority key for identify connection.
-    key: Key,
+    /// hash key for identify connection.
+    req: Connect,
     /// handle to connection pool.
     inner: ConnectionPoolInner<Io>,
     /// permit for limit concurrent in-flight connection for a Client object.
@@ -360,12 +374,12 @@ impl<Io: ConnectionIo> Acquired<Io> {
 
     /// Release IO back into pool.
     pub(super) fn release(&self, conn: ConnectionInnerType<Io>, created: Instant) {
-        let Acquired { key, inner, .. } = self;
+        let Acquired { req, inner, .. } = self;
 
         inner
             .available
             .borrow_mut()
-            .entry(key.clone())
+            .entry(req.clone())
             .or_insert_with(VecDeque::new)
             .push_back(PooledConnection {
                 conn,
@@ -381,9 +395,8 @@ impl<Io: ConnectionIo> Acquired<Io> {
 mod test {
     use std::cell::Cell;
 
-    use http::Uri;
-
     use super::*;
+    use crate::client::ConnectConfig;
 
     /// A stream type that always returns pending on async read.
     ///
@@ -467,8 +480,12 @@ mod test {
         let pool = super::ConnectionPool::new(connector, config);
 
         let req = Connect {
-            uri: Uri::from_static("http://localhost"),
+            hostname: "localhost".to_string(),
+            port: 80,
+            tls: false,
+            sni_host: None,
             addr: None,
+            config: None,
         };
 
         let conn = pool.call(req.clone()).await.unwrap();
@@ -500,15 +517,22 @@ mod test {
         let connector = TestPoolConnector { generated };
 
         let config = ConnectorConfig {
-            conn_keep_alive: Duration::from_secs(1),
+            default_connect_config: ConnectConfig {
+                conn_keep_alive: Duration::from_secs(1),
+                ..Default::default()
+            },
             ..Default::default()
         };
 
         let pool = super::ConnectionPool::new(connector, config);
 
         let req = Connect {
-            uri: Uri::from_static("http://localhost"),
+            hostname: "localhost".to_string(),
+            port: 80,
+            tls: false,
+            sni_host: None,
             addr: None,
+            config: None,
         };
 
         let conn = pool.call(req.clone()).await.unwrap();
@@ -542,15 +566,22 @@ mod test {
         let connector = TestPoolConnector { generated };
 
         let config = ConnectorConfig {
-            conn_lifetime: Duration::from_secs(1),
+            default_connect_config: ConnectConfig {
+                conn_lifetime: Duration::from_secs(1),
+                ..Default::default()
+            },
             ..Default::default()
         };
 
         let pool = super::ConnectionPool::new(connector, config);
 
         let req = Connect {
-            uri: Uri::from_static("http://localhost"),
+            hostname: "localhost".to_string(),
+            port: 80,
+            tls: false,
+            sni_host: None,
             addr: None,
+            config: None,
         };
 
         let conn = pool.call(req.clone()).await.unwrap();
@@ -588,8 +619,12 @@ mod test {
         let pool = super::ConnectionPool::new(connector, config);
 
         let req = Connect {
-            uri: Uri::from_static("https://crates.io"),
+            hostname: "crates.io".to_string(),
+            port: 443,
+            tls: true,
+            sni_host: None,
             addr: None,
+            config: None,
         };
 
         let conn = pool.call(req.clone()).await.unwrap();
@@ -601,8 +636,12 @@ mod test {
         release(conn);
 
         let req = Connect {
-            uri: Uri::from_static("https://google.com"),
+            hostname: "google.com".to_string(),
+            port: 443,
+            tls: true,
+            sni_host: None,
             addr: None,
+            config: None,
         };
 
         let conn = pool.call(req.clone()).await.unwrap();
@@ -625,8 +664,12 @@ mod test {
         let pool = Rc::new(super::ConnectionPool::new(connector, config));
 
         let req = Connect {
-            uri: Uri::from_static("https://crates.io"),
+            hostname: "crates.io".to_string(),
+            port: 443,
+            tls: true,
+            sni_host: None,
             addr: None,
+            config: None,
         };
 
         let conn = pool.call(req.clone()).await.unwrap();
@@ -634,8 +677,12 @@ mod test {
         release(conn);
 
         let req = Connect {
-            uri: Uri::from_static("https://google.com"),
+            hostname: "google.com".to_string(),
+            port: 443,
+            tls: true,
+            sni_host: None,
             addr: None,
+            config: None,
         };
         let conn = pool.call(req.clone()).await.unwrap();
         assert_eq!(2, generated_clone.get());
