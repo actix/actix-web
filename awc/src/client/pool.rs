@@ -4,6 +4,7 @@ use std::{
     cell::RefCell,
     collections::{HashMap, VecDeque},
     future::Future,
+    hash::Hash,
     io,
     ops::Deref,
     pin::Pin,
@@ -127,7 +128,7 @@ where
     Io: AsyncWrite + Unpin + 'static,
 {
     config: ConnectorConfig,
-    available: RefCell<HashMap<Key, VecDeque<PooledConnection<Io>>>>,
+    available: RefCell<HashMap<Connect, VecDeque<PooledConnection<Io>>>>,
     permits: Arc<Semaphore>,
 }
 
@@ -168,12 +169,6 @@ where
         let inner = self.inner.clone();
 
         Box::pin(async move {
-            let key = if let Some(authority) = req.uri.authority() {
-                authority.clone().into()
-            } else {
-                return Err(ConnectError::Unresolved);
-            };
-
             // acquire an owned permit and carry it with connection
             let permit = Arc::clone(&inner.permits)
                 .acquire_owned()
@@ -191,7 +186,7 @@ where
                 // check if there is idle connection for given key.
                 let mut map = inner.available.borrow_mut();
 
-                if let Some(conns) = map.get_mut(&key) {
+                if let Some(conns) = map.get_mut(&req) {
                     let now = Instant::now();
 
                     while let Some(mut c) = conns.pop_front() {
@@ -232,7 +227,11 @@ where
 
             // construct acquired. It's used to put Io type back to pool/ close the Io type.
             // permit is carried with the whole lifecycle of Acquired.
-            let acquired = Acquired { key, inner, permit };
+            let acquired = Acquired {
+                req: req.clone(),
+                inner,
+                permit,
+            };
 
             // match the connection and spawn new one if did not get anything.
             match conn {
@@ -344,8 +343,8 @@ pub struct Acquired<Io>
 where
     Io: AsyncWrite + Unpin + 'static,
 {
-    /// authority key for identify connection.
-    key: Key,
+    /// hash key for identify connection.
+    req: Connect,
     /// handle to connection pool.
     inner: ConnectionPoolInner<Io>,
     /// permit for limit concurrent in-flight connection for a Client object.
@@ -360,12 +359,12 @@ impl<Io: ConnectionIo> Acquired<Io> {
 
     /// Release IO back into pool.
     pub(super) fn release(&self, conn: ConnectionInnerType<Io>, created: Instant) {
-        let Acquired { key, inner, .. } = self;
+        let Acquired { req, inner, .. } = self;
 
         inner
             .available
             .borrow_mut()
-            .entry(key.clone())
+            .entry(req.clone())
             .or_insert_with(VecDeque::new)
             .push_back(PooledConnection {
                 conn,
@@ -380,8 +379,6 @@ impl<Io: ConnectionIo> Acquired<Io> {
 #[cfg(test)]
 mod test {
     use std::cell::Cell;
-
-    use http::Uri;
 
     use super::*;
 
@@ -467,7 +464,10 @@ mod test {
         let pool = super::ConnectionPool::new(connector, config);
 
         let req = Connect {
-            uri: Uri::from_static("http://localhost"),
+            hostname: "localhost".to_string(),
+            port: 80,
+            tls: false,
+            sni_host: None,
             addr: None,
         };
 
@@ -507,7 +507,10 @@ mod test {
         let pool = super::ConnectionPool::new(connector, config);
 
         let req = Connect {
-            uri: Uri::from_static("http://localhost"),
+            hostname: "localhost".to_string(),
+            port: 80,
+            tls: false,
+            sni_host: None,
             addr: None,
         };
 
@@ -549,7 +552,10 @@ mod test {
         let pool = super::ConnectionPool::new(connector, config);
 
         let req = Connect {
-            uri: Uri::from_static("http://localhost"),
+            hostname: "localhost".to_string(),
+            port: 80,
+            tls: false,
+            sni_host: None,
             addr: None,
         };
 
@@ -588,7 +594,10 @@ mod test {
         let pool = super::ConnectionPool::new(connector, config);
 
         let req = Connect {
-            uri: Uri::from_static("https://crates.io"),
+            hostname: "crates.io".to_string(),
+            port: 443,
+            tls: true,
+            sni_host: None,
             addr: None,
         };
 
@@ -601,7 +610,10 @@ mod test {
         release(conn);
 
         let req = Connect {
-            uri: Uri::from_static("https://google.com"),
+            hostname: "google.com".to_string(),
+            port: 443,
+            tls: true,
+            sni_host: None,
             addr: None,
         };
 
@@ -625,7 +637,10 @@ mod test {
         let pool = Rc::new(super::ConnectionPool::new(connector, config));
 
         let req = Connect {
-            uri: Uri::from_static("https://crates.io"),
+            hostname: "crates.io".to_string(),
+            port: 443,
+            tls: true,
+            sni_host: None,
             addr: None,
         };
 
@@ -634,7 +649,10 @@ mod test {
         release(conn);
 
         let req = Connect {
-            uri: Uri::from_static("https://google.com"),
+            hostname: "google.com".to_string(),
+            port: 443,
+            tls: true,
+            sni_host: None,
             addr: None,
         };
         let conn = pool.call(req.clone()).await.unwrap();
