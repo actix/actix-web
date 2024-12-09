@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Minimum supported Rust version (MSRV) is now 1.75.
+- Permit serving `.well-known` files when serving dotfiles is otherwise disallowed.
 
 ## 0.6.6
 
