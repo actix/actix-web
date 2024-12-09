@@ -44,7 +44,7 @@ impl PathBufWrap {
             if segment == ".." {
                 segment_count -= 1;
                 buf.pop();
-            } else if !hidden_files && segment.starts_with('.') {
+            } else if segment != ".well-known" && !hidden_files && segment.starts_with('.') {
                 return Err(UriSegmentError::BadStart('.'));
             } else if segment.starts_with('*') {
                 return Err(UriSegmentError::BadStart('*'));
@@ -106,6 +106,10 @@ mod tests {
             Err(UriSegmentError::BadStart('.'))
         );
         assert_eq!(
+            PathBufWrap::from_str("/.well-known/test/.tt").map(|t| t.0),
+            Err(UriSegmentError::BadStart('.'))
+        );
+        assert_eq!(
             PathBufWrap::from_str("/test/*tt").map(|t| t.0),
             Err(UriSegmentError::BadStart('*'))
         );
@@ -141,6 +145,33 @@ mod tests {
         assert_eq!(
             PathBufWrap::parse_path("/test/.tt", true).unwrap().0,
             PathBuf::from_iter(vec!["test", ".tt"])
+        );
+    }
+
+    #[test]
+    fn test_parse_well_known() {
+        assert_eq!(
+            PathBufWrap::parse_path("/.well-known/test/.tt", false).map(|t| t.0),
+            Err(UriSegmentError::BadStart('.'))
+        );
+        assert_eq!(
+            PathBufWrap::parse_path("/.well-known/test/foo", false)
+                .unwrap()
+                .0,
+            PathBuf::from_iter(vec![".well-known", "test", "foo"])
+        );
+
+        assert_eq!(
+            PathBufWrap::parse_path("/.well-known/test/.tt", true)
+                .unwrap()
+                .0,
+            PathBuf::from_iter(vec![".well-known", "test", ".tt"])
+        );
+        assert_eq!(
+            PathBufWrap::parse_path("/.well-known/test/foo", true)
+                .unwrap()
+                .0,
+            PathBuf::from_iter(vec![".well-known", "test", "foo"])
         );
     }
 
