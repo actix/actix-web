@@ -47,7 +47,7 @@ awc = { version = "3", default-features = false }
 
 bytes = "1"
 futures-core = { version = "0.3.17", default-features = false }
-http = "0.2.7"
+http = "1.2.0"
 log = "0.4"
 socket2 = "0.5"
 serde = "1"
