@@ -11,7 +11,7 @@ use futures_core::Stream;
 use serde::Serialize;
 
 use crate::{
-    client::ClientConfig,
+    client::{ClientConfig, ServerName},
     sender::{RequestSender, SendClientRequest},
     BoxError,
 };
@@ -26,6 +26,7 @@ pub struct FrozenClientRequest {
     pub(crate) response_decompress: bool,
     pub(crate) timeout: Option<Duration>,
     pub(crate) config: ClientConfig,
+    pub(crate) sni_host: Option<ServerName>,
 }
 
 impl FrozenClientRequest {
@@ -54,6 +55,7 @@ impl FrozenClientRequest {
             self.response_decompress,
             self.timeout,
             &self.config,
+            self.sni_host.clone(),
             body,
         )
     }
@@ -65,6 +67,7 @@ impl FrozenClientRequest {
             self.response_decompress,
             self.timeout,
             &self.config,
+            self.sni_host.clone(),
             value,
         )
     }
@@ -76,6 +79,7 @@ impl FrozenClientRequest {
             self.response_decompress,
             self.timeout,
             &self.config,
+            self.sni_host.clone(),
             value,
         )
     }
@@ -91,6 +95,7 @@ impl FrozenClientRequest {
             self.response_decompress,
             self.timeout,
             &self.config,
+            self.sni_host.clone(),
             stream,
         )
     }
@@ -102,6 +107,7 @@ impl FrozenClientRequest {
             self.response_decompress,
             self.timeout,
             &self.config,
+            self.sni_host.clone(),
         )
     }
 
@@ -156,6 +162,7 @@ impl FrozenSendBuilder {
             self.req.response_decompress,
             self.req.timeout,
             &self.req.config,
+            self.req.sni_host.clone(),
             body,
         )
     }
@@ -171,6 +178,7 @@ impl FrozenSendBuilder {
             self.req.response_decompress,
             self.req.timeout,
             &self.req.config,
+            self.req.sni_host.clone(),
             value,
         )
     }
@@ -186,6 +194,7 @@ impl FrozenSendBuilder {
             self.req.response_decompress,
             self.req.timeout,
             &self.req.config,
+            self.req.sni_host.clone(),
             value,
         )
     }
@@ -205,6 +214,7 @@ impl FrozenSendBuilder {
             self.req.response_decompress,
             self.req.timeout,
             &self.req.config,
+            self.req.sni_host.clone(),
             stream,
         )
     }
@@ -220,6 +230,7 @@ impl FrozenSendBuilder {
             self.req.response_decompress,
             self.req.timeout,
             &self.req.config,
+            self.req.sni_host.clone(),
         )
     }
 }

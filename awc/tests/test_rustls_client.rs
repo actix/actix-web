@@ -43,6 +43,8 @@ fn tls_config() -> ServerConfig {
 }
 
 mod danger {
+    use std::collections::HashSet;
+
     use rustls::{
         client::danger::{ServerCertVerified, ServerCertVerifier},
         pki_types::UnixTime,
@@ -50,8 +52,10 @@ mod danger {
 
     use super::*;
 
-    #[derive(Debug)]
-    pub struct NoCertificateVerification;
+    #[derive(Debug, Default)]
+    pub struct NoCertificateVerification {
+        pub trusted_hosts: HashSet<String>,
+    }
 
     impl ServerCertVerifier for NoCertificateVerification {
         fn verify_server_cert(
@@ -62,7 +66,15 @@ mod danger {
             _ocsp_response: &[u8],
             _now: UnixTime,
         ) -> Result<ServerCertVerified, rustls::Error> {
-            Ok(rustls::client::danger::ServerCertVerified::assertion())
+            if self.trusted_hosts.is_empty() {
+                return Ok(ServerCertVerified::assertion());
+            }
+
+            if self.trusted_hosts.contains(_server_name.to_str().as_ref()) {
+                return Ok(ServerCertVerified::assertion());
+            }
+
+            Err(rustls::Error::General("untrusted host".into()))
         }
 
         fn verify_tls12_signature(
@@ -124,7 +136,7 @@ async fn test_connection_reuse_h2() {
     // disable TLS verification
     config
         .dangerous()
-        .set_certificate_verifier(Arc::new(danger::NoCertificateVerification));
+        .set_certificate_verifier(Arc::new(danger::NoCertificateVerification::default()));
 
     let client = awc::Client::builder()
         .connector(awc::Connector::new().rustls_0_23(Arc::new(config)))
@@ -143,4 +155,85 @@ async fn test_connection_reuse_h2() {
 
     // one connection
     assert_eq!(num.load(Ordering::Relaxed), 1);
+}
+
+#[actix_rt::test]
+async fn test_connection_with_sni() {
+    let srv = test_server(move || {
+        HttpService::build()
+            .h2(map_config(
+                App::new().service(web::resource("/").route(web::to(HttpResponse::Ok))),
+                |_| AppConfig::default(),
+            ))
+            .rustls_0_23(tls_config())
+            .map_err(|_| ())
+    })
+    .await;
+
+    let mut config = ClientConfig::builder()
+        .with_root_certificates(webpki_roots_cert_store())
+        .with_no_client_auth();
+
+    let protos = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+    config.alpn_protocols = protos;
+
+    // disable TLS verification
+    config
+        .dangerous()
+        .set_certificate_verifier(Arc::new(danger::NoCertificateVerification {
+            trusted_hosts: ["localhost".to_owned()].iter().cloned().collect(),
+        }));
+
+    let client = awc::Client::builder()
+        .connector(awc::Connector::new().rustls_0_23(Arc::new(config)))
+        .finish();
+
+    // req : standard request
+    let request = client.get(srv.surl("/")).send();
+    let response = request.await.unwrap();
+    assert!(response.status().is_success());
+
+    // req : test specific host with address, return trusted host
+    let request = client.get(srv.surl("/")).sni_host("localhost").send();
+    let response = request.await.unwrap();
+    assert!(response.status().is_success());
+
+    // req : test bad host, return untrusted host
+    let request = client.get(srv.surl("/")).sni_host("bad.host").send();
+    let response = request.await;
+
+    assert!(response.is_err());
+    assert_eq!(
+        response.unwrap_err().to_string(),
+        "Failed to connect to host: unexpected error: untrusted host"
+    );
+
+    // req : test specific host with address, return untrusted host
+    let addr = srv.addr();
+    let request = client.get("https://example.com:443/").address(addr).send();
+    let response = request.await;
+
+    assert!(response.is_err());
+    assert_eq!(
+        response.unwrap_err().to_string(),
+        "Failed to connect to host: unexpected error: untrusted host"
+    );
+
+    // req : test specify sni_host with address and other host (authority)
+    let request = client
+        .get("https://example.com:443/")
+        .address(addr)
+        .sni_host("localhost")
+        .send();
+    let response = request.await.unwrap();
+    assert!(response.status().is_success());
+
+    // req : test ip address with sni host
+    let request = client
+        .get("https://127.0.0.1:443/")
+        .address(addr)
+        .sni_host("localhost")
+        .send();
+    let response = request.await.unwrap();
+    assert!(response.status().is_success());
 }
