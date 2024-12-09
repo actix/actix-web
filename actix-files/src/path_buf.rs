@@ -40,6 +40,7 @@ impl PathBufWrap {
             return Err(UriSegmentError::BadChar('/'));
         }
 
+        // disallow invalid or suspicious path segments
         for segment in path.split('/') {
             if segment == ".." {
                 segment_count -= 1;
