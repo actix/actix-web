@@ -17,7 +17,7 @@ use actix_service::{
 #[cfg(feature = "openssl")]
 use actix_tls::accept::openssl::reexports::{AlpnError, SslAcceptor, SslAcceptorBuilder};
 
-use crate::{config::AppConfig, Error};
+use crate::{config::AppConfig, trusted_proxies::TrustedProxies, Error};
 
 struct Socket {
     scheme: &'static str,
@@ -26,6 +26,7 @@ struct Socket {
 
 struct Config {
     host: Option<String>,
+    trusted_proxies: TrustedProxies,
     keep_alive: KeepAlive,
     client_request_timeout: Duration,
     client_disconnect_timeout: Duration,
@@ -110,6 +111,7 @@ where
             factory,
             config: Arc::new(Mutex::new(Config {
                 host: None,
+                trusted_proxies: TrustedProxies::new_local(),
                 keep_alive: KeepAlive::default(),
                 client_request_timeout: Duration::from_secs(5),
                 client_disconnect_timeout: Duration::from_secs(1),
@@ -139,6 +141,14 @@ where
     /// Panics if `num` is 0.
     pub fn workers(mut self, num: usize) -> Self {
         self.builder = self.builder.workers(num);
+        self
+    }
+
+    /// Sets server trusted proxies configuration.
+    ///
+    /// By default server trusts loopback, link-local, and private networks and Forwarded Header.
+    pub fn trusted_proxies(self, val: TrustedProxies) -> Self {
+        self.config.lock().unwrap().trusted_proxies = val;
         self
     }
 
@@ -526,6 +536,7 @@ where
                 .listen(format!("actix-web-service-{}", addr), lst, move || {
                     let cfg = cfg.lock().unwrap();
                     let host = cfg.host.clone().unwrap_or_else(|| format!("{}", addr));
+                    let trusted_proxies = cfg.trusted_proxies.clone();
 
                     let mut svc = HttpService::build()
                         .keep_alive(cfg.keep_alive)
@@ -543,7 +554,7 @@ where
                         .map_err(|err| err.into().error_response());
 
                     svc.finish(map_config(fac, move |_| {
-                        AppConfig::new(false, host.clone(), addr)
+                        AppConfig::new(false, host.clone(), addr, trusted_proxies.clone())
                     }))
                     .tcp()
                 })?;
@@ -570,6 +581,7 @@ where
                 .listen(format!("actix-web-service-{}", addr), lst, move || {
                     let cfg = cfg.lock().unwrap();
                     let host = cfg.host.clone().unwrap_or_else(|| format!("{}", addr));
+                    let trusted_proxies = cfg.trusted_proxies.clone();
 
                     let mut svc = HttpService::build()
                         .keep_alive(cfg.keep_alive)
@@ -587,7 +599,7 @@ where
                         .map_err(|err| err.into().error_response());
 
                     svc.finish(map_config(fac, move |_| {
-                        AppConfig::new(false, host.clone(), addr)
+                        AppConfig::new(false, host.clone(), addr, trusted_proxies.clone())
                     }))
                     .tcp_auto_h2c()
                 })?;
@@ -646,6 +658,7 @@ where
                 .listen(format!("actix-web-service-{}", addr), lst, move || {
                     let c = cfg.lock().unwrap();
                     let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
+                    let trusted_proxies = c.trusted_proxies.clone();
 
                     let svc = HttpService::build()
                         .keep_alive(c.keep_alive)
@@ -668,7 +681,7 @@ where
                     };
 
                     svc.finish(map_config(fac, move |_| {
-                        AppConfig::new(true, host.clone(), addr)
+                        AppConfig::new(true, host.clone(), addr, trusted_proxies.clone())
                     }))
                     .rustls_with_config(config.clone(), acceptor_config)
                 })?;
@@ -697,6 +710,7 @@ where
                 .listen(format!("actix-web-service-{}", addr), lst, move || {
                     let c = cfg.lock().unwrap();
                     let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
+                    let trusted_proxies = c.trusted_proxies.clone();
 
                     let svc = HttpService::build()
                         .keep_alive(c.keep_alive)
@@ -719,7 +733,7 @@ where
                     };
 
                     svc.finish(map_config(fac, move |_| {
-                        AppConfig::new(true, host.clone(), addr)
+                        AppConfig::new(true, host.clone(), addr, trusted_proxies.clone())
                     }))
                     .rustls_021_with_config(config.clone(), acceptor_config)
                 })?;
@@ -763,6 +777,7 @@ where
                 .listen(format!("actix-web-service-{}", addr), lst, move || {
                     let c = cfg.lock().unwrap();
                     let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
+                    let trusted_proxies = c.trusted_proxies.clone();
 
                     let svc = HttpService::build()
                         .keep_alive(c.keep_alive)
@@ -785,7 +800,7 @@ where
                     };
 
                     svc.finish(map_config(fac, move |_| {
-                        AppConfig::new(true, host.clone(), addr)
+                        AppConfig::new(true, host.clone(), addr, trusted_proxies.clone())
                     }))
                     .rustls_0_22_with_config(config.clone(), acceptor_config)
                 })?;
@@ -829,6 +844,7 @@ where
                 .listen(format!("actix-web-service-{}", addr), lst, move || {
                     let c = cfg.lock().unwrap();
                     let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
+                    let trusted_proxies = c.trusted_proxies.clone();
 
                     let svc = HttpService::build()
                         .keep_alive(c.keep_alive)
@@ -851,7 +867,7 @@ where
                     };
 
                     svc.finish(map_config(fac, move |_| {
-                        AppConfig::new(true, host.clone(), addr)
+                        AppConfig::new(true, host.clone(), addr, trusted_proxies.clone())
                     }))
                     .rustls_0_23_with_config(config.clone(), acceptor_config)
                 })?;
@@ -894,6 +910,7 @@ where
                 .listen(format!("actix-web-service-{}", addr), lst, move || {
                     let c = cfg.lock().unwrap();
                     let host = c.host.clone().unwrap_or_else(|| format!("{}", addr));
+                    let trusted_proxies = c.trusted_proxies.clone();
 
                     let svc = HttpService::build()
                         .keep_alive(c.keep_alive)
@@ -919,7 +936,7 @@ where
                     };
 
                     svc.finish(map_config(fac, move |_| {
-                        AppConfig::new(true, host.clone(), addr)
+                        AppConfig::new(true, host.clone(), addr, trusted_proxies.clone())
                     }))
                     .openssl_with_config(acceptor.clone(), acceptor_config)
                 })?;
@@ -956,6 +973,7 @@ where
                     false,
                     c.host.clone().unwrap_or_else(|| format!("{}", socket_addr)),
                     socket_addr,
+                    c.trusted_proxies.clone(),
                 );
 
                 let fac = factory()
@@ -1001,6 +1019,7 @@ where
                 false,
                 c.host.clone().unwrap_or_else(|| format!("{}", socket_addr)),
                 socket_addr,
+                c.trusted_proxies.clone(),
             );
 
             fn_service(|io: UnixStream| async { Ok((io, Protocol::Http1, None)) }).and_then({

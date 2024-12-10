@@ -14,6 +14,7 @@ use crate::{
         AppServiceFactory, BoxedHttpServiceFactory, HttpServiceFactory, ServiceFactoryWrapper,
         ServiceRequest, ServiceResponse,
     },
+    trusted_proxies::TrustedProxies,
 };
 
 type Guards = Vec<Box<dyn Guard>>;
@@ -112,17 +113,28 @@ pub struct AppConfig {
     secure: bool,
     host: String,
     addr: SocketAddr,
+    trusted_proxies: TrustedProxies,
 }
 
 impl AppConfig {
-    pub(crate) fn new(secure: bool, host: String, addr: SocketAddr) -> Self {
-        AppConfig { secure, host, addr }
+    pub(crate) fn new(
+        secure: bool,
+        host: String,
+        addr: SocketAddr,
+        trusted_proxies: TrustedProxies,
+    ) -> Self {
+        AppConfig {
+            secure,
+            host,
+            addr,
+            trusted_proxies,
+        }
     }
 
     /// Needed in actix-test crate. Semver exempt.
     #[doc(hidden)]
     pub fn __priv_test_new(secure: bool, host: String, addr: SocketAddr) -> Self {
-        AppConfig::new(secure, host, addr)
+        AppConfig::new(secure, host, addr, TrustedProxies::default())
     }
 
     /// Server host name.
@@ -144,6 +156,17 @@ impl AppConfig {
     /// Returns the socket address of the local half of this TCP connection.
     pub fn local_addr(&self) -> SocketAddr {
         self.addr
+    }
+
+    /// Returns the trusted proxies list.
+    pub fn trusted_proxies(&self) -> &TrustedProxies {
+        &self.trusted_proxies
+    }
+
+    /// Set the trusted proxies
+    #[cfg(test)]
+    pub fn set_trusted_proxies(&mut self, proxies: TrustedProxies) {
+        self.trusted_proxies = proxies;
     }
 
     #[cfg(test)]
@@ -168,6 +191,7 @@ impl Default for AppConfig {
             false,
             "localhost:8080".to_owned(),
             "127.0.0.1:8080".parse().unwrap(),
+            TrustedProxies::default(),
         )
     }
 }

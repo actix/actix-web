@@ -105,6 +105,7 @@ mod server;
 mod service;
 pub mod test;
 mod thin_data;
+pub mod trusted_proxies;
 pub(crate) mod types;
 pub mod web;
 

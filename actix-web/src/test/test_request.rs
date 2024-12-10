@@ -5,6 +5,8 @@ use serde::Serialize;
 
 #[cfg(feature = "cookies")]
 use crate::cookie::{Cookie, CookieJar};
+#[cfg(test)]
+use crate::trusted_proxies::TrustedProxies;
 use crate::{
     app_service::AppInitServiceState,
     config::AppConfig,
@@ -226,6 +228,13 @@ impl TestRequest {
     #[cfg(test)]
     pub(crate) fn rmap(mut self, rmap: ResourceMap) -> Self {
         self.rmap = rmap;
+        self
+    }
+
+    /// Set the trusted proxies for this request.
+    #[cfg(test)]
+    pub fn set_trusted_proxies(mut self, trusted_proxies: TrustedProxies) -> Self {
+        self.config.set_trusted_proxies(trusted_proxies);
         self
     }
 
