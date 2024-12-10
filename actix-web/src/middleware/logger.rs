@@ -898,8 +898,10 @@ mod tests {
     #[actix_rt::test]
     async fn test_remote_addr_format() {
         let mut format = Format::new("%{r}a");
+        let addr = "127.0.0.1:8080".parse().unwrap();
 
         let req = TestRequest::default()
+            .peer_addr(addr)
             .insert_header((
                 header::FORWARDED,
                 header::HeaderValue::from_static("for=192.0.2.60;proto=http;by=203.0.113.43"),
