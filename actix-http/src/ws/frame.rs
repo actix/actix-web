@@ -5,7 +5,7 @@ use tracing::debug;
 
 use super::{
     mask::apply_mask,
-    proto::{CloseCode, CloseReason, OpCode},
+    proto::{CloseCode, CloseReason, OpCode, RsvBits},
     ProtocolError,
 };
 
@@ -17,7 +17,7 @@ impl Parser {
     fn parse_metadata(
         src: &[u8],
         server: bool,
-    ) -> Result<Option<(usize, bool, OpCode, usize, Option<[u8; 4]>)>, ProtocolError> {
+    ) -> Result<Option<(usize, bool, OpCode, RsvBits, usize, Option<[u8; 4]>)>, ProtocolError> {
         let chunk_len = src.len();
 
         let mut idx = 2;
@@ -36,6 +36,9 @@ impl Parser {
         } else if masked && !server {
             return Err(ProtocolError::MaskedFrame);
         }
+
+        // RSV bits
+        let rsv_bits = RsvBits::from_bits((first & 0x70) >> 4).unwrap_or(RsvBits::empty());
 
         // Op code
         let opcode = OpCode::from(first & 0x0F);
@@ -79,7 +82,7 @@ impl Parser {
             None
         };
 
-        Ok(Some((idx, finished, opcode, length, mask)))
+        Ok(Some((idx, finished, opcode, rsv_bits, length, mask)))
     }
 
     /// Parse the input stream into a frame.
@@ -87,12 +90,13 @@ impl Parser {
         src: &mut BytesMut,
         server: bool,
         max_size: usize,
-    ) -> Result<Option<(bool, OpCode, Option<BytesMut>)>, ProtocolError> {
+    ) -> Result<Option<(bool, OpCode, RsvBits, Option<BytesMut>)>, ProtocolError> {
         // try to parse ws frame metadata
-        let (idx, finished, opcode, length, mask) = match Parser::parse_metadata(src, server)? {
-            None => return Ok(None),
-            Some(res) => res,
-        };
+        let (idx, finished, opcode, rsv_bits, length, mask) =
+            match Parser::parse_metadata(src, server)? {
+                None => return Ok(None),
+                Some(res) => res,
+            };
 
         // not enough data
         if src.len() < idx + length {
@@ -115,7 +119,7 @@ impl Parser {
 
         // no need for body
         if length == 0 {
-            return Ok(Some((finished, opcode, None)));
+            return Ok(Some((finished, opcode, rsv_bits, None)));
         }
 
         let mut data = src.split_to(length);
@@ -127,7 +131,7 @@ impl Parser {
             }
             OpCode::Close if length > 125 => {
                 debug!("Received close frame with payload length exceeding 125. Morphing to protocol close frame.");
-                return Ok(Some((true, OpCode::Close, None)));
+                return Ok(Some((true, OpCode::Close, rsv_bits, None)));
             }
             _ => {}
         }
@@ -137,7 +141,7 @@ impl Parser {
             apply_mask(&mut data, mask);
         }
 
-        Ok(Some((finished, opcode, Some(data))))
+        Ok(Some((finished, opcode, rsv_bits, Some(data))))
     }
 
     /// Parse the payload of a close frame.
@@ -161,15 +165,15 @@ impl Parser {
         dst: &mut BytesMut,
         pl: B,
         op: OpCode,
+        rsv_bits: RsvBits,
         fin: bool,
         mask: bool,
     ) {
         let payload = pl.as_ref();
-        let one: u8 = if fin {
-            0x80 | Into::<u8>::into(op)
-        } else {
-            op.into()
-        };
+        let fin_bits = if fin { 0x80 } else { 0x00 };
+        let rsv_bits = rsv_bits.bits() << 4;
+
+        let one: u8 = fin_bits | rsv_bits | Into::<u8>::into(op);
         let payload_len = payload.len();
         let (two, p_len) = if mask {
             (0x80, payload_len + 4)
@@ -203,7 +207,12 @@ impl Parser {
 
     /// Create a new Close control frame.
     #[inline]
-    pub fn write_close(dst: &mut BytesMut, reason: Option<CloseReason>, mask: bool) {
+    pub fn write_close(
+        dst: &mut BytesMut,
+        reason: Option<CloseReason>,
+        rsv_bits: RsvBits,
+        mask: bool,
+    ) {
         let payload = match reason {
             None => Vec::new(),
             Some(reason) => {
@@ -215,7 +224,7 @@ impl Parser {
             }
         };
 
-        Parser::write_message(dst, payload, OpCode::Close, true, mask)
+        Parser::write_message(dst, payload, OpCode::Close, rsv_bits, true, mask)
     }
 }
 
@@ -228,18 +237,22 @@ mod tests {
     struct F {
         finished: bool,
         opcode: OpCode,
+        rsv_bits: RsvBits,
         payload: Bytes,
     }
 
-    fn is_none(frm: &Result<Option<(bool, OpCode, Option<BytesMut>)>, ProtocolError>) -> bool {
+    fn is_none(
+        frm: &Result<Option<(bool, OpCode, RsvBits, Option<BytesMut>)>, ProtocolError>,
+    ) -> bool {
         matches!(*frm, Ok(None))
     }
 
-    fn extract(frm: Result<Option<(bool, OpCode, Option<BytesMut>)>, ProtocolError>) -> F {
+    fn extract(frm: Result<Option<(bool, OpCode, RsvBits, Option<BytesMut>)>, ProtocolError>) -> F {
         match frm {
-            Ok(Some((finished, opcode, payload))) => F {
+            Ok(Some((finished, opcode, rsv_bits, payload))) => F {
                 finished,
                 opcode,
+                rsv_bits,
                 payload: payload
                     .map(|b| b.freeze())
                     .unwrap_or_else(|| Bytes::from("")),
@@ -260,6 +273,17 @@ mod tests {
         assert!(!frame.finished);
         assert_eq!(frame.opcode, OpCode::Text);
         assert_eq!(frame.payload.as_ref(), &b"1"[..]);
+
+        let mut buf = BytesMut::from(&[0b1111_0001u8, 0b0000_0001u8][..]);
+        buf.extend(b"2");
+
+        let frame = extract(Parser::parse(&mut buf, false, 1024));
+        assert!(frame.finished);
+        assert_eq!(frame.opcode, OpCode::Text);
+        assert_eq!(frame.payload.as_ref(), &b"2"[..]);
+        assert!(frame.rsv_bits.contains(RsvBits::RSV1));
+        assert!(frame.rsv_bits.contains(RsvBits::RSV2));
+        assert!(frame.rsv_bits.contains(RsvBits::RSV3));
     }
 
     #[test]
@@ -368,7 +392,14 @@ mod tests {
     #[test]
     fn test_ping_frame() {
         let mut buf = BytesMut::new();
-        Parser::write_message(&mut buf, Vec::from("data"), OpCode::Ping, true, false);
+        Parser::write_message(
+            &mut buf,
+            Vec::from("data"),
+            OpCode::Ping,
+            RsvBits::empty(),
+            true,
+            false,
+        );
 
         let mut v = vec![137u8, 4u8];
         v.extend(b"data");
@@ -378,7 +409,14 @@ mod tests {
     #[test]
     fn test_pong_frame() {
         let mut buf = BytesMut::new();
-        Parser::write_message(&mut buf, Vec::from("data"), OpCode::Pong, true, false);
+        Parser::write_message(
+            &mut buf,
+            Vec::from("data"),
+            OpCode::Pong,
+            RsvBits::empty(),
+            true,
+            false,
+        );
 
         let mut v = vec![138u8, 4u8];
         v.extend(b"data");
@@ -389,7 +427,7 @@ mod tests {
     fn test_close_frame() {
         let mut buf = BytesMut::new();
         let reason = (CloseCode::Normal, "data");
-        Parser::write_close(&mut buf, Some(reason.into()), false);
+        Parser::write_close(&mut buf, Some(reason.into()), RsvBits::empty(), false);
 
         let mut v = vec![136u8, 6u8, 3u8, 232u8];
         v.extend(b"data");
@@ -399,7 +437,7 @@ mod tests {
     #[test]
     fn test_empty_close_frame() {
         let mut buf = BytesMut::new();
-        Parser::write_close(&mut buf, None, false);
+        Parser::write_close(&mut buf, None, RsvBits::empty(), false);
         assert_eq!(&buf[..], &vec![0x88, 0x00][..]);
     }
 }
