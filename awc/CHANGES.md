@@ -12,6 +12,7 @@
 - Do not send `Host` header on HTTP/2 requests, as it is not required, and some web servers may reject it.
 - Update `brotli` dependency to `7`.
 - Minimum supported Rust version (MSRV) is now 1.75.
+- Replace `trust-dns-resolver` with `hickory-resolver` for DNS resolution in awc when using `trust-dns` feature.
 
 ## 3.5.1
 

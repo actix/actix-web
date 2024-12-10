@@ -83,8 +83,10 @@ compress-zstd = ["actix-http/compress-zstd", "__compress"]
 # Cookie parsing and cookie jar
 cookies = ["dep:cookie"]
 
-# Use `trust-dns-resolver` crate as DNS resolver
-trust-dns = ["trust-dns-resolver"]
+# Use `trust-dns-resolver` crate as DNS resolver, deprecated in favor of `hickory-dns` which is a drop-in replacement
+trust-dns = ["hickory-dns"]
+# Use `hickory-dns-resolver` crate as DNS resolver
+hickory-dns = ["hickory-resolver"]
 
 # Internal (PRIVATE!) features used to aid testing and checking feature status.
 # Don't rely on these whatsoever. They may disappear at anytime.
@@ -130,7 +132,7 @@ tls-rustls-0_21 = { package = "rustls", version = "0.21", optional = true, featu
 tls-rustls-0_22 = { package = "rustls", version = "0.22", optional = true }
 tls-rustls-0_23 = { package = "rustls", version = "0.23", optional = true, default-features = false }
 
-trust-dns-resolver = { version = "0.23", optional = true }
+hickory-resolver = { version = "0.24.2", optional = true }
 
 [dev-dependencies]
 actix-http = { version = "3.7", features = ["openssl"] }
