@@ -5,6 +5,7 @@
 - Update `brotli` dependency to `7`.
 - Prevent panics on connection pool drop when Tokio runtime is shutdown early.
 - Minimum supported Rust version (MSRV) is now 1.75.
+- Replace `trust-dns-resolver` with `hickory-resolver` for DNS resolution in awc when using `trust-dns` feature.
 
 ## 3.5.1
 
