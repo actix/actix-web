@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Minimum supported Rust version (MSRV) is now 1.75.
+- Avoid spawning a thread for each file which does more harm than good
 
 ## 0.6.6
 
