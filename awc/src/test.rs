@@ -1,6 +1,8 @@
 //! Test helpers for actix http client to use during testing.
 
-use actix_http::{h1, header::TryIntoHeaderPair, Payload, ResponseHead, StatusCode, Version};
+use actix_http::{
+    h1, header::TryIntoHeaderPair, Payload, RequestHead, ResponseHead, StatusCode, Version,
+};
 use bytes::Bytes;
 
 #[cfg(feature = "cookies")]
@@ -9,6 +11,7 @@ use crate::ClientResponse;
 
 /// Test `ClientResponse` builder
 pub struct TestResponse {
+    req_head: RequestHead,
     head: ResponseHead,
     #[cfg(feature = "cookies")]
     cookies: CookieJar,
@@ -18,6 +21,7 @@ pub struct TestResponse {
 impl Default for TestResponse {
     fn default() -> TestResponse {
         TestResponse {
+            req_head: RequestHead::default(),
             head: ResponseHead::new(StatusCode::OK),
             #[cfg(feature = "cookies")]
             cookies: CookieJar::new(),
@@ -88,10 +92,10 @@ impl TestResponse {
         }
 
         if let Some(pl) = self.payload {
-            ClientResponse::new(head, pl)
+            ClientResponse::new(self.req_head.into(), head, pl)
         } else {
             let (_, payload) = h1::Payload::create(true);
-            ClientResponse::new(head, payload.into())
+            ClientResponse::new(self.req_head.into(), head, payload.into())
         }
     }
 }
