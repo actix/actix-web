@@ -79,6 +79,8 @@ compress-brotli = ["actix-http/compress-brotli", "__compress"]
 compress-gzip = ["actix-http/compress-gzip", "__compress"]
 # Zstd algorithm content-encoding support
 compress-zstd = ["actix-http/compress-zstd", "__compress"]
+# Deflate compression for WebSocket
+compress-ws-deflate = ["actix-http/compress-ws-deflate"]
 
 # Cookie parsing and cookie jar
 cookies = ["dep:cookie"]
@@ -112,7 +114,7 @@ futures-util = { version = "0.3.17", default-features = false, features = ["allo
 h2 = "0.3.26"
 http = "0.2.7"
 itoa = "1"
-log =" 0.4"
+log = "0.4"
 mime = "0.3"
 percent-encoding = "2.1"
 pin-project-lite = "0.2"
