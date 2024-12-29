@@ -29,8 +29,8 @@ use crate::{
 /// Resource in turn has at least one route. Route consists of an handlers objects and list of
 /// guards (objects that implement `Guard` trait). Resources and routes uses builder-like pattern
 /// for configuration. During request handling, the resource object iterates through all routes
-/// and checks guards for the specific route, if the request matches all the guards, then the 
-/// route is considered matched and the route handler gets called.
+/// and checks guards for the specific route, if the request matches all the guards, then the route
+/// is considered matched and the route handler gets called.
 ///
 /// # Examples
 /// ```
