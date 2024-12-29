@@ -31,7 +31,7 @@ impl Hasher for NoOpHasher {
 /// All entries into this map must be owned types (or static references).
 #[derive(Default)]
 pub struct Extensions {
-    /// Use AHasher with a std HashMap with for faster lookups on the small `TypeId` keys.
+    // use no-op hasher with a std HashMap with for faster lookups on the small `TypeId` keys
     map: HashMap<TypeId, Box<dyn Any>, BuildHasherDefault<NoOpHasher>>,
 }
 

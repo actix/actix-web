@@ -2,7 +2,7 @@
 
 use std::{borrow::Cow, collections::hash_map, iter, ops};
 
-use ahash::AHashMap;
+use foldhash::{HashMap as FoldHashMap, HashMapExt as _};
 use http::header::{HeaderName, HeaderValue};
 use smallvec::{smallvec, SmallVec};
 
@@ -47,7 +47,7 @@ use super::AsHeaderName;
 /// ```
 #[derive(Debug, Clone, Default)]
 pub struct HeaderMap {
-    pub(crate) inner: AHashMap<HeaderName, Value>,
+    pub(crate) inner: FoldHashMap<HeaderName, Value>,
 }
 
 /// A bespoke non-empty list for HeaderMap values.
@@ -116,7 +116,7 @@ impl HeaderMap {
     /// ```
     pub fn with_capacity(capacity: usize) -> Self {
         HeaderMap {
-            inner: AHashMap::with_capacity(capacity),
+            inner: FoldHashMap::with_capacity(capacity),
         }
     }
 
