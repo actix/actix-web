@@ -51,8 +51,8 @@ test-msrv: downgrade-for-msrv (test msrv_rustup)
 test toolchain="":
     cargo {{ toolchain }} test --lib --tests -p=actix-web-codegen --all-features
     cargo {{ toolchain }} test --lib --tests -p=actix-multipart-derive --all-features
-    cargo {{ toolchain }} nextest run -p=actix-router --no-default-features
-    cargo {{ toolchain }} nextest run --workspace --exclude=actix-web-codegen --exclude=actix-multipart-derive {{ all_crate_features }} --filter-expr="not test(test_reading_deflate_encoding_large_random_rustls)"
+    cargo {{ toolchain }} nextest run --no-tests=warn -p=actix-router --no-default-features
+    cargo {{ toolchain }} nextest run --no-tests=warn --workspace --exclude=actix-web-codegen --exclude=actix-multipart-derive {{ all_crate_features }} --filter-expr="not test(test_reading_deflate_encoding_large_random_rustls)"
 
 # Test workspace docs.
 test-docs toolchain="": && doc
@@ -64,7 +64,7 @@ test-all toolchain="": (test toolchain) (test-docs toolchain)
 # Test workspace and collect coverage info.
 [private]
 test-coverage toolchain="":
-    cargo {{ toolchain }} llvm-cov nextest --no-report {{ all_crate_features }}
+    cargo {{ toolchain }} llvm-cov nextest --no-tests=warn --no-report {{ all_crate_features }}
     cargo {{ toolchain }} llvm-cov --doc --no-report {{ all_crate_features }}
 
 # Test workspace and generate Codecov report.

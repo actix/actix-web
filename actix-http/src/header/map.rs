@@ -830,7 +830,7 @@ impl<'a> Drain<'a> {
     }
 }
 
-impl<'a> Iterator for Drain<'a> {
+impl Iterator for Drain<'_> {
     type Item = (Option<HeaderName>, HeaderValue);
 
     fn next(&mut self) -> Option<Self::Item> {
