@@ -59,7 +59,7 @@ tokio = { version = "1.24.2", features = ["sync", "io-util"] }
 
 [dev-dependencies]
 actix-http = "3"
-actix-multipart-rfc7578 = "0.10"
+actix-multipart-rfc7578 = "0.11"
 actix-rt = "2.2"
 actix-test = "0.1"
 actix-web = "4"
