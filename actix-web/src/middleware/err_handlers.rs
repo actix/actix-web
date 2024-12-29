@@ -8,7 +8,7 @@ use std::{
 };
 
 use actix_service::{Service, Transform};
-use ahash::AHashMap;
+use foldhash::HashMap as FoldHashMap;
 use futures_core::{future::LocalBoxFuture, ready};
 use pin_project_lite::pin_project;
 
@@ -185,7 +185,7 @@ pub struct ErrorHandlers<B> {
     handlers: Handlers<B>,
 }
 
-type Handlers<B> = Rc<AHashMap<StatusCode, Box<ErrorHandler<B>>>>;
+type Handlers<B> = Rc<FoldHashMap<StatusCode, Box<ErrorHandler<B>>>>;
 
 impl<B> Default for ErrorHandlers<B> {
     fn default() -> Self {

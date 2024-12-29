@@ -106,12 +106,12 @@ actix-codec = "0.5"
 actix-utils = "3"
 actix-rt = { version = "2.2", default-features = false }
 
-ahash = "0.8"
 bitflags = "2"
 bytes = "1"
 bytestring = "1"
 derive_more = { version = "1", features = ["as_ref", "deref", "deref_mut", "display", "error", "from"] }
 encoding_rs = "0.8"
+foldhash = "0.1"
 futures-core = { version = "0.3.17", default-features = false, features = ["alloc"] }
 http = "0.2.7"
 httparse = "1.5.1"
