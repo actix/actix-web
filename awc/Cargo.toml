@@ -110,7 +110,7 @@ derive_more = { version = "1", features = ["display", "error", "from"] }
 futures-core = { version = "0.3.17", default-features = false, features = ["alloc"] }
 futures-util = { version = "0.3.17", default-features = false, features = ["alloc", "sink"] }
 h2 = "0.3.26"
-http = "0.2.7"
+http = "1.2.0"
 itoa = "1"
 log =" 0.4"
 mime = "0.3"
