@@ -19,7 +19,7 @@ impl ResourcePath for String {
     }
 }
 
-impl<'a> ResourcePath for &'a str {
+impl ResourcePath for &str {
     fn path(&self) -> &str {
         self
     }

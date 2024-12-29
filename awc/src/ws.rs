@@ -444,7 +444,7 @@ struct Host<'a> {
     port: Option<http::uri::Port<&'a str>>,
 }
 
-impl<'a> fmt::Display for Host<'a> {
+impl fmt::Display for Host<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.hostname)?;
 
