@@ -1,12 +1,8 @@
 //! A multi-value [`HeaderMap`] and its iterators.
 
-use std::{
-    borrow::Cow,
-    collections::{hash_map, HashMap},
-    iter, ops,
-};
+use std::{borrow::Cow, collections::hash_map, iter, ops};
 
-use foldhash::HashMap as FoldHashMap;
+use foldhash::{HashMap as FoldHashMap, HashMapExt as _};
 use http::header::{HeaderName, HeaderValue};
 use smallvec::{smallvec, SmallVec};
 
@@ -120,10 +116,7 @@ impl HeaderMap {
     /// ```
     pub fn with_capacity(capacity: usize) -> Self {
         HeaderMap {
-            inner: HashMap::with_capacity_and_hasher(
-                capacity,
-                foldhash::fast::RandomState::default(),
-            ),
+            inner: FoldHashMap::with_capacity(capacity),
         }
     }
 
