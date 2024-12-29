@@ -66,18 +66,18 @@ jobs:
         run: cargo +nightly doc --no-deps --workspace --all-features
 
   check-external-types:
-    if: false # disable until https://github.com/awslabs/cargo-check-external-types/pull/177 is marged
+    if: false # rustdoc mismatch currently
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust (nightly-2024-05-01)
+      - name: Install Rust (${{ vars.RUST_VERSION_EXTERNAL_TYPES }})
         uses: actions-rust-lang/setup-rust-toolchain@v1.10.1
         with:
-          toolchain: nightly-2024-05-01
+          toolchain: ${{ vars.RUST_VERSION_EXTERNAL_TYPES }}
 
       - name: Install just
-        uses: taiki-e/install-action@v2.44.24
+        uses: taiki-e/install-action@v2.46.20
         with:
           tool: just
 
@@ -87,31 +87,4 @@ jobs:
           tool: cargo-check-external-types
 
       - name: check external types
-        run: just check-external-types-all +nightly-2024-05-01
-
-  public-api-diff:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout main branch
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.base_ref }}
-
-      - name: Checkout PR branch
-        uses: actions/checkout@v4
-
-      - name: Install Rust (nightly-2024-09-30)
-        uses: actions-rust-lang/setup-rust-toolchain@v1.10.1
-        with:
-          toolchain: nightly-2024-09-30
-
-      - name: Install cargo-public-api
-        uses: taiki-e/install-action@v2.44.24
-        with:
-          tool: cargo-public-api
-
-      - name: Generate API diff
-        run: |
-          for f in $(find -mindepth 2 -maxdepth 2 -name Cargo.toml); do
-            cargo public-api --manifest-path "$f" --simplified diff ${{ github.event.pull_request.base.sha }}..${{ github.sha }}
-          done
+        run: just check-external-types-all +${{ vars.RUST_VERSION_EXTERNAL_TYPES }}

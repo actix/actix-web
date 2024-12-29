@@ -193,7 +193,7 @@ where
     ///
     /// One thread pool is set up **per worker**; not shared across workers.
     ///
-    /// By default set to 512 divided by the number of workers.
+    /// By default, set to 512 divided by [available parallelism](std::thread::available_parallelism()).
     pub fn worker_max_blocking_threads(mut self, num: usize) -> Self {
         self.builder = self.builder.worker_max_blocking_threads(num);
         self

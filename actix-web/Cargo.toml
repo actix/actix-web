@@ -163,6 +163,7 @@ serde = "1.0"
 serde_json = "1.0"
 serde_urlencoded = "0.7"
 smallvec = "1.6.1"
+tracing = "0.1.30"
 socket2 = "0.5"
 time = { version = "0.3", default-features = false, features = ["formatting"] }
 url = "2.1"
@@ -172,7 +173,7 @@ actix-files = "0.6"
 actix-test = { version = "0.1", features = ["openssl", "rustls-0_23"] }
 awc = { version = "3", features = ["openssl"] }
 
-brotli = "6"
+brotli = "7"
 const-str = "0.5"
 core_affinity = "0.8"
 criterion = { version = "0.5", features = ["html_reports"] }
