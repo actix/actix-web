@@ -548,7 +548,8 @@ where
                         let h2 = sock
                             .ssl()
                             .selected_alpn_protocol()
-                            .map_or(false, |protos| protos.windows(2).any(|w| w == H2));
+                            .is_some_and(|protos| protos.windows(2).any(|w| w == H2));
+
                         if h2 {
                             (Box::new(sock), Protocol::Http2)
                         } else {
@@ -587,7 +588,8 @@ where
                             .get_ref()
                             .1
                             .alpn_protocol()
-                            .map_or(false, |protos| protos.windows(2).any(|w| w == H2));
+                            .is_some_and(|protos| protos.windows(2).any(|w| w == H2));
+
                         if h2 {
                             (Box::new(sock), Protocol::Http2)
                         } else {
@@ -621,7 +623,8 @@ where
                             .get_ref()
                             .1
                             .alpn_protocol()
-                            .map_or(false, |protos| protos.windows(2).any(|w| w == H2));
+                            .is_some_and(|protos| protos.windows(2).any(|w| w == H2));
+
                         if h2 {
                             (Box::new(sock), Protocol::Http2)
                         } else {
@@ -658,7 +661,8 @@ where
                             .get_ref()
                             .1
                             .alpn_protocol()
-                            .map_or(false, |protos| protos.windows(2).any(|w| w == H2));
+                            .is_some_and(|protos| protos.windows(2).any(|w| w == H2));
+
                         if h2 {
                             (Box::new(sock), Protocol::Http2)
                         } else {
@@ -692,7 +696,8 @@ where
                             .get_ref()
                             .1
                             .alpn_protocol()
-                            .map_or(false, |protos| protos.windows(2).any(|w| w == H2));
+                            .is_some_and(|protos| protos.windows(2).any(|w| w == H2));
+
                         if h2 {
                             (Box::new(sock), Protocol::Http2)
                         } else {

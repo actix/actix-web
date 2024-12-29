@@ -14,7 +14,7 @@
 [![Dependency Status](https://deps.rs/crate/actix-web/4.9.0/status.svg)](https://deps.rs/crate/actix-web/4.9.0)
 <br />
 [![CI](https://github.com/actix/actix-web/actions/workflows/ci.yml/badge.svg)](https://github.com/actix/actix-web/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/actix/actix-web/branch/master/graph/badge.svg)](https://codecov.io/gh/actix/actix-web)
+[![codecov](https://codecov.io/gh/actix/actix-web/graph/badge.svg?token=dSwOnp9QCv)](https://codecov.io/gh/actix/actix-web)
 ![downloads](https://img.shields.io/crates/d/actix-web.svg)
 [![Chat on Discord](https://img.shields.io/discord/771444961383153695?label=chat&logo=discord)](https://discord.gg/NWpN5mmg3x)
 
