@@ -5,6 +5,7 @@
 - Update `brotli` dependency to `7`.
 - Prevent panics on connection pool drop when Tokio runtime is shutdown early.
 - Minimum supported Rust version (MSRV) is now 1.75.
+- Allow to retrieve request head used to send the http request on `ClientResponse`
 
 ## 3.5.1
 

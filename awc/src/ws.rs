@@ -351,7 +351,7 @@ impl WebsocketsRequest {
             fut.await?
         };
 
-        let (head, framed) = res.into_tunnel_response();
+        let (req_head, head, framed) = res.into_tunnel_response();
 
         // verify response
         if head.status != StatusCode::SWITCHING_PROTOCOLS {
@@ -411,7 +411,7 @@ impl WebsocketsRequest {
 
         // response and ws framed
         Ok((
-            ClientResponse::new(head, Payload::None),
+            ClientResponse::new(req_head, head, Payload::None),
             framed.into_map_codec(|_| {
                 if server_mode {
                     ws::Codec::new().max_size(max_size)
