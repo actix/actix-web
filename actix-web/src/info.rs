@@ -1,4 +1,7 @@
-use std::{convert::Infallible, net::SocketAddr};
+use std::{
+    convert::Infallible,
+    net::{IpAddr, SocketAddr},
+};
 
 use actix_utils::future::{err, ok, Ready};
 use derive_more::derive::{Display, Error};
@@ -6,15 +9,11 @@ use derive_more::derive::{Display, Error};
 use crate::{
     dev::{AppConfig, Payload, RequestHead},
     http::{
-        header::{self, HeaderName},
+        header,
         uri::{Authority, Scheme},
     },
     FromRequest, HttpRequest, ResponseError,
 };
-
-static X_FORWARDED_FOR: HeaderName = HeaderName::from_static("x-forwarded-for");
-static X_FORWARDED_HOST: HeaderName = HeaderName::from_static("x-forwarded-host");
-static X_FORWARDED_PROTO: HeaderName = HeaderName::from_static("x-forwarded-proto");
 
 /// Trim whitespace then any quote marks.
 fn unquote(val: &str) -> &str {
@@ -35,11 +34,25 @@ fn bare_address(val: &str) -> &str {
     }
 }
 
-/// Extracts and trims first value for given header name.
-fn first_header_value<'a>(req: &'a RequestHead, name: &'_ HeaderName) -> Option<&'a str> {
-    let hdr = req.headers.get(name)?.to_str().ok()?;
-    let val = hdr.split(',').next()?.trim();
-    Some(val)
+/// Extract default host from request or server configuration.
+fn default_host<'a>(req: &'a RequestHead, cfg: &'a AppConfig) -> &'a str {
+    req.headers
+        .get(&header::HOST)
+        .and_then(|v| v.to_str().ok())
+        // skip host header if HTTP/2, we should use :authority instead
+        .filter(|_| req.version < actix_http::Version::HTTP_2)
+        .or_else(|| req.uri.authority().map(Authority::as_str))
+        // @TODO can we get the sni host if in secure context ?
+        .unwrap_or_else(|| cfg.host())
+}
+
+/// Extract default scheme from request or server configuration.
+fn default_scheme<'a>(req: &'a RequestHead, cfg: &'a AppConfig) -> &'a str {
+    req.uri
+        .scheme()
+        .map(Scheme::as_str)
+        .or_else(|| Some("https").filter(|_| cfg.secure()))
+        .unwrap_or("http")
 }
 
 /// HTTP connection information.
@@ -70,6 +83,9 @@ fn first_header_value<'a>(req: &'a RequestHead, name: &'_ HeaderName) -> Option<
 /// If the older, related headers are also present (eg. `X-Forwarded-For`), then `Forwarded`
 /// is preferred.
 ///
+/// Header are parsed only if the peer address is trusted and the header is trusted, otherwise the
+/// request is considered to be direct and the headers are ignored.
+///
 /// [rfc7239]: https://datatracker.ietf.org/doc/html/rfc7239
 /// [rfc7239-62]: https://datatracker.ietf.org/doc/html/rfc7239#section-6.2
 /// [rfc7239-63]: https://datatracker.ietf.org/doc/html/rfc7239#section-6.3
@@ -83,67 +99,151 @@ pub struct ConnectionInfo {
 
 impl ConnectionInfo {
     pub(crate) fn new(req: &RequestHead, cfg: &AppConfig) -> ConnectionInfo {
-        let mut host = None;
-        let mut scheme = None;
-        let mut realip_remote_addr = None;
+        let (host, scheme, peer_addr, realip_remote_addr) =
+            match req.peer_addr.map(|addr| addr.ip()) {
+                // since we don't have a peer address, we can't determine the real IP and we cannot trust any headers
+                // set the host and scheme to the server's configuration
+                None => (
+                    default_host(req, cfg).to_string(),
+                    default_scheme(req, cfg).to_string(),
+                    None,
+                    None,
+                ),
+                Some(ip) => {
+                    if !cfg.trusted_proxies().trust_ip(&ip) {
+                        // if the peer address is not trusted, we can't trust the headers
+                        // set the host and scheme to the server's configuration
+                        (
+                            default_host(req, cfg).to_string(),
+                            default_scheme(req, cfg).to_string(),
+                            Some(ip.to_string()),
+                            None,
+                        )
+                    } else {
+                        // if the peer address is trusted, we can start to check trusted header to get correct information
 
-        for (name, val) in req
-            .headers
-            .get_all(&header::FORWARDED)
-            .filter_map(|hdr| hdr.to_str().ok())
-            // "for=1.2.3.4, for=5.6.7.8; scheme=https"
-            .flat_map(|val| val.split(';'))
-            // ["for=1.2.3.4, for=5.6.7.8", " scheme=https"]
-            .flat_map(|vals| vals.split(','))
-            // ["for=1.2.3.4", " for=5.6.7.8", " scheme=https"]
-            .flat_map(|pair| {
-                let mut items = pair.trim().splitn(2, '=');
-                Some((items.next()?, items.next()?))
-            })
-        {
-            // [(name , val      ), ...                                    ]
-            // [("for", "1.2.3.4"), ("for", "5.6.7.8"), ("scheme", "https")]
+                        let mut host = None;
+                        let mut scheme = None;
+                        let mut realip_remote_addr = None;
 
-            // taking the first value for each property is correct because spec states that first
-            // "for" value is client and rest are proxies; multiple values other properties have
-            // no defined semantics
-            //
-            // > In a chain of proxy servers where this is fully utilized, the first
-            // > "for" parameter will disclose the client where the request was first
-            // > made, followed by any subsequent proxy identifiers.
-            // --- https://datatracker.ietf.org/doc/html/rfc7239#section-5.2
+                        // first check the forwarded header if it is trusted
+                        if cfg.trusted_proxies().trust_header(&header::FORWARDED) {
+                            // quote from RFC 7239:
+                            // A proxy server that wants to add a new "Forwarded" header field value
+                            //    can either append it to the last existing "Forwarded" header field
+                            //    after a comma separator or add a new field at the end of the header
+                            //    block.
+                            // --- https://datatracker.ietf.org/doc/html/rfc7239#section-4
+                            // so we get the values in reverse order as we want to get the first untrusted value
+                            let forwarded_list = req
+                                .headers
+                                .get_all(&header::FORWARDED)
+                                .filter_map(|hdr| hdr.to_str().ok())
+                                // "for=1.2.3.4, for=5.6.7.8; scheme=https"
+                                .flat_map(|vals| vals.split(','))
+                                // ["for=1.2.3.4", "for=5.6.7.8; scheme=https"]
+                                .rev();
 
-            match name.trim().to_lowercase().as_str() {
-                "for" => realip_remote_addr.get_or_insert_with(|| bare_address(unquote(val))),
-                "proto" => scheme.get_or_insert_with(|| unquote(val)),
-                "host" => host.get_or_insert_with(|| unquote(val)),
-                "by" => {
-                    // TODO: implement https://datatracker.ietf.org/doc/html/rfc7239#section-5.1
-                    continue;
+                            'forwaded: for forwarded in forwarded_list {
+                                for (key, value) in forwarded.split(';').map(|item| {
+                                    let mut kv = item.splitn(2, '=');
+
+                                    (
+                                        kv.next().map(|s| s.trim()).unwrap_or_default(),
+                                        kv.next().map(|s| unquote(s.trim())).unwrap_or_default(),
+                                    )
+                                }) {
+                                    match key.to_lowercase().as_str() {
+                                        "for" => {
+                                            if let Ok(ip) = bare_address(value).parse::<IpAddr>() {
+                                                if cfg.trusted_proxies().trust_ip(&ip) {
+                                                    host = None;
+                                                    scheme = None;
+                                                    realip_remote_addr = None;
+
+                                                    continue 'forwaded;
+                                                }
+                                            }
+
+                                            realip_remote_addr = Some(bare_address(value));
+                                        }
+                                        "proto" => {
+                                            scheme = Some(value);
+                                        }
+                                        "host" => {
+                                            host = Some(value);
+                                        }
+                                        "by" => {
+                                            // TODO: implement https://datatracker.ietf.org/doc/html/rfc7239#section-5.1
+                                        }
+                                        _ => {}
+                                    }
+                                }
+
+                                break 'forwaded;
+                            }
+                        }
+
+                        if realip_remote_addr.is_none()
+                            && cfg.trusted_proxies().trust_header(&header::X_FORWARDED_FOR)
+                        {
+                            for value in req
+                                .headers
+                                .get_all(&header::X_FORWARDED_FOR)
+                                .filter_map(|hdr| hdr.to_str().ok())
+                                .flat_map(|vals| vals.split(','))
+                                .rev()
+                            {
+                                if let Ok(ip) = bare_address(value).parse::<IpAddr>() {
+                                    if cfg.trusted_proxies().trust_ip(&ip) {
+                                        continue;
+                                    }
+                                }
+
+                                realip_remote_addr = Some(bare_address(value));
+                                break;
+                            }
+                        }
+
+                        if host.is_none()
+                            && cfg
+                                .trusted_proxies()
+                                .trust_header(&header::X_FORWARDED_HOST)
+                        {
+                            host = req
+                                .headers
+                                .get_all(&header::X_FORWARDED_HOST)
+                                .filter_map(|hdr| hdr.to_str().ok())
+                                .flat_map(|vals| vals.split(','))
+                                .rev()
+                                .next();
+                        }
+
+                        if scheme.is_none()
+                            && cfg
+                                .trusted_proxies()
+                                .trust_header(&header::X_FORWARDED_PROTO)
+                        {
+                            scheme = req
+                                .headers
+                                .get_all(&header::X_FORWARDED_PROTO)
+                                .filter_map(|hdr| hdr.to_str().ok())
+                                .flat_map(|vals| vals.split(','))
+                                .rev()
+                                .next();
+                        }
+
+                        (
+                            host.unwrap_or_else(|| default_host(req, cfg)).to_string(),
+                            scheme
+                                .unwrap_or_else(|| default_scheme(req, cfg))
+                                .to_string(),
+                            Some(ip.to_string()),
+                            realip_remote_addr.map(|s| s.to_string()),
+                        )
+                    }
                 }
-                _ => continue,
             };
-        }
-
-        let scheme = scheme
-            .or_else(|| first_header_value(req, &X_FORWARDED_PROTO))
-            .or_else(|| req.uri.scheme().map(Scheme::as_str))
-            .or_else(|| Some("https").filter(|_| cfg.secure()))
-            .unwrap_or("http")
-            .to_owned();
-
-        let host = host
-            .or_else(|| first_header_value(req, &X_FORWARDED_HOST))
-            .or_else(|| req.headers.get(&header::HOST)?.to_str().ok())
-            .or_else(|| req.uri.authority().map(Authority::as_str))
-            .unwrap_or_else(|| cfg.host())
-            .to_owned();
-
-        let realip_remote_addr = realip_remote_addr
-            .or_else(|| first_header_value(req, &X_FORWARDED_FOR))
-            .map(str::to_owned);
-
-        let peer_addr = req.peer_addr.map(|addr| addr.ip().to_string());
 
         ConnectionInfo {
             host,
@@ -270,7 +370,7 @@ impl FromRequest for PeerAddr {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test::TestRequest;
+    use crate::{test::TestRequest, trusted_proxies::TrustedProxies};
 
     const X_FORWARDED_FOR: &str = "x-forwarded-for";
     const X_FORWARDED_HOST: &str = "x-forwarded-host";
@@ -297,8 +397,15 @@ mod tests {
     }
 
     #[test]
-    fn x_forwarded_for_header() {
+    fn x_forwarded_for_header_trusted() {
+        let mut trusted_proxies = TrustedProxies::new_local();
+        trusted_proxies.add_trusted_header(header::X_FORWARDED_FOR);
+
+        let addr = "127.0.0.1:8080".parse().unwrap();
+
         let req = TestRequest::default()
+            .peer_addr(addr)
+            .set_trusted_proxies(trusted_proxies)
             .insert_header((X_FORWARDED_FOR, "192.0.2.60"))
             .to_http_request();
         let info = req.connection_info();
@@ -306,18 +413,77 @@ mod tests {
     }
 
     #[test]
-    fn x_forwarded_host_header() {
+    fn x_forwarded_for_header_trusted_multiple() {
+        let mut trusted_proxies = TrustedProxies::new_local();
+        trusted_proxies
+            .add_trusted_proxy("192.0.2.60")
+            .expect("failed to add trusted proxy");
+        trusted_proxies.add_trusted_header(header::X_FORWARDED_FOR);
+
+        let addr = "127.0.0.1:8080".parse().unwrap();
+
         let req = TestRequest::default()
+            .peer_addr(addr)
+            .set_trusted_proxies(trusted_proxies)
+            .append_header((X_FORWARDED_FOR, "240.10.56.47"))
+            .append_header((X_FORWARDED_FOR, "192.0.2.60"))
+            .to_http_request();
+        let info = req.connection_info();
+        assert_eq!(info.realip_remote_addr(), Some("240.10.56.47"));
+    }
+
+    #[test]
+    fn x_forwarded_for_header_untrusted() {
+        let addr = "127.0.0.1:8080".parse().unwrap();
+
+        let req = TestRequest::default()
+            .peer_addr(addr)
+            .insert_header((X_FORWARDED_FOR, "192.0.2.60"))
+            .to_http_request();
+        let info = req.connection_info();
+        assert_eq!(info.realip_remote_addr(), Some("127.0.0.1"));
+    }
+
+    #[test]
+    fn x_forwarded_host_header_trusted() {
+        let mut trusted_proxies = TrustedProxies::new_local();
+        trusted_proxies.add_trusted_header(header::X_FORWARDED_HOST);
+
+        let addr = "127.0.0.1:8080".parse().unwrap();
+
+        let req = TestRequest::default()
+            .peer_addr(addr)
+            .set_trusted_proxies(trusted_proxies)
             .insert_header((X_FORWARDED_HOST, "192.0.2.60"))
             .to_http_request();
         let info = req.connection_info();
         assert_eq!(info.host(), "192.0.2.60");
-        assert_eq!(info.realip_remote_addr(), None);
+        assert_eq!(info.realip_remote_addr(), Some("127.0.0.1"));
     }
 
     #[test]
-    fn x_forwarded_proto_header() {
+    fn x_forwarded_host_header_untrusted() {
+        let addr = "127.0.0.1:8080".parse().unwrap();
+
         let req = TestRequest::default()
+            .peer_addr(addr)
+            .insert_header((X_FORWARDED_HOST, "192.0.2.60"))
+            .to_http_request();
+        let info = req.connection_info();
+        assert_eq!(info.host(), "localhost:8080");
+        assert_eq!(info.realip_remote_addr(), Some("127.0.0.1"));
+    }
+
+    #[test]
+    fn x_forwarded_proto_header_trusted() {
+        let mut trusted_proxies = TrustedProxies::new_local();
+        trusted_proxies.add_trusted_header(header::X_FORWARDED_PROTO);
+
+        let addr = "127.0.0.1:8080".parse().unwrap();
+
+        let req = TestRequest::default()
+            .peer_addr(addr)
+            .set_trusted_proxies(trusted_proxies)
             .insert_header((X_FORWARDED_PROTO, "https"))
             .to_http_request();
         let info = req.connection_info();
@@ -325,8 +491,21 @@ mod tests {
     }
 
     #[test]
-    fn forwarded_header() {
+    fn x_forwarded_proto_header_untrusted() {
+        let addr = "127.0.0.1:8080".parse().unwrap();
         let req = TestRequest::default()
+            .peer_addr(addr)
+            .insert_header((X_FORWARDED_PROTO, "https"))
+            .to_http_request();
+        let info = req.connection_info();
+        assert_eq!(info.scheme(), "http");
+    }
+
+    #[test]
+    fn forwarded_header() {
+        let addr = "127.0.0.1:8080".parse().unwrap();
+        let req = TestRequest::default()
+            .peer_addr(addr)
             .insert_header((
                 header::FORWARDED,
                 "for=192.0.2.60; proto=https; by=203.0.113.43; host=rust-lang.org",
@@ -339,6 +518,7 @@ mod tests {
         assert_eq!(info.realip_remote_addr(), Some("192.0.2.60"));
 
         let req = TestRequest::default()
+            .peer_addr(addr)
             .insert_header((
                 header::FORWARDED,
                 "for=192.0.2.60; proto=https; by=203.0.113.43; host=rust-lang.org",
@@ -353,7 +533,9 @@ mod tests {
 
     #[test]
     fn forwarded_case_sensitivity() {
+        let addr = "127.0.0.1:8080".parse().unwrap();
         let req = TestRequest::default()
+            .peer_addr(addr)
             .insert_header((header::FORWARDED, "For=192.0.2.60"))
             .to_http_request();
         let info = req.connection_info();
@@ -362,7 +544,9 @@ mod tests {
 
     #[test]
     fn forwarded_weird_whitespace() {
+        let addr = "127.0.0.1:8080".parse().unwrap();
         let req = TestRequest::default()
+            .peer_addr(addr)
             .insert_header((header::FORWARDED, "for= 1.2.3.4; proto= https"))
             .to_http_request();
         let info = req.connection_info();
@@ -370,6 +554,7 @@ mod tests {
         assert_eq!(info.scheme(), "https");
 
         let req = TestRequest::default()
+            .peer_addr(addr)
             .insert_header((header::FORWARDED, "  for = 1.2.3.4  "))
             .to_http_request();
         let info = req.connection_info();
@@ -378,7 +563,9 @@ mod tests {
 
     #[test]
     fn forwarded_for_quoted() {
+        let addr = "127.0.0.1:8080".parse().unwrap();
         let req = TestRequest::default()
+            .peer_addr(addr)
             .insert_header((header::FORWARDED, r#"for="192.0.2.60:8080""#))
             .to_http_request();
         let info = req.connection_info();
@@ -387,7 +574,9 @@ mod tests {
 
     #[test]
     fn forwarded_for_ipv6() {
+        let addr = "127.0.0.1:8080".parse().unwrap();
         let req = TestRequest::default()
+            .peer_addr(addr)
             .insert_header((header::FORWARDED, r#"for="[2001:db8:cafe::17]""#))
             .to_http_request();
         let info = req.connection_info();
@@ -396,7 +585,9 @@ mod tests {
 
     #[test]
     fn forwarded_for_ipv6_with_port() {
+        let addr = "127.0.0.1:8080".parse().unwrap();
         let req = TestRequest::default()
+            .peer_addr(addr)
             .insert_header((header::FORWARDED, r#"for="[2001:db8:cafe::17]:4711""#))
             .to_http_request();
         let info = req.connection_info();
@@ -405,11 +596,29 @@ mod tests {
 
     #[test]
     fn forwarded_for_multiple() {
+        let addr = "127.0.0.1:8080".parse().unwrap();
         let req = TestRequest::default()
+            .peer_addr(addr)
             .insert_header((header::FORWARDED, "for=192.0.2.60, for=198.51.100.17"))
             .to_http_request();
         let info = req.connection_info();
-        // takes the first value
+
+        // takes the last untrusted value
+        assert_eq!(info.realip_remote_addr(), Some("198.51.100.17"));
+
+        let mut trusted_proxies = TrustedProxies::new_local();
+        trusted_proxies
+            .add_trusted_proxy("198.51.100.17")
+            .expect("Failed to add trusted proxy");
+
+        let req = TestRequest::default()
+            .set_trusted_proxies(trusted_proxies)
+            .peer_addr(addr)
+            .insert_header((header::FORWARDED, "for=192.0.2.60, for=198.51.100.17"))
+            .to_http_request();
+        let info = req.connection_info();
+
+        // takes the last untrusted value
         assert_eq!(info.realip_remote_addr(), Some("192.0.2.60"));
     }
 
