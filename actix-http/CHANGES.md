@@ -5,6 +5,7 @@
 ### Added
 
 - Add `header::CLEAR_SITE_DATA` constant.
+- Fix bug which prevents end-users from discovering when the remote peer has closed its side of the TCP connection.
 
 ### Changed
 
