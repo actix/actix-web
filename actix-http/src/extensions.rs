@@ -104,6 +104,44 @@ impl Extensions {
             .and_then(|boxed| boxed.downcast_mut())
     }
 
+    /// Get a mutable reference or insert an item of a given type.
+    ///
+    /// ```
+    /// use actix_http::Extensions;
+    /// let mut map = Extensions::new();
+    /// assert_eq!(map.get::<Vec<u32>>(), None);
+    /// map.get_or_insert(Vec::<u32>::new()).push(1);
+    /// assert_eq!(map.get::<Vec<u32>>(), Some(&vec![1]));
+    /// map.get_or_insert(Vec::<u32>::new()).push(2);
+    /// assert_eq!(map.get::<Vec<u32>>(), Some(&vec![1,2]));
+    /// ```
+    pub fn get_or_insert<T: 'static>(&mut self, value: T) -> &mut T {
+        self.map
+            .entry(TypeId::of::<T>())
+            .or_insert(Box::new(value))
+            .downcast_mut()
+            .expect("extensions map to always contain value T")
+    }
+
+    /// Get a mutable reference or insert an item of a given type calculated with the closure given.
+    ///
+    /// ```
+    /// use actix_http::Extensions;
+    /// let mut map = Extensions::new();
+    /// assert_eq!(map.get::<Vec<u32>>(), None);
+    /// map.get_or_insert_with(Vec::<u32>::new).push(1);
+    /// assert_eq!(map.get::<Vec<u32>>(), Some(&vec![1]));
+    /// map.get_or_insert_with(Vec::<u32>::new).push(2);
+    /// assert_eq!(map.get::<Vec<u32>>(), Some(&vec![1,2]));
+    /// ```
+    pub fn get_or_insert_with<T: 'static, F: FnOnce() -> T>(&mut self, default: F) -> &mut T {
+        self.map
+            .entry(TypeId::of::<T>())
+            .or_insert_with(|| Box::new(default()))
+            .downcast_mut()
+            .expect("extensions map to always contain value T")
+    }
+
     /// Remove an item from the map of a given type.
     ///
     /// If an item of this type was already stored, it will be returned.
