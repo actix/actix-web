@@ -104,6 +104,22 @@ impl Extensions {
             .and_then(|boxed| boxed.downcast_mut())
     }
 
+    pub fn get_or_insert<T: 'static>(&mut self, value: T) -> &mut T {
+        self.map
+            .entry(TypeId::of::<T>())
+            .or_insert(Box::new(value))
+            .downcast_mut()
+            .expect("extensions map to always contain value T")
+    }
+
+    pub fn get_or_insert_with<T: 'static, F: FnOnce() -> T>(&mut self, default: F) -> &mut T {
+        self.map
+            .entry(TypeId::of::<T>())
+            .or_insert_with(|| Box::new(default()))
+            .downcast_mut()
+            .expect("extensions map to always contain value T")
+    }
+
     /// Remove an item from the map of a given type.
     ///
     /// If an item of this type was already stored, it will be returned.
