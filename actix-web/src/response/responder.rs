@@ -116,6 +116,17 @@ impl<R: Responder> Responder for Option<R> {
     }
 }
 
+//Note see https://github.com/actix/actix-web/issues/1108 on why Responder is not implemented for ()
+impl Responder for Option<()> {
+    type Body = BoxBody;
+    fn respond_to(self, _req: &HttpRequest) -> HttpResponse {
+        match self {
+            Some(()) => HttpResponse::NoContent().finish(),
+            None => HttpResponse::NotFound().finish(),
+        }
+    }
+}
+
 impl<R, E> Responder for Result<R, E>
 where
     R: Responder,
@@ -127,6 +138,18 @@ where
         match self {
             Ok(val) => val.respond_to(req).map_into_left_body(),
             Err(err) => HttpResponse::from_error(err.into()).map_into_right_body(),
+        }
+    }
+}
+
+//Note see https://github.com/actix/actix-web/issues/1108 on why Responder is not implemented for ()
+impl<E: Into<Error>> Responder for Result<(), E> {
+    type Body = BoxBody;
+
+    fn respond_to(self, _req: &HttpRequest) -> HttpResponse {
+        match self {
+            Ok(()) => HttpResponse::new(StatusCode::NO_CONTENT),
+            Err(e) => HttpResponse::from_error(e.into()),
         }
     }
 }
