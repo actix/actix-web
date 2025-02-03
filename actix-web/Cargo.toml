@@ -180,7 +180,7 @@ criterion = { version = "0.5", features = ["html_reports"] }
 env_logger = "0.11"
 flate2 = "1.0.13"
 futures-util = { version = "0.3.17", default-features = false, features = ["std"] }
-rand = "0.8"
+rand = "0.9"
 rcgen = "0.13"
 rustls-pemfile = "2"
 serde = { version = "1", features = ["derive"] }
