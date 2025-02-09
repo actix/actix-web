@@ -25,7 +25,10 @@ use openssl::{
     ssl::{SslAcceptor, SslMethod},
     x509::X509,
 };
-use rand::{distributions::Alphanumeric, Rng as _};
+use rand::{
+    distr::{Alphanumeric, SampleString as _},
+    Rng as _,
+};
 
 mod utils;
 
@@ -188,11 +191,7 @@ async fn body_gzip_large() {
 
 #[actix_rt::test]
 async fn test_body_gzip_large_random() {
-    let data = rand::thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(70_000)
-        .map(char::from)
-        .collect::<String>();
+    let data = Alphanumeric.sample_string(&mut rand::rng(), 70_000);
     let srv_data = data.clone();
 
     let srv = actix_test::start_with(actix_test::config().h1(), move || {
@@ -432,11 +431,7 @@ async fn test_zstd_encoding() {
 
 #[actix_rt::test]
 async fn test_zstd_encoding_large() {
-    let data = rand::thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(320_000)
-        .map(char::from)
-        .collect::<String>();
+    let data = Alphanumeric.sample_string(&mut rand::rng(), 320_000);
 
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().service(
@@ -529,11 +524,7 @@ async fn test_gzip_encoding_large() {
 
 #[actix_rt::test]
 async fn test_reading_gzip_encoding_large_random() {
-    let data = rand::thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(60_000)
-        .map(char::from)
-        .collect::<String>();
+    let data = Alphanumeric.sample_string(&mut rand::rng(), 60_000);
 
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().service(web::resource("/").route(web::to(move |body: Bytes| async {
@@ -599,11 +590,7 @@ async fn test_reading_deflate_encoding_large() {
 
 #[actix_rt::test]
 async fn test_reading_deflate_encoding_large_random() {
-    let data = rand::thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(160_000)
-        .map(char::from)
-        .collect::<String>();
+    let data = Alphanumeric.sample_string(&mut rand::rng(), 160_000);
 
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().service(web::resource("/").route(web::to(move |body: Bytes| async {
@@ -648,11 +635,7 @@ async fn test_brotli_encoding() {
 
 #[actix_rt::test]
 async fn test_brotli_encoding_large() {
-    let data = rand::thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(320_000)
-        .map(char::from)
-        .collect::<String>();
+    let data = Alphanumeric.sample_string(&mut rand::rng(), 320_000);
 
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().service(
@@ -737,11 +720,7 @@ mod plus_rustls {
 
     #[actix_rt::test]
     async fn test_reading_deflate_encoding_large_random_rustls() {
-        let data = rand::thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(160_000)
-            .map(char::from)
-            .collect::<String>();
+        let data = Alphanumeric.sample_string(&mut rand::rng(), 160_000);
 
         let srv = actix_test::start_with(actix_test::config().rustls_0_23(tls_config()), || {
             App::new().service(web::resource("/").route(web::to(|bytes: Bytes| async {
