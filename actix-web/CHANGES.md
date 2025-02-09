@@ -3,9 +3,9 @@
 ## Unreleased
 
 - On Windows, an error is now returned from `HttpServer::bind()` (or TLS variants) when binding to a socket that's already in use.
+- Implemented `Responder` for `Result<(), E: Into<Error>>`. Returning `Ok(())` responds with HTTP 204 No Content.
 - Update `brotli` dependency to `7`.
 - Minimum supported Rust version (MSRV) is now 1.75.
-- Implemented responder for `Option<()>` and `Result<(), E: Error> to respond with `204 No Content`
 
 ## 4.9.0
 
