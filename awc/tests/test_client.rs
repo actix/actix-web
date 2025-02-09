@@ -20,10 +20,7 @@ use base64::prelude::*;
 use bytes::Bytes;
 use cookie::Cookie;
 use futures_util::stream;
-use rand::{
-    distr::{Alphanumeric, SampleString as _},
-    Rng,
-};
+use rand::distr::{Alphanumeric, SampleString as _};
 
 mod utils;
 

@@ -25,10 +25,7 @@ use openssl::{
     ssl::{SslAcceptor, SslMethod},
     x509::X509,
 };
-use rand::{
-    distr::{Alphanumeric, SampleString as _},
-    Rng as _,
-};
+use rand::distr::{Alphanumeric, SampleString as _};
 
 mod utils;
 
