@@ -119,11 +119,7 @@ impl Extensions {
     /// assert_eq!(map.get::<Vec<u32>>(), Some(&vec![1,2]));
     /// ```
     pub fn get_or_insert<T: 'static>(&mut self, value: T) -> &mut T {
-        self.map
-            .entry(TypeId::of::<T>())
-            .or_insert(Box::new(value))
-            .downcast_mut()
-            .expect("extensions map to always contain value T")
+        self.get_or_insert_with(|| value)
     }
 
     /// Inserts a value computed from `f` into the extensions if the given `value` is not present,
@@ -145,7 +141,7 @@ impl Extensions {
             .entry(TypeId::of::<T>())
             .or_insert_with(|| Box::new(default()))
             .downcast_mut()
-            .expect("extensions map to always contain value T")
+            .expect("extensions map should now contain a T value")
     }
 
     /// Remove an item from the map of a given type.
