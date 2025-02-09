@@ -326,7 +326,7 @@ impl WebsocketsRequest {
 
         // Generate a random key for the `Sec-WebSocket-Key` header which is a base64-encoded
         // (see RFC 4648 §4) value that, when decoded, is 16 bytes in length (RFC 6455 §1.3).
-        let sec_key: [u8; 16] = rand::random();
+        let sec_key = rand::random::<[u8; 16]>();
         let key = BASE64_STANDARD.encode(sec_key);
 
         self.head.headers.insert(
