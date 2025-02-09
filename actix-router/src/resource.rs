@@ -1370,7 +1370,7 @@ mod tests {
         assert_eq!(path.unprocessed(), "");
     }
 
-    #[expect(clippy::literal_string_with_formatting_args)]
+    #[allow(clippy::literal_string_with_formatting_args)]
     #[test]
     fn newline_patterns_and_paths() {
         let re = ResourceDef::new("/user/a\nb");
