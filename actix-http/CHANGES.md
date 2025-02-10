@@ -73,6 +73,9 @@
 - Add `body::to_bytes_limited()` function.
 - Add `body::BodyLimitExceeded` error type.
 
+### Fixed
+- Fix truncated body ending without error when connection closed abnormally. [#3067]
+
 ### Changed
 
 - Minimum supported Rust version (MSRV) is now 1.68 due to transitive `time` dependency.
