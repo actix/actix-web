@@ -14,7 +14,7 @@ use actix_rt::{net::TcpStream, time::sleep};
 use actix_service::fn_service;
 use actix_utils::future::{err, ok, ready};
 use bytes::Bytes;
-use derive_more::derive::{Display, Error};
+use derive_more::{Display, Error};
 use futures_util::{stream::once, FutureExt as _, StreamExt as _};
 use rand::Rng as _;
 use regex::Regex;
