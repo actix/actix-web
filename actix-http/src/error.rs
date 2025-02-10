@@ -2,7 +2,7 @@
 
 use std::{error::Error as StdError, fmt, io, str::Utf8Error, string::FromUtf8Error};
 
-use derive_more::derive::{Display, Error, From};
+use derive_more::{Display, Error, From};
 pub use http::{status::InvalidStatusCode, Error as HttpError};
 use http::{uri::InvalidUri, StatusCode};
 

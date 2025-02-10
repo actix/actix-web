@@ -1,7 +1,7 @@
 use std::{convert::Infallible, net::SocketAddr};
 
 use actix_utils::future::{err, ok, Ready};
-use derive_more::derive::{Display, Error};
+use derive_more::{Display, Error};
 
 use crate::{
     dev::{AppConfig, Payload, RequestHead},

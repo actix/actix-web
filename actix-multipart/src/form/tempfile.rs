@@ -7,7 +7,7 @@ use std::{
 };
 
 use actix_web::{http::StatusCode, web, Error, HttpRequest, ResponseError};
-use derive_more::derive::{Display, Error};
+use derive_more::{Display, Error};
 use futures_core::future::LocalBoxFuture;
 use futures_util::TryStreamExt as _;
 use mime::Mime;

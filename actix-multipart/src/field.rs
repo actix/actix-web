@@ -13,7 +13,7 @@ use actix_web::{
     http::header::{self, ContentDisposition, HeaderMap},
     web::{Bytes, BytesMut},
 };
-use derive_more::derive::{Display, Error};
+use derive_more::{Display, Error};
 use futures_core::Stream;
 use mime::Mime;
 
