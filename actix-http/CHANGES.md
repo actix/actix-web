@@ -23,6 +23,7 @@
 ### Added
 
 - Add `error::InvalidStatusCode` re-export.
+- New method `response_with_level` for `Encoder<B>` for setup compress level. [#2948]
 
 ## 3.7.0
 
