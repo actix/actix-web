@@ -165,6 +165,7 @@
 - Add `Route::wrap()` to allow individual routes to use middleware. [#2725]
 - Add `ServiceConfig::default_service()`. [#2338] [#2743]
 - Implement `ResponseError` for `std::convert::Infallible`
+- Add `Condition::from_option()` to allow creating a conditional middleware from an `Option`. [#2623]
 
 ### Changed
 
