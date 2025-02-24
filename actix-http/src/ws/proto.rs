@@ -83,6 +83,7 @@ impl From<u8> for OpCode {
 
 /// Status code used to indicate why an endpoint is closing the WebSocket connection.
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum CloseCode {
     /// Indicates a normal closure, meaning that the purpose for which the connection was
     /// established has been fulfilled.
@@ -195,6 +196,7 @@ impl From<u16> for CloseCode {
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Reason for closing the connection
 pub struct CloseReason {
     /// Exit code
