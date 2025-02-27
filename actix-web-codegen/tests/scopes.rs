@@ -24,7 +24,7 @@ mod scope_module {
 
     #[get("/twice-test/{value}")]
     pub async fn twice(value: web::Path<String>) -> impl actix_web::Responder {
-        let int_value: i32 = value.parse().unwrap_or(0);
+        let int_value: i32 = value.0.parse().unwrap_or(0);
         let doubled = int_value * 2;
         HttpResponse::Ok().body(format!("Twice value: {}", doubled))
     }

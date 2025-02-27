@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use actix_router::PathDeserializer;
 use actix_utils::future::{ready, Ready};
-use derive_more::{AsRef, Deref, DerefMut, Display, From};
+use derive_more::{AsRef, Display, From};
 use serde::de;
 
 use crate::{
@@ -50,10 +50,10 @@ use crate::{
 /// // extract `Info` from a path using serde
 /// #[get("/{name}")]
 /// async fn index(info: web::Path<Info>) -> String {
-///     format!("Welcome {}!", info.name)
+///     format!("Welcome {}!", info.0.name)
 /// }
 /// ```
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Deref, DerefMut, AsRef, Display, From)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, AsRef, Display, From)]
 pub struct Path<T>(pub T);
 
 impl<T> Path<T> {
@@ -179,7 +179,7 @@ mod tests {
         resource.capture_match_info(req.match_info_mut());
 
         let (req, mut pl) = req.into_parts();
-        assert_eq!(*Path::<i8>::from_request(&req, &mut pl).await.unwrap(), 32);
+        assert_eq!(Path::<i8>::from_request(&req, &mut pl).await.unwrap().0, 32);
         assert!(Path::<MyStruct>::from_request(&req, &mut pl).await.is_err());
     }
 
@@ -218,17 +218,13 @@ mod tests {
         resource.capture_match_info(req.match_info_mut());
 
         let (req, mut pl) = req.into_parts();
-        let mut s = Path::<MyStruct>::from_request(&req, &mut pl).await.unwrap();
+        let Path(s) = Path::<MyStruct>::from_request(&req, &mut pl).await.unwrap();
         assert_eq!(s.key, "name");
         assert_eq!(s.value, "user1");
-        s.value = "user2".to_string();
-        assert_eq!(s.value, "user2");
         assert_eq!(
             format!("{}, {:?}", s, s),
-            "MyStruct(name, user2), Path(MyStruct { key: \"name\", value: \"user2\" })"
+            "MyStruct(name, user1), MyStruct { key: \"name\", value: \"user1\" }"
         );
-        let s = s.into_inner();
-        assert_eq!(s.value, "user2");
 
         let Path(s) = Path::<(String, String)>::from_request(&req, &mut pl)
             .await
@@ -243,7 +239,7 @@ mod tests {
         let (req, mut pl) = req.into_parts();
         let s = Path::<Test2>::from_request(&req, &mut pl).await.unwrap();
         assert_eq!(s.as_ref().key, "name");
-        assert_eq!(s.value, 32);
+        assert_eq!(s.0.value, 32);
 
         let Path(s) = Path::<(String, u8)>::from_request(&req, &mut pl)
             .await
@@ -251,7 +247,7 @@ mod tests {
         assert_eq!(s.0, "name");
         assert_eq!(s.1, 32);
 
-        let res = Path::<Vec<String>>::from_request(&req, &mut pl)
+        let Path(res) = Path::<Vec<String>>::from_request(&req, &mut pl)
             .await
             .unwrap();
         assert_eq!(res[0], "name".to_owned());
@@ -265,7 +261,7 @@ mod tests {
         resource.capture_match_info(req.match_info_mut());
 
         let (req, mut pl) = req.into_parts();
-        let path_items = Path::<MyStruct>::from_request(&req, &mut pl).await.unwrap();
+        let Path(path_items) = Path::<MyStruct>::from_request(&req, &mut pl).await.unwrap();
         assert_eq!(path_items.key, "na+me");
         assert_eq!(path_items.value, "us/er%42");
         assert_eq!(req.match_info().as_str(), "/na%2Bme/us%2Fer%2542");

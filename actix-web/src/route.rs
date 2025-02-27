@@ -173,7 +173,7 @@ impl Route {
     ///
     /// /// extract path info using serde
     /// async fn index(info: web::Path<Info>) -> String {
-    ///     format!("Welcome {}!", info.username)
+    ///     format!("Welcome {}!", info.0.username)
     /// }
     ///
     /// let app = App::new().service(
@@ -199,7 +199,7 @@ impl Route {
     ///     query: web::Query<HashMap<String, String>>,
     ///     body: web::Json<Info>
     /// ) -> String {
-    ///     format!("Welcome {}!", path.username)
+    ///     format!("Welcome {}!", path.0.username)
     /// }
     ///
     /// let app = App::new().service(
