@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Make contents of `web::Path` public.
+
 ## 4.9.0
 
 ### Added

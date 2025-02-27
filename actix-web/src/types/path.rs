@@ -54,7 +54,7 @@ use crate::{
 /// }
 /// ```
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Deref, DerefMut, AsRef, Display, From)]
-pub struct Path<T>(T);
+pub struct Path<T>(pub T);
 
 impl<T> Path<T> {
     /// Unwrap into inner `T` value.
