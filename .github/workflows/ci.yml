@@ -59,7 +59,7 @@ jobs:
         uses: rui314/setup-mold@v1
 
       - name: Install Rust (${{ matrix.version.name }})
-        uses: actions-rust-lang/setup-rust-toolchain@v1.10.1
+        uses: actions-rust-lang/setup-rust-toolchain@v1.11.0
         with:
           toolchain: ${{ matrix.version.version }}
 
@@ -92,7 +92,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1.10.1
+        uses: actions-rust-lang/setup-rust-toolchain@v1.11.0
         with:
           toolchain: nightly
 
@@ -108,7 +108,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Rust (nightly)
-        uses: actions-rust-lang/setup-rust-toolchain@v1.10.1
+        uses: actions-rust-lang/setup-rust-toolchain@v1.11.0
         with:
           toolchain: nightly
 

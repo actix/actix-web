@@ -44,7 +44,7 @@ jobs:
           echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV
 
       - name: Install Rust (${{ matrix.version.name }})
-        uses: actions-rust-lang/setup-rust-toolchain@v1.10.1
+        uses: actions-rust-lang/setup-rust-toolchain@v1.11.0
         with:
           toolchain: ${{ matrix.version.version }}
 
@@ -80,7 +80,7 @@ jobs:
         uses: rui314/setup-mold@v1
 
       - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1.10.1
+        uses: actions-rust-lang/setup-rust-toolchain@v1.11.0
 
       - name: Install just, cargo-hack
         uses: taiki-e/install-action@v2.49.0
