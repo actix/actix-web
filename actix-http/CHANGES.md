@@ -6,6 +6,7 @@
 
 - Add `header::CLEAR_SITE_DATA` constant.
 - Add `Extensions::get_or_insert[_with]()` methods.
+- Add `dev::Payload::from_[bytes/u8_bytes]()` methods.
 
 ### Changed
 
