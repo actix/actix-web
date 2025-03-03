@@ -433,6 +433,25 @@ where
             rdef.set_name(name);
         }
 
+        #[cfg(feature = "resources-introspection")]
+        let mut rdef_methods: Vec<(String, Vec<String>)> = Vec::new();
+        #[cfg(feature = "resources-introspection")]
+        let mut rmap = crate::rmap::ResourceMap::new(ResourceDef::prefix(""));
+
+        #[cfg(feature = "resources-introspection")]
+        {
+            rmap.add(&mut rdef, None);
+
+            self.routes.iter_mut().for_each(|r| {
+                r.take_guards().iter().for_each(|g| {
+                    let http_methods: Vec<String> =
+                        crate::guard::HttpMethodsExtractor::extract_http_methods(&**g);
+                    rdef_methods
+                        .push((rdef.pattern().unwrap_or_default().to_string(), http_methods));
+                });
+            });
+        }
+
         *self.factory_ref.borrow_mut() = Some(ResourceFactory {
             routes: self.routes,
             default: self.default,
@@ -450,6 +469,15 @@ where
 
             async { Ok(fut.await?.map_into_boxed_body()) }
         });
+
+        #[cfg(feature = "resources-introspection")]
+        {
+            println!("resources");
+            crate::introspection::process_introspection(
+                Rc::clone(&Rc::new(rmap.clone())),
+                rdef_methods,
+            );
+        }
 
         config.register_service(rdef, guards, endpoint, None)
     }
