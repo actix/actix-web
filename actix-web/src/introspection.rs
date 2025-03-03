@@ -1,5 +1,7 @@
-use std::rc::Rc;
-use std::sync::{OnceLock, RwLock};
+use std::{
+    rc::Rc,
+    sync::{OnceLock, RwLock},
+};
 
 use crate::dev::ResourceMap;
 
