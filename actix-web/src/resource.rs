@@ -472,7 +472,6 @@ where
 
         #[cfg(feature = "resources-introspection")]
         {
-            println!("resources");
             crate::introspection::process_introspection(
                 Rc::clone(&Rc::new(rmap.clone())),
                 rdef_methods,
