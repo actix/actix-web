@@ -196,7 +196,7 @@ pub fn Any<F: Guard + 'static>(guard: F) -> AnyGuard {
 ///
 /// That is, only one contained guard needs to match in order for the aggregate guard to match.
 ///
-/// Construct an `AnyGuard` using [`Any`].
+/// Construct an `AnyGuard` using [`Any()`].
 pub struct AnyGuard {
     guards: Vec<Box<dyn Guard>>,
 }

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add `resources-introspection` feature for retrieving configured route paths and HTTP methods.
 - Implement `Responder` for `Result<(), E: Into<Error>>`. Returning `Ok(())` responds with HTTP 204 No Content.
 - On Windows, an error is now returned from `HttpServer::bind()` (or TLS variants) when binding to a socket that's already in use.
 - Update `brotli` dependency to `7`.
