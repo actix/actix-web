@@ -69,6 +69,21 @@ impl From<BoxedPayloadStream> for Payload {
 }
 
 impl<S> Payload<S> {
+    /// Create Payload from bytes::Bytes
+    pub fn from_bytes(bytes: bytes::Bytes) -> Payload<S> {
+        let (_, mut pl) = crate::h1::Payload::create(true);
+        pl.unread_data(bytes);
+        self::Payload::from(pl)
+    }
+
+    /// Create Payload from `Vec<u8>` bytes
+    pub fn from_u8_bytes(u8_bytes: Vec<u8>) -> Payload<S> {
+        let (_, mut pl) = crate::h1::Payload::create(true);
+        let bytes = bytes::Bytes::from(u8_bytes);
+        pl.unread_data(bytes);
+        self::Payload::from(pl)
+    }
+
     /// Takes current payload and replaces it with `None` value
     pub fn take(&mut self) -> Payload<S> {
         mem::replace(self, Payload::None)
