@@ -50,6 +50,7 @@
 //! [`Route`]: crate::Route::guard()
 
 use std::{
+    any::Any,
     cell::{Ref, RefMut},
     rc::Rc,
 };
@@ -121,7 +122,7 @@ impl<'a> GuardContext<'a> {
 /// Interface for routing guards.
 ///
 /// See [module level documentation](self) for more.
-pub trait Guard {
+pub trait Guard: AsAny {
     /// Returns true if predicate condition is met for a given request.
     fn check(&self, ctx: &GuardContext<'_>) -> bool;
 }
@@ -146,7 +147,7 @@ impl Guard for Rc<dyn Guard> {
 /// ```
 pub fn fn_guard<F>(f: F) -> impl Guard
 where
-    F: Fn(&GuardContext<'_>) -> bool,
+    F: Fn(&GuardContext<'_>) -> bool + 'static,
 {
     FnGuard(f)
 }
@@ -155,7 +156,7 @@ struct FnGuard<F: Fn(&GuardContext<'_>) -> bool>(F);
 
 impl<F> Guard for FnGuard<F>
 where
-    F: Fn(&GuardContext<'_>) -> bool,
+    F: Fn(&GuardContext<'_>) -> bool + 'static,
 {
     fn check(&self, ctx: &GuardContext<'_>) -> bool {
         (self.0)(ctx)
@@ -164,7 +165,7 @@ where
 
 impl<F> Guard for F
 where
-    F: Fn(&GuardContext<'_>) -> bool,
+    F: for<'a> Fn(&'a GuardContext<'a>) -> bool + 'static,
 {
     fn check(&self, ctx: &GuardContext<'_>) -> bool {
         (self)(ctx)
@@ -284,7 +285,7 @@ impl Guard for AllGuard {
 ///     .guard(guard::Not(guard::Get()))
 ///     .to(|| HttpResponse::Ok());
 /// ```
-pub struct Not<G>(pub G);
+pub struct Not<G: 'static>(pub G);
 
 impl<G: Guard> Guard for Not<G> {
     #[inline]
@@ -319,6 +320,81 @@ impl Guard for MethodGuard {
         }
 
         ctx.head().method == self.0
+    }
+}
+
+#[cfg(feature = "resources-introspection")]
+pub trait HttpMethodsExtractor {
+    fn extract_http_methods(&self) -> Vec<String>;
+}
+
+#[cfg(feature = "resources-introspection")]
+impl HttpMethodsExtractor for dyn Guard {
+    fn extract_http_methods(&self) -> Vec<String> {
+        if let Some(method_guard) = self.as_any().downcast_ref::<MethodGuard>() {
+            vec![method_guard.0.to_string()]
+        } else if let Some(any_guard) = self.as_any().downcast_ref::<AnyGuard>() {
+            any_guard
+                .guards
+                .iter()
+                .flat_map(|g| g.extract_http_methods())
+                .collect()
+        } else if let Some(all_guard) = self.as_any().downcast_ref::<AllGuard>() {
+            all_guard
+                .guards
+                .iter()
+                .flat_map(|g| g.extract_http_methods())
+                .collect()
+        } else {
+            vec!["UNKNOWN".to_string()]
+        }
+    }
+}
+
+#[cfg(feature = "resources-introspection")]
+impl std::fmt::Display for MethodGuard {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}]", self.0)
+    }
+}
+
+#[cfg(feature = "resources-introspection")]
+impl std::fmt::Display for AllGuard {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let methods: Vec<String> = self
+            .guards
+            .iter()
+            .filter_map(|guard| {
+                guard
+                    .as_any()
+                    .downcast_ref::<MethodGuard>()
+                    .map(|method_guard| method_guard.0.to_string())
+            })
+            .collect();
+
+        write!(f, "[{}]", methods.join(", "))
+    }
+}
+
+#[cfg(feature = "resources-introspection")]
+impl std::fmt::Display for AnyGuard {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let methods: Vec<String> = self
+            .guards
+            .iter()
+            .map(|guard| {
+                let guard_ref = &**guard;
+                if let Some(method_guard) = guard_ref.as_any().downcast_ref::<MethodGuard>() {
+                    method_guard.0.to_string()
+                } else if let Some(all_guard) = guard_ref.as_any().downcast_ref::<AllGuard>() {
+                    all_guard.to_string()
+                } else {
+                    "UNKNOWN".to_string()
+                }
+            })
+            .collect();
+
+        write!(f, "[{}]", methods.join(", "))
     }
 }
 
@@ -381,6 +457,16 @@ impl Guard for HeaderGuard {
         }
 
         false
+    }
+}
+
+pub trait AsAny {
+    fn as_any(&self) -> &dyn Any;
+}
+
+impl<T: Any> AsAny for T {
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -495,7 +581,7 @@ mod tests {
     #[test]
     fn function_guard() {
         let domain = "rust-lang.org".to_owned();
-        let guard = fn_guard(|ctx| ctx.head().uri.host().unwrap().ends_with(&domain));
+        let guard = fn_guard(move |ctx| ctx.head().uri.host().unwrap().ends_with(&domain));
 
         let req = TestRequest::default()
             .uri("blog.rust-lang.org")

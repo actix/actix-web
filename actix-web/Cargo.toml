@@ -128,6 +128,9 @@ compat = [
 # Opt-out forwards-compatibility for handler visibility inheritance fix.
 compat-routing-macros-force-pub = ["actix-web-codegen?/compat-routing-macros-force-pub"]
 
+# Enabling the retrieval of metadata for initialized resources, including path and HTTP method.
+resources-introspection = []
+
 [dependencies]
 actix-codec = "0.5"
 actix-macros = { version = "0.2.3", optional = true }
