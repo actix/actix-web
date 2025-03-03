@@ -65,6 +65,11 @@ impl Route {
     pub(crate) fn take_guards(&mut self) -> Vec<Box<dyn Guard>> {
         mem::take(Rc::get_mut(&mut self.guards).unwrap())
     }
+
+    #[cfg(feature = "resources-introspection")]
+    pub(crate) fn get_guards(&self) -> &Vec<Box<dyn Guard>> {
+        &self.guards
+    }
 }
 
 impl ServiceFactory<ServiceRequest> for Route {

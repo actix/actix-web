@@ -442,8 +442,8 @@ where
         {
             rmap.add(&mut rdef, None);
 
-            self.routes.iter_mut().for_each(|r| {
-                r.take_guards().iter().for_each(|g| {
+            self.routes.iter().for_each(|r| {
+                r.get_guards().iter().for_each(|g| {
                     let http_methods: Vec<String> =
                         crate::guard::HttpMethodsExtractor::extract_http_methods(&**g);
                     rdef_methods

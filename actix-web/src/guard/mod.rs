@@ -11,7 +11,7 @@
 //! or handler. This interface is defined by the [`Guard`] trait.
 //!
 //! Commonly-used guards are provided in this module as well as a way of creating a guard from a
-//! closure ([`fn_guard`]). The [`Not`], [`Any`], and [`All`] guards are noteworthy, as they can be
+//! closure ([`fn_guard`]). The [`Not`], [`Any()`], and [`All`] guards are noteworthy, as they can be
 //! used to compose other guards in a more flexible and semantic way than calling `.guard(...)` on
 //! services multiple times (which might have different combining behavior than you want).
 //!
