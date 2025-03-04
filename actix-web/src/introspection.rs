@@ -385,7 +385,7 @@ mod tests {
             let arbiter = {
                 // TODO: pass max blocking thread config when tokio-uring enable configuration
                 // on building runtime.
-                let _ = config.max_blocking_threads;
+                let _ = max_blocking_threads;
                 actix_rt::Arbiter::new()
             };
 
