@@ -380,14 +380,25 @@ mod tests {
         // Spawn tasks on the arbiter. Each task runs the full introspection flow and then signals completion.
         for _ in 0..NUM_TASKS {
             let (tx, rx) = oneshot::channel();
-            // Create an Arbiter with a dedicated Tokio runtime.
+
+            #[cfg(all(target_os = "linux", feature = "experimental-io-uring"))]
+            let arbiter = {
+                // TODO: pass max blocking thread config when tokio-uring enable configuration
+                // on building runtime.
+                let _ = config.max_blocking_threads;
+                actix_rt::Arbiter::new()
+            };
+
+            #[cfg(not(all(target_os = "linux", feature = "experimental-io-uring")))]
             let arbiter = actix_rt::Arbiter::with_tokio_rt(move || {
+                // Create an Arbiter with a dedicated Tokio runtime.
                 tokio::runtime::Builder::new_current_thread()
                     .enable_all()
                     .max_blocking_threads(max_blocking_threads)
                     .build()
                     .unwrap()
             });
+
             // Spawn the task on the arbiter.
             arbiter.spawn(async move {
                 run_full_introspection_flow();
