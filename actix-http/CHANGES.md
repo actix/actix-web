@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 3.10.0
+
 ### Added
 
 - Add `header::CLEAR_SITE_DATA` constant.
