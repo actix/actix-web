@@ -267,7 +267,7 @@ impl DispositionParam {
 ///     parameters: vec![DispositionParam::FilenameExt(ExtendedValue {
 ///         charset: Charset::Iso_8859_1, // The character set for the bytes of the filename
 ///         language_tag: None, // The optional language tag (see `language-tag` crate)
-///         value: b"\xa9 Copyright 1989.txt".to_vec(), // the actual bytes of the filename
+///         value: b"\xA9 Ferris 2011.txt".to_vec(), // the actual bytes of the filename
 ///     })],
 /// };
 /// assert!(cd1.is_attachment());
