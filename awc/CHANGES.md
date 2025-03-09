@@ -2,10 +2,12 @@
 
 ## Unreleased
 
-- Update `brotli` dependency to `7`.
+## 3.6.0
+
 - Prevent panics on connection pool drop when Tokio runtime is shutdown early.
-- Minimum supported Rust version (MSRV) is now 1.75.
 - Do not send `Host` header on HTTP/2 requests, as it is not required, and some web servers may reject it.
+- Update `brotli` dependency to `7`.
+- Minimum supported Rust version (MSRV) is now 1.75.
 
 ## 3.5.1
 
