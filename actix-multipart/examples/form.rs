@@ -1,4 +1,6 @@
-use actix_multipart::form::{json::Json as MpJson, tempfile::TempFile, MultipartForm};
+use actix_multipart::form::{
+    json::Json as MpJson, tempfile::TempFile, MultipartForm, MultipartFormConfig,
+};
 use actix_web::{middleware::Logger, post, App, HttpServer, Responder};
 use serde::Deserialize;
 
@@ -28,9 +30,14 @@ async fn post_video(MultipartForm(form): MultipartForm<UploadForm>) -> impl Resp
 async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
-    HttpServer::new(move || App::new().service(post_video).wrap(Logger::default()))
-        .workers(2)
-        .bind(("127.0.0.1", 8080))?
-        .run()
-        .await
+    HttpServer::new(move || {
+        App::new()
+            .service(post_video)
+            .wrap(Logger::default())
+            .app_data(MultipartFormConfig::default().total_limit(100 * 1024 * 1024))
+    })
+    .workers(2)
+    .bind(("127.0.0.1", 8080))?
+    .run()
+    .await
 }
