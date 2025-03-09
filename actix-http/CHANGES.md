@@ -6,7 +6,8 @@
 
 - Add `header::CLEAR_SITE_DATA` constant.
 - Add `Extensions::get_or_insert[_with]()` methods.
-- Add `dev::Payload::from_[bytes/u8_bytes]()` methods.
+- Implement `From<Bytes>` for `Payload`.
+- Implement `From<Vec<u8>>` for `Payload`.
 
 ### Changed
 
