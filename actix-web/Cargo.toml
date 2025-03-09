@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "4.9.0"
+version = "4.10.0"
 description = "Actix Web is a powerful, pragmatic, and extremely fast web framework for Rust"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
