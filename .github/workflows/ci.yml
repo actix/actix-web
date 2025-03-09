@@ -43,7 +43,7 @@ jobs:
 
       - name: Install nasm
         if: matrix.target.os == 'windows-latest'
-        uses: ilammy/setup-nasm@v1.5.1
+        uses: ilammy/setup-nasm@v1.5.2
 
       - name: Install OpenSSL
         if: matrix.target.os == 'windows-latest'
