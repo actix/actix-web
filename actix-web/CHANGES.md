@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 4.10.1
+
+- No significant changes since `4.10.0`.
+
 ## 4.10.0
 
 ### Added
