@@ -1,6 +1,6 @@
 [package]
 name = "actix-web"
-version = "4.9.0"
+version = "4.10.2"
 description = "Actix Web is a powerful, pragmatic, and extremely fast web framework for Rust"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
@@ -140,7 +140,7 @@ actix-service = "2"
 actix-utils = "3"
 actix-tls = { version = "3.4", default-features = false, optional = true }
 
-actix-http = { version = "3.7", features = ["ws"] }
+actix-http = { version = "3.10", features = ["ws"] }
 actix-router = { version = "0.5.3", default-features = false, features = ["http"] }
 actix-web-codegen = { version = "4.3", optional = true, default-features = false }
 
@@ -148,7 +148,7 @@ bytes = "1"
 bytestring = "1"
 cfg-if = "1"
 cookie = { version = "0.16", features = ["percent-encode"], optional = true }
-derive_more = { version = "2", features = ["display", "error", "from"] }
+derive_more = { version = "2", features = ["as_ref", "deref", "deref_mut", "display", "error", "from"] }
 encoding_rs = "0.8"
 foldhash = "0.1"
 futures-core = { version = "0.3.17", default-features = false }

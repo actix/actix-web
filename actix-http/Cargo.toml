@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "3.9.0"
+version = "3.10.0"
 authors = [
     "Nikolay Kim <fafhrd91@gmail.com>",
     "Rob Ede <robjtede@icloud.com>",
