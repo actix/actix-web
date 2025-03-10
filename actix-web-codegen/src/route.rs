@@ -64,12 +64,13 @@ macro_rules! standard_method_type {
             $(
                 $variant,
             )+
+            All
         }
 
         impl MethodType {
             fn as_str(&self) -> &'static str {
                 match self {
-                    $(Self::$variant => stringify!($variant),)+
+                    $(Self::$variant => stringify!($variant), &MethodType::All => stringify!("All"),)+
                 }
             }
 

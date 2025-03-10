@@ -33,7 +33,7 @@ actix-utils = "3"
 actix-web = "4"
 
 futures-core = { version = "0.3.17", default-features = false, features = ["alloc"] }
-trybuild = "1"
+trybuild = "1.0"
 rustversion = "1"
 
 [lints]
