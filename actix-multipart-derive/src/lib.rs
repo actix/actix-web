@@ -9,8 +9,8 @@
 
 use std::collections::HashSet;
 
+use bytesize::ByteSize;
 use darling::{FromDeriveInput, FromField, FromMeta};
-use parse_size::parse_size;
 use proc_macro::TokenStream;
 use proc_macro2::Ident;
 use quote::quote;
@@ -103,7 +103,7 @@ struct ParsedField<'t> {
 /// # Field Limits
 ///
 /// You can use the `#[multipart(limit = "<size>")]` attribute to set field level limits. The limit
-/// string is parsed using [parse_size].
+/// string is parsed using [`bytesize`].
 ///
 /// Note: the form is also subject to the global limits configured using `MultipartFormConfig`.
 ///
@@ -150,7 +150,7 @@ struct ParsedField<'t> {
 /// struct Form { }
 /// ```
 ///
-/// [parse_size]: https://docs.rs/parse-size/1/parse_size
+/// [`bytesize`]: https://docs.rs/bytesize/2
 #[proc_macro_derive(MultipartForm, attributes(multipart))]
 pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input: syn::DeriveInput = parse_macro_input!(input);
@@ -191,8 +191,8 @@ pub fn impl_multipart_form(input: proc_macro::TokenStream) -> proc_macro::TokenS
             let attrs = FieldAttrs::from_field(field).map_err(|err| err.write_errors())?;
             let serialization_name = attrs.rename.unwrap_or_else(|| rust_name.to_string());
 
-            let limit = match attrs.limit.map(|limit| match parse_size(&limit) {
-                Ok(size) => Ok(usize::try_from(size).unwrap()),
+            let limit = match attrs.limit.map(|limit| match limit.parse::<ByteSize>() {
+                Ok(ByteSize(size)) => Ok(usize::try_from(size).unwrap()),
                 Err(err) => Err(syn::Error::new(
                     field.ident.as_ref().unwrap().span(),
                     format!("Could not parse size limit `{}`: {}", limit, err),
