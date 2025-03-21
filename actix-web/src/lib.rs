@@ -108,6 +108,9 @@ mod thin_data;
 pub(crate) mod types;
 pub mod web;
 
+#[cfg(feature = "resources-introspection")]
+pub mod introspection;
+
 #[doc(inline)]
 pub use crate::error::Result;
 pub use crate::{
