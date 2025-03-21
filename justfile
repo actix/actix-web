@@ -10,7 +10,6 @@ fmt:
 # Downgrade dependencies necessary to run MSRV checks/tests.
 [private]
 downgrade-for-msrv:
-    cargo update -p=parse-size --precise=1.0.0 # next ver: 1.81.0
     cargo update -p=clap --precise=4.4.18 # next ver: 1.74.0
     cargo update -p=divan --precise=0.1.15 # next ver: 1.80.0
     cargo update -p=litemap --precise=0.7.4 # next ver: 1.81.0
