@@ -8,6 +8,7 @@
 - Do not send `Host` header on HTTP/2 requests, as it is not required, and some web servers may reject it.
 - Update `brotli` dependency to `7`.
 - Minimum supported Rust version (MSRV) is now 1.75.
+- Allow to retrieve request head used to send the http request on `ClientResponse`
 
 ## 3.5.1
 
