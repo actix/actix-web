@@ -28,6 +28,30 @@ use crate::{
 
 const MAX_CHUNK_SIZE_ENCODE_IN_PLACE: usize = 1024;
 
+// https://www.zlib.net/manual.html#Constants
+const DEFLATE_MIN_LEVEL: u32 = 0;
+// https://www.zlib.net/manual.html#Constants
+const DEFLATE_MAX_LEVEL: u32 = 9;
+const DEFLATE_DEFAULT: u32 = 1;
+
+// https://www.zlib.net/manual.html#Constants
+const GZIP_MIN_LEVEL: u32 = 0;
+// https://www.zlib.net/manual.html#Constants
+const GZIP_MAX_LEVEL: u32 = 9;
+const GZIP_DEFAULT: u32 = 1;
+
+// https://www.brotli.org/encode.html#a94f
+const BROTLI_MIN_QUALITY: u32 = 0;
+// https://www.brotli.org/encode.html#ac45
+const BROTLI_MAX_QUALITY: u32 = 11;
+const BROTLI_DEFAULT: u32 = 3;
+
+// https://github.com/facebook/zstd/blob/dev/doc/zstd_manual.html#L42-L43
+const ZSTD_MIN_LEVEL: i32 = 0;
+// https://github.com/facebook/zstd/blob/dev/doc/zstd_manual.html#L42-L43
+const ZSTD_MAX_LEVEL: i32 = 22;
+const ZSTD_DEFAULT: i32 = 3;
+
 pin_project! {
     pub struct Encoder<B> {
         #[pin]
@@ -60,6 +84,15 @@ impl<B: MessageBody> Encoder<B> {
     }
 
     pub fn response(encoding: ContentEncoding, head: &mut ResponseHead, body: B) -> Self {
+        Encoder::response_with_level(encoding, head, body, None)
+    }
+
+    pub fn response_with_level(
+        encoding: ContentEncoding,
+        head: &mut ResponseHead,
+        body: B,
+        level: Option<u32>,
+    ) -> Self {
         // no need to compress empty bodies
         match body.size() {
             BodySize::None => return Self::none(),
@@ -78,8 +111,9 @@ impl<B: MessageBody> Encoder<B> {
         };
 
         if should_encode {
+            let enconding_level = ContentEncodingWithLevel::new(encoding, level);
             // wrap body only if encoder is feature-enabled
-            if let Some(enc) = ContentEncoder::select(encoding) {
+            if let Some(enc) = ContentEncoder::select(enconding_level) {
                 update_head(encoding, head);
 
                 return Encoder {
@@ -287,27 +321,74 @@ enum ContentEncoder {
     Zstd(ZstdEncoder<'static, Writer>),
 }
 
+enum ContentEncodingWithLevel {
+    Deflate(u32),
+    Gzip(u32),
+    Brotli(u32),
+    Zstd(i32),
+    Identity,
+}
+
+impl ContentEncodingWithLevel {
+    pub fn new(encoding: ContentEncoding, level: Option<u32>) -> Self {
+        match encoding {
+            ContentEncoding::Deflate => {
+                let level = level
+                    .filter(|l| (DEFLATE_MIN_LEVEL..(DEFLATE_MAX_LEVEL + 1)).contains(l))
+                    .unwrap_or(DEFLATE_DEFAULT);
+                ContentEncodingWithLevel::Deflate(level)
+            }
+            ContentEncoding::Gzip => {
+                let level = level
+                    .filter(|l| (GZIP_MIN_LEVEL..(GZIP_MAX_LEVEL + 1)).contains(l))
+                    .unwrap_or(GZIP_DEFAULT);
+                ContentEncodingWithLevel::Gzip(level)
+            }
+            ContentEncoding::Brotli => {
+                let level = level
+                    .filter(|l| (BROTLI_MIN_QUALITY..(BROTLI_MAX_QUALITY + 1)).contains(l))
+                    .unwrap_or(BROTLI_DEFAULT);
+                ContentEncodingWithLevel::Brotli(level)
+            }
+            ContentEncoding::Zstd => {
+                let level = level
+                    .map(|l| l as i32)
+                    .filter(|l| (ZSTD_MIN_LEVEL..(ZSTD_MAX_LEVEL + 1)).contains(l))
+                    .unwrap_or(ZSTD_DEFAULT);
+                ContentEncodingWithLevel::Zstd(level)
+            }
+            ContentEncoding::Identity => ContentEncodingWithLevel::Identity,
+        }
+    }
+}
+
 impl ContentEncoder {
-    fn select(encoding: ContentEncoding) -> Option<Self> {
+    fn select(encoding: ContentEncodingWithLevel) -> Option<Self> {
         match encoding {
             #[cfg(feature = "compress-gzip")]
-            ContentEncoding::Deflate => Some(ContentEncoder::Deflate(ZlibEncoder::new(
-                Writer::new(),
-                flate2::Compression::fast(),
-            ))),
+            ContentEncodingWithLevel::Deflate(level) => Some(ContentEncoder::Deflate(
+                ZlibEncoder::new(Writer::new(), flate2::Compression::new(level)),
+            )),
 
             #[cfg(feature = "compress-gzip")]
-            ContentEncoding::Gzip => Some(ContentEncoder::Gzip(GzEncoder::new(
+            ContentEncodingWithLevel::Gzip(level) => Some(ContentEncoder::Gzip(GzEncoder::new(
                 Writer::new(),
-                flate2::Compression::fast(),
+                flate2::Compression::new(level),
             ))),
 
             #[cfg(feature = "compress-brotli")]
-            ContentEncoding::Brotli => Some(ContentEncoder::Brotli(new_brotli_compressor())),
+            ContentEncodingWithLevel::Brotli(level) => Some(ContentEncoder::Brotli(Box::new(
+                brotli::CompressorWriter::new(
+                    Writer::new(),
+                    32 * 1024, // 32 KiB buffer
+                    level,     // BROTLI_PARAM_QUALITY
+                    22,        // BROTLI_PARAM_LGWIN
+                ),
+            ))),
 
             #[cfg(feature = "compress-zstd")]
-            ContentEncoding::Zstd => {
-                let encoder = ZstdEncoder::new(Writer::new(), 3).ok()?;
+            ContentEncodingWithLevel::Zstd(level) => {
+                let encoder = ZstdEncoder::new(Writer::new(), level).ok()?;
                 Some(ContentEncoder::Zstd(encoder))
             }
 
@@ -399,16 +480,6 @@ impl ContentEncoder {
             },
         }
     }
-}
-
-#[cfg(feature = "compress-brotli")]
-fn new_brotli_compressor() -> Box<brotli::CompressorWriter<Writer>> {
-    Box::new(brotli::CompressorWriter::new(
-        Writer::new(),
-        32 * 1024, // 32 KiB buffer
-        3,         // BROTLI_PARAM_QUALITY
-        22,        // BROTLI_PARAM_LGWIN
-    ))
 }
 
 #[derive(Debug, Display)]
