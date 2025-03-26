@@ -3,7 +3,6 @@ use std::{fmt, net::IpAddr, rc::Rc, time::Duration};
 use actix_http::{
     error::HttpError,
     header::{self, HeaderMap, HeaderName, TryIntoHeaderPair},
-    Uri,
 };
 use actix_rt::net::{ActixStream, TcpStream};
 use actix_service::{boxed, Service};
@@ -11,7 +10,8 @@ use base64::prelude::*;
 
 use crate::{
     client::{
-        ClientConfig, ConnectInfo, Connector, ConnectorService, TcpConnectError, TcpConnection,
+        ClientConfig, ConnectInfo, Connector, ConnectorService, HostnameWithSni, TcpConnectError,
+        TcpConnection,
     },
     connect::DefaultConnector,
     error::SendRequestError,
@@ -46,8 +46,8 @@ impl ClientBuilder {
     #[allow(clippy::new_ret_no_self)]
     pub fn new() -> ClientBuilder<
         impl Service<
-                ConnectInfo<Uri>,
-                Response = TcpConnection<Uri, TcpStream>,
+                ConnectInfo<HostnameWithSni>,
+                Response = TcpConnection<HostnameWithSni, TcpStream>,
                 Error = TcpConnectError,
             > + Clone,
         (),
@@ -69,16 +69,22 @@ impl ClientBuilder {
 
 impl<S, Io, M> ClientBuilder<S, M>
 where
-    S: Service<ConnectInfo<Uri>, Response = TcpConnection<Uri, Io>, Error = TcpConnectError>
-        + Clone
+    S: Service<
+            ConnectInfo<HostnameWithSni>,
+            Response = TcpConnection<HostnameWithSni, Io>,
+            Error = TcpConnectError,
+        > + Clone
         + 'static,
     Io: ActixStream + fmt::Debug + 'static,
 {
     /// Use custom connector service.
     pub fn connector<S1, Io1>(self, connector: Connector<S1>) -> ClientBuilder<S1, M>
     where
-        S1: Service<ConnectInfo<Uri>, Response = TcpConnection<Uri, Io1>, Error = TcpConnectError>
-            + Clone
+        S1: Service<
+                ConnectInfo<HostnameWithSni>,
+                Response = TcpConnection<HostnameWithSni, Io1>,
+                Error = TcpConnectError,
+            > + Clone
             + 'static,
         Io1: ActixStream + fmt::Debug + 'static,
     {
