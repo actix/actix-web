@@ -21,6 +21,10 @@
 - On Windows, an error is now returned from `HttpServer::bind()` (or TLS variants) when binding to a socket that's already in use.
 - Update `brotli` dependency to `7`.
 - Minimum supported Rust version (MSRV) is now 1.75.
+- Add `TryIntoHeaderValue` for `Uri` type.
+- Add `http::header::ContentLocation` typed header.
+- Add `http::header::Location` typed header.
+- Add `http::header::Referer` typed header.
 
 ## 4.9.0
 
