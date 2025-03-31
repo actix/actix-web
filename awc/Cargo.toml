@@ -112,7 +112,7 @@ futures-util = { version = "0.3.17", default-features = false, features = ["allo
 h2 = "0.3.26"
 http = "0.2.7"
 itoa = "1"
-log =" 0.4"
+log ="0.4"
 mime = "0.3"
 percent-encoding = "2.1"
 pin-project-lite = "0.2"
