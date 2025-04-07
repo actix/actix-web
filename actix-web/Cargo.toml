@@ -162,7 +162,7 @@ regex-lite = "0.1"
 serde = "1.0"
 serde_json = "1.0"
 serde_urlencoded = "0.7"
-smallvec = "1.6.1"
+smallvec = "1.15.0"
 tracing = "0.1.30"
 socket2 = "0.5"
 time = { version = "0.3", default-features = false, features = ["formatting"] }

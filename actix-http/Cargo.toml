@@ -121,7 +121,7 @@ language-tags = "0.3"
 mime = "0.3.4"
 percent-encoding = "2.1"
 pin-project-lite = "0.2"
-smallvec = "1.6.1"
+smallvec = "1.15.0"
 tokio = { version = "1.24.2", features = [] }
 tokio-util = { version = "0.7", features = ["io", "codec"] }
 tracing = { version = "0.1.30", default-features = false, features = ["log"] }
