@@ -151,7 +151,7 @@ actix-web = "4"
 
 async-stream = "0.3"
 criterion = { version = "0.5", features = ["html_reports"] }
-divan = "0.1.8"
+divan = "0.1.18"
 env_logger = "0.11"
 futures-util = { version = "0.3.17", default-features = false, features = ["alloc"] }
 memchr = "2.4"
