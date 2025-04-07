@@ -55,7 +55,7 @@ serde = "1"
 serde_json = "1"
 serde_plain = "1"
 tempfile = { version = "3.4", optional = true }
-tokio = { version = "1.24.2", features = ["sync", "io-util"] }
+tokio = { version = "1.44.2", features = ["sync", "io-util"] }
 
 [dev-dependencies]
 actix-http = "3"
@@ -69,7 +69,7 @@ env_logger = "0.11"
 futures-util = { version = "0.3.17", default-features = false, features = ["alloc"] }
 futures-test = "0.3"
 multer = "3"
-tokio = { version = "1.24.2", features = ["sync"] }
+tokio = { version = "1.44.2", features = ["sync"] }
 tokio-stream = "0.1"
 
 [lints]

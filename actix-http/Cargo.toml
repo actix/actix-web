@@ -122,7 +122,7 @@ mime = "0.3.4"
 percent-encoding = "2.1"
 pin-project-lite = "0.2"
 smallvec = "1.6.1"
-tokio = { version = "1.24.2", features = [] }
+tokio = { version = "1.44.2", features = [] }
 tokio-util = { version = "0.7", features = ["io", "codec"] }
 tracing = { version = "0.1.30", default-features = false, features = ["log"] }
 
@@ -165,7 +165,7 @@ serde_json = "1.0"
 static_assertions = "1"
 tls-openssl = { package = "openssl", version = "0.10.55" }
 tls-rustls_023 = { package = "rustls", version = "0.23" }
-tokio = { version = "1.24.2", features = ["net", "rt", "macros"] }
+tokio = { version = "1.44.2", features = ["net", "rt", "macros"] }
 
 [lints]
 workspace = true

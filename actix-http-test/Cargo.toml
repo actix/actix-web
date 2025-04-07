@@ -55,7 +55,7 @@ serde_json = "1"
 slab = "0.4"
 serde_urlencoded = "0.7"
 tls-openssl = { version = "0.10.55", package = "openssl", optional = true }
-tokio = { version = "1.24.2", features = ["sync"] }
+tokio = { version = "1.44.2", features = ["sync"] }
 
 [dev-dependencies]
 actix-http = "3"
