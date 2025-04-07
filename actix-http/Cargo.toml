@@ -140,7 +140,7 @@ actix-tls = { version = "3.4", default-features = false, optional = true }
 
 # compress-*
 brotli = { version = "7", optional = true }
-flate2 = { version = "1.0.13", optional = true }
+flate2 = { version = "1.1.1", optional = true }
 zstd = { version = "0.13", optional = true }
 
 [dev-dependencies]

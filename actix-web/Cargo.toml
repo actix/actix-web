@@ -178,7 +178,7 @@ const-str = "0.5"
 core_affinity = "0.8"
 criterion = { version = "0.5", features = ["html_reports"] }
 env_logger = "0.11"
-flate2 = "1.0.13"
+flate2 = "1.1.1"
 futures-util = { version = "0.3.17", default-features = false, features = ["std"] }
 rand = "0.9"
 rcgen = "0.13"
