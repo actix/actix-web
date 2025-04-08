@@ -158,7 +158,7 @@ impl ConnectionInfo {
     /// The address is resolved through the following, in order:
     /// - `Forwarded` header
     /// - `X-Forwarded-For` header
-    /// - peer address of opened socket (same as [`remote_addr`](Self::remote_addr))
+    /// - peer address of opened socket (same as [`peer_addr`](Self::peer_addr))
     ///
     /// # Security
     /// Do not use this function for security purposes unless you can be sure that the `Forwarded`
