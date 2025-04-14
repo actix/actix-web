@@ -1211,9 +1211,9 @@ dependencies = [
 
 [[package]]
 name = "divan"
-version = "0.1.18"
+version = "0.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "009c56317fe2bd3b5eebe3aa888828c62ed1b085d26c1ef2079a60369795765e"
+checksum = "a405457ec78b8fe08b0e32b4a3570ab5dff6dd16eb9e76a5ee0a9d9cbd898933"
 dependencies = [
  "cfg-if",
  "clap",
@@ -1225,9 +1225,9 @@ dependencies = [
 
 [[package]]
 name = "divan-macros"
-version = "0.1.18"
+version = "0.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f4de9827ae754db91aedec0277381f5a2d8e2f801564c8d774acfe1ab1b045e"
+checksum = "9556bc800956545d6420a640173e5ba7dfa82f38d3ea5a167eb555bc69ac3323"
 dependencies = [
  "proc-macro2",
  "quote",
