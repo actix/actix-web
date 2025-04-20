@@ -79,6 +79,7 @@ pub use actix_http::{body, HttpMessage};
 #[doc(inline)]
 pub use cookie;
 
+pub use mime;
 mod app;
 mod app_service;
 mod config;
