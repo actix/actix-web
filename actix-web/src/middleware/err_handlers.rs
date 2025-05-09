@@ -8,7 +8,7 @@ use std::{
 };
 
 use actix_service::{Service, Transform};
-use ahash::AHashMap;
+use foldhash::HashMap as FoldHashMap;
 use futures_core::{future::LocalBoxFuture, ready};
 use pin_project_lite::pin_project;
 
@@ -185,7 +185,7 @@ pub struct ErrorHandlers<B> {
     handlers: Handlers<B>,
 }
 
-type Handlers<B> = Rc<AHashMap<StatusCode, Box<ErrorHandler<B>>>>;
+type Handlers<B> = Rc<FoldHashMap<StatusCode, Box<ErrorHandler<B>>>>;
 
 impl<B> Default for ErrorHandlers<B> {
     fn default() -> Self {
@@ -220,16 +220,20 @@ impl<B> ErrorHandlers<B> {
     /// [`.handler()`][ErrorHandlers::handler]) will fall back on this.
     ///
     /// Note that this will overwrite any default handlers previously set by calling
-    /// [`.default_handler_client()`][ErrorHandlers::default_handler_client] or
-    /// [`.default_handler_server()`][ErrorHandlers::default_handler_server], but not any set by
-    /// calling [`.handler()`][ErrorHandlers::handler].
+    /// [`default_handler_client()`] or [`.default_handler_server()`], but not any set by calling
+    /// [`.handler()`].
+    ///
+    /// [`default_handler_client()`]: ErrorHandlers::default_handler_client
+    /// [`.default_handler_server()`]: ErrorHandlers::default_handler_server
+    /// [`.handler()`]: ErrorHandlers::handler
     pub fn default_handler<F>(self, handler: F) -> Self
     where
         F: Fn(ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> + 'static,
     {
         let handler = Rc::new(handler);
+        let handler2 = Rc::clone(&handler);
         Self {
-            default_server: Some(handler.clone()),
+            default_server: Some(handler2),
             default_client: Some(handler),
             ..self
         }
@@ -288,7 +292,7 @@ where
     type Future = LocalBoxFuture<'static, Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        let handlers = self.handlers.clone();
+        let handlers = Rc::clone(&self.handlers);
         let default_client = self.default_client.clone();
         let default_server = self.default_server.clone();
         Box::pin(async move {
@@ -323,7 +327,7 @@ where
     actix_service::forward_ready!(service);
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
-        let handlers = self.handlers.clone();
+        let handlers = Rc::clone(&self.handlers);
         let default_client = self.default_client.clone();
         let default_server = self.default_server.clone();
         let fut = self.service.call(req);

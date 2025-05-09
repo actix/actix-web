@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+## 3.10.0
+
+### Added
+
+- Add `header::CLEAR_SITE_DATA` constant.
+- Add `Extensions::get_or_insert[_with]()` methods.
+- Implement `From<Bytes>` for `Payload`.
+- Implement `From<Vec<u8>>` for `Payload`.
+
+### Changed
+
+- Update `brotli` dependency to `7`.
+- Minimum supported Rust version (MSRV) is now 1.75.
+
+## 3.9.0
+
+### Added
+
+- Implement `FromIterator<(HeaderName, HeaderValue)>` for `HeaderMap`.
+
+## 3.8.0
+
 ### Added
 
 - Add `error::InvalidStatusCode` re-export.

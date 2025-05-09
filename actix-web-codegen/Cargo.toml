@@ -34,4 +34,7 @@ actix-web = "4"
 
 futures-core = { version = "0.3.17", default-features = false, features = ["alloc"] }
 trybuild = "1"
-rustversion = "1"
+rustversion-msrv = "0.100"
+
+[lints]
+workspace = true

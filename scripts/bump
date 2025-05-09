@@ -169,3 +169,5 @@ if [ "$GH_RELEASE" = 'y' ] || [ "$GH_RELEASE" = 'Y' ]; then
 fi
 
 echo
+
+cargo update >/dev/null 2>&1 || true

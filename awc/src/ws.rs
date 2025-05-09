@@ -253,12 +253,13 @@ impl WebsocketsRequest {
     pub async fn connect(
         mut self,
     ) -> Result<(ClientResponse, Framed<BoxedSocket, Codec>), WsClientError> {
-        if let Some(e) = self.err.take() {
-            return Err(e.into());
+        if let Some(err) = self.err.take() {
+            return Err(err.into());
         }
 
-        // validate uri
+        // validate URI
         let uri = &self.head.uri;
+
         if uri.host().is_none() {
             return Err(InvalidUrl::MissingHost.into());
         } else if uri.scheme().is_none() {
@@ -273,9 +274,12 @@ impl WebsocketsRequest {
         }
 
         if !self.head.headers.contains_key(header::HOST) {
+            let hostname = uri.host().unwrap();
+            let port = uri.port();
+
             self.head.headers.insert(
                 header::HOST,
-                HeaderValue::from_str(uri.host().unwrap()).unwrap(),
+                HeaderValue::from_str(&Host { hostname, port }.to_string()).unwrap(),
             );
         }
 
@@ -322,7 +326,7 @@ impl WebsocketsRequest {
 
         // Generate a random key for the `Sec-WebSocket-Key` header which is a base64-encoded
         // (see RFC 4648 §4) value that, when decoded, is 16 bytes in length (RFC 6455 §1.3).
-        let sec_key: [u8; 16] = rand::random();
+        let sec_key = rand::random::<[u8; 16]>();
         let key = BASE64_STANDARD.encode(sec_key);
 
         self.head.headers.insert(
@@ -430,6 +434,25 @@ impl fmt::Debug for WebsocketsRequest {
         for (key, val) in self.head.headers.iter() {
             writeln!(f, "    {:?}: {:?}", key, val)?;
         }
+        Ok(())
+    }
+}
+
+/// Formatter for host (hostname+port) header values.
+struct Host<'a> {
+    hostname: &'a str,
+    port: Option<http::uri::Port<&'a str>>,
+}
+
+impl fmt::Display for Host<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.hostname)?;
+
+        if let Some(port) = &self.port {
+            f.write_str(":")?;
+            f.write_str(port.as_str())?;
+        }
+
         Ok(())
     }
 }

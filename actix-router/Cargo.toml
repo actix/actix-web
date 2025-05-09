@@ -38,6 +38,9 @@ http = "0.2.7"
 serde = { version = "1", features = ["derive"] }
 percent-encoding = "2.1"
 
+[lints]
+workspace = true
+
 [[bench]]
 name = "router"
 harness = false

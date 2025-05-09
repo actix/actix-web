@@ -1,10 +1,11 @@
-use actix_web::http::header::{self, HeaderMap};
-use bytes::{BufMut as _, Bytes, BytesMut};
-use mime::Mime;
-use rand::{
-    distributions::{Alphanumeric, DistString as _},
-    thread_rng,
+//! Multipart testing utilities.
+
+use actix_web::{
+    http::header::{self, HeaderMap},
+    web::{BufMut as _, Bytes, BytesMut},
 };
+use mime::Mime;
+use rand::distr::{Alphanumeric, SampleString as _};
 
 const CRLF: &[u8] = b"\r\n";
 const CRLF_CRLF: &[u8] = b"\r\n\r\n";
@@ -21,8 +22,7 @@ const BOUNDARY_PREFIX: &str = "------------------------";
 ///
 /// ```
 /// use actix_multipart::test::create_form_data_payload_and_headers;
-/// use actix_web::test::TestRequest;
-/// use bytes::Bytes;
+/// use actix_web::{test::TestRequest, web::Bytes};
 /// use memchr::memmem::find;
 ///
 /// let (body, headers) = create_form_data_payload_and_headers(
@@ -61,7 +61,7 @@ pub fn create_form_data_payload_and_headers(
     content_type: Option<Mime>,
     file: Bytes,
 ) -> (Bytes, HeaderMap) {
-    let boundary = Alphanumeric.sample_string(&mut thread_rng(), 32);
+    let boundary = Alphanumeric.sample_string(&mut rand::rng(), 32);
 
     create_form_data_payload_and_headers_with_boundary(
         &boundary,

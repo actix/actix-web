@@ -7,13 +7,7 @@ use std::{
     time::Duration,
 };
 
-#[cfg(any(
-    feature = "openssl",
-    feature = "rustls-0_20",
-    feature = "rustls-0_21",
-    feature = "rustls-0_22",
-    feature = "rustls-0_23",
-))]
+#[cfg(feature = "__tls")]
 use actix_http::TlsAcceptorConfig;
 use actix_http::{body::MessageBody, Extensions, HttpService, KeepAlive, Request, Response};
 use actix_server::{Server, ServerBuilder};
@@ -190,7 +184,7 @@ where
     /// By default max connections is set to a 256.
     #[allow(unused_variables)]
     pub fn max_connection_rate(self, num: usize) -> Self {
-        #[cfg(any(feature = "rustls-0_20", feature = "rustls-0_21", feature = "openssl"))]
+        #[cfg(feature = "__tls")]
         actix_tls::accept::max_concurrent_tls_connect(num);
         self
     }
@@ -199,7 +193,7 @@ where
     ///
     /// One thread pool is set up **per worker**; not shared across workers.
     ///
-    /// By default set to 512 divided by the number of workers.
+    /// By default, set to 512 divided by [available parallelism](std::thread::available_parallelism()).
     pub fn worker_max_blocking_threads(mut self, num: usize) -> Self {
         self.builder = self.builder.worker_max_blocking_threads(num);
         self
@@ -243,13 +237,7 @@ where
     /// time, the connection is closed.
     ///
     /// By default, the handshake timeout is 3 seconds.
-    #[cfg(any(
-        feature = "openssl",
-        feature = "rustls-0_20",
-        feature = "rustls-0_21",
-        feature = "rustls-0_22",
-        feature = "rustls-0_23",
-    ))]
+    #[cfg(feature = "__tls")]
     pub fn tls_handshake_timeout(self, dur: Duration) -> Self {
         self.config
             .lock()
@@ -522,7 +510,7 @@ where
     /// No changes are made to `lst`'s configuration. Ensure it is configured properly before
     /// passing ownership to `listen()`.
     pub fn listen(mut self, lst: net::TcpListener) -> io::Result<Self> {
-        let cfg = self.config.clone();
+        let cfg = Arc::clone(&self.config);
         let factory = self.factory.clone();
         let addr = lst.local_addr().unwrap();
 
@@ -566,7 +554,7 @@ where
     /// Binds to existing listener for accepting incoming plaintext HTTP/1.x or HTTP/2 connections.
     #[cfg(feature = "http2")]
     pub fn listen_auto_h2c(mut self, lst: net::TcpListener) -> io::Result<Self> {
-        let cfg = self.config.clone();
+        let cfg = Arc::clone(&self.config);
         let factory = self.factory.clone();
         let addr = lst.local_addr().unwrap();
 
@@ -644,7 +632,7 @@ where
         config: actix_tls::accept::rustls_0_20::reexports::ServerConfig,
     ) -> io::Result<Self> {
         let factory = self.factory.clone();
-        let cfg = self.config.clone();
+        let cfg = Arc::clone(&self.config);
         let addr = lst.local_addr().unwrap();
         self.sockets.push(Socket {
             addr,
@@ -695,7 +683,7 @@ where
         config: actix_tls::accept::rustls_0_21::reexports::ServerConfig,
     ) -> io::Result<Self> {
         let factory = self.factory.clone();
-        let cfg = self.config.clone();
+        let cfg = Arc::clone(&self.config);
         let addr = lst.local_addr().unwrap();
         self.sockets.push(Socket {
             addr,
@@ -761,7 +749,7 @@ where
         config: actix_tls::accept::rustls_0_22::reexports::ServerConfig,
     ) -> io::Result<Self> {
         let factory = self.factory.clone();
-        let cfg = self.config.clone();
+        let cfg = Arc::clone(&self.config);
         let addr = lst.local_addr().unwrap();
         self.sockets.push(Socket {
             addr,
@@ -827,7 +815,7 @@ where
         config: actix_tls::accept::rustls_0_23::reexports::ServerConfig,
     ) -> io::Result<Self> {
         let factory = self.factory.clone();
-        let cfg = self.config.clone();
+        let cfg = Arc::clone(&self.config);
         let addr = lst.local_addr().unwrap();
         self.sockets.push(Socket {
             addr,
@@ -892,7 +880,7 @@ where
         acceptor: SslAcceptor,
     ) -> io::Result<Self> {
         let factory = self.factory.clone();
-        let cfg = self.config.clone();
+        let cfg = Arc::clone(&self.config);
         let addr = lst.local_addr().unwrap();
         self.sockets.push(Socket {
             addr,
@@ -949,7 +937,7 @@ where
         use actix_rt::net::UnixStream;
         use actix_service::{fn_service, ServiceFactoryExt as _};
 
-        let cfg = self.config.clone();
+        let cfg = Arc::clone(&self.config);
         let factory = self.factory.clone();
         let socket_addr =
             net::SocketAddr::new(net::IpAddr::V4(net::Ipv4Addr::new(127, 0, 0, 1)), 8080);
@@ -994,7 +982,7 @@ where
         use actix_rt::net::UnixStream;
         use actix_service::{fn_service, ServiceFactoryExt as _};
 
-        let cfg = self.config.clone();
+        let cfg = Arc::clone(&self.config);
         let factory = self.factory.clone();
         let socket_addr =
             net::SocketAddr::new(net::IpAddr::V4(net::Ipv4Addr::new(127, 0, 0, 1)), 8080);
@@ -1097,7 +1085,10 @@ fn create_tcp_listener(addr: net::SocketAddr, backlog: u32) -> io::Result<net::T
     use socket2::{Domain, Protocol, Socket, Type};
     let domain = Domain::for_address(addr);
     let socket = Socket::new(domain, Type::STREAM, Some(Protocol::TCP))?;
-    socket.set_reuse_address(true)?;
+    #[cfg(not(windows))]
+    {
+        socket.set_reuse_address(true)?;
+    }
     socket.bind(&addr.into())?;
     // clamp backlog to max u32 that fits in i32 range
     let backlog = cmp::min(backlog, i32::MAX as u32) as i32;

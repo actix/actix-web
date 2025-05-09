@@ -6,10 +6,10 @@
 //! | ------------------- | ------------------------------------------- |
 //! | `http2`             | HTTP/2 support via [h2].                    |
 //! | `openssl`           | TLS support via [OpenSSL].                  |
-//! | `rustls`            | TLS support via [rustls]  0.20.             |
-//! | `rustls-0_21`       | TLS support via [rustls]  0.21.             |
-//! | `rustls-0_22`       | TLS support via [rustls]  0.22.             |
-//! | `rustls-0_23`       | TLS support via [rustls]  0.23.             |
+//! | `rustls-0_20`       | TLS support via rustls 0.20.                |
+//! | `rustls-0_21`       | TLS support via rustls 0.21.                |
+//! | `rustls-0_22`       | TLS support via rustls 0.22.                |
+//! | `rustls-0_23`       | TLS support via [rustls] 0.23.              |
 //! | `compress-brotli`   | Payload compression support: Brotli.        |
 //! | `compress-gzip`     | Payload compression support: Deflate, Gzip. |
 //! | `compress-zstd`     | Payload compression support: Zstd.          |
@@ -20,8 +20,6 @@
 //! [rustls]: https://crates.io/crates/rustls
 //! [trust-dns]: https://crates.io/crates/trust-dns
 
-#![deny(rust_2018_idioms, nonstandard_style)]
-#![warn(future_incompatible)]
 #![allow(
     clippy::type_complexity,
     clippy::too_many_arguments,
@@ -61,13 +59,7 @@ pub mod ws;
 
 #[allow(deprecated)]
 pub use self::payload::PayloadStream;
-#[cfg(any(
-    feature = "openssl",
-    feature = "rustls-0_20",
-    feature = "rustls-0_21",
-    feature = "rustls-0_22",
-    feature = "rustls-0_23",
-))]
+#[cfg(feature = "__tls")]
 pub use self::service::TlsAcceptorConfig;
 pub use self::{
     builder::HttpServiceBuilder,

@@ -1,7 +1,6 @@
 //! Reads a field into memory.
 
-use actix_web::HttpRequest;
-use bytes::BytesMut;
+use actix_web::{web::BytesMut, HttpRequest};
 use futures_core::future::LocalBoxFuture;
 use futures_util::TryStreamExt as _;
 use mime::Mime;
@@ -15,7 +14,7 @@ use crate::{
 #[derive(Debug)]
 pub struct Bytes {
     /// The data.
-    pub data: bytes::Bytes,
+    pub data: actix_web::web::Bytes,
 
     /// The value of the `Content-Type` header.
     pub content_type: Option<Mime>,
@@ -41,8 +40,9 @@ impl<'t> FieldReader<'t> for Bytes {
                 content_type: field.content_type().map(ToOwned::to_owned),
                 file_name: field
                     .content_disposition()
+                    .expect("multipart form fields should have a content-disposition header")
                     .get_filename()
-                    .map(str::to_owned),
+                    .map(ToOwned::to_owned),
             })
         })
     }

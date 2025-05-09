@@ -332,7 +332,7 @@ impl<T: DeserializeOwned> JsonBody<T> {
             (true, Ok(Some(mime))) => {
                 mime.subtype() == mime::JSON
                     || mime.suffix() == Some(mime::JSON)
-                    || ctype_fn.map_or(false, |predicate| predicate(mime))
+                    || ctype_fn.is_some_and(|predicate| predicate(mime))
             }
 
             // if content-type is expected but not parsable as mime type, bail
@@ -398,7 +398,7 @@ impl<T: DeserializeOwned> JsonBody<T> {
                     _res: PhantomData,
                 }
             }
-            JsonBody::Error(e) => JsonBody::Error(e),
+            JsonBody::Error(err) => JsonBody::Error(err),
         }
     }
 }
@@ -434,7 +434,7 @@ impl<T: DeserializeOwned> Future for JsonBody<T> {
                     }
                 }
             },
-            JsonBody::Error(e) => Poll::Ready(Err(e.take().unwrap())),
+            JsonBody::Error(err) => Poll::Ready(Err(err.take().unwrap())),
         }
     }
 }

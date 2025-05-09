@@ -480,7 +480,7 @@ async fn h2_response_http_error_handling() {
 }
 
 #[derive(Debug, Display, Error)]
-#[display(fmt = "error")]
+#[display("error")]
 struct BadRequest;
 
 impl From<BadRequest> for Response<BoxBody> {

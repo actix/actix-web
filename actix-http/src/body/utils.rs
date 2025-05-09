@@ -38,7 +38,7 @@ pub async fn to_bytes<B: MessageBody>(body: B) -> Result<Bytes, B::Error> {
 
 /// Error type returned from [`to_bytes_limited`] when body produced exceeds limit.
 #[derive(Debug, Display, Error)]
-#[display(fmt = "limit exceeded while collecting body bytes")]
+#[display("limit exceeded while collecting body bytes")]
 #[non_exhaustive]
 pub struct BodyLimitExceeded;
 

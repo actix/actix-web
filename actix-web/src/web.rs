@@ -2,6 +2,7 @@
 //!
 //! # Request Extractors
 //! - [`Data`]: Application data item
+//! - [`ThinData`]: Cheap-to-clone application data item
 //! - [`ReqData`]: Request-local data item
 //! - [`Path`]: URL path parameters / dynamic segments
 //! - [`Query`]: URL query parameters
@@ -22,7 +23,8 @@ use actix_router::IntoPatterns;
 pub use bytes::{Buf, BufMut, Bytes, BytesMut};
 
 pub use crate::{
-    config::ServiceConfig, data::Data, redirect::Redirect, request_data::ReqData, types::*,
+    config::ServiceConfig, data::Data, redirect::Redirect, request_data::ReqData,
+    thin_data::ThinData, types::*,
 };
 use crate::{
     error::BlockingError, http::Method, service::WebService, FromRequest, Handler, Resource,

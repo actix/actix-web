@@ -351,12 +351,9 @@ mod tests {
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "text/plain");
 
         let resp = Response::build(StatusCode::OK)
-            .content_type(mime::APPLICATION_JAVASCRIPT_UTF_8)
+            .content_type(mime::TEXT_JAVASCRIPT)
             .body(Bytes::new());
-        assert_eq!(
-            resp.headers().get(CONTENT_TYPE).unwrap(),
-            "application/javascript; charset=utf-8"
-        );
+        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "text/javascript");
     }
 
     #[test]
