@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add `Logger::log_level()` method.
 - Add `HttpServer::shutdown_signal()` method.
 - Mark `HttpServer` as `#[must_use]`.
 - Re-export `mime` dependency.
