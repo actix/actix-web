@@ -132,7 +132,7 @@ compat-routing-macros-force-pub = ["actix-web-codegen?/compat-routing-macros-for
 actix-codec = "0.5"
 actix-macros = { version = "0.2.3", optional = true }
 actix-rt = { version = "2.6", default-features = false }
-actix-server = "2"
+actix-server = "2.6"
 actix-service = "2"
 actix-utils = "3"
 actix-tls = { version = "3.4", default-features = false, optional = true }
@@ -173,7 +173,7 @@ actix-files = "0.6"
 actix-test = { version = "0.1", features = ["openssl", "rustls-0_23"] }
 awc = { version = "3", features = ["openssl"] }
 
-brotli = "7"
+brotli = "8"
 const-str = "0.5"
 core_affinity = "0.8"
 criterion = { version = "0.5", features = ["html_reports"] }
@@ -188,6 +188,7 @@ static_assertions = "1"
 tls-openssl = { package = "openssl", version = "0.10.55" }
 tls-rustls = { package = "rustls", version = "0.23" }
 tokio = { version = "1.24.2", features = ["rt-multi-thread", "macros"] }
+tokio-util = "0.7"
 zstd = "0.13"
 
 [lints]

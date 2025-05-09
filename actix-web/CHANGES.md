@@ -2,7 +2,10 @@
 
 ## Unreleased
 
+- Add `HttpServer::shutdown_signal()` method.
+- Mark `HttpServer` as `#[must_use]`.
 - Re-export `mime` dependency.
+- Update `brotli` dependency to `8`.
 
 ## 4.10.2
 
