@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use derive_more::derive::{Display, Error};
+use derive_more::{Display, Error};
 use http::header::InvalidHeaderValue;
 
 use crate::{

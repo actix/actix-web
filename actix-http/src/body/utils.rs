@@ -3,7 +3,7 @@ use std::task::Poll;
 use actix_rt::pin;
 use actix_utils::future::poll_fn;
 use bytes::{Bytes, BytesMut};
-use derive_more::derive::{Display, Error};
+use derive_more::{Display, Error};
 use futures_core::ready;
 
 use super::{BodySize, MessageBody};
@@ -190,7 +190,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn to_body_limit_error() {
-        let err_stream = stream::once(async { Err(io::Error::new(io::ErrorKind::Other, "")) });
+        let err_stream = stream::once(async { Err(io::Error::other("")) });
         let body = SizedStream::new(8, err_stream);
         // not too big, but propagates error from body stream
         assert!(to_bytes_limited(body, 10).await.unwrap().is_err());

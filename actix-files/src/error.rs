@@ -1,5 +1,5 @@
 use actix_web::{http::StatusCode, ResponseError};
-use derive_more::derive::Display;
+use derive_more::Display;
 
 /// Errors which can occur when serving static files.
 #[derive(Debug, PartialEq, Eq, Display)]
