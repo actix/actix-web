@@ -7,6 +7,7 @@ use std::{
     fmt::{self, Display as _},
     future::Future,
     marker::PhantomData,
+    ops::{Bound, RangeBounds},
     pin::Pin,
     rc::Rc,
     task::{Context, Poll},
@@ -26,7 +27,7 @@ use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 use crate::{
     body::{BodySize, MessageBody},
-    http::header::HeaderName,
+    http::{header::HeaderName, StatusCode},
     service::{ServiceRequest, ServiceResponse},
     Error, Result,
 };
@@ -92,6 +93,7 @@ struct Inner {
     exclude: HashSet<String>,
     exclude_regex: Vec<Regex>,
     log_target: Cow<'static, str>,
+    status_range: (Bound<StatusCode>, Bound<StatusCode>),
 }
 
 impl Logger {
@@ -102,6 +104,10 @@ impl Logger {
             exclude: HashSet::new(),
             exclude_regex: Vec::new(),
             log_target: Cow::Borrowed(module_path!()),
+            status_range: (
+                Bound::Included(StatusCode::from_u16(100).unwrap()),
+                Bound::Included(StatusCode::from_u16(999).unwrap()),
+            ),
         }))
     }
 
@@ -118,6 +124,23 @@ impl Logger {
     pub fn exclude_regex<T: Into<String>>(mut self, path: T) -> Self {
         let inner = Rc::get_mut(&mut self.0).unwrap();
         inner.exclude_regex.push(Regex::new(&path.into()).unwrap());
+        self
+    }
+
+    /// Set a range of status to include in the logging
+    ///
+    /// # Examples
+    /// ```
+    /// use actix_web::{middleware::Logger, App, http::StatusCode};
+    ///
+    /// // Log only the requests with status code higher or equal to BAD_REQUEST(400)
+    /// let app = App::new()
+    ///     .wrap(Logger::default().statuses(StatusCode::BAD_REQUEST..));
+    ///
+    /// ```
+    pub fn statuses<R: RangeBounds<StatusCode>>(mut self, status: R) -> Self {
+        let inner = Rc::get_mut(&mut self.0).unwrap();
+        inner.status_range = (status.start_bound().cloned(), status.end_bound().cloned());
         self
     }
 
@@ -242,6 +265,10 @@ impl Default for Logger {
             exclude: HashSet::new(),
             exclude_regex: Vec::new(),
             log_target: Cow::Borrowed(module_path!()),
+            status_range: (
+                Bound::Included(StatusCode::from_u16(100).unwrap()),
+                Bound::Included(StatusCode::from_u16(999).unwrap()),
+            ),
         }))
     }
 }
@@ -310,6 +337,7 @@ where
             LoggerResponse {
                 fut: self.service.call(req),
                 format: None,
+                status_range: self.inner.status_range,
                 time: OffsetDateTime::now_utc(),
                 log_target: Cow::Borrowed(""),
                 _phantom: PhantomData,
@@ -325,6 +353,7 @@ where
             LoggerResponse {
                 fut: self.service.call(req),
                 format: Some(format),
+                status_range: self.inner.status_range,
                 time: now,
                 log_target: self.inner.log_target.clone(),
                 _phantom: PhantomData,
@@ -343,6 +372,7 @@ pin_project! {
         fut: S::Future,
         time: OffsetDateTime,
         format: Option<Format>,
+        status_range:(Bound<StatusCode>,Bound<StatusCode>),
         log_target: Cow<'static, str>,
         _phantom: PhantomData<B>,
     }
@@ -367,7 +397,13 @@ where
             debug!("Error in response: {:?}", error);
         }
 
-        let res = if let Some(ref mut format) = this.format {
+        let mut format = if this.status_range.contains(&res.status()) {
+            this.format.take()
+        } else {
+            None
+        };
+
+        let res = if let Some(ref mut format) = format {
             // to avoid polluting all the Logger types with the body parameter we swap the body
             // out temporarily since it's not usable in custom response functions anyway
 
@@ -388,7 +424,6 @@ where
         };
 
         let time = *this.time;
-        let format = this.format.take();
         let log_target = this.log_target.clone();
 
         Poll::Ready(Ok(res.map_body(move |_, body| StreamLog {
@@ -741,7 +776,13 @@ mod tests {
                 header::HeaderValue::from_static("ACTIX-WEB"),
             ))
             .to_srv_request();
-        let _res = srv.call(req).await;
+        capture_logger::begin_capture();
+        // The log is executed on drop, so the result need to be dropped
+        let _ = srv.call(req).await;
+        let log = capture_logger::pop_captured().unwrap();
+        assert!(log.message().contains("ttt"));
+        assert!(log.message().contains("ACTIX-WEB"));
+        capture_logger::end_capture();
     }
 
     #[actix_rt::test]
@@ -765,6 +806,54 @@ mod tests {
             ))
             .to_srv_request();
         let _res = srv.call(req).await.unwrap();
+    }
+
+    #[actix_rt::test]
+    async fn test_logger_status_range_include() {
+        let srv = |req: ServiceRequest| {
+            ok(req.into_response(HttpResponse::build(StatusCode::OK).finish()))
+        };
+        let logger = Logger::new("%{User-Agent}i test_included %s").statuses(StatusCode::OK..);
+
+        let srv = logger.new_transform(srv.into_service()).await.unwrap();
+
+        let req = TestRequest::default()
+            .insert_header((
+                header::USER_AGENT,
+                header::HeaderValue::from_static("ACTIX-WEB"),
+            ))
+            .to_srv_request();
+        capture_logger::begin_capture();
+        // The log is executed on drop, so the result need to be dropped
+        let _ = srv.call(req).await;
+        let log = capture_logger::pop_captured().unwrap();
+        assert!(log.message().contains("200"));
+        assert!(log.message().contains("ACTIX-WEB"));
+        capture_logger::end_capture();
+    }
+
+    #[actix_rt::test]
+    async fn test_logger_status_range_exclude() {
+        let srv = |req: ServiceRequest| {
+            ok(req.into_response(HttpResponse::build(StatusCode::OK).finish()))
+        };
+        let logger =
+            Logger::new("%{User-Agent}i test_excluded %s").statuses(StatusCode::BAD_REQUEST..);
+
+        let srv = logger.new_transform(srv.into_service()).await.unwrap();
+
+        let req = TestRequest::default()
+            .insert_header((
+                header::USER_AGENT,
+                header::HeaderValue::from_static("ACTIX-WEB"),
+            ))
+            .to_srv_request();
+        capture_logger::begin_capture();
+        // The log is executed on drop, so the result need to be dropped
+        let _ = srv.call(req).await;
+        let log = capture_logger::pop_captured();
+        assert!(log.is_none());
+        capture_logger::end_capture();
     }
 
     #[actix_rt::test]

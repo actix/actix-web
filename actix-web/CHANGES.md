@@ -39,6 +39,7 @@
 ### Added
 
 - Add `web::Html` responder.
+- Add `Logger::statuses` to filter the range of statuses logged.
 - Add `HttpRequest::full_url()` method to get the complete URL of the request.
 
 ### Fixed
