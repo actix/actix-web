@@ -395,6 +395,9 @@ where
             rmap.add(&mut rdef, None);
         }
 
+        #[cfg(feature = "resources-introspection")]
+        let mut rdef_methods: Vec<(String, Vec<String>)> = Vec::new();
+
         // complete scope pipeline creation
         *self.factory_ref.borrow_mut() = Some(ScopeFactory {
             default,
@@ -404,6 +407,24 @@ where
                 .into_iter()
                 .map(|(mut rdef, srv, guards, nested)| {
                     rmap.add(&mut rdef, nested);
+
+                    #[cfg(feature = "resources-introspection")]
+                    {
+                        let http_methods: Vec<String> =
+                            guards.as_ref().map_or_else(Vec::new, |g| {
+                                g.iter()
+                                    .flat_map(|g| {
+                                        crate::guard::HttpMethodsExtractor::extract_http_methods(
+                                            &**g,
+                                        )
+                                    })
+                                    .collect::<Vec<_>>()
+                            });
+
+                        rdef_methods
+                            .push((rdef.pattern().unwrap_or_default().to_string(), http_methods));
+                    }
+
                     (rdef, srv, RefCell::new(guards))
                 })
                 .collect::<Vec<_>>()
@@ -430,6 +451,14 @@ where
 
             async { Ok(fut.await?.map_into_boxed_body()) }
         });
+
+        #[cfg(feature = "resources-introspection")]
+        {
+            crate::introspection::process_introspection(
+                Rc::clone(&Rc::new(rmap.clone())),
+                rdef_methods,
+            );
+        }
 
         // register final service
         config.register_service(

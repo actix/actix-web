@@ -82,6 +82,9 @@ where
 
         let (config, services) = config.into_services();
 
+        #[cfg(feature = "resources-introspection")]
+        let mut rdef_methods: Vec<(String, Vec<String>)> = Vec::new();
+
         // complete pipeline creation.
         *self.factory_ref.borrow_mut() = Some(AppRoutingFactory {
             default,
@@ -89,6 +92,24 @@ where
                 .into_iter()
                 .map(|(mut rdef, srv, guards, nested)| {
                     rmap.add(&mut rdef, nested);
+
+                    #[cfg(feature = "resources-introspection")]
+                    {
+                        let http_methods: Vec<String> =
+                            guards.as_ref().map_or_else(Vec::new, |g| {
+                                g.iter()
+                                    .flat_map(|g| {
+                                        crate::guard::HttpMethodsExtractor::extract_http_methods(
+                                            &**g,
+                                        )
+                                    })
+                                    .collect::<Vec<_>>()
+                            });
+
+                        rdef_methods
+                            .push((rdef.pattern().unwrap_or_default().to_string(), http_methods));
+                    }
+
                     (rdef, srv, RefCell::new(guards))
                 })
                 .collect::<Vec<_>>()
@@ -104,6 +125,11 @@ where
         // complete ResourceMap tree creation
         let rmap = Rc::new(rmap);
         ResourceMap::finish(&rmap);
+
+        #[cfg(feature = "resources-introspection")]
+        {
+            crate::introspection::process_introspection(Rc::clone(&rmap), rdef_methods);
+        }
 
         // construct all async data factory futures
         let factory_futs = join_all(self.async_data_factories.iter().map(|f| f()));

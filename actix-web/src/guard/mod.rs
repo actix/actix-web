@@ -11,7 +11,7 @@
 //! or handler. This interface is defined by the [`Guard`] trait.
 //!
 //! Commonly-used guards are provided in this module as well as a way of creating a guard from a
-//! closure ([`fn_guard`]). The [`Not`], [`Any`], and [`All`] guards are noteworthy, as they can be
+//! closure ([`fn_guard`]). The [`Not`], [`Any()`], and [`All()`] guards are noteworthy, as they can be
 //! used to compose other guards in a more flexible and semantic way than calling `.guard(...)` on
 //! services multiple times (which might have different combining behavior than you want).
 //!
@@ -65,6 +65,17 @@ pub use self::{
     acceptable::Acceptable,
     host::{Host, HostGuard},
 };
+
+/// Enum to encapsulate various introspection details of a Guard.
+#[derive(Debug, Clone)]
+pub enum GuardDetail {
+    /// Detail associated with HTTP methods.
+    HttpMethods(Vec<String>),
+    /// Detail associated with headers (header, value).
+    Headers(Vec<(String, String)>),
+    /// Generic detail.
+    Generic(String),
+}
 
 /// Provides access to request parts that are useful during routing.
 #[derive(Debug)]
@@ -124,11 +135,27 @@ impl<'a> GuardContext<'a> {
 pub trait Guard {
     /// Returns true if predicate condition is met for a given request.
     fn check(&self, ctx: &GuardContext<'_>) -> bool;
+
+    /// Returns a nominal representation of the guard.
+    fn name(&self) -> String {
+        std::any::type_name::<Self>().to_string()
+    }
+
+    /// Returns detailed introspection information.
+    fn details(&self) -> Option<Vec<GuardDetail>> {
+        None
+    }
 }
 
 impl Guard for Rc<dyn Guard> {
     fn check(&self, ctx: &GuardContext<'_>) -> bool {
         (**self).check(ctx)
+    }
+    fn name(&self) -> String {
+        (**self).name()
+    }
+    fn details(&self) -> Option<Vec<GuardDetail>> {
+        (**self).details()
     }
 }
 
@@ -195,7 +222,7 @@ pub fn Any<F: Guard + 'static>(guard: F) -> AnyGuard {
 ///
 /// That is, only one contained guard needs to match in order for the aggregate guard to match.
 ///
-/// Construct an `AnyGuard` using [`Any`].
+/// Construct an `AnyGuard` using [`Any()`].
 pub struct AnyGuard {
     guards: Vec<Box<dyn Guard>>,
 }
@@ -218,6 +245,24 @@ impl Guard for AnyGuard {
         }
 
         false
+    }
+    fn name(&self) -> String {
+        format!(
+            "AnyGuard({})",
+            self.guards
+                .iter()
+                .map(|g| g.name())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    }
+    fn details(&self) -> Option<Vec<GuardDetail>> {
+        Some(
+            self.guards
+                .iter()
+                .flat_map(|g| g.details().unwrap_or_default())
+                .collect(),
+        )
     }
 }
 
@@ -247,7 +292,7 @@ pub fn All<F: Guard + 'static>(guard: F) -> AllGuard {
 ///
 /// That is, **all** contained guard needs to match in order for the aggregate guard to match.
 ///
-/// Construct an `AllGuard` using [`All`].
+/// Construct an `AllGuard` using [`All()`].
 pub struct AllGuard {
     guards: Vec<Box<dyn Guard>>,
 }
@@ -271,6 +316,24 @@ impl Guard for AllGuard {
 
         true
     }
+    fn name(&self) -> String {
+        format!(
+            "AllGuard({})",
+            self.guards
+                .iter()
+                .map(|g| g.name())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    }
+    fn details(&self) -> Option<Vec<GuardDetail>> {
+        Some(
+            self.guards
+                .iter()
+                .flat_map(|g| g.details().unwrap_or_default())
+                .collect(),
+        )
+    }
 }
 
 /// Wraps a guard and inverts the outcome of its `Guard` implementation.
@@ -290,6 +353,12 @@ impl<G: Guard> Guard for Not<G> {
     #[inline]
     fn check(&self, ctx: &GuardContext<'_>) -> bool {
         !self.0.check(ctx)
+    }
+    fn name(&self) -> String {
+        format!("Not({})", self.0.name())
+    }
+    fn details(&self) -> Option<Vec<GuardDetail>> {
+        self.0.details()
     }
 }
 
@@ -319,6 +388,41 @@ impl Guard for MethodGuard {
         }
 
         ctx.head().method == self.0
+    }
+    fn name(&self) -> String {
+        self.0.to_string()
+    }
+    fn details(&self) -> Option<Vec<GuardDetail>> {
+        Some(vec![GuardDetail::HttpMethods(vec![self.0.to_string()])])
+    }
+}
+
+#[cfg(feature = "resources-introspection")]
+pub trait HttpMethodsExtractor {
+    fn extract_http_methods(&self) -> Vec<String>;
+}
+
+#[cfg(feature = "resources-introspection")]
+impl HttpMethodsExtractor for dyn Guard {
+    fn extract_http_methods(&self) -> Vec<String> {
+        let methods: Vec<String> = self
+            .details()
+            .unwrap_or_default()
+            .iter()
+            .flat_map(|detail| {
+                if let GuardDetail::HttpMethods(methods) = detail {
+                    methods.clone()
+                } else {
+                    vec!["UNKNOWN".to_string()]
+                }
+            })
+            .collect();
+
+        if methods.is_empty() {
+            vec!["UNKNOWN".to_string()]
+        } else {
+            methods
+        }
     }
 }
 
@@ -381,6 +485,15 @@ impl Guard for HeaderGuard {
         }
 
         false
+    }
+    fn name(&self) -> String {
+        format!("Header({}, {})", self.0, self.1.to_str().unwrap_or(""))
+    }
+    fn details(&self) -> Option<Vec<GuardDetail>> {
+        Some(vec![GuardDetail::Headers(vec![(
+            self.0.to_string(),
+            self.1.to_str().unwrap_or("").to_string(),
+        )])])
     }
 }
 
