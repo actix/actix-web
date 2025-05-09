@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Re-export `mime` dependency.
+
 ## 4.10.2
 
 - No significant changes since `4.10.1`.
