@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add `HttpServer::shutdown_signal()` method.
+- Mark `HttpServer` as `#[must_use]`.
 - Update `brotli` dependency to `8`.
 
 ## 4.10.2

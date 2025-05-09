@@ -1,6 +1,8 @@
 use std::{
     any::Any,
-    cmp, fmt, io,
+    cmp, fmt,
+    future::Future,
+    io,
     marker::PhantomData,
     net,
     sync::{Arc, Mutex},
@@ -64,6 +66,7 @@ struct Config {
 ///     .await
 /// }
 /// ```
+#[must_use]
 pub struct HttpServer<F, I, S, B>
 where
     F: Fn() -> I + Send + Clone + 'static,
@@ -309,6 +312,37 @@ where
     /// Disables signal handling.
     pub fn disable_signals(mut self) -> Self {
         self.builder = self.builder.disable_signals();
+        self
+    }
+
+    /// Specify shutdown signal from a future.
+    ///
+    /// Using this method will prevent OS signal handlers being set up.
+    ///
+    /// Typically, a `CancellationToken` will be used, but any future _can_ be.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use actix_web::{App, HttpServer};
+    /// use tokio_util::sync::CancellationToken;
+    ///
+    /// # #[actix_web::main]
+    /// # async fn main() -> std::io::Result<()> {
+    /// let stop_signal = CancellationToken::new();
+    ///
+    /// HttpServer::new(move || App::new())
+    ///     .shutdown_signal(stop_signal.cancelled_owned())
+    ///     .bind(("127.0.0.1", 8080))?
+    ///     .run()
+    ///     .await
+    /// # }
+    /// ```
+    pub fn shutdown_signal<Fut>(mut self, shutdown_signal: Fut) -> Self
+    where
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        self.builder = self.builder.shutdown_signal(shutdown_signal);
         self
     }
 
