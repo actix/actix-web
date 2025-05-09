@@ -310,10 +310,10 @@ impl MessageType for RequestHeadType {
                 Version::HTTP_11 => "HTTP/1.1",
                 Version::HTTP_2 => "HTTP/2.0",
                 Version::HTTP_3 => "HTTP/3.0",
-                _ => return Err(io::Error::new(io::ErrorKind::Other, "unsupported version")),
+                _ => return Err(io::Error::other("Unsupported version")),
             }
         )
-        .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
+        .map_err(io::Error::other)
     }
 }
 
@@ -433,7 +433,7 @@ impl TransferEncoding {
                     buf.extend_from_slice(b"0\r\n\r\n");
                 } else {
                     writeln!(helpers::MutWriter(buf), "{:X}\r", msg.len())
-                        .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
+                        .map_err(io::Error::other)?;
 
                     buf.reserve(msg.len() + 2);
                     buf.extend_from_slice(msg);

@@ -139,7 +139,7 @@ sha1 = { version = "0.10", optional = true }
 actix-tls = { version = "3.4", default-features = false, optional = true }
 
 # compress-*
-brotli = { version = "7", optional = true }
+brotli = { version = "8", optional = true }
 flate2 = { version = "1.0.13", optional = true }
 zstd = { version = "0.13", optional = true }
 
@@ -155,7 +155,7 @@ divan = "0.1.8"
 env_logger = "0.11"
 futures-util = { version = "0.3.17", default-features = false, features = ["alloc"] }
 memchr = "2.4"
-once_cell = "1.9"
+once_cell = "1.21"
 rcgen = "0.13"
 regex = "1.3"
 rustversion = "1"

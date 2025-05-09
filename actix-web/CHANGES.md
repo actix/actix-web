@@ -3,6 +3,9 @@
 ## Unreleased
 
 - Add `Logger::log_level()` method.
+- Add `HttpServer::shutdown_signal()` method.
+- Mark `HttpServer` as `#[must_use]`.
+- Update `brotli` dependency to `8`.
 
 ## 4.10.2
 
