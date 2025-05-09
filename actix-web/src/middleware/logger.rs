@@ -413,7 +413,7 @@ where
         let time = *this.time;
         let format = this.format.take();
         let log_target = this.log_target.clone();
-        let log_level = this.log_level.clone();
+        let log_level = *this.log_level;
 
         Poll::Ready(Ok(res.map_body(move |_, body| StreamLog {
             body,
