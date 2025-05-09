@@ -49,7 +49,8 @@ clippy:
     cargo {{ toolchain }} clippy --workspace --all-targets {{ all_crate_features }}
 
 # Test workspace using MSRV.
-test-msrv: downgrade-for-msrv
+test-msrv:
+    @just toolchain={{ msrv_rustup }} downgrade-for-msrv
     @just toolchain={{ msrv_rustup }} test
 
 # Test workspace code.
