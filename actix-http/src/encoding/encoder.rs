@@ -183,8 +183,7 @@ where
             if let Some(ref mut fut) = this.fut {
                 let mut encoder = ready!(Pin::new(fut).poll(cx))
                     .map_err(|_| {
-                        EncoderError::Io(io::Error::new(
-                            io::ErrorKind::Other,
+                        EncoderError::Io(io::Error::other(
                             "Blocking task was cancelled unexpectedly",
                         ))
                     })?

@@ -1073,10 +1073,7 @@ fn bind_addrs(addrs: impl net::ToSocketAddrs, backlog: u32) -> io::Result<Vec<ne
     } else if let Some(err) = err.take() {
         Err(err)
     } else {
-        Err(io::Error::new(
-            io::ErrorKind::Other,
-            "Can not bind to address.",
-        ))
+        Err(io::Error::other("Could not bind to address"))
     }
 }
 

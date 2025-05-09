@@ -1,4 +1,5 @@
 version: "0.2"
 words:
   - actix
+  - httparse
   - rustup

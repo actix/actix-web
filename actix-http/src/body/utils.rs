@@ -190,7 +190,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn to_body_limit_error() {
-        let err_stream = stream::once(async { Err(io::Error::new(io::ErrorKind::Other, "")) });
+        let err_stream = stream::once(async { Err(io::Error::other("")) });
         let body = SizedStream::new(8, err_stream);
         // not too big, but propagates error from body stream
         assert!(to_bytes_limited(body, 10).await.unwrap().is_err());
