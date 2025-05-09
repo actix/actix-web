@@ -7,7 +7,7 @@ pub use actix_http::{
     ws::{HandshakeError as WsHandshakeError, ProtocolError as WsProtocolError},
     StatusCode,
 };
-use derive_more::derive::{Display, From};
+use derive_more::{Display, From};
 use serde_json::error::Error as JsonError;
 
 pub use crate::client::{ConnectError, FreezeRequestError, InvalidUrl, SendRequestError};

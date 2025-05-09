@@ -5,10 +5,7 @@ use actix_web::{
     web::{BufMut as _, Bytes, BytesMut},
 };
 use mime::Mime;
-use rand::{
-    distributions::{Alphanumeric, DistString as _},
-    thread_rng,
-};
+use rand::distr::{Alphanumeric, SampleString as _};
 
 const CRLF: &[u8] = b"\r\n";
 const CRLF_CRLF: &[u8] = b"\r\n\r\n";
@@ -64,7 +61,7 @@ pub fn create_form_data_payload_and_headers(
     content_type: Option<Mime>,
     file: Bytes,
 ) -> (Bytes, HeaderMap) {
-    let boundary = Alphanumeric.sample_string(&mut thread_rng(), 32);
+    let boundary = Alphanumeric.sample_string(&mut rand::rng(), 32);
 
     create_form_data_payload_and_headers_with_boundary(
         &boundary,

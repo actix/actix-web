@@ -1,6 +1,6 @@
 use std::fmt;
 
-use derive_more::derive::Error;
+use derive_more::Error;
 
 /// Copy of `http_range::HttpRangeParseError`.
 #[derive(Debug, Clone)]

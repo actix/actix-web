@@ -1,6 +1,6 @@
 [package]
 name = "awc"
-version = "3.5.1"
+version = "3.6.0"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>"]
 description = "Async HTTP and WebSocket client library"
 keywords = ["actix", "http", "framework", "async", "web"]
@@ -100,7 +100,7 @@ dangerous-h2c = []
 [dependencies]
 actix-codec = "0.5"
 actix-service = "2"
-actix-http = { version = "3.7", features = ["http2", "ws"] }
+actix-http = { version = "3.10", features = ["http2", "ws"] }
 actix-rt = { version = "2.1", default-features = false }
 actix-tls = { version = "3.4", features = ["connect", "uri"] }
 actix-utils = "3"
@@ -108,7 +108,7 @@ actix-utils = "3"
 base64 = "0.22"
 bytes = "1"
 cfg-if = "1"
-derive_more = { version = "1", features = ["display", "error", "from"] }
+derive_more = { version = "2", features = ["display", "error", "from"] }
 futures-core = { version = "0.3.17", default-features = false, features = ["alloc"] }
 futures-util = { version = "0.3.17", default-features = false, features = ["alloc", "sink"] }
 h2 = "0.3.26"
@@ -118,7 +118,7 @@ log = "0.4"
 mime = "0.3"
 percent-encoding = "2.1"
 pin-project-lite = "0.2"
-rand = "0.8"
+rand = "0.9"
 serde = "1.0"
 serde_json = "1.0"
 serde_urlencoded = "0.7"
@@ -143,7 +143,7 @@ actix-tls = { version = "3.4", features = ["openssl", "rustls-0_23"] }
 actix-utils = "3"
 actix-web = { version = "4", features = ["openssl"] }
 
-brotli = "7"
+brotli = "8"
 const-str = "0.5"
 env_logger = "0.11"
 flate2 = "1.0.13"
@@ -155,9 +155,9 @@ tokio = { version = "1.24.2", features = ["rt-multi-thread", "macros"] }
 zstd = "0.13"
 tls-rustls-0_23 = { package = "rustls", version = "0.23" } # add rustls 0.23 with default features to make aws_lc_rs work in tests
 
-[lints]
-workspace = true
-
 [[example]]
 name = "client"
 required-features = ["rustls-0_23-webpki-roots"]
+
+[lints]
+workspace = true

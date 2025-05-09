@@ -187,7 +187,7 @@ impl QueryConfig {
 #[cfg(test)]
 mod tests {
     use actix_http::StatusCode;
-    use derive_more::derive::Display;
+    use derive_more::Display;
     use serde::Deserialize;
 
     use super::*;

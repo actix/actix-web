@@ -8,7 +8,7 @@ use std::{
 };
 
 use actix_web::{dev, error::PayloadError, web, Error, FromRequest, HttpRequest};
-use derive_more::derive::{Deref, DerefMut};
+use derive_more::{Deref, DerefMut};
 use futures_core::future::LocalBoxFuture;
 use futures_util::{TryFutureExt as _, TryStreamExt as _};
 
