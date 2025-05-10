@@ -7,10 +7,10 @@ keywords = ["http", "web", "framework", "async", "futures"]
 homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-web"
 categories = [
-    "network-programming",
-    "asynchronous",
-    "web-programming::http-server",
-    "web-programming::websocket",
+  "network-programming",
+  "asynchronous",
+  "web-programming::http-server",
+  "web-programming::websocket",
 ]
 license = "MIT OR Apache-2.0"
 edition = "2021"
@@ -20,14 +20,14 @@ features = []
 
 [package.metadata.cargo_check_external_types]
 allowed_external_types = [
-    "actix_codec::*",
-    "actix_http::*",
-    "actix_server::*",
-    "awc::*",
-    "bytes::*",
-    "futures_core::*",
-    "http::*",
-    "tokio::*",
+  "actix_codec::*",
+  "actix_http::*",
+  "actix_server::*",
+  "awc::*",
+  "bytes::*",
+  "futures_core::*",
+  "http::*",
+  "tokio::*",
 ]
 
 [features]
@@ -37,25 +37,25 @@ default = []
 openssl = ["tls-openssl", "awc/openssl"]
 
 [dependencies]
-actix-service = "2"
 actix-codec = "0.5"
-actix-tls = "3"
-actix-utils = "3"
 actix-rt = "2.2"
 actix-server = "2"
+actix-service = "2"
+actix-tls = "3"
+actix-utils = "3"
 awc = { version = "3", default-features = false }
 
 bytes = "1"
 futures-core = { version = "0.3.17", default-features = false }
 http = "0.2.7"
 log = "0.4"
-socket2 = "0.5"
 serde = "1"
 serde_json = "1"
-slab = "0.4"
 serde_urlencoded = "0.7"
+slab = "0.4"
+socket2 = "0.5"
 tls-openssl = { version = "0.10.55", package = "openssl", optional = true }
-tokio = { version = "1.24.2", features = ["sync"] }
+tokio = { version = "1.38.2", features = ["sync"] }
 
 [dev-dependencies]
 actix-http = "3"

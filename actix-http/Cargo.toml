@@ -1,19 +1,16 @@
 [package]
 name = "actix-http"
-version = "3.10.0"
-authors = [
-    "Nikolay Kim <fafhrd91@gmail.com>",
-    "Rob Ede <robjtede@icloud.com>",
-]
+version = "3.11.0"
+authors = ["Nikolay Kim <fafhrd91@gmail.com>", "Rob Ede <robjtede@icloud.com>"]
 description = "HTTP types and services for the Actix ecosystem"
 keywords = ["actix", "http", "framework", "async", "futures"]
 homepage = "https://actix.rs"
 repository = "https://github.com/actix/actix-web"
 categories = [
-    "network-programming",
-    "asynchronous",
-    "web-programming::http-server",
-    "web-programming::websocket",
+  "network-programming",
+  "asynchronous",
+  "web-programming::http-server",
+  "web-programming::websocket",
 ]
 license.workspace = true
 edition.workspace = true
@@ -22,38 +19,38 @@ rust-version.workspace = true
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docsrs"]
 features = [
-    "http2",
-    "ws",
-    "openssl",
-    "rustls-0_20",
-    "rustls-0_21",
-    "rustls-0_22",
-    "rustls-0_23",
-    "compress-brotli",
-    "compress-gzip",
-    "compress-zstd",
-    "compress-ws-deflate",
+  "http2",
+  "ws",
+  "openssl",
+  "rustls-0_20",
+  "rustls-0_21",
+  "rustls-0_22",
+  "rustls-0_23",
+  "compress-brotli",
+  "compress-gzip",
+  "compress-zstd",
+  "compress-ws-deflate",
 ]
 
 [package.metadata.cargo_check_external_types]
 allowed_external_types = [
-    "actix_codec::*",
-    "actix_service::*",
-    "actix_tls::*",
-    "actix_utils::*",
-    "bytes::*",
-    "bytestring::*",
-    "encoding_rs::*",
-    "futures_core::*",
-    "h2::*",
-    "http::*",
-    "httparse::*",
-    "language_tags::*",
-    "mime::*",
-    "openssl::*",
-    "rustls::*",
-    "tokio_util::*",
-    "tokio::*",
+  "actix_codec::*",
+  "actix_service::*",
+  "actix_tls::*",
+  "actix_utils::*",
+  "bytes::*",
+  "bytestring::*",
+  "encoding_rs::*",
+  "futures_core::*",
+  "h2::*",
+  "http::*",
+  "httparse::*",
+  "language_tags::*",
+  "mime::*",
+  "openssl::*",
+  "rustls::*",
+  "tokio_util::*",
+  "tokio::*",
 ]
 
 [features]
@@ -63,12 +60,7 @@ default = []
 http2 = ["dep:h2"]
 
 # WebSocket protocol implementation
-ws = [
-    "dep:local-channel",
-    "dep:base64",
-    "dep:rand",
-    "dep:sha1",
-]
+ws = ["dep:local-channel", "dep:base64", "dep:rand", "dep:sha1"]
 
 # TLS via OpenSSL
 openssl = ["__tls", "actix-tls/accept", "actix-tls/openssl"]
@@ -90,8 +82,8 @@ rustls-0_23 = ["__tls", "actix-tls/accept", "actix-tls/rustls-0_23"]
 
 # Compression codecs
 compress-brotli = ["__compress", "dep:brotli"]
-compress-gzip   = ["__compress", "dep:flate2"]
-compress-zstd   = ["__compress", "dep:zstd"]
+compress-gzip = ["__compress", "dep:flate2"]
+compress-zstd = ["__compress", "dep:zstd"]
 compress-ws-deflate = ["dep:flate2", "flate2/zlib-default"]
 
 # Internal (PRIVATE!) features used to aid testing and checking feature status.
@@ -103,10 +95,10 @@ __compress = []
 __tls = []
 
 [dependencies]
-actix-service = "2"
 actix-codec = "0.5"
-actix-utils = "3"
 actix-rt = { version = "2.2", default-features = false }
+actix-service = "2"
+actix-utils = "3"
 
 bitflags = "2"
 bytes = "1"
@@ -124,7 +116,7 @@ mime = "0.3.4"
 percent-encoding = "2.1"
 pin-project-lite = "0.2"
 smallvec = "1.6.1"
-tokio = { version = "1.24.2", features = [] }
+tokio = { version = "1.38.2", features = [] }
 tokio-util = { version = "0.7", features = ["io", "codec"] }
 tracing = { version = "0.1.30", default-features = false, features = ["log"] }
 
@@ -132,8 +124,8 @@ tracing = { version = "0.1.30", default-features = false, features = ["log"] }
 h2 = { version = "0.3.26", optional = true }
 
 # websockets
-local-channel = { version = "0.1", optional = true }
 base64 = { version = "0.22", optional = true }
+local-channel = { version = "0.1", optional = true }
 rand = { version = "0.9", optional = true }
 sha1 = { version = "0.10", optional = true }
 
@@ -160,14 +152,14 @@ memchr = "2.4"
 once_cell = "1.21"
 rcgen = "0.13"
 regex = "1.3"
-rustversion = "1"
 rustls-pemfile = "2"
+rustversion = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0"
 static_assertions = "1"
 tls-openssl = { package = "openssl", version = "0.10.55" }
 tls-rustls_023 = { package = "rustls", version = "0.23" }
-tokio = { version = "1.24.2", features = ["net", "rt", "macros"] }
+tokio = { version = "1.38.2", features = ["net", "rt", "macros"] }
 
 [lints]
 workspace = true

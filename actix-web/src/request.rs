@@ -264,8 +264,10 @@ impl HttpRequest {
     ///
     /// For expanded client connection information, use [`connection_info`] instead.
     ///
-    /// Will only return None when called in unit tests unless [`TestRequest::peer_addr`] is used.
+    /// Will only return `None` when server is listening on [UDS socket] or when called in unit
+    /// tests unless [`TestRequest::peer_addr`] is used.
     ///
+    /// [UDS socket]: crate::HttpServer::bind_uds
     /// [`TestRequest::peer_addr`]: crate::test::TestRequest::peer_addr
     /// [`connection_info`]: Self::connection_info
     #[inline]

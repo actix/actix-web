@@ -3,6 +3,9 @@
 ## Unreleased
 
 - Add DEFLATE compression support for WebSocket.
+
+## 3.11.0
+
 - Update `brotli` dependency to `8`.
 
 ## 3.10.0

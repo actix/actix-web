@@ -275,19 +275,12 @@ where
     /// - `actix_web::rt::net::TcpStream` when no encryption is used.
     ///
     /// See the `on_connect` example for additional details.
-    pub fn on_connect<CB>(self, f: CB) -> HttpServer<F, I, S, B>
+    pub fn on_connect<CB>(mut self, f: CB) -> HttpServer<F, I, S, B>
     where
         CB: Fn(&dyn Any, &mut Extensions) + Send + Sync + 'static,
     {
-        HttpServer {
-            factory: self.factory,
-            config: self.config,
-            backlog: self.backlog,
-            sockets: self.sockets,
-            builder: self.builder,
-            on_connect_fn: Some(Arc::new(f)),
-            _phantom: PhantomData,
-        }
+        self.on_connect_fn = Some(Arc::new(f));
+        self
     }
 
     /// Sets server host name.
@@ -916,6 +909,7 @@ where
         let factory = self.factory.clone();
         let cfg = Arc::clone(&self.config);
         let addr = lst.local_addr().unwrap();
+
         self.sockets.push(Socket {
             addr,
             scheme: "https",
@@ -1020,6 +1014,7 @@ where
         let factory = self.factory.clone();
         let socket_addr =
             net::SocketAddr::new(net::IpAddr::V4(net::Ipv4Addr::new(127, 0, 0, 1)), 8080);
+
         self.sockets.push(Socket {
             scheme: "http",
             addr: socket_addr,
