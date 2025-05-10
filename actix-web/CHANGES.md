@@ -7,6 +7,7 @@
 - Add `HttpServer::shutdown_signal()` method.
 - Mark `HttpServer` as `#[must_use]`.
 - Allow SVG images to be compressed by the `Compress` middleware.
+- Ignore `Host` header in `Host` guard when connection protocol is HTTP/2.
 - Re-export `mime` dependency.
 - Update `brotli` dependency to `8`.
 

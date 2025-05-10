@@ -41,17 +41,18 @@ check-min:
 check-default:
     cargo hack --workspace check
 
-# Run Clippy over workspace.
+# Check workspace.
 check: && clippy
+    fd --hidden --type=file --extension=md --extension=yml --exec-batch npx -y prettier --check
 
 # Run Clippy over workspace.
 clippy:
     cargo {{ toolchain }} clippy --workspace --all-targets {{ all_crate_features }}
 
-# Test workspace using MSRV.
-test-msrv:
+# Run Clippy over workspace using MSRV.
+clippy-msrv:
     @just toolchain={{ msrv_rustup }} downgrade-for-msrv
-    @just toolchain={{ msrv_rustup }} test
+    @just toolchain={{ msrv_rustup }} clippy
 
 # Test workspace code.
 test:
@@ -59,6 +60,11 @@ test:
     cargo {{ toolchain }} test --lib --tests -p=actix-multipart-derive --all-features
     cargo {{ toolchain }} nextest run --no-tests=warn -p=actix-router --no-default-features
     cargo {{ toolchain }} nextest run --no-tests=warn --workspace --exclude=actix-web-codegen --exclude=actix-multipart-derive {{ all_crate_features }} --filter-expr="not test(test_reading_deflate_encoding_large_random_rustls)"
+
+# Test workspace using MSRV.
+test-msrv:
+    @just toolchain={{ msrv_rustup }} downgrade-for-msrv
+    @just toolchain={{ msrv_rustup }} test
 
 # Test workspace docs.
 test-docs: && doc
