@@ -1182,7 +1182,8 @@ where
                     let state_is_none = inner_p.state.is_none();
 
                     // read half is closed; we do not process any responses
-                    if inner_p.flags.contains(Flags::READ_DISCONNECT) && state_is_none {
+                    // fix https://github.com/actix/actix-web/issues/1313
+                    if inner_p.flags.contains(Flags::READ_DISCONNECT) {
                         trace!("read half closed; start shutdown");
                         inner_p.flags.insert(Flags::SHUTDOWN);
                     }
