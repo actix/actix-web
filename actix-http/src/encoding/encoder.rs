@@ -10,7 +10,7 @@ use std::{
 
 use actix_rt::task::{spawn_blocking, JoinHandle};
 use bytes::Bytes;
-use derive_more::derive::Display;
+use derive_more::Display;
 #[cfg(feature = "compress-gzip")]
 use flate2::write::{GzEncoder, ZlibEncoder};
 use futures_core::ready;
@@ -183,8 +183,7 @@ where
             if let Some(ref mut fut) = this.fut {
                 let mut encoder = ready!(Pin::new(fut).poll(cx))
                     .map_err(|_| {
-                        EncoderError::Io(io::Error::new(
-                            io::ErrorKind::Other,
+                        EncoderError::Io(io::Error::other(
                             "Blocking task was cancelled unexpectedly",
                         ))
                     })?

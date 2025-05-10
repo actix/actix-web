@@ -17,7 +17,7 @@ use actix_http::{
 use actix_http::{encoding::Decoder, header::ContentEncoding, Payload};
 use actix_rt::time::{sleep, Sleep};
 use bytes::Bytes;
-use derive_more::derive::From;
+use derive_more::From;
 use futures_core::Stream;
 use serde::Serialize;
 

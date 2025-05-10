@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- Add `Logger::log_level()` method.
+- Improve handling of non-UTF-8 header values in `Logger` middleware.
+- Add `HttpServer::shutdown_signal()` method.
+- Mark `HttpServer` as `#[must_use]`.
+- Re-export `mime` dependency.
+- Update `brotli` dependency to `8`.
+
+## 4.10.2
+
+- No significant changes since `4.10.1`.
+
+## 4.10.1
+
+- No significant changes since `4.10.0`.
+
+## 4.10.0
+
+### Added
+
+- Implement `Responder` for `Result<(), E: Into<Error>>`. Returning `Ok(())` responds with HTTP 204 No Content.
+
+### Changed
+
 - On Windows, an error is now returned from `HttpServer::bind()` (or TLS variants) when binding to a socket that's already in use.
 - Update `brotli` dependency to `7`.
 - Minimum supported Rust version (MSRV) is now 1.75.

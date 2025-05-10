@@ -3,7 +3,7 @@ use std::{fmt, io};
 use actix_http::error::{HttpError, ParseError};
 #[cfg(feature = "openssl")]
 use actix_tls::accept::openssl::reexports::Error as OpensslError;
-use derive_more::derive::{Display, From};
+use derive_more::{Display, From};
 
 use crate::BoxError;
 

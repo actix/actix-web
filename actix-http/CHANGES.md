@@ -2,9 +2,16 @@
 
 ## Unreleased
 
+- Update `brotli` dependency to `8`.
+
+## 3.10.0
+
 ### Added
 
 - Add `header::CLEAR_SITE_DATA` constant.
+- Add `Extensions::get_or_insert[_with]()` methods.
+- Implement `From<Bytes>` for `Payload`.
+- Implement `From<Vec<u8>>` for `Payload`.
 
 ### Changed
 
