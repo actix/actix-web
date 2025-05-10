@@ -530,8 +530,8 @@ impl DeflateCompressionContext {
         let mut buf = [0u8; BUF_SIZE];
 
         loop {
-            let total_in = self.compress.total_in() - self.total_bytes_read;
-            let res = if total_in >= payload.len() as u64 {
+            let bytes_in = self.compress.total_in() - self.total_bytes_read;
+            let res = if bytes_in >= payload.len() as u64 {
                 self.compress
                     .compress(&[], &mut buf, flate2::FlushCompress::Sync)
                     .map_err(|err| {
@@ -540,7 +540,11 @@ impl DeflateCompressionContext {
                     })?
             } else {
                 self.compress
-                    .compress(&payload, &mut buf, flate2::FlushCompress::None)
+                    .compress(
+                        &payload[bytes_in as usize..],
+                        &mut buf,
+                        flate2::FlushCompress::None,
+                    )
                     .map_err(|err| {
                         self.reset();
                         ProtocolError::Io(err.into())
