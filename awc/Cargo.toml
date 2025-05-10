@@ -97,9 +97,9 @@ dangerous-h2c = []
 
 [dependencies]
 actix-codec = "0.5"
-actix-service = "2"
 actix-http = { version = "3.10", features = ["http2", "ws"] }
 actix-rt = { version = "2.1", default-features = false }
+actix-service = "2"
 actix-tls = { version = "3.4", features = ["connect", "uri"] }
 actix-utils = "3"
 
@@ -112,7 +112,7 @@ futures-util = { version = "0.3.17", default-features = false, features = ["allo
 h2 = "0.3.26"
 http = "0.2.7"
 itoa = "1"
-log ="0.4"
+log = "0.4"
 mime = "0.3"
 percent-encoding = "2.1"
 pin-project-lite = "0.2"
@@ -120,7 +120,7 @@ rand = "0.9"
 serde = "1.0"
 serde_json = "1.0"
 serde_urlencoded = "0.7"
-tokio = { version = "1.24.2", features = ["sync"] }
+tokio = { version = "1.38.2", features = ["sync"] }
 
 cookie = { version = "0.16", features = ["percent-encode"], optional = true }
 
@@ -149,7 +149,7 @@ futures-util = { version = "0.3.17", default-features = false }
 static_assertions = "1.1"
 rcgen = "0.13"
 rustls-pemfile = "2"
-tokio = { version = "1.24.2", features = ["rt-multi-thread", "macros"] }
+tokio = { version = "1.38.2", features = ["rt-multi-thread", "macros"] }
 zstd = "0.13"
 tls-rustls-0_23 = { package = "rustls", version = "0.23" } # add rustls 0.23 with default features to make aws_lc_rs work in tests
 
