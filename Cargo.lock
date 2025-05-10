@@ -620,7 +620,7 @@ checksum = "ace50bade8e6234aa140d9a2f552bbee1db4d353f69b8217bc503490fc1a9f26"
 
 [[package]]
 name = "awc"
-version = "3.6.0"
+version = "3.7.0"
 dependencies = [
  "actix-codec",
  "actix-http",
