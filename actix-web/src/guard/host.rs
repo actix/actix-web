@@ -1,4 +1,4 @@
-use actix_http::{header, uri::Uri, RequestHead};
+use actix_http::{header, uri::Uri, RequestHead, Version};
 
 use super::{Guard, GuardContext};
 
@@ -66,7 +66,7 @@ fn get_host_uri(req: &RequestHead) -> Option<Uri> {
     req.headers
         .get(header::HOST)
         .and_then(|host_value| host_value.to_str().ok())
-        .filter(|_| req.version < actix_http::Version::HTTP_2)
+        .filter(|_| req.version < Version::HTTP_2)
         .or_else(|| req.uri.host())
         .and_then(|host| host.parse().ok())
 }
