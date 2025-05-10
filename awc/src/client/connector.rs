@@ -89,9 +89,9 @@ impl Connector<()> {
     /// # Panics
     ///
     /// - When the `rustls-0_23-webpki-roots` or `rustls-0_23-native-roots` features are enabled
-    ///     and no default crypto provider has been loaded, this method will panic.
+    ///   and no default crypto provider has been loaded, this method will panic.
     /// - When the `rustls-0_23-native-roots` or `rustls-0_22-native-roots` features are enabled
-    ///     and the runtime system has no native root certificates, this method will panic.
+    ///   and the runtime system has no native root certificates, this method will panic.
     #[allow(clippy::new_ret_no_self, clippy::let_unit_value)]
     pub fn new() -> Connector<
         impl Service<

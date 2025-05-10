@@ -238,7 +238,7 @@ where
                     match res {
                         Ok(bytes) => {
                             let fallback = bytes.clone();
-                            let left = L::from_request(this.req, &mut payload_from_bytes(bytes));
+                            let left = L::from_request(this.req, &mut dev::Payload::from(bytes));
                             EitherExtractState::Left { left, fallback }
                         }
                         Err(err) => break Err(EitherExtractError::Bytes(err)),
@@ -251,7 +251,7 @@ where
                         Err(left_err) => {
                             let right = R::from_request(
                                 this.req,
-                                &mut payload_from_bytes(mem::take(fallback)),
+                                &mut dev::Payload::from(mem::take(fallback)),
                             );
                             EitherExtractState::Right {
                                 left_err: Some(left_err),
@@ -274,12 +274,6 @@ where
         };
         Poll::Ready(ready)
     }
-}
-
-fn payload_from_bytes(bytes: Bytes) -> dev::Payload {
-    let (_, mut h1_payload) = actix_http::h1::Payload::create(true);
-    h1_payload.unread_data(bytes);
-    dev::Payload::from(h1_payload)
 }
 
 #[cfg(test)]

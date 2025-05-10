@@ -1,18 +1,22 @@
 _list:
     @just --list
 
+toolchain := ""
+
 # Format workspace.
 fmt:
     just --unstable --fmt
     cargo +nightly fmt
     fd --hidden --type=file --extension=md --extension=yml --exec-batch npx -y prettier --write
 
-# Downgrade dev-dependencies necessary to run MSRV checks/tests.
+# Downgrade dependencies necessary to run MSRV checks/tests.
 [private]
 downgrade-for-msrv:
-    cargo update -p=parse-size --precise=1.0.0
-    cargo update -p=clap --precise=4.4.18
-    cargo update -p=divan --precise=0.1.15
+    cargo {{ toolchain }} update -p=divan --precise=0.1.15 # next ver: 1.80.0
+    cargo {{ toolchain }} update -p=half --precise=2.4.1 # next ver: 1.81.0
+    cargo {{ toolchain }} update -p=litemap --precise=0.7.4 # next ver: 1.81.0
+    cargo {{ toolchain }} update -p=zerofrom --precise=0.1.5 # next ver: 1.81.0
+    cargo {{ toolchain }} update -p=idna_adapter --precise=1.2.0 # next ver: 1.82.0
 
 msrv := ```
     cargo metadata --format-version=1 \
@@ -37,42 +41,50 @@ check-min:
 check-default:
     cargo hack --workspace check
 
-# Run Clippy over workspace.
-check toolchain="": && (clippy toolchain)
+# Check workspace.
+check: && clippy
+    fd --hidden --type=file --extension=md --extension=yml --exec-batch npx -y prettier --check
 
 # Run Clippy over workspace.
-clippy toolchain="":
+clippy:
     cargo {{ toolchain }} clippy --workspace --all-targets {{ all_crate_features }}
 
-# Test workspace using MSRV.
-test-msrv: downgrade-for-msrv (test msrv_rustup)
+# Run Clippy over workspace using MSRV.
+clippy-msrv:
+    @just toolchain={{ msrv_rustup }} downgrade-for-msrv
+    @just toolchain={{ msrv_rustup }} clippy
 
 # Test workspace code.
-test toolchain="":
+test:
     cargo {{ toolchain }} test --lib --tests -p=actix-web-codegen --all-features
     cargo {{ toolchain }} test --lib --tests -p=actix-multipart-derive --all-features
     cargo {{ toolchain }} nextest run --no-tests=warn -p=actix-router --no-default-features
     cargo {{ toolchain }} nextest run --no-tests=warn --workspace --exclude=actix-web-codegen --exclude=actix-multipart-derive {{ all_crate_features }} --filter-expr="not test(test_reading_deflate_encoding_large_random_rustls)"
 
+# Test workspace using MSRV.
+test-msrv:
+    @just toolchain={{ msrv_rustup }} downgrade-for-msrv
+    @just toolchain={{ msrv_rustup }} test
+
 # Test workspace docs.
-test-docs toolchain="": && doc
+test-docs: && doc
     cargo {{ toolchain }} test --doc --workspace {{ all_crate_features }} --no-fail-fast -- --nocapture
 
 # Test workspace.
-test-all toolchain="": (test toolchain) (test-docs toolchain)
+test-all: test test-docs
 
 # Test workspace and collect coverage info.
 [private]
-test-coverage toolchain="":
+test-coverage:
     cargo {{ toolchain }} llvm-cov nextest --no-tests=warn --no-report {{ all_crate_features }}
     cargo {{ toolchain }} llvm-cov --doc --no-report {{ all_crate_features }}
 
 # Test workspace and generate Codecov report.
-test-coverage-codecov toolchain="": (test-coverage toolchain)
+test-coverage-codecov: test-coverage
     cargo {{ toolchain }} llvm-cov report --doctests --codecov --output-path=codecov.json
 
 # Test workspace and generate LCOV report.
-test-coverage-lcov toolchain="": (test-coverage toolchain)
+test-coverage-lcov: test-coverage
     cargo {{ toolchain }} llvm-cov report --doctests --lcov --output-path=lcov.info
 
 # Document crates in workspace.

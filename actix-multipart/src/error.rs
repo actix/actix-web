@@ -5,7 +5,7 @@ use actix_web::{
     http::StatusCode,
     ResponseError,
 };
-use derive_more::derive::{Display, Error, From};
+use derive_more::{Display, Error, From};
 
 /// A set of errors that can occur during parsing multipart streams.
 #[derive(Debug, Display, From, Error)]
