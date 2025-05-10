@@ -31,7 +31,7 @@ async fn main() -> io::Result<()> {
 
                         actix_rt::time::sleep(Duration::from_secs(1)).await;
 
-                        yield Err(io::Error::new(io::ErrorKind::Other, "abc"));
+                        yield Err(io::Error::other("abc"));
                     })))
                 })
                 .tcp()

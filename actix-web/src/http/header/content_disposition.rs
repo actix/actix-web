@@ -206,11 +206,11 @@ impl DispositionParam {
     }
 }
 
-/// A *Content-Disposition* header. It is compatible to be used either as
-/// [a response header for the main body](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition#as_a_response_header_for_the_main_body)
-/// as (re)defined in [RFC 6266](https://datatracker.ietf.org/doc/html/rfc6266), or as
-/// [a header for a multipart body](https://mdn.io/Content-Disposition#As_a_header_for_a_multipart_body)
-/// as (re)defined in [RFC 7587](https://datatracker.ietf.org/doc/html/rfc7578).
+/// `Content-Disposition` header.
+///
+/// It is compatible to be used either as [a response header for the main body][use_main_body]
+/// as (re)defined in [RFC 6266], or as [a header for a multipart body][use_multipart] as
+/// (re)defined in [RFC 7587].
 ///
 /// In a regular HTTP response, the *Content-Disposition* response header is a header indicating if
 /// the content is expected to be displayed *inline* in the browser, that is, as a Web page or as
@@ -267,7 +267,7 @@ impl DispositionParam {
 ///     parameters: vec![DispositionParam::FilenameExt(ExtendedValue {
 ///         charset: Charset::Iso_8859_1, // The character set for the bytes of the filename
 ///         language_tag: None, // The optional language tag (see `language-tag` crate)
-///         value: b"\xa9 Copyright 1989.txt".to_vec(), // the actual bytes of the filename
+///         value: b"\xA9 Ferris 2011.txt".to_vec(), // the actual bytes of the filename
 ///     })],
 /// };
 /// assert!(cd1.is_attachment());
@@ -305,6 +305,11 @@ impl DispositionParam {
 /// change to match local file system conventions if applicable, and do not use directory path
 /// information that may be present.
 /// See [RFC 2183 §2.3](https://datatracker.ietf.org/doc/html/rfc2183#section-2.3).
+///
+/// [use_main_body]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition#as_a_response_header_for_the_main_body
+/// [RFC 6266]: https://datatracker.ietf.org/doc/html/rfc6266
+/// [use_multipart]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition#as_a_header_for_a_multipart_body
+/// [RFC 7587]: https://datatracker.ietf.org/doc/html/rfc7578
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ContentDisposition {
     /// The disposition type

@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use actix_web::{http::StatusCode, web, Error, HttpRequest, ResponseError};
-use derive_more::derive::{Deref, DerefMut, Display, Error};
+use derive_more::{Deref, DerefMut, Display, Error};
 use futures_core::future::LocalBoxFuture;
 use serde::de::DeserializeOwned;
 

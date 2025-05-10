@@ -1,6 +1,6 @@
 use std::fmt;
 
-use derive_more::derive::{Display, Error};
+use derive_more::{Display, Error};
 
 const MAX_QUALITY_INT: u16 = 1000;
 const MAX_QUALITY_FLOAT: f32 = 1.0;

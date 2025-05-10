@@ -5,9 +5,9 @@
 <!-- prettier-ignore-start -->
 
 [![crates.io](https://img.shields.io/crates/v/awc?label=latest)](https://crates.io/crates/awc)
-[![Documentation](https://docs.rs/awc/badge.svg?version=3.5.1)](https://docs.rs/awc/3.5.1)
+[![Documentation](https://docs.rs/awc/badge.svg?version=3.7.0)](https://docs.rs/awc/3.7.0)
 ![MIT or Apache 2.0 licensed](https://img.shields.io/crates/l/awc)
-[![Dependency Status](https://deps.rs/crate/awc/3.5.1/status.svg)](https://deps.rs/crate/awc/3.5.1)
+[![Dependency Status](https://deps.rs/crate/awc/3.7.0/status.svg)](https://deps.rs/crate/awc/3.7.0)
 [![Chat on Discord](https://img.shields.io/discord/771444961383153695?label=chat&logo=discord)](https://discord.gg/NWpN5mmg3x)
 
 <!-- prettier-ignore-end -->
