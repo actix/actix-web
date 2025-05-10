@@ -132,7 +132,7 @@ actix-service = "2"
 actix-tls = { version = "3.4", default-features = false, optional = true }
 actix-utils = "3"
 
-actix-http = { version = "3.10", features = ["ws"] }
+actix-http = { version = "3.11", features = ["ws"] }
 actix-router = { version = "0.5.3", default-features = false, features = ["http"] }
 actix-web-codegen = { version = "4.3", optional = true, default-features = false }
 
@@ -169,7 +169,7 @@ actix-test = { version = "0.1", features = ["openssl", "rustls-0_23"] }
 awc = { version = "3", features = ["openssl"] }
 
 brotli = "8"
-const-str = "0.5"
+const-str = "0.5" # TODO(MSRV 1.77): update to 0.6
 core_affinity = "0.8"
 criterion = { version = "0.5", features = ["html_reports"] }
 env_logger = "0.11"

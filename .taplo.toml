@@ -7,6 +7,12 @@ align_comments = false
 
 [[rule]]
 include = ["**/Cargo.toml"]
+keys = ["features"]
+formatting.column_width = 105
+formatting.reorder_keys = false
+
+[[rule]]
+include = ["**/Cargo.toml"]
 keys = [
   "dependencies",
   "*-dependencies",
