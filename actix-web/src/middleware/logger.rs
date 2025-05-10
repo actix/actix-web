@@ -649,9 +649,9 @@ impl FormatText {
 
             FormatText::ResponseHeader(ref name) => {
                 let s = if let Some(val) = res.headers().get(name) {
-                    val.to_str().unwrap_or("-")
+                    String::from_utf8_lossy(val.as_bytes()).into_owned()
                 } else {
-                    "-"
+                    "-".to_owned()
                 };
                 *self = FormatText::Str(s.to_string())
             }
@@ -693,11 +693,11 @@ impl FormatText {
             FormatText::RequestTime => *self = FormatText::Str(now.format(&Rfc3339).unwrap()),
             FormatText::RequestHeader(ref name) => {
                 let s = if let Some(val) = req.headers().get(name) {
-                    val.to_str().unwrap_or("-")
+                    String::from_utf8_lossy(val.as_bytes()).into_owned()
                 } else {
-                    "-"
+                    "-".to_owned()
                 };
-                *self = FormatText::Str(s.to_string());
+                *self = FormatText::Str(s);
             }
             FormatText::RemoteAddr => {
                 let s = if let Some(peer) = req.connection_info().peer_addr() {

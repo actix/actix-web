@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Add `Logger::log_level()` method.
+- Improve handling of non-UTF-8 header values in `Logger` middleware.
 - Add `HttpServer::shutdown_signal()` method.
 - Mark `HttpServer` as `#[must_use]`.
 - Re-export `mime` dependency.

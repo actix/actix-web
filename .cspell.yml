@@ -4,5 +4,6 @@ words:
   - addrs
   - httparse
   - msrv
+  - realip
   - rustup
   - zstd
