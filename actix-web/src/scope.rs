@@ -404,6 +404,41 @@ where
                 .into_iter()
                 .map(|(mut rdef, srv, guards, nested)| {
                     rmap.add(&mut rdef, nested);
+
+                    #[cfg(feature = "experimental-introspection")]
+                    {
+                        use std::borrow::Borrow;
+
+                        // Get the pattern stored in ResourceMap
+                        let pat = rdef.pattern().unwrap_or("").to_string();
+                        let guard_list: &[Box<dyn Guard>] =
+                            guards.borrow().as_ref().map_or(&[], |v| &v[..]);
+
+                        // Extract HTTP methods from guards
+                        let methods = guard_list
+                            .iter()
+                            .flat_map(|g| g.details().unwrap_or_default())
+                            .flat_map(|d| {
+                                if let crate::guard::GuardDetail::HttpMethods(v) = d {
+                                    v.into_iter()
+                                        .filter_map(|s| s.parse().ok())
+                                        .collect::<Vec<_>>()
+                                } else {
+                                    Vec::new()
+                                }
+                            })
+                            .collect::<Vec<_>>();
+
+                        // Extract guard names
+                        let guard_names = guard_list
+                            .iter()
+                            .map(|g| g.name().to_string())
+                            .collect::<Vec<_>>();
+
+                        // Register route details for introspection
+                        crate::introspection::register_pattern_detail(pat, methods, guard_names);
+                    }
+
                     (rdef, srv, RefCell::new(guards))
                 })
                 .collect::<Vec<_>>()

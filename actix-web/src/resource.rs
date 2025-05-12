@@ -417,6 +417,8 @@ where
     B: MessageBody + 'static,
 {
     fn register(mut self, config: &mut AppService) {
+        let routes = std::mem::take(&mut self.routes);
+
         let guards = if self.guards.is_empty() {
             None
         } else {
@@ -433,8 +435,28 @@ where
             rdef.set_name(name);
         }
 
+        #[cfg(feature = "experimental-introspection")]
+        {
+            let pat = rdef.pattern().unwrap_or("").to_string();
+            let mut methods = Vec::new();
+            let mut guard_names = Vec::new();
+            for route in &routes {
+                if let Some(m) = route.get_method() {
+                    if !methods.contains(&m) {
+                        methods.push(m);
+                    }
+                }
+                for name in route.guard_names() {
+                    if !guard_names.contains(&name) {
+                        guard_names.push(name.clone());
+                    }
+                }
+            }
+            crate::introspection::register_pattern_detail(pat, methods, guard_names);
+        }
+
         *self.factory_ref.borrow_mut() = Some(ResourceFactory {
-            routes: self.routes,
+            routes,
             default: self.default,
         });
 

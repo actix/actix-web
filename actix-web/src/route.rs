@@ -65,6 +65,11 @@ impl Route {
     pub(crate) fn take_guards(&mut self) -> Vec<Box<dyn Guard>> {
         mem::take(Rc::get_mut(&mut self.guards).unwrap())
     }
+    /// Get the names of all guards applied to this route.
+    #[cfg(feature = "experimental-introspection")]
+    pub fn guard_names(&self) -> Vec<String> {
+        self.guards.iter().map(|g| g.name()).collect()
+    }
 }
 
 impl ServiceFactory<ServiceRequest> for Route {
@@ -140,6 +145,23 @@ impl Route {
         self
     }
 
+    #[cfg(feature = "experimental-introspection")]
+    /// Get the first HTTP method guard applied to this route (if any).
+    /// WIP.
+    pub(crate) fn get_method(&self) -> Option<Method> {
+        self.guards.iter().find_map(|g| {
+            g.details().and_then(|details| {
+                details.into_iter().find_map(|d| {
+                    if let crate::guard::GuardDetail::HttpMethods(mut m) = d {
+                        m.pop().and_then(|s| s.parse().ok())
+                    } else {
+                        None
+                    }
+                })
+            })
+        })
+    }
+
     /// Add guard to the route.
     ///
     /// # Examples
@@ -157,6 +179,10 @@ impl Route {
     pub fn guard<F: Guard + 'static>(mut self, f: F) -> Self {
         Rc::get_mut(&mut self.guards).unwrap().push(Box::new(f));
         self
+    }
+
+    pub fn guards(&self) -> &Vec<Box<dyn Guard>> {
+        &self.guards
     }
 
     /// Set handler function, use request extractors for parameters.
