@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Add `resources-introspection` feature for retrieving configured route paths and HTTP methods.
+- Add `experimental-introspection` feature for retrieving configured route paths and HTTP methods.
 
 ## 4.10.2
 

@@ -417,6 +417,8 @@ where
     B: MessageBody + 'static,
 {
     fn register(mut self, config: &mut AppService) {
+        let routes = std::mem::take(&mut self.routes);
+
         let guards = if self.guards.is_empty() {
             None
         } else {
@@ -433,27 +435,28 @@ where
             rdef.set_name(name);
         }
 
-        #[cfg(feature = "resources-introspection")]
-        let mut rdef_methods: Vec<(String, Vec<String>)> = Vec::new();
-        #[cfg(feature = "resources-introspection")]
-        let mut rmap = crate::rmap::ResourceMap::new(ResourceDef::prefix(""));
-
-        #[cfg(feature = "resources-introspection")]
+        #[cfg(feature = "experimental-introspection")]
         {
-            rmap.add(&mut rdef, None);
-
-            self.routes.iter().for_each(|r| {
-                r.get_guards().iter().for_each(|g| {
-                    let http_methods: Vec<String> =
-                        crate::guard::HttpMethodsExtractor::extract_http_methods(&**g);
-                    rdef_methods
-                        .push((rdef.pattern().unwrap_or_default().to_string(), http_methods));
-                });
-            });
+            let pat = rdef.pattern().unwrap_or("").to_string();
+            let mut methods = Vec::new();
+            let mut guard_names = Vec::new();
+            for route in &routes {
+                if let Some(m) = route.get_method() {
+                    if !methods.contains(&m) {
+                        methods.push(m);
+                    }
+                }
+                for name in route.guard_names() {
+                    if !guard_names.contains(&name) {
+                        guard_names.push(name.clone());
+                    }
+                }
+            }
+            crate::introspection::register_pattern_detail(pat, methods, guard_names);
         }
 
         *self.factory_ref.borrow_mut() = Some(ResourceFactory {
-            routes: self.routes,
+            routes,
             default: self.default,
         });
 
@@ -469,14 +472,6 @@ where
 
             async { Ok(fut.await?.map_into_boxed_body()) }
         });
-
-        #[cfg(feature = "resources-introspection")]
-        {
-            crate::introspection::process_introspection(
-                Rc::clone(&Rc::new(rmap.clone())),
-                rdef_methods,
-            );
-        }
 
         config.register_service(rdef, guards, endpoint, None)
     }

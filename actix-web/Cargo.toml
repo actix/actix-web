@@ -129,7 +129,7 @@ compat = [
 compat-routing-macros-force-pub = ["actix-web-codegen?/compat-routing-macros-force-pub"]
 
 # Enabling the retrieval of metadata for initialized resources, including path and HTTP method.
-resources-introspection = []
+experimental-introspection = []
 
 [dependencies]
 actix-codec = "0.5"

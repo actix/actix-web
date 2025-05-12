@@ -15,16 +15,13 @@ const AVG_PATH_LEN: usize = 24;
 
 #[derive(Clone, Debug)]
 pub struct ResourceMap {
-    pattern: ResourceDef,
-
+    pub(crate) pattern: ResourceDef,
     /// Named resources within the tree or, for external resources, it points to isolated nodes
     /// outside the tree.
     named: FoldHashMap<String, Rc<ResourceMap>>,
-
     parent: RefCell<Weak<ResourceMap>>,
-
     /// Must be `None` for "edge" nodes.
-    nodes: Option<Vec<Rc<ResourceMap>>>,
+    pub(crate) nodes: Option<Vec<Rc<ResourceMap>>>,
 }
 
 impl ResourceMap {
@@ -35,42 +32,6 @@ impl ResourceMap {
             named: FoldHashMap::default(),
             parent: RefCell::new(Weak::new()),
             nodes: Some(Vec::new()),
-        }
-    }
-
-    #[cfg(feature = "resources-introspection")]
-    /// Returns a list of all paths in the resource map.
-    pub fn to_vec(&self) -> Vec<String> {
-        let mut paths = Vec::new();
-        self.collect_full_paths(String::new(), &mut paths);
-        paths
-    }
-
-    #[cfg(feature = "resources-introspection")]
-    /// Recursive function that accumulates the full path and adds it only if the node is an endpoint (leaf).
-    fn collect_full_paths(&self, current_path: String, paths: &mut Vec<String>) {
-        // Get the current segment of the pattern
-        if let Some(segment) = self.pattern.pattern() {
-            let mut new_path = current_path;
-            // Add the '/' separator if necessary
-            if !segment.is_empty() {
-                if !new_path.ends_with('/') && !new_path.is_empty() && !segment.starts_with('/') {
-                    new_path.push('/');
-                }
-                new_path.push_str(segment);
-            }
-
-            // If this node is an endpoint (has no children), add the full path
-            if self.nodes.is_none() {
-                paths.push(new_path.clone());
-            }
-
-            // If it has children, iterate over each one
-            if let Some(children) = &self.nodes {
-                for child in children {
-                    child.collect_full_paths(new_path.clone(), paths);
-                }
-            }
         }
     }
 

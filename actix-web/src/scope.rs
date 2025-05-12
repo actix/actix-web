@@ -395,9 +395,6 @@ where
             rmap.add(&mut rdef, None);
         }
 
-        #[cfg(feature = "resources-introspection")]
-        let mut rdef_methods: Vec<(String, Vec<String>)> = Vec::new();
-
         // complete scope pipeline creation
         *self.factory_ref.borrow_mut() = Some(ScopeFactory {
             default,
@@ -408,21 +405,38 @@ where
                 .map(|(mut rdef, srv, guards, nested)| {
                     rmap.add(&mut rdef, nested);
 
-                    #[cfg(feature = "resources-introspection")]
+                    #[cfg(feature = "experimental-introspection")]
                     {
-                        let http_methods: Vec<String> =
-                            guards.as_ref().map_or_else(Vec::new, |g| {
-                                g.iter()
-                                    .flat_map(|g| {
-                                        crate::guard::HttpMethodsExtractor::extract_http_methods(
-                                            &**g,
-                                        )
-                                    })
-                                    .collect::<Vec<_>>()
-                            });
+                        use std::borrow::Borrow;
 
-                        rdef_methods
-                            .push((rdef.pattern().unwrap_or_default().to_string(), http_methods));
+                        // Get the pattern stored in ResourceMap
+                        let pat = rdef.pattern().unwrap_or("").to_string();
+                        let guard_list: &[Box<dyn Guard>] =
+                            guards.borrow().as_ref().map_or(&[], |v| &v[..]);
+
+                        // Extract HTTP methods from guards
+                        let methods = guard_list
+                            .iter()
+                            .flat_map(|g| g.details().unwrap_or_default())
+                            .flat_map(|d| {
+                                if let crate::guard::GuardDetail::HttpMethods(v) = d {
+                                    v.into_iter()
+                                        .filter_map(|s| s.parse().ok())
+                                        .collect::<Vec<_>>()
+                                } else {
+                                    Vec::new()
+                                }
+                            })
+                            .collect::<Vec<_>>();
+
+                        // Extract guard names
+                        let guard_names = guard_list
+                            .iter()
+                            .map(|g| g.name().to_string())
+                            .collect::<Vec<_>>();
+
+                        // Register route details for introspection
+                        crate::introspection::register_pattern_detail(pat, methods, guard_names);
                     }
 
                     (rdef, srv, RefCell::new(guards))
@@ -451,14 +465,6 @@ where
 
             async { Ok(fut.await?.map_into_boxed_body()) }
         });
-
-        #[cfg(feature = "resources-introspection")]
-        {
-            crate::introspection::process_introspection(
-                Rc::clone(&Rc::new(rmap.clone())),
-                rdef_methods,
-            );
-        }
 
         // register final service
         config.register_service(

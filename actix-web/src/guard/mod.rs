@@ -397,35 +397,6 @@ impl Guard for MethodGuard {
     }
 }
 
-#[cfg(feature = "resources-introspection")]
-pub trait HttpMethodsExtractor {
-    fn extract_http_methods(&self) -> Vec<String>;
-}
-
-#[cfg(feature = "resources-introspection")]
-impl HttpMethodsExtractor for dyn Guard {
-    fn extract_http_methods(&self) -> Vec<String> {
-        let methods: Vec<String> = self
-            .details()
-            .unwrap_or_default()
-            .iter()
-            .flat_map(|detail| {
-                if let GuardDetail::HttpMethods(methods) = detail {
-                    methods.clone()
-                } else {
-                    vec!["UNKNOWN".to_string()]
-                }
-            })
-            .collect();
-
-        if methods.is_empty() {
-            vec!["UNKNOWN".to_string()]
-        } else {
-            methods
-        }
-    }
-}
-
 macro_rules! method_guard {
     ($method_fn:ident, $method_const:ident) => {
         #[doc = concat!("Creates a guard that matches the `", stringify!($method_const), "` request method.")]

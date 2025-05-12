@@ -108,7 +108,7 @@ mod thin_data;
 pub(crate) mod types;
 pub mod web;
 
-#[cfg(feature = "resources-introspection")]
+#[cfg(feature = "experimental-introspection")]
 pub mod introspection;
 
 #[doc(inline)]
