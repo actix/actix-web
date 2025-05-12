@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 3.7.0
+
+- Update `brotli` dependency to `8`.
+
 ## 3.6.0
 
 - Prevent panics on connection pool drop when Tokio runtime is shutdown early.

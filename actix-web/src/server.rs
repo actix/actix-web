@@ -1,6 +1,8 @@
 use std::{
     any::Any,
-    cmp, fmt, io,
+    cmp, fmt,
+    future::Future,
+    io,
     marker::PhantomData,
     net,
     sync::{Arc, Mutex},
@@ -64,6 +66,7 @@ struct Config {
 ///     .await
 /// }
 /// ```
+#[must_use]
 pub struct HttpServer<F, I, S, B>
 where
     F: Fn() -> I + Send + Clone + 'static,
@@ -272,19 +275,12 @@ where
     /// - `actix_web::rt::net::TcpStream` when no encryption is used.
     ///
     /// See the `on_connect` example for additional details.
-    pub fn on_connect<CB>(self, f: CB) -> HttpServer<F, I, S, B>
+    pub fn on_connect<CB>(mut self, f: CB) -> HttpServer<F, I, S, B>
     where
         CB: Fn(&dyn Any, &mut Extensions) + Send + Sync + 'static,
     {
-        HttpServer {
-            factory: self.factory,
-            config: self.config,
-            backlog: self.backlog,
-            sockets: self.sockets,
-            builder: self.builder,
-            on_connect_fn: Some(Arc::new(f)),
-            _phantom: PhantomData,
-        }
+        self.on_connect_fn = Some(Arc::new(f));
+        self
     }
 
     /// Sets server host name.
@@ -309,6 +305,37 @@ where
     /// Disables signal handling.
     pub fn disable_signals(mut self) -> Self {
         self.builder = self.builder.disable_signals();
+        self
+    }
+
+    /// Specify shutdown signal from a future.
+    ///
+    /// Using this method will prevent OS signal handlers being set up.
+    ///
+    /// Typically, a `CancellationToken` will be used, but any future _can_ be.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use actix_web::{App, HttpServer};
+    /// use tokio_util::sync::CancellationToken;
+    ///
+    /// # #[actix_web::main]
+    /// # async fn main() -> std::io::Result<()> {
+    /// let stop_signal = CancellationToken::new();
+    ///
+    /// HttpServer::new(move || App::new())
+    ///     .shutdown_signal(stop_signal.cancelled_owned())
+    ///     .bind(("127.0.0.1", 8080))?
+    ///     .run()
+    ///     .await
+    /// # }
+    /// ```
+    pub fn shutdown_signal<Fut>(mut self, shutdown_signal: Fut) -> Self
+    where
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        self.builder = self.builder.shutdown_signal(shutdown_signal);
         self
     }
 
@@ -882,6 +909,7 @@ where
         let factory = self.factory.clone();
         let cfg = Arc::clone(&self.config);
         let addr = lst.local_addr().unwrap();
+
         self.sockets.push(Socket {
             addr,
             scheme: "https",
@@ -986,6 +1014,7 @@ where
         let factory = self.factory.clone();
         let socket_addr =
             net::SocketAddr::new(net::IpAddr::V4(net::Ipv4Addr::new(127, 0, 0, 1)), 8080);
+
         self.sockets.push(Socket {
             scheme: "http",
             addr: socket_addr,
@@ -1073,10 +1102,7 @@ fn bind_addrs(addrs: impl net::ToSocketAddrs, backlog: u32) -> io::Result<Vec<ne
     } else if let Some(err) = err.take() {
         Err(err)
     } else {
-        Err(io::Error::new(
-            io::ErrorKind::Other,
-            "Can not bind to address.",
-        ))
+        Err(io::Error::other("Could not bind to address"))
     }
 }
 

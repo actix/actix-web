@@ -2,9 +2,9 @@
 name = "actix-multipart"
 version = "0.7.2"
 authors = [
-    "Nikolay Kim <fafhrd91@gmail.com>",
-    "Jacob Halsey <jacob@jhalsey.com>",
-    "Rob Ede <robjtede@icloud.com>",
+  "Nikolay Kim <fafhrd91@gmail.com>",
+  "Jacob Halsey <jacob@jhalsey.com>",
+  "Rob Ede <robjtede@icloud.com>",
 ]
 description = "Multipart request & form support for Actix Web"
 keywords = ["http", "actix", "web", "multipart", "form"]
@@ -19,17 +19,17 @@ all-features = true
 
 [package.metadata.cargo_check_external_types]
 allowed_external_types = [
-    "actix_http::*",
-    "actix_multipart_derive::*",
-    "actix_utils::*",
-    "actix_web::*",
-    "bytes::*",
-    "futures_core::*",
-    "mime::*",
-    "serde_json::*",
-    "serde_plain::*",
-    "serde::*",
-    "tempfile::*",
+  "actix_http::*",
+  "actix_multipart_derive::*",
+  "actix_utils::*",
+  "actix_web::*",
+  "bytes::*",
+  "futures_core::*",
+  "mime::*",
+  "serde_json::*",
+  "serde_plain::*",
+  "serde::*",
+  "tempfile::*",
 ]
 
 [features]
@@ -55,7 +55,7 @@ serde = "1"
 serde_json = "1"
 serde_plain = "1"
 tempfile = { version = "3.4", optional = true }
-tokio = { version = "1.24.2", features = ["sync", "io-util"] }
+tokio = { version = "1.38.2", features = ["sync", "io-util"] }
 
 [dev-dependencies]
 actix-http = "3"
@@ -66,10 +66,10 @@ actix-web = "4"
 assert_matches = "1"
 awc = "3"
 env_logger = "0.11"
-futures-util = { version = "0.3.17", default-features = false, features = ["alloc"] }
 futures-test = "0.3"
+futures-util = { version = "0.3.17", default-features = false, features = ["alloc"] }
 multer = "3"
-tokio = { version = "1.24.2", features = ["sync"] }
+tokio = { version = "1.38.2", features = ["sync"] }
 tokio-stream = "0.1"
 
 [lints]

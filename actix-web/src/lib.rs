@@ -78,7 +78,7 @@ pub use actix_http::{body, HttpMessage};
 #[cfg(feature = "cookies")]
 #[doc(inline)]
 pub use cookie;
-
+pub use mime;
 mod app;
 mod app_service;
 mod config;

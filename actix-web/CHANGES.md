@@ -4,6 +4,17 @@
 
 - Add `experimental-introspection` feature for retrieving configured route paths and HTTP methods.
 
+## 4.11.0
+
+- Add `Logger::log_level()` method.
+- Improve handling of non-UTF-8 header values in `Logger` middleware.
+- Add `HttpServer::shutdown_signal()` method.
+- Mark `HttpServer` as `#[must_use]`.
+- Allow SVG images to be compressed by the `Compress` middleware.
+- Ignore `Host` header in `Host` guard when connection protocol is HTTP/2.
+- Re-export `mime` dependency.
+- Update `brotli` dependency to `8`.
+
 ## 4.10.2
 
 - No significant changes since `4.10.1`.

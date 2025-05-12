@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 3.11.0
+
+- Update `brotli` dependency to `8`.
+
 ## 3.10.0
 
 ### Added

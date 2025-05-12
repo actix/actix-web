@@ -415,7 +415,7 @@ mod tests {
 
     #[test]
     fn test_as_response() {
-        let orig = io::Error::new(io::ErrorKind::Other, "other");
+        let orig = io::Error::other("other");
         let err: Error = ParseError::Io(orig).into();
         assert_eq!(
             format!("{}", err),
@@ -425,14 +425,14 @@ mod tests {
 
     #[test]
     fn test_error_display() {
-        let orig = io::Error::new(io::ErrorKind::Other, "other");
+        let orig = io::Error::other("other");
         let err = Error::new_io().with_cause(orig);
         assert_eq!("connection error: other", err.to_string());
     }
 
     #[test]
     fn test_error_http_response() {
-        let orig = io::Error::new(io::ErrorKind::Other, "other");
+        let orig = io::Error::other("other");
         let err = Error::new_io().with_cause(orig);
         let resp: Response<BoxBody> = err.into();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
@@ -440,7 +440,7 @@ mod tests {
 
     #[test]
     fn test_payload_error() {
-        let err: PayloadError = io::Error::new(io::ErrorKind::Other, "ParseError").into();
+        let err: PayloadError = io::Error::other("ParseError").into();
         assert!(err.to_string().contains("ParseError"));
 
         let err = PayloadError::Incomplete(None);
@@ -475,7 +475,7 @@ mod tests {
 
     #[test]
     fn test_from() {
-        from_and_cause!(io::Error::new(io::ErrorKind::Other, "other") => ParseError::Io(..));
+        from_and_cause!(io::Error::other("other") => ParseError::Io(..));
         from!(httparse::Error::HeaderName => ParseError::Header);
         from!(httparse::Error::HeaderName => ParseError::Header);
         from!(httparse::Error::HeaderValue => ParseError::Header);
