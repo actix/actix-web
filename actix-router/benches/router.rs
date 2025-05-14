@@ -1,6 +1,6 @@
 //! Based on https://github.com/ibraheemdev/matchit/blob/master/benches/bench.rs
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{black_box, Criterion, criterion_group, criterion_main};
 
 macro_rules! register {
     (colon) => {{
@@ -150,7 +150,7 @@ macro_rules! register {
     }};
 }
 
-fn call() -> impl Iterator<Item = &'static str> {
+fn call() -> impl Iterator<Item=&'static str> {
     let arr = [
         "/authorizations",
         "/user/repos",
@@ -175,6 +175,15 @@ fn compare_routers(c: &mut Criterion) {
             for route in call() {
                 let mut path = actix_router::Path::new(route);
                 black_box(actix.recognize(&mut path).unwrap());
+            }
+        });
+    });
+
+    group.bench_function("actix_guard_failures", |b| {
+        b.iter(|| {
+            for route in call() {
+                let mut path = actix_router::Path::new(route);
+                black_box(actix.recognize_fn(&mut path, |_, _| false));
             }
         });
     });

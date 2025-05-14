@@ -52,18 +52,18 @@ impl<T, U> Router<T, U> {
         R: Resource,
         F: FnMut(&R, &U) -> bool,
     {
-        let mut matches = 0;
+        let mut next_match_count = 1;
         for (rdef, val, ctx) in self.routes.iter() {
             match rdef.capture_match_info(resource) {
                 None => {}
                 Some(match_info) => {
-                    matches += 1;
                     if check_fn(resource, ctx) {
                         rdef.resolve_resource(resource, match_info);
                         return Some((val, ResourceId(rdef.id())));
-                    } else if matches == self.max_path_conflicts {
+                    } else if next_match_count == self.max_path_conflicts {
                         return None;
                     }
+                    next_match_count += 1;
                 }
             }
         }
