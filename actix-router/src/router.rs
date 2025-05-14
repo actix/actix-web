@@ -58,7 +58,7 @@ impl<T, U> Router<T, U> {
                 None => {}
                 Some(match_info) => {
                     if check_fn(resource, ctx) {
-                        rdef.resolve_resource(resource, match_info);
+                        resource.resolve_path(match_info);
                         return Some((val, ResourceId(rdef.id())));
                     } else if next_match_count == self.max_path_conflicts {
                         return None;
@@ -89,7 +89,7 @@ impl<T, U> Router<T, U> {
                 Some(match_info) => {
                     matches += 1;
                     if check_fn(resource, ctx) {
-                        rdef.resolve_resource(resource, match_info);
+                        resource.resolve_path(match_info);
                         return Some((val, ResourceId(rdef.id())));
                     } else if matches == self.max_path_conflicts {
                         return None;

@@ -1,4 +1,7 @@
+use std::mem;
+
 use crate::Path;
+use crate::resource::ResourceMatchInfo;
 
 // TODO: this trait is necessary, document it
 // see impl Resource for ServiceRequest
@@ -7,6 +10,22 @@ pub trait Resource {
     type Path: ResourcePath;
 
     fn resource_path(&mut self) -> &mut Path<Self::Path>;
+
+    fn resolve_path(&mut self, match_info: ResourceMatchInfo<'_>) {
+        let path = self.resource_path();
+        match match_info {
+            ResourceMatchInfo::Static { matched_len } => {
+                path.skip(matched_len);
+            }
+            ResourceMatchInfo::Dynamic { matched_len, matched_vars, mut segments } => {
+                for i in 0..matched_vars.len() {
+                    path.add(matched_vars[i], mem::take(&mut segments[i]));
+                }
+
+                path.skip(matched_len);
+            }
+        }
+    }
 }
 
 pub trait ResourcePath {
