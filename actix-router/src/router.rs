@@ -314,4 +314,38 @@ mod tests {
         assert_eq!(*h, 11);
         assert_eq!(&path["val"], "ttt");
     }
+
+    #[test]
+    fn test_max_path_conflicts() {
+        let mut router = Router::<usize>::build();
+        router.path("/test", 10).0.set_id(0);
+        router.path("/test/{val}", 11).0.set_id(1);
+        let router = router.finish();
+
+        assert_eq!(1, router.max_path_conflicts);
+
+        let mut router = Router::<usize>::build();
+        router.path("/test", 10).0.set_id(0);
+        router.path("/test", 11).0.set_id(1);
+        router.path("/test2", 11).0.set_id(1);
+        router.path("/test2", 11).0.set_id(1);
+        router.path("/test2", 11).0.set_id(1);
+
+        let router = router.finish();
+
+        assert_eq!(3, router.max_path_conflicts);
+
+        let failures_until_fn_builder = |mut num_failures: u16| {
+            move |_: &Path<&str>, _: &()| {
+                if num_failures == 0 {
+                    return true;
+                }
+                num_failures -= 1;
+                false
+            }
+        };
+
+        assert!(router.recognize_fn(&mut Path::new("/test2"), failures_until_fn_builder(3)).is_none());
+        assert!(router.recognize_fn(&mut Path::new("/test2"), failures_until_fn_builder(2)).is_some());
+    }
 }
