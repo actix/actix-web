@@ -1,6 +1,6 @@
 //! Based on https://github.com/ibraheemdev/matchit/blob/master/benches/bench.rs
 
-use criterion::{black_box, Criterion, criterion_group, criterion_main};
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 macro_rules! register {
     (colon) => {{
@@ -150,7 +150,7 @@ macro_rules! register {
     }};
 }
 
-fn call() -> impl Iterator<Item=&'static str> {
+fn call() -> impl Iterator<Item = &'static str> {
     let arr = [
         "/authorizations",
         "/user/repos",

@@ -1,7 +1,7 @@
 use std::mem;
 
-use crate::Path;
 use crate::resource::ResourceMatchInfo;
+use crate::Path;
 
 // TODO: this trait is necessary, document it
 // see impl Resource for ServiceRequest
@@ -17,7 +17,11 @@ pub trait Resource {
             ResourceMatchInfo::Static { matched_len } => {
                 path.skip(matched_len);
             }
-            ResourceMatchInfo::Dynamic { matched_len, matched_vars, mut segments } => {
+            ResourceMatchInfo::Dynamic {
+                matched_len,
+                matched_vars,
+                mut segments,
+            } => {
                 for i in 0..matched_vars.len() {
                     path.add(matched_vars[i], mem::take(&mut segments[i]));
                 }

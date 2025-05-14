@@ -1,15 +1,15 @@
 use std::{
     borrow::{Borrow, Cow},
     collections::HashMap,
-    hash::{BuildHasher, Hash, Hasher}
+    hash::{BuildHasher, Hash, Hasher},
 };
 
 use tracing::error;
 
 use crate::{
-    IntoPatterns,
     path::PathItem,
-    Patterns, regex_set::{escape, Regex, RegexSet}, Resource,
+    regex_set::{escape, Regex, RegexSet},
+    IntoPatterns, Patterns, Resource,
 };
 
 const MAX_DYNAMIC_SEGMENTS: usize = 16;
@@ -450,7 +450,7 @@ impl ResourceDef {
     /// assert_eq!(iter.next().unwrap(), "/root");
     /// assert_eq!(iter.next().unwrap(), "/backup");
     /// assert!(iter.next().is_none());
-    pub fn pattern_iter(&self) -> impl Iterator<Item=&str> {
+    pub fn pattern_iter(&self) -> impl Iterator<Item = &str> {
         struct PatternIter<'a> {
             patterns: &'a Patterns,
             list_idx: usize,
@@ -645,7 +645,7 @@ impl ResourceDef {
     /// ```
     pub fn resolve_path_if_matches<R: Resource>(&self, resource: &mut R) -> bool {
         match self.capture_match_info(resource) {
-            None => { false }
+            None => false,
             Some(match_info) => {
                 resource.resolve_path(match_info);
                 true
@@ -698,7 +698,9 @@ impl ResourceDef {
         let path_str = path.unprocessed();
         match &self.pat_type {
             PatternType::Static(pattern) => match self.static_match(pattern, path_str) {
-                Some(len) => Some(ResourceMatchInfo::Static { matched_len: len as u16 }),
+                Some(len) => Some(ResourceMatchInfo::Static {
+                    matched_len: len as u16,
+                }),
                 None => return None,
             },
 

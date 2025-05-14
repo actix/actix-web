@@ -19,7 +19,10 @@ pub struct Router<T, U = ()> {
 impl<T, U> Router<T, U> {
     /// Constructs new `RouterBuilder` with empty route list.
     pub fn build() -> RouterBuilder<T, U> {
-        RouterBuilder { routes: Vec::new(), path_conflicts: vec![] }
+        RouterBuilder {
+            routes: Vec::new(),
+            path_conflicts: vec![],
+        }
     }
 
     /// Finds the value in the router that matches a given [routing resource](Resource).
@@ -118,8 +121,11 @@ impl<T, U> RouterBuilder<T, U> {
         val: T,
         ctx: U,
     ) -> (&mut ResourceDef, &mut T, &mut U) {
-        if let Some((_, path_conflicts)) = self.path_conflicts.iter_mut()
-            .find(|(current_rdef, _)| rdef.eq(current_rdef)) {
+        if let Some((_, path_conflicts)) = self
+            .path_conflicts
+            .iter_mut()
+            .find(|(current_rdef, _)| rdef.eq(current_rdef))
+        {
             *path_conflicts += 1;
         } else {
             self.path_conflicts.push((rdef.clone(), 1));
@@ -135,7 +141,9 @@ impl<T, U> RouterBuilder<T, U> {
 
     /// Finish configuration and create router instance.
     pub fn finish(self) -> Router<T, U> {
-        let max_path_conflicts = self.path_conflicts.iter()
+        let max_path_conflicts = self
+            .path_conflicts
+            .iter()
             .map(|(_, path_conflicts)| *path_conflicts)
             .max()
             .unwrap_or(1);
@@ -345,7 +353,11 @@ mod tests {
             }
         };
 
-        assert!(router.recognize_fn(&mut Path::new("/test2"), failures_until_fn_builder(3)).is_none());
-        assert!(router.recognize_fn(&mut Path::new("/test2"), failures_until_fn_builder(2)).is_some());
+        assert!(router
+            .recognize_fn(&mut Path::new("/test2"), failures_until_fn_builder(3))
+            .is_none());
+        assert!(router
+            .recognize_fn(&mut Path::new("/test2"), failures_until_fn_builder(2))
+            .is_some());
     }
 }

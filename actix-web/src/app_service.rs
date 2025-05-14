@@ -12,14 +12,14 @@ use crate::{
     config::{AppConfig, AppService},
     data::FnDataFactory,
     dev::Extensions,
-    Error,
     guard::Guard,
-    HttpResponse,
     request::{HttpRequest, HttpRequestPool},
-    rmap::ResourceMap, service::{
+    rmap::ResourceMap,
+    service::{
         AppServiceFactory, BoxedHttpService, BoxedHttpServiceFactory, ServiceRequest,
         ServiceResponse,
     },
+    Error, HttpResponse,
 };
 
 /// Service factory to convert [`Request`] to a [`ServiceRequest<S>`].
@@ -29,10 +29,10 @@ pub struct AppInit<T, B>
 where
     T: ServiceFactory<
         ServiceRequest,
-        Config=(),
-        Response=ServiceResponse<B>,
-        Error=Error,
-        InitError=(),
+        Config = (),
+        Response = ServiceResponse<B>,
+        Error = Error,
+        InitError = (),
     >,
 {
     pub(crate) endpoint: T,
@@ -48,10 +48,10 @@ impl<T, B> ServiceFactory<Request> for AppInit<T, B>
 where
     T: ServiceFactory<
         ServiceRequest,
-        Config=(),
-        Response=ServiceResponse<B>,
-        Error=Error,
-        InitError=(),
+        Config = (),
+        Response = ServiceResponse<B>,
+        Error = Error,
+        InitError = (),
     >,
     T::Future: 'static,
 {
@@ -145,7 +145,7 @@ where
 /// Wraps a service receiving a [`ServiceRequest`] into one receiving a [`Request`].
 pub struct AppInitService<T, B>
 where
-    T: Service<ServiceRequest, Response=ServiceResponse<B>, Error=Error>,
+    T: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
     service: T,
     app_data: Rc<Extensions>,
@@ -190,7 +190,7 @@ impl AppInitServiceState {
 
 impl<T, B> Service<Request> for AppInitService<T, B>
 where
-    T: Service<ServiceRequest, Response=ServiceResponse<B>, Error=Error>,
+    T: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
     type Response = ServiceResponse<B>;
     type Error = T::Error;
@@ -230,7 +230,7 @@ where
 
 impl<T, B> Drop for AppInitService<T, B>
 where
-    T: Service<ServiceRequest, Response=ServiceResponse<B>, Error=Error>,
+    T: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 {
     fn drop(&mut self) {
         self.app_state.pool().clear();
@@ -347,15 +347,15 @@ impl ServiceFactory<ServiceRequest> for AppEntry {
 #[cfg(test)]
 mod tests {
     use std::sync::{
-        Arc,
         atomic::{AtomicBool, Ordering},
+        Arc,
     };
 
     use actix_service::Service;
 
     use crate::{
-        App,
-        HttpResponse, test::{init_service, TestRequest}, web,
+        test::{init_service, TestRequest},
+        web, App, HttpResponse,
     };
 
     struct DropData(Arc<AtomicBool>);
@@ -378,7 +378,7 @@ mod tests {
                     .data(DropData(data.clone()))
                     .service(web::resource("/test").to(HttpResponse::Ok)),
             )
-                .await;
+            .await;
             let req = TestRequest::with_uri("/test").to_request();
             let _ = app.call(req).await.unwrap();
         }

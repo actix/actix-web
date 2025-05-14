@@ -14,13 +14,13 @@ use crate::{
     config::ServiceConfig,
     data::Data,
     dev::AppService,
-    Error,
     guard::Guard,
-    Resource,
-    rmap::ResourceMap, Route, service::{
+    rmap::ResourceMap,
+    service::{
         AppServiceFactory, BoxedHttpService, BoxedHttpServiceFactory, HttpServiceFactory,
         ServiceFactoryWrapper, ServiceRequest, ServiceResponse,
     },
+    Error, Resource, Route,
 };
 
 type Guards = Vec<Box<dyn Guard>>;
@@ -86,7 +86,7 @@ impl Scope {
 
 impl<T> Scope<T>
 where
-    T: ServiceFactory<ServiceRequest, Config=(), Error=Error, InitError=()>,
+    T: ServiceFactory<ServiceRequest, Config = (), Error = Error, InitError = ()>,
 {
     /// Add match guard to a scope.
     ///
@@ -273,8 +273,8 @@ where
     pub fn default_service<F, U>(mut self, f: F) -> Self
     where
         F: IntoServiceFactory<U, ServiceRequest>,
-        U: ServiceFactory<ServiceRequest, Config=(), Response=ServiceResponse, Error=Error>
-        + 'static,
+        U: ServiceFactory<ServiceRequest, Config = (), Response = ServiceResponse, Error = Error>
+            + 'static,
         U::InitError: fmt::Debug,
     {
         // create and configure default resource
@@ -301,20 +301,20 @@ where
     ) -> Scope<
         impl ServiceFactory<
             ServiceRequest,
-            Config=(),
-            Response=ServiceResponse<B>,
-            Error=Error,
-            InitError=(),
+            Config = (),
+            Response = ServiceResponse<B>,
+            Error = Error,
+            InitError = (),
         >,
     >
     where
         M: Transform<
-            T::Service,
-            ServiceRequest,
-            Response=ServiceResponse<B>,
-            Error=Error,
-            InitError=(),
-        > + 'static,
+                T::Service,
+                ServiceRequest,
+                Response = ServiceResponse<B>,
+                Error = Error,
+                InitError = (),
+            > + 'static,
         B: MessageBody,
     {
         Scope {
@@ -344,15 +344,15 @@ where
     ) -> Scope<
         impl ServiceFactory<
             ServiceRequest,
-            Config=(),
-            Response=ServiceResponse<B>,
-            Error=Error,
-            InitError=(),
+            Config = (),
+            Response = ServiceResponse<B>,
+            Error = Error,
+            InitError = (),
         >,
     >
     where
         F: Fn(ServiceRequest, &T::Service) -> R + Clone + 'static,
-        R: Future<Output=Result<ServiceResponse<B>, Error>>,
+        R: Future<Output = Result<ServiceResponse<B>, Error>>,
         B: MessageBody,
     {
         Scope {
@@ -371,12 +371,12 @@ where
 impl<T, B> HttpServiceFactory for Scope<T>
 where
     T: ServiceFactory<
-        ServiceRequest,
-        Config=(),
-        Response=ServiceResponse<B>,
-        Error=Error,
-        InitError=(),
-    > + 'static,
+            ServiceRequest,
+            Config = (),
+            Response = ServiceResponse<B>,
+            Error = Error,
+            InitError = (),
+        > + 'static,
     B: MessageBody + 'static,
 {
     fn register(mut self, config: &mut AppService) {
@@ -554,14 +554,14 @@ mod tests {
     use bytes::Bytes;
 
     use crate::{
-        App,
         guard,
         http::{
             header::{self, HeaderValue},
             Method, StatusCode,
         },
-        HttpMessage,
-        HttpRequest, HttpResponse, middleware::DefaultHeaders, test::{assert_body_eq, call_service, init_service, read_body, TestRequest}, web,
+        middleware::DefaultHeaders,
+        test::{assert_body_eq, call_service, init_service, read_body, TestRequest},
+        web, App, HttpMessage, HttpRequest, HttpResponse,
     };
 
     use super::*;
@@ -576,10 +576,10 @@ mod tests {
         fn my_scope_2() -> Scope<
             impl ServiceFactory<
                 ServiceRequest,
-                Config=(),
-                Response=ServiceResponse<impl MessageBody>,
-                Error=Error,
-                InitError=(),
+                Config = (),
+                Response = ServiceResponse<impl MessageBody>,
+                Error = Error,
+                InitError = (),
             >,
         > {
             web::scope("/test-compat")
@@ -606,7 +606,7 @@ mod tests {
             App::new()
                 .service(web::scope("/app").service(web::resource("/path1").to(HttpResponse::Ok))),
         )
-            .await;
+        .await;
 
         let req = TestRequest::with_uri("/app/path1").to_request();
         let resp = srv.call(req).await.unwrap();
@@ -622,7 +622,7 @@ mod tests {
                     .service(web::resource("/").to(HttpResponse::Created)),
             ),
         )
-            .await;
+        .await;
 
         let req = TestRequest::with_uri("/app").to_request();
         let resp = srv.call(req).await.unwrap();
@@ -638,7 +638,7 @@ mod tests {
         let srv = init_service(
             App::new().service(web::scope("/app/").service(web::resource("").to(HttpResponse::Ok))),
         )
-            .await;
+        .await;
 
         let req = TestRequest::with_uri("/app").to_request();
         let resp = srv.call(req).await.unwrap();
@@ -655,7 +655,7 @@ mod tests {
             App::new()
                 .service(web::scope("/app/").service(web::resource("/").to(HttpResponse::Ok))),
         )
-            .await;
+        .await;
 
         let req = TestRequest::with_uri("/app").to_request();
         let resp = srv.call(req).await.unwrap();
@@ -675,7 +675,7 @@ mod tests {
                     .route("/path1", web::delete().to(HttpResponse::Ok)),
             ),
         )
-            .await;
+        .await;
 
         let req = TestRequest::with_uri("/app/path1").to_request();
         let resp = srv.call(req).await.unwrap();
@@ -705,7 +705,7 @@ mod tests {
                 ),
             ),
         )
-            .await;
+        .await;
 
         let req = TestRequest::with_uri("/app/path1").to_request();
         let resp = srv.call(req).await.unwrap();
@@ -733,7 +733,7 @@ mod tests {
                     .service(web::resource("/path1").to(HttpResponse::Ok)),
             ),
         )
-            .await;
+        .await;
 
         let req = TestRequest::with_uri("/app/path1")
             .method(Method::POST)
@@ -755,7 +755,7 @@ mod tests {
                 HttpResponse::Ok().body(format!("project: {}", &r.match_info()["project"]))
             }),
         )))
-            .await;
+        .await;
 
         let req = TestRequest::with_uri("/ab-project1/path1").to_request();
         let res = srv.call(req).await.unwrap();
@@ -772,7 +772,7 @@ mod tests {
         let srv = init_service(App::new().service(web::scope("/app").service(
             web::scope("/t1").service(web::resource("/path1").to(HttpResponse::Created)),
         )))
-            .await;
+        .await;
 
         let req = TestRequest::with_uri("/app/t1/path1").to_request();
         let resp = srv.call(req).await.unwrap();
@@ -785,7 +785,7 @@ mod tests {
             init_service(App::new().service(web::scope("/app").service(
                 web::scope("t1").service(web::resource("/path1").to(HttpResponse::Created)),
             )))
-                .await;
+            .await;
 
         let req = TestRequest::with_uri("/app/t1/path1").to_request();
         let resp = srv.call(req).await.unwrap();
@@ -803,7 +803,7 @@ mod tests {
                 ),
             ),
         )
-            .await;
+        .await;
 
         let req = TestRequest::with_uri("/app/t1").to_request();
         let resp = srv.call(req).await.unwrap();
@@ -825,7 +825,7 @@ mod tests {
                 ),
             ),
         )
-            .await;
+        .await;
 
         let req = TestRequest::with_uri("/app/t1/path1")
             .method(Method::POST)
@@ -847,7 +847,7 @@ mod tests {
                 HttpResponse::Created().body(format!("project: {}", &r.match_info()["project_id"]))
             })),
         )))
-            .await;
+        .await;
 
         let req = TestRequest::with_uri("/app/project_1/path1").to_request();
         let res = srv.call(req).await.unwrap();
@@ -868,7 +868,7 @@ mod tests {
                 }),
             )),
         )))
-            .await;
+        .await;
 
         let req = TestRequest::with_uri("/app/test/1/path1").to_request();
         let res = srv.call(req).await.unwrap();
@@ -891,7 +891,7 @@ mod tests {
                     }),
             ),
         )
-            .await;
+        .await;
 
         let req = TestRequest::with_uri("/app/path2").to_request();
         let resp = srv.call(req).await.unwrap();
@@ -912,7 +912,7 @@ mod tests {
                     ok(r.into_response(HttpResponse::MethodNotAllowed()))
                 }),
         )
-            .await;
+        .await;
 
         let req = TestRequest::with_uri("/non-exist").to_request();
         let resp = srv.call(req).await.unwrap();
@@ -939,7 +939,7 @@ mod tests {
                     .service(web::resource("/test").route(web::get().to(HttpResponse::Ok))),
             ),
         )
-            .await;
+        .await;
 
         let req = TestRequest::with_uri("/app/test").to_request();
         let resp = call_service(&srv, req).await;
@@ -963,7 +963,7 @@ mod tests {
                     .service(web::resource("/test").route(web::get().to(|| async { "hello" }))),
             ),
         )
-            .await;
+        .await;
 
         // test if `MessageBody::try_into_bytes()` is preserved across scope layer
         use actix_http::body::MessageBody as _;
@@ -990,7 +990,7 @@ mod tests {
                     .route("/test", web::get().to(HttpResponse::Ok)),
             ),
         )
-            .await;
+        .await;
 
         let req = TestRequest::with_uri("/app/test").to_request();
         let resp = call_service(&srv, req).await;
@@ -1025,7 +1025,7 @@ mod tests {
                     }),
             ),
         )
-            .await;
+        .await;
 
         let req = TestRequest::with_uri("/app/test").to_request();
         let resp = call_service(&srv, req).await;
@@ -1049,7 +1049,7 @@ mod tests {
                 }),
             ),
         ))
-            .await;
+        .await;
 
         let req = TestRequest::with_uri("/app/t").to_request();
         let resp = call_service(&srv, req).await;
@@ -1069,7 +1069,7 @@ mod tests {
                     },
                 )),
             ))
-                .await;
+            .await;
 
         let req = TestRequest::with_uri("/app/t").to_request();
         let resp = call_service(&srv, req).await;
@@ -1087,7 +1087,7 @@ mod tests {
                 }),
             ),
         ))
-            .await;
+        .await;
 
         let req = TestRequest::with_uri("/app/t").to_request();
         let resp = call_service(&srv, req).await;
@@ -1099,7 +1099,7 @@ mod tests {
         let srv = init_service(App::new().service(web::scope("/app").configure(|s| {
             s.route("/path1", web::get().to(HttpResponse::Ok));
         })))
-            .await;
+        .await;
 
         let req = TestRequest::with_uri("/app/path1").to_request();
         let resp = srv.call(req).await.unwrap();
@@ -1113,7 +1113,7 @@ mod tests {
                 s.route("/", web::get().to(HttpResponse::Ok));
             }));
         })))
-            .await;
+        .await;
 
         let req = TestRequest::with_uri("/app/v1/").to_request();
         let resp = srv.call(req).await.unwrap();
@@ -1134,7 +1134,7 @@ mod tests {
                 );
             }));
         })))
-            .await;
+        .await;
 
         let req = TestRequest::with_uri("/app/v1/").to_request();
         let resp = srv.call(req).await.unwrap();
@@ -1152,7 +1152,7 @@ mod tests {
                 },
             ))),
         )))
-            .await;
+        .await;
 
         let req = TestRequest::with_uri("/a/b/c/test").to_request();
         let resp = call_service(&srv, req).await;
@@ -1179,7 +1179,7 @@ mod tests {
                 ),
             ),
         )
-            .await;
+        .await;
 
         // note the unintuitive behavior with trailing slashes on scopes with dynamic segments
         let req = TestRequest::with_uri("/a//b//c").to_request();
@@ -1211,7 +1211,7 @@ mod tests {
                 ),
             ),
         )
-            .await;
+        .await;
 
         let req = TestRequest::with_uri("/a/b/c").to_request();
         let resp = call_service(&srv, req).await;

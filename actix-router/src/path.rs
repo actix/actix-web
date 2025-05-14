@@ -8,7 +8,7 @@ use serde::{de, Deserialize};
 use crate::{de::PathDeserializer, Resource, ResourcePath};
 
 #[derive(Debug, Clone)]
-pub(crate) enum PathItem {
+pub enum PathItem {
     Static(Cow<'static, str>),
     Segment(u16, u16),
 }
