@@ -1,24 +1,25 @@
 use std::{cell::RefCell, mem, rc::Rc};
 
-use actix_http::Request;
-use actix_router::{Path, ResourceDef, Router, Url};
 use actix_service::{boxed, fn_service, Service, ServiceFactory};
 use futures_core::future::LocalBoxFuture;
 use futures_util::future::join_all;
+
+use actix_http::Request;
+use actix_router::{Path, ResourceDef, Router, Url};
 
 use crate::{
     body::BoxBody,
     config::{AppConfig, AppService},
     data::FnDataFactory,
     dev::Extensions,
+    Error,
     guard::Guard,
+    HttpResponse,
     request::{HttpRequest, HttpRequestPool},
-    rmap::ResourceMap,
-    service::{
+    rmap::ResourceMap, service::{
         AppServiceFactory, BoxedHttpService, BoxedHttpServiceFactory, ServiceRequest,
         ServiceResponse,
     },
-    Error, HttpResponse,
 };
 
 /// Service factory to convert [`Request`] to a [`ServiceRequest<S>`].
@@ -28,10 +29,10 @@ pub struct AppInit<T, B>
 where
     T: ServiceFactory<
         ServiceRequest,
-        Config = (),
-        Response = ServiceResponse<B>,
-        Error = Error,
-        InitError = (),
+        Config=(),
+        Response=ServiceResponse<B>,
+        Error=Error,
+        InitError=(),
     >,
 {
     pub(crate) endpoint: T,
@@ -47,10 +48,10 @@ impl<T, B> ServiceFactory<Request> for AppInit<T, B>
 where
     T: ServiceFactory<
         ServiceRequest,
-        Config = (),
-        Response = ServiceResponse<B>,
-        Error = Error,
-        InitError = (),
+        Config=(),
+        Response=ServiceResponse<B>,
+        Error=Error,
+        InitError=(),
     >,
     T::Future: 'static,
 {
@@ -144,7 +145,7 @@ where
 /// Wraps a service receiving a [`ServiceRequest`] into one receiving a [`Request`].
 pub struct AppInitService<T, B>
 where
-    T: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    T: Service<ServiceRequest, Response=ServiceResponse<B>, Error=Error>,
 {
     service: T,
     app_data: Rc<Extensions>,
@@ -189,7 +190,7 @@ impl AppInitServiceState {
 
 impl<T, B> Service<Request> for AppInitService<T, B>
 where
-    T: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    T: Service<ServiceRequest, Response=ServiceResponse<B>, Error=Error>,
 {
     type Response = ServiceResponse<B>;
     type Error = T::Error;
@@ -229,7 +230,7 @@ where
 
 impl<T, B> Drop for AppInitService<T, B>
 where
-    T: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    T: Service<ServiceRequest, Response=ServiceResponse<B>, Error=Error>,
 {
     fn drop(&mut self) {
         self.app_state.pool().clear();
@@ -306,16 +307,16 @@ impl Service<ServiceRequest> for AppRouting {
     actix_service::always_ready!();
 
     fn call(&self, mut req: ServiceRequest) -> Self::Future {
-        let res = self.router.recognize_fn(&mut req, |req, guards| {
+        let guards_check_fn = |req: &ServiceRequest, guards: &Vec<Box<dyn Guard>>| {
             let guard_ctx = req.guard_ctx();
             guards.iter().all(|guard| guard.check(&guard_ctx))
-        });
+        };
 
+        let res = self.router.recognize_fn(&mut req, guards_check_fn);
         if let Some((srv, _info)) = res {
-            srv.call(req)
-        } else {
-            self.default.call(req)
+            return srv.call(req);
         }
+        self.default.call(req)
     }
 }
 
@@ -346,15 +347,15 @@ impl ServiceFactory<ServiceRequest> for AppEntry {
 #[cfg(test)]
 mod tests {
     use std::sync::{
-        atomic::{AtomicBool, Ordering},
         Arc,
+        atomic::{AtomicBool, Ordering},
     };
 
     use actix_service::Service;
 
     use crate::{
-        test::{init_service, TestRequest},
-        web, App, HttpResponse,
+        App,
+        HttpResponse, test::{init_service, TestRequest}, web,
     };
 
     struct DropData(Arc<AtomicBool>);
@@ -377,7 +378,7 @@ mod tests {
                     .data(DropData(data.clone()))
                     .service(web::resource("/test").to(HttpResponse::Ok)),
             )
-            .await;
+                .await;
             let req = TestRequest::with_uri("/test").to_request();
             let _ = app.call(req).await.unwrap();
         }

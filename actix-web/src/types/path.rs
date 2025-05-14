@@ -176,7 +176,7 @@ mod tests {
         let resource = ResourceDef::new("/{value}/");
 
         let mut req = TestRequest::with_uri("/32/").to_srv_request();
-        resource.capture_match_info(req.match_info_mut());
+        resource.resolve_resource_if_matches(req.match_info_mut());
 
         let (req, mut pl) = req.into_parts();
         assert_eq!(*Path::<i8>::from_request(&req, &mut pl).await.unwrap(), 32);
@@ -189,7 +189,7 @@ mod tests {
         let resource = ResourceDef::new("/{key}/{value}/");
 
         let mut req = TestRequest::with_uri("/name/user1/?id=test").to_srv_request();
-        resource.capture_match_info(req.match_info_mut());
+        resource.resolve_resource_if_matches(req.match_info_mut());
 
         let (req, mut pl) = req.into_parts();
         let (Path(res),) = <(Path<(String, String)>,)>::from_request(&req, &mut pl)
@@ -215,7 +215,7 @@ mod tests {
         let mut req = TestRequest::with_uri("/name/user1/?id=test").to_srv_request();
 
         let resource = ResourceDef::new("/{key}/{value}/");
-        resource.capture_match_info(req.match_info_mut());
+        resource.resolve_resource_if_matches(req.match_info_mut());
 
         let (req, mut pl) = req.into_parts();
         let mut s = Path::<MyStruct>::from_request(&req, &mut pl).await.unwrap();
@@ -238,7 +238,7 @@ mod tests {
 
         let mut req = TestRequest::with_uri("/name/32/").to_srv_request();
         let resource = ResourceDef::new("/{key}/{value}/");
-        resource.capture_match_info(req.match_info_mut());
+        resource.resolve_resource_if_matches(req.match_info_mut());
 
         let (req, mut pl) = req.into_parts();
         let s = Path::<Test2>::from_request(&req, &mut pl).await.unwrap();
@@ -262,7 +262,7 @@ mod tests {
     async fn paths_decoded() {
         let resource = ResourceDef::new("/{key}/{value}");
         let mut req = TestRequest::with_uri("/na%2Bme/us%2Fer%254%32").to_srv_request();
-        resource.capture_match_info(req.match_info_mut());
+        resource.resolve_resource_if_matches(req.match_info_mut());
 
         let (req, mut pl) = req.into_parts();
         let path_items = Path::<MyStruct>::from_request(&req, &mut pl).await.unwrap();

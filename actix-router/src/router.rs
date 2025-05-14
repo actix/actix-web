@@ -13,12 +13,13 @@ pub struct ResourceId(pub u16);
 ///    not required.
 pub struct Router<T, U = ()> {
     routes: Vec<(ResourceDef, T, U)>,
+    max_path_conflicts: u16,
 }
 
 impl<T, U> Router<T, U> {
     /// Constructs new `RouterBuilder` with empty route list.
     pub fn build() -> RouterBuilder<T, U> {
-        RouterBuilder { routes: Vec::new() }
+        RouterBuilder { routes: Vec::new(), path_conflicts: vec![] }
     }
 
     /// Finds the value in the router that matches a given [routing resource](Resource).
@@ -46,14 +47,24 @@ impl<T, U> Router<T, U> {
     /// the `check` closure is executed, passing the resource and each route's context data. If the
     /// closure returns true then the match result is stored into `resource` and a reference to
     /// the matched _value_ is returned.
-    pub fn recognize_fn<R, F>(&self, resource: &mut R, mut check: F) -> Option<(&T, ResourceId)>
+    pub fn recognize_fn<R, F>(&self, resource: &mut R, mut check_fn: F) -> Option<(&T, ResourceId)>
     where
         R: Resource,
         F: FnMut(&R, &U) -> bool,
     {
+        let mut matches = 0;
         for (rdef, val, ctx) in self.routes.iter() {
-            if rdef.capture_match_info_fn(resource, |res| check(res, ctx)) {
-                return Some((val, ResourceId(rdef.id())));
+            match rdef.capture_match_info(resource) {
+                None => {}
+                Some(match_info) => {
+                    matches += 1;
+                    if check_fn(resource, ctx) {
+                        rdef.resolve_resource(resource, match_info);
+                        return Some((val, ResourceId(rdef.id())));
+                    } else if matches == self.max_path_conflicts {
+                        return None;
+                    }
+                }
             }
         }
 
@@ -65,15 +76,25 @@ impl<T, U> Router<T, U> {
     pub fn recognize_mut_fn<R, F>(
         &mut self,
         resource: &mut R,
-        mut check: F,
+        mut check_fn: F,
     ) -> Option<(&mut T, ResourceId)>
     where
         R: Resource,
         F: FnMut(&R, &U) -> bool,
     {
+        let mut matches = 0;
         for (rdef, val, ctx) in self.routes.iter_mut() {
-            if rdef.capture_match_info_fn(resource, |res| check(res, ctx)) {
-                return Some((val, ResourceId(rdef.id())));
+            match rdef.capture_match_info(resource) {
+                None => {}
+                Some(match_info) => {
+                    matches += 1;
+                    if check_fn(resource, ctx) {
+                        rdef.resolve_resource(resource, match_info);
+                        return Some((val, ResourceId(rdef.id())));
+                    } else if matches == self.max_path_conflicts {
+                        return None;
+                    }
+                }
             }
         }
 
@@ -84,6 +105,7 @@ impl<T, U> Router<T, U> {
 /// Builder for an ordered [routing](Router) list.
 pub struct RouterBuilder<T, U = ()> {
     routes: Vec<(ResourceDef, T, U)>,
+    path_conflicts: Vec<(ResourceDef, u16)>,
 }
 
 impl<T, U> RouterBuilder<T, U> {
@@ -96,6 +118,13 @@ impl<T, U> RouterBuilder<T, U> {
         val: T,
         ctx: U,
     ) -> (&mut ResourceDef, &mut T, &mut U) {
+        if let Some((_, path_conflicts)) = self.path_conflicts.iter_mut()
+            .find(|(current_rdef, _)| rdef.eq(current_rdef)) {
+            *path_conflicts += 1;
+        } else {
+            self.path_conflicts.push((rdef.clone(), 1));
+        }
+
         self.routes.push((rdef, val, ctx));
         #[allow(clippy::map_identity)] // map is used to distribute &mut-ness to tuple elements
         self.routes
@@ -106,8 +135,13 @@ impl<T, U> RouterBuilder<T, U> {
 
     /// Finish configuration and create router instance.
     pub fn finish(self) -> Router<T, U> {
+        let max_path_conflicts = self.path_conflicts.iter()
+            .map(|(_, path_conflicts)| *path_conflicts)
+            .max()
+            .unwrap_or(1);
         Router {
             routes: self.routes,
+            max_path_conflicts,
         }
     }
 }
