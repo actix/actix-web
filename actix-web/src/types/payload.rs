@@ -417,24 +417,23 @@ impl Future for HttpMessageBody {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
 
-        if let Some(err) = this.err.take() {
-            return Poll::Ready(Err(err));
-        }
+        while let Some(chunk) = ready!(Pin::new(&mut this.stream).poll_next(cx)) {
+            if this.err.is_some() {
+                continue;
+            }
 
-        loop {
-            let res = ready!(Pin::new(&mut this.stream).poll_next(cx));
-            match res {
-                Some(chunk) => {
-                    let chunk = chunk?;
-                    if this.buf.len() + chunk.len() > this.limit {
-                        return Poll::Ready(Err(PayloadError::Overflow));
-                    } else {
-                        this.buf.extend_from_slice(&chunk);
-                    }
-                }
-                None => return Poll::Ready(Ok(this.buf.split().freeze())),
+            let chunk = chunk?;
+            if this.buf.len() + chunk.len() > this.limit {
+                this.err = Some(PayloadError::Overflow);
+            } else {
+                this.buf.extend_from_slice(&chunk);
             }
         }
+
+        Poll::Ready(match this.err.take() {
+            None => Ok(this.buf.split().freeze()),
+            Some(err) => Err(err),
+        })
     }
 }
 
