@@ -1,10 +1,12 @@
 use std::{
     borrow::Cow,
+    mem,
     ops::{DerefMut, Index},
 };
 
 use serde::{de, Deserialize};
 
+use crate::resource::ResourceMatchInfo;
 use crate::{de::PathDeserializer, Resource, ResourcePath};
 
 #[derive(Debug, Clone)]
@@ -104,6 +106,27 @@ impl<T: ResourcePath> Path<T> {
     #[inline]
     pub fn skip(&mut self, n: u16) {
         self.skip += n;
+    }
+
+    /// Post-processes the path to resolve dynamic segments, if any, and determines the character offset to skip.
+    pub fn resolve(&mut self, match_info: ResourceMatchInfo<'_>) {
+        match match_info {
+            ResourceMatchInfo::Static { matched_len } => {
+                self.resource_path().skip(matched_len);
+            }
+            ResourceMatchInfo::Dynamic {
+                matched_len,
+                matched_vars,
+                mut segments,
+            } => {
+                for i in 0..matched_vars.len() {
+                    self.resource_path()
+                        .add(matched_vars[i], mem::take(&mut segments[i]));
+                }
+
+                self.resource_path().skip(matched_len);
+            }
+        }
     }
 
     pub(crate) fn add(&mut self, name: impl Into<Cow<'static, str>>, value: PathItem) {
@@ -259,5 +282,50 @@ mod tests {
 
         let foo = RefCell::new(foo);
         let _ = foo.borrow_mut().resource_path();
+    }
+
+    #[test]
+    fn test_dynamic_path_resolve() {
+        let mut path = Path::new("/foo/{var1}/{var2}");
+
+        assert_eq!(0, path.segments.len());
+        assert_eq!(0, path.skip);
+
+        let mut segments = <[PathItem; 16]>::default();
+        segments[0] = PathItem::Static(Cow::Borrowed("foo"));
+        segments[1] = PathItem::Segment(2, 5);
+        let match_info = ResourceMatchInfo::Dynamic {
+            matched_len: 3,
+            matched_vars: &["var1", "var2"],
+            segments,
+        };
+
+        path.resolve(match_info);
+
+        assert_eq!(2, path.segments.len());
+        assert_eq!(3, path.skip);
+
+        let (name, value) = path.segments.get(0).unwrap();
+        assert_eq!(name.as_ref(), "var1");
+        assert!(matches!(value, PathItem::Static(Cow::Borrowed("foo"))));
+
+        let (name, value) = path.segments.get(1).unwrap();
+        assert_eq!(name.as_ref(), "var2");
+        assert!(matches!(value, PathItem::Segment(2, 5)));
+    }
+
+    #[test]
+    fn test_static_path_resolve() {
+        let mut path = Path::new("/foo");
+
+        assert_eq!(0, path.segments.len());
+        assert_eq!(0, path.skip);
+
+        let match_info = ResourceMatchInfo::Static { matched_len: 2 };
+
+        path.resolve(match_info);
+
+        assert_eq!(0, path.segments.len());
+        assert_eq!(2, path.skip);
     }
 }

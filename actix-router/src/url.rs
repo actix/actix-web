@@ -75,7 +75,7 @@ mod tests {
         let re = ResourceDef::new(pattern);
         let uri = Uri::try_from(url.as_ref()).unwrap();
         let mut path = Path::new(Url::new(uri));
-        assert!(re.resolve_path_if_matches(&mut path));
+        assert!(re.resolve_path_if_match(&mut path));
         path
     }
 

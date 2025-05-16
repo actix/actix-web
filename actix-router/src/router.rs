@@ -55,18 +55,18 @@ impl<T, U> Router<T, U> {
         R: Resource,
         F: FnMut(&R, &U) -> bool,
     {
-        let mut next_match_count = 1;
+        let mut next_resource_match_count = 1;
         for (rdef, val, ctx) in self.routes.iter() {
             match rdef.capture_match_info(resource) {
                 None => {}
                 Some(match_info) => {
                     if check_fn(resource, ctx) {
-                        resource.resolve_path(match_info);
+                        resource.resource_path().resolve(match_info);
                         return Some((val, ResourceId(rdef.id())));
-                    } else if next_match_count == self.max_path_conflicts {
+                    } else if next_resource_match_count == self.max_path_conflicts {
                         return None;
                     }
-                    next_match_count += 1;
+                    next_resource_match_count += 1;
                 }
             }
         }
@@ -92,7 +92,7 @@ impl<T, U> Router<T, U> {
                 Some(match_info) => {
                     matches += 1;
                     if check_fn(resource, ctx) {
-                        resource.resolve_path(match_info);
+                        resource.resource_path().resolve(match_info);
                         return Some((val, ResourceId(rdef.id())));
                     } else if matches == self.max_path_conflicts {
                         return None;
@@ -108,7 +108,7 @@ impl<T, U> Router<T, U> {
 /// Builder for an ordered [routing](Router) list.
 pub struct RouterBuilder<T, U = ()> {
     routes: Vec<(ResourceDef, T, U)>,
-    path_conflicts: Vec<(ResourceDef, u16)>,
+    path_conflicts: Vec<(usize, u16)>,
 }
 
 impl<T, U> RouterBuilder<T, U> {
@@ -124,14 +124,15 @@ impl<T, U> RouterBuilder<T, U> {
         if let Some((_, path_conflicts)) = self
             .path_conflicts
             .iter_mut()
-            .find(|(current_rdef, _)| rdef.eq(current_rdef))
+            .find(|(route_idx, _)| rdef.eq(&self.routes.get(*route_idx).unwrap().0))
         {
             *path_conflicts += 1;
         } else {
-            self.path_conflicts.push((rdef.clone(), 1));
+            self.path_conflicts.push((self.routes.len(), 1));
         }
 
         self.routes.push((rdef, val, ctx));
+
         #[allow(clippy::map_identity)] // map is used to distribute &mut-ness to tuple elements
         self.routes
             .last_mut()
@@ -141,9 +142,7 @@ impl<T, U> RouterBuilder<T, U> {
 
     /// Finish configuration and create router instance.
     pub fn finish(self) -> Router<T, U> {
-        let max_path_conflicts = self
-            .path_conflicts
-            .iter()
+        let max_path_conflicts = self.path_conflicts.iter()
             .map(|(_, path_conflicts)| *path_conflicts)
             .max()
             .unwrap_or(1);
