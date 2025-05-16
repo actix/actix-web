@@ -1,11 +1,10 @@
 use std::{cell::RefCell, mem, rc::Rc};
 
+use actix_http::Request;
+use actix_router::{Path, ResourceDef, Router, Url};
 use actix_service::{boxed, fn_service, Service, ServiceFactory};
 use futures_core::future::LocalBoxFuture;
 use futures_util::future::join_all;
-
-use actix_http::Request;
-use actix_router::{Path, ResourceDef, Router, Url};
 
 use crate::{
     body::BoxBody,

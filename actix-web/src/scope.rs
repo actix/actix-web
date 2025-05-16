@@ -1,14 +1,13 @@
 use std::{cell::RefCell, fmt, future::Future, mem, rc::Rc};
 
+use actix_http::{body::MessageBody, Extensions};
+use actix_router::{ResourceDef, Router};
 use actix_service::{
     apply, apply_fn_factory, boxed, IntoServiceFactory, Service, ServiceFactory, ServiceFactoryExt,
     Transform,
 };
 use futures_core::future::LocalBoxFuture;
 use futures_util::future::join_all;
-
-use actix_http::{body::MessageBody, Extensions};
-use actix_router::{ResourceDef, Router};
 
 use crate::{
     config::ServiceConfig,
@@ -553,6 +552,7 @@ mod tests {
     use actix_utils::future::ok;
     use bytes::Bytes;
 
+    use super::*;
     use crate::{
         guard,
         http::{
@@ -563,8 +563,6 @@ mod tests {
         test::{assert_body_eq, call_service, init_service, read_body, TestRequest},
         web, App, HttpMessage, HttpRequest, HttpResponse,
     };
-
-    use super::*;
 
     #[test]
     fn can_be_returned_from_fn() {

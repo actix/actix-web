@@ -6,8 +6,7 @@ use std::{
 
 use serde::{de, Deserialize};
 
-use crate::resource::ResourceMatchInfo;
-use crate::{de::PathDeserializer, Resource, ResourcePath};
+use crate::{de::PathDeserializer, resource::ResourceMatchInfo, Resource, ResourcePath};
 
 #[derive(Debug, Clone)]
 pub enum PathItem {

@@ -1122,9 +1122,8 @@ pub(crate) fn insert_slash(path: &str) -> Cow<'_, str> {
 
 #[cfg(test)]
 mod tests {
-    use crate::Path;
-
     use super::*;
+    use crate::Path;
 
     #[test]
     fn equivalence() {

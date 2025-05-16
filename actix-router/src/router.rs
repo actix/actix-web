@@ -142,7 +142,9 @@ impl<T, U> RouterBuilder<T, U> {
 
     /// Finish configuration and create router instance.
     pub fn finish(self) -> Router<T, U> {
-        let max_path_conflicts = self.path_conflicts.iter()
+        let max_path_conflicts = self
+            .path_conflicts
+            .iter()
             .map(|(_, path_conflicts)| *path_conflicts)
             .max()
             .unwrap_or(1);
