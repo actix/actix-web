@@ -195,7 +195,7 @@ pub fn register_rmap(_rmap: &ResourceMap) {
     let tree_representation = registry.display(0);
     log::debug!(
         "Introspection Tree:\n{}",
-        tree_representation.trim_matches('\n').to_string()
+        tree_representation.trim_matches('\n')
     );
 }
 
