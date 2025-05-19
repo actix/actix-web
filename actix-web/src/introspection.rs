@@ -15,7 +15,13 @@ static DESIGNATED_THREAD: OnceLock<thread::ThreadId> = OnceLock::new();
 static IS_INITIALIZED: AtomicBool = AtomicBool::new(false);
 
 pub fn initialize_registry() {
-    REGISTRY.get_or_init(|| Mutex::new(IntrospectionNode::new(ResourceType::App, "".into())));
+    REGISTRY.get_or_init(|| {
+        Mutex::new(IntrospectionNode::new(
+            ResourceType::App,
+            "".into(),
+            "".into(),
+        ))
+    });
 }
 
 pub fn get_registry() -> &'static Mutex<IntrospectionNode> {
@@ -36,6 +42,7 @@ pub fn get_detail_registry() -> &'static Mutex<HashMap<String, RouteDetail>> {
 pub struct RouteDetail {
     methods: Vec<Method>,
     guards: Vec<String>,
+    is_resource: bool, // Indicates if this detail is for a final resource endpoint
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -48,35 +55,48 @@ pub enum ResourceType {
 #[derive(Debug, Clone)]
 pub struct IntrospectionNode {
     pub kind: ResourceType,
-    pub pattern: String,
+    pub pattern: String,   // Local pattern
+    pub full_path: String, // Full path
     pub methods: Vec<Method>,
     pub guards: Vec<String>,
     pub children: Vec<IntrospectionNode>,
 }
 
 impl IntrospectionNode {
-    pub fn new(kind: ResourceType, pattern: String) -> Self {
+    pub fn new(kind: ResourceType, pattern: String, full_path: String) -> Self {
         IntrospectionNode {
             kind,
             pattern,
+            full_path,
             methods: Vec::new(),
             guards: Vec::new(),
             children: Vec::new(),
         }
     }
 
-    pub fn display(&self, indent: usize, parent_path: &str) {
-        let full_path = if parent_path.is_empty() {
-            self.pattern.clone()
-        } else {
-            format!(
-                "{}/{}",
-                parent_path.trim_end_matches('/'),
-                self.pattern.trim_start_matches('/')
-            )
-        };
+    pub fn display(&self, indent: usize) -> String {
+        let mut result = String::new();
 
-        if !self.methods.is_empty() || !self.guards.is_empty() {
+        // Helper function to determine if a node should be highlighted
+        let should_highlight =
+            |methods: &Vec<Method>, guards: &Vec<String>| !methods.is_empty() || !guards.is_empty();
+
+        // Add the full path for all nodes
+        if !self.full_path.is_empty() {
+            if should_highlight(&self.methods, &self.guards) {
+                // Highlight full_path with yellow if it has methods or guards
+                result.push_str(&format!(
+                    "{}\x1b[1;33m{}\x1b[0m",
+                    " ".repeat(indent),
+                    self.full_path
+                ));
+            } else {
+                result.push_str(&format!("{}{}", " ".repeat(indent), self.full_path));
+            }
+        }
+
+        // Only add methods and guards for resource nodes
+        if let ResourceType::Resource = self.kind {
             let methods = if self.methods.is_empty() {
                 "".to_string()
             } else {
@@ -88,39 +108,18 @@ impl IntrospectionNode {
                 format!(" Guards: {:?}", self.guards)
             };
 
-            println!("{}{}{}{}", " ".repeat(indent), full_path, methods, guards);
+            // Highlight final endpoints with ANSI codes for bold and green color
+            result.push_str(&format!("\x1b[1;32m{}{}\x1b[0m\n", methods, guards));
+        } else {
+            // For non-resource nodes, just add a newline
+            result.push('\n');
         }
 
         for child in &self.children {
-            child.display(indent, &full_path);
+            result.push_str(&child.display(indent + 2)); // Increase indent for children
         }
-    }
-}
 
-fn build_tree(node: &mut IntrospectionNode, rmap: &ResourceMap) {
-    initialize_detail_registry();
-    let detail_registry = get_detail_registry();
-    if let Some(ref children) = rmap.nodes {
-        for child_rc in children {
-            let child = child_rc;
-            let pat = child.pattern.pattern().unwrap_or("").to_string();
-            let kind = if child.nodes.is_some() {
-                ResourceType::Scope
-            } else {
-                ResourceType::Resource
-            };
-            let mut new_node = IntrospectionNode::new(kind, pat.clone());
-
-            if let ResourceType::Resource = new_node.kind {
-                if let Some(d) = detail_registry.lock().unwrap().get(&pat) {
-                    new_node.methods = d.methods.clone();
-                    new_node.guards = d.guards.clone();
-                }
-            }
-
-            build_tree(&mut new_node, child);
-            node.children.push(new_node);
-        }
+        result
     }
 }
 
@@ -134,19 +133,70 @@ fn is_designated_thread() -> bool {
     *DESIGNATED_THREAD.get().unwrap() == current_id
 }
 
-pub fn register_rmap(rmap: &ResourceMap) {
+pub fn register_rmap(_rmap: &ResourceMap) {
     if !is_designated_thread() {
         return;
     }
 
     initialize_registry();
-    let mut root = IntrospectionNode::new(ResourceType::App, "".into());
-    build_tree(&mut root, rmap);
+    initialize_detail_registry();
+
+    let detail_registry = get_detail_registry().lock().unwrap();
+    let mut root = IntrospectionNode::new(ResourceType::App, "".into(), "".into());
+
+    // Build the introspection tree directly from the detail registry
+    for (full_path, _detail) in detail_registry.iter() {
+        let parts: Vec<&str> = full_path.split('/').collect();
+        let mut current_node = &mut root;
+
+        for (i, part) in parts.iter().enumerate() {
+            // Find the index of the existing child
+            let existing_child_index = current_node
+                .children
+                .iter()
+                .position(|n| n.pattern == *part);
+
+            let child_index = if let Some(child_index) = existing_child_index {
+                child_index
+            } else {
+                // If it doesn't exist, create a new node and get its index
+                let child_full_path = parts[..=i].join("/");
+                // Determine the kind based on whether this path exists as a resource in the detail registry
+                let kind = if detail_registry
+                    .get(&child_full_path)
+                    .is_some_and(|d| d.is_resource)
+                {
+                    ResourceType::Resource
+                } else {
+                    ResourceType::Scope
+                };
+                let new_node = IntrospectionNode::new(kind, part.to_string(), child_full_path);
+                current_node.children.push(new_node);
+                current_node.children.len() - 1
+            };
+
+            // Get a mutable reference to the child node
+            current_node = &mut current_node.children[child_index];
+
+            // If this node is marked as a resource, update its methods and guards
+            if let ResourceType::Resource = current_node.kind {
+                if let Some(detail) = detail_registry.get(&current_node.full_path) {
+                    update_unique(&mut current_node.methods, &detail.methods);
+                    update_unique(&mut current_node.guards, &detail.guards);
+                }
+            }
+        }
+    }
+
     *get_registry().lock().unwrap() = root;
 
-    // WIP. Display the introspection tree
-    let reg = get_registry().lock().unwrap();
-    reg.display(0, "");
+    // Display the introspection tree
+    let registry = get_registry().lock().unwrap();
+    let tree_representation = registry.display(0);
+    log::debug!(
+        "Introspection Tree:\n{}",
+        tree_representation.trim_matches('\n').to_string()
+    );
 }
 
 fn update_unique<T: Clone + PartialEq>(existing: &mut Vec<T>, new_items: &[T]) {
@@ -157,16 +207,29 @@ fn update_unique<T: Clone + PartialEq>(existing: &mut Vec<T>, new_items: &[T]) {
     }
 }
 
-pub fn register_pattern_detail(pattern: String, methods: Vec<Method>, guards: Vec<String>) {
+pub fn register_pattern_detail(
+    full_path: String,
+    methods: Vec<Method>,
+    guards: Vec<String>,
+    is_resource: bool,
+) {
     if !is_designated_thread() {
         return;
     }
     initialize_detail_registry();
     let mut reg = get_detail_registry().lock().unwrap();
-    reg.entry(pattern)
+    reg.entry(full_path)
         .and_modify(|d| {
             update_unique(&mut d.methods, &methods);
             update_unique(&mut d.guards, &guards);
+            // If the existing entry was not a resource but the new one is, update the kind
+            if !d.is_resource && is_resource {
+                d.is_resource = true;
+            }
         })
-        .or_insert(RouteDetail { methods, guards });
+        .or_insert(RouteDetail {
+            methods,
+            guards,
+            is_resource,
+        });
 }

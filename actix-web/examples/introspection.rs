@@ -1,10 +1,72 @@
-// NOTE: This is a work-in-progress example being used to test the new implementation
-// of the experimental introspection feature.
-// `cargo run --features experimental-introspection --example introspection`
-
+// Example showcasing the experimental introspection feature.
+// Run with: `cargo run --features experimental-introspection --example introspection`
 use actix_web::{dev::Service, guard, web, App, HttpResponse, HttpServer, Responder};
 use serde::Deserialize;
-// Custom guard that checks if the Content-Type header is present.
+
+#[cfg(feature = "experimental-introspection")]
+#[actix_web::get("/introspection")]
+async fn introspection_handler() -> impl Responder {
+    use std::fmt::Write;
+
+    use actix_web::introspection::{get_registry, initialize_registry};
+
+    initialize_registry();
+    let registry = get_registry();
+    let node = registry.lock().unwrap();
+
+    let mut buf = String::new();
+    if node.children.is_empty() {
+        writeln!(buf, "No routes registered or introspection tree is empty.").unwrap();
+    } else {
+        fn write_display(
+            node: &actix_web::introspection::IntrospectionNode,
+            parent_path: &str,
+            buf: &mut String,
+        ) {
+            let full_path = if parent_path.is_empty() {
+                node.pattern.clone()
+            } else {
+                format!(
+                    "{}/{}",
+                    parent_path.trim_end_matches('/'),
+                    node.pattern.trim_start_matches('/')
+                )
+            };
+            if !node.methods.is_empty() || !node.guards.is_empty() {
+                let methods = if node.methods.is_empty() {
+                    "".to_string()
+                } else {
+                    format!("Methods: {:?}", node.methods)
+                };
+
+                let method_strings: Vec<String> =
+                    node.methods.iter().map(|m| m.to_string()).collect();
+
+                let filtered_guards: Vec<_> = node
+                    .guards
+                    .iter()
+                    .filter(|guard| !method_strings.contains(&guard.to_string()))
+                    .collect();
+
+                let guards = if filtered_guards.is_empty() {
+                    "".to_string()
+                } else {
+                    format!("Guards: {:?}", filtered_guards)
+                };
+
+                let _ = writeln!(buf, "{} {} {}", full_path, methods, guards);
+            }
+            for child in &node.children {
+                write_display(child, &full_path, buf);
+            }
+        }
+        write_display(&node, "/", &mut buf);
+    }
+
+    HttpResponse::Ok().content_type("text/plain").body(buf)
+}
+
+// Custom guard to check if the Content-Type header is present.
 struct ContentTypeGuard;
 
 impl guard::Guard for ContentTypeGuard {
@@ -24,54 +86,62 @@ struct UserInfo {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    // Initialize logging
+    env_logger::Builder::new()
+        .filter_level(log::LevelFilter::Debug)
+        .init();
+
     let server = HttpServer::new(|| {
-        let app = App::new()
+        let mut app = App::new()
+            // API endpoints under /api
             .service(
                 web::scope("/api")
+                    // Endpoints under /api/v1
                     .service(
                         web::scope("/v1")
-                            // GET /api/v1/item/{id}: returns the item id from the path.
-                            .service(get_item)
-                            // POST /api/v1/info: accepts JSON and returns user info.
-                            .service(post_user_info)
-                            // /api/v1/guarded: only accessible if Content-Type header is present.
+                            .service(get_item) // GET /api/v1/item/{id}
+                            .service(post_user_info) // POST /api/v1/info
                             .route(
                                 "/guarded",
-                                web::route().guard(ContentTypeGuard).to(guarded_handler),
+                                web::route().guard(ContentTypeGuard).to(guarded_handler), // /api/v1/guarded
                             ),
                     )
-                    // API scope /api/v2: additional endpoint.
-                    .service(web::scope("/v2").route("/hello", web::get().to(hello_v2))),
+                    // Endpoints under /api/v2
+                    .service(web::scope("/v2").route("/hello", web::get().to(hello_v2))), // GET /api/v2/hello
             )
-            // Scope /v1 outside /api: exposes only GET /v1/item/{id}.
-            .service(web::scope("/v1").service(get_item))
-            // Scope /admin: admin endpoints with different HTTP methods.
+            // Endpoints under /v1 (outside /api)
+            .service(web::scope("/v1").service(get_item)) // GET /v1/item/{id}
+            // Admin endpoints under /admin
             .service(
                 web::scope("/admin")
-                    .route("/dashboard", web::get().to(admin_dashboard))
-                    // Single route handling multiple methods using separate handlers.
+                    .route("/dashboard", web::get().to(admin_dashboard)) // GET /admin/dashboard
                     .service(
                         web::resource("/settings")
-                            .route(web::get().to(get_settings))
-                            .route(web::post().to(update_settings)),
+                            .route(web::get().to(get_settings)) // GET /admin/settings
+                            .route(web::post().to(update_settings)), // POST /admin/settings
                     ),
             )
-            // Root resource: supports GET and POST on "/".
+            // Root endpoints
             .service(
                 web::resource("/")
-                    .route(web::get().to(root_index))
-                    .route(web::post().to(root_index)),
+                    .route(web::get().to(root_index)) // GET /
+                    .route(web::post().to(root_index)), // POST /
             )
-            // Additional endpoints configured in a separate function.
-            .configure(extra_endpoints)
-            // Endpoint that rejects GET on /not_guard (allows other methods).
+            // Endpoints under /bar
+            .service(web::scope("/bar").configure(extra_endpoints)) // /bar/extra/ping, /bar/extra/multi, etc.
+            // Endpoints under /foo
+            .service(web::scope("/foo").configure(other_endpoints)) // /foo/extra/ping with POST and DELETE
+            // Additional endpoints under /extra
+            .configure(extra_endpoints) // /extra/ping, /extra/multi, etc.
+            .configure(other_endpoints)
+            // Endpoint that rejects GET on /not_guard (allows other methods)
             .route(
                 "/not_guard",
                 web::route()
                     .guard(guard::Not(guard::Get()))
                     .to(HttpResponse::MethodNotAllowed),
             )
-            // Endpoint that requires GET, content-type: plain/text header, and/or POST on /all_guard.
+            // Endpoint that requires GET with header or POST on /all_guard
             .route(
                 "/all_guard",
                 web::route()
@@ -83,29 +153,27 @@ async fn main() -> std::io::Result<()> {
                     .to(HttpResponse::MethodNotAllowed),
             );
 
-        /*#[cfg(feature = "experimental-introspection")]
+        // Register the introspection handler if the feature is enabled.
+        #[cfg(feature = "experimental-introspection")]
         {
-            actix_web::introspection::introspect();
-        }*/
-        // TODO: Enable introspection without the feature flag.
+            app = app.service(introspection_handler); // GET /introspection
+        }
         app
     })
-    .workers(5)
+    .workers(1)
     .bind("127.0.0.1:8080")?;
 
     server.run().await
 }
 
 // GET /api/v1/item/{id} and GET /v1/item/{id}
-// Returns a message with the provided id.
-#[actix_web::get("/item/{id:\\d+}")]
+#[actix_web::get("/item/{id}")]
 async fn get_item(path: web::Path<u32>) -> impl Responder {
     let id = path.into_inner();
     HttpResponse::Ok().body(format!("Requested item with id: {}", id))
 }
 
 // POST /api/v1/info
-// Expects JSON and responds with the received user info.
 #[actix_web::post("/info")]
 async fn post_user_info(info: web::Json<UserInfo>) -> impl Responder {
     HttpResponse::Ok().json(format!(
@@ -115,63 +183,54 @@ async fn post_user_info(info: web::Json<UserInfo>) -> impl Responder {
 }
 
 // /api/v1/guarded
-// Uses a custom guard that requires the Content-Type header.
 async fn guarded_handler() -> impl Responder {
     HttpResponse::Ok().body("Passed the Content-Type guard!")
 }
 
 // GET /api/v2/hello
-// Simple greeting endpoint.
 async fn hello_v2() -> impl Responder {
     HttpResponse::Ok().body("Hello from API v2!")
 }
 
 // GET /admin/dashboard
-// Returns a message for the admin dashboard.
 async fn admin_dashboard() -> impl Responder {
     HttpResponse::Ok().body("Welcome to the Admin Dashboard!")
 }
 
 // GET /admin/settings
-// Returns the current admin settings.
 async fn get_settings() -> impl Responder {
     HttpResponse::Ok().body("Current settings: ...")
 }
 
 // POST /admin/settings
-// Updates the admin settings.
 async fn update_settings() -> impl Responder {
     HttpResponse::Ok().body("Settings have been updated!")
 }
 
 // GET and POST on /
-// Generic root endpoint.
 async fn root_index() -> impl Responder {
     HttpResponse::Ok().body("Welcome to the Root Endpoint!")
 }
 
-// Additional endpoints configured in a separate function.
+// Additional endpoints for /extra
 fn extra_endpoints(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/extra")
-            // GET /extra/ping: simple ping endpoint.
             .route(
                 "/ping",
-                web::get().to(|| async { HttpResponse::Ok().body("pong") }),
+                web::get().to(|| async { HttpResponse::Ok().body("pong") }), // GET /extra/ping
             )
-            // /extra/multi: resource that supports GET and POST.
             .service(
                 web::resource("/multi")
                     .route(
                         web::get().to(|| async {
                             HttpResponse::Ok().body("GET response from /extra/multi")
                         }),
-                    )
+                    ) // GET /extra/multi
                     .route(web::post().to(|| async {
                         HttpResponse::Ok().body("POST response from /extra/multi")
-                    })),
+                    })), // POST /extra/multi
             )
-            // /extra/{entities_id}/secure: nested scope with GET and POST, prints the received id.
             .service(
                 web::scope("{entities_id:\\d+}")
                     .service(
@@ -181,15 +240,14 @@ fn extra_endpoints(cfg: &mut web::ServiceConfig) {
                                 web::get().to(|| async {
                                     HttpResponse::Ok().body("GET response from /extra/secure")
                                 }),
-                            )
+                            ) // GET /extra/{entities_id}/secure/
                             .route(
-                                "",
+                                "/post",
                                 web::post().to(|| async {
                                     HttpResponse::Ok().body("POST response from /extra/secure")
                                 }),
-                            ),
+                            ), // POST /extra/{entities_id}/secure/post
                     )
-                    // Middleware that prints the id received in the route.
                     .wrap_fn(|req, srv| {
                         println!(
                             "Request to /extra/secure with id: {}",
@@ -201,6 +259,21 @@ fn extra_endpoints(cfg: &mut web::ServiceConfig) {
                             Ok(res)
                         }
                     }),
+            ),
+    );
+}
+
+// Additional endpoints for /foo
+fn other_endpoints(cfg: &mut web::ServiceConfig) {
+    cfg.service(
+        web::scope("/extra")
+            .route(
+                "/ping",
+                web::post().to(|| async { HttpResponse::Ok().body("post from /extra/ping") }), // POST /foo/extra/ping
+            )
+            .route(
+                "/ping",
+                web::delete().to(|| async { HttpResponse::Ok().body("delete from /extra/ping") }), // DELETE /foo/extra/ping
             ),
     );
 }

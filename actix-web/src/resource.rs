@@ -430,29 +430,51 @@ where
         } else {
             ResourceDef::new(self.rdef.clone())
         };
+        #[cfg(feature = "experimental-introspection")]
+        {
+            use crate::{http::Method, introspection};
+
+            let guards_routes = routes.iter().map(|r| r.guards()).collect::<Vec<_>>();
+
+            let pat = rdef.pattern().unwrap_or("").to_string();
+            let full_path = if config.current_prefix.is_empty() {
+                pat.clone()
+            } else {
+                format!(
+                    "{}/{}",
+                    config.current_prefix.trim_end_matches('/'),
+                    pat.trim_start_matches('/')
+                )
+            };
+
+            for route_guards in guards_routes {
+                // Log the guards and methods for introspection
+                let guard_names = route_guards.iter().map(|g| g.name()).collect::<Vec<_>>();
+                let methods = route_guards
+                    .iter()
+                    .flat_map(|g| g.details().unwrap_or_default())
+                    .flat_map(|d| {
+                        if let crate::guard::GuardDetail::HttpMethods(v) = d {
+                            v.into_iter()
+                                .filter_map(|s| s.parse::<Method>().ok())
+                                .collect::<Vec<_>>()
+                        } else {
+                            Vec::new()
+                        }
+                    })
+                    .collect::<Vec<_>>();
+
+                introspection::register_pattern_detail(
+                    full_path.clone(),
+                    methods,
+                    guard_names,
+                    true,
+                );
+            }
+        }
 
         if let Some(ref name) = self.name {
             rdef.set_name(name);
-        }
-
-        #[cfg(feature = "experimental-introspection")]
-        {
-            let pat = rdef.pattern().unwrap_or("").to_string();
-            let mut methods = Vec::new();
-            let mut guard_names = Vec::new();
-            for route in &routes {
-                if let Some(m) = route.get_method() {
-                    if !methods.contains(&m) {
-                        methods.push(m);
-                    }
-                }
-                for name in route.guard_names() {
-                    if !guard_names.contains(&name) {
-                        guard_names.push(name.clone());
-                    }
-                }
-            }
-            crate::introspection::register_pattern_detail(pat, methods, guard_names);
         }
 
         *self.factory_ref.borrow_mut() = Some(ResourceFactory {

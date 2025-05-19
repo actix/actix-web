@@ -15,13 +15,16 @@ const AVG_PATH_LEN: usize = 24;
 
 #[derive(Clone, Debug)]
 pub struct ResourceMap {
-    pub(crate) pattern: ResourceDef,
+    pattern: ResourceDef,
+
     /// Named resources within the tree or, for external resources, it points to isolated nodes
     /// outside the tree.
     named: FoldHashMap<String, Rc<ResourceMap>>,
+
     parent: RefCell<Weak<ResourceMap>>,
+
     /// Must be `None` for "edge" nodes.
-    pub(crate) nodes: Option<Vec<Rc<ResourceMap>>>,
+    nodes: Option<Vec<Rc<ResourceMap>>>,
 }
 
 impl ResourceMap {
