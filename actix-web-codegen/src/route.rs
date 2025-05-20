@@ -59,6 +59,7 @@ macro_rules! standard_method_type {
     (
         $($variant:ident, $upper:ident, $lower:ident,)+
     ) => {
+        #[doc(hidden)]
         #[derive(Debug, Clone, PartialEq, Eq, Hash)]
         pub enum MethodType {
             $(
@@ -466,7 +467,8 @@ impl ToTokens for Route {
 
         let stream = quote! {
             #(#doc_attributes)*
-            #[allow(non_camel_case_types, missing_docs)]
+            #[doc(hidden)]
+            #[allow(non_camel_case_types)]
             #vis struct #name;
 
             impl ::actix_web::dev::HttpServiceFactory for #name {
