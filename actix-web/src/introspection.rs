@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    fmt::Write as FmtWrite,
     sync::{
         atomic::{AtomicBool, Ordering},
         Mutex, OnceLock,
@@ -7,14 +8,16 @@ use std::{
     thread,
 };
 
-use crate::{http::Method, rmap::ResourceMap};
+use serde::Serialize;
+
+use crate::http::Method;
 
 static REGISTRY: OnceLock<Mutex<IntrospectionNode>> = OnceLock::new();
 static DETAIL_REGISTRY: OnceLock<Mutex<HashMap<String, RouteDetail>>> = OnceLock::new();
 static DESIGNATED_THREAD: OnceLock<thread::ThreadId> = OnceLock::new();
 static IS_INITIALIZED: AtomicBool = AtomicBool::new(false);
 
-pub fn initialize_registry() {
+fn initialize_registry() {
     REGISTRY.get_or_init(|| {
         Mutex::new(IntrospectionNode::new(
             ResourceType::App,
@@ -24,18 +27,28 @@ pub fn initialize_registry() {
     });
 }
 
-pub fn get_registry() -> &'static Mutex<IntrospectionNode> {
+fn get_registry() -> &'static Mutex<IntrospectionNode> {
     REGISTRY.get().expect("Registry not initialized")
 }
 
-pub fn initialize_detail_registry() {
+fn initialize_detail_registry() {
     DETAIL_REGISTRY.get_or_init(|| Mutex::new(HashMap::new()));
 }
 
-pub fn get_detail_registry() -> &'static Mutex<HashMap<String, RouteDetail>> {
+fn get_detail_registry() -> &'static Mutex<HashMap<String, RouteDetail>> {
     DETAIL_REGISTRY
         .get()
         .expect("Detail registry not initialized")
+}
+
+fn is_designated_thread() -> bool {
+    let current_id = thread::current().id();
+    DESIGNATED_THREAD.get_or_init(|| {
+        IS_INITIALIZED.store(true, Ordering::SeqCst);
+        current_id // Assign the first thread that calls this function
+    });
+
+    *DESIGNATED_THREAD.get().unwrap() == current_id
 }
 
 #[derive(Clone)]
@@ -55,11 +68,17 @@ pub enum ResourceType {
 #[derive(Debug, Clone)]
 pub struct IntrospectionNode {
     pub kind: ResourceType,
-    pub pattern: String,   // Local pattern
-    pub full_path: String, // Full path
+    pub pattern: String,
+    pub full_path: String,
     pub methods: Vec<Method>,
     pub guards: Vec<String>,
     pub children: Vec<IntrospectionNode>,
+}
+#[derive(Debug, Clone, Serialize)]
+pub struct IntrospectionReportItem {
+    pub full_path: String,
+    pub methods: Vec<String>,
+    pub guards: Vec<String>,
 }
 
 impl IntrospectionNode {
@@ -73,67 +92,58 @@ impl IntrospectionNode {
             children: Vec::new(),
         }
     }
+}
 
-    pub fn display(&self, indent: usize) -> String {
-        let mut result = String::new();
-
-        // Helper function to determine if a node should be highlighted
-        let should_highlight =
-            |methods: &Vec<Method>, guards: &Vec<String>| !methods.is_empty() || !guards.is_empty();
-
-        // Add the full path for all nodes
-        if !self.full_path.is_empty() {
-            if should_highlight(&self.methods, &self.guards) {
-                // Highlight full_path with yellow if it has methods or guards
-                result.push_str(&format!(
-                    "{}\x1b[1;33m{}\x1b[0m",
-                    " ".repeat(indent),
-                    self.full_path
-                ));
+impl From<&IntrospectionNode> for Vec<IntrospectionReportItem> {
+    fn from(node: &IntrospectionNode) -> Self {
+        fn collect_report_items(
+            node: &IntrospectionNode,
+            parent_path: &str,
+            report_items: &mut Vec<IntrospectionReportItem>,
+        ) {
+            let full_path = if parent_path.is_empty() {
+                node.pattern.clone()
             } else {
-                result.push_str(&format!("{}{}", " ".repeat(indent), self.full_path));
+                format!(
+                    "{}/{}",
+                    parent_path.trim_end_matches('/'),
+                    node.pattern.trim_start_matches('/')
+                )
+            };
+
+            if !node.methods.is_empty() || !node.guards.is_empty() {
+                // Filter guards that are already represented in methods
+                let filtered_guards: Vec<String> = node
+                    .guards
+                    .iter()
+                    .filter(|guard| {
+                        !node
+                            .methods
+                            .iter()
+                            .any(|method| method.to_string() == **guard)
+                    })
+                    .cloned()
+                    .collect();
+
+                report_items.push(IntrospectionReportItem {
+                    full_path: full_path.clone(),
+                    methods: node.methods.iter().map(|m| m.to_string()).collect(),
+                    guards: filtered_guards,
+                });
+            }
+
+            for child in &node.children {
+                collect_report_items(child, &full_path, report_items);
             }
         }
 
-        // Only add methods and guards for resource nodes
-        if let ResourceType::Resource = self.kind {
-            let methods = if self.methods.is_empty() {
-                "".to_string()
-            } else {
-                format!(" Methods: {:?}", self.methods)
-            };
-            let guards = if self.guards.is_empty() {
-                "".to_string()
-            } else {
-                format!(" Guards: {:?}", self.guards)
-            };
-
-            // Highlight final endpoints with ANSI codes for bold and green color
-            result.push_str(&format!("\x1b[1;32m{}{}\x1b[0m\n", methods, guards));
-        } else {
-            // For non-resource nodes, just add a newline
-            result.push('\n');
-        }
-
-        for child in &self.children {
-            result.push_str(&child.display(indent + 2)); // Increase indent for children
-        }
-
-        result
+        let mut report_items = Vec::new();
+        collect_report_items(node, "/", &mut report_items);
+        report_items
     }
 }
 
-fn is_designated_thread() -> bool {
-    let current_id = thread::current().id();
-    DESIGNATED_THREAD.get_or_init(|| {
-        IS_INITIALIZED.store(true, Ordering::SeqCst);
-        current_id // Assign the first thread that calls this function
-    });
-
-    *DESIGNATED_THREAD.get().unwrap() == current_id
-}
-
-pub fn register_rmap(_rmap: &ResourceMap) {
+pub(crate) fn finalize_registry() {
     if !is_designated_thread() {
         return;
     }
@@ -189,14 +199,6 @@ pub fn register_rmap(_rmap: &ResourceMap) {
     }
 
     *get_registry().lock().unwrap() = root;
-
-    // Display the introspection tree
-    let registry = get_registry().lock().unwrap();
-    let tree_representation = registry.display(0);
-    log::debug!(
-        "Introspection Tree:\n{}",
-        tree_representation.trim_matches('\n')
-    );
 }
 
 fn update_unique<T: Clone + PartialEq>(existing: &mut Vec<T>, new_items: &[T]) {
@@ -207,7 +209,7 @@ fn update_unique<T: Clone + PartialEq>(existing: &mut Vec<T>, new_items: &[T]) {
     }
 }
 
-pub fn register_pattern_detail(
+pub(crate) fn register_pattern_detail(
     full_path: String,
     methods: Vec<Method>,
     guards: Vec<String>,
@@ -232,4 +234,30 @@ pub fn register_pattern_detail(
             guards,
             is_resource,
         });
+}
+
+pub fn introspection_report_as_text() -> String {
+    let registry = get_registry();
+    let node = registry.lock().unwrap();
+    let report_items: Vec<IntrospectionReportItem> = (&*node).into();
+
+    let mut buf = String::new();
+    for item in report_items {
+        writeln!(
+            buf,
+            "{} => Methods: {:?} | Guards: {:?}",
+            item.full_path, item.methods, item.guards
+        )
+        .unwrap();
+    }
+
+    buf
+}
+
+pub fn introspection_report_as_json() -> String {
+    let registry = get_registry();
+    let node = registry.lock().unwrap();
+    let report_items: Vec<IntrospectionReportItem> = (&*node).into();
+
+    serde_json::to_string_pretty(&report_items).unwrap()
 }

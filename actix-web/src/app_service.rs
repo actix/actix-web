@@ -132,7 +132,7 @@ where
 
             #[cfg(feature = "experimental-introspection")]
             {
-                crate::introspection::register_rmap(&rmap);
+                crate::introspection::finalize_registry();
             }
 
             Ok(AppInitService {

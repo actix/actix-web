@@ -31,68 +31,24 @@ async fn main() -> std::io::Result<()> {
             age: u8,
         }
 
-        // GET /introspection
-        #[actix_web::get("/introspection")]
-        async fn introspection_handler() -> impl Responder {
-            use std::fmt::Write;
+        // GET /introspection for JSON response
+        async fn introspection_handler_json() -> impl Responder {
+            use actix_web::introspection::introspection_report_as_json;
 
-            use actix_web::introspection::{get_registry, initialize_registry};
-
-            initialize_registry();
-            let registry = get_registry();
-            let node = registry.lock().unwrap();
-
-            let mut buf = String::new();
-            if node.children.is_empty() {
-                writeln!(buf, "No routes registered or introspection tree is empty.").unwrap();
-            } else {
-                fn write_display(
-                    node: &actix_web::introspection::IntrospectionNode,
-                    parent_path: &str,
-                    buf: &mut String,
-                ) {
-                    let full_path = if parent_path.is_empty() {
-                        node.pattern.clone()
-                    } else {
-                        format!(
-                            "{}/{}",
-                            parent_path.trim_end_matches('/'),
-                            node.pattern.trim_start_matches('/')
-                        )
-                    };
-                    if !node.methods.is_empty() || !node.guards.is_empty() {
-                        let methods = if node.methods.is_empty() {
-                            "".to_string()
-                        } else {
-                            format!("Methods: {:?}", node.methods)
-                        };
-
-                        let method_strings: Vec<String> =
-                            node.methods.iter().map(|m| m.to_string()).collect();
-
-                        let filtered_guards: Vec<_> = node
-                            .guards
-                            .iter()
-                            .filter(|guard| !method_strings.contains(&guard.to_string()))
-                            .collect();
-
-                        let guards = if filtered_guards.is_empty() {
-                            "".to_string()
-                        } else {
-                            format!("Guards: {:?}", filtered_guards)
-                        };
-
-                        let _ = writeln!(buf, "{} {} {}", full_path, methods, guards);
-                    }
-                    for child in &node.children {
-                        write_display(child, &full_path, buf);
-                    }
-                }
-                write_display(&node, "/", &mut buf);
-            }
-
-            HttpResponse::Ok().content_type("text/plain").body(buf)
+            let report = introspection_report_as_json();
+            HttpResponse::Ok()
+                .content_type("application/json")
+                .body(report)
         }
+
+        // GET /introspection for plain text response
+        async fn introspection_handler_text() -> impl Responder {
+            use actix_web::introspection::introspection_report_as_text;
+
+            let report = introspection_report_as_text();
+            HttpResponse::Ok().content_type("text/plain").body(report)
+        }
+
         // GET /api/v1/item/{id} and GET /v1/item/{id}
         #[actix_web::get("/item/{id}")]
         async fn get_item(path: web::Path<u32>) -> impl Responder {
@@ -210,6 +166,22 @@ async fn main() -> std::io::Result<()> {
         // Create the HTTP server with all the routes and handlers
         let server = HttpServer::new(|| {
             App::new()
+                // Get introspection report
+                // curl --location '127.0.0.1:8080/introspection' --header 'Accept: application/json'
+                // curl --location '127.0.0.1:8080/introspection' --header 'Accept: text/plain'
+                .service(
+                    web::resource("/introspection")
+                        .route(
+                            web::get()
+                                .guard(guard::Header("accept", "application/json"))
+                                .to(introspection_handler_json),
+                        )
+                        .route(
+                            web::get()
+                                .guard(guard::Header("accept", "text/plain"))
+                                .to(introspection_handler_text),
+                        ),
+                )
                 // API endpoints under /api
                 .service(
                     web::scope("/api")
@@ -269,7 +241,6 @@ async fn main() -> std::io::Result<()> {
                         )
                         .to(HttpResponse::MethodNotAllowed),
                 )
-                .service(introspection_handler)
         })
         .workers(1)
         .bind("127.0.0.1:8080")?;
