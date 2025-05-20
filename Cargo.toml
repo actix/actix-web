@@ -30,7 +30,7 @@ lto = true
 opt-level = 3
 codegen-units = 1
 
-[patch.crates-io]
+[workspace.dependencies]
 actix-files = { path = "actix-files" }
 actix-http = { path = "actix-http" }
 actix-http-test = { path = "actix-http-test" }
