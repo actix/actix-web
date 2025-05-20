@@ -1,17 +1,17 @@
 [workspace]
 resolver = "2"
 members = [
-  "actix-files",
-  "actix-http-test",
-  "actix-http",
-  "actix-multipart",
-  "actix-multipart-derive",
-  "actix-router",
-  "actix-test",
-  "actix-web-actors",
-  "actix-web-codegen",
-  "actix-web",
-  "awc",
+    "actix-files",
+    "actix-http-test",
+    "actix-http",
+    "actix-multipart",
+    "actix-multipart-derive",
+    "actix-router",
+    "actix-test",
+    "actix-web-actors",
+    "actix-web-codegen",
+    "actix-web",
+    "awc",
 ]
 
 [workspace.package]
@@ -30,7 +30,7 @@ lto = true
 opt-level = 3
 codegen-units = 1
 
-[workspace.dependencies]
+[patch.crates-io]
 actix-files = { path = "actix-files" }
 actix-http = { path = "actix-http" }
 actix-http-test = { path = "actix-http-test" }

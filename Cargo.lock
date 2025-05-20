@@ -46,16 +46,16 @@ dependencies = [
 name = "actix-files"
 version = "0.6.6"
 dependencies = [
- "actix-http 3.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "actix-http",
  "actix-rt",
  "actix-server",
  "actix-service",
- "actix-test 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "actix-test",
  "actix-utils",
- "actix-web 4.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "actix-web",
  "bitflags 2.9.1",
  "bytes",
- "derive_more 2.0.1",
+ "derive_more",
  "env_logger",
  "futures-core",
  "http-range",
@@ -70,40 +70,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "actix-files"
-version = "0.6.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0773d59061dedb49a8aed04c67291b9d8cf2fe0b60130a381aab53c6dd86e9be"
-dependencies = [
- "actix-http 3.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "actix-service",
- "actix-utils",
- "actix-web 4.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "bitflags 2.9.1",
- "bytes",
- "derive_more 0.99.20",
- "futures-core",
- "http-range",
- "log",
- "mime",
- "mime_guess",
- "percent-encoding",
- "pin-project-lite",
- "v_htmlescape",
-]
-
-[[package]]
 name = "actix-http"
 version = "3.11.0"
 dependencies = [
  "actix-codec",
- "actix-http-test 3.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "actix-http-test",
  "actix-rt",
  "actix-server",
  "actix-service",
  "actix-tls",
  "actix-utils",
- "actix-web 4.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "actix-web",
  "async-stream",
  "base64 0.22.1",
  "bitflags 2.9.1",
@@ -111,7 +88,7 @@ dependencies = [
  "bytes",
  "bytestring",
  "criterion",
- "derive_more 2.0.1",
+ "derive_more",
  "divan",
  "encoding_rs",
  "env_logger",
@@ -150,83 +127,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "actix-http"
-version = "3.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "44dfe5c9e0004c623edc65391dfd51daa201e7e30ebd9c9bedf873048ec32bc2"
-dependencies = [
- "actix-codec",
- "actix-rt",
- "actix-service",
- "actix-tls",
- "actix-utils",
- "base64 0.22.1",
- "bitflags 2.9.1",
- "brotli",
- "bytes",
- "bytestring",
- "derive_more 2.0.1",
- "encoding_rs",
- "flate2",
- "foldhash",
- "futures-core",
- "h2",
- "http 0.2.12",
- "httparse",
- "httpdate",
- "itoa",
- "language-tags",
- "local-channel",
- "mime",
- "percent-encoding",
- "pin-project-lite",
- "rand 0.9.1",
- "sha1",
- "smallvec",
- "tokio",
- "tokio-util",
- "tracing",
- "zstd",
-]
-
-[[package]]
 name = "actix-http-test"
 version = "3.2.0"
 dependencies = [
  "actix-codec",
- "actix-http 3.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "actix-http",
  "actix-rt",
  "actix-server",
  "actix-service",
  "actix-tls",
  "actix-utils",
- "awc 3.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "bytes",
- "futures-core",
- "http 0.2.12",
- "log",
- "openssl",
- "serde",
- "serde_json",
- "serde_urlencoded",
- "slab",
- "socket2 0.5.9",
- "tokio",
-]
-
-[[package]]
-name = "actix-http-test"
-version = "3.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "061d27c2a6fea968fdaca0961ff429d23a4ec878c4f68f5d08626663ade69c80"
-dependencies = [
- "actix-codec",
- "actix-rt",
- "actix-server",
- "actix-service",
- "actix-tls",
- "actix-utils",
- "awc 3.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "awc",
  "bytes",
  "futures-core",
  "http 0.2.12",
@@ -254,16 +165,16 @@ dependencies = [
 name = "actix-multipart"
 version = "0.7.2"
 dependencies = [
- "actix-http 3.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "actix-multipart-derive 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "actix-http",
+ "actix-multipart-derive",
  "actix-multipart-rfc7578",
  "actix-rt",
- "actix-test 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "actix-test",
  "actix-utils",
- "actix-web 4.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "actix-web",
  "assert_matches",
- "awc 3.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "derive_more 2.0.1",
+ "awc",
+ "derive_more",
  "env_logger",
  "futures-core",
  "futures-test",
@@ -284,36 +195,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "actix-multipart"
-version = "0.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d5118a26dee7e34e894f7e85aa0ee5080ae4c18bf03c0e30d49a80e418f00a53"
-dependencies = [
- "actix-multipart-derive 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "actix-utils",
- "actix-web 4.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "derive_more 0.99.20",
- "futures-core",
- "futures-util",
- "httparse",
- "local-waker",
- "log",
- "memchr",
- "mime",
- "rand 0.8.5",
- "serde",
- "serde_json",
- "serde_plain",
- "tempfile",
- "tokio",
-]
-
-[[package]]
 name = "actix-multipart-derive"
 version = "0.7.0"
 dependencies = [
- "actix-multipart 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "actix-web 4.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "actix-multipart",
+ "actix-web",
  "bytesize",
  "darling",
  "proc-macro2",
@@ -324,25 +210,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "actix-multipart-derive"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e11eb847f49a700678ea2fa73daeb3208061afa2b9d1a8527c03390f4c4a1c6b"
-dependencies = [
- "darling",
- "parse-size",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "actix-multipart-rfc7578"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af5e8f1e4c6baf42b8b78f3b2a85df02b54f10f5fdf54bf1f9b40211c130e427"
 dependencies = [
- "actix-http 3.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "actix-http",
  "bytes",
  "common-multipart-rfc7578",
  "futures-core",
@@ -358,21 +231,6 @@ dependencies = [
  "criterion",
  "http 0.2.12",
  "percent-encoding",
- "regex",
- "regex-lite",
- "serde",
- "tracing",
-]
-
-[[package]]
-name = "actix-router"
-version = "0.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13d324164c51f63867b57e73ba5936ea151b8a41a1d23d1031eeb9f70d0236f8"
-dependencies = [
- "bytestring",
- "cfg-if",
- "http 0.2.12",
  "regex",
  "regex-lite",
  "serde",
@@ -424,13 +282,13 @@ name = "actix-test"
 version = "0.1.5"
 dependencies = [
  "actix-codec",
- "actix-http 3.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "actix-http-test 3.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "actix-http",
+ "actix-http-test",
  "actix-rt",
  "actix-service",
  "actix-utils",
- "actix-web 4.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "awc 3.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "actix-web",
+ "awc",
  "futures-core",
  "futures-util",
  "log",
@@ -438,31 +296,6 @@ dependencies = [
  "rustls 0.20.9",
  "rustls 0.21.12",
  "rustls 0.22.4",
- "rustls 0.23.27",
- "serde",
- "serde_json",
- "serde_urlencoded",
- "tokio",
-]
-
-[[package]]
-name = "actix-test"
-version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "439022b5a7b5dac10798465029a9566e8e0cca7a6014541ed277b695691fac5f"
-dependencies = [
- "actix-codec",
- "actix-http 3.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "actix-http-test 3.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "actix-rt",
- "actix-service",
- "actix-utils",
- "actix-web 4.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "awc 3.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "futures-core",
- "futures-util",
- "log",
- "openssl",
  "rustls 0.23.27",
  "serde",
  "serde_json",
@@ -515,18 +348,18 @@ name = "actix-web"
 version = "4.11.0"
 dependencies = [
  "actix-codec",
- "actix-files 0.6.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "actix-http 3.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "actix-files",
+ "actix-http",
  "actix-macros",
- "actix-router 0.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "actix-router",
  "actix-rt",
  "actix-server",
  "actix-service",
- "actix-test 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "actix-test",
  "actix-tls",
  "actix-utils",
- "actix-web-codegen 4.3.0",
- "awc 3.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "actix-web-codegen",
+ "awc",
  "brotli",
  "bytes",
  "bytestring",
@@ -535,7 +368,7 @@ dependencies = [
  "cookie",
  "core_affinity",
  "criterion",
- "derive_more 2.0.1",
+ "derive_more",
  "encoding_rs",
  "env_logger",
  "flate2",
@@ -571,60 +404,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "actix-web"
-version = "4.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a597b77b5c6d6a1e1097fddde329a83665e25c5437c696a3a9a4aa514a614dea"
-dependencies = [
- "actix-codec",
- "actix-http 3.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "actix-macros",
- "actix-router 0.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "actix-rt",
- "actix-server",
- "actix-service",
- "actix-tls",
- "actix-utils",
- "actix-web-codegen 4.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "bytes",
- "bytestring",
- "cfg-if",
- "cookie",
- "derive_more 2.0.1",
- "encoding_rs",
- "foldhash",
- "futures-core",
- "futures-util",
- "impl-more",
- "itoa",
- "language-tags",
- "log",
- "mime",
- "once_cell",
- "pin-project-lite",
- "regex",
- "regex-lite",
- "serde",
- "serde_json",
- "serde_urlencoded",
- "smallvec",
- "socket2 0.5.9",
- "time",
- "tracing",
- "url",
-]
-
-[[package]]
 name = "actix-web-actors"
 version = "4.3.1+deprecated"
 dependencies = [
  "actix",
  "actix-codec",
- "actix-http 3.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "actix-http",
  "actix-rt",
- "actix-test 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "actix-web 4.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "awc 3.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "actix-test",
+ "actix-web",
+ "awc",
  "bytes",
  "bytestring",
  "env_logger",
@@ -641,29 +430,17 @@ name = "actix-web-codegen"
 version = "4.3.0"
 dependencies = [
  "actix-macros",
- "actix-router 0.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "actix-router",
  "actix-rt",
- "actix-test 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "actix-test",
  "actix-utils",
- "actix-web 4.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "actix-web",
  "futures-core",
  "proc-macro2",
  "quote",
  "rustversion-msrv",
  "syn",
  "trybuild",
-]
-
-[[package]]
-name = "actix-web-codegen"
-version = "4.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f591380e2e68490b5dfaf1dd1aa0ebe78d84ba7067078512b4ea6e4492d622b8"
-dependencies = [
- "actix-router 0.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -846,22 +623,22 @@ name = "awc"
 version = "3.7.0"
 dependencies = [
  "actix-codec",
- "actix-http 3.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "actix-http-test 3.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "actix-http",
+ "actix-http-test",
  "actix-rt",
  "actix-server",
  "actix-service",
- "actix-test 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "actix-test",
  "actix-tls",
  "actix-utils",
- "actix-web 4.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "actix-web",
  "base64 0.22.1",
  "brotli",
  "bytes",
  "cfg-if",
  "const-str",
  "cookie",
- "derive_more 2.0.1",
+ "derive_more",
  "env_logger",
  "flate2",
  "futures-core",
@@ -888,44 +665,6 @@ dependencies = [
  "tokio",
  "trust-dns-resolver",
  "zstd",
-]
-
-[[package]]
-name = "awc"
-version = "3.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e76d68b4f02400c2f9110437f254873e8f265b35ea87352f142bc7c8e878115a"
-dependencies = [
- "actix-codec",
- "actix-http 3.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "actix-rt",
- "actix-service",
- "actix-tls",
- "actix-utils",
- "base64 0.22.1",
- "bytes",
- "cfg-if",
- "cookie",
- "derive_more 2.0.1",
- "futures-core",
- "futures-util",
- "h2",
- "http 0.2.12",
- "itoa",
- "log",
- "mime",
- "openssl",
- "percent-encoding",
- "pin-project-lite",
- "rand 0.9.1",
- "rustls 0.20.9",
- "rustls 0.21.12",
- "rustls 0.22.4",
- "rustls 0.23.27",
- "serde",
- "serde_json",
- "serde_urlencoded",
- "tokio",
 ]
 
 [[package]]
@@ -1220,12 +959,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3618cccc083bb987a415d85c02ca6c9994ea5b44731ec28b9ecf09658655fba9"
 
 [[package]]
-name = "convert_case"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
-
-[[package]]
 name = "cookie"
 version = "0.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1432,19 +1165,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9c9e6a11ca8224451684bc0d7d5a7adbf8f2fd6887261a1cfc3c0432f9d4068e"
 dependencies = [
  "powerfmt",
-]
-
-[[package]]
-name = "derive_more"
-version = "0.99.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6edb4b64a43d977b8e99788fe3a04d483834fba1215a7e02caa415b626497f7f"
-dependencies = [
- "convert_case",
- "proc-macro2",
- "quote",
- "rustc_version",
- "syn",
 ]
 
 [[package]]
@@ -2464,12 +2184,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "parse-size"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "487f2ccd1e17ce8c1bfab3a65c89525af41cfad4c8659021a1e9a2aacd73b89b"
-
-[[package]]
 name = "pem"
 version = "3.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2820,15 +2534,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2"
 
 [[package]]
-name = "rustc_version"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cfcb3a22ef46e85b45de6ee7e79d063319ebb6594faafcf1c225ea92ab6e9b92"
-dependencies = [
- "semver",
-]
-
-[[package]]
 name = "rustix"
 version = "0.38.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3045,12 +2750,6 @@ dependencies = [
  "core-foundation-sys",
  "libc",
 ]
-
-[[package]]
-name = "semver"
-version = "1.0.26"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "56e6fa9c48d24d85fb3de5ad847117517440f6beceb7798af16b4a87d616b8d0"
 
 [[package]]
 name = "serde"
