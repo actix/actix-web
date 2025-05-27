@@ -159,6 +159,11 @@ impl Route {
         self
     }
 
+    #[cfg(feature = "experimental-introspection")]
+    pub(crate) fn guards(&self) -> &Vec<Box<dyn Guard>> {
+        &self.guards
+    }
+
     /// Set handler function, use request extractors for parameters.
     ///
     /// # Examples

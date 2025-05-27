@@ -30,6 +30,8 @@ pub struct AppService {
         Option<Guards>,
         Option<Rc<ResourceMap>>,
     )>,
+    #[cfg(feature = "experimental-introspection")]
+    pub current_prefix: String,
 }
 
 impl AppService {
@@ -40,6 +42,8 @@ impl AppService {
             default,
             root: true,
             services: Vec::new(),
+            #[cfg(feature = "experimental-introspection")]
+            current_prefix: "".to_string(),
         }
     }
 
@@ -71,6 +75,8 @@ impl AppService {
             default: Rc::clone(&self.default),
             services: Vec::new(),
             root: false,
+            #[cfg(feature = "experimental-introspection")]
+            current_prefix: self.current_prefix.clone(),
         }
     }
 
@@ -101,8 +107,66 @@ impl AppService {
                 InitError = (),
             > + 'static,
     {
+        #[cfg(feature = "experimental-introspection")]
+        {
+            use std::borrow::Borrow;
+
+            use crate::introspection;
+
+            // Build the full path for introspection
+            let pat = rdef.pattern().unwrap_or("").to_string();
+
+            let full_path = if self.current_prefix.is_empty() {
+                pat.clone()
+            } else {
+                format!(
+                    "{}/{}",
+                    self.current_prefix.trim_end_matches('/'),
+                    pat.trim_start_matches('/')
+                )
+            };
+
+            // Extract methods and guards for introspection
+            let guard_list: &[Box<dyn Guard>] = guards.borrow().as_ref().map_or(&[], |v| &v[..]);
+            let methods = guard_list
+                .iter()
+                .flat_map(|g| g.details().unwrap_or_default())
+                .flat_map(|d| {
+                    if let crate::guard::GuardDetail::HttpMethods(v) = d {
+                        v.into_iter()
+                            .filter_map(|s| s.parse().ok())
+                            .collect::<Vec<_>>()
+                    } else {
+                        Vec::new()
+                    }
+                })
+                .collect::<Vec<_>>();
+            let guard_names = guard_list
+                .iter()
+                .map(|g| g.name().to_string())
+                .collect::<Vec<_>>();
+
+            // Determine if the registered service is a resource
+            let is_resource = rdef.pattern().is_some();
+            introspection::register_pattern_detail(full_path, methods, guard_names, is_resource);
+        }
+
         self.services
             .push((rdef, boxed::factory(factory.into_factory()), guards, nested));
+    }
+
+    /// Update the current path prefix.
+    #[cfg(feature = "experimental-introspection")]
+    pub(crate) fn update_prefix(&mut self, prefix: &str) {
+        self.current_prefix = if self.current_prefix.is_empty() {
+            prefix.to_string()
+        } else {
+            format!(
+                "{}/{}",
+                self.current_prefix.trim_end_matches('/'),
+                prefix.trim_start_matches('/')
+            )
+        };
     }
 }
 
