@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Fixed
+- Fix bug which prevents end-users from discovering when the remote peer has closed its side of the TCP connection.
+
 ## 3.11.0
 
 - Update `brotli` dependency to `8`.
