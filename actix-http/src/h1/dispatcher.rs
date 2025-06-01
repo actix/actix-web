@@ -495,7 +495,7 @@ where
                 StateProj::SendPayload { mut body } => {
                     // keep populate writer buffer until buffer size limit hit,
                     // get blocked or finished.
-                    while this.write_buf.len() < *this.max_buffer_size /*super::payload::MAX_BUFFER_SIZE*/ {
+                    while this.write_buf.len() < *this.max_buffer_size {
                         match body.as_mut().poll_next(cx) {
                             Poll::Ready(Some(Ok(item))) => {
                                 this.codec
@@ -534,7 +534,7 @@ where
 
                     // keep populate writer buffer until buffer size limit hit,
                     // get blocked or finished.
-                    while this.write_buf.len() < *this.max_buffer_size /*super::payload::MAX_BUFFER_SIZE*/ {
+                    while this.write_buf.len() < *this.max_buffer_size {
                         match body.as_mut().poll_next(cx) {
                             Poll::Ready(Some(Ok(item))) => {
                                 this.codec

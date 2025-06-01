@@ -10,7 +10,7 @@ use futures_util::future::lazy;
 use super::dispatcher::{Dispatcher, DispatcherState, DispatcherStateProj, Flags};
 use crate::{
     body::MessageBody,
-    config::{ServiceConfig},
+    config::ServiceConfig,
     h1::{Codec, ExpectHandler, UpgradeHandler},
     service::HttpFlow,
     test::{TestBuffer, TestSeqBuffer},

@@ -238,7 +238,7 @@ where
 
     /// Set maximum buffer size.
     ///
-    /// Defines the maximum size of the write buffer. When the size is reached, the dispatcher 
+    /// Defines the maximum size of the write buffer. When the size is reached, the dispatcher
     /// will flush the data to the IO streams
     pub fn max_buffer_size(self, size: usize) -> Self {
         self.config.lock().unwrap().max_buffer_size = Some(size);

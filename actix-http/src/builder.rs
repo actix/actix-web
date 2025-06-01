@@ -128,7 +128,7 @@ where
 
     /// Set maximum buffer size.
     ///
-    /// Defines the maximum size of the buffer. When the size is reached, the dispatcher 
+    /// Defines the maximum size of the buffer. When the size is reached, the dispatcher
     /// will flush the data to the IO streams
     pub fn max_buffer_size(mut self, size: usize) -> Self {
         self.max_buffer_size = Some(size);

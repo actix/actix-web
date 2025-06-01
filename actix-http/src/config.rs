@@ -151,8 +151,14 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_date_service_update() {
-        let settings =
-            ServiceConfig::new(KeepAlive::Os, Duration::ZERO, Duration::ZERO, None, false, None);
+        let settings = ServiceConfig::new(
+            KeepAlive::Os,
+            Duration::ZERO,
+            Duration::ZERO,
+            None,
+            false,
+            None,
+        );
 
         yield_now().await;
 
