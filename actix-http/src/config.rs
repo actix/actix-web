@@ -17,6 +17,7 @@ struct Inner {
     keep_alive: KeepAlive,
     client_request_timeout: Duration,
     client_disconnect_timeout: Duration,
+    max_buffer_size: Option<usize>,
     secure: bool,
     local_addr: Option<std::net::SocketAddr>,
     date_service: DateService,
@@ -28,6 +29,7 @@ impl Default for ServiceConfig {
             KeepAlive::default(),
             Duration::from_secs(5),
             Duration::ZERO,
+            None,
             false,
             None,
         )
@@ -40,6 +42,7 @@ impl ServiceConfig {
         keep_alive: KeepAlive,
         client_request_timeout: Duration,
         client_disconnect_timeout: Duration,
+        max_buffer_size: Option<usize>,
         secure: bool,
         local_addr: Option<net::SocketAddr>,
     ) -> ServiceConfig {
@@ -47,6 +50,7 @@ impl ServiceConfig {
             keep_alive: keep_alive.normalize(),
             client_request_timeout,
             client_disconnect_timeout,
+            max_buffer_size,
             secure,
             local_addr,
             date_service: DateService::new(),
@@ -104,6 +108,10 @@ impl ServiceConfig {
         self.0.date_service.now()
     }
 
+    pub fn max_buffer_size(&self) -> Option<usize> {
+        self.0.max_buffer_size
+    }
+
     /// Writes date header to `dst` buffer.
     ///
     /// Low-level method that utilizes the built-in efficient date service, requiring fewer syscalls
@@ -144,7 +152,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_date_service_update() {
         let settings =
-            ServiceConfig::new(KeepAlive::Os, Duration::ZERO, Duration::ZERO, false, None);
+            ServiceConfig::new(KeepAlive::Os, Duration::ZERO, Duration::ZERO, None, false, None);
 
         yield_now().await;
 

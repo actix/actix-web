@@ -31,6 +31,7 @@ struct Config {
     keep_alive: KeepAlive,
     client_request_timeout: Duration,
     client_disconnect_timeout: Duration,
+    max_buffer_size: Option<usize>,
     #[allow(dead_code)] // only dead when no TLS features are enabled
     tls_handshake_timeout: Option<Duration>,
 }
@@ -116,6 +117,7 @@ where
                 keep_alive: KeepAlive::default(),
                 client_request_timeout: Duration::from_secs(5),
                 client_disconnect_timeout: Duration::from_secs(1),
+                max_buffer_size: None,
                 tls_handshake_timeout: None,
             })),
             backlog: 1024,
@@ -231,6 +233,15 @@ where
     /// By default client timeout is set to 5000 milliseconds.
     pub fn client_disconnect_timeout(self, dur: Duration) -> Self {
         self.config.lock().unwrap().client_disconnect_timeout = dur;
+        self
+    }
+
+    /// Set maximum buffer size.
+    ///
+    /// Defines the maximum size of the write buffer. When the size is reached, the dispatcher 
+    /// will flush the data to the IO streams
+    pub fn max_buffer_size(self, size: usize) -> Self {
+        self.config.lock().unwrap().max_buffer_size = Some(size);
         self
     }
 
@@ -559,6 +570,10 @@ where
                         .client_request_timeout(cfg.client_request_timeout)
                         .client_disconnect_timeout(cfg.client_disconnect_timeout)
                         .local_addr(addr);
+
+                    if let Some(size) = cfg.max_buffer_size {
+                        svc = svc.max_buffer_size(size);
+                    };
 
                     if let Some(handler) = on_connect_fn.clone() {
                         svc =

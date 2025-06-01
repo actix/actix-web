@@ -166,6 +166,7 @@ pin_project! {
         pub(super) io: Option<T>,
         read_buf: BytesMut,
         write_buf: BytesMut,
+        max_buffer_size: usize,
         codec: Codec,
     }
 }
@@ -278,6 +279,7 @@ where
                     io: Some(io),
                     read_buf: BytesMut::with_capacity(HW_BUFFER_SIZE),
                     write_buf: BytesMut::with_capacity(HW_BUFFER_SIZE),
+                    max_buffer_size: config.max_buffer_size().unwrap_or(MAX_BUFFER_SIZE),
                     codec: Codec::new(config),
                 },
             },
@@ -493,7 +495,7 @@ where
                 StateProj::SendPayload { mut body } => {
                     // keep populate writer buffer until buffer size limit hit,
                     // get blocked or finished.
-                    while this.write_buf.len() < super::payload::MAX_BUFFER_SIZE {
+                    while this.write_buf.len() < *this.max_buffer_size /*super::payload::MAX_BUFFER_SIZE*/ {
                         match body.as_mut().poll_next(cx) {
                             Poll::Ready(Some(Ok(item))) => {
                                 this.codec
@@ -532,7 +534,7 @@ where
 
                     // keep populate writer buffer until buffer size limit hit,
                     // get blocked or finished.
-                    while this.write_buf.len() < super::payload::MAX_BUFFER_SIZE {
+                    while this.write_buf.len() < *this.max_buffer_size /*super::payload::MAX_BUFFER_SIZE*/ {
                         match body.as_mut().poll_next(cx) {
                             Poll::Ready(Some(Ok(item))) => {
                                 this.codec
