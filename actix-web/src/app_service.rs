@@ -130,6 +130,11 @@ where
                 factory.create(&mut app_data);
             }
 
+            #[cfg(feature = "experimental-introspection")]
+            {
+                crate::introspection::finalize_registry();
+            }
+
             Ok(AppInitService {
                 service,
                 app_data: Rc::new(app_data),
