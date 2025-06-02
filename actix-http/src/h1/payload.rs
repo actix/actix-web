@@ -205,6 +205,7 @@ impl Inner {
     #[inline]
     fn feed_eof(&mut self) {
         self.eof = true;
+        self.wake();
     }
 
     #[inline]
