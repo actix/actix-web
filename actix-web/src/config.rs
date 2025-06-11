@@ -32,6 +32,9 @@ pub struct AppService {
     )>,
     #[cfg(feature = "experimental-introspection")]
     pub current_prefix: String,
+    #[cfg(feature = "experimental-introspection")]
+    pub(crate) introspector:
+        std::rc::Rc<std::cell::RefCell<crate::introspection::IntrospectionCollector>>,
 }
 
 impl AppService {
@@ -44,6 +47,10 @@ impl AppService {
             services: Vec::new(),
             #[cfg(feature = "experimental-introspection")]
             current_prefix: "".to_string(),
+            #[cfg(feature = "experimental-introspection")]
+            introspector: std::rc::Rc::new(std::cell::RefCell::new(
+                crate::introspection::IntrospectionCollector::new(),
+            )),
         }
     }
 
@@ -53,6 +60,24 @@ impl AppService {
     }
 
     #[allow(clippy::type_complexity)]
+    #[cfg(feature = "experimental-introspection")]
+    pub(crate) fn into_services(
+        self,
+    ) -> (
+        AppConfig,
+        Vec<(
+            ResourceDef,
+            BoxedHttpServiceFactory,
+            Option<Guards>,
+            Option<Rc<ResourceMap>>,
+        )>,
+        std::rc::Rc<std::cell::RefCell<crate::introspection::IntrospectionCollector>>,
+    ) {
+        (self.config, self.services, self.introspector)
+    }
+
+    #[allow(clippy::type_complexity)]
+    #[cfg(not(feature = "experimental-introspection"))]
     pub(crate) fn into_services(
         self,
     ) -> (
@@ -77,6 +102,8 @@ impl AppService {
             root: false,
             #[cfg(feature = "experimental-introspection")]
             current_prefix: self.current_prefix.clone(),
+            #[cfg(feature = "experimental-introspection")]
+            introspector: std::rc::Rc::clone(&self.introspector),
         }
     }
 
@@ -110,8 +137,6 @@ impl AppService {
         #[cfg(feature = "experimental-introspection")]
         {
             use std::borrow::Borrow;
-
-            use crate::introspection;
 
             // Build the full path for introspection
             let pat = rdef.pattern().unwrap_or("").to_string();
@@ -148,7 +173,12 @@ impl AppService {
 
             // Determine if the registered service is a resource
             let is_resource = rdef.pattern().is_some();
-            introspection::register_pattern_detail(full_path, methods, guard_names, is_resource);
+            self.introspector.borrow_mut().register_pattern_detail(
+                full_path,
+                methods,
+                guard_names,
+                is_resource,
+            );
         }
 
         self.services

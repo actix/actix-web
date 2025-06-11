@@ -432,7 +432,7 @@ where
         };
         #[cfg(feature = "experimental-introspection")]
         {
-            use crate::{http::Method, introspection};
+            use crate::http::Method;
 
             let guards_routes = routes.iter().map(|r| r.guards()).collect::<Vec<_>>();
 
@@ -464,7 +464,7 @@ where
                     })
                     .collect::<Vec<_>>();
 
-                introspection::register_pattern_detail(
+                config.introspector.borrow_mut().register_pattern_detail(
                     full_path.clone(),
                     methods,
                     guard_names,

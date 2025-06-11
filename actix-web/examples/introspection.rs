@@ -32,20 +32,20 @@ async fn main() -> std::io::Result<()> {
         }
 
         // GET /introspection for JSON response
-        async fn introspection_handler_json() -> impl Responder {
-            use actix_web::introspection::introspection_report_as_json;
-
-            let report = introspection_report_as_json();
+        async fn introspection_handler_json(
+            tree: web::Data<actix_web::introspection::IntrospectionTree>,
+        ) -> impl Responder {
+            let report = tree.report_as_json();
             HttpResponse::Ok()
                 .content_type("application/json")
                 .body(report)
         }
 
         // GET /introspection for plain text response
-        async fn introspection_handler_text() -> impl Responder {
-            use actix_web::introspection::introspection_report_as_text;
-
-            let report = introspection_report_as_text();
+        async fn introspection_handler_text(
+            tree: web::Data<actix_web::introspection::IntrospectionTree>,
+        ) -> impl Responder {
+            let report = tree.report_as_text();
             HttpResponse::Ok().content_type("text/plain").body(report)
         }
 
@@ -242,7 +242,7 @@ async fn main() -> std::io::Result<()> {
                         .to(HttpResponse::MethodNotAllowed),
                 )
         })
-        .workers(1)
+        .workers(5)
         .bind("127.0.0.1:8080")?;
 
         server.run().await

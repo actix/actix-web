@@ -1,61 +1,14 @@
-use std::{
-    collections::HashMap,
-    fmt::Write as FmtWrite,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Mutex, OnceLock,
-    },
-    thread,
-};
+use std::{collections::HashMap, fmt::Write as FmtWrite};
 
 use serde::Serialize;
 
 use crate::http::Method;
 
-static REGISTRY: OnceLock<Mutex<IntrospectionNode>> = OnceLock::new();
-static DETAIL_REGISTRY: OnceLock<Mutex<HashMap<String, RouteDetail>>> = OnceLock::new();
-static DESIGNATED_THREAD: OnceLock<thread::ThreadId> = OnceLock::new();
-static IS_INITIALIZED: AtomicBool = AtomicBool::new(false);
-
-fn initialize_registry() {
-    REGISTRY.get_or_init(|| {
-        Mutex::new(IntrospectionNode::new(
-            ResourceType::App,
-            "".into(),
-            "".into(),
-        ))
-    });
-}
-
-fn get_registry() -> &'static Mutex<IntrospectionNode> {
-    REGISTRY.get().expect("Registry not initialized")
-}
-
-fn initialize_detail_registry() {
-    DETAIL_REGISTRY.get_or_init(|| Mutex::new(HashMap::new()));
-}
-
-fn get_detail_registry() -> &'static Mutex<HashMap<String, RouteDetail>> {
-    DETAIL_REGISTRY
-        .get()
-        .expect("Detail registry not initialized")
-}
-
-fn is_designated_thread() -> bool {
-    let current_id = thread::current().id();
-    DESIGNATED_THREAD.get_or_init(|| {
-        IS_INITIALIZED.store(true, Ordering::SeqCst);
-        current_id // Assign the first thread that calls this function
-    });
-
-    *DESIGNATED_THREAD.get().unwrap() == current_id
-}
-
 #[derive(Clone)]
 pub struct RouteDetail {
     methods: Vec<Method>,
     guards: Vec<String>,
-    is_resource: bool, // Indicates if this detail is for a final resource endpoint
+    is_resource: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -74,6 +27,7 @@ pub struct IntrospectionNode {
     pub guards: Vec<String>,
     pub children: Vec<IntrospectionNode>,
 }
+
 #[derive(Debug, Clone, Serialize)]
 pub struct IntrospectionReportItem {
     pub full_path: String,
@@ -112,16 +66,10 @@ impl From<&IntrospectionNode> for Vec<IntrospectionReportItem> {
             };
 
             if !node.methods.is_empty() || !node.guards.is_empty() {
-                // Filter guards that are already represented in methods
                 let filtered_guards: Vec<String> = node
                     .guards
                     .iter()
-                    .filter(|guard| {
-                        !node
-                            .methods
-                            .iter()
-                            .any(|method| method.to_string() == **guard)
-                    })
+                    .filter(|guard| !node.methods.iter().any(|m| m.to_string() == **guard))
                     .cloned()
                     .collect();
 
@@ -143,62 +91,113 @@ impl From<&IntrospectionNode> for Vec<IntrospectionReportItem> {
     }
 }
 
-pub(crate) fn finalize_registry() {
-    if !is_designated_thread() {
-        return;
-    }
+#[derive(Clone, Default)]
+pub struct IntrospectionCollector {
+    details: HashMap<String, RouteDetail>,
+}
 
-    initialize_registry();
-    initialize_detail_registry();
-
-    let detail_registry = get_detail_registry().lock().unwrap();
-    let mut root = IntrospectionNode::new(ResourceType::App, "".into(), "".into());
-
-    // Build the introspection tree directly from the detail registry
-    for (full_path, _detail) in detail_registry.iter() {
-        let parts: Vec<&str> = full_path.split('/').collect();
-        let mut current_node = &mut root;
-
-        for (i, part) in parts.iter().enumerate() {
-            // Find the index of the existing child
-            let existing_child_index = current_node
-                .children
-                .iter()
-                .position(|n| n.pattern == *part);
-
-            let child_index = if let Some(child_index) = existing_child_index {
-                child_index
-            } else {
-                // If it doesn't exist, create a new node and get its index
-                let child_full_path = parts[..=i].join("/");
-                // Determine the kind based on whether this path exists as a resource in the detail registry
-                let kind = if detail_registry
-                    .get(&child_full_path)
-                    .is_some_and(|d| d.is_resource)
-                {
-                    ResourceType::Resource
-                } else {
-                    ResourceType::Scope
-                };
-                let new_node = IntrospectionNode::new(kind, part.to_string(), child_full_path);
-                current_node.children.push(new_node);
-                current_node.children.len() - 1
-            };
-
-            // Get a mutable reference to the child node
-            current_node = &mut current_node.children[child_index];
-
-            // If this node is marked as a resource, update its methods and guards
-            if let ResourceType::Resource = current_node.kind {
-                if let Some(detail) = detail_registry.get(&current_node.full_path) {
-                    update_unique(&mut current_node.methods, &detail.methods);
-                    update_unique(&mut current_node.guards, &detail.guards);
-                }
-            }
+impl IntrospectionCollector {
+    pub fn new() -> Self {
+        Self {
+            details: HashMap::new(),
         }
     }
 
-    *get_registry().lock().unwrap() = root;
+    pub fn register_pattern_detail(
+        &mut self,
+        full_path: String,
+        methods: Vec<Method>,
+        guards: Vec<String>,
+        is_resource: bool,
+    ) {
+        self.details
+            .entry(full_path)
+            .and_modify(|d| {
+                update_unique(&mut d.methods, &methods);
+                update_unique(&mut d.guards, &guards);
+                if !d.is_resource && is_resource {
+                    d.is_resource = true;
+                }
+            })
+            .or_insert(RouteDetail {
+                methods,
+                guards,
+                is_resource,
+            });
+    }
+
+    pub fn finalize(&mut self) -> IntrospectionTree {
+        let detail_registry = std::mem::take(&mut self.details);
+        let mut root = IntrospectionNode::new(ResourceType::App, "".into(), "".into());
+
+        for (full_path, _) in detail_registry.iter() {
+            let parts: Vec<&str> = full_path.split('/').collect();
+            let mut current_node = &mut root;
+
+            for (i, part) in parts.iter().enumerate() {
+                let existing_child_index = current_node
+                    .children
+                    .iter()
+                    .position(|n| n.pattern == *part);
+
+                let child_index = if let Some(idx) = existing_child_index {
+                    idx
+                } else {
+                    let child_full_path = parts[..=i].join("/");
+                    let kind = if detail_registry
+                        .get(&child_full_path)
+                        .is_some_and(|d| d.is_resource)
+                    {
+                        ResourceType::Resource
+                    } else {
+                        ResourceType::Scope
+                    };
+                    let new_node = IntrospectionNode::new(kind, part.to_string(), child_full_path);
+                    current_node.children.push(new_node);
+                    current_node.children.len() - 1
+                };
+
+                current_node = &mut current_node.children[child_index];
+
+                if let ResourceType::Resource = current_node.kind {
+                    if let Some(detail) = detail_registry.get(&current_node.full_path) {
+                        update_unique(&mut current_node.methods, &detail.methods);
+                        update_unique(&mut current_node.guards, &detail.guards);
+                    }
+                }
+            }
+        }
+
+        IntrospectionTree { root }
+    }
+}
+
+#[derive(Clone)]
+pub struct IntrospectionTree {
+    pub root: IntrospectionNode,
+}
+
+impl IntrospectionTree {
+    pub fn report_as_text(&self) -> String {
+        let report_items: Vec<IntrospectionReportItem> = (&self.root).into();
+
+        let mut buf = String::new();
+        for item in report_items {
+            writeln!(
+                buf,
+                "{} => Methods: {:?} | Guards: {:?}",
+                item.full_path, item.methods, item.guards
+            )
+            .unwrap();
+        }
+
+        buf
+    }
+
+    pub fn report_as_json(&self) -> String {
+        let report_items: Vec<IntrospectionReportItem> = (&self.root).into();
+        serde_json::to_string_pretty(&report_items).unwrap()
+    }
 }
 
 fn update_unique<T: Clone + PartialEq>(existing: &mut Vec<T>, new_items: &[T]) {
@@ -207,57 +206,4 @@ fn update_unique<T: Clone + PartialEq>(existing: &mut Vec<T>, new_items: &[T]) {
             existing.push(item.clone());
         }
     }
-}
-
-pub(crate) fn register_pattern_detail(
-    full_path: String,
-    methods: Vec<Method>,
-    guards: Vec<String>,
-    is_resource: bool,
-) {
-    if !is_designated_thread() {
-        return;
-    }
-    initialize_detail_registry();
-    let mut reg = get_detail_registry().lock().unwrap();
-    reg.entry(full_path)
-        .and_modify(|d| {
-            update_unique(&mut d.methods, &methods);
-            update_unique(&mut d.guards, &guards);
-            // If the existing entry was not a resource but the new one is, update the kind
-            if !d.is_resource && is_resource {
-                d.is_resource = true;
-            }
-        })
-        .or_insert(RouteDetail {
-            methods,
-            guards,
-            is_resource,
-        });
-}
-
-pub fn introspection_report_as_text() -> String {
-    let registry = get_registry();
-    let node = registry.lock().unwrap();
-    let report_items: Vec<IntrospectionReportItem> = (&*node).into();
-
-    let mut buf = String::new();
-    for item in report_items {
-        writeln!(
-            buf,
-            "{} => Methods: {:?} | Guards: {:?}",
-            item.full_path, item.methods, item.guards
-        )
-        .unwrap();
-    }
-
-    buf
-}
-
-pub fn introspection_report_as_json() -> String {
-    let registry = get_registry();
-    let node = registry.lock().unwrap();
-    let report_items: Vec<IntrospectionReportItem> = (&*node).into();
-
-    serde_json::to_string_pretty(&report_items).unwrap()
 }

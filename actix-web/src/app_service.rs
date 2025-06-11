@@ -41,6 +41,8 @@ where
     pub(crate) default: Option<Rc<BoxedHttpServiceFactory>>,
     pub(crate) factory_ref: Rc<RefCell<Option<AppRoutingFactory>>>,
     pub(crate) external: RefCell<Vec<ResourceDef>>,
+    #[cfg(feature = "experimental-introspection")]
+    pub(crate) introspector: Rc<RefCell<crate::introspection::IntrospectionCollector>>,
 }
 
 impl<T, B> ServiceFactory<Request> for AppInit<T, B>
@@ -72,6 +74,10 @@ where
 
         // create App config to pass to child services
         let mut config = AppService::new(config, Rc::clone(&default));
+        #[cfg(feature = "experimental-introspection")]
+        {
+            config.introspector = Rc::clone(&self.introspector);
+        }
 
         // register services
         mem::take(&mut *self.services.borrow_mut())
@@ -80,6 +86,9 @@ where
 
         let mut rmap = ResourceMap::new(ResourceDef::prefix(""));
 
+        #[cfg(feature = "experimental-introspection")]
+        let (config, services, _) = config.into_services();
+        #[cfg(not(feature = "experimental-introspection"))]
         let (config, services) = config.into_services();
 
         // complete pipeline creation.
@@ -110,6 +119,8 @@ where
 
         // construct app service and middleware service factory future.
         let endpoint_fut = self.endpoint.new_service(());
+        #[cfg(feature = "experimental-introspection")]
+        let introspector = Rc::clone(&self.introspector);
 
         // take extensions or create new one as app data container.
         let mut app_data = self.extensions.borrow_mut().take().unwrap_or_default();
@@ -132,7 +143,8 @@ where
 
             #[cfg(feature = "experimental-introspection")]
             {
-                crate::introspection::finalize_registry();
+                let tree = introspector.borrow_mut().finalize();
+                app_data.insert(crate::web::Data::new(tree));
             }
 
             Ok(AppInitService {
