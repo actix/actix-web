@@ -384,6 +384,11 @@ where
 
         // register nested services
         let mut cfg = config.clone_config();
+
+        // Update the prefix for the nested scope
+        #[cfg(feature = "experimental-introspection")]
+        cfg.update_prefix(&self.rdef);
+
         self.services
             .into_iter()
             .for_each(|mut srv| srv.register(&mut cfg));
