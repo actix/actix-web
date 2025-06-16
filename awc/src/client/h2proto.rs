@@ -121,7 +121,7 @@ where
             fut.await.map_err(SendRequestError::from)?
         }
         Err(err) => {
-            io.on_release(err.is_io());
+            io.on_release(err.is_io() || (err.is_go_away() && err.is_remote()));
             return Err(err.into());
         }
     };
