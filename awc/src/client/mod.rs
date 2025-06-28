@@ -1,6 +1,6 @@
 //! HTTP client.
 
-use std::{rc::Rc, time::Duration};
+use std::{ops::Deref, rc::Rc, time::Duration};
 
 use actix_http::{error::HttpError, header::HeaderMap, Method, RequestHead, Uri};
 use actix_rt::net::TcpStream;
@@ -21,13 +21,33 @@ mod pool;
 
 pub use self::{
     connection::{Connection, ConnectionIo},
-    connector::{Connector, ConnectorService},
+    connector::{Connector, ConnectorService, HostnameWithSni},
     error::{ConnectError, FreezeRequestError, InvalidUrl, SendRequestError},
 };
 
-#[derive(Clone)]
+#[derive(Clone, Hash, PartialEq, Eq)]
+pub enum ServerName {
+    Owned(String),
+    Borrowed(Rc<String>),
+}
+
+impl Deref for ServerName {
+    type Target = str;
+
+    fn deref(&self) -> &str {
+        match self {
+            ServerName::Owned(ref s) => s,
+            ServerName::Borrowed(ref s) => s,
+        }
+    }
+}
+
+#[derive(Clone, Hash, PartialEq, Eq)]
 pub struct Connect {
-    pub uri: Uri,
+    pub hostname: String,
+    pub sni_host: Option<ServerName>,
+    pub port: u16,
+    pub tls: bool,
     pub addr: Option<std::net::SocketAddr>,
 }
 
@@ -79,8 +99,8 @@ impl Client {
     /// This function is equivalent of `ClientBuilder::new()`.
     pub fn builder() -> ClientBuilder<
         impl Service<
-                ConnectInfo<Uri>,
-                Response = TcpConnection<Uri, TcpStream>,
+                ConnectInfo<HostnameWithSni>,
+                Response = TcpConnection<HostnameWithSni, TcpStream>,
                 Error = TcpConnectError,
             > + Clone,
     > {
