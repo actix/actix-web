@@ -9,7 +9,10 @@ use super::{
     decoder::{self, PayloadDecoder, PayloadItem, PayloadType},
     encoder, Message, MessageType,
 };
-use crate::{body::BodySize, error::ParseError, ConnectionType, Request, Response, ServiceConfig};
+use crate::{
+    big_bytes::BigBytes, body::BodySize, error::ParseError, ConnectionType, Request, Response,
+    ServiceConfig,
+};
 
 bitflags! {
     #[derive(Debug, Clone, Copy)]
@@ -146,14 +149,12 @@ impl Decoder for Codec {
     }
 }
 
-impl Encoder<Message<(Response<()>, BodySize)>> for Codec {
-    type Error = io::Error;
-
-    fn encode(
+impl Codec {
+    pub(super) fn encode_bigbytes(
         &mut self,
         item: Message<(Response<()>, BodySize)>,
-        dst: &mut BytesMut,
-    ) -> Result<(), Self::Error> {
+        dst: &mut BigBytes,
+    ) -> std::io::Result<()> {
         match item {
             Message::Item((mut res, length)) => {
                 // set response version
@@ -172,7 +173,7 @@ impl Encoder<Message<(Response<()>, BodySize)>> for Codec {
 
                 // encode message
                 self.encoder.encode(
-                    dst,
+                    dst.buffer_mut(),
                     &mut res,
                     self.flags.contains(Flags::HEAD),
                     self.flags.contains(Flags::STREAM),
@@ -184,13 +185,30 @@ impl Encoder<Message<(Response<()>, BodySize)>> for Codec {
             }
 
             Message::Chunk(Some(bytes)) => {
-                self.encoder.encode_chunk(bytes.as_ref(), dst)?;
+                self.encoder.encode_chunk_bigbytes(bytes, dst)?;
             }
 
             Message::Chunk(None) => {
-                self.encoder.encode_eof(dst)?;
+                self.encoder.encode_eof(dst.buffer_mut())?;
             }
         }
+
+        Ok(())
+    }
+}
+
+impl Encoder<Message<(Response<()>, BodySize)>> for Codec {
+    type Error = io::Error;
+
+    fn encode(
+        &mut self,
+        item: Message<(Response<()>, BodySize)>,
+        dst: &mut BytesMut,
+    ) -> Result<(), Self::Error> {
+        let mut bigbytes = BigBytes::with_capacity(1024 * 8);
+        self.encode_bigbytes(item, &mut bigbytes)?;
+
+        bigbytes.write_to(dst);
 
         Ok(())
     }
