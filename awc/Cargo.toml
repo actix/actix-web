@@ -79,6 +79,8 @@ compress-brotli = ["actix-http/compress-brotli", "__compress"]
 compress-gzip = ["actix-http/compress-gzip", "__compress"]
 # Zstd algorithm content-encoding support
 compress-zstd = ["actix-http/compress-zstd", "__compress"]
+# Deflate compression for WebSocket
+compress-ws-deflate = ["actix-http/compress-ws-deflate"]
 
 # Cookie parsing and cookie jar
 cookies = ["dep:cookie"]
