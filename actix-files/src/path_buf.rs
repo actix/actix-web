@@ -8,8 +8,11 @@ use actix_web::{dev::Payload, FromRequest, HttpRequest};
 
 use crate::error::UriSegmentError;
 
+/// Secure Path Traversal Guard
+///
+/// This struct parses a request-uri [`PathBuf`](std::path::PathBuf)
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) struct PathBufWrap(PathBuf);
+pub struct PathBufWrap(PathBuf);
 
 impl FromStr for PathBufWrap {
     type Err = UriSegmentError;
@@ -20,6 +23,15 @@ impl FromStr for PathBufWrap {
 }
 
 impl PathBufWrap {
+    /// Parse a safe path from a supplied [`HttpRequest`](actix_web::HttpRequest),
+    /// given the choice of allowing hiddden files to be considered valid segments.
+    ///
+    /// Path traversal is guarded by this method.
+    #[inline]
+    pub fn parse_req(req: &HttpRequest, hidden_files: bool) -> Result<Self, UriSegmentError> {
+        Self::parse_path(req.match_info().unprocessed(), hidden_files)
+    }
+
     /// Parse a path, giving the choice of allowing hidden files to be considered valid segments.
     ///
     /// Path traversal is guarded by this method.

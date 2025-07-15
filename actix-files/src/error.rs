@@ -21,6 +21,7 @@ impl ResponseError for FilesError {
     }
 }
 
+/// Error which can occur with parsing/validating a request-uri path
 #[derive(Debug, PartialEq, Eq, Display)]
 #[non_exhaustive]
 pub enum UriSegmentError {
