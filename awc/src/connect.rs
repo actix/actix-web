@@ -49,7 +49,11 @@ pub enum ConnectResponse {
     /// Tunnel used for WebSocket communication.
     ///
     /// Contains response head and framed HTTP/1.1 codec.
-    Tunnel(ResponseHead, Framed<BoxedSocket, ClientCodec>),
+    Tunnel(
+        RequestHeadType,
+        ResponseHead,
+        Framed<BoxedSocket, ClientCodec>,
+    ),
 }
 
 impl ConnectResponse {
@@ -70,9 +74,15 @@ impl ConnectResponse {
     ///
     /// # Panics
     /// Panics if enum variant is not `Tunnel`.
-    pub fn into_tunnel_response(self) -> (ResponseHead, Framed<BoxedSocket, ClientCodec>) {
+    pub fn into_tunnel_response(
+        self,
+    ) -> (
+        RequestHeadType,
+        ResponseHead,
+        Framed<BoxedSocket, ClientCodec>,
+    ) {
         match self {
-            ConnectResponse::Tunnel(head, framed) => (head, framed),
+            ConnectResponse::Tunnel(req, head, framed) => (req, head, framed),
             _ => {
                 panic!("TunnelResponse only reachable with ConnectResponse::TunnelResponse variant")
             }
@@ -133,12 +143,12 @@ pin_project_lite::pin_project! {
             req: Option<ConnectRequest>
         },
         Client {
-            fut: LocalBoxFuture<'static, Result<(ResponseHead, Payload), SendRequestError>>
+            fut: LocalBoxFuture<'static, Result<(RequestHeadType, ResponseHead, Payload), SendRequestError>>
         },
         Tunnel {
             fut: LocalBoxFuture<
                 'static,
-                Result<(ResponseHead, Framed<Connection<Io>, ClientCodec>), SendRequestError>,
+                Result<(RequestHeadType, ResponseHead, Framed<Connection<Io>, ClientCodec>), SendRequestError>,
             >,
         }
     }
@@ -181,16 +191,16 @@ where
             }
 
             ConnectRequestProj::Client { fut } => {
-                let (head, payload) = ready!(fut.as_mut().poll(cx))?;
+                let (req, head, payload) = ready!(fut.as_mut().poll(cx))?;
                 Poll::Ready(Ok(ConnectResponse::Client(ClientResponse::new(
-                    head, payload,
+                    req, head, payload,
                 ))))
             }
 
             ConnectRequestProj::Tunnel { fut } => {
-                let (head, framed) = ready!(fut.as_mut().poll(cx))?;
+                let (req, head, framed) = ready!(fut.as_mut().poll(cx))?;
                 let framed = framed.into_map_io(|io| Box::new(io) as _);
-                Poll::Ready(Ok(ConnectResponse::Tunnel(head, framed)))
+                Poll::Ready(Ok(ConnectResponse::Tunnel(req, head, framed)))
             }
         }
     }
