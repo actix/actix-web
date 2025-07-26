@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Option to supply multiple index fallbacks now supported.
 - Minimum supported Rust version (MSRV) is now 1.75.
 
 ## 0.6.6
