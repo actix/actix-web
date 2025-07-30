@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add `experimental-introspection` feature for retrieving configured route paths and HTTP methods.
+
 ## 4.11.0
 
 - Add `Logger::log_level()` method.
