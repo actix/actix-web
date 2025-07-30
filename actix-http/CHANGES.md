@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Update `TestRequest::set_payload` to generate "Content-Length" header
+
 ## 3.11.0
 
 - Update `brotli` dependency to `8`.
