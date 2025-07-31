@@ -62,10 +62,11 @@ async fn json() {
     });
 
     let request = srv
-        .get("/")
+        .post("/")
         .insert_header(("x-test", "111"))
         .send_json(&"TEST".to_string());
     let response = request.await.unwrap();
+    println!("{response:?}");
     assert!(response.status().is_success());
 }
 
