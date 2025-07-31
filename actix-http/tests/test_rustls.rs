@@ -184,7 +184,7 @@ async fn h2_body1() -> io::Result<()> {
     })
     .await;
 
-    let response = srv.sget("/").send_body(data.clone()).await.unwrap();
+    let response = srv.spost("/").send_body(data.clone()).await.unwrap();
     assert!(response.status().is_success());
 
     let body = srv.load_body(response).await.unwrap();
