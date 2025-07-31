@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `GET/HEAD/OPTIONS/TRACE` methods no longer send a request body on request.
+
 ## 3.7.0
 
 - Update `brotli` dependency to `8`.

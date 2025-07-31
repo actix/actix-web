@@ -4,8 +4,12 @@ use std::{
     task::{Context, Poll},
 };
 
-use actix_http::body::{BodySize, BoxBody, MessageBody};
+use actix_http::{
+    body::{BodySize, BoxBody, MessageBody},
+    RequestHead,
+};
 use bytes::Bytes;
+use http::Method;
 use pin_project_lite::pin_project;
 
 pin_project! {
@@ -75,11 +79,15 @@ where
     /// Converts a [`MessageBody`] type into the best possible representation.
     ///
     /// Checks size for `None` and tries to convert to `Bytes`. Otherwise, uses the `Body` variant.
-    pub fn from_message_body(body: B) -> Self
+    pub fn from_message_body(head: &RequestHead, body: B) -> Self
     where
         B: MessageBody,
     {
-        if matches!(body.size(), BodySize::None) {
+        if matches!(
+            head.method,
+            Method::GET | Method::HEAD | Method::OPTIONS | Method::TRACE
+        ) || matches!(body.size(), BodySize::None)
+        {
             return Self::None;
         }
 
