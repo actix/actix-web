@@ -24,6 +24,7 @@ pin_project! {
         state: ChunkedReadFileState<Fut>,
         counter: u64,
         callback: F,
+        read_sync: bool,
     }
 }
 
@@ -57,6 +58,7 @@ pub(crate) fn new_chunked_read(
     size: u64,
     offset: u64,
     file: File,
+    size_threshold: u64,
 ) -> impl Stream<Item = Result<Bytes, Error>> {
     ChunkedReadFile {
         size,
@@ -69,31 +71,45 @@ pub(crate) fn new_chunked_read(
         },
         counter: 0,
         callback: chunked_read_file_callback,
+        read_sync: size < size_threshold,
     }
 }
 
 #[cfg(not(feature = "experimental-io-uring"))]
-async fn chunked_read_file_callback(
+fn chunked_read_file_callback_sync(
     mut file: File,
     offset: u64,
     max_bytes: usize,
-) -> Result<(File, Bytes), Error> {
+) -> Result<(File, Bytes), io::Error> {
     use io::{Read as _, Seek as _};
 
-    let res = actix_web::web::block(move || {
-        let mut buf = Vec::with_capacity(max_bytes);
+    let mut buf = Vec::with_capacity(max_bytes);
 
-        file.seek(io::SeekFrom::Start(offset))?;
+    file.seek(io::SeekFrom::Start(offset))?;
 
-        let n_bytes = file.by_ref().take(max_bytes as u64).read_to_end(&mut buf)?;
+    let n_bytes = file.by_ref().take(max_bytes as u64).read_to_end(&mut buf)?;
 
-        if n_bytes == 0 {
-            Err(io::Error::from(io::ErrorKind::UnexpectedEof))
-        } else {
-            Ok((file, Bytes::from(buf)))
-        }
-    })
-    .await??;
+    if n_bytes == 0 {
+        Err(io::Error::from(io::ErrorKind::UnexpectedEof))
+    } else {
+        Ok((file, Bytes::from(buf)))
+    }
+}
+
+#[cfg(not(feature = "experimental-io-uring"))]
+#[inline]
+async fn chunked_read_file_callback(
+    file: File,
+    offset: u64,
+    max_bytes: usize,
+    read_sync: bool,
+) -> Result<(File, Bytes), Error> {
+    let res = if read_sync {
+        chunked_read_file_callback_sync(file, offset, max_bytes)?
+    } else {
+        actix_web::web::block(move || chunked_read_file_callback_sync(file, offset, max_bytes))
+            .await??
+    };
 
     Ok(res)
 }
@@ -171,7 +187,7 @@ where
 #[cfg(not(feature = "experimental-io-uring"))]
 impl<F, Fut> Stream for ChunkedReadFile<F, Fut>
 where
-    F: Fn(File, u64, usize) -> Fut,
+    F: Fn(File, u64, usize, bool) -> Fut,
     Fut: Future<Output = Result<(File, Bytes), Error>>,
 {
     type Item = Result<Bytes, Error>;
@@ -193,7 +209,7 @@ where
                         .take()
                         .expect("ChunkedReadFile polled after completion");
 
-                    let fut = (this.callback)(file, offset, max_bytes);
+                    let fut = (this.callback)(file, offset, max_bytes, *this.read_sync);
 
                     this.state
                         .project_replace(ChunkedReadFileState::Future { fut });
