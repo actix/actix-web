@@ -139,7 +139,7 @@ async fn h1_expect() {
 
     // test expect would fail to continue
     let request = srv
-        .request(http::Method::GET, srv.url("/"))
+        .request(http::Method::POST, srv.url("/"))
         .insert_header(("Expect", "100-continue"));
 
     let response = request.send_body("expect body").await.unwrap();
@@ -147,7 +147,7 @@ async fn h1_expect() {
 
     // test expect would continue
     let request = srv
-        .request(http::Method::GET, srv.url("/"))
+        .request(http::Method::POST, srv.url("/"))
         .insert_header(("Expect", "100-continue"))
         .insert_header(("AUTH", "996"));
 
