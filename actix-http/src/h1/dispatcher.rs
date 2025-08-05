@@ -296,6 +296,14 @@ where
     U: Service<(Request, Framed<T, Codec>), Response = ()>,
     U::Error: fmt::Display,
 {
+    fn finalize_payload_if_present(mut self: Pin<&mut Self>, reason: &str) {
+        let this = self.as_mut().project();
+        if let Some(mut payload) = this.payload.take() {
+            trace!("Finalizing payload early: {reason}");
+            payload.feed_eof();
+        }
+    }
+
     fn can_read(&self, cx: &mut Context<'_>) -> bool {
         if self.flags.contains(Flags::READ_DISCONNECT) {
             false
@@ -682,6 +690,11 @@ where
 
         // limit amount of non-processed requests
         if pipeline_queue_full || can_not_read {
+            // since we're here, it's possible the client has been sent a response before we've been able to read the body
+            // in this case, we should eof the payload to prevent the next request from reading invalid data
+            // this can occur with certain load balancers that pipeline requests
+            self.as_mut()
+                .finalize_payload_if_present("pipeline queue full or cannot read");
             return Ok(false);
         }
 
