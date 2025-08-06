@@ -80,22 +80,17 @@ async fn chunked_read_file_callback(
 ) -> Result<(File, Bytes), Error> {
     use io::{Read as _, Seek as _};
 
-    let res = actix_web::web::block(move || {
-        let mut buf = Vec::with_capacity(max_bytes);
+    let mut buf = Vec::with_capacity(max_bytes);
 
-        file.seek(io::SeekFrom::Start(offset))?;
+    file.seek(io::SeekFrom::Start(offset))?;
 
-        let n_bytes = file.by_ref().take(max_bytes as u64).read_to_end(&mut buf)?;
+    let n_bytes = file.by_ref().take(max_bytes as u64).read_to_end(&mut buf)?;
 
-        if n_bytes == 0 {
-            Err(io::Error::from(io::ErrorKind::UnexpectedEof))
-        } else {
-            Ok((file, Bytes::from(buf)))
-        }
-    })
-    .await??;
-
-    Ok(res)
+    if n_bytes == 0 {
+        Err(Error::from(io::Error::from(io::ErrorKind::UnexpectedEof)))
+    } else {
+        Ok((file, Bytes::from(buf)))
+    }
 }
 
 #[cfg(feature = "experimental-io-uring")]
