@@ -386,7 +386,14 @@ where
         let mut this = self.project();
         this.state.set(match size {
             BodySize::None | BodySize::Sized(0) => {
-                this.flags.insert(Flags::FINISHED);
+                let payload_unfinished = this.payload.is_some();
+
+                if payload_unfinished {
+                    this.flags.insert(Flags::SHUTDOWN | Flags::FINISHED);
+                } else {
+                    this.flags.insert(Flags::FINISHED);
+                }
+
                 State::None
             }
             _ => State::SendPayload { body },
@@ -404,7 +411,14 @@ where
         let mut this = self.project();
         this.state.set(match size {
             BodySize::None | BodySize::Sized(0) => {
-                this.flags.insert(Flags::FINISHED);
+                let payload_unfinished = this.payload.is_some();
+
+                if payload_unfinished {
+                    this.flags.insert(Flags::SHUTDOWN | Flags::FINISHED);
+                } else {
+                    this.flags.insert(Flags::FINISHED);
+                }
+
                 State::None
             }
             _ => State::SendErrorPayload { body },
@@ -503,10 +517,25 @@ where
                             Poll::Ready(None) => {
                                 this.codec.encode(Message::Chunk(None), this.write_buf)?;
 
+                                // if we have not yet pipelined to the next request, then
+                                // this.payload was the payload for the request we just finished
+                                // responding to. We can check to see if we finished reading it
+                                // yet, and if not, shutdown the connection.
+                                let payload_unfinished = this.payload.is_some();
+                                let not_pipelined = this.messages.is_empty();
+
+                                println!("not pipelined: {not_pipelined}");
+                                println!("payload unfinished: {payload_unfinished}");
+
                                 // payload stream finished.
                                 // set state to None and handle next message
                                 this.state.set(State::None);
-                                this.flags.insert(Flags::FINISHED);
+
+                                if not_pipelined && payload_unfinished {
+                                    this.flags.insert(Flags::SHUTDOWN | Flags::FINISHED);
+                                } else {
+                                    this.flags.insert(Flags::FINISHED);
+                                }
 
                                 continue 'res;
                             }
@@ -542,10 +571,25 @@ where
                             Poll::Ready(None) => {
                                 this.codec.encode(Message::Chunk(None), this.write_buf)?;
 
-                                // payload stream finished
+                                // if we have not yet pipelined to the next request, then
+                                // this.payload was the payload for the request we just finished
+                                // responding to. We can check to see if we finished reading it
+                                // yet, and if not, shutdown the connection.
+                                let payload_unfinished = this.payload.is_some();
+                                let not_pipelined = this.messages.is_empty();
+
+                                println!("not pipelined: {not_pipelined}");
+                                println!("payload unfinished: {payload_unfinished}");
+
+                                // payload stream finished.
                                 // set state to None and handle next message
                                 this.state.set(State::None);
-                                this.flags.insert(Flags::FINISHED);
+
+                                if not_pipelined && payload_unfinished {
+                                    this.flags.insert(Flags::SHUTDOWN | Flags::FINISHED);
+                                } else {
+                                    this.flags.insert(Flags::FINISHED);
+                                }
 
                                 continue 'res;
                             }
