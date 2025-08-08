@@ -2,18 +2,19 @@
 //!
 //! ## Crate Features
 //!
-//! | Feature             | Functionality                               |
-//! | ------------------- | ------------------------------------------- |
-//! | `http2`             | HTTP/2 support via [h2].                    |
-//! | `openssl`           | TLS support via [OpenSSL].                  |
-//! | `rustls-0_20`       | TLS support via rustls 0.20.                |
-//! | `rustls-0_21`       | TLS support via rustls 0.21.                |
-//! | `rustls-0_22`       | TLS support via rustls 0.22.                |
-//! | `rustls-0_23`       | TLS support via [rustls] 0.23.              |
-//! | `compress-brotli`   | Payload compression support: Brotli.        |
-//! | `compress-gzip`     | Payload compression support: Deflate, Gzip. |
-//! | `compress-zstd`     | Payload compression support: Zstd.          |
-//! | `trust-dns`         | Use [trust-dns] as the client DNS resolver. |
+//! | Feature               | Functionality                               |
+//! | --------------------- | ------------------------------------------- |
+//! | `http2`               | HTTP/2 support via [h2].                    |
+//! | `openssl`             | TLS support via [OpenSSL].                  |
+//! | `rustls-0_20`         | TLS support via rustls 0.20.                |
+//! | `rustls-0_21`         | TLS support via rustls 0.21.                |
+//! | `rustls-0_22`         | TLS support via rustls 0.22.                |
+//! | `rustls-0_23`         | TLS support via [rustls] 0.23.              |
+//! | `compress-brotli`     | Payload compression support: Brotli.        |
+//! | `compress-gzip`       | Payload compression support: Deflate, Gzip. |
+//! | `compress-zstd`       | Payload compression support: Zstd.          |
+//! | `compress-ws-deflate` | WebSocket DEFLATE compression support.      |
+//! | `trust-dns`           | Use [trust-dns] as the client DNS resolver. |
 //!
 //! [h2]: https://crates.io/crates/h2
 //! [OpenSSL]: https://crates.io/crates/openssl
