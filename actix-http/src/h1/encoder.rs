@@ -60,8 +60,13 @@ pub(crate) trait MessageType: Sized {
         config: &ServiceConfig,
     ) -> io::Result<()> {
         let chunked = self.chunked();
-        let mut skip_len = length != BodySize::Stream;
+        let mut skip_len = false;
         let camel_case = self.camel_case();
+        // Check if Content-Length header is already set
+        let has_content_length = self.headers().contains_key(CONTENT_LENGTH)
+            || self
+                .extra_headers()
+                .is_some_and(|h| h.contains_key(CONTENT_LENGTH));
 
         // Content length
         if let Some(status) = self.status() {
@@ -103,6 +108,7 @@ pub(crate) trait MessageType: Sized {
                     dst.put_slice(b"\r\n");
                 }
             }
+            BodySize::Sized(_len) if skip_len || has_content_length => dst.put_slice(b"\r\n"),
             BodySize::Sized(0) if camel_case => dst.put_slice(b"\r\nContent-Length: 0\r\n"),
             BodySize::Sized(0) => dst.put_slice(b"\r\ncontent-length: 0\r\n"),
             BodySize::Sized(len) => helpers::write_content_length(len, dst, camel_case),
@@ -667,5 +673,52 @@ mod tests {
         let data = String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
         assert!(!data.contains("content-length: 0\r\n"));
         assert!(!data.contains("transfer-encoding: chunked\r\n"));
+    }
+
+    #[actix_rt::test]
+    async fn test_manual_content_length_preserved() {
+        let mut bytes = BytesMut::with_capacity(2048);
+
+        // Test with OK response and manual Content-Length header
+        let mut res = Response::with_body(StatusCode::OK, ());
+        res.headers_mut()
+            .insert(CONTENT_LENGTH, HeaderValue::from_static("456"));
+
+        let _ = res.encode_headers(
+            &mut bytes,
+            Version::HTTP_11,
+            BodySize::Sized(0), // Empty body
+            ConnectionType::KeepAlive,
+            &ServiceConfig::default(),
+        );
+        let data = String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
+
+        // Should only have the manual Content-Length: 456, not an automatic content-length: 0
+        assert!(data.contains("content-length: 456\r\n"));
+        assert!(!data.contains("content-length: 0\r\n"));
+
+        // Count occurrences of "content-length" - should be exactly 1
+        let count = data.matches("content-length").count();
+        assert_eq!(count, 1, "Should have exactly one content-length header");
+    }
+
+    #[actix_rt::test]
+    async fn test_automatic_content_length_for_empty_body() {
+        let mut bytes = BytesMut::with_capacity(2048);
+
+        // Test without manual Content-Length header
+        let mut res = Response::with_body(StatusCode::OK, ());
+
+        let _ = res.encode_headers(
+            &mut bytes,
+            Version::HTTP_11,
+            BodySize::Sized(0), // Empty body
+            ConnectionType::KeepAlive,
+            &ServiceConfig::default(),
+        );
+        let data = String::from_utf8(Vec::from(bytes.split().freeze().as_ref())).unwrap();
+
+        // Should have automatic content-length: 0
+        assert!(data.contains("content-length: 0\r\n"));
     }
 }
