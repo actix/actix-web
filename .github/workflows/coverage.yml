@@ -15,7 +15,7 @@ jobs:
   coverage:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust (nightly)
         uses: actions-rust-lang/setup-rust-toolchain@v1.13.0
