@@ -15,7 +15,7 @@ jobs:
   fmt:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust (nightly)
         uses: actions-rust-lang/setup-rust-toolchain@v1.13.0
@@ -33,7 +33,7 @@ jobs:
 
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1.13.0
@@ -52,7 +52,7 @@ jobs:
   lint-docs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust (nightly)
         uses: actions-rust-lang/setup-rust-toolchain@v1.13.0
@@ -69,7 +69,7 @@ jobs:
     if: false # rustdoc mismatch currently
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust (${{ vars.RUST_VERSION_EXTERNAL_TYPES }})
         uses: actions-rust-lang/setup-rust-toolchain@v1.13.0
