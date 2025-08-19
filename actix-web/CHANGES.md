@@ -12,6 +12,7 @@
 - Ignore `Host` header in `Host` guard when connection protocol is HTTP/2.
 - Re-export `mime` dependency.
 - Update `brotli` dependency to `8`.
+- Make `ws` feature of `actix-http` optional (controlled by `ws` feature in `actix-web`).
 
 ## 4.10.2
 
