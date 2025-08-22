@@ -11,16 +11,20 @@ use http::{header, Method, StatusCode};
 use crate::{body::BoxBody, header::HeaderValue, RequestHead, Response, ResponseBuilder};
 
 mod codec;
+#[cfg(feature = "compress-ws-deflate")]
+mod deflate;
 mod dispatcher;
 mod frame;
 mod mask;
 mod proto;
 
+#[cfg(feature = "compress-ws-deflate")]
+pub use self::deflate::{DeflateCompressionLevel, DeflateServerConfig, DeflateSessionParameters};
 pub use self::{
-    codec::{Codec, Frame, Item, Message},
+    codec::{Codec, Decoder, Encoder, Frame, Item, Message},
     dispatcher::Dispatcher,
     frame::Parser,
-    proto::{hash_key, CloseCode, CloseReason, OpCode},
+    proto::{hash_key, CloseCode, CloseReason, OpCode, RsvBits},
 };
 
 /// WebSocket protocol errors.
@@ -93,6 +97,11 @@ pub enum HandshakeError {
     /// WebSocket key is not set or wrong.
     #[display("unknown WebSocket key")]
     BadWebsocketKey,
+
+    /// Invalid `permessage-deflate` request.
+    #[cfg(feature = "compress-ws-deflate")]
+    #[display("invalid WebSocket `permessage-deflate` extension request")]
+    BadDeflateRequest(deflate::DeflateHandshakeError),
 }
 
 impl From<HandshakeError> for Response<BoxBody> {
@@ -135,6 +144,13 @@ impl From<HandshakeError> for Response<BoxBody> {
                 res.head_mut().reason = Some("Handshake error");
                 res
             }
+
+            #[cfg(feature = "compress-ws-deflate")]
+            HandshakeError::BadDeflateRequest(_) => {
+                let mut res = Response::bad_request();
+                res.head_mut().reason = Some("Invalid permessage-deflate request");
+                res
+            }
         }
     }
 }
@@ -149,6 +165,69 @@ impl From<&HandshakeError> for Response<BoxBody> {
 pub fn handshake(req: &RequestHead) -> Result<ResponseBuilder, HandshakeError> {
     verify_handshake(req)?;
     Ok(handshake_response(req))
+}
+
+/// Verify WebSocket handshake request with DEFLATE compression configurations.
+#[cfg(feature = "compress-ws-deflate")]
+pub fn handshake_deflate(
+    config: &deflate::DeflateServerConfig,
+    req: &RequestHead,
+) -> Result<
+    (
+        ResponseBuilder,
+        Option<(
+            deflate::DeflateCompressionContext,
+            deflate::DeflateDecompressionContext,
+        )>,
+    ),
+    HandshakeError,
+> {
+    verify_handshake(req)?;
+
+    let mut available_configurations = vec![];
+    for header in req.headers().get_all(header::SEC_WEBSOCKET_EXTENSIONS) {
+        let Ok(header_str) = header.to_str() else {
+            continue;
+        };
+
+        available_configurations.extend(deflate::DeflateSessionParameters::from_extension_header(
+            header_str,
+        ));
+    }
+
+    let mut selected_config = None;
+    let mut selected_error = None;
+    for config in available_configurations {
+        match config {
+            Ok(config) => {
+                selected_config = Some(config);
+                break;
+            }
+            Err(err) => {
+                if selected_error.is_none() {
+                    selected_error = Some(err);
+                } else {
+                    selected_error =
+                        Some(deflate::DeflateHandshakeError::NoSuitableConfigurationFound);
+                }
+            }
+        }
+    }
+
+    if let Some(selected_error) = selected_error {
+        Err(HandshakeError::BadDeflateRequest(selected_error))
+    } else {
+        let mut response = handshake_response(req);
+
+        if let Some(selected_config) = selected_config {
+            let param = config.negotiate(selected_config);
+            let contexts = param.create_context(config.compression_level, false);
+            response.insert_header(param);
+            Ok((response, Some(contexts)))
+        } else {
+            Ok((response, None))
+        }
+    }
 }
 
 /// Verify WebSocket handshake request.
@@ -196,6 +275,7 @@ pub fn verify_handshake(req: &RequestHead) -> Result<(), HandshakeError> {
     if !req.headers().contains_key(header::SEC_WEBSOCKET_KEY) {
         return Err(HandshakeError::BadWebsocketKey);
     }
+
     Ok(())
 }
 
