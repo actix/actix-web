@@ -37,6 +37,7 @@ struct Metadata {
 
 #[derive(Debug, MultipartForm)]
 struct UploadForm {
+    // Note: the form is also subject to the global limits configured using `MultipartFormConfig`.
     #[multipart(limit = "100MB")]
     file: TempFile,
     json: MpJson<Metadata>,
@@ -60,6 +61,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .service(post_video)
             .wrap(Logger::default())
+            // Also increase the global total limit to 100MiB.
             .app_data(MultipartFormConfig::default().total_limit(100 * 1024 * 1024))
     })
     .workers(2)

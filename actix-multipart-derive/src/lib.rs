@@ -105,7 +105,7 @@ struct ParsedField<'t> {
 /// You can use the `#[multipart(limit = "<size>")]` attribute to set field level limits. The limit
 /// string is parsed using [`bytesize`].
 ///
-/// Note: the form is also subject to the global limits configured using `MultipartFormConfig`.
+/// Note: the form is also subject to the global limits configured using [`MultipartFormConfig`](crate::form::MultipartFormConfig).
 ///
 /// ```
 /// use actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};
