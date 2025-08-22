@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Malformed websocket frames are now gracefully rejected.
+
 ## 3.11.0
 
 - Update `brotli` dependency to `8`.
