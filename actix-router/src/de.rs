@@ -27,6 +27,9 @@ macro_rules! unsupported_type {
 
 macro_rules! parse_single_value {
     ($trait_fn:ident) => {
+        parse_single_value!($trait_fn, $trait_fn);
+    };
+    ($trait_fn:ident, $visit_fn:ident) => {
         fn $trait_fn<V>(self, visitor: V) -> Result<V::Value, Self::Error>
         where
             V: Visitor<'de>,
@@ -43,7 +46,7 @@ macro_rules! parse_single_value {
                 Value {
                     value: &self.path[0],
                 }
-                .$trait_fn(visitor)
+                .$visit_fn(visitor)
             }
         }
     };
@@ -205,11 +208,11 @@ impl<'de, T: ResourcePath + 'de> Deserializer<'de> for PathDeserializer<'de, T> 
         })
     }
 
-    unsupported_type!(deserialize_any, "'any'");
     unsupported_type!(deserialize_option, "Option<T>");
     unsupported_type!(deserialize_identifier, "identifier");
     unsupported_type!(deserialize_ignored_any, "ignored_any");
 
+    parse_single_value!(deserialize_any, deserialize_str);
     parse_single_value!(deserialize_bool);
     parse_single_value!(deserialize_i8);
     parse_single_value!(deserialize_i16);
@@ -427,7 +430,13 @@ impl<'de> Deserializer<'de> for Value<'de> {
         Err(de::value::Error::custom("unsupported type: tuple struct"))
     }
 
-    unsupported_type!(deserialize_any, "any");
+    fn deserialize_any<V>(self, v: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        self.deserialize_str(v)
+    }
+
     unsupported_type!(deserialize_seq, "seq");
     unsupported_type!(deserialize_map, "map");
     unsupported_type!(deserialize_identifier, "identifier");
@@ -702,6 +711,104 @@ mod tests {
         let vals: Vals = serde::Deserialize::deserialize(de).unwrap();
         assert_eq!(vals.key, "%");
         assert_eq!(vals.value, "/");
+    }
+
+    #[test]
+    fn deserialize_path_decode_any() {
+        #[derive(Debug, PartialEq)]
+        pub enum AnyEnumCustom {
+            String(String),
+            Int(u32),
+            Other,
+        }
+
+        impl<'de> Deserialize<'de> for AnyEnumCustom {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct Vis;
+                impl<'de> Visitor<'de> for Vis {
+                    type Value = AnyEnumCustom;
+
+                    fn expecting<'a>(
+                        &self,
+                        f: &mut std::fmt::Formatter<'a>,
+                    ) -> std::fmt::Result {
+                        write!(f, "my thing")
+                    }
+
+                    fn visit_u32<E>(self, v: u32) -> Result<Self::Value, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        Ok(AnyEnumCustom::Int(v))
+                    }
+
+                    fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<Self::Value, E> {
+                        v.parse().map(AnyEnumCustom::Int).or_else(|_| {
+                            Ok(match v {
+                                "other" => AnyEnumCustom::Other,
+                                _ => AnyEnumCustom::String(format!("some str: {v}")),
+                            })
+                        })
+                    }
+                }
+
+                deserializer.deserialize_any(Vis)
+            }
+        }
+
+        #[derive(Debug, Deserialize, PartialEq)]
+        #[serde(untagged)]
+        pub enum AnyEnumDerive {
+            String(String),
+            Int(u32),
+            Other,
+        }
+
+        // single
+        let rdef = ResourceDef::new("/{key}");
+
+        let mut path = Path::new("/%25");
+        rdef.capture_match_info(&mut path);
+        let de = PathDeserializer::new(&path);
+        let segment: AnyEnumCustom = serde::Deserialize::deserialize(de).unwrap();
+        assert_eq!(segment, AnyEnumCustom::String("some str: %".to_string()));
+
+        let mut path = Path::new("/%25");
+        rdef.capture_match_info(&mut path);
+        let de = PathDeserializer::new(&path);
+        let segment: AnyEnumDerive = serde::Deserialize::deserialize(de).unwrap();
+        assert_eq!(segment, AnyEnumDerive::String("%".to_string()));
+
+        // seq
+        let rdef = ResourceDef::new("/{key}/{value}");
+
+        let mut path = Path::new("/other/123");
+        rdef.capture_match_info(&mut path);
+        let de = PathDeserializer::new(&path);
+        let segment: (AnyEnumCustom, AnyEnumDerive) =
+            serde::Deserialize::deserialize(de).unwrap();
+        assert_eq!(segment.0, AnyEnumCustom::Other);
+        // Deserializes to `String` instead of `Int` because deserializing defaults to `str` and serde doesn't automatically implement parsing numbers from `&str`s
+        assert_eq!(segment.1, AnyEnumDerive::String("123".to_string()));
+
+        // map
+        #[derive(Deserialize)]
+        struct Vals {
+            key: AnyEnumCustom,
+            value: AnyEnumDerive,
+        }
+
+        let rdef = ResourceDef::new("/{key}/{value}");
+
+        let mut path = Path::new("/123/%2F");
+        rdef.capture_match_info(&mut path);
+        let de = PathDeserializer::new(&path);
+        let vals: Vals = serde::Deserialize::deserialize(de).unwrap();
+        assert_eq!(vals.key, AnyEnumCustom::Int(123));
+        assert_eq!(vals.value, AnyEnumDerive::String("/".to_string()));
     }
 
     #[test]
