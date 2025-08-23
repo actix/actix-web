@@ -8,8 +8,7 @@ use std::io;
 use derive_more::{Display, Error, From};
 use http::{header, Method, StatusCode};
 
-use crate::body::BoxBody;
-use crate::{header::HeaderValue, RequestHead, Response, ResponseBuilder};
+use crate::{body::BoxBody, header::HeaderValue, RequestHead, Response, ResponseBuilder};
 
 mod codec;
 mod dispatcher;
@@ -17,52 +16,54 @@ mod frame;
 mod mask;
 mod proto;
 
-pub use self::codec::{Codec, Frame, Item, Message};
-pub use self::dispatcher::Dispatcher;
-pub use self::frame::Parser;
-pub use self::proto::{hash_key, CloseCode, CloseReason, OpCode};
+pub use self::{
+    codec::{Codec, Frame, Item, Message},
+    dispatcher::Dispatcher,
+    frame::Parser,
+    proto::{hash_key, CloseCode, CloseReason, OpCode},
+};
 
 /// WebSocket protocol errors.
 #[derive(Debug, Display, Error, From)]
 pub enum ProtocolError {
     /// Received an unmasked frame from client.
-    #[display(fmt = "received an unmasked frame from client")]
+    #[display("received an unmasked frame from client")]
     UnmaskedFrame,
 
     /// Received a masked frame from server.
-    #[display(fmt = "received a masked frame from server")]
+    #[display("received a masked frame from server")]
     MaskedFrame,
 
     /// Encountered invalid opcode.
-    #[display(fmt = "invalid opcode ({})", _0)]
+    #[display("invalid opcode ({})", _0)]
     InvalidOpcode(#[error(not(source))] u8),
 
     /// Invalid control frame length
-    #[display(fmt = "invalid control frame length ({})", _0)]
+    #[display("invalid control frame length ({})", _0)]
     InvalidLength(#[error(not(source))] usize),
 
     /// Bad opcode.
-    #[display(fmt = "bad opcode")]
+    #[display("bad opcode")]
     BadOpCode,
 
     /// A payload reached size limit.
-    #[display(fmt = "payload reached size limit")]
+    #[display("payload reached size limit")]
     Overflow,
 
     /// Continuation has not started.
-    #[display(fmt = "continuation has not started")]
+    #[display("continuation has not started")]
     ContinuationNotStarted,
 
     /// Received new continuation but it is already started.
-    #[display(fmt = "received new continuation but it has already started")]
+    #[display("received new continuation but it has already started")]
     ContinuationStarted,
 
     /// Unknown continuation fragment.
-    #[display(fmt = "unknown continuation fragment: {}", _0)]
+    #[display("unknown continuation fragment: {}", _0)]
     ContinuationFragment(#[error(not(source))] OpCode),
 
     /// I/O error.
-    #[display(fmt = "I/O error: {}", _0)]
+    #[display("I/O error: {}", _0)]
     Io(io::Error),
 }
 
@@ -70,27 +71,27 @@ pub enum ProtocolError {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Display, Error)]
 pub enum HandshakeError {
     /// Only get method is allowed.
-    #[display(fmt = "method not allowed")]
+    #[display("method not allowed")]
     GetMethodRequired,
 
     /// Upgrade header if not set to WebSocket.
-    #[display(fmt = "WebSocket upgrade is expected")]
+    #[display("WebSocket upgrade is expected")]
     NoWebsocketUpgrade,
 
     /// Connection header is not set to upgrade.
-    #[display(fmt = "connection upgrade is expected")]
+    #[display("connection upgrade is expected")]
     NoConnectionUpgrade,
 
     /// WebSocket version header is not set.
-    #[display(fmt = "WebSocket version header is required")]
+    #[display("WebSocket version header is required")]
     NoVersionHeader,
 
     /// Unsupported WebSocket version.
-    #[display(fmt = "unsupported WebSocket version")]
+    #[display("unsupported WebSocket version")]
     UnsupportedVersion,
 
     /// WebSocket key is not set or wrong.
-    #[display(fmt = "unknown WebSocket key")]
+    #[display("unknown WebSocket key")]
     BadWebsocketKey,
 }
 
@@ -219,10 +220,8 @@ pub fn handshake_response(req: &RequestHead) -> ResponseBuilder {
 
 #[cfg(test)]
 mod tests {
-    use crate::{header, Method};
-
     use super::*;
-    use crate::test::TestRequest;
+    use crate::{header, test::TestRequest};
 
     #[test]
     fn test_handshake() {

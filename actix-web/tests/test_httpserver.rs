@@ -1,15 +1,10 @@
-#![allow(clippy::uninlined_format_args)]
-
 #[cfg(feature = "openssl")]
 extern crate tls_openssl as openssl;
 
-#[cfg(any(unix, feature = "openssl"))]
-use {
-    actix_web::{web, App, HttpResponse, HttpServer},
-    std::{sync::mpsc, thread, time::Duration},
-};
+use std::{sync::mpsc, thread, time::Duration};
 
-#[cfg(unix)]
+use actix_web::{web, App, HttpResponse, HttpServer};
+
 #[actix_rt::test]
 async fn test_start() {
     let addr = actix_test::unused_addr();
@@ -55,6 +50,27 @@ async fn test_start() {
     let response = client.get(host.clone()).send().await.unwrap();
     assert!(response.status().is_success());
 
+    // Attempt to start a second server using the same address.
+    let result = HttpServer::new(|| {
+        App::new().service(
+            web::resource("/").route(web::to(|| async { HttpResponse::Ok().body("test") })),
+        )
+    })
+    .workers(1)
+    .backlog(1)
+    .max_connections(10)
+    .max_connection_rate(10)
+    .keep_alive(Duration::from_secs(10))
+    .client_request_timeout(Duration::from_secs(5))
+    .client_disconnect_timeout(Duration::ZERO)
+    .server_hostname("localhost")
+    .system_exit()
+    .disable_signals()
+    .bind(format!("{}", addr));
+
+    // This should fail: the address is in use.
+    assert!(result.is_err());
+
     srv.stop(false).await;
 }
 
@@ -66,9 +82,11 @@ fn ssl_acceptor() -> openssl::ssl::SslAcceptorBuilder {
         x509::X509,
     };
 
-    let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()]).unwrap();
-    let cert_file = cert.serialize_pem().unwrap();
-    let key_file = cert.serialize_private_key_pem();
+    let rcgen::CertifiedKey { cert, key_pair } =
+        rcgen::generate_simple_self_signed(["localhost".to_owned()]).unwrap();
+    let cert_file = cert.pem();
+    let key_file = key_pair.serialize_pem();
+
     let cert = X509::from_pem(cert_file.as_bytes()).unwrap();
     let key = PKey::private_key_from_pem(key_file.as_bytes()).unwrap();
 

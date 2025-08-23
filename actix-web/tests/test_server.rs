@@ -1,6 +1,6 @@
 #[cfg(feature = "openssl")]
 extern crate tls_openssl as openssl;
-#[cfg(feature = "rustls")]
+#[cfg(feature = "rustls-0_23")]
 extern crate tls_rustls as rustls;
 
 use std::{
@@ -19,14 +19,13 @@ use actix_web::{
 };
 use bytes::Bytes;
 use futures_core::ready;
-use rand::{distributions::Alphanumeric, Rng as _};
-
 #[cfg(feature = "openssl")]
 use openssl::{
     pkey::PKey,
     ssl::{SslAcceptor, SslMethod},
     x509::X509,
 };
+use rand::distr::{Alphanumeric, SampleString as _};
 
 mod utils;
 
@@ -35,9 +34,11 @@ const STR: &str = const_str::repeat!(S, 100);
 
 #[cfg(feature = "openssl")]
 fn openssl_config() -> SslAcceptor {
-    let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()]).unwrap();
-    let cert_file = cert.serialize_pem().unwrap();
-    let key_file = cert.serialize_private_key_pem();
+    let rcgen::CertifiedKey { cert, key_pair } =
+        rcgen::generate_simple_self_signed(["localhost".to_owned()]).unwrap();
+    let cert_file = cert.pem();
+    let key_file = key_pair.serialize_pem();
+
     let cert = X509::from_pem(cert_file.as_bytes()).unwrap();
     let key = PKey::private_key_from_pem(key_file.as_bytes()).unwrap();
 
@@ -94,9 +95,8 @@ impl futures_core::stream::Stream for TestBody {
 #[actix_rt::test]
 async fn test_body() {
     let srv = actix_test::start(|| {
-        App::new().service(
-            web::resource("/").route(web::to(|| async { HttpResponse::Ok().body(STR) })),
-        )
+        App::new()
+            .service(web::resource("/").route(web::to(|| async { HttpResponse::Ok().body(STR) })))
     });
 
     let mut res = srv.get("/").send().await.unwrap();
@@ -188,11 +188,7 @@ async fn body_gzip_large() {
 
 #[actix_rt::test]
 async fn test_body_gzip_large_random() {
-    let data = rand::thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(70_000)
-        .map(char::from)
-        .collect::<String>();
+    let data = Alphanumeric.sample_string(&mut rand::rng(), 70_000);
     let srv_data = data.clone();
 
     let srv = actix_test::start_with(actix_test::config().h1(), move || {
@@ -226,8 +222,7 @@ async fn test_body_chunked_implicit() {
         App::new()
             .wrap(Compress::default())
             .service(web::resource("/").route(web::get().to(|| async {
-                HttpResponse::Ok()
-                    .streaming(TestBody::new(Bytes::from_static(STR.as_ref()), 24))
+                HttpResponse::Ok().streaming(TestBody::new(Bytes::from_static(STR.as_ref()), 24))
             })))
     });
 
@@ -256,8 +251,7 @@ async fn test_body_br_streaming() {
         App::new()
             .wrap(Compress::default())
             .service(web::resource("/").route(web::to(|| async {
-                HttpResponse::Ok()
-                    .streaming(TestBody::new(Bytes::from_static(STR.as_ref()), 24))
+                HttpResponse::Ok().streaming(TestBody::new(Bytes::from_static(STR.as_ref()), 24))
             })))
     });
 
@@ -392,8 +386,7 @@ async fn test_body_zstd_streaming() {
         App::new()
             .wrap(Compress::default())
             .service(web::resource("/").route(web::to(move || async {
-                HttpResponse::Ok()
-                    .streaming(TestBody::new(Bytes::from_static(STR.as_ref()), 24))
+                HttpResponse::Ok().streaming(TestBody::new(Bytes::from_static(STR.as_ref()), 24))
             })))
     });
 
@@ -435,11 +428,7 @@ async fn test_zstd_encoding() {
 
 #[actix_rt::test]
 async fn test_zstd_encoding_large() {
-    let data = rand::thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(320_000)
-        .map(char::from)
-        .collect::<String>();
+    let data = Alphanumeric.sample_string(&mut rand::rng(), 320_000);
 
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().service(
@@ -532,11 +521,7 @@ async fn test_gzip_encoding_large() {
 
 #[actix_rt::test]
 async fn test_reading_gzip_encoding_large_random() {
-    let data = rand::thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(60_000)
-        .map(char::from)
-        .collect::<String>();
+    let data = Alphanumeric.sample_string(&mut rand::rng(), 60_000);
 
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().service(web::resource("/").route(web::to(move |body: Bytes| async {
@@ -602,11 +587,7 @@ async fn test_reading_deflate_encoding_large() {
 
 #[actix_rt::test]
 async fn test_reading_deflate_encoding_large_random() {
-    let data = rand::thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(160_000)
-        .map(char::from)
-        .collect::<String>();
+    let data = Alphanumeric.sample_string(&mut rand::rng(), 160_000);
 
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().service(web::resource("/").route(web::to(move |body: Bytes| async {
@@ -651,11 +632,7 @@ async fn test_brotli_encoding() {
 
 #[actix_rt::test]
 async fn test_brotli_encoding_large() {
-    let data = rand::thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(320_000)
-        .map(char::from)
-        .collect::<String>();
+    let data = Alphanumeric.sample_string(&mut rand::rng(), 320_000);
 
     let srv = actix_test::start_with(actix_test::config().h1(), || {
         App::new().service(
@@ -686,15 +663,14 @@ async fn test_brotli_encoding_large_openssl() {
     use actix_web::http::header;
 
     let data = STR.repeat(10);
-    let srv =
-        actix_test::start_with(actix_test::config().openssl(openssl_config()), move || {
-            App::new().service(web::resource("/").route(web::to(|bytes: Bytes| async {
-                // echo decompressed request body back in response
-                HttpResponse::Ok()
-                    .insert_header(header::ContentEncoding::Identity)
-                    .body(bytes)
-            })))
-        });
+    let srv = actix_test::start_with(actix_test::config().openssl(openssl_config()), move || {
+        App::new().service(web::resource("/").route(web::to(|bytes: Bytes| async {
+            // echo decompressed request body back in response
+            HttpResponse::Ok()
+                .insert_header(header::ContentEncoding::Identity)
+                .body(bytes)
+        })))
+    });
 
     let mut res = srv
         .post("/")
@@ -710,46 +686,40 @@ async fn test_brotli_encoding_large_openssl() {
     srv.stop().await;
 }
 
-#[cfg(feature = "rustls")]
+#[cfg(feature = "rustls-0_23")]
 mod plus_rustls {
     use std::io::BufReader;
 
-    use rustls::{Certificate, PrivateKey, ServerConfig as RustlsServerConfig};
+    use rustls::{pki_types::PrivateKeyDer, ServerConfig as RustlsServerConfig};
     use rustls_pemfile::{certs, pkcs8_private_keys};
 
     use super::*;
 
     fn tls_config() -> RustlsServerConfig {
-        let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()]).unwrap();
-        let cert_file = cert.serialize_pem().unwrap();
-        let key_file = cert.serialize_private_key_pem();
+        let rcgen::CertifiedKey { cert, key_pair } =
+            rcgen::generate_simple_self_signed(["localhost".to_owned()]).unwrap();
+        let cert_file = cert.pem();
+        let key_file = key_pair.serialize_pem();
 
         let cert_file = &mut BufReader::new(cert_file.as_bytes());
         let key_file = &mut BufReader::new(key_file.as_bytes());
 
-        let cert_chain = certs(cert_file)
-            .unwrap()
-            .into_iter()
-            .map(Certificate)
-            .collect();
-        let mut keys = pkcs8_private_keys(key_file).unwrap();
+        let cert_chain = certs(cert_file).collect::<Result<Vec<_>, _>>().unwrap();
+        let mut keys = pkcs8_private_keys(key_file)
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
 
         RustlsServerConfig::builder()
-            .with_safe_defaults()
             .with_no_client_auth()
-            .with_single_cert(cert_chain, PrivateKey(keys.remove(0)))
+            .with_single_cert(cert_chain, PrivateKeyDer::Pkcs8(keys.remove(0)))
             .unwrap()
     }
 
     #[actix_rt::test]
     async fn test_reading_deflate_encoding_large_random_rustls() {
-        let data = rand::thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(160_000)
-            .map(char::from)
-            .collect::<String>();
+        let data = Alphanumeric.sample_string(&mut rand::rng(), 160_000);
 
-        let srv = actix_test::start_with(actix_test::config().rustls(tls_config()), || {
+        let srv = actix_test::start_with(actix_test::config().rustls_0_23(tls_config()), || {
             App::new().service(web::resource("/").route(web::to(|bytes: Bytes| async {
                 // echo decompressed request body back in response
                 HttpResponse::Ok()

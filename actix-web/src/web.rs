@@ -2,6 +2,7 @@
 //!
 //! # Request Extractors
 //! - [`Data`]: Application data item
+//! - [`ThinData`]: Cheap-to-clone application data item
 //! - [`ReqData`]: Request-local data item
 //! - [`Path`]: URL path parameters / dynamic segments
 //! - [`Query`]: URL query parameters
@@ -21,16 +22,14 @@ use std::{borrow::Cow, future::Future};
 use actix_router::IntoPatterns;
 pub use bytes::{Buf, BufMut, Bytes, BytesMut};
 
+pub use crate::{
+    config::ServiceConfig, data::Data, redirect::Redirect, request_data::ReqData,
+    thin_data::ThinData, types::*,
+};
 use crate::{
     error::BlockingError, http::Method, service::WebService, FromRequest, Handler, Resource,
     Responder, Route, Scope,
 };
-
-pub use crate::config::ServiceConfig;
-pub use crate::data::Data;
-pub use crate::redirect::Redirect;
-pub use crate::request_data::ReqData;
-pub use crate::types::*;
 
 /// Creates a new resource for a specific path.
 ///
@@ -39,7 +38,7 @@ pub use crate::types::*;
 ///
 /// A dynamic segment is specified in the form `{identifier}`, where the identifier can be used
 /// later in a request handler to access the matched value for that segment. This is done by looking
-/// up the identifier in the `Path` object returned by [`HttpRequest.match_info()`] method.
+/// up the identifier in the `Path` object returned by [`HttpRequest::match_info()`](crate::HttpRequest::match_info) method.
 ///
 /// By default, each segment matches the regular expression `[^{}/]+`.
 ///
@@ -200,10 +199,7 @@ pub fn service<T: IntoPatterns>(path: T) -> WebService {
 ///     // the client will resolve this redirect to /api/to-path
 ///     .service(web::redirect("/api/from-path", "to-path"));
 /// ```
-pub fn redirect(
-    from: impl Into<Cow<'static, str>>,
-    to: impl Into<Cow<'static, str>>,
-) -> Redirect {
+pub fn redirect(from: impl Into<Cow<'static, str>>, to: impl Into<Cow<'static, str>>) -> Redirect {
     Redirect::new(from, to)
 }
 

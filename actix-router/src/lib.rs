@@ -1,8 +1,5 @@
 //! Resource path matching and router.
 
-#![deny(rust_2018_idioms, nonstandard_style)]
-#![warn(future_incompatible)]
-#![allow(clippy::uninlined_format_args)]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
@@ -11,6 +8,7 @@ mod de;
 mod path;
 mod pattern;
 mod quoter;
+mod regex_set;
 mod resource;
 mod resource_path;
 mod router;
@@ -18,13 +16,14 @@ mod router;
 #[cfg(feature = "http")]
 mod url;
 
-pub use self::de::PathDeserializer;
-pub use self::path::Path;
-pub use self::pattern::{IntoPatterns, Patterns};
-pub use self::quoter::Quoter;
-pub use self::resource::ResourceDef;
-pub use self::resource_path::{Resource, ResourcePath};
-pub use self::router::{ResourceId, Router, RouterBuilder};
-
 #[cfg(feature = "http")]
 pub use self::url::Url;
+pub use self::{
+    de::PathDeserializer,
+    path::Path,
+    pattern::{IntoPatterns, Patterns},
+    quoter::Quoter,
+    resource::ResourceDef,
+    resource_path::{Resource, ResourcePath},
+    router::{ResourceId, Router, RouterBuilder},
+};

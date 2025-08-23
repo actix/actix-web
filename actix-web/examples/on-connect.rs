@@ -7,8 +7,7 @@
 use std::{any::Any, io, net::SocketAddr};
 
 use actix_web::{
-    dev::Extensions, rt::net::TcpStream, web, App, HttpRequest, HttpResponse, HttpServer,
-    Responder,
+    dev::Extensions, rt::net::TcpStream, web, App, HttpRequest, HttpResponse, HttpServer, Responder,
 };
 
 #[allow(dead_code)]
@@ -24,9 +23,7 @@ async fn route_whoami(req: HttpRequest) -> impl Responder {
         Some(info) => HttpResponse::Ok().body(format!(
             "Here is some info about your connection:\n\n{info:#?}",
         )),
-        None => {
-            HttpResponse::InternalServerError().body("Missing expected request extension data")
-        }
+        None => HttpResponse::InternalServerError().body("Missing expected request extension data"),
     }
 }
 

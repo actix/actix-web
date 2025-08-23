@@ -17,16 +17,13 @@ async fn main() -> io::Result<()> {
                     ext.insert(42u32);
                 })
                 .finish(|req: Request| async move {
-                    info!("{:?}", req);
+                    info!("{req:?}");
 
                     let mut res = Response::build(StatusCode::OK);
                     res.insert_header(("x-head", HeaderValue::from_static("dummy value!")));
 
                     let forty_two = req.conn_data::<u32>().unwrap().to_string();
-                    res.insert_header((
-                        "x-forty-two",
-                        HeaderValue::from_str(&forty_two).unwrap(),
-                    ));
+                    res.insert_header(("x-forty-two", HeaderValue::from_str(&forty_two).unwrap()));
 
                     Ok::<_, Infallible>(res.body("Hello world!"))
                 })

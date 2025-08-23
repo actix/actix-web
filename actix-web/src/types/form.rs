@@ -20,9 +20,8 @@ use serde::{de::DeserializeOwned, Serialize};
 #[cfg(feature = "__compress")]
 use crate::dev::Decompress;
 use crate::{
-    body::EitherBody, error::UrlencodedError, extract::FromRequest,
-    http::header::CONTENT_LENGTH, web, Error, HttpMessage, HttpRequest, HttpResponse,
-    Responder,
+    body::EitherBody, error::UrlencodedError, extract::FromRequest, http::header::CONTENT_LENGTH,
+    web, Error, HttpMessage, HttpRequest, HttpResponse, Responder,
 };
 
 /// URL encoded payload extractor and responder.
@@ -417,13 +416,12 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::test::TestRequest;
     use crate::{
         http::{
-            header::{HeaderValue, CONTENT_LENGTH, CONTENT_TYPE},
+            header::{HeaderValue, CONTENT_TYPE},
             StatusCode,
         },
-        test::assert_body_eq,
+        test::{assert_body_eq, TestRequest},
     };
 
     #[derive(Deserialize, Serialize, Debug, PartialEq)]

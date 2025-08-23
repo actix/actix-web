@@ -1,22 +1,21 @@
-# actix-http
+# `actix-http`
 
-> HTTP primitives for the Actix ecosystem.
+> HTTP types and services for the Actix ecosystem.
+
+<!-- prettier-ignore-start -->
 
 [![crates.io](https://img.shields.io/crates/v/actix-http?label=latest)](https://crates.io/crates/actix-http)
-[![Documentation](https://docs.rs/actix-http/badge.svg?version=3.3.1)](https://docs.rs/actix-http/3.3.1)
-![Version](https://img.shields.io/badge/rustc-1.59+-ab6000.svg)
+[![Documentation](https://docs.rs/actix-http/badge.svg?version=3.11.0)](https://docs.rs/actix-http/3.11.0)
+![Version](https://img.shields.io/badge/rustc-1.72+-ab6000.svg)
 ![MIT or Apache 2.0 licensed](https://img.shields.io/crates/l/actix-http.svg)
 <br />
-[![dependency status](https://deps.rs/crate/actix-http/3.3.1/status.svg)](https://deps.rs/crate/actix-http/3.3.1)
+[![dependency status](https://deps.rs/crate/actix-http/3.11.0/status.svg)](https://deps.rs/crate/actix-http/3.11.0)
 [![Download](https://img.shields.io/crates/d/actix-http.svg)](https://crates.io/crates/actix-http)
 [![Chat on Discord](https://img.shields.io/discord/771444961383153695?label=chat&logo=discord)](https://discord.gg/NWpN5mmg3x)
 
-## Documentation & Resources
+<!-- prettier-ignore-end -->
 
-- [API Documentation](https://docs.rs/actix-http)
-- Minimum Supported Rust Version (MSRV): 1.59
-
-## Example
+## Examples
 
 ```rust
 use std::{env, io};

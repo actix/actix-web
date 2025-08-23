@@ -1,6 +1,6 @@
 //! Various helpers for Actix applications to use during testing.
 //!
-//! # Creating A Test Service
+//! # Initializing A Test Service
 //! - [`init_service`]
 //!
 //! # Off-The-Shelf Test Services
@@ -29,24 +29,27 @@ mod test_request;
 mod test_services;
 mod test_utils;
 
-pub use self::test_request::TestRequest;
 #[allow(deprecated)]
 pub use self::test_services::{default_service, ok_service, simple_service, status_service};
-#[allow(deprecated)]
-pub use self::test_utils::{
-    call_and_read_body, call_and_read_body_json, call_service, init_service, read_body,
-    read_body_json, read_response, read_response_json, try_call_and_read_body_json,
-    try_call_service, try_read_body, try_read_body_json,
-};
-
 #[cfg(test)]
 pub(crate) use self::test_utils::try_init_service;
+#[allow(deprecated)]
+pub use self::test_utils::{read_response, read_response_json};
+pub use self::{
+    test_request::TestRequest,
+    test_utils::{
+        call_and_read_body, call_and_read_body_json, call_service, init_service, read_body,
+        read_body_json, try_call_and_read_body_json, try_call_service, try_read_body,
+        try_read_body_json,
+    },
+};
 
 /// Reduces boilerplate code when testing expected response payloads.
 ///
 /// Must be used inside an async test. Works for both `ServiceRequest` and `HttpRequest`.
 ///
 /// # Examples
+///
 /// ```
 /// use actix_web::{http::StatusCode, HttpResponse};
 ///

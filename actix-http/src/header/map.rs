@@ -2,7 +2,7 @@
 
 use std::{borrow::Cow, collections::hash_map, iter, ops};
 
-use ahash::AHashMap;
+use foldhash::{HashMap as FoldHashMap, HashMapExt as _};
 use http::header::{HeaderName, HeaderValue};
 use smallvec::{smallvec, SmallVec};
 
@@ -13,8 +13,9 @@ use super::AsHeaderName;
 /// `HeaderMap` is a "multi-map" of [`HeaderName`] to one or more [`HeaderValue`]s.
 ///
 /// # Examples
+///
 /// ```
-/// use actix_http::header::{self, HeaderMap, HeaderValue};
+/// # use actix_http::header::{self, HeaderMap, HeaderValue};
 ///
 /// let mut map = HeaderMap::new();
 ///
@@ -29,9 +30,24 @@ use super::AsHeaderName;
 ///
 /// assert!(!map.contains_key(header::ORIGIN));
 /// ```
+///
+/// Construct a header map using the [`FromIterator`] implementation. Note that it uses the append
+/// strategy, so duplicate header names are preserved.
+///
+/// ```
+/// use actix_http::header::{self, HeaderMap, HeaderValue};
+///
+/// let headers = HeaderMap::from_iter([
+///     (header::CONTENT_TYPE, HeaderValue::from_static("text/plain")),
+///     (header::COOKIE, HeaderValue::from_static("foo=1")),
+///     (header::COOKIE, HeaderValue::from_static("bar=1")),
+/// ]);
+///
+/// assert_eq!(headers.len(), 3);
+/// ```
 #[derive(Debug, Clone, Default)]
 pub struct HeaderMap {
-    pub(crate) inner: AHashMap<HeaderName, Value>,
+    pub(crate) inner: FoldHashMap<HeaderName, Value>,
 }
 
 /// A bespoke non-empty list for HeaderMap values.
@@ -100,7 +116,7 @@ impl HeaderMap {
     /// ```
     pub fn with_capacity(capacity: usize) -> Self {
         HeaderMap {
-            inner: AHashMap::with_capacity(capacity),
+            inner: FoldHashMap::with_capacity(capacity),
         }
     }
 
@@ -368,8 +384,8 @@ impl HeaderMap {
     /// let removed = map.insert(header::ACCEPT, HeaderValue::from_static("text/html"));
     /// assert!(!removed.is_empty());
     /// ```
-    pub fn insert(&mut self, key: HeaderName, val: HeaderValue) -> Removed {
-        let value = self.inner.insert(key, Value::one(val));
+    pub fn insert(&mut self, name: HeaderName, val: HeaderValue) -> Removed {
+        let value = self.inner.insert(name, Value::one(val));
         Removed::new(value)
     }
 
@@ -636,10 +652,34 @@ impl<'a> IntoIterator for &'a HeaderMap {
     }
 }
 
-/// Convert `http::HeaderMap` to our `HeaderMap`.
+impl FromIterator<(HeaderName, HeaderValue)> for HeaderMap {
+    fn from_iter<T: IntoIterator<Item = (HeaderName, HeaderValue)>>(iter: T) -> Self {
+        iter.into_iter()
+            .fold(Self::new(), |mut map, (name, value)| {
+                map.append(name, value);
+                map
+            })
+    }
+}
+
+/// Convert a `http::HeaderMap` to our `HeaderMap`.
 impl From<http::HeaderMap> for HeaderMap {
-    fn from(mut map: http::HeaderMap) -> HeaderMap {
-        HeaderMap::from_drain(map.drain())
+    fn from(mut map: http::HeaderMap) -> Self {
+        Self::from_drain(map.drain())
+    }
+}
+
+/// Convert our `HeaderMap` to a `http::HeaderMap`.
+impl From<HeaderMap> for http::HeaderMap {
+    fn from(map: HeaderMap) -> Self {
+        Self::from_iter(map)
+    }
+}
+
+/// Convert our `&HeaderMap` to a `http::HeaderMap`.
+impl From<&HeaderMap> for http::HeaderMap {
+    fn from(map: &HeaderMap) -> Self {
+        map.to_owned().into()
     }
 }
 
@@ -790,7 +830,7 @@ impl<'a> Drain<'a> {
     }
 }
 
-impl<'a> Iterator for Drain<'a> {
+impl Iterator for Drain<'_> {
     type Item = (Option<HeaderName>, HeaderValue);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -1120,9 +1160,7 @@ mod tests {
         assert!(vals.next().is_none());
     }
 
-    fn owned_pair<'a>(
-        (name, val): (&'a HeaderName, &'a HeaderValue),
-    ) -> (HeaderName, HeaderValue) {
+    fn owned_pair<'a>((name, val): (&'a HeaderName, &'a HeaderValue)) -> (HeaderName, HeaderValue) {
         (name.clone(), val.clone())
     }
 }

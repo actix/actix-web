@@ -238,8 +238,7 @@ where
                     match res {
                         Ok(bytes) => {
                             let fallback = bytes.clone();
-                            let left =
-                                L::from_request(this.req, &mut payload_from_bytes(bytes));
+                            let left = L::from_request(this.req, &mut dev::Payload::from(bytes));
                             EitherExtractState::Left { left, fallback }
                         }
                         Err(err) => break Err(EitherExtractError::Bytes(err)),
@@ -252,7 +251,7 @@ where
                         Err(left_err) => {
                             let right = R::from_request(
                                 this.req,
-                                &mut payload_from_bytes(mem::take(fallback)),
+                                &mut dev::Payload::from(mem::take(fallback)),
                             );
                             EitherExtractState::Right {
                                 left_err: Some(left_err),
@@ -266,10 +265,7 @@ where
                     match res {
                         Ok(data) => break Ok(Either::Right(data)),
                         Err(err) => {
-                            break Err(EitherExtractError::Extract(
-                                left_err.take().unwrap(),
-                                err,
-                            ));
+                            break Err(EitherExtractError::Extract(left_err.take().unwrap(), err));
                         }
                     }
                 }
@@ -280,21 +276,12 @@ where
     }
 }
 
-fn payload_from_bytes(bytes: Bytes) -> dev::Payload {
-    let (_, mut h1_payload) = actix_http::h1::Payload::create(true);
-    h1_payload.unread_data(bytes);
-    dev::Payload::from(h1_payload)
-}
-
 #[cfg(test)]
 mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::{
-        test::TestRequest,
-        web::{Form, Json},
-    };
+    use crate::test::TestRequest;
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     struct TestForm {
@@ -339,12 +326,11 @@ mod tests {
             .set_payload(Bytes::from_static(b"!@$%^&*()"))
             .to_http_parts();
 
-        let payload = Either::<Either<Form<TestForm>, Json<TestForm>>, Bytes>::from_request(
-            &req, &mut pl,
-        )
-        .await
-        .unwrap()
-        .unwrap_right();
+        let payload =
+            Either::<Either<Form<TestForm>, Json<TestForm>>, Bytes>::from_request(&req, &mut pl)
+                .await
+                .unwrap()
+                .unwrap_right();
         assert_eq!(&payload.as_ref(), &b"!@$%^&*()");
     }
 
@@ -356,14 +342,13 @@ mod tests {
             })
             .to_http_parts();
 
-        let form = Either::<Either<Form<TestForm>, Json<TestForm>>, Bytes>::from_request(
-            &req, &mut pl,
-        )
-        .await
-        .unwrap()
-        .unwrap_left()
-        .unwrap_right()
-        .into_inner();
+        let form =
+            Either::<Either<Form<TestForm>, Json<TestForm>>, Bytes>::from_request(&req, &mut pl)
+                .await
+                .unwrap()
+                .unwrap_left()
+                .unwrap_right()
+                .into_inner();
         assert_eq!(&form.hello, "world");
     }
 }

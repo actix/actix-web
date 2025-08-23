@@ -62,11 +62,7 @@ impl FilesService {
         }
     }
 
-    fn serve_named_file(
-        &self,
-        req: ServiceRequest,
-        mut named_file: NamedFile,
-    ) -> ServiceResponse {
+    fn serve_named_file(&self, req: ServiceRequest, mut named_file: NamedFile) -> ServiceResponse {
         if let Some(ref mime_override) = self.mime_override {
             let new_disposition = mime_override(&named_file.content_type.type_());
             named_file.content_disposition.disposition = new_disposition;
@@ -83,7 +79,7 @@ impl FilesService {
 
         let (req, _) = req.into_parts();
 
-        (self.renderer)(&dir, &req).unwrap_or_else(|e| ServiceResponse::from_err(e, req))
+        (self.renderer)(&dir, &req).unwrap_or_else(|err| ServiceResponse::from_err(err, req))
     }
 }
 
@@ -120,13 +116,11 @@ impl Service<ServiceRequest> for FilesService {
                 ));
             }
 
-            let path_on_disk = match PathBufWrap::parse_path(
-                req.match_info().unprocessed(),
-                this.hidden_files,
-            ) {
-                Ok(item) => item,
-                Err(err) => return Ok(req.error_response(err)),
-            };
+            let path_on_disk =
+                match PathBufWrap::parse_path(req.match_info().unprocessed(), this.hidden_files) {
+                    Ok(item) => item,
+                    Err(err) => return Ok(req.error_response(err)),
+                };
 
             if let Some(filter) = &this.path_filter {
                 if !filter(path_on_disk.as_ref(), req.head()) {
@@ -177,8 +171,7 @@ impl Service<ServiceRequest> for FilesService {
                 match NamedFile::open_async(&path).await {
                     Ok(mut named_file) => {
                         if let Some(ref mime_override) = this.mime_override {
-                            let new_disposition =
-                                mime_override(&named_file.content_type.type_());
+                            let new_disposition = mime_override(&named_file.content_type.type_());
                             named_file.content_disposition.disposition = new_disposition;
                         }
                         named_file.flags = this.file_flags;

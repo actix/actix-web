@@ -1,8 +1,5 @@
 //! Various helpers for Actix applications to use during testing.
 
-#![deny(rust_2018_idioms, nonstandard_style)]
-#![warn(future_incompatible)]
-#![allow(clippy::uninlined_format_args)]
 #![doc(html_logo_url = "https://actix.rs/img/logo.png")]
 #![doc(html_favicon_url = "https://actix.rs/favicon.ico")]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
@@ -31,24 +28,20 @@ use tokio::sync::mpsc;
 /// for HTTP applications.
 ///
 /// # Examples
-/// ```no_run
-/// use actix_http::HttpService;
+///
+/// ```
+/// use actix_http::{HttpService, Response, Error, StatusCode};
 /// use actix_http_test::test_server;
-/// use actix_service::map_config;
-/// use actix_service::ServiceFactoryExt;
-/// use actix_web::{dev::AppConfig, web, App, Error, HttpResponse};
+/// use actix_service::{fn_service, map_config, ServiceFactoryExt as _};
 ///
-/// async fn my_handler() -> Result<HttpResponse, Error> {
-///     Ok(HttpResponse::Ok().into())
-/// }
-///
-/// #[actix_web::test]
+/// #[actix_rt::test]
+/// # async fn hidden_test() {}
 /// async fn test_example() {
 ///     let srv = test_server(|| {
-///         let app = App::new().service(web::resource("/").to(my_handler));
-///
 ///         HttpService::build()
-///             .h1(map_config(app, |_| AppConfig::default()))
+///             .h1(fn_service(|req| async move {
+///                 Ok::<_, Error>(Response::ok())
+///             }))
 ///             .tcp()
 ///             .map_err(|_| ())
 ///     })
@@ -57,8 +50,9 @@ use tokio::sync::mpsc;
 ///     let req = srv.get("/");
 ///     let response = req.send().await.unwrap();
 ///
-///     assert!(response.status().is_success());
+///     assert_eq!(response.status(), StatusCode::OK);
 /// }
+/// # actix_rt::System::new().block_on(test_example());
 /// ```
 pub async fn test_server<F: ServerServiceFactory<TcpStream>>(factory: F) -> TestServer {
     let tcp = net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -112,7 +106,7 @@ pub async fn test_server_with_addr<F: ServerServiceFactory<TcpStream>>(
             builder.set_verify(SslVerifyMode::NONE);
             let _ = builder
                 .set_alpn_protos(b"\x02h2\x08http/1.1")
-                .map_err(|e| log::error!("Can not set alpn protocol: {:?}", e));
+                .map_err(|err| log::error!("Can not set ALPN protocol: {err}"));
 
             Connector::new()
                 .conn_lifetime(Duration::from_secs(0))

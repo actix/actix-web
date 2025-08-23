@@ -6,7 +6,7 @@ use std::{
 };
 
 use actix_router::ResourceDef;
-use ahash::AHashMap;
+use foldhash::HashMap as FoldHashMap;
 use url::Url;
 
 use crate::{error::UrlGenerationError, request::HttpRequest};
@@ -19,7 +19,7 @@ pub struct ResourceMap {
 
     /// Named resources within the tree or, for external resources, it points to isolated nodes
     /// outside the tree.
-    named: AHashMap<String, Rc<ResourceMap>>,
+    named: FoldHashMap<String, Rc<ResourceMap>>,
 
     parent: RefCell<Weak<ResourceMap>>,
 
@@ -32,7 +32,7 @@ impl ResourceMap {
     pub fn new(root: ResourceDef) -> Self {
         ResourceMap {
             pattern: root,
-            named: AHashMap::default(),
+            named: FoldHashMap::default(),
             parent: RefCell::new(Weak::new()),
             nodes: Some(Vec::new()),
         }
@@ -81,12 +81,12 @@ impl ResourceMap {
                 "`pattern` and `nested` mismatch"
             );
             // parents absorb references to the named resources of children
-            self.named.extend(new_node.named.clone().into_iter());
+            self.named.extend(new_node.named.clone());
             self.nodes.as_mut().unwrap().push(new_node);
         } else {
             let new_node = Rc::new(ResourceMap {
                 pattern: pattern.clone(),
-                named: AHashMap::default(),
+                named: FoldHashMap::default(),
                 parent: RefCell::new(Weak::new()),
                 nodes: None,
             });
@@ -136,7 +136,7 @@ impl ResourceMap {
             .root_rmap_fn(String::with_capacity(AVG_PATH_LEN), |mut acc, node| {
                 node.pattern
                     .resource_path_from_iter(&mut acc, &mut elements)
-                    .then(|| acc)
+                    .then_some(acc)
             })
             .ok_or(UrlGenerationError::NotEnoughElements)?;
 
@@ -149,7 +149,7 @@ impl ResourceMap {
             // external resource; third slash would be the root slash in the path
             let third_slash_index = path
                 .char_indices()
-                .filter_map(|(i, c)| (c == '/').then(|| i))
+                .filter_map(|(i, c)| (c == '/').then_some(i))
                 .nth(2)
                 .unwrap_or(path.len());
 

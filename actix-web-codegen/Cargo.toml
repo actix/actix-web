@@ -1,32 +1,37 @@
 [package]
 name = "actix-web-codegen"
-version = "4.2.0"
+version = "4.3.0"
 description = "Routing and runtime macros for Actix Web"
-homepage = "https://actix.rs"
-repository = "https://github.com/actix/actix-web.git"
-authors = [
-    "Nikolay Kim <fafhrd91@gmail.com>",
-    "Rob Ede <robjtede@icloud.com>",
-]
-license = "MIT OR Apache-2.0"
-edition = "2018"
+authors = ["Nikolay Kim <fafhrd91@gmail.com>", "Rob Ede <robjtede@icloud.com>"]
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
 
 [lib]
 proc-macro = true
 
+[features]
+default = ["compat-routing-macros-force-pub"]
+compat-routing-macros-force-pub = []
+
 [dependencies]
-actix-router = "0.5"
+actix-router = { version = "0.5", default-features = false }
 proc-macro2 = "1"
 quote = "1"
-syn = { version = "1", features = ["full", "extra-traits"] }
+syn = { version = "2", features = ["full", "extra-traits"] }
 
 [dev-dependencies]
-actix-macros = "0.2.3"
+actix-macros = "0.2.4"
 actix-rt = "2.2"
 actix-test = "0.1"
 actix-utils = "3"
 actix-web = "4"
 
 futures-core = { version = "0.3.17", default-features = false, features = ["alloc"] }
+rustversion-msrv = "0.100"
 trybuild = "1"
-rustversion = "1"
+
+[lints]
+workspace = true

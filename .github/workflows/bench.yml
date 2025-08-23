@@ -2,11 +2,10 @@ name: Benchmark
 
 on:
   push:
-    branches:
-      - master
+    branches: [master]
 
 permissions:
-  contents: read # to fetch code (actions/checkout)
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -17,17 +16,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          profile: minimal
-          override: true
+        run: |
+          rustup set profile minimal
+          rustup install nightly
+          rustup override set nightly
 
       - name: Check benchmark
-        uses: actions-rs/cargo@v1
-        with:
-          command: bench
-          args: --bench=server -- --sample-size=15
+        run: cargo bench --bench=server -- --sample-size=15

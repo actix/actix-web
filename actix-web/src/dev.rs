@@ -7,26 +7,25 @@
 //! - [`ConnectionInfo`]: Connection information
 //! - [`PeerAddr`]: Connection information
 
+#[cfg(feature = "__compress")]
+pub use actix_http::encoding::Decoder as Decompress;
 pub use actix_http::{Extensions, Payload, RequestHead, Response, ResponseHead};
+use actix_router::Patterns;
 pub use actix_router::{Path, ResourceDef, ResourcePath, Url};
 pub use actix_server::{Server, ServerHandle};
 pub use actix_service::{
     always_ready, fn_factory, fn_service, forward_ready, Service, ServiceFactory, Transform,
 };
 
-#[cfg(feature = "__compress")]
-pub use actix_http::encoding::Decoder as Decompress;
-
-pub use crate::config::{AppConfig, AppService};
 #[doc(hidden)]
 pub use crate::handler::Handler;
-pub use crate::info::{ConnectionInfo, PeerAddr};
-pub use crate::rmap::ResourceMap;
-pub use crate::service::{HttpServiceFactory, ServiceRequest, ServiceResponse, WebService};
-
-pub use crate::types::{JsonBody, Readlines, UrlEncoded};
-
-use actix_router::Patterns;
+pub use crate::{
+    config::{AppConfig, AppService},
+    info::{ConnectionInfo, PeerAddr},
+    rmap::ResourceMap,
+    service::{HttpServiceFactory, ServiceRequest, ServiceResponse, WebService},
+    types::{JsonBody, Readlines, UrlEncoded},
+};
 
 pub(crate) fn ensure_leading_slash(mut patterns: Patterns) -> Patterns {
     match &mut patterns {

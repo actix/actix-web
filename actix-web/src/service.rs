@@ -221,12 +221,9 @@ impl ServiceRequest {
 
     /// Returns peer's socket address.
     ///
-    /// Peer address is the directly connected peer's socket address. If a proxy is used in front of
-    /// the Actix Web server, then it would be address of this proxy.
+    /// See [`HttpRequest::peer_addr`] for more details.
     ///
-    /// To get client connection information `ConnectionInfo` should be used.
-    ///
-    /// Will only return None when called in unit tests.
+    /// [`HttpRequest::peer_addr`]: crate::HttpRequest::peer_addr
     #[inline]
     pub fn peer_addr(&self) -> Option<net::SocketAddr> {
         self.head().peer_addr
@@ -665,6 +662,7 @@ where
 /// ```
 #[macro_export]
 macro_rules! services {
+    () => {()};
     ($($x:expr),+ $(,)?) => {
         ($($x,)+)
     }
@@ -696,30 +694,36 @@ service_tuple! { A B C D E F G H I J K L }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::test::{self, init_service, TestRequest};
-    use crate::{guard, http, web, App, HttpResponse};
     use actix_service::Service;
     use actix_utils::future::ok;
 
+    use super::*;
+    use crate::{
+        guard, http,
+        test::{self, init_service, TestRequest},
+        web, App,
+    };
+
     #[actix_rt::test]
     async fn test_service() {
-        let srv = init_service(
-            App::new().service(web::service("/test").name("test").finish(
-                |req: ServiceRequest| ok(req.into_response(HttpResponse::Ok().finish())),
-            )),
-        )
-        .await;
+        let srv =
+            init_service(
+                App::new().service(web::service("/test").name("test").finish(
+                    |req: ServiceRequest| ok(req.into_response(HttpResponse::Ok().finish())),
+                )),
+            )
+            .await;
         let req = TestRequest::with_uri("/test").to_request();
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), http::StatusCode::OK);
 
-        let srv = init_service(
-            App::new().service(web::service("/test").guard(guard::Get()).finish(
-                |req: ServiceRequest| ok(req.into_response(HttpResponse::Ok().finish())),
-            )),
-        )
-        .await;
+        let srv =
+            init_service(
+                App::new().service(web::service("/test").guard(guard::Get()).finish(
+                    |req: ServiceRequest| ok(req.into_response(HttpResponse::Ok().finish())),
+                )),
+            )
+            .await;
         let req = TestRequest::with_uri("/test")
             .method(http::Method::PUT)
             .to_request();
@@ -731,18 +735,19 @@ mod tests {
     #[allow(deprecated)]
     #[actix_rt::test]
     async fn test_service_data() {
-        let srv =
-            init_service(
-                App::new()
-                    .data(42u32)
-                    .service(web::service("/test").name("test").finish(
-                        |req: ServiceRequest| {
+        let srv = init_service(
+            App::new()
+                .data(42u32)
+                .service(
+                    web::service("/test")
+                        .name("test")
+                        .finish(|req: ServiceRequest| {
                             assert_eq!(req.app_data::<web::Data<u32>>().unwrap().as_ref(), &42);
                             ok(req.into_response(HttpResponse::Ok().finish()))
-                        },
-                    )),
-            )
-            .await;
+                        }),
+                ),
+        )
+        .await;
         let req = TestRequest::with_uri("/test").to_request();
         let resp = srv.call(req).await.unwrap();
         assert_eq!(resp.status(), http::StatusCode::OK);
@@ -773,9 +778,7 @@ mod tests {
     async fn test_services_macro() {
         let scoped = services![
             web::service("/scoped_test1").name("scoped_test1").finish(
-                |req: ServiceRequest| async {
-                    Ok(req.into_response(HttpResponse::Ok().finish()))
-                }
+                |req: ServiceRequest| async { Ok(req.into_response(HttpResponse::Ok().finish())) }
             ),
             web::resource("/scoped_test2").to(|| async { "test2" }),
         ];
@@ -861,13 +864,47 @@ mod tests {
                     svc.call(req)
                 })
                 .route("/", web::get().to(|| async { "" }))
-                .service(
-                    web::resource("/resource1/{name}/index.html").route(web::get().to(index)),
-                ),
+                .service(web::resource("/resource1/{name}/index.html").route(web::get().to(index))),
         )
         .await;
 
         let req = test::TestRequest::default().to_request();
         let _res = test::call_service(&app, req).await;
+    }
+
+    #[test]
+    fn define_services_macro_with_multiple_arguments() {
+        let result = services!(1, 2, 3);
+        assert_eq!(result, (1, 2, 3));
+    }
+
+    #[test]
+    fn define_services_macro_with_single_argument() {
+        let result = services!(1);
+        assert_eq!(result, (1,));
+    }
+
+    #[test]
+    fn define_services_macro_with_no_arguments() {
+        let result = services!();
+        let () = result;
+    }
+
+    #[test]
+    fn define_services_macro_with_trailing_comma() {
+        let result = services!(1, 2, 3,);
+        assert_eq!(result, (1, 2, 3));
+    }
+
+    #[test]
+    fn define_services_macro_with_comments_in_arguments() {
+        let result = services!(
+            1, // First comment
+            2, // Second comment
+            3  // Third comment
+        );
+
+        // Assert that comments are ignored and it correctly returns a tuple.
+        assert_eq!(result, (1, 2, 3));
     }
 }

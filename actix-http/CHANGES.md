@@ -1,19 +1,99 @@
 # Changes
 
-## Unreleased - 2023-xx-xx
+## Unreleased
+
+- Malformed websocket frames are now gracefully rejected.
+
+## 3.11.0
+
+- Update `brotli` dependency to `8`.
+
+## 3.10.0
 
 ### Added
 
-- Add `body::to_body_limit()` function.
+- Add `header::CLEAR_SITE_DATA` constant.
+- Add `Extensions::get_or_insert[_with]()` methods.
+- Implement `From<Bytes>` for `Payload`.
+- Implement `From<Vec<u8>>` for `Payload`.
+
+### Changed
+
+- Update `brotli` dependency to `7`.
+- Minimum supported Rust version (MSRV) is now 1.75.
+
+## 3.9.0
+
+### Added
+
+- Implement `FromIterator<(HeaderName, HeaderValue)>` for `HeaderMap`.
+
+## 3.8.0
+
+### Added
+
+- Add `error::InvalidStatusCode` re-export.
+
+## 3.7.0
+
+### Added
+
+- Add `rustls-0_23` crate feature
+- Add `{h1::H1Service, h2::H2Service, HttpService}::rustls_0_23()` and `HttpService::rustls_0_23_with_config()` service constructors.
+
+### Changed
+
+- Update `brotli` dependency to `6`.
+- Minimum supported Rust version (MSRV) is now 1.72.
+
+## 3.6.0
+
+### Added
+
+- Add `rustls-0_22` crate feature.
+- Add `{h1::H1Service, h2::H2Service, HttpService}::rustls_0_22()` and `HttpService::rustls_0_22_with_config()` service constructors.
+- Implement `From<&HeaderMap>` for `http::HeaderMap`.
+
+## 3.5.1
+
+### Fixed
+
+- Prevent hang when returning zero-sized response bodies through compression layer.
+
+## 3.5.0
+
+### Added
+
+- Implement `From<HeaderMap>` for `http::HeaderMap`.
+
+### Changed
+
+- Updated `zstd` dependency to `0.13`.
+
+### Fixed
+
+- Prevent compression of zero-sized response bodies.
+
+## 3.4.0
+
+### Added
+
+- Add `rustls-0_20` crate feature.
+- Add `{h1::H1Service, h2::H2Service, HttpService}::rustls_021()` and `HttpService::rustls_021_with_config()` service constructors.
+- Add `body::to_bytes_limited()` function.
 - Add `body::BodyLimitExceeded` error type.
 
-## 3.3.1 - 2023-03-02
+### Changed
+
+- Minimum supported Rust version (MSRV) is now 1.68 due to transitive `time` dependency.
+
+## 3.3.1
 
 ### Fixed
 
 - Use correct `http` version requirement to ensure support for const `HeaderName` definitions.
 
-## 3.3.0 - 2023-01-21
+## 3.3.0
 
 ### Added
 
@@ -49,7 +129,7 @@
 [#2956]: https://github.com/actix/actix-web/pull/2956
 [#2968]: https://github.com/actix/actix-web/pull/2968
 
-## 3.2.2 - 2022-09-11
+## 3.2.2
 
 ### Changed
 
@@ -61,7 +141,7 @@
 
 [#2369]: https://github.com/actix/actix-web/pull/2369
 
-## 3.2.1 - 2022-07-02
+## 3.2.1
 
 ### Fixed
 
@@ -69,7 +149,7 @@
 
 [#2794]: https://github.com/actix/actix-web/pull/2794
 
-## 3.2.0 - 2022-06-30
+## 3.2.0
 
 ### Changed
 
@@ -83,7 +163,7 @@
 [#2790]: https://github.com/actix/actix-web/pull/2790
 [#2798]: https://github.com/actix/actix-web/pull/2798
 
-## 3.1.0 - 2022-06-11
+## 3.1.0
 
 ### Changed
 
@@ -97,13 +177,13 @@
 [#2357]: https://github.com/actix/actix-web/issues/2357
 [#2779]: https://github.com/actix/actix-web/pull/2779
 
-## 3.0.4 - 2022-03-09
+## 3.0.4
 
 ### Fixed
 
 - Document on docs.rs with `ws` feature enabled.
 
-## 3.0.3 - 2022-03-08
+## 3.0.3
 
 ### Fixed
 
@@ -111,7 +191,7 @@
 
 [#2684]: https://github.com/actix/actix-web/pull/2684
 
-## 3.0.2 - 2022-03-05
+## 3.0.2
 
 ### Fixed
 
@@ -119,13 +199,13 @@
 
 [#2683]: https://github.com/actix/actix-web/pull/2683
 
-## 3.0.1 - 2022-03-04
+## 3.0.1
 
 - Fix panic in H1 dispatcher when pipelining is used with keep-alive. [#2678]
 
 [#2678]: https://github.com/actix/actix-web/issues/2678
 
-## 3.0.0 - 2022-02-25
+## 3.0.0
 
 ### Dependencies
 
@@ -413,7 +493,7 @@
 <details>
 <summary>3.0.0 Pre-Releases</summary>
 
-## 3.0.0-rc.4 - 2022-02-22
+## 3.0.0-rc.4
 
 ### Fixed
 
@@ -421,11 +501,11 @@
 
 [1ce58ecb]: https://github.com/actix/actix-web/commit/1ce58ecb305c60e51db06e6c913b7a1344e229ca
 
-## 3.0.0-rc.3 - 2022-02-16
+## 3.0.0-rc.3
 
 - No significant changes since `3.0.0-rc.2`.
 
-## 3.0.0-rc.2 - 2022-02-08
+## 3.0.0-rc.2
 
 ### Added
 
@@ -442,7 +522,7 @@
 [#2624]: https://github.com/actix/actix-web/pull/2624
 [#2625]: https://github.com/actix/actix-web/pull/2625
 
-## 3.0.0-rc.1 - 2022-01-31
+## 3.0.0-rc.1
 
 ### Added
 
@@ -478,7 +558,7 @@
 [#2611]: https://github.com/actix/actix-web/pull/2611
 [#2618]: https://github.com/actix/actix-web/pull/2618
 
-## 3.0.0-beta.19 - 2022-01-21
+## 3.0.0-beta.19
 
 ### Added
 
@@ -498,7 +578,7 @@
 [#2585]: https://github.com/actix/actix-web/pull/2585
 [#2587]: https://github.com/actix/actix-web/pull/2587
 
-## 3.0.0-beta.18 - 2022-01-04
+## 3.0.0-beta.18
 
 ### Added
 
@@ -529,7 +609,7 @@
 [#2501]: https://github.com/actix/actix-web/pull/2501
 [#2565]: https://github.com/actix/actix-web/pull/2565
 
-## 3.0.0-beta.17 - 2021-12-27
+## 3.0.0-beta.17
 
 ### Changed
 
@@ -547,7 +627,7 @@
 [#2527]: https://github.com/actix/actix-web/pull/2527
 [#2545]: https://github.com/actix/actix-web/pull/2545
 
-## 3.0.0-beta.16 - 2021-12-17
+## 3.0.0-beta.16
 
 ### Added
 
@@ -566,7 +646,7 @@
 [#2510]: https://github.com/actix/actix-web/pull/2510
 [#2522]: https://github.com/actix/actix-web/pull/2522
 
-## 3.0.0-beta.15 - 2021-12-11
+## 3.0.0-beta.15
 
 ### Added
 
@@ -620,7 +700,7 @@
 [#2497]: https://github.com/actix/actix-web/pull/2497
 [#2520]: https://github.com/actix/actix-web/pull/2520
 
-## 3.0.0-beta.14 - 2021-11-30
+## 3.0.0-beta.14
 
 ### Changed
 
@@ -633,7 +713,7 @@
 [#2470]: https://github.com/actix/actix-web/pull/2470
 [#2474]: https://github.com/actix/actix-web/pull/2474
 
-## 3.0.0-beta.13 - 2021-11-22
+## 3.0.0-beta.13
 
 ### Added
 
@@ -662,7 +742,7 @@
 [#2448]: https://github.com/actix/actix-web/pull/2448
 [#2456]: https://github.com/actix/actix-web/pull/2456
 
-## 3.0.0-beta.12 - 2021-11-15
+## 3.0.0-beta.12
 
 ### Changed
 
@@ -676,7 +756,7 @@
 [#2425]: https://github.com/actix/actix-web/pull/2425
 [#2442]: https://github.com/actix/actix-web/pull/2442
 
-## 3.0.0-beta.11 - 2021-10-20
+## 3.0.0-beta.11
 
 ### Changed
 
@@ -685,7 +765,7 @@
 
 [#2414]: https://github.com/actix/actix-web/pull/2414
 
-## 3.0.0-beta.10 - 2021-09-09
+## 3.0.0-beta.10
 
 ### Changed
 
@@ -703,13 +783,13 @@
 [#2344]: https://github.com/actix/actix-web/pull/2344
 [#2377]: https://github.com/actix/actix-web/pull/2377
 
-## 3.0.0-beta.9 - 2021-08-09
+## 3.0.0-beta.9
 
 ### Fixed
 
 - Potential HTTP request smuggling vulnerabilities. [RUSTSEC-2021-0081](https://github.com/rustsec/advisory-db/pull/977)
 
-## 3.0.0-beta.8 - 2021-06-26
+## 3.0.0-beta.8
 
 ### Changed
 
@@ -722,7 +802,7 @@
 [#2291]: https://github.com/actix/actix-web/pull/2291
 [#2250]: https://github.com/actix/actix-web/pull/2250
 
-## 3.0.0-beta.7 - 2021-06-17
+## 3.0.0-beta.7
 
 ### Added
 
@@ -769,7 +849,7 @@
 [#2253]: https://github.com/actix/actix-web/pull/2253
 [#2244]: https://github.com/actix/actix-web/pull/2244
 
-## 3.0.0-beta.6 - 2021-04-17
+## 3.0.0-beta.6
 
 ### Added
 
@@ -804,7 +884,7 @@
 [#2158]: https://github.com/actix/actix-web/pull/2158
 [#2161]: https://github.com/actix/actix-web/pull/2161
 
-## 3.0.0-beta.5 - 2021-04-02
+## 3.0.0-beta.5
 
 ### Added
 
@@ -826,7 +906,7 @@
 [#2094]: https://github.com/actix/actix-web/pull/2094
 [#2127]: https://github.com/actix/actix-web/pull/2127
 
-## 3.0.0-beta.4 - 2021-03-08
+## 3.0.0-beta.4
 
 ### Changed
 
@@ -844,11 +924,11 @@
 [#2035]: https://github.com/actix/actix-web/pull/2035
 [#2052]: https://github.com/actix/actix-web/pull/2052
 
-## 3.0.0-beta.3 - 2021-02-10
+## 3.0.0-beta.3
 
 - No notable changes.
 
-## 3.0.0-beta.2 - 2021-02-10
+## 3.0.0-beta.2
 
 ### Added
 
@@ -900,7 +980,7 @@
 [#1964]: https://github.com/actix/actix-web/pull/1964
 [#1969]: https://github.com/actix/actix-web/pull/1969
 
-## 3.0.0-beta.1 - 2021-01-07
+## 3.0.0-beta.1
 
 ### Added
 
@@ -928,7 +1008,7 @@
 
 </details>
 
-## 2.2.2 - 2022-01-21
+## 2.2.2
 
 ### Changed
 
@@ -936,13 +1016,13 @@
 
 [ad7e3c06]: https://github.com/actix/actix-web/commit/ad7e3c06
 
-## 2.2.1 - 2021-08-09
+## 2.2.1
 
 ### Fixed
 
 - Potential HTTP request smuggling vulnerabilities. [RUSTSEC-2021-0081](https://github.com/rustsec/advisory-db/pull/977)
 
-## 2.2.0 - 2020-11-25
+## 2.2.0
 
 ### Added
 
@@ -964,7 +1044,7 @@
 [#1793]: https://github.com/actix/actix-web/pull/1793
 [#1797]: https://github.com/actix/actix-web/pull/1797
 
-## 2.1.0 - 2020-10-30
+## 2.1.0
 
 ### Added
 
@@ -981,18 +1061,18 @@
 [#1733]: https://github.com/actix/actix-web/pull/1733
 [#1744]: https://github.com/actix/actix-web/pull/1744
 
-## 2.0.0 - 2020-09-11
+## 2.0.0
 
 - No significant changes from `2.0.0-beta.4`.
 
-## 2.0.0-beta.4 - 2020-09-09
+## 2.0.0-beta.4
 
 ### Changed
 
 - Update actix-codec and actix-utils dependencies.
 - Update actix-connect and actix-tls dependencies.
 
-## 2.0.0-beta.3 - 2020-08-14
+## 2.0.0-beta.3
 
 ### Fixed
 
@@ -1000,7 +1080,7 @@
 
 [#1626]: https://github.com/actix/actix-web/pull/1626
 
-## 2.0.0-beta.2 - 2020-07-21
+## 2.0.0-beta.2
 
 ### Fixed
 
@@ -1013,7 +1093,7 @@
 [#1614]: https://github.com/actix/actix-web/pull/1614
 [#1615]: https://github.com/actix/actix-web/pull/1615
 
-## 2.0.0-beta.1 - 2020-07-11
+## 2.0.0-beta.1
 
 ### Changed
 
@@ -1026,7 +1106,7 @@
 [#1586]: https://github.com/actix/actix-web/pull/1586
 [#1580]: https://github.com/actix/actix-web/pull/1580
 
-## 2.0.0-alpha.4 - 2020-05-21
+## 2.0.0-alpha.4
 
 ### Changed
 
@@ -1042,7 +1122,7 @@
 [#1439]: https://github.com/actix/actix-web/pull/1439
 [#1503]: https://github.com/actix/actix-web/pull/1503
 
-## 2.0.0-alpha.3 - 2020-05-08
+## 2.0.0-alpha.3
 
 ### Fixed
 
@@ -1057,7 +1137,7 @@
 [#1422]: https://github.com/actix/actix-web/pull/1422
 [#1487]: https://github.com/actix/actix-web/pull/1487
 
-## 2.0.0-alpha.2 - 2020-03-07
+## 2.0.0-alpha.2
 
 ### Changed
 
@@ -1069,7 +1149,7 @@
 [#1394]: https://github.com/actix/actix-web/pull/1394
 [#1395]: https://github.com/actix/actix-web/pull/1395
 
-## 2.0.0-alpha.1 - 2020-02-27
+## 2.0.0-alpha.1
 
 ### Changed
 
@@ -1082,14 +1162,14 @@
 
 - Allow `SameSite=None` cookies to be sent in a response.
 
-## 1.0.1 - 2019-12-20
+## 1.0.1
 
 ### Fixed
 
 - Poll upgrade service's readiness from HTTP service handlers
 - Replace brotli with brotli2 #1224
 
-## 1.0.0 - 2019-12-13
+## 1.0.0
 
 ### Added
 
@@ -1099,7 +1179,7 @@
 
 - Replace `flate2-xxx` features with `compress`
 
-## 1.0.0-alpha.5 - 2019-12-09
+## 1.0.0-alpha.5
 
 ### Fixed
 
@@ -1110,7 +1190,7 @@
 
 - Websockets: Ping and Pong should have binary data #1049
 
-## 1.0.0-alpha.4 - 2019-12-08
+## 1.0.0-alpha.4
 
 ### Added
 
@@ -1120,14 +1200,14 @@
 
 - Use rust based brotli compression library
 
-## 1.0.0-alpha.3 - 2019-12-07
+## 1.0.0-alpha.3
 
 ### Changed
 
 - Migrate to tokio 0.2
 - Migrate to `std::future`
 
-## 0.2.11 - 2019-11-06
+## 0.2.11
 
 ### Added
 
@@ -1141,7 +1221,7 @@
 
 [#1878]: https://github.com/actix/actix-web/pull/1878
 
-## 0.2.10 - 2019-09-11
+## 0.2.10
 
 ### Added
 
@@ -1152,7 +1232,7 @@
 - h2 will use error response #1080
 - on_connect result isn't added to request extensions for http2 requests #1009
 
-## 0.2.9 - 2019-08-13
+## 0.2.9
 
 ### Changed
 
@@ -1164,7 +1244,7 @@
 
 - Fixed a panic in the HTTP2 handshake in client HTTP requests (#1031)
 
-## 0.2.8 - 2019-08-01
+## 0.2.8
 
 ### Added
 
@@ -1176,20 +1256,20 @@
 - awc client panic #1016
 - Invalid response with compression middleware enabled, but compression-related features disabled #997
 
-## 0.2.7 - 2019-07-18
+## 0.2.7
 
 ### Added
 
 - Add support for downcasting response errors #986
 
-## 0.2.6 - 2019-07-17
+## 0.2.6
 
 ### Changed
 
 - Replace `ClonableService` with local copy
 - Upgrade `rand` dependency version to 0.7
 
-## 0.2.5 - 2019-06-28
+## 0.2.5
 
 ### Added
 
@@ -1200,13 +1280,13 @@
 - Use `encoding_rs` crate instead of unmaintained `encoding` crate
 - Add `Copy` and `Clone` impls for `ws::Codec`
 
-## 0.2.4 - 2019-06-16
+## 0.2.4
 
 ### Fixed
 
 - Do not compress NoContent (204) responses #918
 
-## 0.2.3 - 2019-06-02
+## 0.2.3
 
 ### Added
 
@@ -1217,19 +1297,19 @@
 
 - SizedStream uses u64
 
-## 0.2.2 - 2019-05-29
+## 0.2.2
 
 ### Fixed
 
 - Parse incoming stream before closing stream on disconnect #868
 
-## 0.2.1 - 2019-05-25
+## 0.2.1
 
 ### Fixed
 
 - Handle socket read disconnect
 
-## 0.2.0 - 2019-05-12
+## 0.2.0
 
 ### Changed
 
@@ -1240,13 +1320,13 @@
 
 - `OneRequest` service
 
-## 0.1.5 - 2019-05-04
+## 0.1.5
 
 ### Fixed
 
 - Clean up response extensions in response pool #817
 
-## 0.1.4 - 2019-04-24
+## 0.1.4
 
 ### Added
 
@@ -1256,20 +1336,20 @@
 
 - Read until eof for http/1.0 responses #771
 
-## 0.1.3 - 2019-04-23
+## 0.1.3
 
 ### Fixed
 
 - Fix http client pool management
 - Fix http client wait queue management #794
 
-## 0.1.2 - 2019-04-23
+## 0.1.2
 
 ### Fixed
 
 - Fix BorrowMutError panic in client connector #793
 
-## 0.1.1 - 2019-04-19
+## 0.1.1
 
 ### Changed
 
@@ -1277,7 +1357,7 @@
 - Cookie::max_age_time() accepts value in time::Duration
 - Allow to specify server address for client connector
 
-## 0.1.0 - 2019-04-16
+## 0.1.0
 
 ### Added
 
@@ -1288,7 +1368,7 @@
 - `actix_http::encoding` always available
 - use trust-dns-resolver 0.11.0
 
-## 0.1.0-alpha.5 - 2019-04-12
+## 0.1.0-alpha.5
 
 ### Added
 
@@ -1300,7 +1380,7 @@
 - MessageBody::length() renamed to MessageBody::size() for consistency
 - ws handshake verification functions take RequestHead instead of Request
 
-## 0.1.0-alpha.4 - 2019-04-08
+## 0.1.0-alpha.4
 
 ### Added
 
@@ -1317,7 +1397,7 @@
 
 - Removed PayloadBuffer
 
-## 0.1.0-alpha.3 - 2019-04-02
+## 0.1.0-alpha.3
 
 ### Added
 
@@ -1329,7 +1409,7 @@
 - Preallocate read buffer for h1 codec
 - Detect socket disconnection during protocol selection
 
-## 0.1.0-alpha.2 - 2019-03-29
+## 0.1.0-alpha.2
 
 ### Added
 
@@ -1339,6 +1419,6 @@
 
 - Do not use thread pool for decompression if chunk size is smaller than 2048.
 
-## 0.1.0-alpha.1 - 2019-03-28
+## 0.1.0-alpha.1
 
 - Initial impl

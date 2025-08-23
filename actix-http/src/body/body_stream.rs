@@ -47,9 +47,8 @@ where
 
     /// Attempts to pull out the next value of the underlying [`Stream`].
     ///
-    /// Empty values are skipped to prevent [`BodyStream`]'s transmission being
-    /// ended on a zero-length chunk, but rather proceed until the underlying
-    /// [`Stream`] ends.
+    /// Empty values are skipped to prevent [`BodyStream`]'s transmission being ended on a
+    /// zero-length chunk, but rather proceed until the underlying [`Stream`] ends.
     fn poll_next(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -132,7 +131,7 @@ mod tests {
         assert_eq!(to_bytes(body).await.ok(), Some(Bytes::from("12")));
     }
     #[derive(Debug, Display, Error)]
-    #[display(fmt = "stream error")]
+    #[display("stream error")]
     struct StreamErr;
 
     #[actix_rt::test]

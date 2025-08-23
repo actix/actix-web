@@ -1,7 +1,6 @@
 //! For middleware documentation, see [`DefaultHeaders`].
 
 use std::{
-    convert::TryFrom,
     future::Future,
     marker::PhantomData,
     pin::Pin,
@@ -142,7 +141,7 @@ where
     actix_service::forward_ready!(service);
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
-        let inner = self.inner.clone();
+        let inner = Rc::clone(&self.inner);
         let fut = self.service.call(req);
 
         DefaultHeaderFuture {
@@ -191,8 +190,6 @@ mod tests {
 
     use super::*;
     use crate::{
-        dev::ServiceRequest,
-        http::header::CONTENT_TYPE,
         test::{self, TestRequest},
         HttpResponse,
     };

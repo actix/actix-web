@@ -531,7 +531,6 @@ where
 mod tests {
     use actix_rt::pin;
     use actix_utils::future::poll_fn;
-    use bytes::{Bytes, BytesMut};
     use futures_util::stream;
 
     use super::*;
@@ -555,6 +554,7 @@ mod tests {
         };
     }
 
+    #[allow(unused_allocation)] // triggered by `Box::new(()).size()`
     #[actix_rt::test]
     async fn boxing_equivalence() {
         assert_eq!(().size(), BodySize::Sized(0));

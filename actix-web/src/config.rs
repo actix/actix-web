@@ -68,7 +68,7 @@ impl AppService {
     pub(crate) fn clone_config(&self) -> Self {
         AppService {
             config: self.config.clone(),
-            default: self.default.clone(),
+            default: Rc::clone(&self.default),
             services: Vec::new(),
             root: false,
         }
@@ -81,7 +81,7 @@ impl AppService {
 
     /// Returns default handler factory.
     pub fn default_service(&self) -> Rc<BoxedHttpServiceFactory> {
-        self.default.clone()
+        Rc::clone(&self.default)
     }
 
     /// Register HTTP service.
@@ -148,7 +148,7 @@ impl AppConfig {
 
     #[cfg(test)]
     pub(crate) fn set_host(&mut self, host: &str) {
-        self.host = host.to_owned();
+        host.clone_into(&mut self.host);
     }
 }
 
@@ -232,12 +232,8 @@ impl ServiceConfig {
     pub fn default_service<F, U>(&mut self, f: F) -> &mut Self
     where
         F: IntoServiceFactory<U, ServiceRequest>,
-        U: ServiceFactory<
-                ServiceRequest,
-                Config = (),
-                Response = ServiceResponse,
-                Error = Error,
-            > + 'static,
+        U: ServiceFactory<ServiceRequest, Config = (), Response = ServiceResponse, Error = Error>
+            + 'static,
         U::InitError: std::fmt::Debug,
     {
         let svc = f
@@ -308,9 +304,11 @@ mod tests {
     use bytes::Bytes;
 
     use super::*;
-    use crate::http::{Method, StatusCode};
-    use crate::test::{assert_body_eq, call_service, init_service, read_body, TestRequest};
-    use crate::{web, App, HttpRequest, HttpResponse};
+    use crate::{
+        http::{Method, StatusCode},
+        test::{assert_body_eq, call_service, init_service, read_body, TestRequest},
+        web, App, HttpRequest, HttpResponse,
+    };
 
     // allow deprecated `ServiceConfig::data`
     #[allow(deprecated)]

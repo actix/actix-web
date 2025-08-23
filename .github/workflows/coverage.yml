@@ -1,5 +1,3 @@
-# disabled because `cargo tarpaulin` currently segfaults
-
 name: Coverage
 
 on:
@@ -7,27 +5,36 @@ on:
     branches: [master]
 
 permissions:
-  contents: read # to fetch code (actions/checkout)
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # job currently (1st Feb 2022) segfaults
   coverage:
-    name: coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-        with: { toolchain: nightly }
+      - name: Install Rust (nightly)
+        uses: actions-rust-lang/setup-rust-toolchain@fb51252c7ba57d633bc668f941da052e410add48 # v1.13.0
+        with:
+          toolchain: nightly
+          components: llvm-tools
 
-      - name: Generate coverage file
-        run: |
-          cargo install cargo-tarpaulin --vers "^0.13"
-          cargo tarpaulin --workspace --features=rustls,openssl --out Xml --verbose
-      - name: Upload to Codecov
-        uses: codecov/codecov-action@v1
-        with: { file: cobertura.xml }
+      - name: Install just, cargo-llvm-cov, cargo-nextest
+        uses: taiki-e/install-action@ad95d4e02e061d4390c4b66ef5ed56c7fee3d2ce # v2.58.17
+        with:
+          tool: just,cargo-llvm-cov,cargo-nextest
+
+      - name: Generate code coverage
+        run: just test-coverage-codecov
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24 # v5.4.3
+        with:
+          files: codecov.json
+          fail_ci_if_error: true
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}

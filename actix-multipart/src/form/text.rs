@@ -36,7 +36,6 @@ where
     fn read_field(req: &'t HttpRequest, field: Field, limits: &'t mut Limits) -> Self::Future {
         Box::pin(async move {
             let config = TextConfig::from_req(req);
-            let field_name = field.name().to_owned();
 
             if config.validate_content_type {
                 let valid = if let Some(mime) = field.content_type() {
@@ -49,22 +48,24 @@ where
 
                 if !valid {
                     return Err(MultipartError::Field {
-                        field_name,
+                        name: field.form_field_name,
                         source: config.map_error(req, TextError::ContentType),
                     });
                 }
             }
 
+            let form_field_name = field.form_field_name.clone();
+
             let bytes = Bytes::read_field(req, field, limits).await?;
 
             let text = str::from_utf8(&bytes.data).map_err(|err| MultipartError::Field {
-                field_name: field_name.clone(),
+                name: form_field_name.clone(),
                 source: config.map_error(req, TextError::Utf8Error(err)),
             })?;
 
             Ok(Text(serde_plain::from_str(text).map_err(|err| {
                 MultipartError::Field {
-                    field_name,
+                    name: form_field_name,
                     source: config.map_error(req, TextError::Deserialize(err)),
                 }
             })?))
@@ -76,15 +77,15 @@ where
 #[non_exhaustive]
 pub enum TextError {
     /// UTF-8 decoding error.
-    #[display(fmt = "UTF-8 decoding error: {}", _0)]
+    #[display("UTF-8 decoding error: {}", _0)]
     Utf8Error(str::Utf8Error),
 
     /// Deserialize error.
-    #[display(fmt = "Plain text deserialize error: {}", _0)]
+    #[display("Plain text deserialize error: {}", _0)]
     Deserialize(serde_plain::Error),
 
     /// Content type error.
-    #[display(fmt = "Content type error")]
+    #[display("Content type error")]
     ContentType,
 }
 

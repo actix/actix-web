@@ -8,8 +8,7 @@ use std::{
 use actix_service::{boxed, IntoServiceFactory, ServiceFactory, ServiceFactoryExt};
 use actix_web::{
     dev::{
-        AppService, HttpServiceFactory, RequestHead, ResourceDef, ServiceRequest,
-        ServiceResponse,
+        AppService, HttpServiceFactory, RequestHead, ResourceDef, ServiceRequest, ServiceResponse,
     },
     error::Error,
     guard::Guard,
@@ -236,7 +235,7 @@ impl Files {
     /// request starts being handled by the file service, it will not be able to back-out and try
     /// the next service, you will simply get a 404 (or 405) error response.
     ///
-    /// To allow `POST` requests to retrieve files, see [`Files::use_guards`].
+    /// To allow `POST` requests to retrieve files, see [`Files::method_guard()`].
     ///
     /// # Examples
     /// ```
@@ -301,12 +300,8 @@ impl Files {
     pub fn default_handler<F, U>(mut self, f: F) -> Self
     where
         F: IntoServiceFactory<U, ServiceRequest>,
-        U: ServiceFactory<
-                ServiceRequest,
-                Config = (),
-                Response = ServiceResponse,
-                Error = Error,
-            > + 'static,
+        U: ServiceFactory<ServiceRequest, Config = (), Response = ServiceResponse, Error = Error>
+            + 'static,
     {
         // create and configure default resource
         self.default = Rc::new(RefCell::new(Some(Rc::new(boxed::factory(
@@ -422,10 +417,14 @@ mod tests {
 
         assert_eq!(res.status(), StatusCode::OK);
         let body = test::read_body(res).await;
+        let body_str = std::str::from_utf8(&body).unwrap();
+        let actual_path = Path::new(&body_str);
+        let expected_path = Path::new("actix-files/tests");
         assert!(
-            body.ends_with(b"actix-files/tests/"),
-            "body {:?} does not end with `actix-files/tests/`",
-            body
+            actual_path.ends_with(expected_path),
+            "body {:?} does not end with {:?}",
+            actual_path,
+            expected_path
         );
     }
 }

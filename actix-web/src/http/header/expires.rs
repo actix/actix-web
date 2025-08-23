@@ -36,6 +36,6 @@ crate::http::header::common_header! {
 
     test_parse_and_format {
         // Test case from RFC
-        crate::http::header::common_header_test!(test1, vec![b"Thu, 01 Dec 1994 16:00:00 GMT"]);
+        crate::http::header::common_header_test!(test1, [b"Thu, 01 Dec 1994 16:00:00 GMT"]);
     }
 }

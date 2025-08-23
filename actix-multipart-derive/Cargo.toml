@@ -1,13 +1,14 @@
 [package]
 name = "actix-multipart-derive"
-version = "0.6.0"
+version = "0.7.0"
 authors = ["Jacob Halsey <jacob@jhalsey.com>"]
 description = "Multipart form derive macro for Actix Web"
 keywords = ["http", "web", "framework", "async", "futures"]
-homepage = "https://actix.rs"
-repository = "https://github.com/actix/actix-web.git"
-license = "MIT OR Apache-2.0"
-edition = "2018"
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docsrs"]
@@ -17,14 +18,17 @@ all-features = true
 proc-macro = true
 
 [dependencies]
-darling = "0.14"
-parse-size = "1"
+bytesize = "2"
+darling = "0.20"
 proc-macro2 = "1"
 quote = "1"
-syn = "1"
+syn = "2"
 
 [dev-dependencies]
-actix-multipart = "0.6"
+actix-multipart = "0.7"
 actix-web = "4"
-rustversion = "1"
+rustversion-msrv = "0.100"
 trybuild = "1"
+
+[lints]
+workspace = true

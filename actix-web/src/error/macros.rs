@@ -42,8 +42,7 @@ macro_rules! downcast_dyn {
             /// Downcasts generic body to a specific type.
             #[allow(dead_code)]
             pub fn downcast_ref<T: $name + 'static>(&self) -> Option<&T> {
-                if self.__private_get_type_id__(PrivateHelper(())).0
-                    == std::any::TypeId::of::<T>()
+                if self.__private_get_type_id__(PrivateHelper(())).0 == std::any::TypeId::of::<T>()
                 {
                     // SAFETY: external crates cannot override the default
                     // implementation of `__private_get_type_id__`, since
@@ -59,8 +58,7 @@ macro_rules! downcast_dyn {
             /// Downcasts a generic body to a mutable specific type.
             #[allow(dead_code)]
             pub fn downcast_mut<T: $name + 'static>(&mut self) -> Option<&mut T> {
-                if self.__private_get_type_id__(PrivateHelper(())).0
-                    == std::any::TypeId::of::<T>()
+                if self.__private_get_type_id__(PrivateHelper(())).0 == std::any::TypeId::of::<T>()
                 {
                     // SAFETY: external crates cannot override the default
                     // implementation of `__private_get_type_id__`, since
@@ -76,7 +74,8 @@ macro_rules! downcast_dyn {
     };
 }
 
-pub(crate) use {downcast_dyn, downcast_get_type_id};
+pub(crate) use downcast_dyn;
+pub(crate) use downcast_get_type_id;
 
 #[cfg(test)]
 mod tests {

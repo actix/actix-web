@@ -1,0 +1,90 @@
+name: Lint
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Install Rust (nightly)
+        uses: actions-rust-lang/setup-rust-toolchain@fb51252c7ba57d633bc668f941da052e410add48 # v1.13.0
+        with:
+          toolchain: nightly
+          components: rustfmt
+
+      - name: Check with Rustfmt
+        run: cargo fmt --all -- --check
+
+  clippy:
+    permissions:
+      contents: read
+      checks: write # to add clippy checks to PR diffs
+
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@fb51252c7ba57d633bc668f941da052e410add48 # v1.13.0
+        with:
+          components: clippy
+
+      - name: Check with Clippy
+        uses: giraffate/clippy-action@13b9d32482f25d29ead141b79e7e04e7900281e0 # v1.0.1
+        with:
+          reporter: github-pr-check
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          clippy_flags: >-
+            --workspace --all-features --tests --examples --bins --
+            -A unknown_lints -D clippy::todo -D clippy::dbg_macro
+
+  lint-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Install Rust (nightly)
+        uses: actions-rust-lang/setup-rust-toolchain@fb51252c7ba57d633bc668f941da052e410add48 # v1.13.0
+        with:
+          toolchain: nightly
+          components: rust-docs
+
+      - name: Check for broken intra-doc links
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo +nightly doc --no-deps --workspace --all-features
+
+  check-external-types:
+    if: false # rustdoc mismatch currently
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Install Rust (${{ vars.RUST_VERSION_EXTERNAL_TYPES }})
+        uses: actions-rust-lang/setup-rust-toolchain@fb51252c7ba57d633bc668f941da052e410add48 # v1.13.0
+        with:
+          toolchain: ${{ vars.RUST_VERSION_EXTERNAL_TYPES }}
+
+      - name: Install just
+        uses: taiki-e/install-action@ad95d4e02e061d4390c4b66ef5ed56c7fee3d2ce # v2.58.17
+        with:
+          tool: just
+
+      - name: Install cargo-check-external-types
+        uses: taiki-e/cache-cargo-install-action@b33c63d3b3c85540f4eba8a4f71a5cc0ce030855 # v2.3.0
+        with:
+          tool: cargo-check-external-types
+
+      - name: check external types
+        run: just check-external-types-all +${{ vars.RUST_VERSION_EXTERNAL_TYPES }}

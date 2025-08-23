@@ -71,7 +71,7 @@ where
         });
 
         // create App config to pass to child services
-        let mut config = AppService::new(config, default.clone());
+        let mut config = AppService::new(config, Rc::clone(&default));
 
         // register services
         mem::take(&mut *self.services.borrow_mut())
@@ -112,11 +112,7 @@ where
         let endpoint_fut = self.endpoint.new_service(());
 
         // take extensions or create new one as app data container.
-        let mut app_data = self
-            .extensions
-            .borrow_mut()
-            .take()
-            .unwrap_or_else(Extensions::new);
+        let mut app_data = self.extensions.borrow_mut().take().unwrap_or_default();
 
         Box::pin(async move {
             // async data factories
@@ -267,8 +263,9 @@ impl ServiceFactory<ServiceRequest> for AppRoutingFactory {
             let guards = guards.borrow_mut().take().unwrap_or_default();
             let factory_fut = factory.new_service(());
             async move {
-                let service = factory_fut.await?;
-                Ok((path, guards, service))
+                factory_fut
+                    .await
+                    .map(move |service| (path, guards, service))
             }
         }));
 
@@ -348,13 +345,17 @@ impl ServiceFactory<ServiceRequest> for AppEntry {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::{AtomicBool, Ordering};
-    use std::sync::Arc;
+    use std::sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    };
 
     use actix_service::Service;
 
-    use crate::test::{init_service, TestRequest};
-    use crate::{web, App, HttpResponse};
+    use crate::{
+        test::{init_service, TestRequest},
+        web, App, HttpResponse,
+    };
 
     struct DropData(Arc<AtomicBool>);
 

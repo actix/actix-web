@@ -31,7 +31,6 @@ Headings marked with :warning: are **breaking behavioral changes**. They will pr
 - [Returning `HttpResponse` synchronously](#returning-httpresponse-synchronously)
 - [`#[actix_web::main]` and `#[tokio::main]`](#actix_webmain-and-tokiomain)
 - [`web::block`](#webblock)
--
 
 ## MSRV
 
@@ -373,13 +372,13 @@ You may need to review the [guidance on shared mutable state](https://docs.rs/ac
   HttpServer::new(|| {
 -     App::new()
 -         .data(MyState::default())
--         .service(hander)
+-         .service(handler)
 
 +     let my_state: Data<MyState> = Data::new(MyState::default());
 +
 +     App::new()
 +         .app_data(my_state)
-+         .service(hander)
++         .service(handler)
   })
 ```
 

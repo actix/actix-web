@@ -1,10 +1,14 @@
 use std::borrow::Cow;
 
-use serde::de::{self, Deserializer, Error as DeError, Visitor};
-use serde::forward_to_deserialize_any;
+use serde::{
+    de::{self, Deserializer, Error as DeError, Visitor},
+    forward_to_deserialize_any,
+};
 
-use crate::path::{Path, PathIter};
-use crate::{Quoter, ResourcePath};
+use crate::{
+    path::{Path, PathIter},
+    Quoter, ResourcePath,
+};
 
 thread_local! {
     static FULL_QUOTER: Quoter = Quoter::new(b"", b"");
@@ -486,11 +490,7 @@ impl<'de> de::VariantAccess<'de> for UnitVariant {
         Err(de::value::Error::custom("not supported"))
     }
 
-    fn struct_variant<V>(
-        self,
-        _: &'static [&'static str],
-        _: V,
-    ) -> Result<V::Value, Self::Error>
+    fn struct_variant<V>(self, _: &'static [&'static str], _: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
@@ -500,22 +500,15 @@ impl<'de> de::VariantAccess<'de> for UnitVariant {
 
 #[cfg(test)]
 mod tests {
-    use serde::{de, Deserialize};
+    use serde::Deserialize;
 
     use super::*;
-    use crate::path::Path;
-    use crate::router::Router;
-    use crate::ResourceDef;
+    use crate::{router::Router, ResourceDef};
 
     #[derive(Deserialize)]
     struct MyStruct {
         key: String,
         value: String,
-    }
-
-    #[derive(Deserialize)]
-    struct Id {
-        _id: String,
     }
 
     #[derive(Debug, Deserialize)]
@@ -572,13 +565,11 @@ mod tests {
         assert_eq!(s.key, "name");
         assert_eq!(s.value, 32);
 
-        let s: (String, u8) =
-            de::Deserialize::deserialize(PathDeserializer::new(&path)).unwrap();
+        let s: (String, u8) = de::Deserialize::deserialize(PathDeserializer::new(&path)).unwrap();
         assert_eq!(s.0, "name");
         assert_eq!(s.1, 32);
 
-        let res: Vec<String> =
-            de::Deserialize::deserialize(PathDeserializer::new(&path)).unwrap();
+        let res: Vec<String> = de::Deserialize::deserialize(PathDeserializer::new(&path)).unwrap();
         assert_eq!(res[0], "name".to_owned());
         assert_eq!(res[1], "32".to_owned());
     }

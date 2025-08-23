@@ -93,7 +93,7 @@ impl ResponseBuilder {
                 Ok((key, value)) => {
                     parts.headers.insert(key, value);
                 }
-                Err(e) => self.err = Some(e.into()),
+                Err(err) => self.err = Some(err.into()),
             };
         }
 
@@ -119,7 +119,7 @@ impl ResponseBuilder {
         if let Some(parts) = self.inner() {
             match header.try_into_pair() {
                 Ok((key, value)) => parts.headers.append(key, value),
-                Err(e) => self.err = Some(e.into()),
+                Err(err) => self.err = Some(err.into()),
             };
         }
 
@@ -193,7 +193,7 @@ impl ResponseBuilder {
                 Ok(value) => {
                     parts.headers.insert(header::CONTENT_TYPE, value);
                 }
-                Err(e) => self.err = Some(e.into()),
+                Err(err) => self.err = Some(err.into()),
             };
         }
         self
@@ -351,12 +351,9 @@ mod tests {
         assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "text/plain");
 
         let resp = Response::build(StatusCode::OK)
-            .content_type(mime::APPLICATION_JAVASCRIPT_UTF_8)
+            .content_type(mime::TEXT_JAVASCRIPT)
             .body(Bytes::new());
-        assert_eq!(
-            resp.headers().get(CONTENT_TYPE).unwrap(),
-            "application/javascript; charset=utf-8"
-        );
+        assert_eq!(resp.headers().get(CONTENT_TYPE).unwrap(), "text/javascript");
     }
 
     #[test]

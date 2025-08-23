@@ -1,7 +1,4 @@
-use std::{
-    convert::{TryFrom, TryInto},
-    fmt,
-};
+use std::fmt;
 
 use derive_more::{Display, Error};
 
@@ -128,7 +125,7 @@ pub fn itoa_fmt<W: fmt::Write, V: itoa::Integer>(mut wr: W, value: V) -> fmt::Re
 }
 
 #[derive(Debug, Clone, Display, Error)]
-#[display(fmt = "quality out of bounds")]
+#[display("quality out of bounds")]
 #[non_exhaustive]
 pub struct QualityOutOfBounds;
 
