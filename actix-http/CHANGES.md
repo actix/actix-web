@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Update `TestRequest::set_payload` to generate "Content-Length" header
 - Malformed websocket frames are now gracefully rejected.
 
 ## 3.11.0
