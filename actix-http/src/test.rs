@@ -98,6 +98,8 @@ impl TestRequest {
     }
 
     /// Set request payload.
+    ///
+    /// This sets the `Content-Length` header with the size of `data`.
     pub fn set_payload(&mut self, data: impl Into<Bytes>) -> &mut Self {
         let mut payload = crate::h1::Payload::empty();
         let bytes = data.into();
