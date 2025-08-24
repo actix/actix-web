@@ -2,8 +2,14 @@
 
 ## Unreleased
 
+## Changed
+
 - Update `TestRequest::set_payload` to generate "Content-Length" header
+
+## Fixed
+
 - Malformed websocket frames are now gracefully rejected.
+- Streaming responses now properly detect client disconnections and terminate gracefully instead of blocking indefinitely.
 
 ## 3.11.0
 
