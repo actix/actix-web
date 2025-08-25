@@ -49,6 +49,7 @@ pub struct Files {
     use_guards: Option<Rc<dyn Guard>>,
     guards: Vec<Rc<dyn Guard>>,
     hidden_files: bool,
+    size_threshold: u64,
 }
 
 impl fmt::Debug for Files {
@@ -73,6 +74,7 @@ impl Clone for Files {
             use_guards: self.use_guards.clone(),
             guards: self.guards.clone(),
             hidden_files: self.hidden_files,
+            size_threshold: self.size_threshold,
         }
     }
 }
@@ -119,6 +121,7 @@ impl Files {
             use_guards: None,
             guards: Vec::new(),
             hidden_files: false,
+            size_threshold: 0,
         }
     }
 
@@ -201,6 +204,18 @@ impl Files {
     /// [`Files::show_files_listing()`] is set.
     pub fn index_file<T: Into<String>>(mut self, index: T) -> Self {
         self.index = Some(index.into());
+        self
+    }
+
+    /// Sets the async file-size threshold.
+    ///
+    /// When a file is larger than the threshold, the reader
+    /// will switch from faster blocking file-reads to slower async reads
+    /// to avoid blocking the main-thread when processing large files.
+    ///
+    /// Default is 0, meaning all files are read asyncly.
+    pub fn set_size_threshold(mut self, size: u64) -> Self {
+        self.size_threshold = size;
         self
     }
 
@@ -367,6 +382,7 @@ impl ServiceFactory<ServiceRequest> for Files {
             file_flags: self.file_flags,
             guards: self.use_guards.clone(),
             hidden_files: self.hidden_files,
+            size_threshold: self.size_threshold,
         };
 
         if let Some(ref default) = *self.default.borrow() {
