@@ -16,7 +16,6 @@ license = "MIT OR Apache-2.0"
 edition = "2021"
 
 [package.metadata.docs.rs]
-rustdoc-args = ["--cfg", "docsrs"]
 features = [
     "cookies",
     "openssl",
