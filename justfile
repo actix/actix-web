@@ -12,7 +12,7 @@ fmt:
 # Downgrade dependencies necessary to run MSRV checks/tests.
 [private]
 downgrade-for-msrv:
-    cargo {{ toolchain }} update -p=divan --precise=0.1.16 # next ver: 1.80.0
+    cargo {{ toolchain }} update -p=divan --precise=0.1.15 # next ver: 1.80.0
     cargo {{ toolchain }} update -p=rayon --precise=1.10.0 # next ver: 1.80.0
     cargo {{ toolchain }} update -p=rayon-core --precise=1.12.1 # next ver: 1.80.0
     cargo {{ toolchain }} update -p=half --precise=2.4.1 # next ver: 1.81.0
