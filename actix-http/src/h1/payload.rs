@@ -200,11 +200,13 @@ impl Inner {
     #[inline]
     fn set_error(&mut self, err: PayloadError) {
         self.err = Some(err);
+        self.wake();
     }
 
     #[inline]
     fn feed_eof(&mut self) {
         self.eof = true;
+        self.wake();
     }
 
     #[inline]
@@ -253,8 +255,7 @@ impl Inner {
 
 #[cfg(test)]
 mod tests {
-    use std::task::Poll;
-    use std::time::Duration;
+    use std::{task::Poll, time::Duration};
 
     use actix_rt::time::timeout;
     use actix_utils::future::poll_fn;
