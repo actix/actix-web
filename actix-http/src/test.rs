@@ -11,7 +11,7 @@ use std::{
 
 use actix_codec::{AsyncRead, AsyncWrite, ReadBuf};
 use bytes::{Bytes, BytesMut};
-use http::{Method, Uri, Version};
+use http::{header, Method, Uri, Version};
 
 use crate::{
     header::{HeaderMap, TryIntoHeaderPair},
@@ -98,9 +98,13 @@ impl TestRequest {
     }
 
     /// Set request payload.
+    ///
+    /// This sets the `Content-Length` header with the size of `data`.
     pub fn set_payload(&mut self, data: impl Into<Bytes>) -> &mut Self {
         let mut payload = crate::h1::Payload::empty();
-        payload.unread_data(data.into());
+        let bytes = data.into();
+        self.insert_header((header::CONTENT_LENGTH, bytes.len()));
+        payload.unread_data(bytes);
         parts(&mut self.0).payload = Some(payload.into());
         self
     }
