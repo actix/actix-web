@@ -72,7 +72,7 @@ impl FilesService {
 
         let (req, _) = req.into_parts();
         let res = named_file
-            .set_size_threshold(self.size_threshold)
+            .read_mode_threshold(self.size_threshold)
             .into_response(&req);
         ServiceResponse::new(req, res)
     }

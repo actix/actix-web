@@ -14,6 +14,12 @@ use pin_project_lite::pin_project;
 
 use super::named::File;
 
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum ReadMode {
+    Sync,
+    Async,
+}
+
 pin_project! {
     /// Adapter to read a `std::file::File` in chunks.
     #[doc(hidden)]
@@ -24,7 +30,7 @@ pin_project! {
         state: ChunkedReadFileState<Fut>,
         counter: u64,
         callback: F,
-        read_sync: bool,
+        read_mode: ReadMode,
     }
 }
 
@@ -58,7 +64,7 @@ pub(crate) fn new_chunked_read(
     size: u64,
     offset: u64,
     file: File,
-    size_threshold: u64,
+    read_mode_threshold: u64,
 ) -> impl Stream<Item = Result<Bytes, Error>> {
     ChunkedReadFile {
         size,
@@ -71,7 +77,11 @@ pub(crate) fn new_chunked_read(
         },
         counter: 0,
         callback: chunked_read_file_callback,
-        read_sync: size < size_threshold,
+        read_mode: if size < read_mode_threshold {
+            ReadMode::Sync
+        } else {
+            ReadMode::Async
+        },
     }
 }
 
@@ -102,13 +112,14 @@ async fn chunked_read_file_callback(
     file: File,
     offset: u64,
     max_bytes: usize,
-    read_sync: bool,
+    read_mode: ReadMode,
 ) -> Result<(File, Bytes), Error> {
-    let res = if read_sync {
-        chunked_read_file_callback_sync(file, offset, max_bytes)?
-    } else {
-        actix_web::web::block(move || chunked_read_file_callback_sync(file, offset, max_bytes))
-            .await??
+    let res = match read_mode {
+        ReadMode::Sync => chunked_read_file_callback_sync(file, offset, max_bytes)?,
+        ReadMode::Async => {
+            actix_web::web::block(move || chunked_read_file_callback_sync(file, offset, max_bytes))
+                .await??
+        }
     };
 
     Ok(res)
@@ -187,7 +198,7 @@ where
 #[cfg(not(feature = "experimental-io-uring"))]
 impl<F, Fut> Stream for ChunkedReadFile<F, Fut>
 where
-    F: Fn(File, u64, usize, bool) -> Fut,
+    F: Fn(File, u64, usize, ReadMode) -> Fut,
     Fut: Future<Output = Result<(File, Bytes), Error>>,
 {
     type Item = Result<Bytes, Error>;
@@ -209,7 +220,7 @@ where
                         .take()
                         .expect("ChunkedReadFile polled after completion");
 
-                    let fut = (this.callback)(file, offset, max_bytes, *this.read_sync);
+                    let fut = (this.callback)(file, offset, max_bytes, *this.read_mode);
 
                     this.state
                         .project_replace(ChunkedReadFileState::Future { fut });

@@ -49,7 +49,7 @@ pub struct Files {
     use_guards: Option<Rc<dyn Guard>>,
     guards: Vec<Rc<dyn Guard>>,
     hidden_files: bool,
-    size_threshold: u64,
+    read_mode_threshold: u64,
 }
 
 impl fmt::Debug for Files {
@@ -74,7 +74,7 @@ impl Clone for Files {
             use_guards: self.use_guards.clone(),
             guards: self.guards.clone(),
             hidden_files: self.hidden_files,
-            size_threshold: self.size_threshold,
+            read_mode_threshold: self.read_mode_threshold,
         }
     }
 }
@@ -121,7 +121,7 @@ impl Files {
             use_guards: None,
             guards: Vec::new(),
             hidden_files: false,
-            size_threshold: 0,
+            read_mode_threshold: 0,
         }
     }
 
@@ -207,15 +207,20 @@ impl Files {
         self
     }
 
-    /// Sets the async file-size threshold.
+    /// Sets the size threshold that determines file read mode (sync/async).
     ///
-    /// When a file is larger than the threshold, the reader
-    /// will switch from faster blocking file-reads to slower async reads
-    /// to avoid blocking the main-thread when processing large files.
+    /// When a file is smaller than the threshold (bytes), the reader will switch from synchronous
+    /// (blocking) file-reads to async reads to avoid blocking the main-thread when processing large
+    /// files.
     ///
-    /// Default is 0, meaning all files are read asyncly.
-    pub fn set_size_threshold(mut self, size: u64) -> Self {
-        self.size_threshold = size;
+    /// Tweaking this value according to your expected usage may lead to signifiant performance
+    /// gains (or losses in other handlers, if `size` is too high).
+    ///
+    /// When the `experimental-io-uring` crate feature is enabled, file reads are always async.
+    ///
+    /// Default is 0, meaning all files are read asynchronously.
+    pub fn read_mode_threshold(mut self, size: u64) -> Self {
+        self.read_mode_threshold = size;
         self
     }
 
@@ -382,7 +387,7 @@ impl ServiceFactory<ServiceRequest> for Files {
             file_flags: self.file_flags,
             guards: self.use_guards.clone(),
             hidden_files: self.hidden_files,
-            size_threshold: self.size_threshold,
+            size_threshold: self.read_mode_threshold,
         };
 
         if let Some(ref default) = *self.default.borrow() {

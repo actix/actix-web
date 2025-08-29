@@ -80,7 +80,7 @@ pub struct NamedFile {
     pub(crate) content_type: Mime,
     pub(crate) content_disposition: ContentDisposition,
     pub(crate) encoding: Option<ContentEncoding>,
-    pub(crate) size_threshold: u64,
+    pub(crate) read_mode_threshold: u64,
 }
 
 #[cfg(not(feature = "experimental-io-uring"))]
@@ -201,7 +201,7 @@ impl NamedFile {
             encoding,
             status_code: StatusCode::OK,
             flags: Flags::default(),
-            size_threshold: 0,
+            read_mode_threshold: 0,
         })
     }
 
@@ -355,15 +355,20 @@ impl NamedFile {
         self
     }
 
-    /// Sets the async file-size threshold.
+    /// Sets the size threshold that determines file read mode (sync/async).
     ///
-    /// When a file is larger than the threshold, the reader
-    /// will switch from faster blocking file-reads to slower async reads
-    /// to avoid blocking the main-thread when processing large files.
+    /// When a file is smaller than the threshold (bytes), the reader will switch from synchronous
+    /// (blocking) file-reads to async reads to avoid blocking the main-thread when processing large
+    /// files.
     ///
-    /// Default is 0, meaning all files are read asyncly.
-    pub fn set_size_threshold(mut self, size: u64) -> Self {
-        self.size_threshold = size;
+    /// Tweaking this value according to your expected usage may lead to signifiant performance
+    /// gains (or losses in other handlers, if `size` is too high).
+    ///
+    /// When the `experimental-io-uring` crate feature is enabled, file reads are always async.
+    ///
+    /// Default is 0, meaning all files are read asynchronously.
+    pub fn read_mode_threshold(mut self, size: u64) -> Self {
+        self.read_mode_threshold = size;
         self
     }
 
@@ -455,7 +460,7 @@ impl NamedFile {
             }
 
             let reader =
-                chunked::new_chunked_read(self.md.len(), 0, self.file, self.size_threshold);
+                chunked::new_chunked_read(self.md.len(), 0, self.file, self.read_mode_threshold);
 
             return res.streaming(reader);
         }
@@ -592,7 +597,7 @@ impl NamedFile {
                 .map_into_boxed_body();
         }
 
-        let reader = chunked::new_chunked_read(length, offset, self.file, self.size_threshold);
+        let reader = chunked::new_chunked_read(length, offset, self.file, self.read_mode_threshold);
 
         if offset != 0 || length != self.md.len() {
             res.status(StatusCode::PARTIAL_CONTENT);
