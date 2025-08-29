@@ -38,7 +38,7 @@ use crate::{
 pub struct Files {
     mount_path: String,
     directory: PathBuf,
-    index: Option<String>,
+    indexes: Vec<String>,
     show_index: bool,
     redirect_to_slash: bool,
     default: Rc<RefCell<Option<Rc<HttpNewService>>>>,
@@ -61,7 +61,7 @@ impl Clone for Files {
     fn clone(&self) -> Self {
         Self {
             directory: self.directory.clone(),
-            index: self.index.clone(),
+            indexes: self.indexes.clone(),
             show_index: self.show_index,
             redirect_to_slash: self.redirect_to_slash,
             default: self.default.clone(),
@@ -108,7 +108,7 @@ impl Files {
         Files {
             mount_path: mount_path.trim_end_matches('/').to_owned(),
             directory: dir,
-            index: None,
+            indexes: Vec::new(),
             show_index: false,
             redirect_to_slash: false,
             default: Rc::new(RefCell::new(None)),
@@ -192,15 +192,19 @@ impl Files {
         self
     }
 
-    /// Set index file
+    /// Set an index file
     ///
     /// Shows specific index file for directories instead of
     /// showing files listing.
     ///
+    /// This function can be called multiple times to configure
+    /// a list of index fallbacks with their priority set to the
+    /// order of their addition.
+    ///
     /// If the index file is not found, files listing is shown as a fallback if
     /// [`Files::show_files_listing()`] is set.
     pub fn index_file<T: Into<String>>(mut self, index: T) -> Self {
-        self.index = Some(index.into());
+        self.indexes.push(index.into());
         self
     }
 
@@ -357,7 +361,7 @@ impl ServiceFactory<ServiceRequest> for Files {
     fn new_service(&self, _: ()) -> Self::Future {
         let mut inner = FilesServiceInner {
             directory: self.directory.clone(),
-            index: self.index.clone(),
+            indexes: self.indexes.clone(),
             show_index: self.show_index,
             redirect_to_slash: self.redirect_to_slash,
             default: None,

@@ -29,7 +29,7 @@ impl Deref for FilesService {
 
 pub struct FilesServiceInner {
     pub(crate) directory: PathBuf,
-    pub(crate) index: Option<String>,
+    pub(crate) indexes: Vec<String>,
     pub(crate) show_index: bool,
     pub(crate) redirect_to_slash: bool,
     pub(crate) default: Option<HttpService>,
@@ -141,7 +141,7 @@ impl Service<ServiceRequest> for FilesService {
             if path.is_dir() {
                 if this.redirect_to_slash
                     && !req.path().ends_with('/')
-                    && (this.index.is_some() || this.show_index)
+                    && (!this.indexes.is_empty() || this.show_index)
                 {
                     let redirect_to = format!("{}/", req.path());
 
@@ -152,15 +152,18 @@ impl Service<ServiceRequest> for FilesService {
                     ));
                 }
 
-                match this.index {
-                    Some(ref index) => {
-                        let named_path = path.join(index);
-                        match NamedFile::open_async(named_path).await {
-                            Ok(named_file) => Ok(this.serve_named_file(req, named_file)),
-                            Err(_) if this.show_index => Ok(this.show_index(req, path)),
-                            Err(err) => this.handle_err(err, req).await,
-                        }
-                    }
+                let index = this
+                    .indexes
+                    .iter()
+                    .map(|i| path.join(i))
+                    .find(|p| p.exists());
+
+                match index {
+                    Some(ref named_path) => match NamedFile::open_async(named_path).await {
+                        Ok(named_file) => Ok(this.serve_named_file(req, named_file)),
+                        Err(_) if this.show_index => Ok(this.show_index(req, path)),
+                        Err(err) => this.handle_err(err, req).await,
+                    },
                     None if this.show_index => Ok(this.show_index(req, path)),
                     None => Ok(ServiceResponse::from_err(
                         FilesError::IsDirectory,
