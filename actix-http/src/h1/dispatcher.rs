@@ -1184,7 +1184,7 @@ where
                     let state_is_none = inner_p.state.is_none();
 
                     // read half is closed; we do not process any responses
-                    if inner_p.flags.contains(Flags::READ_DISCONNECT) && state_is_none {
+                    if inner_p.flags.contains(Flags::READ_DISCONNECT) {
                         trace!("read half closed; start shutdown");
                         inner_p.flags.insert(Flags::SHUTDOWN);
                     }
@@ -1218,6 +1218,9 @@ where
                         inner_p.shutdown_timer,
                     );
 
+                    if inner_p.flags.contains(Flags::SHUTDOWN) {
+                        cx.waker().wake_by_ref();
+                    }
                     Poll::Pending
                 };
 

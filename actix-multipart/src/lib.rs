@@ -13,7 +13,7 @@
 //! ```no_run
 //! use actix_web::{post, App, HttpServer, Responder};
 //!
-//! use actix_multipart::form::{json::Json as MpJson, tempfile::TempFile, MultipartForm};
+//! use actix_multipart::form::{json::Json as MpJson, tempfile::TempFile, MultipartForm, MultipartFormConfig};
 //! use serde::Deserialize;
 //!
 //! #[derive(Debug, Deserialize)]
@@ -23,6 +23,7 @@
 //!
 //! #[derive(Debug, MultipartForm)]
 //! struct UploadForm {
+//!     // Note: the form is also subject to the global limits configured using `MultipartFormConfig`.
 //!     #[multipart(limit = "100MB")]
 //!     file: TempFile,
 //!     json: MpJson<Metadata>,
@@ -38,10 +39,15 @@
 //!
 //! #[actix_web::main]
 //! async fn main() -> std::io::Result<()> {
-//!     HttpServer::new(move || App::new().service(post_video))
-//!         .bind(("127.0.0.1", 8080))?
-//!         .run()
-//!         .await
+//!     HttpServer::new(move || {
+//!         App::new()
+//!             .service(post_video)
+//!             // Also increase the global total limit to 100MiB.
+//!             .app_data(MultipartFormConfig::default().total_limit(100 * 1024 * 1024))
+//!     })
+//!     .bind(("127.0.0.1", 8080))?
+//!     .run()
+//!     .await
 //! }
 //! ```
 //!
