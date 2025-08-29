@@ -318,12 +318,33 @@ impl HttpResponseBuilder {
     /// Set a streaming body and build the `HttpResponse`.
     ///
     /// `HttpResponseBuilder` can not be used after this call.
+    ///
+    /// If `Content-Type` is not set, then it is automatically set to `application/octet-stream`.
+    ///
+    /// If `Content-Length` is set, then [`no_chunking()`](Self::no_chunking) is automatically called.
     #[inline]
     pub fn streaming<S, E>(&mut self, stream: S) -> HttpResponse
     where
         S: Stream<Item = Result<Bytes, E>> + 'static,
         E: Into<BoxError> + 'static,
     {
+        // Set mime type to application/octet-stream if it is not set
+        if let Some(parts) = self.inner() {
+            if !parts.headers.contains_key(header::CONTENT_TYPE) {
+                self.insert_header((header::CONTENT_TYPE, mime::APPLICATION_OCTET_STREAM));
+            }
+        }
+
+        if let Some(parts) = self.inner() {
+            if let Some(length) = parts.headers.get(header::CONTENT_LENGTH) {
+                if let Ok(length) = length.to_str() {
+                    if let Ok(length) = length.parse::<u64>() {
+                        self.no_chunking(length);
+                    }
+                }
+            }
+        }
+
         self.body(BodyStream::new(stream))
     }
 

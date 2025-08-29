@@ -14,7 +14,6 @@ license.workspace = true
 edition.workspace = true
 
 [package.metadata.docs.rs]
-rustdoc-args = ["--cfg", "docsrs"]
 all-features = true
 
 [package.metadata.cargo_check_external_types]
