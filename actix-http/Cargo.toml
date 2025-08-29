@@ -156,7 +156,7 @@ serde_json = "1.0"
 static_assertions = "1"
 tls-openssl = { package = "openssl", version = "0.10.55" }
 tls-rustls_023 = { package = "rustls", version = "0.23" }
-tokio = { version = "1.38.2", features = ["net", "rt", "macros"] }
+tokio = { version = "1.38.2", features = ["net", "rt", "macros", "sync"] }
 
 [lints]
 workspace = true

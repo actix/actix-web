@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Properly wake Payload receivers when feeding errors or EOF
+
 ## 3.11.1
 
 - Prevent more hangs after client disconnects.
