@@ -17,7 +17,6 @@ edition.workspace = true
 rust-version.workspace = true
 
 [package.metadata.docs.rs]
-rustdoc-args = ["--cfg", "docsrs"]
 features = [
   "macros",
   "openssl",

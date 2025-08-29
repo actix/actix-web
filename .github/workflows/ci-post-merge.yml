@@ -28,11 +28,11 @@ jobs:
     runs-on: ${{ matrix.target.os }}
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
       - name: Install nasm
         if: matrix.target.os == 'windows-latest'
-        uses: ilammy/setup-nasm@v1.5.2
+        uses: ilammy/setup-nasm@72793074d3c8cdda771dba85f6deafe00623038b # v1.5.2
 
       - name: Install OpenSSL
         if: matrix.target.os == 'windows-latest'
@@ -44,12 +44,12 @@ jobs:
           echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV
 
       - name: Install Rust (${{ matrix.version.name }})
-        uses: actions-rust-lang/setup-rust-toolchain@v1.13.0
+        uses: actions-rust-lang/setup-rust-toolchain@ab6845274e2ff01cd4462007e1a9d9df1ab49f42 # v1.14.0
         with:
           toolchain: ${{ matrix.version.version }}
 
       - name: Install just, cargo-hack, cargo-nextest, cargo-ci-cache-clean
-        uses: taiki-e/install-action@v2.58.17
+        uses: taiki-e/install-action@f63c33fd96cc1e69a29bafd06541cf28588b43a4 # v2.58.21
         with:
           tool: just,cargo-hack,cargo-nextest,cargo-ci-cache-clean
 
@@ -71,19 +71,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
       - name: Free Disk Space
         run: ./scripts/free-disk-space.sh
 
       - name: Setup mold linker
-        uses: rui314/setup-mold@v1
+        uses: rui314/setup-mold@7344740a9418dcdcb481c7df83d9fbd1d5072d7d # v1
 
       - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1.13.0
+        uses: actions-rust-lang/setup-rust-toolchain@ab6845274e2ff01cd4462007e1a9d9df1ab49f42 # v1.14.0
 
       - name: Install just, cargo-hack
-        uses: taiki-e/install-action@v2.58.17
+        uses: taiki-e/install-action@f63c33fd96cc1e69a29bafd06541cf28588b43a4 # v2.58.21
         with:
           tool: just,cargo-hack
 

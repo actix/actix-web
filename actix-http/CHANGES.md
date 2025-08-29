@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 3.11.1
+
+- Prevent more hangs after client disconnects.
+- More malformed WebSocket frames are now gracefully rejected.
+- Using `TestRequest::set_payload()` now sets a Content-Length header.
+
 ## 3.11.0
 
 - Update `brotli` dependency to `8`.

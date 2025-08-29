@@ -1,6 +1,6 @@
 [package]
 name = "actix-http"
-version = "3.11.0"
+version = "3.11.1"
 authors = ["Nikolay Kim <fafhrd91@gmail.com>", "Rob Ede <robjtede@icloud.com>"]
 description = "HTTP types and services for the Actix ecosystem"
 keywords = ["actix", "http", "framework", "async", "futures"]
@@ -17,7 +17,6 @@ edition.workspace = true
 rust-version.workspace = true
 
 [package.metadata.docs.rs]
-rustdoc-args = ["--cfg", "docsrs"]
 features = [
   "http2",
   "ws",
@@ -119,7 +118,7 @@ tokio-util = { version = "0.7", features = ["io", "codec"] }
 tracing = { version = "0.1.30", default-features = false, features = ["log"] }
 
 # http2
-h2 = { version = "0.3.26", optional = true }
+h2 = { version = "0.3.27", optional = true }
 
 # websockets
 base64 = { version = "0.22", optional = true }
