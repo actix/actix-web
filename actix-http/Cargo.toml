@@ -60,6 +60,9 @@ http2 = ["dep:h2"]
 # WebSocket protocol implementation
 ws = ["dep:local-channel", "dep:base64", "dep:rand", "dep:sha1"]
 
+# HAProxy PROXY protocol support
+haproxy = ["dep:nom"]
+
 # TLS via OpenSSL
 openssl = ["__tls", "actix-tls/accept", "actix-tls/openssl"]
 
@@ -93,6 +96,8 @@ __tls = []
 
 [dependencies]
 actix-codec = "0.5"
+# actix-proxy-protocol = "0.0.2"
+actix-proxy-protocol = { path = "../../actix-web-lab/actix-proxy-protocol" }
 actix-rt = { version = "2.2", default-features = false }
 actix-service = "2"
 actix-utils = "3"
@@ -104,6 +109,7 @@ derive_more = { version = "2", features = ["as_ref", "deref", "deref_mut", "disp
 encoding_rs = "0.8"
 foldhash = "0.1"
 futures-core = { version = "0.3.17", default-features = false, features = ["alloc"] }
+futures-util = { version = "0.3.17", default-features = false, features = ["alloc"] }
 http = "0.2.7"
 httparse = "1.5.1"
 httpdate = "1.0.1"
@@ -125,6 +131,9 @@ base64 = { version = "0.22", optional = true }
 local-channel = { version = "0.1", optional = true }
 rand = { version = "0.9", optional = true }
 sha1 = { version = "0.10", optional = true }
+
+# proxy
+nom = { version = "8", optional = true }
 
 # openssl/rustls
 actix-tls = { version = "3.4", default-features = false, optional = true }
@@ -164,6 +173,10 @@ workspace = true
 [[example]]
 name = "ws"
 required-features = ["ws", "rustls-0_23"]
+
+[[example]]
+name = "haproxy"
+required-features = ["http2", "haproxy"]
 
 [[example]]
 name = "tls_rustls"

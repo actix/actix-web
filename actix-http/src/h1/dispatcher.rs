@@ -993,6 +993,8 @@ where
                 Poll::Ready(Ok(n)) => {
                     this.flags.remove(Flags::FINISHED);
 
+                    eprintln!("readbuf contents: {:?}", this.read_buf);
+
                     if n == 0 {
                         return Ok(true);
                     }

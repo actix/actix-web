@@ -240,6 +240,131 @@ where
     }
 }
 
+#[cfg(feature = "haproxy")]
+impl<S, B, X, U> HttpService<actix_proxy_protocol::v1::TlsStream<TcpStream>, S, B, X, U>
+where
+    S: ServiceFactory<Request, Config = ()>,
+    S::Future: 'static,
+    S::Error: Into<Response<BoxBody>> + 'static,
+    S::InitError: fmt::Debug,
+    S::Response: Into<Response<B>> + 'static,
+    <S::Service as Service<Request>>::Future: 'static,
+
+    B: MessageBody + 'static,
+
+    X: ServiceFactory<Request, Config = (), Response = Request>,
+    X::Future: 'static,
+    X::Error: Into<Response<BoxBody>>,
+    X::InitError: fmt::Debug,
+
+    U: ServiceFactory<
+        (
+            Request,
+            Framed<actix_proxy_protocol::v1::TlsStream<TcpStream>, h1::Codec>,
+        ),
+        Config = (),
+        Response = (),
+    >,
+    U::Future: 'static,
+    U::Error: fmt::Display + Into<Response<BoxBody>>,
+    U::InitError: fmt::Debug,
+{
+    /// Creates TCP stream service from HTTP service that consumes PROXY protocol v1 headers first.
+    ///
+    /// The connection info obtained from the PROXY header.
+    pub fn tcp_proxy_protocol_v1(
+        self,
+    ) -> impl ServiceFactory<
+        TcpStream,
+        Config = (),
+        Response = (),
+        Error = actix_proxy_protocol::v1::TlsError<std::io::Error, DispatchError>,
+        InitError = (),
+    > {
+        use actix_proxy_protocol::v1::{TlsError, TlsStream};
+
+        actix_proxy_protocol::v1::Acceptor::new()
+            .map_init_err(|_| unreachable!("TLS acceptor service factory does not error on init"))
+            .map_err(TlsError::into_service_error)
+            .map(|io: TlsStream<TcpStream>| {
+                let peer_addr = io.0.get_ref().peer_addr().ok();
+                (io, Protocol::Http1, peer_addr)
+            })
+            .and_then(self.map_err(TlsError::Service))
+    }
+}
+
+#[cfg(feature = "haproxy")]
+impl<S, B, X, U> HttpService<actix_proxy_protocol::v1::TlsStream<TcpStream>, S, B, X, U>
+where
+    S: ServiceFactory<Request, Config = ()>,
+    S::Future: 'static,
+    S::Error: Into<Response<BoxBody>> + 'static,
+    S::InitError: fmt::Debug,
+    S::Response: Into<Response<B>> + 'static,
+    <S::Service as Service<Request>>::Future: 'static,
+
+    B: MessageBody + 'static,
+
+    X: ServiceFactory<Request, Config = (), Response = Request>,
+    X::Future: 'static,
+    X::Error: Into<Response<BoxBody>>,
+    X::InitError: fmt::Debug,
+
+    U: ServiceFactory<
+        (
+            Request,
+            Framed<actix_proxy_protocol::v1::TlsStream<TcpStream>, h1::Codec>,
+        ),
+        Config = (),
+        Response = (),
+    >,
+    U::Future: 'static,
+    U::Error: fmt::Display + Into<Response<BoxBody>>,
+    U::InitError: fmt::Debug,
+{
+    /// Creates TCP stream service from HTTP service that consumes PROXY protocol v1 headers first.
+    ///
+    /// The connection info obtained from the PROXY header.
+    pub fn tcp_auto_h2c_proxy_protocol_v1(
+        self,
+    ) -> impl ServiceFactory<
+        TcpStream,
+        Config = (),
+        Response = (),
+        Error = actix_proxy_protocol::v1::TlsError<std::io::Error, DispatchError>,
+        InitError = (),
+    > {
+        use actix_proxy_protocol::v1::{TlsError, TlsStream};
+
+        actix_proxy_protocol::v1::Acceptor::new()
+            .map_init_err(|_| unreachable!("TLS acceptor service factory does not error on init"))
+            .map_err(TlsError::into_service_error)
+            .and_then(fn_service(move |io: TlsStream<TcpStream>| async move {
+                // subset of HTTP/2 preface defined by RFC 9113 §3.4
+                // this subset was chosen to maximize likelihood that peeking only once will allow us to
+                // reliably determine version or else it should fallback to h1 and fail quickly if data
+                // on the wire is junk
+                const H2_PREFACE: &[u8] = b"PRI * HTTP/2";
+
+                let mut buf = [0; 12];
+
+                // TODO: cannot peak into a bufreader
+                io.0.get_ref().peek(&mut buf).await.map_err(TlsError::Tls)?;
+
+                let proto = if buf == H2_PREFACE {
+                    Protocol::Http2
+                } else {
+                    Protocol::Http1
+                };
+
+                let peer_addr = io.0.get_ref().peer_addr().ok();
+                Ok((io, proto, peer_addr))
+            }))
+            .and_then(self.map_err(TlsError::Service))
+    }
+}
+
 /// Configuration options used when accepting TLS connection.
 #[cfg(feature = "__tls")]
 #[derive(Debug, Default)]

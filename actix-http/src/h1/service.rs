@@ -91,6 +91,59 @@ where
     }
 }
 
+#[cfg(feature = "haproxy")]
+impl<S, B, X, U> H1Service<actix_proxy_protocol::v1::TlsStream<TcpStream>, S, B, X, U>
+where
+    S: ServiceFactory<Request, Config = ()>,
+    S::Future: 'static,
+    S::Error: Into<Response<BoxBody>>,
+    S::InitError: fmt::Debug,
+    S::Response: Into<Response<B>>,
+
+    B: MessageBody,
+
+    X: ServiceFactory<Request, Config = (), Response = Request>,
+    X::Future: 'static,
+    X::Error: Into<Response<BoxBody>>,
+    X::InitError: fmt::Debug,
+
+    U: ServiceFactory<
+        (
+            Request,
+            Framed<actix_proxy_protocol::v1::TlsStream<TcpStream>, Codec>,
+        ),
+        Config = (),
+        Response = (),
+    >,
+    U::Future: 'static,
+    U::Error: fmt::Display + Into<Response<BoxBody>>,
+    U::InitError: fmt::Debug,
+{
+    /// Creates TCP stream service from HTTP service that consumes PROXY protocol v1 headers first.
+    ///
+    /// The connection info obtained from the PROXY header.
+    pub fn tcp_proxy_protocol_v1(
+        self,
+    ) -> impl ServiceFactory<
+        TcpStream,
+        Config = (),
+        Response = (),
+        Error = actix_proxy_protocol::v1::TlsError<std::io::Error, DispatchError>,
+        InitError = (),
+    > {
+        use actix_proxy_protocol::v1::{TlsError, TlsStream};
+
+        actix_proxy_protocol::v1::Acceptor::new()
+            .map_init_err(|_| unreachable!("TLS acceptor service factory does not error on init"))
+            .map_err(TlsError::into_service_error)
+            .map(|io: TlsStream<TcpStream>| {
+                let peer_addr = io.0.get_ref().peer_addr().ok();
+                (io, peer_addr)
+            })
+            .and_then(self.map_err(TlsError::Service))
+    }
+}
+
 #[cfg(feature = "openssl")]
 mod openssl {
     use actix_tls::accept::{
