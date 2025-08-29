@@ -7,8 +7,6 @@ use std::{
     io::{self, Write as _},
 };
 
-#[cfg(feature = "ws")]
-use actix_http::Response;
 use bytes::BytesMut;
 
 use crate::{
@@ -127,9 +125,6 @@ impl ResponseError for actix_http::error::PayloadError {
     }
 }
 
-#[cfg(feature = "ws")]
-impl ResponseError for actix_http::ws::ProtocolError {}
-
 impl ResponseError for actix_http::error::ContentTypeError {
     fn status_code(&self) -> StatusCode {
         StatusCode::BAD_REQUEST
@@ -139,9 +134,14 @@ impl ResponseError for actix_http::error::ContentTypeError {
 #[cfg(feature = "ws")]
 impl ResponseError for actix_http::ws::HandshakeError {
     fn error_response(&self) -> HttpResponse<BoxBody> {
-        Response::from(self).map_into_boxed_body().into()
+        actix_http::Response::from(self)
+            .map_into_boxed_body()
+            .into()
     }
 }
+
+#[cfg(feature = "ws")]
+impl ResponseError for actix_http::ws::ProtocolError {}
 
 #[cfg(test)]
 mod tests {

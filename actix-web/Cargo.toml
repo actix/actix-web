@@ -86,10 +86,10 @@ cookies = ["dep:cookie"]
 # Secure & signed cookies
 secure-cookies = ["cookies", "cookie/secure"]
 
-# HTTP/2 support (including h2c).
+# HTTP/2 support (including h2c)
 http2 = ["actix-http/http2"]
 
-# Websockets support
+# WebSocket support
 ws = ["actix-http/ws"]
 
 # TLS via OpenSSL
@@ -135,7 +135,7 @@ actix-service = "2"
 actix-tls = { version = "3.4", default-features = false, optional = true }
 actix-utils = "3"
 
-actix-http = { version = "3.11"  }
+actix-http = { version = "3.11" }
 actix-router = { version = "0.5.3", default-features = false, features = ["http"] }
 actix-web-codegen = { version = "4.3", optional = true, default-features = false }
 
