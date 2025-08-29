@@ -80,6 +80,7 @@ pub struct NamedFile {
     pub(crate) content_type: Mime,
     pub(crate) content_disposition: ContentDisposition,
     pub(crate) encoding: Option<ContentEncoding>,
+    pub(crate) size_threshold: u64,
 }
 
 #[cfg(not(feature = "experimental-io-uring"))]
@@ -200,6 +201,7 @@ impl NamedFile {
             encoding,
             status_code: StatusCode::OK,
             flags: Flags::default(),
+            size_threshold: 0,
         })
     }
 
@@ -353,6 +355,18 @@ impl NamedFile {
         self
     }
 
+    /// Sets the async file-size threshold.
+    ///
+    /// When a file is larger than the threshold, the reader
+    /// will switch from faster blocking file-reads to slower async reads
+    /// to avoid blocking the main-thread when processing large files.
+    ///
+    /// Default is 0, meaning all files are read asyncly.
+    pub fn set_size_threshold(mut self, size: u64) -> Self {
+        self.size_threshold = size;
+        self
+    }
+
     /// Specifies whether to return `ETag` header in response.
     ///
     /// Default is true.
@@ -440,7 +454,8 @@ impl NamedFile {
                 res.insert_header((header::CONTENT_ENCODING, current_encoding.as_str()));
             }
 
-            let reader = chunked::new_chunked_read(self.md.len(), 0, self.file);
+            let reader =
+                chunked::new_chunked_read(self.md.len(), 0, self.file, self.size_threshold);
 
             return res.streaming(reader);
         }
@@ -577,7 +592,7 @@ impl NamedFile {
                 .map_into_boxed_body();
         }
 
-        let reader = chunked::new_chunked_read(length, offset, self.file);
+        let reader = chunked::new_chunked_read(length, offset, self.file, self.size_threshold);
 
         if offset != 0 || length != self.md.len() {
             res.status(StatusCode::PARTIAL_CONTENT);
