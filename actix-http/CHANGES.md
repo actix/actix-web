@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Properly wake Payload receivers when feeding errors or EOF
+- Shutdown connections when HTTP Responses are written without reading full Requests
 
 ## 3.11.1
 
