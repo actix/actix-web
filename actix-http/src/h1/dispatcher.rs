@@ -524,9 +524,6 @@ where
                                 let payload_unfinished = this.payload.is_some();
                                 let not_pipelined = this.messages.is_empty();
 
-                                println!("not pipelined: {not_pipelined}");
-                                println!("payload unfinished: {payload_unfinished}");
-
                                 // payload stream finished.
                                 // set state to None and handle next message
                                 this.state.set(State::None);
@@ -577,9 +574,6 @@ where
                                 // yet, and if not, shutdown the connection.
                                 let payload_unfinished = this.payload.is_some();
                                 let not_pipelined = this.messages.is_empty();
-
-                                println!("not pipelined: {not_pipelined}");
-                                println!("payload unfinished: {payload_unfinished}");
 
                                 // payload stream finished.
                                 // set state to None and handle next message
