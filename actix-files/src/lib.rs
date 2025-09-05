@@ -736,7 +736,7 @@ mod tests {
         .await;
         let req = TestRequest::with_uri("/tests").to_request();
         let resp = test::call_service(&srv, req).await;
-        assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
+        assert_eq!(resp.status(), StatusCode::TEMPORARY_REDIRECT);
 
         // should redirect if files listing is enabled
         let srv = test::init_service(
@@ -749,7 +749,7 @@ mod tests {
         .await;
         let req = TestRequest::with_uri("/tests").to_request();
         let resp = test::call_service(&srv, req).await;
-        assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
+        assert_eq!(resp.status(), StatusCode::TEMPORARY_REDIRECT);
 
         // should not redirect if the path is wrong
         let req = TestRequest::with_uri("/not_existing").to_request();

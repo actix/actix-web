@@ -149,7 +149,7 @@ impl Service<ServiceRequest> for FilesService {
                     let redirect_to = format!("{}/", req.path());
 
                     return Ok(req.into_response(
-                        HttpResponse::PermanentRedirect()
+                        HttpResponse::TemporaryRedirect()
                             .insert_header((header::LOCATION, redirect_to))
                             .finish(),
                     ));
