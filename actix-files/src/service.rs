@@ -39,6 +39,7 @@ pub struct FilesServiceInner {
     pub(crate) file_flags: named::Flags,
     pub(crate) guards: Option<Rc<dyn Guard>>,
     pub(crate) hidden_files: bool,
+    pub(crate) size_threshold: u64,
 }
 
 impl fmt::Debug for FilesServiceInner {
@@ -70,7 +71,9 @@ impl FilesService {
         named_file.flags = self.file_flags;
 
         let (req, _) = req.into_parts();
-        let res = named_file.into_response(&req);
+        let res = named_file
+            .read_mode_threshold(self.size_threshold)
+            .into_response(&req);
         ServiceResponse::new(req, res)
     }
 
@@ -169,17 +172,7 @@ impl Service<ServiceRequest> for FilesService {
                 }
             } else {
                 match NamedFile::open_async(&path).await {
-                    Ok(mut named_file) => {
-                        if let Some(ref mime_override) = this.mime_override {
-                            let new_disposition = mime_override(&named_file.content_type.type_());
-                            named_file.content_disposition.disposition = new_disposition;
-                        }
-                        named_file.flags = this.file_flags;
-
-                        let (req, _) = req.into_parts();
-                        let res = named_file.into_response(&req);
-                        Ok(ServiceResponse::new(req, res))
-                    }
+                    Ok(named_file) => Ok(this.serve_named_file(req, named_file)),
                     Err(err) => this.handle_err(err, req).await,
                 }
             }
