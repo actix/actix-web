@@ -1053,15 +1053,16 @@ mod resolver {
     use actix_tls::connect::Resolve;
     use hickory_resolver::{
         config::{ResolverConfig, ResolverOpts},
+        name_server::TokioConnectionProvider,
         system_conf::read_system_conf,
-        TokioAsyncResolver,
+        TokioResolver,
     };
 
     use super::*;
 
     pub(super) fn resolver() -> Resolver {
         // new type for impl Resolve trait for TokioAsyncResolver.
-        struct HickoryDnsResolver(TokioAsyncResolver);
+        struct HickoryDnsResolver(TokioResolver);
 
         impl Resolve for HickoryDnsResolver {
             fn lookup<'a>(
@@ -1104,9 +1105,12 @@ mod resolver {
                         }
                     };
 
-                    let resolver = TokioAsyncResolver::tokio(cfg, opts);
+                    let resolver =
+                        TokioResolver::builder_with_config(cfg, TokioConnectionProvider::default())
+                            .with_options(opts)
+                            .build();
 
-                    // box hickory dns resolver and put it in thread local.
+                    // box hickory dns resolver and put it in thread local
                     let resolver = Resolver::custom(HickoryDnsResolver(resolver));
                     *local.borrow_mut() = Some(resolver.clone());
 
