@@ -8,7 +8,7 @@ use std::{
 
 use actix_http::{
     error::PayloadError, header::HeaderMap, BoxedPayloadStream, Extensions, HttpMessage, Payload,
-    ResponseHead, StatusCode, Version,
+    RequestHead, RequestHeadType, ResponseHead, StatusCode, Version,
 };
 use actix_rt::time::{sleep, Sleep};
 use bytes::Bytes;
@@ -23,6 +23,7 @@ use crate::cookie::{Cookie, ParseError as CookieParseError};
 pin_project! {
     /// Client Response
     pub struct ClientResponse<S = BoxedPayloadStream> {
+        pub(crate) req_head: RequestHeadType,
         pub(crate) head: ResponseHead,
         #[pin]
         pub(crate) payload: Payload<S>,
@@ -34,13 +35,20 @@ pin_project! {
 
 impl<S> ClientResponse<S> {
     /// Create new Request instance
-    pub(crate) fn new(head: ResponseHead, payload: Payload<S>) -> Self {
+    pub(crate) fn new(req_head: RequestHeadType, head: ResponseHead, payload: Payload<S>) -> Self {
         ClientResponse {
+            req_head,
             head,
             payload,
             timeout: ResponseTimeout::default(),
             extensions: RefCell::new(Extensions::new()),
         }
+    }
+
+    /// Returns the request head used to send the request.
+    #[inline]
+    pub fn req_head(&self) -> &RequestHead {
+        self.req_head.as_ref()
     }
 
     #[inline]
@@ -77,6 +85,7 @@ impl<S> ClientResponse<S> {
 
         ClientResponse {
             payload,
+            req_head: self.req_head,
             head: self.head,
             timeout: self.timeout,
             extensions: self.extensions,
@@ -105,6 +114,7 @@ impl<S> ClientResponse<S> {
         Self {
             payload: self.payload,
             head: self.head,
+            req_head: self.req_head,
             timeout,
             extensions: self.extensions,
         }
