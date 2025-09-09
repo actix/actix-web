@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Add `hickory-resolver` crate feature (off-by-default).
+- Add `hickory-dns` crate feature (off-by-default).
 - The `trust-dns` crate feature now delegates DNS resolution to `hickory-dns`.
 
 ## 3.7.0
