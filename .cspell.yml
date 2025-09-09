@@ -9,4 +9,5 @@ words:
   - rustls
   - rustup
   - serde
+  - uring
   - zstd

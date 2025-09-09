@@ -44,12 +44,12 @@ jobs:
           echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV
 
       - name: Install Rust (${{ matrix.version.name }})
-        uses: actions-rust-lang/setup-rust-toolchain@fb51252c7ba57d633bc668f941da052e410add48 # v1.13.0
+        uses: actions-rust-lang/setup-rust-toolchain@ac90e63697ac2784f4ecfe2964e1a285c304003a # v1.14.1
         with:
           toolchain: ${{ matrix.version.version }}
 
       - name: Install just, cargo-hack, cargo-nextest, cargo-ci-cache-clean
-        uses: taiki-e/install-action@ad95d4e02e061d4390c4b66ef5ed56c7fee3d2ce # v2.58.17
+        uses: taiki-e/install-action@57511bcdf8cdb0eab6448cb7fa632952d9f25742 # v2.59.1
         with:
           tool: just,cargo-hack,cargo-nextest,cargo-ci-cache-clean
 
@@ -77,13 +77,13 @@ jobs:
         run: ./scripts/free-disk-space.sh
 
       - name: Setup mold linker
-        uses: rui314/setup-mold@7344740a9418dcdcb481c7df83d9fbd1d5072d7d # v1
+        uses: rui314/setup-mold@725a8794d15fc7563f59595bd9556495c0564878 # v1
 
       - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@fb51252c7ba57d633bc668f941da052e410add48 # v1.13.0
+        uses: actions-rust-lang/setup-rust-toolchain@ac90e63697ac2784f4ecfe2964e1a285c304003a # v1.14.1
 
       - name: Install just, cargo-hack
-        uses: taiki-e/install-action@ad95d4e02e061d4390c4b66ef5ed56c7fee3d2ce # v2.58.17
+        uses: taiki-e/install-action@57511bcdf8cdb0eab6448cb7fa632952d9f25742 # v2.59.1
         with:
           tool: just,cargo-hack
 
