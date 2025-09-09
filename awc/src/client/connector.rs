@@ -1048,7 +1048,7 @@ mod resolver {
 
 #[cfg(feature = "hickory-dns")]
 mod resolver {
-    use std::{cell::RefCell, net::SocketAddr};
+    use std::{cell::OnceCell, net::SocketAddr};
 
     use actix_tls::connect::Resolve;
     use hickory_resolver::{
@@ -1086,21 +1086,17 @@ mod resolver {
 
         // resolver struct is cached in thread local so new clients can reuse the existing instance
         thread_local! {
-            static HICKORY_DNS_RESOLVER: RefCell<Option<Resolver>> = const { RefCell::new(None) };
+            static HICKORY_DNS_RESOLVER: OnceCell<Resolver> = const { OnceCell::new() };
         }
 
         // get from thread local or construct a new hickory dns resolver.
         HICKORY_DNS_RESOLVER.with(|local| {
-            let resolver = local.borrow().as_ref().map(Clone::clone);
-
-            match resolver {
-                Some(resolver) => resolver,
-
-                None => {
+            local
+                .get_or_init(|| {
                     let (cfg, opts) = match read_system_conf() {
                         Ok((cfg, opts)) => (cfg, opts),
                         Err(err) => {
-                            log::error!("Hickory-DNS can not load system config: {err}");
+                            log::error!("Hickory DNS can not load system config: {err}");
                             (ResolverConfig::default(), ResolverOpts::default())
                         }
                     };
@@ -1110,13 +1106,9 @@ mod resolver {
                             .with_options(opts)
                             .build();
 
-                    // box hickory dns resolver and put it in thread local
-                    let resolver = Resolver::custom(HickoryDnsResolver(resolver));
-                    *local.borrow_mut() = Some(resolver.clone());
-
-                    resolver
-                }
-            }
+                    Resolver::custom(HickoryDnsResolver(resolver))
+                })
+                .clone()
         })
     }
 }
