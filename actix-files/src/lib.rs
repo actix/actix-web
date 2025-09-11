@@ -736,7 +736,21 @@ mod tests {
         .await;
         let req = TestRequest::with_uri("/tests").to_request();
         let resp = test::call_service(&srv, req).await;
-        assert_eq!(resp.status(), StatusCode::FOUND);
+        assert_eq!(resp.status(), StatusCode::TEMPORARY_REDIRECT);
+
+        // should redirect if index present with permanent redirect
+        let srv = test::init_service(
+            App::new().service(
+                Files::new("/", ".")
+                    .index_file("test.png")
+                    .redirect_to_slash_directory()
+                    .with_permanent_redirect_directory(),
+            ),
+        )
+        .await;
+        let req = TestRequest::with_uri("/tests").to_request();
+        let resp = test::call_service(&srv, req).await;
+        assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
 
         // should redirect if files listing is enabled
         let srv = test::init_service(
@@ -749,7 +763,7 @@ mod tests {
         .await;
         let req = TestRequest::with_uri("/tests").to_request();
         let resp = test::call_service(&srv, req).await;
-        assert_eq!(resp.status(), StatusCode::FOUND);
+        assert_eq!(resp.status(), StatusCode::TEMPORARY_REDIRECT);
 
         // should not redirect if the path is wrong
         let req = TestRequest::with_uri("/not_existing").to_request();
