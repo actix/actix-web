@@ -744,7 +744,7 @@ mod tests {
                 Files::new("/", ".")
                     .index_file("test.png")
                     .redirect_to_slash_directory()
-                    .with_permanent_redirect_directory(),
+                    .with_permanent_redirect(),
             ),
         )
         .await;

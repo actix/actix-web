@@ -150,7 +150,7 @@ impl Files {
     /// Redirect with permanent redirect status code
     ///
     /// By default redirect with temporary redirect status code
-    pub fn with_permanent_redirect_directory(mut self) -> Self {
+    pub fn with_permanent_redirect(mut self) -> Self {
         self.with_permanent_redirect = true;
         self
     }
