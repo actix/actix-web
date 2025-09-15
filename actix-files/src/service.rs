@@ -40,6 +40,7 @@ pub struct FilesServiceInner {
     pub(crate) guards: Option<Rc<dyn Guard>>,
     pub(crate) hidden_files: bool,
     pub(crate) size_threshold: u64,
+    pub(crate) with_permanent_redirect: bool,
 }
 
 impl fmt::Debug for FilesServiceInner {
@@ -148,11 +149,15 @@ impl Service<ServiceRequest> for FilesService {
                 {
                     let redirect_to = format!("{}/", req.path());
 
-                    return Ok(req.into_response(
-                        HttpResponse::Found()
-                            .insert_header((header::LOCATION, redirect_to))
-                            .finish(),
-                    ));
+                    let response = if this.with_permanent_redirect {
+                        HttpResponse::PermanentRedirect()
+                    } else {
+                        HttpResponse::TemporaryRedirect()
+                    }
+                    .insert_header((header::LOCATION, redirect_to))
+                    .finish();
+
+                    return Ok(req.into_response(response));
                 }
 
                 match this.index {
