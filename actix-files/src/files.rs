@@ -147,9 +147,9 @@ impl Files {
         self
     }
 
-    /// Redirect with permanent redirect status code
+    /// Redirect with permanent redirect status code (308).
     ///
-    /// By default redirect with temporary redirect status code
+    /// By default redirect with temporary redirect status code (307).
     pub fn with_permanent_redirect(mut self) -> Self {
         self.with_permanent_redirect = true;
         self
