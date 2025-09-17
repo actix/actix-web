@@ -19,6 +19,7 @@ pub struct HttpServiceBuilder<T, S, X = ExpectHandler, U = UpgradeHandler> {
     client_disconnect_timeout: Duration,
     secure: bool,
     local_addr: Option<net::SocketAddr>,
+    h1_allow_half_closed: bool,
     expect: X,
     upgrade: Option<U>,
     on_connect_ext: Option<Rc<ConnectCallback<T>>>,
@@ -40,6 +41,7 @@ where
             client_disconnect_timeout: Duration::ZERO,
             secure: false,
             local_addr: None,
+            h1_allow_half_closed: true,
 
             // dispatcher parts
             expect: ExpectHandler,
@@ -124,6 +126,18 @@ where
         self.client_disconnect_timeout(dur)
     }
 
+    /// Sets whether HTTP/1 connections should support half-closures.
+    ///
+    /// Clients can choose to shutdown their writer-side of the connection after completing their
+    /// request and while waiting for the server response. Setting this to `false` will cause the
+    /// server to abort the connection handling as soon as it detects an EOF from the client.
+    ///
+    /// The default behavior is to allow, i.e. `true`
+    pub fn h1_allow_half_closed(mut self, allow: bool) -> Self {
+        self.h1_allow_half_closed = allow;
+        self
+    }
+
     /// Provide service for `EXPECT: 100-Continue` support.
     ///
     /// Service get called with request that contains `EXPECT` header.
@@ -142,6 +156,7 @@ where
             client_disconnect_timeout: self.client_disconnect_timeout,
             secure: self.secure,
             local_addr: self.local_addr,
+            h1_allow_half_closed: self.h1_allow_half_closed,
             expect: expect.into_factory(),
             upgrade: self.upgrade,
             on_connect_ext: self.on_connect_ext,
@@ -166,6 +181,7 @@ where
             client_disconnect_timeout: self.client_disconnect_timeout,
             secure: self.secure,
             local_addr: self.local_addr,
+            h1_allow_half_closed: self.h1_allow_half_closed,
             expect: self.expect,
             upgrade: Some(upgrade.into_factory()),
             on_connect_ext: self.on_connect_ext,
@@ -201,6 +217,7 @@ where
             .client_disconnect_timeout(self.client_disconnect_timeout)
             .secure(self.secure)
             .local_addr(self.local_addr)
+            .h1_allow_half_closed(self.h1_allow_half_closed)
             .build();
 
         H1Service::with_config(cfg, service.into_factory())
@@ -226,6 +243,7 @@ where
             .client_disconnect_timeout(self.client_disconnect_timeout)
             .secure(self.secure)
             .local_addr(self.local_addr)
+            .h1_allow_half_closed(self.h1_allow_half_closed)
             .build();
 
         crate::h2::H2Service::with_config(cfg, service.into_factory())
@@ -248,6 +266,7 @@ where
             .client_disconnect_timeout(self.client_disconnect_timeout)
             .secure(self.secure)
             .local_addr(self.local_addr)
+            .h1_allow_half_closed(self.h1_allow_half_closed)
             .build();
 
         HttpService::with_config(cfg, service.into_factory())
