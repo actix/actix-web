@@ -7,7 +7,7 @@ use crate::{
     body::{BoxBody, MessageBody},
     h1::{self, ExpectHandler, H1Service, UpgradeHandler},
     service::HttpService,
-    ConnectCallback, Extensions, KeepAlive, Request, Response, ServiceConfig,
+    ConnectCallback, Extensions, KeepAlive, Request, Response, ServiceConfigBuilder,
 };
 
 /// An HTTP service builder.
@@ -195,13 +195,13 @@ where
         S::InitError: fmt::Debug,
         S::Response: Into<Response<B>>,
     {
-        let cfg = ServiceConfig::new(
-            self.keep_alive,
-            self.client_request_timeout,
-            self.client_disconnect_timeout,
-            self.secure,
-            self.local_addr,
-        );
+        let cfg = ServiceConfigBuilder::new()
+            .keep_alive(self.keep_alive)
+            .client_request_timeout(self.client_request_timeout)
+            .client_disconnect_timeout(self.client_disconnect_timeout)
+            .secure(self.secure)
+            .local_addr(self.local_addr)
+            .build();
 
         H1Service::with_config(cfg, service.into_factory())
             .expect(self.expect)
@@ -220,13 +220,13 @@ where
 
         B: MessageBody + 'static,
     {
-        let cfg = ServiceConfig::new(
-            self.keep_alive,
-            self.client_request_timeout,
-            self.client_disconnect_timeout,
-            self.secure,
-            self.local_addr,
-        );
+        let cfg = ServiceConfigBuilder::new()
+            .keep_alive(self.keep_alive)
+            .client_request_timeout(self.client_request_timeout)
+            .client_disconnect_timeout(self.client_disconnect_timeout)
+            .secure(self.secure)
+            .local_addr(self.local_addr)
+            .build();
 
         crate::h2::H2Service::with_config(cfg, service.into_factory())
             .on_connect_ext(self.on_connect_ext)
@@ -242,13 +242,13 @@ where
 
         B: MessageBody + 'static,
     {
-        let cfg = ServiceConfig::new(
-            self.keep_alive,
-            self.client_request_timeout,
-            self.client_disconnect_timeout,
-            self.secure,
-            self.local_addr,
-        );
+        let cfg = ServiceConfigBuilder::new()
+            .keep_alive(self.keep_alive)
+            .client_request_timeout(self.client_request_timeout)
+            .client_disconnect_timeout(self.client_disconnect_timeout)
+            .secure(self.secure)
+            .local_addr(self.local_addr)
+            .build();
 
         HttpService::with_config(cfg, service.into_factory())
             .expect(self.expect)

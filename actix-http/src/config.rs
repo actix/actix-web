@@ -1,5 +1,5 @@
 use std::{
-    net,
+    net::SocketAddr,
     rc::Rc,
     time::{Duration, Instant},
 };
@@ -7,6 +7,70 @@ use std::{
 use bytes::BytesMut;
 
 use crate::{date::DateService, KeepAlive};
+
+/// A builder for creating a [`ServiceConfig`]
+pub struct ServiceConfigBuilder {
+    inner: Inner,
+}
+
+impl ServiceConfigBuilder {
+    /// Creates a new, default, [`ServiceConfigBuilder`]
+    ///
+    /// It uses the following default values:
+    ///
+    /// - [`KeepAlive::default`] for the connection keep-alive setting
+    /// - 5 seconds for the client request timeout
+    /// - 0 seconds for the client shutdown timeout
+    /// - secure value of `false`
+    /// - [`None`] for the local address setting
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Sets the `secure` attribute for this configuration
+    pub fn secure(mut self, secure: bool) -> Self {
+        self.inner.secure = secure;
+        self
+    }
+
+    /// Sets the local address for this configuration
+    pub fn local_addr(mut self, local_addr: Option<SocketAddr>) -> Self {
+        self.inner.local_addr = local_addr;
+        self
+    }
+
+    /// Sets connection keep-alive setting
+    pub fn keep_alive(mut self, keep_alive: KeepAlive) -> Self {
+        self.inner.keep_alive = keep_alive;
+        self
+    }
+
+    /// Sets the timeout for the client to finish sending the head of its first request
+    pub fn client_request_timeout(mut self, timeout: Duration) -> Self {
+        self.inner.client_request_timeout = timeout;
+        self
+    }
+
+    /// Sets the timeout for cleanly disconnecting from the client after connection shutdown has
+    /// started
+    pub fn client_disconnect_timeout(mut self, timeout: Duration) -> Self {
+        self.inner.client_disconnect_timeout = timeout;
+        self
+    }
+
+    /// Builds a [`ServiceConfig`] from this [`ServiceConfigBuilder`] instance
+    pub fn build(self) -> ServiceConfig {
+        ServiceConfig(Rc::new(self.inner))
+    }
+}
+
+impl Default for ServiceConfigBuilder {
+    fn default() -> Self {
+        Self {
+            inner: Inner::default(),
+        }
+    }
+}
 
 /// HTTP service configuration.
 #[derive(Debug, Clone)]
@@ -18,19 +82,26 @@ struct Inner {
     client_request_timeout: Duration,
     client_disconnect_timeout: Duration,
     secure: bool,
-    local_addr: Option<std::net::SocketAddr>,
+    local_addr: Option<SocketAddr>,
     date_service: DateService,
+}
+
+impl Default for Inner {
+    fn default() -> Self {
+        Self {
+            keep_alive: KeepAlive::default(),
+            client_request_timeout: Duration::from_secs(5),
+            client_disconnect_timeout: Duration::ZERO,
+            secure: false,
+            local_addr: None,
+            date_service: DateService::new(),
+        }
+    }
 }
 
 impl Default for ServiceConfig {
     fn default() -> Self {
-        Self::new(
-            KeepAlive::default(),
-            Duration::from_secs(5),
-            Duration::ZERO,
-            false,
-            None,
-        )
+        Self(Rc::default())
     }
 }
 
@@ -41,7 +112,7 @@ impl ServiceConfig {
         client_request_timeout: Duration,
         client_disconnect_timeout: Duration,
         secure: bool,
-        local_addr: Option<net::SocketAddr>,
+        local_addr: Option<SocketAddr>,
     ) -> ServiceConfig {
         ServiceConfig(Rc::new(Inner {
             keep_alive: keep_alive.normalize(),
@@ -63,7 +134,7 @@ impl ServiceConfig {
     ///
     /// Returns `None` for connections via UDS (Unix Domain Socket).
     #[inline]
-    pub fn local_addr(&self) -> Option<net::SocketAddr> {
+    pub fn local_addr(&self) -> Option<SocketAddr> {
         self.0.local_addr
     }
 

@@ -63,7 +63,7 @@ pub use self::payload::PayloadStream;
 pub use self::service::TlsAcceptorConfig;
 pub use self::{
     builder::HttpServiceBuilder,
-    config::ServiceConfig,
+    config::{ServiceConfig, ServiceConfigBuilder},
     error::Error,
     extensions::Extensions,
     header::ContentEncoding,
