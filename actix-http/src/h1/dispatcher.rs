@@ -1181,8 +1181,16 @@ where
                     let inner_p = inner.as_mut().project();
                     let state_is_none = inner_p.state.is_none();
 
-                    // read half is closed; we do not process any responses
-                    if inner_p.flags.contains(Flags::READ_DISCONNECT) {
+                    // If the read-half is closed, we start the shutdown procedure if either is
+                    // true:
+                    //
+                    // - state is [`State::None`], which means that we're done with request
+                    //   processing, so if the client closed its writer-side it means that it won't
+                    //   send more requests.
+                    // - The user requested to not allow half-closures
+                    if inner_p.flags.contains(Flags::READ_DISCONNECT)
+                        && (!inner_p.config.h1_allow_half_closed() || state_is_none)
+                    {
                         trace!("read half closed; start shutdown");
                         inner_p.flags.insert(Flags::SHUTDOWN);
                     }

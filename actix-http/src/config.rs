@@ -23,6 +23,7 @@ impl ServiceConfigBuilder {
     /// - 0 seconds for the client shutdown timeout
     /// - secure value of `false`
     /// - [`None`] for the local address setting
+    /// - Allow for half closed HTTP/1 connections
     pub fn new() -> Self {
         Self::default()
     }
@@ -58,6 +59,16 @@ impl ServiceConfigBuilder {
         self
     }
 
+    /// Sets whether HTTP/1 connections should support half-closures.
+    ///
+    /// Clients can choose to shutdown their writer-side of the connection after completing their
+    /// request and while waiting for the server response. Setting this to `false` will cause the
+    /// server to abort the connection handling as soon as it detects an EOF from the client
+    pub fn h1_allow_half_closed(mut self, allow: bool) -> Self {
+        self.inner.h1_allow_half_closed = allow;
+        self
+    }
+
     /// Builds a [`ServiceConfig`] from this [`ServiceConfigBuilder`] instance
     pub fn build(self) -> ServiceConfig {
         ServiceConfig(Rc::new(self.inner))
@@ -84,6 +95,7 @@ struct Inner {
     secure: bool,
     local_addr: Option<SocketAddr>,
     date_service: DateService,
+    h1_allow_half_closed: bool,
 }
 
 impl Default for Inner {
@@ -95,6 +107,7 @@ impl Default for Inner {
             secure: false,
             local_addr: None,
             date_service: DateService::new(),
+            h1_allow_half_closed: true,
         }
     }
 }
@@ -121,6 +134,7 @@ impl ServiceConfig {
             secure,
             local_addr,
             date_service: DateService::new(),
+            h1_allow_half_closed: true,
         }))
     }
 
@@ -169,6 +183,15 @@ impl ServiceConfig {
     pub fn client_disconnect_deadline(&self) -> Option<Instant> {
         let timeout = self.0.client_disconnect_timeout;
         (timeout != Duration::ZERO).then(|| self.now() + timeout)
+    }
+
+    /// Whether HTTP/1 connections should support half-closures.
+    ///
+    /// Clients can choose to shutdown their writer-side of the connection after completing their
+    /// request and while waiting for the server response. If this configuration is `false`, the
+    /// server will abort the connection handling as soon as it detects an EOF from the client
+    pub fn h1_allow_half_closed(&self) -> bool {
+        self.0.h1_allow_half_closed
     }
 
     pub(crate) fn now(&self) -> Instant {
