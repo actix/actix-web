@@ -52,7 +52,6 @@ allowed_external_types = [
   "serde_json::*",
   "serde_urlencoded::*",
   "serde::*",
-  "serde::*",
   "tokio::*",
   "url::*",
 ]
